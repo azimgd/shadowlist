@@ -5,6 +5,7 @@
 #import "CraigsListContainerProps.h"
 #import "CraigsListContainerHelpers.h"
 
+#import "RCTConversions.h"
 #import "RCTFabricComponentsPlugins.h"
 
 using namespace facebook::react;
@@ -15,6 +16,7 @@ using namespace facebook::react;
 
 @implementation CraigsListContainer {
   UIScrollView* _scrollView;
+  CraigsListContainerShadowNode::ConcreteState::Shared _state;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -39,6 +41,19 @@ using namespace facebook::react;
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
   [super updateProps:props oldProps:oldProps];
+}
+
+- (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
+{
+  assert(std::dynamic_pointer_cast<CraigsListContainerShadowNode::ConcreteState const>(state));
+  _state = std::static_pointer_cast<CraigsListContainerShadowNode::ConcreteState const>(state);
+  auto &data = _state->getData();
+
+  auto scrollContent = RCTCGSizeFromSize(data.scrollContent);
+  auto scrollContainer = RCTCGSizeFromSize(data.scrollContainer);
+
+  self->_scrollView.contentSize = scrollContent;
+  self->_scrollView.frame = CGRect{CGPointMake(0, 0), scrollContainer};
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
