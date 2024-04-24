@@ -1,12 +1,12 @@
 import * as React from 'react';
 
 import { StyleSheet, View } from 'react-native';
-import { CraigsListView } from 'react-native-craigs-list';
+import { CraigsListContainer } from 'react-native-craigs-list';
 
 export default function App() {
   return (
     <View style={styles.container}>
-      <CraigsListView color="#32a852" style={styles.box} />
+      <CraigsListContainer color="#32a852" style={styles.box} />
     </View>
   );
 }

@@ -10,11 +10,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class CraigsListViewPackage implements ReactPackage {
+public class CraigsListContainerPackage implements ReactPackage {
   @Override
   public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
     List<ViewManager> viewManagers = new ArrayList<>();
-    viewManagers.add(new CraigsListViewManager());
+    viewManagers.add(new CraigsListContainerManager());
     return viewManagers;
   }
 

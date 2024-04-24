@@ -5,4 +5,4 @@ interface NativeProps extends ViewProps {
   color?: string;
 }
 
-export default codegenNativeComponent<NativeProps>('CraigsListView');
+export default codegenNativeComponent<NativeProps>('CraigsListContainer');

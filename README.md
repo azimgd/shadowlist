@@ -11,11 +11,11 @@ npm install react-native-craigs-list
 ## Usage
 
 ```js
-import { CraigsListView } from "react-native-craigs-list";
+import { CraigsListContainer } from "react-native-craigs-list";
 
 // ...
 
-<CraigsListView color="tomato" />
+<CraigsListContainer color="tomato" />
 ```
 
 ## Contributing

@@ -158,7 +158,7 @@
     ]
   },
   "codegenConfig": {
-    "name": "RNCraigsListViewSpec",
+    "name": "RNCraigsListContainerSpec",
     "type": "components",
     "jsSrcsDir": "src"
   }

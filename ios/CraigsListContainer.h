@@ -3,15 +3,15 @@
 #import <React/RCTViewComponentView.h>
 #import <UIKit/UIKit.h>
 
-#ifndef CraigsListViewNativeComponent_h
-#define CraigsListViewNativeComponent_h
+#ifndef CraigsListContainerNativeComponent_h
+#define CraigsListContainerNativeComponent_h
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface CraigsListView : RCTViewComponentView
+@interface CraigsListContainer : RCTViewComponentView
 @end
 
 NS_ASSUME_NONNULL_END
 
-#endif /* CraigsListViewNativeComponent_h */
+#endif /* CraigsListContainerNativeComponent_h */
 #endif /* RCT_NEW_ARCH_ENABLED */

@@ -1,2 +1,2 @@
-export { default as CraigsListView } from './CraigsListViewNativeComponent';
-export * from './CraigsListViewNativeComponent';
+export { default as CraigsListContainer } from './CraigsListContainerNativeComponent';
+export * from './CraigsListContainerNativeComponent';
