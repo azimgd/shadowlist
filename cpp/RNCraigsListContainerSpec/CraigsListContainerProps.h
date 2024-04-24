@@ -9,10 +9,6 @@ class CraigsListContainerProps final : public ViewProps {
   public:
   CraigsListContainerProps() = default;
   CraigsListContainerProps(const PropsParserContext& context, const CraigsListContainerProps &sourceProps, const RawProps &rawProps);
-
-#pragma mark - Props
-  std::string color{};
-
 };
 
 }

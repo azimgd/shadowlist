@@ -1,5 +1,4 @@
 #include "CraigsListContainerShadowNode.h"
-#include <iostream>
 
 namespace facebook::react {
 

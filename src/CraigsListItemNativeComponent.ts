@@ -3,4 +3,4 @@ import type { ViewProps } from 'react-native';
 
 interface NativeProps extends ViewProps {}
 
-export default codegenNativeComponent<NativeProps>('CraigsListContainer');
+export default codegenNativeComponent<NativeProps>('CraigsListItem');

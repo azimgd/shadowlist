@@ -2,12 +2,12 @@
 #import <React/RCTUIManager.h>
 #import "RCTBridge.h"
 
-@interface CraigsListContainerManager : RCTViewManager
+@interface CraigsListItemManager : RCTViewManager
 @end
 
-@implementation CraigsListContainerManager
+@implementation CraigsListItemManager
 
-RCT_EXPORT_MODULE(CraigsListContainer)
+RCT_EXPORT_MODULE(CraigsListItem)
 
 - (UIView *)view
 {
