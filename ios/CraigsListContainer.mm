@@ -14,12 +14,12 @@ using namespace facebook::react;
 @end
 
 @implementation CraigsListContainer {
-    UIView * _view;
+  UIScrollView* _scrollView;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
 {
-    return concreteComponentDescriptorProvider<CraigsListContainerComponentDescriptor>();
+  return concreteComponentDescriptorProvider<CraigsListContainerComponentDescriptor>();
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
@@ -27,10 +27,10 @@ using namespace facebook::react;
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const CraigsListContainerProps>();
     _props = defaultProps;
+    _scrollView = [[UIScrollView alloc] init];
+    _scrollView.delegate = self;
 
-    _view = [[UIView alloc] init];
-
-    self.contentView = _view;
+    self.contentView = _scrollView;
   }
 
   return self;
@@ -38,12 +38,16 @@ using namespace facebook::react;
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
-    [super updateProps:props oldProps:oldProps];
+  [super updateProps:props oldProps:oldProps];
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView
+{
 }
 
 Class<RCTComponentViewProtocol> CraigsListContainerCls(void)
 {
-    return CraigsListContainer.class;
+  return CraigsListContainer.class;
 }
 
 @end

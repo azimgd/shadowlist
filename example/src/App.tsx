@@ -1,25 +1,29 @@
 import * as React from 'react';
 
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Text } from 'react-native';
 import { CraigsListContainer } from 'react-native-craigs-list';
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <CraigsListContainer color="#32a852" style={styles.box} />
-    </View>
+    <CraigsListContainer style={styles.container}>
+      {Array.from(Array(100).keys()).map((item) => (
+        <View key={item} style={styles.item}>
+          <Text>item → {item}</Text>
+        </View>
+      ))}
+    </CraigsListContainer>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  box: {
-    width: 60,
-    height: 60,
-    marginVertical: 20,
+  item: {
+    height: 150,
+    paddingHorizontal: 40,
+    justifyContent: 'center',
+    borderBottomColor: '#eeeeee',
+    borderBottomWidth: 1,
   },
 });
