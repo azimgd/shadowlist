@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CraigsListFenwickTree.hpp"
 #include <react/renderer/graphics/Point.h>
 #include <react/renderer/graphics/Size.h>
 
@@ -16,7 +17,8 @@ class CraigsListContainerState {
   CraigsListContainerState(
     Point scrollPosition,
     Size scrollContainer,
-    Size scrollContent);
+    Size scrollContent,
+    CraigsListFenwickTree scrollContentTree);
   CraigsListContainerState() = default;
 
   /**
@@ -27,6 +29,11 @@ class CraigsListContainerState {
   Point scrollPosition;
   Size scrollContainer;
   Size scrollContent;
+  
+  /**
+   * Binary tree, expensive for updates, cheap for reads
+   */
+  CraigsListFenwickTree scrollContentTree;
 
 #ifdef ANDROID
   CraigsListContainerState(CraigsListContainerState const &previousState, folly::dynamic data){};

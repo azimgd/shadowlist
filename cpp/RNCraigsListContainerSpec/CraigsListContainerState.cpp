@@ -2,9 +2,15 @@
 
 namespace facebook::react {
 
-CraigsListContainerState::CraigsListContainerState(Point scrollPosition, Size scrollContainer, Size scrollContent) :
-  scrollPosition(scrollPosition),
-  scrollContainer(scrollContainer),
-  scrollContent(scrollContent) {}
+CraigsListContainerState::CraigsListContainerState(
+  Point scrollPosition,
+  Size scrollContainer,
+  Size scrollContent,
+  CraigsListFenwickTree scrollContentTree) :
+
+    scrollPosition(scrollPosition),
+    scrollContainer(scrollContainer),
+    scrollContent(scrollContent),
+    scrollContentTree(scrollContentTree) {}
 
 }

@@ -1,4 +1,5 @@
 #include "CraigsListContainerShadowNode.h"
+#include <iostream>
 
 namespace facebook::react {
 
@@ -24,6 +25,11 @@ void CraigsListContainerShadowNode::layout(LayoutContext layoutContext) {
     state.scrollContent = scrollContent_.size;
     setStateData(std::move(state));
   }
+    
+  if (scrollContentTree_.sum(0, scrollContentTree_.size()) != state.scrollContentTree.sum(0, scrollContentTree_.size())) {
+    state.scrollContentTree = scrollContentTree_;
+    setStateData(std::move(state));
+  }
 }
 
 /**
@@ -43,6 +49,61 @@ void CraigsListContainerShadowNode::calculateContainerMeasurements(LayoutContext
   scrollContent_ = scrollContent;
   scrollContainer_ = getLayoutMetrics().frame;
   scrollContentTree_ = scrollContentTree;
+}
+
+/**
+ * Measure layout metrics
+ */
+CraigsListContainerMetrics CraigsListContainerShadowNode::calculateLayoutMetrics() {
+  auto state = getStateData();
+  auto visibleStartPixels = std::max(0.0, state.scrollPosition.y);
+  auto visibleEndPixels = std::min(state.scrollContent.height, state.scrollPosition.y + state.scrollContainer.height);
+
+  int visibleStartIndex = state.scrollContentTree.lower_bound(visibleStartPixels);
+  int visibleEndIndex = state.scrollContentTree.lower_bound(visibleEndPixels);
+
+  int blankTopStartIndex = 0;
+  int blankTopEndIndex = std::max(0, visibleStartIndex - 1);
+
+  auto blankTopStartPixels = 0.0;
+  auto blankTopEndPixels = state.scrollContentTree.sum(blankTopStartIndex, blankTopEndIndex);
+
+  int blankBottomStartIndex = std::min(size_t(visibleEndIndex + 1), state.scrollContentTree.size());
+  int blankBottomEndIndex = state.scrollContentTree.size();
+
+  auto blankBottomStartPixels = state.scrollContentTree.sum(blankBottomStartIndex, state.scrollContentTree.size());
+  auto blankBottomEndPixels = state.scrollContentTree.sum(0, state.scrollContentTree.size());
+
+  return CraigsListContainerMetrics{
+    visibleStartIndex,
+    visibleEndIndex,
+    visibleStartPixels,
+    visibleEndPixels,
+    blankTopStartIndex,
+    blankTopEndIndex,
+    blankTopStartPixels,
+    blankTopEndPixels,
+    blankBottomStartIndex,
+    blankBottomEndIndex,
+    blankBottomStartPixels,
+    blankBottomEndPixels,
+  };
+}
+
+/**
+ * Debug string for layout metrics
+ */
+std::string CraigsListContainerShadowNode::calculateLayoutMetrics(CraigsListContainerMetrics metrics) {
+  std::ostringstream oss;
+  oss << "visibleStartIndex: " << metrics.visibleStartIndex << std::endl
+      << "visibleEndIndex: " << metrics.visibleEndIndex << std::endl
+      << "blankTopStartIndex: " << metrics.blankTopStartIndex << std::endl
+      << "blankTopEndIndex: " << metrics.blankTopEndIndex << std::endl
+      << "blankBottomStartIndex: " << metrics.blankBottomStartIndex << std::endl
+      << "blankBottomEndIndex: " << metrics.blankBottomEndIndex << std::endl
+      << "---------------" << std::endl << std::endl;
+
+    return oss.str();
 }
 
 YogaLayoutableShadowNode& CraigsListContainerShadowNode::shadowNodeFromContext(YGNodeConstRef yogaNode) {
