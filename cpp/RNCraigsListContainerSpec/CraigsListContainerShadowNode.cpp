@@ -1,45 +1,48 @@
 #include "CraigsListContainerShadowNode.h"
-#include <iostream>
 
 namespace facebook::react {
 
 extern const char CraigsListContainerComponentName[] = "CraigsListContainer";
 
 /**
-  * Native layout function
-  */
+ * Native layout function
+ */
 void CraigsListContainerShadowNode::layout(LayoutContext layoutContext) {
   ensureUnsealed();
   ConcreteShadowNode::layout(layoutContext);
 
-  auto scrollContainer = getLayoutMetrics();
-  auto scrollContent = calculateContainerMeasurements(layoutContext);
+  calculateContainerMeasurements(layoutContext);
+
   auto state = getStateData();
 
-  if (scrollContainer.frame.size != state.scrollContainer) {
-    state.scrollContainer = scrollContainer.frame.size;
+  if (scrollContainer_.size != state.scrollContainer) {
+    state.scrollContainer = scrollContainer_.size;
     setStateData(std::move(state));
   }
   
-  if (scrollContent.size != state.scrollContent) {
-    state.scrollContent = scrollContent.size;
+  if (scrollContent_.size != state.scrollContent) {
+    state.scrollContent = scrollContent_.size;
     setStateData(std::move(state));
   }
 }
 
 /**
-  * Measure visible container, and all childs aka list
-  */
-Rect CraigsListContainerShadowNode::calculateContainerMeasurements(LayoutContext layoutContext) {
-  auto contentBoundingRect = Rect{};
+ * Measure visible container, and all childs aka list
+ */
+void CraigsListContainerShadowNode::calculateContainerMeasurements(LayoutContext layoutContext) {
+  auto scrollContent = Rect{};
+  auto scrollContentTree = CraigsListFenwickTree(yogaNode_.getChildCount());
 
   for (std::size_t index = 0; index < yogaNode_.getChildCount(); ++index) {
     auto childYogaNode = yogaNode_.getChild(index);
-    auto& childNode = shadowNodeFromContext(childYogaNode);
-    contentBoundingRect.unionInPlace(childNode.getLayoutMetrics().frame);
+    auto childNodeMetrics = shadowNodeFromContext(childYogaNode).getLayoutMetrics();
+    scrollContent.unionInPlace(childNodeMetrics.frame);
+    scrollContentTree[index] = childNodeMetrics.frame.size.height;
   }
 
-  return contentBoundingRect;
+  scrollContent_ = scrollContent;
+  scrollContainer_ = getLayoutMetrics().frame;
+  scrollContentTree_ = scrollContentTree;
 }
 
 YogaLayoutableShadowNode& CraigsListContainerShadowNode::shadowNodeFromContext(YGNodeConstRef yogaNode) {

@@ -31,6 +31,7 @@ namespace facebook::react {
 
 template <class T, class Alloc = std::allocator<T>>
 class fenwick {
+
  private:
   class lvalue_type;
   template<typename Reference> class iterator_type;
@@ -393,6 +394,8 @@ fenwick<T, Alloc>::lower_bound(value_type target) const {
   }
   return l;
 }
+
+using CraigsListFenwickTree = fenwick<float>;
 
 }
 

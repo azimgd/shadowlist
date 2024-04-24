@@ -3,6 +3,7 @@
 #include "CraigsListContainerEventEmitter.h"
 #include "CraigsListContainerProps.h"
 #include "CraigsListContainerState.h"
+#include "CraigsListFenwickTree.hpp"
 #include <react/renderer/components/view/conversions.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutConstraints.h>
@@ -28,10 +29,16 @@ class CraigsListContainerShadowNode final : public ConcreteViewShadowNode<
 #pragma mark - LayoutableShadowNode
   void layout(LayoutContext layoutContext) override;
 
+  private:
+
   /**
    * Measurements
    */
-  Rect calculateContainerMeasurements(LayoutContext layoutContext);
+  Rect scrollContainer_;
+  Rect scrollContent_;
+  CraigsListFenwickTree scrollContentTree_;
+
+  void calculateContainerMeasurements(LayoutContext layoutContext);
 
   /**
    * Caster
