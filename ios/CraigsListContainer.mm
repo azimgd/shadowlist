@@ -58,7 +58,25 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+  auto data = _state->getData();
+  auto scrollPosition = RCTPointFromCGPoint(_scrollView.contentOffset);
+
+  if (!CGPointEqualToPoint(_scrollView.contentOffset, RCTCGPointFromPoint(data.scrollPosition))) {
+    data.scrollPosition = scrollPosition;
+    _state->updateState(std::move(data));
+  }
 }
+
+- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+{
+  [self.contentView mountChildComponentView:childComponentView index:index];
+}
+
+- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+{
+  [self.contentView unmountChildComponentView:childComponentView index:index];
+}
+
 
 Class<RCTComponentViewProtocol> CraigsListContainerCls(void)
 {
