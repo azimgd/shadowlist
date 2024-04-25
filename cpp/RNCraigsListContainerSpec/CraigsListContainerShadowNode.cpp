@@ -1,4 +1,5 @@
 #include "CraigsListContainerShadowNode.h"
+#include <iostream>
 
 namespace facebook::react {
 
@@ -22,10 +23,6 @@ void CraigsListContainerShadowNode::layout(LayoutContext layoutContext) {
   
   if (scrollContent_.size != state.scrollContent) {
     state.scrollContent = scrollContent_.size;
-    setStateData(std::move(state));
-  }
-    
-  if (scrollContentTree_.sum(0, scrollContentTree_.size()) != state.scrollContentTree.sum(0, scrollContentTree_.size())) {
     state.scrollContentTree = scrollContentTree_;
     setStateData(std::move(state));
   }
