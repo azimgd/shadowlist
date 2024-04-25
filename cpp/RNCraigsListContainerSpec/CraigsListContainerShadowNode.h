@@ -12,26 +12,6 @@
 
 namespace facebook::react {
 
-struct CraigsListContainerMetrics {
-  int visibleStartIndex;
-  int visibleEndIndex;
-  
-  double visibleStartPixels;
-  double visibleEndPixels;
-  
-  int blankTopStartIndex;
-  int blankTopEndIndex;
-  
-  double blankTopStartPixels;
-  double blankTopEndPixels;
-  
-  int blankBottomStartIndex;
-  int blankBottomEndIndex;
-  
-  double blankBottomStartPixels;
-  double blankBottomEndPixels;
-};
-
 JSI_EXPORT extern const char CraigsListContainerComponentName[];
 
 /*
@@ -49,8 +29,6 @@ class CraigsListContainerShadowNode final : public ConcreteViewShadowNode<
   void layout(LayoutContext layoutContext) override;
 
   void calculateContainerMeasurements(LayoutContext layoutContext);
-  CraigsListContainerMetrics calculateLayoutMetrics();
-  std::string calculateLayoutMetrics(CraigsListContainerMetrics metrics);
 
   private:
 

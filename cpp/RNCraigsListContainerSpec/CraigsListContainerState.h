@@ -12,6 +12,26 @@
 
 namespace facebook::react {
 
+struct CraigsListContainerMetrics {
+  int visibleStartIndex;
+  int visibleEndIndex;
+  
+  double visibleStartPixels;
+  double visibleEndPixels;
+  
+  int blankTopStartIndex;
+  int blankTopEndIndex;
+  
+  double blankTopStartPixels;
+  double blankTopEndPixels;
+  
+  int blankBottomStartIndex;
+  int blankBottomEndIndex;
+  
+  double blankBottomStartPixels;
+  double blankBottomEndPixels;
+};
+
 class CraigsListContainerState {
   public:
   CraigsListContainerState(
@@ -34,6 +54,11 @@ class CraigsListContainerState {
    * Binary tree, expensive for updates, cheap for reads
    */
   CraigsListFenwickTree scrollContentTree;
+  
+  /**
+   * Measure layout and children metrics
+   */
+  CraigsListContainerMetrics calculateLayoutMetrics() const;
 
 #ifdef ANDROID
   CraigsListContainerState(CraigsListContainerState const &previousState, folly::dynamic data){};

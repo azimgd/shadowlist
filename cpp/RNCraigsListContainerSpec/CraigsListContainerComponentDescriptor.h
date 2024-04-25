@@ -14,7 +14,8 @@ class CraigsListContainerComponentDescriptor : public ConcreteComponentDescripto
 
   void adopt(ShadowNode& shadowNode) const override {
     auto& layoutableShadowNode = static_cast<CraigsListContainerShadowNode&>(shadowNode);
-    auto layoutMetrics = layoutableShadowNode.calculateLayoutMetrics();
+    auto& stateData = static_cast<const CraigsListContainerShadowNode::ConcreteState&>(*shadowNode.getState()).getData();
+    auto layoutMetrics = stateData.calculateLayoutMetrics();
     auto layoutableShadowNodeChildren = layoutableShadowNode.getLayoutableChildNodes();
 
     for (std::size_t index = 0; index < layoutableShadowNodeChildren.size(); ++index) {
