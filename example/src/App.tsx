@@ -7,7 +7,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <CraigsListContainer style={styles.container}>
-        {Array.from(Array(100).keys()).map((item) => (
+        {Array.from(Array(1000).keys()).map((item) => (
           <CraigsListItem key={item} style={styles.item}>
             <Text style={styles.text}>item → {item}</Text>
           </CraigsListItem>

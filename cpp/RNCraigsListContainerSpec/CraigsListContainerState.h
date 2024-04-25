@@ -58,7 +58,7 @@ class CraigsListContainerState {
   /**
    * Measure layout and children metrics
    */
-  CraigsListContainerMetrics calculateLayoutMetrics() const;
+  CraigsListContainerMetrics calculateLayoutMetrics(Point scrollPosition) const;
 
 #ifdef ANDROID
   CraigsListContainerState(CraigsListContainerState const &previousState, folly::dynamic data){};

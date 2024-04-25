@@ -18,6 +18,7 @@ using namespace facebook::react;
   UIScrollView* _scrollContainer;
   UIView* _scrollContent;
   CraigsListContainerShadowNode::ConcreteState::Shared _state;
+  NSMutableArray<UIView<RCTComponentViewProtocol> *> *_childComponentViewPool;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -29,6 +30,9 @@ using namespace facebook::react;
 {
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const CraigsListContainerProps>();
+    
+    _childComponentViewPool = [NSMutableArray array];
+    
     _props = defaultProps;
     _scrollContent = [UIView new];
     _scrollContainer = [UIScrollView new];
@@ -63,26 +67,28 @@ using namespace facebook::react;
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
   auto data = _state->getData();
-  auto scrollPosition = RCTPointFromCGPoint(_scrollContainer.contentOffset);
+  auto scrollPosition = RCTPointFromCGPoint(scrollView.contentOffset);
+  auto layoutMetrics = data.calculateLayoutMetrics(scrollPosition);
 
-  if (_scrollContainer.contentOffset.y > 0 && _scrollContainer.contentOffset.y < _scrollContainer.contentSize.height - _scrollContainer.frame.size.height) {
-    if (!CGPointEqualToPoint(_scrollContainer.contentOffset, RCTCGPointFromPoint(data.scrollPosition))) {
-      data.scrollPosition = scrollPosition;
-      _state->updateState(std::move(data));
-    }
+  for (UIView *childComponentView in self->_scrollContent.subviews) {
+    [childComponentView removeFromSuperview];
+  }
+
+  for (NSUInteger index = layoutMetrics.visibleStartIndex; index < layoutMetrics.visibleEndIndex; index++) {
+    UIView<RCTComponentViewProtocol> *childComponentView = self->_childComponentViewPool[index];
+    [self->_scrollContent insertSubview:childComponentView atIndex:index];
   }
 }
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self->_scrollContent insertSubview:childComponentView atIndex:index];
+  [self->_childComponentViewPool insertObject:childComponentView atIndex:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [childComponentView removeFromSuperview];
+  [self->_childComponentViewPool removeObjectAtIndex:index];
 }
-
 
 Class<RCTComponentViewProtocol> CraigsListContainerCls(void)
 {

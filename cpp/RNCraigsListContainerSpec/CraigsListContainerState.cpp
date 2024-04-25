@@ -16,7 +16,7 @@ CraigsListContainerState::CraigsListContainerState(
 /**
  * Measure layout and children metrics
  */
-CraigsListContainerMetrics CraigsListContainerState::calculateLayoutMetrics() const {
+CraigsListContainerMetrics CraigsListContainerState::calculateLayoutMetrics(Point scrollPosition) const {
   auto visibleStartPixels = std::max(0.0, scrollPosition.y);
   auto visibleEndPixels = std::min(scrollContent.height, scrollPosition.y + scrollContainer.height);
 
