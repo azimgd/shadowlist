@@ -24,9 +24,6 @@ class CraigsListItemShadowNode final : public ConcreteViewShadowNode<
 
   public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
-  
-  void layout(LayoutContext layoutContext) override;
-  void adjustLayout(bool visible);
 };
 
 }
