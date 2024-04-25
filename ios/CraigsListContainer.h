@@ -8,6 +8,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @interface CraigsListContainer : RCTViewComponentView<UIScrollViewDelegate>
+
 @end
 
 NS_ASSUME_NONNULL_END

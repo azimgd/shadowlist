@@ -31,6 +31,7 @@ using namespace facebook::react;
     _props = defaultProps;
     _scrollView = [[UIScrollView alloc] init];
     _scrollView.delegate = self;
+    _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
 
     self.contentView = _scrollView;
   }
