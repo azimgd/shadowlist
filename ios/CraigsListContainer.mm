@@ -62,9 +62,11 @@ using namespace facebook::react;
   auto data = _state->getData();
   auto scrollPosition = RCTPointFromCGPoint(_scrollView.contentOffset);
 
-  if (!CGPointEqualToPoint(_scrollView.contentOffset, RCTCGPointFromPoint(data.scrollPosition))) {
-    data.scrollPosition = scrollPosition;
-    _state->updateState(std::move(data));
+  if (_scrollView.contentOffset.y > 0 && _scrollView.contentOffset.y < _scrollView.contentSize.height - _scrollView.frame.size.height) {
+    if (!CGPointEqualToPoint(_scrollView.contentOffset, RCTCGPointFromPoint(data.scrollPosition))) {
+      data.scrollPosition = scrollPosition;
+      _state->updateState(std::move(data));
+    }
   }
 }
 
