@@ -15,7 +15,8 @@ using namespace facebook::react;
 @end
 
 @implementation CraigsListContainer {
-  UIScrollView* _scrollView;
+  UIScrollView* _scrollContainer;
+  UIView* _scrollContent;
   CraigsListContainerShadowNode::ConcreteState::Shared _state;
 }
 
@@ -29,11 +30,13 @@ using namespace facebook::react;
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const CraigsListContainerProps>();
     _props = defaultProps;
-    _scrollView = [[UIScrollView alloc] init];
-    _scrollView.delegate = self;
-    _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    _scrollContent = [UIView new];
+    _scrollContainer = [UIScrollView new];
+    _scrollContainer.delegate = self;
+    _scrollContainer.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
 
-    self.contentView = _scrollView;
+    [_scrollContainer addSubview:_scrollContent];
+    self.contentView = _scrollContainer;
   }
 
   return self;
@@ -53,17 +56,17 @@ using namespace facebook::react;
   auto scrollContent = RCTCGSizeFromSize(data.scrollContent);
   auto scrollContainer = RCTCGSizeFromSize(data.scrollContainer);
 
-  self->_scrollView.contentSize = scrollContent;
-  self->_scrollView.frame = CGRect{CGPointMake(0, 0), scrollContainer};
+  self->_scrollContainer.contentSize = scrollContent;
+  self->_scrollContainer.frame = CGRect{CGPointMake(0, 0), scrollContainer};
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
   auto data = _state->getData();
-  auto scrollPosition = RCTPointFromCGPoint(_scrollView.contentOffset);
+  auto scrollPosition = RCTPointFromCGPoint(_scrollContainer.contentOffset);
 
-  if (_scrollView.contentOffset.y > 0 && _scrollView.contentOffset.y < _scrollView.contentSize.height - _scrollView.frame.size.height) {
-    if (!CGPointEqualToPoint(_scrollView.contentOffset, RCTCGPointFromPoint(data.scrollPosition))) {
+  if (_scrollContainer.contentOffset.y > 0 && _scrollContainer.contentOffset.y < _scrollContainer.contentSize.height - _scrollContainer.frame.size.height) {
+    if (!CGPointEqualToPoint(_scrollContainer.contentOffset, RCTCGPointFromPoint(data.scrollPosition))) {
       data.scrollPosition = scrollPosition;
       _state->updateState(std::move(data));
     }
@@ -72,12 +75,12 @@ using namespace facebook::react;
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self.contentView mountChildComponentView:childComponentView index:index];
+  [self->_scrollContent insertSubview:childComponentView atIndex:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self.contentView unmountChildComponentView:childComponentView index:index];
+  [childComponentView removeFromSuperview];
 }
 
 
