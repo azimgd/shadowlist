@@ -1,5 +1,4 @@
 #pragma once
-#include <iostream>
 
 #include "CraigsListContainerShadowNode.h"
 #include "CraigsListItemShadowNode.h"

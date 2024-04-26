@@ -4,9 +4,22 @@ import { SafeAreaView, StyleSheet, Text } from 'react-native';
 import { CraigsListContainer, CraigsListItem } from 'react-native-craigs-list';
 
 export default function App() {
+  const craigsListContainerRef = React.useRef<{
+    scrollToIndex: (index: number) => void;
+  }>(null);
+
+  React.useEffect(() => {
+    setTimeout(() => {
+      craigsListContainerRef.current?.scrollToIndex(800);
+    }, 5000);
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
-      <CraigsListContainer style={styles.container}>
+      <CraigsListContainer
+        style={styles.container}
+        ref={craigsListContainerRef}
+      >
         {Array.from(Array(1000).keys()).map((item) => (
           <CraigsListItem key={item} style={styles.item}>
             <Text style={styles.text}>item → {item}</Text>

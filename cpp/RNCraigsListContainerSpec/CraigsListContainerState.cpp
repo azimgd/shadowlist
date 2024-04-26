@@ -55,4 +55,8 @@ CraigsListContainerMetrics CraigsListContainerState::calculateLayoutMetrics(Poin
   };
 }
 
+float CraigsListContainerState::calculateItemOffset(int index) const {
+  return scrollContentTree.sum(0, index);
+}
+
 }

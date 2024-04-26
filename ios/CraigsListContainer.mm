@@ -102,6 +102,21 @@ using namespace facebook::react;
   [self->_childComponentViewPool removeObjectAtIndex:index];
 }
 
+- (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
+{
+  RCTCraigsListContainerHandleCommand(self, commandName, args);
+}
+
+- (void)scrollToIndex:(int)index
+{
+  auto &data = _state->getData();
+  auto nextOffset = CGPointMake(0, data.calculateItemOffset(index));
+  
+  [self->_scrollContainer setContentOffset:nextOffset animated:true];
+  auto layoutMetrics = data.calculateLayoutMetrics(RCTPointFromCGPoint(nextOffset));
+  [self updateChildrenIfNeeded:layoutMetrics.visibleStartIndex visibleEndIndex:layoutMetrics.visibleEndIndex];
+}
+
 Class<RCTComponentViewProtocol> CraigsListContainerCls(void)
 {
   return CraigsListContainer.class;
