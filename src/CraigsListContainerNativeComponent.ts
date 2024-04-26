@@ -2,9 +2,19 @@ import React from 'react';
 import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
 import codegenNativeCommands from 'react-native/Libraries/Utilities/codegenNativeCommands';
 import type { ViewProps } from 'react-native';
-import type { Int32 } from 'react-native/Libraries/Types/CodegenTypes';
+import type {
+  Int32,
+  DirectEventHandler,
+} from 'react-native/Libraries/Types/CodegenTypes';
 
-export interface NativeProps extends ViewProps {}
+export interface NativeProps extends ViewProps {
+  onVisibleChange?: DirectEventHandler<
+    Readonly<{
+      start: Int32;
+      end: Int32;
+    }>
+  >;
+}
 
 export interface NativeCommands {
   scrollToIndex: (

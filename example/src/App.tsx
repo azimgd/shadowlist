@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-import { SafeAreaView, StyleSheet, Text, FlatList } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Text, FlatList } from 'react-native';
 import { CraigsListContainer, CraigsListItem } from 'react-native-craigs-list';
 import data from './data.json';
 
@@ -16,13 +16,13 @@ const CustomComponent = ({ item, index }: { item: any; index: number }) => {
   }, []);
 
   return (
-    <CraigsListItem key={index} style={styles.item}>
+    <View style={styles.item}>
       <Text style={styles.username}>
         {index} - {item.username}
       </Text>
       <Text style={styles.text}>{item.text}</Text>
       <Text style={styles.text}>{customState}</Text>
-    </CraigsListItem>
+    </View>
   );
 };
 
@@ -50,9 +50,15 @@ export const CraigsListExample = () => {
   }>(null);
 
   return (
-    <CraigsListContainer style={styles.container} ref={craigsListContainerRef}>
+    <CraigsListContainer
+      style={styles.container}
+      ref={craigsListContainerRef}
+      onVisibleChange={(event) => console.log(event.nativeEvent)}
+    >
       {chats.map((item, index) => (
-        <CustomComponent item={item} index={index} />
+        <CraigsListItem key={index}>
+          <CustomComponent item={item} index={index} />
+        </CraigsListItem>
       ))}
     </CraigsListContainer>
   );

@@ -6,8 +6,14 @@ namespace facebook::react {
 
 class CraigsListContainerEventEmitter : public ViewEventEmitter {
   public:
-  using ViewEventEmitter::ViewEventEmitter;
-  
+    using ViewEventEmitter::ViewEventEmitter;
+
+  struct VisibleMetrics {
+    int start;
+    int end;
+  };
+
+  void onVisibleChange(VisibleMetrics value) const;
 };
 
 }

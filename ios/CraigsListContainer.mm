@@ -90,6 +90,8 @@ using namespace facebook::react;
     UIView<RCTComponentViewProtocol> *childComponentView = self->_childComponentViewPool[index];
     [self->_scrollContent insertSubview:childComponentView atIndex:index];
   }
+  
+  static_cast<const CraigsListContainerEventEmitter&>(*_eventEmitter).onVisibleChange({visibleStartIndex, visibleEndIndex});
 }
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
