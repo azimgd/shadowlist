@@ -54,7 +54,7 @@ using namespace facebook::react;
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
   assert(std::dynamic_pointer_cast<CraigsListContainerShadowNode::ConcreteState const>(state));
-  _state = std::static_pointer_cast<CraigsListContainerShadowNode::ConcreteState const>(state);
+  self->_state = std::static_pointer_cast<CraigsListContainerShadowNode::ConcreteState const>(state);
   auto &data = _state->getData();
 
   auto scrollContent = RCTCGSizeFromSize(data.scrollContent);
@@ -62,19 +62,31 @@ using namespace facebook::react;
 
   self->_scrollContainer.contentSize = scrollContent;
   self->_scrollContainer.frame = CGRect{CGPointMake(0, 0), scrollContainer};
+  
+  /**
+   * Fill out empty content, make sure there are no state updates while this is filled out.
+   */
+  if (self->_childComponentViewPool.count && !self->_scrollContent.subviews.count) {
+    auto layoutMetrics = data.calculateLayoutMetrics(RCTPointFromCGPoint(CGPointMake(0, 0)));
+    [self updateChildrenIfNeeded:layoutMetrics.visibleStartIndex visibleEndIndex:layoutMetrics.visibleEndIndex];
+  }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  auto data = _state->getData();
-  auto scrollPosition = RCTPointFromCGPoint(scrollView.contentOffset);
-  auto layoutMetrics = data.calculateLayoutMetrics(scrollPosition);
+  auto &data = _state->getData();
+  auto layoutMetrics = data.calculateLayoutMetrics(RCTPointFromCGPoint(scrollView.contentOffset));
 
+  [self updateChildrenIfNeeded:layoutMetrics.visibleStartIndex visibleEndIndex:layoutMetrics.visibleEndIndex];
+}
+
+- (void)updateChildrenIfNeeded:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
+{
   for (UIView *childComponentView in self->_scrollContent.subviews) {
     [childComponentView removeFromSuperview];
   }
 
-  for (NSUInteger index = layoutMetrics.visibleStartIndex; index < layoutMetrics.visibleEndIndex; index++) {
+  for (NSUInteger index = visibleStartIndex; index < visibleEndIndex; index++) {
     UIView<RCTComponentViewProtocol> *childComponentView = self->_childComponentViewPool[index];
     [self->_scrollContent insertSubview:childComponentView atIndex:index];
   }
