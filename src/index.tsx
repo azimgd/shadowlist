@@ -11,7 +11,10 @@ export type CraigsListContainerInstance = InstanceType<
 >;
 
 const CraigsListContainerWrapper = (
-  props: NativeProps,
+  props: NativeProps & {
+    data: any[];
+    renderItem: (payload: { item: any; index: number }) => React.ReactElement;
+  },
   forwardedRef: React.Ref<Partial<NativeCommands>>
 ) => {
   const instanceRef = React.useRef<CraigsListContainerInstance>(null);
@@ -22,8 +25,15 @@ const CraigsListContainerWrapper = (
     },
   }));
 
-  return <CraigsListContainerNativeComponent {...props} ref={instanceRef} />;
+  return (
+    <CraigsListContainerNativeComponent {...props} ref={instanceRef}>
+      {props.data.map((item, index) => (
+        <CraigsListItemNativeComponent key={index}>
+          {props.renderItem({ item, index })}
+        </CraigsListItemNativeComponent>
+      ))}
+    </CraigsListContainerNativeComponent>
+  );
 };
 
-export const CraigsListContainer = React.forwardRef(CraigsListContainerWrapper);
-export const CraigsListItem = CraigsListItemNativeComponent;
+export default React.forwardRef(CraigsListContainerWrapper);
