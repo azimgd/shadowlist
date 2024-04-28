@@ -1,23 +1,23 @@
 import React from 'react';
-import CraigsListContainerNativeComponent, {
+import ShadowListContainerNativeComponent, {
   Commands,
   type NativeProps,
   type NativeCommands,
-} from './CraigsListContainerNativeComponent';
-import CraigsListItemNativeComponent from './CraigsListItemNativeComponent';
+} from './ShadowListContainerNativeComponent';
+import ShadowListItemNativeComponent from './ShadowListItemNativeComponent';
 
-export type CraigsListContainerInstance = InstanceType<
-  typeof CraigsListContainerNativeComponent
+export type ShadowListContainerInstance = InstanceType<
+  typeof ShadowListContainerNativeComponent
 >;
 
-const CraigsListContainerWrapper = (
+const ShadowListContainerWrapper = (
   props: NativeProps & {
     data: any[];
     renderItem: (payload: { item: any; index: number }) => React.ReactElement;
   },
   forwardedRef: React.Ref<Partial<NativeCommands>>
 ) => {
-  const instanceRef = React.useRef<CraigsListContainerInstance>(null);
+  const instanceRef = React.useRef<ShadowListContainerInstance>(null);
 
   React.useImperativeHandle(forwardedRef, () => ({
     scrollToIndex: (index: number) => {
@@ -26,14 +26,14 @@ const CraigsListContainerWrapper = (
   }));
 
   return (
-    <CraigsListContainerNativeComponent {...props} ref={instanceRef}>
+    <ShadowListContainerNativeComponent {...props} ref={instanceRef}>
       {props.data.map((item, index) => (
-        <CraigsListItemNativeComponent key={index}>
+        <ShadowListItemNativeComponent key={index}>
           {props.renderItem({ item, index })}
-        </CraigsListItemNativeComponent>
+        </ShadowListItemNativeComponent>
       ))}
-    </CraigsListContainerNativeComponent>
+    </ShadowListContainerNativeComponent>
   );
 };
 
-export default React.forwardRef(CraigsListContainerWrapper);
+export default React.forwardRef(ShadowListContainerWrapper);

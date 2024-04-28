@@ -1,21 +1,21 @@
-# react-native-craigs-list
+# react-native-shadow-list
 
 fast list component for react native
 
 ## Installation
 
 ```sh
-npm install react-native-craigs-list
+npm install react-native-shadow-list
 ```
 
 ## Usage
 
 ```js
-import { CraigsListContainer } from "react-native-craigs-list";
+import { ShadowListContainer } from "react-native-shadow-list";
 
 // ...
 
-<CraigsListContainer color="tomato" />
+<ShadowListContainer color="tomato" />
 ```
 
 ## Contributing

@@ -1,5 +1,5 @@
 {
-  "name": "react-native-craigs-list",
+  "name": "react-native-shadow-list",
   "version": "0.1.0",
   "description": "fast list component for react native",
   "main": "lib/commonjs/index",
@@ -26,7 +26,7 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace react-native-craigs-list-example",
+    "example": "yarn workspace react-native-shadow-list-example",
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
@@ -41,14 +41,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/azimgd/react-native-craigs-list.git"
+    "url": "git+https://github.com/azimgd/react-native-shadow-list.git"
   },
   "author": "azim <me@azimgd.com> (https://github.com/azimgd)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/azimgd/react-native-craigs-list/issues"
+    "url": "https://github.com/azimgd/react-native-shadow-list/issues"
   },
-  "homepage": "https://github.com/azimgd/react-native-craigs-list#readme",
+  "homepage": "https://github.com/azimgd/react-native-shadow-list#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
@@ -158,7 +158,7 @@
     ]
   },
   "codegenConfig": {
-    "name": "RNCraigsListContainerSpec",
+    "name": "RNShadowListContainerSpec",
     "type": "components",
     "jsSrcsDir": "src"
   }

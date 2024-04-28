@@ -1,27 +1,18 @@
 import * as React from 'react';
 
 import { SafeAreaView, StyleSheet, View, Text, FlatList } from 'react-native';
-import CraigsListContainer from 'react-native-craigs-list';
+import ShadowListContainer from 'react-native-shadow-list';
 import data from './data.json';
 
 const chats = Array(100).fill(data).flat();
 
 const CustomComponent = ({ item, index }: { item: any; index: number }) => {
-  const [customState, setCustomState] = React.useState(0);
-
-  React.useEffect(() => {
-    setInterval(() => {
-      setCustomState(() => Math.random());
-    }, 1000);
-  }, []);
-
   return (
     <View style={styles.item}>
       <Text style={styles.username}>
         {index} - {item.username}
       </Text>
       <Text style={styles.text}>{item.text}</Text>
-      <Text style={styles.text}>{customState}</Text>
     </View>
   );
 };
@@ -42,17 +33,17 @@ export const FlatListExample = () => {
 };
 
 /**
- * CraigsList
+ * ShadowList
  */
-export const CraigsListExample = () => {
-  const craigsListContainerRef = React.useRef<{
+export const ShadowListExample = () => {
+  const shadowListContainerRef = React.useRef<{
     scrollToIndex: (index: number) => void;
   }>(null);
 
   return (
-    <CraigsListContainer
+    <ShadowListContainer
       style={styles.container}
-      ref={craigsListContainerRef}
+      ref={shadowListContainerRef}
       onVisibleChange={(event: any) => console.log(event.nativeEvent)}
       data={chats}
       renderItem={({ item, index }) => (
@@ -65,7 +56,7 @@ export const CraigsListExample = () => {
 export default function App() {
   return (
     <SafeAreaView style={styles.container}>
-      <CraigsListExample />
+      <ShadowListExample />
     </SafeAreaView>
   );
 }

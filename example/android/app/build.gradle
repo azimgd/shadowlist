@@ -74,9 +74,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.craigslistexample"
+    namespace "com.shadowlistexample"
     defaultConfig {
-        applicationId "com.craigslistexample"
+        applicationId "com.shadowlistexample"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
