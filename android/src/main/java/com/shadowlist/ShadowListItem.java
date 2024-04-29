@@ -7,17 +7,17 @@ import android.util.AttributeSet;
 
 import android.view.ViewGroup;
 
-public class ShadowListContainer extends ViewGroup {
+public class ShadowListItem extends ViewGroup {
 
-  public ShadowListContainer(Context context) {
+  public ShadowListItem(Context context) {
     super(context);
   }
 
-  public ShadowListContainer(Context context, @Nullable AttributeSet attrs) {
+  public ShadowListItem(Context context, @Nullable AttributeSet attrs) {
     super(context, attrs);
   }
 
-  public ShadowListContainer(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+  public ShadowListItem(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
     super(context, attrs, defStyleAttr);
   }
 

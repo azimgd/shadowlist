@@ -10,11 +10,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ShadowListContainerPackage implements ReactPackage {
+public class ShadowListPackage implements ReactPackage {
   @Override
   public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
     List<ViewManager> viewManagers = new ArrayList<>();
     viewManagers.add(new ShadowListContainerManager());
+    viewManagers.add(new ShadowListItemManager());
     return viewManagers;
   }
 
