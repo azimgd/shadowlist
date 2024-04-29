@@ -54,6 +54,7 @@ using namespace facebook::react;
   const auto &newConcreteProps = static_cast<const ShadowListContainerProps &>(*props);
 
   if (newConcreteProps.inverted != oldConcreteProps.inverted) {
+    self->_scrollInverted = newConcreteProps.inverted;
   }
 
   [super updateProps:props oldProps:oldProps];
@@ -70,6 +71,10 @@ using namespace facebook::react;
 
   self->_scrollContainer.contentSize = scrollContent;
   self->_scrollContainer.frame = CGRect{CGPointMake(0, 0), scrollContainer};
+  
+  if (self->_scrollInverted) {
+    self->_scrollContainer.contentOffset = CGPointMake(0, data.scrollContent.height - data.scrollContainer.height);
+  }
   
   /*
    * Fill out empty content, make sure there are no state updates while this is filled out.

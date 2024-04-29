@@ -25,9 +25,11 @@ const ShadowListContainerWrapper = (
     },
   }));
 
+  const data = props.inverted ? props.data.reverse() : props.data;
+
   return (
-    <ShadowListContainerNativeComponent {...props} ref={instanceRef} inverted>
-      {props.data.map((item, index) => (
+    <ShadowListContainerNativeComponent {...props} ref={instanceRef}>
+      {data.map((item, index) => (
         <ShadowListItemNativeComponent key={index}>
           {props.renderItem({ item, index })}
         </ShadowListItemNativeComponent>
