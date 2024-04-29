@@ -16,7 +16,7 @@ ShadowListContainerState::ShadowListContainerState(
 /*
  * Measure layout and children metrics
  */
-ShadowListContainerMetrics ShadowListContainerState::calculateLayoutMetrics(Point scrollPosition) const {
+ShadowListContainerExtendedMetrics ShadowListContainerState::calculateExtendedMetrics(Point scrollPosition) const {
   int offset = 10;
   auto visibleStartPixels = std::max(0.0, scrollPosition.y);
   auto visibleEndPixels = std::min(scrollContent.height, scrollPosition.y + scrollContainer.height);
@@ -39,7 +39,7 @@ ShadowListContainerMetrics ShadowListContainerState::calculateLayoutMetrics(Poin
   auto blankBottomStartPixels = scrollContentTree.sum(blankBottomStartIndex, scrollContentTree.size());
   auto blankBottomEndPixels = scrollContentTree.sum(0, scrollContentTree.size());
 
-  return ShadowListContainerMetrics{
+  return ShadowListContainerExtendedMetrics{
     visibleStartIndex,
     visibleEndIndex,
     visibleStartPixels,
@@ -52,6 +52,17 @@ ShadowListContainerMetrics ShadowListContainerState::calculateLayoutMetrics(Poin
     blankBottomEndIndex,
     blankBottomStartPixels,
     blankBottomEndPixels,
+  };
+}
+
+/*
+ * Measure layout
+ */
+ShadowListContainerLayoutMetrics ShadowListContainerState::calculateLayoutMetrics() const {
+  auto height = scrollContentTree.sum(0, scrollContentTree.size());
+
+  return ShadowListContainerLayoutMetrics{
+    height
   };
 }
 

@@ -7,7 +7,9 @@ namespace facebook::react {
 ShadowListContainerProps::ShadowListContainerProps(
   const PropsParserContext &context,
   const ShadowListContainerProps &sourceProps,
-  const RawProps &rawProps): ViewProps(context, sourceProps, rawProps)
+  const RawProps &rawProps): ViewProps(context, sourceProps, rawProps),
+
+  inverted(convertRawProp(context, rawProps, "inverted", sourceProps.inverted, {false}))
   {}
 
 }

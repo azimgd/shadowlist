@@ -17,6 +17,7 @@ using namespace facebook::react;
 @implementation ShadowListContainer {
   UIScrollView* _scrollContainer;
   UIView* _scrollContent;
+  bool _scrollInverted;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
   NSMutableArray<UIView<RCTComponentViewProtocol> *> *_childComponentViewPool;
 }
@@ -34,6 +35,7 @@ using namespace facebook::react;
     _childComponentViewPool = [NSMutableArray array];
     
     _props = defaultProps;
+    _scrollInverted = defaultProps->inverted;
     _scrollContent = [UIView new];
     _scrollContainer = [UIScrollView new];
     _scrollContainer.delegate = self;
@@ -48,6 +50,12 @@ using namespace facebook::react;
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
+  const auto &oldConcreteProps = static_cast<const ShadowListContainerProps &>(*_props);
+  const auto &newConcreteProps = static_cast<const ShadowListContainerProps &>(*props);
+
+  if (newConcreteProps.inverted != oldConcreteProps.inverted) {
+  }
+
   [super updateProps:props oldProps:oldProps];
 }
 
@@ -67,17 +75,17 @@ using namespace facebook::react;
    * Fill out empty content, make sure there are no state updates while this is filled out.
    */
   if (self->_childComponentViewPool.count && !self->_scrollContent.subviews.count) {
-    auto layoutMetrics = data.calculateLayoutMetrics(RCTPointFromCGPoint(CGPointMake(0, 0)));
-    [self updateChildrenIfNeeded:layoutMetrics.visibleStartIndex visibleEndIndex:layoutMetrics.visibleEndIndex];
+    auto extendedMetrics = data.calculateExtendedMetrics(RCTPointFromCGPoint(CGPointMake(0, 0)));
+    [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
   }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
   auto &data = _state->getData();
-  auto layoutMetrics = data.calculateLayoutMetrics(RCTPointFromCGPoint(scrollView.contentOffset));
+  auto extendedMetrics = data.calculateExtendedMetrics(RCTPointFromCGPoint(scrollView.contentOffset));
 
-  [self updateChildrenIfNeeded:layoutMetrics.visibleStartIndex visibleEndIndex:layoutMetrics.visibleEndIndex];
+  [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
 
 /*
@@ -142,8 +150,8 @@ using namespace facebook::react;
   auto nextOffset = CGPointMake(0, data.calculateItemOffset(index));
   
   [self->_scrollContainer setContentOffset:nextOffset animated:true];
-  auto layoutMetrics = data.calculateLayoutMetrics(RCTPointFromCGPoint(nextOffset));
-  [self updateChildrenIfNeeded:layoutMetrics.visibleStartIndex visibleEndIndex:layoutMetrics.visibleEndIndex];
+  auto extendedMetrics = data.calculateExtendedMetrics(RCTPointFromCGPoint(nextOffset));
+  [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
 
 Class<RCTComponentViewProtocol> ShadowListContainerCls(void)

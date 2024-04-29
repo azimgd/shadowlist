@@ -9,6 +9,8 @@ class ShadowListContainerProps final : public ViewProps {
   public:
   ShadowListContainerProps() = default;
   ShadowListContainerProps(const PropsParserContext& context, const ShadowListContainerProps &sourceProps, const RawProps &rawProps);
+
+  bool inverted{false};
 };
 
 }

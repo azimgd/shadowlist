@@ -8,6 +8,7 @@ import type {
 } from 'react-native/Libraries/Types/CodegenTypes';
 
 export interface NativeProps extends ViewProps {
+  inverted?: boolean;
   onVisibleChange?: DirectEventHandler<
     Readonly<{
       start: Int32;

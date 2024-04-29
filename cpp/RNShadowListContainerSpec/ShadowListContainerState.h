@@ -12,7 +12,11 @@
 
 namespace facebook::react {
 
-struct ShadowListContainerMetrics {
+struct ShadowListContainerLayoutMetrics {
+  double height;
+};
+
+struct ShadowListContainerExtendedMetrics {
   int visibleStartIndex;
   int visibleEndIndex;
   
@@ -58,7 +62,8 @@ class ShadowListContainerState {
   /*
    * Measure layout and children metrics
    */
-  ShadowListContainerMetrics calculateLayoutMetrics(Point scrollPosition) const;
+  ShadowListContainerExtendedMetrics calculateExtendedMetrics(Point scrollPosition) const;
+  ShadowListContainerLayoutMetrics calculateLayoutMetrics() const;
   float calculateItemOffset(int index) const;
 
 #ifdef ANDROID
