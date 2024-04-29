@@ -63,7 +63,7 @@ using namespace facebook::react;
   self->_scrollContainer.contentSize = scrollContent;
   self->_scrollContainer.frame = CGRect{CGPointMake(0, 0), scrollContainer};
   
-  /**
+  /*
    * Fill out empty content, make sure there are no state updates while this is filled out.
    */
   if (self->_childComponentViewPool.count && !self->_scrollContent.subviews.count) {
@@ -80,15 +80,41 @@ using namespace facebook::react;
   [self updateChildrenIfNeeded:layoutMetrics.visibleStartIndex visibleEndIndex:layoutMetrics.visibleEndIndex];
 }
 
+/*
+ * Mount component into subview
+ */
+- (void)mountChildComponentViewFromViewPool:(NSInteger)index {
+  if ([self->_childComponentViewPool count] <= index) {
+    return;
+  }
+  UIView<RCTComponentViewProtocol> *childComponentView = self->_childComponentViewPool[index];
+  [self->_scrollContent insertSubview:childComponentView atIndex:index];
+}
+
+/*
+ * Mount component from superview
+ */
+- (void)unmountChildComponentViewFromViewPool:(NSInteger)index {
+  if ([self->_scrollContent.subviews count] <= index) {
+    return;
+  }
+  [[self->_scrollContent.subviews objectAtIndex:index] removeFromSuperview];
+}
+
+/*
+ * Unmount children that are out of visible area, and mount that are in
+ */
 - (void)updateChildrenIfNeeded:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
 {
-  for (UIView *childComponentView in self->_scrollContent.subviews) {
-    [childComponentView removeFromSuperview];
+  for (NSUInteger index = 0; index < visibleStartIndex; index++) {
+    [self unmountChildComponentViewFromViewPool:index];
+  }
+  for (NSUInteger index = visibleEndIndex; index < [self->_childComponentViewPool count]; index++) {
+    [self unmountChildComponentViewFromViewPool:index];
   }
 
   for (NSUInteger index = visibleStartIndex; index < visibleEndIndex; index++) {
-    UIView<RCTComponentViewProtocol> *childComponentView = self->_childComponentViewPool[index];
-    [self->_scrollContent insertSubview:childComponentView atIndex:index];
+    [self mountChildComponentViewFromViewPool:index];
   }
   
   static_cast<const ShadowListContainerEventEmitter&>(*_eventEmitter).onVisibleChange({visibleStartIndex, visibleEndIndex});
@@ -102,6 +128,7 @@ using namespace facebook::react;
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   [self->_childComponentViewPool removeObjectAtIndex:index];
+  [self unmountChildComponentViewFromViewPool:index];
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args

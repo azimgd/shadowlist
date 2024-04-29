@@ -44,7 +44,6 @@ export const ShadowListExample = () => {
     <ShadowListContainer
       style={styles.container}
       ref={shadowListContainerRef}
-      onVisibleChange={(event: any) => console.log(event.nativeEvent)}
       data={chats}
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />

@@ -4,7 +4,7 @@ namespace facebook::react {
 
 extern const char ShadowListContainerComponentName[] = "ShadowListContainer";
 
-/**
+/*
  * Native layout function
  */
 void ShadowListContainerShadowNode::layout(LayoutContext layoutContext) {
@@ -27,7 +27,7 @@ void ShadowListContainerShadowNode::layout(LayoutContext layoutContext) {
   }
 }
 
-/**
+/*
  * Measure visible container, and all childs aka list
  */
 void ShadowListContainerShadowNode::calculateContainerMeasurements(LayoutContext layoutContext) {

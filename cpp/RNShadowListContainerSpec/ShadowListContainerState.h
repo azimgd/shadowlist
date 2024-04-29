@@ -41,7 +41,7 @@ class ShadowListContainerState {
     ShadowListFenwickTree scrollContentTree);
   ShadowListContainerState() = default;
 
-  /**
+  /*
    * Keep track of container dimensions which a visible area,
    * content dimensions which is a long list from start to bottom,
    * and a scroll position which is an offset from top.
@@ -50,12 +50,12 @@ class ShadowListContainerState {
   Size scrollContainer;
   Size scrollContent;
   
-  /**
+  /*
    * Binary tree, expensive for updates, cheap for reads
    */
   ShadowListFenwickTree scrollContentTree;
   
-  /**
+  /*
    * Measure layout and children metrics
    */
   ShadowListContainerMetrics calculateLayoutMetrics(Point scrollPosition) const;

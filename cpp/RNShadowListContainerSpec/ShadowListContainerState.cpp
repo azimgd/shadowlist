@@ -13,7 +13,7 @@ ShadowListContainerState::ShadowListContainerState(
     scrollContent(scrollContent),
     scrollContentTree(scrollContentTree) {}
 
-/**
+/*
  * Measure layout and children metrics
  */
 ShadowListContainerMetrics ShadowListContainerState::calculateLayoutMetrics(Point scrollPosition) const {

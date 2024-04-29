@@ -32,14 +32,14 @@ class ShadowListContainerShadowNode final : public ConcreteViewShadowNode<
 
   private:
 
-  /**
+  /*
    * Measurements
    */
   Rect scrollContainer_;
   Rect scrollContent_;
   ShadowListFenwickTree scrollContentTree_;
 
-  /**
+  /*
    * Caster
    */
   static YogaLayoutableShadowNode& shadowNodeFromContext(YGNodeConstRef yogaNode);
