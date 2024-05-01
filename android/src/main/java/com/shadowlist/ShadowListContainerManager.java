@@ -7,8 +7,9 @@ import com.facebook.react.uimanager.ViewGroupManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.ViewManagerDelegate;
 import com.facebook.react.uimanager.annotations.ReactProp;
-import com.facebook.react.viewmanagers.ShadowListContainerManagerDelegate;
-import com.facebook.react.viewmanagers.ShadowListContainerManagerInterface;
+
+import com.shadowlist.ShadowListContainerManagerDelegate;
+import com.shadowlist.ShadowListContainerManagerInterface;
 
 @ReactModule(name = ShadowListContainerManager.NAME)
 public class ShadowListContainerManager extends ViewGroupManager<ShadowListContainer> implements ShadowListContainerManagerInterface<ShadowListContainer> {

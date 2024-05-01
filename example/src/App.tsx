@@ -4,7 +4,7 @@ import { SafeAreaView, StyleSheet, View, Text, FlatList } from 'react-native';
 import ShadowListContainer from 'react-native-shadow-list';
 import data from './data.json';
 
-const chats = Array(100).fill(data).flat();
+const chats = Array(10).fill(data).flat();
 
 const CustomComponent = ({ item, index }: { item: any; index: number }) => {
   return (

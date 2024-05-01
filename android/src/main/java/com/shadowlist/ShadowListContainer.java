@@ -19,7 +19,7 @@ public class ShadowListContainer extends ScrollView {
 
   @Override
   protected void onLayout(boolean changed, int l, int t, int r, int b) {
-    scrollContent.layout(l, t, r, b * 10);
+    scrollContent.layout(l, t, r, b);
   }
 
   @Override
