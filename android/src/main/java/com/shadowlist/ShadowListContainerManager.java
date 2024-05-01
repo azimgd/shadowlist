@@ -1,7 +1,5 @@
 package com.shadowlist;
 
-import android.graphics.Color;
-
 import androidx.annotation.Nullable;
 
 import com.facebook.react.module.annotations.ReactModule;

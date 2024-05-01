@@ -1,28 +1,24 @@
 package com.shadowlist;
 
 import androidx.annotation.Nullable;
-
 import android.content.Context;
-import android.util.AttributeSet;
 
-import android.view.ViewGroup;
+import com.facebook.react.views.view.ReactViewGroup;
 
-public class ShadowListItem extends ViewGroup {
+public class ShadowListItem extends ReactViewGroup {
 
   public ShadowListItem(Context context) {
     super(context);
   }
 
-  public ShadowListItem(Context context, @Nullable AttributeSet attrs) {
-    super(context, attrs);
-  }
-
-  public ShadowListItem(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
-    super(context, attrs, defStyleAttr);
+  @Override
+  protected void onLayout(boolean changed, int l, int t, int r, int b) {
   }
 
   @Override
-  protected void onLayout(boolean changed, int l, int t, int r, int b) {
-
+  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+    setMeasuredDimension(
+      MeasureSpec.getSize(widthMeasureSpec),
+      MeasureSpec.getSize(heightMeasureSpec));
   }
 }
