@@ -1,4 +1,4 @@
-#include <react/renderer/components/RNShadowListContainerSpec/Props.h>
+#include "Props.h"
 #include <react/renderer/core/PropsParserContext.h>
 #include <react/renderer/core/propsConversions.h>
 

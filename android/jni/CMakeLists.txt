@@ -1,18 +1,20 @@
 cmake_minimum_required(VERSION 3.13)
 set(CMAKE_VERBOSE_MAKEFILE on)
 
+set(PACKAGE_NAME "react_codegen_RNShadowListContainerSpec")
+
 file(GLOB react_codegen_SRCS CONFIGURE_DEPENDS *.cpp react/renderer/components/RNShadowListContainerSpec/*.cpp)
 
 add_library(
-  react_codegen_RNShadowListContainerSpec
+  ${PACKAGE_NAME}
   SHARED
   ${react_codegen_SRCS}
 )
 
-target_include_directories(react_codegen_RNShadowListContainerSpec PUBLIC . react/renderer/components/RNShadowListContainerSpec)
+target_include_directories(${PACKAGE_NAME} PUBLIC . react/renderer/components/RNShadowListContainerSpec)
 
 target_link_libraries(
-  react_codegen_RNShadowListContainerSpec
+  ${PACKAGE_NAME}
   fbjni
   folly_runtime
   glog
@@ -34,7 +36,7 @@ target_link_libraries(
 )
 
 target_compile_options(
-  react_codegen_RNShadowListContainerSpec
+  ${PACKAGE_NAME}
   PRIVATE
   -DLOG_TAG=\"ReactNative\"
   -fexceptions

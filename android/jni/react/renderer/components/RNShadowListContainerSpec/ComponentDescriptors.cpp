@@ -1,4 +1,4 @@
-#include <react/renderer/components/RNShadowListContainerSpec/ComponentDescriptors.h>
+#include "ComponentDescriptors.h"
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
 

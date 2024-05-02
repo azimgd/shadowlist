@@ -1,8 +1,8 @@
 #pragma once
 
-#include <react/renderer/components/RNShadowListContainerSpec/EventEmitters.h>
-#include <react/renderer/components/RNShadowListContainerSpec/Props.h>
-#include <react/renderer/components/RNShadowListContainerSpec/States.h>
+#include "EventEmitters.h"
+#include "Props.h"
+#include "States.h"
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <jsi/jsi.h>
 

@@ -18,7 +18,7 @@ ShadowListContainerState::ShadowListContainerState(
  */
 ShadowListContainerExtendedMetrics ShadowListContainerState::calculateExtendedMetrics(Point scrollPosition) const {
   int offset = 10;
-  auto visibleStartPixels = std::max(0.0, scrollPosition.y);
+  auto visibleStartPixels = std::max(0.0, static_cast<double>(scrollPosition.y));
   auto visibleEndPixels = std::min(scrollContent.height, scrollPosition.y + scrollContainer.height);
 
   int visibleStartIndex = scrollContentTree.lower_bound(visibleStartPixels);

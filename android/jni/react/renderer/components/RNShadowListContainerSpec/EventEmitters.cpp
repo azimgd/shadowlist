@@ -1,4 +1,4 @@
-#include <react/renderer/components/RNShadowListContainerSpec/EventEmitters.h>
+#include "EventEmitters.h"
 
 
 namespace facebook::react {

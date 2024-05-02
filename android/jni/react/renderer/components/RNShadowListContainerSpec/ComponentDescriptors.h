@@ -1,6 +1,6 @@
 #pragma once
 
-#include <react/renderer/components/RNShadowListContainerSpec/ShadowNodes.h>
+#include "ShadowNodes.h"
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
 

@@ -1,4 +1,4 @@
-#include <react/renderer/components/RNShadowListContainerSpec/ShadowNodes.h>
+#include "ShadowNodes.h"
 
 namespace facebook::react {
 

@@ -6,8 +6,6 @@
 
 namespace facebook::react {
 
-
-
 JSI_EXPORT
 std::shared_ptr<TurboModule> RNShadowListContainerSpec_ModuleProvider(const std::string &moduleName, const JavaTurboModule::InitParams &params);
 

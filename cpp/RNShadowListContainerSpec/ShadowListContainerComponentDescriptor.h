@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ShadowListContainerShadowNode.h"
-#include "ShadowListItemShadowNode.h"
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
 #include <react/renderer/graphics/RectangleEdges.h>
