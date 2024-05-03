@@ -1,9 +1,8 @@
-#include "EventEmitters.h"
-
+#include "ShadowListContainerEventEmitter.h"
 
 namespace facebook::react {
 
-void ShadowListContainerEventEmitter::onVisibleChange(OnVisibleChange $event) const {
+void ShadowListContainerEventEmitter::onVisibleChange(VisibleMetrics $event) const {
   dispatchEvent("visibleChange", [$event=std::move($event)](jsi::Runtime &runtime) {
     auto $payload = jsi::Object(runtime);
     $payload.setProperty(runtime, "start", $event.start);
@@ -11,6 +10,5 @@ void ShadowListContainerEventEmitter::onVisibleChange(OnVisibleChange $event) co
     return $payload;
   });
 }
-
 
 }

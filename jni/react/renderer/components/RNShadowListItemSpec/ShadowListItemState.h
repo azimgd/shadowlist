@@ -8,23 +8,8 @@
 
 namespace facebook::react {
 
-class ShadowListContainerState {
-public:
-  ShadowListContainerState() = default;
-
-#ifdef ANDROID
-  ShadowListContainerState(ShadowListContainerState const &previousState, folly::dynamic data){};
-  folly::dynamic getDynamic() const {
-    return {};
-  };
-  MapBuffer getMapBuffer() const {
-    return MapBufferBuilder::EMPTY();
-  };
-#endif
-};
-
 class ShadowListItemState {
-public:
+  public:
   ShadowListItemState() = default;
 
 #ifdef ANDROID
@@ -36,6 +21,7 @@ public:
     return MapBufferBuilder::EMPTY();
   };
 #endif
+
 };
 
 }
