@@ -4,7 +4,7 @@ module.exports = {
       android: {
         componentDescriptors: [
           'ShadowListContainerComponentDescriptor',
-          // 'ShadowListItemComponentDescriptor',
+          'ShadowListItemComponentDescriptor',
         ],
         cmakeListsPath: '../cpp/CMakeLists.txt',
       },

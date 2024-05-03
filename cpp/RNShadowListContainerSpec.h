@@ -4,6 +4,7 @@
 #include <ReactCommon/TurboModule.h>
 #include <jsi/jsi.h>
 #include <react/renderer/components/RNShadowListContainerSpec/ComponentDescriptors.h>
+#include <react/renderer/components/RNShadowListItemSpec/ComponentDescriptors.h>
 
 namespace facebook::react {
 
