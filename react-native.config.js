@@ -6,7 +6,7 @@ module.exports = {
           'ShadowListContainerComponentDescriptor',
           // 'ShadowListItemComponentDescriptor',
         ],
-        cmakeListsPath: '../jni/CMakeLists.txt',
+        cmakeListsPath: '../cpp/CMakeLists.txt',
       },
     },
   },
