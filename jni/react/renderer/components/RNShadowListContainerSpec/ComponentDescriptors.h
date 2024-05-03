@@ -9,7 +9,4 @@ namespace facebook::react {
 using ShadowListContainerComponentDescriptor = ConcreteComponentDescriptor<ShadowListContainerShadowNode>;
 using ShadowListItemComponentDescriptor = ConcreteComponentDescriptor<ShadowListItemShadowNode>;
 
-void RNShadowListContainerSpec_registerComponentDescriptorsFromCodegen(
-  std::shared_ptr<const ComponentDescriptorProviderRegistry> registry);
-
 }

@@ -28,4 +28,6 @@ export const Commands = codegenNativeCommands<NativeCommands>({
   supportedCommands: ['scrollToIndex'],
 });
 
-export default codegenNativeComponent<NativeProps>('ShadowListContainer');
+export default codegenNativeComponent<NativeProps>('ShadowListContainer', {
+  interfaceOnly: true,
+});
