@@ -19,22 +19,24 @@ add_compile_options(
   -Wno-gnu-zero-variadic-macro-arguments
 )
 
-file(GLOB LIB_CUSTOM_SRCS CONFIGURE_DEPENDS *.cpp ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL}/*.cpp ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL_TWO}/*.cpp)
-file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS ${LIB_ANDROID_GENERATED_COMPONENTS_DIR}/*.cpp)
+file(GLOB LIB_IMPORT_SRCS CONFIGURE_DEPENDS RNShadowListContainerSpec.cpp)
+file(GLOB LIB_CUSTOM_SRCS CONFIGURE_DEPENDS ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL}/*.cpp ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL_TWO}/*.cpp)
 
 add_library(
   ${LIB_TARGET_NAME}
-  SHARED 
+  SHARED
+  ${LIB_IMPORT_SRCS}
   ${LIB_CUSTOM_SRCS}
-  # ${LIB_CODEGEN_SRCS}
 )
 
 target_include_directories(
   ${LIB_TARGET_NAME}
   PUBLIC 
-  . 
   ${LIB_COMMON_DIR}
+  ${LIB_IMPORT_SRCS}
   ${LIB_CUSTOM_SRCS}
+  ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL}
+  ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL_TWO}
   # ${LIB_ANDROID_GENERATED_JNI_DIR}
   # ${LIB_ANDROID_GENERATED_COMPONENTS_DIR}
 )

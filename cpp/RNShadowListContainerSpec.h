@@ -3,8 +3,8 @@
 #include <ReactCommon/JavaTurboModule.h>
 #include <ReactCommon/TurboModule.h>
 #include <jsi/jsi.h>
-#include <react/renderer/components/RNShadowListContainerSpec/ComponentDescriptors.h>
-#include <react/renderer/components/RNShadowListItemSpec/ComponentDescriptors.h>
+#include "ShadowListContainerComponentDescriptor.h"
+#include "ShadowListItemComponentDescriptor.h"
 
 namespace facebook::react {
 
