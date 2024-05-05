@@ -12,6 +12,22 @@
 
 namespace facebook::react {
 
+#ifdef ANDROID
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_POSITION = 0;
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_CONTAINER = 1;
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_CONTENT = 1;
+
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_POSITION_X = 0;
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_POSITION_Y = 1;
+
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_CONTAINER_WIDTH = 0;
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_CONTAINER_HEIGHT = 1;
+
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_CONTENT_WIDTH = 0;
+constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_CONTENT_HEIGHT = 1;
+#endif
+
+
 struct ShadowListContainerLayoutMetrics {
   double height;
 };
@@ -68,9 +84,11 @@ class ShadowListContainerState {
 
 #ifdef ANDROID
   ShadowListContainerState(ShadowListContainerState const &previousState, folly::dynamic data){};
+
   folly::dynamic getDynamic() const {
     return {};
   };
+
   MapBuffer getMapBuffer() const {
     return MapBufferBuilder::EMPTY();
   };

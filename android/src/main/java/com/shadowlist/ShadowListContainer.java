@@ -7,6 +7,7 @@ import android.view.View;
 import android.widget.ScrollView;
 
 import com.facebook.react.views.view.ReactViewGroup;
+import com.facebook.react.uimanager.StateWrapper;
 
 public class ShadowListContainer extends ScrollView {
   ReactViewGroup scrollContent;
