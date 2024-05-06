@@ -74,6 +74,7 @@ export const ShadowListExample = () => {
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
+      inverted
     />
   );
 };

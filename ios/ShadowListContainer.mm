@@ -17,7 +17,6 @@ using namespace facebook::react;
 @implementation ShadowListContainer {
   UIScrollView* _scrollContainer;
   UIView* _scrollContent;
-  bool _scrollInverted;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
   NSMutableArray<UIView<RCTComponentViewProtocol> *> *_childComponentViewPool;
 }
@@ -35,7 +34,6 @@ using namespace facebook::react;
     _childComponentViewPool = [NSMutableArray array];
     
     _props = defaultProps;
-    _scrollInverted = defaultProps->inverted;
     _scrollContent = [UIView new];
     _scrollContainer = [UIScrollView new];
     _scrollContainer.delegate = self;
@@ -53,10 +51,6 @@ using namespace facebook::react;
   const auto &oldConcreteProps = static_cast<const ShadowListContainerProps &>(*_props);
   const auto &newConcreteProps = static_cast<const ShadowListContainerProps &>(*props);
 
-  if (newConcreteProps.inverted != oldConcreteProps.inverted) {
-    self->_scrollInverted = newConcreteProps.inverted;
-  }
-
   [super updateProps:props oldProps:oldProps];
 }
 
@@ -64,7 +58,8 @@ using namespace facebook::react;
 {
   assert(std::dynamic_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(state));
   self->_state = std::static_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(state);
-  auto &data = _state->getData();
+  const auto &data = _state->getData();
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
 
   auto scrollContent = RCTCGSizeFromSize(data.scrollContent);
   auto scrollContainer = RCTCGSizeFromSize(data.scrollContainer);
@@ -72,7 +67,7 @@ using namespace facebook::react;
   self->_scrollContainer.contentSize = scrollContent;
   self->_scrollContainer.frame = CGRect{CGPointMake(0, 0), scrollContainer};
   
-  if (self->_scrollInverted) {
+  if (props.inverted) {
     self->_scrollContainer.contentOffset = CGPointMake(0, data.scrollContent.height - data.scrollContainer.height);
   }
   
