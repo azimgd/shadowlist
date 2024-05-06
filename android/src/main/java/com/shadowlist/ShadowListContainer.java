@@ -6,6 +6,7 @@ import android.graphics.Canvas;
 import android.view.View;
 import android.widget.ScrollView;
 
+import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.views.view.ReactViewGroup;
 import com.facebook.react.uimanager.StateWrapper;
 
@@ -18,9 +19,16 @@ public class ShadowListContainer extends ScrollView {
     super.addView(scrollContent, 0);
   }
 
+  public void setScrollContentLayout(float width, float height) {
+    scrollContent.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+  }
+
   @Override
   protected void onLayout(boolean changed, int l, int t, int r, int b) {
-    scrollContent.layout(l, t, r, b);
+  }
+
+  @Override
+  protected void onScrollChanged(int l, int t, int oldl, int oldt) {
   }
 
   @Override
