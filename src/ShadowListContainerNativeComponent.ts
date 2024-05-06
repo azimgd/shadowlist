@@ -9,6 +9,8 @@ import type {
 
 export interface NativeProps extends ViewProps {
   inverted?: boolean;
+  hasListHeaderComponent?: boolean;
+  hasListFooterComponent?: boolean;
   onVisibleChange?: DirectEventHandler<
     Readonly<{
       start: Int32;

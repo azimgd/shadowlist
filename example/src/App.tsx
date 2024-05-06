@@ -17,6 +17,28 @@ const CustomComponent = ({ item, index }: { item: any; index: number }) => {
   );
 };
 
+const ListHeaderComponent = () => {
+  return (
+    <View style={styles.header}>
+      <Text style={styles.username}>Header</Text>
+      <Text style={styles.text}>
+        Lorem ipsum dolor sit amet consectetur adipisicing elit.
+      </Text>
+    </View>
+  );
+};
+
+const ListFooterComponent = () => {
+  return (
+    <View style={styles.header}>
+      <Text style={styles.username}>Footer</Text>
+      <Text style={styles.text}>
+        Lorem ipsum dolor sit amet consectetur adipisicing elit.
+      </Text>
+    </View>
+  );
+};
+
 /**
  * FlatList
  */
@@ -25,6 +47,8 @@ export const FlatListExample = () => {
     <FlatList
       style={styles.container}
       data={chats}
+      ListHeaderComponent={ListHeaderComponent}
+      ListFooterComponent={ListFooterComponent}
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
@@ -45,6 +69,8 @@ export const ShadowListExample = () => {
       style={styles.container}
       ref={shadowListContainerRef}
       data={chats}
+      ListHeaderComponent={ListHeaderComponent}
+      ListFooterComponent={ListFooterComponent}
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
@@ -66,6 +92,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#74b9ff',
   },
   item: {
+    padding: 24,
+    justifyContent: 'center',
+    backgroundColor: '#0984e3',
+    borderBottomColor: '#74b9ff',
+    borderBottomWidth: 1,
+  },
+  header: {
+    padding: 24,
+    justifyContent: 'center',
+    backgroundColor: '#0984e3',
+    borderBottomColor: '#74b9ff',
+    borderBottomWidth: 1,
+  },
+  footer: {
     padding: 24,
     justifyContent: 'center',
     backgroundColor: '#0984e3',

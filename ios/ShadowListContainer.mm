@@ -119,17 +119,27 @@ using namespace facebook::react;
  */
 - (void)updateChildrenIfNeeded:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
 {
+  auto headerIndex = 0;
+  auto footerIndex = [self->_childComponentViewPool count] - 1;
+
   for (NSUInteger index = 0; index < visibleStartIndex; index++) {
-    [self unmountChildComponentViewFromViewPool:index];
-  }
-  for (NSUInteger index = visibleEndIndex; index < [self->_childComponentViewPool count]; index++) {
+    if (headerIndex == index) continue;
+    if (footerIndex == index) continue;
     [self unmountChildComponentViewFromViewPool:index];
   }
 
+  for (NSUInteger index = visibleEndIndex; index < [self->_childComponentViewPool count]; index++) {
+    if (headerIndex == index) continue;
+    if (footerIndex == index) continue;
+    [self unmountChildComponentViewFromViewPool:index];
+  }
+
+  [self mountChildComponentViewFromViewPool:headerIndex];
+  [self mountChildComponentViewFromViewPool:footerIndex];
   for (NSUInteger index = visibleStartIndex; index < visibleEndIndex; index++) {
     [self mountChildComponentViewFromViewPool:index];
   }
-  
+
   static_cast<const ShadowListContainerEventEmitter&>(*_eventEmitter).onVisibleChange({visibleStartIndex, visibleEndIndex});
 }
 

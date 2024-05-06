@@ -9,7 +9,9 @@ ShadowListContainerProps::ShadowListContainerProps(
   const ShadowListContainerProps &sourceProps,
   const RawProps &rawProps): ViewProps(context, sourceProps, rawProps),
 
-  inverted(convertRawProp(context, rawProps, "inverted", sourceProps.inverted, {false}))
+  inverted(convertRawProp(context, rawProps, "inverted", sourceProps.inverted, {false})),
+  hasListHeaderComponent(convertRawProp(context, rawProps, "hasListHeaderComponent", sourceProps.hasListHeaderComponent, {false})),
+  hasListFooterComponent(convertRawProp(context, rawProps, "hasListFooterComponent", sourceProps.hasListFooterComponent, {false}))
   {}
 
 }

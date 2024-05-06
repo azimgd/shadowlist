@@ -6,15 +6,29 @@ import ShadowListContainerNativeComponent, {
 } from './ShadowListContainerNativeComponent';
 import ShadowListItemNativeComponent from './ShadowListItemNativeComponent';
 
+type Component =
+  | React.ComponentType<any>
+  | React.ReactElement
+  | null
+  | undefined;
+
+const invoker = (Component: Component) =>
+  // @ts-ignore
+  React.isValidElement(Component) ? Component : <Component />;
+
+export type JSProps = {
+  data: any[];
+  renderItem: (payload: { item: any; index: number }) => React.ReactElement;
+  ListHeaderComponent?: Component;
+  ListFooterComponent?: Component;
+};
+
 export type ShadowListContainerInstance = InstanceType<
   typeof ShadowListContainerNativeComponent
 >;
 
 const ShadowListContainerWrapper = (
-  props: NativeProps & {
-    data: any[];
-    renderItem: (payload: { item: any; index: number }) => React.ReactElement;
-  },
+  props: NativeProps & JSProps,
   forwardedRef: React.Ref<Partial<NativeCommands>>
 ) => {
   const instanceRef = React.useRef<ShadowListContainerInstance>(null);
@@ -28,12 +42,25 @@ const ShadowListContainerWrapper = (
   const data = props.inverted ? props.data.reverse() : props.data;
 
   return (
-    <ShadowListContainerNativeComponent {...props} ref={instanceRef}>
+    <ShadowListContainerNativeComponent
+      {...props}
+      ref={instanceRef}
+      hasListHeaderComponent={!!props.ListHeaderComponent}
+      hasListFooterComponent={!!props.ListFooterComponent}
+    >
+      <ShadowListItemNativeComponent key={-1}>
+        {invoker(props.ListHeaderComponent)}
+      </ShadowListItemNativeComponent>
+
       {data.map((item, index) => (
         <ShadowListItemNativeComponent key={index}>
           {props.renderItem({ item, index })}
         </ShadowListItemNativeComponent>
       ))}
+
+      <ShadowListItemNativeComponent key={data.length}>
+        {invoker(props.ListFooterComponent)}
+      </ShadowListItemNativeComponent>
     </ShadowListContainerNativeComponent>
   );
 };
