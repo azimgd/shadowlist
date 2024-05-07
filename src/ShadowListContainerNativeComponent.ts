@@ -11,6 +11,7 @@ export interface NativeProps extends ViewProps {
   inverted?: boolean;
   hasListHeaderComponent?: boolean;
   hasListFooterComponent?: boolean;
+  initialScrollIndex?: Int32;
   onVisibleChange?: DirectEventHandler<
     Readonly<{
       start: Int32;

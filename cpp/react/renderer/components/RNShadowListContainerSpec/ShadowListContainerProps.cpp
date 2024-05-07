@@ -11,7 +11,8 @@ ShadowListContainerProps::ShadowListContainerProps(
 
   inverted(convertRawProp(context, rawProps, "inverted", sourceProps.inverted, {false})),
   hasListHeaderComponent(convertRawProp(context, rawProps, "hasListHeaderComponent", sourceProps.hasListHeaderComponent, {false})),
-  hasListFooterComponent(convertRawProp(context, rawProps, "hasListFooterComponent", sourceProps.hasListFooterComponent, {false}))
+  hasListFooterComponent(convertRawProp(context, rawProps, "hasListFooterComponent", sourceProps.hasListFooterComponent, {false})),
+  initialScrollIndex(convertRawProp(context, rawProps, "initialScrollIndex", sourceProps.initialScrollIndex, {0}))
   {}
 
 }

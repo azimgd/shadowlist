@@ -1,10 +1,15 @@
 import * as React from 'react';
 
-import { SafeAreaView, StyleSheet, View, Text, FlatList } from 'react-native';
+import {
+  SafeAreaView,
+  StyleSheet,
+  View,
+  Text,
+  FlatList,
+  Pressable,
+} from 'react-native';
 import ShadowListContainer from 'react-native-shadow-list';
-import data from './data.json';
-
-const chats = Array(10).fill(data).flat();
+import sample from './sample.json';
 
 const CustomComponent = ({ item, index }: { item: any; index: number }) => {
   return (
@@ -42,11 +47,11 @@ const ListFooterComponent = () => {
 /**
  * FlatList
  */
-export const FlatListExample = () => {
+export const FlatListExample = ({ data }: { data: any[] }) => {
   return (
     <FlatList
       style={styles.container}
-      data={chats}
+      data={data}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
       renderItem={({ item, index }) => (
@@ -59,7 +64,7 @@ export const FlatListExample = () => {
 /**
  * ShadowList
  */
-export const ShadowListExample = () => {
+export const ShadowListExample = ({ data }: { data: any[] }) => {
   const shadowListContainerRef = React.useRef<{
     scrollToIndex: (index: number) => void;
   }>(null);
@@ -68,21 +73,30 @@ export const ShadowListExample = () => {
     <ShadowListContainer
       style={styles.container}
       ref={shadowListContainerRef}
-      data={chats}
+      data={data}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
-      inverted
     />
   );
 };
 
 export default function App() {
+  const [data, setData] = React.useState(Array(10).fill(sample).flat());
+
+  const loadMore = React.useCallback(() => {
+    setData((state) => state.concat(Array(5).fill(sample).flat()));
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
-      <ShadowListExample />
+      <ShadowListExample data={data} />
+
+      <Pressable style={styles.button} onPress={loadMore}>
+        <Text>Load more</Text>
+      </Pressable>
     </SafeAreaView>
   );
 }
@@ -120,5 +134,12 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#ffffff',
+  },
+  button: {
+    padding: 24,
+    justifyContent: 'center',
+    backgroundColor: '#0984e3',
+    borderBottomColor: '#74b9ff',
+    borderBottomWidth: 1,
   },
 });

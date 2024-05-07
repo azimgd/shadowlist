@@ -58,32 +58,41 @@ using namespace facebook::react;
 {
   assert(std::dynamic_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(state));
   self->_state = std::static_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(state);
-  const auto &data = _state->getData();
+  const auto &stateData = _state->getData();
   const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
 
-  auto scrollContent = RCTCGSizeFromSize(data.scrollContent);
-  auto scrollContainer = RCTCGSizeFromSize(data.scrollContainer);
+  auto treeLengthHasChanged = false;
+  if (oldState != nullptr) {
+    auto oldStateData = std::static_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(oldState)->getData();
+    treeLengthHasChanged = oldStateData.calculateTreeLength() == stateData.calculateTreeLength();
+  }
+
+  auto scrollContent = RCTCGSizeFromSize(stateData.scrollContent);
+  auto scrollContainer = RCTCGSizeFromSize(stateData.scrollContainer);
 
   self->_scrollContainer.contentSize = scrollContent;
   self->_scrollContainer.frame = CGRect{CGPointMake(0, 0), scrollContainer};
-  
-  if (props.inverted) {
-    self->_scrollContainer.contentOffset = CGPointMake(0, data.scrollContent.height - data.scrollContainer.height);
+
+  if (props.initialScrollIndex) {
+    auto nextInitialScrollIndex = props.initialScrollIndex + (props.hasListHeaderComponent ? 1 : 0);
+    [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.calculateItemOffset(nextInitialScrollIndex)) animated:false];
+  } else if (props.inverted) {
+    [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.scrollContent.height - stateData.scrollContainer.height) animated:false];
   }
   
   /*
    * Fill out empty content, make sure there are no state updates while this is filled out.
    */
   if (self->_childComponentViewPool.count && !self->_scrollContent.subviews.count) {
-    auto extendedMetrics = data.calculateExtendedMetrics(RCTPointFromCGPoint(CGPointMake(0, 0)));
+    auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(CGPointMake(0, 0)));
     [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
   }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  auto &data = _state->getData();
-  auto extendedMetrics = data.calculateExtendedMetrics(RCTPointFromCGPoint(scrollView.contentOffset));
+  auto &stateData = _state->getData();
+  auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(scrollView.contentOffset));
 
   [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
@@ -131,6 +140,7 @@ using namespace facebook::react;
 
   [self mountChildComponentViewFromViewPool:headerIndex];
   [self mountChildComponentViewFromViewPool:footerIndex];
+
   for (NSUInteger index = visibleStartIndex; index < visibleEndIndex; index++) {
     [self mountChildComponentViewFromViewPool:index];
   }
@@ -156,11 +166,11 @@ using namespace facebook::react;
 
 - (void)scrollToIndex:(int)index
 {
-  auto &data = _state->getData();
-  auto nextOffset = CGPointMake(0, data.calculateItemOffset(index));
+  auto &stateData = _state->getData();
+  auto nextOffset = CGPointMake(0, stateData.calculateItemOffset(index));
   
   [self->_scrollContainer setContentOffset:nextOffset animated:true];
-  auto extendedMetrics = data.calculateExtendedMetrics(RCTPointFromCGPoint(nextOffset));
+  auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(nextOffset));
   [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
 
