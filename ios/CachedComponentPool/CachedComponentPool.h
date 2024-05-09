@@ -8,8 +8,8 @@
 @property (nonatomic, strong) NSMutableArray<CachedComponentPoolItem *> *pool;
 @property (nonatomic, strong) NSMutableArray<NSNumber *> *mounted;
 
-- (instancetype)initWithObservable:(void (^)(NSArray<NSNumber *> *poolIndex))onCachedComponentMount
-          onCachedComponentUnmount:(void (^)(NSArray<NSNumber *> *poolIndex))onCachedComponentUnmount;
+- (instancetype)initWithObservable:(void (^)(NSInteger poolIndex))onCachedComponentMount
+          onCachedComponentUnmount:(void (^)(NSInteger poolIndex))onCachedComponentUnmount;
 
 - (UIView<RCTComponentViewProtocol> *)getComponentView:(NSInteger)poolIndex;
 - (BOOL)checkComponentExists:(NSInteger)poolIndex;

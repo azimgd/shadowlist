@@ -4,15 +4,15 @@
 
 @interface CachedComponentPool ()
 
-@property (nonatomic, copy) void (^onCachedComponentMount)(NSArray<NSNumber *> *);
-@property (nonatomic, copy) void (^onCachedComponentUnmount)(NSArray<NSNumber *> *);
+@property (nonatomic, copy) void (^onCachedComponentMount)(NSInteger poolIndex);
+@property (nonatomic, copy) void (^onCachedComponentUnmount)(NSInteger poolIndex);
 
 @end
 
 @implementation CachedComponentPool
 
-- (instancetype)initWithObservable:(void (^)(NSArray<NSNumber *> *poolIndex))onCachedComponentMount
-          onCachedComponentUnmount:(void (^)(NSArray<NSNumber *> *poolIndex))onCachedComponentUnmount {
+- (instancetype)initWithObservable:(void (^)(NSInteger poolIndex))onCachedComponentMount
+          onCachedComponentUnmount:(void (^)(NSInteger poolIndex))onCachedComponentUnmount {
   self = [super init];
   if (self) {
     self->_pool = [NSMutableArray array];
@@ -54,9 +54,6 @@
     [mountableIndices addObject:@(poolIndex)];
     [self mountCachedComponentPoolItem:poolIndex];
   }
-  
-  self.onCachedComponentMount(mountableIndices);
-  self.onCachedComponentUnmount(unmountableIndices);
 }
 
 - (void)upsertCachedComponentPoolItem:(UIView<RCTComponentViewProtocol> *)childComponentView poolIndex:(NSInteger)poolIndex {
@@ -81,12 +78,14 @@
     [self unmountCachedComponentPoolItem:poolIndex];
   }
   [self->_mounted addObject:@(poolIndex)];
+  self.onCachedComponentMount(poolIndex);
 }
 
 - (void)unmountCachedComponentPoolItem:(NSInteger)poolIndex {
   assert([self checkComponentExists:poolIndex]);
 
   [self->_mounted removeObject:@(poolIndex)];
+  self.onCachedComponentUnmount(poolIndex);
 }
 
 @end
