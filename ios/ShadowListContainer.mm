@@ -81,14 +81,13 @@ using namespace facebook::react;
   } else if (props.inverted) {
     [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.scrollContent.height - stateData.scrollContainer.height) animated:false];
   }
+  
+  [self recycle];
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  auto &stateData = _state->getData();
-
-  auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(self->_scrollContainer.contentOffset));
-  [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
+  [self recycle];
 }
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
@@ -111,7 +110,13 @@ using namespace facebook::react;
   auto &stateData = _state->getData();
   auto nextOffset = CGPointMake(0, stateData.calculateItemOffset(index));
   [self->_scrollContainer setContentOffset:nextOffset animated:true];
+  
+  [self recycle];
+}
 
+- (void)recycle {
+  assert(std::dynamic_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(_state));
+  auto &stateData = _state->getData();
   auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(self->_scrollContainer.contentOffset));
   [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
