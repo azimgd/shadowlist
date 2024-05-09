@@ -69,12 +69,6 @@ using namespace facebook::react;
   const auto &stateData = _state->getData();
   const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
 
-  auto treeLengthHasChanged = false;
-  if (oldState != nullptr) {
-    auto oldStateData = std::static_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(oldState)->getData();
-    treeLengthHasChanged = oldStateData.calculateTreeLength() == stateData.calculateTreeLength();
-  }
-
   auto scrollContent = RCTCGSizeFromSize(stateData.scrollContent);
   auto scrollContainer = RCTCGSizeFromSize(stateData.scrollContainer);
 
@@ -87,21 +81,13 @@ using namespace facebook::react;
   } else if (props.inverted) {
     [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.scrollContent.height - stateData.scrollContainer.height) animated:false];
   }
-  
-  /*
-   * Fill out empty content, make sure there are no state updates while this is filled out.
-   */
-  if (self->_cachedComponentPoolChanged) {
-    auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(CGPointMake(0, 0)));
-    [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
-  }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
   auto &stateData = _state->getData();
-  auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(scrollView.contentOffset));
 
+  auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(self->_scrollContainer.contentOffset));
   [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
 
@@ -124,10 +110,9 @@ using namespace facebook::react;
 {
   auto &stateData = _state->getData();
   auto nextOffset = CGPointMake(0, stateData.calculateItemOffset(index));
-  
   [self->_scrollContainer setContentOffset:nextOffset animated:true];
-  auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(nextOffset));
-  
+
+  auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(self->_scrollContainer.contentOffset));
   [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
 
