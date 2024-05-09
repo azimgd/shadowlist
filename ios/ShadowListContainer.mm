@@ -4,6 +4,7 @@
 #import "ShadowListContainerEventEmitter.h"
 #import "ShadowListContainerProps.h"
 #import "ShadowListContainerHelpers.h"
+#import "CachedComponentPool/CachedComponentPool.h"
 
 #import "RCTConversions.h"
 #import "RCTFabricComponentsPlugins.h"
@@ -18,7 +19,8 @@ using namespace facebook::react;
   UIScrollView* _scrollContainer;
   UIView* _scrollContent;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
-  NSMutableArray<UIView<RCTComponentViewProtocol> *> *_childComponentViewPool;
+  CachedComponentPool *_cachedComponentPool;
+  BOOL _cachedComponentPoolChanged;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -30,8 +32,8 @@ using namespace facebook::react;
 {
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const ShadowListContainerProps>();
-    
-    _childComponentViewPool = [NSMutableArray array];
+
+    _cachedComponentPoolChanged = true;
     
     _props = defaultProps;
     _scrollContent = [UIView new];
@@ -41,6 +43,16 @@ using namespace facebook::react;
 
     [_scrollContainer addSubview:_scrollContent];
     self.contentView = _scrollContainer;
+    
+    _cachedComponentPool = [[CachedComponentPool alloc] initWithObservable:^(NSArray *mountableIndices) {
+      for (NSNumber *poolIndex : mountableIndices) {
+        [self->_scrollContent addSubview:[self->_cachedComponentPool getComponentView:poolIndex.integerValue]];
+      }
+    } onCachedComponentUnmount:^(NSArray *unmountableIndices) {
+      for (NSNumber *poolIndex : unmountableIndices) {
+        [[self->_cachedComponentPool getComponentView:poolIndex.integerValue] removeFromSuperview];
+      }
+    }];
   }
 
   return self;
@@ -83,9 +95,9 @@ using namespace facebook::react;
   /*
    * Fill out empty content, make sure there are no state updates while this is filled out.
    */
-  if (self->_childComponentViewPool.count && !self->_scrollContent.subviews.count) {
+  if (self->_cachedComponentPoolChanged) {
     auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(CGPointMake(0, 0)));
-    [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
+    [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
   }
 }
 
@@ -94,69 +106,17 @@ using namespace facebook::react;
   auto &stateData = _state->getData();
   auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(scrollView.contentOffset));
 
-  [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
-}
-
-/*
- * Mount component into subview
- */
-- (void)mountChildComponentViewFromViewPool:(NSInteger)index {
-  if ([self->_childComponentViewPool count] <= index) {
-    return;
-  }
-  UIView<RCTComponentViewProtocol> *childComponentView = self->_childComponentViewPool[index];
-  [self->_scrollContent insertSubview:childComponentView atIndex:index];
-}
-
-/*
- * Mount component from superview
- */
-- (void)unmountChildComponentViewFromViewPool:(NSInteger)index {
-  if ([self->_scrollContent.subviews count] <= index) {
-    return;
-  }
-  [[self->_scrollContent.subviews objectAtIndex:index] removeFromSuperview];
-}
-
-/*
- * Unmount children that are out of visible area, and mount that are in
- */
-- (void)updateChildrenIfNeeded:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
-{
-  auto headerIndex = 0;
-  auto footerIndex = [self->_childComponentViewPool count] - 1;
-
-  for (NSUInteger index = 0; index < visibleStartIndex; index++) {
-    if (headerIndex == index) continue;
-    if (footerIndex == index) continue;
-    [self unmountChildComponentViewFromViewPool:index];
-  }
-
-  for (NSUInteger index = visibleEndIndex; index < [self->_childComponentViewPool count]; index++) {
-    if (headerIndex == index) continue;
-    if (footerIndex == index) continue;
-    [self unmountChildComponentViewFromViewPool:index];
-  }
-
-  [self mountChildComponentViewFromViewPool:headerIndex];
-  [self mountChildComponentViewFromViewPool:footerIndex];
-
-  for (NSUInteger index = visibleStartIndex; index < visibleEndIndex; index++) {
-    [self mountChildComponentViewFromViewPool:index];
-  }
-
-  static_cast<const ShadowListContainerEventEmitter&>(*_eventEmitter).onVisibleChange({visibleStartIndex, visibleEndIndex});
+  [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self->_childComponentViewPool insertObject:childComponentView atIndex:index];
+  [self->_cachedComponentPool upsertCachedComponentPoolItem:childComponentView poolIndex:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self->_childComponentViewPool removeObjectAtIndex:index];
-  [self unmountChildComponentViewFromViewPool:index];
+  [self->_cachedComponentPool removeCachedComponentPoolItem:childComponentView poolIndex:index];
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
@@ -171,7 +131,8 @@ using namespace facebook::react;
   
   [self->_scrollContainer setContentOffset:nextOffset animated:true];
   auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(nextOffset));
-  [self updateChildrenIfNeeded:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
+  
+  [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
 
 Class<RCTComponentViewProtocol> ShadowListContainerCls(void)
