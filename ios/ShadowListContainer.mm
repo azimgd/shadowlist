@@ -44,11 +44,15 @@ using namespace facebook::react;
     [_scrollContainer addSubview:_scrollContent];
     self.contentView = _scrollContainer;
     
-    _cachedComponentPool = [[CachedComponentPool alloc] initWithObservable:^(NSInteger poolIndex) {
+    auto onCachedComponentMount = ^(NSInteger poolIndex) {
       [self->_scrollContent addSubview:[self->_cachedComponentPool getComponentView:poolIndex]];
-    } onCachedComponentUnmount:^(NSInteger poolIndex) {
+    };
+    auto onCachedComponentUnmount = ^(NSInteger poolIndex) {
       [[self->_cachedComponentPool getComponentView:poolIndex] removeFromSuperview];
-    }];
+    };
+    _cachedComponentPool = [[CachedComponentPool alloc] initWithObservable:@[]
+      onCachedComponentMount:onCachedComponentMount
+      onCachedComponentUnmount:onCachedComponentUnmount];
   }
 
   return self;

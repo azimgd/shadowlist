@@ -11,12 +11,15 @@
 
 @implementation CachedComponentPool
 
-- (instancetype)initWithObservable:(void (^)(NSInteger poolIndex))onCachedComponentMount
-          onCachedComponentUnmount:(void (^)(NSInteger poolIndex))onCachedComponentUnmount {
+- (instancetype)initWithObservable:(NSArray<NSNumber *> *)stickyIndices
+  onCachedComponentMount:(void (^)(NSInteger poolIndex))onCachedComponentMount
+  onCachedComponentUnmount:(void (^)(NSInteger poolIndex))onCachedComponentUnmount {
+
   self = [super init];
   if (self) {
     self->_pool = [NSMutableArray array];
     self->_mounted = [NSMutableArray array];
+    self->_stickyIndices = stickyIndices;
 
     _onCachedComponentMount = [onCachedComponentMount copy];
     _onCachedComponentUnmount = [onCachedComponentUnmount copy];
@@ -41,11 +44,15 @@
   auto unmountableIndices = [NSMutableArray array];
 
   for (NSUInteger poolIndex = 0; poolIndex < visibleStartIndex; poolIndex++) {
+    if ([self->_stickyIndices containsObject:@(poolIndex)]) continue;
+
     [unmountableIndices addObject:@(poolIndex)];
     [self unmountCachedComponentPoolItem:poolIndex];
   }
 
   for (NSUInteger poolIndex = visibleEndIndex; poolIndex < [self->_pool count]; poolIndex++) {
+    if ([self->_stickyIndices containsObject:@(poolIndex)]) continue;
+
     [unmountableIndices addObject:@(poolIndex)];
     [self unmountCachedComponentPoolItem:poolIndex];
   }
