@@ -84,10 +84,10 @@ export const ShadowListExample = ({ data }: { data: any[] }) => {
 };
 
 export default function App() {
-  const [data, setData] = React.useState(Array(10).fill(sample).flat());
+  const [data, setData] = React.useState(Array(100).fill(sample).flat());
 
   const loadMore = React.useCallback(() => {
-    setData((state) => state.concat(Array(1).fill(sample).flat()));
+    setData((state) => state.concat(Array(50).fill(sample).flat()));
   }, []);
 
   return (

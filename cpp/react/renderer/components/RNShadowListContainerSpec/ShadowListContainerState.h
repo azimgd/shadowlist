@@ -81,7 +81,7 @@ class ShadowListContainerState {
   ShadowListContainerExtendedMetrics calculateExtendedMetrics(Point scrollPosition) const;
   ShadowListContainerLayoutMetrics calculateLayoutMetrics() const;
   float calculateItemOffset(int index) const;
-  size_t calculateTreeLength() const;
+  int countTree() const;
 
 #ifdef ANDROID
   ShadowListContainerState(ShadowListContainerState const &previousState, folly::dynamic data){};

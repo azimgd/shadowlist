@@ -14,10 +14,11 @@
   onCachedComponentUnmount:(void (^)(NSInteger poolIndex))onCachedComponentUnmount;
 
 - (UIView<RCTComponentViewProtocol> *)getComponentView:(NSInteger)poolIndex;
+- (NSInteger)countPool;
 - (BOOL)checkComponentExists:(NSInteger)poolIndex;
 - (BOOL)checkComponentMounted:(NSInteger)poolIndex;
 
-- (void)upsertCachedComponentPoolItem:(UIView<RCTComponentViewProtocol> *)childComponentView poolIndex:(NSInteger)poolIndex;
+- (void)insertCachedComponentPoolItem:(UIView<RCTComponentViewProtocol> *)childComponentView poolIndex:(NSInteger)poolIndex;
 - (void)removeCachedComponentPoolItem:(UIView<RCTComponentViewProtocol> *)childComponentView poolIndex:(NSInteger)poolIndex;
 
 - (void)mountCachedComponentPoolItem:(NSInteger)poolIndex;

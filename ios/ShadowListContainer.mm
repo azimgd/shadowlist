@@ -20,7 +20,7 @@ using namespace facebook::react;
   UIView* _scrollContent;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
   CachedComponentPool *_cachedComponentPool;
-  BOOL _cachedComponentPoolChanged;
+  BOOL _cachedComponentPoolDrift;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -33,7 +33,7 @@ using namespace facebook::react;
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const ShadowListContainerProps>();
 
-    _cachedComponentPoolChanged = true;
+    _cachedComponentPoolDrift = false;
     
     _props = defaultProps;
     _scrollContent = [UIView new];
@@ -86,6 +86,8 @@ using namespace facebook::react;
     [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.scrollContent.height - stateData.scrollContainer.height) animated:false];
   }
   
+  _cachedComponentPoolDrift = (long)[self->_cachedComponentPool countPool] != (long)stateData.countTree();
+  
   [self recycle];
 }
 
@@ -96,11 +98,15 @@ using namespace facebook::react;
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self->_cachedComponentPool upsertCachedComponentPoolItem:childComponentView poolIndex:index];
+  if ([childComponentView superview]) [childComponentView removeFromSuperview];
+  [self->_cachedComponentPool insertCachedComponentPoolItem:childComponentView poolIndex:index];
+  
+  if (_cachedComponentPoolDrift) [self recycle];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
+  if ([childComponentView superview]) [childComponentView removeFromSuperview];
   [self->_cachedComponentPool removeCachedComponentPoolItem:childComponentView poolIndex:index];
 }
 

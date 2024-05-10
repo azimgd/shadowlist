@@ -31,6 +31,10 @@
   return [self->_pool objectAtIndex:poolIndex].component;
 }
 
+- (NSInteger)countPool {
+  return self->_pool.count;
+}
+
 - (BOOL)checkComponentExists:(NSInteger)poolIndex {
   return poolIndex < self->_pool.count;
 }
@@ -65,11 +69,7 @@
   }
 }
 
-- (void)upsertCachedComponentPoolItem:(UIView<RCTComponentViewProtocol> *)childComponentView poolIndex:(NSInteger)poolIndex {
-  if ([self checkComponentExists:poolIndex]) {
-    [self->_pool removeObjectAtIndex:poolIndex];
-  }
-
+- (void)insertCachedComponentPoolItem:(UIView<RCTComponentViewProtocol> *)childComponentView poolIndex:(NSInteger)poolIndex {
   auto cachedComponentPoolItem = [CachedComponentPoolItem new];
   cachedComponentPoolItem.component = childComponentView;
 
@@ -77,12 +77,11 @@
 }
 
 - (void)removeCachedComponentPoolItem:(UIView<RCTComponentViewProtocol> *)childComponentView poolIndex:(NSInteger)poolIndex {
-  [childComponentView removeFromSuperview];
   [self->_pool removeObjectAtIndex:poolIndex];
 }
 
 - (void)mountCachedComponentPoolItem:(NSInteger)poolIndex {
-  assert([self checkComponentExists:poolIndex]);
+  if (![self checkComponentExists:poolIndex]) return;
 
   if ([self checkComponentMounted:poolIndex]) {
     [self->_mounted removeObject:@(poolIndex)];
@@ -92,7 +91,7 @@
 }
 
 - (void)unmountCachedComponentPoolItem:(NSInteger)poolIndex {
-  assert([self checkComponentExists:poolIndex]);
+  if (![self checkComponentExists:poolIndex]) return;
 
   [self->_mounted removeObject:@(poolIndex)];
   self.onCachedComponentUnmount(poolIndex);

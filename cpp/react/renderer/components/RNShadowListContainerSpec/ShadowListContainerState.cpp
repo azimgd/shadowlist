@@ -70,7 +70,7 @@ float ShadowListContainerState::calculateItemOffset(int index) const {
   return scrollContentTree.sum(0, index);
 }
 
-size_t ShadowListContainerState::calculateTreeLength() const {
+int ShadowListContainerState::countTree() const {
   return scrollContentTree.size();
 }
 
