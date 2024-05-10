@@ -21,6 +21,7 @@ using namespace facebook::react;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
   CachedComponentPool *_cachedComponentPool;
   BOOL _cachedComponentPoolDrift;
+  BOOL _scrollContainerLayoutComplete;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -34,6 +35,7 @@ using namespace facebook::react;
     static const auto defaultProps = std::make_shared<const ShadowListContainerProps>();
 
     _cachedComponentPoolDrift = false;
+    _scrollContainerLayoutComplete = false;
     
     _props = defaultProps;
     _scrollContent = [UIView new];
@@ -79,11 +81,15 @@ using namespace facebook::react;
   self->_scrollContainer.contentSize = scrollContent;
   self->_scrollContainer.frame = CGRect{CGPointMake(0, 0), scrollContainer};
 
-  if (props.initialScrollIndex) {
+  if (!self->_scrollContainerLayoutComplete && props.initialScrollIndex) {
     auto nextInitialScrollIndex = props.initialScrollIndex + (props.hasListHeaderComponent ? 1 : 0);
     [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.calculateItemOffset(nextInitialScrollIndex)) animated:false];
-  } else if (props.inverted) {
+  } else if (!self->_scrollContainerLayoutComplete && props.inverted) {
     [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.scrollContent.height - stateData.scrollContainer.height) animated:false];
+  }
+  
+  if (!self->_scrollContainerLayoutComplete) {
+    self->_scrollContainerLayoutComplete = true;
   }
   
   _cachedComponentPoolDrift = (long)[self->_cachedComponentPool countPool] != (long)stateData.countTree();
