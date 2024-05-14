@@ -7,11 +7,17 @@ ShadowList is a new alternative to FlatList for React Native, created to address
 |-------------------------------|-------------|------------|
 | Smooth Scrolling              | ✅           | ❌         |
 | Maintain Content Position     | ✅           | ❌         |
-| No Flashing                   | ✅           | ❌         |
+| No Content Flashing           | ✅           | ❌         |
 | Long List initialScrollIndex  | ✅           | ❌         |
 | Bi-directional Scrolling      | ✅           | ❌         |
 | Native Inverted List Support  | ✅           | ❌         |
 | 60 FPS Scrolling              | ✅           | ❌         |
+
+## Performance
+| Number of Items | ShadowList Speed | FlatList Speed |
+|-----------------|------------------|----------------|
+| 100 (text only) | 10% faster       |                |
+| 1000 (text only)| 50% faster       |                |
 
 ## Installation
 ```sh
@@ -23,7 +29,16 @@ npm install react-native-shadow-list
 ```js
 import { ShadowListContainer } from "react-native-shadow-list";
 
-<ShadowListContainer data={data} />
+<ShadowListContainer
+  style={styles.container}
+  ref={shadowListContainerRef}
+  data={data}
+  ListHeaderComponent={ListHeaderComponent}
+  ListFooterComponent={ListFooterComponent}
+  renderItem={({ item, index }) => (
+    <CustomComponent item={item} index={index} />
+  )}
+/>
 ```
 
 ## API
@@ -43,7 +58,3 @@ See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the 
 ## License
 
 MIT
-
----
-
-Made with [create-react-native-library](https://github.com/callstack/react-native-builder-bob)
