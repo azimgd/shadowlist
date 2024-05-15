@@ -59,7 +59,7 @@ const ListEmptyComponent = () => {
 export const FlatListExample = ({ data }: { data: any[] }) => {
   return (
     <FlatList
-      style={styles.container}
+      contentContainerStyle={styles.container}
       data={data}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
@@ -77,7 +77,7 @@ export const FlatListExample = ({ data }: { data: any[] }) => {
 export const FlashListExample = ({ data }: { data: any[] }) => {
   return (
     <FlashList
-      style={styles.container}
+      contentContainerStyle={styles.container}
       data={data}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
@@ -100,7 +100,7 @@ export const ShadowListExample = ({ data }: { data: any[] }) => {
 
   return (
     <ShadowListContainer
-      style={styles.container}
+      contentContainerStyle={styles.container}
       ref={shadowListContainerRef}
       data={data}
       ListHeaderComponent={ListHeaderComponent}

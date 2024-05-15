@@ -1,4 +1,5 @@
 import React from 'react';
+import { ViewStyle } from 'react-native';
 import ShadowListContainerNativeComponent, {
   Commands,
   type NativeProps,
@@ -19,9 +20,13 @@ const invoker = (Component: Component) =>
 export type JSProps = {
   data: any[];
   renderItem: (payload: { item: any; index: number }) => React.ReactElement;
+  contentContainerStyle?: ViewStyle;
   ListHeaderComponent?: Component;
+  ListHeaderComponentStyle?: ViewStyle;
   ListFooterComponent?: Component;
+  ListFooterComponentStyle?: ViewStyle;
   ListEmptyComponent?: Component;
+  ListEmptyComponentStyle?: ViewStyle;
 };
 
 export type ShadowListContainerInstance = InstanceType<
@@ -44,14 +49,19 @@ const ShadowListContainerWrapper = (
 
   return (
     <ShadowListContainerNativeComponent
-      {...props}
       ref={instanceRef}
       hasListHeaderComponent={!!props.ListHeaderComponent}
       hasListFooterComponent={!!props.ListFooterComponent}
+      style={props.contentContainerStyle}
     >
-      <ShadowListItemNativeComponent key={-1}>
-        {invoker(props.ListHeaderComponent)}
-      </ShadowListItemNativeComponent>
+      {props.ListHeaderComponent ? (
+        <ShadowListItemNativeComponent
+          key={-1}
+          style={props.ListHeaderComponentStyle}
+        >
+          {invoker(props.ListHeaderComponent)}
+        </ShadowListItemNativeComponent>
+      ) : null}
 
       {data.length ? (
         data.map((item, index) => (
@@ -60,14 +70,19 @@ const ShadowListContainerWrapper = (
           </ShadowListItemNativeComponent>
         ))
       ) : (
-        <ShadowListItemNativeComponent>
+        <ShadowListItemNativeComponent key={0}>
           {invoker(props.ListEmptyComponent)}
         </ShadowListItemNativeComponent>
       )}
 
-      <ShadowListItemNativeComponent key={data.length}>
-        {invoker(props.ListFooterComponent)}
-      </ShadowListItemNativeComponent>
+      {props.ListFooterComponent ? (
+        <ShadowListItemNativeComponent
+          key={data.length}
+          style={props.ListFooterComponentStyle}
+        >
+          {invoker(props.ListFooterComponent)}
+        </ShadowListItemNativeComponent>
+      ) : null}
     </ShadowListContainerNativeComponent>
   );
 };

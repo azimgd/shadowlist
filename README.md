@@ -29,12 +29,15 @@ Add the package to your project via `yarn add shadowlist` and run `pod install` 
 import ShadowListContainer from 'shadowlist';
 
 <ShadowListContainer
-  style={styles.container}
+  contentContainerStyle={styles.container}
   ref={shadowListContainerRef}
   data={data}
   ListHeaderComponent={ListHeaderComponent}
+  ListHeaderComponentStyle={styles.ListHeaderComponentStyle}
   ListFooterComponent={ListFooterComponent}
+  ListHeaderComponentStyle={styles.ListFooterComponentStyle}
   ListEmptyComponent={ListEmptyComponent}
+  ListEmptyComponentStyle={styles.ListFooterComponentStyle}
   renderItem={({ item, index }) => (
     <CustomComponent item={item} index={index} />
   )}
@@ -42,15 +45,19 @@ import ShadowListContainer from 'shadowlist';
 ```
 
 ## API
-| Prop                   | Type                     | Required | Description                                     |
-|------------------------|--------------------------|----------|-------------------------------------------------|
-| `data`                 | Array                    | Required | An array of data to be rendered in the list.    |
-| `ListHeaderComponent`  | React component or null | Optional | A custom component to render at the top of the list. |
-| `ListFooterComponent`  | React component or null | Optional | A custom component to render at the bottom of the list. |
-| `ListEmptyComponent`  | React component or null | Optional | A custom component to render when the list is empty. |
-| `renderItem`           | Function                 | Required | A function to render each item in the list. It receives an object with `item` and `index` properties. |
-| `initialScrollIndex`   | Number                   | Optional | The initial index of the item to scroll to when the list mounts. |
-| `inverted`             | Boolean                  | Optional | If true, the list will be rendered in an inverted order. |
+| Prop                       | Type                     | Required | Description                                     |
+|----------------------------|--------------------------|----------|-------------------------------------------------|
+| `data`                     | Array                    | Required | An array of data to be rendered in the list.    |
+| `contentContainerStyle`    | ViewStyle                | Optional | These styles will be applied to the scroll view content container which wraps all of the child views.  |
+| `ListHeaderComponent`      | React component or null  | Optional | A custom component to render at the top of the list. |
+| `ListHeaderComponentStyle` | ViewStyle                | Optional | Styling for internal View for `ListHeaderComponent` |
+| `ListFooterComponent`      | React component or null  | Optional | A custom component to render at the bottom of the list. |
+| `ListFooterComponentStyle` | ViewStyle                | Optional | Styling for internal View for `ListFooterComponent` |
+| `ListEmptyComponent`       | React component or null  | Optional | A custom component to render when the list is empty. |
+| `ListEmptyComponentStyle`  | ViewStyle                | Optional | Styling for internal View for `ListEmptyComponent` |
+| `renderItem`               | Function                 | Required | A function to render each item in the list. It receives an object with `item` and `index` properties. |
+| `initialScrollIndex`       | Number                   | Optional | The initial index of the item to scroll to when the list mounts. |
+| `inverted`                 | Boolean                  | Optional | If true, the list will be rendered in an inverted order. |
 
 ## Contributing
 
