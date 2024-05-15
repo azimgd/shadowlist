@@ -21,14 +21,12 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 | 1000 (text only) | 186mb memory - 60fps       | 190mb (33-38fps)     |
 
 ## Installation
-```sh
-npm install shadowlist
-```
+Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
 
 ## Usage
 
 ```js
-import { ShadowListContainer } from "shadowlist";
+import ShadowListContainer from 'shadowlist';
 
 <ShadowListContainer
   style={styles.container}

@@ -8,6 +8,7 @@ import {
   FlatList,
   Pressable,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import ShadowListContainer from 'shadowlist';
 import sample from './sample.json';
 
@@ -57,6 +58,24 @@ export const FlatListExample = ({ data }: { data: any[] }) => {
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
+    />
+  );
+};
+
+/**
+ * FlashList
+ */
+export const FlashListExample = ({ data }: { data: any[] }) => {
+  return (
+    <FlashList
+      style={styles.container}
+      data={data}
+      ListHeaderComponent={ListHeaderComponent}
+      ListFooterComponent={ListFooterComponent}
+      renderItem={({ item, index }) => (
+        <CustomComponent item={item} index={index} />
+      )}
+      estimatedItemSize={200}
     />
   );
 };

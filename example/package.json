@@ -10,6 +10,7 @@
     "build:ios": "cd ios && xcodebuild -workspace ShadowListExample.xcworkspace -scheme ShadowListExample -configuration Debug -sdk iphonesimulator CC=clang CPLUSPLUS=clang++ LD=clang LDPLUSPLUS=clang++ GCC_OPTIMIZATION_LEVEL=0 GCC_PRECOMPILE_PREFIX_HEADER=YES ASSETCATALOG_COMPILER_OPTIMIZATION=time DEBUG_INFORMATION_FORMAT=dwarf COMPILER_INDEX_STORE_ENABLE=NO"
   },
   "dependencies": {
+    "@shopify/flash-list": "^1.6.4",
     "react": "18.2.0",
     "react-native": "0.74.0"
   },

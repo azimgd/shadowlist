@@ -1163,7 +1163,9 @@ PODS:
     - React-logger (= 0.74.0)
     - React-perflogger (= 0.74.0)
     - React-utils (= 0.74.0)
-  - shadowlist (0.1.0):
+  - RNFlashList (1.6.4):
+    - React-Core
+  - shadowlist (0.0.0):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1243,6 +1245,7 @@ DEPENDENCIES:
   - React-runtimescheduler (from `../node_modules/react-native/ReactCommon/react/renderer/runtimescheduler`)
   - React-utils (from `../node_modules/react-native/ReactCommon/react/utils`)
   - ReactCommon/turbomodule/core (from `../node_modules/react-native/ReactCommon`)
+  - "RNFlashList (from `../node_modules/@shopify/flash-list`)"
   - shadowlist (from `../..`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
@@ -1358,6 +1361,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/react/utils"
   ReactCommon:
     :path: "../node_modules/react-native/ReactCommon"
+  RNFlashList:
+    :path: "../node_modules/@shopify/flash-list"
   shadowlist:
     :path: "../.."
   Yoga:
@@ -1417,7 +1422,8 @@ SPEC CHECKSUMS:
   React-runtimescheduler: 7fe561d179b97cecd0c2bec0bbd08f9fd8581c26
   React-utils: f013537c3371270d2095bff1d594d00d4bc9261b
   ReactCommon: 2cde697fd80bd31da1d6448d25a5803088585219
-  shadowlist: 525d42024abc06f17ed1e88d28ea3f0544cb4b90
+  RNFlashList: b521ebdd7f9352673817f1d98e8bdc0c8cf8545b
+  shadowlist: 90d159d934fcffbfd5225bbb316add505067947a
   SocketRocket: abac6f5de4d4d62d24e11868d7a2f427e0ef940d
   Yoga: 56f906bf6c11c931588191dde1229fd3e4e3d557
 
