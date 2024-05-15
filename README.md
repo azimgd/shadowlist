@@ -1,7 +1,7 @@
 # react-native-shadow-list (alpha release)
 
 ShadowList is a new alternative to FlatList for React Native, created to address common performance issues and enhance the UX when dealing with large lists of data.
-This component utilizes Yoga measurements to pre-calculate the dimensions of children elements on shadow nodes before laying out items on the screen, ensuring efficient recycling of both Shadow Nodes and UIViews. It's built on Fabric and works with React Native version 0.73 and newer.
+It invokes Yoga to calculate the layout of Shadow Nodes and constructs a Fenwick Tree with layout metrics. By virtualizing children and rendering only items within the visible area, ShadowList ensures optimal performance. It's built on Fabric and works with React Native version 0.73 and newer.
 
 ## Out of box comparison to FlatList
 | Feature                       | ShadowList  | FlatList   |
@@ -14,11 +14,11 @@ This component utilizes Yoga measurements to pre-calculate the dimensions of chi
 | Native Inverted List Support  | ✅           | ❌         |
 | 60 FPS Scrolling              | ✅           | ❌         |
 
-## Performance
-| Number of Items | ShadowList Speed | FlatList Speed |
-|-----------------|------------------|----------------|
-| 100 (text only) | 10% faster       |                |
-| 1000 (text only)| 50% faster       |                |
+## Scroll Performance
+| Number of Items  | ShadowList                 | FlatList Speed       |
+|------------------|----------------------------|----------------------|
+| 100 (text only)  | 108mb memory - 60fps       | 164mb (38-43fps)     |
+| 1000 (text only) | 186mb memory - 60fps       | 190mb (33-38fps)     |
 
 ## Installation
 ```sh
