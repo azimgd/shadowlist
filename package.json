@@ -1,6 +1,6 @@
 {
   "name": "shadowlist",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "fast list component for react native",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
