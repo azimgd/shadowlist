@@ -59,6 +59,12 @@ import ShadowListContainer from 'shadowlist';
 | `initialScrollIndex`       | Number                   | Optional | The initial index of the item to scroll to when the list mounts. |
 | `inverted`                 | Boolean                  | Optional | If true, the list will be rendered in an inverted order. |
 
+## Methods
+| Method          | Type                                | Description                                               |
+|-----------------|-------------------------------------|-----------------------------------------------------------|
+| `scrollToIndex` | `(index: number) => void`           | Scrolls the list to the specified index.                  |
+| `scrollToOffset`| `(offset: number) => void`          | Scrolls the list to the specified offset.                 |
+
 ## Contributing
 
 See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the repository and the development workflow.
