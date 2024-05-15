@@ -64,6 +64,10 @@ public class ShadowListContainerManager extends ViewGroupManager<ShadowListConta
   public void scrollToIndex(ShadowListContainer view, int index) {
   }
 
+  @Override
+  public void scrollToOffset(ShadowListContainer view, int offset) {
+  }
+
   @Nullable
   @Override
   public Object updateState(@NonNull ShadowListContainer view, ReactStylesDiffMap props, StateWrapper stateWrapper) {

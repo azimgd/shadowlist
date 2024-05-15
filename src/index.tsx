@@ -1,5 +1,5 @@
 import React from 'react';
-import { ViewStyle } from 'react-native';
+import { type ViewStyle } from 'react-native';
 import ShadowListContainerNativeComponent, {
   Commands,
   type NativeProps,
@@ -42,6 +42,9 @@ const ShadowListContainerWrapper = (
   React.useImperativeHandle(forwardedRef, () => ({
     scrollToIndex: (index: number) => {
       Commands.scrollToIndex(instanceRef.current as never, index);
+    },
+    scrollToOffset: (offset: number) => {
+      Commands.scrollToOffset(instanceRef.current as never, offset);
     },
   }));
 

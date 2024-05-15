@@ -25,10 +25,14 @@ export interface NativeCommands {
     viewRef: React.ElementRef<React.ComponentType>,
     index: Int32
   ) => void;
+  scrollToOffset: (
+    viewRef: React.ElementRef<React.ComponentType>,
+    offset: Int32
+  ) => void;
 }
 
 export const Commands = codegenNativeCommands<NativeCommands>({
-  supportedCommands: ['scrollToIndex'],
+  supportedCommands: ['scrollToIndex', 'scrollToOffset'],
 });
 
 export default codegenNativeComponent<NativeProps>('ShadowListContainer', {

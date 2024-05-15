@@ -96,6 +96,7 @@ export const FlashListExample = ({ data }: { data: any[] }) => {
 export const ShadowListExample = ({ data }: { data: any[] }) => {
   const shadowListContainerRef = React.useRef<{
     scrollToIndex: (index: number) => void;
+    scrollToOffset: (offset: number) => void;
   }>(null);
 
   return (

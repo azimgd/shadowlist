@@ -133,6 +133,15 @@ using namespace facebook::react;
   [self recycle];
 }
 
+- (void)scrollToOffset:(int)offset
+{
+  auto &stateData = _state->getData();
+  auto nextOffset = CGPointMake(0, offset);
+  [self->_scrollContainer setContentOffset:nextOffset animated:true];
+  
+  [self recycle];
+}
+
 - (void)recycle {
   assert(std::dynamic_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(_state));
   auto &stateData = _state->getData();

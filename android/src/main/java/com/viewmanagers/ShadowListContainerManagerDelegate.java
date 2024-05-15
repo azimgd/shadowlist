@@ -29,6 +29,9 @@ public class ShadowListContainerManagerDelegate<T extends View, U extends BaseVi
       case "scrollToIndex":
         mViewManager.scrollToIndex(view, args.getInt(0));
         break;
+      case "scrollToOffset":
+        mViewManager.scrollToOffset(view, args.getInt(0));
+        break;
     }
   }
 }
