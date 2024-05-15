@@ -1,4 +1,4 @@
-# react-native-shadow-list (alpha release)
+# shadowlist (alpha release)
 
 ShadowList is a new alternative to FlatList for React Native, created to address common performance issues and enhance the UX when dealing with large lists of data.
 It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a Fenwick Tree with layout metrics for efficient offset calculations. By virtualizing children and rendering only items within the visible area, ShadowList ensures optimal performance. It's built on Fabric and works with React Native version 0.74 and newer.
@@ -22,13 +22,13 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 
 ## Installation
 ```sh
-npm install react-native-shadow-list
+npm install shadowlist
 ```
 
 ## Usage
 
 ```js
-import { ShadowListContainer } from "react-native-shadow-list";
+import { ShadowListContainer } from "shadowlist";
 
 <ShadowListContainer
   style={styles.container}

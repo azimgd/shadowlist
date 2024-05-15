@@ -8,7 +8,7 @@ import {
   FlatList,
   Pressable,
 } from 'react-native';
-import ShadowListContainer from 'react-native-shadow-list';
+import ShadowListContainer from 'shadowlist';
 import sample from './sample.json';
 
 const CustomComponent = ({ item, index }: { item: any; index: number }) => {

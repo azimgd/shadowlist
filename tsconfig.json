@@ -2,7 +2,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "paths": {
-      "react-native-shadow-list": ["./src/index"]
+      "shadowlist": ["./src/index"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,

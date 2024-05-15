@@ -1,6 +1,6 @@
 {
-  "name": "react-native-shadow-list",
-  "version": "0.1.0",
+  "name": "shadowlist",
+  "version": "0.0.0",
   "description": "fast list component for react native",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
@@ -26,7 +26,7 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace react-native-shadow-list-example",
+    "example": "yarn workspace shadowlist-example",
     "test": "jest",
     "typecheck": "tsc --noEmit",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
@@ -41,14 +41,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/azimgd/react-native-shadow-list.git"
+    "url": "git+https://github.com/azimgd/shadowlist.git"
   },
   "author": "azim <me@azimgd.com> (https://github.com/azimgd)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/azimgd/react-native-shadow-list/issues"
+    "url": "https://github.com/azimgd/shadowlist/issues"
   },
-  "homepage": "https://github.com/azimgd/react-native-shadow-list#readme",
+  "homepage": "https://github.com/azimgd/shadowlist#readme",
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
   },
