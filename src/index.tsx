@@ -21,6 +21,7 @@ export type JSProps = {
   renderItem: (payload: { item: any; index: number }) => React.ReactElement;
   ListHeaderComponent?: Component;
   ListFooterComponent?: Component;
+  ListEmptyComponent?: Component;
 };
 
 export type ShadowListContainerInstance = InstanceType<
@@ -52,11 +53,17 @@ const ShadowListContainerWrapper = (
         {invoker(props.ListHeaderComponent)}
       </ShadowListItemNativeComponent>
 
-      {data.map((item, index) => (
-        <ShadowListItemNativeComponent key={index}>
-          {props.renderItem({ item, index })}
+      {data.length ? (
+        data.map((item, index) => (
+          <ShadowListItemNativeComponent key={index}>
+            {props.renderItem({ item, index })}
+          </ShadowListItemNativeComponent>
+        ))
+      ) : (
+        <ShadowListItemNativeComponent>
+          {invoker(props.ListEmptyComponent)}
         </ShadowListItemNativeComponent>
-      ))}
+      )}
 
       <ShadowListItemNativeComponent key={data.length}>
         {invoker(props.ListFooterComponent)}

@@ -34,6 +34,7 @@ import ShadowListContainer from 'shadowlist';
   data={data}
   ListHeaderComponent={ListHeaderComponent}
   ListFooterComponent={ListFooterComponent}
+  ListEmptyComponent={ListEmptyComponent}
   renderItem={({ item, index }) => (
     <CustomComponent item={item} index={index} />
   )}
@@ -46,6 +47,7 @@ import ShadowListContainer from 'shadowlist';
 | `data`                 | Array                    | Required | An array of data to be rendered in the list.    |
 | `ListHeaderComponent`  | React component or null | Optional | A custom component to render at the top of the list. |
 | `ListFooterComponent`  | React component or null | Optional | A custom component to render at the bottom of the list. |
+| `ListEmptyComponent`  | React component or null | Optional | A custom component to render when the list is empty. |
 | `renderItem`           | Function                 | Required | A function to render each item in the list. It receives an object with `item` and `index` properties. |
 | `initialScrollIndex`   | Number                   | Optional | The initial index of the item to scroll to when the list mounts. |
 | `inverted`             | Boolean                  | Optional | If true, the list will be rendered in an inverted order. |

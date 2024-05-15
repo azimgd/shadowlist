@@ -25,7 +25,7 @@ const CustomComponent = ({ item, index }: { item: any; index: number }) => {
 
 const ListHeaderComponent = () => {
   return (
-    <View style={styles.header}>
+    <View style={[styles.item, styles.header]}>
       <Text style={styles.username}>Header</Text>
       <Text style={styles.text}>
         Lorem ipsum dolor sit amet consectetur adipisicing elit.
@@ -36,11 +36,19 @@ const ListHeaderComponent = () => {
 
 const ListFooterComponent = () => {
   return (
-    <View style={styles.header}>
+    <View style={[styles.item, styles.footer]}>
       <Text style={styles.username}>Footer</Text>
       <Text style={styles.text}>
         Lorem ipsum dolor sit amet consectetur adipisicing elit.
       </Text>
+    </View>
+  );
+};
+
+const ListEmptyComponent = () => {
+  return (
+    <View style={[styles.item, styles.empty]}>
+      <Text style={styles.username}>Empty</Text>
     </View>
   );
 };
@@ -55,6 +63,7 @@ export const FlatListExample = ({ data }: { data: any[] }) => {
       data={data}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
+      ListEmptyComponent={ListEmptyComponent}
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
@@ -72,6 +81,7 @@ export const FlashListExample = ({ data }: { data: any[] }) => {
       data={data}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
+      ListEmptyComponent={ListEmptyComponent}
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
@@ -95,6 +105,7 @@ export const ShadowListExample = ({ data }: { data: any[] }) => {
       data={data}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
+      ListEmptyComponent={ListEmptyComponent}
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
@@ -113,7 +124,7 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <ShadowListExample data={data} />
 
-      <Pressable style={styles.button} onPress={loadMore}>
+      <Pressable style={[styles.item, styles.button]} onPress={loadMore}>
         <Text>Load more</Text>
       </Pressable>
     </SafeAreaView>
@@ -133,18 +144,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   header: {
-    padding: 24,
-    justifyContent: 'center',
-    backgroundColor: '#0984e3',
-    borderBottomColor: '#74b9ff',
-    borderBottomWidth: 1,
+    backgroundColor: '#0984e390',
   },
   footer: {
-    padding: 24,
-    justifyContent: 'center',
-    backgroundColor: '#0984e3',
-    borderBottomColor: '#74b9ff',
-    borderBottomWidth: 1,
+    backgroundColor: '#0984e390',
+  },
+  empty: {
+    backgroundColor: '#0984e390',
   },
   username: {
     color: '#ffffff',
@@ -155,10 +161,6 @@ const styles = StyleSheet.create({
     color: '#ffffff',
   },
   button: {
-    padding: 24,
-    justifyContent: 'center',
-    backgroundColor: '#0984e3',
-    borderBottomColor: '#74b9ff',
-    borderBottomWidth: 1,
+    backgroundColor: '#0984e390',
   },
 });
