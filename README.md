@@ -58,6 +58,7 @@ import ShadowListContainer from 'shadowlist';
 | `renderItem`               | Function                 | Required | A function to render each item in the list. It receives an object with `item` and `index` properties. |
 | `initialScrollIndex`       | Number                   | Optional | The initial index of the item to scroll to when the list mounts. |
 | `inverted`                 | Boolean                  | Optional | If true, the list will be rendered in an inverted order. |
+| `horizontal`               | Boolean                  | Optional | If true, renders items next to each other horizontally instead of stacked vertically. |
 
 ## Methods
 | Method          | Type                                | Description                                               |

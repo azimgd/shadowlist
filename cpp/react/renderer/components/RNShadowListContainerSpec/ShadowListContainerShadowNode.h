@@ -28,7 +28,7 @@ class ShadowListContainerShadowNode final : public ConcreteViewShadowNode<
 
   void layout(LayoutContext layoutContext) override;
 
-  void calculateContainerMeasurements(LayoutContext layoutContext);
+  void calculateContainerMeasurements(LayoutContext layoutContext, bool horizontal, bool inverted);
 
   private:
 

@@ -10,10 +10,10 @@ namespace facebook::react {
 
 class Scrollable final {
   public:
-  static float getScrollPositionOffset(const Point& scrollPosition);
-  static float getScrollContainerSize(const Size& scrollContainer);
-  static float getScrollContentSize(const Size& scrollContent);
-  static float getScrollContentItemSize(const Size& scrollContentItem);
+  static float getScrollPositionOffset(const Point& scrollPosition, bool horizontal);
+  static float getScrollContainerSize(const Size& scrollContainer, bool horizontal);
+  static float getScrollContentSize(const Size& scrollContent, bool horizontal);
+  static float getScrollContentItemSize(const Size& scrollContentItem, bool horizontal);
   static int getVirtualizedOffset();
 };
 

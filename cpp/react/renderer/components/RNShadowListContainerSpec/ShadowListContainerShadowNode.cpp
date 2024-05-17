@@ -11,7 +11,11 @@ void ShadowListContainerShadowNode::layout(LayoutContext layoutContext) {
   ensureUnsealed();
   ConcreteShadowNode::layout(layoutContext);
 
-  calculateContainerMeasurements(layoutContext);
+  calculateContainerMeasurements(
+    layoutContext,
+    getConcreteProps().horizontal,
+    getConcreteProps().inverted
+  );
 
   auto state = getStateData();
 
@@ -30,7 +34,7 @@ void ShadowListContainerShadowNode::layout(LayoutContext layoutContext) {
 /*
  * Measure visible container, and all childs aka list
  */
-void ShadowListContainerShadowNode::calculateContainerMeasurements(LayoutContext layoutContext) {
+void ShadowListContainerShadowNode::calculateContainerMeasurements(LayoutContext layoutContext, bool horizontal, bool inverted) {
   auto scrollContent = Rect{};
   auto scrollContentTree = ShadowListFenwickTree(yogaNode_.getChildCount());
 
@@ -38,7 +42,7 @@ void ShadowListContainerShadowNode::calculateContainerMeasurements(LayoutContext
     auto childYogaNode = yogaNode_.getChild(index);
     auto childNodeMetrics = shadowNodeFromContext(childYogaNode).getLayoutMetrics();
     scrollContent.unionInPlace(childNodeMetrics.frame);
-    scrollContentTree[index] = Scrollable::getScrollContentItemSize(childNodeMetrics.frame.size);
+    scrollContentTree[index] = Scrollable::getScrollContentItemSize(childNodeMetrics.frame.size, horizontal);
   }
 
   scrollContent_ = scrollContent;

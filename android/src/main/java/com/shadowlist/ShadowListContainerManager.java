@@ -61,6 +61,11 @@ public class ShadowListContainerManager extends ViewGroupManager<ShadowListConta
   }
 
   @Override
+  @ReactProp(name = "horizontal")
+  public void setHorizontal(ShadowListContainer view, boolean horizontal) {
+  }
+
+  @Override
   public void scrollToIndex(ShadowListContainer view, int index) {
   }
 

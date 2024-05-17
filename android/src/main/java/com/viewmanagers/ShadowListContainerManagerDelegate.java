@@ -17,6 +17,9 @@ public class ShadowListContainerManagerDelegate<T extends View, U extends BaseVi
       case "inverted":
         mViewManager.setInverted(view, value == null ? false : (boolean) value);
         break;
+      case "horizontal":
+        mViewManager.setHorizontal(view, value == null ? false : (boolean) value);
+        break;
 
       default:
         super.setProperty(view, propName, value);

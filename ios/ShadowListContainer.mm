@@ -23,6 +23,8 @@ using namespace facebook::react;
   CachedComponentPool *_cachedComponentPool;
   int _cachedComponentPoolDriftCount;
   BOOL _scrollContainerLayoutComplete;
+  BOOL _scrollContainerLayoutHorizontal;
+  BOOL _scrollContainerLayoutInverted;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -37,6 +39,8 @@ using namespace facebook::react;
 
     _cachedComponentPoolDriftCount = 0;
     _scrollContainerLayoutComplete = false;
+    _scrollContainerLayoutInverted = defaultProps->inverted;
+    _scrollContainerLayoutHorizontal = defaultProps->horizontal;
     
     _props = defaultProps;
     _scrollContent = [UIView new];
@@ -66,6 +70,9 @@ using namespace facebook::react;
   const auto &oldConcreteProps = static_cast<const ShadowListContainerProps &>(*_props);
   const auto &newConcreteProps = static_cast<const ShadowListContainerProps &>(*props);
 
+  self->_scrollContainerLayoutInverted = newConcreteProps.inverted;
+  self->_scrollContainerLayoutHorizontal = newConcreteProps.horizontal;
+
   [super updateProps:props oldProps:oldProps];
 }
 
@@ -83,8 +90,8 @@ using namespace facebook::react;
     auto nextInitialScrollIndex = props.initialScrollIndex + (props.hasListHeaderComponent ? 1 : 0);
     [self scrollRespectfully:stateData.calculateItemOffset(nextInitialScrollIndex) animated:false];
   } else if (!self->_scrollContainerLayoutComplete && props.inverted) {
-    auto scrollContainerSize = Scrollable::getScrollContentSize(stateData.scrollContainer);
-    auto scrollContentSize = Scrollable::getScrollContentSize(stateData.scrollContent);
+    auto scrollContainerSize = Scrollable::getScrollContentSize(stateData.scrollContainer, self->_scrollContainerLayoutHorizontal);
+    auto scrollContentSize = Scrollable::getScrollContentSize(stateData.scrollContent, self->_scrollContainerLayoutHorizontal);
     [self scrollRespectfully:(scrollContentSize - scrollContainerSize) animated:false];
   }
 
@@ -121,7 +128,11 @@ using namespace facebook::react;
 
 - (void)scrollRespectfully:(float)contentOffset animated:(BOOL)animated
 {
-  [self->_scrollContainer setContentOffset:CGPointMake(0, contentOffset) animated:animated];
+  if (self->_scrollContainerLayoutInverted) {
+    [self->_scrollContainer setContentOffset:CGPointMake(contentOffset, 0) animated:animated];
+  } else {
+    [self->_scrollContainer setContentOffset:CGPointMake(0, contentOffset) animated:animated];
+  }
 }
 
 #pragma mark - NativeCommands handlers
@@ -149,7 +160,11 @@ using namespace facebook::react;
 - (void)recycle {
   assert(std::dynamic_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(_state));
   auto &stateData = _state->getData();
-  auto extendedMetrics = stateData.calculateExtendedMetrics(RCTPointFromCGPoint(self->_scrollContainer.contentOffset));
+  auto extendedMetrics = stateData.calculateExtendedMetrics(
+    RCTPointFromCGPoint(self->_scrollContainer.contentOffset),
+    self->_scrollContainerLayoutHorizontal,
+    self->_scrollContainerLayoutInverted
+  );
   [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
 }
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { type ViewStyle } from 'react-native';
+import { StyleSheet, type ViewStyle } from 'react-native';
 import ShadowListContainerNativeComponent, {
   Commands,
   type NativeProps,
@@ -50,12 +50,14 @@ const ShadowListContainerWrapper = (
 
   const data = props.inverted ? props.data.reverse() : props.data;
 
+  const horizontalStyle = props.horizontal ? styles.horizontal : {};
+
   return (
     <ShadowListContainerNativeComponent
       ref={instanceRef}
       hasListHeaderComponent={!!props.ListHeaderComponent}
       hasListFooterComponent={!!props.ListFooterComponent}
-      style={props.contentContainerStyle}
+      style={[props.contentContainerStyle, horizontalStyle]}
     >
       {props.ListHeaderComponent ? (
         <ShadowListItemNativeComponent
@@ -89,5 +91,11 @@ const ShadowListContainerWrapper = (
     </ShadowListContainerNativeComponent>
   );
 };
+
+const styles = StyleSheet.create({
+  horizontal: {
+    flexDirection: 'row',
+  },
+});
 
 export default React.forwardRef(ShadowListContainerWrapper);

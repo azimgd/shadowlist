@@ -11,6 +11,7 @@ class ShadowListContainerProps final : public ViewProps {
   ShadowListContainerProps(const PropsParserContext& context, const ShadowListContainerProps &sourceProps, const RawProps &rawProps);
 
   bool inverted{false};
+  bool horizontal{false};
   bool hasListHeaderComponent{false};
   bool hasListFooterComponent{false};
   int initialScrollIndex{0};

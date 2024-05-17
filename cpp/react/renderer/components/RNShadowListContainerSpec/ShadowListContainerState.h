@@ -79,7 +79,10 @@ class ShadowListContainerState {
   /*
    * Measure layout and children metrics
    */
-  ShadowListContainerExtendedMetrics calculateExtendedMetrics(Point scrollPosition) const;
+  ShadowListContainerExtendedMetrics calculateExtendedMetrics(
+    Point scrollPosition,
+    bool horizontal,
+    bool inverted) const;
   ShadowListContainerLayoutMetrics calculateLayoutMetrics() const;
   float calculateItemOffset(int index) const;
   int countTree() const;

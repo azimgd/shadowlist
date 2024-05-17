@@ -109,6 +109,8 @@ export const ShadowListExample = ({ data }: { data: any[] }) => {
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
+      horizontal
+      initialScrollIndex={100}
     />
   );
 };

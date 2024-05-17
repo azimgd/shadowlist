@@ -16,11 +16,15 @@ ShadowListContainerState::ShadowListContainerState(
 /*
  * Measure layout and children metrics
  */
-ShadowListContainerExtendedMetrics ShadowListContainerState::calculateExtendedMetrics(Point scrollPosition) const {
+ShadowListContainerExtendedMetrics ShadowListContainerState::calculateExtendedMetrics(
+  Point scrollPosition,
+  bool horizontal,
+  bool inverted) const {
+
   auto virtualizedOffset = Scrollable::getVirtualizedOffset();
-  auto scrollPositionOffset = Scrollable::getScrollPositionOffset(scrollPosition);
-  auto scrollContentSize = Scrollable::getScrollContentSize(scrollContent);
-  auto scrollContainerSize = Scrollable::getScrollContainerSize(scrollContainer);
+  auto scrollPositionOffset = Scrollable::getScrollPositionOffset(scrollPosition, horizontal);
+  auto scrollContentSize = Scrollable::getScrollContentSize(scrollContent, horizontal);
+  auto scrollContainerSize = Scrollable::getScrollContainerSize(scrollContainer, horizontal);
   
   auto visibleStartPixels = std::max<float>(0.f, static_cast<double>(scrollPositionOffset));
   auto visibleEndPixels = std::min<float>(scrollContentSize, scrollPositionOffset + scrollContainerSize);

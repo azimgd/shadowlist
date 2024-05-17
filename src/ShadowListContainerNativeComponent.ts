@@ -9,6 +9,7 @@ import type {
 
 export interface NativeProps extends ViewProps {
   inverted?: boolean;
+  horizontal?: boolean;
   hasListHeaderComponent?: boolean;
   hasListFooterComponent?: boolean;
   initialScrollIndex?: Int32;
