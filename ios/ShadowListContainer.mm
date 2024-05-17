@@ -76,27 +76,24 @@ using namespace facebook::react;
   const auto &stateData = _state->getData();
   const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
 
-  auto scrollContent = RCTCGSizeFromSize(stateData.scrollContent);
-  auto scrollContainer = RCTCGSizeFromSize(stateData.scrollContainer);
-
-  self->_scrollContainer.contentSize = scrollContent;
-  self->_scrollContainer.frame = CGRect{CGPointMake(0, 0), scrollContainer};
+  self->_scrollContainer.contentSize = RCTCGSizeFromSize(stateData.scrollContent);
+  self->_scrollContainer.frame.size = RCTCGSizeFromSize(stateData.scrollContainer);
 
   if (!self->_scrollContainerLayoutComplete && props.initialScrollIndex) {
     auto nextInitialScrollIndex = props.initialScrollIndex + (props.hasListHeaderComponent ? 1 : 0);
-    [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.calculateItemOffset(nextInitialScrollIndex)) animated:false];
+    [self scrollRespectfully:stateData.calculateItemOffset(nextInitialScrollIndex) animated:false];
   } else if (!self->_scrollContainerLayoutComplete && props.inverted) {
     auto scrollContainerSize = Scrollable::getScrollContentSize(stateData.scrollContainer);
     auto scrollContentSize = Scrollable::getScrollContentSize(stateData.scrollContent);
-    [self->_scrollContainer setContentOffset:CGPointMake(0, scrollContentSize - scrollContainerSize) animated:false];
+    [self scrollRespectfully:(scrollContentSize - scrollContainerSize) animated:false];
   }
-  
+
   if (!self->_scrollContainerLayoutComplete) {
     self->_scrollContainerLayoutComplete = true;
   }
-  
+
   _cachedComponentPoolDriftCount = stateData.countTree() - [self->_cachedComponentPool countPool];
-  
+
   [self recycle];
 }
 
@@ -122,26 +119,30 @@ using namespace facebook::react;
   [self->_cachedComponentPool removeCachedComponentPoolItem:childComponentView poolIndex:index];
 }
 
+- (void)scrollRespectfully:(float)contentOffset animated:(BOOL)animated
+{
+  [self->_scrollContainer setContentOffset:CGPointMake(0, contentOffset) animated:animated];
+}
+
+#pragma mark - NativeCommands handlers
+
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
 {
   RCTShadowListContainerHandleCommand(self, commandName, args);
 }
 
-- (void)scrollToIndex:(int)index
+- (void)scrollToIndexNativeCommand:(int)index
 {
   auto &stateData = _state->getData();
-  auto nextOffset = CGPointMake(0, stateData.calculateItemOffset(index));
-  [self->_scrollContainer setContentOffset:nextOffset animated:true];
-  
+  [self scrollRespectfully:stateData.calculateItemOffset(index) animated:false];
+
   [self recycle];
 }
 
-- (void)scrollToOffset:(int)offset
+- (void)scrollToOffsetNativeCommand:(int)offset
 {
-  auto &stateData = _state->getData();
-  auto nextOffset = CGPointMake(0, offset);
-  [self->_scrollContainer setContentOffset:nextOffset animated:true];
-  
+  [self scrollRespectfully:offset animated:false];
+
   [self recycle];
 }
 
