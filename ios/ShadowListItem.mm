@@ -15,7 +15,7 @@ using namespace facebook::react;
 @end
 
 @implementation ShadowListItem {
-  UIScrollView* _scrollView;
+  UIView* _view;
   ShadowListItemShadowNode::ConcreteState::Shared _state;
 }
 
@@ -29,10 +29,9 @@ using namespace facebook::react;
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const ShadowListItemProps>();
     _props = defaultProps;
-    _scrollView = [[UIScrollView alloc] init];
-    _scrollView.delegate = self;
+    _view = [[UIView alloc] init];
 
-    self.contentView = _scrollView;
+    self.contentView = _view;
   }
 
   return self;
