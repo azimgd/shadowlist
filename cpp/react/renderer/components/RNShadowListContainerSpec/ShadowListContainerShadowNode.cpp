@@ -38,7 +38,7 @@ void ShadowListContainerShadowNode::calculateContainerMeasurements(LayoutContext
     auto childYogaNode = yogaNode_.getChild(index);
     auto childNodeMetrics = shadowNodeFromContext(childYogaNode).getLayoutMetrics();
     scrollContent.unionInPlace(childNodeMetrics.frame);
-    scrollContentTree[index] = childNodeMetrics.frame.size.height;
+    scrollContentTree[index] = Scrollable::getScrollContentItemSize(childNodeMetrics.frame.size);
   }
 
   scrollContent_ = scrollContent;

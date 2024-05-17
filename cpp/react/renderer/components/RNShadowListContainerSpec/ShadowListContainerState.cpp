@@ -17,15 +17,19 @@ ShadowListContainerState::ShadowListContainerState(
  * Measure layout and children metrics
  */
 ShadowListContainerExtendedMetrics ShadowListContainerState::calculateExtendedMetrics(Point scrollPosition) const {
-  int offset = 10;
-  auto visibleStartPixels = std::max(0.0, static_cast<double>(scrollPosition.y));
-  auto visibleEndPixels = std::min(scrollContent.height, scrollPosition.y + scrollContainer.height);
+  auto virtualizedOffset = Scrollable::getVirtualizedOffset();
+  auto scrollPositionOffset = Scrollable::getScrollPositionOffset(scrollPosition);
+  auto scrollContentSize = Scrollable::getScrollContentSize(scrollContent);
+  auto scrollContainerSize = Scrollable::getScrollContainerSize(scrollContainer);
+  
+  auto visibleStartPixels = std::max<float>(0.f, static_cast<double>(scrollPositionOffset));
+  auto visibleEndPixels = std::min<float>(scrollContentSize, scrollPositionOffset + scrollContainerSize);
 
   int visibleStartIndex = scrollContentTree.lower_bound(visibleStartPixels);
-  visibleStartIndex = std::max(0, visibleStartIndex - offset);
+  visibleStartIndex = std::max(0, visibleStartIndex - virtualizedOffset);
 
   int visibleEndIndex = scrollContentTree.lower_bound(visibleEndPixels);
-  visibleEndIndex = std::min(scrollContentTree.size(), size_t(visibleEndIndex + offset));
+  visibleEndIndex = std::min(scrollContentTree.size(), size_t(visibleEndIndex + virtualizedOffset));
 
   int blankTopStartIndex = 0;
   int blankTopEndIndex = std::max(0, visibleStartIndex - 1);

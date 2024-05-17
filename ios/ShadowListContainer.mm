@@ -4,6 +4,7 @@
 #import "ShadowListContainerEventEmitter.h"
 #import "ShadowListContainerProps.h"
 #import "ShadowListContainerHelpers.h"
+#import "Scrollable.h"
 #import "CachedComponentPool/CachedComponentPool.h"
 
 #import "RCTConversions.h"
@@ -85,7 +86,9 @@ using namespace facebook::react;
     auto nextInitialScrollIndex = props.initialScrollIndex + (props.hasListHeaderComponent ? 1 : 0);
     [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.calculateItemOffset(nextInitialScrollIndex)) animated:false];
   } else if (!self->_scrollContainerLayoutComplete && props.inverted) {
-    [self->_scrollContainer setContentOffset:CGPointMake(0, stateData.scrollContent.height - stateData.scrollContainer.height) animated:false];
+    auto scrollContainerSize = Scrollable::getScrollContentSize(stateData.scrollContainer);
+    auto scrollContentSize = Scrollable::getScrollContentSize(stateData.scrollContent);
+    [self->_scrollContainer setContentOffset:CGPointMake(0, scrollContentSize - scrollContainerSize) animated:false];
   }
   
   if (!self->_scrollContainerLayoutComplete) {
