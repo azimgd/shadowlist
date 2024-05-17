@@ -54,6 +54,7 @@ const ShadowListContainerWrapper = (
 
   return (
     <ShadowListContainerNativeComponent
+      {...props}
       ref={instanceRef}
       hasListHeaderComponent={!!props.ListHeaderComponent}
       hasListFooterComponent={!!props.ListFooterComponent}
