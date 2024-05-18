@@ -6,6 +6,7 @@ import {
   Text,
   FlatList,
   Pressable,
+  TouchableOpacity,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import ShadowListContainer from 'shadowlist';
@@ -13,12 +14,12 @@ import sample from './sample.json';
 
 const CustomComponent = ({ item, index }: { item: any; index: number }) => {
   return (
-    <View style={styles.item}>
+    <TouchableOpacity style={styles.item}>
       <Text style={styles.username}>
         {index} - {item.username}
       </Text>
       <Text style={styles.text}>{item.text}</Text>
-    </View>
+    </TouchableOpacity>
   );
 };
 
@@ -26,9 +27,15 @@ const ListHeaderComponent = () => {
   return (
     <View style={[styles.item, styles.header]}>
       <Text style={styles.username}>Header</Text>
-      <Text style={styles.text}>
-        Lorem ipsum dolor sit amet consectetur adipisicing elit.
-      </Text>
+
+      <ShadowListContainer
+        contentContainerStyle={styles.container}
+        data={sample}
+        renderItem={({ item, index }) => (
+          <CustomComponent item={item} index={index} />
+        )}
+        horizontal
+      />
     </View>
   );
 };
@@ -145,6 +152,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#0984e390',
+    height: 200,
   },
   footer: {
     backgroundColor: '#0984e390',

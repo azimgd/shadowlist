@@ -29,9 +29,6 @@ using namespace facebook::react;
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const ShadowListItemProps>();
     _props = defaultProps;
-    _view = [[UIView alloc] init];
-
-    self.contentView = _view;
   }
 
   return self;

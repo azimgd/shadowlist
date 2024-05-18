@@ -18,7 +18,6 @@ using namespace facebook::react;
 
 @implementation ShadowListContainer {
   UIScrollView* _scrollContainer;
-  UIView* _scrollContent;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
   CachedComponentPool *_cachedComponentPool;
   int _cachedComponentPoolDriftCount;
@@ -43,16 +42,14 @@ using namespace facebook::react;
     _scrollContainerLayoutHorizontal = defaultProps->horizontal;
     
     _props = defaultProps;
-    _scrollContent = [UIView new];
     _scrollContainer = [UIScrollView new];
     _scrollContainer.delegate = self;
     _scrollContainer.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
 
-    [_scrollContainer addSubview:_scrollContent];
     self.contentView = _scrollContainer;
     
     auto onCachedComponentMount = ^(NSInteger poolIndex) {
-      [self->_scrollContent addSubview:[self->_cachedComponentPool getComponentView:poolIndex]];
+      [self->_scrollContainer addSubview:[self->_cachedComponentPool getComponentView:poolIndex]];
     };
     auto onCachedComponentUnmount = ^(NSInteger poolIndex) {
       [[self->_cachedComponentPool getComponentView:poolIndex] removeFromSuperview];
