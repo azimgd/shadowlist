@@ -129,7 +129,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeareaview}>
-      <FlatListExample data={data} />
+      <ShadowListExample data={data} />
 
       <Pressable style={[styles.item, styles.button]} onPress={loadMore}>
         <Text>Load more</Text>

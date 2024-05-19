@@ -17,10 +17,13 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 | Smooth Scrolling                 | ✅           | ❌         |
 
 ## Scroll Performance
-| Number of Items  | ShadowList                 | FlatList Speed       |
-|------------------|----------------------------|----------------------|
-| 100 (text only)  | 108mb memory - 60fps       | 164mb (38-43fps)     |
-| 1000 (text only) | 186mb memory - 60fps       | 190mb (33-38fps)     |
+| Number of Items  | ShadowList                 | FlatList             | FlashList            |
+|------------------|----------------------------|----------------------|----------------------|
+| 100 (text only)  | **156mb memory - 60fps**   | 195mb (38-43fps)     | ~~180mb (56fps)~~*   |
+| 1000 (text only) | **187mb memory - 60fps**   | 200mb (33-38fps)     | ~~180mb (56fps)~~*   |
+
+> **FlashList is unreliable and completely breaks when scrolling, resulting in unrealistic metrics.*  
+> Given measurements show memory usage and FPS on fully loaded content, see demo [here](https://github.com/azimgd/shadowlist/issues/1) and implementation details [here](https://github.com/azimgd/shadowlist/blob/main/example/src/App.tsx).
 
 ## Installation
 Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
