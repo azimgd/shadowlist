@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import ShadowListContainer from 'shadowlist';
+import ShadowList from 'shadowlist';
 import sample from './sample.json';
 
 const CustomComponent = ({ item, index }: { item: any; index: number }) => {
@@ -28,7 +28,7 @@ const ListHeaderComponent = () => {
     <View style={[styles.item, styles.header]}>
       <Text style={styles.username}>Header</Text>
 
-      <ShadowListContainer
+      <ShadowList
         contentContainerStyle={styles.container}
         data={sample}
         renderItem={({ item, index }) => (
@@ -100,15 +100,15 @@ export const FlashListExample = ({ data }: { data: any[] }) => {
  * ShadowList
  */
 export const ShadowListExample = ({ data }: { data: any[] }) => {
-  const shadowListContainerRef = React.useRef<{
+  const shadowListRef = React.useRef<{
     scrollToIndex: (index: number) => void;
     scrollToOffset: (offset: number) => void;
   }>(null);
 
   return (
-    <ShadowListContainer
+    <ShadowList
       contentContainerStyle={styles.container}
-      ref={shadowListContainerRef}
+      ref={shadowListRef}
       data={data}
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
@@ -128,8 +128,8 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ShadowListExample data={data} />
+    <SafeAreaView style={styles.safeareaview}>
+      <FlatListExample data={data} />
 
       <Pressable style={[styles.item, styles.button]} onPress={loadMore}>
         <Text>Load more</Text>
@@ -139,8 +139,10 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeareaview: {
     flex: 1,
+  },
+  container: {
     backgroundColor: '#74b9ff',
   },
   item: {

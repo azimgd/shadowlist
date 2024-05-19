@@ -50,7 +50,7 @@ const ShadowListContainerWrapper = (
 
   const data = props.inverted ? props.data.reverse() : props.data;
 
-  const horizontalStyle = props.horizontal ? styles.horizontal : {};
+  const baseStyle = props.horizontal ? styles.horizontal : styles.vertical;
 
   return (
     <ShadowListContainerNativeComponent
@@ -58,7 +58,7 @@ const ShadowListContainerWrapper = (
       ref={instanceRef}
       hasListHeaderComponent={!!props.ListHeaderComponent}
       hasListFooterComponent={!!props.ListFooterComponent}
-      style={[props.contentContainerStyle, horizontalStyle]}
+      style={[props.contentContainerStyle, baseStyle]}
     >
       {props.ListHeaderComponent ? (
         <ShadowListItemNativeComponent
@@ -94,8 +94,17 @@ const ShadowListContainerWrapper = (
 };
 
 const styles = StyleSheet.create({
+  vertical: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexDirection: 'column',
+    overflow: 'scroll',
+  },
   horizontal: {
+    flexGrow: 1,
+    flexShrink: 1,
     flexDirection: 'row',
+    overflow: 'scroll',
   },
 });
 
