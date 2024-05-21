@@ -103,6 +103,14 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+  const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
+  
+  auto distanceFromEnd = [self distanceFromEndRespectfully:props.onEndReachedThreshold];
+  if (distanceFromEnd > 0) {
+    eventEmitter.onEndReached({ distanceFromEnd = distanceFromEnd });
+  }
+  
   [self recycle];
 }
 
@@ -121,6 +129,15 @@ using namespace facebook::react;
 {
   if ([childComponentView superview]) [childComponentView removeFromSuperview];
   [self->_cachedComponentPool removeCachedComponentPoolItem:childComponentView poolIndex:index];
+}
+
+- (int)distanceFromEndRespectfully:(float)threshold {
+  auto visibleHeight = self->_scrollContainer.bounds.size.height;
+  auto contentHeight = self->_scrollContainer.contentSize.height;
+  auto offsetY = self->_scrollContainer.contentOffset.y;
+  
+  auto triggerPoint = contentHeight - (threshold * visibleHeight);
+  return offsetY >= triggerPoint ? (int)(contentHeight - offsetY) : 0;
 }
 
 - (void)scrollRespectfully:(float)contentOffset animated:(BOOL)animated

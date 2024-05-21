@@ -5,6 +5,7 @@ import type { ViewProps } from 'react-native';
 import type {
   Int32,
   DirectEventHandler,
+  Double,
 } from 'react-native/Libraries/Types/CodegenTypes';
 
 export interface NativeProps extends ViewProps {
@@ -19,11 +20,9 @@ export interface NativeProps extends ViewProps {
       end: Int32;
     }>
   >;
-  onBatchLayout?: DirectEventHandler<
-    Readonly<{
-      size: Int32;
-    }>
-  >;
+  onBatchLayout?: DirectEventHandler<Readonly<{ size: Int32 }>>;
+  onEndReached?: DirectEventHandler<Readonly<{ distanceFromEnd: Int32 }>>;
+  onEndReachedThreshold?: Double;
 }
 
 export interface NativeCommands {

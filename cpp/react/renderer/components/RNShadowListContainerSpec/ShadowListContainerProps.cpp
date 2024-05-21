@@ -13,7 +13,8 @@ ShadowListContainerProps::ShadowListContainerProps(
   horizontal(convertRawProp(context, rawProps, "horizontal", sourceProps.horizontal, {false})),
   hasListHeaderComponent(convertRawProp(context, rawProps, "hasListHeaderComponent", sourceProps.hasListHeaderComponent, {false})),
   hasListFooterComponent(convertRawProp(context, rawProps, "hasListFooterComponent", sourceProps.hasListFooterComponent, {false})),
-  initialScrollIndex(convertRawProp(context, rawProps, "initialScrollIndex", sourceProps.initialScrollIndex, {0}))
+  initialScrollIndex(convertRawProp(context, rawProps, "initialScrollIndex", sourceProps.initialScrollIndex, {0})),
+  onEndReachedThreshold(convertRawProp(context, rawProps, "onEndReachedThreshold", sourceProps.onEndReachedThreshold, {0}))
   {}
 
 }

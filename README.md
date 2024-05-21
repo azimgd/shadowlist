@@ -50,20 +50,23 @@ import ShadowListContainer from 'shadowlist';
 ```
 
 ## API
-| Prop                       | Type                     | Required | Description                                     |
-|----------------------------|--------------------------|----------|-------------------------------------------------|
-| `data`                     | Array                    | Required | An array of data to be rendered in the list.    |
-| `contentContainerStyle`    | ViewStyle                | Optional | These styles will be applied to the scroll view content container which wraps all of the child views.  |
-| `ListHeaderComponent`      | React component or null  | Optional | A custom component to render at the top of the list. |
-| `ListHeaderComponentStyle` | ViewStyle                | Optional | Styling for internal View for `ListHeaderComponent` |
-| `ListFooterComponent`      | React component or null  | Optional | A custom component to render at the bottom of the list. |
-| `ListFooterComponentStyle` | ViewStyle                | Optional | Styling for internal View for `ListFooterComponent` |
-| `ListEmptyComponent`       | React component or null  | Optional | A custom component to render when the list is empty. |
-| `ListEmptyComponentStyle`  | ViewStyle                | Optional | Styling for internal View for `ListEmptyComponent` |
-| `renderItem`               | Function                 | Required | A function to render each item in the list. It receives an object with `item` and `index` properties. |
-| `initialScrollIndex`       | Number                   | Optional | The initial index of the item to scroll to when the list mounts. |
-| `inverted`                 | Boolean                  | Optional | If true, the list will be rendered in an inverted order. |
-| `horizontal`               | Boolean                  | Optional | If true, renders items next to each other horizontally instead of stacked vertically. |
+| Prop                       | Type                      | Required | Description                                     |
+|----------------------------|---------------------------|----------|-------------------------------------------------|
+| `data`                     | Array                     | Required | An array of data to be rendered in the list.    |
+| `contentContainerStyle`    | ViewStyle                 | Optional | These styles will be applied to the scroll view content container which wraps all of the child views.  |
+| `ListHeaderComponent`      | React component or null   | Optional | A custom component to render at the top of the list. |
+| `ListHeaderComponentStyle` | ViewStyle                 | Optional | Styling for internal View for `ListHeaderComponent` |
+| `ListFooterComponent`      | React component or null   | Optional | A custom component to render at the bottom of the list. |
+| `ListFooterComponentStyle` | ViewStyle                 | Optional | Styling for internal View for `ListFooterComponent` |
+| `ListEmptyComponent`       | React component or null   | Optional | A custom component to render when the list is empty. |
+| `ListEmptyComponentStyle`  | ViewStyle                 | Optional | Styling for internal View for `ListEmptyComponent` |
+| `renderItem`               | Function                  | Required | A function to render each item in the list. It receives an object with `item` and `index` properties. |
+| `initialScrollIndex`       | Number                    | Optional | The initial index of the item to scroll to when the list mounts. |
+| `inverted`                 | Boolean                   | Optional | If true, the list will be rendered in an inverted order. |
+| `horizontal`               | Boolean                   | Optional | If true, renders items next to each other horizontally instead of stacked vertically. |
+| `onBatchLayout`            | `({ size: Int32 }) => void` | Optional | Called when a batch of layout calculations is complete. |
+| `onEndReached`             | `({ distanceFromEnd: Int32 }) => void` | Optional | Called when the end of the content is within `onEndReachedThreshold`. |
+| `onEndReachedThreshold`    | Double                    | Optional | The threshold (in content length units) at which `onEndReached` is triggered. |
 
 ## Methods
 | Method          | Type                                | Description                                               |
@@ -78,3 +81,4 @@ See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the 
 ## License
 
 MIT
+

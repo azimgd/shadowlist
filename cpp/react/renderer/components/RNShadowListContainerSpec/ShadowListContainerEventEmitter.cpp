@@ -19,4 +19,12 @@ void ShadowListContainerEventEmitter::onBatchLayout(BatchLayout $event) const {
   });
 }
 
+void ShadowListContainerEventEmitter::onEndReached(EndReached $event) const {
+  dispatchEvent("endReached", [$event = std::move($event)](jsi::Runtime &runtime) {
+    auto $payload = jsi::Object(runtime);
+    $payload.setProperty(runtime, "distanceFromEnd", $event.distanceFromEnd);
+    return $payload;
+  });
+}
+
 }
