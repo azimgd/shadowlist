@@ -132,12 +132,21 @@ using namespace facebook::react;
 }
 
 - (int)distanceFromEndRespectfully:(float)threshold {
-  auto visibleHeight = self->_scrollContainer.bounds.size.height;
-  auto contentHeight = self->_scrollContainer.contentSize.height;
-  auto offsetY = self->_scrollContainer.contentOffset.y;
-  
-  auto triggerPoint = contentHeight - (threshold * visibleHeight);
-  return offsetY >= triggerPoint ? (int)(contentHeight - offsetY) : 0;
+  if (self->_scrollContainerLayoutHorizontal) {
+    auto containerSize = self->_scrollContainer.bounds.size.width;
+    auto contentSize = self->_scrollContainer.contentSize.width;
+    auto offset = self->_scrollContainer.contentOffset.x;
+    
+    auto triggerPoint = contentSize - (threshold * containerSize);
+    return offset >= triggerPoint ? (int)(contentSize - offset) : 0;
+  } else {
+    auto containerSize = self->_scrollContainer.bounds.size.height;
+    auto contentSize = self->_scrollContainer.contentSize.height;
+    auto offset = self->_scrollContainer.contentOffset.y;
+    
+    auto triggerPoint = contentSize - (threshold * containerSize);
+    return offset >= triggerPoint ? (int)(contentSize - offset) : 0;
+  }
 }
 
 - (void)scrollRespectfully:(float)contentOffset animated:(BOOL)animated
