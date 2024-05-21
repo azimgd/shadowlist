@@ -19,6 +19,11 @@ export interface NativeProps extends ViewProps {
       end: Int32;
     }>
   >;
+  onBatchLayout?: DirectEventHandler<
+    Readonly<{
+      size: Int32;
+    }>
+  >;
 }
 
 export interface NativeCommands {

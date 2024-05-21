@@ -29,6 +29,10 @@ void ShadowListContainerShadowNode::layout(LayoutContext layoutContext) {
     state.scrollContentTree = scrollContentTree_;
     setStateData(std::move(state));
   }
+  
+  getConcreteEventEmitter().onBatchLayout({
+    .size = static_cast<int>(scrollContentTree_.size())
+  });
 }
 
 /*

@@ -13,7 +13,12 @@ class ShadowListContainerEventEmitter : public ViewEventEmitter {
     int end;
   };
 
+  struct BatchLayout {
+    int size;
+  };
+
   void onVisibleChange(VisibleMetrics value) const;
+  void onBatchLayout(BatchLayout value) const;
 };
 
 }
