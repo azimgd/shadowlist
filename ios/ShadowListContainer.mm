@@ -24,6 +24,7 @@ using namespace facebook::react;
   BOOL _scrollContainerLayoutComplete;
   BOOL _scrollContainerLayoutHorizontal;
   BOOL _scrollContainerLayoutInverted;
+  BOOL _scrollContainerScrolling;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -99,6 +100,36 @@ using namespace facebook::react;
   _cachedComponentPoolDriftCount = stateData.countTree() - [self->_cachedComponentPool countPool];
 
   [self recycle];
+}
+
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
+  _scrollContainerScrolling = YES;
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
+  if (!decelerate) {
+    [self scrollViewDidEndScrolling:scrollView];
+  }
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView {
+  [self scrollViewDidEndScrolling:scrollView];
+}
+
+- (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView {
+  [self scrollViewDidEndScrolling:scrollView];
+}
+
+- (void)scrollViewDidEndScrolling:(UIScrollView *)scrollView {
+  _scrollContainerScrolling = NO;
+}
+
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
+{
+  if (_scrollContainerScrolling) {
+    return self->_scrollContainer;
+  }
+  return [super hitTest:point withEvent:event];
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
