@@ -1,11 +1,20 @@
 import React from 'react';
-import { StyleSheet, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  type ViewStyle,
+  type NativeSyntheticEvent,
+} from 'react-native';
+import EventEmitter from 'eventemitter3';
 import ShadowListContainerNativeComponent, {
   Commands,
   type NativeProps,
   type NativeCommands,
+  type OnBatchLayoutProps,
 } from './ShadowListContainerNativeComponent';
 import ShadowListItemNativeComponent from './ShadowListItemNativeComponent';
+
+const emitter = new EventEmitter();
+const BATCHER_SIZE = 50;
 
 type Component =
   | React.ComponentType<any>
@@ -27,7 +36,7 @@ const invoker = (Component: Component) =>
   // @ts-ignore
   React.isValidElement(Component) ? Component : <Component />;
 
-export type JSProps = {
+export type ShadowListContainerWrapperProps = {
   data: any[];
   renderItem: (payload: { item: any; index: number }) => React.ReactElement;
   contentContainerStyle?: ViewStyle;
@@ -43,8 +52,54 @@ export type ShadowListContainerInstance = InstanceType<
   typeof ShadowListContainerNativeComponent
 >;
 
+export type ShadowListItemWrapperProps = {
+  index: number;
+  renderItem: ShadowListContainerWrapperProps['renderItem'];
+  item: any;
+};
+
+const ShadowListItemWrapper = ({
+  item,
+  renderItem,
+  index,
+}: ShadowListItemWrapperProps) => {
+  /**
+   * Always layout this component if it is within the first BATCHER_SIZE items.
+   */
+  const [isReady, setIsReady] = React.useState(index < BATCHER_SIZE);
+
+  /**
+   * Listens for the 'onBatchLayout' event.
+   * Sets the component to ready when its index is within the batch layout meaning that it's layed out.
+   */
+  React.useEffect(() => {
+    const listener = (batchLayoutSize: number) => {
+      const shouldRenderListItem = index <= batchLayoutSize + BATCHER_SIZE;
+      if (!shouldRenderListItem) return;
+      emitter.off('onBatchLayout', listener);
+      setIsReady(true);
+    };
+
+    emitter.on('onBatchLayout', listener);
+
+    return () => {
+      emitter.off('onBatchLayout', listener);
+    };
+  }, [index]);
+
+  if (!isReady) {
+    return null;
+  }
+
+  return (
+    <ShadowListItemNativeComponent key={index}>
+      {renderItem({ item, index })}
+    </ShadowListItemNativeComponent>
+  );
+};
+
 const ShadowListContainerWrapper = (
-  props: NativeProps & JSProps,
+  props: NativeProps & ShadowListContainerWrapperProps,
   forwardedRef: React.Ref<Partial<NativeCommands>>
 ) => {
   const instanceRef = React.useRef<ShadowListContainerInstance>(null);
@@ -126,12 +181,25 @@ const ShadowListContainerWrapper = (
   const ListChildrenComponent = React.useMemo(
     () =>
       data.map((item, index) => (
-        <ShadowListItemNativeComponent key={index}>
-          {props.renderItem({ item, index })}
-        </ShadowListItemNativeComponent>
+        <ShadowListItemWrapper
+          renderItem={props.renderItem}
+          item={item}
+          index={index}
+          key={index}
+        />
       )),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, props.renderItem]
+  );
+
+  /**
+   * Notifies all subscribed components about a new layout batch size.
+   * It uses an event notifier to reduce re-renders of the parent list component.
+   */
+  const handleBatchLayout = React.useCallback(
+    (event: NativeSyntheticEvent<OnBatchLayoutProps>) => {
+      emitter.emit('onBatchLayout', event.nativeEvent.size);
+    },
+    []
   );
 
   return (
@@ -141,6 +209,7 @@ const ShadowListContainerWrapper = (
       hasListHeaderComponent={!!props.ListHeaderComponent}
       hasListFooterComponent={!!props.ListFooterComponent}
       style={[props.contentContainerStyle, baseStyle]}
+      onBatchLayout={handleBatchLayout}
     >
       {ListHeaderComponent}
       {data.length ? ListChildrenComponent : ListEmptyComponent}
