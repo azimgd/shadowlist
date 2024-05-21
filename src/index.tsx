@@ -66,9 +66,73 @@ const ShadowListContainerWrapper = (
     },
   }));
 
-  const data = props.inverted ? props.data.reverse() : props.data;
+  const data = React.useMemo(() => {
+    return props.inverted ? props.data.reverse() : props.data;
+  }, [props.inverted, props.data]);
 
   const baseStyle = props.horizontal ? styles.horizontal : styles.vertical;
+
+  /**
+   * ListHeaderComponent
+   */
+  const ListHeaderComponent = React.useMemo(
+    () =>
+      props.ListHeaderComponent ? (
+        <ShadowListItemNativeComponent
+          key="ListHeaderComponent"
+          style={props.ListHeaderComponentStyle}
+        >
+          {invoker(props.ListHeaderComponent)}
+        </ShadowListItemNativeComponent>
+      ) : null,
+    [props.ListHeaderComponent, props.ListHeaderComponentStyle]
+  );
+
+  /**
+   * ListFooterComponent
+   */
+  const ListFooterComponent = React.useMemo(
+    () =>
+      props.ListFooterComponent ? (
+        <ShadowListItemNativeComponent
+          key="ListFooterComponent"
+          style={props.ListFooterComponentStyle}
+        >
+          {invoker(props.ListFooterComponent)}
+        </ShadowListItemNativeComponent>
+      ) : null,
+    [props.ListFooterComponent, props.ListFooterComponentStyle]
+  );
+
+  /**
+   * ListEmptyComponent
+   */
+  const ListEmptyComponent = React.useMemo(
+    () =>
+      props.ListEmptyComponent ? (
+        <ShadowListItemNativeComponent
+          key="ListEmptyComponent"
+          style={props.ListEmptyComponentStyle}
+        >
+          {invoker(props.ListEmptyComponent)}
+        </ShadowListItemNativeComponent>
+      ) : null,
+    [props.ListEmptyComponent, props.ListEmptyComponentStyle]
+  );
+
+  /**
+   * ListChildrenComponent
+   */
+  const ListChildrenComponent = React.useMemo(
+    () =>
+      data.map((item, index) => (
+        <ShadowListItemNativeComponent key={index}>
+          {props.renderItem({ item, index })}
+        </ShadowListItemNativeComponent>
+      )),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data, props.renderItem]
+  );
 
   return (
     <ShadowListContainerNativeComponent
@@ -78,35 +142,9 @@ const ShadowListContainerWrapper = (
       hasListFooterComponent={!!props.ListFooterComponent}
       style={[props.contentContainerStyle, baseStyle]}
     >
-      {props.ListHeaderComponent ? (
-        <ShadowListItemNativeComponent
-          key={-1}
-          style={props.ListHeaderComponentStyle}
-        >
-          {invoker(props.ListHeaderComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null}
-
-      {data.length ? (
-        data.map((item, index) => (
-          <ShadowListItemNativeComponent key={index}>
-            {props.renderItem({ item, index })}
-          </ShadowListItemNativeComponent>
-        ))
-      ) : props.ListEmptyComponent ? (
-        <ShadowListItemNativeComponent key={0}>
-          {invoker(props.ListEmptyComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null}
-
-      {props.ListFooterComponent ? (
-        <ShadowListItemNativeComponent
-          key={data.length}
-          style={props.ListFooterComponentStyle}
-        >
-          {invoker(props.ListFooterComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null}
+      {ListHeaderComponent}
+      {data.length ? ListChildrenComponent : ListEmptyComponent}
+      {ListFooterComponent}
     </ShadowListContainerNativeComponent>
   );
 };
