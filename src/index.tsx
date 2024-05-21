@@ -75,11 +75,11 @@ const ShadowListContainerWrapper = (
             {props.renderItem({ item, index })}
           </ShadowListItemNativeComponent>
         ))
-      ) : (
+      ) : props.ListEmptyComponent ? (
         <ShadowListItemNativeComponent key={0}>
           {invoker(props.ListEmptyComponent)}
         </ShadowListItemNativeComponent>
-      )}
+      ) : null}
 
       {props.ListFooterComponent ? (
         <ShadowListItemNativeComponent
