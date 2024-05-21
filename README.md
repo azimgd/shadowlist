@@ -1,11 +1,11 @@
-# shadowlist (alpha release)
+# shadowlist (ios alpha release)
 
 ShadowList is a new alternative to FlatList for React Native, created to address common performance issues and enhance the UX when dealing with large lists of data.
 It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a Fenwick Tree with layout metrics for efficient offset calculations. By virtualizing children and rendering only items within the visible area, ShadowList ensures optimal performance. It's built on Fabric and works with React Native version 0.74 and newer.
 
 ## Out of box comparison to FlatList
-| Feature                          | ShadowList  | FlatList   |
-|----------------------------------|-------------|------------|
+| Feature                          | ShadowList   | FlatList   |
+|----------------------------------|--------------|------------|
 | 60 FPS Scrolling                 | ✅           | ❌         |
 | No Content Flashing              | ✅           | ❌         |
 | No Sidebar Indicator Jump        | ✅           | ❌         |
@@ -26,7 +26,9 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 > Given measurements show memory usage and FPS on fully loaded content, see demo [here](https://github.com/azimgd/shadowlist/issues/1) and implementation details [here](https://github.com/azimgd/shadowlist/blob/main/example/src/App.tsx).
 
 ## Installation
-Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
+- CLI: Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
+- Expo: Add the package to your project via `npx expo install shadowlist` and run `npx expo prebuild` in the root directory.
+
 
 ## Usage
 
