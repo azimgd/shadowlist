@@ -139,17 +139,17 @@ using namespace facebook::react;
   RCTShadowListContainerHandleCommand(self, commandName, args);
 }
 
-- (void)scrollToIndexNativeCommand:(int)index
+- (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
 {
   auto &stateData = _state->getData();
-  [self scrollRespectfully:stateData.calculateItemOffset(index) animated:false];
+  [self scrollRespectfully:stateData.calculateItemOffset(index) animated:animated];
 
   [self recycle];
 }
 
-- (void)scrollToOffsetNativeCommand:(int)offset
+- (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated
 {
-  [self scrollRespectfully:offset animated:false];
+  [self scrollRespectfully:offset animated:animated];
 
   [self recycle];
 }

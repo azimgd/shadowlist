@@ -9,7 +9,10 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
-import ShadowList from 'shadowlist';
+import ShadowList, {
+  type ScrollToIndexOptions,
+  type ScrollToOffsetOptions,
+} from 'shadowlist';
 import sample from './sample.json';
 
 const CustomComponent = ({ item, index }: { item: any; index: number }) => {
@@ -101,8 +104,8 @@ export const FlashListExample = ({ data }: { data: any[] }) => {
  */
 export const ShadowListExample = ({ data }: { data: any[] }) => {
   const shadowListRef = React.useRef<{
-    scrollToIndex: (index: number) => void;
-    scrollToOffset: (offset: number) => void;
+    scrollToIndex: (options: ScrollToIndexOptions) => void;
+    scrollToOffset: (offset: ScrollToOffsetOptions) => void;
   }>(null);
 
   return (

@@ -24,11 +24,13 @@ export interface NativeProps extends ViewProps {
 export interface NativeCommands {
   scrollToIndex: (
     viewRef: React.ElementRef<React.ComponentType>,
-    index: Int32
+    index: Int32,
+    animated: boolean
   ) => void;
   scrollToOffset: (
     viewRef: React.ElementRef<React.ComponentType>,
-    offset: Int32
+    offset: Int32,
+    animated: boolean
   ) => void;
 }
 

@@ -13,6 +13,16 @@ type Component =
   | null
   | undefined;
 
+export type ScrollToIndexOptions = {
+  index: number;
+  animated: boolean;
+};
+
+export type ScrollToOffsetOptions = {
+  offset: number;
+  animated: boolean;
+};
+
 const invoker = (Component: Component) =>
   // @ts-ignore
   React.isValidElement(Component) ? Component : <Component />;
@@ -40,11 +50,19 @@ const ShadowListContainerWrapper = (
   const instanceRef = React.useRef<ShadowListContainerInstance>(null);
 
   React.useImperativeHandle(forwardedRef, () => ({
-    scrollToIndex: (index: number) => {
-      Commands.scrollToIndex(instanceRef.current as never, index);
+    scrollToIndex: (options: ScrollToIndexOptions) => {
+      Commands.scrollToIndex(
+        instanceRef.current as never,
+        options.index,
+        options.animated
+      );
     },
-    scrollToOffset: (offset: number) => {
-      Commands.scrollToOffset(instanceRef.current as never, offset);
+    scrollToOffset: (options: ScrollToOffsetOptions) => {
+      Commands.scrollToOffset(
+        instanceRef.current as never,
+        options.offset,
+        options.animated
+      );
     },
   }));
 

@@ -6,8 +6,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol RCTShadowListContainerViewProtocol <NSObject>
 
-- (void)scrollToIndexNativeCommand:(int)index;
-- (void)scrollToOffsetNativeCommand:(int)offset;
+- (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated;
+- (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated;
 
 @end
 
@@ -18,13 +18,15 @@ RCT_EXTERN inline void RCTShadowListContainerHandleCommand(
 {
   if ([commandName isEqualToString:@"scrollToIndex"]) {
     NSObject *arg0 = args[0];
-    [componentView scrollToIndexNativeCommand:[(NSNumber *)arg0 intValue]];
+    NSObject *arg1 = args[1];
+    [componentView scrollToIndexNativeCommand:[(NSNumber *)arg0 intValue] animated:[(NSNumber *)arg1 boolValue]];
     return;
   }
 
   if ([commandName isEqualToString:@"scrollToOffset"]) {
     NSObject *arg0 = args[0];
-    [componentView scrollToOffsetNativeCommand:[(NSNumber *)arg0 intValue]];
+    NSObject *arg1 = args[1];
+    [componentView scrollToOffsetNativeCommand:[(NSNumber *)arg0 intValue] animated:[(NSNumber *)arg1 boolValue]];
     return;
   }
 }

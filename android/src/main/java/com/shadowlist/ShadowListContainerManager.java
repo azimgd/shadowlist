@@ -66,11 +66,11 @@ public class ShadowListContainerManager extends ViewGroupManager<ShadowListConta
   }
 
   @Override
-  public void scrollToIndex(ShadowListContainer view, int index) {
+  public void scrollToIndex(ShadowListContainer view, int index, boolean animated) {
   }
 
   @Override
-  public void scrollToOffset(ShadowListContainer view, int offset) {
+  public void scrollToOffset(ShadowListContainer view, int offset, boolean animated) {
   }
 
   @Nullable

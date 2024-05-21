@@ -30,10 +30,10 @@ public class ShadowListContainerManagerDelegate<T extends View, U extends BaseVi
   public void receiveCommand(T view, String commandName, ReadableArray args) {
     switch (commandName) {
       case "scrollToIndex":
-        mViewManager.scrollToIndex(view, args.getInt(0));
+        mViewManager.scrollToIndex(view, args.getInt(0), args.getBoolean(1));
         break;
       case "scrollToOffset":
-        mViewManager.scrollToOffset(view, args.getInt(0));
+        mViewManager.scrollToOffset(view, args.getInt(0), args.getBoolean(1));
         break;
     }
   }

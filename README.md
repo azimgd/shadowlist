@@ -68,8 +68,8 @@ import ShadowListContainer from 'shadowlist';
 ## Methods
 | Method          | Type                                | Description                                               |
 |-----------------|-------------------------------------|-----------------------------------------------------------|
-| `scrollToIndex` | `(index: number) => void`           | Scrolls the list to the specified index.                  |
-| `scrollToOffset`| `(offset: number) => void`          | Scrolls the list to the specified offset.                 |
+| `scrollToIndex` | `({ index: number; animated: boolean }) => void` | Scrolls the list to the specified index.                  |
+| `scrollToOffset`| `({ offset: number; animated: boolean }) => void` | Scrolls the list to the specified offset.                 |
 
 ## Contributing
 
