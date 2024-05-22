@@ -4,6 +4,7 @@
 #include "ShadowListContainerProps.h"
 #include "ShadowListContainerState.h"
 #include "ShadowListFenwickTree.hpp"
+#include <react/renderer/graphics/Point.h>
 #include <react/renderer/components/view/conversions.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutConstraints.h>

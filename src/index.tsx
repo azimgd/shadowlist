@@ -184,11 +184,11 @@ const ShadowListContainerWrapper = (
         <ShadowListItemWrapper
           renderItem={props.renderItem}
           item={item}
-          index={index}
+          index={props.inverted ? data.length - index : index}
           key={index}
         />
       )),
-    [data, props.renderItem]
+    [data, props.renderItem, props.inverted]
   );
 
   /**
@@ -211,9 +211,9 @@ const ShadowListContainerWrapper = (
       style={[props.contentContainerStyle, baseStyle]}
       onBatchLayout={handleBatchLayout}
     >
-      {ListHeaderComponent}
+      {!props.inverted ? ListHeaderComponent : ListFooterComponent}
       {data.length ? ListChildrenComponent : ListEmptyComponent}
-      {ListFooterComponent}
+      {!props.inverted ? ListFooterComponent : ListHeaderComponent}
     </ShadowListContainerNativeComponent>
   );
 };

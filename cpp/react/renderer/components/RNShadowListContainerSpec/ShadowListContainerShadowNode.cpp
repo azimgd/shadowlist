@@ -11,25 +11,38 @@ void ShadowListContainerShadowNode::layout(LayoutContext layoutContext) {
   ensureUnsealed();
   ConcreteShadowNode::layout(layoutContext);
 
+  auto &props = getConcreteProps();
+  auto state = getStateData();
+
   calculateContainerMeasurements(
     layoutContext,
-    getConcreteProps().horizontal,
-    getConcreteProps().inverted
+    props.horizontal,
+    props.inverted
   );
-
-  auto state = getStateData();
 
   if (scrollContainer_.size != state.scrollContainer) {
     state.scrollContainer = scrollContainer_.size;
-    setStateData(std::move(state));
   }
   
   if (scrollContent_.size != state.scrollContent) {
     state.scrollContent = scrollContent_.size;
     state.scrollContentTree = scrollContentTree_;
-    setStateData(std::move(state));
   }
   
+  if (props.initialScrollIndex && props.horizontal) {
+    state.scrollPosition = Point{state.calculateItemOffset(props.initialScrollIndex), 0};
+  } else if (props.initialScrollIndex) {
+    state.scrollPosition = Point{0, state.calculateItemOffset(props.initialScrollIndex)};
+  } else if (props.inverted && props.horizontal) {
+    state.scrollPosition = Point{scrollContent_.size.width - scrollContainer_.size.width, 0};
+  } else if (props.inverted) {
+    state.scrollPosition = Point{0, scrollContent_.size.height - scrollContainer_.size.height};
+  } else {
+    state.scrollPosition = Point{0, 0};
+  }
+
+  setStateData(std::move(state));
+
   getConcreteEventEmitter().onBatchLayout({
     .size = static_cast<int>(scrollContentTree_.size())
   });

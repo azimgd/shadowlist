@@ -21,7 +21,6 @@ using namespace facebook::react;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
   CachedComponentPool *_cachedComponentPool;
   int _cachedComponentPoolDriftCount;
-  BOOL _scrollContainerLayoutComplete;
   BOOL _scrollContainerLayoutHorizontal;
   BOOL _scrollContainerLayoutInverted;
   BOOL _scrollContainerScrolling;
@@ -38,7 +37,6 @@ using namespace facebook::react;
     static const auto defaultProps = std::make_shared<const ShadowListContainerProps>();
 
     _cachedComponentPoolDriftCount = 0;
-    _scrollContainerLayoutComplete = false;
     _scrollContainerLayoutInverted = defaultProps->inverted;
     _scrollContainerLayoutHorizontal = defaultProps->horizontal;
     
@@ -50,7 +48,7 @@ using namespace facebook::react;
     self.contentView = _scrollContainer;
     
     auto onCachedComponentMount = ^(NSInteger poolIndex) {
-      [self->_scrollContainer addSubview:[self->_cachedComponentPool getComponentView:poolIndex]];
+      [self->_scrollContainer insertSubview:[self->_cachedComponentPool getComponentView:poolIndex] atIndex:poolIndex];
     };
     auto onCachedComponentUnmount = ^(NSInteger poolIndex) {
       [[self->_cachedComponentPool getComponentView:poolIndex] removeFromSuperview];
@@ -83,19 +81,7 @@ using namespace facebook::react;
 
   self->_scrollContainer.contentSize = RCTCGSizeFromSize(stateData.scrollContent);
   self->_scrollContainer.frame.size = RCTCGSizeFromSize(stateData.scrollContainer);
-
-  if (!self->_scrollContainerLayoutComplete && props.initialScrollIndex) {
-    auto nextInitialScrollIndex = props.initialScrollIndex + (props.hasListHeaderComponent ? 1 : 0);
-    [self scrollRespectfully:stateData.calculateItemOffset(nextInitialScrollIndex) animated:false];
-  } else if (!self->_scrollContainerLayoutComplete && props.inverted) {
-    auto scrollContainerSize = Scrollable::getScrollContentSize(stateData.scrollContainer, self->_scrollContainerLayoutHorizontal);
-    auto scrollContentSize = Scrollable::getScrollContentSize(stateData.scrollContent, self->_scrollContainerLayoutHorizontal);
-    [self scrollRespectfully:(scrollContentSize - scrollContainerSize) animated:false];
-  }
-
-  if (!self->_scrollContainerLayoutComplete) {
-    self->_scrollContainerLayoutComplete = true;
-  }
+  self->_scrollContainer.contentOffset = RCTCGPointFromPoint(stateData.scrollPosition);
 
   _cachedComponentPoolDriftCount = stateData.countTree() - [self->_cachedComponentPool countPool];
 
