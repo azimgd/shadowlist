@@ -30,15 +30,6 @@ const ListHeaderComponent = () => {
   return (
     <View style={[styles.item, styles.header]}>
       <Text style={styles.username}>Header</Text>
-
-      <ShadowList
-        contentContainerStyle={styles.container}
-        data={sample}
-        renderItem={({ item, index }) => (
-          <CustomComponent item={item} index={index} />
-        )}
-        horizontal
-      />
     </View>
   );
 };
@@ -47,9 +38,6 @@ const ListFooterComponent = () => {
   return (
     <View style={[styles.item, styles.footer]}>
       <Text style={styles.username}>Footer</Text>
-      <Text style={styles.text}>
-        Lorem ipsum dolor sit amet consectetur adipisicing elit.
-      </Text>
     </View>
   );
 };
@@ -157,7 +145,6 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#0984e390',
-    height: 200,
   },
   footer: {
     backgroundColor: '#0984e390',
@@ -168,9 +155,9 @@ const styles = StyleSheet.create({
   username: {
     color: '#ffffff',
     fontWeight: '600',
-    paddingBottom: 12,
   },
   text: {
+    paddingTop: 12,
     color: '#ffffff',
   },
   button: {
