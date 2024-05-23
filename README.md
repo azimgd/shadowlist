@@ -9,9 +9,7 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 | 60 FPS Scrolling                 | ✅           | ❌         |
 | No Content Flashing              | ✅           | ❌         |
 | No Sidebar Indicator Jump        | ✅           | ❌         |
-| Maintain Content Position        | ✅           | ❌         |
 | Fast initialScrollIndex          | ✅           | ❌         |
-| Bi-directional Scrolling         | ✅           | ❌         |
 | Nested ShadowList (ScrollView)   | ✅           | ❌         |
 | Natively Inverted List Support   | ✅           | ❌         |
 | Smooth Scrolling                 | ✅           | ❌         |
