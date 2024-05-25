@@ -1,5 +1,10 @@
 #pragma once
 
+#include "ShadowListFenwickTree.hpp"
+#include "Scrollable.h"
+#include <react/renderer/graphics/Point.h>
+#include <react/renderer/graphics/Size.h>
+
 #ifdef ANDROID
 #include <folly/dynamic.h>
 #include <react/renderer/mapbuffer/MapBuffer.h>
@@ -10,18 +15,13 @@ namespace facebook::react {
 
 class ShadowListContentState {
   public:
+  ShadowListContentState(ShadowListFenwickTree contentViewMeasurements);
   ShadowListContentState() = default;
-
-#ifdef ANDROID
-  ShadowListContentState(ShadowListContentState const &previousState, folly::dynamic data){};
-  folly::dynamic getDynamic() const {
-    return {};
-  };
-  MapBuffer getMapBuffer() const {
-    return MapBufferBuilder::EMPTY();
-  };
-#endif
-
+  
+  /*
+   * Binary tree, expensive for updates, cheap for reads
+   */
+  ShadowListFenwickTree contentViewMeasurements;
 };
 
 }

@@ -67,6 +67,10 @@ using namespace facebook::react;
 
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
+  assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(state));
+  self->_state = std::static_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(state);
+  const auto &stateData = _state->getData();
+  [self->_cachedComponentPool recycle:0 visibleEndIndex:10];
 }
 
 Class<RCTComponentViewProtocol> ShadowListContentCls(void)

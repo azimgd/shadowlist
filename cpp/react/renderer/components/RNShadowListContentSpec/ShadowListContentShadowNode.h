@@ -3,6 +3,8 @@
 #include "ShadowListContentEventEmitter.h"
 #include "ShadowListContentProps.h"
 #include "ShadowListContentState.h"
+#include "ShadowListFenwickTree.hpp"
+#include <react/renderer/graphics/Point.h>
 #include <react/renderer/components/view/conversions.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutConstraints.h>
@@ -24,6 +26,21 @@ class ShadowListContentShadowNode final : public ConcreteViewShadowNode<
 
   public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
+
+  void layout(LayoutContext layoutContext) override;
+
+  /*
+   * Measure children and return Fenwick BIT
+   */
+  ShadowListFenwickTree calculateContentViewMeasurements(
+    LayoutContext layoutContext,
+    bool horizontal,
+    bool inverted);
+
+  /*
+   * Caster
+   */
+  static YogaLayoutableShadowNode& shadowNodeFromContext(YGNodeConstRef yogaNode);
 };
 
 }
