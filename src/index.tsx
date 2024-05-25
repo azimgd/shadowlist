@@ -106,7 +106,12 @@ const ShadowListContainerWrapper = (
     return props.inverted ? props.data.reverse() : props.data;
   }, [props.inverted, props.data]);
 
-  const baseStyle = props.horizontal ? styles.horizontal : styles.vertical;
+  const containerStyle = props.horizontal
+    ? styles.containerHorizontal
+    : styles.containerVertical;
+  const contentStyle = props.horizontal
+    ? styles.contentHorizontal
+    : styles.contentVertical;
 
   /**
    * ListHeaderComponent
@@ -178,9 +183,9 @@ const ShadowListContainerWrapper = (
       ref={instanceRef}
       hasListHeaderComponent={!!props.ListHeaderComponent}
       hasListFooterComponent={!!props.ListFooterComponent}
-      style={[props.contentContainerStyle, baseStyle]}
+      style={[props.contentContainerStyle, containerStyle]}
     >
-      <ShadowListContentNativeComponent>
+      <ShadowListContentNativeComponent style={contentStyle}>
         {!props.inverted ? ListHeaderComponent : ListFooterComponent}
         {data.length ? ListChildrenComponent : ListEmptyComponent}
         {!props.inverted ? ListFooterComponent : ListHeaderComponent}
@@ -190,13 +195,25 @@ const ShadowListContainerWrapper = (
 };
 
 const styles = StyleSheet.create({
-  vertical: {
+  contentHorizontal: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexDirection: 'row',
+    overflow: 'scroll',
+  },
+  contentVertical: {
     flexGrow: 1,
     flexShrink: 1,
     flexDirection: 'column',
     overflow: 'scroll',
   },
-  horizontal: {
+  containerVertical: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexDirection: 'column',
+    overflow: 'scroll',
+  },
+  containerHorizontal: {
     flexGrow: 1,
     flexShrink: 1,
     flexDirection: 'row',
