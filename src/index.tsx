@@ -5,6 +5,7 @@ import ShadowListContainerNativeComponent, {
   type NativeProps,
   type NativeCommands,
 } from './ShadowListContainerNativeComponent';
+import ShadowListContentNativeComponent from './ShadowListContentNativeComponent';
 import ShadowListItemNativeComponent from './ShadowListItemNativeComponent';
 
 type Component =
@@ -179,9 +180,11 @@ const ShadowListContainerWrapper = (
       hasListFooterComponent={!!props.ListFooterComponent}
       style={[props.contentContainerStyle, baseStyle]}
     >
-      {!props.inverted ? ListHeaderComponent : ListFooterComponent}
-      {data.length ? ListChildrenComponent : ListEmptyComponent}
-      {!props.inverted ? ListFooterComponent : ListHeaderComponent}
+      <ShadowListContentNativeComponent>
+        {!props.inverted ? ListHeaderComponent : ListFooterComponent}
+        {data.length ? ListChildrenComponent : ListEmptyComponent}
+        {!props.inverted ? ListFooterComponent : ListHeaderComponent}
+      </ShadowListContentNativeComponent>
     </ShadowListContainerNativeComponent>
   );
 };
