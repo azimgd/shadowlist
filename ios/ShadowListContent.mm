@@ -16,6 +16,7 @@ using namespace facebook::react;
 @end
 
 @implementation ShadowListContent {
+  UIView* _contentView;
   ShadowListContentShadowNode::ConcreteState::Shared _state;
   CachedComponentPool *_cachedComponentPool;
 }
@@ -30,9 +31,11 @@ using namespace facebook::react;
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const ShadowListContentProps>();
     _props = defaultProps;
+    _contentView = [UIView new];
+    self.contentView = _contentView;
     
     auto onCachedComponentMount = ^(NSInteger poolIndex) {
-      [self insertSubview:[self->_cachedComponentPool getComponentView:poolIndex] atIndex:poolIndex];
+      [self->_contentView insertSubview:[self->_cachedComponentPool getComponentView:poolIndex] atIndex:poolIndex];
     };
     auto onCachedComponentUnmount = ^(NSInteger poolIndex) {
       [[self->_cachedComponentPool getComponentView:poolIndex] removeFromSuperview];
@@ -60,6 +63,10 @@ using namespace facebook::react;
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
   [super updateProps:props oldProps:oldProps];
+}
+
+- (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
+{
 }
 
 Class<RCTComponentViewProtocol> ShadowListContentCls(void)

@@ -15,7 +15,7 @@ using namespace facebook::react;
 @end
 
 @implementation ShadowListContainer {
-  UIScrollView* _scrollContainer;
+  UIScrollView* _contentView;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
   BOOL _scrollContainerScrolling;
 }
@@ -29,13 +29,11 @@ using namespace facebook::react;
 {
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const ShadowListContainerProps>();
-    
     _props = defaultProps;
-    _scrollContainer = [UIScrollView new];
-    _scrollContainer.delegate = self;
-    _scrollContainer.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-
-    self.contentView = _scrollContainer;
+    _contentView = [UIScrollView new];
+    _contentView.delegate = self;
+    _contentView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    self.contentView = _contentView;
   }
 
   return self;
@@ -43,17 +41,11 @@ using namespace facebook::react;
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
-  const auto &oldConcreteProps = static_cast<const ShadowListContainerProps &>(*_props);
-  const auto &newConcreteProps = static_cast<const ShadowListContainerProps &>(*props);
-
   [super updateProps:props oldProps:oldProps];
 }
 
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
-  assert(std::dynamic_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(state));
-  self->_state = std::static_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(state);
-  const auto &stateData = _state->getData();
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
@@ -81,7 +73,7 @@ using namespace facebook::react;
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
 {
   if (_scrollContainerScrolling) {
-    return self->_scrollContainer;
+    return self->_contentView;
   }
   return [super hitTest:point withEvent:event];
 }
@@ -90,6 +82,16 @@ using namespace facebook::react;
 {
   const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
   const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
+}
+
+- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+{
+  [self->_contentView mountChildComponentView:childComponentView index:index];
+}
+
+- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+{
+  [self->_contentView unmountChildComponentView:childComponentView index:index];
 }
 
 #pragma mark - NativeCommands handlers

@@ -199,13 +199,11 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexShrink: 1,
     flexDirection: 'row',
-    overflow: 'scroll',
   },
   contentVertical: {
     flexGrow: 1,
     flexShrink: 1,
     flexDirection: 'column',
-    overflow: 'scroll',
   },
   containerVertical: {
     flexGrow: 1,
