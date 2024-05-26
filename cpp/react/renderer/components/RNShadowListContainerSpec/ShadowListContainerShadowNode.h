@@ -3,7 +3,6 @@
 #include "ShadowListContainerEventEmitter.h"
 #include "ShadowListContainerProps.h"
 #include "ShadowListContainerState.h"
-#include "ShadowListFenwickTree.hpp"
 #include <react/renderer/graphics/Point.h>
 #include <react/renderer/components/view/conversions.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
@@ -26,24 +25,6 @@ class ShadowListContainerShadowNode final : public ConcreteViewShadowNode<
 
   public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
-
-  void layout(LayoutContext layoutContext) override;
-
-  void calculateContainerMeasurements(LayoutContext layoutContext, bool horizontal, bool inverted);
-
-  private:
-
-  /*
-   * Measurements
-   */
-  Rect scrollContainer_;
-  Rect scrollContent_;
-  ShadowListFenwickTree scrollContentTree_;
-
-  /*
-   * Caster
-   */
-  static YogaLayoutableShadowNode& shadowNodeFromContext(YGNodeConstRef yogaNode);
 };
 
 }

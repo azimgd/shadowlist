@@ -71,7 +71,6 @@ using namespace facebook::react;
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(state));
   self->_state = std::static_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(state);
   const auto &stateData = _state->getData();
-  [self->_cachedComponentPool recycle:0 visibleEndIndex:10];
   
   if ([self.delegate respondsToSelector:@selector(listContentSizeChange:)]) {
     CGSize listContentSize = CGSizeMake(
@@ -82,15 +81,21 @@ using namespace facebook::react;
   }
 }
 
--(void)layoutSubviews
+- (void)layoutSubviews
 {
+  RCTAssert(
+    [self.superview.superview isKindOfClass:ShadowListContainer.class],
+    @"ShadowListContent must be a descendant of ShadowListContainer");
   ShadowListContainer *shadowListContainer = (ShadowListContainer *)self.superview.superview;
   shadowListContainer.delegate = self;
 }
 
 - (void)listContainerScrollChange:(CGPoint)listContainerScroll
 {
-  NSLog(@"scrolled %f", listContainerScroll.y);
+  assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
+  size_t visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(listContainerScroll.y);
+  size_t visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(listContainerScroll.y + self.frame.size.height);
+  [self->_cachedComponentPool recycle:visibleStartIndex visibleEndIndex:visibleEndIndex];
 }
 
 Class<RCTComponentViewProtocol> ShadowListContentCls(void)

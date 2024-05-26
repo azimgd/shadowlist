@@ -100,9 +100,12 @@ using namespace facebook::react;
   [self->_contentView unmountChildComponentView:childComponentView index:index];
 }
 
--(void)layoutSubviews
+- (void)layoutSubviews
 {
-  ShadowListContent *shadowListContent = [self->_contentView.subviews firstObject];
+  RCTAssert(
+    [self->_contentView.subviews.firstObject isKindOfClass:ShadowListContent.class],
+    @"ShadowListContainer must be an ancestor of ShadowListContent");
+  ShadowListContent *shadowListContent = self->_contentView.subviews.firstObject;
   shadowListContent.delegate = self;
 }
 
