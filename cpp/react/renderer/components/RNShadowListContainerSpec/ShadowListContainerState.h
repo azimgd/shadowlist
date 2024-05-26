@@ -26,11 +26,6 @@ constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_CONTENT_WIDTH = 0;
 constexpr static MapBuffer::Key CX_STATE_KEY_SCROLL_CONTENT_HEIGHT = 1;
 #endif
 
-
-struct ShadowListContainerLayoutMetrics {
-  double height;
-};
-
 class ShadowListContainerState {
   public:
   ShadowListContainerState(

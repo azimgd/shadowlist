@@ -50,28 +50,11 @@ export type ShadowListItemWrapperProps = {
   item: any;
 };
 
-/**
- * Primitive batcher implementation
- */
-const useBatcher = (index: number) => {
-  const [isReady, setIsReady] = React.useState(false);
-
-  React.useEffect(() => {
-    const animationFrame = requestAnimationFrame(() => setIsReady(true));
-    return () => cancelAnimationFrame(animationFrame);
-  }, [index]);
-
-  return isReady;
-};
-
 const ShadowListItemWrapper = ({
   item,
   renderItem,
   index,
 }: ShadowListItemWrapperProps) => {
-  const isReady = useBatcher(index);
-  if (!isReady) return;
-
   return (
     <ShadowListItemNativeComponent key={index}>
       {renderItem({ item, index })}
@@ -103,15 +86,19 @@ const ShadowListContainerWrapper = (
   }));
 
   const data = React.useMemo(() => {
-    return props.inverted ? props.data.reverse() : props.data;
-  }, [props.inverted, props.data]);
+    return props.data;
+  }, [props.data]);
 
   const containerStyle = props.horizontal
     ? styles.containerHorizontal
     : styles.containerVertical;
   const contentStyle = props.horizontal
-    ? styles.contentHorizontal
-    : styles.contentVertical;
+    ? props.inverted
+      ? styles.contentHorizontalInverted
+      : styles.contentHorizontal
+    : props.inverted
+      ? styles.contentVerticalInverted
+      : styles.contentVertical;
 
   /**
    * ListHeaderComponent
@@ -170,11 +157,11 @@ const ShadowListContainerWrapper = (
         <ShadowListItemWrapper
           renderItem={props.renderItem}
           item={item}
-          index={props.inverted ? data.length - index : index}
+          index={index}
           key={index}
         />
       )),
-    [data, props.renderItem, props.inverted]
+    [data, props.renderItem]
   );
 
   return (
@@ -186,9 +173,9 @@ const ShadowListContainerWrapper = (
       style={[props.contentContainerStyle, containerStyle]}
     >
       <ShadowListContentNativeComponent style={contentStyle}>
-        {!props.inverted ? ListHeaderComponent : ListFooterComponent}
+        {ListHeaderComponent}
         {data.length ? ListChildrenComponent : ListEmptyComponent}
-        {!props.inverted ? ListFooterComponent : ListHeaderComponent}
+        {ListFooterComponent}
       </ShadowListContentNativeComponent>
     </ShadowListContainerNativeComponent>
   );
@@ -196,24 +183,30 @@ const ShadowListContainerWrapper = (
 
 const styles = StyleSheet.create({
   contentHorizontal: {
-    flexGrow: 1,
-    flexShrink: 1,
+    flex: 1,
     flexDirection: 'row',
   },
   contentVertical: {
-    flexGrow: 1,
-    flexShrink: 1,
+    flex: 1,
     flexDirection: 'column',
   },
+  contentHorizontalInverted: {
+    flex: 1,
+    flexDirection: 'row-reverse',
+    justifyContent: 'flex-end',
+  },
+  contentVerticalInverted: {
+    flex: 1,
+    flexDirection: 'column-reverse',
+    justifyContent: 'flex-end',
+  },
   containerVertical: {
-    flexGrow: 1,
-    flexShrink: 1,
+    flex: 1,
     flexDirection: 'column',
     overflow: 'scroll',
   },
   containerHorizontal: {
-    flexGrow: 1,
-    flexShrink: 1,
+    flex: 1,
     flexDirection: 'row',
     overflow: 'scroll',
   },
