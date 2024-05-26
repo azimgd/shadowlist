@@ -107,31 +107,34 @@ using namespace facebook::react;
   ShadowListContent *shadowListContent = self->_contentView.subviews.firstObject;
   shadowListContent.delegate = self;
   
-  if ([self.delegate respondsToSelector:@selector(listContainerScrollOffsetChange:)]) {
-    CGPoint listContainerScrollOffset;
+  /*
+   * Scrollbar position adjustments when initialScrollIndex not provided
+   */
+  if (props.initialScrollIndex && [self.delegate respondsToSelector:@selector(listContainerScrollFocusIndexChange:)]) {
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusIndexChange:props.initialScrollIndex];
+    [self->_contentView setContentOffset:listContainerScrollOffset];
+  }
+
+  /*
+   * Scrollbar position adjustments when initialScrollIndex not provided
+   */
+  if (!props.initialScrollIndex && [self.delegate respondsToSelector:@selector(listContainerScrollFocusOffsetChange:)]) {
+    NSInteger offset = 0;
   
-    /*
-     * Scrollbar position adjustments
-     */
     if (props.horizontal && props.inverted) {
-      listContainerScrollOffset = CGPointMake(self->_contentView.contentSize.width - self->_contentView.frame.size.width, 0);
-      listContainerScrollOffset.x = MAX(listContainerScrollOffset.x, 0);
+      offset = MAX(self->_contentView.contentSize.width - self->_contentView.frame.size.width, 0);
     } else if (!props.horizontal && props.inverted) {
-      listContainerScrollOffset = CGPointMake(0, self->_contentView.contentSize.height - self->_contentView.frame.size.height);
-      listContainerScrollOffset.y = MAX(listContainerScrollOffset.y, 0);
-    } else if (props.horizontal && !props.inverted) {
-      listContainerScrollOffset = CGPointZero;
-    } else {
-      listContainerScrollOffset = CGPointZero;
+      offset = MAX(self->_contentView.contentSize.height - self->_contentView.frame.size.height, 0);
     }
 
     /*
      * Manually trigger scrollevent for non-inverted list to run virtualization
      */
-    if (CGPointEqualToPoint(listContainerScrollOffset, CGPointZero)) {
+    if (!offset) {
       [self scrollViewDidScroll:self->_contentView];
     }
-
+    
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusOffsetChange:offset];
     [self->_contentView setContentOffset:listContainerScrollOffset];
   }
 }
@@ -161,8 +164,8 @@ using namespace facebook::react;
 
 - (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
 {
-  if ([self.delegate respondsToSelector:@selector(listContainerScrollFocusItemChange:)]) {
-    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusItemChange:(NSInteger)index];
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollFocusIndexChange:)]) {
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusIndexChange:(NSInteger)index];
     [self->_contentView setContentOffset:listContainerScrollOffset];
   }
 }

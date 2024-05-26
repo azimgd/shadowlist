@@ -154,13 +154,13 @@ using namespace facebook::react;
   }
 }
 
-- (CGPoint)listContainerScrollFocusItemChange:(NSInteger)focusItem
+- (CGPoint)listContainerScrollFocusIndexChange:(NSInteger)focusIndex
 {
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
   const auto &stateData = self->_state->getData();
   const auto &props = static_cast<const ShadowListContentProps &>(*_props);
 
-  const auto contentViewItem = stateData.contentViewMeasurements.sum((size_t)focusItem);
+  const auto contentViewItem = stateData.contentViewMeasurements.sum((size_t)focusIndex);
   
   CGPoint listContainerScrollOffset;
 
