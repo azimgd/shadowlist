@@ -8,7 +8,6 @@ import type {
   Double,
 } from 'react-native/Libraries/Types/CodegenTypes';
 
-export type OnBatchLayoutProps = { size: Int32 };
 export type OnEndReachedProps = { distanceFromEnd: Int32 };
 
 export interface NativeProps extends ViewProps {
@@ -23,7 +22,6 @@ export interface NativeProps extends ViewProps {
       end: Int32;
     }>
   >;
-  onBatchLayout?: DirectEventHandler<Readonly<OnBatchLayoutProps>>;
   onEndReached?: DirectEventHandler<Readonly<OnEndReachedProps>>;
   onEndReachedThreshold?: Double;
 }

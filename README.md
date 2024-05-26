@@ -64,7 +64,6 @@ import ShadowListContainer from 'shadowlist';
 | `initialScrollIndex`       | Number                    | Optional | The initial index of the item to scroll to when the list mounts. |
 | `inverted`                 | Boolean                   | Optional | If true, the list will be rendered in an inverted order. |
 | `horizontal`               | Boolean                   | Optional | If true, renders items next to each other horizontally instead of stacked vertically. |
-| `onBatchLayout`            | `({ size: Int32 }) => void` | Optional | Called when a batch of layout calculations is complete. |
 | `onEndReached`             | `({ distanceFromEnd: Int32 }) => void` | Optional | Called when the end of the content is within `onEndReachedThreshold`. |
 | `onEndReachedThreshold`    | Double                    | Optional | The threshold (in content length units) at which `onEndReached` is triggered. |
 
