@@ -17,8 +17,13 @@ class ShadowListContainerEventEmitter : public ViewEventEmitter {
     int distanceFromEnd;
   };
 
+  struct StartReached {
+    int distanceFromStart;
+  };
+
   void onVisibleChange(VisibleMetrics value) const;
   void onEndReached(EndReached value) const;
+  void onStartReached(StartReached value) const;
 };
 
 }

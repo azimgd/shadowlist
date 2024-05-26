@@ -9,6 +9,7 @@ import type {
 } from 'react-native/Libraries/Types/CodegenTypes';
 
 export type OnEndReachedProps = { distanceFromEnd: Int32 };
+export type OnStartReachedProps = { distanceFromStart: Int32 };
 
 export interface NativeProps extends ViewProps {
   inverted?: boolean;
@@ -24,6 +25,8 @@ export interface NativeProps extends ViewProps {
   >;
   onEndReached?: DirectEventHandler<Readonly<OnEndReachedProps>>;
   onEndReachedThreshold?: Double;
+  onStartReached?: DirectEventHandler<Readonly<OnStartReachedProps>>;
+  onStartReachedThreshold?: Double;
 }
 
 export interface NativeCommands {

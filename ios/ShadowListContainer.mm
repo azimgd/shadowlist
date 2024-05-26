@@ -81,9 +81,22 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+  const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
+
   if ([self.delegate respondsToSelector:@selector(listContainerScrollOffsetChange:)]) {
     CGPoint listContainerScrollOffset = scrollView.contentOffset;
     [self.delegate listContainerScrollOffsetChange:listContainerScrollOffset];
+  }
+  
+  int distanceFromEnd = [self measureDistanceFromEnd];
+  int distanceFromStart = [self measureDistanceFromStart];
+
+  if (distanceFromEnd > 0) {
+    eventEmitter.onEndReached({ distanceFromEnd = distanceFromEnd });
+  }
+  
+  if (distanceFromStart > 0) {
+    eventEmitter.onStartReached({ distanceFromStart = distanceFromStart });
   }
 }
 
@@ -152,6 +165,42 @@ using namespace facebook::react;
   } else if (!props.horizontal && props.inverted) {
     CGPoint nextContentOffset = CGPointMake(0, self->_contentView.contentSize.height - self->_contentView.frame.size.height);
     [self->_contentView setContentOffset:nextContentOffset];
+  }
+}
+
+- (NSInteger)measureDistanceFromEnd {
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+
+  if (props.horizontal && props.inverted) {
+    auto triggerPoint = (props.onEndReachedThreshold * self->_contentView.frame.size.width);
+    return self->_contentView.contentOffset.x >= triggerPoint ? self->_contentView.contentOffset.x : 0;
+  } else if (!props.horizontal && props.inverted) {
+    auto triggerPoint = (props.onEndReachedThreshold * self->_contentView.frame.size.height);
+    return self->_contentView.contentOffset.y >= triggerPoint ? self->_contentView.contentOffset.y : 0;
+  } else if (props.horizontal && !props.inverted) {
+    auto triggerPoint = self->_contentView.contentSize.width - (props.onEndReachedThreshold * self->_contentView.frame.size.width);
+    return self->_contentView.contentOffset.x >= triggerPoint ? self->_contentView.contentSize.width - self->_contentView.contentOffset.x : 0;
+  } else {
+    auto triggerPoint = self->_contentView.contentSize.height - (props.onEndReachedThreshold * self->_contentView.frame.size.height);
+    return self->_contentView.contentOffset.y >= triggerPoint ? self->_contentView.contentSize.height - self->_contentView.contentOffset.y : 0;
+  }
+}
+
+- (NSInteger)measureDistanceFromStart {
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+
+  if (props.horizontal && props.inverted) {
+    auto triggerPoint = self->_contentView.contentSize.width - (props.onStartReachedThreshold * self->_contentView.frame.size.width);
+    return self->_contentView.contentOffset.x <= triggerPoint ? self->_contentView.contentSize.width - self->_contentView.contentOffset.x : 0;
+  } else if (!props.horizontal && props.inverted) {
+    auto triggerPoint = self->_contentView.contentSize.height - (props.onStartReachedThreshold * self->_contentView.frame.size.height);
+    return self->_contentView.contentOffset.y <= triggerPoint ? self->_contentView.contentSize.height - self->_contentView.contentOffset.y : 0;
+  } else if (props.horizontal && !props.inverted) {
+    auto triggerPoint = (props.onStartReachedThreshold * self->_contentView.frame.size.width);
+    return self->_contentView.contentOffset.x <= triggerPoint ? self->_contentView.contentOffset.x : 0;
+  } else {
+    auto triggerPoint = (props.onStartReachedThreshold * self->_contentView.frame.size.height);
+    return self->_contentView.contentOffset.y <= triggerPoint ? self->_contentView.contentOffset.y : 0;
   }
 }
 

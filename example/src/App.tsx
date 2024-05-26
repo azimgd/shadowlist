@@ -107,7 +107,13 @@ export const ShadowListExample = ({ data }: { data: any[] }) => {
       renderItem={({ item, index }) => (
         <CustomComponent item={item} index={index} />
       )}
-      initialScrollIndex={15}
+      inverted={false}
+      horizontal={false}
+      initialScrollIndex={0}
+      onEndReached={(event) => console.log(event.nativeEvent)}
+      onEndReachedThreshold={2}
+      onStartReached={(event) => console.log(event.nativeEvent)}
+      onStartReachedThreshold={2}
     />
   );
 };
