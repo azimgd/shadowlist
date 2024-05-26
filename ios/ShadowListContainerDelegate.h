@@ -9,7 +9,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol ShadowListContainerDelegate <NSObject>
 @required
-- (void)listContainerScrollChange:(CGPoint)listContainerScroll;
+- (CGPoint)listContainerScrollOffsetChange:(CGPoint)listContainerScrollOffset;
+- (CGPoint)listContainerScrollFocusItemChange:(NSInteger)focusItem;
+- (CGPoint)listContainerScrollFocusOffsetChange:(NSInteger)focusOffset;
 @end
 
 NS_ASSUME_NONNULL_END

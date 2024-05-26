@@ -100,7 +100,7 @@ using namespace facebook::react;
   shadowListContainer.delegate = self;
 }
 
-- (void)listContainerScrollChange:(CGPoint)listContainerScroll
+- (CGPoint)listContainerScrollOffsetChange:(CGPoint)listContainerScrollOffset
 {
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
   const auto &stateData = self->_state->getData();
@@ -117,42 +117,80 @@ using namespace facebook::react;
    */
   NSInteger visibleStartIndex;
   NSInteger visibleEndIndex;
+  NSInteger visibleStartOffset;
+  NSInteger visibleEndOffset;
+  CGPoint visibleOffset;
   if (props.horizontal && props.inverted) {
-    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(
-      contentViewTotal - listContainerScroll.x - self->_contentView.frame.size.width
-    );
-    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(
-      contentViewTotal - listContainerScroll.x
-    );
+    visibleStartOffset = contentViewTotal - listContainerScrollOffset.x - self->_contentView.frame.size.width;
+    visibleEndOffset = contentViewTotal - listContainerScrollOffset.x;
+    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(visibleStartOffset);
+    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(visibleEndOffset);
   } else if (!props.horizontal && props.inverted) {
-    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(
-      contentViewTotal - listContainerScroll.y - self->_contentView.frame.size.height
-    );
-    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(
-      contentViewTotal - listContainerScroll.y
-    );
+    visibleStartOffset = contentViewTotal - listContainerScrollOffset.y - self->_contentView.frame.size.height;
+    visibleEndOffset = contentViewTotal - listContainerScrollOffset.y;
+    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(visibleStartOffset);
+    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(visibleEndOffset);
   } else if (props.horizontal && !props.inverted) {
-    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(
-      listContainerScroll.x
-    );
-    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(
-      listContainerScroll.x + self.frame.size.width
-    );
+    visibleStartOffset = listContainerScrollOffset.x;
+    visibleEndOffset = listContainerScrollOffset.x + self.frame.size.width;
+    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(visibleStartOffset);
+    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(visibleEndOffset);
   } else {
-    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(
-      listContainerScroll.y
-    );
-    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(
-      listContainerScroll.y + self.frame.size.height
-    );
+    visibleStartOffset = listContainerScrollOffset.y;
+    visibleEndOffset = listContainerScrollOffset.y + self.frame.size.height;
+    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(visibleStartOffset);
+    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(visibleEndOffset);
   }
 
   visibleStartIndex = MAX(0, visibleStartIndex - 2);
   visibleEndIndex = MIN(contentViewCount, visibleEndIndex + 2);
 
   [self->_cachedComponentPool recycle:visibleStartIndex visibleEndIndex:visibleEndIndex];
+  
+  if (props.horizontal) {
+    return CGPointMake(visibleStartOffset, 0);
+  } else {
+    return CGPointMake(0, visibleStartOffset);
+  }
 }
 
+- (CGPoint)listContainerScrollFocusItemChange:(NSInteger)focusItem
+{
+  assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
+  const auto &stateData = self->_state->getData();
+  const auto &props = static_cast<const ShadowListContentProps &>(*_props);
+
+  const auto contentViewItem = stateData.contentViewMeasurements.sum((size_t)focusItem);
+  
+  CGPoint listContainerScrollOffset;
+
+  if (props.horizontal) {
+    listContainerScrollOffset = CGPointMake(contentViewItem, 0);
+  } else {
+    listContainerScrollOffset = CGPointMake(0, contentViewItem);
+  }
+
+  [self listContainerScrollOffsetChange:listContainerScrollOffset];
+  return listContainerScrollOffset;
+}
+
+- (CGPoint)listContainerScrollFocusOffsetChange:(NSInteger)focusOffset
+{
+  assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
+  const auto &stateData = self->_state->getData();
+  const auto &props = static_cast<const ShadowListContentProps &>(*_props);
+  
+  CGPoint listContainerScrollOffset;
+
+  if (props.horizontal) {
+    listContainerScrollOffset = CGPointMake(focusOffset, 0);
+  } else {
+    listContainerScrollOffset = CGPointMake(0, focusOffset);
+  }
+
+  [self listContainerScrollOffsetChange:listContainerScrollOffset];
+  return listContainerScrollOffset;
+}
 Class<RCTComponentViewProtocol> ShadowListContentCls(void)
 {
   return ShadowListContent.class;
