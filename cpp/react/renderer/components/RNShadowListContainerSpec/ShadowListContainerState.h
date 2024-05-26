@@ -31,26 +31,6 @@ struct ShadowListContainerLayoutMetrics {
   double height;
 };
 
-struct ShadowListContainerExtendedMetrics {
-  int visibleStartIndex;
-  int visibleEndIndex;
-  
-  double visibleStartPixels;
-  double visibleEndPixels;
-  
-  int blankTopStartIndex;
-  int blankTopEndIndex;
-  
-  double blankTopStartPixels;
-  double blankTopEndPixels;
-  
-  int blankBottomStartIndex;
-  int blankBottomEndIndex;
-  
-  double blankBottomStartPixels;
-  double blankBottomEndPixels;
-};
-
 class ShadowListContainerState {
   public:
   ShadowListContainerState(
