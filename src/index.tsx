@@ -172,7 +172,11 @@ const ShadowListContainerWrapper = (
       hasListFooterComponent={!!props.ListFooterComponent}
       style={[props.contentContainerStyle, containerStyle]}
     >
-      <ShadowListContentNativeComponent style={contentStyle}>
+      <ShadowListContentNativeComponent
+        style={contentStyle}
+        inverted={props.inverted}
+        horizontal={props.horizontal}
+      >
         {ListHeaderComponent}
         {data.length ? ListChildrenComponent : ListEmptyComponent}
         {ListFooterComponent}

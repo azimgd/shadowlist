@@ -81,9 +81,6 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
-  const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
-  
   if ([self.delegate respondsToSelector:@selector(listContainerScrollChange:)]) {
     CGPoint listContainerScroll = scrollView.contentOffset;
     [self.delegate listContainerScrollChange:listContainerScroll];
@@ -102,15 +99,57 @@ using namespace facebook::react;
 
 - (void)layoutSubviews
 {
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+
   RCTAssert(
     [self->_contentView.subviews.firstObject isKindOfClass:ShadowListContent.class],
     @"ShadowListContainer must be an ancestor of ShadowListContent");
   ShadowListContent *shadowListContent = self->_contentView.subviews.firstObject;
   shadowListContent.delegate = self;
+  
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollChange:)]) {
+    CGPoint listContainerScroll;
+  
+    /*
+     * Scrollbar position adjustments
+     */
+    if (props.horizontal && props.inverted) {
+      listContainerScroll = CGPointMake(self->_contentView.contentSize.width - self->_contentView.frame.size.width, 0);
+      listContainerScroll.x = MAX(listContainerScroll.x, 0);
+    } else if (!props.horizontal && props.inverted) {
+      listContainerScroll = CGPointMake(0, self->_contentView.contentSize.height - self->_contentView.frame.size.height);
+      listContainerScroll.y = MAX(listContainerScroll.y, 0);
+    } else if (props.horizontal && !props.inverted) {
+      listContainerScroll = CGPointZero;
+    } else {
+      listContainerScroll = CGPointZero;
+    }
+
+    /*
+     * Manually trigger scrollevent for non-inverted list to run virtualization
+     */
+    if (CGPointEqualToPoint(listContainerScroll, CGPointZero)) {
+      [self scrollViewDidScroll:self->_contentView];
+    }
+
+    [self->_contentView setContentOffset:listContainerScroll];
+  }
 }
 
 - (void)listContentSizeChange:(CGSize)listContentSize {
   [self->_contentView setContentSize:listContentSize];
+
+  /*
+   * Stick scrollbar to bottom when scroll container is inverted vertically and to right when inverted horizontally
+   */
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+  if (props.horizontal && props.inverted) {
+    CGPoint nextContentOffset = CGPointMake(self->_contentView.contentSize.height - self->_contentView.frame.size.height, 0);
+    [self->_contentView setContentOffset:nextContentOffset];
+  } else if (!props.horizontal && props.inverted) {
+    CGPoint nextContentOffset = CGPointMake(0, self->_contentView.contentSize.height - self->_contentView.frame.size.height);
+    [self->_contentView setContentOffset:nextContentOffset];
+  }
 }
 
 #pragma mark - NativeCommands handlers

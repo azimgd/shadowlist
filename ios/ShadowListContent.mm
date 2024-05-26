@@ -71,12 +71,22 @@ using namespace facebook::react;
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(state));
   self->_state = std::static_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(state);
   const auto &stateData = _state->getData();
+  const auto &props = static_cast<const ShadowListContentProps &>(*_props);
+  
+  /*
+   * Direction agnostic sum of all sizes, height for vertical, width for horizontal
+   */
+  const auto contentViewTotal = stateData.contentViewMeasurements.sum(stateData.contentViewMeasurements.size());
   
   if ([self.delegate respondsToSelector:@selector(listContentSizeChange:)]) {
-    CGSize listContentSize = CGSizeMake(
-      self->_contentView.frame.size.width,
-      stateData.contentViewMeasurements.sum(stateData.contentViewMeasurements.size())
-    );
+    CGSize listContentSize;
+
+    if (props.horizontal) {
+      listContentSize = CGSizeMake(contentViewTotal, self->_contentView.frame.size.height);
+    } else if (!props.horizontal) {
+      listContentSize = CGSizeMake(self->_contentView.frame.size.width, contentViewTotal);
+    }
+
     [self.delegate listContentSizeChange:listContentSize];
   }
 }
@@ -93,8 +103,53 @@ using namespace facebook::react;
 - (void)listContainerScrollChange:(CGPoint)listContainerScroll
 {
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
-  size_t visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(listContainerScroll.y);
-  size_t visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(listContainerScroll.y + self.frame.size.height);
+  const auto &stateData = self->_state->getData();
+  const auto &props = static_cast<const ShadowListContentProps &>(*_props);
+  
+  /*
+   * Direction agnostic sum of all sizes, height for vertical, width for horizontal
+   */
+  const auto contentViewCount = stateData.contentViewMeasurements.size();
+  const auto contentViewTotal = stateData.contentViewMeasurements.sum(contentViewCount);
+  
+  /*
+   * Inverted scroll events on inverted scroll container
+   */
+  NSInteger visibleStartIndex;
+  NSInteger visibleEndIndex;
+  if (props.horizontal && props.inverted) {
+    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(
+      contentViewTotal - listContainerScroll.x - self->_contentView.frame.size.width
+    );
+    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(
+      contentViewTotal - listContainerScroll.x
+    );
+  } else if (!props.horizontal && props.inverted) {
+    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(
+      contentViewTotal - listContainerScroll.y - self->_contentView.frame.size.height
+    );
+    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(
+      contentViewTotal - listContainerScroll.y
+    );
+  } else if (props.horizontal && !props.inverted) {
+    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(
+      listContainerScroll.x
+    );
+    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(
+      listContainerScroll.x + self.frame.size.width
+    );
+  } else {
+    visibleStartIndex = self->_state->getData().contentViewMeasurements.lower_bound(
+      listContainerScroll.y
+    );
+    visibleEndIndex = self->_state->getData().contentViewMeasurements.lower_bound(
+      listContainerScroll.y + self.frame.size.height
+    );
+  }
+
+  visibleStartIndex = MAX(0, visibleStartIndex - 2);
+  visibleEndIndex = MIN(contentViewCount, visibleEndIndex + 2);
+
   [self->_cachedComponentPool recycle:visibleStartIndex visibleEndIndex:visibleEndIndex];
 }
 
