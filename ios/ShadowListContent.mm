@@ -1,4 +1,5 @@
 #import "ShadowListContent.h"
+#import "ShadowListContainer.h"
 
 #import "ShadowListContentComponentDescriptor.h"
 #import "ShadowListContentEventEmitter.h"
@@ -71,6 +72,25 @@ using namespace facebook::react;
   self->_state = std::static_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(state);
   const auto &stateData = _state->getData();
   [self->_cachedComponentPool recycle:0 visibleEndIndex:10];
+  
+  if ([self.delegate respondsToSelector:@selector(listContentSizeChange:)]) {
+    CGSize listContentSize = CGSizeMake(
+      self->_contentView.frame.size.width,
+      stateData.contentViewMeasurements.sum(stateData.contentViewMeasurements.size())
+    );
+    [self.delegate listContentSizeChange:listContentSize];
+  }
+}
+
+-(void)layoutSubviews
+{
+  ShadowListContainer *shadowListContainer = (ShadowListContainer *)self.superview.superview;
+  shadowListContainer.delegate = self;
+}
+
+- (void)listContainerScrollChange:(CGPoint)listContainerScroll
+{
+  NSLog(@"scrolled %f", listContainerScroll.y);
 }
 
 Class<RCTComponentViewProtocol> ShadowListContentCls(void)

@@ -1,4 +1,5 @@
 #import "ShadowListContainer.h"
+#import "ShadowListContent.h"
 
 #import "ShadowListContainerComponentDescriptor.h"
 #import "ShadowListContainerEventEmitter.h"
@@ -82,6 +83,11 @@ using namespace facebook::react;
 {
   const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
   const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
+  
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollChange:)]) {
+    CGPoint listContainerScroll = scrollView.contentOffset;
+    [self.delegate listContainerScrollChange:listContainerScroll];
+  }
 }
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
@@ -92,6 +98,16 @@ using namespace facebook::react;
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   [self->_contentView unmountChildComponentView:childComponentView index:index];
+}
+
+-(void)layoutSubviews
+{
+  ShadowListContent *shadowListContent = [self->_contentView.subviews firstObject];
+  shadowListContent.delegate = self;
+}
+
+- (void)listContentSizeChange:(CGSize)listContentSize {
+  [self->_contentView setContentSize:listContentSize];
 }
 
 #pragma mark - NativeCommands handlers
