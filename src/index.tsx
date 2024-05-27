@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, type ViewStyle } from 'react-native';
+import { StyleSheet, type ViewStyle } from 'react-native';
 import ShadowListContainerNativeComponent, {
   Commands,
   type NativeProps,
@@ -106,9 +106,9 @@ const ShadowListContainerWrapper = (
    */
   const ListHeaderComponent = React.useMemo(() => {
     return props.ListHeaderComponent ? (
-      <View style={props.ListHeaderComponentStyle}>
+      <ShadowListItemNativeComponent style={props.ListHeaderComponentStyle}>
         {invoker(props.ListHeaderComponent)}
-      </View>
+      </ShadowListItemNativeComponent>
     ) : null;
   }, [props.ListHeaderComponent, props.ListHeaderComponentStyle]);
 
@@ -117,9 +117,9 @@ const ShadowListContainerWrapper = (
    */
   const ListFooterComponent = React.useMemo(() => {
     return props.ListFooterComponent ? (
-      <View style={props.ListFooterComponentStyle}>
+      <ShadowListItemNativeComponent style={props.ListFooterComponentStyle}>
         {invoker(props.ListFooterComponent)}
-      </View>
+      </ShadowListItemNativeComponent>
     ) : null;
   }, [props.ListFooterComponent, props.ListFooterComponentStyle]);
 
@@ -128,9 +128,9 @@ const ShadowListContainerWrapper = (
    */
   const ListEmptyComponent = React.useMemo(() => {
     return props.ListEmptyComponent ? (
-      <View style={props.ListEmptyComponentStyle}>
+      <ShadowListItemNativeComponent style={props.ListEmptyComponentStyle}>
         {invoker(props.ListEmptyComponent)}
-      </View>
+      </ShadowListItemNativeComponent>
     ) : null;
   }, [props.ListEmptyComponent, props.ListEmptyComponentStyle]);
 
