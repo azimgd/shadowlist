@@ -31,6 +31,7 @@ const invoker = (Component: Component) =>
 export type ShadowListContainerWrapperProps = {
   data: any[];
   renderItem: (payload: { item: any; index: number }) => React.ReactElement;
+  keyExtractor?: ((item: any, index: number) => string) | undefined;
   contentContainerStyle?: ViewStyle;
   ListHeaderComponent?: Component;
   ListHeaderComponentStyle?: ViewStyle;
@@ -56,7 +57,7 @@ const ShadowListItemWrapper = ({
   index,
 }: ShadowListItemWrapperProps) => {
   return (
-    <ShadowListItemNativeComponent key={index}>
+    <ShadowListItemNativeComponent>
       {renderItem({ item, index })}
     </ShadowListItemNativeComponent>
   );
@@ -136,18 +137,17 @@ const ShadowListContainerWrapper = (
   /**
    * ListChildrenComponent
    */
-  const ListChildrenComponent = React.useMemo(
-    () =>
-      data.map((item, index) => (
-        <ShadowListItemWrapper
-          renderItem={props.renderItem}
-          item={item}
-          index={index}
-          key={index}
-        />
-      )),
-    [data, props.renderItem]
-  );
+  const ListChildrenComponent = React.useMemo(() => {
+    return data.map((item, index) => (
+      <ShadowListItemWrapper
+        renderItem={props.renderItem}
+        item={item}
+        index={index}
+        key={props.keyExtractor ? props.keyExtractor(item, index) : index}
+      />
+    ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, props.renderItem, props.keyExtractor]);
 
   return (
     <ShadowListContainerNativeComponent

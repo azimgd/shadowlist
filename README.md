@@ -52,8 +52,9 @@ import ShadowListContainer from 'shadowlist';
 ## API
 | Prop                       | Type                      | Required | Description                                     |
 |----------------------------|---------------------------|----------|-------------------------------------------------|
-| `data`                     | Array                     | Required | An array of data to be rendered in the list.    |
-| `contentContainerStyle`    | ViewStyle                 | Optional | These styles will be applied to the scroll view content container which wraps all of the child views.  |
+| `data`                     | Array                     | Required | An array of data to be rendered in the list. |
+| `keyExtractor`             | Function                  | Required | Used to extract a unique key for a given item at the specified index. |
+| `contentContainerStyle`    | ViewStyle                 | Optional | These styles will be applied to the scroll view content container which wraps all of the child views. |
 | `ListHeaderComponent`      | React component           | Optional | A custom component to render at the top of the list. |
 | `ListHeaderComponentStyle` | ViewStyle                 | Optional | Styling for internal View for `ListHeaderComponent` |
 | `ListFooterComponent`      | React component           | Optional | A custom component to render at the bottom of the list. |
@@ -83,4 +84,3 @@ See the [contributing guide](CONTRIBUTING.md) to learn how to contribute to the 
 ## License
 
 MIT
-
