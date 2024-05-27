@@ -1165,7 +1165,7 @@ PODS:
     - React-utils (= 0.74.0)
   - RNFlashList (1.6.4):
     - React-Core
-  - shadowlist (0.4.3):
+  - shadowlist (0.4.4):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1423,7 +1423,7 @@ SPEC CHECKSUMS:
   React-utils: f013537c3371270d2095bff1d594d00d4bc9261b
   ReactCommon: 2cde697fd80bd31da1d6448d25a5803088585219
   RNFlashList: b521ebdd7f9352673817f1d98e8bdc0c8cf8545b
-  shadowlist: f09672cf7ae13d71b8b090a695bd2d588b48e376
+  shadowlist: a6cc1cdaa871991fee4fc6e35b38e9040af2144a
   SocketRocket: abac6f5de4d4d62d24e11868d7a2f427e0ef940d
   Yoga: 56f906bf6c11c931588191dde1229fd3e4e3d557
 

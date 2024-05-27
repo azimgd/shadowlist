@@ -51,11 +51,25 @@ export type ShadowListItemWrapperProps = {
   item: any;
 };
 
+const ShadowListItemBatcher = () => {
+  const [ready, setReady] = React.useState(false);
+
+  React.useEffect(() => {
+    requestAnimationFrame(() => setReady(true));
+  }, []);
+
+  return ready;
+};
+
 const ShadowListItemWrapper = ({
   item,
   renderItem,
   index,
 }: ShadowListItemWrapperProps) => {
+  const componentReady = ShadowListItemBatcher();
+
+  if (!componentReady) return null;
+
   return (
     <ShadowListItemNativeComponent>
       {renderItem({ item, index })}
