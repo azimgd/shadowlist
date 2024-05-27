@@ -12,10 +12,9 @@ class ShadowListContainerProps final : public ViewProps {
 
   bool inverted{false};
   bool horizontal{false};
-  bool hasListHeaderComponent{false};
-  bool hasListFooterComponent{false};
   int initialScrollIndex{0};
   double onEndReachedThreshold{0};
+  double onStartReachedThreshold{0};
 };
 
 }

@@ -11,14 +11,6 @@ void ShadowListContainerEventEmitter::onVisibleChange(VisibleMetrics $event) con
   });
 }
 
-void ShadowListContainerEventEmitter::onBatchLayout(BatchLayout $event) const {
-  dispatchEvent("batchLayout", [$event = std::move($event)](jsi::Runtime &runtime) {
-    auto $payload = jsi::Object(runtime);
-    $payload.setProperty(runtime, "size", $event.size);
-    return $payload;
-  });
-}
-
 void ShadowListContainerEventEmitter::onEndReached(EndReached $event) const {
   dispatchEvent("endReached", [$event = std::move($event)](jsi::Runtime &runtime) {
     auto $payload = jsi::Object(runtime);
@@ -27,4 +19,11 @@ void ShadowListContainerEventEmitter::onEndReached(EndReached $event) const {
   });
 }
 
+void ShadowListContainerEventEmitter::onStartReached(StartReached $event) const {
+  dispatchEvent("startReached", [$event = std::move($event)](jsi::Runtime &runtime) {
+    auto $payload = jsi::Object(runtime);
+    $payload.setProperty(runtime, "distanceFromStart", $event.distanceFromStart);
+    return $payload;
+  });
+}
 }

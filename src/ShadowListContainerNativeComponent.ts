@@ -8,14 +8,12 @@ import type {
   Double,
 } from 'react-native/Libraries/Types/CodegenTypes';
 
-export type OnBatchLayoutProps = { size: Int32 };
 export type OnEndReachedProps = { distanceFromEnd: Int32 };
+export type OnStartReachedProps = { distanceFromStart: Int32 };
 
 export interface NativeProps extends ViewProps {
   inverted?: boolean;
   horizontal?: boolean;
-  hasListHeaderComponent?: boolean;
-  hasListFooterComponent?: boolean;
   initialScrollIndex?: Int32;
   onVisibleChange?: DirectEventHandler<
     Readonly<{
@@ -23,9 +21,10 @@ export interface NativeProps extends ViewProps {
       end: Int32;
     }>
   >;
-  onBatchLayout?: DirectEventHandler<Readonly<OnBatchLayoutProps>>;
   onEndReached?: DirectEventHandler<Readonly<OnEndReachedProps>>;
   onEndReachedThreshold?: Double;
+  onStartReached?: DirectEventHandler<Readonly<OnStartReachedProps>>;
+  onStartReachedThreshold?: Double;
 }
 
 export interface NativeCommands {

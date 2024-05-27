@@ -5,6 +5,7 @@ import ShadowListContainerNativeComponent, {
   type NativeProps,
   type NativeCommands,
 } from './ShadowListContainerNativeComponent';
+import ShadowListContentNativeComponent from './ShadowListContentNativeComponent';
 import ShadowListItemNativeComponent from './ShadowListItemNativeComponent';
 
 type Component =
@@ -30,6 +31,7 @@ const invoker = (Component: Component) =>
 export type ShadowListContainerWrapperProps = {
   data: any[];
   renderItem: (payload: { item: any; index: number }) => React.ReactElement;
+  keyExtractor?: ((item: any, index: number) => string) | undefined;
   contentContainerStyle?: ViewStyle;
   ListHeaderComponent?: Component;
   ListHeaderComponentStyle?: ViewStyle;
@@ -49,30 +51,13 @@ export type ShadowListItemWrapperProps = {
   item: any;
 };
 
-/**
- * Primitive batcher implementation
- */
-const useBatcher = (index: number) => {
-  const [isReady, setIsReady] = React.useState(false);
-
-  React.useEffect(() => {
-    const animationFrame = requestAnimationFrame(() => setIsReady(true));
-    return () => cancelAnimationFrame(animationFrame);
-  }, [index]);
-
-  return isReady;
-};
-
 const ShadowListItemWrapper = ({
   item,
   renderItem,
   index,
 }: ShadowListItemWrapperProps) => {
-  const isReady = useBatcher(index);
-  if (!isReady) return;
-
   return (
-    <ShadowListItemNativeComponent key={index}>
+    <ShadowListItemNativeComponent>
       {renderItem({ item, index })}
     </ShadowListItemNativeComponent>
   );
@@ -102,100 +87,115 @@ const ShadowListContainerWrapper = (
   }));
 
   const data = React.useMemo(() => {
-    return props.inverted ? props.data.reverse() : props.data;
-  }, [props.inverted, props.data]);
+    return props.data;
+  }, [props.data]);
 
-  const baseStyle = props.horizontal ? styles.horizontal : styles.vertical;
+  const containerStyle = props.horizontal
+    ? styles.containerHorizontal
+    : styles.containerVertical;
+  const contentStyle = props.horizontal
+    ? props.inverted
+      ? styles.contentHorizontalInverted
+      : styles.contentHorizontal
+    : props.inverted
+      ? styles.contentVerticalInverted
+      : styles.contentVertical;
 
   /**
    * ListHeaderComponent
    */
-  const ListHeaderComponent = React.useMemo(
-    () =>
-      props.ListHeaderComponent ? (
-        <ShadowListItemNativeComponent
-          key="ListHeaderComponent"
-          style={props.ListHeaderComponentStyle}
-        >
-          {invoker(props.ListHeaderComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null,
-    [props.ListHeaderComponent, props.ListHeaderComponentStyle]
-  );
+  const ListHeaderComponent = React.useMemo(() => {
+    return props.ListHeaderComponent ? (
+      <ShadowListItemNativeComponent style={props.ListHeaderComponentStyle}>
+        {invoker(props.ListHeaderComponent)}
+      </ShadowListItemNativeComponent>
+    ) : null;
+  }, [props.ListHeaderComponent, props.ListHeaderComponentStyle]);
 
   /**
    * ListFooterComponent
    */
-  const ListFooterComponent = React.useMemo(
-    () =>
-      props.ListFooterComponent ? (
-        <ShadowListItemNativeComponent
-          key="ListFooterComponent"
-          style={props.ListFooterComponentStyle}
-        >
-          {invoker(props.ListFooterComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null,
-    [props.ListFooterComponent, props.ListFooterComponentStyle]
-  );
+  const ListFooterComponent = React.useMemo(() => {
+    return props.ListFooterComponent ? (
+      <ShadowListItemNativeComponent style={props.ListFooterComponentStyle}>
+        {invoker(props.ListFooterComponent)}
+      </ShadowListItemNativeComponent>
+    ) : null;
+  }, [props.ListFooterComponent, props.ListFooterComponentStyle]);
 
   /**
    * ListEmptyComponent
    */
-  const ListEmptyComponent = React.useMemo(
-    () =>
-      props.ListEmptyComponent ? (
-        <ShadowListItemNativeComponent
-          key="ListEmptyComponent"
-          style={props.ListEmptyComponentStyle}
-        >
-          {invoker(props.ListEmptyComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null,
-    [props.ListEmptyComponent, props.ListEmptyComponentStyle]
-  );
+  const ListEmptyComponent = React.useMemo(() => {
+    return props.ListEmptyComponent ? (
+      <ShadowListItemNativeComponent style={props.ListEmptyComponentStyle}>
+        {invoker(props.ListEmptyComponent)}
+      </ShadowListItemNativeComponent>
+    ) : null;
+  }, [props.ListEmptyComponent, props.ListEmptyComponentStyle]);
 
   /**
    * ListChildrenComponent
    */
-  const ListChildrenComponent = React.useMemo(
-    () =>
-      data.map((item, index) => (
-        <ShadowListItemWrapper
-          renderItem={props.renderItem}
-          item={item}
-          index={props.inverted ? data.length - index : index}
-          key={index}
-        />
-      )),
-    [data, props.renderItem, props.inverted]
-  );
+  const ListChildrenComponent = React.useMemo(() => {
+    return data.map((item, index) => (
+      <ShadowListItemWrapper
+        renderItem={props.renderItem}
+        item={item}
+        index={index}
+        key={props.keyExtractor ? props.keyExtractor(item, index) : index}
+      />
+    ));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, props.renderItem, props.keyExtractor]);
 
   return (
     <ShadowListContainerNativeComponent
       {...props}
       ref={instanceRef}
-      hasListHeaderComponent={!!props.ListHeaderComponent}
-      hasListFooterComponent={!!props.ListFooterComponent}
-      style={[props.contentContainerStyle, baseStyle]}
+      style={[props.contentContainerStyle, containerStyle]}
     >
-      {!props.inverted ? ListHeaderComponent : ListFooterComponent}
-      {data.length ? ListChildrenComponent : ListEmptyComponent}
-      {!props.inverted ? ListFooterComponent : ListHeaderComponent}
+      <ShadowListContentNativeComponent
+        style={contentStyle}
+        inverted={props.inverted}
+        horizontal={props.horizontal}
+        hasListHeaderComponent={!!props.ListHeaderComponent}
+        hasListFooterComponent={!!props.ListFooterComponent}
+      >
+        {ListHeaderComponent}
+        {data.length ? ListChildrenComponent : ListEmptyComponent}
+        {ListFooterComponent}
+      </ShadowListContentNativeComponent>
     </ShadowListContainerNativeComponent>
   );
 };
 
 const styles = StyleSheet.create({
-  vertical: {
-    flexGrow: 1,
-    flexShrink: 1,
+  contentHorizontal: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  contentVertical: {
+    flex: 1,
+    flexDirection: 'column',
+  },
+  contentHorizontalInverted: {
+    flex: 1,
+    flexDirection: 'row-reverse',
+    justifyContent: 'flex-end',
+  },
+  contentVerticalInverted: {
+    flex: 1,
+    flexDirection: 'column-reverse',
+    justifyContent: 'flex-end',
+  },
+  containerVertical: {
+    flex: 1,
     flexDirection: 'column',
     overflow: 'scroll',
   },
-  horizontal: {
-    flexGrow: 1,
-    flexShrink: 1,
+  containerHorizontal: {
+    flex: 1,
     flexDirection: 'row',
     overflow: 'scroll',
   },

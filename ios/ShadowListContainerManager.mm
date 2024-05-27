@@ -15,7 +15,7 @@ RCT_EXPORT_MODULE(ShadowListContainer)
 }
 
 RCT_EXPORT_VIEW_PROPERTY(onVisibleChange, RCTDirectEventBlock)
-RCT_EXPORT_VIEW_PROPERTY(onBatchLayout, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onEndReached, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onStartReached, RCTDirectEventBlock)
 
 @end

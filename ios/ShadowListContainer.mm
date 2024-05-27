@@ -1,11 +1,10 @@
 #import "ShadowListContainer.h"
+#import "ShadowListContent.h"
 
 #import "ShadowListContainerComponentDescriptor.h"
 #import "ShadowListContainerEventEmitter.h"
 #import "ShadowListContainerProps.h"
 #import "ShadowListContainerHelpers.h"
-#import "Scrollable.h"
-#import "CachedComponentPool/CachedComponentPool.h"
 
 #import "RCTConversions.h"
 #import "RCTFabricComponentsPlugins.h"
@@ -17,12 +16,8 @@ using namespace facebook::react;
 @end
 
 @implementation ShadowListContainer {
-  UIScrollView* _scrollContainer;
+  UIScrollView* _contentView;
   ShadowListContainerShadowNode::ConcreteState::Shared _state;
-  CachedComponentPool *_cachedComponentPool;
-  int _cachedComponentPoolDriftCount;
-  BOOL _scrollContainerLayoutHorizontal;
-  BOOL _scrollContainerLayoutInverted;
   BOOL _scrollContainerScrolling;
 }
 
@@ -35,27 +30,11 @@ using namespace facebook::react;
 {
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const ShadowListContainerProps>();
-
-    _cachedComponentPoolDriftCount = 0;
-    _scrollContainerLayoutInverted = defaultProps->inverted;
-    _scrollContainerLayoutHorizontal = defaultProps->horizontal;
-    
     _props = defaultProps;
-    _scrollContainer = [UIScrollView new];
-    _scrollContainer.delegate = self;
-    _scrollContainer.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-
-    self.contentView = _scrollContainer;
-    
-    auto onCachedComponentMount = ^(NSInteger poolIndex) {
-      [self->_scrollContainer insertSubview:[self->_cachedComponentPool getComponentView:poolIndex] atIndex:poolIndex];
-    };
-    auto onCachedComponentUnmount = ^(NSInteger poolIndex) {
-      [[self->_cachedComponentPool getComponentView:poolIndex] removeFromSuperview];
-    };
-    _cachedComponentPool = [[CachedComponentPool alloc] initWithObservable:@[]
-      onCachedComponentMount:onCachedComponentMount
-      onCachedComponentUnmount:onCachedComponentUnmount];
+    _contentView = [UIScrollView new];
+    _contentView.delegate = self;
+    _contentView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    self.contentView = _contentView;
   }
 
   return self;
@@ -63,29 +42,11 @@ using namespace facebook::react;
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
-  const auto &oldConcreteProps = static_cast<const ShadowListContainerProps &>(*_props);
-  const auto &newConcreteProps = static_cast<const ShadowListContainerProps &>(*props);
-
-  self->_scrollContainerLayoutInverted = newConcreteProps.inverted;
-  self->_scrollContainerLayoutHorizontal = newConcreteProps.horizontal;
-
   [super updateProps:props oldProps:oldProps];
 }
 
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
-  assert(std::dynamic_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(state));
-  self->_state = std::static_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(state);
-  const auto &stateData = _state->getData();
-  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
-
-  self->_scrollContainer.contentSize = RCTCGSizeFromSize(stateData.scrollContent);
-  self->_scrollContainer.frame.size = RCTCGSizeFromSize(stateData.scrollContainer);
-  self->_scrollContainer.contentOffset = RCTCGPointFromPoint(stateData.scrollPosition);
-
-  _cachedComponentPoolDriftCount = stateData.countTree() - [self->_cachedComponentPool countPool];
-
-  [self recycle];
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView {
@@ -113,65 +74,133 @@ using namespace facebook::react;
 - (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event
 {
   if (_scrollContainerScrolling) {
-    return self->_scrollContainer;
+    return self->_contentView;
   }
   return [super hitTest:point withEvent:event];
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
   const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
+
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollOffsetChange:)]) {
+    CGPoint listContainerScrollOffset = scrollView.contentOffset;
+    [self.delegate listContainerScrollOffsetChange:listContainerScrollOffset];
+  }
   
-  auto distanceFromEnd = [self distanceFromEndRespectfully:props.onEndReachedThreshold];
+  int distanceFromEnd = [self measureDistanceFromEnd];
+  int distanceFromStart = [self measureDistanceFromStart];
+
   if (distanceFromEnd > 0) {
     eventEmitter.onEndReached({ distanceFromEnd = distanceFromEnd });
   }
   
-  [self recycle];
+  if (distanceFromStart > 0) {
+    eventEmitter.onStartReached({ distanceFromStart = distanceFromStart });
+  }
 }
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  if ([childComponentView superview]) [childComponentView removeFromSuperview];
-  [self->_cachedComponentPool insertCachedComponentPoolItem:childComponentView poolIndex:index];
-  
-  if (_cachedComponentPoolDriftCount > 0) {
-    _cachedComponentPoolDriftCount -= 1;
-    if (_cachedComponentPoolDriftCount == 0) [self recycle];
-  }
+  [self->_contentView mountChildComponentView:childComponentView index:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  if ([childComponentView superview]) [childComponentView removeFromSuperview];
-  [self->_cachedComponentPool removeCachedComponentPoolItem:childComponentView poolIndex:index];
+  [self->_contentView unmountChildComponentView:childComponentView index:index];
 }
 
-- (int)distanceFromEndRespectfully:(float)threshold {
-  if (self->_scrollContainerLayoutHorizontal) {
-    auto containerSize = self->_scrollContainer.bounds.size.width;
-    auto contentSize = self->_scrollContainer.contentSize.width;
-    auto offset = self->_scrollContainer.contentOffset.x;
+- (void)layoutSubviews
+{
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+
+  RCTAssert(
+    [self->_contentView.subviews.firstObject isKindOfClass:ShadowListContent.class],
+    @"ShadowListContainer must be an ancestor of ShadowListContent");
+  ShadowListContent *shadowListContent = self->_contentView.subviews.firstObject;
+  shadowListContent.delegate = self;
+  
+  /*
+   * Scrollbar position adjustments when initialScrollIndex not provided
+   */
+  if (props.initialScrollIndex && [self.delegate respondsToSelector:@selector(listContainerScrollFocusIndexChange:)]) {
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusIndexChange:props.initialScrollIndex];
+    [self->_contentView setContentOffset:listContainerScrollOffset];
+  }
+
+  /*
+   * Scrollbar position adjustments when initialScrollIndex not provided
+   */
+  if (!props.initialScrollIndex && [self.delegate respondsToSelector:@selector(listContainerScrollFocusOffsetChange:)]) {
+    NSInteger offset = 0;
+  
+    if (props.horizontal && props.inverted) {
+      offset = MAX(self->_contentView.contentSize.width - self->_contentView.frame.size.width, 0);
+    } else if (!props.horizontal && props.inverted) {
+      offset = MAX(self->_contentView.contentSize.height - self->_contentView.frame.size.height, 0);
+    }
+
+    /*
+     * Manually trigger scrollevent for non-inverted list to run virtualization
+     */
+    if (!offset) {
+      [self scrollViewDidScroll:self->_contentView];
+    }
     
-    auto triggerPoint = contentSize - (threshold * containerSize);
-    return offset >= triggerPoint ? (int)(contentSize - offset) : 0;
-  } else {
-    auto containerSize = self->_scrollContainer.bounds.size.height;
-    auto contentSize = self->_scrollContainer.contentSize.height;
-    auto offset = self->_scrollContainer.contentOffset.y;
-    
-    auto triggerPoint = contentSize - (threshold * containerSize);
-    return offset >= triggerPoint ? (int)(contentSize - offset) : 0;
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusOffsetChange:offset];
+    [self->_contentView setContentOffset:listContainerScrollOffset];
   }
 }
 
-- (void)scrollRespectfully:(float)contentOffset animated:(BOOL)animated
-{
-  if (self->_scrollContainerLayoutInverted) {
-    [self->_scrollContainer setContentOffset:CGPointMake(contentOffset, 0) animated:animated];
+- (void)listContentSizeChange:(CGSize)listContentSize {
+  [self->_contentView setContentSize:listContentSize];
+
+  /*
+   * Stick scrollbar to bottom when scroll container is inverted vertically and to right when inverted horizontally
+   */
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+  if (props.horizontal && props.inverted) {
+    CGPoint nextContentOffset = CGPointMake(self->_contentView.contentSize.height - self->_contentView.frame.size.height, 0);
+    [self->_contentView setContentOffset:nextContentOffset];
+  } else if (!props.horizontal && props.inverted) {
+    CGPoint nextContentOffset = CGPointMake(0, self->_contentView.contentSize.height - self->_contentView.frame.size.height);
+    [self->_contentView setContentOffset:nextContentOffset];
+  }
+}
+
+- (NSInteger)measureDistanceFromEnd {
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+
+  if (props.horizontal && props.inverted) {
+    auto triggerPoint = (props.onEndReachedThreshold * self->_contentView.frame.size.width);
+    return self->_contentView.contentOffset.x >= triggerPoint ? self->_contentView.contentOffset.x : 0;
+  } else if (!props.horizontal && props.inverted) {
+    auto triggerPoint = (props.onEndReachedThreshold * self->_contentView.frame.size.height);
+    return self->_contentView.contentOffset.y >= triggerPoint ? self->_contentView.contentOffset.y : 0;
+  } else if (props.horizontal && !props.inverted) {
+    auto triggerPoint = self->_contentView.contentSize.width - (props.onEndReachedThreshold * self->_contentView.frame.size.width);
+    return self->_contentView.contentOffset.x >= triggerPoint ? self->_contentView.contentSize.width - self->_contentView.contentOffset.x : 0;
   } else {
-    [self->_scrollContainer setContentOffset:CGPointMake(0, contentOffset) animated:animated];
+    auto triggerPoint = self->_contentView.contentSize.height - (props.onEndReachedThreshold * self->_contentView.frame.size.height);
+    return self->_contentView.contentOffset.y >= triggerPoint ? self->_contentView.contentSize.height - self->_contentView.contentOffset.y : 0;
+  }
+}
+
+- (NSInteger)measureDistanceFromStart {
+  const auto &props = static_cast<const ShadowListContainerProps &>(*_props);
+
+  if (props.horizontal && props.inverted) {
+    auto triggerPoint = self->_contentView.contentSize.width - (props.onStartReachedThreshold * self->_contentView.frame.size.width);
+    return self->_contentView.contentOffset.x <= triggerPoint ? self->_contentView.contentSize.width - self->_contentView.contentOffset.x : 0;
+  } else if (!props.horizontal && props.inverted) {
+    auto triggerPoint = self->_contentView.contentSize.height - (props.onStartReachedThreshold * self->_contentView.frame.size.height);
+    return self->_contentView.contentOffset.y <= triggerPoint ? self->_contentView.contentSize.height - self->_contentView.contentOffset.y : 0;
+  } else if (props.horizontal && !props.inverted) {
+    auto triggerPoint = (props.onStartReachedThreshold * self->_contentView.frame.size.width);
+    return self->_contentView.contentOffset.x <= triggerPoint ? self->_contentView.contentOffset.x : 0;
+  } else {
+    auto triggerPoint = (props.onStartReachedThreshold * self->_contentView.frame.size.height);
+    return self->_contentView.contentOffset.y <= triggerPoint ? self->_contentView.contentOffset.y : 0;
   }
 }
 
@@ -184,28 +213,18 @@ using namespace facebook::react;
 
 - (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
 {
-  auto &stateData = _state->getData();
-  [self scrollRespectfully:stateData.calculateItemOffset(index) animated:animated];
-
-  [self recycle];
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollFocusIndexChange:)]) {
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusIndexChange:(NSInteger)index];
+    [self->_contentView setContentOffset:listContainerScrollOffset];
+  }
 }
 
 - (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated
 {
-  [self scrollRespectfully:offset animated:animated];
-
-  [self recycle];
-}
-
-- (void)recycle {
-  assert(std::dynamic_pointer_cast<ShadowListContainerShadowNode::ConcreteState const>(_state));
-  auto &stateData = _state->getData();
-  auto extendedMetrics = stateData.calculateExtendedMetrics(
-    RCTPointFromCGPoint(self->_scrollContainer.contentOffset),
-    self->_scrollContainerLayoutHorizontal,
-    self->_scrollContainerLayoutInverted
-  );
-  [self->_cachedComponentPool recycle:extendedMetrics.visibleStartIndex visibleEndIndex:extendedMetrics.visibleEndIndex];
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollFocusOffsetChange:)]) {
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusOffsetChange:offset];
+    [self->_contentView setContentOffset:listContainerScrollOffset];
+  }
 }
 
 Class<RCTComponentViewProtocol> ShadowListContainerCls(void)
