@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, type ViewStyle } from 'react-native';
+import { View, StyleSheet, type ViewStyle } from 'react-native';
 import ShadowListContainerNativeComponent, {
   Commands,
   type NativeProps,
@@ -103,50 +103,35 @@ const ShadowListContainerWrapper = (
   /**
    * ListHeaderComponent
    */
-  const ListHeaderComponent = React.useMemo(
-    () =>
-      props.ListHeaderComponent ? (
-        <ShadowListItemNativeComponent
-          key="ListHeaderComponent"
-          style={props.ListHeaderComponentStyle}
-        >
-          {invoker(props.ListHeaderComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null,
-    [props.ListHeaderComponent, props.ListHeaderComponentStyle]
-  );
+  const ListHeaderComponent = React.useMemo(() => {
+    return props.ListHeaderComponent ? (
+      <View style={props.ListHeaderComponentStyle}>
+        {invoker(props.ListHeaderComponent)}
+      </View>
+    ) : null;
+  }, [props.ListHeaderComponent, props.ListHeaderComponentStyle]);
 
   /**
    * ListFooterComponent
    */
-  const ListFooterComponent = React.useMemo(
-    () =>
-      props.ListFooterComponent ? (
-        <ShadowListItemNativeComponent
-          key="ListFooterComponent"
-          style={props.ListFooterComponentStyle}
-        >
-          {invoker(props.ListFooterComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null,
-    [props.ListFooterComponent, props.ListFooterComponentStyle]
-  );
+  const ListFooterComponent = React.useMemo(() => {
+    return props.ListFooterComponent ? (
+      <View style={props.ListFooterComponentStyle}>
+        {invoker(props.ListFooterComponent)}
+      </View>
+    ) : null;
+  }, [props.ListFooterComponent, props.ListFooterComponentStyle]);
 
   /**
    * ListEmptyComponent
    */
-  const ListEmptyComponent = React.useMemo(
-    () =>
-      props.ListEmptyComponent ? (
-        <ShadowListItemNativeComponent
-          key="ListEmptyComponent"
-          style={props.ListEmptyComponentStyle}
-        >
-          {invoker(props.ListEmptyComponent)}
-        </ShadowListItemNativeComponent>
-      ) : null,
-    [props.ListEmptyComponent, props.ListEmptyComponentStyle]
-  );
+  const ListEmptyComponent = React.useMemo(() => {
+    return props.ListEmptyComponent ? (
+      <View style={props.ListEmptyComponentStyle}>
+        {invoker(props.ListEmptyComponent)}
+      </View>
+    ) : null;
+  }, [props.ListEmptyComponent, props.ListEmptyComponentStyle]);
 
   /**
    * ListChildrenComponent
@@ -168,14 +153,14 @@ const ShadowListContainerWrapper = (
     <ShadowListContainerNativeComponent
       {...props}
       ref={instanceRef}
-      hasListHeaderComponent={!!props.ListHeaderComponent}
-      hasListFooterComponent={!!props.ListFooterComponent}
       style={[props.contentContainerStyle, containerStyle]}
     >
       <ShadowListContentNativeComponent
         style={contentStyle}
         inverted={props.inverted}
         horizontal={props.horizontal}
+        hasListHeaderComponent={!!props.ListHeaderComponent}
+        hasListFooterComponent={!!props.ListFooterComponent}
       >
         {ListHeaderComponent}
         {data.length ? ListChildrenComponent : ListEmptyComponent}

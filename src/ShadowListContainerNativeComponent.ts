@@ -14,8 +14,6 @@ export type OnStartReachedProps = { distanceFromStart: Int32 };
 export interface NativeProps extends ViewProps {
   inverted?: boolean;
   horizontal?: boolean;
-  hasListHeaderComponent?: boolean;
-  hasListFooterComponent?: boolean;
   initialScrollIndex?: Int32;
   onVisibleChange?: DirectEventHandler<
     Readonly<{

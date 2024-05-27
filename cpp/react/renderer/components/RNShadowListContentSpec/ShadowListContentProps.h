@@ -14,9 +14,6 @@ class ShadowListContentProps final : public ViewProps {
   bool horizontal{false};
   bool hasListHeaderComponent{false};
   bool hasListFooterComponent{false};
-  int initialScrollIndex{0};
-  double onEndReachedThreshold{0};
-  double onStartReachedThreshold{0};
 };
 
 }
