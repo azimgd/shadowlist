@@ -10,16 +10,17 @@ import type {
 
 export type OnEndReachedProps = { distanceFromEnd: Int32 };
 export type OnStartReachedProps = { distanceFromStart: Int32 };
+export type OnVisibleChildrenUpdate = {
+  visibleStartIndex: Int32;
+  visibleEndIndex: Int32;
+};
 
 export interface NativeProps extends ViewProps {
   inverted?: boolean;
   horizontal?: boolean;
   initialScrollIndex?: Int32;
-  onVisibleChange?: DirectEventHandler<
-    Readonly<{
-      start: Int32;
-      end: Int32;
-    }>
+  onVisibleChildrenUpdate?: DirectEventHandler<
+    Readonly<OnVisibleChildrenUpdate>
   >;
   onEndReached?: DirectEventHandler<Readonly<OnEndReachedProps>>;
   onEndReachedThreshold?: Double;

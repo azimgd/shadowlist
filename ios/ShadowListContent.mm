@@ -78,7 +78,7 @@ using namespace facebook::react;
    */
   const auto contentViewTotal = stateData.contentViewMeasurements.sum(stateData.contentViewMeasurements.size());
   
-  if ([self.delegate respondsToSelector:@selector(listContentSizeChange:)]) {
+  if ([self.delegate respondsToSelector:@selector(listContentSizeUpdate:)]) {
     CGSize listContentSize;
 
     if (props.horizontal) {
@@ -87,7 +87,7 @@ using namespace facebook::react;
       listContentSize = CGSizeMake(self->_contentView.frame.size.width, contentViewTotal);
     }
 
-    [self.delegate listContentSizeChange:listContentSize];
+    [self.delegate listContentSizeUpdate:listContentSize];
   }
 }
 
@@ -100,7 +100,7 @@ using namespace facebook::react;
   shadowListContainer.delegate = self;
 }
 
-- (CGPoint)listContainerScrollOffsetChange:(CGPoint)listContainerScrollOffset
+- (CGPoint)listContainerScrollOffsetUpdate:(CGPoint)listContainerScrollOffset
 {
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
   const auto &stateData = self->_state->getData();
@@ -147,6 +147,10 @@ using namespace facebook::react;
 
   [self->_cachedComponentPool recycle:visibleStartIndex visibleEndIndex:visibleEndIndex];
   
+  if ([self.delegate respondsToSelector:@selector(visibleChildrenUpdate:visibleEndIndex:)]) {
+    [self.delegate visibleChildrenUpdate:visibleStartIndex visibleEndIndex:visibleEndIndex];
+  }
+  
   if (props.horizontal) {
     return CGPointMake(visibleStartOffset, 0);
   } else {
@@ -154,7 +158,7 @@ using namespace facebook::react;
   }
 }
 
-- (CGPoint)listContainerScrollFocusIndexChange:(NSInteger)focusIndex
+- (CGPoint)listContainerScrollFocusIndexUpdate:(NSInteger)focusIndex
 {
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
   const auto &stateData = self->_state->getData();
@@ -170,11 +174,11 @@ using namespace facebook::react;
     listContainerScrollOffset = CGPointMake(0, contentViewItem);
   }
 
-  [self listContainerScrollOffsetChange:listContainerScrollOffset];
+  [self listContainerScrollOffsetUpdate:listContainerScrollOffset];
   return listContainerScrollOffset;
 }
 
-- (CGPoint)listContainerScrollFocusOffsetChange:(NSInteger)focusOffset
+- (CGPoint)listContainerScrollFocusOffsetUpdate:(NSInteger)focusOffset
 {
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
   const auto &stateData = self->_state->getData();
@@ -188,7 +192,7 @@ using namespace facebook::react;
     listContainerScrollOffset = CGPointMake(0, focusOffset);
   }
 
-  [self listContainerScrollOffsetChange:listContainerScrollOffset];
+  [self listContainerScrollOffsetUpdate:listContainerScrollOffset];
   return listContainerScrollOffset;
 }
 Class<RCTComponentViewProtocol> ShadowListContentCls(void)

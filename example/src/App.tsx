@@ -113,6 +113,7 @@ export const ShadowListExample = ({ data }: { data: any[] }) => {
       onEndReachedThreshold={2}
       onStartReached={(event) => console.log(event.nativeEvent)}
       onStartReachedThreshold={2}
+      onVisibleChildrenUpdate={(event) => console.log(event.nativeEvent)}
     />
   );
 };

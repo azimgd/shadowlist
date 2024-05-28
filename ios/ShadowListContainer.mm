@@ -83,20 +83,20 @@ using namespace facebook::react;
 {
   const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
 
-  if ([self.delegate respondsToSelector:@selector(listContainerScrollOffsetChange:)]) {
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollOffsetUpdate:)]) {
     CGPoint listContainerScrollOffset = scrollView.contentOffset;
-    [self.delegate listContainerScrollOffsetChange:listContainerScrollOffset];
+    [self.delegate listContainerScrollOffsetUpdate:listContainerScrollOffset];
   }
   
   int distanceFromEnd = [self measureDistanceFromEnd];
   int distanceFromStart = [self measureDistanceFromStart];
 
   if (distanceFromEnd > 0) {
-    eventEmitter.onEndReached({ distanceFromEnd = distanceFromEnd });
+    eventEmitter.onEndReached({ distanceFromEnd });
   }
   
   if (distanceFromStart > 0) {
-    eventEmitter.onStartReached({ distanceFromStart = distanceFromStart });
+    eventEmitter.onStartReached({ distanceFromStart });
   }
 }
 
@@ -123,15 +123,15 @@ using namespace facebook::react;
   /*
    * Scrollbar position adjustments when initialScrollIndex not provided
    */
-  if (props.initialScrollIndex && [self.delegate respondsToSelector:@selector(listContainerScrollFocusIndexChange:)]) {
-    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusIndexChange:props.initialScrollIndex];
+  if (props.initialScrollIndex && [self.delegate respondsToSelector:@selector(listContainerScrollFocusIndexUpdate:)]) {
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusIndexUpdate:props.initialScrollIndex];
     [self->_contentView setContentOffset:listContainerScrollOffset];
   }
 
   /*
    * Scrollbar position adjustments when initialScrollIndex not provided
    */
-  if (!props.initialScrollIndex && [self.delegate respondsToSelector:@selector(listContainerScrollFocusOffsetChange:)]) {
+  if (!props.initialScrollIndex && [self.delegate respondsToSelector:@selector(listContainerScrollFocusOffsetUpdate:)]) {
     NSInteger offset = 0;
   
     if (props.horizontal && props.inverted) {
@@ -147,12 +147,12 @@ using namespace facebook::react;
       [self scrollViewDidScroll:self->_contentView];
     }
     
-    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusOffsetChange:offset];
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusOffsetUpdate:offset];
     [self->_contentView setContentOffset:listContainerScrollOffset];
   }
 }
 
-- (void)listContentSizeChange:(CGSize)listContentSize {
+- (void)listContentSizeUpdate:(CGSize)listContentSize {
   [self->_contentView setContentSize:listContentSize];
 
   /*
@@ -166,6 +166,15 @@ using namespace facebook::react;
     CGPoint nextContentOffset = CGPointMake(0, self->_contentView.contentSize.height - self->_contentView.frame.size.height);
     [self->_contentView setContentOffset:nextContentOffset];
   }
+}
+
+- (void)visibleChildrenUpdate:(NSInteger)visibleStartIndex visibleEndIndex:(NSInteger)visibleEndIndex
+{
+  const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
+  eventEmitter.onVisibleChildrenUpdate({
+    static_cast<int>(visibleStartIndex),
+    static_cast<int>(visibleEndIndex)
+  });
 }
 
 - (NSInteger)measureDistanceFromEnd {
@@ -213,16 +222,16 @@ using namespace facebook::react;
 
 - (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
 {
-  if ([self.delegate respondsToSelector:@selector(listContainerScrollFocusIndexChange:)]) {
-    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusIndexChange:(NSInteger)index];
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollFocusIndexUpdate:)]) {
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusIndexUpdate:(NSInteger)index];
     [self->_contentView setContentOffset:listContainerScrollOffset];
   }
 }
 
 - (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated
 {
-  if ([self.delegate respondsToSelector:@selector(listContainerScrollFocusOffsetChange:)]) {
-    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusOffsetChange:offset];
+  if ([self.delegate respondsToSelector:@selector(listContainerScrollFocusOffsetUpdate:)]) {
+    CGPoint listContainerScrollOffset = [self.delegate listContainerScrollFocusOffsetUpdate:offset];
     [self->_contentView setContentOffset:listContainerScrollOffset];
   }
 }

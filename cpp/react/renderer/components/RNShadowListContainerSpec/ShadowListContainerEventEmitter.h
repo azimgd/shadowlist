@@ -8,9 +8,9 @@ class ShadowListContainerEventEmitter : public ViewEventEmitter {
   public:
     using ViewEventEmitter::ViewEventEmitter;
 
-  struct VisibleMetrics {
-    int start;
-    int end;
+  struct VisibleChildrenUpdate {
+    int visibleStartIndex;
+    int visibleEndIndex;
   };
 
   struct EndReached {
@@ -21,7 +21,7 @@ class ShadowListContainerEventEmitter : public ViewEventEmitter {
     int distanceFromStart;
   };
 
-  void onVisibleChange(VisibleMetrics value) const;
+  void onVisibleChildrenUpdate(VisibleChildrenUpdate value) const;
   void onEndReached(EndReached value) const;
   void onStartReached(StartReached value) const;
 };

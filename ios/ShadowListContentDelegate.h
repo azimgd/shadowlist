@@ -9,7 +9,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @protocol ShadowListContentDelegate <NSObject>
 @required
-- (void)listContentSizeChange:(CGSize)listContentSize;
+- (void)listContentSizeUpdate:(CGSize)listContentSize;
+- (void)visibleChildrenUpdate:(NSInteger)visibleStartIndex visibleEndIndex:(NSInteger)visibleEndIndex;
 @end
 
 NS_ASSUME_NONNULL_END
