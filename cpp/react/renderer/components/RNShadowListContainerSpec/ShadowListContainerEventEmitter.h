@@ -11,6 +11,12 @@ class ShadowListContainerEventEmitter : public ViewEventEmitter {
   struct VisibleChildrenUpdate {
     int visibleStartIndex;
     int visibleEndIndex;
+    int visibleStartOffset;
+    int visibleEndOffset;
+    int headBlankStart;
+    int headBlankEnd;
+    int tailBlankStart;
+    int tailBlankEnd;
   };
 
   struct EndReached {

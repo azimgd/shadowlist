@@ -168,12 +168,18 @@ using namespace facebook::react;
   }
 }
 
-- (void)visibleChildrenUpdate:(NSInteger)visibleStartIndex visibleEndIndex:(NSInteger)visibleEndIndex
+- (void)visibleChildrenUpdate:(VisibleChildren)visibleChildren
 {
   const auto &eventEmitter = static_cast<const ShadowListContainerEventEmitter &>(*_eventEmitter);
   eventEmitter.onVisibleChildrenUpdate({
-    static_cast<int>(visibleStartIndex),
-    static_cast<int>(visibleEndIndex)
+    static_cast<int>(visibleChildren.visibleStartIndex),
+    static_cast<int>(visibleChildren.visibleEndIndex),
+    static_cast<int>(visibleChildren.visibleStartOffset),
+    static_cast<int>(visibleChildren.visibleEndOffset),
+    static_cast<int>(visibleChildren.headBlankStart),
+    static_cast<int>(visibleChildren.headBlankEnd),
+    static_cast<int>(visibleChildren.tailBlankStart),
+    static_cast<int>(visibleChildren.tailBlankEnd)
   });
 }
 

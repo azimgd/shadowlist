@@ -13,6 +13,12 @@ export type OnStartReachedProps = { distanceFromStart: Int32 };
 export type OnVisibleChildrenUpdate = {
   visibleStartIndex: Int32;
   visibleEndIndex: Int32;
+  visibleStartOffset: Int32;
+  visibleEndOffset: Int32;
+  headBlankStart: Int32;
+  headBlankEnd: Int32;
+  tailBlankStart: Int32;
+  tailBlankEnd: Int32;
 };
 
 export interface NativeProps extends ViewProps {

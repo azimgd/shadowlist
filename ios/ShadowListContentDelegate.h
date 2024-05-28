@@ -7,10 +7,21 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+typedef struct {
+  NSInteger visibleStartIndex;
+  NSInteger visibleEndIndex;
+  NSInteger visibleStartOffset;
+  NSInteger visibleEndOffset;
+  NSInteger headBlankStart;
+  NSInteger headBlankEnd;
+  NSInteger tailBlankStart;
+  NSInteger tailBlankEnd;
+} VisibleChildren;
+
 @protocol ShadowListContentDelegate <NSObject>
 @required
 - (void)listContentSizeUpdate:(CGSize)listContentSize;
-- (void)visibleChildrenUpdate:(NSInteger)visibleStartIndex visibleEndIndex:(NSInteger)visibleEndIndex;
+- (void)visibleChildrenUpdate:(VisibleChildren)visibleChildren;
 @end
 
 NS_ASSUME_NONNULL_END

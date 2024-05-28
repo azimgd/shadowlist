@@ -119,7 +119,11 @@ using namespace facebook::react;
   NSInteger visibleEndIndex;
   NSInteger visibleStartOffset;
   NSInteger visibleEndOffset;
-  CGPoint visibleOffset;
+  NSInteger headBlankStart;
+  NSInteger headBlankEnd;
+  NSInteger tailBlankStart;
+  NSInteger tailBlankEnd;
+
   if (props.horizontal && props.inverted) {
     visibleStartOffset = contentViewTotal - listContainerScrollOffset.x - self->_contentView.frame.size.width;
     visibleEndOffset = contentViewTotal - listContainerScrollOffset.x;
@@ -144,11 +148,24 @@ using namespace facebook::react;
 
   visibleStartIndex = MAX(0, visibleStartIndex - 2);
   visibleEndIndex = MIN(contentViewCount, visibleEndIndex + 2);
+  headBlankStart = 0;
+  headBlankEnd = self->_state->getData().contentViewMeasurements.sum(visibleStartIndex);
+  tailBlankStart = self->_state->getData().contentViewMeasurements.sum(visibleEndIndex);
+  tailBlankEnd = contentViewTotal;
 
   [self->_cachedComponentPool recycle:visibleStartIndex visibleEndIndex:visibleEndIndex];
   
-  if ([self.delegate respondsToSelector:@selector(visibleChildrenUpdate:visibleEndIndex:)]) {
-    [self.delegate visibleChildrenUpdate:visibleStartIndex visibleEndIndex:visibleEndIndex];
+  if ([self.delegate respondsToSelector:@selector(visibleChildrenUpdate:)]) {
+    [self.delegate visibleChildrenUpdate:{
+      visibleStartIndex,
+      visibleEndIndex,
+      visibleStartOffset,
+      visibleEndOffset,
+      headBlankStart,
+      headBlankEnd,
+      tailBlankStart,
+      tailBlankEnd
+    }];
   }
   
   if (props.horizontal) {
@@ -181,7 +198,6 @@ using namespace facebook::react;
 - (CGPoint)listContainerScrollFocusOffsetUpdate:(NSInteger)focusOffset
 {
   assert(std::dynamic_pointer_cast<ShadowListContentShadowNode::ConcreteState const>(self->_state));
-  const auto &stateData = self->_state->getData();
   const auto &props = static_cast<const ShadowListContentProps &>(*_props);
   
   CGPoint listContainerScrollOffset;

@@ -7,6 +7,12 @@ void ShadowListContainerEventEmitter::onVisibleChildrenUpdate(VisibleChildrenUpd
     auto $payload = jsi::Object(runtime);
     $payload.setProperty(runtime, "visibleStartIndex", $event.visibleStartIndex);
     $payload.setProperty(runtime, "visibleEndIndex", $event.visibleEndIndex);
+    $payload.setProperty(runtime, "visibleStartOffset", $event.visibleStartOffset);
+    $payload.setProperty(runtime, "visibleEndOffset", $event.visibleEndOffset);
+    $payload.setProperty(runtime, "headBlankStart", $event.headBlankStart);
+    $payload.setProperty(runtime, "headBlankEnd", $event.headBlankEnd);
+    $payload.setProperty(runtime, "tailBlankStart", $event.tailBlankStart);
+    $payload.setProperty(runtime, "tailBlankEnd", $event.tailBlankEnd);
     return $payload;
   });
 }
