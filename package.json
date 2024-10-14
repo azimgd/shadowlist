@@ -181,7 +181,7 @@
     ]
   },
   "codegenConfig": {
-    "name": "RNShadowlistViewSpec",
+    "name": "SLContainerSpec",
     "type": "all",
     "jsSrcsDir": "src",
     "outputDir": {

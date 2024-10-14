@@ -2,10 +2,10 @@
 #import <React/RCTUIManager.h>
 #import "RCTBridge.h"
 
-@interface ShadowlistViewManager : RCTViewManager
+@interface SLContainerManager : RCTViewManager
 @end
 
-@implementation ShadowlistViewManager
+@implementation SLContainerManager
 
 RCT_EXPORT_MODULE(ShadowlistView)
 
