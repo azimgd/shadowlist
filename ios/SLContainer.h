@@ -7,7 +7,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface SLContainer : RCTViewComponentView
+@interface SLContainer : RCTViewComponentView<UIScrollViewDelegate>
 @end
 
 NS_ASSUME_NONNULL_END

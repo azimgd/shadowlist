@@ -9,6 +9,8 @@
 #include <react/renderer/core/LayoutContext.h>
 #include <react/renderer/core/LayoutMetrics.h>
 
+#include "SLFenwickTree.hpp"
+
 namespace facebook::react {
 
 JSI_EXPORT extern const char SLContainerComponentName[];
@@ -32,6 +34,8 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
     const ShadowNode& oldChild,
     const ShadowNode::Shared& newChild,
     size_t suggestedIndex = SIZE_MAX) override;
+  SLFenwickTree measureChildren();
+  YogaLayoutableShadowNode& shadowNodeFromContext(YGNodeConstRef yogaNode);
 };
 
 }

@@ -4,6 +4,7 @@
 #import "SLContainerEventEmitter.h"
 #import "SLContainerProps.h"
 #import "SLContainerHelpers.h"
+#import "SLContainerChildrenManager.h"
 
 #import "RCTFabricComponentsPlugins.h"
 
@@ -15,6 +16,8 @@ using namespace facebook::react;
 
 @implementation SLContainer {
   UIScrollView * _contentView;
+  SLContainerShadowNode::ConcreteState::Shared _state;
+  SLContainerChildrenManager *_containerChildrenManager;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -28,25 +31,23 @@ using namespace facebook::react;
     static const auto defaultProps = std::make_shared<const SLContainerProps>();
     _props = defaultProps;
     _contentView = [UIScrollView new];
+    _contentView.delegate = self;
+    _containerChildrenManager = [[SLContainerChildrenManager alloc] initWithContentView:_contentView];
+    
     self.contentView = _contentView;
   }
 
   return self;
 }
 
-- (void)layoutSubviews
-{
-  [self->_contentView layoutSubviews];
-}
-
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self->_contentView mountChildComponentView:childComponentView index:index];
+  [self->_containerChildrenManager mountChildComponentView:childComponentView index:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self->_contentView unmountChildComponentView:childComponentView index:index];
+  [self->_containerChildrenManager unmountChildComponentView:childComponentView index:index];
 }
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
@@ -59,6 +60,23 @@ using namespace facebook::react;
 
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
+  self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
+  const auto &stateData = _state->getData();
+
+  [self->_contentView setContentSize:CGSizeMake(self.frame.size.width, stateData.childrenMeasurements.sum(stateData.childrenMeasurements.size()))];
+}
+
+- (void)scrollViewDidScroll:(UIScrollView *)scrollView
+{
+  int offset = 5;
+  float visibleStartOffset = scrollView.contentOffset.y;
+  float visibleEndOffset = scrollView.contentOffset.y + self.frame.size.height;
+  
+  const auto &stateData = _state->getData();
+  int visibleStartIndex = MAX(stateData.childrenMeasurements.lower_bound(visibleStartOffset) - offset, 0);
+  int visibleEndIndex = MIN(stateData.childrenMeasurements.lower_bound(visibleEndOffset) + offset, stateData.childrenMeasurements.size());
+
+  [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
 }
 
 Class<RCTComponentViewProtocol> ShadowlistViewCls(void)
