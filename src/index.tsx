@@ -1,2 +1,2 @@
-export { default as ShadowlistView } from './ShadowlistViewNativeComponent';
-export * from './ShadowlistViewNativeComponent';
+export { default as SLContainer } from './SLContainerNativeComponent';
+export * from './SLContainerNativeComponent';

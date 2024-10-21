@@ -7,7 +7,7 @@
 
 @implementation SLContainerManager
 
-RCT_EXPORT_MODULE(ShadowlistView)
+RCT_EXPORT_MODULE(SLContainer)
 
 - (UIView *)view
 {

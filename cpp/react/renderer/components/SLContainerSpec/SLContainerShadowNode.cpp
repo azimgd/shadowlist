@@ -3,7 +3,7 @@
 
 namespace facebook::react {
 
-extern const char SLContainerComponentName[] = "ShadowlistView";
+extern const char SLContainerComponentName[] = "SLContainer";
 
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   ConcreteShadowNode::layout(layoutContext);

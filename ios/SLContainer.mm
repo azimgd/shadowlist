@@ -79,7 +79,7 @@ using namespace facebook::react;
   [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
 }
 
-Class<RCTComponentViewProtocol> ShadowlistViewCls(void)
+Class<RCTComponentViewProtocol> SLContainerCls(void)
 {
   return SLContainer.class;
 }

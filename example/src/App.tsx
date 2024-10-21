@@ -1,10 +1,10 @@
 import { SafeAreaView, StyleSheet, Text } from 'react-native';
-import { ShadowlistView } from 'shadowlist';
+import { SLContainer } from 'shadowlist';
 
 export default function App() {
   return (
     <SafeAreaView style={styles.container}>
-      <ShadowlistView style={styles.content}>
+      <SLContainer style={styles.content}>
         {Array.from({ length: 1000 }, (_, i) => (
           <Text style={styles.text} key={i}>
             {i} Lorem Ipsum is simply dummy text of the printing and typesetting
@@ -18,7 +18,7 @@ export default function App() {
             PageMaker including versions of Lorem Ipsum.
           </Text>
         ))}
-      </ShadowlistView>
+      </SLContainer>
     </SafeAreaView>
   );
 }

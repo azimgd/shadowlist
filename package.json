@@ -24,6 +24,7 @@
     "ios",
     "cpp",
     "*.podspec",
+    "react-native.config.json",
     "!ios/build",
     "!android/build",
     "!android/gradle",
@@ -191,7 +192,7 @@
     "android": {
       "javaPackageName": "com.shadowlist"
     },
-    "includesGeneratedCode": true
+    "includesGeneratedCode": false
   },
   "create-react-native-library": {
     "type": "view-new",
