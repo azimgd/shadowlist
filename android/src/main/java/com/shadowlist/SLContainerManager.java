@@ -17,8 +17,6 @@ import com.facebook.react.viewmanagers.SLContainerManagerDelegate;
 public class SLContainerManager extends ViewGroupManager<SLContainer>
   implements SLContainerManagerInterface<SLContainer> {
 
-  private static final short CX_STATE_KEY_CHILDREN_MEASUREMENTS = 0;
-
   private final ViewManagerDelegate<SLContainer> mDelegate;
 
   public SLContainerManager() {
@@ -49,6 +47,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   @Override
   public Object updateState(@NonNull SLContainer view, ReactStylesDiffMap props, StateWrapper stateWrapper) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
+
+    view.setScrollContentLayout(
+      (float) stateWrapper.getStateData().getMap("scrollContent").getDouble("width"),
+      (float) stateWrapper.getStateData().getMap("scrollContent").getDouble("height")
+    );
 
     if (stateMapBuffer != null) {
       return stateMapBuffer;

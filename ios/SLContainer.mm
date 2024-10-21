@@ -6,7 +6,8 @@
 #import "SLContainerHelpers.h"
 #import "SLContainerChildrenManager.h"
 
-#import "RCTFabricComponentsPlugins.h"
+#import <React/RCTFabricComponentsPlugins.h>
+#import <React/RCTConversions.h>
 
 using namespace facebook::react;
 
@@ -63,20 +64,24 @@ using namespace facebook::react;
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
   const auto &stateData = _state->getData();
 
-  [self->_contentView setContentSize:CGSizeMake(self.frame.size.width, stateData.childrenMeasurements.sum(stateData.childrenMeasurements.size()))];
+  [self->_contentView setContentSize:CGSizeMake(self.frame.size.width, stateData.scrollContent.height)];
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  int offset = 5;
-  float visibleStartOffset = scrollView.contentOffset.y;
-  float visibleEndOffset = scrollView.contentOffset.y + self.frame.size.height;
+  auto stateData = _state->getData();
+  stateData.scrollPosition = RCTPointFromCGPoint(self->_contentView.contentOffset);
+  stateData.scrollContent = RCTSizeFromCGSize(self->_contentView.frame.size);
+  stateData.scrollContainer = RCTSizeFromCGSize(self.frame.size);
+  stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
+    scrollView.contentOffset.y
+  );
+  stateData.visibleEndIndex = stateData.calculateVisibleEndIndex(
+    scrollView.contentOffset.y + self.frame.size.height
+  );
+  self->_state->updateState(std::move(stateData));
   
-  const auto &stateData = _state->getData();
-  int visibleStartIndex = MAX(stateData.childrenMeasurements.lower_bound(visibleStartOffset) - offset, 0);
-  int visibleEndIndex = MIN(stateData.childrenMeasurements.lower_bound(visibleEndOffset) + offset, stateData.childrenMeasurements.size());
-
-  [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
+  [self->_containerChildrenManager mount:stateData.visibleStartIndex end:stateData.visibleEndIndex];
 }
 
 Class<RCTComponentViewProtocol> SLContainerCls(void)

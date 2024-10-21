@@ -10,6 +10,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
   auto state = getStateData();
   state.childrenMeasurements = measureChildren();
+  state.scrollContent = Size{getContentBounds().size.width, state.calculateContentSize()};
   setStateData(std::move(state));
 }
 

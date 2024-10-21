@@ -11,7 +11,6 @@ import com.facebook.react.views.view.ReactViewGroup;
 
 public class SLContainer extends ScrollView {
   ReactViewGroup scrollContent;
-  private static final int FIXED_HEIGHT = 10000;
 
   public SLContainer(Context context) {
     super(context);
@@ -34,7 +33,6 @@ public class SLContainer extends ScrollView {
 
   @Override
   protected void onLayout(boolean changed, int l, int t, int r, int b) {
-    scrollContent.layout(0, 0, getWidth(), FIXED_HEIGHT);
   }
 
   @Override
@@ -48,10 +46,7 @@ public class SLContainer extends ScrollView {
 
   @Override
   protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    int width = MeasureSpec.getSize(widthMeasureSpec);
-    int height = MeasureSpec.getSize(heightMeasureSpec);
-    setMeasuredDimension(width, height);
-    scrollContent.measure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(FIXED_HEIGHT, MeasureSpec.EXACTLY));
+    setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec));
   }
 
   @Override
