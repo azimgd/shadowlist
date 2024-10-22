@@ -48,12 +48,12 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public Object updateState(@NonNull SLContainer view, ReactStylesDiffMap props, StateWrapper stateWrapper) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
 
-    view.setScrollContentLayout(
-      (float) stateWrapper.getStateData().getMap("scrollContent").getDouble("width"),
-      (float) stateWrapper.getStateData().getMap("scrollContent").getDouble("height")
-    );
-
     if (stateMapBuffer != null) {
+      view.setScrollContentLayout(
+        (float) stateWrapper.getStateData().getMap("scrollContent").getDouble("width"),
+        (float) stateWrapper.getStateData().getMap("scrollContent").getDouble("height")
+      );
+
       return stateMapBuffer;
     } else {
       return null;

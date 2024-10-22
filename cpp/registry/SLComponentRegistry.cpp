@@ -2,7 +2,7 @@
 
 std::vector<int> generateIndicesFromRange(int visibleStartIndex, int visibleEndIndex) {
   std::vector<int> indices;
-  
+
   if (visibleEndIndex <= visibleStartIndex) {
     return indices;
   }
@@ -85,6 +85,16 @@ void SLComponentRegistry::mount(const std::vector<int>& componentIndices) {
 
 void SLComponentRegistry::mountObserver(const SLObserver& observerFunction) {
   observers.push_back(observerFunction);
+}
+
+void SLComponentRegistry::unmount(const std::vector<int>& componentIndices) {
+  for (int componentId : componentIndices) {
+    auto componentIter = components.find(componentId);
+    if (componentIter != components.end()) {
+      componentIter->second.setVisible(false);
+      notifyObservers({componentIter->first}, false);
+    }
+  }
 }
 
 void SLComponentRegistry::unmountObserver(const SLObserver& observerFunction) {

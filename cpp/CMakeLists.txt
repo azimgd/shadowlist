@@ -30,6 +30,7 @@ add_library(
   SHARED
   ${LIB_IMPORT_SRCS}
   ${LIB_CUSTOM_SRCS}
+  cpp-adapter.cpp
 )
 
 target_include_directories(
