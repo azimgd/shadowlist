@@ -71,8 +71,6 @@ using namespace facebook::react;
 {
   auto stateData = _state->getData();
   stateData.scrollPosition = RCTPointFromCGPoint(self->_contentView.contentOffset);
-  stateData.scrollContent = RCTSizeFromCGSize(self->_contentView.frame.size);
-  stateData.scrollContainer = RCTSizeFromCGSize(self.frame.size);
   stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
     scrollView.contentOffset.y
   );

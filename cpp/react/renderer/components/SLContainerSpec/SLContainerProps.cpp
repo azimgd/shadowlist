@@ -7,8 +7,7 @@ namespace facebook::react {
 SLContainerProps::SLContainerProps(
   const PropsParserContext &context,
   const SLContainerProps &sourceProps,
-  const RawProps &rawProps): ViewProps(context, sourceProps, rawProps),
+  const RawProps &rawProps): ViewProps(context, sourceProps, rawProps)
 
-  color(convertRawProp(context, rawProps, "color", sourceProps.color, {}))
   {}
 }

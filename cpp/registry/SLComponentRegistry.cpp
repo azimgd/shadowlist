@@ -56,16 +56,16 @@ void SLComponentRegistry::mount(const std::vector<int>& componentIndices) {
     }
   }
 
-  // Unmount components that are visible but not in the new indices
-  for (const auto& visibleId : currentlyVisible) {
-    if (std::find(componentIndices.begin(), componentIndices.end(), visibleId) == componentIndices.end()) {
-      auto componentIter = components.find(visibleId);
-      if (componentIter != components.end()) {
-        componentIter->second.setVisible(false);
-        notifyObservers({componentIter->first}, false);
-      }
-    }
-  }
+   // Unmount components that are visible but not in the new indices
+   for (const auto& visibleId : currentlyVisible) {
+     if (std::find(componentIndices.begin(), componentIndices.end(), visibleId) == componentIndices.end()) {
+       auto componentIter = components.find(visibleId);
+       if (componentIter != components.end()) {
+         componentIter->second.setVisible(false);
+         notifyObservers({componentIter->first}, false);
+       }
+     }
+   }
 
   // Mount components specified by indices
   for (int i = 0; i < componentIndices.size(); ++i) {

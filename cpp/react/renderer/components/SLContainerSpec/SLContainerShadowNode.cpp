@@ -1,5 +1,4 @@
 #include "SLContainerShadowNode.h"
-#include <iostream>
 
 namespace facebook::react {
 
@@ -10,6 +9,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
   auto state = getStateData();
   state.childrenMeasurements = measureChildren();
+  state.scrollPosition = Point{0, 0};
+  state.scrollContainer = getLayoutMetrics().frame.size;
   state.scrollContent = Size{getContentBounds().size.width, state.calculateContentSize()};
   setStateData(std::move(state));
 }

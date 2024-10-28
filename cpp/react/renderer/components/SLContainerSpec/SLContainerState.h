@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <react/renderer/graphics/Point.h>
 #include <react/renderer/graphics/Size.h>
 #include "SLFenwickTree.hpp"
@@ -31,14 +30,28 @@ class SLContainerState {
   int visibleStartIndex;
   int visibleEndIndex;
 
-  int calculateVisibleStartIndex(float visibleStartOffset);
-  int calculateVisibleEndIndex(float visibleEndOffset);
-  float calculateContentSize();
+  int calculateVisibleStartIndex(float visibleStartOffset) const;
+  int calculateVisibleEndIndex(float visibleEndOffset) const;
+  float calculateContentSize() const;
+
 #ifdef ANDROID
   SLContainerState(SLContainerState const &previousState, folly::dynamic data) :
-  childrenMeasurements(previousState.childrenMeasurements) {};
+  childrenMeasurements(previousState.childrenMeasurements),
+  scrollPosition({
+    (Float)data["scrollPositionLeft"].getDouble(),
+    (Float)data["scrollPositionTop"].getDouble()
+  }),
+  scrollContainer(previousState.scrollContainer),
+  scrollContent(previousState.scrollContent),
+  visibleStartIndex(
+    calculateVisibleStartIndex(data["scrollPositionTop"].getDouble())
+  ),
+  visibleEndIndex(
+    calculateVisibleEndIndex(data["scrollPositionTop"].getDouble() + previousState.scrollContainer.height)
+  ) {};
 
   folly::dynamic getDynamic() const;
+  MapBuffer getMapBuffer() const;
 #endif
 };
 

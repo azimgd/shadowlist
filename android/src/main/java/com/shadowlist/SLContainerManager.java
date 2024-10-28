@@ -38,28 +38,22 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     return new SLContainer(context);
   }
 
-  @ReactProp(name = "color")
-  @Override
-  public void setColor(SLContainer view, String color) {
-  }
-
   @Nullable
   @Override
   public Object updateState(@NonNull SLContainer view, ReactStylesDiffMap props, StateWrapper stateWrapper) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
 
     if (stateMapBuffer != null) {
+      view.setStateWrapper(stateWrapper);
       view.setScrollContentLayout(
-        (float) stateWrapper.getStateData().getMap("scrollContent").getDouble("width"),
-        (float) stateWrapper.getStateData().getMap("scrollContent").getDouble("height")
+        (float)stateMapBuffer.getDouble(4),
+        (float)stateMapBuffer.getDouble(5)
       );
-
-      return stateMapBuffer;
+      return super.updateState(view, props, stateWrapper);
     } else {
       return null;
     }
   }
-
 
   public static final String NAME = "SLContainer";
 }

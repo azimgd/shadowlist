@@ -16,7 +16,7 @@ import { ShadowlistView } from "shadowlist";
 
 // ...
 
-<ShadowlistView color="tomato" />
+<ShadowlistView />
 ```
 
 

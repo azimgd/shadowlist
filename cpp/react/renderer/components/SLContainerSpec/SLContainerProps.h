@@ -9,10 +9,6 @@ class SLContainerProps final : public ViewProps {
   public:
   SLContainerProps() = default;
   SLContainerProps(const PropsParserContext& context, const SLContainerProps &sourceProps, const RawProps &rawProps);
-
-#pragma mark - Props
-
-  std::string color{};
 };
 
 }

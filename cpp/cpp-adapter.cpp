@@ -1,8 +1,6 @@
+#ifdef ANDROID
 #include <jni.h>
-#include <jsi/jsi.h>
 #include <fbjni/fbjni.h>
-#include <ReactCommon/CallInvokerHolder.h>
-#include <typeinfo>
 #include "SLComponentRegistry.h"
 
 extern "C"
@@ -16,7 +14,6 @@ JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeRegisterCom
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
   registry->registerComponent(componentId);
 }
-
 
 extern "C"
 JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnregisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jint componentId) {
@@ -58,30 +55,30 @@ extern "C"
 JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeMountObserver(JNIEnv *env, jobject thiz, jlong registryPtr, jobject observer) {
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
 
-  auto observerCallback = [env, observer](int id, bool isVisible) {
-    jclass observerClass = env->GetObjectClass(observer);
+  jobject globalObserver = env->NewGlobalRef(observer);
+  auto observerCallback = [env, globalObserver](int index, bool isVisible) {
+    jclass observerClass = env->GetObjectClass(globalObserver);
     jmethodID methodId = env->GetMethodID(observerClass, "onVisibilityChanged", "(IZ)V");
-    if (methodId) {
-      env->CallVoidMethod(observer, methodId, id, static_cast<jboolean>(isVisible));
-    }
+    env->CallVoidMethod(globalObserver, methodId, index, static_cast<jboolean>(isVisible));
   };
 
   registry->mountObserver(observerCallback);
+  // env->DeleteGlobalRef(globalObserver);
 }
 
 extern "C"
 JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnmountObserver(JNIEnv *env, jobject thiz, jlong registryPtr, jobject observer) {
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
 
-  auto observerCallback = [env, observer](int id, bool isVisible) {
-    jclass observerClass = env->GetObjectClass(observer);
+  jobject globalObserver = env->NewGlobalRef(observer);
+  auto observerCallback = [env, globalObserver](int index, bool isVisible) {
+    jclass observerClass = env->GetObjectClass(globalObserver);
     jmethodID methodId = env->GetMethodID(observerClass, "onVisibilityChanged", "(IZ)V");
-    if (methodId) {
-      env->CallVoidMethod(observer, methodId, id, static_cast<jboolean>(isVisible));
-    }
+    env->CallVoidMethod(globalObserver, methodId, index, static_cast<jboolean>(isVisible));
   };
 
   registry->unmountObserver(observerCallback);
+  // env->DeleteGlobalRef(globalObserver);
 }
 
 extern "C"
@@ -91,3 +88,4 @@ JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeDestroy(JNI
     delete registry;
   }
 }
+#endif

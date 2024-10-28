@@ -22,7 +22,8 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
                                        SLContainerComponentName,
                                        SLContainerProps,
                                        SLContainerEventEmitter,
-                                       SLContainerState> {
+                                       SLContainerState,
+                                       true> {
  public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 

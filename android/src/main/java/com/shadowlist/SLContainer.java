@@ -5,12 +5,17 @@ import android.widget.ScrollView;
 import android.view.View;
 import android.graphics.Canvas;
 import android.util.AttributeSet;
+import androidx.annotation.Nullable;
 
+import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.uimanager.PixelUtil;
+import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.views.view.ReactViewGroup;
 
 public class SLContainer extends ScrollView {
   ReactViewGroup scrollContent;
+  private SLContainerChildrenManager mContainerChildrenManager;
+  private @Nullable StateWrapper mStateWrapper = null;
 
   public SLContainer(Context context) {
     super(context);
@@ -24,6 +29,7 @@ public class SLContainer extends ScrollView {
 
   private void init(Context context) {
     scrollContent = new ReactViewGroup(context);
+    mContainerChildrenManager = new SLContainerChildrenManager(scrollContent);
     super.addView(scrollContent, 0);
   }
 
@@ -37,11 +43,17 @@ public class SLContainer extends ScrollView {
 
   @Override
   protected void onScrollChanged(int l, int t, int oldl, int oldt) {
+    WritableNativeMap mapBuffer = new WritableNativeMap();
+
+    mapBuffer.putDouble("scrollPositionTop", t);
+    mapBuffer.putDouble("scrollPositionLeft", l);
+
+    mStateWrapper.updateState(mapBuffer);
   }
 
   @Override
   public void addView(View child, int index) {
-    scrollContent.addView(child, index);
+    mContainerChildrenManager.mountChildComponentView(child, index);
   }
 
   @Override
@@ -53,5 +65,18 @@ public class SLContainer extends ScrollView {
   public void draw(Canvas canvas) {
     super.draw(canvas);
     scrollContent.draw(canvas);
+  }
+
+  @Nullable
+  public StateWrapper getStateWrapper() {
+    return mStateWrapper;
+  }
+
+  public void setStateWrapper(StateWrapper stateWrapper) {
+    mContainerChildrenManager.mount(
+      stateWrapper.getStateDataMapBuffer().getInt(0),
+      stateWrapper.getStateDataMapBuffer().getInt(1));
+
+    mStateWrapper = stateWrapper;
   }
 }
