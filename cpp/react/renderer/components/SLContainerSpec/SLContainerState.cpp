@@ -41,7 +41,7 @@ folly::dynamic SLContainerState::getDynamic() const {
     calculateVisibleStartIndex(scrollPosition.y)
   )(
     "visibleEndIndex",
-    calculateVisibleEndIndex(scrollPosition.y + scrollContent.height)
+    calculateVisibleEndIndex(scrollPosition.y)
   );
 }
 
@@ -66,9 +66,9 @@ int SLContainerState::calculateVisibleStartIndex(float visibleStartOffset) const
   return std::max(visibleStartIndex - offset, visibleEndIndexMin);
 }
 
-int SLContainerState::calculateVisibleEndIndex(float visibleEndOffset) const {
+int SLContainerState::calculateVisibleEndIndex(float visibleStartOffset) const {
   int offset = 5;
-  int visibleEndIndex = childrenMeasurements.lower_bound(visibleEndOffset);
+  int visibleEndIndex = childrenMeasurements.lower_bound(visibleStartOffset + scrollContainer.height);
   int visibleEndIndexMax = childrenMeasurements.size();
   return std::min(visibleEndIndex + offset, visibleEndIndexMax);
 }

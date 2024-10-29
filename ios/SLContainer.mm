@@ -75,7 +75,7 @@ using namespace facebook::react;
     scrollView.contentOffset.y
   );
   stateData.visibleEndIndex = stateData.calculateVisibleEndIndex(
-    scrollView.contentOffset.y + self.frame.size.height
+    scrollView.contentOffset.y
   );
   self->_state->updateState(std::move(stateData));
   

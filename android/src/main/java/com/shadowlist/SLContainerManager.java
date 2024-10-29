@@ -8,7 +8,6 @@ import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.uimanager.ViewGroupManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.ViewManagerDelegate;
-import com.facebook.react.uimanager.annotations.ReactProp;
 import com.facebook.react.common.mapbuffer.MapBuffer;
 import com.facebook.react.viewmanagers.SLContainerManagerInterface;
 import com.facebook.react.viewmanagers.SLContainerManagerDelegate;

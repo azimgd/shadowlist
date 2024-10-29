@@ -1,24 +1,24 @@
 package com.shadowlist;
 
 import android.view.View;
-import android.view.ViewGroup;
+import android.widget.LinearLayout;
+
 import java.util.HashMap;
 import java.util.Map;
 
 public class SLContainerChildrenManager {
-  private View contentView;
+  private LinearLayout contentView;
   private SLComponentRegistry childrenRegistry;
   private Map<Integer, View> childrenPool;
 
-  public SLContainerChildrenManager(View contentView) {
+  public SLContainerChildrenManager(LinearLayout contentView) {
     this.contentView = contentView;
     this.childrenRegistry = new SLComponentRegistry(10);
 
-    childrenRegistry.mountObserver(new SLComponentRegistry.SLObserver() {
-      @Override
-      public void onVisibilityChanged(int index, boolean isVisible) {
+    childrenRegistry.mountObserver((index, isVisible) -> {
+      try {
         mountObserver(index, isVisible);
-      }
+      } catch (IndexOutOfBoundsException e) {}
     });
 
     this.childrenPool = new HashMap<>();
@@ -26,12 +26,11 @@ public class SLContainerChildrenManager {
 
   private void mountObserver(int index, boolean isVisible) {
     View child = childrenPool.get(index);
-    ViewGroup content = (ViewGroup) contentView;
-
+    
     if (isVisible) {
-      content.addView(child, index);
+      contentView.addView(child);
     } else {
-      content.removeView(child);
+      contentView.removeView(child);
     }
   }
 

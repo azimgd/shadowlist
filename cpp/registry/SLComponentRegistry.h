@@ -5,11 +5,12 @@
 #include <functional>
 #include <unordered_set>
 #include <unordered_map>
+#include <numeric>
 #include <algorithm>
 
 class SLComponent {
 public:
-  SLComponent(int componentId) : componentId(componentId), isVisible(true) {}
+  SLComponent(int componentId) : componentId(componentId), isVisible(false) {}
   int getComponentId() const;
   bool getVisible() const;
   void setVisible(bool visible);

@@ -5,7 +5,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <SLContainer style={styles.content}>
-        {Array.from({ length: 50 }, (_, i) => (
+        {Array.from({ length: 500 }, (_, i) => (
           <Text style={styles.text} key={i}>
             {i} Lorem Ipsum is simply dummy text of the printing and typesetting
             industry. Lorem Ipsum has been the industry's standard dummy text

@@ -31,7 +31,7 @@ class SLContainerState {
   int visibleEndIndex;
 
   int calculateVisibleStartIndex(float visibleStartOffset) const;
-  int calculateVisibleEndIndex(float visibleEndOffset) const;
+  int calculateVisibleEndIndex(float visibleStartOffset) const;
   float calculateContentSize() const;
 
 #ifdef ANDROID
@@ -47,7 +47,7 @@ class SLContainerState {
     calculateVisibleStartIndex(data["scrollPositionTop"].getDouble())
   ),
   visibleEndIndex(
-    calculateVisibleEndIndex(data["scrollPositionTop"].getDouble() + previousState.scrollContainer.height)
+    calculateVisibleEndIndex(data["scrollPositionTop"].getDouble())
   ) {};
 
   folly::dynamic getDynamic() const;

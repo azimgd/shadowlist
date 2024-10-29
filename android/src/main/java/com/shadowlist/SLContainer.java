@@ -1,6 +1,7 @@
 package com.shadowlist;
 
 import android.content.Context;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.view.View;
 import android.graphics.Canvas;
@@ -10,10 +11,9 @@ import androidx.annotation.Nullable;
 import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
-import com.facebook.react.views.view.ReactViewGroup;
 
 public class SLContainer extends ScrollView {
-  ReactViewGroup scrollContent;
+  LinearLayout scrollContent;
   private SLContainerChildrenManager mContainerChildrenManager;
   private @Nullable StateWrapper mStateWrapper = null;
 
@@ -28,7 +28,10 @@ public class SLContainer extends ScrollView {
   }
 
   private void init(Context context) {
-    scrollContent = new ReactViewGroup(context);
+    scrollContent = new LinearLayout(context);
+    scrollContent.setLayoutParams(new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+    scrollContent.setOrientation(LinearLayout.VERTICAL);
+
     mContainerChildrenManager = new SLContainerChildrenManager(scrollContent);
     super.addView(scrollContent, 0);
   }
@@ -42,11 +45,11 @@ public class SLContainer extends ScrollView {
   }
 
   @Override
-  protected void onScrollChanged(int l, int t, int oldl, int oldt) {
+  protected void onScrollChanged(int x, int y, int oldX, int oldY) {
     WritableNativeMap mapBuffer = new WritableNativeMap();
 
-    mapBuffer.putDouble("scrollPositionTop", t);
-    mapBuffer.putDouble("scrollPositionLeft", l);
+    mapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(y));
+    mapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(x));
 
     mStateWrapper.updateState(mapBuffer);
   }
