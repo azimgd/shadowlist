@@ -7,7 +7,9 @@ extern const char SLContainerComponentName[] = "SLContainer";
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   ConcreteShadowNode::layout(layoutContext);
 
+  auto &props = getConcreteProps();
   auto state = getStateData();
+
   state.childrenMeasurements = measureChildren();
   state.scrollPosition = Point{0, 0};
   state.scrollContainer = getLayoutMetrics().frame.size;

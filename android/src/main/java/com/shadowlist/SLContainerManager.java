@@ -8,6 +8,7 @@ import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.uimanager.ViewGroupManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.ViewManagerDelegate;
+import com.facebook.react.uimanager.annotations.ReactProp;
 import com.facebook.react.common.mapbuffer.MapBuffer;
 import com.facebook.react.viewmanagers.SLContainerManagerInterface;
 import com.facebook.react.viewmanagers.SLContainerManagerDelegate;
@@ -35,6 +36,26 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   @Override
   public SLContainer createViewInstance(ThemedReactContext context) {
     return new SLContainer(context);
+  }
+
+  @ReactProp(name = "inverted")
+  @Override
+  public void setInverted(SLContainer view, boolean inverted) {
+  }
+
+  @ReactProp(name = "horizontal")
+  @Override
+  public void setHorizontal(SLContainer view, boolean horizontal) {
+  }
+
+  @ReactProp(name = "initialNumToRender")
+  @Override
+  public void setInitialNumToRender(SLContainer view, int initialNumToRender) {
+  }
+
+  @ReactProp(name = "initialScrollIndex")
+  @Override
+  public void setInitialScrollIndex(SLContainer view, int initialScrollIndex) {
   }
 
   @Nullable

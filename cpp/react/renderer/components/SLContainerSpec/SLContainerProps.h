@@ -9,6 +9,13 @@ class SLContainerProps final : public ViewProps {
   public:
   SLContainerProps() = default;
   SLContainerProps(const PropsParserContext& context, const SLContainerProps &sourceProps, const RawProps &rawProps);
+
+#pragma mark - Props
+
+  bool inverted{};
+  bool horizontal{};
+  int initialNumToRender{};
+  int initialScrollIndex{};
 };
 
 }
