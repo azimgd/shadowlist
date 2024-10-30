@@ -17,7 +17,8 @@ SLContainerState::SLContainerState(
     scrollContent(scrollContent),
     visibleStartIndex(visibleStartIndex),
     visibleEndIndex(visibleEndIndex),
-    horizontal(horizontal) {}
+    horizontal(horizontal),
+    initialNumToRender(initialNumToRender) {}
 
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {

@@ -41,12 +41,10 @@ const styles = StyleSheet.create({
   containerVertical: {
     flex: 1,
     flexDirection: 'column',
-    overflow: 'scroll',
   },
   containerHorizontal: {
     flex: 1,
     flexDirection: 'row',
-    overflow: 'scroll',
   },
 });
 

@@ -36,7 +36,11 @@ public class SLContainer extends ScrollView {
   }
 
   public void setScrollContentLayout(float width, float height) {
-    // scrollContent.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+    scrollContent.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+  }
+
+  @Override
+  protected void onLayout(boolean changed, int l, int t, int r, int b) {
   }
 
   @Override
