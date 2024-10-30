@@ -15,13 +15,16 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   ConcreteShadowNode::layout(layoutContext);
 
   auto state = getStateData();
+  auto &props = getConcreteProps();
 
-  state.childrenMeasurements = measureChildren(state.horizontal);
+  state.childrenMeasurements = measureChildren(props.horizontal);
   state.scrollPosition = Point{0, 0};
   state.scrollContainer = getLayoutMetrics().frame.size;
-  state.scrollContent = state.horizontal ?
+  state.scrollContent = props.horizontal ?
     Size{state.calculateContentSize(), getContentBounds().size.height}:
     Size{getContentBounds().size.width, state.calculateContentSize()};
+  state.horizontal = props.horizontal;
+  state.initialNumToRender = props.initialNumToRender;
   setStateData(std::move(state));
 }
 

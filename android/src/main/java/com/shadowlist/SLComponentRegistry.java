@@ -7,11 +7,11 @@ public class SLComponentRegistry {
 
   private long nativePtr;
 
-  public SLComponentRegistry(int initialNumToRender) {
-    nativePtr = nativeInit(initialNumToRender);
+  public SLComponentRegistry() {
+    nativePtr = nativeInit();
   }
 
-  private native long nativeInit(int initialNumToRender);
+  private native long nativeInit();
   private native void nativeRegisterComponent(long nativePtr, int componentId);
   private native void nativeUnregisterComponent(long nativePtr, int componentId);
   private native void nativeMountRange(long nativePtr, int visibleStartIndex, int visibleEndIndex);

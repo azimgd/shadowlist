@@ -65,10 +65,12 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
     if (stateMapBuffer != null) {
       view.setStateWrapper(stateWrapper);
+
       view.setScrollContentLayout(
         (float)stateMapBuffer.getDouble(4),
         (float)stateMapBuffer.getDouble(5)
       );
+
       return super.updateState(view, props, stateWrapper);
     } else {
       return null;

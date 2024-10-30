@@ -8,7 +8,7 @@
 
 - (instancetype)initWithContentView:(UIView *)contentView {
   if (self = [super init]) {
-    _childrenRegistry = SLComponentRegistry(10);
+    _childrenRegistry = SLComponentRegistry();
     _childrenRegistry.mountObserver([self](int index, bool isVisible) {
       [self mountObserver:index isVisible:isVisible];
     });

@@ -63,12 +63,12 @@ using namespace facebook::react;
 {
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
   const auto &stateData = _state->getData();
+  [self->_contentView setContentSize:RCTCGSizeFromSize(stateData.scrollContent)];
+  
+  int visibleStartIndex = stateData.visibleStartIndex;
+  int visibleEndIndex = stateData.visibleEndIndex || stateData.initialNumToRender;
 
-  if (stateData.horizontal) {
-    [self->_contentView setContentSize:RCTS];
-  } else {
-    [self->_contentView setContentSize:CGSizeMake(self.frame.size.width, stateData.scrollContent.height)];
-  }
+  [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
@@ -82,8 +82,6 @@ using namespace facebook::react;
     stateData.getScrollPosition(RCTPointFromCGPoint(scrollView.contentOffset))
   );
   self->_state->updateState(std::move(stateData));
-    
-  [self->_containerChildrenManager mount:stateData.visibleStartIndex end:stateData.visibleEndIndex];
 }
 
 Class<RCTComponentViewProtocol> SLContainerCls(void)

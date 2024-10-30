@@ -5,7 +5,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <SLContainer style={styles.content} horizontal>
-        {Array.from({ length: 500 }, (_, i) => (
+        {Array.from({ length: 10 }, (_, i) => (
           <Text style={styles.text} key={i}>
             {i} Lorem Ipsum is simply dummy text of the printing and typesetting
             industry. Lorem Ipsum has been the industry's standard dummy text
@@ -32,6 +32,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   text: {
+    height: 100,
+    width: 100,
     color: 'white',
     padding: 16,
     borderBottomColor: '#333333',

@@ -13,7 +13,7 @@ public class SLContainerChildrenManager {
 
   public SLContainerChildrenManager(LinearLayout contentView) {
     this.contentView = contentView;
-    this.childrenRegistry = new SLComponentRegistry(10);
+    this.childrenRegistry = new SLComponentRegistry();
 
     childrenRegistry.mountObserver((index, isVisible) -> {
       try {

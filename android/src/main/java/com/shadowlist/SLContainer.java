@@ -36,7 +36,7 @@ public class SLContainer extends ScrollView {
   }
 
   public void setScrollContentLayout(float width, float height) {
-    scrollContent.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+    // scrollContent.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
   }
 
   @Override
@@ -65,11 +65,6 @@ public class SLContainer extends ScrollView {
     scrollContent.draw(canvas);
   }
 
-  @Nullable
-  public StateWrapper getStateWrapper() {
-    return mStateWrapper;
-  }
-
   public void setStateWrapper(StateWrapper stateWrapper) {
     if (stateWrapper.getStateDataMapBuffer().getBoolean(8)) {
       scrollContent.setOrientation(LinearLayout.HORIZONTAL);
@@ -77,9 +72,14 @@ public class SLContainer extends ScrollView {
       scrollContent.setOrientation(LinearLayout.VERTICAL);
     }
 
+    int visibleStartIndex = stateWrapper.getStateDataMapBuffer().getInt(0);
+    int visibleEndIndex = stateWrapper.getStateDataMapBuffer().getInt(1) == 0 ?
+      stateWrapper.getStateDataMapBuffer().getInt(9) :
+      stateWrapper.getStateDataMapBuffer().getInt(1);
+
     mContainerChildrenManager.mount(
-      stateWrapper.getStateDataMapBuffer().getInt(0),
-      stateWrapper.getStateDataMapBuffer().getInt(1));
+      visibleStartIndex,
+      visibleEndIndex);
 
     mStateWrapper = stateWrapper;
   }

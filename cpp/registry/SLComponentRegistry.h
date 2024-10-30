@@ -24,7 +24,7 @@ class SLComponentRegistry {
 public:
   using SLObserver = std::function<void(int id, bool isVisible)>;
 
-  SLComponentRegistry(int initialNumToRender = 10);
+  SLComponentRegistry();
   void registerComponent(int componentId);
   void unregisterComponent(int componentId);
   void mountRange(int visibleStartIndex, int visibleEndIndex);

@@ -12,8 +12,7 @@ void SLComponent::setVisible(bool visible) {
   isVisible = visible;
 }
 
-SLComponentRegistry::SLComponentRegistry(int initialNumToRender) 
-  : initialNumToRender(initialNumToRender) {}
+SLComponentRegistry::SLComponentRegistry() {}
 
 void SLComponentRegistry::registerComponent(int componentId) {
   components.emplace(componentId, SLComponent{componentId});

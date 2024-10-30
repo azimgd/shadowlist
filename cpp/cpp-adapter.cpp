@@ -4,8 +4,8 @@
 #include "SLComponentRegistry.h"
 
 extern "C"
-JNIEXPORT jlong JNICALL Java_com_shadowlist_SLComponentRegistry_nativeInit(JNIEnv *env, jobject thiz, jint initialNumToRender) {
-  auto *registry = new SLComponentRegistry(initialNumToRender);
+JNIEXPORT jlong JNICALL Java_com_shadowlist_SLComponentRegistry_nativeInit(JNIEnv *env, jobject thiz) {
+  auto *registry = new SLComponentRegistry();
   return reinterpret_cast<jlong>(registry);
 }
 

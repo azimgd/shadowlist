@@ -9,7 +9,8 @@ SLContainerState::SLContainerState(
   Size scrollContent,
   int visibleStartIndex,
   int visibleEndIndex,
-  bool horizontal) :
+  bool horizontal,
+  int initialNumToRender) :
     childrenMeasurements(childrenMeasurements),
     scrollPosition(scrollPosition),
     scrollContainer(scrollContainer),
@@ -47,6 +48,9 @@ folly::dynamic SLContainerState::getDynamic() const {
   )(
     "horizontal",
     horizontal
+  )(
+    "initialNumToRender",
+    initialNumToRender
   );
 }
 
@@ -61,6 +65,7 @@ MapBuffer SLContainerState::getMapBuffer() const {
   builder.putDouble(6, scrollContainer.width);
   builder.putDouble(7, scrollContainer.height);
   builder.putBool(8, horizontal);
+  builder.putInt(9, initialNumToRender);
   return builder.build();
 }
 #endif
