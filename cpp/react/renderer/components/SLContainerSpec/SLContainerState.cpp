@@ -8,13 +8,15 @@ SLContainerState::SLContainerState(
   Size scrollContainer,
   Size scrollContent,
   int visibleStartIndex,
-  int visibleEndIndex) :
+  int visibleEndIndex,
+  bool horizontal) :
     childrenMeasurements(childrenMeasurements),
     scrollPosition(scrollPosition),
     scrollContainer(scrollContainer),
     scrollContent(scrollContent),
     visibleStartIndex(visibleStartIndex),
-    visibleEndIndex(visibleEndIndex) {}
+    visibleEndIndex(visibleEndIndex),
+    horizontal(horizontal) {}
 
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {
@@ -38,10 +40,13 @@ folly::dynamic SLContainerState::getDynamic() const {
     scrollPosition.y
   )(
     "visibleStartIndex",
-    calculateVisibleStartIndex(scrollPosition.y)
+    calculateVisibleStartIndex(getScrollPosition(scrollPosition))
   )(
     "visibleEndIndex",
-    calculateVisibleEndIndex(scrollPosition.y)
+    calculateVisibleEndIndex(getScrollPosition(scrollPosition))
+  )(
+    "horizontal",
+    horizontal
   );
 }
 
@@ -55,18 +60,19 @@ MapBuffer SLContainerState::getMapBuffer() const {
   builder.putDouble(5, scrollContent.height);
   builder.putDouble(6, scrollContainer.width);
   builder.putDouble(7, scrollContainer.height);
+  builder.putBool(8, horizontal);
   return builder.build();
 }
 #endif
 
-int SLContainerState::calculateVisibleStartIndex(float visibleStartOffset) const {
+int SLContainerState::calculateVisibleStartIndex(const float visibleStartOffset) const {
   int offset = 5;
   int visibleStartIndex = childrenMeasurements.lower_bound(visibleStartOffset);
   int visibleEndIndexMin = 0;
   return std::max(visibleStartIndex - offset, visibleEndIndexMin);
 }
 
-int SLContainerState::calculateVisibleEndIndex(float visibleStartOffset) const {
+int SLContainerState::calculateVisibleEndIndex(const float visibleStartOffset) const {
   int offset = 5;
   int visibleEndIndex = childrenMeasurements.lower_bound(visibleStartOffset + scrollContainer.height);
   int visibleEndIndexMax = childrenMeasurements.size();
@@ -75,6 +81,10 @@ int SLContainerState::calculateVisibleEndIndex(float visibleStartOffset) const {
 
 float SLContainerState::calculateContentSize() const {
   return childrenMeasurements.sum(childrenMeasurements.size());
+}
+
+float SLContainerState::getScrollPosition(const Point& scrollPosition) const {
+  return horizontal ? scrollPosition.x : scrollPosition.y;
 }
 
 }

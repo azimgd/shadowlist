@@ -30,7 +30,6 @@ public class SLContainer extends ScrollView {
   private void init(Context context) {
     scrollContent = new LinearLayout(context);
     scrollContent.setLayoutParams(new LinearLayout.LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
-    scrollContent.setOrientation(LinearLayout.VERTICAL);
 
     mContainerChildrenManager = new SLContainerChildrenManager(scrollContent);
     super.addView(scrollContent, 0);
@@ -38,10 +37,6 @@ public class SLContainer extends ScrollView {
 
   public void setScrollContentLayout(float width, float height) {
     scrollContent.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
-  }
-
-  @Override
-  protected void onLayout(boolean changed, int l, int t, int r, int b) {
   }
 
   @Override
@@ -76,6 +71,12 @@ public class SLContainer extends ScrollView {
   }
 
   public void setStateWrapper(StateWrapper stateWrapper) {
+    if (stateWrapper.getStateDataMapBuffer().getBoolean(8)) {
+      scrollContent.setOrientation(LinearLayout.HORIZONTAL);
+    } else {
+      scrollContent.setOrientation(LinearLayout.VERTICAL);
+    }
+
     mContainerChildrenManager.mount(
       stateWrapper.getStateDataMapBuffer().getInt(0),
       stateWrapper.getStateDataMapBuffer().getInt(1));

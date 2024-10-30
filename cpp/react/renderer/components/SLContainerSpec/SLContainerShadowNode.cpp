@@ -1,5 +1,12 @@
 #include "SLContainerShadowNode.h"
 
+#define MEASURE_CHILDREN(childrenMeasurements, childNodeMetrics, isHorizontal) \
+  if (isHorizontal) { \
+    childrenMeasurements[index] = childNodeMetrics.frame.size.width; \
+  } else { \
+    childrenMeasurements[index] = childNodeMetrics.frame.size.height; \
+  }
+
 namespace facebook::react {
 
 extern const char SLContainerComponentName[] = "SLContainer";
@@ -7,13 +14,14 @@ extern const char SLContainerComponentName[] = "SLContainer";
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   ConcreteShadowNode::layout(layoutContext);
 
-  auto &props = getConcreteProps();
   auto state = getStateData();
 
-  state.childrenMeasurements = measureChildren();
+  state.childrenMeasurements = measureChildren(state.horizontal);
   state.scrollPosition = Point{0, 0};
   state.scrollContainer = getLayoutMetrics().frame.size;
-  state.scrollContent = Size{getContentBounds().size.width, state.calculateContentSize()};
+  state.scrollContent = state.horizontal ?
+    Size{state.calculateContentSize(), getContentBounds().size.height}:
+    Size{getContentBounds().size.width, state.calculateContentSize()};
   setStateData(std::move(state));
 }
 
@@ -28,14 +36,14 @@ void SLContainerShadowNode::replaceChild(
   ConcreteShadowNode::replaceChild(oldChild, newChild, suggestedIndex);
 }
 
-SLFenwickTree SLContainerShadowNode::measureChildren() {
+SLFenwickTree SLContainerShadowNode::measureChildren(bool horizontal) {
   int childCount = yogaNode_.getChildCount();
   SLFenwickTree childrenMeasurements(childCount);
 
   for (int index = 0; index < childCount; ++index) {
     auto childYogaNode = yogaNode_.getChild(index);
     auto childNodeMetrics = shadowNodeFromContext(childYogaNode).getLayoutMetrics();
-    childrenMeasurements[index] = childNodeMetrics.frame.size.height;
+    MEASURE_CHILDREN(childrenMeasurements, childNodeMetrics, horizontal);
   }
 
   return childrenMeasurements;

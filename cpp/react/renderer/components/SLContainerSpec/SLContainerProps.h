@@ -12,10 +12,10 @@ class SLContainerProps final : public ViewProps {
 
 #pragma mark - Props
 
-  bool inverted{};
-  bool horizontal{};
-  int initialNumToRender{};
-  int initialScrollIndex{};
+  bool inverted = false;
+  bool horizontal = false;
+  int initialNumToRender = 10;
+  int initialScrollIndex = 0;
 };
 
 }

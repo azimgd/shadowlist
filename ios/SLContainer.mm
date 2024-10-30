@@ -64,21 +64,25 @@ using namespace facebook::react;
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
   const auto &stateData = _state->getData();
 
-  [self->_contentView setContentSize:CGSizeMake(self.frame.size.width, stateData.scrollContent.height)];
+  if (stateData.horizontal) {
+    [self->_contentView setContentSize:RCTS];
+  } else {
+    [self->_contentView setContentSize:CGSizeMake(self.frame.size.width, stateData.scrollContent.height)];
+  }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  auto stateData = _state->getData();
+  auto stateData = _state->getData();  
   stateData.scrollPosition = RCTPointFromCGPoint(self->_contentView.contentOffset);
   stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
-    scrollView.contentOffset.y
+    stateData.getScrollPosition(RCTPointFromCGPoint(scrollView.contentOffset))
   );
   stateData.visibleEndIndex = stateData.calculateVisibleEndIndex(
-    scrollView.contentOffset.y
+    stateData.getScrollPosition(RCTPointFromCGPoint(scrollView.contentOffset))
   );
   self->_state->updateState(std::move(stateData));
-  
+    
   [self->_containerChildrenManager mount:stateData.visibleStartIndex end:stateData.visibleEndIndex];
 }
 

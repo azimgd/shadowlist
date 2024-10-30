@@ -35,7 +35,7 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
     const ShadowNode& oldChild,
     const ShadowNode::Shared& newChild,
     size_t suggestedIndex = SIZE_MAX) override;
-  SLFenwickTree measureChildren();
+  SLFenwickTree measureChildren(bool horizontal);
   YogaLayoutableShadowNode& shadowNodeFromContext(YGNodeConstRef yogaNode);
 };
 

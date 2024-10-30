@@ -4,7 +4,7 @@ import { SLContainer } from 'shadowlist';
 export default function App() {
   return (
     <SafeAreaView style={styles.container}>
-      <SLContainer style={styles.content}>
+      <SLContainer style={styles.content} horizontal>
         {Array.from({ length: 500 }, (_, i) => (
           <Text style={styles.text} key={i}>
             {i} Lorem Ipsum is simply dummy text of the printing and typesetting

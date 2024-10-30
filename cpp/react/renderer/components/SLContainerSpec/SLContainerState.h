@@ -20,7 +20,8 @@ class SLContainerState {
     Size scrollContainer,
     Size scrollContent,
     int visibleStartIndex,
-    int visibleEndIndex);
+    int visibleEndIndex,
+    bool horizontal);
   SLContainerState() = default;
 
   SLFenwickTree childrenMeasurements;
@@ -29,10 +30,12 @@ class SLContainerState {
   Size scrollContent;
   int visibleStartIndex;
   int visibleEndIndex;
+  bool horizontal;
 
-  int calculateVisibleStartIndex(float visibleStartOffset) const;
-  int calculateVisibleEndIndex(float visibleStartOffset) const;
+  int calculateVisibleStartIndex(const float visibleStartOffset) const;
+  int calculateVisibleEndIndex(const float visibleStartOffset) const;
   float calculateContentSize() const;
+  float getScrollPosition(const Point& scrollPosition) const;
 
 #ifdef ANDROID
   SLContainerState(SLContainerState const &previousState, folly::dynamic data) :
@@ -48,7 +51,8 @@ class SLContainerState {
   ),
   visibleEndIndex(
     calculateVisibleEndIndex(data["scrollPositionTop"].getDouble())
-  ) {};
+  ),
+  horizontal(previousState.horizontal) {};
 
   folly::dynamic getDynamic() const;
   MapBuffer getMapBuffer() const;
