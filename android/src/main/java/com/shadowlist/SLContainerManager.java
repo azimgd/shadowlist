@@ -35,7 +35,8 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   @Override
   public SLContainer createViewInstance(ThemedReactContext context) {
-    return new SLContainer(context);
+    SLContainer view = new SLContainer(context);
+    return view;
   }
 
   @ReactProp(name = "inverted")
@@ -46,6 +47,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   @ReactProp(name = "horizontal")
   @Override
   public void setHorizontal(SLContainer view, boolean horizontal) {
+    if (horizontal) {
+      view.setScrollContainerHorizontal();
+    } else {
+      view.setScrollContainerVertical();
+    }
   }
 
   @ReactProp(name = "initialNumToRender")
@@ -65,6 +71,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
     if (stateMapBuffer != null) {
       view.setStateWrapper(stateWrapper);
+
+      view.setScrollContainerLayout(
+        (int)stateMapBuffer.getDouble(6),
+        (int)stateMapBuffer.getDouble(7)
+      );
 
       view.setScrollContentLayout(
         (int)stateMapBuffer.getDouble(4),

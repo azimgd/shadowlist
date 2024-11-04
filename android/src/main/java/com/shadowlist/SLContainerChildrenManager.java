@@ -1,17 +1,16 @@
 package com.shadowlist;
 
 import android.view.View;
-import android.widget.LinearLayout;
-
+import com.facebook.react.views.view.ReactViewGroup;
 import java.util.HashMap;
 import java.util.Map;
 
 public class SLContainerChildrenManager {
-  private LinearLayout contentView;
+  private ReactViewGroup contentView;
   private SLComponentRegistry childrenRegistry;
   private Map<Integer, View> childrenPool;
 
-  public SLContainerChildrenManager(LinearLayout contentView) {
+  public SLContainerChildrenManager(ReactViewGroup contentView) {
     this.contentView = contentView;
     this.childrenRegistry = new SLComponentRegistry();
 
@@ -26,7 +25,7 @@ public class SLContainerChildrenManager {
 
   private void mountObserver(int index, boolean isVisible) {
     View child = childrenPool.get(index);
-    
+
     if (isVisible) {
       contentView.addView(child);
     } else {

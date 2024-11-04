@@ -25,6 +25,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     Size{getContentBounds().size.width, state.calculateContentSize()};
   state.horizontal = props.horizontal;
   state.initialNumToRender = props.initialNumToRender;
+
   setStateData(std::move(state));
 }
 
