@@ -8,6 +8,7 @@ import android.graphics.Canvas;
 import android.util.AttributeSet;
 import androidx.annotation.Nullable;
 import com.facebook.react.bridge.WritableNativeMap;
+import com.facebook.react.common.mapbuffer.MapBuffer;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.views.view.ReactViewGroup;
@@ -96,10 +97,12 @@ public class SLContainer extends ReactViewGroup {
   }
 
   public void setStateWrapper(StateWrapper stateWrapper) {
-    int visibleStartIndex = stateWrapper.getStateDataMapBuffer().getInt(0);
-    int visibleEndIndex = stateWrapper.getStateDataMapBuffer().getInt(1) == 0 ?
-      stateWrapper.getStateDataMapBuffer().getInt(9) :
-      stateWrapper.getStateDataMapBuffer().getInt(1);
+    MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
+
+    int visibleStartIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_INDEX);
+    int visibleEndIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX) == 0 ?
+      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER) :
+      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX);
 
     mContainerChildrenManager.mount(
       visibleStartIndex,

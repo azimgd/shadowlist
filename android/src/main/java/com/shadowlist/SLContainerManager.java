@@ -17,6 +17,17 @@ import com.facebook.react.viewmanagers.SLContainerManagerDelegate;
 public class SLContainerManager extends ViewGroupManager<SLContainer>
   implements SLContainerManagerInterface<SLContainer> {
 
+  public static final short SLCONTAINER_STATE_VISIBLE_START_INDEX = 0;
+  public static final short SLCONTAINER_STATE_VISIBLE_END_INDEX = 1;
+  public static final short SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 2;
+  public static final short SLCONTAINER_STATE_SCROLL_POSITION_TOP = 3;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 4;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 5;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 6;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 7;
+  public static final short SLCONTAINER_STATE_HORIZONTAL = 8;
+  public static final short SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 9;
+
   private final ViewManagerDelegate<SLContainer> mDelegate;
 
   public SLContainerManager() {
@@ -73,13 +84,13 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
       view.setStateWrapper(stateWrapper);
 
       view.setScrollContainerLayout(
-        (int)stateMapBuffer.getDouble(6),
-        (int)stateMapBuffer.getDouble(7)
+        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
+        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
       );
 
       view.setScrollContentLayout(
-        (int)stateMapBuffer.getDouble(4),
-        (int)stateMapBuffer.getDouble(5)
+        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),
+        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
       );
 
       return super.updateState(view, props, stateWrapper);

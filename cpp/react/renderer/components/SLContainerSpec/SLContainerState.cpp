@@ -57,16 +57,16 @@ folly::dynamic SLContainerState::getDynamic() const {
 
 MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
-  builder.putInt(0, visibleStartIndex);
-  builder.putInt(1, visibleEndIndex);
-  builder.putDouble(2, scrollPosition.y);
-  builder.putDouble(3, scrollPosition.x);
-  builder.putDouble(4, scrollContent.width);
-  builder.putDouble(5, scrollContent.height);
-  builder.putDouble(6, scrollContainer.width);
-  builder.putDouble(7, scrollContainer.height);
-  builder.putBool(8, horizontal);
-  builder.putInt(9, initialNumToRender);
+  builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, visibleStartIndex);
+  builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, visibleEndIndex);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.y);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.x);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT, scrollContent.height);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH, scrollContainer.width);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT, scrollContainer.height);
+  builder.putBool(SLCONTAINER_STATE_HORIZONTAL, horizontal);
+  builder.putInt(SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER, initialNumToRender);
   return builder.build();
 }
 #endif

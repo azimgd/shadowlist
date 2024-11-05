@@ -12,6 +12,19 @@
 
 namespace facebook::react {
 
+#ifdef ANDROID
+constexpr static MapBuffer::Key SLCONTAINER_STATE_VISIBLE_START_INDEX = 0;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_VISIBLE_END_INDEX = 1;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 2;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_TOP = 3;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 4;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 5;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 6;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 7;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_HORIZONTAL = 8;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 9;
+#endif
+
 class SLContainerState {
   public:
   SLContainerState(
