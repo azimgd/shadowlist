@@ -17,13 +17,12 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto stateData = getStateData();
   auto &props = getConcreteProps();
 
+  // The order of operations are important here
   stateData.childrenMeasurements = calculateChildrenMeasurements(stateData);
-  stateData.scrollContainer = getLayoutMetrics().frame.size;
-  stateData.scrollContent = props.horizontal ?
-    Size{stateData.calculateContentSize(), getContentBounds().size.height}:
-    Size{getContentBounds().size.width, stateData.calculateContentSize()};
-
+  stateData.scrollContainer = calculateScrollContainer(stateData);
+  stateData.scrollContent = calculateScrollContent(stateData);
   stateData.scrollPosition = calculateScrollPosition(stateData);
+
   stateData.horizontal = props.horizontal;
   stateData.initialNumToRender = props.initialNumToRender;
 
@@ -88,6 +87,17 @@ Point SLContainerShadowNode::calculateScrollPosition(ConcreteStateData stateData
   }
 
   return Point{0, 0};
+}
+
+Size SLContainerShadowNode::calculateScrollContent(ConcreteStateData stateData) {
+  auto &props = getConcreteProps();
+  return props.horizontal ?
+    Size{stateData.calculateContentSize(), getContentBounds().size.height}:
+    Size{getContentBounds().size.width, stateData.calculateContentSize()};
+}
+
+Size SLContainerShadowNode::calculateScrollContainer(ConcreteStateData stateData) {
+  return getLayoutMetrics().frame.size;
 }
 
 YogaLayoutableShadowNode& SLContainerShadowNode::shadowNodeFromContext(YGNodeConstRef yogaNode) {
