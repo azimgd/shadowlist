@@ -93,6 +93,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
         (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
       );
 
+      view.setScrollContainerOffset(
+        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT),
+        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP)
+      );
+
       return super.updateState(view, props, stateWrapper);
     } else {
       return null;

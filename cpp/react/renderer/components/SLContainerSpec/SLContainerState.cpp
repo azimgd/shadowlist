@@ -59,8 +59,8 @@ MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
   builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, visibleStartIndex);
   builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, visibleEndIndex);
-  builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.y);
-  builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.x);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.y);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT, scrollContent.height);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH, scrollContainer.width);

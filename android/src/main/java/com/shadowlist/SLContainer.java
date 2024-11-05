@@ -73,6 +73,10 @@ public class SLContainer extends ReactViewGroup {
     scrollContainerVertical.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
   }
 
+  public void setScrollContainerOffset(int x, int y) {
+    
+  }
+
   @Override
   protected void onLayout(boolean changed, int l, int t, int r, int b) {
     if (!orientation) {
