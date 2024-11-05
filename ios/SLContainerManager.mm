@@ -14,4 +14,6 @@ RCT_EXPORT_MODULE(SLContainer)
   return [[UIView alloc] init];
 }
 
+RCT_EXPORT_VIEW_PROPERTY(onVisibleChange, RCTDirectEventBlock)
+
 @end

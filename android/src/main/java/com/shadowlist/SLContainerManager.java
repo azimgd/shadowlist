@@ -2,16 +2,23 @@ package com.shadowlist;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+
+import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.common.MapBuilder;
 import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.uimanager.ReactStylesDiffMap;
 import com.facebook.react.uimanager.StateWrapper;
+import com.facebook.react.uimanager.UIManagerHelper;
 import com.facebook.react.uimanager.ViewGroupManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.ViewManagerDelegate;
 import com.facebook.react.uimanager.annotations.ReactProp;
 import com.facebook.react.common.mapbuffer.MapBuffer;
+import com.facebook.react.uimanager.events.EventDispatcher;
 import com.facebook.react.viewmanagers.SLContainerManagerInterface;
 import com.facebook.react.viewmanagers.SLContainerManagerDelegate;
+
+import java.util.Map;
 
 @ReactModule(name = SLContainerManager.NAME)
 public class SLContainerManager extends ViewGroupManager<SLContainer>
@@ -29,6 +36,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public static final short SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 9;
 
   private final ViewManagerDelegate<SLContainer> mDelegate;
+  private OnVisibleChangeHandler mVisibleChangeHandler = null;
+
+  public interface OnVisibleChangeHandler {
+    void onVisibleChange(SLContainer view, int visibleStartIndex, int visibleEndIndex);
+  }
 
   public SLContainerManager() {
     mDelegate = new SLContainerManagerDelegate(this);
@@ -42,6 +54,14 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   @Override
   public String getName() {
     return NAME;
+  }
+
+  @Override
+  protected void addEventEmitters(@NonNull ThemedReactContext reactContext, @NonNull SLContainer view) {
+    super.addEventEmitters(reactContext, view);
+    setOnVisibleChangeHandler((containerView, visibleStartIndex, visibleEndIndex) ->
+      mVisibleChangeHandler.onVisibleChange(containerView, visibleStartIndex, visibleEndIndex)
+    );
   }
 
   @Override
@@ -77,6 +97,26 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   @Nullable
   @Override
+  public Map getExportedCustomDirectEventTypeConstants() {
+    return MapBuilder.of(
+      "onVisibleChange", MapBuilder.of("registrationName", "onVisibleChange")
+    );
+  }
+
+  private void handleOnInsetsChange(SLContainer view, int visibleStartIndex, int visibleEndIndex) {
+    ReactContext reactContext = (ReactContext) view.getContext();
+    EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, view.getId());
+    eventDispatcher.dispatchEvent(
+      new OnVisibleChangeEvent(UIManagerHelper.getSurfaceId(view), view.getId(), visibleStartIndex, visibleEndIndex)
+    );
+  }
+
+  public void setOnVisibleChangeHandler(OnVisibleChangeHandler handler) {
+    mVisibleChangeHandler = handler;
+  }
+
+  @Nullable
+  @Override
   public Object updateState(@NonNull SLContainer view, ReactStylesDiffMap props, StateWrapper stateWrapper) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
 
@@ -96,6 +136,17 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
       view.setScrollContainerOffset(
         (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT),
         (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP)
+      );
+
+      int visibleStartIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_INDEX);
+      int visibleEndIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX) == 0 ?
+        stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER) :
+        stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX);
+
+      handleOnInsetsChange(
+        view,
+        visibleStartIndex,
+        visibleEndIndex
       );
 
       return super.updateState(view, props, stateWrapper);

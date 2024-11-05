@@ -73,6 +73,9 @@ using namespace facebook::react;
   [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
   [self->_contentView setContentSize:RCTCGSizeFromSize(nextStateData.scrollContent)];
   [self->_contentView setContentOffset:RCTCGPointFromPoint(nextStateData.scrollPosition)];
+  
+  const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
+  eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView

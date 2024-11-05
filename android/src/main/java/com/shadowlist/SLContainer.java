@@ -74,7 +74,7 @@ public class SLContainer extends ReactViewGroup {
   }
 
   public void setScrollContainerOffset(int x, int y) {
-    
+
   }
 
   @Override
