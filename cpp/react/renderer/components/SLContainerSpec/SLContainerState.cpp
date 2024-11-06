@@ -57,8 +57,8 @@ folly::dynamic SLContainerState::getDynamic() const {
 
 MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
-  builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, visibleStartIndex);
-  builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, visibleEndIndex);
+  builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, calculateVisibleStartIndex(getScrollPosition(scrollPosition)));
+  builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, calculateVisibleEndIndex(getScrollPosition(scrollPosition)));
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.y);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);

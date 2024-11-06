@@ -53,7 +53,7 @@ const SLContainerWrapper = (
     <SLContainerNativeComponent
       {...props}
       ref={instanceRef}
-      style={containerStyle}
+      style={[containerStyle, props.style]}
     >
       {props.children}
     </SLContainerNativeComponent>
@@ -66,7 +66,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   containerHorizontal: {
-    flex: 1,
+    flex: 0,
     flexDirection: 'row',
   },
 });

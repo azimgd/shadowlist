@@ -92,8 +92,8 @@ Point SLContainerShadowNode::calculateScrollPosition(ConcreteStateData stateData
 Size SLContainerShadowNode::calculateScrollContent(ConcreteStateData stateData) {
   auto &props = getConcreteProps();
   return props.horizontal ?
-    Size{stateData.calculateContentSize(), getContentBounds().size.height}:
-    Size{getContentBounds().size.width, stateData.calculateContentSize()};
+    Size{stateData.calculateContentSize(), getLayoutMetrics().frame.size.height}:
+    Size{getLayoutMetrics().frame.size.width, stateData.calculateContentSize()};
 }
 
 Size SLContainerShadowNode::calculateScrollContainer(ConcreteStateData stateData) {

@@ -167,7 +167,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   @Override
   public void scrollToIndex(SLContainer view, int index, boolean animated) {
-    
+
   }
 
   @Override

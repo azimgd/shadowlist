@@ -5,14 +5,10 @@ import { SLContainer, type SLContainerRef } from 'shadowlist';
 export default function App() {
   const ref = useRef<SLContainerRef>(null);
 
-  setTimeout(() => {
-    ref.current?.scrollToIndex({ index: 9 });
-  }, 1000);
-
   return (
     <SafeAreaView style={styles.container}>
       <SLContainer style={styles.content} ref={ref}>
-        {Array.from({ length: 100 }, (_, i) => (
+        {Array.from({ length: 10 }, (_, i) => (
           <Text style={styles.text} key={i}>
             {i} Lorem Ipsum is simply dummy text of the printing and typesetting
             industry. Lorem Ipsum has been the industry's standard dummy text
