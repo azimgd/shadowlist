@@ -85,6 +85,13 @@ int SLContainerState::calculateVisibleEndIndex(const float visibleStartOffset) c
   return std::min(visibleEndIndex + offset, visibleEndIndexMax);
 }
 
+Point SLContainerState::calculateScrollPositionOffset(const float visibleStartOffset) const {
+  if (horizontal) {
+    return Point{visibleStartOffset, scrollPosition.y};
+  }
+  return Point{scrollPosition.x, visibleStartOffset};
+}
+
 float SLContainerState::calculateContentSize() const {
   return childrenMeasurements.sum(childrenMeasurements.size());
 }

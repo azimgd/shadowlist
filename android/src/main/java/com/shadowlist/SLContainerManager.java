@@ -4,6 +4,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.uimanager.ReactStylesDiffMap;
@@ -103,7 +104,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     );
   }
 
-  private void handleOnInsetsChange(SLContainer view, int visibleStartIndex, int visibleEndIndex) {
+  private void handleOnVisibleChange(SLContainer view, int visibleStartIndex, int visibleEndIndex) {
     ReactContext reactContext = (ReactContext) view.getContext();
     EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, view.getId());
     eventDispatcher.dispatchEvent(
@@ -143,7 +144,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
         stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER) :
         stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX);
 
-      handleOnInsetsChange(
+      handleOnVisibleChange(
         view,
         visibleStartIndex,
         visibleEndIndex
@@ -153,6 +154,25 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     } else {
       return null;
     }
+  }
+
+  @Override
+  public void receiveCommand(@NonNull SLContainer view, String commandId, @Nullable ReadableArray args) {
+    if (commandId.equals("scrollToIndex")) {
+      scrollToIndex(view, args.getInt(0), args.getBoolean(1));
+    } else if (commandId.equals("scrollToOffset")) {
+      scrollToOffset(view, args.getInt(0), args.getBoolean(1));
+    }
+  }
+
+  @Override
+  public void scrollToIndex(SLContainer view, int index, boolean animated) {
+    
+  }
+
+  @Override
+  public void scrollToOffset(SLContainer view, int offset, boolean animated) {
+
   }
 
   public static final String NAME = "SLContainer";

@@ -49,6 +49,7 @@ class SLContainerState {
 
   int calculateVisibleStartIndex(const float visibleStartOffset) const;
   int calculateVisibleEndIndex(const float visibleStartOffset) const;
+  Point calculateScrollPositionOffset(const float visibleStartOffset) const;
   float calculateContentSize() const;
   float getScrollPosition(const Point& scrollPosition) const;
 

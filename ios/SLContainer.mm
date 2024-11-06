@@ -91,6 +91,37 @@ using namespace facebook::react;
   self->_state->updateState(std::move(stateData));
 }
 
+- (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
+{
+  SLContainerHandleCommand(self, commandName, args);
+}
+
+- (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
+{
+  auto stateData = _state->getData();
+  stateData.scrollPosition = stateData.calculateScrollPositionOffset(stateData.childrenMeasurements.sum(index));
+  stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
+    stateData.getScrollPosition(stateData.scrollPosition)
+  );
+  stateData.visibleEndIndex = stateData.calculateVisibleEndIndex(
+    stateData.getScrollPosition(stateData.scrollPosition)
+  );
+  self->_state->updateState(std::move(stateData));
+}
+
+- (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated
+{
+  auto stateData = _state->getData();
+  stateData.scrollPosition = stateData.calculateScrollPositionOffset(offset);
+  stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
+    stateData.getScrollPosition(stateData.scrollPosition)
+  );
+  stateData.visibleEndIndex = stateData.calculateVisibleEndIndex(
+    stateData.getScrollPosition(stateData.scrollPosition)
+  );
+  self->_state->updateState(std::move(stateData));
+}
+
 Class<RCTComponentViewProtocol> SLContainerCls(void)
 {
   return SLContainer.class;

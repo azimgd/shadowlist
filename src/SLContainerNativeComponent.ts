@@ -1,9 +1,20 @@
 import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
+import codegenNativeCommands from 'react-native/Libraries/Utilities/codegenNativeCommands';
 import type { ViewProps } from 'react-native';
 import type {
   Int32,
   DirectEventHandler,
 } from 'react-native/Libraries/Types/CodegenTypes';
+
+export type ScrollToIndexOptions = {
+  index: number;
+  animated?: boolean;
+};
+
+export type ScrollToOffsetOptions = {
+  offset: number;
+  animated?: boolean;
+};
 
 export type OnVisibleChange = {
   visibleStartIndex: Int32;
@@ -31,6 +42,10 @@ export interface SLContainerNativeCommands {
   ) => void;
 }
 
-export type NativeCommands = SLContainerNativeCommands;
+export const Commands = codegenNativeCommands<SLContainerNativeCommands>({
+  supportedCommands: ['scrollToIndex', 'scrollToOffset'],
+});
 
-export default codegenNativeComponent<SLContainerNativeProps>('SLContainer');
+export default codegenNativeComponent<SLContainerNativeProps>('SLContainer', {
+  interfaceOnly: true,
+});
