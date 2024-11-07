@@ -16,7 +16,8 @@ using namespace facebook::react;
 @end
 
 @implementation SLContainer {
-  UIScrollView * _contentView;
+  UIScrollView *_scrollContent;
+  UIRefreshControl *_scrollContentRefresh;
   SLContainerShadowNode::ConcreteState::Shared _state;
   SLContainerChildrenManager *_containerChildrenManager;
 }
@@ -31,12 +32,16 @@ using namespace facebook::react;
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const SLContainerProps>();
     _props = defaultProps;
-    _contentView = [UIScrollView new];
-    _contentView.delegate = self;
-    _contentView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    _containerChildrenManager = [[SLContainerChildrenManager alloc] initWithContentView:_contentView];
+    _scrollContent = [UIScrollView new];
+    _scrollContent.delegate = self;
+    _scrollContent.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    _containerChildrenManager = [[SLContainerChildrenManager alloc] initWithContentView:_scrollContent];
     
-    self.contentView = _contentView;
+    _scrollContentRefresh = [UIRefreshControl new];
+    [_scrollContentRefresh addTarget:self action:@selector(handleRefresh) forControlEvents:UIControlEventValueChanged];
+    [_scrollContent addSubview:_scrollContentRefresh];
+    
+    self.contentView = _scrollContent;
   }
 
   return self;
@@ -71,8 +76,8 @@ using namespace facebook::react;
     nextStateData.visibleEndIndex;
 
   [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
-  [self->_contentView setContentSize:RCTCGSizeFromSize(nextStateData.scrollContent)];
-  [self->_contentView setContentOffset:RCTCGPointFromPoint(nextStateData.scrollPosition)];
+  [self->_scrollContent setContentSize:RCTCGSizeFromSize(nextStateData.scrollContent)];
+  [self->_scrollContent setContentOffset:RCTCGPointFromPoint(nextStateData.scrollPosition)];
   
   const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
   eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
@@ -120,6 +125,9 @@ using namespace facebook::react;
     stateData.getScrollPosition(stateData.scrollPosition)
   );
   self->_state->updateState(std::move(stateData));
+}
+
+- (void)handleRefresh {
 }
 
 Class<RCTComponentViewProtocol> SLContainerCls(void)

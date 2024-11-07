@@ -6,51 +6,51 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class SLContainerChildrenManager {
-  private ReactViewGroup contentView;
-  private SLComponentRegistry childrenRegistry;
-  private Map<Integer, View> childrenPool;
+  private ReactViewGroup mScrollContent;
+  private SLComponentRegistry mChildrenRegistry;
+  private Map<Integer, View> mChildrenPool;
 
   public SLContainerChildrenManager(ReactViewGroup contentView) {
-    this.contentView = contentView;
-    this.childrenRegistry = new SLComponentRegistry();
+    this.mScrollContent = contentView;
+    this.mChildrenRegistry = new SLComponentRegistry();
 
-    childrenRegistry.mountObserver((index, isVisible) -> {
+    mChildrenRegistry.mountObserver((index, isVisible) -> {
       try {
         mountObserver(index, isVisible);
       } catch (IndexOutOfBoundsException e) {}
     });
 
-    this.childrenPool = new HashMap<>();
+    this.mChildrenPool = new HashMap<>();
   }
 
   private void mountObserver(int index, boolean isVisible) {
-    View child = childrenPool.get(index);
+    View child = mChildrenPool.get(index);
 
     if (isVisible) {
-      contentView.addView(child);
+      mScrollContent.addView(child);
     } else {
-      contentView.removeView(child);
+      mScrollContent.removeView(child);
     }
   }
 
   public void mountChildComponentView(View childComponentView, int index) {
-    childrenPool.put(index, childComponentView);
-    childrenRegistry.registerComponent(index);
+    mChildrenPool.put(index, childComponentView);
+    mChildrenRegistry.registerComponent(index);
   }
 
   public void unmountChildComponentView(View childComponentView, int index) {
-    childrenRegistry.unregisterComponent(index);
-    childrenPool.remove(index);
+    mChildrenRegistry.unregisterComponent(index);
+    mChildrenPool.remove(index);
   }
 
   public void mount(int visibleStartIndex, int visibleEndIndex) {
-    childrenRegistry.mountRange(visibleStartIndex, visibleEndIndex);
+    mChildrenRegistry.mountRange(visibleStartIndex, visibleEndIndex);
   }
 
   public void destroy() {
-    for (Integer index : childrenPool.keySet()) {
-      unmountChildComponentView(childrenPool.get(index), index);
+    for (Integer index : mChildrenPool.keySet()) {
+      unmountChildComponentView(mChildrenPool.get(index), index);
     }
-    childrenRegistry.destroy();
+    mChildrenRegistry.destroy();
   }
 }

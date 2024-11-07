@@ -1,7 +1,7 @@
 #import "SLContainerChildrenManager.h"
 
 @implementation SLContainerChildrenManager {
-  UIView *_contentView;
+  UIView *_scrollContent;
   SLComponentRegistry _childrenRegistry;
   NSMutableDictionary<NSNumber *, UIView<RCTComponentViewProtocol> *> *_childrenPool;
 }
@@ -13,14 +13,14 @@
       [self mountObserver:index isVisible:isVisible];
     });
     _childrenPool = [NSMutableDictionary dictionary];
-    _contentView = contentView;
+    _scrollContent = contentView;
   }
   return self;
 }
 
 - (void)mountObserver:(int)index isVisible:(bool)isVisible {
   if (isVisible) {
-    [_contentView insertSubview:[_childrenPool objectForKey:@(index)] atIndex:index];
+    [_scrollContent insertSubview:[_childrenPool objectForKey:@(index)] atIndex:index];
   } else {
     [[_childrenPool objectForKey:@(index)] removeFromSuperview];
   }
