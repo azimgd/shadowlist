@@ -1,14 +1,19 @@
-import { useRef } from 'react';
+import { useRef, useCallback } from 'react';
 import { SafeAreaView, StyleSheet, Text } from 'react-native';
 import { SLContainer, type SLContainerRef } from 'shadowlist';
 
 export default function App() {
   const ref = useRef<SLContainerRef>(null);
+  const onVisibleChange = useCallback(() => {}, []);
 
   return (
     <SafeAreaView style={styles.container}>
-      <SLContainer style={styles.content} ref={ref}>
-        {Array.from({ length: 10 }, (_, i) => (
+      <SLContainer
+        style={styles.content}
+        ref={ref}
+        onVisibleChange={onVisibleChange}
+      >
+        {Array.from({ length: 1000 }, (_, i) => (
           <Text style={styles.text} key={i}>
             {i} Lorem Ipsum is simply dummy text of the printing and typesetting
             industry. Lorem Ipsum has been the industry's standard dummy text

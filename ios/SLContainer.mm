@@ -5,6 +5,7 @@
 #import "SLContainerProps.h"
 #import "SLContainerHelpers.h"
 #import "SLContainerChildrenManager.h"
+#import "SLScrollable.h"
 
 #import <React/RCTFabricComponentsPlugins.h>
 #import <React/RCTConversions.h>
@@ -20,6 +21,7 @@ using namespace facebook::react;
   UIRefreshControl *_scrollContentRefresh;
   SLContainerShadowNode::ConcreteState::Shared _state;
   SLContainerChildrenManager *_containerChildrenManager;
+  SLScrollable *_scrollable;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -36,6 +38,7 @@ using namespace facebook::react;
     _scrollContent.delegate = self;
     _scrollContent.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     _containerChildrenManager = [[SLContainerChildrenManager alloc] initWithContentView:_scrollContent];
+    _scrollable = [SLScrollable new];
     
     _scrollContentRefresh = [UIRefreshControl new];
     [_scrollContentRefresh addTarget:self action:@selector(handleRefresh) forControlEvents:UIControlEventValueChanged];
@@ -78,21 +81,38 @@ using namespace facebook::react;
   [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
   [self->_scrollContent setContentSize:RCTCGSizeFromSize(nextStateData.scrollContent)];
   [self->_scrollContent setContentOffset:RCTCGPointFromPoint(nextStateData.scrollPosition)];
-  
+
+  [self->_scrollable updateState:nextStateData.horizontal
+    visibleStartTrigger:nextStateData.calculateVisibleStartTrigger(
+      nextStateData.getScrollPosition(nextStateData.scrollPosition)
+    )
+    visibleEndTrigger:nextStateData.calculateVisibleEndTrigger(
+      nextStateData.getScrollPosition(nextStateData.scrollPosition)
+    )
+    scrollContainerWidth:nextStateData.scrollContainer.width
+    scrollContainerHeight:nextStateData.scrollContainer.height];
+
   const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
   eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+  if (![self->_scrollable shouldUpdate:scrollView.contentOffset]) {
+    return;
+  }
+  
   auto stateData = _state->getData();
+  int visibleStartIndex = stateData.calculateVisibleStartIndex(
+    stateData.getScrollPosition(stateData.scrollPosition)
+  );
+  int visibleEndIndex = stateData.calculateVisibleEndIndex(
+    stateData.getScrollPosition(stateData.scrollPosition)
+  );
   stateData.scrollPosition = RCTPointFromCGPoint(scrollView.contentOffset);
-  stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
-    stateData.getScrollPosition(RCTPointFromCGPoint(scrollView.contentOffset))
-  );
-  stateData.visibleEndIndex = stateData.calculateVisibleEndIndex(
-    stateData.getScrollPosition(RCTPointFromCGPoint(scrollView.contentOffset))
-  );
+  stateData.visibleStartIndex = visibleStartIndex;
+  stateData.visibleEndIndex = visibleEndIndex;
+  
   self->_state->updateState(std::move(stateData));
 }
 

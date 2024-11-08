@@ -22,6 +22,7 @@ public class SLContainer extends ReactViewGroup {
   private HorizontalScrollView mScrollContainerHorizontal;
   private ScrollView mScrollContainerVertical;
   private ReactViewGroup mScrollContent;
+  private SLScrollable mScrollable;
 
   private SLContainerChildrenManager mContainerChildrenManager;
   private @Nullable StateWrapper mStateWrapper = null;
@@ -44,19 +45,34 @@ public class SLContainer extends ReactViewGroup {
 
     mScrollContent = new ReactViewGroup(context);
     mContainerChildrenManager = new SLContainerChildrenManager(mScrollContent);
+    mScrollable = new SLScrollable();
 
     SwipeRefreshLayout.OnRefreshListener refreshListener = () -> {
     };
-    OnScrollChangeListener scrollListener = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      WritableNativeMap mapBuffer = new WritableNativeMap();
+    OnScrollChangeListener scrollListenerVertical = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+      if (!mScrollable.shouldUpdate(new float[]{scrollX, scrollY})) {
+        return;
+      }
 
+      WritableNativeMap mapBuffer = new WritableNativeMap();
       mapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
       mapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
-
       mStateWrapper.updateState(mapBuffer);
     };
-    mScrollContainerVertical.setOnScrollChangeListener(scrollListener);
-    mScrollContainerHorizontal.setOnScrollChangeListener(scrollListener);
+    OnScrollChangeListener scrollListenerHorizontal = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+      if (!mScrollable.shouldUpdate(new float[]{scrollX, scrollY})) {
+        return;
+      }
+
+      WritableNativeMap mapBuffer = new WritableNativeMap();
+      mapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
+      mapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
+      mStateWrapper.updateState(mapBuffer);
+    };
+    mScrollContainerVertical.setOnScrollChangeListener(scrollListenerVertical);
+    mScrollContainerVertical.setVerticalScrollBarEnabled(true);
+    mScrollContainerHorizontal.setOnScrollChangeListener(scrollListenerHorizontal);
+    mScrollContainerHorizontal.setHorizontalScrollBarEnabled(true);
     mScrollContainerRefreshVertical.setOnRefreshListener(refreshListener);
     mScrollContainerRefreshHorizontal.setOnRefreshListener(refreshListener);
   }
@@ -117,6 +133,14 @@ public class SLContainer extends ReactViewGroup {
 
   public void setStateWrapper(StateWrapper stateWrapper) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
+
+    mScrollable.updateState(
+      stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_HORIZONTAL),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_TRIGGER),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_TRIGGER),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
+    );
 
     int visibleStartIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_INDEX);
     int visibleEndIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX) == 0 ?

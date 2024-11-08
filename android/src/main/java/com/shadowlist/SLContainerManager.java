@@ -27,14 +27,16 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   public static final short SLCONTAINER_STATE_VISIBLE_START_INDEX = 0;
   public static final short SLCONTAINER_STATE_VISIBLE_END_INDEX = 1;
-  public static final short SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 2;
-  public static final short SLCONTAINER_STATE_SCROLL_POSITION_TOP = 3;
-  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 4;
-  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 5;
-  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 6;
-  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 7;
-  public static final short SLCONTAINER_STATE_HORIZONTAL = 8;
-  public static final short SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 9;
+  public static final short SLCONTAINER_STATE_VISIBLE_START_TRIGGER = 2;
+  public static final short SLCONTAINER_STATE_VISIBLE_END_TRIGGER = 3;
+  public static final short SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 4;
+  public static final short SLCONTAINER_STATE_SCROLL_POSITION_TOP = 5;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 6;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 7;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 8;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 9;
+  public static final short SLCONTAINER_STATE_HORIZONTAL = 10;
+  public static final short SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 11;
 
   private final ViewManagerDelegate<SLContainer> mDelegate;
   private OnVisibleChangeHandler mVisibleChangeHandler = null;
