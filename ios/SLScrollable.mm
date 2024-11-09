@@ -7,6 +7,11 @@
   float _visibleEndTrigger;
   float _scrollContainerWidth;
   float _scrollContainerHeight;
+  float _lastContentOffsetX;
+  float _lastContentOffsetY;
+  float _startContentOffsetX;
+  float _startContentOffsetY;
+  NSTimeInterval _lastUpdateTime;
 }
 
 - (void)updateState:(bool)horizontal
@@ -23,6 +28,9 @@
 
 - (bool)shouldUpdate:(CGPoint)contentOffset
 {
+  self->_lastContentOffsetX = contentOffset.x;
+  self->_lastContentOffsetY = contentOffset.y;
+
   if (contentOffset.y < 0 || contentOffset.x < 0) {
     return true;
   }
@@ -73,6 +81,24 @@
 
   self->_scrollContentOffset = contentOffset;
   return scrollDirection;
+}
+
+- (CGPoint)calculateVelocity {
+  NSTimeInterval timeSinceLastUpdate = [NSDate timeIntervalSinceReferenceDate] - self->_lastUpdateTime;
+  
+  if (timeSinceLastUpdate > 0.01f) {
+    CGFloat velocityX = (self->_lastContentOffsetX - self->_startContentOffsetX) / timeSinceLastUpdate;
+    CGFloat velocityY = (self->_lastContentOffsetY - self->_startContentOffsetY) / timeSinceLastUpdate;
+
+    self->_startContentOffsetX = self->_lastContentOffsetX;
+    self->_startContentOffsetY = self->_lastContentOffsetY;
+    
+    self->_lastUpdateTime = [NSDate timeIntervalSinceReferenceDate];
+    
+    return CGPointMake(velocityX, velocityY);
+  }
+  
+  return CGPointZero;
 }
 
 @end

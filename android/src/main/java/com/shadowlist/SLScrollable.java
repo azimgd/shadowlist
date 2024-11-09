@@ -7,6 +7,11 @@ public class SLScrollable {
   private float mVisibleStartTrigger;
   private float mVisibleEndTrigger;
   private float[] mScrollContentOffset;
+  private float mLastContentOffsetX;
+  private float mLastContentOffsetY;
+  private float mStartContentOffsetX;
+  private float mStartContentOffsetY;
+  private long mLastUpdateTime;
 
   private static final int SCROLLING_UP = 1;
   private static final int SCROLLING_DOWN = 2;
@@ -15,13 +20,14 @@ public class SLScrollable {
 
   public SLScrollable() {
     this.mScrollContentOffset = new float[2];
+    this.mLastUpdateTime = System.nanoTime();
   }
 
   public void updateState(boolean horizontal,
-    float visibleStartTrigger,
-    float visibleEndTrigger,
-    float scrollContainerWidth,
-    float scrollContainerHeight) {
+                          float visibleStartTrigger,
+                          float visibleEndTrigger,
+                          float scrollContainerWidth,
+                          float scrollContainerHeight) {
     this.mHorizontal = horizontal;
     this.mVisibleStartTrigger = visibleStartTrigger;
     this.mVisibleEndTrigger = visibleEndTrigger;
@@ -30,6 +36,9 @@ public class SLScrollable {
   }
 
   public boolean shouldUpdate(float[] contentOffset) {
+    this.mLastContentOffsetX = contentOffset[0];
+    this.mLastContentOffsetY = contentOffset[1];
+
     if (contentOffset[0] < 0 || contentOffset[1] < 0) {
       return true;
     }
@@ -71,5 +80,24 @@ public class SLScrollable {
 
     mScrollContentOffset[0] = contentOffset[0];
     return scrollDirection;
+  }
+
+  public float[] calculateVelocity() {
+    long currentTime = System.nanoTime();
+    float timeSinceLastUpdate = (currentTime - mLastUpdateTime) / 1_000_000_000.0f;
+
+    if (timeSinceLastUpdate > 0.01f) {
+      float velocityX = (mLastContentOffsetX - mStartContentOffsetX) / timeSinceLastUpdate;
+      float velocityY = (mLastContentOffsetY - mStartContentOffsetY) / timeSinceLastUpdate;
+
+      mStartContentOffsetX = mLastContentOffsetX;
+      mStartContentOffsetY = mLastContentOffsetY;
+
+      mLastUpdateTime = currentTime;
+
+      return new float[]{velocityX, velocityY};
+    }
+
+    return new float[]{0.0f, 0.0f};
   }
 }
