@@ -1,7 +1,10 @@
 import { useRef, useCallback } from 'react';
 import { SafeAreaView, StyleSheet, Text } from 'react-native';
+import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
 import {
   Shadowlist,
+  type OnEndReached,
+  type OnVisibleChange,
   type ShadowlistProps,
   type SLContainerRef,
 } from 'shadowlist';
@@ -28,7 +31,20 @@ publishing software like Aldus PageMaker including versions of Lorem Ipsum.`;
 
 export default function App() {
   const ref = useRef<SLContainerRef>(null);
-  const onVisibleChange = useCallback(() => {}, []);
+  const onEndReached = useCallback<DirectEventHandler<OnEndReached>>(
+    (event) => {
+      event.nativeEvent.distanceFromEnd;
+    },
+    []
+  );
+
+  const onVisibleChange = useCallback<DirectEventHandler<OnVisibleChange>>(
+    (event) => {
+      event.nativeEvent.visibleEndIndex;
+    },
+    []
+  );
+
   const data = Array.from({ length: 1000 }, (_, item) => item);
   ref.current?.scrollToIndex({ index: 5 });
 
@@ -39,6 +55,7 @@ export default function App() {
         renderItem={renderItem}
         data={data}
         onVisibleChange={onVisibleChange}
+        onEndReached={onEndReached}
         ListHeaderComponent={ListHeaderComponent}
         ListFooterComponent={ListFooterComponent}
       />

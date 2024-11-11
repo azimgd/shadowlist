@@ -11,4 +11,11 @@ void SLContainerEventEmitter::onVisibleChange(OnVisibleChange $event) const {
   });
 }
 
+void SLContainerEventEmitter::onEndReached(OnEndReached $event) const {
+  dispatchEvent("endReached", [$event = std::move($event)](jsi::Runtime &runtime) {
+    auto $payload = jsi::Object(runtime);
+    $payload.setProperty(runtime, "distanceFromEnd", $event.distanceFromEnd);
+    return $payload;
+  });
+}
 }

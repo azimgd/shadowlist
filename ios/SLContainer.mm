@@ -90,10 +90,17 @@ using namespace facebook::react;
       nextStateData.getScrollPosition(nextStateData.scrollPosition)
     )
     scrollContainerWidth:nextStateData.scrollContainer.width
-    scrollContainerHeight:nextStateData.scrollContainer.height];
+    scrollContainerHeight:nextStateData.scrollContainer.height
+    scrollContentWidth:nextStateData.scrollContent.width
+    scrollContentHeight:nextStateData.scrollContent.height];
 
   const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
   eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
+  
+  int distanceFromEnd = [self->_scrollable shouldNotify:RCTCGPointFromPoint(nextStateData.scrollPosition)];
+  if (distanceFromEnd) {
+    eventEmitter.onEndReached({distanceFromEnd});
+  }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView

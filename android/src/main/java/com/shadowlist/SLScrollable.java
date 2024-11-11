@@ -4,6 +4,8 @@ public class SLScrollable {
   private boolean mHorizontal;
   private float mScrollContainerWidth;
   private float mScrollContainerHeight;
+  private float mScrollContentWidth;
+  private float mScrollContentHeight;
   private float mVisibleStartTrigger;
   private float mVisibleEndTrigger;
   private float[] mScrollContentOffset;
@@ -27,12 +29,16 @@ public class SLScrollable {
                           float visibleStartTrigger,
                           float visibleEndTrigger,
                           float scrollContainerWidth,
-                          float scrollContainerHeight) {
+                          float scrollContainerHeight,
+                          float scrollContentWidth,
+                          float scrollContentHeight) {
     this.mHorizontal = horizontal;
     this.mVisibleStartTrigger = visibleStartTrigger;
     this.mVisibleEndTrigger = visibleEndTrigger;
     this.mScrollContainerWidth = scrollContainerWidth;
     this.mScrollContainerHeight = scrollContainerHeight;
+    this.mScrollContentWidth = scrollContentWidth;
+    this.mScrollContentHeight = scrollContentHeight;
   }
 
   public boolean shouldUpdate(float[] contentOffset) {
@@ -56,6 +62,15 @@ public class SLScrollable {
         return mVisibleStartTrigger <= contentOffset[1];
       }
     }
+  }
+
+  public int shouldNotify(float[] contentOffset) {
+    if (mHorizontal && contentOffset[0] > mScrollContentWidth - mScrollContainerWidth) {
+      return Math.abs((int)(mScrollContentWidth - contentOffset[0]));
+    } else if (!mHorizontal && contentOffset[1] > mScrollContentHeight - mScrollContainerHeight) {
+      return Math.abs((int)(mScrollContentHeight - contentOffset[1]));
+    }
+    return 0;
   }
 
   private int scrollDirectionVertical(float[] contentOffset) {

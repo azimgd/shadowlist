@@ -35,8 +35,6 @@ export const Shadowlist = React.forwardRef(
     props: SLContainerNativeProps & ShadowlistProps,
     ref: Ref<Partial<SLContainerNativeCommands>>
   ) => {
-    const onVisibleChange = React.useCallback(() => {}, []);
-
     /**
      * ListHeaderComponent
      */
@@ -79,11 +77,7 @@ export const Shadowlist = React.forwardRef(
     }, [props.data, props.renderItem, props.keyExtractor]);
 
     return (
-      <SLContainer
-        style={props.style}
-        ref={ref}
-        onVisibleChange={onVisibleChange}
-      >
+      <SLContainer style={props.style} ref={ref} {...props}>
         {ListHeaderComponent}
         {props.data.length ? ListChildrenComponent : ListEmptyComponent}
         {ListFooterComponent}

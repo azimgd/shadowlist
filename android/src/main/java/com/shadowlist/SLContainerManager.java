@@ -40,9 +40,13 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   private final ViewManagerDelegate<SLContainer> mDelegate;
   private OnVisibleChangeHandler mVisibleChangeHandler = null;
+  private OnEndReachedHandler mEndReachedHandler = null;
 
   public interface OnVisibleChangeHandler {
     void onVisibleChange(SLContainer view, int visibleStartIndex, int visibleEndIndex);
+  }
+  public interface OnEndReachedHandler {
+    void onEndReached(SLContainer view, int distanceFromEnd);
   }
 
   public SLContainerManager() {
@@ -64,6 +68,9 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     super.addEventEmitters(reactContext, view);
     setOnVisibleChangeHandler((containerView, visibleStartIndex, visibleEndIndex) ->
       mVisibleChangeHandler.onVisibleChange(containerView, visibleStartIndex, visibleEndIndex)
+    );
+    setOnEndReachedHandler((containerView, distanceFromEnd) ->
+      mEndReachedHandler.onEndReached(containerView, distanceFromEnd)
     );
   }
 
@@ -102,7 +109,8 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   @Override
   public Map getExportedCustomDirectEventTypeConstants() {
     return MapBuilder.of(
-      "onVisibleChange", MapBuilder.of("registrationName", "onVisibleChange")
+      "onVisibleChange", MapBuilder.of("registrationName", "onVisibleChange"),
+      "onEndReached", MapBuilder.of("registrationName", "onEndReached")
     );
   }
 
@@ -114,8 +122,20 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     );
   }
 
+  private void handleEndReached(SLContainer view, int distanceFromEnd) {
+    ReactContext reactContext = (ReactContext) view.getContext();
+    EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, view.getId());
+    eventDispatcher.dispatchEvent(
+      new OnEndReachedEvent(UIManagerHelper.getSurfaceId(view), view.getId(), distanceFromEnd)
+    );
+  }
+
   public void setOnVisibleChangeHandler(OnVisibleChangeHandler handler) {
     mVisibleChangeHandler = handler;
+  }
+
+  public void setOnEndReachedHandler(OnEndReachedHandler handler) {
+    mEndReachedHandler = handler;
   }
 
   @Nullable

@@ -11,8 +11,11 @@
   visibleStartTrigger:(float)visibleStartTrigger
   visibleEndTrigger:(float)visibleEndTrigger
   scrollContainerWidth:(float)scrollContainerWidth
-  scrollContainerHeight:(float)scrollContainerHeight;
+  scrollContainerHeight:(float)scrollContainerHeight
+  scrollContentWidth:(float)scrollContainerWidth
+  scrollContentHeight:(float)scrollContainerHeight;
 - (bool)shouldUpdate:(CGPoint)contentOffset;
+- (int)shouldNotify:(CGPoint)contentOffset;
 - (int)scrollDirectionHorizontal:(CGPoint)contentOffset;
 - (int)scrollDirectionVertical:(CGPoint)contentOffset;
 

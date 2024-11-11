@@ -7,6 +7,8 @@
   float _visibleEndTrigger;
   float _scrollContainerWidth;
   float _scrollContainerHeight;
+  float _scrollContentWidth;
+  float _scrollContentHeight;
   float _lastContentOffsetX;
   float _lastContentOffsetY;
   float _startContentOffsetX;
@@ -19,11 +21,15 @@
   visibleEndTrigger:(float)visibleEndTrigger
   scrollContainerWidth:(float)scrollContainerWidth
   scrollContainerHeight:(float)scrollContainerHeight
+  scrollContentWidth:(float)scrollContentWidth
+  scrollContentHeight:(float)scrollContentHeight
 {
   self->_visibleStartTrigger = visibleStartTrigger;
   self->_visibleEndTrigger = visibleEndTrigger;
   self->_scrollContainerWidth = scrollContainerWidth;
   self->_scrollContainerHeight = scrollContainerHeight;
+  self->_scrollContentWidth = scrollContentWidth;
+  self->_scrollContentHeight = scrollContentHeight;
 }
 
 - (bool)shouldUpdate:(CGPoint)contentOffset
@@ -35,7 +41,7 @@
     return true;
   }
 
-  if (_horizontal) {
+  if (self->_horizontal) {
     if ([self scrollDirectionHorizontal:contentOffset] == SCROLLING_LEFT) {
       if (self->_visibleEndTrigger >= contentOffset.x + self->_scrollContainerWidth) {
         return false;
@@ -57,6 +63,16 @@
     }
   }
   return true;
+}
+
+- (int)shouldNotify:(CGPoint)contentOffset
+{
+  if (self->_horizontal && contentOffset.x > self->_scrollContentWidth - self->_scrollContainerWidth) {
+    return ABS(self->_scrollContentWidth - contentOffset.x);
+  } else if (!self->_horizontal && contentOffset.y > self->_scrollContentHeight - self->_scrollContainerHeight) {
+    return ABS(self->_scrollContentHeight - contentOffset.y);
+  }
+  return 0;
 }
 
 - (int)scrollDirectionVertical:(CGPoint)contentOffset {
