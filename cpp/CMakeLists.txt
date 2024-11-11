@@ -1,14 +1,13 @@
 cmake_minimum_required(VERSION 3.13)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(LIB_LITERAL RNShadowListContainerSpec)
-set(LIB_LITERAL_TWO RNShadowListItemSpec)
+set(LIB_LITERAL SLContainerSpec)
+set(LIB_LITERAL_FENWICK fenwick)
+set(LIB_LITERAL_REGISTRY registry)
 set(LIB_TARGET_NAME react_codegen_${LIB_LITERAL})
 
 set(LIB_ANDROID_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../android)
 set(LIB_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(LIB_ANDROID_GENERATED_JNI_DIR ${LIB_ANDROID_DIR}/build/generated/source/codegen/jni)
-set(LIB_ANDROID_GENERATED_COMPONENTS_DIR ${LIB_ANDROID_GENERATED_JNI_DIR}/react/renderer/components/${LIB_LITERAL})
 
 add_compile_options(
   -fexceptions
@@ -19,14 +18,19 @@ add_compile_options(
   -Wno-gnu-zero-variadic-macro-arguments
 )
 
-file(GLOB LIB_IMPORT_SRCS CONFIGURE_DEPENDS RNShadowListContainerSpec.cpp)
-file(GLOB LIB_CUSTOM_SRCS CONFIGURE_DEPENDS ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL}/*.cpp ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL_TWO}/*.cpp)
+file(GLOB LIB_IMPORT_SRCS CONFIGURE_DEPENDS SLContainerSpec.cpp)
+file(GLOB LIB_CUSTOM_SRCS CONFIGURE_DEPENDS
+  ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL}/*.cpp
+  ${LIB_COMMON_DIR}/${LIB_LITERAL_FENWICK}/*.cpp
+  ${LIB_COMMON_DIR}/${LIB_LITERAL_REGISTRY}/*.cpp
+)
 
 add_library(
   ${LIB_TARGET_NAME}
   SHARED
   ${LIB_IMPORT_SRCS}
   ${LIB_CUSTOM_SRCS}
+  cpp-adapter.cpp
 )
 
 target_include_directories(
@@ -36,9 +40,8 @@ target_include_directories(
   ${LIB_IMPORT_SRCS}
   ${LIB_CUSTOM_SRCS}
   ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL}
-  ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL_TWO}
-  # ${LIB_ANDROID_GENERATED_JNI_DIR}
-  # ${LIB_ANDROID_GENERATED_COMPONENTS_DIR}
+  ${LIB_COMMON_DIR}/${LIB_LITERAL_FENWICK}
+  ${LIB_COMMON_DIR}/${LIB_LITERAL_REGISTRY}
 )
 
 target_link_libraries(

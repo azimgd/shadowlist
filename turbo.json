@@ -2,6 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "pipeline": {
     "build:android": {
+      "env": ["ORG_GRADLE_PROJECT_newArchEnabled"],
       "inputs": [
         "package.json",
         "android",
@@ -17,6 +18,7 @@
       "outputs": []
     },
     "build:ios": {
+      "env": ["RCT_NEW_ARCH_ENABLED"],
       "inputs": [
         "package.json",
         "*.podspec",

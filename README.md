@@ -31,9 +31,9 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 ## Usage
 
 ```js
-import ShadowListContainer from 'shadowlist';
+import {SLContainer} from 'shadowlist';
 
-<ShadowListContainer
+<SLContainer
   contentContainerStyle={styles.container}
   ref={shadowListContainerRef}
   data={data}

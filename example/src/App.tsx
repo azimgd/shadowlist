@@ -1,173 +1,63 @@
-import * as React from 'react';
+import { useRef, useCallback } from 'react';
+import { SafeAreaView, StyleSheet, Text } from 'react-native';
 import {
-  SafeAreaView,
-  StyleSheet,
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  TouchableOpacity,
-} from 'react-native';
-import { FlashList } from '@shopify/flash-list';
-import ShadowList, {
-  type ScrollToIndexOptions,
-  type ScrollToOffsetOptions,
+  Shadowlist,
+  type ShadowlistProps,
+  type SLContainerRef,
 } from 'shadowlist';
-import sample from './sample.json';
 
-const CustomComponent = ({ item, index }: { item: any; index: number }) => {
-  return (
-    <TouchableOpacity style={styles.item}>
-      <Text style={styles.username}>
-        {index} - {item.username}
-      </Text>
-      <Text style={styles.text}>{item.text}</Text>
-    </TouchableOpacity>
-  );
-};
+const ListHeaderComponent = () => <Text style={styles.text}>Header</Text>;
+const ListFooterComponent = () => <Text style={styles.text}>Footer</Text>;
 
-const ListHeaderComponent = () => {
-  return (
-    <View style={[styles.item, styles.header]}>
-      <Text style={styles.username}>Header</Text>
-    </View>
-  );
-};
-
-const ListFooterComponent = () => {
-  return (
-    <View style={[styles.item, styles.footer]}>
-      <Text style={styles.username}>Footer</Text>
-    </View>
-  );
-};
-
-const ListEmptyComponent = () => {
-  return (
-    <View style={[styles.item, styles.empty]}>
-      <Text style={styles.username}>Empty</Text>
-    </View>
-  );
-};
-
-/**
- * FlatList
- */
-export const FlatListExample = ({ data }: { data: any[] }) => {
-  return (
-    <FlatList
-      contentContainerStyle={styles.container}
-      data={data}
-      ListHeaderComponent={ListHeaderComponent}
-      ListFooterComponent={ListFooterComponent}
-      ListEmptyComponent={ListEmptyComponent}
-      renderItem={({ item, index }) => (
-        <CustomComponent item={item} index={index} />
-      )}
-    />
-  );
-};
-
-/**
- * FlashList
- */
-export const FlashListExample = ({ data }: { data: any[] }) => {
-  return (
-    <FlashList
-      contentContainerStyle={styles.container}
-      data={data}
-      ListHeaderComponent={ListHeaderComponent}
-      ListFooterComponent={ListFooterComponent}
-      ListEmptyComponent={ListEmptyComponent}
-      renderItem={({ item, index }) => (
-        <CustomComponent item={item} index={index} />
-      )}
-      estimatedItemSize={200}
-    />
-  );
-};
-
-/**
- * ShadowList
- */
-export const ShadowListExample = ({ data }: { data: any[] }) => {
-  const shadowListRef = React.useRef<{
-    scrollToIndex: (options: ScrollToIndexOptions) => void;
-    scrollToOffset: (offset: ScrollToOffsetOptions) => void;
-  }>(null);
+const renderItem: ShadowlistProps['renderItem'] = ({ item }) => {
+  const text = `Lorem Ipsum is simply dummy text of the printing and typesetting
+industry. Lorem Ipsum has been the industry's standard dummy text ever ever
+since the 1500s, when an unknown printer took a galley of type and scrambled
+it to make a type specimen book. It has survived not only five centuries,
+but also the leap into electronic typesetting, remaining essentially
+unchanged. It was popularised in the 1960s with with the release of Letraset
+sheets containing Lorem Ipsum passages, and more recently with desktop
+publishing software like Aldus PageMaker including versions of Lorem Ipsum.`;
 
   return (
-    <ShadowList
-      contentContainerStyle={styles.container}
-      ref={shadowListRef}
-      data={data}
-      ListHeaderComponent={ListHeaderComponent}
-      ListFooterComponent={ListFooterComponent}
-      ListEmptyComponent={ListEmptyComponent}
-      renderItem={({ item, index }) => (
-        <CustomComponent item={item} index={index} />
-      )}
-      horizontal={false}
-      initialScrollIndex={0}
-      onEndReached={(event) => console.log(event.nativeEvent)}
-      onEndReachedThreshold={2}
-      onStartReached={(event) => console.log(event.nativeEvent)}
-      onStartReachedThreshold={2}
-      onVisibleChildrenUpdate={(event) => console.log(event.nativeEvent)}
-    />
+    <Text style={styles.text} key={item}>
+      {item} {text.substring(0, Math.random() * 1000)}
+    </Text>
   );
 };
 
 export default function App() {
-  const [data, setData] = React.useState(Array(100).fill(sample).flat());
-
-  const loadMore = React.useCallback(() => {
-    setData((state) => state.concat(Array(50).fill(sample).flat()));
-  }, []);
+  const ref = useRef<SLContainerRef>(null);
+  const onVisibleChange = useCallback(() => {}, []);
+  const data = Array.from({ length: 1000 }, (_, item) => item);
+  ref.current?.scrollToIndex({ index: 5 });
 
   return (
-    <SafeAreaView style={styles.safeareaview}>
-      <ShadowListExample data={data} />
-
-      <Pressable style={[styles.item, styles.button]} onPress={loadMore}>
-        <Text>Load more</Text>
-      </Pressable>
+    <SafeAreaView style={styles.container}>
+      <Shadowlist
+        ref={ref}
+        renderItem={renderItem}
+        data={data}
+        onVisibleChange={onVisibleChange}
+        ListHeaderComponent={ListHeaderComponent}
+        ListFooterComponent={ListFooterComponent}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeareaview: {
+  container: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  content: {
     flex: 1,
   },
-  container: {
-    backgroundColor: '#74b9ff',
-  },
-  item: {
-    padding: 24,
-    justifyContent: 'center',
-    backgroundColor: '#0984e3',
-    borderBottomColor: '#74b9ff',
-    borderBottomWidth: 1,
-  },
-  header: {
-    backgroundColor: '#0984e390',
-  },
-  footer: {
-    backgroundColor: '#0984e390',
-  },
-  empty: {
-    backgroundColor: '#0984e390',
-  },
-  username: {
-    color: '#ffffff',
-    fontWeight: '600',
-  },
   text: {
-    paddingTop: 12,
-    color: '#ffffff',
-  },
-  button: {
-    backgroundColor: '#0984e390',
+    color: 'white',
+    padding: 16,
+    borderBottomColor: '#333333',
+    borderBottomWidth: 1,
   },
 });

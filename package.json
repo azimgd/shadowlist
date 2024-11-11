@@ -1,12 +1,22 @@
 {
   "name": "shadowlist",
-  "version": "0.4.5",
-  "description": "fast list component for react native",
-  "main": "lib/commonjs/index",
-  "module": "lib/module/index",
-  "types": "lib/typescript/src/index.d.ts",
-  "react-native": "src/index",
-  "source": "src/index",
+  "version": "0.1.0",
+  "description": "60fps, high-performance list for React Native.",
+  "source": "./src/index.tsx",
+  "main": "./lib/commonjs/index.js",
+  "module": "./lib/module/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./lib/typescript/module/src/index.d.ts",
+        "default": "./lib/module/index.js"
+      },
+      "require": {
+        "types": "./lib/typescript/commonjs/src/index.d.ts",
+        "default": "./lib/commonjs/index.js"
+      }
+    }
+  },
   "files": [
     "src",
     "lib",
@@ -14,6 +24,7 @@
     "ios",
     "cpp",
     "*.podspec",
+    "react-native.config.json",
     "!ios/build",
     "!android/build",
     "!android/gradle",
@@ -28,7 +39,7 @@
   "scripts": {
     "example": "yarn workspace shadowlist-example",
     "test": "jest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
@@ -43,7 +54,7 @@
     "type": "git",
     "url": "git+https://github.com/azimgd/shadowlist.git"
   },
-  "author": "azim <me@azimgd.com> (https://github.com/azimgd)",
+  "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/azimgd/shadowlist/issues"
@@ -66,9 +77,9 @@
     "eslint-plugin-prettier": "^5.0.1",
     "jest": "^29.7.0",
     "prettier": "^3.0.3",
-    "react": "18.2.0",
-    "react-native": "0.74.0",
-    "react-native-builder-bob": "^0.20.0",
+    "react": "18.3.1",
+    "react-native": "0.75.4",
+    "react-native-builder-bob": "^0.30.2",
     "release-it": "^15.0.0",
     "turbo": "^1.10.7",
     "typescript": "^5.2.2"
@@ -120,6 +131,7 @@
       "prettier"
     ],
     "rules": {
+      "react/react-in-jsx-scope": "off",
       "prettier/prettier": [
         "error",
         {
@@ -147,19 +159,43 @@
     "source": "src",
     "output": "lib",
     "targets": [
-      "commonjs",
-      "module",
+      "codegen",
+      [
+        "commonjs",
+        {
+          "esm": true
+        }
+      ],
+      [
+        "module",
+        {
+          "esm": true
+        }
+      ],
       [
         "typescript",
         {
-          "project": "tsconfig.build.json"
+          "project": "tsconfig.build.json",
+          "esm": true
         }
       ]
     ]
   },
   "codegenConfig": {
-    "name": "RNShadowListContainerSpec",
-    "type": "components",
-    "jsSrcsDir": "src"
+    "name": "SLContainerSpec",
+    "type": "all",
+    "jsSrcsDir": "src",
+    "outputDir": {
+      "ios": "ios/generated",
+      "android": "android/generated"
+    },
+    "android": {
+      "javaPackageName": "com.shadowlist"
+    },
+    "includesGeneratedCode": false
+  },
+  "create-react-native-library": {
+    "type": "view-new",
+    "version": "0.41.2"
   }
 }

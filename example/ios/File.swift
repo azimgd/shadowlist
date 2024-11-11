@@ -1,6 +1,6 @@
 //
 //  File.swift
-//  ShadowListExample
+//  ShadowlistExample
 //
 
 import Foundation

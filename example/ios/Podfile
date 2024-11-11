@@ -16,7 +16,7 @@ if linkage != nil
   use_frameworks! :linkage => linkage.to_sym
 end
 
-target 'ShadowListExample' do
+target 'ShadowlistExample' do
   config = use_native_modules!
 
   use_react_native!(
@@ -25,9 +25,14 @@ target 'ShadowListExample' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
-  target 'ShadowListExampleTests' do
+  target 'ShadowlistExampleTests' do
     inherit! :complete
     # Pods for testing
+  end
+
+
+  pre_install do |installer|
+    system("cd ../../ && npx bob build --target codegen")
   end
 
   post_install do |installer|
