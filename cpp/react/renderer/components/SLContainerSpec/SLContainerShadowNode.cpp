@@ -58,8 +58,12 @@ SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurements(ConcreteState
 Point SLContainerShadowNode::calculateScrollPosition(ConcreteStateData stateData) {
   auto &props = getConcreteProps();
 
+  if (props.initialScrollIndex == 0) {
+    return stateData.scrollPosition;
+  }
+
   if (props.initialScrollIndex >= stateData.childrenMeasurements.size()) {
-    return Point{0, 0};
+    return stateData.scrollPosition;
   }
 
   if (!props.horizontal && !props.inverted) {
@@ -86,7 +90,7 @@ Point SLContainerShadowNode::calculateScrollPosition(ConcreteStateData stateData
     return Point{position, 0};
   }
 
-  return Point{0, 0};
+  return stateData.scrollPosition;
 }
 
 Size SLContainerShadowNode::calculateScrollContent(ConcreteStateData stateData) {

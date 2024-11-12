@@ -105,10 +105,16 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  if (![self->_scrollable shouldUpdate:scrollView.contentOffset]) {
+  /**
+   * Disable optimization when nearing the end of the list to ensure scrollPosition remains in sync.
+   * Required to prevent content shifts when adding items to the list.
+   */
+  if (
+    [self->_scrollable shouldNotify:scrollView.contentOffset] == 0 &&
+    ![self->_scrollable shouldUpdate:scrollView.contentOffset]) {
     return;
   }
-  
+
   auto stateData = _state->getData();
   int visibleStartIndex = stateData.calculateVisibleStartIndex(
     stateData.getScrollPosition(stateData.scrollPosition)

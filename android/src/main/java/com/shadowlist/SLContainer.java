@@ -50,7 +50,14 @@ public class SLContainer extends ReactViewGroup {
     SwipeRefreshLayout.OnRefreshListener refreshListener = () -> {
     };
     OnScrollChangeListener scrollListenerVertical = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      if (!mScrollable.shouldUpdate(new float[]{scrollX, scrollY})) {
+      /**
+       * Disable optimization when nearing the end of the list to ensure scrollPosition remains in sync.
+       * Required to prevent content shifts when adding items to the list.
+       */
+      if (
+        mScrollable.shouldNotify(new float[]{scrollX, scrollY}) == 0 &&
+        !mScrollable.shouldUpdate(new float[]{scrollX, scrollY})
+      ) {
         return;
       }
 

@@ -8,33 +8,28 @@ import {
   type ShadowlistProps,
   type SLContainerRef,
 } from 'shadowlist';
+import useData from './useData';
 
 const ListHeaderComponent = () => <Text style={styles.text}>Header</Text>;
 const ListFooterComponent = () => <Text style={styles.text}>Footer</Text>;
 
-const renderItem: ShadowlistProps['renderItem'] = ({ item }) => {
-  const text = `Lorem Ipsum is simply dummy text of the printing and typesetting
-industry. Lorem Ipsum has been the industry's standard dummy text ever ever
-since the 1500s, when an unknown printer took a galley of type and scrambled
-it to make a type specimen book. It has survived not only five centuries,
-but also the leap into electronic typesetting, remaining essentially
-unchanged. It was popularised in the 1960s with with the release of Letraset
-sheets containing Lorem Ipsum passages, and more recently with desktop
-publishing software like Aldus PageMaker including versions of Lorem Ipsum.`;
-
+const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
   return (
-    <Text style={styles.text} key={item}>
-      {item} {text.substring(0, Math.random() * 1000)}
+    <Text style={styles.text} key={item.id}>
+      {index} - {item.id} - {item.text}
     </Text>
   );
 };
 
 export default function App() {
+  const data = useData();
   const ref = useRef<SLContainerRef>(null);
   const onEndReached = useCallback<DirectEventHandler<OnEndReached>>(
     (event) => {
       event.nativeEvent.distanceFromEnd;
+      data.load();
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -45,15 +40,12 @@ export default function App() {
     []
   );
 
-  const data = Array.from({ length: 1000 }, (_, item) => item);
-  ref.current?.scrollToIndex({ index: 5 });
-
   return (
     <SafeAreaView style={styles.container}>
       <Shadowlist
         ref={ref}
         renderItem={renderItem}
-        data={data}
+        data={data.data}
         onVisibleChange={onVisibleChange}
         onEndReached={onEndReached}
         ListHeaderComponent={ListHeaderComponent}
