@@ -40,7 +40,16 @@
 
 - (void)mount:(int)visibleStartIndex end:(int)visibleEndIndex
 {
-  self->_childrenRegistry.mountRange(visibleStartIndex, visibleEndIndex);
+  /**
+   * Temporary workaround to ensure proper mounting order.
+   * Currently, -(void)mountChildComponentView is called before -(void)mount in the initial phase.
+   * However, after components are added to the tree (e.g., via setState on the JS side),
+   * the order of operations is reversed. This causes the childrenRegistry to attempt mounting
+   * components before they are actually added to the pool.
+   */
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 16 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+    self->_childrenRegistry.mountRange(visibleStartIndex, visibleEndIndex);
+  });
 }
 
 @end

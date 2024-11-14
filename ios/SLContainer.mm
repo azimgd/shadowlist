@@ -74,9 +74,7 @@ using namespace facebook::react;
   const auto &nextStateData = _state->getData();
   
   int visibleStartIndex = nextStateData.visibleStartIndex;
-  int visibleEndIndex = nextStateData.visibleEndIndex == 0 ?
-    nextStateData.initialNumToRender :
-    nextStateData.visibleEndIndex;
+  int visibleEndIndex = nextStateData.visibleEndIndex;
 
   [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
   [self->_scrollContent setContentSize:RCTCGSizeFromSize(nextStateData.scrollContent)];

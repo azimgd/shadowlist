@@ -152,9 +152,7 @@ public class SLContainer extends ReactViewGroup {
     );
 
     int visibleStartIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_INDEX);
-    int visibleEndIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX) == 0 ?
-      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER) :
-      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX);
+    int visibleEndIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX);
 
     mContainerChildrenManager.mount(
       visibleStartIndex,

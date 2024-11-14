@@ -76,11 +76,12 @@ export const Shadowlist = React.forwardRef(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [props.data, props.renderItem, props.keyExtractor]);
 
+    ListHeaderComponent;
+    ListFooterComponent;
+
     return (
       <SLContainer style={props.style} ref={ref} {...props}>
-        {ListHeaderComponent}
         {props.data.length ? ListChildrenComponent : ListEmptyComponent}
-        {ListFooterComponent}
       </SLContainer>
     );
   }

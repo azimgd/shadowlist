@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import { faker } from '@faker-js/faker';
 
 const initialState = () =>
-  Array.from({ length: 50 }, () => ({
+  Array.from({ length: 100 }, () => ({
     id: faker.database.mongodbObjectId(),
     text: faker.lorem.paragraph(),
   }));

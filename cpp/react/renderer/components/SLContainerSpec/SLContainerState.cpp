@@ -86,13 +86,15 @@ MapBuffer SLContainerState::getMapBuffer() const {
 int SLContainerState::calculateVisibleStartIndex(const float visibleStartOffset, const int offset) const {
   int visibleStartIndex = childrenMeasurements.lower_bound(visibleStartOffset);
   int visibleEndIndexMin = 0;
-  return std::max(visibleStartIndex - offset, visibleEndIndexMin);
+  int adjusted = std::max(visibleStartIndex - offset, visibleEndIndexMin);
+  return adjusted;
 }
 
 int SLContainerState::calculateVisibleEndIndex(const float visibleStartOffset, const int offset) const {
   int visibleEndIndex = childrenMeasurements.lower_bound(visibleStartOffset + scrollContainer.height);
   int visibleEndIndexMax = childrenMeasurements.size();
-  return std::min(visibleEndIndex + offset, visibleEndIndexMax);
+  int adjusted = std::min(visibleEndIndex + offset, visibleEndIndexMax);
+  return adjusted == 0 ? initialNumToRender : adjusted;
 }
 
 float SLContainerState::calculateVisibleStartTrigger(const float visibleStartOffset) const {
