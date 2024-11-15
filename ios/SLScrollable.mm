@@ -69,20 +69,42 @@
   return true;
 }
 
-- (int)shouldNotify:(CGPoint)contentOffset
+- (int)checkNotifyStart:(CGPoint)contentOffset
 {
-  if (self->_inverted) {
-    if (self->_horizontal && contentOffset.x < self->_scrollContainerWidth) {
-      return contentOffset.x;
-    } else if (!self->_horizontal && contentOffset.y < self->_scrollContainerHeight) {
-      return contentOffset.y;
-    }
+  if (self->_horizontal && contentOffset.x < self->_scrollContainerWidth) {
+    return contentOffset.x;
+  } else if (!self->_horizontal && contentOffset.y < self->_scrollContainerHeight) {
+    return contentOffset.y;
+  }
+  return 0;
+}
+
+- (int)checkNotifyEnd:(CGPoint)contentOffset
+{
+  if (self->_horizontal && contentOffset.x > self->_scrollContentWidth - self->_scrollContainerWidth) {
+    return ABS(self->_scrollContentWidth - contentOffset.x);
+  } else if (!self->_horizontal && contentOffset.y > self->_scrollContentHeight - self->_scrollContainerHeight) {
+    return ABS(self->_scrollContentHeight - contentOffset.y);
+  }
+  return 0;
+}
+
+- (int)shouldNotifyStart:(CGPoint)contentOffset
+{
+  if (!self->_inverted) {
+    return [self checkNotifyStart:contentOffset];
   } else {
-    if (self->_horizontal && contentOffset.x > self->_scrollContentWidth - self->_scrollContainerWidth) {
-      return ABS(self->_scrollContentWidth - contentOffset.x);
-    } else if (!self->_horizontal && contentOffset.y > self->_scrollContentHeight - self->_scrollContainerHeight) {
-      return ABS(self->_scrollContentHeight - contentOffset.y);
-    }
+    return [self checkNotifyEnd:contentOffset];
+  }
+  return 0;
+}
+
+- (int)shouldNotifyEnd:(CGPoint)contentOffset
+{
+  if (!self->_inverted) {
+    return [self checkNotifyEnd:contentOffset];
+  } else {
+    return [self checkNotifyStart:contentOffset];
   }
   return 0;
 }

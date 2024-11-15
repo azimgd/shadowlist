@@ -21,6 +21,10 @@ export type OnVisibleChange = {
   visibleEndIndex: Int32;
 };
 
+export type OnStartReached = {
+  distanceFromStart: Int32;
+};
+
 export type OnEndReached = {
   distanceFromEnd: Int32;
 };
@@ -31,6 +35,7 @@ export interface SLContainerNativeProps extends ViewProps {
   initialNumToRender?: Int32;
   initialScrollIndex?: Int32;
   onVisibleChange?: DirectEventHandler<Readonly<OnVisibleChange>>;
+  onStartReached?: DirectEventHandler<Readonly<OnStartReached>>;
   onEndReached?: DirectEventHandler<Readonly<OnEndReached>>;
 }
 

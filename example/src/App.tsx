@@ -3,6 +3,7 @@ import { SafeAreaView, StyleSheet, Text } from 'react-native';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
 import {
   Shadowlist,
+  type OnStartReached,
   type OnEndReached,
   type OnVisibleChange,
   type ShadowlistProps,
@@ -24,12 +25,21 @@ const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
 };
 
 export default function App() {
-  const data = useData({ length: 10, inverted: IS_INVERTED });
+  const data = useData({ length: 20, inverted: IS_INVERTED });
   const ref = useRef<SLContainerRef>(null);
+  const onStartReached = useCallback<DirectEventHandler<OnStartReached>>(
+    (event) => {
+      !IS_INVERTED ? data.loadPrepend() : data.loadAppend();
+      console.debug('onStartReached', event.nativeEvent.distanceFromStart);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   const onEndReached = useCallback<DirectEventHandler<OnEndReached>>(
     (event) => {
-      event.nativeEvent.distanceFromEnd;
-      data.load();
+      !IS_INVERTED ? data.loadAppend() : data.loadPrepend();
+      console.debug('onEndReached', event.nativeEvent.distanceFromEnd);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -50,6 +60,7 @@ export default function App() {
         data={data.data}
         onVisibleChange={onVisibleChange}
         onEndReached={onEndReached}
+        onStartReached={onStartReached}
         ListHeaderComponent={ListHeaderComponent}
         ListFooterComponent={ListFooterComponent}
         inverted={IS_INVERTED}

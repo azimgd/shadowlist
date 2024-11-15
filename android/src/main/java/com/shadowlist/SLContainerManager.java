@@ -40,6 +40,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   private final ViewManagerDelegate<SLContainer> mDelegate;
   private OnVisibleChangeHandler mVisibleChangeHandler = null;
+  private OnStartReachedHandler mStartReachedHandler = null;
   private OnEndReachedHandler mEndReachedHandler = null;
 
   public interface OnVisibleChangeHandler {
@@ -47,6 +48,9 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   }
   public interface OnEndReachedHandler {
     void onEndReached(SLContainer view, int distanceFromEnd);
+  }
+  public interface OnStartReachedHandler {
+    void onStartReached(SLContainer view, int distanceFromStart);
   }
 
   public SLContainerManager() {
@@ -68,6 +72,9 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     super.addEventEmitters(reactContext, view);
     setOnVisibleChangeHandler((containerView, visibleStartIndex, visibleEndIndex) ->
       mVisibleChangeHandler.onVisibleChange(containerView, visibleStartIndex, visibleEndIndex)
+    );
+    setOnStartReachedHandler((containerView, distanceFromStart) ->
+      mStartReachedHandler.onStartReached(containerView, distanceFromStart)
     );
     setOnEndReachedHandler((containerView, distanceFromEnd) ->
       mEndReachedHandler.onEndReached(containerView, distanceFromEnd)
@@ -110,6 +117,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public Map getExportedCustomDirectEventTypeConstants() {
     return MapBuilder.of(
       "onVisibleChange", MapBuilder.of("registrationName", "onVisibleChange"),
+      "onStartReached", MapBuilder.of("registrationName", "onStartReached"),
       "onEndReached", MapBuilder.of("registrationName", "onEndReached")
     );
   }
@@ -119,6 +127,14 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, view.getId());
     eventDispatcher.dispatchEvent(
       new OnVisibleChangeEvent(UIManagerHelper.getSurfaceId(view), view.getId(), visibleStartIndex, visibleEndIndex)
+    );
+  }
+
+  private void handleStartReached(SLContainer view, int distanceFromStart) {
+    ReactContext reactContext = (ReactContext) view.getContext();
+    EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, view.getId());
+    eventDispatcher.dispatchEvent(
+      new OnStartReachedEvent(UIManagerHelper.getSurfaceId(view), view.getId(), distanceFromStart)
     );
   }
 
@@ -132,6 +148,10 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   public void setOnVisibleChangeHandler(OnVisibleChangeHandler handler) {
     mVisibleChangeHandler = handler;
+  }
+
+  public void setOnStartReachedHandler(OnStartReachedHandler handler) {
+    mStartReachedHandler = handler;
   }
 
   public void setOnEndReachedHandler(OnEndReachedHandler handler) {

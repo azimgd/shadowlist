@@ -27,13 +27,13 @@ public class SLScrollable {
   }
 
   public void updateState(boolean horizontal,
-                          boolean inverted,
-                          float visibleStartTrigger,
-                          float visibleEndTrigger,
-                          float scrollContainerWidth,
-                          float scrollContainerHeight,
-                          float scrollContentWidth,
-                          float scrollContentHeight) {
+    boolean inverted,
+    float visibleStartTrigger,
+    float visibleEndTrigger,
+    float scrollContainerWidth,
+    float scrollContainerHeight,
+    float scrollContentWidth,
+    float scrollContentHeight) {
     this.mHorizontal = horizontal;
     this.mInverted = inverted;
     this.mVisibleStartTrigger = visibleStartTrigger;
@@ -67,13 +67,38 @@ public class SLScrollable {
     }
   }
 
-  public int shouldNotify(float[] contentOffset) {
-    if (mHorizontal && contentOffset[0] > mScrollContentWidth - mScrollContainerWidth) {
-      return Math.abs((int)(mScrollContentWidth - contentOffset[0]));
-    } else if (!mHorizontal && contentOffset[1] > mScrollContentHeight - mScrollContainerHeight) {
-      return Math.abs((int)(mScrollContentHeight - contentOffset[1]));
+  public int checkNotifyStart(float[] contentOffset) {
+    if (mHorizontal && contentOffset[0] < mScrollContainerWidth) {
+      return (int) contentOffset[0];
+    } else if (!mHorizontal && contentOffset[1] < mScrollContainerHeight) {
+      return (int) contentOffset[1];
     }
     return 0;
+  }
+
+  public int checkNotifyEnd(float[] contentOffset) {
+    if (mHorizontal && contentOffset[0] > mScrollContentWidth - mScrollContainerWidth) {
+      return Math.abs((int) (mScrollContentWidth - contentOffset[0]));
+    } else if (!mHorizontal && contentOffset[1] > mScrollContentHeight - mScrollContainerHeight) {
+      return Math.abs((int) (mScrollContentHeight - contentOffset[1]));
+    }
+    return 0;
+  }
+
+  public int shouldNotifyStart(float[] contentOffset) {
+    if (!mInverted) {
+      return checkNotifyStart(contentOffset);
+    } else {
+      return checkNotifyEnd(contentOffset);
+    }
+  }
+
+  public int shouldNotifyEnd(float[] contentOffset) {
+    if (!mInverted) {
+      return checkNotifyEnd(contentOffset);
+    } else {
+      return checkNotifyStart(contentOffset);
+    }
   }
 
   private int scrollDirectionVertical(float[] contentOffset) {

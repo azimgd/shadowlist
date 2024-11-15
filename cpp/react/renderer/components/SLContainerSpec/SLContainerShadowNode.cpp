@@ -1,4 +1,5 @@
 #include "SLContainerShadowNode.h"
+#include <iostream>
 
 #define MEASURE_CHILDREN(childrenMeasurements, childNodeMetrics, isHorizontal) \
   if (isHorizontal) { \
@@ -68,22 +69,40 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
 
   float verticalPosition;
   float horizontalPosition;
-  
+
   if (props.inverted) {
     if (props.horizontal) {
-      horizontalPosition = nextStateData.scrollContent.width - prevStateData.scrollContent.width + nextStateData.scrollPosition.x;
+      if (prevStateData.scrollContainer.width < nextStateData.scrollPosition.x) {
+        horizontalPosition = nextStateData.scrollPosition.x;
+      } else {
+        horizontalPosition = nextStateData.scrollContent.width - prevStateData.scrollContent.width + nextStateData.scrollPosition.x;
+      }
       verticalPosition = 0;
     } else {
       horizontalPosition = 0;
-      verticalPosition = nextStateData.scrollContent.height - prevStateData.scrollContent.height + nextStateData.scrollPosition.y;
+
+      if (prevStateData.scrollContainer.height < nextStateData.scrollPosition.y) {
+        verticalPosition = nextStateData.scrollPosition.y;
+      } else {
+        verticalPosition = nextStateData.scrollContent.height - prevStateData.scrollContent.height + nextStateData.scrollPosition.y;
+      }
     }
   } else {
     if (props.horizontal) {
-      horizontalPosition = nextStateData.scrollPosition.x;
+      if (prevStateData.scrollContainer.width < nextStateData.scrollPosition.x) {
+        horizontalPosition = nextStateData.scrollPosition.x;
+      } else {
+        horizontalPosition = nextStateData.scrollContent.width - prevStateData.scrollContent.width + nextStateData.scrollPosition.x;
+      }
       verticalPosition = 0;
     } else {
       horizontalPosition = 0;
-      verticalPosition = nextStateData.scrollPosition.y;
+
+      if (prevStateData.scrollContainer.height < nextStateData.scrollPosition.y) {
+        verticalPosition = nextStateData.scrollPosition.y;
+      } else {
+        verticalPosition = nextStateData.scrollContent.height - prevStateData.scrollContent.height + nextStateData.scrollPosition.y;
+      }
     }
   }
 

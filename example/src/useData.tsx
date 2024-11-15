@@ -7,31 +7,35 @@ const initialState = (length: number) =>
     text: faker.lorem.paragraph(),
   }));
 
-const useData = ({
-  length,
-  inverted,
-}: {
-  length: number;
-  inverted: boolean;
-}) => {
+const useData = ({ length }: { length: number; inverted?: boolean }) => {
   const loading = useRef(false);
   const [data, setData] = useState(initialState(length));
 
-  const load = () => {
+  const loadPrepend = () => {
     if (loading.current) return;
 
     setTimeout(() => {
       setData((state) => {
         loading.current = false;
-        return !inverted
-          ? [...state, ...initialState(length)]
-          : [...initialState(length), ...state];
+        return [...initialState(length), ...state];
       });
-    }, 1000);
+    }, 3000);
     loading.current = true;
   };
 
-  return { data: data, load };
+  const loadAppend = () => {
+    if (loading.current) return;
+
+    setTimeout(() => {
+      setData((state) => {
+        loading.current = false;
+        return [...state, ...initialState(length)];
+      });
+    }, 3000);
+    loading.current = true;
+  };
+
+  return { data: data, loadPrepend, loadAppend };
 };
 
 export default useData;

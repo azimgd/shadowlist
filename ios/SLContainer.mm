@@ -97,7 +97,12 @@ using namespace facebook::react;
   const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
   eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
   
-  int distanceFromEnd = [self->_scrollable shouldNotify:RCTCGPointFromPoint(nextStateData.scrollPosition)];
+  int distanceFromStart = [self->_scrollable shouldNotifyStart:RCTCGPointFromPoint(nextStateData.scrollPosition)];
+  if (distanceFromStart) {
+    eventEmitter.onStartReached({distanceFromStart});
+  }
+  
+  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:RCTCGPointFromPoint(nextStateData.scrollPosition)];
   if (distanceFromEnd) {
     eventEmitter.onEndReached({distanceFromEnd});
   }
@@ -110,7 +115,8 @@ using namespace facebook::react;
    * Required to prevent content shifts when adding items to the list.
    */
   if (
-    [self->_scrollable shouldNotify:scrollView.contentOffset] == 0 &&
+    [self->_scrollable shouldNotifyStart:scrollView.contentOffset] == 0 &&
+    [self->_scrollable shouldNotifyEnd:scrollView.contentOffset] == 0 &&
     ![self->_scrollable shouldUpdate:scrollView.contentOffset]) {
     return;
   }

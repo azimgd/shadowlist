@@ -9,6 +9,9 @@ struct OnVisibleChange {
   int visibleStartIndex;
   int visibleEndIndex;
 };
+struct OnStartReached {
+  int distanceFromStart;
+};
 struct OnEndReached {
   int distanceFromEnd;
 };
@@ -18,6 +21,7 @@ class SLContainerEventEmitter : public ViewEventEmitter {
   using ViewEventEmitter::ViewEventEmitter;
   
   void onVisibleChange(OnVisibleChange value) const;
+  void onStartReached(OnStartReached value) const;
   void onEndReached(OnEndReached value) const;
 };
 }

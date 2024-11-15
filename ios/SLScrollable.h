@@ -16,7 +16,10 @@
   scrollContentWidth:(float)scrollContainerWidth
   scrollContentHeight:(float)scrollContainerHeight;
 - (bool)shouldUpdate:(CGPoint)contentOffset;
-- (int)shouldNotify:(CGPoint)contentOffset;
+- (int)checkNotifyStart:(CGPoint)contentOffset;
+- (int)checkNotifyEnd:(CGPoint)contentOffset;
+- (int)shouldNotifyStart:(CGPoint)contentOffset;
+- (int)shouldNotifyEnd:(CGPoint)contentOffset;
 - (int)scrollDirectionHorizontal:(CGPoint)contentOffset;
 - (int)scrollDirectionVertical:(CGPoint)contentOffset;
 
