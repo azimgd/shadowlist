@@ -10,19 +10,21 @@ import {
 } from 'shadowlist';
 import useData from './useData';
 
+const IS_INVERTED = true;
+
 const ListHeaderComponent = () => <Text style={styles.text}>Header</Text>;
 const ListFooterComponent = () => <Text style={styles.text}>Footer</Text>;
 
 const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
   return (
-    <Text style={styles.text} key={item.id}>
+    <Text style={styles.text} key={index}>
       {index} - {item.id} - {item.text}
     </Text>
   );
 };
 
 export default function App() {
-  const data = useData();
+  const data = useData({ length: 10, inverted: IS_INVERTED });
   const ref = useRef<SLContainerRef>(null);
   const onEndReached = useCallback<DirectEventHandler<OnEndReached>>(
     (event) => {
@@ -50,6 +52,7 @@ export default function App() {
         onEndReached={onEndReached}
         ListHeaderComponent={ListHeaderComponent}
         ListFooterComponent={ListFooterComponent}
+        inverted={IS_INVERTED}
       />
     </SafeAreaView>
   );

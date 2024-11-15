@@ -143,6 +143,7 @@ public class SLContainer extends ReactViewGroup {
 
     mScrollable.updateState(
       stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_HORIZONTAL),
+      false,
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_TRIGGER),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_TRIGGER),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),

@@ -8,6 +8,7 @@
 @interface SLScrollable : NSObject
 
 - (void)updateState:(bool)horizontal
+  inverted:(bool)inverted
   visibleStartTrigger:(float)visibleStartTrigger
   visibleEndTrigger:(float)visibleEndTrigger
   scrollContainerWidth:(float)scrollContainerWidth

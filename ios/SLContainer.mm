@@ -62,7 +62,7 @@ using namespace facebook::react;
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
-  const auto &prevViewProps = *std::static_pointer_cast<SLContainerProps const>(_props);
+  const auto &prevViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
   const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(props);
 
   [super updateProps:props oldProps:oldProps];
@@ -72,7 +72,8 @@ using namespace facebook::react;
 {
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
   const auto &nextStateData = _state->getData();
-  
+  const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
+
   int visibleStartIndex = nextStateData.visibleStartIndex;
   int visibleEndIndex = nextStateData.visibleEndIndex;
 
@@ -81,6 +82,7 @@ using namespace facebook::react;
   [self->_scrollContent setContentOffset:RCTCGPointFromPoint(nextStateData.scrollPosition)];
 
   [self->_scrollable updateState:nextStateData.horizontal
+    inverted:nextViewProps.inverted
     visibleStartTrigger:nextStateData.calculateVisibleStartTrigger(
       nextStateData.getScrollPosition(nextStateData.scrollPosition)
     )

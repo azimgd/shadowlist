@@ -2,6 +2,7 @@ package com.shadowlist;
 
 public class SLScrollable {
   private boolean mHorizontal;
+  private boolean mInverted;
   private float mScrollContainerWidth;
   private float mScrollContainerHeight;
   private float mScrollContentWidth;
@@ -26,6 +27,7 @@ public class SLScrollable {
   }
 
   public void updateState(boolean horizontal,
+                          boolean inverted,
                           float visibleStartTrigger,
                           float visibleEndTrigger,
                           float scrollContainerWidth,
@@ -33,6 +35,7 @@ public class SLScrollable {
                           float scrollContentWidth,
                           float scrollContentHeight) {
     this.mHorizontal = horizontal;
+    this.mInverted = inverted;
     this.mVisibleStartTrigger = visibleStartTrigger;
     this.mVisibleEndTrigger = visibleEndTrigger;
     this.mScrollContainerWidth = scrollContainerWidth;
