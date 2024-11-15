@@ -5,6 +5,7 @@ import type {
   SLContainerNativeCommands,
   SLContainerNativeProps,
 } from './SLContainerNativeComponent';
+import SLElementNativeComponent from './SLElementNativeComponent';
 
 type Component = React.ComponentType<any> | null | undefined;
 
@@ -72,7 +73,11 @@ export const Shadowlist = React.forwardRef(
      * ListChildrenComponent
      */
     const ListChildrenComponent = React.useMemo(() => {
-      return props.data.map((item, index) => props.renderItem({ item, index }));
+      return props.data.map((item, index) => (
+        <SLElementNativeComponent index={index} key={index}>
+          {props.renderItem({ item, index })}
+        </SLElementNativeComponent>
+      ));
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [props.data, props.renderItem, props.keyExtractor]);
 
