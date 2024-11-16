@@ -12,6 +12,7 @@ import {
 import useData from './useData';
 
 const IS_INVERTED = true;
+const IS_HORIZONTAL = false;
 
 const ListHeaderComponent = () => <Text style={styles.text}>Header</Text>;
 const ListFooterComponent = () => <Text style={styles.text}>Footer</Text>;
@@ -64,6 +65,7 @@ export default function App() {
         ListHeaderComponent={ListHeaderComponent}
         ListFooterComponent={ListFooterComponent}
         inverted={IS_INVERTED}
+        horizontal={IS_HORIZONTAL}
       />
     </SafeAreaView>
   );

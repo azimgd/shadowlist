@@ -53,7 +53,7 @@ public class SLScrollable {
     }
 
     if (mHorizontal) {
-      if (scrollDirectionHorizontal(contentOffset) == SCROLLING_LEFT) {
+      if (scrollDirectionHorizontal(contentOffset) == SCROLLING_RIGHT) {
         return mVisibleEndTrigger >= (contentOffset[0] + mScrollContainerWidth);
       } else {
         return mVisibleStartTrigger <= contentOffset[0];

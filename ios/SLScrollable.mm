@@ -46,7 +46,7 @@
   }
 
   if (self->_horizontal) {
-    if ([self scrollDirectionHorizontal:contentOffset] == SCROLLING_LEFT) {
+    if ([self scrollDirectionHorizontal:contentOffset] == SCROLLING_RIGHT) {
       if (self->_visibleEndTrigger >= contentOffset.x + self->_scrollContainerWidth) {
         return false;
       }
