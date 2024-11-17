@@ -2,4 +2,6 @@
 
 namespace facebook::react {
 
+extern const char SLElementComponentName[] = "SLElement";
+
 }
