@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView, StyleSheet, Text } from 'react-native';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
 import {
   Shadowlist,
@@ -10,21 +10,16 @@ import {
   type SLContainerRef,
 } from 'shadowlist';
 import useData from './useData';
+import Element from './Element';
 
-const IS_INVERTED = true;
+const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
 
 const ListHeaderComponent = () => <Text style={styles.text}>Header</Text>;
 const ListFooterComponent = () => <Text style={styles.text}>Footer</Text>;
 
 const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
-  return (
-    <View style={styles.element}>
-      <Text style={styles.text}>
-        {index} - {item.id} - {item.text}
-      </Text>
-    </View>
-  );
+  return <Element item={item} index={index} />;
 };
 
 export default function App() {
@@ -61,6 +56,7 @@ export default function App() {
         ref={ref}
         renderItem={renderItem}
         data={data.data}
+        keyExtractor={(item) => item.id}
         onVisibleChange={onVisibleChange}
         onEndReached={onEndReached}
         onStartReached={onStartReached}
@@ -76,17 +72,9 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'black',
-  },
-  content: {
-    flex: 1,
+    backgroundColor: '#333333',
   },
   text: {
-    color: 'white',
-  },
-  element: {
-    padding: 16,
-    borderBottomColor: '#333333',
-    borderBottomWidth: 1,
+    color: '#333333',
   },
 });
