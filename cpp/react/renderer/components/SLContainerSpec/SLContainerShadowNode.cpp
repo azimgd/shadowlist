@@ -1,5 +1,4 @@
 #include "SLContainerShadowNode.h"
-#include <iostream>
 
 #define MEASURE_CHILDREN(childrenMeasurements, childNodeMetrics, isHorizontal) \
   if (isHorizontal) { \
@@ -66,6 +65,7 @@ SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurements(const Concret
 
 Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
+  bool isFirstRender = prevStateData.childrenMeasurements.size() == 0 && nextStateData.childrenMeasurements.size() > 0;
 
   float verticalPosition;
   float horizontalPosition;
@@ -95,6 +95,10 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
         horizontalPosition = nextStateData.scrollContent.width - prevStateData.scrollContent.width + nextStateData.scrollPosition.x;
       }
       verticalPosition = 0;
+      
+      if (isFirstRender) {
+        horizontalPosition = 0;
+      }
     } else {
       horizontalPosition = 0;
 
@@ -102,6 +106,10 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
         verticalPosition = nextStateData.scrollPosition.y;
       } else {
         verticalPosition = nextStateData.scrollContent.height - prevStateData.scrollContent.height + nextStateData.scrollPosition.y;
+      }
+      
+      if (isFirstRender) {
+        verticalPosition = 0;
       }
     }
   }
