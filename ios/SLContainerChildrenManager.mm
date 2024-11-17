@@ -3,14 +3,14 @@
 @implementation SLContainerChildrenManager {
   UIView *_scrollContent;
   SLComponentRegistry _childrenRegistry;
-  NSMutableDictionary<NSNumber *, UIView<RCTComponentViewProtocol> *> *_childrenPool;
+  NSMutableDictionary<NSString *, UIView<RCTComponentViewProtocol> *> *_childrenPool;
 }
 
 - (instancetype)initWithContentView:(UIView *)contentView {
   if (self = [super init]) {
     _childrenRegistry = SLComponentRegistry();
-    _childrenRegistry.mountObserver([self](int index, bool isVisible) {
-      [self mountObserver:index isVisible:isVisible];
+    _childrenRegistry.mountObserver([self](std::string uniqueId, int index, bool isVisible) {
+      [self mountObserver:uniqueId index:index isVisible:isVisible];
     });
     _childrenPool = [NSMutableDictionary dictionary];
     _scrollContent = contentView;
@@ -18,24 +18,26 @@
   return self;
 }
 
-- (void)mountObserver:(int)index isVisible:(bool)isVisible {
+- (void)mountObserver:(std::string)uniqueId index:(int)index isVisible:(bool)isVisible {
+  auto childComponent = [_childrenPool objectForKey:[NSString stringWithUTF8String:uniqueId.c_str()]];
+
   if (isVisible) {
-    [_scrollContent insertSubview:[_childrenPool objectForKey:@(index)] atIndex:index];
+    [_scrollContent insertSubview:childComponent atIndex:index];
   } else {
-    [[_childrenPool objectForKey:@(index)] removeFromSuperview];
+    [childComponent removeFromSuperview];
   }
 }
 
-- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView uniqueId:(NSString *)uniqueId index:(NSInteger)index
 {
-  [self->_childrenPool setObject:childComponentView forKey:@(index)];
-  self->_childrenRegistry.registerComponent(index);
+  [self->_childrenPool setObject:childComponentView forKey:uniqueId];
+  self->_childrenRegistry.registerComponent([uniqueId UTF8String], index);
 }
 
-- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView uniqueId:(NSString *)uniqueId index:(NSInteger)index
 {
-  self->_childrenRegistry.unregisterComponent(index);
-  [self->_childrenPool removeObjectForKey:@(index)];
+  self->_childrenRegistry.unregisterComponent([uniqueId UTF8String], index);
+  [self->_childrenPool removeObjectForKey:uniqueId];
 }
 
 - (void)mount:(int)visibleStartIndex end:(int)visibleEndIndex

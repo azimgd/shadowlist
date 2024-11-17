@@ -10,15 +10,15 @@ JNIEXPORT jlong JNICALL Java_com_shadowlist_SLComponentRegistry_nativeInit(JNIEn
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeRegisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jint componentId) {
+JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeRegisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jint index) {
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
-  registry->registerComponent(componentId);
+  registry->registerComponent(index);
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnregisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jint componentId) {
+JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnregisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jint index) {
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
-  registry->unregisterComponent(componentId);
+  registry->unregisterComponent(index);
 }
 
 extern "C"

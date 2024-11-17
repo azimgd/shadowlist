@@ -6,6 +6,7 @@
 #import "SLContainerHelpers.h"
 #import "SLContainerChildrenManager.h"
 #import "SLScrollable.h"
+#import "SLElementProps.h"
 
 #import <React/RCTFabricComponentsPlugins.h>
 #import <React/RCTConversions.h>
@@ -52,12 +53,16 @@ using namespace facebook::react;
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self->_containerChildrenManager mountChildComponentView:childComponentView index:index];
+  const auto &nextViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
+  const auto uniqueId = [NSString stringWithUTF8String:nextViewProps.uniqueId.c_str()];
+  [self->_containerChildrenManager mountChildComponentView:childComponentView uniqueId:uniqueId index:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [self->_containerChildrenManager unmountChildComponentView:childComponentView index:index];
+  const auto &nextViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
+  const auto uniqueId = [NSString stringWithUTF8String:nextViewProps.uniqueId.c_str()];
+  [self->_containerChildrenManager unmountChildComponentView:childComponentView uniqueId:uniqueId index:index];
 }
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps

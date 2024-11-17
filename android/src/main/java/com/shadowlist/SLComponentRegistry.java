@@ -12,8 +12,8 @@ public class SLComponentRegistry {
   }
 
   private native long nativeInit();
-  private native void nativeRegisterComponent(long nativePtr, int componentId);
-  private native void nativeUnregisterComponent(long nativePtr, int componentId);
+  private native void nativeRegisterComponent(long nativePtr, int index);
+  private native void nativeUnregisterComponent(long nativePtr, int index);
   private native void nativeMountRange(long nativePtr, int visibleStartIndex, int visibleEndIndex);
   private native void nativeMount(long nativePtr, int[] indices);
   private native void nativeUnmount(long nativePtr, int[] indices);
@@ -25,12 +25,12 @@ public class SLComponentRegistry {
     void onVisibilityChanged(int id, boolean isVisible);
   }
 
-  public void registerComponent(int componentId) {
-    nativeRegisterComponent(mNativePtr, componentId);
+  public void registerComponent(int index) {
+    nativeRegisterComponent(mNativePtr, index);
   }
 
-  public void unregisterComponent(int componentId) {
-    nativeUnregisterComponent(mNativePtr, componentId);
+  public void unregisterComponent(int index) {
+    nativeUnregisterComponent(mNativePtr, index);
   }
 
   public void mountRange(int visibleStartIndex, int visibleEndIndex) {

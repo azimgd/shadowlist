@@ -3,7 +3,8 @@ import type { ViewProps } from 'react-native';
 import type { Int32 } from 'react-native/Libraries/Types/CodegenTypes';
 
 export interface SLElementNativeProps extends ViewProps {
-  index?: Int32;
+  index: Int32;
+  uniqueId: string;
 }
 
 export default codegenNativeComponent<SLElementNativeProps>('SLElement', {

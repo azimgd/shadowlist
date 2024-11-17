@@ -9,8 +9,8 @@
 @interface SLContainerChildrenManager : NSObject
 
 - (instancetype)initWithContentView:(UIView *)contentView;
-- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index;
-- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index;
+- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView uniqueId:(NSString *)uniqueId index:(NSInteger)index;
+- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView uniqueId:(NSString *)uniqueId index:(NSInteger)index;
 - (void)mount:(int)visibleStartIndex end:(int)visibleEndIndex;
 
 @end

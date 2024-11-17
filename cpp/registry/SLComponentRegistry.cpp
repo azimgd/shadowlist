@@ -1,7 +1,11 @@
 #include "SLComponentRegistry.h"
 
-int SLComponent::getComponentId() const {
-  return componentId;
+int SLComponent::getIndex() const {
+  return index;
+}
+
+std::string SLComponent::getUniqueId() const {
+  return uniqueId;
 }
 
 bool SLComponent::getVisible() const {
@@ -14,14 +18,14 @@ void SLComponent::setVisible(bool visible) {
 
 SLComponentRegistry::SLComponentRegistry() {}
 
-void SLComponentRegistry::registerComponent(int componentId) {
-  components.emplace(componentId, SLComponent{componentId});
+void SLComponentRegistry::registerComponent(std::string uniqueId, int index) {
+  components.emplace(index, SLComponent{uniqueId, index});
 }
 
-void SLComponentRegistry::unregisterComponent(int componentId) {
-  auto componentIter = components.find(componentId);
+void SLComponentRegistry::unregisterComponent(std::string uniqueId, int index) {
+  auto componentIter = components.find(index);
   if (componentIter != components.end()) {
-    notifyObservers({componentIter->second.getComponentId()}, false);
+    notifyObservers({componentIter->second}, false);
     components.erase(componentIter);
   }
 }
@@ -32,25 +36,25 @@ void SLComponentRegistry::mountRange(int visibleStartIndex, int visibleEndIndex)
   mount(indices);
 }
 
-void SLComponentRegistry::mount(const std::vector<int>& indices) {
+void SLComponentRegistry::mount(const std::vector<int> &indices) {
   std::unordered_set<int> componentSet(indices.begin(), indices.end());
-  for (auto& componentPair : components) {
-    SLComponent& component = componentPair.second;
-    int componentId = component.getComponentId();
-    bool nextVisible = componentSet.count(componentId) > 0;
+  for (auto &componentPair : components) {
+    SLComponent &component = componentPair.second;
+    int index = component.getIndex();
+    bool nextVisible = componentSet.count(index) > 0;
     if (component.getVisible() != nextVisible) {
       component.setVisible(nextVisible);
-      notifyObservers({componentId}, nextVisible);
+      notifyObservers({component}, nextVisible);
     }
   }
 }
 
-void SLComponentRegistry::unmount(const std::vector<int>& indices) {
-  for (int componentId : indices) {
-    auto componentIter = components.find(componentId);
+void SLComponentRegistry::unmount(const std::vector<int> &indices) {
+  for (int index : indices) {
+    auto componentIter = components.find(index);
     if (componentIter != components.end()) {
       componentIter->second.setVisible(false);
-      notifyObservers({componentIter->first}, false);
+      notifyObservers({componentIter->second}, false);
     }
   }
 }
@@ -62,31 +66,33 @@ void SLComponentRegistry::mountObserver(const SLObserver &observer) {
 void SLComponentRegistry::unmountObserver(const SLObserver &observer) {
   observers.erase(
     std::remove_if(observers.begin(), observers.end(),
-      [&observer](const SLObserver& obs) {
+      [&observer](const SLObserver &obs) {
         return obs.target<void(int, bool)>() == observer.target<void(int, bool)>();
       }),
     observers.end());
 }
 
-void SLComponentRegistry::notifyObservers(const std::unordered_set<int>& updatedComponents, bool isVisible) {
-  for (int componentId : updatedComponents) {
-    for (const auto& observerFunction : observers) {
-      observerFunction(componentId, isVisible);
+void SLComponentRegistry::notifyObservers(const std::unordered_set<SLComponent> &updatedComponents, bool isVisible) {
+  for (const SLComponent &component : updatedComponents) {
+    for (const auto &observerFunction : observers) {
+      observerFunction(component.getUniqueId(), component.getIndex(), isVisible);
     }
   }
 }
 
-void SLComponentRegistry::updateVisibility(const std::vector<int>& indices, bool visible) {
-  std::unordered_set<int> updatedComponents;
-  for (int componentId : indices) {
-    auto componentIter = components.find(componentId);
+void SLComponentRegistry::updateVisibility(const std::vector<int> &indices, bool visible) {
+  std::unordered_set<SLComponent> updatedComponents;
+
+  for (int index : indices) {
+    auto componentIter = components.find(index);
     if (componentIter != components.end()) {
-      SLComponent& component = componentIter->second;
+      SLComponent &component = componentIter->second;
       if (component.getVisible() != visible) {
         component.setVisible(visible);
-        updatedComponents.insert(component.getComponentId());
+        updatedComponents.insert(component);
       }
     }
   }
+
   notifyObservers(updatedComponents, visible);
 }
