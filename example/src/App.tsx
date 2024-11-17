@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import { SafeAreaView, StyleSheet, Text } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
 import {
   Shadowlist,
@@ -19,9 +19,11 @@ const ListFooterComponent = () => <Text style={styles.text}>Footer</Text>;
 
 const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
   return (
-    <Text style={styles.text} key={index}>
-      {index} - {item.id} - {item.text}
-    </Text>
+    <View style={styles.element}>
+      <Text style={styles.text}>
+        {index} - {item.id} - {item.text}
+      </Text>
+    </View>
   );
 };
 
@@ -81,6 +83,8 @@ const styles = StyleSheet.create({
   },
   text: {
     color: 'white',
+  },
+  element: {
     padding: 16,
     borderBottomColor: '#333333',
     borderBottomWidth: 1,

@@ -19,11 +19,11 @@ JSI_EXPORT extern const char SLContainerComponentName[];
  * `ShadowNode` for <SLContainer> component.
  */
 class SLContainerShadowNode final : public ConcreteViewShadowNode<
-                                       SLContainerComponentName,
-                                       SLContainerProps,
-                                       SLContainerEventEmitter,
-                                       SLContainerState,
-                                       true> {
+  SLContainerComponentName,
+  SLContainerProps,
+  SLContainerEventEmitter,
+  SLContainerState,
+  true> {
  public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
