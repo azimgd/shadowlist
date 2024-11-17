@@ -2,6 +2,7 @@
 
 @implementation SLScrollable {
   bool _horizontal;
+  bool _inverted;
   CGPoint _scrollContentOffset;
   float _visibleStartTrigger;
   float _visibleEndTrigger;
@@ -17,6 +18,7 @@
 }
 
 - (void)updateState:(bool)horizontal
+  inverted:(bool)inverted
   visibleStartTrigger:(float)visibleStartTrigger
   visibleEndTrigger:(float)visibleEndTrigger
   scrollContainerWidth:(float)scrollContainerWidth
@@ -24,6 +26,8 @@
   scrollContentWidth:(float)scrollContentWidth
   scrollContentHeight:(float)scrollContentHeight
 {
+  self->_horizontal = horizontal;
+  self->_inverted = inverted;
   self->_visibleStartTrigger = visibleStartTrigger;
   self->_visibleEndTrigger = visibleEndTrigger;
   self->_scrollContainerWidth = scrollContainerWidth;
@@ -42,7 +46,7 @@
   }
 
   if (self->_horizontal) {
-    if ([self scrollDirectionHorizontal:contentOffset] == SCROLLING_LEFT) {
+    if ([self scrollDirectionHorizontal:contentOffset] == SCROLLING_RIGHT) {
       if (self->_visibleEndTrigger >= contentOffset.x + self->_scrollContainerWidth) {
         return false;
       }
@@ -65,12 +69,42 @@
   return true;
 }
 
-- (int)shouldNotify:(CGPoint)contentOffset
+- (int)checkNotifyStart:(CGPoint)contentOffset
+{
+  if (self->_horizontal && contentOffset.x < self->_scrollContainerWidth) {
+    return contentOffset.x;
+  } else if (!self->_horizontal && contentOffset.y < self->_scrollContainerHeight) {
+    return contentOffset.y;
+  }
+  return 0;
+}
+
+- (int)checkNotifyEnd:(CGPoint)contentOffset
 {
   if (self->_horizontal && contentOffset.x > self->_scrollContentWidth - self->_scrollContainerWidth) {
     return ABS(self->_scrollContentWidth - contentOffset.x);
   } else if (!self->_horizontal && contentOffset.y > self->_scrollContentHeight - self->_scrollContainerHeight) {
     return ABS(self->_scrollContentHeight - contentOffset.y);
+  }
+  return 0;
+}
+
+- (int)shouldNotifyStart:(CGPoint)contentOffset
+{
+  if (!self->_inverted) {
+    return [self checkNotifyStart:contentOffset];
+  } else {
+    return [self checkNotifyEnd:contentOffset];
+  }
+  return 0;
+}
+
+- (int)shouldNotifyEnd:(CGPoint)contentOffset
+{
+  if (!self->_inverted) {
+    return [self checkNotifyEnd:contentOffset];
+  } else {
+    return [self checkNotifyStart:contentOffset];
   }
   return 0;
 }

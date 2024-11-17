@@ -55,7 +55,8 @@ public class SLContainer extends ReactViewGroup {
        * Required to prevent content shifts when adding items to the list.
        */
       if (
-        mScrollable.shouldNotify(new float[]{scrollX, scrollY}) == 0 &&
+        mScrollable.shouldNotifyStart(new float[]{scrollX, scrollY}) == 0 &&
+        mScrollable.shouldNotifyEnd(new float[]{scrollX, scrollY}) == 0 &&
         !mScrollable.shouldUpdate(new float[]{scrollX, scrollY})
       ) {
         return;
@@ -143,6 +144,7 @@ public class SLContainer extends ReactViewGroup {
 
     mScrollable.updateState(
       stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_HORIZONTAL),
+      false,
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_TRIGGER),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_TRIGGER),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
