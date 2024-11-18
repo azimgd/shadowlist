@@ -2,13 +2,14 @@ package com.shadowlist;
 
 import android.view.View;
 import com.facebook.react.views.view.ReactViewGroup;
+
 import java.util.HashMap;
 import java.util.Map;
 
 public class SLContainerChildrenManager {
   private ReactViewGroup mScrollContent;
   private SLComponentRegistry mChildrenRegistry;
-  private Map<Integer, View> mChildrenPool;
+  private Map<String, View> mChildrenPool;
 
   public SLContainerChildrenManager(ReactViewGroup contentView) {
     this.mScrollContent = contentView;
@@ -33,23 +34,34 @@ public class SLContainerChildrenManager {
     }
   }
 
-  public void mountChildComponentView(View childComponentView, int index) {
-    mChildrenPool.put(index, childComponentView);
-    mChildrenRegistry.registerComponent(index);
+  public void mountChildComponentView(View childComponentView, String uniqueId) {
+    mChildrenPool.put(uniqueId, childComponentView);
+    mChildrenRegistry.registerComponent(uniqueId);
   }
 
-  public void unmountChildComponentView(View childComponentView, int index) {
-    mChildrenRegistry.unregisterComponent(index);
-    mChildrenPool.remove(index);
+  public void unmountChildComponentView(View childComponentView, String uniqueId) {
+    mChildrenRegistry.unregisterComponent(uniqueId);
+    mChildrenPool.remove(uniqueId);
   }
 
   public void mount(int visibleStartIndex, int visibleEndIndex) {
-    mChildrenRegistry.mountRange(visibleStartIndex, visibleEndIndex);
+    String[] mounted = new String[mChildrenPool.size()];
+    int index = 0;
+
+    for (Map.Entry<String, View> entry : mChildrenPool.entrySet()) {
+      SLElement childComponentView = (SLElement)entry.getValue();
+
+      if (childComponentView.getIndex() >= visibleStartIndex && childComponentView.getIndex() <= visibleEndIndex) {
+        mounted[index++] = childComponentView.getUniqueId();
+      }
+    }
+
+    mChildrenRegistry.mount(mounted);
   }
 
   public void destroy() {
-    for (Integer index : mChildrenPool.keySet()) {
-      unmountChildComponentView(mChildrenPool.get(index), index);
+    for (String uniqueId : mChildrenPool.keySet()) {
+      unmountChildComponentView(mChildrenPool.get(uniqueId), uniqueId);
     }
     mChildrenRegistry.destroy();
   }

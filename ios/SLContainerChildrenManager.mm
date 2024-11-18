@@ -28,7 +28,6 @@ using namespace facebook::react;
   if (isVisible) {
     [_scrollContent insertSubview:childComponentView atIndex:childViewProps.index];
   } else {
-    NSLog(@"dbg unmount %d", childViewProps.index);
     [childComponentView removeFromSuperview];
   }
 }

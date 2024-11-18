@@ -12,11 +12,10 @@ public class SLComponentRegistry {
   }
 
   private native long nativeInit();
-  private native void nativeRegisterComponent(long nativePtr, int index);
-  private native void nativeUnregisterComponent(long nativePtr, int index);
-  private native void nativeMountRange(long nativePtr, int visibleStartIndex, int visibleEndIndex);
-  private native void nativeMount(long nativePtr, int[] indices);
-  private native void nativeUnmount(long nativePtr, int[] indices);
+  private native void nativeRegisterComponent(long nativePtr, String uniqueId);
+  private native void nativeUnregisterComponent(long nativePtr, String uniqueId);
+  private native void nativeMount(long nativePtr, String[] uniqueIds);
+  private native void nativeUnmount(long nativePtr, String[] uniqueIds);
   private native void nativeMountObserver(long nativePtr, SLObserver observer);
   private native void nativeUnmountObserver(long nativePtr, SLObserver observer);
   private native void nativeDestroy(long nativePtr);
@@ -25,24 +24,20 @@ public class SLComponentRegistry {
     void onVisibilityChanged(int id, boolean isVisible);
   }
 
-  public void registerComponent(int index) {
-    nativeRegisterComponent(mNativePtr, index);
+  public void registerComponent(String uniqueId) {
+    nativeRegisterComponent(mNativePtr, uniqueId);
   }
 
-  public void unregisterComponent(int index) {
-    nativeUnregisterComponent(mNativePtr, index);
+  public void unregisterComponent(String uniqueId) {
+    nativeUnregisterComponent(mNativePtr, uniqueId);
   }
 
-  public void mountRange(int visibleStartIndex, int visibleEndIndex) {
-    nativeMountRange(mNativePtr, visibleStartIndex, visibleEndIndex);
+  public void mount(String[] uniqueIds) {
+    nativeMount(mNativePtr, uniqueIds);
   }
 
-  public void mount(int[] indices) {
-    nativeMount(mNativePtr, indices);
-  }
-
-  public void unmount(int[] indices) {
-    nativeUnmount(mNativePtr, indices);
+  public void unmount(String[] uniqueIds) {
+    nativeUnmount(mNativePtr, uniqueIds);
   }
 
   public void mountObserver(SLObserver observer) {

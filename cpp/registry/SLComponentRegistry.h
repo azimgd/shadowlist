@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <numeric>
 #include <algorithm>
+#include <string>
 
 class SLComponent {
 public:
