@@ -79,7 +79,7 @@ export const Shadowlist = React.forwardRef(
           <SLElementNativeComponent
             index={index}
             uniqueId={uniqueId}
-            key={index}
+            key={uniqueId}
           >
             {props.renderItem({ item, index })}
           </SLElementNativeComponent>

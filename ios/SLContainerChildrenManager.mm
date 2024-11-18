@@ -1,4 +1,7 @@
 #import "SLContainerChildrenManager.h"
+#import "SLElementProps.h"
+
+using namespace facebook::react;
 
 @implementation SLContainerChildrenManager {
   UIView *_scrollContent;
@@ -9,8 +12,8 @@
 - (instancetype)initWithContentView:(UIView *)contentView {
   if (self = [super init]) {
     _childrenRegistry = SLComponentRegistry();
-    _childrenRegistry.mountObserver([self](std::string uniqueId, int index, bool isVisible) {
-      [self mountObserver:uniqueId index:index isVisible:isVisible];
+    _childrenRegistry.mountObserver([self](std::string uniqueId, bool isVisible) {
+      [self mountObserver:uniqueId isVisible:isVisible];
     });
     _childrenPool = [NSMutableDictionary dictionary];
     _scrollContent = contentView;
@@ -18,25 +21,27 @@
   return self;
 }
 
-- (void)mountObserver:(std::string)uniqueId index:(int)index isVisible:(bool)isVisible {
-  auto childComponent = [_childrenPool objectForKey:[NSString stringWithUTF8String:uniqueId.c_str()]];
+- (void)mountObserver:(std::string)uniqueId isVisible:(bool)isVisible {
+  auto childComponentView = [_childrenPool objectForKey:[NSString stringWithUTF8String:uniqueId.c_str()]];
+  const auto &childViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
 
   if (isVisible) {
-    [_scrollContent insertSubview:childComponent atIndex:index];
+    [_scrollContent insertSubview:childComponentView atIndex:childViewProps.index];
   } else {
-    [childComponent removeFromSuperview];
+    NSLog(@"dbg unmount %d", childViewProps.index);
+    [childComponentView removeFromSuperview];
   }
 }
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView uniqueId:(NSString *)uniqueId index:(NSInteger)index
 {
   [self->_childrenPool setObject:childComponentView forKey:uniqueId];
-  self->_childrenRegistry.registerComponent([uniqueId UTF8String], index);
+  self->_childrenRegistry.registerComponent([uniqueId UTF8String]);
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView uniqueId:(NSString *)uniqueId index:(NSInteger)index
 {
-  self->_childrenRegistry.unregisterComponent([uniqueId UTF8String], index);
+  self->_childrenRegistry.unregisterComponent([uniqueId UTF8String]);
   [self->_childrenPool removeObjectForKey:uniqueId];
 }
 
@@ -50,7 +55,16 @@
    * components before they are actually added to the pool.
    */
   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 16 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-    self->_childrenRegistry.mountRange(visibleStartIndex, visibleEndIndex);
+    std::vector<std::string> mounted = {};
+    for (NSString *key in self->_childrenPool) {
+      UIView<RCTComponentViewProtocol> *childComponentView = self->_childrenPool[key];
+      const auto &childViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
+      
+      if (childViewProps.index >= visibleStartIndex && childViewProps.index <= visibleEndIndex)
+        mounted.push_back(childViewProps.uniqueId);
+    }
+
+    self->_childrenRegistry.mount(mounted);
   });
 }
 
