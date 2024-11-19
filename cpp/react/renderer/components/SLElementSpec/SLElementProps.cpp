@@ -9,7 +9,8 @@ SLElementProps::SLElementProps(
   const SLElementProps &sourceProps,
   const RawProps &rawProps): ViewProps(context, sourceProps, rawProps),
 
-  index(convertRawProp(context, rawProps, "index", sourceProps.index, {0}))
+  index(convertRawProp(context, rawProps, "index", sourceProps.index, {0})),
+  uniqueId(convertRawProp(context, rawProps, "uniqueId", sourceProps.uniqueId, ""))
     {}
 
 }

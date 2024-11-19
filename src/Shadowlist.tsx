@@ -21,7 +21,7 @@ const invoker = (Component: Component) => {
 export type ShadowlistProps = {
   data: any[];
   renderItem: (payload: { item: any; index: number }) => React.ReactElement;
-  keyExtractor?: ((item: any, index: number) => string) | undefined;
+  keyExtractor: (item: any, index: number) => string;
   contentContainerStyle?: ViewStyle;
   ListHeaderComponent?: Component;
   ListHeaderComponentStyle?: ViewStyle;
@@ -73,11 +73,18 @@ export const Shadowlist = React.forwardRef(
      * ListChildrenComponent
      */
     const ListChildrenComponent = React.useMemo(() => {
-      return props.data.map((item, index) => (
-        <SLElementNativeComponent index={index} key={index}>
-          {props.renderItem({ item, index })}
-        </SLElementNativeComponent>
-      ));
+      return props.data.map((item, index) => {
+        const uniqueId = props.keyExtractor(item, index);
+        return (
+          <SLElementNativeComponent
+            index={index}
+            uniqueId={uniqueId}
+            key={uniqueId}
+          >
+            {props.renderItem({ item, index })}
+          </SLElementNativeComponent>
+        );
+      });
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [props.data, props.renderItem, props.keyExtractor]);
 

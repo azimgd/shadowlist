@@ -1,6 +1,7 @@
 #ifdef ANDROID
 #include <jni.h>
 #include <fbjni/fbjni.h>
+#include <string>
 #include "SLComponentRegistry.h"
 
 extern "C"
@@ -10,45 +11,53 @@ JNIEXPORT jlong JNICALL Java_com_shadowlist_SLComponentRegistry_nativeInit(JNIEn
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeRegisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jint componentId) {
+JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeRegisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jstring uniqueId) {
+  const char *uniqueIdChars = env->GetStringUTFChars(uniqueId, nullptr);
+  std::string uniqueIdStr(uniqueIdChars);
+  env->ReleaseStringUTFChars(uniqueId, uniqueIdChars);
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
-  registry->registerComponent(componentId);
+  registry->registerComponent(uniqueIdStr);
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnregisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jint componentId) {
+JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnregisterComponent(JNIEnv *env, jobject thiz, jlong registryPtr, jstring uniqueId) {
+  const char *uniqueIdChars = env->GetStringUTFChars(uniqueId, nullptr);
+  std::string uniqueIdStr(uniqueIdChars);
+  env->ReleaseStringUTFChars(uniqueId, uniqueIdChars);
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
-  registry->unregisterComponent(componentId);
+  registry->unregisterComponent(uniqueIdStr);
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeMountRange(JNIEnv *env, jobject thiz, jlong registryPtr, jint visibleStartIndex, jint visibleEndIndex) {
+JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeMount(JNIEnv *env, jobject thiz, jlong registryPtr, jobjectArray uniqueIds) {
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
-  registry->mountRange(visibleStartIndex, visibleEndIndex);
-}
+  jsize length = env->GetArrayLength(uniqueIds);
 
-extern "C"
-JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeMount(JNIEnv *env, jobject thiz, jlong registryPtr, jintArray indices) {
-  auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
-  jint *elements = env->GetIntArrayElements(indices, nullptr);
-  jsize length = env->GetArrayLength(indices);
+  std::vector<std::string> indexVector;
+  for (jsize i = 0; i < length; ++i) {
+    jstring uniqueId = (jstring) env->GetObjectArrayElement(uniqueIds, i);
+    const char *uniqueIdChars = env->GetStringUTFChars(uniqueId, nullptr);
+    indexVector.push_back(std::string(uniqueIdChars));
+    env->ReleaseStringUTFChars(uniqueId, uniqueIdChars);
+  }
 
-  std::vector<int> indexVector(elements, elements + length);
   registry->mount(indexVector);
-
-  env->ReleaseIntArrayElements(indices, elements, 0);
 }
 
 extern "C"
-JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnmount(JNIEnv *env, jobject thiz, jlong registryPtr, jintArray indices) {
+JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnmount(JNIEnv *env, jobject thiz, jlong registryPtr, jobjectArray uniqueIds) {
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
-  jint *elements = env->GetIntArrayElements(indices, nullptr);
-  jsize length = env->GetArrayLength(indices);
+  jsize length = env->GetArrayLength(uniqueIds);
 
-  std::vector<int> indexVector(elements, elements + length);
-  registry->unmount(indexVector);
+  std::vector<std::string> indexVector;
+  for (jsize i = 0; i < length; ++i) {
+   jstring uniqueId = (jstring) env->GetObjectArrayElement(uniqueIds, i);
+   const char *uniqueIdChars = env->GetStringUTFChars(uniqueId, nullptr);
+   indexVector.push_back(std::string(uniqueIdChars));
+   env->ReleaseStringUTFChars(uniqueId, uniqueIdChars);
+  }
 
-  env->ReleaseIntArrayElements(indices, elements, 0);
+ registry->unmount(indexVector);
 }
 
 extern "C"
@@ -56,10 +65,12 @@ JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeMountObserv
   auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
 
   jobject globalObserver = env->NewGlobalRef(observer);
-  auto observerCallback = [env, globalObserver](int index, bool isVisible) {
+  auto observerCallback = [env, globalObserver](const std::string& uniqueId, bool isVisible) {
     jclass observerClass = env->GetObjectClass(globalObserver);
-    jmethodID methodId = env->GetMethodID(observerClass, "onVisibilityChanged", "(IZ)V");
-    env->CallVoidMethod(globalObserver, methodId, index, static_cast<jboolean>(isVisible));
+    jmethodID methodId = env->GetMethodID(observerClass, "onVisibilityChanged", "(Ljava/lang/String;Z)V");
+    jstring jUniqueId = env->NewStringUTF(uniqueId.c_str());
+    env->CallVoidMethod(globalObserver, methodId, jUniqueId, static_cast<jboolean>(isVisible));
+    env->DeleteLocalRef(jUniqueId);
   };
 
   registry->mountObserver(observerCallback);
@@ -68,17 +79,19 @@ JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeMountObserv
 
 extern "C"
 JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnmountObserver(JNIEnv *env, jobject thiz, jlong registryPtr, jobject observer) {
-  auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
+ auto *registry = reinterpret_cast<SLComponentRegistry*>(registryPtr);
 
   jobject globalObserver = env->NewGlobalRef(observer);
-  auto observerCallback = [env, globalObserver](int index, bool isVisible) {
+  auto observerCallback = [env, globalObserver](const std::string& uniqueId, bool isVisible) {
     jclass observerClass = env->GetObjectClass(globalObserver);
-    jmethodID methodId = env->GetMethodID(observerClass, "onVisibilityChanged", "(IZ)V");
-    env->CallVoidMethod(globalObserver, methodId, index, static_cast<jboolean>(isVisible));
+    jmethodID methodId = env->GetMethodID(observerClass, "onVisibilityChanged", "(Ljava/lang/String;Z)V");
+    jstring jUniqueId = env->NewStringUTF(uniqueId.c_str());
+    env->CallVoidMethod(globalObserver, methodId, jUniqueId, static_cast<jboolean>(isVisible));
+    env->DeleteLocalRef(jUniqueId);
   };
 
   registry->unmountObserver(observerCallback);
-  // env->DeleteGlobalRef(globalObserver);
+ // env->DeleteGlobalRef(globalObserver);
 }
 
 extern "C"

@@ -14,6 +14,7 @@ public class SLContainerPackage implements ReactPackage {
   public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
     List<ViewManager> viewManagers = new ArrayList<>();
     viewManagers.add(new SLContainerManager());
+    viewManagers.add(new SLElementManager());
     return viewManagers;
   }
 

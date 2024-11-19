@@ -2,29 +2,32 @@ package com.shadowlist;
 
 import android.view.View;
 import com.facebook.react.views.view.ReactViewGroup;
-import java.util.HashMap;
+
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 public class SLContainerChildrenManager {
   private ReactViewGroup mScrollContent;
   private SLComponentRegistry mChildrenRegistry;
-  private Map<Integer, View> mChildrenPool;
+  private Map<String, View> mChildrenPool;
 
   public SLContainerChildrenManager(ReactViewGroup contentView) {
     this.mScrollContent = contentView;
     this.mChildrenRegistry = new SLComponentRegistry();
 
-    mChildrenRegistry.mountObserver((index, isVisible) -> {
+    mChildrenRegistry.mountObserver((uniqueId, isVisible) -> {
       try {
-        mountObserver(index, isVisible);
+        mountObserver(uniqueId, isVisible);
       } catch (IndexOutOfBoundsException e) {}
     });
 
     this.mChildrenPool = new HashMap<>();
   }
 
-  private void mountObserver(int index, boolean isVisible) {
-    View child = mChildrenPool.get(index);
+  private void mountObserver(String uniqueId, boolean isVisible) {
+    View child = mChildrenPool.get(uniqueId);
 
     if (isVisible) {
       mScrollContent.addView(child);
@@ -33,23 +36,35 @@ public class SLContainerChildrenManager {
     }
   }
 
-  public void mountChildComponentView(View childComponentView, int index) {
-    mChildrenPool.put(index, childComponentView);
-    mChildrenRegistry.registerComponent(index);
+  public void mountChildComponentView(View childComponentView, String uniqueId) {
+    mChildrenPool.put(uniqueId, childComponentView);
+    mChildrenRegistry.registerComponent(uniqueId);
   }
 
-  public void unmountChildComponentView(View childComponentView, int index) {
-    mChildrenRegistry.unregisterComponent(index);
-    mChildrenPool.remove(index);
+  public void unmountChildComponentView(View childComponentView, String uniqueId) {
+    mChildrenRegistry.unregisterComponent(uniqueId);
+    mChildrenPool.remove(uniqueId);
   }
 
   public void mount(int visibleStartIndex, int visibleEndIndex) {
-    mChildrenRegistry.mountRange(visibleStartIndex, visibleEndIndex);
+    List<String> mounted = new ArrayList<>();
+
+    for (Map.Entry<String, View> entry : mChildrenPool.entrySet()) {
+      SLElement childComponentView = (SLElement) entry.getValue();
+
+      if (childComponentView.getIndex() >= visibleStartIndex && childComponentView.getIndex() <= visibleEndIndex) {
+        mounted.add(childComponentView.getUniqueId());
+      }
+    }
+
+    String[] mountedArray = mounted.toArray(new String[0]);
+    mChildrenRegistry.mount(mountedArray);
   }
 
+
   public void destroy() {
-    for (Integer index : mChildrenPool.keySet()) {
-      unmountChildComponentView(mChildrenPool.get(index), index);
+    for (String uniqueId : mChildrenPool.keySet()) {
+      unmountChildComponentView(mChildrenPool.get(uniqueId), uniqueId);
     }
     mChildrenRegistry.destroy();
   }
