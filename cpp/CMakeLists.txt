@@ -1,11 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
-set(LIB_LITERAL SLContainerSpec)
-set(LIB_LITERAL_FENWICK fenwick)
-set(LIB_LITERAL_REGISTRY registry)
-set(LIB_TARGET_NAME react_codegen_${LIB_LITERAL})
-
+set(LIB_TARGET_NAME react_codegen_SLContainerSpec)
 set(LIB_ANDROID_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../android)
 set(LIB_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
@@ -18,11 +14,13 @@ add_compile_options(
   -Wno-gnu-zero-variadic-macro-arguments
 )
 
-file(GLOB LIB_IMPORT_SRCS CONFIGURE_DEPENDS SLContainerSpec.cpp)
 file(GLOB LIB_CUSTOM_SRCS CONFIGURE_DEPENDS
-  ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL}/*.cpp
-  ${LIB_COMMON_DIR}/${LIB_LITERAL_FENWICK}/*.cpp
-  ${LIB_COMMON_DIR}/${LIB_LITERAL_REGISTRY}/*.cpp
+  SLContainerSpec.cpp
+  SLElementSpec.cpp
+  ${LIB_COMMON_DIR}/react/renderer/components/SLContainerSpec/*.cpp
+  ${LIB_COMMON_DIR}/react/renderer/components/SLElementSpec/*.cpp
+  ${LIB_COMMON_DIR}/fenwick/*.cpp
+  ${LIB_COMMON_DIR}/registry/*.cpp
 )
 
 add_library(
@@ -39,9 +37,10 @@ target_include_directories(
   ${LIB_COMMON_DIR}
   ${LIB_IMPORT_SRCS}
   ${LIB_CUSTOM_SRCS}
-  ${LIB_COMMON_DIR}/react/renderer/components/${LIB_LITERAL}
-  ${LIB_COMMON_DIR}/${LIB_LITERAL_FENWICK}
-  ${LIB_COMMON_DIR}/${LIB_LITERAL_REGISTRY}
+  ${LIB_COMMON_DIR}/react/renderer/components/SLContainerSpec
+  ${LIB_COMMON_DIR}/react/renderer/components/SLElementSpec
+  ${LIB_COMMON_DIR}/fenwick
+  ${LIB_COMMON_DIR}/registry
 )
 
 target_link_libraries(
