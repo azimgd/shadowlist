@@ -21,7 +21,7 @@ public class SLComponentRegistry {
   private native void nativeDestroy(long nativePtr);
 
   public interface SLObserver {
-    void onVisibilityChanged(int id, boolean isVisible);
+    void onVisibilityChanged(String uniqueId, boolean isVisible);
   }
 
   public void registerComponent(String uniqueId) {
