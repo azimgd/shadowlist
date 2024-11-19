@@ -57,10 +57,8 @@ public class SLContainerChildrenManager {
       }
     }
 
-    // Convert the List to an array if needed
     String[] mountedArray = mounted.toArray(new String[0]);
-
-     mChildrenRegistry.mount(mountedArray);
+    mChildrenRegistry.mount(mountedArray);
   }
 
 

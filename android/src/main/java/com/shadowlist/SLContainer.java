@@ -125,7 +125,7 @@ public class SLContainer extends ReactViewGroup {
 
   @Override
   public void addView(View child, int index) {
-     mContainerChildrenManager.mountChildComponentView(child, ((SLElement)child).getUniqueId());
+    mContainerChildrenManager.mountChildComponentView(child, ((SLElement)child).getUniqueId());
   }
 
   @Override

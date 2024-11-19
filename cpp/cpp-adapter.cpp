@@ -73,7 +73,7 @@ JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeMountObserv
     env->DeleteLocalRef(jUniqueId);
   };
 
-   registry->mountObserver(observerCallback);
+  registry->mountObserver(observerCallback);
   // env->DeleteGlobalRef(globalObserver);
 }
 
@@ -89,6 +89,7 @@ JNIEXPORT void JNICALL Java_com_shadowlist_SLComponentRegistry_nativeUnmountObse
     env->CallVoidMethod(globalObserver, methodId, jUniqueId, static_cast<jboolean>(isVisible));
     env->DeleteLocalRef(jUniqueId);
   };
+
   registry->unmountObserver(observerCallback);
  // env->DeleteGlobalRef(globalObserver);
 }
