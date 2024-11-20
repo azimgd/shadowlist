@@ -75,13 +75,16 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
 
   float verticalPosition = 0;
   float horizontalPosition = 0;
+  float initialScrollPosition = nextStateData.childrenMeasurements.sum(props.initialScrollIndex);
 
   float scrollContentHorizontalDiff = nextStateData.scrollContent.width - prevStateData.scrollContent.width;
   float scrollContentVerticalDiff = nextStateData.scrollContent.height - prevStateData.scrollContent.height;
 
   if (props.inverted) {
     if (props.horizontal) {
-      if (prepended) {
+      if (props.initialScrollIndex > 0 && !prepended && !appended) {
+        horizontalPosition = initialScrollPosition;
+      } else if (prepended) {
         horizontalPosition = scrollContentHorizontalDiff + nextStateData.scrollPosition.x;
       } else if (appended) {
         horizontalPosition = nextStateData.scrollPosition.x;
@@ -89,7 +92,9 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
         horizontalPosition = nextStateData.scrollContent.width;
       }
     } else {
-      if (prepended) {
+      if (props.initialScrollIndex > 0 && !prepended && !appended) {
+        verticalPosition = initialScrollPosition;
+      } else if (prepended) {
         verticalPosition = scrollContentVerticalDiff + nextStateData.scrollPosition.y;
       } else if (appended) {
         verticalPosition = nextStateData.scrollPosition.y;
@@ -99,13 +104,17 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
     }
   } else {
     if (props.horizontal) {
-      if (appended) {
+      if (props.initialScrollIndex > 0 && !prepended && !appended) {
+        horizontalPosition = initialScrollPosition;
+      } else if (appended) {
         horizontalPosition = nextStateData.scrollPosition.x;
       } else if (prepended) {
         horizontalPosition = scrollContentHorizontalDiff + nextStateData.scrollPosition.x;
       }
     } else {
-      if (appended) {
+      if (props.initialScrollIndex > 0 && !prepended && !appended) {
+        verticalPosition = initialScrollPosition;
+      } else if (appended) {
         verticalPosition = nextStateData.scrollPosition.y;
       } else if (prepended) {
         verticalPosition = scrollContentVerticalDiff + nextStateData.scrollPosition.y;
