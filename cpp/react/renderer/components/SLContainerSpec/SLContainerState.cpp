@@ -11,6 +11,8 @@ SLContainerState::SLContainerState(
   int visibleEndIndex,
   float visibleStartTrigger,
   float visibleEndTrigger,
+  std::string lastChildUniqueId,
+  std::string firstChildUniqueId,
   bool horizontal,
   int initialNumToRender) :
     childrenMeasurements(childrenMeasurements),
@@ -21,6 +23,8 @@ SLContainerState::SLContainerState(
     visibleEndIndex(visibleEndIndex),
     visibleStartTrigger(visibleStartTrigger),
     visibleEndTrigger(visibleEndTrigger),
+    lastChildUniqueId(lastChildUniqueId),
+    firstChildUniqueId(firstChildUniqueId),
     horizontal(horizontal),
     initialNumToRender(initialNumToRender) {}
 

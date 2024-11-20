@@ -28,19 +28,17 @@ export default function App() {
   const onStartReached = useCallback<DirectEventHandler<OnStartReached>>(
     (event) => {
       !IS_INVERTED ? data.loadPrepend() : data.loadAppend();
-      console.debug('onStartReached', event.nativeEvent.distanceFromStart);
+      event.nativeEvent.distanceFromStart;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [data]
   );
 
   const onEndReached = useCallback<DirectEventHandler<OnEndReached>>(
     (event) => {
       !IS_INVERTED ? data.loadAppend() : data.loadPrepend();
-      console.debug('onEndReached', event.nativeEvent.distanceFromEnd);
+      event.nativeEvent.distanceFromEnd;
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [data]
   );
 
   const onVisibleChange = useCallback<DirectEventHandler<OnVisibleChange>>(
@@ -53,6 +51,7 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <Shadowlist
+        style={styles.container}
         ref={ref}
         renderItem={renderItem}
         data={data.data}

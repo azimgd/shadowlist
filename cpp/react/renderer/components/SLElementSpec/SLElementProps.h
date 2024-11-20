@@ -12,7 +12,7 @@ class SLElementProps final : public ViewProps {
 
 #pragma mark - Props
   int index;
-  std::string uniqueId;
+  std::string uniqueId{};
 };
 
 }

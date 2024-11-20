@@ -4,12 +4,15 @@
 #include "SLContainerProps.h"
 #include "SLContainerState.h"
 #include "SLContainerShadowNode.h"
+#include "SLElementShadowNode.h"
+#include "SLElementProps.h"
 #include <jsi/jsi.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutContext.h>
 #include <react/renderer/core/LayoutMetrics.h>
 
 #include "SLFenwickTree.hpp"
+#include <string>
 
 namespace facebook::react {
 
@@ -39,7 +42,10 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
   Point calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
   Size calculateScrollContent(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
   Size calculateScrollContainer(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  YogaLayoutableShadowNode& shadowNodeFromContext(YGNodeConstRef yogaNode);
+  std::string calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
+  std::string calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
+  YogaLayoutableShadowNode& yogaNodeFromContext(YGNodeConstRef yogaNode);
+  SLElementShadowNode& elementNodeFromContext(YGNodeConstRef yogaNode);
 };
 
 }

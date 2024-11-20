@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   footer: {
     fontWeight: '400',
     color: '#333333',
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#33333330',
     marginTop: 8,
     paddingTop: 8,

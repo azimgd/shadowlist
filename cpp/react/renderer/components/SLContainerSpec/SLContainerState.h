@@ -38,6 +38,8 @@ class SLContainerState {
     int visibleEndIndex,
     float visibleStartTrigger,
     float visibleEndTrigger,
+    std::string lastChildUniqueId,
+    std::string firstChildUniqueId,
     bool horizontal,
     int initialNumToRender);
   SLContainerState() = default;
@@ -50,6 +52,8 @@ class SLContainerState {
   int visibleEndIndex;
   float visibleStartTrigger;
   float visibleEndTrigger;
+  std::string lastChildUniqueId;
+  std::string firstChildUniqueId;
   bool horizontal;
   int initialNumToRender;
 

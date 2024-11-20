@@ -19,6 +19,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto &props = getConcreteProps();
 
   // The order of operations are important here
+  nextStateData.firstChildUniqueId = calculateFirstChildUniqueId(prevStateData, nextStateData);
+  nextStateData.lastChildUniqueId = calculateLastChildUniqueId(prevStateData, nextStateData);
+
   nextStateData.childrenMeasurements = calculateChildrenMeasurements(prevStateData, nextStateData);
   nextStateData.scrollContainer = calculateScrollContainer(prevStateData, nextStateData);
   nextStateData.scrollContent = calculateScrollContent(prevStateData, nextStateData);
@@ -55,9 +58,8 @@ SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurements(const Concret
   SLFenwickTree childrenMeasurements(childCount);
 
   for (int index = 0; index < childCount; ++index) {
-    auto childYogaNode = yogaNode_.getChild(index);
-    auto childNodeMetrics = shadowNodeFromContext(childYogaNode).getLayoutMetrics();
-    MEASURE_CHILDREN(childrenMeasurements, childNodeMetrics, props.horizontal);
+    auto &childNode = yogaNodeFromContext(yogaNode_.getChild(index));
+    MEASURE_CHILDREN(childrenMeasurements, childNode.getLayoutMetrics(), props.horizontal);
   }
 
   return childrenMeasurements;
@@ -65,51 +67,48 @@ SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurements(const Concret
 
 Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
-  bool isFirstRender = prevStateData.childrenMeasurements.size() == 0 && nextStateData.childrenMeasurements.size() > 0;
 
-  float verticalPosition;
-  float horizontalPosition;
+  bool appended = prevStateData.firstChildUniqueId == nextStateData.firstChildUniqueId &&
+    prevStateData.lastChildUniqueId != nextStateData.lastChildUniqueId;
+  bool prepended = prevStateData.lastChildUniqueId == nextStateData.lastChildUniqueId &&
+    prevStateData.firstChildUniqueId != nextStateData.firstChildUniqueId;
+
+  float verticalPosition = 0;
+  float horizontalPosition = 0;
+
+  float scrollContentHorizontalDiff = nextStateData.scrollContent.width - prevStateData.scrollContent.width;
+  float scrollContentVerticalDiff = nextStateData.scrollContent.height - prevStateData.scrollContent.height;
 
   if (props.inverted) {
     if (props.horizontal) {
-      if (prevStateData.scrollContainer.width < nextStateData.scrollPosition.x) {
+      if (prepended) {
+        horizontalPosition = scrollContentHorizontalDiff + nextStateData.scrollPosition.x;
+      } else if (appended) {
         horizontalPosition = nextStateData.scrollPosition.x;
       } else {
-        horizontalPosition = nextStateData.scrollContent.width - prevStateData.scrollContent.width + nextStateData.scrollPosition.x;
+        horizontalPosition = nextStateData.scrollContent.width;
       }
-      verticalPosition = 0;
     } else {
-      horizontalPosition = 0;
-
-      if (prevStateData.scrollContainer.height < nextStateData.scrollPosition.y) {
+      if (prepended) {
+        verticalPosition = scrollContentVerticalDiff + nextStateData.scrollPosition.y;
+      } else if (appended) {
         verticalPosition = nextStateData.scrollPosition.y;
       } else {
-        verticalPosition = nextStateData.scrollContent.height - prevStateData.scrollContent.height + nextStateData.scrollPosition.y;
+        verticalPosition = nextStateData.scrollContent.height;
       }
     }
   } else {
     if (props.horizontal) {
-      if (prevStateData.scrollContainer.width < nextStateData.scrollPosition.x) {
+      if (appended) {
         horizontalPosition = nextStateData.scrollPosition.x;
-      } else {
-        horizontalPosition = nextStateData.scrollContent.width - prevStateData.scrollContent.width + nextStateData.scrollPosition.x;
-      }
-      verticalPosition = 0;
-      
-      if (isFirstRender) {
-        horizontalPosition = 0;
+      } else if (prepended) {
+        horizontalPosition = scrollContentHorizontalDiff + nextStateData.scrollPosition.x;
       }
     } else {
-      horizontalPosition = 0;
-
-      if (prevStateData.scrollContainer.height < nextStateData.scrollPosition.y) {
+      if (appended) {
         verticalPosition = nextStateData.scrollPosition.y;
-      } else {
-        verticalPosition = nextStateData.scrollContent.height - prevStateData.scrollContent.height + nextStateData.scrollPosition.y;
-      }
-      
-      if (isFirstRender) {
-        verticalPosition = 0;
+      } else if (prepended) {
+        verticalPosition = scrollContentVerticalDiff + nextStateData.scrollPosition.y;
       }
     }
   }
@@ -124,12 +123,38 @@ Size SLContainerShadowNode::calculateScrollContent(const ConcreteStateData prevS
     Size{getLayoutMetrics().frame.size.width, nextStateData.calculateContentSize()};
 }
 
+std::string SLContainerShadowNode::calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
+  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(0));
+  auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
+
+  #ifdef ANDROID
+  return std::to_string(childNode.getTag());
+  #endif
+    
+  return childNodeViewProps.uniqueId;
+}
+
+std::string SLContainerShadowNode::calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
+  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 1));
+  auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
+  
+  #ifdef ANDROID
+  return std::to_string(childNode.getTag());
+  #endif
+  
+  return childNodeViewProps.uniqueId;
+}
+
 Size SLContainerShadowNode::calculateScrollContainer(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   return getLayoutMetrics().frame.size;
 }
 
-YogaLayoutableShadowNode& SLContainerShadowNode::shadowNodeFromContext(YGNodeConstRef yogaNode) {
+YogaLayoutableShadowNode& SLContainerShadowNode::yogaNodeFromContext(YGNodeConstRef yogaNode) {
   return dynamic_cast<YogaLayoutableShadowNode&>(*static_cast<ShadowNode*>(YGNodeGetContext(yogaNode)));
+}
+
+SLElementShadowNode& SLContainerShadowNode::elementNodeFromContext(YGNodeConstRef yogaNode) {
+  return dynamic_cast<SLElementShadowNode&>(*static_cast<ShadowNode*>(YGNodeGetContext(yogaNode)));
 }
 
 }
