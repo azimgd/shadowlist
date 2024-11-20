@@ -14,8 +14,10 @@ Pod::Spec.new do |s|
   s.platforms    = { :ios => min_ios_version_supported }
   s.source       = { :git => "https://github.com/azimgd/shadowlist.git", :tag => "#{s.version}" }
 
-  s.source_files = ["{ios,cpp}/**/*.{h,hpp,m,mm,cpp}"]
-  s.exclude_files = ["ios/generated/**/*", "!ios/generated/build/generated/ios/react/**"]
+  s.source_files = [
+    "ios/*.{h,hpp,m,mm,cpp}",
+    "cpp/**/*.{h,hpp,m,mm,cpp}"
+  ]
 
   if respond_to?(:install_modules_dependencies, true)
     install_modules_dependencies(s)
