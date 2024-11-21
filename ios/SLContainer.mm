@@ -120,6 +120,7 @@ using namespace facebook::react;
    * Required to prevent content shifts when adding items to the list.
    */
   if (
+    FALSE && // Remove optimization completely for now
     [self->_scrollable shouldNotifyStart:scrollView.contentOffset] == 0 &&
     [self->_scrollable shouldNotifyEnd:scrollView.contentOffset] == 0 &&
     ![self->_scrollable shouldUpdate:scrollView.contentOffset]) {
@@ -147,8 +148,11 @@ using namespace facebook::react;
 
 - (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
 {
+  auto headerFooter = 1;
   auto stateData = _state->getData();
-  stateData.scrollPosition = stateData.calculateScrollPositionOffset(stateData.childrenMeasurements.sum(index));
+  stateData.scrollPosition = stateData.calculateScrollPositionOffset(
+    stateData.childrenMeasurements.sum(index + headerFooter)
+  );
   stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
     stateData.getScrollPosition(stateData.scrollPosition)
   );

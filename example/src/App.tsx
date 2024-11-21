@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import { SafeAreaView, StyleSheet, Text } from 'react-native';
+import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
 import {
   Shadowlist,
@@ -15,8 +15,23 @@ import Element from './Element';
 const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
 
-const ListHeaderComponent = () => <Text style={styles.text}>Header</Text>;
-const ListFooterComponent = () => <Text style={styles.text}>Footer</Text>;
+const ListHeaderComponent = () => (
+  <View style={styles.static}>
+    <Text style={styles.text}>Header</Text>
+  </View>
+);
+
+const ListFooterComponent = () => (
+  <View style={styles.static}>
+    <Text style={styles.text}>Footer</Text>
+  </View>
+);
+
+const ListEmptyComponent = () => (
+  <View style={styles.static}>
+    <Text style={styles.text}>Footer</Text>
+  </View>
+);
 
 const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
   return <Element item={item} index={index} />;
@@ -25,6 +40,7 @@ const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
 export default function App() {
   const data = useData({ length: 20, inverted: IS_INVERTED });
   const ref = useRef<SLContainerRef>(null);
+
   const onStartReached = useCallback<DirectEventHandler<OnStartReached>>(
     (event) => {
       !IS_INVERTED ? data.loadPrepend() : data.loadAppend();
@@ -60,9 +76,14 @@ export default function App() {
         onEndReached={onEndReached}
         onStartReached={onStartReached}
         ListHeaderComponent={ListHeaderComponent}
+        ListHeaderComponentStyle={styles.static}
         ListFooterComponent={ListFooterComponent}
+        ListFooterComponentStyle={styles.static}
+        ListEmptyComponent={ListEmptyComponent}
+        ListEmptyComponentStyle={styles.static}
         inverted={IS_INVERTED}
         horizontal={IS_HORIZONTAL}
+        initialScrollIndex={2}
       />
     </SafeAreaView>
   );
@@ -75,5 +96,11 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#333333',
+    backgroundColor: '#1dd1a1',
+    padding: 16,
+  },
+  static: {
+    height: 120,
+    backgroundColor: '#576574',
   },
 });

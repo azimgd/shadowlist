@@ -73,9 +73,10 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
   bool prepended = prevStateData.lastChildUniqueId == nextStateData.lastChildUniqueId &&
     prevStateData.firstChildUniqueId != nextStateData.firstChildUniqueId;
 
+  int headerFooter = 1;
   float verticalPosition = 0;
   float horizontalPosition = 0;
-  float initialScrollPosition = nextStateData.childrenMeasurements.sum(props.initialScrollIndex);
+  float initialScrollPosition = nextStateData.childrenMeasurements.sum(props.initialScrollIndex + headerFooter);
 
   float scrollContentHorizontalDiff = nextStateData.scrollContent.width - prevStateData.scrollContent.width;
   float scrollContentVerticalDiff = nextStateData.scrollContent.height - prevStateData.scrollContent.height;
@@ -133,7 +134,8 @@ Size SLContainerShadowNode::calculateScrollContent(const ConcreteStateData prevS
 }
 
 std::string SLContainerShadowNode::calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(0));
+  // Assumes that HeaderListComponent is always present, for now.
+  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(1));
   auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
 
   #ifdef ANDROID
@@ -144,7 +146,8 @@ std::string SLContainerShadowNode::calculateFirstChildUniqueId(const ConcreteSta
 }
 
 std::string SLContainerShadowNode::calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 1));
+  // Assumes that FooterListComponent is always present, for now.
+  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 2));
   auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
   
   #ifdef ANDROID

@@ -88,16 +88,18 @@ MapBuffer SLContainerState::getMapBuffer() const {
 #endif
 
 int SLContainerState::calculateVisibleStartIndex(const float visibleStartOffset, const int offset) const {
+  int headerFooter = 2;
   int visibleStartIndex = childrenMeasurements.lower_bound(visibleStartOffset);
   int visibleEndIndexMin = 0;
-  int adjusted = std::max(visibleStartIndex - offset, visibleEndIndexMin);
+  int adjusted = std::max(visibleStartIndex - offset - headerFooter, visibleEndIndexMin);
   return adjusted;
 }
 
 int SLContainerState::calculateVisibleEndIndex(const float visibleStartOffset, const int offset) const {
+  int headerFooter = 2;
   int visibleEndIndex = childrenMeasurements.lower_bound(visibleStartOffset + scrollContainer.height);
   int visibleEndIndexMax = childrenMeasurements.size();
-  int adjusted = std::min(visibleEndIndex + offset, visibleEndIndexMax);
+  int adjusted = std::min(visibleEndIndex + offset - headerFooter, visibleEndIndexMax);
   return adjusted == 0 ? initialNumToRender : adjusted;
 }
 
