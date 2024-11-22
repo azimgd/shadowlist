@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import { faker } from '@faker-js/faker';
 
+const TIMEOUT = 3000;
+
 const initialState = (length: number) =>
   Array.from({ length }, () => ({
     id: faker.database.mongodbObjectId(),
@@ -19,7 +21,7 @@ const useData = ({ length }: { length: number; inverted?: boolean }) => {
         loading.current = false;
         return [...initialState(length), ...state];
       });
-    }, 3000);
+    }, TIMEOUT);
     loading.current = true;
   };
 
@@ -31,7 +33,7 @@ const useData = ({ length }: { length: number; inverted?: boolean }) => {
         loading.current = false;
         return [...state, ...initialState(length)];
       });
-    }, 3000);
+    }, TIMEOUT);
     loading.current = true;
   };
 

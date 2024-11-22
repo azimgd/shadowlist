@@ -90,7 +90,7 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
       } else if (appended) {
         horizontalPosition = nextStateData.scrollPosition.x;
       } else {
-        horizontalPosition = nextStateData.scrollContent.width;
+        horizontalPosition = nextStateData.scrollContent.width - nextStateData.scrollContainer.width;
       }
     } else {
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
@@ -100,7 +100,7 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
       } else if (appended) {
         verticalPosition = nextStateData.scrollPosition.y;
       } else {
-        verticalPosition = nextStateData.scrollContent.height;
+        verticalPosition = nextStateData.scrollContent.height - nextStateData.scrollContainer.height;
       }
     }
   } else {
@@ -128,9 +128,23 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
 
 Size SLContainerShadowNode::calculateScrollContent(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
-  return props.horizontal ?
-    Size{nextStateData.calculateContentSize(), getLayoutMetrics().frame.size.height}:
-    Size{getLayoutMetrics().frame.size.width, nextStateData.calculateContentSize()};
+  
+  Size contentSize;
+  auto headerFooter = 0;
+  auto &headerChildNode = yogaNodeFromContext(yogaNode_.getChild(0));
+  auto &footerChildNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 1));
+  
+  if (props.horizontal) {
+    contentSize = Size{nextStateData.calculateContentSize(), getLayoutMetrics().frame.size.height};
+    headerFooter += headerChildNode.getLayoutMetrics().frame.size.width;
+    headerFooter += footerChildNode.getLayoutMetrics().frame.size.width;
+  } else {
+    contentSize = Size{getLayoutMetrics().frame.size.width, nextStateData.calculateContentSize()};
+    headerFooter += headerChildNode.getLayoutMetrics().frame.size.height;
+    headerFooter += footerChildNode.getLayoutMetrics().frame.size.height;
+  }
+  
+  return contentSize;
 }
 
 std::string SLContainerShadowNode::calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {

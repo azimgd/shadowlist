@@ -164,32 +164,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
 
     if (stateMapBuffer != null) {
-      view.setStateWrapper(stateWrapper);
-
-      view.setScrollContainerLayout(
-        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
-        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
-      );
-
-      view.setScrollContentLayout(
-        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),
-        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
-      );
-
-      view.setScrollContainerOffset(
-        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT),
-        (int)stateMapBuffer.getDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP)
-      );
-
-      int visibleStartIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_INDEX);
-      int visibleEndIndex = stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_INDEX);
-
-      handleOnVisibleChange(
-        view,
-        visibleStartIndex,
-        visibleEndIndex
-      );
-
+      view.setStateWrapper(stateWrapper, this::handleStartReached, this::handleEndReached, this::handleOnVisibleChange);
       return super.updateState(view, props, stateWrapper);
     } else {
       return null;

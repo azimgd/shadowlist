@@ -23,8 +23,8 @@ public class SLContainer extends ReactViewGroup {
   private ScrollView mScrollContainerVertical;
   private ReactViewGroup mScrollContent;
   private SLScrollable mScrollable;
-
   private SLContainerChildrenManager mContainerChildrenManager;
+
   private @Nullable StateWrapper mStateWrapper = null;
 
   public SLContainer(Context context) {
@@ -55,6 +55,7 @@ public class SLContainer extends ReactViewGroup {
        * Required to prevent content shifts when adding items to the list.
        */
       if (
+        false &&
         mScrollable.shouldNotifyStart(new float[]{scrollX, scrollY}) == 0 &&
         mScrollable.shouldNotifyEnd(new float[]{scrollX, scrollY}) == 0 &&
         !mScrollable.shouldUpdate(new float[]{scrollX, scrollY})
@@ -136,11 +137,29 @@ public class SLContainer extends ReactViewGroup {
   @Override
   public void draw(Canvas canvas) {
     super.draw(canvas);
-    mScrollContent.draw(canvas);
   }
 
-  public void setStateWrapper(StateWrapper stateWrapper) {
+  public void setStateWrapper(
+    StateWrapper stateWrapper,
+    SLContainerManager.OnStartReachedHandler onStartReachedHandler,
+    SLContainerManager.OnEndReachedHandler onEndReachedHandler,
+    SLContainerManager.OnVisibleChangeHandler onVisibleChangeHandler) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
+
+    this.setScrollContainerLayout(
+      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
+      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
+    );
+
+    this.setScrollContentLayout(
+      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),
+      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
+    );
+
+    this.setScrollContainerOffset(
+      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_LEFT),
+      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP)
+    );
 
     mScrollable.updateState(
       stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_HORIZONTAL),
@@ -159,6 +178,22 @@ public class SLContainer extends ReactViewGroup {
     mContainerChildrenManager.mount(
       visibleStartIndex,
       visibleEndIndex);
+
+    float[] scrollPosition = new float[]{
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP)};
+
+    onVisibleChangeHandler.onVisibleChange(this, visibleStartIndex, visibleEndIndex);
+
+    int distanceFromStart = mScrollable.shouldNotifyStart(scrollPosition);
+    if (distanceFromStart > 0) {
+      onStartReachedHandler.onStartReached(this, distanceFromStart);
+    }
+
+    int distanceFromEnd = mScrollable.shouldNotifyEnd(scrollPosition);
+    if (distanceFromEnd > 0) {
+      onEndReachedHandler.onEndReached(this, distanceFromEnd);
+    }
 
     mStateWrapper = stateWrapper;
   }

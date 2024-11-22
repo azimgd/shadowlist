@@ -12,8 +12,10 @@ import {
 import useData from './useData';
 import Element from './Element';
 
+const ITEMS_COUNT = 100;
 const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
+const INITIAL_SCROLL_INDEX = 0;
 
 const ListHeaderComponent = () => (
   <View style={styles.static}>
@@ -38,7 +40,7 @@ const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
 };
 
 export default function App() {
-  const data = useData({ length: 20, inverted: IS_INVERTED });
+  const data = useData({ length: ITEMS_COUNT, inverted: IS_INVERTED });
   const ref = useRef<SLContainerRef>(null);
 
   const onStartReached = useCallback<DirectEventHandler<OnStartReached>>(
@@ -83,7 +85,7 @@ export default function App() {
         ListEmptyComponentStyle={styles.static}
         inverted={IS_INVERTED}
         horizontal={IS_HORIZONTAL}
-        initialScrollIndex={2}
+        initialScrollIndex={INITIAL_SCROLL_INDEX}
       />
     </SafeAreaView>
   );

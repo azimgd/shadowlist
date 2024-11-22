@@ -37,11 +37,29 @@ public class SLContainerChildrenManager {
   }
 
   public void mountChildComponentView(View childComponentView, String uniqueId) {
+    if (uniqueId.equals("ListHeaderComponentUniqueId")) {
+      mScrollContent.addView(childComponentView);
+      return;
+    }
+    if (uniqueId.equals("ListFooterComponentUniqueId")) {
+      mScrollContent.addView(childComponentView);
+      return;
+    }
+
     mChildrenPool.put(uniqueId, childComponentView);
     mChildrenRegistry.registerComponent(uniqueId);
   }
 
   public void unmountChildComponentView(View childComponentView, String uniqueId) {
+    if (uniqueId.equals("ListHeaderComponentUniqueId")) {
+      mScrollContent.removeView(childComponentView);
+      return;
+    }
+    if (uniqueId.equals("ListFooterComponentUniqueId")) {
+      mScrollContent.removeView(childComponentView);
+      return;
+    }
+
     mChildrenRegistry.unregisterComponent(uniqueId);
     mChildrenPool.remove(uniqueId);
   }
