@@ -128,12 +128,12 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
 
 Size SLContainerShadowNode::calculateScrollContent(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
-  
+
   Size contentSize;
   auto headerFooter = 0;
   auto &headerChildNode = yogaNodeFromContext(yogaNode_.getChild(0));
   auto &footerChildNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 1));
-  
+
   if (props.horizontal) {
     contentSize = Size{nextStateData.calculateContentSize(), getLayoutMetrics().frame.size.height};
     headerFooter += headerChildNode.getLayoutMetrics().frame.size.width;
@@ -143,7 +143,7 @@ Size SLContainerShadowNode::calculateScrollContent(const ConcreteStateData prevS
     headerFooter += headerChildNode.getLayoutMetrics().frame.size.height;
     headerFooter += footerChildNode.getLayoutMetrics().frame.size.height;
   }
-  
+
   return contentSize;
 }
 
@@ -153,9 +153,13 @@ std::string SLContainerShadowNode::calculateFirstChildUniqueId(const ConcreteSta
   auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
 
   #ifdef ANDROID
-  return std::to_string(childNode.getTag());
+    try {
+      return childNode.getProps()->rawProps.at("uniqueId").asString();
+    } catch (...) {
+      return "";
+    }
   #endif
-    
+
   return childNodeViewProps.uniqueId;
 }
 
@@ -163,11 +167,15 @@ std::string SLContainerShadowNode::calculateLastChildUniqueId(const ConcreteStat
   // Assumes that FooterListComponent is always present, for now.
   auto &childNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 2));
   auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
-  
+
   #ifdef ANDROID
-  return std::to_string(childNode.getTag());
+    try {
+      return childNode.getProps()->rawProps.at("uniqueId").asString();
+    } catch (...) {
+      return "";
+    }
   #endif
-  
+
   return childNodeViewProps.uniqueId;
 }
 
@@ -177,10 +185,6 @@ Size SLContainerShadowNode::calculateScrollContainer(const ConcreteStateData pre
 
 YogaLayoutableShadowNode& SLContainerShadowNode::yogaNodeFromContext(YGNodeConstRef yogaNode) {
   return dynamic_cast<YogaLayoutableShadowNode&>(*static_cast<ShadowNode*>(YGNodeGetContext(yogaNode)));
-}
-
-SLElementShadowNode& SLContainerShadowNode::elementNodeFromContext(YGNodeConstRef yogaNode) {
-  return dynamic_cast<SLElementShadowNode&>(*static_cast<ShadowNode*>(YGNodeGetContext(yogaNode)));
 }
 
 }

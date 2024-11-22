@@ -64,8 +64,12 @@ public class SLContainerChildrenManager {
     mChildrenPool.remove(uniqueId);
   }
 
-  public void mount(int visibleStartIndex, int visibleEndIndex) {
+  public void mount(int visibleStartIndex, int visibleEndIndex, String firstChildUniquId, String lastChildUniqueId) {
     List<String> mounted = new ArrayList<>();
+
+    if (!mChildrenPool.containsKey(firstChildUniquId) || !mChildrenPool.containsKey(lastChildUniqueId)) {
+      return;
+    }
 
     for (Map.Entry<String, View> entry : mChildrenPool.entrySet()) {
       SLElement childComponentView = (SLElement) entry.getValue();

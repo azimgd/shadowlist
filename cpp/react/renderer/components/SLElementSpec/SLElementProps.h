@@ -2,6 +2,7 @@
 
 #include <react/renderer/components/view/ViewProps.h>
 #include <react/renderer/core/PropsParserContext.h>
+#include <react/renderer/debug/DebugStringConvertible.h>
 
 namespace facebook::react {
 
@@ -13,6 +14,13 @@ class SLElementProps final : public ViewProps {
 #pragma mark - Props
   int index;
   std::string uniqueId{};
+  
+#pragma mark - DebugStringConvertible
+
+#if RN_DEBUG_STRING_CONVERTIBLE
+  SharedDebugStringConvertibleList getDebugProps() const override;
+#endif
+
 };
 
 }

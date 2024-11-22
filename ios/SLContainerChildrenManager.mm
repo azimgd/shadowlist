@@ -58,27 +58,32 @@ using namespace facebook::react;
   [self->_childrenPool removeObjectForKey:uniqueId];
 }
 
-- (void)mount:(int)visibleStartIndex end:(int)visibleEndIndex
+- (void)mount:(int)visibleStartIndex end:(int)visibleEndIndex firstChildUniqueId:(NSString *)firstChildUniqueId lastChildUniqueId:(NSString *)lastChildUniqueId
 {
   /**
-   * Temporary workaround to ensure proper mounting order.
    * Currently, -(void)mountChildComponentView is called before -(void)mount in the initial phase.
    * However, after components are added to the tree (e.g., via setState on the JS side),
    * the order of operations is reversed. This causes the childrenRegistry to attempt mounting
    * components before they are actually added to the pool.
    */
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 16 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-    std::vector<std::string> mounted = {};
-    for (NSString *key in self->_childrenPool) {
-      UIView<RCTComponentViewProtocol> *childComponentView = self->_childrenPool[key];
-      const auto &childViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
-      
-      if (childViewProps.index >= visibleStartIndex && childViewProps.index <= visibleEndIndex)
-        mounted.push_back(childViewProps.uniqueId);
-    }
+  if (!self->_childrenPool[firstChildUniqueId] || !self->_childrenPool[lastChildUniqueId]) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 16 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
+      [self mount:visibleStartIndex end:visibleEndIndex firstChildUniqueId:firstChildUniqueId lastChildUniqueId:lastChildUniqueId];
+    });
+    return;
+  }
 
-    self->_childrenRegistry.mount(mounted);
-  });
+  std::vector<std::string> mounted = {};
+  for (NSString *key in self->_childrenPool) {
+    UIView<RCTComponentViewProtocol> *childComponentView = self->_childrenPool[key];
+    const auto &childViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
+    
+    if (childViewProps.index >= visibleStartIndex && childViewProps.index <= visibleEndIndex) {
+      mounted.push_back(childViewProps.uniqueId);
+    }
+  }
+
+  self->_childrenRegistry.mount(mounted);
 }
 
 @end

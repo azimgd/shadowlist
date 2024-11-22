@@ -82,7 +82,11 @@ using namespace facebook::react;
   int visibleStartIndex = nextStateData.visibleStartIndex;
   int visibleEndIndex = nextStateData.visibleEndIndex;
 
-  [self->_containerChildrenManager mount:visibleStartIndex end:visibleEndIndex];
+  [self->_containerChildrenManager
+    mount:visibleStartIndex
+    end:visibleEndIndex
+    firstChildUniqueId:[NSString stringWithUTF8String:nextStateData.firstChildUniqueId.c_str()]
+    lastChildUniqueId:[NSString stringWithUTF8String:nextStateData.lastChildUniqueId.c_str()]];
   [self->_scrollContent setContentSize:RCTCGSizeFromSize(nextStateData.scrollContent)];
   [self->_scrollContent setContentOffset:RCTCGPointFromPoint(nextStateData.scrollPosition)];
 

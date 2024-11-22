@@ -37,6 +37,8 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 9;
   public static final short SLCONTAINER_STATE_HORIZONTAL = 10;
   public static final short SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 11;
+  public static final short SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID = 12;
+  public static final short SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 13;
 
   private final ViewManagerDelegate<SLContainer> mDelegate;
   private OnVisibleChangeHandler mVisibleChangeHandler = null;

@@ -45,7 +45,6 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
   std::string calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
   std::string calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
   YogaLayoutableShadowNode& yogaNodeFromContext(YGNodeConstRef yogaNode);
-  SLElementShadowNode& elementNodeFromContext(YGNodeConstRef yogaNode);
 };
 
 }

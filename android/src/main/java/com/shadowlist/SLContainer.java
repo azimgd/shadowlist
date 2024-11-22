@@ -177,7 +177,10 @@ public class SLContainer extends ReactViewGroup {
 
     mContainerChildrenManager.mount(
       visibleStartIndex,
-      visibleEndIndex);
+      visibleEndIndex,
+      stateMapBuffer.getString(SLContainerManager.SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID),
+      stateMapBuffer.getString(SLContainerManager.SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID)
+    );
 
     float[] scrollPosition = new float[]{
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP),
