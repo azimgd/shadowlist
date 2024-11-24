@@ -74,6 +74,7 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
     prevStateData.firstChildUniqueId != nextStateData.firstChildUniqueId;
 
   int headerFooter = 1;
+  int scrollPositionDiff = 0;
   float verticalPosition = 0;
   float horizontalPosition = 0;
   float initialScrollPosition = nextStateData.childrenMeasurements.sum(props.initialScrollIndex + headerFooter);
@@ -86,9 +87,9 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
         horizontalPosition = initialScrollPosition;
       } else if (prepended) {
-        horizontalPosition = scrollContentHorizontalDiff + nextStateData.scrollPosition.x;
+        horizontalPosition = scrollContentHorizontalDiff + scrollPositionDiff;
       } else if (appended) {
-        horizontalPosition = nextStateData.scrollPosition.x;
+        horizontalPosition = scrollPositionDiff;
       } else {
         horizontalPosition = nextStateData.scrollContent.width - nextStateData.scrollContainer.width;
       }
@@ -96,9 +97,9 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
         verticalPosition = initialScrollPosition;
       } else if (prepended) {
-        verticalPosition = scrollContentVerticalDiff + nextStateData.scrollPosition.y;
+        verticalPosition = scrollContentVerticalDiff + scrollPositionDiff;
       } else if (appended) {
-        verticalPosition = nextStateData.scrollPosition.y;
+        verticalPosition = scrollPositionDiff;
       } else {
         verticalPosition = nextStateData.scrollContent.height - nextStateData.scrollContainer.height;
       }
@@ -108,17 +109,17 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
         horizontalPosition = initialScrollPosition;
       } else if (appended) {
-        horizontalPosition = nextStateData.scrollPosition.x;
+        horizontalPosition = scrollPositionDiff;
       } else if (prepended) {
-        horizontalPosition = scrollContentHorizontalDiff + nextStateData.scrollPosition.x;
+        horizontalPosition = scrollContentHorizontalDiff + scrollPositionDiff;
       }
     } else {
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
         verticalPosition = initialScrollPosition;
       } else if (appended) {
-        verticalPosition = nextStateData.scrollPosition.y;
+        verticalPosition = scrollPositionDiff;
       } else if (prepended) {
-        verticalPosition = scrollContentVerticalDiff + nextStateData.scrollPosition.y;
+        verticalPosition = scrollContentVerticalDiff + scrollPositionDiff;
       }
     }
   }

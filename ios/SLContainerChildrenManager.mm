@@ -58,7 +58,7 @@ using namespace facebook::react;
   [self->_childrenPool removeObjectForKey:uniqueId];
 }
 
-- (void)mount:(int)visibleStartIndex end:(int)visibleEndIndex firstChildUniqueId:(NSString *)firstChildUniqueId lastChildUniqueId:(NSString *)lastChildUniqueId
+- (void)mount:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex firstChildUniqueId:(NSString *)firstChildUniqueId lastChildUniqueId:(NSString *)lastChildUniqueId
 {
   /**
    * Currently, -(void)mountChildComponentView is called before -(void)mount in the initial phase.
@@ -68,7 +68,7 @@ using namespace facebook::react;
    */
   if (!self->_childrenPool[firstChildUniqueId] || !self->_childrenPool[lastChildUniqueId]) {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 16 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
-      [self mount:visibleStartIndex end:visibleEndIndex firstChildUniqueId:firstChildUniqueId lastChildUniqueId:lastChildUniqueId];
+      [self mount:visibleStartIndex visibleEndIndex:visibleEndIndex firstChildUniqueId:firstChildUniqueId lastChildUniqueId:lastChildUniqueId];
     });
     return;
   }

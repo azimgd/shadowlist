@@ -76,19 +76,35 @@ using namespace facebook::react;
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
+
   const auto &nextStateData = _state->getData();
   const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
 
-  int visibleStartIndex = nextStateData.visibleStartIndex;
-  int visibleEndIndex = nextStateData.visibleEndIndex;
+  CGPoint scrollPositionCGPoint = CGPointMake(
+    nextStateData.scrollPosition.x + self->_scrollContent.contentOffset.x,
+    nextStateData.scrollPosition.y + self->_scrollContent.contentOffset.y
+  );
+  facebook::react::Point scrollPositionPoint = RCTPointFromCGPoint(scrollPositionCGPoint);
+
+  NSString* firstChildUniqueId = [NSString stringWithUTF8String:nextStateData.firstChildUniqueId.c_str()];
+  NSString* lastChildUniqueId = [NSString stringWithUTF8String:nextStateData.lastChildUniqueId.c_str()];
+
+  CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
+  int visibleStartIndex = nextStateData.calculateVisibleStartIndex(
+    nextStateData.getScrollPosition(scrollPositionPoint)
+  );
+  int visibleEndIndex = nextStateData.calculateVisibleEndIndex(
+    nextStateData.getScrollPosition(scrollPositionPoint)
+  );
 
   [self->_containerChildrenManager
     mount:visibleStartIndex
-    end:visibleEndIndex
-    firstChildUniqueId:[NSString stringWithUTF8String:nextStateData.firstChildUniqueId.c_str()]
-    lastChildUniqueId:[NSString stringWithUTF8String:nextStateData.lastChildUniqueId.c_str()]];
-  [self->_scrollContent setContentSize:RCTCGSizeFromSize(nextStateData.scrollContent)];
-  [self->_scrollContent setContentOffset:RCTCGPointFromPoint(nextStateData.scrollPosition)];
+    visibleEndIndex:visibleEndIndex
+    firstChildUniqueId:firstChildUniqueId
+    lastChildUniqueId:lastChildUniqueId];
+
+  [self->_scrollContent setContentSize:scrollContent];
+  [self->_scrollContent setContentOffset:scrollPositionCGPoint];
 
   [self->_scrollable updateState:nextStateData.horizontal
     inverted:nextViewProps.inverted
@@ -97,15 +113,18 @@ using namespace facebook::react;
     scrollContentWidth:nextStateData.scrollContent.width
     scrollContentHeight:nextStateData.scrollContent.height];
 
+  /**
+   * Dispatch event emitters
+   */
   const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
   eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
   
-  int distanceFromStart = [self->_scrollable shouldNotifyStart:RCTCGPointFromPoint(nextStateData.scrollPosition)];
+  int distanceFromStart = [self->_scrollable shouldNotifyStart:scrollPositionCGPoint];
   if (distanceFromStart) {
     eventEmitter.onStartReached({distanceFromStart});
   }
   
-  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:RCTCGPointFromPoint(nextStateData.scrollPosition)];
+  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:scrollPositionCGPoint];
   if (distanceFromEnd) {
     eventEmitter.onEndReached({distanceFromEnd});
   }
@@ -113,18 +132,54 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  auto stateData = _state->getData();
-  int visibleStartIndex = stateData.calculateVisibleStartIndex(
-    stateData.getScrollPosition(stateData.scrollPosition)
+  const auto &nextStateData = _state->getData();
+  const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
+
+  CGPoint scrollPositionCGPoint = scrollView.contentOffset;
+  facebook::react::Point scrollPositionPoint = RCTPointFromCGPoint(scrollPositionCGPoint);
+
+  NSString* firstChildUniqueId = [NSString stringWithUTF8String:nextStateData.firstChildUniqueId.c_str()];
+  NSString* lastChildUniqueId = [NSString stringWithUTF8String:nextStateData.lastChildUniqueId.c_str()];
+
+  CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
+  int visibleStartIndex = nextStateData.calculateVisibleStartIndex(
+    nextStateData.getScrollPosition(scrollPositionPoint)
   );
-  int visibleEndIndex = stateData.calculateVisibleEndIndex(
-    stateData.getScrollPosition(stateData.scrollPosition)
+  int visibleEndIndex = nextStateData.calculateVisibleEndIndex(
+    nextStateData.getScrollPosition(scrollPositionPoint)
   );
-  stateData.scrollPosition = RCTPointFromCGPoint(scrollView.contentOffset);
-  stateData.visibleStartIndex = visibleStartIndex;
-  stateData.visibleEndIndex = visibleEndIndex;
+
+  [self->_containerChildrenManager
+    mount:visibleStartIndex
+    visibleEndIndex:visibleEndIndex
+    firstChildUniqueId:firstChildUniqueId
+    lastChildUniqueId:lastChildUniqueId];
+
+  [self->_scrollContent setContentSize:scrollContent];
+  [self->_scrollContent setContentOffset:scrollPositionCGPoint];
+
+  [self->_scrollable updateState:nextStateData.horizontal
+    inverted:nextViewProps.inverted
+    scrollContainerWidth:nextStateData.scrollContainer.width
+    scrollContainerHeight:nextStateData.scrollContainer.height
+    scrollContentWidth:nextStateData.scrollContent.width
+    scrollContentHeight:nextStateData.scrollContent.height];
   
-  self->_state->updateState(std::move(stateData));
+  /**
+   * Dispatch event emitters
+   */
+  const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
+  eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
+  
+  int distanceFromStart = [self->_scrollable shouldNotifyStart:scrollPositionCGPoint];
+  if (distanceFromStart) {
+    eventEmitter.onStartReached({distanceFromStart});
+  }
+
+  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:scrollPositionCGPoint];
+  if (distanceFromEnd) {
+    eventEmitter.onEndReached({distanceFromEnd});
+  }
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
