@@ -92,12 +92,6 @@ using namespace facebook::react;
 
   [self->_scrollable updateState:nextStateData.horizontal
     inverted:nextViewProps.inverted
-    visibleStartTrigger:nextStateData.calculateVisibleStartTrigger(
-      nextStateData.getScrollPosition(nextStateData.scrollPosition)
-    )
-    visibleEndTrigger:nextStateData.calculateVisibleEndTrigger(
-      nextStateData.getScrollPosition(nextStateData.scrollPosition)
-    )
     scrollContainerWidth:nextStateData.scrollContainer.width
     scrollContainerHeight:nextStateData.scrollContainer.height
     scrollContentWidth:nextStateData.scrollContent.width
@@ -119,18 +113,6 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  /**
-   * Disable optimization when nearing the end of the list to ensure scrollPosition remains in sync.
-   * Required to prevent content shifts when adding items to the list.
-   */
-  if (
-    FALSE && // Remove optimization completely for now
-    [self->_scrollable shouldNotifyStart:scrollView.contentOffset] == 0 &&
-    [self->_scrollable shouldNotifyEnd:scrollView.contentOffset] == 0 &&
-    ![self->_scrollable shouldUpdate:scrollView.contentOffset]) {
-    return;
-  }
-
   auto stateData = _state->getData();
   int visibleStartIndex = stateData.calculateVisibleStartIndex(
     stateData.getScrollPosition(stateData.scrollPosition)

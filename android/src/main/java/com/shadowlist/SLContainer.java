@@ -50,29 +50,12 @@ public class SLContainer extends ReactViewGroup {
     SwipeRefreshLayout.OnRefreshListener refreshListener = () -> {
     };
     OnScrollChangeListener scrollListenerVertical = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      /**
-       * Disable optimization when nearing the end of the list to ensure scrollPosition remains in sync.
-       * Required to prevent content shifts when adding items to the list.
-       */
-      if (
-        false &&
-        mScrollable.shouldNotifyStart(new float[]{scrollX, scrollY}) == 0 &&
-        mScrollable.shouldNotifyEnd(new float[]{scrollX, scrollY}) == 0 &&
-        !mScrollable.shouldUpdate(new float[]{scrollX, scrollY})
-      ) {
-        return;
-      }
-
       WritableNativeMap mapBuffer = new WritableNativeMap();
       mapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
       mapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
       mStateWrapper.updateState(mapBuffer);
     };
     OnScrollChangeListener scrollListenerHorizontal = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      if (!mScrollable.shouldUpdate(new float[]{scrollX, scrollY})) {
-        return;
-      }
-
       WritableNativeMap mapBuffer = new WritableNativeMap();
       mapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
       mapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
@@ -164,8 +147,6 @@ public class SLContainer extends ReactViewGroup {
     mScrollable.updateState(
       stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_HORIZONTAL),
       false,
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_VISIBLE_START_TRIGGER),
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_VISIBLE_END_TRIGGER),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),

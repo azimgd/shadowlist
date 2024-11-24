@@ -9,8 +9,6 @@ SLContainerState::SLContainerState(
   Size scrollContent,
   int visibleStartIndex,
   int visibleEndIndex,
-  float visibleStartTrigger,
-  float visibleEndTrigger,
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
   bool horizontal,
@@ -21,8 +19,6 @@ SLContainerState::SLContainerState(
     scrollContent(scrollContent),
     visibleStartIndex(visibleStartIndex),
     visibleEndIndex(visibleEndIndex),
-    visibleStartTrigger(visibleStartTrigger),
-    visibleEndTrigger(visibleEndTrigger),
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
     horizontal(horizontal),
@@ -55,12 +51,6 @@ folly::dynamic SLContainerState::getDynamic() const {
     "visibleEndIndex",
     calculateVisibleEndIndex(getScrollPosition(scrollPosition))
   )(
-    "visibleStartTrigger",
-    calculateVisibleStartTrigger(getScrollPosition(scrollPosition))
-  )(
-    "visibleEndTrigger",
-    calculateVisibleEndTrigger(getScrollPosition(scrollPosition))
-  )(
     "horizontal",
     horizontal
   )(
@@ -79,8 +69,6 @@ MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
   builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, calculateVisibleStartIndex(getScrollPosition(scrollPosition)));
   builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, calculateVisibleEndIndex(getScrollPosition(scrollPosition)));
-  builder.putDouble(SLCONTAINER_STATE_VISIBLE_START_TRIGGER, calculateVisibleStartTrigger(getScrollPosition(scrollPosition)));
-  builder.putDouble(SLCONTAINER_STATE_VISIBLE_END_TRIGGER, calculateVisibleEndTrigger(getScrollPosition(scrollPosition)));
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.y);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
@@ -107,16 +95,6 @@ int SLContainerState::calculateVisibleEndIndex(const float visibleStartOffset, c
   int visibleEndIndexMax = childrenMeasurements.size() - 2;
   int adjusted = std::min(visibleEndIndex + offset, visibleEndIndexMax);
   return adjusted == 0 ? initialNumToRender : adjusted;
-}
-
-float SLContainerState::calculateVisibleStartTrigger(const float visibleStartOffset) const {
-  int visibleStartIndex = calculateVisibleStartIndex(visibleStartOffset, 1);
-  return childrenMeasurements.sum(visibleStartIndex);
-}
-
-float SLContainerState::calculateVisibleEndTrigger(const float visibleStartOffset) const {
-  int visibleEndIndex = calculateVisibleEndIndex(visibleStartOffset, 1);
-  return childrenMeasurements.sum(visibleEndIndex);
 }
 
 Point SLContainerState::calculateScrollPositionOffset(const float visibleStartOffset) const {
