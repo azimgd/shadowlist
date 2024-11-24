@@ -1,10 +1,10 @@
 #include "SLContainerShadowNode.h"
 
-#define MEASURE_CHILDREN(childrenMeasurements, childNodeMetrics, isHorizontal) \
+#define MEASURE_CHILDREN(childrenMeasurementsTree, childNodeMetrics, isHorizontal) \
   if (isHorizontal) { \
-    childrenMeasurements[index] = childNodeMetrics.frame.size.width; \
+    childrenMeasurementsTree[index] = childNodeMetrics.frame.size.width; \
   } else { \
-    childrenMeasurements[index] = childNodeMetrics.frame.size.height; \
+    childrenMeasurementsTree[index] = childNodeMetrics.frame.size.height; \
   }
 
 namespace facebook::react {
@@ -22,7 +22,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   nextStateData.firstChildUniqueId = calculateFirstChildUniqueId(prevStateData, nextStateData);
   nextStateData.lastChildUniqueId = calculateLastChildUniqueId(prevStateData, nextStateData);
 
-  nextStateData.childrenMeasurements = calculateChildrenMeasurements(prevStateData, nextStateData);
+  nextStateData.childrenMeasurementsTree = calculatechildrenMeasurementsTree(prevStateData, nextStateData);
   nextStateData.scrollContainer = calculateScrollContainer(prevStateData, nextStateData);
   nextStateData.scrollContent = calculateScrollContent(prevStateData, nextStateData);
   nextStateData.scrollPosition = calculateScrollPosition(prevStateData, nextStateData);
@@ -51,18 +51,18 @@ void SLContainerShadowNode::replaceChild(
   ConcreteShadowNode::replaceChild(oldChild, newChild, suggestedIndex);
 }
 
-SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurements(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
+SLFenwickTree SLContainerShadowNode::calculatechildrenMeasurementsTree(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
 
   int childCount = yogaNode_.getChildCount();
-  SLFenwickTree childrenMeasurements(childCount);
+  SLFenwickTree childrenMeasurementsTree(childCount);
 
   for (int index = 0; index < childCount; ++index) {
     auto &childNode = yogaNodeFromContext(yogaNode_.getChild(index));
-    MEASURE_CHILDREN(childrenMeasurements, childNode.getLayoutMetrics(), props.horizontal);
+    MEASURE_CHILDREN(childrenMeasurementsTree, childNode.getLayoutMetrics(), props.horizontal);
   }
 
-  return childrenMeasurements;
+  return childrenMeasurementsTree;
 }
 
 Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
@@ -77,7 +77,7 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
   int scrollPositionDiff = 0;
   float verticalPosition = 0;
   float horizontalPosition = 0;
-  float initialScrollPosition = nextStateData.childrenMeasurements.sum(props.initialScrollIndex + headerFooter);
+  float initialScrollPosition = nextStateData.childrenMeasurementsTree.sum(props.initialScrollIndex + headerFooter);
 
   float scrollContentHorizontalDiff = nextStateData.scrollContent.width - prevStateData.scrollContent.width;
   float scrollContentVerticalDiff = nextStateData.scrollContent.height - prevStateData.scrollContent.height;

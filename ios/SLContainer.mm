@@ -192,7 +192,7 @@ using namespace facebook::react;
   auto headerFooter = 1;
   auto stateData = _state->getData();
   stateData.scrollPosition = stateData.calculateScrollPositionOffset(
-    stateData.childrenMeasurements.sum(index + headerFooter)
+    stateData.childrenMeasurementsTree.sum(index + headerFooter)
   );
   stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
     stateData.getScrollPosition(stateData.scrollPosition)

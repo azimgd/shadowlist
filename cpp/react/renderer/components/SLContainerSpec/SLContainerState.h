@@ -30,7 +30,7 @@ constexpr static MapBuffer::Key SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 13;
 class SLContainerState {
   public:
   SLContainerState(
-    SLFenwickTree childrenMeasurements,
+    SLFenwickTree childrenMeasurementsTree,
     Point scrollPosition,
     Size scrollContainer,
     Size scrollContent,
@@ -42,7 +42,7 @@ class SLContainerState {
     int initialNumToRender);
   SLContainerState() = default;
 
-  SLFenwickTree childrenMeasurements;
+  SLFenwickTree childrenMeasurementsTree;
   Point scrollPosition;
   Size scrollContainer;
   Size scrollContent;
@@ -61,7 +61,7 @@ class SLContainerState {
 
 #ifdef ANDROID
   SLContainerState(SLContainerState const &previousState, folly::dynamic data) :
-  childrenMeasurements(previousState.childrenMeasurements),
+  childrenMeasurementsTree(previousState.childrenMeasurementsTree),
   scrollPosition({
     (Float)data["scrollPositionLeft"].getDouble(),
     (Float)data["scrollPositionTop"].getDouble()

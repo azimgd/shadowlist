@@ -38,7 +38,7 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
     const ShadowNode& oldChild,
     const ShadowNode::Shared& newChild,
     size_t suggestedIndex = SIZE_MAX) override;
-  SLFenwickTree calculateChildrenMeasurements(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
+  SLFenwickTree calculatechildrenMeasurementsTree(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
   Point calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
   Size calculateScrollContent(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
   Size calculateScrollContainer(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);

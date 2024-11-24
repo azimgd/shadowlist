@@ -3,7 +3,7 @@
 namespace facebook::react {
 
 SLContainerState::SLContainerState(
-  SLFenwickTree childrenMeasurements,
+  SLFenwickTree childrenMeasurementsTree,
   Point scrollPosition,
   Size scrollContainer,
   Size scrollContent,
@@ -13,7 +13,7 @@ SLContainerState::SLContainerState(
   std::string lastChildUniqueId,
   bool horizontal,
   int initialNumToRender) :
-    childrenMeasurements(childrenMeasurements),
+    childrenMeasurementsTree(childrenMeasurementsTree),
     scrollPosition(scrollPosition),
     scrollContainer(scrollContainer),
     scrollContent(scrollContent),
@@ -84,15 +84,15 @@ MapBuffer SLContainerState::getMapBuffer() const {
 #endif
 
 int SLContainerState::calculateVisibleStartIndex(const float visibleStartOffset, const int offset) const {
-  int visibleStartIndex = childrenMeasurements.lower_bound(visibleStartOffset);
+  int visibleStartIndex = childrenMeasurementsTree.lower_bound(visibleStartOffset);
   int visibleEndIndexMin = 0;
   int adjusted = std::max(visibleStartIndex - offset, visibleEndIndexMin);
   return adjusted;
 }
 
 int SLContainerState::calculateVisibleEndIndex(const float visibleStartOffset, const int offset) const {
-  int visibleEndIndex = childrenMeasurements.lower_bound(visibleStartOffset + scrollContainer.height);
-  int visibleEndIndexMax = childrenMeasurements.size() - 2;
+  int visibleEndIndex = childrenMeasurementsTree.lower_bound(visibleStartOffset + scrollContainer.height);
+  int visibleEndIndexMax = childrenMeasurementsTree.size() - 2;
   int adjusted = std::min(visibleEndIndex + offset, visibleEndIndexMax);
   return adjusted == 0 ? initialNumToRender : adjusted;
 }
@@ -105,7 +105,7 @@ Point SLContainerState::calculateScrollPositionOffset(const float visibleStartOf
 }
 
 float SLContainerState::calculateContentSize() const {
-  return childrenMeasurements.sum(childrenMeasurements.size());
+  return childrenMeasurementsTree.sum(childrenMeasurementsTree.size());
 }
 
 float SLContainerState::getScrollPosition(const Point& scrollPosition) const {
