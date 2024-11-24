@@ -27,6 +27,9 @@ SLContainerState::SLContainerState(
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {
   return folly::dynamic::object(
+    "childrenMeasurementsTree",
+    childrenMeasurementsTreeToDynamic(childrenMeasurementsTree)
+  )(
     "scrollContentWidth",
     scrollContent.width
   )(
@@ -67,6 +70,7 @@ folly::dynamic SLContainerState::getDynamic() const {
 
 MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
+  builder.putMapBuffer(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE, childrenMeasurementsTreeToMapBuffer(childrenMeasurementsTree));
   builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, calculateVisibleStartIndex(getScrollPosition(scrollPosition)));
   builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, calculateVisibleEndIndex(getScrollPosition(scrollPosition)));
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
@@ -110,6 +114,31 @@ float SLContainerState::calculateContentSize() const {
 
 float SLContainerState::getScrollPosition(const Point& scrollPosition) const {
   return horizontal ? scrollPosition.x : scrollPosition.y;
+}
+
+folly::dynamic SLContainerState::childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const {
+  folly::dynamic childrenMeasurementsNext = folly::dynamic::array();
+  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
+    folly::dynamic measurement = static_cast<float>(childrenMeasurementsTree.at(i));
+    childrenMeasurementsNext.push_back(measurement);
+  }
+  return childrenMeasurementsNext;
+}
+
+MapBuffer SLContainerState::childrenMeasurementsTreeToMapBuffer(SLFenwickTree childrenMeasurementsTree) const {
+  auto childrenMeasurementsNext = MapBufferBuilder();
+  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
+    childrenMeasurementsNext.putDouble(i, childrenMeasurementsTree.at(i));
+  }
+  return childrenMeasurementsNext.build();
+}
+
+SLFenwickTree SLContainerState::childrenMeasurementsTreeFromDynamic(folly::dynamic childrenMeasurementsTree) const {
+  SLFenwickTree childrenMeasurementsNext;
+  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
+    childrenMeasurementsNext[i] = childrenMeasurementsTree[i].getDouble();
+  }
+  return childrenMeasurementsNext;
 }
 
 }
