@@ -4,6 +4,7 @@
 #include <string>
 #include "SLComponentRegistry.h"
 #include "SLFenwickTree.hpp"
+#include "helpers/helpers.h"
 
 /**
  * SLComponentRegistry
@@ -150,6 +151,16 @@ extern "C"
 JNIEXPORT jint JNICALL Java_com_shadowlist_SLFenwickTree_nativeLowerBound(JNIEnv *env, jobject thiz, jlong treePtr, jfloat offset) {
   facebook::react::SLFenwickTree* childrenMeasurementsTreePtr = reinterpret_cast<facebook::react::SLFenwickTree*>(treePtr);
   return childrenMeasurementsTreePtr->lower_bound(offset);
+}
+
+extern "C"
+JNIEXPORT jint JNICALL Java_com_shadowlist_SLFenwickTree_nativeAdjustVisibleStartIndex(JNIEnv *env, jobject thiz, jlong treePtr, jint visibleStartIndex, jint childrenMeasurementsTreeSize) {
+  return facebook::react::adjustVisibleStartIndex(visibleStartIndex, childrenMeasurementsTreeSize);
+}
+
+extern "C"
+JNIEXPORT jint JNICALL Java_com_shadowlist_SLFenwickTree_nativeAdjustVisibleEndIndex(JNIEnv *env, jobject thiz, jlong treePtr, jint visibleEndIndex, jint childrenMeasurementsTreeSize) {
+  return facebook::react::adjustVisibleEndIndex(visibleEndIndex, childrenMeasurementsTreeSize);
 }
 
 #endif

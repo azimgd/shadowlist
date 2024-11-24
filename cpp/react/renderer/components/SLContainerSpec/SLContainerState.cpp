@@ -7,8 +7,6 @@ SLContainerState::SLContainerState(
   Point scrollPosition,
   Size scrollContainer,
   Size scrollContent,
-  int visibleStartIndex,
-  int visibleEndIndex,
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
   bool horizontal,
@@ -17,8 +15,6 @@ SLContainerState::SLContainerState(
     scrollPosition(scrollPosition),
     scrollContainer(scrollContainer),
     scrollContent(scrollContent),
-    visibleStartIndex(visibleStartIndex),
-    visibleEndIndex(visibleEndIndex),
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
     horizontal(horizontal),
@@ -48,12 +44,6 @@ folly::dynamic SLContainerState::getDynamic() const {
     "scrollPositionTop",
     scrollPosition.y
   )(
-    "visibleStartIndex",
-    calculateVisibleStartIndex(getScrollPosition(scrollPosition))
-  )(
-    "visibleEndIndex",
-    calculateVisibleEndIndex(getScrollPosition(scrollPosition))
-  )(
     "horizontal",
     horizontal
   )(
@@ -72,8 +62,6 @@ MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
   builder.putMapBuffer(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE, childrenMeasurementsTreeToMapBuffer(childrenMeasurementsTree));
   builder.putInt(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE, childrenMeasurementsTree.size());
-  builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, calculateVisibleStartIndex(getScrollPosition(scrollPosition)));
-  builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, calculateVisibleEndIndex(getScrollPosition(scrollPosition)));
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.y);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
@@ -87,20 +75,6 @@ MapBuffer SLContainerState::getMapBuffer() const {
   return builder.build();
 }
 #endif
-
-int SLContainerState::calculateVisibleStartIndex(const float visibleStartOffset, const int offset) const {
-  int visibleStartIndex = childrenMeasurementsTree.lower_bound(visibleStartOffset);
-  int visibleEndIndexMin = 0;
-  int adjusted = std::max(visibleStartIndex - offset, visibleEndIndexMin);
-  return adjusted;
-}
-
-int SLContainerState::calculateVisibleEndIndex(const float visibleStartOffset, const int offset) const {
-  int visibleEndIndex = childrenMeasurementsTree.lower_bound(visibleStartOffset + scrollContainer.height);
-  int visibleEndIndexMax = childrenMeasurementsTree.size() - 2;
-  int adjusted = std::min(visibleEndIndex + offset, visibleEndIndexMax);
-  return adjusted == 0 ? initialNumToRender : adjusted;
-}
 
 Point SLContainerState::calculateScrollPositionOffset(const float visibleStartOffset) const {
   if (horizontal) {

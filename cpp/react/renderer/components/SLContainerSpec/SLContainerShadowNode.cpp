@@ -30,13 +30,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   nextStateData.horizontal = props.horizontal;
   nextStateData.initialNumToRender = props.initialNumToRender;
 
-  nextStateData.visibleStartIndex = nextStateData.calculateVisibleStartIndex(
-    nextStateData.getScrollPosition(nextStateData.scrollPosition)
-  );
-  nextStateData.visibleEndIndex = nextStateData.calculateVisibleEndIndex(
-    nextStateData.getScrollPosition(nextStateData.scrollPosition)
-  );
-
   setStateData(std::move(nextStateData));
 }
 

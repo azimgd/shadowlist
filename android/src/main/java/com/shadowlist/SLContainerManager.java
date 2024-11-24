@@ -27,8 +27,6 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   public static final short SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE = 0;
   public static final short SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE = 1;
-  public static final short SLCONTAINER_STATE_VISIBLE_START_INDEX = 2;
-  public static final short SLCONTAINER_STATE_VISIBLE_END_INDEX = 3;
   public static final short SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 4;
   public static final short SLCONTAINER_STATE_SCROLL_POSITION_TOP = 5;
   public static final short SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 6;

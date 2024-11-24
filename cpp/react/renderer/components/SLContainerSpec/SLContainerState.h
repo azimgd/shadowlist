@@ -15,8 +15,6 @@ namespace facebook::react {
 #ifdef ANDROID
 constexpr static MapBuffer::Key SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE = 0;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE = 1;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_VISIBLE_START_INDEX = 2;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_VISIBLE_END_INDEX = 3;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 4;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_TOP = 5;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 6;
@@ -36,8 +34,6 @@ class SLContainerState {
     Point scrollPosition,
     Size scrollContainer,
     Size scrollContent,
-    int visibleStartIndex,
-    int visibleEndIndex,
     std::string firstChildUniqueId,
     std::string lastChildUniqueId,
     bool horizontal,
@@ -48,15 +44,11 @@ class SLContainerState {
   Point scrollPosition;
   Size scrollContainer;
   Size scrollContent;
-  int visibleStartIndex;
-  int visibleEndIndex;
   std::string firstChildUniqueId;
   std::string lastChildUniqueId;
   bool horizontal;
   int initialNumToRender;
 
-  int calculateVisibleStartIndex(const float visibleStartOffset, const int offset = 5) const;
-  int calculateVisibleEndIndex(const float visibleStartOffset, const int offset = 5) const;
   Point calculateScrollPositionOffset(const float visibleStartOffset) const;
   float calculateContentSize() const;
   float getScrollPosition(const Point& scrollPosition) const;
@@ -78,12 +70,6 @@ class SLContainerState {
   }),
   scrollContainer(previousState.scrollContainer),
   scrollContent(previousState.scrollContent),
-  visibleStartIndex(
-    calculateVisibleStartIndex(data["scrollPositionTop"].getDouble())
-  ),
-  visibleEndIndex(
-    calculateVisibleEndIndex(data["scrollPositionTop"].getDouble())
-  ),
   firstChildUniqueId(previousState.firstChildUniqueId),
   lastChildUniqueId(previousState.lastChildUniqueId),
   horizontal(previousState.horizontal),

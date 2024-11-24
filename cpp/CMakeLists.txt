@@ -21,6 +21,7 @@ file(GLOB LIB_CUSTOM_SRCS CONFIGURE_DEPENDS
   ${LIB_COMMON_DIR}/react/renderer/components/SLElementSpec/*.cpp
   ${LIB_COMMON_DIR}/fenwick/*.cpp
   ${LIB_COMMON_DIR}/registry/*.cpp
+  ${LIB_COMMON_DIR}/helpers/*.cpp
 )
 
 add_library(
@@ -41,6 +42,7 @@ target_include_directories(
   ${LIB_COMMON_DIR}/react/renderer/components/SLElementSpec
   ${LIB_COMMON_DIR}/fenwick
   ${LIB_COMMON_DIR}/registry
+  ${LIB_COMMON_DIR}/helpers
 )
 
 target_link_libraries(
