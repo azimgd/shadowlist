@@ -71,6 +71,7 @@ folly::dynamic SLContainerState::getDynamic() const {
 MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
   builder.putMapBuffer(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE, childrenMeasurementsTreeToMapBuffer(childrenMeasurementsTree));
+  builder.putInt(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE, childrenMeasurementsTree.size());
   builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, calculateVisibleStartIndex(getScrollPosition(scrollPosition)));
   builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, calculateVisibleEndIndex(getScrollPosition(scrollPosition)));
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
@@ -116,6 +117,7 @@ float SLContainerState::getScrollPosition(const Point& scrollPosition) const {
   return horizontal ? scrollPosition.x : scrollPosition.y;
 }
 
+#ifdef ANDROID
 folly::dynamic SLContainerState::childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const {
   folly::dynamic childrenMeasurementsNext = folly::dynamic::array();
   for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
@@ -140,5 +142,6 @@ SLFenwickTree SLContainerState::childrenMeasurementsTreeFromDynamic(folly::dynam
   }
   return childrenMeasurementsNext;
 }
+#endif
 
 }

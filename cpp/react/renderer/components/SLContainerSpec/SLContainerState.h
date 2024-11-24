@@ -14,18 +14,19 @@ namespace facebook::react {
 
 #ifdef ANDROID
 constexpr static MapBuffer::Key SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE = 0;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_VISIBLE_START_INDEX = 1;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_VISIBLE_END_INDEX = 2;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 3;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_TOP = 4;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 5;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 6;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 7;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 8;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_HORIZONTAL = 9;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 10;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID = 11;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 12;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE = 1;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_VISIBLE_START_INDEX = 2;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_VISIBLE_END_INDEX = 3;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 4;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_TOP = 5;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 6;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 7;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 8;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 9;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_HORIZONTAL = 10;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 11;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID = 12;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 13;
 #endif
 
 class SLContainerState {

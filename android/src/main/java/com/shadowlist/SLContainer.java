@@ -24,6 +24,7 @@ public class SLContainer extends ReactViewGroup {
   private ReactViewGroup mScrollContent;
   private SLScrollable mScrollable;
   private SLContainerChildrenManager mContainerChildrenManager;
+  private SLFenwickTree mChildrenMeasurements;
 
   private @Nullable StateWrapper mStateWrapper = null;
 
@@ -124,6 +125,13 @@ public class SLContainer extends ReactViewGroup {
     SLContainerManager.OnEndReachedHandler onEndReachedHandler,
     SLContainerManager.OnVisibleChangeHandler onVisibleChangeHandler) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
+
+    float[] childrenMeasurements = new float[stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)];
+    for (int i = 0; i < stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE); i++) {
+      childrenMeasurements[i] = (float) stateMapBuffer.getMapBuffer(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE).getDouble(i);
+    }
+
+    mChildrenMeasurements = new SLFenwickTree(childrenMeasurements);
 
     this.setScrollContainerLayout(
       (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
