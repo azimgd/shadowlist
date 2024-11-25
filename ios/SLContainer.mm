@@ -78,7 +78,7 @@ using namespace facebook::react;
 {
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
 
-  const auto &nextStateData = _state->getData();
+  const auto &nextStateData = self->_state->getData();
   const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
 
   CGPoint scrollPositionCGPoint = CGPointMake(
@@ -86,9 +86,6 @@ using namespace facebook::react;
     nextStateData.scrollPosition.y + self->_scrollContent.contentOffset.y
   );
   facebook::react::Point scrollPositionPoint = RCTPointFromCGPoint(scrollPositionCGPoint);
-
-  NSString* firstChildUniqueId = [NSString stringWithUTF8String:nextStateData.firstChildUniqueId.c_str()];
-  NSString* lastChildUniqueId = [NSString stringWithUTF8String:nextStateData.lastChildUniqueId.c_str()];
 
   CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
   int visibleStartIndex = adjustVisibleStartIndex(
@@ -104,9 +101,7 @@ using namespace facebook::react;
 
   [self->_containerChildrenManager
     mount:visibleStartIndex
-    visibleEndIndex:visibleEndIndex
-    firstChildUniqueId:firstChildUniqueId
-    lastChildUniqueId:lastChildUniqueId];
+    visibleEndIndex:visibleEndIndex];
 
   [self->_scrollContent setContentSize:scrollContent];
   [self->_scrollContent setContentOffset:scrollPositionCGPoint];
@@ -137,16 +132,18 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  const auto &nextStateData = _state->getData();
-  const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
+  [self updateVirtualization];
+}
 
-  CGPoint scrollPositionCGPoint = scrollView.contentOffset;
+- (void)updateVirtualization
+{
+  if (self->_state == nullptr) return;
+
+  const auto &nextStateData = self->_state->getData();
+
+  CGPoint scrollPositionCGPoint = self->_scrollContent.contentOffset;
   facebook::react::Point scrollPositionPoint = RCTPointFromCGPoint(scrollPositionCGPoint);
 
-  NSString* firstChildUniqueId = [NSString stringWithUTF8String:nextStateData.firstChildUniqueId.c_str()];
-  NSString* lastChildUniqueId = [NSString stringWithUTF8String:nextStateData.lastChildUniqueId.c_str()];
-
-  CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
   int visibleStartIndex = adjustVisibleStartIndex(
     nextStateData.childrenMeasurementsTree.lower_bound(
       nextStateData.getScrollPosition(scrollPositionPoint)),
@@ -160,9 +157,7 @@ using namespace facebook::react;
 
   [self->_containerChildrenManager
     mount:visibleStartIndex
-    visibleEndIndex:visibleEndIndex
-    firstChildUniqueId:firstChildUniqueId
-    lastChildUniqueId:lastChildUniqueId];
+    visibleEndIndex:visibleEndIndex];
 
   /**
    * Dispatch event emitters
@@ -179,6 +174,10 @@ using namespace facebook::react;
   if (distanceFromEnd) {
     eventEmitter.onEndReached({distanceFromEnd});
   }
+  
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+    [self updateVirtualization];
+  });
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args

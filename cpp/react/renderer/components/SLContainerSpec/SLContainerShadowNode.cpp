@@ -22,7 +22,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   nextStateData.firstChildUniqueId = calculateFirstChildUniqueId(prevStateData, nextStateData);
   nextStateData.lastChildUniqueId = calculateLastChildUniqueId(prevStateData, nextStateData);
 
-  nextStateData.childrenMeasurementsTree = calculatechildrenMeasurementsTree(prevStateData, nextStateData);
+  nextStateData.childrenMeasurementsTree = calculateChildrenMeasurementsTree(prevStateData, nextStateData);
   nextStateData.scrollContainer = calculateScrollContainer(prevStateData, nextStateData);
   nextStateData.scrollContent = calculateScrollContent(prevStateData, nextStateData);
   nextStateData.scrollPosition = calculateScrollPosition(prevStateData, nextStateData);
@@ -44,7 +44,7 @@ void SLContainerShadowNode::replaceChild(
   ConcreteShadowNode::replaceChild(oldChild, newChild, suggestedIndex);
 }
 
-SLFenwickTree SLContainerShadowNode::calculatechildrenMeasurementsTree(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
+SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurementsTree(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
 
   int childCount = yogaNode_.getChildCount();
@@ -61,10 +61,14 @@ SLFenwickTree SLContainerShadowNode::calculatechildrenMeasurementsTree(const Con
 Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
 
-  bool appended = prevStateData.firstChildUniqueId == nextStateData.firstChildUniqueId &&
-    prevStateData.lastChildUniqueId != nextStateData.lastChildUniqueId;
-  bool prepended = prevStateData.lastChildUniqueId == nextStateData.lastChildUniqueId &&
-    prevStateData.firstChildUniqueId != nextStateData.firstChildUniqueId;
+  bool appended = (
+    prevStateData.firstChildUniqueId.size() > 0 &&
+    prevStateData.firstChildUniqueId == nextStateData.firstChildUniqueId &&
+    prevStateData.lastChildUniqueId != nextStateData.lastChildUniqueId);
+  bool prepended = (
+    prevStateData.firstChildUniqueId.size() > 0 &&
+    prevStateData.firstChildUniqueId != nextStateData.firstChildUniqueId &&
+    prevStateData.lastChildUniqueId == nextStateData.lastChildUniqueId);
 
   int headerFooter = 1;
   int scrollPositionDiff = 0;
@@ -142,35 +146,11 @@ Size SLContainerShadowNode::calculateScrollContent(const ConcreteStateData prevS
 }
 
 std::string SLContainerShadowNode::calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  // Assumes that HeaderListComponent is always present, for now.
-  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(1));
-  auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
-
-  #ifdef ANDROID
-    try {
-      return childNode.getProps()->rawProps.at("uniqueId").asString();
-    } catch (...) {
-      return "";
-    }
-  #endif
-
-  return childNodeViewProps.uniqueId;
+  return std::to_string(getChildren().at(1)->getTag());
 }
 
 std::string SLContainerShadowNode::calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  // Assumes that FooterListComponent is always present, for now.
-  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 2));
-  auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
-
-  #ifdef ANDROID
-    try {
-      return childNode.getProps()->rawProps.at("uniqueId").asString();
-    } catch (...) {
-      return "";
-    }
-  #endif
-
-  return childNodeViewProps.uniqueId;
+  return std::to_string(getChildren().at(getChildren().size() - 2)->getTag());
 }
 
 Size SLContainerShadowNode::calculateScrollContainer(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {

@@ -70,8 +70,6 @@ MapBuffer SLContainerState::getMapBuffer() const {
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT, scrollContainer.height);
   builder.putBool(SLCONTAINER_STATE_HORIZONTAL, horizontal);
   builder.putInt(SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER, initialNumToRender);
-  builder.putString(SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID, firstChildUniqueId);
-  builder.putString(SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID, lastChildUniqueId);
   return builder.build();
 }
 #endif

@@ -23,8 +23,6 @@ constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 8;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 9;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_HORIZONTAL = 10;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 11;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID = 12;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 13;
 #endif
 
 class SLContainerState {
