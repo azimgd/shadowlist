@@ -92,6 +92,10 @@ public class SLContainer extends ReactViewGroup {
       PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollY()),
       PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollY())};
 
+    updateObservers(scrollPosition, visibleStartIndex, visibleEndIndex);
+  }
+
+  public void updateObservers(float[] scrollPosition, int visibleStartIndex, int visibleEndIndex) {
     mOnVisibleChangeHandler.onVisibleChange(this, visibleStartIndex, visibleEndIndex);
 
     int distanceFromStart = mScrollable.shouldNotifyStart(scrollPosition);
@@ -223,24 +227,14 @@ public class SLContainer extends ReactViewGroup {
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_LEFT) + PixelUtil.toDIPFromPixel(mScrollContainerVertical.getScrollX()),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP) + PixelUtil.toDIPFromPixel(mScrollContainerVertical.getScrollY())};
 
-    onVisibleChangeHandler.onVisibleChange(this, visibleStartIndex, visibleEndIndex);
-
-    int distanceFromStart = mScrollable.shouldNotifyStart(scrollPosition);
-    if (distanceFromStart > 0) {
-      onStartReachedHandler.onStartReached(this, distanceFromStart);
-    }
-
-    int distanceFromEnd = mScrollable.shouldNotifyEnd(scrollPosition);
-    if (distanceFromEnd > 0) {
-      onEndReachedHandler.onEndReached(this, distanceFromEnd);
-    }
-
     mOnStartReachedHandler = onStartReachedHandler;
     mOnEndReachedHandler = onEndReachedHandler;
     mOnVisibleChangeHandler = onVisibleChangeHandler;
     mStateWrapper = stateWrapper;
 
     mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(scrollPosition[0]), (int)PixelUtil.toPixelFromDIP(scrollPosition[1]));
+
+    updateObservers(scrollPosition, visibleStartIndex, visibleEndIndex);
 
     Handler handler = new Handler();
     handler.postDelayed(new Runnable() {

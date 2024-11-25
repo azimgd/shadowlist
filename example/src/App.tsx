@@ -13,7 +13,7 @@ import useData from './useData';
 import Element from './Element';
 
 const ITEMS_COUNT = 20;
-const IS_INVERTED = true;
+const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
 const INITIAL_SCROLL_INDEX = 0;
 

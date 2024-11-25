@@ -158,6 +158,15 @@ using namespace facebook::react;
   [self->_containerChildrenManager
     mount:visibleStartIndex
     visibleEndIndex:visibleEndIndex];
+    
+  [self updateObservers:scrollPositionCGPoint visibleStartIndex:visibleStartIndex visibleEndIndex:visibleEndIndex];
+}
+
+- (void)updateObservers:(CGPoint)scrollPosition visibleStartIndex:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
+{
+  if (_eventEmitter == nullptr) {
+    return;
+  }
 
   /**
    * Dispatch event emitters
@@ -165,12 +174,12 @@ using namespace facebook::react;
   const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
   eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
   
-  int distanceFromStart = [self->_scrollable shouldNotifyStart:scrollPositionCGPoint];
+  int distanceFromStart = [self->_scrollable shouldNotifyStart:scrollPosition];
   if (distanceFromStart) {
     eventEmitter.onStartReached({distanceFromStart});
   }
 
-  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:scrollPositionCGPoint];
+  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:scrollPosition];
   if (distanceFromEnd) {
     eventEmitter.onEndReached({distanceFromEnd});
   }
