@@ -180,12 +180,12 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
 
   @Override
   public void scrollToIndex(SLContainer view, int index, boolean animated) {
-
+    view.scrollToIndex(index, animated);
   }
 
   @Override
   public void scrollToOffset(SLContainer view, int offset, boolean animated) {
-
+    view.scrollToOffset(offset, animated);
   }
 
   public static final String NAME = "SLContainer";

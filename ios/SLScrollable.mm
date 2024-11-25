@@ -124,4 +124,7 @@
   return [self getScrollPosition:scrollPosition] + self->_scrollContainerHeight;
 }
 
+- (CGPoint)getScrollPositionFromOffset:(float)scrollOffset {
+  return self->_horizontal ? CGPointMake(scrollOffset, 0) : CGPointMake(0, scrollOffset);
+}
 @end

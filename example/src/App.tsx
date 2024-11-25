@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
 import {
@@ -16,6 +16,7 @@ const ITEMS_COUNT = 50;
 const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
 const INITIAL_SCROLL_INDEX = 0;
+const FINAL_SCROLL_INDEX = 0;
 
 const ListHeaderComponent = () => (
   <View style={styles.static}>
@@ -42,6 +43,13 @@ const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
 export default function App() {
   const data = useData({ length: ITEMS_COUNT, inverted: IS_INVERTED });
   const ref = useRef<SLContainerRef>(null);
+
+  useEffect(() => {
+    if (!FINAL_SCROLL_INDEX) return;
+    setTimeout(() => {
+      ref.current?.scrollToIndex({ index: FINAL_SCROLL_INDEX });
+    }, 1000);
+  }, []);
 
   const onStartReached = useCallback<DirectEventHandler<OnStartReached>>(
     (event) => {

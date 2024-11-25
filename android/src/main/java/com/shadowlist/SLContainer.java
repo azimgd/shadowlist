@@ -235,4 +235,20 @@ public class SLContainer extends ReactViewGroup {
       }
     }, 16);
   }
+
+  public void scrollToIndex(int index, boolean animated) {
+    MapBuffer stateMapBuffer = mStateWrapper.getStateDataMapBuffer();
+    int headerFooter = 1;
+    int offset = mChildrenMeasurements.adjustVisibleStartIndex(
+      (int) mChildrenMeasurements.sum(index + headerFooter),
+      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
+    );
+    float[] scrollPosition = mScrollable.getScrollPositionFromOffset(offset);
+    mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(scrollPosition[0]), (int)PixelUtil.toPixelFromDIP(scrollPosition[1]));
+  }
+
+  public void scrollToOffset(int offset, boolean animated) {
+    float[] scrollPosition = mScrollable.getScrollPositionFromOffset(offset);
+    mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(scrollPosition[0]), (int)PixelUtil.toPixelFromDIP(scrollPosition[1]));
+  }
 }

@@ -126,4 +126,8 @@ public class SLScrollable {
   public float getVisibleEndOffset(float[] scrollPosition) {
     return getScrollPosition(scrollPosition) + mScrollContainerHeight;
   }
+
+  public float[] getScrollPositionFromOffset(float scrollOffset) {
+    return mHorizontal ? new float[]{scrollOffset, 0} : new float[]{0, scrollOffset};
+  }
 }

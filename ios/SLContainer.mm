@@ -175,18 +175,18 @@ using namespace facebook::react;
 - (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
 {
   auto headerFooter = 1;
-  auto stateData = _state->getData();
-  stateData.scrollPosition = stateData.calculateScrollPositionOffset(
-    stateData.childrenMeasurementsTree.sum(index + headerFooter)
+  auto nextStateData = self->_state->getData();
+  auto offset = adjustVisibleStartIndex(
+    nextStateData.childrenMeasurementsTree.sum(index + headerFooter),
+    nextStateData.childrenMeasurementsTree.size()
   );
-  self->_state->updateState(std::move(stateData));
+
+  [self->_scrollContent setContentOffset:[self->_scrollable getScrollPositionFromOffset:offset] animated:animated];
 }
 
 - (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated
 {
-  auto stateData = _state->getData();
-  stateData.scrollPosition = stateData.calculateScrollPositionOffset(offset);
-  self->_state->updateState(std::move(stateData));
+  [self->_scrollContent setContentOffset:[self->_scrollable getScrollPositionFromOffset:offset] animated:animated];
 }
 
 - (void)handleRefresh {

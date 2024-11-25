@@ -22,5 +22,6 @@
 - (float)getScrollPosition:(CGPoint)scrollPosition;
 - (float)getVisibleStartOffset:(CGPoint)scrollPosition;
 - (float)getVisibleEndOffset:(CGPoint)scrollPosition;
+- (CGPoint)getScrollPositionFromOffset:(float)scrollOffset;
 
 @end
