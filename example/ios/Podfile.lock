@@ -1497,7 +1497,7 @@ PODS:
     - React-logger (= 0.75.4)
     - React-perflogger (= 0.75.4)
     - React-utils (= 0.75.4)
-  - shadowlist (0.1.0):
+  - shadowlist (0.4.5):
     - DoubleConversion
     - glog
     - hermes-engine
