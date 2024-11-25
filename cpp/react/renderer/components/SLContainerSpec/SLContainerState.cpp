@@ -85,10 +85,6 @@ float SLContainerState::calculateContentSize() const {
   return childrenMeasurementsTree.sum(childrenMeasurementsTree.size());
 }
 
-float SLContainerState::getScrollPosition(const Point& scrollPosition) const {
-  return horizontal ? scrollPosition.x : scrollPosition.y;
-}
-
 #ifdef ANDROID
 folly::dynamic SLContainerState::childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const {
   folly::dynamic childrenMeasurementsNext = folly::dynamic::array();

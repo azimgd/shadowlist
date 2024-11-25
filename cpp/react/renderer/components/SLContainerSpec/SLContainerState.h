@@ -49,7 +49,6 @@ class SLContainerState {
 
   Point calculateScrollPositionOffset(const float visibleStartOffset) const;
   float calculateContentSize() const;
-  float getScrollPosition(const Point& scrollPosition) const;
 
 #ifdef ANDROID
   folly::dynamic childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const;

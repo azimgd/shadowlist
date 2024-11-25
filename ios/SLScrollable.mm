@@ -112,4 +112,16 @@
   return CGPointZero;
 }
 
+- (float)getScrollPosition:(CGPoint)scrollPosition {
+  return self->_horizontal ? scrollPosition.x : scrollPosition.y;
+}
+
+- (float)getVisibleStartOffset:(CGPoint)scrollPosition {
+  return [self getScrollPosition:scrollPosition];
+}
+
+- (float)getVisibleEndOffset:(CGPoint)scrollPosition {
+  return [self getScrollPosition:scrollPosition] + self->_scrollContainerHeight;
+}
+
 @end

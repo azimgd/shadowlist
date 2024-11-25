@@ -72,25 +72,22 @@ public class SLContainer extends ReactViewGroup {
 
     MapBuffer stateMapBuffer = mStateWrapper.getStateDataMapBuffer();
 
+    float[] scrollPosition = new float[]{
+      PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollX()),
+      PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollY())};
+
     int visibleStartIndex = mChildrenMeasurements.adjustVisibleStartIndex(
-      mChildrenMeasurements.lowerBound(
-        PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollY())
-      ),
+      mChildrenMeasurements.lowerBound(mScrollable.getVisibleStartOffset(scrollPosition)),
       stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
     );
     int visibleEndIndex = mChildrenMeasurements.adjustVisibleEndIndex(
-      mChildrenMeasurements.lowerBound(
-        PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollY()) + (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
-      ),
+      mChildrenMeasurements.lowerBound(mScrollable.getVisibleEndOffset(scrollPosition)),
       stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
     );
     mContainerChildrenManager.mount(
       visibleStartIndex,
       visibleEndIndex
     );
-    float[] scrollPosition = new float[]{
-      PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollY()),
-      PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollY())};
 
     updateObservers(scrollPosition, visibleStartIndex, visibleEndIndex);
   }
@@ -181,6 +178,19 @@ public class SLContainer extends ReactViewGroup {
 
     mChildrenMeasurements = new SLFenwickTree(childrenMeasurements);
 
+    mScrollable.updateState(
+      stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_HORIZONTAL),
+      false,
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
+    );
+
+    float[] scrollPosition = new float[]{
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_LEFT) + PixelUtil.toDIPFromPixel(mScrollContainerVertical.getScrollX()),
+      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP) + PixelUtil.toDIPFromPixel(mScrollContainerVertical.getScrollY())};
+
     this.setScrollContainerLayout(
       (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
       (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
@@ -196,25 +206,12 @@ public class SLContainer extends ReactViewGroup {
       (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP)
     );
 
-    mScrollable.updateState(
-      stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_HORIZONTAL),
-      false,
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT),
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
-    );
-
     int visibleStartIndex = mChildrenMeasurements.adjustVisibleStartIndex(
-      mChildrenMeasurements.lowerBound(
-        (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP)
-      ),
+      mChildrenMeasurements.lowerBound(mScrollable.getVisibleStartOffset(scrollPosition)),
       stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
     );
     int visibleEndIndex = mChildrenMeasurements.adjustVisibleEndIndex(
-      mChildrenMeasurements.lowerBound(
-        (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP) + (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
-      ),
+      mChildrenMeasurements.lowerBound(mScrollable.getVisibleEndOffset(scrollPosition)),
       stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
     );
 
@@ -222,10 +219,6 @@ public class SLContainer extends ReactViewGroup {
       visibleStartIndex,
       visibleEndIndex
     );
-
-    float[] scrollPosition = new float[]{
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_LEFT) + PixelUtil.toDIPFromPixel(mScrollContainerVertical.getScrollX()),
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP) + PixelUtil.toDIPFromPixel(mScrollContainerVertical.getScrollY())};
 
     mOnStartReachedHandler = onStartReachedHandler;
     mOnEndReachedHandler = onEndReachedHandler;
