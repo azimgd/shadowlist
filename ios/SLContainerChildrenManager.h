@@ -3,7 +3,7 @@
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import "RCTComponentViewProtocol.h"
+#import <React/RCTComponentViewProtocol.h>
 #import "SLComponentRegistry.h"
 
 @interface SLContainerChildrenManager : NSObject
