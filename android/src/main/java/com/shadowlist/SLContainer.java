@@ -234,8 +234,6 @@ public class SLContainer extends ReactViewGroup {
 
     mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(scrollPosition[0]), (int)PixelUtil.toPixelFromDIP(scrollPosition[1]));
 
-    updateObservers(scrollPosition, visibleStartIndex, visibleEndIndex);
-
     Handler handler = new Handler();
     handler.postDelayed(new Runnable() {
       @Override

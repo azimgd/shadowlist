@@ -113,21 +113,9 @@ using namespace facebook::react;
     scrollContentWidth:nextStateData.scrollContent.width
     scrollContentHeight:nextStateData.scrollContent.height];
 
-  /**
-   * Dispatch event emitters
-   */
-  const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
-  eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
-  
-  int distanceFromStart = [self->_scrollable shouldNotifyStart:scrollPositionCGPoint];
-  if (distanceFromStart) {
-    eventEmitter.onStartReached({distanceFromStart});
-  }
-  
-  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:scrollPositionCGPoint];
-  if (distanceFromEnd) {
-    eventEmitter.onEndReached({distanceFromEnd});
-  }
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+    [self updateVirtualization];
+  });
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
@@ -158,7 +146,7 @@ using namespace facebook::react;
   [self->_containerChildrenManager
     mount:visibleStartIndex
     visibleEndIndex:visibleEndIndex];
-    
+
   [self updateObservers:scrollPositionCGPoint visibleStartIndex:visibleStartIndex visibleEndIndex:visibleEndIndex];
 }
 
@@ -183,10 +171,6 @@ using namespace facebook::react;
   if (distanceFromEnd) {
     eventEmitter.onEndReached({distanceFromEnd});
   }
-  
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
-    [self updateVirtualization];
-  });
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
