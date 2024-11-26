@@ -104,7 +104,11 @@ export const Shadowlist = React.forwardRef(
     }, [props.data, props.renderItem, props.keyExtractor]);
 
     return (
-      <SLContainer style={props.style} ref={ref} {...props}>
+      <SLContainer
+        {...props}
+        ref={ref}
+        style={[props.style, props.contentContainerStyle]}
+      >
         {!props.inverted ? ListHeaderComponent : ListFooterComponent}
         {props.data.length ? ListChildrenComponent : ListEmptyComponent}
         {!props.inverted ? ListFooterComponent : ListHeaderComponent}
