@@ -77,7 +77,6 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <Shadowlist
-        style={styles.container}
         ref={ref}
         renderItem={renderItem}
         data={data.data}
@@ -94,6 +93,7 @@ export default function App() {
         inverted={IS_INVERTED}
         horizontal={IS_HORIZONTAL}
         initialScrollIndex={INITIAL_SCROLL_INDEX}
+        contentContainerStyle={styles.container}
       />
     </SafeAreaView>
   );
