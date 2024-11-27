@@ -1,10 +1,10 @@
 #include "SLContainerShadowNode.h"
 
-#define MEASURE_CHILDREN(childrenMeasurements, childNodeMetrics, isHorizontal) \
+#define MEASURE_CHILDREN(childrenMeasurementsTree, childNodeMetrics, isHorizontal) \
   if (isHorizontal) { \
-    childrenMeasurements[index] = childNodeMetrics.frame.size.width; \
+    childrenMeasurementsTree[index] = childNodeMetrics.frame.size.width; \
   } else { \
-    childrenMeasurements[index] = childNodeMetrics.frame.size.height; \
+    childrenMeasurementsTree[index] = childNodeMetrics.frame.size.height; \
   }
 
 namespace facebook::react {
@@ -22,20 +22,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   nextStateData.firstChildUniqueId = calculateFirstChildUniqueId(prevStateData, nextStateData);
   nextStateData.lastChildUniqueId = calculateLastChildUniqueId(prevStateData, nextStateData);
 
-  nextStateData.childrenMeasurements = calculateChildrenMeasurements(prevStateData, nextStateData);
+  nextStateData.childrenMeasurementsTree = calculateChildrenMeasurementsTree(prevStateData, nextStateData);
   nextStateData.scrollContainer = calculateScrollContainer(prevStateData, nextStateData);
   nextStateData.scrollContent = calculateScrollContent(prevStateData, nextStateData);
   nextStateData.scrollPosition = calculateScrollPosition(prevStateData, nextStateData);
 
   nextStateData.horizontal = props.horizontal;
   nextStateData.initialNumToRender = props.initialNumToRender;
-
-  nextStateData.visibleStartIndex = nextStateData.calculateVisibleStartIndex(
-    nextStateData.getScrollPosition(nextStateData.scrollPosition)
-  );
-  nextStateData.visibleEndIndex = nextStateData.calculateVisibleEndIndex(
-    nextStateData.getScrollPosition(nextStateData.scrollPosition)
-  );
 
   setStateData(std::move(nextStateData));
 }
@@ -51,32 +44,37 @@ void SLContainerShadowNode::replaceChild(
   ConcreteShadowNode::replaceChild(oldChild, newChild, suggestedIndex);
 }
 
-SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurements(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
+SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurementsTree(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
 
   int childCount = yogaNode_.getChildCount();
-  SLFenwickTree childrenMeasurements(childCount);
+  SLFenwickTree childrenMeasurementsTree(childCount);
 
   for (int index = 0; index < childCount; ++index) {
     auto &childNode = yogaNodeFromContext(yogaNode_.getChild(index));
-    MEASURE_CHILDREN(childrenMeasurements, childNode.getLayoutMetrics(), props.horizontal);
+    MEASURE_CHILDREN(childrenMeasurementsTree, childNode.getLayoutMetrics(), props.horizontal);
   }
 
-  return childrenMeasurements;
+  return childrenMeasurementsTree;
 }
 
 Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
   auto &props = getConcreteProps();
 
-  bool appended = prevStateData.firstChildUniqueId == nextStateData.firstChildUniqueId &&
-    prevStateData.lastChildUniqueId != nextStateData.lastChildUniqueId;
-  bool prepended = prevStateData.lastChildUniqueId == nextStateData.lastChildUniqueId &&
-    prevStateData.firstChildUniqueId != nextStateData.firstChildUniqueId;
+  bool appended = (
+    prevStateData.firstChildUniqueId.size() > 0 &&
+    prevStateData.firstChildUniqueId == nextStateData.firstChildUniqueId &&
+    prevStateData.lastChildUniqueId != nextStateData.lastChildUniqueId);
+  bool prepended = (
+    prevStateData.firstChildUniqueId.size() > 0 &&
+    prevStateData.firstChildUniqueId != nextStateData.firstChildUniqueId &&
+    prevStateData.lastChildUniqueId == nextStateData.lastChildUniqueId);
 
   int headerFooter = 1;
+  int scrollPositionDiff = 0;
   float verticalPosition = 0;
   float horizontalPosition = 0;
-  float initialScrollPosition = nextStateData.childrenMeasurements.sum(props.initialScrollIndex + headerFooter);
+  float initialScrollPosition = nextStateData.childrenMeasurementsTree.sum(props.initialScrollIndex + headerFooter);
 
   float scrollContentHorizontalDiff = nextStateData.scrollContent.width - prevStateData.scrollContent.width;
   float scrollContentVerticalDiff = nextStateData.scrollContent.height - prevStateData.scrollContent.height;
@@ -86,9 +84,9 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
         horizontalPosition = initialScrollPosition;
       } else if (prepended) {
-        horizontalPosition = scrollContentHorizontalDiff + nextStateData.scrollPosition.x;
+        horizontalPosition = scrollContentHorizontalDiff + scrollPositionDiff;
       } else if (appended) {
-        horizontalPosition = nextStateData.scrollPosition.x;
+        horizontalPosition = scrollPositionDiff;
       } else {
         horizontalPosition = nextStateData.scrollContent.width - nextStateData.scrollContainer.width;
       }
@@ -96,9 +94,9 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
         verticalPosition = initialScrollPosition;
       } else if (prepended) {
-        verticalPosition = scrollContentVerticalDiff + nextStateData.scrollPosition.y;
+        verticalPosition = scrollContentVerticalDiff + scrollPositionDiff;
       } else if (appended) {
-        verticalPosition = nextStateData.scrollPosition.y;
+        verticalPosition = scrollPositionDiff;
       } else {
         verticalPosition = nextStateData.scrollContent.height - nextStateData.scrollContainer.height;
       }
@@ -108,17 +106,17 @@ Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData pre
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
         horizontalPosition = initialScrollPosition;
       } else if (appended) {
-        horizontalPosition = nextStateData.scrollPosition.x;
+        horizontalPosition = scrollPositionDiff;
       } else if (prepended) {
-        horizontalPosition = scrollContentHorizontalDiff + nextStateData.scrollPosition.x;
+        horizontalPosition = scrollContentHorizontalDiff + scrollPositionDiff;
       }
     } else {
       if (props.initialScrollIndex > 0 && !prepended && !appended) {
         verticalPosition = initialScrollPosition;
       } else if (appended) {
-        verticalPosition = nextStateData.scrollPosition.y;
+        verticalPosition = scrollPositionDiff;
       } else if (prepended) {
-        verticalPosition = scrollContentVerticalDiff + nextStateData.scrollPosition.y;
+        verticalPosition = scrollContentVerticalDiff + scrollPositionDiff;
       }
     }
   }
@@ -148,35 +146,11 @@ Size SLContainerShadowNode::calculateScrollContent(const ConcreteStateData prevS
 }
 
 std::string SLContainerShadowNode::calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  // Assumes that HeaderListComponent is always present, for now.
-  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(1));
-  auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
-
-  #ifdef ANDROID
-    try {
-      return childNode.getProps()->rawProps.at("uniqueId").asString();
-    } catch (...) {
-      return "";
-    }
-  #endif
-
-  return childNodeViewProps.uniqueId;
+  return std::to_string(getChildren().at(1)->getTag());
 }
 
 std::string SLContainerShadowNode::calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  // Assumes that FooterListComponent is always present, for now.
-  auto &childNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 2));
-  auto &childNodeViewProps = *std::static_pointer_cast<SLElementProps const>(childNode.getProps());
-
-  #ifdef ANDROID
-    try {
-      return childNode.getProps()->rawProps.at("uniqueId").asString();
-    } catch (...) {
-      return "";
-    }
-  #endif
-
-  return childNodeViewProps.uniqueId;
+  return std::to_string(getChildren().at(getChildren().size() - 2)->getTag());
 }
 
 Size SLContainerShadowNode::calculateScrollContainer(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {

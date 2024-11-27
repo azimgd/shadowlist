@@ -4,12 +4,15 @@ ShadowList is a new alternative to FlatList for React Native, created to address
 It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a Fenwick Tree with layout metrics for efficient offset calculations. By virtualizing children and rendering only items within the visible area, ShadowList ensures optimal performance. It's built on Fabric and works with React Native version 0.75 and newer.
 
 ## Out of box comparison to FlatList
-| Feature                          | ShadowList   | FlatList   |
+| Feature                          | ShadowList   | FlatList / FlashList   |
 |----------------------------------|--------------|------------|
 | 60 FPS Scrolling                 | ✅           | ❌         |
+| No Estimated Size required       | ✅           | ❌         |
 | No Content Flashing              | ✅           | ❌         |
 | No Sidebar Indicator Jump        | ✅           | ❌         |
-| Fast initialScrollIndex          | ✅           | ❌         |
+| Native Bidirectional List        | ✅           | ❌         |
+| Instant initialScrollIndex       | ✅           | ❌         |
+| Instant initialScrollIndex       | ✅           | ❌         |
 | Nested ShadowList (ScrollView)   | ✅           | ❌         |
 | Natively Inverted List Support   | ✅           | ❌         |
 | Smooth Scrolling                 | ✅           | ❌         |
@@ -17,11 +20,17 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 ## Scroll Performance
 | Number of Items  | ShadowList                 | FlatList             | FlashList            |
 |------------------|----------------------------|----------------------|----------------------|
-| 100 (text only)  | **156mb memory - 60fps**   | 195mb (38-43fps)     | ~~180mb (56fps)~~*   |
-| 1000 (text only) | **187mb memory - 60fps**   | 200mb (33-38fps)     | ~~180mb (56fps)~~*   |
+| 100 (text only)  | **~~156mb memory~~ - 60fps**   | ~~195mb~~ (38-43fps)     | ~~180mb (56fps)~~*   |
+| 1000 (text only) | **~~187mb memory~~ - 60fps**   | ~~200mb~~ (33-38fps)     | ~~180mb (56fps)~~*   |
 
 > **FlashList is unreliable and completely breaks when scrolling, resulting in unrealistic metrics.*  
 > Given measurements show memory usage and FPS on fully loaded content, see demo [here](https://github.com/azimgd/shadowlist/issues/1) and implementation details [here](https://github.com/azimgd/shadowlist/blob/main/example/src/App.tsx).
+
+## Note on Performance Considerations
+
+ShadowList initiates ShadowNode creation for each child. This process can be slower when rendering a large number of items at once, which may impact performance compared to purely JS-based solutions. However, once the children are measured, it performs real-time virtualization ensuring smooth, flicker-free scrolling.
+
+One temporary way to mitigate this is by implementing list pagination until the [following problem is addressed](https://github.com/reactwg/react-native-new-architecture/discussions/223).
 
 ## Installation
 - CLI: Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
@@ -31,9 +40,9 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 ## Usage
 
 ```js
-import {SLContainer} from 'shadowlist';
+import {Shadowlist} from 'shadowlist';
 
-<SLContainer
+<Shadowlist
   contentContainerStyle={styles.container}
   ref={shadowListContainerRef}
   data={data}

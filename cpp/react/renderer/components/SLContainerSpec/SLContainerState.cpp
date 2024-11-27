@@ -3,26 +3,18 @@
 namespace facebook::react {
 
 SLContainerState::SLContainerState(
-  SLFenwickTree childrenMeasurements,
+  SLFenwickTree childrenMeasurementsTree,
   Point scrollPosition,
   Size scrollContainer,
   Size scrollContent,
-  int visibleStartIndex,
-  int visibleEndIndex,
-  float visibleStartTrigger,
-  float visibleEndTrigger,
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
   bool horizontal,
   int initialNumToRender) :
-    childrenMeasurements(childrenMeasurements),
+    childrenMeasurementsTree(childrenMeasurementsTree),
     scrollPosition(scrollPosition),
     scrollContainer(scrollContainer),
     scrollContent(scrollContent),
-    visibleStartIndex(visibleStartIndex),
-    visibleEndIndex(visibleEndIndex),
-    visibleStartTrigger(visibleStartTrigger),
-    visibleEndTrigger(visibleEndTrigger),
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
     horizontal(horizontal),
@@ -31,6 +23,9 @@ SLContainerState::SLContainerState(
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {
   return folly::dynamic::object(
+    "childrenMeasurementsTree",
+    childrenMeasurementsTreeToDynamic(childrenMeasurementsTree)
+  )(
     "scrollContentWidth",
     scrollContent.width
   )(
@@ -49,18 +44,6 @@ folly::dynamic SLContainerState::getDynamic() const {
     "scrollPositionTop",
     scrollPosition.y
   )(
-    "visibleStartIndex",
-    calculateVisibleStartIndex(getScrollPosition(scrollPosition))
-  )(
-    "visibleEndIndex",
-    calculateVisibleEndIndex(getScrollPosition(scrollPosition))
-  )(
-    "visibleStartTrigger",
-    calculateVisibleStartTrigger(getScrollPosition(scrollPosition))
-  )(
-    "visibleEndTrigger",
-    calculateVisibleEndTrigger(getScrollPosition(scrollPosition))
-  )(
     "horizontal",
     horizontal
   )(
@@ -77,10 +60,8 @@ folly::dynamic SLContainerState::getDynamic() const {
 
 MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
-  builder.putInt(SLCONTAINER_STATE_VISIBLE_START_INDEX, calculateVisibleStartIndex(getScrollPosition(scrollPosition)));
-  builder.putInt(SLCONTAINER_STATE_VISIBLE_END_INDEX, calculateVisibleEndIndex(getScrollPosition(scrollPosition)));
-  builder.putDouble(SLCONTAINER_STATE_VISIBLE_START_TRIGGER, calculateVisibleStartTrigger(getScrollPosition(scrollPosition)));
-  builder.putDouble(SLCONTAINER_STATE_VISIBLE_END_TRIGGER, calculateVisibleEndTrigger(getScrollPosition(scrollPosition)));
+  builder.putMapBuffer(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE, childrenMeasurementsTreeToMapBuffer(childrenMeasurementsTree));
+  builder.putInt(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE, childrenMeasurementsTree.size());
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.y);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
@@ -89,35 +70,9 @@ MapBuffer SLContainerState::getMapBuffer() const {
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT, scrollContainer.height);
   builder.putBool(SLCONTAINER_STATE_HORIZONTAL, horizontal);
   builder.putInt(SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER, initialNumToRender);
-  builder.putString(SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID, firstChildUniqueId);
-  builder.putString(SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID, lastChildUniqueId);
   return builder.build();
 }
 #endif
-
-int SLContainerState::calculateVisibleStartIndex(const float visibleStartOffset, const int offset) const {
-  int visibleStartIndex = childrenMeasurements.lower_bound(visibleStartOffset);
-  int visibleEndIndexMin = 0;
-  int adjusted = std::max(visibleStartIndex - offset, visibleEndIndexMin);
-  return adjusted;
-}
-
-int SLContainerState::calculateVisibleEndIndex(const float visibleStartOffset, const int offset) const {
-  int visibleEndIndex = childrenMeasurements.lower_bound(visibleStartOffset + scrollContainer.height);
-  int visibleEndIndexMax = childrenMeasurements.size() - 2;
-  int adjusted = std::min(visibleEndIndex + offset, visibleEndIndexMax);
-  return adjusted == 0 ? initialNumToRender : adjusted;
-}
-
-float SLContainerState::calculateVisibleStartTrigger(const float visibleStartOffset) const {
-  int visibleStartIndex = calculateVisibleStartIndex(visibleStartOffset, 1);
-  return childrenMeasurements.sum(visibleStartIndex);
-}
-
-float SLContainerState::calculateVisibleEndTrigger(const float visibleStartOffset) const {
-  int visibleEndIndex = calculateVisibleEndIndex(visibleStartOffset, 1);
-  return childrenMeasurements.sum(visibleEndIndex);
-}
 
 Point SLContainerState::calculateScrollPositionOffset(const float visibleStartOffset) const {
   if (horizontal) {
@@ -127,11 +82,34 @@ Point SLContainerState::calculateScrollPositionOffset(const float visibleStartOf
 }
 
 float SLContainerState::calculateContentSize() const {
-  return childrenMeasurements.sum(childrenMeasurements.size());
+  return childrenMeasurementsTree.sum(childrenMeasurementsTree.size());
 }
 
-float SLContainerState::getScrollPosition(const Point& scrollPosition) const {
-  return horizontal ? scrollPosition.x : scrollPosition.y;
+#ifdef ANDROID
+folly::dynamic SLContainerState::childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const {
+  folly::dynamic childrenMeasurementsNext = folly::dynamic::array();
+  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
+    folly::dynamic measurement = static_cast<float>(childrenMeasurementsTree.at(i));
+    childrenMeasurementsNext.push_back(measurement);
+  }
+  return childrenMeasurementsNext;
 }
+
+MapBuffer SLContainerState::childrenMeasurementsTreeToMapBuffer(SLFenwickTree childrenMeasurementsTree) const {
+  auto childrenMeasurementsNext = MapBufferBuilder();
+  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
+    childrenMeasurementsNext.putDouble(i, childrenMeasurementsTree.at(i));
+  }
+  return childrenMeasurementsNext.build();
+}
+
+SLFenwickTree SLContainerState::childrenMeasurementsTreeFromDynamic(folly::dynamic childrenMeasurementsTree) const {
+  SLFenwickTree childrenMeasurementsNext;
+  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
+    childrenMeasurementsNext[i] = childrenMeasurementsTree[i].getDouble();
+  }
+  return childrenMeasurementsNext;
+}
+#endif
 
 }

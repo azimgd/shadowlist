@@ -4,8 +4,6 @@
   bool _horizontal;
   bool _inverted;
   CGPoint _scrollContentOffset;
-  float _visibleStartTrigger;
-  float _visibleEndTrigger;
   float _scrollContainerWidth;
   float _scrollContainerHeight;
   float _scrollContentWidth;
@@ -19,8 +17,6 @@
 
 - (void)updateState:(bool)horizontal
   inverted:(bool)inverted
-  visibleStartTrigger:(float)visibleStartTrigger
-  visibleEndTrigger:(float)visibleEndTrigger
   scrollContainerWidth:(float)scrollContainerWidth
   scrollContainerHeight:(float)scrollContainerHeight
   scrollContentWidth:(float)scrollContentWidth
@@ -28,45 +24,10 @@
 {
   self->_horizontal = horizontal;
   self->_inverted = inverted;
-  self->_visibleStartTrigger = visibleStartTrigger;
-  self->_visibleEndTrigger = visibleEndTrigger;
   self->_scrollContainerWidth = scrollContainerWidth;
   self->_scrollContainerHeight = scrollContainerHeight;
   self->_scrollContentWidth = scrollContentWidth;
   self->_scrollContentHeight = scrollContentHeight;
-}
-
-- (bool)shouldUpdate:(CGPoint)contentOffset
-{
-  self->_lastContentOffsetX = contentOffset.x;
-  self->_lastContentOffsetY = contentOffset.y;
-
-  if (contentOffset.y < 0 || contentOffset.x < 0) {
-    return true;
-  }
-
-  if (self->_horizontal) {
-    if ([self scrollDirectionHorizontal:contentOffset] == SCROLLING_RIGHT) {
-      if (self->_visibleEndTrigger >= contentOffset.x + self->_scrollContainerWidth) {
-        return false;
-      }
-    } else {
-      if (self->_visibleStartTrigger <= contentOffset.x) {
-        return false;
-      }
-    }
-  } else {
-    if ([self scrollDirectionVertical:contentOffset] == SCROLLING_DOWN) {
-      if (self->_visibleEndTrigger >= contentOffset.y + self->_scrollContainerHeight) {
-        return false;
-      }
-    } else {
-      if (self->_visibleStartTrigger <= contentOffset.y) {
-        return false;
-      }
-    }
-  }
-  return true;
 }
 
 - (int)checkNotifyStart:(CGPoint)contentOffset
@@ -151,4 +112,19 @@
   return CGPointZero;
 }
 
+- (float)getScrollPosition:(CGPoint)scrollPosition {
+  return self->_horizontal ? scrollPosition.x : scrollPosition.y;
+}
+
+- (float)getVisibleStartOffset:(CGPoint)scrollPosition {
+  return [self getScrollPosition:scrollPosition];
+}
+
+- (float)getVisibleEndOffset:(CGPoint)scrollPosition {
+  return [self getScrollPosition:scrollPosition] + self->_scrollContainerHeight;
+}
+
+- (CGPoint)getScrollPositionFromOffset:(float)scrollOffset {
+  return self->_horizontal ? CGPointMake(scrollOffset, 0) : CGPointMake(0, scrollOffset);
+}
 @end

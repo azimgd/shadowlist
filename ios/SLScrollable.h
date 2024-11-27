@@ -9,18 +9,19 @@
 
 - (void)updateState:(bool)horizontal
   inverted:(bool)inverted
-  visibleStartTrigger:(float)visibleStartTrigger
-  visibleEndTrigger:(float)visibleEndTrigger
   scrollContainerWidth:(float)scrollContainerWidth
   scrollContainerHeight:(float)scrollContainerHeight
   scrollContentWidth:(float)scrollContainerWidth
   scrollContentHeight:(float)scrollContainerHeight;
-- (bool)shouldUpdate:(CGPoint)contentOffset;
 - (int)checkNotifyStart:(CGPoint)contentOffset;
 - (int)checkNotifyEnd:(CGPoint)contentOffset;
 - (int)shouldNotifyStart:(CGPoint)contentOffset;
 - (int)shouldNotifyEnd:(CGPoint)contentOffset;
 - (int)scrollDirectionHorizontal:(CGPoint)contentOffset;
 - (int)scrollDirectionVertical:(CGPoint)contentOffset;
+- (float)getScrollPosition:(CGPoint)scrollPosition;
+- (float)getVisibleStartOffset:(CGPoint)scrollPosition;
+- (float)getVisibleEndOffset:(CGPoint)scrollPosition;
+- (CGPoint)getScrollPositionFromOffset:(float)scrollOffset;
 
 @end

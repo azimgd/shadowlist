@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
 import {
@@ -12,10 +12,11 @@ import {
 import useData from './useData';
 import Element from './Element';
 
-const ITEMS_COUNT = 100;
+const ITEMS_COUNT = 50;
 const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
 const INITIAL_SCROLL_INDEX = 0;
+const FINAL_SCROLL_INDEX = 0;
 
 const ListHeaderComponent = () => (
   <View style={styles.static}>
@@ -43,6 +44,13 @@ export default function App() {
   const data = useData({ length: ITEMS_COUNT, inverted: IS_INVERTED });
   const ref = useRef<SLContainerRef>(null);
 
+  useEffect(() => {
+    if (!FINAL_SCROLL_INDEX) return;
+    setTimeout(() => {
+      ref.current?.scrollToIndex({ index: FINAL_SCROLL_INDEX });
+    }, 1000);
+  }, []);
+
   const onStartReached = useCallback<DirectEventHandler<OnStartReached>>(
     (event) => {
       !IS_INVERTED ? data.loadPrepend() : data.loadAppend();
@@ -69,7 +77,6 @@ export default function App() {
   return (
     <SafeAreaView style={styles.container}>
       <Shadowlist
-        style={styles.container}
         ref={ref}
         renderItem={renderItem}
         data={data.data}
@@ -86,6 +93,7 @@ export default function App() {
         inverted={IS_INVERTED}
         horizontal={IS_HORIZONTAL}
         initialScrollIndex={INITIAL_SCROLL_INDEX}
+        contentContainerStyle={styles.container}
       />
     </SafeAreaView>
   );

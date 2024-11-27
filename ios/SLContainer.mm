@@ -7,6 +7,7 @@
 #import "SLContainerChildrenManager.h"
 #import "SLScrollable.h"
 #import "SLElementProps.h"
+#import "helpers.h"
 
 #import <React/RCTFabricComponentsPlugins.h>
 #import <React/RCTConversions.h>
@@ -76,73 +77,94 @@ using namespace facebook::react;
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
-  const auto &nextStateData = _state->getData();
+
+  const auto &nextStateData = self->_state->getData();
   const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
-
-  int visibleStartIndex = nextStateData.visibleStartIndex;
-  int visibleEndIndex = nextStateData.visibleEndIndex;
-
-  [self->_containerChildrenManager
-    mount:visibleStartIndex
-    end:visibleEndIndex
-    firstChildUniqueId:[NSString stringWithUTF8String:nextStateData.firstChildUniqueId.c_str()]
-    lastChildUniqueId:[NSString stringWithUTF8String:nextStateData.lastChildUniqueId.c_str()]];
-  [self->_scrollContent setContentSize:RCTCGSizeFromSize(nextStateData.scrollContent)];
-  [self->_scrollContent setContentOffset:RCTCGPointFromPoint(nextStateData.scrollPosition)];
 
   [self->_scrollable updateState:nextStateData.horizontal
     inverted:nextViewProps.inverted
-    visibleStartTrigger:nextStateData.calculateVisibleStartTrigger(
-      nextStateData.getScrollPosition(nextStateData.scrollPosition)
-    )
-    visibleEndTrigger:nextStateData.calculateVisibleEndTrigger(
-      nextStateData.getScrollPosition(nextStateData.scrollPosition)
-    )
     scrollContainerWidth:nextStateData.scrollContainer.width
     scrollContainerHeight:nextStateData.scrollContainer.height
     scrollContentWidth:nextStateData.scrollContent.width
     scrollContentHeight:nextStateData.scrollContent.height];
 
-  const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
-  eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
-  
-  int distanceFromStart = [self->_scrollable shouldNotifyStart:RCTCGPointFromPoint(nextStateData.scrollPosition)];
-  if (distanceFromStart) {
-    eventEmitter.onStartReached({distanceFromStart});
-  }
-  
-  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:RCTCGPointFromPoint(nextStateData.scrollPosition)];
-  if (distanceFromEnd) {
-    eventEmitter.onEndReached({distanceFromEnd});
-  }
+  CGPoint scrollPositionCGPoint = CGPointMake(
+    nextStateData.scrollPosition.x + self->_scrollContent.contentOffset.x,
+    nextStateData.scrollPosition.y + self->_scrollContent.contentOffset.y
+  );
+  facebook::react::Point scrollPositionPoint = RCTPointFromCGPoint(scrollPositionCGPoint);
+
+  CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
+  int visibleStartIndex = adjustVisibleStartIndex(
+    nextStateData.childrenMeasurementsTree.lower_bound([self->_scrollable getVisibleStartOffset:scrollPositionCGPoint]),
+    nextStateData.childrenMeasurementsTree.size()
+  );
+  int visibleEndIndex = adjustVisibleEndIndex(
+    nextStateData.childrenMeasurementsTree.lower_bound([self->_scrollable getVisibleEndOffset:scrollPositionCGPoint]),
+    nextStateData.childrenMeasurementsTree.size()
+  );
+
+  [self->_containerChildrenManager mount:visibleStartIndex visibleEndIndex:visibleEndIndex];
+
+  [self->_scrollContent setContentSize:scrollContent];
+  [self->_scrollContent setContentOffset:scrollPositionCGPoint];
+
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * NSEC_PER_MSEC)), dispatch_get_main_queue(), ^{
+    [self updateVirtualization];
+  });
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  /**
-   * Disable optimization when nearing the end of the list to ensure scrollPosition remains in sync.
-   * Required to prevent content shifts when adding items to the list.
-   */
-  if (
-    FALSE && // Remove optimization completely for now
-    [self->_scrollable shouldNotifyStart:scrollView.contentOffset] == 0 &&
-    [self->_scrollable shouldNotifyEnd:scrollView.contentOffset] == 0 &&
-    ![self->_scrollable shouldUpdate:scrollView.contentOffset]) {
+  [self updateVirtualization];
+}
+
+- (void)updateVirtualization
+{
+  if (self->_state == nullptr) return;
+
+  const auto &nextStateData = self->_state->getData();
+
+  CGPoint scrollPositionCGPoint = self->_scrollContent.contentOffset;
+  facebook::react::Point scrollPositionPoint = RCTPointFromCGPoint(scrollPositionCGPoint);
+
+  int visibleStartIndex = adjustVisibleStartIndex(
+    nextStateData.childrenMeasurementsTree.lower_bound([self->_scrollable getVisibleStartOffset:scrollPositionCGPoint]),
+    nextStateData.childrenMeasurementsTree.size()
+  );
+  int visibleEndIndex = adjustVisibleEndIndex(
+    nextStateData.childrenMeasurementsTree.lower_bound([self->_scrollable getVisibleEndOffset:scrollPositionCGPoint]),
+    nextStateData.childrenMeasurementsTree.size()
+  );
+
+  [self->_containerChildrenManager
+    mount:visibleStartIndex
+    visibleEndIndex:visibleEndIndex];
+
+  [self updateObservers:scrollPositionCGPoint visibleStartIndex:visibleStartIndex visibleEndIndex:visibleEndIndex];
+}
+
+- (void)updateObservers:(CGPoint)scrollPosition visibleStartIndex:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
+{
+  if (_eventEmitter == nullptr) {
     return;
   }
 
-  auto stateData = _state->getData();
-  int visibleStartIndex = stateData.calculateVisibleStartIndex(
-    stateData.getScrollPosition(stateData.scrollPosition)
-  );
-  int visibleEndIndex = stateData.calculateVisibleEndIndex(
-    stateData.getScrollPosition(stateData.scrollPosition)
-  );
-  stateData.scrollPosition = RCTPointFromCGPoint(scrollView.contentOffset);
-  stateData.visibleStartIndex = visibleStartIndex;
-  stateData.visibleEndIndex = visibleEndIndex;
+  /**
+   * Dispatch event emitters
+   */
+  const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
+  eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
   
-  self->_state->updateState(std::move(stateData));
+  int distanceFromStart = [self->_scrollable shouldNotifyStart:scrollPosition];
+  if (distanceFromStart) {
+    eventEmitter.onStartReached({distanceFromStart});
+  }
+
+  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:scrollPosition];
+  if (distanceFromEnd) {
+    eventEmitter.onEndReached({distanceFromEnd});
+  }
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
@@ -153,30 +175,18 @@ using namespace facebook::react;
 - (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
 {
   auto headerFooter = 1;
-  auto stateData = _state->getData();
-  stateData.scrollPosition = stateData.calculateScrollPositionOffset(
-    stateData.childrenMeasurements.sum(index + headerFooter)
+  auto nextStateData = self->_state->getData();
+  auto offset = adjustVisibleStartIndex(
+    nextStateData.childrenMeasurementsTree.sum(index + headerFooter),
+    nextStateData.childrenMeasurementsTree.size()
   );
-  stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
-    stateData.getScrollPosition(stateData.scrollPosition)
-  );
-  stateData.visibleEndIndex = stateData.calculateVisibleEndIndex(
-    stateData.getScrollPosition(stateData.scrollPosition)
-  );
-  self->_state->updateState(std::move(stateData));
+
+  [self->_scrollContent setContentOffset:[self->_scrollable getScrollPositionFromOffset:offset] animated:animated];
 }
 
 - (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated
 {
-  auto stateData = _state->getData();
-  stateData.scrollPosition = stateData.calculateScrollPositionOffset(offset);
-  stateData.visibleStartIndex = stateData.calculateVisibleStartIndex(
-    stateData.getScrollPosition(stateData.scrollPosition)
-  );
-  stateData.visibleEndIndex = stateData.calculateVisibleEndIndex(
-    stateData.getScrollPosition(stateData.scrollPosition)
-  );
-  self->_state->updateState(std::move(stateData));
+  [self->_scrollContent setContentOffset:[self->_scrollable getScrollPositionFromOffset:offset] animated:animated];
 }
 
 - (void)handleRefresh {
