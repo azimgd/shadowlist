@@ -26,6 +26,12 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 > **FlashList is unreliable and completely breaks when scrolling, resulting in unrealistic metrics.*  
 > Given measurements show memory usage and FPS on fully loaded content, see demo [here](https://github.com/azimgd/shadowlist/issues/1) and implementation details [here](https://github.com/azimgd/shadowlist/blob/main/example/src/App.tsx).
 
+## Note on Performance Considerations
+
+ShadowList initiates ShadowNode creation for each child. This process can be slower when rendering a large number of items at once, which may impact performance compared to purely JS-based solutions. However, once the children are measured, it performs real-time virtualization ensuring smooth, flicker-free scrolling.
+
+One temporary way to mitigate this is by implementing list pagination until the [following problem is addressed](https://github.com/reactwg/react-native-new-architecture/discussions/223).
+
 ## Installation
 - CLI: Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
 - Expo: Add the package to your project via `npx expo install shadowlist` and run `npx expo prebuild` in the root directory.
@@ -34,9 +40,9 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 ## Usage
 
 ```js
-import {SLContainer} from 'shadowlist';
+import {Shadowlist} from 'shadowlist';
 
-<SLContainer
+<Shadowlist
   contentContainerStyle={styles.container}
   ref={shadowListContainerRef}
   data={data}
