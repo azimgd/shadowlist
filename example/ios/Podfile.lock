@@ -1509,7 +1509,7 @@ PODS:
     - React-logger (= 0.76.3)
     - React-perflogger (= 0.76.3)
     - React-utils (= 0.76.3)
-  - shadowlist (0.4.12):
+  - shadowlist (0.4.15):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1799,7 +1799,7 @@ SPEC CHECKSUMS:
   React-utils: 2bcaf4f4dfe361344bce2fae428603d518488630
   ReactCodegen: ae99a130606068ed40d1d9c0d5f25fda142a0647
   ReactCommon: 89c87b343deacc8610b099ac764848f0ce937e3e
-  shadowlist: 6e73eecb64436f473d35c4d7ef38d5bcff043622
+  shadowlist: c3bedd13319e0fb21324e16253fe28f59ca19c2a
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 3deb2471faa9916c8a82dda2a22d3fba2620ad37
 

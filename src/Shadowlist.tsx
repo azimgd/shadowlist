@@ -6,6 +6,7 @@ import type {
   SLContainerNativeProps,
 } from './SLContainerNativeComponent';
 import SLElementNativeComponent from './SLElementNativeComponent';
+import useVirtualizedPagination from './useVirtualizedPagination';
 
 type Component = React.ComponentType<any> | null | undefined;
 
@@ -29,6 +30,7 @@ export type ShadowlistProps = {
   ListFooterComponentStyle?: ViewStyle;
   ListEmptyComponent?: Component;
   ListEmptyComponentStyle?: ViewStyle;
+  virtualizedPaginationEnabled: boolean;
 };
 
 export const Shadowlist = React.forwardRef(
@@ -36,6 +38,14 @@ export const Shadowlist = React.forwardRef(
     props: SLContainerNativeProps & ShadowlistProps,
     ref: Ref<Partial<SLContainerNativeCommands>>
   ) => {
+    const virtualizedPagination = useVirtualizedPagination({
+      virtualizedPaginationEnabled: props.virtualizedPaginationEnabled,
+      data: props.data,
+      onStartReached: props.onStartReached,
+      onEndReached: props.onEndReached,
+      onVisibleChange: props.onVisibleChange,
+    });
+
     /**
      * ListHeaderComponent
      */
@@ -88,7 +98,7 @@ export const Shadowlist = React.forwardRef(
      * ListChildrenComponent
      */
     const ListChildrenComponent = React.useMemo(() => {
-      return props.data.map((item, index) => {
+      return virtualizedPagination.nextData.map((item: any, index: number) => {
         const uniqueId = props.keyExtractor(item, index);
         return (
           <SLElementNativeComponent
@@ -101,16 +111,21 @@ export const Shadowlist = React.forwardRef(
         );
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [props.data, props.renderItem, props.keyExtractor]);
+    }, [virtualizedPagination.nextData, props.renderItem, props.keyExtractor]);
 
     return (
       <SLContainer
         {...props}
         ref={ref}
         style={[props.style, props.contentContainerStyle]}
+        onStartReached={virtualizedPagination.nextOnStartReached}
+        onEndReached={virtualizedPagination.nextOnEndReached}
+        onVisibleChange={virtualizedPagination.nextOnVisibleChange}
       >
         {!props.inverted ? ListHeaderComponent : ListFooterComponent}
-        {props.data.length ? ListChildrenComponent : ListEmptyComponent}
+        {virtualizedPagination.nextData.length
+          ? ListChildrenComponent
+          : ListEmptyComponent}
         {!props.inverted ? ListFooterComponent : ListHeaderComponent}
       </SLContainer>
     );

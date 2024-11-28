@@ -12,7 +12,7 @@ import {
 import useData from './useData';
 import Element from './Element';
 
-const ITEMS_COUNT = 50;
+const ITEMS_COUNT = 500;
 const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
 const INITIAL_SCROLL_INDEX = 0;
@@ -94,6 +94,7 @@ export default function App() {
         horizontal={IS_HORIZONTAL}
         initialScrollIndex={INITIAL_SCROLL_INDEX}
         contentContainerStyle={styles.container}
+        virtualizedPaginationEnabled
       />
     </SafeAreaView>
   );
