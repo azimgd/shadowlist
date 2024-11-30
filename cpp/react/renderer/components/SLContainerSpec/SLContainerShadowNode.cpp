@@ -1,12 +1,5 @@
 #include "SLContainerShadowNode.h"
 
-#define MEASURE_CHILDREN(childrenMeasurementsTree, childNodeMetrics, isHorizontal) \
-  if (isHorizontal) { \
-    childrenMeasurementsTree[index] = childNodeMetrics.frame.size.width; \
-  } else { \
-    childrenMeasurementsTree[index] = childNodeMetrics.frame.size.height; \
-  }
-
 namespace facebook::react {
 
 extern const char SLContainerComponentName[] = "SLContainer";
@@ -52,7 +45,19 @@ SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurementsTree(const Con
 
   for (int index = 0; index < childCount; ++index) {
     auto &childNode = yogaNodeFromContext(yogaNode_.getChild(index));
-    MEASURE_CHILDREN(childrenMeasurementsTree, childNode.getLayoutMetrics(), props.horizontal);
+    if (props.horizontal) {
+      if (childNode.getLayoutMetrics().frame.size.width == 0 && prevStateData.childrenMeasurementsTree.size() >= index) {
+        childrenMeasurementsTree[index] = prevStateData.childrenMeasurementsTree[index];
+      } else {
+        childrenMeasurementsTree[index] = childNode.getLayoutMetrics().frame.size.width;
+      }
+    } else {
+      if (childNode.getLayoutMetrics().frame.size.height == 0 && prevStateData.childrenMeasurementsTree.size() >= index) {
+        childrenMeasurementsTree[index] = prevStateData.childrenMeasurementsTree[index];
+      } else {
+        childrenMeasurementsTree[index] = childNode.getLayoutMetrics().frame.size.height;
+      }
+    }
   }
 
   return childrenMeasurementsTree;

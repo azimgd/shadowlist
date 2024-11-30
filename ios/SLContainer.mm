@@ -124,6 +124,7 @@ using namespace facebook::react;
   if (self->_state == nullptr) return;
 
   const auto &nextStateData = self->_state->getData();
+  const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
 
   CGPoint scrollPositionCGPoint = self->_scrollContent.contentOffset;
   facebook::react::Point scrollPositionPoint = RCTPointFromCGPoint(scrollPositionCGPoint);
@@ -136,15 +137,23 @@ using namespace facebook::react;
     nextStateData.childrenMeasurementsTree.lower_bound([self->_scrollable getVisibleEndOffset:scrollPositionCGPoint]),
     nextStateData.childrenMeasurementsTree.size()
   );
+  int visibleStartOffset = nextStateData.childrenMeasurementsTree.sum(visibleStartIndex);
+  int visibleEndOffset = (nextViewProps.horizontal ?
+      self->_scrollContent.contentSize.width :
+      self->_scrollContent.contentSize.height) - nextStateData.childrenMeasurementsTree.sum(visibleEndIndex);
 
   [self->_containerChildrenManager
     mount:visibleStartIndex
     visibleEndIndex:visibleEndIndex];
 
-  [self updateObservers:scrollPositionCGPoint visibleStartIndex:visibleStartIndex visibleEndIndex:visibleEndIndex];
+  [self updateObservers:scrollPositionCGPoint
+    visibleStartIndex:visibleStartIndex
+    visibleEndIndex:visibleEndIndex
+    visibleStartOffset:visibleStartOffset
+    visibleEndOffset:visibleEndOffset];
 }
 
-- (void)updateObservers:(CGPoint)scrollPosition visibleStartIndex:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
+- (void)updateObservers:(CGPoint)scrollPosition visibleStartIndex:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex visibleStartOffset:(float)visibleStartOffset visibleEndOffset:(float)visibleEndOffset
 {
   if (_eventEmitter == nullptr) {
     return;
@@ -154,7 +163,10 @@ using namespace facebook::react;
    * Dispatch event emitters
    */
   const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
-  eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
+  
+  if ([self->_scrollable shouldNotifyChange]) {
+    eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex, visibleStartOffset, visibleEndOffset});
+  }
   
   int distanceFromStart = [self->_scrollable shouldNotifyStart:scrollPosition];
   if (distanceFromStart) {

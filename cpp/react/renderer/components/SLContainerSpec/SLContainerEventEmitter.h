@@ -8,6 +8,8 @@ namespace facebook::react {
 struct OnVisibleChange {
   int visibleStartIndex;
   int visibleEndIndex;
+  float visibleStartOffset;
+  float visibleEndOffset;
 };
 struct OnStartReached {
   int distanceFromStart;

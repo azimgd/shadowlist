@@ -7,6 +7,8 @@ void SLContainerEventEmitter::onVisibleChange(OnVisibleChange $event) const {
     auto $payload = jsi::Object(runtime);
     $payload.setProperty(runtime, "visibleStartIndex", $event.visibleStartIndex);
     $payload.setProperty(runtime, "visibleEndIndex", $event.visibleEndIndex);
+    $payload.setProperty(runtime, "visibleStartOffset", $event.visibleStartOffset);
+    $payload.setProperty(runtime, "visibleEndOffset", $event.visibleEndOffset);
     return $payload;
   });
 }

@@ -13,6 +13,7 @@
   float _startContentOffsetX;
   float _startContentOffsetY;
   NSTimeInterval _lastUpdateTime;
+  NSTimeInterval _lastChangeDispatchTime;
 }
 
 - (void)updateState:(bool)horizontal
@@ -68,6 +69,19 @@
     return [self checkNotifyStart:contentOffset];
   }
   return 0;
+}
+
+- (bool)shouldNotifyChange
+{
+  NSTimeInterval currentTime = [[NSDate date] timeIntervalSince1970] * 1000;
+  NSTimeInterval elapsedTime = currentTime - self->_lastChangeDispatchTime;
+  
+  if (elapsedTime >= 64) {
+    self->_lastChangeDispatchTime = currentTime;
+    return true;
+  }
+  
+  return false;
 }
 
 - (int)scrollDirectionVertical:(CGPoint)contentOffset {

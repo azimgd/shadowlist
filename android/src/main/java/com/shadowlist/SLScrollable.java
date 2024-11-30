@@ -13,6 +13,7 @@ public class SLScrollable {
   private float mStartContentOffsetX;
   private float mStartContentOffsetY;
   private long mLastUpdateTime;
+  private long mLastChangeDispatchTime;
 
   private static final int SCROLLING_UP = 1;
   private static final int SCROLLING_DOWN = 2;
@@ -70,6 +71,18 @@ public class SLScrollable {
     } else {
       return checkNotifyStart(contentOffset);
     }
+  }
+
+  public boolean shouldNotifyChange() {
+    long currentTime = System.currentTimeMillis();
+    long elapsedTime = currentTime - lastExecutionTime;
+
+    if (elapsedTime >= 64) {
+      this.mLastChangeDispatchTime = currentTime;
+      return true;
+    }
+
+    return false;
   }
 
   private int scrollDirectionVertical(float[] contentOffset) {

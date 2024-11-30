@@ -2,6 +2,7 @@ import React from 'react';
 import { type SLContainerNativeProps } from './SLContainerNativeComponent';
 
 const DISABLE_ON_START_REACHED = true;
+const DISABLE_ON_END_REACHED = true;
 
 type UseVirtualizedPaginationProps = {
   data: any[];
@@ -18,7 +19,7 @@ const useVirtualizedPagination = ({
   onVisibleChange,
   virtualizedPaginationEnabled,
 }: UseVirtualizedPaginationProps) => {
-  const PER_RENDER = 10;
+  const PER_RENDER = 100;
   const inProgress = React.useRef(false);
   const [nextData, setNextData] = React.useState(data.slice(0, PER_RENDER));
 
@@ -31,11 +32,8 @@ const useVirtualizedPagination = ({
   >(
     (args) => {
       if (DISABLE_ON_START_REACHED) return;
-
       args.persist();
       setNextData((prevData) => {
-        if (inProgress.current) return prevData;
-
         const dataLengthDiff = data.length - prevData.length;
         if (dataLengthDiff > 0) {
           inProgress.current = true;
@@ -56,10 +54,9 @@ const useVirtualizedPagination = ({
     NonNullable<SLContainerNativeProps['onEndReached']>
   >(
     (args) => {
+      if (DISABLE_ON_END_REACHED) return;
       args.persist();
       setNextData((prevData) => {
-        if (inProgress.current) return prevData;
-
         const dataLengthDiff = data.length - prevData.length;
         if (dataLengthDiff > 0) {
           inProgress.current = true;
@@ -78,9 +75,16 @@ const useVirtualizedPagination = ({
 
   const nextOnVisibleChange = React.useCallback<
     NonNullable<SLContainerNativeProps['onVisibleChange']>
-  >((args) => {
-    args.nativeEvent;
-  }, []);
+  >(
+    (args) => {
+      args.persist();
+
+      if (typeof onVisibleChange === 'function') {
+        onVisibleChange(args);
+      }
+    },
+    [onVisibleChange]
+  );
 
   return {
     nextData: virtualizedPaginationEnabled ? nextData : data,

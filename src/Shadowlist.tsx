@@ -84,7 +84,7 @@ export const Shadowlist = React.forwardRef(
     const ListEmptyComponent = React.useMemo(
       () => (
         <SLElementNativeComponent
-          style={props.ListEmptyComponentStyle}
+          style={[props.ListEmptyComponentStyle]}
           uniqueId="ListEmptyComponentUniqueId"
           index={-3}
         >
@@ -100,6 +100,7 @@ export const Shadowlist = React.forwardRef(
     const ListChildrenComponent = React.useMemo(() => {
       return virtualizedPagination.nextData.map((item: any, index: number) => {
         const uniqueId = props.keyExtractor(item, index);
+
         return (
           <SLElementNativeComponent
             index={index}

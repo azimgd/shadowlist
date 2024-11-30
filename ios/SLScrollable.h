@@ -17,6 +17,7 @@
 - (int)checkNotifyEnd:(CGPoint)contentOffset;
 - (int)shouldNotifyStart:(CGPoint)contentOffset;
 - (int)shouldNotifyEnd:(CGPoint)contentOffset;
+- (bool)shouldNotifyChange;
 - (int)scrollDirectionHorizontal:(CGPoint)contentOffset;
 - (int)scrollDirectionVertical:(CGPoint)contentOffset;
 - (float)getScrollPosition:(CGPoint)scrollPosition;

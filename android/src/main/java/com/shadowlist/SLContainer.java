@@ -93,7 +93,9 @@ public class SLContainer extends ReactViewGroup {
   }
 
   public void updateObservers(float[] scrollPosition, int visibleStartIndex, int visibleEndIndex) {
-    mOnVisibleChangeHandler.onVisibleChange(this, visibleStartIndex, visibleEndIndex);
+    if (mScrollable.shouldNotifyChange()) {
+      mOnVisibleChangeHandler.onVisibleChange(this, visibleStartIndex, visibleEndIndex);
+    }
 
     int distanceFromStart = mScrollable.shouldNotifyStart(scrollPosition);
     if (distanceFromStart > 0) {

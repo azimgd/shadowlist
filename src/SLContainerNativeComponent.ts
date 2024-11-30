@@ -3,6 +3,7 @@ import codegenNativeCommands from 'react-native/Libraries/Utilities/codegenNativ
 import type { ViewProps } from 'react-native';
 import type {
   Int32,
+  Float,
   DirectEventHandler,
 } from 'react-native/Libraries/Types/CodegenTypes';
 
@@ -19,6 +20,8 @@ export type ScrollToOffsetOptions = {
 export type OnVisibleChange = {
   visibleStartIndex: Int32;
   visibleEndIndex: Int32;
+  visibleStartOffset: Float;
+  visibleEndOffset: Float;
 };
 
 export type OnStartReached = {
