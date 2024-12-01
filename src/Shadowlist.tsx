@@ -100,6 +100,9 @@ export const Shadowlist = React.forwardRef(
     const ListChildrenComponent = React.useMemo(() => {
       return virtualizedPagination.nextData.map((item: any, index: number) => {
         const uniqueId = props.keyExtractor(item, index);
+        const visible =
+          virtualizedPagination.visibleIndices.visibleStartIndex <= index &&
+          virtualizedPagination.visibleIndices.visibleEndIndex >= index;
 
         return (
           <SLElementNativeComponent
@@ -107,12 +110,16 @@ export const Shadowlist = React.forwardRef(
             uniqueId={uniqueId}
             key={uniqueId}
           >
-            {props.renderItem({ item, index })}
+            {visible ? props.renderItem({ item, index }) : null}
           </SLElementNativeComponent>
         );
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [virtualizedPagination.nextData, props.renderItem, props.keyExtractor]);
+    }, [
+      virtualizedPagination.visibleIndices,
+      props.renderItem,
+      props.keyExtractor,
+    ]);
 
     return (
       <SLContainer
@@ -122,6 +129,7 @@ export const Shadowlist = React.forwardRef(
         onStartReached={virtualizedPagination.nextOnStartReached}
         onEndReached={virtualizedPagination.nextOnEndReached}
         onVisibleChange={virtualizedPagination.nextOnVisibleChange}
+        virtualizedPaginationEnabled={props.virtualizedPaginationEnabled}
       >
         {!props.inverted ? ListHeaderComponent : ListFooterComponent}
         {virtualizedPagination.nextData.length

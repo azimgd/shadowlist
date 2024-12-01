@@ -105,6 +105,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public void setInitialNumToRender(SLContainer view, int initialNumToRender) {
   }
 
+  @ReactProp(name = "virtualizedPaginationEnabled")
+  @Override
+  public void setVirtualizedPaginationEnabled(SLContainer view, int virtualizedPaginationEnabled) {
+  }
+
   @ReactProp(name = "initialScrollIndex")
   @Override
   public void setInitialScrollIndex(SLContainer view, int initialScrollIndex) {

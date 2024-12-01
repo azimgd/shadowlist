@@ -45,19 +45,39 @@ SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurementsTree(const Con
 
   for (int index = 0; index < childCount; ++index) {
     auto &childNode = yogaNodeFromContext(yogaNode_.getChild(index));
+    auto nextStyle = yogaNode_.getChild(index)->style();
+    nextStyle.setPositionType(yoga::PositionType::Absolute);
+
     if (props.horizontal) {
-      if (childNode.getLayoutMetrics().frame.size.width == 0 && prevStateData.childrenMeasurementsTree.size() >= index) {
+      if (
+        childNode.getLayoutMetrics().frame.size.width == 0 &&
+        prevStateData.childrenMeasurementsTree.size() >= index
+      ) {
         childrenMeasurementsTree[index] = prevStateData.childrenMeasurementsTree[index];
       } else {
         childrenMeasurementsTree[index] = childNode.getLayoutMetrics().frame.size.width;
       }
+
+      nextStyle.setPosition(yoga::Edge::Left, yoga::value::points(childrenMeasurementsTree.sum(index)));
+      nextStyle.setPosition(yoga::Edge::Top, yoga::value::points(0));
+      nextStyle.setPosition(yoga::Edge::Bottom, yoga::value::points(0));
     } else {
-      if (childNode.getLayoutMetrics().frame.size.height == 0 && prevStateData.childrenMeasurementsTree.size() >= index) {
+      if (
+        childNode.getLayoutMetrics().frame.size.height == 0 &&
+        prevStateData.childrenMeasurementsTree.size() >= index
+      ) {
         childrenMeasurementsTree[index] = prevStateData.childrenMeasurementsTree[index];
       } else {
         childrenMeasurementsTree[index] = childNode.getLayoutMetrics().frame.size.height;
       }
+      
+      nextStyle.setPosition(yoga::Edge::Top, yoga::value::points(childrenMeasurementsTree.sum(index)));
+      nextStyle.setPosition(yoga::Edge::Left, yoga::value::points(0));
+      nextStyle.setPosition(yoga::Edge::Right, yoga::value::points(0));
     }
+
+    yogaNode_.getChild(index)->setStyle(nextStyle);
+    yogaNode_.getChild(index)->setDirty(true);
   }
 
   return childrenMeasurementsTree;

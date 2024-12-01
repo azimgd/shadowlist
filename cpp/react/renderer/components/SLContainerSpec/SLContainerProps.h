@@ -16,6 +16,7 @@ class SLContainerProps final : public ViewProps {
   bool horizontal = false;
   int initialNumToRender = 10;
   int initialScrollIndex = 0;
+  bool virtualizedPaginationEnabled = true;
 };
 
 }

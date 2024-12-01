@@ -1,9 +1,6 @@
 import React from 'react';
 import { type SLContainerNativeProps } from './SLContainerNativeComponent';
 
-const DISABLE_ON_START_REACHED = true;
-const DISABLE_ON_END_REACHED = true;
-
 type UseVirtualizedPaginationProps = {
   data: any[];
   onStartReached: SLContainerNativeProps['onStartReached'];
@@ -19,9 +16,12 @@ const useVirtualizedPagination = ({
   onVisibleChange,
   virtualizedPaginationEnabled,
 }: UseVirtualizedPaginationProps) => {
-  const PER_RENDER = 100;
   const inProgress = React.useRef(false);
-  const [nextData, setNextData] = React.useState(data.slice(0, PER_RENDER));
+  const [nextData, setNextData] = React.useState(data);
+  const [visibleIndices, setVisibleIndices] = React.useState({
+    visibleStartIndex: 0,
+    visibleEndIndex: 10,
+  });
 
   React.useLayoutEffect(() => {
     inProgress.current = false;
@@ -31,15 +31,8 @@ const useVirtualizedPagination = ({
     NonNullable<SLContainerNativeProps['onStartReached']>
   >(
     (args) => {
-      if (DISABLE_ON_START_REACHED) return;
       args.persist();
       setNextData((prevData) => {
-        const dataLengthDiff = data.length - prevData.length;
-        if (dataLengthDiff > 0) {
-          inProgress.current = true;
-          return data.slice(0, prevData.length + PER_RENDER);
-        }
-
         if (typeof onStartReached === 'function') {
           onStartReached(args);
         }
@@ -47,22 +40,15 @@ const useVirtualizedPagination = ({
         return prevData;
       });
     },
-    [onStartReached, data]
+    [onStartReached]
   );
 
   const nextOnEndReached = React.useCallback<
     NonNullable<SLContainerNativeProps['onEndReached']>
   >(
     (args) => {
-      if (DISABLE_ON_END_REACHED) return;
       args.persist();
       setNextData((prevData) => {
-        const dataLengthDiff = data.length - prevData.length;
-        if (dataLengthDiff > 0) {
-          inProgress.current = true;
-          return data.slice(0, prevData.length + PER_RENDER);
-        }
-
         if (typeof onEndReached === 'function') {
           onEndReached(args);
         }
@@ -70,7 +56,7 @@ const useVirtualizedPagination = ({
         return prevData;
       });
     },
-    [onEndReached, data]
+    [onEndReached]
   );
 
   const nextOnVisibleChange = React.useCallback<
@@ -78,15 +64,20 @@ const useVirtualizedPagination = ({
   >(
     (args) => {
       args.persist();
-
       if (typeof onVisibleChange === 'function') {
         onVisibleChange(args);
       }
+
+      setVisibleIndices({
+        visibleStartIndex: args.nativeEvent.visibleStartIndex,
+        visibleEndIndex: args.nativeEvent.visibleEndIndex,
+      });
     },
     [onVisibleChange]
   );
 
   return {
+    visibleIndices,
     nextData: virtualizedPaginationEnabled ? nextData : data,
     nextOnStartReached: virtualizedPaginationEnabled
       ? nextOnStartReached

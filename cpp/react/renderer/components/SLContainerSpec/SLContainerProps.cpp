@@ -12,6 +12,7 @@ SLContainerProps::SLContainerProps(
   inverted(convertRawProp(context, rawProps, "inverted", sourceProps.inverted, {})),
   horizontal(convertRawProp(context, rawProps, "horizontal", sourceProps.horizontal, {})),
   initialNumToRender(convertRawProp(context, rawProps, "initialNumToRender", sourceProps.initialNumToRender, {})),
-  initialScrollIndex(convertRawProp(context, rawProps, "initialScrollIndex", sourceProps.initialScrollIndex, {}))
+  initialScrollIndex(convertRawProp(context, rawProps, "initialScrollIndex", sourceProps.initialScrollIndex, {})),
+  virtualizedPaginationEnabled(convertRawProp(context, rawProps, "virtualizedPaginationEnabled", sourceProps.virtualizedPaginationEnabled, {}))
   {}
 }

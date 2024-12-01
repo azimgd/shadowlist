@@ -40,6 +40,7 @@ export interface SLContainerNativeProps extends ViewProps {
   onVisibleChange?: DirectEventHandler<Readonly<OnVisibleChange>>;
   onStartReached?: DirectEventHandler<Readonly<OnStartReached>>;
   onEndReached?: DirectEventHandler<Readonly<OnEndReached>>;
+  virtualizedPaginationEnabled: boolean;
 }
 
 export interface SLContainerNativeCommands {

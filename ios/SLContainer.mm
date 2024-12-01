@@ -54,16 +54,28 @@ using namespace facebook::react;
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  const auto &nextViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
-  const auto uniqueId = [NSString stringWithUTF8String:nextViewProps.uniqueId.c_str()];
-  [self->_containerChildrenManager mountChildComponentView:childComponentView uniqueId:uniqueId index:index];
+  const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(_props);
+  
+  if (nextViewProps.virtualizedPaginationEnabled) {
+    [self.contentView mountChildComponentView:childComponentView index:index];
+  } else {
+    const auto &nextChildViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
+    const auto uniqueId = [NSString stringWithUTF8String:nextChildViewProps.uniqueId.c_str()];
+    [self->_containerChildrenManager mountChildComponentView:childComponentView uniqueId:uniqueId index:index];
+  }
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  const auto &nextViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
-  const auto uniqueId = [NSString stringWithUTF8String:nextViewProps.uniqueId.c_str()];
-  [self->_containerChildrenManager unmountChildComponentView:childComponentView uniqueId:uniqueId index:index];
+  const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(_props);
+  
+  if (nextViewProps.virtualizedPaginationEnabled) {
+    [self.contentView unmountChildComponentView:childComponentView index:index];
+  } else {
+    const auto &nextChildViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
+    const auto uniqueId = [NSString stringWithUTF8String:nextChildViewProps.uniqueId.c_str()];
+    [self->_containerChildrenManager unmountChildComponentView:childComponentView uniqueId:uniqueId index:index];
+  }
 }
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
