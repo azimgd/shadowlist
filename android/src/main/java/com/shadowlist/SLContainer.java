@@ -23,7 +23,6 @@ public class SLContainer extends ReactViewGroup {
   private ScrollView mScrollContainerVertical;
   private ReactViewGroup mScrollContent;
   private SLScrollable mScrollable;
-  private SLContainerChildrenManager mContainerChildrenManager;
   private SLFenwickTree mChildrenMeasurements;
   private SLContainerManager.OnStartReachedHandler mOnStartReachedHandler;
   private SLContainerManager.OnEndReachedHandler mOnEndReachedHandler;
@@ -48,7 +47,6 @@ public class SLContainer extends ReactViewGroup {
     mScrollContainerVertical = new ScrollView(context);
 
     mScrollContent = new ReactViewGroup(context);
-    mContainerChildrenManager = new SLContainerChildrenManager(mScrollContent);
     mScrollable = new SLScrollable();
 
     SwipeRefreshLayout.OnRefreshListener refreshListener = () -> {
@@ -83,10 +81,6 @@ public class SLContainer extends ReactViewGroup {
     int visibleEndIndex = mChildrenMeasurements.adjustVisibleEndIndex(
       mChildrenMeasurements.lowerBound(mScrollable.getVisibleEndOffset(scrollPosition)),
       stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
-    );
-    mContainerChildrenManager.mount(
-      visibleStartIndex,
-      visibleEndIndex
     );
 
     updateObservers(scrollPosition, visibleStartIndex, visibleEndIndex);
@@ -146,12 +140,12 @@ public class SLContainer extends ReactViewGroup {
 
   @Override
   public void addView(View child, int index) {
-    mContainerChildrenManager.mountChildComponentView(child, ((SLElement)child).getUniqueId());
+    mScrollContent.addView(child, index);
   }
 
   @Override
   public void removeView(View child) {
-    mContainerChildrenManager.mountChildComponentView(child, ((SLElement)child).getUniqueId());
+    mScrollContent.removeView(child, index);
   }
 
   @Override
@@ -213,11 +207,6 @@ public class SLContainer extends ReactViewGroup {
     int visibleEndIndex = mChildrenMeasurements.adjustVisibleEndIndex(
       mChildrenMeasurements.lowerBound(mScrollable.getVisibleEndOffset(scrollPosition)),
       stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
-    );
-
-    mContainerChildrenManager.mount(
-      visibleStartIndex,
-      visibleEndIndex
     );
 
     mOnStartReachedHandler = onStartReachedHandler;
