@@ -8,9 +8,10 @@
 
 using namespace facebook::react;
 
-@implementation Shadowlist {
+@implementation SLModule {
   __weak RCTSurfacePresenter* _surfacePresenter;
   std::shared_ptr<SLCommitHook> commitHook_;
+  facebook::jsi::Runtime *runtime_;
 }
 
 RCT_EXPORT_MODULE()
@@ -22,6 +23,8 @@ RCT_EXPORT_MODULE()
 
 - (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime
 {
+  self->runtime_ = &runtime;
+
   auto registerContainerFamily = facebook::jsi::Function::createFromHostFunction(
     runtime,
     facebook::jsi::PropNameID::forAscii(runtime, "__NATIVE_registerContainerNode"),
@@ -48,7 +51,7 @@ RCT_EXPORT_MODULE()
       size_t count) -> facebook::jsi::Value
     {
       auto shadowNode = shadowNodeFromValue(runtime, arguments[0]);
-      commitHook_->unregisterContainerNode(shadowNode);
+      self->commitHook_->unregisterContainerNode(shadowNode);
 
       return facebook::jsi::Value::undefined();
   });
@@ -78,7 +81,7 @@ RCT_EXPORT_MODULE()
 
 - (void)setup
 {
-  commitHook_ = std::make_shared<SLCommitHook>(_surfacePresenter.scheduler.uiManager);
+  self->commitHook_ = std::make_shared<SLCommitHook>(self->_surfacePresenter.scheduler.uiManager, self->runtime_);
 }
 
 @end

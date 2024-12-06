@@ -9,7 +9,7 @@ namespace facebook::react {
 
 class SLCommitHook : public UIManagerCommitHook {
 public:
-  SLCommitHook(const std::shared_ptr<UIManager> &uiManager);
+  SLCommitHook(const std::shared_ptr<UIManager> &uiManager, jsi::Runtime *runtime);
 
   ~SLCommitHook() noexcept override;
 
@@ -31,6 +31,7 @@ public:
 
 private:
   std::shared_ptr<UIManager> uiManager_;
+  jsi::Runtime *runtime_;
   std::unordered_map<Tag, ShadowNode::Shared> containerNodes_;
   std::unordered_map<Tag, ShadowNode::Shared> elementNodes_;
 };

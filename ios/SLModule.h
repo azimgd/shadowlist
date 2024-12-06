@@ -2,6 +2,6 @@
 #import <ReactCommon/RCTTurboModuleWithJSIBindings.h>
 #import "SLModuleSpecJSI.h"
 
-@interface Shadowlist : NSObject <SLModuleSpec, RCTTurboModuleWithJSIBindings>
+@interface SLModule : NSObject <SLModuleSpec, RCTTurboModuleWithJSIBindings>
 
 @end
