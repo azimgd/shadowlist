@@ -36,8 +36,8 @@ const ListEmptyComponent = () => (
   </View>
 );
 
-const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
-  return <Element item={item} index={index} />;
+const renderItem: ShadowlistProps['renderItem'] = () => {
+  return <Element />;
 };
 
 export default function App() {

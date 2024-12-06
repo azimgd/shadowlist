@@ -15,36 +15,6 @@ using namespace facebook::react;
 
 RCT_EXPORT_MODULE()
 
-int nextFamilyTag = -2;
-
-auto adjustFamilyTag = [](int tag) {
-  const int MIN_TAG_VALUE = -2e9;
-  const int CLAMPED_TAG = -2;
-  return tag < MIN_TAG_VALUE ? CLAMPED_TAG : tag - 2;
-};
-
-- (ShadowNode::Shared)cloneShadowNodeTree:(const ShadowNode::Shared&)shadowNode
-{
-  auto const &componentDescriptor = shadowNode->getComponentDescriptor();
-  PropsParserContext propsParserContext{shadowNode->getSurfaceId(), *componentDescriptor.getContextContainer().get()};
-  
-  nextFamilyTag = adjustFamilyTag(nextFamilyTag);
-
-  auto const fragment = ShadowNodeFamilyFragment{nextFamilyTag, shadowNode->getSurfaceId(), nullptr};
-  auto const family = componentDescriptor.createFamily(fragment);
-  auto const props = componentDescriptor.cloneProps(propsParserContext, shadowNode->getProps(), {});
-  auto const state = componentDescriptor.createInitialState(props, family);
-  auto const nextShadowNode = componentDescriptor.createShadowNode(
-    ShadowNodeFragment{props, ShadowNodeFragment::childrenPlaceholder(), state}, family);
-    
-  for (const auto &childShadowNode : shadowNode->getChildren()) {
-    auto const clonedChildShadowNode = [self cloneShadowNodeTree:childShadowNode];
-    componentDescriptor.appendChild(nextShadowNode, clonedChildShadowNode);
-  }
-    
-  return nextShadowNode;
-}
-
 - (void)setSurfacePresenter:(id<RCTSurfacePresenterStub>)surfacePresenter
 {
   _surfacePresenter = surfacePresenter;

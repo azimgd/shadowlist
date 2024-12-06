@@ -20,7 +20,7 @@ const invoker = (Component: Component) => {
 
 export type ShadowlistProps = {
   data: any[];
-  renderItem: (payload: { item: any; index: number }) => React.ReactElement;
+  renderItem: () => React.ReactElement;
   keyExtractor: (item: any, index: number) => string;
   contentContainerStyle?: ViewStyle;
   ListHeaderComponent?: Component;
@@ -43,7 +43,7 @@ export const Shadowlist = React.forwardRef(
       <SLElement
         style={props.ListHeaderComponentStyle}
         uniqueId="ListHeaderComponentUniqueId"
-        index={-1}
+        index={0}
       >
         {invoker(props.ListHeaderComponent)}
       </SLElement>
@@ -56,7 +56,7 @@ export const Shadowlist = React.forwardRef(
       <SLElement
         style={props.ListFooterComponentStyle}
         uniqueId="ListFooterComponentUniqueId"
-        index={-2}
+        index={2}
       >
         {invoker(props.ListFooterComponent)}
       </SLElement>
@@ -69,7 +69,7 @@ export const Shadowlist = React.forwardRef(
       <SLElement
         style={props.ListEmptyComponentStyle}
         uniqueId="ListEmptyComponentUniqueId"
-        index={-3}
+        index={1}
       >
         {invoker(props.ListEmptyComponent)}
       </SLElement>
@@ -78,27 +78,26 @@ export const Shadowlist = React.forwardRef(
     /**
      * ListChildrenComponent
      */
-    const ListChildrenComponent = React.useMemo(() => {
-      return props.data.map((item, index) => {
-        const uniqueId = props.keyExtractor(item, index);
-        return (
-          <SLElement index={index} uniqueId={uniqueId} key={uniqueId}>
-            {props.renderItem({ item, index })}
-          </SLElement>
-        );
-      });
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [props.data, props.renderItem, props.keyExtractor]);
+    const ListChildrenComponent = (
+      <SLElement index={1} uniqueId="ListChildrenComponentUniqueId">
+        {props.renderItem()}
+      </SLElement>
+    );
 
     return (
       <SLContainer
         {...props}
         ref={ref}
         style={[props.style, props.contentContainerStyle]}
+        onVisibleChange={() => {}}
+        onStartReached={() => {}}
+        onEndReached={() => {}}
       >
-        {!props.inverted ? ListHeaderComponent : ListFooterComponent}
-        {props.data.length ? ListChildrenComponent : ListEmptyComponent}
-        {!props.inverted ? ListFooterComponent : ListHeaderComponent}
+        {[
+          !props.inverted ? ListHeaderComponent : ListFooterComponent,
+          props.data.length ? ListChildrenComponent : ListEmptyComponent,
+          !props.inverted ? ListFooterComponent : ListHeaderComponent,
+        ].toReversed()}
       </SLContainer>
     );
   }

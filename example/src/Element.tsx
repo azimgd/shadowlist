@@ -1,12 +1,14 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { type ShadowlistProps } from 'shadowlist';
 
-const Element: ShadowlistProps['renderItem'] = ({ item, index }) => {
+const stringify = (str: string) => `{{${str}}}`;
+
+const Element: ShadowlistProps['renderItem'] = () => {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{item.id}</Text>
-      <Text style={styles.content}>{item.text}</Text>
-      <Text style={styles.footer}>index: {index}</Text>
+      <Text style={styles.title}>{stringify('id')}</Text>
+      <Text style={styles.content}>{stringify('text')}</Text>
+      <Text style={styles.footer}>index: {stringify('index')}</Text>
     </View>
   );
 };
