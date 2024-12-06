@@ -145,7 +145,7 @@ public class SLContainer extends ReactViewGroup {
 
   @Override
   public void removeView(View child) {
-    mScrollContent.removeView(child, index);
+    mScrollContent.removeView(child);
   }
 
   @Override
