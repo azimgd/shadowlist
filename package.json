@@ -188,7 +188,7 @@
   },
   "codegenConfig": {
     "name": "SLContainerSpec",
-    "type": "components",
+    "type": "all",
     "jsSrcsDir": "src",
     "outputDir": {
       "ios": "ios/generated",

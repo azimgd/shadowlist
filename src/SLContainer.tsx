@@ -8,6 +8,9 @@ import SLContainerNativeComponent, {
   type SLContainerNativeCommands,
 } from './SLContainerNativeComponent';
 
+// @ts-ignore
+import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
+
 export type SLContainerWrapperProps = {};
 
 export type SLContainerInstance = InstanceType<
@@ -24,6 +27,13 @@ const SLContainerWrapper = (
   forwardedRef: React.Ref<Partial<SLContainerNativeCommands>>
 ) => {
   const instanceRef = React.useRef<SLContainerInstance>(null);
+
+  React.useLayoutEffect(() => {
+    // @ts-ignore
+    global.__NATIVE_registerContainerNode(
+      ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
+    );
+  }, []);
 
   React.useImperativeHandle<Partial<SLContainerNativeCommands>, SLContainerRef>(
     forwardedRef,

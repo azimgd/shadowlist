@@ -12,7 +12,7 @@ import {
 import useData from './useData';
 import Element from './Element';
 
-const ITEMS_COUNT = 50;
+const ITEMS_COUNT = 10;
 const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
 const INITIAL_SCROLL_INDEX = 0;
@@ -82,8 +82,8 @@ export default function App() {
         data={data.data}
         keyExtractor={(item) => item.id}
         onVisibleChange={onVisibleChange}
-        onEndReached={onEndReached}
         onStartReached={onStartReached}
+        onEndReached={onEndReached}
         ListHeaderComponent={ListHeaderComponent}
         ListHeaderComponentStyle={styles.static}
         ListFooterComponent={ListFooterComponent}

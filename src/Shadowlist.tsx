@@ -1,11 +1,11 @@
 import React, { type Ref } from 'react';
 import { type ViewStyle } from 'react-native';
 import { SLContainer } from './SLContainer';
+import { SLElement } from './SLElement';
 import type {
   SLContainerNativeCommands,
   SLContainerNativeProps,
 } from './SLContainerNativeComponent';
-import SLElementNativeComponent from './SLElementNativeComponent';
 
 type Component = React.ComponentType<any> | null | undefined;
 
@@ -39,49 +39,40 @@ export const Shadowlist = React.forwardRef(
     /**
      * ListHeaderComponent
      */
-    const ListHeaderComponent = React.useMemo(
-      () => (
-        <SLElementNativeComponent
-          style={props.ListHeaderComponentStyle}
-          uniqueId="ListHeaderComponentUniqueId"
-          index={-1}
-        >
-          {invoker(props.ListHeaderComponent)}
-        </SLElementNativeComponent>
-      ),
-      [props.ListHeaderComponent, props.ListHeaderComponentStyle]
+    const ListHeaderComponent = (
+      <SLElement
+        style={props.ListHeaderComponentStyle}
+        uniqueId="ListHeaderComponentUniqueId"
+        index={-1}
+      >
+        {invoker(props.ListHeaderComponent)}
+      </SLElement>
     );
 
     /**
      * ListFooterComponent
      */
-    const ListFooterComponent = React.useMemo(
-      () => (
-        <SLElementNativeComponent
-          style={props.ListFooterComponentStyle}
-          uniqueId="ListFooterComponentUniqueId"
-          index={-2}
-        >
-          {invoker(props.ListFooterComponent)}
-        </SLElementNativeComponent>
-      ),
-      [props.ListFooterComponent, props.ListFooterComponentStyle]
+    const ListFooterComponent = (
+      <SLElement
+        style={props.ListFooterComponentStyle}
+        uniqueId="ListFooterComponentUniqueId"
+        index={-2}
+      >
+        {invoker(props.ListFooterComponent)}
+      </SLElement>
     );
 
     /**
      * ListEmptyComponent
      */
-    const ListEmptyComponent = React.useMemo(
-      () => (
-        <SLElementNativeComponent
-          style={props.ListEmptyComponentStyle}
-          uniqueId="ListEmptyComponentUniqueId"
-          index={-3}
-        >
-          {invoker(props.ListEmptyComponent)}
-        </SLElementNativeComponent>
-      ),
-      [props.ListEmptyComponent, props.ListEmptyComponentStyle]
+    const ListEmptyComponent = (
+      <SLElement
+        style={props.ListEmptyComponentStyle}
+        uniqueId="ListEmptyComponentUniqueId"
+        index={-3}
+      >
+        {invoker(props.ListEmptyComponent)}
+      </SLElement>
     );
 
     /**
@@ -91,13 +82,9 @@ export const Shadowlist = React.forwardRef(
       return props.data.map((item, index) => {
         const uniqueId = props.keyExtractor(item, index);
         return (
-          <SLElementNativeComponent
-            index={index}
-            uniqueId={uniqueId}
-            key={uniqueId}
-          >
+          <SLElement index={index} uniqueId={uniqueId} key={uniqueId}>
             {props.renderItem({ item, index })}
-          </SLElementNativeComponent>
+          </SLElement>
         );
       });
       // eslint-disable-next-line react-hooks/exhaustive-deps
