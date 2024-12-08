@@ -14,19 +14,38 @@ const SLElementWrapper = (
   props: SLElementNativeProps & SLElementWrapperProps,
   forwardedRef: React.Ref<{}>
 ) => {
-  const instanceRef = React.useRef<SLElementInstance>(null);
-
-  React.useLayoutEffect(() => {
-    // @ts-ignore
-    global.__NATIVE_registerElementNode(
-      ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
-    );
-  }, []);
+  const [_registered, setRegistered] = React.useState(false);
+  const instanceRef = React.useRef<SLElementInstance | null>(null);
 
   React.useImperativeHandle(forwardedRef, () => ({}));
 
+  const nextRef = (ref: SLElementInstance) => {
+    if (ref) {
+      global.__NATIVE_registerElementNode(
+        ReactNativeInterface.getNodeFromPublicInstance(ref)
+      );
+      instanceRef.current = ref;
+      setRegistered(true);
+    } else {
+      global.__NATIVE_unregisterElementNode(
+        ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
+      );
+      instanceRef.current = null;
+      setRegistered(false);
+    }
+
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        // @ts-ignore
+        forwardedRef(ref);
+      } else {
+        (forwardedRef as React.MutableRefObject<any>).current = ref;
+      }
+    }
+  };
+
   return (
-    <SLElementNativeComponent {...props} ref={instanceRef}>
+    <SLElementNativeComponent {...props} ref={nextRef}>
       {props.children}
     </SLElementNativeComponent>
   );

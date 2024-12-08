@@ -28,14 +28,8 @@ const SLContainerWrapper = (
   props: Omit<SLContainerNativeProps, 'data'> & SLContainerWrapperProps,
   forwardedRef: React.Ref<Partial<SLContainerNativeCommands>>
 ) => {
-  const instanceRef = React.useRef<SLContainerInstance>(null);
-
-  React.useLayoutEffect(() => {
-    // @ts-ignore
-    global.__NATIVE_registerContainerNode(
-      ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
-    );
-  }, []);
+  const [_registered, setRegistered] = React.useState(false);
+  const instanceRef = React.useRef<SLContainerInstance | null>(null);
 
   React.useImperativeHandle<Partial<SLContainerNativeCommands>, SLContainerRef>(
     forwardedRef,
@@ -61,12 +55,37 @@ const SLContainerWrapper = (
     ? styles.containerHorizontal
     : styles.containerVertical;
 
+  const nextRef = (ref: SLContainerInstance) => {
+    if (ref) {
+      global.__NATIVE_registerContainerNode(
+        ReactNativeInterface.getNodeFromPublicInstance(ref)
+      );
+      instanceRef.current = ref;
+      setRegistered(true);
+    } else {
+      global.__NATIVE_unregisterContainerNode(
+        ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
+      );
+      instanceRef.current = null;
+      setRegistered(true);
+    }
+
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        // @ts-ignore
+        forwardedRef(ref);
+      } else {
+        (forwardedRef as React.MutableRefObject<any>).current = ref;
+      }
+    }
+  };
+
   return (
     <SLContainerNativeComponent
       {...props}
       data={JSON.stringify(props.data)}
-      ref={instanceRef}
       style={[containerStyle, props.style]}
+      ref={nextRef}
     >
       {props.children}
     </SLContainerNativeComponent>

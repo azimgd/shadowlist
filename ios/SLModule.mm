@@ -1,6 +1,7 @@
 #import "SLModule.h"
 #import "SLCommitHook.h"
 #import "SLModuleSpecJSI.h"
+#import "SLModuleJSI.h"
 #import <ReactCommon/RCTTurboModule.h>
 #import <React/RCTSurfacePresenter.h>
 #import <React/RCTScheduler.h>
@@ -24,69 +25,7 @@ RCT_EXPORT_MODULE()
 - (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime
 {
   self->runtime_ = &runtime;
-
-  auto registerContainerFamily = facebook::jsi::Function::createFromHostFunction(
-    runtime,
-    facebook::jsi::PropNameID::forAscii(runtime, "__NATIVE_registerContainerNode"),
-    1,
-    [=](facebook::jsi::Runtime &runtime,
-    const facebook::jsi::Value &thisValue,
-    const facebook::jsi::Value *arguments,
-    size_t count) -> facebook::jsi::Value
-  {
-    auto shadowNode = shadowNodeFromValue(runtime, arguments[0]);
-    self->commitHook_->registerContainerNode(shadowNode);
-
-    return facebook::jsi::Value::undefined();
-  });
-  runtime.global().setProperty(runtime, "__NATIVE_registerContainerNode", std::move(registerContainerFamily));
-
-  auto unregisterContainerFamily = facebook::jsi::Function::createFromHostFunction(
-    runtime,
-    facebook::jsi::PropNameID::forAscii(runtime, "__NATIVE_unregisterContainerNode"),
-    1,
-    [=](facebook::jsi::Runtime &runtime,
-      const facebook::jsi::Value &thisValue,
-      const facebook::jsi::Value *arguments,
-      size_t count) -> facebook::jsi::Value
-    {
-      auto shadowNode = shadowNodeFromValue(runtime, arguments[0]);
-      self->commitHook_->unregisterContainerNode(shadowNode);
-
-      return facebook::jsi::Value::undefined();
-  });
-  runtime.global().setProperty(runtime, "__NATIVE_unregisterContainerNode", std::move(unregisterContainerFamily));
-
-  auto registerElementFamily = facebook::jsi::Function::createFromHostFunction(
-    runtime,
-    facebook::jsi::PropNameID::forAscii(runtime, "__NATIVE_registerElementNode"),
-    1,
-    [=](facebook::jsi::Runtime &runtime,
-    const facebook::jsi::Value &thisValue,
-    const facebook::jsi::Value *arguments,
-    size_t count) -> facebook::jsi::Value
-  {
-    auto shadowNode = shadowNodeFromValue(runtime, arguments[0]);
-    self->commitHook_->registerElementNode(shadowNode);
-
-    return facebook::jsi::Value::undefined();
-  });
-  runtime.global().setProperty(runtime, "__NATIVE_registerElementNode", std::move(registerElementFamily));
-  auto unregisterElementFamily = facebook::jsi::Function::createFromHostFunction(
-    runtime,
-    facebook::jsi::PropNameID::forAscii(runtime, "__NATIVE_unregisterElementNode"),
-    1,
-    [=](facebook::jsi::Runtime &runtime,
-      const facebook::jsi::Value &thisValue,
-      const facebook::jsi::Value *arguments,
-      size_t count) -> facebook::jsi::Value
-    {
-      auto shadowNode = shadowNodeFromValue(runtime, arguments[0]);
-      self->commitHook_->unregisterElementNode(shadowNode);
-
-      return facebook::jsi::Value::undefined();
-  });
-  runtime.global().setProperty(runtime, "__NATIVE_unregisterElementNode", std::move(unregisterContainerFamily));
+  SLModuleJSI::install(runtime, commitHook_);
 }
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:(const facebook::react::ObjCTurboModule::InitParams &)params
