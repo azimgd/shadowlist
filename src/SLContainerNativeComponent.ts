@@ -6,6 +6,11 @@ import type {
   DirectEventHandler,
 } from 'react-native/Libraries/Types/CodegenTypes';
 
+declare global {
+  var __NATIVE_registerContainerNode: (node: any) => void;
+  var __NATIVE_unregisterContainerNode: (node: any) => void;
+}
+
 export type ScrollToIndexOptions = {
   index: number;
   animated?: boolean;
@@ -30,6 +35,7 @@ export type OnEndReached = {
 };
 
 export interface SLContainerNativeProps extends ViewProps {
+  data: string;
   inverted?: boolean;
   horizontal?: boolean;
   initialNumToRender?: Int32;

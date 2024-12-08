@@ -4,7 +4,6 @@
 #import "SLContainerEventEmitter.h"
 #import "SLContainerProps.h"
 #import "SLContainerHelpers.h"
-#import "SLContainerChildrenManager.h"
 #import "SLScrollable.h"
 #import "SLElementProps.h"
 #import "helpers.h"
@@ -22,7 +21,6 @@ using namespace facebook::react;
   UIScrollView *_scrollContent;
   UIRefreshControl *_scrollContentRefresh;
   SLContainerShadowNode::ConcreteState::Shared _state;
-  SLContainerChildrenManager *_containerChildrenManager;
   SLScrollable *_scrollable;
 }
 
@@ -39,7 +37,6 @@ using namespace facebook::react;
     _scrollContent = [UIScrollView new];
     _scrollContent.delegate = self;
     _scrollContent.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    _containerChildrenManager = [[SLContainerChildrenManager alloc] initWithContentView:_scrollContent];
     _scrollable = [SLScrollable new];
     
     _scrollContentRefresh = [UIRefreshControl new];
@@ -56,14 +53,14 @@ using namespace facebook::react;
 {
   const auto &nextViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
   const auto uniqueId = [NSString stringWithUTF8String:nextViewProps.uniqueId.c_str()];
-  [self->_containerChildrenManager mountChildComponentView:childComponentView uniqueId:uniqueId index:index];
+  [self->_scrollContent mountChildComponentView:childComponentView index:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   const auto &nextViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
   const auto uniqueId = [NSString stringWithUTF8String:nextViewProps.uniqueId.c_str()];
-  [self->_containerChildrenManager unmountChildComponentView:childComponentView uniqueId:uniqueId index:index];
+  [self->_scrollContent unmountChildComponentView:childComponentView index:index];
 }
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
@@ -104,8 +101,6 @@ using namespace facebook::react;
     nextStateData.childrenMeasurementsTree.size()
   );
 
-  [self->_containerChildrenManager mount:visibleStartIndex visibleEndIndex:visibleEndIndex];
-
   [self->_scrollContent setContentSize:scrollContent];
   [self->_scrollContent setContentOffset:scrollPositionCGPoint];
 
@@ -136,10 +131,6 @@ using namespace facebook::react;
     nextStateData.childrenMeasurementsTree.lower_bound([self->_scrollable getVisibleEndOffset:scrollPositionCGPoint]),
     nextStateData.childrenMeasurementsTree.size()
   );
-
-  [self->_containerChildrenManager
-    mount:visibleStartIndex
-    visibleEndIndex:visibleEndIndex];
 
   [self updateObservers:scrollPositionCGPoint visibleStartIndex:visibleStartIndex visibleEndIndex:visibleEndIndex];
 }
