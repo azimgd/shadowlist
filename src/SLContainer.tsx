@@ -11,7 +11,9 @@ import SLContainerNativeComponent, {
 // @ts-ignore
 import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
 
-export type SLContainerWrapperProps = {};
+export type SLContainerWrapperProps = {
+  data: Array<any>;
+};
 
 export type SLContainerInstance = InstanceType<
   typeof SLContainerNativeComponent
@@ -23,7 +25,7 @@ export type SLContainerRef = {
 };
 
 const SLContainerWrapper = (
-  props: SLContainerNativeProps & SLContainerWrapperProps,
+  props: Omit<SLContainerNativeProps, 'data'> & SLContainerWrapperProps,
   forwardedRef: React.Ref<Partial<SLContainerNativeCommands>>
 ) => {
   const instanceRef = React.useRef<SLContainerInstance>(null);
@@ -62,6 +64,7 @@ const SLContainerWrapper = (
   return (
     <SLContainerNativeComponent
       {...props}
+      data={JSON.stringify(props.data)}
       ref={instanceRef}
       style={[containerStyle, props.style]}
     >

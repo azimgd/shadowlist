@@ -72,6 +72,21 @@ RCT_EXPORT_MODULE()
     return facebook::jsi::Value::undefined();
   });
   runtime.global().setProperty(runtime, "__NATIVE_registerElementNode", std::move(registerElementFamily));
+  auto unregisterElementFamily = facebook::jsi::Function::createFromHostFunction(
+    runtime,
+    facebook::jsi::PropNameID::forAscii(runtime, "__NATIVE_unregisterElementNode"),
+    1,
+    [=](facebook::jsi::Runtime &runtime,
+      const facebook::jsi::Value &thisValue,
+      const facebook::jsi::Value *arguments,
+      size_t count) -> facebook::jsi::Value
+    {
+      auto shadowNode = shadowNodeFromValue(runtime, arguments[0]);
+      self->commitHook_->unregisterElementNode(shadowNode);
+
+      return facebook::jsi::Value::undefined();
+  });
+  runtime.global().setProperty(runtime, "__NATIVE_unregisterElementNode", std::move(unregisterContainerFamily));
 }
 
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:(const facebook::react::ObjCTurboModule::InitParams &)params

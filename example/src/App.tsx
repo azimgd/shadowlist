@@ -12,7 +12,7 @@ import {
 import useData from './useData';
 import Element from './Element';
 
-const ITEMS_COUNT = 10;
+const ITEMS_COUNT = 5;
 const IS_INVERTED = false;
 const IS_HORIZONTAL = false;
 const INITIAL_SCROLL_INDEX = 0;

@@ -30,6 +30,7 @@ export type OnEndReached = {
 };
 
 export interface SLContainerNativeProps extends ViewProps {
+  data: string;
   inverted?: boolean;
   horizontal?: boolean;
   initialNumToRender?: Int32;

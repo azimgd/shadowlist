@@ -19,7 +19,7 @@ const invoker = (Component: Component) => {
 };
 
 export type ShadowlistProps = {
-  data: any[];
+  data: Array<any>;
   renderItem: () => React.ReactElement;
   keyExtractor: (item: any, index: number) => string;
   contentContainerStyle?: ViewStyle;
@@ -33,7 +33,7 @@ export type ShadowlistProps = {
 
 export const Shadowlist = React.forwardRef(
   (
-    props: SLContainerNativeProps & ShadowlistProps,
+    props: Omit<SLContainerNativeProps, 'data'> & ShadowlistProps,
     ref: Ref<Partial<SLContainerNativeCommands>>
   ) => {
     /**

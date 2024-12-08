@@ -12,6 +12,7 @@ class SLContainerProps final : public ViewProps {
 
 #pragma mark - Props
 
+  std::string data;
   bool inverted = false;
   bool horizontal = false;
   int initialNumToRender = 10;
