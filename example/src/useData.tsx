@@ -7,6 +7,7 @@ const initialState = (length: number) =>
   Array.from({ length }, () => ({
     id: faker.database.mongodbObjectId(),
     text: faker.lorem.paragraph(),
+    image: faker.image.avatarGitHub(),
   }));
 
 const useData = ({ length }: { length: number; inverted?: boolean }) => {
