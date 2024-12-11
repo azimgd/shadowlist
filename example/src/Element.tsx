@@ -1,12 +1,15 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import { type ShadowlistProps } from 'shadowlist';
 
-const Element: ShadowlistProps['renderItem'] = ({ item, index }) => {
+const stringify = (str: string) => `{{${str}}}`;
+
+const Element: ShadowlistProps['renderItem'] = () => {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{item.id}</Text>
-      <Text style={styles.content}>{item.text}</Text>
-      <Text style={styles.footer}>index: {index}</Text>
+      <Image source={{ uri: stringify('image') }} style={styles.image} />
+      <Text style={styles.title}>{stringify('id')}</Text>
+      <Text style={styles.content}>{stringify('text')}</Text>
+      <Text style={styles.footer}>index: {stringify('index')}</Text>
     </View>
   );
 };
@@ -34,6 +37,10 @@ const styles = StyleSheet.create({
     borderTopColor: '#33333330',
     marginTop: 8,
     paddingTop: 8,
+  },
+  image: {
+    width: 100,
+    height: 100,
   },
 });
 
