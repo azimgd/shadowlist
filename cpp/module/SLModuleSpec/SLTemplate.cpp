@@ -1,4 +1,5 @@
 #include "SLTemplate.h"
+#include "SLRuntimeManager.h"
 #include <react/renderer/components/text/RawTextShadowNode.h>
 #include <react/renderer/components/image/ImageShadowNode.h>
 
@@ -32,7 +33,7 @@ static void updateImageProps(SLContainerProps::SLContainerDataItem *elementData,
   updatedProps->sources[0].uri = SLContainerProps::getDataItemContent(elementData, updatedProps->sources[0].uri);
 }
 
-ShadowNode::Shared SLTemplate::cloneShadowNodeTree(jsi::Runtime *runtime, SLContainerProps::SLContainerDataItem* elementData, const ShadowNode::Shared& shadowNode)
+ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(SLContainerProps::SLContainerDataItem* elementData, const ShadowNode::Shared& shadowNode)
 {
   auto const &componentDescriptor = shadowNode->getComponentDescriptor();
   PropsParserContext propsParserContext{shadowNode->getSurfaceId(), *componentDescriptor.getContextContainer().get()};
@@ -40,8 +41,8 @@ ShadowNode::Shared SLTemplate::cloneShadowNodeTree(jsi::Runtime *runtime, SLCont
   nextFamilyTag = adjustFamilyTag(nextFamilyTag);
 
   InstanceHandle::Shared instanceHandle = std::make_shared<const InstanceHandle>(
-    *runtime,
-    shadowNode->getInstanceHandle(*runtime),
+    *SLRuntimeManager::getInstance().getRuntime(),
+    shadowNode->getInstanceHandle(*SLRuntimeManager::getInstance().getRuntime()),
     shadowNode->getTag());
   auto const fragment = ShadowNodeFamilyFragment{nextFamilyTag, shadowNode->getSurfaceId(), instanceHandle};
   auto const family = componentDescriptor.createFamily(fragment);
@@ -54,7 +55,7 @@ ShadowNode::Shared SLTemplate::cloneShadowNodeTree(jsi::Runtime *runtime, SLCont
   updateImageProps(elementData, nextShadowNode, shadowNode);
 
   for (const auto &childShadowNode : shadowNode->getChildren()) {
-    auto const clonedChildShadowNode = cloneShadowNodeTree(runtime, elementData, childShadowNode);
+    auto const clonedChildShadowNode = cloneShadowNodeTree(elementData, childShadowNode);
     componentDescriptor.appendChild(nextShadowNode, clonedChildShadowNode);
   }
 

@@ -2,6 +2,7 @@
 #import "SLCommitHook.h"
 #import "SLModuleSpecJSI.h"
 #import "SLModuleJSI.h"
+#import "SLRuntimeManager.h"
 #import <ReactCommon/RCTTurboModule.h>
 #import <React/RCTSurfacePresenter.h>
 #import <React/RCTScheduler.h>
@@ -19,12 +20,13 @@ RCT_EXPORT_MODULE()
 
 - (void)setSurfacePresenter:(id<RCTSurfacePresenterStub>)surfacePresenter
 {
-  _surfacePresenter = surfacePresenter;
+  self->_surfacePresenter = surfacePresenter;
 }
 
 - (void)installJSIBindingsWithRuntime:(facebook::jsi::Runtime &)runtime
 {
   self->runtime_ = &runtime;
+  SLRuntimeManager::getInstance().setRuntime(self->runtime_);
   SLModuleJSI::install(runtime, commitHook_);
 }
 
