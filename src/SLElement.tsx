@@ -14,7 +14,6 @@ const SLElementWrapper = (
   props: SLElementNativeProps & SLElementWrapperProps,
   forwardedRef: React.Ref<{}>
 ) => {
-  const [_registered, setRegistered] = React.useState(false);
   const instanceRef = React.useRef<SLElementInstance | null>(null);
 
   React.useImperativeHandle(forwardedRef, () => ({}));
@@ -25,13 +24,11 @@ const SLElementWrapper = (
         ReactNativeInterface.getNodeFromPublicInstance(ref)
       );
       instanceRef.current = ref;
-      setRegistered(true);
     } else {
       global.__NATIVE_unregisterElementNode(
         ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
       );
       instanceRef.current = null;
-      setRegistered(false);
     }
 
     if (forwardedRef) {

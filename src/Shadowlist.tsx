@@ -96,9 +96,6 @@ export const Shadowlist = React.forwardRef(
         {...props}
         ref={forwardedRef}
         style={[props.style, props.contentContainerStyle]}
-        onVisibleChange={() => {}}
-        onStartReached={() => {}}
-        onEndReached={() => {}}
       >
         {[
           !props.inverted ? ListHeaderComponent : ListFooterComponent,

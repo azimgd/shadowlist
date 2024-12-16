@@ -12,48 +12,27 @@ auto adjustFamilyTag = [](int tag) {
   return tag < MIN_TAG_VALUE ? CLAMPED_TAG : tag - 2;
 };
 
-static void updateRawTextProps(nlohmann::json *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
+static void updateRawTextProps(SLContainerProps::SLContainerDataItem *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
   if (shadowNode->getComponentName() != std::string("RawText")) {
     return;
   }
 
   RawTextShadowNode::ConcreteProps* updatedProps = const_cast<RawTextShadowNode::ConcreteProps*>(
     static_cast<const RawTextShadowNode::ConcreteProps*>(nextShadowNode->getProps().get()));
-  auto updatedPropsKey = SLKeyExtractor::extractKey(updatedProps->text);
-
-  if (!updatedPropsKey.has_value()) {
-    return;
-  }
-
-  auto elementDataPointer = nlohmann::json::json_pointer("/" + updatedPropsKey.value());
-
-  if (!(*elementData).contains(elementDataPointer) || !(*elementData)[elementDataPointer].is_string()) {
-    return;
-  }
-  updatedProps->text = (*elementData)[elementDataPointer].get<std::string>();
+  updatedProps->text = SLContainerProps::getDataItemContent(elementData, updatedProps->text);
 }
 
-static void updateImageProps(nlohmann::json *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
+static void updateImageProps(SLContainerProps::SLContainerDataItem *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
   if (shadowNode->getComponentName() != std::string("Image")) {
     return;
   }
 
   ImageShadowNode::ConcreteProps* updatedProps = const_cast<ImageShadowNode::ConcreteProps*>(
     static_cast<const ImageShadowNode::ConcreteProps*>(nextShadowNode->getProps().get()));
-  auto updatedPropsKey = SLKeyExtractor::extractKey(updatedProps->sources[0].uri);
-  auto elementDataPointer = nlohmann::json::json_pointer("/" + updatedPropsKey.value());
-
-  if (!updatedPropsKey.has_value()) {
-    return;
-  }
-
-  if (!(*elementData).contains(elementDataPointer) || !(*elementData)[elementDataPointer].is_string()) {
-    return;
-  }
-  updatedProps->sources[0].uri = (*elementData)[elementDataPointer].get<std::string>();
+  updatedProps->sources[0].uri = SLContainerProps::getDataItemContent(elementData, updatedProps->sources[0].uri);
 }
 
-ShadowNode::Shared SLTemplate::cloneShadowNodeTree(jsi::Runtime *runtime, nlohmann::json* elementData, const ShadowNode::Shared& shadowNode)
+ShadowNode::Shared SLTemplate::cloneShadowNodeTree(jsi::Runtime *runtime, SLContainerProps::SLContainerDataItem* elementData, const ShadowNode::Shared& shadowNode)
 {
   auto const &componentDescriptor = shadowNode->getComponentDescriptor();
   PropsParserContext propsParserContext{shadowNode->getSurfaceId(), *componentDescriptor.getContextContainer().get()};

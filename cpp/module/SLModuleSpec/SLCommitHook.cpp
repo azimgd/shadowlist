@@ -1,5 +1,4 @@
 #include <react/renderer/components/text/RawTextShadowNode.h>
-#include "json.hpp"
 #include "SLCommitHook.h"
 #include "SLContainerShadowNode.h"
 #include "SLElementShadowNode.h"
@@ -34,52 +33,56 @@ void SLCommitHook::commitHookWasRegistered(const UIManager& uiManager) noexcept 
 void SLCommitHook::commitHookWasUnregistered(const UIManager& uiManager) noexcept {
 }
 
+static SLContainerShadowNode::ConcreteProps* getSLContainerShadowNodeProps(const ShadowNode& containerShadowNode) {
+  return const_cast<SLContainerShadowNode::ConcreteProps*>(
+    static_cast<const SLContainerShadowNode::ConcreteProps*>(containerShadowNode.getProps().get())
+  );
+}
+
+static SLElementShadowNode::ConcreteProps* getSLElementShadowNodeProps(const ShadowNode& elementShadowNode) {
+  return const_cast<SLElementShadowNode::ConcreteProps*>(
+    static_cast<const SLElementShadowNode::ConcreteProps*>(elementShadowNode.getProps().get())
+  );
+}
+
 RootShadowNode::Unshared SLCommitHook::shadowTreeWillCommit(
   ShadowTree const &,
   RootShadowNode::Shared const &oldRootShadowNode,
   RootShadowNode::Unshared const &newRootShadowNode) noexcept {
 
   auto rootShadowNode = newRootShadowNode->ShadowNode::clone(ShadowNodeFragment{});
-  auto rootShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>(
-    *std::make_shared<const ShadowNode::ListOfShared>());
 
-  if (!elementNodes_.size() || !containerNodes_.size()) {
-    return std::static_pointer_cast<RootShadowNode>(rootShadowNode);
-  }
+  /**
+   * Iterate through SLContainer instances
+   */
+  for (const auto& containerNode : containerNodes_) {
+    const auto nextRootShadowNode = rootShadowNode->cloneTree(containerNode.second->getFamily(), [this](const ShadowNode& containerShadowNode) {
+      auto containerShadowNodeCloned = containerShadowNode.clone({});
+      auto containerShadowNodeProps = getSLContainerShadowNodeProps(containerShadowNode);
+      auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>(*ShadowNode::emptySharedShadowNodeSharedList());
 
-  const auto nextRootShadowNode = rootShadowNode->cloneTree(
-    containerNodes_.begin()->second->getFamily(),
-    [this, rootShadowNodeChildren](const ShadowNode& oldShadowNode) {
+      /**
+       * Iterate through SLElement instances
+       */
+      for (const auto& elementNode : elementNodes_) {
+        auto elementShadowNodeProps = getSLElementShadowNodeProps(*elementNode.second);
 
-    auto containerShadowNodeProps = const_cast<SLContainerShadowNode::ConcreteProps*>(
-      static_cast<const SLContainerShadowNode::ConcreteProps*>(oldShadowNode.getProps().get())
-    );
-
-    auto containerData = std::make_shared<nlohmann::json>(nlohmann::json::parse(containerShadowNodeProps->data));
-
-    for (const auto& elementNode : elementNodes_) {
-      auto elementShadowNodeProps = const_cast<SLElementShadowNode::ConcreteProps*>(
-        static_cast<const SLElementShadowNode::ConcreteProps*>(elementNode.second->getProps().get())
-      );
-
-      if ((*containerData).is_array() && elementShadowNodeProps->uniqueId == std::string("ListChildrenComponentUniqueId")) {
-        for (int i = 0; i < (*containerData).size(); ++i) {
-          auto elementDataPointer = nlohmann::json::json_pointer("/" + std::to_string(i));
-          auto* elementData = &(*containerData)[elementDataPointer];
-          rootShadowNodeChildren->push_back(
-            SLTemplate::cloneShadowNodeTree(runtime_, elementData, elementNode.second)
-          );
+        if (elementShadowNodeProps->uniqueId == std::string("ListChildrenComponentUniqueId")) {
+          for (int i = 0; i < containerShadowNodeProps->data.size(); ++i) {
+            auto* elementData = containerShadowNodeProps->getDataItem(i);
+            containerShadowNodeChildren->push_back(SLTemplate::cloneShadowNodeTree(runtime_, elementData, elementNode.second));
+          }
+        } else {
+           containerShadowNodeChildren->push_back(elementNode.second);
         }
-      } else {
-        // rootShadowNodeChildren->push_back(cloneShadowNodeTree(runtime_, elementData, elementNode.second));
       }
+      
+      return containerShadowNodeCloned->clone({ .children = containerShadowNodeChildren });
+    });
+
+    if (nextRootShadowNode) {
+      rootShadowNode = nextRootShadowNode;
     }
-
-    return oldShadowNode.clone({.state = oldShadowNode.getState(), .children = rootShadowNodeChildren});
-  });
-
-  if (nextRootShadowNode) {
-    rootShadowNode = nextRootShadowNode;
   }
 
   return std::static_pointer_cast<RootShadowNode>(rootShadowNode);

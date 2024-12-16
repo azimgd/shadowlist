@@ -28,7 +28,6 @@ const SLContainerWrapper = (
   props: Omit<SLContainerNativeProps, 'data'> & SLContainerWrapperProps,
   forwardedRef: React.Ref<Partial<SLContainerNativeCommands>>
 ) => {
-  const [_registered, setRegistered] = React.useState(false);
   const instanceRef = React.useRef<SLContainerInstance | null>(null);
 
   React.useImperativeHandle<Partial<SLContainerNativeCommands>, SLContainerRef>(
@@ -61,13 +60,11 @@ const SLContainerWrapper = (
         ReactNativeInterface.getNodeFromPublicInstance(ref)
       );
       instanceRef.current = ref;
-      setRegistered(true);
     } else {
       global.__NATIVE_unregisterContainerNode(
         ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
       );
       instanceRef.current = null;
-      setRegistered(true);
     }
 
     if (forwardedRef) {
