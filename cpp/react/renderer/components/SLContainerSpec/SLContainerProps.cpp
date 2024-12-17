@@ -36,12 +36,12 @@ SLContainerProps::SLContainerProps(
   initialScrollIndex(convertRawProp(context, rawProps, "initialScrollIndex", sourceProps.initialScrollIndex, {}))
   {}
 
-SLContainerProps::SLContainerDataItem* SLContainerProps::getDataItem(int index) {
+const SLContainerProps::SLContainerDataItem* SLContainerProps::getDataItem(int index) const {
   auto elementDataPointer = nlohmann::json::json_pointer("/" + std::to_string(index));
   return &data[elementDataPointer];
 }
 
-std::string SLContainerProps::getDataItemContent(nlohmann::json *dataItem, std::string path) {
+std::string SLContainerProps::getDataItemContent(const nlohmann::json *dataItem, std::string path) {
   auto dataItemContentPath = SLKeyExtractor::extractKey(path);
   if (!dataItemContentPath.has_value()) {
     return path;

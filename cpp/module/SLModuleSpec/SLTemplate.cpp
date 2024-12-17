@@ -13,7 +13,7 @@ auto adjustFamilyTag = [](int tag) {
   return tag < MIN_TAG_VALUE ? CLAMPED_TAG : tag - 2;
 };
 
-static void updateRawTextProps(SLContainerProps::SLContainerDataItem *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
+static void updateRawTextProps(const SLContainerProps::SLContainerDataItem *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
   if (shadowNode->getComponentName() != std::string("RawText")) {
     return;
   }
@@ -23,7 +23,7 @@ static void updateRawTextProps(SLContainerProps::SLContainerDataItem *elementDat
   updatedProps->text = SLContainerProps::getDataItemContent(elementData, updatedProps->text);
 }
 
-static void updateImageProps(SLContainerProps::SLContainerDataItem *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
+static void updateImageProps(const SLContainerProps::SLContainerDataItem *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
   if (shadowNode->getComponentName() != std::string("Image")) {
     return;
   }
@@ -33,7 +33,7 @@ static void updateImageProps(SLContainerProps::SLContainerDataItem *elementData,
   updatedProps->sources[0].uri = SLContainerProps::getDataItemContent(elementData, updatedProps->sources[0].uri);
 }
 
-ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(SLContainerProps::SLContainerDataItem* elementData, const ShadowNode::Shared& shadowNode)
+ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const SLContainerProps::SLContainerDataItem* elementData, const ShadowNode::Shared& shadowNode)
 {
   auto const &componentDescriptor = shadowNode->getComponentDescriptor();
   PropsParserContext propsParserContext{shadowNode->getSurfaceId(), *componentDescriptor.getContextContainer().get()};

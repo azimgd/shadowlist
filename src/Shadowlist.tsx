@@ -97,11 +97,9 @@ export const Shadowlist = React.forwardRef(
         ref={forwardedRef}
         style={[props.style, props.contentContainerStyle]}
       >
-        {[
-          !props.inverted ? ListHeaderComponent : ListFooterComponent,
-          props.data.length ? ListChildrenComponent : ListEmptyComponent,
-          !props.inverted ? ListFooterComponent : ListHeaderComponent,
-        ].toReversed()}
+        {!props.inverted ? ListHeaderComponent : ListFooterComponent}
+        {props.data.length ? ListChildrenComponent : ListEmptyComponent}
+        {!props.inverted ? ListFooterComponent : ListHeaderComponent}
       </SLContainer>
     );
   }

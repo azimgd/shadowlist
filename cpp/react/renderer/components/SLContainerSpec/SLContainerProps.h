@@ -15,7 +15,7 @@ class SLContainerProps final : public ViewProps {
   using SLContainerData = nlohmann::json::array_t;
   using SLContainerDataItem = nlohmann::json;
   using SLContainerDataItemPath = nlohmann::json::pointer;
-  static std::string getDataItemContent(SLContainerDataItem *dataItem, std::string path);
+  static std::string getDataItemContent(const SLContainerDataItem *dataItem, std::string path);
 #pragma mark - Props
 
   nlohmann::json data;
@@ -24,7 +24,7 @@ class SLContainerProps final : public ViewProps {
   int initialNumToRender = 10;
   int initialScrollIndex = 0;
   
-  SLContainerDataItem* getDataItem(int index);
+  const SLContainerDataItem* getDataItem(int index) const;
 };
 
 }

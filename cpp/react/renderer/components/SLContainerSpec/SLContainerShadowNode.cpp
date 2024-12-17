@@ -1,4 +1,5 @@
 #include "SLContainerShadowNode.h"
+#include "SLTemplate.h"
 
 #define MEASURE_CHILDREN(childrenMeasurementsTree, childNodeMetrics, isHorizontal) \
   if (isHorizontal) { \
@@ -9,6 +10,12 @@
 
 namespace facebook::react {
 
+static SLElementShadowNode::ConcreteProps* getSLElementShadowNodeProps(const ShadowNode& elementShadowNode) {
+  return const_cast<SLElementShadowNode::ConcreteProps*>(
+    static_cast<const SLElementShadowNode::ConcreteProps*>(elementShadowNode.getProps().get())
+  );
+}
+
 extern const char SLContainerComponentName[] = "SLContainer";
 
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
@@ -18,7 +25,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto nextStateData = getStateData();
   auto &props = getConcreteProps();
 
-  // The order of operations are important here
+  /**
+   * The order of operations are important here
+   */
   nextStateData.firstChildUniqueId = calculateFirstChildUniqueId(prevStateData, nextStateData);
   nextStateData.lastChildUniqueId = calculateLastChildUniqueId(prevStateData, nextStateData);
 
@@ -29,12 +38,55 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
   nextStateData.horizontal = props.horizontal;
   nextStateData.initialNumToRender = props.initialNumToRender;
+  
+  /**
+   * Adjust frame origin of each child element
+   */
+  positionChildren(prevStateData, nextStateData);
 
   setStateData(std::move(nextStateData));
 }
 
+void SLContainerShadowNode::positionChildren(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
+  auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>(*ShadowNode::emptySharedShadowNodeSharedList());
+
+  for (int elementIndex = 0; elementIndex < getChildren().size(); ++elementIndex) {
+    cloneTree(getChildren().at(elementIndex)->getFamily(), [&](const ShadowNode& elementShadowNode) {
+      auto elementShadowNodeCloned = elementShadowNode.clone({});
+  
+      auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeCloned);
+      auto elementShadowNodeLayoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
+
+      elementShadowNodeLayoutMetrics.frame.origin.y = nextStateData.childrenMeasurementsTree.sum(elementIndex);
+      elementShadowNodeLayoutable->setLayoutMetrics(elementShadowNodeLayoutMetrics);
+      
+      containerShadowNodeChildren->push_back(elementShadowNodeCloned);
+
+      return elementShadowNodeCloned;
+    });
+  }
+
+  this->children_ = containerShadowNodeChildren;
+}
+
+const void SLContainerShadowNode::replaceChildren(const ShadowNode::Shared& elementShadowNode) {
+  auto &props = getConcreteProps();
+
+  auto elementShadowNodeCloned = elementShadowNode;
+  auto elementShadowNodeProps = getSLElementShadowNodeProps(*elementShadowNodeCloned);
+
+  if (elementShadowNodeProps->uniqueId == std::string("ListChildrenComponentUniqueId")) {
+    for (int dataIndex = 0; dataIndex < props.data.size(); ++dataIndex) {
+      const auto* elementData = props.getDataItem(dataIndex);
+      ConcreteShadowNode::appendChild(SLTemplate::cloneShadowNodeTree(elementData, elementShadowNodeCloned));
+    }
+  } else {
+    ConcreteShadowNode::appendChild(elementShadowNodeCloned);
+  }
+}
+
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {
-  ConcreteShadowNode::appendChild(child);
+  replaceChildren(child);
 }
 
 void SLContainerShadowNode::replaceChild(
