@@ -4,7 +4,6 @@
 #import "SLContainerEventEmitter.h"
 #import "SLContainerProps.h"
 #import "SLContainerHelpers.h"
-#import "SLScrollable.h"
 #import "SLElementProps.h"
 
 #import <React/RCTFabricComponentsPlugins.h>
@@ -20,7 +19,6 @@ using namespace facebook::react;
   UIScrollView *_scrollContent;
   UIRefreshControl *_scrollContentRefresh;
   SLContainerShadowNode::ConcreteState::Shared _state;
-  SLScrollable *_scrollable;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -36,7 +34,6 @@ using namespace facebook::react;
     _scrollContent = [UIScrollView new];
     _scrollContent.delegate = self;
     _scrollContent.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    _scrollable = [SLScrollable new];
     
     _scrollContentRefresh = [UIRefreshControl new];
     [_scrollContentRefresh addTarget:self action:@selector(handleRefresh) forControlEvents:UIControlEventValueChanged];
@@ -50,15 +47,11 @@ using namespace facebook::react;
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  const auto &nextViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
-  const auto uniqueId = [NSString stringWithUTF8String:nextViewProps.uniqueId.c_str()];
   [self->_scrollContent mountChildComponentView:childComponentView index:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  const auto &nextViewProps = *std::static_pointer_cast<SLElementProps const>([childComponentView props]);
-  const auto uniqueId = [NSString stringWithUTF8String:nextViewProps.uniqueId.c_str()];
   [self->_scrollContent unmountChildComponentView:childComponentView index:index];
 }
 
@@ -75,14 +68,6 @@ using namespace facebook::react;
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
 
   const auto &nextStateData = self->_state->getData();
-  const auto &nextViewProps = *std::static_pointer_cast<SLContainerProps const>(self->_props);
-
-  [self->_scrollable updateState:nextStateData.horizontal
-    inverted:nextViewProps.inverted
-    scrollContainerWidth:nextStateData.scrollContainer.width
-    scrollContainerHeight:nextStateData.scrollContainer.height
-    scrollContentWidth:nextStateData.scrollContent.width
-    scrollContentHeight:nextStateData.scrollContent.height];
 
   CGPoint scrollPositionCGPoint = CGPointMake(
     nextStateData.scrollPosition.x + self->_scrollContent.contentOffset.x,
@@ -102,29 +87,6 @@ using namespace facebook::react;
   });
 }
 
-- (void)updateObservers:(CGPoint)scrollPosition visibleStartIndex:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
-{
-  if (_eventEmitter == nullptr) {
-    return;
-  }
-
-  /**
-   * Dispatch event emitters
-   */
-  const auto &eventEmitter = static_cast<const SLContainerEventEmitter &>(*_eventEmitter);
-  eventEmitter.onVisibleChange({visibleStartIndex, visibleEndIndex});
-  
-  int distanceFromStart = [self->_scrollable shouldNotifyStart:scrollPosition];
-  if (distanceFromStart) {
-    eventEmitter.onStartReached({distanceFromStart});
-  }
-
-  int distanceFromEnd = [self->_scrollable shouldNotifyEnd:scrollPosition];
-  if (distanceFromEnd) {
-    eventEmitter.onEndReached({distanceFromEnd});
-  }
-}
-
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
 {
   SLContainerHandleCommand(self, commandName, args);
@@ -136,7 +98,6 @@ using namespace facebook::react;
 
 - (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated
 {
-  [self->_scrollContent setContentOffset:[self->_scrollable getScrollPositionFromOffset:offset] animated:animated];
 }
 
 - (void)handleRefresh {
