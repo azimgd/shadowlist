@@ -6,7 +6,6 @@
 #import "SLContainerHelpers.h"
 #import "SLScrollable.h"
 #import "SLElementProps.h"
-#import "helpers.h"
 
 #import <React/RCTFabricComponentsPlugins.h>
 #import <React/RCTConversions.h>
@@ -103,27 +102,6 @@ using namespace facebook::react;
   });
 }
 
-- (void)updateVirtualization
-{
-  if (self->_state == nullptr) return;
-
-  const auto &nextStateData = self->_state->getData();
-
-  CGPoint scrollPositionCGPoint = self->_scrollContent.contentOffset;
-  facebook::react::Point scrollPositionPoint = RCTPointFromCGPoint(scrollPositionCGPoint);
-
-  int visibleStartIndex = adjustVisibleStartIndex(
-    nextStateData.childrenMeasurementsTree.lower_bound([self->_scrollable getVisibleStartOffset:scrollPositionCGPoint]),
-    nextStateData.childrenMeasurementsTree.size()
-  );
-  int visibleEndIndex = adjustVisibleEndIndex(
-    nextStateData.childrenMeasurementsTree.lower_bound([self->_scrollable getVisibleEndOffset:scrollPositionCGPoint]),
-    nextStateData.childrenMeasurementsTree.size()
-  );
-
-  [self updateObservers:scrollPositionCGPoint visibleStartIndex:visibleStartIndex visibleEndIndex:visibleEndIndex];
-}
-
 - (void)updateObservers:(CGPoint)scrollPosition visibleStartIndex:(int)visibleStartIndex visibleEndIndex:(int)visibleEndIndex
 {
   if (_eventEmitter == nullptr) {
@@ -154,14 +132,6 @@ using namespace facebook::react;
 
 - (void)scrollToIndexNativeCommand:(int)index animated:(BOOL)animated
 {
-  auto headerFooter = 1;
-  auto nextStateData = self->_state->getData();
-  auto offset = adjustVisibleStartIndex(
-    nextStateData.childrenMeasurementsTree.sum(index + headerFooter),
-    nextStateData.childrenMeasurementsTree.size()
-  );
-
-  [self->_scrollContent setContentOffset:[self->_scrollable getScrollPositionFromOffset:offset] animated:animated];
 }
 
 - (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated

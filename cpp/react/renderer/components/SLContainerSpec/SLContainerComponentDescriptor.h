@@ -15,7 +15,7 @@ class SLContainerComponentDescriptor : public ConcreteComponentDescriptor<SLCont
      * as for some reason the shadow node doesn't re-layout upon a state update
      */
     auto& containerShadowNodeLayoutable = static_cast<YogaLayoutableShadowNode&>(shadowNode);
-    containerShadowNodeLayoutable.setSize({0, 500});
+    containerShadowNodeLayoutable.setSize({500, 500});
 
     ConcreteComponentDescriptor::adopt(shadowNode);
   }
