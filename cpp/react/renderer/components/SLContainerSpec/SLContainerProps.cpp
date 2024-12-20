@@ -36,23 +36,16 @@ SLContainerProps::SLContainerProps(
   initialScrollIndex(convertRawProp(context, rawProps, "initialScrollIndex", sourceProps.initialScrollIndex, {}))
   {}
 
-const SLContainerProps::SLContainerDataItem* SLContainerProps::getDataItem(int index) const {
-  auto elementDataPointer = nlohmann::json::json_pointer("/" + std::to_string(index));
-  return &data[elementDataPointer];
+const SLContainerProps::SLContainerDataItem& SLContainerProps::getElementByIndex(int index) const {
+  if (index < 0 || index >= data.size()) {
+    throw std::out_of_range("Index out of range");
+  }
+  return data[index];
 }
 
-std::string SLContainerProps::getDataItemContent(const nlohmann::json *dataItem, std::string path) {
-  auto dataItemContentPath = SLKeyExtractor::extractKey(path);
-  if (!dataItemContentPath.has_value()) {
-    return path;
-  }
-
-  auto dataItemContent = nlohmann::json::json_pointer("/" + dataItemContentPath.value());
-  if (!dataItem->contains(dataItemContent) || !dataItem->at(dataItemContent).is_string()) {
-    return path;
-  }
-
-  return dataItem->at(dataItemContent).get<std::string>();
+std::string SLContainerProps::getElementValueByPath(const SLContainerDataItem& element, const SLContainerDataItemPath& path) {
+  if (!element.contains(path)) return path;
+  return element.at(path).get<std::string>();
 }
 
 }

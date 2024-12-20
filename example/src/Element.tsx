@@ -9,7 +9,7 @@ const Element: ShadowlistProps['renderItem'] = () => {
       <Image source={{ uri: stringify('image') }} style={styles.image} />
       <Text style={styles.title}>{stringify('id')}</Text>
       <Text style={styles.content}>{stringify('text')}</Text>
-      <Text style={styles.footer}>index: {stringify('index')}</Text>
+      <Text style={styles.footer}>index: {stringify('id')}</Text>
     </View>
   );
 };

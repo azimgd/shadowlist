@@ -6,7 +6,7 @@ namespace facebook::react {
 class SLTemplate {
   public:
   static ShadowNode::Unshared cloneShadowNodeTree(
-    const SLContainerProps::SLContainerDataItem* elementData,
+    const SLContainerProps::SLContainerDataItem& elementData,
     const ShadowNode::Shared& shadowNode);
 };
 

@@ -13,27 +13,29 @@ auto adjustFamilyTag = [](int tag) {
   return tag < MIN_TAG_VALUE ? CLAMPED_TAG : tag - 2;
 };
 
-static void updateRawTextProps(const SLContainerProps::SLContainerDataItem *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
+static void updateRawTextProps(const SLContainerProps::SLContainerDataItem &elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
   if (shadowNode->getComponentName() != std::string("RawText")) {
     return;
   }
 
   RawTextShadowNode::ConcreteProps* updatedProps = const_cast<RawTextShadowNode::ConcreteProps*>(
     static_cast<const RawTextShadowNode::ConcreteProps*>(nextShadowNode->getProps().get()));
-  updatedProps->text = SLContainerProps::getDataItemContent(elementData, updatedProps->text);
+  auto path = SLKeyExtractor::extractKey(updatedProps->text);
+  updatedProps->text = SLContainerProps::getElementValueByPath(elementData, path);
 }
 
-static void updateImageProps(const SLContainerProps::SLContainerDataItem *elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
+static void updateImageProps(const SLContainerProps::SLContainerDataItem &elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
   if (shadowNode->getComponentName() != std::string("Image")) {
     return;
   }
 
   ImageShadowNode::ConcreteProps* updatedProps = const_cast<ImageShadowNode::ConcreteProps*>(
     static_cast<const ImageShadowNode::ConcreteProps*>(nextShadowNode->getProps().get()));
-  updatedProps->sources[0].uri = SLContainerProps::getDataItemContent(elementData, updatedProps->sources[0].uri);
+  auto path = SLKeyExtractor::extractKey(updatedProps->sources[0].uri);
+  updatedProps->sources[0].uri = SLContainerProps::getElementValueByPath(elementData, path);
 }
 
-ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const SLContainerProps::SLContainerDataItem* elementData, const ShadowNode::Shared& shadowNode)
+ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const SLContainerProps::SLContainerDataItem &elementData, const ShadowNode::Shared& shadowNode)
 {
   auto const &componentDescriptor = shadowNode->getComponentDescriptor();
   PropsParserContext propsParserContext{shadowNode->getSurfaceId(), *componentDescriptor.getContextContainer().get()};

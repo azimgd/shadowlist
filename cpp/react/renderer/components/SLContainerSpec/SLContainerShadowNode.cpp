@@ -11,13 +11,12 @@ std::unordered_map<std::string, ShadowNode::Unshared> elementShadowNodeComponent
 SLFenwickTree elementShadowNodeMeasurements{};
 
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
-  int CONTAINER_ELEMENTS_SIZE = 1000;
   float CONTAINER_OFFSET = 1000;
 
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
 
-  elementShadowNodeMeasurements.resize(CONTAINER_ELEMENTS_SIZE);
+  elementShadowNodeMeasurements.resize(props.data.size());
   elementShadowNodeOrderedIndices = {};
 
   /*
@@ -25,12 +24,11 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>(*ShadowNode::emptySharedShadowNodeSharedList());
 
-  nlohmann::json elementData = { {"id", std::to_string(1)} };
-
   /*
    * Map data elements to the child elements of the container
    */
-  for (int elementDataIndex = 0; elementDataIndex < CONTAINER_ELEMENTS_SIZE; ++elementDataIndex) {
+  for (int elementDataIndex = 0; elementDataIndex < props.data.size(); ++elementDataIndex) {
+    const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
     elementShadowNodeOrderedIndices.push_back(std::to_string(elementDataIndex));
 
     /*
@@ -41,7 +39,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     ShadowNode::Unshared elementShadowNodeCloned;
 
     if (it == elementShadowNodeComponentRegistry.end()) {
-      elementShadowNodeCloned = SLTemplate::cloneShadowNodeTree(&elementData, elementShadowNodeTemplateRegistry[1]);
+      elementShadowNodeCloned = SLTemplate::cloneShadowNodeTree(elementData, elementShadowNodeTemplateRegistry[1]);
       elementShadowNodeComponentRegistry[std::to_string(elementDataIndex)] = elementShadowNodeCloned;
     } else {
       elementShadowNodeCloned = it->second;

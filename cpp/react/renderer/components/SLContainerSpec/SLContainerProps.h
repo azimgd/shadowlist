@@ -14,17 +14,15 @@ class SLContainerProps final : public ViewProps {
 
   using SLContainerData = nlohmann::json::array_t;
   using SLContainerDataItem = nlohmann::json;
-  using SLContainerDataItemPath = nlohmann::json::pointer;
-  static std::string getDataItemContent(const SLContainerDataItem *dataItem, std::string path);
-#pragma mark - Props
+  using SLContainerDataItemPath = std::string;
 
   nlohmann::json data;
   bool inverted = false;
   bool horizontal = false;
   int initialNumToRender = 10;
   int initialScrollIndex = 0;
-  
-  const SLContainerDataItem* getDataItem(int index) const;
-};
 
+  const SLContainerDataItem& getElementByIndex(int index) const;
+  static std::string getElementValueByPath(const SLContainerDataItem& element, const SLContainerDataItemPath& path) ;
+  };
 }
