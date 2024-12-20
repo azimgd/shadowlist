@@ -38,17 +38,6 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
     const ShadowNode& oldChild,
     const ShadowNode::Shared& newChild,
     size_t suggestedIndex = SIZE_MAX) override;
-
-  const void replaceChildren(const ShadowNode::Shared& child);
-  void positionChildren(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-
-  SLFenwickTree calculateChildrenMeasurementsTree(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  Point calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  Size calculateScrollContent(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  Size calculateScrollContainer(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  std::string calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  std::string calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  YogaLayoutableShadowNode& yogaNodeFromContext(YGNodeConstRef yogaNode);
 };
 
 }

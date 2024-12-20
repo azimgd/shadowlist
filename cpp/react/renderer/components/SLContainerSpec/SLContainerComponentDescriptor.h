@@ -10,6 +10,13 @@ class SLContainerComponentDescriptor : public ConcreteComponentDescriptor<SLCont
   using ConcreteComponentDescriptor::ConcreteComponentDescriptor;
 
   void adopt(ShadowNode& shadowNode) const override {
+    /*
+     * Temporary fix to force the triggering of the shadow node's layout phase
+     * as for some reason the shadow node doesn't re-layout upon a state update
+     */
+    auto& containerShadowNodeLayoutable = static_cast<YogaLayoutableShadowNode&>(shadowNode);
+    containerShadowNodeLayoutable.setSize({0, 500});
+
     ConcreteComponentDescriptor::adopt(shadowNode);
   }
 };
