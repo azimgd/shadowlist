@@ -16,6 +16,45 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
 
+  /*
+   * Calculate the difference in the data list (append or prepend) by comparing it to the previous state
+   */
+  bool elementDataPrepended = false;
+  int elementDataPrependedSize = 0;
+  bool elementDataAppended = false;
+  int elementDataAppendedSize = 0;
+  
+  if (props.data.size() > 0 && elementShadowNodeOrderedIndices.size() > 0) {
+    elementDataPrepended = elementShadowNodeOrderedIndices.front() != props.getElementValueByPath(props.data.front(), "id");
+    elementDataAppended = elementShadowNodeOrderedIndices.back() != props.getElementValueByPath(props.data.back(), "id");
+  }
+
+  // Finding the index of the first prepended element in the data list
+  if (elementDataPrepended) {
+    for (int elementDataIndex = 0; elementDataIndex < props.data.size(); ++elementDataIndex) {
+      const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
+      auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
+      
+      if (elementDataUniqueKey == elementShadowNodeOrderedIndices.front()) {
+        elementDataPrependedSize = elementDataIndex;
+        break;
+      }
+    }
+  }
+
+  // Finding the index of the last appended element in the data list
+  if (elementDataAppended) {
+    for (int elementDataIndex = props.data.size() - 1; elementDataIndex >= 0; --elementDataIndex) {
+      const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
+      auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
+      
+      if (elementDataUniqueKey == elementShadowNodeOrderedIndices.back()) {
+        elementDataAppendedSize = elementDataIndex;
+        break;
+      }
+    }
+  }
+
   elementShadowNodeMeasurements.resize(props.data.size());
   elementShadowNodeOrderedIndices = {};
 
@@ -29,19 +68,20 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   for (int elementDataIndex = 0; elementDataIndex < props.data.size(); ++elementDataIndex) {
     const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
+    auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
 
-    elementShadowNodeOrderedIndices.push_back(props.getElementValueByPath(elementData, "id"));
+    elementShadowNodeOrderedIndices.push_back(elementDataUniqueKey);
 
     /*
      * Check if this element already exists or needs to be created
      * Create new element if it doesn't exist, otherwise use cached one
      */
-    auto it = elementShadowNodeComponentRegistry.find(std::to_string(elementDataIndex));
+    auto it = elementShadowNodeComponentRegistry.find(elementDataUniqueKey);
     ShadowNode::Unshared elementShadowNodeCloned;
 
     if (it == elementShadowNodeComponentRegistry.end()) {
       elementShadowNodeCloned = SLTemplate::cloneShadowNodeTree(elementData, elementShadowNodeTemplateRegistry[1]);
-      elementShadowNodeComponentRegistry[std::to_string(elementDataIndex)] = elementShadowNodeCloned;
+      elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeCloned;
     } else {
       elementShadowNodeCloned = it->second;
     }
@@ -52,8 +92,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     auto elementShadowNodeMeasurementsEndOffset = elementShadowNodeMeasurements.sum(elementDataIndex);
     auto visibleStartOffset = nextStateData.scrollPosition.y - CONTAINER_OFFSET;
     auto visibleEndOffset = getLayoutMetrics().frame.size.height + nextStateData.scrollPosition.y + CONTAINER_OFFSET;
-    
-    if (elementShadowNodeMeasurementsEndOffset < visibleEndOffset) {
+
+    if (elementShadowNodeMeasurementsEndOffset < visibleEndOffset || elementDataPrependedSize > elementDataIndex) {
       LayoutConstraints layoutConstraints;
       layoutConstraints.layoutDirection = facebook::react::LayoutDirection::LeftToRight;
       layoutConstraints.maximumSize.width = getLayoutMetrics().frame.size.width;
@@ -72,7 +112,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
         elementShadowNodeMeasurements[elementDataIndex] = layoutMetrics.frame.size.height;
       }
     }
-    
+
     /*
      * Add element to container if it's measured and within visible area
      */
@@ -94,7 +134,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   /*
    * Dispatches events if the scroll position is near the start or end of a container.
    */
-  if (nextStateData.scrollPosition.y < CONTAINER_OFFSET) {
+  if (nextStateData.scrollPosition.y < CONTAINER_OFFSET && elementDataPrependedSize == 0) {
     auto distanceFromStart = nextStateData.scrollPosition.y;
     getEventEmitter()->dispatchEvent("startReached", [distanceFromStart](jsi::Runtime &runtime) {
       auto $payload = jsi::Object(runtime);
@@ -103,7 +143,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     });
   }
 
-  if (nextStateData.scrollContent.height - nextStateData.scrollPosition.y < CONTAINER_OFFSET) {
+  if (nextStateData.scrollContent.height - nextStateData.scrollPosition.y < CONTAINER_OFFSET && elementDataAppendedSize == 0) {
     auto distanceFromEnd = nextStateData.scrollContent.height - nextStateData.scrollPosition.y;
     getEventEmitter()->dispatchEvent("endReached", [distanceFromEnd](jsi::Runtime &runtime) {
       auto $payload = jsi::Object(runtime);
