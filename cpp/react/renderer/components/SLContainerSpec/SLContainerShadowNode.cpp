@@ -29,7 +29,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   for (int elementDataIndex = 0; elementDataIndex < props.data.size(); ++elementDataIndex) {
     const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-    elementShadowNodeOrderedIndices.push_back(std::to_string(elementDataIndex));
+
+    elementShadowNodeOrderedIndices.push_back(props.getElementValueByPath(elementData, "id"));
 
     /*
      * Check if this element already exists or needs to be created
@@ -84,9 +85,32 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   this->children_ = containerShadowNodeChildren;
 
   nextStateData.scrollContainer = getLayoutMetrics().frame.size;
-  nextStateData.scrollContent = { .width = getLayoutMetrics().frame.size.width, .height = elementShadowNodeMeasurements.sum(elementShadowNodeMeasurements.size()) };
+  nextStateData.scrollContent = {
+    .width = getLayoutMetrics().frame.size.width,
+    .height = elementShadowNodeMeasurements.sum(elementShadowNodeMeasurements.size()) };
   nextStateData.childrenMeasurementsTree = elementShadowNodeMeasurements;
   setStateData(std::move(nextStateData));
+
+  /*
+   * Dispatches events if the scroll position is near the start or end of a container.
+   */
+  if (nextStateData.scrollPosition.y < CONTAINER_OFFSET) {
+    auto distanceFromStart = nextStateData.scrollPosition.y;
+    getEventEmitter()->dispatchEvent("startReached", [distanceFromStart](jsi::Runtime &runtime) {
+      auto $payload = jsi::Object(runtime);
+      $payload.setProperty(runtime, "distanceFromStart", distanceFromStart);
+      return $payload;
+    });
+  }
+
+  if (nextStateData.scrollContent.height - nextStateData.scrollPosition.y < CONTAINER_OFFSET) {
+    auto distanceFromEnd = nextStateData.scrollContent.height - nextStateData.scrollPosition.y;
+    getEventEmitter()->dispatchEvent("endReached", [distanceFromEnd](jsi::Runtime &runtime) {
+      auto $payload = jsi::Object(runtime);
+      $payload.setProperty(runtime, "distanceFromEnd", distanceFromEnd);
+      return $payload;
+    });
+  }
 }
 
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {
