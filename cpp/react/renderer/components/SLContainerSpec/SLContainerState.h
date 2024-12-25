@@ -30,8 +30,10 @@ class SLContainerState {
   SLContainerState(
     SLFenwickTree childrenMeasurementsTree,
     Point scrollPosition,
+    bool scrollPositionUpdated,
     Size scrollContainer,
     Size scrollContent,
+    bool scrollContentUpdated,
     std::string firstChildUniqueId,
     std::string lastChildUniqueId,
     bool horizontal,
@@ -40,8 +42,10 @@ class SLContainerState {
 
   SLFenwickTree childrenMeasurementsTree;
   Point scrollPosition;
+  bool scrollPositionUpdated;
   Size scrollContainer;
   Size scrollContent;
+  bool scrollContentUpdated;
   std::string firstChildUniqueId;
   std::string lastChildUniqueId;
   bool horizontal;

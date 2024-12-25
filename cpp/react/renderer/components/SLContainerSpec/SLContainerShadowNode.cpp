@@ -1,156 +1,191 @@
 #include "SLContainerShadowNode.h"
 #include "SLTemplate.h"
+#include <iostream>
 
 namespace facebook::react {
 
 extern const char SLContainerComponentName[] = "SLContainer";
 
+int scrolledBefore = 0;
+bool dispatchedBefore = false;
+
 std::vector<ShadowNode::Shared> elementShadowNodeTemplateRegistry{};
-std::vector<std::string> elementShadowNodeOrderedIndices{};
 std::unordered_map<std::string, ShadowNode::Unshared> elementShadowNodeComponentRegistry{};
 SLFenwickTree elementShadowNodeMeasurements{};
+std::string elementShadowNodeOrderedIndicesFront;
+
+int initialScrollIndex = 20;
+int initialScrollAdjusted = false;
+bool onStartReachedEventDispatched = false;
+
+struct VirtualizedRegistry {
+  int index;
+  Float height;
+  std::string elementDataUniqueKey;
+};
 
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
-  float CONTAINER_OFFSET = 1000;
-
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
 
-  /*
-   * Calculate the difference in the data list (append or prepend) by comparing it to the previous state
-   */
-  bool elementDataPrepended = false;
-  int elementDataPrependedSize = 0;
-  bool elementDataAppended = false;
-  int elementDataAppendedSize = 0;
-  
-  if (props.data.size() > 0 && elementShadowNodeOrderedIndices.size() > 0) {
-    elementDataPrepended = elementShadowNodeOrderedIndices.front() != props.getElementValueByPath(props.data.front(), "id");
-    elementDataAppended = elementShadowNodeOrderedIndices.back() != props.getElementValueByPath(props.data.back(), "id");
-  }
+  auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>(*ShadowNode::emptySharedShadowNodeSharedList());
 
-  // Finding the index of the first prepended element in the data list
-  if (elementDataPrepended) {
+  /*
+   *
+   */
+  if (elementShadowNodeMeasurements.size() && props.data.size() != elementShadowNodeMeasurements.size()) {
     for (int elementDataIndex = 0; elementDataIndex < props.data.size(); ++elementDataIndex) {
       const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
       auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
       
-      if (elementDataUniqueKey == elementShadowNodeOrderedIndices.front()) {
-        elementDataPrependedSize = elementDataIndex;
+      if (elementDataUniqueKey == elementShadowNodeOrderedIndicesFront && !elementDataIndex) {
         break;
       }
-    }
-  }
-
-  // Finding the index of the last appended element in the data list
-  if (elementDataAppended) {
-    for (int elementDataIndex = props.data.size() - 1; elementDataIndex >= 0; --elementDataIndex) {
-      const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-      auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
       
-      if (elementDataUniqueKey == elementShadowNodeOrderedIndices.back()) {
-        elementDataAppendedSize = elementDataIndex;
-        break;
+      if (elementDataUniqueKey == elementShadowNodeOrderedIndicesFront) {
+        initialScrollIndex = elementDataIndex + 10;
+        onStartReachedEventDispatched = false;
       }
     }
   }
 
-  elementShadowNodeMeasurements.resize(props.data.size());
-  elementShadowNodeOrderedIndices = {};
-
+  const nlohmann::json& elementData = props.getElementByIndex(0);
+  auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
+  elementShadowNodeOrderedIndicesFront = elementDataUniqueKey;
+  
   /*
-   * Create an empty list that will hold the visible container items
+   *
    */
-  auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>(*ShadowNode::emptySharedShadowNodeSharedList());
-
-  /*
-   * Map data elements to the child elements of the container
-   */
-  for (int elementDataIndex = 0; elementDataIndex < props.data.size(); ++elementDataIndex) {
-    const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-    auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
-
-    elementShadowNodeOrderedIndices.push_back(elementDataUniqueKey);
-
-    /*
-     * Check if this element already exists or needs to be created
-     * Create new element if it doesn't exist, otherwise use cached one
-     */
-    auto it = elementShadowNodeComponentRegistry.find(elementDataUniqueKey);
-    ShadowNode::Unshared elementShadowNodeCloned;
-
-    if (it == elementShadowNodeComponentRegistry.end()) {
-      elementShadowNodeCloned = SLTemplate::cloneShadowNodeTree(elementData, elementShadowNodeTemplateRegistry[1]);
-      elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeCloned;
-    } else {
-      elementShadowNodeCloned = it->second;
+  const int size = props.data.size();
+  
+  if (elementShadowNodeMeasurements.size() && size > elementShadowNodeMeasurements.size()) {
+    SLFenwickTree elementShadowNodeMeasurementsNext{};
+    
+    for (size_t i = 0; i < size - elementShadowNodeMeasurements.size(); ++i) {
+      elementShadowNodeMeasurementsNext.push_back(0.0f);
+    }
+    for (float measurement : elementShadowNodeMeasurements) {
+      elementShadowNodeMeasurementsNext.push_back(measurement);
     }
 
-    /*
-     * Calculate position and visibility boundaries
-     */
-    auto elementShadowNodeMeasurementsEndOffset = elementShadowNodeMeasurements.sum(elementDataIndex);
-    auto visibleStartOffset = nextStateData.scrollPosition.y - CONTAINER_OFFSET;
-    auto visibleEndOffset = getLayoutMetrics().frame.size.height + nextStateData.scrollPosition.y + CONTAINER_OFFSET;
-
-    if (elementShadowNodeMeasurementsEndOffset < visibleEndOffset || elementDataPrependedSize > elementDataIndex) {
-      LayoutConstraints layoutConstraints;
-      layoutConstraints.layoutDirection = facebook::react::LayoutDirection::LeftToRight;
-      layoutConstraints.maximumSize.width = getLayoutMetrics().frame.size.width;
-
-      /*
-       * Update element layout if not already fixed, position the element and cache it's metrics
-       */
-      auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeCloned);
-      if (!elementShadowNodeLayoutable->getSealed()) {
-        elementShadowNodeLayoutable->layoutTree(layoutContext, layoutConstraints);
-
-        LayoutMetrics layoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
-        layoutMetrics.frame.origin.y = elementShadowNodeMeasurementsEndOffset;
-        elementShadowNodeLayoutable->setLayoutMetrics(layoutMetrics);
-
-        elementShadowNodeMeasurements[elementDataIndex] = layoutMetrics.frame.size.height;
-      }
-    }
-
-    /*
-     * Add element to container if it's measured and within visible area
-     */
-    const auto elementShadowNodeHasBeenMeasured = elementShadowNodeMeasurements[elementDataIndex] > 0;
-    if (elementShadowNodeHasBeenMeasured && elementShadowNodeMeasurementsEndOffset >= visibleStartOffset && elementShadowNodeMeasurementsEndOffset <= visibleEndOffset) {
-      containerShadowNodeChildren->push_back(elementShadowNodeCloned);
-    }
+    elementShadowNodeMeasurements = elementShadowNodeMeasurementsNext;
+  } else {
+    elementShadowNodeMeasurements.resize(size);
   }
 
-  this->children_ = containerShadowNodeChildren;
-
-  nextStateData.scrollContainer = getLayoutMetrics().frame.size;
-  nextStateData.scrollContent = {
-    .width = getLayoutMetrics().frame.size.width,
-    .height = elementShadowNodeMeasurements.sum(elementShadowNodeMeasurements.size()) };
-  nextStateData.childrenMeasurementsTree = elementShadowNodeMeasurements;
-  setStateData(std::move(nextStateData));
-
-  /*
-   * Dispatches events if the scroll position is near the start or end of a container.
-   */
-  if (nextStateData.scrollPosition.y < CONTAINER_OFFSET && elementDataPrependedSize == 0) {
-    auto distanceFromStart = nextStateData.scrollPosition.y;
-    getEventEmitter()->dispatchEvent("startReached", [distanceFromStart](jsi::Runtime &runtime) {
-      auto $payload = jsi::Object(runtime);
-      $payload.setProperty(runtime, "distanceFromStart", distanceFromStart);
-      return $payload;
-    });
+  if (!nextStateData.scrollPosition.y && initialScrollAdjusted) {
+    initialScrollIndex = std::max(initialScrollIndex - 10, 0);
+    initialScrollAdjusted = false;
+    
+    if (!initialScrollIndex && !onStartReachedEventDispatched) {
+      auto distanceFromStart = nextStateData.scrollPosition.y;
+      getEventEmitter()->dispatchEvent("startReached", [distanceFromStart](jsi::Runtime &runtime) {
+        auto $payload = jsi::Object(runtime);
+        $payload.setProperty(runtime, "distanceFromStart", distanceFromStart);
+        return $payload;
+      });
+      onStartReachedEventDispatched = true;
+    }
   }
-
-  if (nextStateData.scrollContent.height - nextStateData.scrollPosition.y < CONTAINER_OFFSET && elementDataAppendedSize == 0) {
-    auto distanceFromEnd = nextStateData.scrollContent.height - nextStateData.scrollPosition.y;
+  
+  if (nextStateData.scrollContainer.height == getLayoutMetrics().frame.size.height && nextStateData.scrollPosition.y >= nextStateData.scrollContent.height - nextStateData.scrollContainer.height - 1) {
+    auto distanceFromEnd = nextStateData.scrollContainer.height - getLayoutMetrics().frame.size.height;
     getEventEmitter()->dispatchEvent("endReached", [distanceFromEnd](jsi::Runtime &runtime) {
       auto $payload = jsi::Object(runtime);
       $payload.setProperty(runtime, "distanceFromEnd", distanceFromEnd);
       return $payload;
     });
   }
+
+  /*
+   * Transformer
+   */
+  auto transform = [&](int elementDataIndex) -> VirtualizedRegistry {
+    const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
+    auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
+
+    auto elementShadowNodeComponentRegistryIt = elementShadowNodeComponentRegistry.find(elementDataUniqueKey);
+    if (elementShadowNodeComponentRegistryIt == elementShadowNodeComponentRegistry.end()) {
+      elementShadowNodeComponentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementData, elementShadowNodeTemplateRegistry[1]);
+    } else {
+      elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeComponentRegistry[elementDataUniqueKey]->clone({});
+    }
+
+    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeComponentRegistry[elementDataUniqueKey]);
+
+    if (elementShadowNodeLayoutable->getLayoutMetrics().frame.size.height == 0) {
+      elementShadowNodeLayoutable->layoutTree(layoutContext, {});
+    }
+
+    elementShadowNodeMeasurements[elementDataIndex] = elementShadowNodeLayoutable->getLayoutMetrics().frame.size.height;
+
+    return VirtualizedRegistry{
+      elementDataIndex,
+      elementShadowNodeLayoutable->getLayoutMetrics().frame.size.height,
+      elementDataUniqueKey
+    };
+  };
+
+  int scrollContentAboveIndex = 0;
+  int scrollContentAboveOffset = 0;
+  auto scrollContentAboveComponents = std::views::iota(0, initialScrollIndex)
+    | std::views::reverse
+    | std::views::take(10)
+    | std::views::reverse
+    | std::views::transform(transform);
+
+  int scrollContentBelowIndex = 0;
+  int scrollContentBelowOffset = 0;
+  auto scrollContentBelowComponents = std::views::iota(initialScrollIndex, size)
+    | std::views::take_while([&](int i) {
+      int scrollContentNextOffset = nextStateData.scrollPosition.y + 1000;
+      return scrollContentBelowOffset < scrollContentNextOffset;
+    })
+    | std::views::transform(transform);
+
+  for (VirtualizedRegistry n : scrollContentAboveComponents) {
+    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeComponentRegistry[n.elementDataUniqueKey]);
+    LayoutMetrics layoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
+    layoutMetrics.frame.origin.y = scrollContentAboveOffset + scrollContentBelowOffset;
+    elementShadowNodeLayoutable->setLayoutMetrics(layoutMetrics);
+
+    scrollContentAboveOffset += n.height;
+    scrollContentAboveIndex = n.index;
+    
+    if (layoutMetrics.frame.origin.y <= nextStateData.scrollPosition.y + nextStateData.scrollContainer.height && (layoutMetrics.frame.origin.y + layoutMetrics.frame.size.height) >= nextStateData.scrollPosition.y) {
+      containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry[n.elementDataUniqueKey]);
+    }
+  }
+
+  for (VirtualizedRegistry n : scrollContentBelowComponents) {
+    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeComponentRegistry[n.elementDataUniqueKey]);
+    LayoutMetrics layoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
+    layoutMetrics.frame.origin.y = scrollContentAboveOffset + scrollContentBelowOffset;
+    elementShadowNodeLayoutable->setLayoutMetrics(layoutMetrics);
+
+    scrollContentBelowOffset += n.height;
+    scrollContentBelowIndex = n.index;
+    
+    if (layoutMetrics.frame.origin.y <= nextStateData.scrollPosition.y + nextStateData.scrollContainer.height && (layoutMetrics.frame.origin.y + layoutMetrics.frame.size.height) >= nextStateData.scrollPosition.y) {
+      containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry[n.elementDataUniqueKey]);
+    }
+  }
+
+  this->children_ = containerShadowNodeChildren;
+
+  nextStateData.scrollContainer = getLayoutMetrics().frame.size;
+  nextStateData.scrollContentUpdated = true;
+  nextStateData.scrollContent.width = getLayoutMetrics().frame.size.width;
+  nextStateData.scrollContent.height = elementShadowNodeMeasurements.sum(size);
+
+  if (!initialScrollAdjusted) {
+    nextStateData.scrollPositionUpdated = true;
+    nextStateData.scrollPosition.x = 0;
+    nextStateData.scrollPosition.y = scrollContentAboveOffset;
+    initialScrollAdjusted = true;
+  }
+
+  setStateData(std::move(nextStateData));
 }
 
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {

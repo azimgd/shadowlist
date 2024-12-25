@@ -17,7 +17,6 @@ using namespace facebook::react;
 
 @implementation SLContainer {
   UIScrollView *_scrollContent;
-  UIRefreshControl *_scrollContentRefresh;
   SLContainerShadowNode::ConcreteState::Shared _state;
 }
 
@@ -34,10 +33,6 @@ using namespace facebook::react;
     _scrollContent = [UIScrollView new];
     _scrollContent.delegate = self;
     _scrollContent.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    
-    _scrollContentRefresh = [UIRefreshControl new];
-    [_scrollContentRefresh addTarget:self action:@selector(handleRefresh) forControlEvents:UIControlEventValueChanged];
-    [_scrollContent addSubview:_scrollContentRefresh];
     
     self.contentView = _scrollContent;
   }
@@ -68,13 +63,16 @@ using namespace facebook::react;
   self->_state = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(state);
 
   const auto &nextStateData = self->_state->getData();
-
-  CGPoint scrollPositionCGPoint = CGPointMake(
-    nextStateData.scrollPosition.x + self->_scrollContent.contentOffset.x,
-    nextStateData.scrollPosition.y + self->_scrollContent.contentOffset.y
-  );
-  CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
-  [self->_scrollContent setContentSize:scrollContent];
+  
+  if (nextStateData.scrollContentUpdated) {
+    CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
+    [self->_scrollContent setContentSize:scrollContent];
+  }
+  
+  if (nextStateData.scrollPositionUpdated) {
+    CGPoint scrollPosition = RCTCGPointFromPoint(nextStateData.scrollPosition);
+    [self->_scrollContent setContentOffset:scrollPosition];
+  }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
@@ -98,9 +96,6 @@ using namespace facebook::react;
 
 - (void)scrollToOffsetNativeCommand:(int)offset animated:(BOOL)animated
 {
-}
-
-- (void)handleRefresh {
 }
 
 Class<RCTComponentViewProtocol> SLContainerCls(void)
