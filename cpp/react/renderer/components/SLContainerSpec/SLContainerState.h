@@ -36,9 +36,7 @@ class SLContainerState {
     bool scrollContentUpdated,
     std::string firstChildUniqueId,
     std::string lastChildUniqueId,
-    bool horizontal,
-    int initialNumToRender,
-    int initialScrollIndex);
+    int scrollIndex);
   SLContainerState() = default;
 
   SLFenwickTree childrenMeasurementsTree;
@@ -49,12 +47,7 @@ class SLContainerState {
   bool scrollContentUpdated;
   std::string firstChildUniqueId;
   std::string lastChildUniqueId;
-  bool horizontal;
-  int initialNumToRender;
-  int initialScrollIndex;
-
-  Point calculateScrollPositionOffset(const float visibleStartOffset) const;
-  float calculateContentSize() const;
+  int scrollIndex;
 
 #ifdef ANDROID
   folly::dynamic childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const;

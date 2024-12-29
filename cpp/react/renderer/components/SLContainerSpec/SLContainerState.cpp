@@ -11,9 +11,7 @@ SLContainerState::SLContainerState(
   bool scrollContentUpdated,
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
-  bool horizontal,
-  int initialNumToRender,
-  int initialScrollIndex) :
+  int scrollIndex) :
     childrenMeasurementsTree(childrenMeasurementsTree),
     scrollPosition(scrollPosition),
     scrollPositionUpdated(scrollPositionUpdated),
@@ -22,9 +20,7 @@ SLContainerState::SLContainerState(
     scrollContentUpdated(scrollContentUpdated),
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
-    horizontal(horizontal),
-    initialNumToRender(initialNumToRender),
-    initialScrollIndex(initialScrollIndex) {}
+    scrollIndex(scrollIndex) {}
 
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {
@@ -79,17 +75,6 @@ MapBuffer SLContainerState::getMapBuffer() const {
   return builder.build();
 }
 #endif
-
-Point SLContainerState::calculateScrollPositionOffset(const float visibleStartOffset) const {
-  if (horizontal) {
-    return Point{visibleStartOffset, scrollPosition.y};
-  }
-  return Point{scrollPosition.x, visibleStartOffset};
-}
-
-float SLContainerState::calculateContentSize() const {
-  return childrenMeasurementsTree.sum(childrenMeasurementsTree.size());
-}
 
 #ifdef ANDROID
 folly::dynamic SLContainerState::childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const {

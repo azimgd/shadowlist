@@ -19,34 +19,35 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
 
-  const auto viewportOffset = 1000;
+  const int elementsDataSize = props.data.size();
+  const int viewportOffset = 1000;
+
   nextStateData.scrollPositionUpdated = false;
 
   auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>(*ShadowNode::emptySharedShadowNodeSharedList());
-  const int elementsDataSize = props.data.size();
-  const bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() &&
-    nextStateData.firstChildUniqueId != props.getElementValueByPath(props.data.front(), "id");
-  const bool elementsDataAppended = elementsDataSize && nextStateData.lastChildUniqueId.size() &&
-    nextStateData.lastChildUniqueId != props.getElementValueByPath(props.data.back(), "id");
+
+  bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() &&
+    nextStateData.firstChildUniqueId != props.uniqueIds.front();
+  bool elementsDataAppended = elementsDataSize && nextStateData.lastChildUniqueId.size() &&
+    nextStateData.lastChildUniqueId != props.uniqueIds.back();
 
   /*
    *
    */
   if (nextStateData.childrenMeasurementsTree.size() && props.data.size() != nextStateData.childrenMeasurementsTree.size()) {
     for (int elementDataIndex = 0; elementDataIndex < props.data.size(); ++elementDataIndex) {
-      const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-      auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
+      auto elementDataUniqueKey = props.uniqueIds[elementDataIndex];
       
       if (elementDataUniqueKey == nextStateData.firstChildUniqueId && !elementDataIndex) {
         break;
       }
       
       if (elementDataUniqueKey == nextStateData.firstChildUniqueId) {
-        nextStateData.initialScrollIndex = elementDataIndex + 10;
+        nextStateData.scrollIndex = elementDataIndex + 10;
       }
     }
   }
-  
+
   /*
    *
    */
@@ -66,39 +67,31 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   }
 
   if (nextStateData.scrollPosition.y < nextStateData.scrollContainer.height) {
-    if (std::max(nextStateData.initialScrollIndex - 10, 0) != nextStateData.initialScrollIndex) {
-      nextStateData.initialScrollIndex = std::max(nextStateData.initialScrollIndex - 10, 0);
+    if (std::max(nextStateData.scrollIndex - 10, 0) != nextStateData.scrollIndex) {
+      nextStateData.scrollIndex = std::max(nextStateData.scrollIndex - 10, 0);
       nextStateData.scrollPositionUpdated = true;
     }
 
-    if (!nextStateData.initialScrollIndex) {
-      auto distanceFromStart = nextStateData.scrollPosition.y;
-      getEventEmitter()->dispatchEvent("startReached", [distanceFromStart](jsi::Runtime &runtime) {
-        auto $payload = jsi::Object(runtime);
-        $payload.setProperty(runtime, "distanceFromStart", distanceFromStart);
-        return $payload;
-      });
+    if (!nextStateData.scrollIndex) {
+      int distanceFromStart = nextStateData.scrollPosition.y;
+      getConcreteEventEmitter().onStartReached({ .distanceFromStart = distanceFromStart });
     }
   }
   
   if (nextStateData.scrollContainer.height == getLayoutMetrics().frame.size.height && nextStateData.scrollPosition.y >= nextStateData.scrollContent.height - nextStateData.scrollContainer.height - 1) {
-    auto distanceFromEnd = nextStateData.scrollContainer.height - getLayoutMetrics().frame.size.height;
-    getEventEmitter()->dispatchEvent("endReached", [distanceFromEnd](jsi::Runtime &runtime) {
-      auto $payload = jsi::Object(runtime);
-      $payload.setProperty(runtime, "distanceFromEnd", distanceFromEnd);
-      return $payload;
-    });
+    int distanceFromEnd = nextStateData.scrollContainer.height - getLayoutMetrics().frame.size.height;
+    getConcreteEventEmitter().onEndReached({ .distanceFromEnd = distanceFromEnd });
   }
 
   /*
    * Transformer
    */
   auto transform = [&](int elementDataIndex) -> ComponentRegistryItem {
-    const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-    auto elementDataUniqueKey = props.getElementValueByPath(elementData, "id");
+    auto elementDataUniqueKey = props.uniqueIds[elementDataIndex];
 
     auto elementShadowNodeComponentRegistryIt = elementShadowNodeComponentRegistry.find(elementDataUniqueKey);
     if (elementShadowNodeComponentRegistryIt == elementShadowNodeComponentRegistry.end()) {
+      const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
       elementShadowNodeComponentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementData, elementShadowNodeTemplateRegistry["ListChildrenComponentUniqueId"].back());
     } else {
       elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeComponentRegistry[elementDataUniqueKey]->clone({});
@@ -124,7 +117,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
   int scrollContentAboveIndex = 0;
   float scrollContentAboveOffset = 0;
-  auto scrollContentAboveComponents = std::views::iota(0, nextStateData.initialScrollIndex)
+  auto scrollContentAboveComponents = std::views::iota(0, nextStateData.scrollIndex)
     | std::views::reverse
     | std::views::take(10)
     | std::views::reverse
@@ -132,7 +125,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
   int scrollContentBelowIndex = 0;
   float scrollContentBelowOffset = 0;
-  auto scrollContentBelowComponents = std::views::iota(nextStateData.initialScrollIndex, elementsDataSize)
+  auto scrollContentBelowComponents = std::views::iota(nextStateData.scrollIndex, elementsDataSize)
     | std::views::take_while([&](int i) {
       float scrollContentNextOffset = nextStateData.scrollPosition.y + viewportOffset;
       return scrollContentBelowOffset < scrollContentNextOffset;
@@ -172,8 +165,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   this->children_ = containerShadowNodeChildren;
   yogaNode_.setDirty(true);
 
-  nextStateData.firstChildUniqueId = props.getElementValueByPath(props.data.front(), "id");
-  nextStateData.lastChildUniqueId = props.getElementValueByPath(props.data.back(), "id");
+  nextStateData.firstChildUniqueId = props.uniqueIds.front();
+  nextStateData.lastChildUniqueId = props.uniqueIds.back();
   nextStateData.scrollContainer = getLayoutMetrics().frame.size;
   nextStateData.scrollContentUpdated = true;
   nextStateData.scrollContent.width = getLayoutMetrics().frame.size.width;

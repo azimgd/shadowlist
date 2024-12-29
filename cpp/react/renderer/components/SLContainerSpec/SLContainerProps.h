@@ -17,6 +17,7 @@ class SLContainerProps final : public ViewProps {
   using SLContainerDataItemPath = std::string;
 
   nlohmann::json data;
+  std::vector<std::string> uniqueIds;
   bool inverted = false;
   bool horizontal = false;
   int initialNumToRender = 10;
