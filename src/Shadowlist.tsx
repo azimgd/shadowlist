@@ -44,7 +44,6 @@ export const Shadowlist = React.forwardRef(
         style={props.ListHeaderComponentStyle}
         uniqueId="ListHeaderComponentUniqueId"
         key="ListHeaderComponentUniqueId"
-        index={0}
       >
         {invoker(props.ListHeaderComponent)}
       </SLElement>
@@ -58,7 +57,6 @@ export const Shadowlist = React.forwardRef(
         style={props.ListFooterComponentStyle}
         uniqueId="ListFooterComponentUniqueId"
         key="ListFooterComponentUniqueId"
-        index={2}
       >
         {invoker(props.ListFooterComponent)}
       </SLElement>
@@ -72,7 +70,6 @@ export const Shadowlist = React.forwardRef(
         style={props.ListEmptyComponentStyle}
         uniqueId="ListEmptyComponentUniqueId"
         key="ListEmptyComponentUniqueId"
-        index={1}
       >
         {invoker(props.ListEmptyComponent)}
       </SLElement>
@@ -83,7 +80,6 @@ export const Shadowlist = React.forwardRef(
      */
     const ListChildrenComponent = (
       <SLElement
-        index={1}
         uniqueId="ListChildrenComponentUniqueId"
         key="ListChildrenComponentUniqueId"
       >

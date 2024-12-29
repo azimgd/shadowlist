@@ -37,7 +37,8 @@ class SLContainerState {
     std::string firstChildUniqueId,
     std::string lastChildUniqueId,
     bool horizontal,
-    int initialNumToRender);
+    int initialNumToRender,
+    int initialScrollIndex);
   SLContainerState() = default;
 
   SLFenwickTree childrenMeasurementsTree;
@@ -50,6 +51,7 @@ class SLContainerState {
   std::string lastChildUniqueId;
   bool horizontal;
   int initialNumToRender;
+  int initialScrollIndex;
 
   Point calculateScrollPositionOffset(const float visibleStartOffset) const;
   float calculateContentSize() const;

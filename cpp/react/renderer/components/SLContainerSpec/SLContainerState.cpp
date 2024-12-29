@@ -12,7 +12,8 @@ SLContainerState::SLContainerState(
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
   bool horizontal,
-  int initialNumToRender) :
+  int initialNumToRender,
+  int initialScrollIndex) :
     childrenMeasurementsTree(childrenMeasurementsTree),
     scrollPosition(scrollPosition),
     scrollPositionUpdated(scrollPositionUpdated),
@@ -22,7 +23,8 @@ SLContainerState::SLContainerState(
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
     horizontal(horizontal),
-    initialNumToRender(initialNumToRender) {}
+    initialNumToRender(initialNumToRender),
+    initialScrollIndex(initialScrollIndex) {}
 
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {
