@@ -107,7 +107,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeComponentRegistry[elementDataUniqueKey]);
 
     if (elementShadowNodeLayoutable->getLayoutMetrics().frame.size.height == 0) {
-      elementShadowNodeLayoutable->layoutTree(layoutContext, {});
+      LayoutConstraints layoutConstraints = {};
+      layoutConstraints.minimumSize.width = getLayoutMetrics().frame.size.width;
+      layoutConstraints.maximumSize.width = getLayoutMetrics().frame.size.width;
+      elementShadowNodeLayoutable->layoutTree(layoutContext, layoutConstraints);
     }
 
     nextStateData.childrenMeasurementsTree[elementDataIndex] = elementShadowNodeLayoutable->getLayoutMetrics().frame.size.height;
@@ -167,6 +170,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   }
 
   this->children_ = containerShadowNodeChildren;
+  yogaNode_.setDirty(true);
 
   nextStateData.firstChildUniqueId = props.getElementValueByPath(props.data.front(), "id");
   nextStateData.lastChildUniqueId = props.getElementValueByPath(props.data.back(), "id");
