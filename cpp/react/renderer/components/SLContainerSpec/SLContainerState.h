@@ -29,6 +29,7 @@ class SLContainerState {
   public:
   SLContainerState(
     SLFenwickTree childrenMeasurementsTree,
+    SLFenwickTree templateMeasurementsTree,
     Point scrollPosition,
     bool scrollPositionUpdated,
     Size scrollContainer,
@@ -40,6 +41,7 @@ class SLContainerState {
   SLContainerState() = default;
 
   SLFenwickTree childrenMeasurementsTree;
+  SLFenwickTree templateMeasurementsTree;
   Point scrollPosition;
   bool scrollPositionUpdated;
   Size scrollContainer;

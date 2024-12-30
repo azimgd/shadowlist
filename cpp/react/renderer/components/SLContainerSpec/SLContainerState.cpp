@@ -4,6 +4,7 @@ namespace facebook::react {
 
 SLContainerState::SLContainerState(
   SLFenwickTree childrenMeasurementsTree,
+  SLFenwickTree templateMeasurementsTree,
   Point scrollPosition,
   bool scrollPositionUpdated,
   Size scrollContainer,
@@ -13,6 +14,7 @@ SLContainerState::SLContainerState(
   std::string lastChildUniqueId,
   int scrollIndex) :
     childrenMeasurementsTree(childrenMeasurementsTree),
+    templateMeasurementsTree(templateMeasurementsTree),
     scrollPosition(scrollPosition),
     scrollPositionUpdated(scrollPositionUpdated),
     scrollContainer(scrollContainer),
