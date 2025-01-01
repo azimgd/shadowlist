@@ -14,7 +14,7 @@ import Element from './Element';
 
 const ITEMS_COUNT = 50;
 const IS_INVERTED = false;
-const IS_HORIZONTAL = false;
+const IS_HORIZONTAL = true;
 const INITIAL_SCROLL_INDEX = 0;
 const FINAL_SCROLL_INDEX = 0;
 

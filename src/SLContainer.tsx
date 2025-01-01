@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   containerHorizontal: {
-    flex: 0,
+    flex: 1,
     flexDirection: 'row',
   },
 });

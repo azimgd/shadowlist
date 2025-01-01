@@ -164,7 +164,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   for (ComponentRegistryItem componentRegistryItem : scrollContentAboveComponents) {
     auto elementMetrics = adjustTree(
-      { .y = scrollContentAboveOffset + scrollContentBelowOffset },
+      scrollContentAboveOffset + scrollContentBelowOffset,
       elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
     scrollContentAboveOffset += componentRegistryItem.size;
@@ -187,7 +187,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   for (ComponentRegistryItem componentRegistryItem : scrollContentBelowComponents) {
     auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
     auto elementMetrics = adjustTree(
-      { .y = scrollContentAboveOffset + scrollContentBelowOffset },
+      scrollContentAboveOffset + scrollContentBelowOffset,
       elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
     scrollContentBelowOffset += componentRegistryItem.size;
@@ -210,7 +210,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
   
   adjustTree(
-    { .y = scrollContentAboveOffset + scrollContentBelowOffset },
+    scrollContentAboveOffset + scrollContentBelowOffset,
     elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
 
   /*
@@ -222,19 +222,36 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   nextStateData.firstChildUniqueId = props.uniqueIds.front();
   nextStateData.lastChildUniqueId = props.uniqueIds.back();
   nextStateData.scrollContainer = getLayoutMetrics().frame.size;
-  nextStateData.scrollContentUpdated = true;
-  nextStateData.scrollContent.width = getLayoutMetrics().frame.size.width;
-  nextStateData.scrollContent.height = (
-    nextStateData.childrenMeasurementsTree.sum(elementsDataSize) +
-    nextStateData.templateMeasurementsTree.sum(2)
-  );
+  
+  if (props.horizontal) {
+    nextStateData.scrollContent.height = getLayoutMetrics().frame.size.height;
+    nextStateData.scrollContent.width = (
+      nextStateData.childrenMeasurementsTree.sum(elementsDataSize) +
+      nextStateData.templateMeasurementsTree.sum(2)
+    );
+    nextStateData.scrollContentUpdated = true;
+  } else if (!props.horizontal) {
+    nextStateData.scrollContent.width = getLayoutMetrics().frame.size.width;
+    nextStateData.scrollContent.height = (
+      nextStateData.childrenMeasurementsTree.sum(elementsDataSize) +
+      nextStateData.templateMeasurementsTree.sum(2)
+    );
+    nextStateData.scrollContentUpdated = true;
+  }
 
   /*
    * Update the scroll position when new items are prepended to the top of the list
    */
-  if (nextStateData.scrollPositionUpdated) {
+  if (nextStateData.scrollPositionUpdated && props.horizontal) {
+    nextStateData.scrollPosition.y = 0;
+    nextStateData.scrollPosition.x = (
+      scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+    );
+  } else if (nextStateData.scrollPositionUpdated && !props.horizontal) {
     nextStateData.scrollPosition.x = 0;
-    nextStateData.scrollPosition.y = scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0];
+    nextStateData.scrollPosition.y = (
+      scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+    );
   }
 
   getConcreteEventEmitter().onVisibleChange({
@@ -278,10 +295,14 @@ LayoutMetrics SLContainerShadowNode::layoutTree(LayoutContext layoutContext, Sha
   return elementShadowNodeLayoutable->getLayoutMetrics();
 }
 
-LayoutMetrics SLContainerShadowNode::adjustTree(Point origin, ShadowNode::Unshared shadowNode) {
+LayoutMetrics SLContainerShadowNode::adjustTree(float origin, ShadowNode::Unshared shadowNode) {
   auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(shadowNode);
   LayoutMetrics layoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
-  layoutMetrics.frame.origin = origin;
+  if (getConcreteProps().horizontal) {
+    layoutMetrics.frame.origin.x = origin;
+  } else {
+    layoutMetrics.frame.origin.y = origin;
+  }
   elementShadowNodeLayoutable->setLayoutMetrics(layoutMetrics);
   
   return elementShadowNodeLayoutable->getLayoutMetrics();
