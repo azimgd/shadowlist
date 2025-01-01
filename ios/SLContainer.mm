@@ -68,7 +68,7 @@ using namespace facebook::react;
     CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
     [self->_scrollContent setContentSize:scrollContent];
   }
-  
+
   if (nextStateData.scrollPositionUpdated) {
     CGPoint scrollPosition = RCTCGPointFromPoint(nextStateData.scrollPosition);
     [self->_scrollContent setContentOffset:scrollPosition];

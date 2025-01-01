@@ -38,21 +38,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   bool elementsDataAppended = elementsDataSize && nextStateData.lastChildUniqueId.size() &&
     nextStateData.lastChildUniqueId != props.uniqueIds.back();
 
-  /*
-   * Find the index of the first child element that has not been measured
-   */
-  if (nextStateData.childrenMeasurementsTree.size() && props.data.size() != nextStateData.childrenMeasurementsTree.size()) {
-    for (int elementDataIndex = 0; elementDataIndex < props.data.size(); ++elementDataIndex) {
-      auto elementDataUniqueKey = props.uniqueIds[elementDataIndex];
-      
-      if (elementDataUniqueKey == nextStateData.firstChildUniqueId && !elementDataIndex) {
-        break;
-      }
-      
-      if (elementDataUniqueKey == nextStateData.firstChildUniqueId) {
-        nextStateData.scrollIndex = elementDataIndex + 10;
-      }
-    }
+  if (elementsDataPrepended) {
+    nextStateData.scrollIndex = elementsDataSize - nextStateData.childrenMeasurementsTree.size();
+    nextStateData.scrollPositionUpdated = true;
   }
 
   /*
@@ -84,16 +72,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * and updates the scrollPositionUpdated flag to keep track of changes in the list position,
    * ensuring the visible content stays in the correct place
    */
-  if (nextStateData.scrollPosition.y < nextStateData.scrollContainer.height) {
-    if (std::max(nextStateData.scrollIndex - 10, 0) != nextStateData.scrollIndex) {
-      nextStateData.scrollIndex = std::max(nextStateData.scrollIndex - 10, 0);
-      nextStateData.scrollPositionUpdated = true;
-    }
-
-    if (!nextStateData.scrollIndex) {
-      int distanceFromStart = nextStateData.scrollPosition.y;
-      getConcreteEventEmitter().onStartReached({ .distanceFromStart = distanceFromStart });
-    }
+  if (!nextStateData.scrollPositionUpdated && nextStateData.scrollPosition.y < nextStateData.scrollContainer.height) {
+    int distanceFromStart = nextStateData.scrollPosition.y;
+    getConcreteEventEmitter().onStartReached({ .distanceFromStart = distanceFromStart });
   }
 
   if (nextStateData.scrollContainer.height == getLayoutMetrics().frame.size.height && nextStateData.scrollPosition.y >= nextStateData.scrollContent.height - nextStateData.scrollContainer.height - 1) {
@@ -162,9 +143,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   int scrollContentAboveIndex = 0;
   float scrollContentAboveOffset = nextStateData.templateMeasurementsTree[0];
   auto scrollContentAboveComponents = std::views::iota(0, nextStateData.scrollIndex)
-    | std::views::reverse
-    | std::views::take(10)
-    | std::views::reverse
     | std::views::transform(transformElementComponent);
 
   /*
@@ -192,8 +170,12 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     scrollContentAboveOffset += componentRegistryItem.height;
     scrollContentAboveIndex = componentRegistryItem.index;
     
-    if (elementMetrics.frame.origin.y <= (nextStateData.scrollPosition.y + nextStateData.scrollContainer.height + viewportOffset) &&
-      (elementMetrics.frame.origin.y + elementMetrics.frame.size.height) >= (nextStateData.scrollPosition.y - viewportOffset)) {
+    int scrollPosition = nextStateData.scrollPositionUpdated ? (
+      scrollContentAboveOffset + nextStateData.scrollPosition.y - nextStateData.templateMeasurementsTree[0]
+    ) : nextStateData.scrollPosition.y;
+    
+    if (elementMetrics.frame.origin.y <= (scrollPosition + nextStateData.scrollContainer.height + viewportOffset) &&
+      (elementMetrics.frame.origin.y + elementMetrics.frame.size.height) >= (scrollPosition - viewportOffset)) {
       containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
     }
   }
@@ -211,8 +193,12 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     scrollContentBelowOffset += componentRegistryItem.height;
     scrollContentBelowIndex = componentRegistryItem.index;
     
-    if (elementMetrics.frame.origin.y <= (nextStateData.scrollPosition.y + nextStateData.scrollContainer.height + viewportOffset) &&
-      (elementMetrics.frame.origin.y + elementMetrics.frame.size.height) >= (nextStateData.scrollPosition.y - viewportOffset)) {
+    int scrollPosition = nextStateData.scrollPositionUpdated ? (
+      scrollContentAboveOffset + nextStateData.scrollPosition.y - nextStateData.templateMeasurementsTree[0]
+    ) : nextStateData.scrollPosition.y;
+    
+    if (elementMetrics.frame.origin.y <= (scrollPosition + nextStateData.scrollContainer.height + viewportOffset) &&
+      (elementMetrics.frame.origin.y + elementMetrics.frame.size.height) >= (scrollPosition - viewportOffset)) {
       containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
     }
   }
@@ -223,7 +209,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   transformTemplateComponent("ListFooterComponentUniqueId", 1);
   containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
   
-  auto elementMetrics = adjustTree(
+  adjustTree(
     { .y = scrollContentAboveOffset + scrollContentBelowOffset },
     elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
 
@@ -248,7 +234,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   if (nextStateData.scrollPositionUpdated) {
     nextStateData.scrollPosition.x = 0;
-    nextStateData.scrollPosition.y = scrollContentAboveOffset + nextStateData.scrollPosition.y;
+    nextStateData.scrollPosition.y = scrollContentAboveOffset + nextStateData.scrollPosition.y - nextStateData.templateMeasurementsTree[0];
   }
 
   getConcreteEventEmitter().onVisibleChange({
