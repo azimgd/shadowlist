@@ -40,11 +40,6 @@ public class SLElementManager extends ViewGroupManager<SLElement>
   public static final String NAME = "SLElement";
 
   @Override
-  public void setIndex(SLElement view, @Nullable int value) {
-    view.setIndex(value);
-  }
-
-  @Override
   public void setUniqueId(SLElement view, @Nullable String value) {
     view.setUniqueId(value);
   }

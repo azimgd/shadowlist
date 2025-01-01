@@ -33,8 +33,6 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public static final short SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 7;
   public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 8;
   public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 9;
-  public static final short SLCONTAINER_STATE_HORIZONTAL = 10;
-  public static final short SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 11;
 
   private final ViewManagerDelegate<SLContainer> mDelegate;
   private OnVisibleChangeHandler mVisibleChangeHandler = null;
@@ -83,6 +81,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public SLContainer createViewInstance(ThemedReactContext context) {
     SLContainer view = new SLContainer(context);
     return view;
+  }
+
+  @ReactProp(name = "data")
+  @Override
+  public void setData(SLContainer view, String data) {
   }
 
   @ReactProp(name = "inverted")

@@ -69,9 +69,7 @@ class SLContainerState {
   scrollContainer(previousState.scrollContainer),
   scrollContent(previousState.scrollContent),
   firstChildUniqueId(previousState.firstChildUniqueId),
-  lastChildUniqueId(previousState.lastChildUniqueId),
-  horizontal(previousState.horizontal),
-  initialNumToRender(previousState.initialNumToRender) {};
+  lastChildUniqueId(previousState.lastChildUniqueId) {};
 
   folly::dynamic getDynamic() const;
   MapBuffer getMapBuffer() const;

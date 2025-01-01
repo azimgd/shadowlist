@@ -22,7 +22,6 @@ public class SLContainer extends ReactViewGroup {
   private HorizontalScrollView mScrollContainerHorizontal;
   private ScrollView mScrollContainerVertical;
   private ReactViewGroup mScrollContent;
-  private SLScrollable mScrollable;
   private SLFenwickTree mChildrenMeasurements;
   private SLContainerManager.OnStartReachedHandler mOnStartReachedHandler;
   private SLContainerManager.OnEndReachedHandler mOnEndReachedHandler;
@@ -47,15 +46,12 @@ public class SLContainer extends ReactViewGroup {
     mScrollContainerVertical = new ScrollView(context);
 
     mScrollContent = new ReactViewGroup(context);
-    mScrollable = new SLScrollable();
 
     SwipeRefreshLayout.OnRefreshListener refreshListener = () -> {
     };
     OnScrollChangeListener scrollListenerVertical = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      this.updateVirtualization();
     };
     OnScrollChangeListener scrollListenerHorizontal = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      this.updateVirtualization();
     };
     mScrollContainerVertical.setOnScrollChangeListener(scrollListenerVertical);
     mScrollContainerVertical.setVerticalScrollBarEnabled(true);
@@ -63,41 +59,6 @@ public class SLContainer extends ReactViewGroup {
     mScrollContainerHorizontal.setHorizontalScrollBarEnabled(true);
     mScrollContainerRefreshVertical.setOnRefreshListener(refreshListener);
     mScrollContainerRefreshHorizontal.setOnRefreshListener(refreshListener);
-  }
-
-  public void updateVirtualization() {
-    if (mStateWrapper == null) return;
-
-    MapBuffer stateMapBuffer = mStateWrapper.getStateDataMapBuffer();
-
-    float[] scrollPosition = new float[]{
-      PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollX()),
-      PixelUtil.toDIPFromPixel(this.mScrollContainerVertical.getScrollY())};
-
-    int visibleStartIndex = mChildrenMeasurements.adjustVisibleStartIndex(
-      mChildrenMeasurements.lowerBound(mScrollable.getVisibleStartOffset(scrollPosition)),
-      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
-    );
-    int visibleEndIndex = mChildrenMeasurements.adjustVisibleEndIndex(
-      mChildrenMeasurements.lowerBound(mScrollable.getVisibleEndOffset(scrollPosition)),
-      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
-    );
-
-    updateObservers(scrollPosition, visibleStartIndex, visibleEndIndex);
-  }
-
-  public void updateObservers(float[] scrollPosition, int visibleStartIndex, int visibleEndIndex) {
-    mOnVisibleChangeHandler.onVisibleChange(this, visibleStartIndex, visibleEndIndex);
-
-    int distanceFromStart = mScrollable.shouldNotifyStart(scrollPosition);
-    if (distanceFromStart > 0) {
-      mOnStartReachedHandler.onStartReached(this, distanceFromStart);
-    }
-
-    int distanceFromEnd = mScrollable.shouldNotifyEnd(scrollPosition);
-    if (distanceFromEnd > 0) {
-      mOnEndReachedHandler.onEndReached(this, distanceFromEnd);
-    }
   }
 
   public void setScrollContainerHorizontal() {
@@ -172,15 +133,6 @@ public class SLContainer extends ReactViewGroup {
 
     mChildrenMeasurements = new SLFenwickTree(childrenMeasurements);
 
-    mScrollable.updateState(
-      stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_HORIZONTAL),
-      false,
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT),
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),
-      (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
-    );
-
     float[] scrollPosition = new float[]{
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_LEFT) + PixelUtil.toDIPFromPixel(mScrollContainerVertical.getScrollX()),
       (float) stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP) + PixelUtil.toDIPFromPixel(mScrollContainerVertical.getScrollY())};
@@ -200,44 +152,17 @@ public class SLContainer extends ReactViewGroup {
       (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP)
     );
 
-    int visibleStartIndex = mChildrenMeasurements.adjustVisibleStartIndex(
-      mChildrenMeasurements.lowerBound(mScrollable.getVisibleStartOffset(scrollPosition)),
-      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
-    );
-    int visibleEndIndex = mChildrenMeasurements.adjustVisibleEndIndex(
-      mChildrenMeasurements.lowerBound(mScrollable.getVisibleEndOffset(scrollPosition)),
-      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
-    );
-
     mOnStartReachedHandler = onStartReachedHandler;
     mOnEndReachedHandler = onEndReachedHandler;
     mOnVisibleChangeHandler = onVisibleChangeHandler;
     mStateWrapper = stateWrapper;
 
     mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(scrollPosition[0]), (int)PixelUtil.toPixelFromDIP(scrollPosition[1]));
-
-    Handler handler = new Handler();
-    handler.postDelayed(new Runnable() {
-      @Override
-      public void run() {
-        updateVirtualization();
-      }
-    }, 16);
   }
 
   public void scrollToIndex(int index, boolean animated) {
-    MapBuffer stateMapBuffer = mStateWrapper.getStateDataMapBuffer();
-    int headerFooter = 1;
-    int offset = mChildrenMeasurements.adjustVisibleStartIndex(
-      (int) mChildrenMeasurements.sum(index + headerFooter),
-      stateMapBuffer.getInt(SLContainerManager.SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE)
-    );
-    float[] scrollPosition = mScrollable.getScrollPositionFromOffset(offset);
-    mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(scrollPosition[0]), (int)PixelUtil.toPixelFromDIP(scrollPosition[1]));
   }
 
   public void scrollToOffset(int offset, boolean animated) {
-    float[] scrollPosition = mScrollable.getScrollPositionFromOffset(offset);
-    mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(scrollPosition[0]), (int)PixelUtil.toPixelFromDIP(scrollPosition[1]));
   }
 }

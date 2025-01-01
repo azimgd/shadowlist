@@ -48,12 +48,6 @@ folly::dynamic SLContainerState::getDynamic() const {
     "scrollPositionTop",
     scrollPosition.y
   )(
-    "horizontal",
-    horizontal
-  )(
-    "initialNumToRender",
-    initialNumToRender
-  )(
     "firstChildUniqueId",
     firstChildUniqueId
   )(
@@ -72,8 +66,6 @@ MapBuffer SLContainerState::getMapBuffer() const {
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT, scrollContent.height);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH, scrollContainer.width);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT, scrollContainer.height);
-  builder.putBool(SLCONTAINER_STATE_HORIZONTAL, horizontal);
-  builder.putInt(SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER, initialNumToRender);
   return builder.build();
 }
 #endif
