@@ -11,7 +11,7 @@ std::unordered_map<std::string, ShadowNode::Unshared> elementShadowNodeComponent
 
 struct ComponentRegistryItem {
   int index;
-  Float height;
+  Float size;
   std::string elementDataUniqueKey;
 };
 
@@ -72,13 +72,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * and updates the scrollPositionUpdated flag to keep track of changes in the list position,
    * ensuring the visible content stays in the correct place
    */
-  if (!nextStateData.scrollPositionUpdated && nextStateData.scrollPosition.y < nextStateData.scrollContainer.height) {
-    int distanceFromStart = nextStateData.scrollPosition.y;
+  if (!nextStateData.scrollPositionUpdated && getRelativePointFromPoint(nextStateData.scrollPosition) < getRelativeSizeFromSize(nextStateData.scrollContainer)) {
+    int distanceFromStart = getRelativePointFromPoint(nextStateData.scrollPosition);
     getConcreteEventEmitter().onStartReached({ .distanceFromStart = distanceFromStart });
   }
 
-  if (nextStateData.scrollContainer.height == getLayoutMetrics().frame.size.height && nextStateData.scrollPosition.y >= nextStateData.scrollContent.height - nextStateData.scrollContainer.height - 1) {
-    int distanceFromEnd = nextStateData.scrollContainer.height - getLayoutMetrics().frame.size.height;
+  if (getRelativeSizeFromSize(nextStateData.scrollContainer) == getRelativeSizeFromSize(getLayoutMetrics().frame.size) && getRelativePointFromPoint(nextStateData.scrollPosition) >= getRelativeSizeFromSize(nextStateData.scrollContent) - getRelativeSizeFromSize(nextStateData.scrollContainer) - 1) {
+    int distanceFromEnd = getRelativeSizeFromSize(nextStateData.scrollContainer) - getRelativeSizeFromSize(getLayoutMetrics().frame.size);
     getConcreteEventEmitter().onEndReached({ .distanceFromEnd = distanceFromEnd });
   }
 
@@ -100,15 +100,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
     auto elementSize = layoutTree(layoutContext, elementShadowNodeComponentRegistry[elementDataUniqueKey]);
-    nextStateData.childrenMeasurementsTree[elementDataIndex] = elementSize.frame.size.height;
+    nextStateData.childrenMeasurementsTree[elementDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
 
     return ComponentRegistryItem{
       elementDataIndex,
-      elementSize.frame.size.height,
+      nextStateData.childrenMeasurementsTree[elementDataIndex],
       elementDataUniqueKey
     };
   };
-  
+
   auto transformTemplateComponent = [&](std::string elementDataUniqueKey, int templateDataIndex) -> ComponentRegistryItem {
     auto elementShadowNodeComponentRegistryIt = elementShadowNodeComponentRegistry.find(elementDataUniqueKey);
     if (elementShadowNodeComponentRegistryIt == elementShadowNodeComponentRegistry.end()) {
@@ -122,11 +122,11 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
     auto elementSize = layoutTree(layoutContext, elementShadowNodeComponentRegistry[elementDataUniqueKey]);
-    nextStateData.templateMeasurementsTree[templateDataIndex] = elementSize.frame.size.height;
+    nextStateData.templateMeasurementsTree[templateDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
 
     return ComponentRegistryItem{
       -1,
-      elementSize.frame.size.height,
+      nextStateData.templateMeasurementsTree[templateDataIndex],
       elementDataUniqueKey
     };
   };
@@ -153,7 +153,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   float scrollContentBelowOffset = 0;
   auto scrollContentBelowComponents = std::views::iota(nextStateData.scrollIndex, elementsDataSize)
     | std::views::take_while([&](int i) {
-      float scrollContentNextOffset = nextStateData.scrollPosition.y + viewportOffset;
+      float scrollContentNextOffset = getRelativePointFromPoint(nextStateData.scrollPosition) + viewportOffset;
       return scrollContentBelowOffset < scrollContentNextOffset;
     })
     | std::views::transform(transformElementComponent);
@@ -167,15 +167,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       { .y = scrollContentAboveOffset + scrollContentBelowOffset },
       elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
-    scrollContentAboveOffset += componentRegistryItem.height;
+    scrollContentAboveOffset += componentRegistryItem.size;
     scrollContentAboveIndex = componentRegistryItem.index;
     
     int scrollPosition = nextStateData.scrollPositionUpdated ? (
-      scrollContentAboveOffset + nextStateData.scrollPosition.y - nextStateData.templateMeasurementsTree[0]
-    ) : nextStateData.scrollPosition.y;
+      scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+    ) : getRelativePointFromPoint(nextStateData.scrollPosition);
     
-    if (elementMetrics.frame.origin.y <= (scrollPosition + nextStateData.scrollContainer.height + viewportOffset) &&
-      (elementMetrics.frame.origin.y + elementMetrics.frame.size.height) >= (scrollPosition - viewportOffset)) {
+    if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
+      (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
       containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
     }
   }
@@ -190,15 +190,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       { .y = scrollContentAboveOffset + scrollContentBelowOffset },
       elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
-    scrollContentBelowOffset += componentRegistryItem.height;
+    scrollContentBelowOffset += componentRegistryItem.size;
     scrollContentBelowIndex = componentRegistryItem.index;
     
     int scrollPosition = nextStateData.scrollPositionUpdated ? (
-      scrollContentAboveOffset + nextStateData.scrollPosition.y - nextStateData.templateMeasurementsTree[0]
-    ) : nextStateData.scrollPosition.y;
+      scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+    ) : getRelativePointFromPoint(nextStateData.scrollPosition);
     
-    if (elementMetrics.frame.origin.y <= (scrollPosition + nextStateData.scrollContainer.height + viewportOffset) &&
-      (elementMetrics.frame.origin.y + elementMetrics.frame.size.height) >= (scrollPosition - viewportOffset)) {
+    if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
+      (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
       containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
     }
   }
@@ -234,7 +234,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   if (nextStateData.scrollPositionUpdated) {
     nextStateData.scrollPosition.x = 0;
-    nextStateData.scrollPosition.y = scrollContentAboveOffset + nextStateData.scrollPosition.y - nextStateData.templateMeasurementsTree[0];
+    nextStateData.scrollPosition.y = scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0];
   }
 
   getConcreteEventEmitter().onVisibleChange({
@@ -266,7 +266,7 @@ void SLContainerShadowNode::replaceChild(
 LayoutMetrics SLContainerShadowNode::layoutTree(LayoutContext layoutContext, ShadowNode::Unshared shadowNode) {
   auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(shadowNode);
 
-  if (elementShadowNodeLayoutable->getLayoutMetrics().frame.size.height) {
+  if (getRelativeSizeFromSize(elementShadowNodeLayoutable->getLayoutMetrics().frame.size)) {
     return elementShadowNodeLayoutable->getLayoutMetrics();
   }
 
@@ -285,6 +285,22 @@ LayoutMetrics SLContainerShadowNode::adjustTree(Point origin, ShadowNode::Unshar
   elementShadowNodeLayoutable->setLayoutMetrics(layoutMetrics);
   
   return elementShadowNodeLayoutable->getLayoutMetrics();
+}
+
+float SLContainerShadowNode::getRelativeSizeFromSize(Size size) {
+  if (getConcreteProps().horizontal) {
+    return size.width;
+  } else {
+    return size.height;
+  }
+}
+
+float SLContainerShadowNode::getRelativePointFromPoint(Point point) {
+  if (getConcreteProps().horizontal) {
+    return point.x;
+  } else {
+    return point.y;
+  }
 }
 
 }
