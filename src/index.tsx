@@ -1,8 +1,8 @@
-import SLModule from './SLModule';
-export { default as SLModule } from './SLModule';
+import Shadowlist from './NativeShadowlist';
+Shadowlist.setup();
 
-SLModule.setup();
-
-export * from './SLContainer';
 export * from './Shadowlist';
-export * from './SLContainerNativeComponent';
+export type * from './SLContainer';
+export type * from './SLElement';
+export type * from './SLContainerNativeComponent';
+export type * from './SLElementNativeComponent';

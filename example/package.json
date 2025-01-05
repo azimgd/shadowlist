@@ -10,22 +10,21 @@
     "build:ios": "react-native build-ios --scheme ShadowlistExample --mode Debug --extra-params \"-sdk iphonesimulator CC=clang CPLUSPLUS=clang++ LD=clang LDPLUSPLUS=clang++ GCC_OPTIMIZATION_LEVEL=0 GCC_PRECOMPILE_PREFIX_HEADER=YES ASSETCATALOG_COMPILER_OPTIMIZATION=time DEBUG_INFORMATION_FORMAT=dwarf COMPILER_INDEX_STORE_ENABLE=NO\""
   },
   "dependencies": {
+    "@faker-js/faker": "^9.3.0",
     "react": "18.3.1",
-    "react-native": "0.76.3"
+    "react-native": "0.76.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
-    "@faker-js/faker": "^9.2.0",
     "@react-native-community/cli": "15.0.1",
     "@react-native-community/cli-platform-android": "15.0.1",
     "@react-native-community/cli-platform-ios": "15.0.1",
-    "@react-native/babel-preset": "0.76.3",
-    "@react-native/eslint-config": "0.76.3",
-    "@react-native/metro-config": "0.76.3",
-    "@react-native/typescript-config": "0.76.3",
-    "react-native-builder-bob": "^0.33.1"
+    "@react-native/babel-preset": "0.76.5",
+    "@react-native/metro-config": "0.76.5",
+    "@react-native/typescript-config": "0.76.5",
+    "react-native-builder-bob": "^0.32.0"
   },
   "engines": {
     "node": ">=18"

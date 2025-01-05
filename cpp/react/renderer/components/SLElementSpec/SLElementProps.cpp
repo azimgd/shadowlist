@@ -18,7 +18,7 @@ SLElementProps::SLElementProps(
 #if RN_DEBUG_STRING_CONVERTIBLE
 SharedDebugStringConvertibleList SLElementProps::getDebugProps() const {
   return SharedDebugStringConvertibleList{
-      debugStringConvertibleItem("uniqueId", uniqueId)};
+    debugStringConvertibleItem("uniqueId", uniqueId)};
 }
 #endif
 

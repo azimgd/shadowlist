@@ -5,4 +5,4 @@ export interface Spec extends TurboModule {
   setup(): void;
 }
 
-export default TurboModuleRegistry.getEnforcing<Spec>('SLModule');
+export default TurboModuleRegistry.getEnforcing<Spec>('Shadowlist');

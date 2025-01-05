@@ -1,6 +1,5 @@
 #include "SLContainerShadowNode.h"
 #include "SLTemplate.h"
-#include <iostream>
 
 namespace facebook::react {
 
@@ -23,10 +22,20 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
 
+  #ifdef ANDROID
+  __android_log_print(ANDROID_LOG_VERBOSE, "shadowlist", "SLContainerShadowNode onLayout %d", nextStateData.scrollIndex);
+  #endif
+
   const int elementsDataSize = props.data.size();
   const int viewportOffset = 1000;
 
   nextStateData.scrollPositionUpdated = false;
+
+  if (!nextStateData.childrenMeasurementsTree.size() && props.initialScrollIndex) {
+    nextStateData.scrollIndex = props.initialScrollIndex;
+    nextStateData.scrollPositionUpdated = true;
+    nextStateData.scrollIndexUpdated = true;
+  }
 
   /*
    * Store the child nodes for the container
@@ -110,15 +119,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   };
 
   auto transformTemplateComponent = [&](std::string elementDataUniqueKey, int templateDataIndex) -> ComponentRegistryItem {
-    auto elementShadowNodeComponentRegistryIt = elementShadowNodeComponentRegistry.find(elementDataUniqueKey);
-    if (elementShadowNodeComponentRegistryIt == elementShadowNodeComponentRegistry.end()) {
-      const nlohmann::json& elementData = {};
-      elementShadowNodeComponentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementData, elementShadowNodeTemplateRegistry[elementDataUniqueKey].back());
-    } else {
-      elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeComponentRegistry[elementDataUniqueKey]->clone({});
-    }
-
-    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeComponentRegistry[elementDataUniqueKey]);
+    elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeTemplateRegistry[elementDataUniqueKey].back()->clone({});
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
     auto elementSize = layoutElement(layoutContext, elementShadowNodeComponentRegistry[elementDataUniqueKey]);
@@ -242,16 +243,26 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   /*
    * Update the scroll position when new items are prepended to the top of the list
    */
-  if (nextStateData.scrollPositionUpdated && props.horizontal) {
+  if (!nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && props.horizontal) {
     nextStateData.scrollPosition.y = 0;
     nextStateData.scrollPosition.x = (
       scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
     );
-  } else if (nextStateData.scrollPositionUpdated && !props.horizontal) {
+  } else if (!nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && !props.horizontal) {
     nextStateData.scrollPosition.x = 0;
     nextStateData.scrollPosition.y = (
       scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
     );
+  }
+
+  if (nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && props.horizontal) {
+    nextStateData.scrollPosition.y = 0;
+    nextStateData.scrollPosition.x = scrollContentAboveOffset;
+    nextStateData.scrollIndexUpdated = false;
+  } else if (nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && !props.horizontal) {
+    nextStateData.scrollPosition.x = 0;
+    nextStateData.scrollPosition.y = scrollContentAboveOffset;
+    nextStateData.scrollIndexUpdated = false;
   }
 
   getConcreteEventEmitter().onVisibleChange({

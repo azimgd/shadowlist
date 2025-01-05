@@ -14,15 +14,21 @@ namespace facebook::react {
 
 #ifdef ANDROID
 constexpr static MapBuffer::Key SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE = 0;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE = 1;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 4;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_TOP = 5;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 6;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 7;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 8;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 9;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_HORIZONTAL = 10;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER = 11;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_TEMPLATE_MEASUREMENTS_TREE_SIZE = 1;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 2;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_TOP = 3;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_UPDATED = 4;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 5;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 6;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_UPDATED = 7;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 8;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 9;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_UPDATED = 10;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID = 11;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 12;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_INDEX = 13;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_INDEX_UPDATED = 14;
+
 #endif
 
 class SLContainerState {
@@ -37,7 +43,8 @@ class SLContainerState {
     bool scrollContentUpdated,
     std::string firstChildUniqueId,
     std::string lastChildUniqueId,
-    int scrollIndex);
+    int scrollIndex,
+    bool scrollIndexUpdated);
   SLContainerState() = default;
 
   SLFenwickTree childrenMeasurementsTree;
@@ -50,26 +57,24 @@ class SLContainerState {
   std::string firstChildUniqueId;
   std::string lastChildUniqueId;
   int scrollIndex;
-
-#ifdef ANDROID
-  folly::dynamic childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const;
-  MapBuffer childrenMeasurementsTreeToMapBuffer(SLFenwickTree childrenMeasurementsTree) const;
-  SLFenwickTree childrenMeasurementsTreeFromDynamic(folly::dynamic childrenMeasurementsTree) const;
-#endif
+  bool scrollIndexUpdated;
 
 #ifdef ANDROID
   SLContainerState(SLContainerState const &previousState, folly::dynamic data) :
-  childrenMeasurementsTree(
-    childrenMeasurementsTreeFromDynamic(data["childrenMeasurementsTree"])
-  ),
+  childrenMeasurementsTree(previousState.childrenMeasurementsTree),
+  templateMeasurementsTree(previousState.templateMeasurementsTree),
   scrollPosition({
     (Float)data["scrollPositionLeft"].getDouble(),
     (Float)data["scrollPositionTop"].getDouble()
   }),
+  scrollPositionUpdated(previousState.scrollPositionUpdated),
   scrollContainer(previousState.scrollContainer),
   scrollContent(previousState.scrollContent),
+  scrollContentUpdated(previousState.scrollContentUpdated),
   firstChildUniqueId(previousState.firstChildUniqueId),
-  lastChildUniqueId(previousState.lastChildUniqueId) {};
+  lastChildUniqueId(previousState.lastChildUniqueId),
+  scrollIndex(previousState.scrollIndex),
+  scrollIndexUpdated(previousState.scrollIndexUpdated) {};
 
   folly::dynamic getDynamic() const;
   MapBuffer getMapBuffer() const;

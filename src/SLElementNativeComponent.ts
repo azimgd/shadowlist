@@ -10,6 +10,4 @@ export interface SLElementNativeProps extends ViewProps {
   uniqueId: string;
 }
 
-export default codegenNativeComponent<SLElementNativeProps>('SLElement', {
-  interfaceOnly: true,
-});
+export default codegenNativeComponent<SLElementNativeProps>('SLElement');

@@ -9,7 +9,7 @@ import SLContainerNativeComponent, {
 } from './SLContainerNativeComponent';
 
 // @ts-ignore
-import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
+// import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
 
 export type SLContainerWrapperProps = {
   data: Array<any>;
@@ -56,14 +56,14 @@ const SLContainerWrapper = (
 
   const nextRef = (ref: SLContainerInstance) => {
     if (ref) {
-      global.__NATIVE_registerContainerNode(
-        ReactNativeInterface.getNodeFromPublicInstance(ref)
-      );
+      // global.__NATIVE_registerContainerNode(
+      //   ReactNativeInterface.getNodeFromPublicInstance(ref)
+      // );
       instanceRef.current = ref;
     } else {
-      global.__NATIVE_unregisterContainerNode(
-        ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
-      );
+      // global.__NATIVE_unregisterContainerNode(
+      //   ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
+      // );
       instanceRef.current = null;
     }
 

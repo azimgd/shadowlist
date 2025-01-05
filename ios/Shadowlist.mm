@@ -1,6 +1,4 @@
-#import "SLModule.h"
-#import "SLCommitHook.h"
-#import "SLModuleSpecJSI.h"
+#import "Shadowlist.h"
 #import "SLModuleJSI.h"
 #import "SLRuntimeManager.h"
 #import <ReactCommon/RCTTurboModule.h>
@@ -10,7 +8,7 @@
 
 using namespace facebook::react;
 
-@implementation SLModule {
+@implementation Shadowlist {
   __weak RCTSurfacePresenter* _surfacePresenter;
   std::shared_ptr<SLCommitHook> commitHook_;
   facebook::jsi::Runtime *runtime_;
@@ -30,14 +28,14 @@ RCT_EXPORT_MODULE()
   SLModuleJSI::install(runtime, commitHook_);
 }
 
-- (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:(const facebook::react::ObjCTurboModule::InitParams &)params
+- (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
+    (const facebook::react::ObjCTurboModule::InitParams &)params
 {
-  return std::make_shared<SLModuleSpecJSI>(params);
+  return std::make_shared<facebook::react::NativeShadowlistSpecJSI>(params);
 }
 
 - (void)setup
 {
-  self->commitHook_ = std::make_shared<SLCommitHook>(self->_surfacePresenter.scheduler.uiManager, self->runtime_);
+  self->commitHook_ = std::make_shared<SLCommitHook>(self->_surfacePresenter.scheduler.uiManager);
 }
-
 @end

@@ -4,7 +4,7 @@ import SLElementNativeComponent, {
 } from './SLElementNativeComponent';
 
 // @ts-ignore
-import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
+// import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
 
 export type SLElementWrapperProps = {};
 
@@ -20,14 +20,14 @@ const SLElementWrapper = (
 
   const nextRef = (ref: SLElementInstance) => {
     if (ref) {
-      global.__NATIVE_registerElementNode(
-        ReactNativeInterface.getNodeFromPublicInstance(ref)
-      );
+      // global.__NATIVE_registerElementNode(
+      //   ReactNativeInterface.getNodeFromPublicInstance(ref)
+      // );
       instanceRef.current = ref;
     } else {
-      global.__NATIVE_unregisterElementNode(
-        ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
-      );
+      // global.__NATIVE_unregisterElementNode(
+      //   ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
+      // );
       instanceRef.current = null;
     }
 

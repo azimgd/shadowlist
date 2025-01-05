@@ -16,8 +16,8 @@ import com.facebook.react.uimanager.ViewManagerDelegate;
 import com.facebook.react.uimanager.annotations.ReactProp;
 import com.facebook.react.common.mapbuffer.MapBuffer;
 import com.facebook.react.uimanager.events.EventDispatcher;
-import com.facebook.react.viewmanagers.SLContainerManagerInterface;
-import com.facebook.react.viewmanagers.SLContainerManagerDelegate;
+import com.shadowlist.SLContainerManagerInterface;
+import com.shadowlist.SLContainerManagerDelegate;
 
 import java.util.Map;
 
@@ -26,13 +26,20 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   implements SLContainerManagerInterface<SLContainer> {
 
   public static final short SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE = 0;
-  public static final short SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE = 1;
-  public static final short SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 4;
-  public static final short SLCONTAINER_STATE_SCROLL_POSITION_TOP = 5;
-  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 6;
-  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 7;
-  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 8;
-  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 9;
+  public static final short SLCONTAINER_STATE_TEMPLATE_MEASUREMENTS_TREE_SIZE = 1;
+  public static final short SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 2;
+  public static final short SLCONTAINER_STATE_SCROLL_POSITION_TOP = 3;
+  public static final short SLCONTAINER_STATE_SCROLL_POSITION_UPDATED = 4;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH = 5;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT = 6;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTAINER_UPDATED = 7;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 8;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 9;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_UPDATED = 10;
+  public static final short SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID = 11;
+  public static final short SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 12;
+  public static final short SLCONTAINER_STATE_SCROLL_INDEX = 13;
+  public static final short SLCONTAINER_STATE_SCROLL_INDEX_UPDATED = 14;
 
   private final ViewManagerDelegate<SLContainer> mDelegate;
   private OnVisibleChangeHandler mVisibleChangeHandler = null;

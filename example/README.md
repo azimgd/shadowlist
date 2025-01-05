@@ -1,79 +1,91 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# shadowlist [alpha release]
 
-# Getting Started
+ShadowList is a new alternative to FlatList for React Native, created to address common performance issues and enhance the UX when dealing with large lists of data.
+It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a Fenwick Tree with layout metrics for efficient offset calculations. By virtualizing children and rendering only items within the visible area, ShadowList ensures optimal performance. It's built on Fabric and works with React Native version 0.75 and newer.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+## Out of box comparison to FlatList
+| Feature                          | ShadowList   | FlatList / FlashList   |
+|----------------------------------|--------------|------------|
+| 60 FPS Scrolling                 | ✅           | ❌         |
+| No Estimated Size required       | ✅           | ❌         |
+| No Content Flashing              | ✅           | ❌         |
+| No Sidebar Indicator Jump        | ✅           | ❌         |
+| Native Bidirectional List        | ✅           | ❌         |
+| Instant initialScrollIndex       | ✅           | ❌         |
+| Instant initialScrollIndex       | ✅           | ❌         |
+| Nested ShadowList (ScrollView)   | ✅           | ❌         |
+| Natively Inverted List Support   | ✅           | ❌         |
+| Smooth Scrolling                 | ✅           | ❌         |
 
-## Step 1: Start the Metro Server
+## Scroll Performance
+| Number of Items  | ShadowList                 | FlatList             | FlashList            |
+|------------------|----------------------------|----------------------|----------------------|
+| 100 (text only)  | **~~156mb memory~~ - 60fps**   | ~~195mb~~ (38-43fps)     | ~~180mb (56fps)~~*   |
+| 1000 (text only) | **~~187mb memory~~ - 60fps**   | ~~200mb~~ (33-38fps)     | ~~180mb (56fps)~~*   |
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+> **FlashList is unreliable and completely breaks when scrolling, resulting in unrealistic metrics.*  
+> Given measurements show memory usage and FPS on fully loaded content, see demo [here](https://github.com/azimgd/shadowlist/issues/1) and implementation details [here](https://github.com/azimgd/shadowlist/blob/main/example/src/App.tsx).
 
-To start Metro, run the following command from the _root_ of your React Native project:
+## Note on Performance Considerations
 
-```bash
-# using npm
-npm start
+ShadowList initiates ShadowNode creation for each child. This process can be slower when rendering a large number of items at once, which may impact performance compared to purely JS-based solutions. However, once the children are measured, it performs real-time virtualization ensuring smooth, flicker-free scrolling.
 
-# OR using Yarn
-yarn start
+One temporary way to mitigate this is by implementing list pagination until the [following problem is addressed](https://github.com/reactwg/react-native-new-architecture/discussions/223).
+
+## Installation
+- CLI: Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
+- Expo: Add the package to your project via `npx expo install shadowlist` and run `npx expo prebuild` in the root directory.
+
+
+## Usage
+
+```js
+import {Shadowlist} from 'shadowlist';
+
+<Shadowlist
+  contentContainerStyle={styles.container}
+  ref={shadowListContainerRef}
+  data={data}
+  ListHeaderComponent={ListHeaderComponent}
+  ListHeaderComponentStyle={styles.ListHeaderComponentStyle}
+  ListFooterComponent={ListFooterComponent}
+  ListHeaderComponentStyle={styles.ListFooterComponentStyle}
+  ListEmptyComponent={ListEmptyComponent}
+  ListEmptyComponentStyle={styles.ListFooterComponentStyle}
+  renderItem={({ item, index }) => (
+    <CustomComponent item={item} index={index} />
+  )}
+/>
 ```
 
-## Step 2: Start your Application
+## API
+| Prop                       | Type                      | Required | Description                                     |
+|----------------------------|---------------------------|----------|-------------------------------------------------|
+| `data`                     | Array                     | Required | An array of data to be rendered in the list. |
+| `keyExtractor`             | Function                  | Required | Used to extract a unique key for a given item at the specified index. |
+| `contentContainerStyle`    | ViewStyle                 | Optional | These styles will be applied to the scroll view content container which wraps all of the child views. |
+| `ListHeaderComponent`      | React component           | Optional | A custom component to render at the top of the list. |
+| `ListHeaderComponentStyle` | ViewStyle                 | Optional | Styling for internal View for `ListHeaderComponent` |
+| `ListFooterComponent`      | React component           | Optional | A custom component to render at the bottom of the list. |
+| `ListFooterComponentStyle` | ViewStyle                 | Optional | Styling for internal View for `ListFooterComponent` |
+| `ListEmptyComponent`       | React component           | Optional | A custom component to render when the list is empty. |
+| `ListEmptyComponentStyle`  | ViewStyle                 | Optional | Styling for internal View for `ListEmptyComponent` |
+| `renderItem`               | Function                  | Required | A function to render each item in the list. It receives an object with `item` and `index` properties. |
+| `initialScrollIndex`       | Number                    | Optional | The initial index of the item to scroll to when the list mounts. |
+| `inverted`                 | Boolean                   | Optional | If true, the list will be rendered in an inverted order. |
+| `horizontal`               | Boolean                   | Optional | If true, renders items next to each other horizontally instead of stacked vertically. |
+| `onEndReached`             | Function                  | Optional | Called when the end of the content is within `onEndReachedThreshold`. |
+| `onEndReachedThreshold`    | Double                    | Optional | The threshold (in content length units) at which `onEndReached` is triggered. |
+| `onStartReached`           | Function                  | Optional | Called when the start of the content is within `onStartReachedThreshold`. |
+| `onStartReachedThreshold`  | Double                    | Optional | The threshold (in content length units) at which `onStartReached` is triggered. |
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
 
-### For Android
+## Methods
+| Method          | Type                                | Description                                               |
+|-----------------|-------------------------------------|-----------------------------------------------------------|
+| `scrollToIndex` | Function                            | Scrolls the list to the specified index.                  |
+| `scrollToOffset`| Function                            | Scrolls the list to the specified offset.                 |
 
-```bash
-# using npm
-npm run android
+## License
 
-# OR using Yarn
-yarn android
-```
-
-### For iOS
-
-```bash
-# using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
-```
-
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
-
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
-
-## Step 3: Modifying your App
-
-Now that you have successfully run the app, let's modify it.
-
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
-
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+MIT

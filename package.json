@@ -1,6 +1,6 @@
 {
   "name": "shadowlist",
-  "version": "0.4.15",
+  "version": "0.1.0",
   "description": "60fps, high-performance list for React Native.",
   "source": "./src/index.tsx",
   "main": "./lib/commonjs/index.js",
@@ -15,8 +15,7 @@
         "types": "./lib/typescript/commonjs/src/index.d.ts",
         "default": "./lib/commonjs/index.js"
       }
-    },
-    "./package.json": "./package.json"
+    }
   },
   "files": [
     "src",
@@ -55,7 +54,7 @@
     "type": "git",
     "url": "git+https://github.com/azimgd/shadowlist.git"
   },
-  "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
+  "author": "azim <me@azimgd.com> (https://github.com/azimgd)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/azimgd/shadowlist/issues"
@@ -67,10 +66,9 @@
   "devDependencies": {
     "@commitlint/config-conventional": "^17.0.2",
     "@evilmartians/lefthook": "^1.5.0",
-    "@react-native-community/cli": "^15.1.2",
-    "@react-native/babel-preset": "^0.76.3",
+    "@react-native-community/cli": "15.0.1",
     "@react-native/eslint-config": "^0.73.1",
-    "@release-it/conventional-changelog": "^5.0.0",
+    "@release-it/conventional-changelog": "^9.0.2",
     "@types/jest": "^29.5.5",
     "@types/react": "^18.2.44",
     "commitlint": "^17.0.2",
@@ -81,9 +79,9 @@
     "jest": "^29.7.0",
     "prettier": "^3.0.3",
     "react": "18.3.1",
-    "react-native": "0.76.3",
-    "react-native-builder-bob": "^0.33.1",
-    "release-it": "^15.0.0",
+    "react-native": "0.76.5",
+    "react-native-builder-bob": "^0.32.0",
+    "release-it": "^17.10.0",
     "turbo": "^1.10.7",
     "typescript": "^5.2.2"
   },
@@ -166,15 +164,13 @@
       [
         "commonjs",
         {
-          "esm": true,
-          "configFile": true
+          "esm": true
         }
       ],
       [
         "module",
         {
-          "esm": true,
-          "configFile": true
+          "esm": true
         }
       ],
       [
@@ -187,7 +183,7 @@
     ]
   },
   "codegenConfig": {
-    "name": "SLContainerSpec",
+    "name": "RNShadowlistSpec",
     "type": "all",
     "jsSrcsDir": "src",
     "outputDir": {
@@ -201,6 +197,7 @@
   },
   "create-react-native-library": {
     "type": "view-new",
-    "version": "0.41.2"
+    "languages": "kotlin-objc",
+    "version": "0.45.5"
   }
 }

@@ -11,11 +11,7 @@ class SLYogaLayoutableShadowNode : public facebook::react::YogaLayoutableShadowN
   }
 };
 
-SLCommitHook::SLCommitHook(
-  const std::shared_ptr<UIManager> &uiManager,
-  jsi::Runtime *runtime) :
-    uiManager_(uiManager),
-    runtime_(runtime) {
+SLCommitHook::SLCommitHook(const std::shared_ptr<UIManager> &uiManager) : uiManager_(uiManager){
   uiManager_->registerCommitHook(*this);
 }
 

@@ -14,7 +14,4 @@ class SLElementComponentDescriptor : public ConcreteComponentDescriptor<SLElemen
   }
 };
 
-void SLElementSpec_registerComponentDescriptorsFromCodegen(
-  std::shared_ptr<const ComponentDescriptorProviderRegistry> registry);
-
 }

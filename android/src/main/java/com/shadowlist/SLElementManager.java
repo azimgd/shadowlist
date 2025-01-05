@@ -6,10 +6,8 @@ import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.uimanager.ViewGroupManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.ViewManagerDelegate;
-import com.facebook.react.viewmanagers.SLElementManagerInterface;
-import com.facebook.react.viewmanagers.SLElementManagerDelegate;
-
-import java.util.Map;
+import com.shadowlist.SLElementManagerInterface;
+import com.shadowlist.SLElementManagerDelegate;
 
 @ReactModule(name = SLElementManager.NAME)
 public class SLElementManager extends ViewGroupManager<SLElement>

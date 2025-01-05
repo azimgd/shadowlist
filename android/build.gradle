@@ -90,8 +90,8 @@ android {
     main {
       if (isNewArchitectureEnabled()) {
         java.srcDirs += [
-          "generated/java",
-          "generated/jni"
+          "shadowlist/java",
+          "shadowlist/jni"
         ]
       }
     }
@@ -111,14 +111,12 @@ dependencies {
   //noinspection GradleDynamicVersion
   implementation "com.facebook.react:react-native:+"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-  implementation 'androidx.appcompat:appcompat:1.7.0'
-  implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
 }
 
 if (isNewArchitectureEnabled()) {
   react {
     jsRootDir = file("../src/")
-    libraryName = "ShadowlistView"
+    libraryName = "Shadowlist"
     codegenJavaPackageName = "com.shadowlist"
   }
 }
