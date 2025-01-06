@@ -84,6 +84,7 @@ public class SLContainer extends ReactViewGroup {
   }
 
   public void setScrollContainerOffset(int x, int y) {
+    mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
   }
 
   @Override
@@ -120,15 +121,30 @@ public class SLContainer extends ReactViewGroup {
     SLContainerManager.OnVisibleChangeHandler onVisibleChangeHandler) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
 
-    this.setScrollContainerLayout(
-      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
-      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
-    );
+    if (stateMapBuffer == null) {
+      return;
+    }
 
-    this.setScrollContentLayout(
-      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),
-      (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
-    );
+    if (stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_UPDATED)) {
+      this.setScrollContainerLayout(
+        (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH),
+        (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT)
+      );
+    }
+
+    if (stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_UPDATED)) {
+      this.setScrollContentLayout(
+        (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH),
+        (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT)
+      );
+    }
+
+    if (stateMapBuffer.getBoolean(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_UPDATED)) {
+      this.setScrollContainerOffset(
+        (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_LEFT),
+        (int)stateMapBuffer.getDouble(SLContainerManager.SLCONTAINER_STATE_SCROLL_POSITION_TOP)
+      );
+    }
 
     mOnStartReachedHandler = onStartReachedHandler;
     mOnEndReachedHandler = onEndReachedHandler;

@@ -57,12 +57,21 @@ folly::dynamic SLContainerState::getDynamic() const {
 
 MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
+
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.y);
-  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
-  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT, scrollContent.height);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_POSITION_UPDATED, scrollPositionUpdated);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH, scrollContainer.width);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT, scrollContainer.height);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_CONTAINER_UPDATED, true);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT, scrollContent.height);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_CONTENT_UPDATED, scrollContentUpdated);
+  builder.putString(SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID, firstChildUniqueId);
+  builder.putString(SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID, lastChildUniqueId);
+  builder.putInt(SLCONTAINER_STATE_SCROLL_INDEX, scrollIndex);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_INDEX_UPDATED, scrollIndexUpdated);
+
   return builder.build();
 }
 #endif
