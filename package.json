@@ -15,7 +15,8 @@
         "types": "./lib/typescript/commonjs/src/index.d.ts",
         "default": "./lib/commonjs/index.js"
       }
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "src",
@@ -164,13 +165,15 @@
       [
         "commonjs",
         {
-          "esm": true
+          "esm": true,
+          "configFile": true
         }
       ],
       [
         "module",
         {
-          "esm": true
+          "esm": true,
+          "configFile": true
         }
       ],
       [
