@@ -1,6 +1,6 @@
 {
   "name": "shadowlist",
-  "version": "0.4.15",
+  "version": "0.4.19",
   "description": "60fps, high-performance list for React Native.",
   "source": "./src/index.tsx",
   "main": "./lib/commonjs/index.js",
@@ -54,7 +54,7 @@
     "type": "git",
     "url": "git+https://github.com/azimgd/shadowlist.git"
   },
-  "author": "azim <me@azimgd.com> (https://github.com/azimgd)",
+  "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/azimgd/shadowlist/issues"
@@ -68,7 +68,7 @@
     "@evilmartians/lefthook": "^1.5.0",
     "@react-native-community/cli": "15.0.1",
     "@react-native/eslint-config": "^0.73.1",
-    "@release-it/conventional-changelog": "^9.0.2",
+    "@release-it/conventional-changelog": "^5.0.0",
     "@types/jest": "^29.5.5",
     "@types/react": "^18.2.44",
     "commitlint": "^17.0.2",
