@@ -13,12 +13,13 @@
 
 #include "SLFenwickTree.hpp"
 #include <string>
-#include <iostream>
 
+#ifndef RCT_DEBUG
+#include <iostream>
 #ifdef ANDROID
 #include <android/log.h>
 #endif
-
+#endif
 
 namespace facebook::react {
 

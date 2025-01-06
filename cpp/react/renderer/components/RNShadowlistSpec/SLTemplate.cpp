@@ -48,7 +48,13 @@ ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const SLContainerProps::SLC
     shadowNode->getTag());
   auto const fragment = ShadowNodeFamilyFragment{nextFamilyTag, shadowNode->getSurfaceId(), instanceHandle};
   auto const family = componentDescriptor.createFamily(fragment);
+  
+  #ifdef ANDROID
+  auto const props = componentDescriptor.cloneProps(propsParserContext, shadowNode->getProps(), RawProps(shadowNode->getProps()->rawProps));
+  #else
   auto const props = componentDescriptor.cloneProps(propsParserContext, shadowNode->getProps(), {});
+  #endif
+
   auto const state = componentDescriptor.createInitialState(props, family);
   auto const nextShadowNode = componentDescriptor.createShadowNode(
     ShadowNodeFragment{props, ShadowNodeFragment::childrenPlaceholder(), state}, family);
