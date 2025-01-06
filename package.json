@@ -1,6 +1,6 @@
 {
   "name": "shadowlist",
-  "version": "0.4.19",
+  "version": "0.4.20",
   "description": "60fps, high-performance list for React Native.",
   "source": "./src/index.tsx",
   "main": "./lib/commonjs/index.js",
