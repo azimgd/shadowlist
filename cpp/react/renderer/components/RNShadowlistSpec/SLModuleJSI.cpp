@@ -1,4 +1,5 @@
 #include "SLModuleJSI.h"
+#include "SLRuntimeManager.h"
 
 namespace facebook::react {
 
@@ -68,6 +69,20 @@ void SLModuleJSI::install(facebook::jsi::Runtime &runtime, std::shared_ptr<SLCom
       return facebook::jsi::Value::undefined();
   });
   runtime.global().setProperty(runtime, "__NATIVE_unregisterElementNode", std::move(unregisterElementFamily));
+  
+  auto getRegistryElementMapping = facebook::jsi::Function::createFromHostFunction(
+    runtime,
+    facebook::jsi::PropNameID::forAscii(runtime, "__NATIVE_getRegistryElementMapping"),
+    1,
+    [&](facebook::jsi::Runtime &runtime,
+      const facebook::jsi::Value &thisValue,
+      const facebook::jsi::Value *arguments,
+      size_t count) -> facebook::jsi::Value
+    {
+      int elementFamilyTag = SLRuntimeManager::getInstance().getTag(arguments[0].asNumber());
+      return facebook::jsi::Value(elementFamilyTag);
+  });
+  runtime.global().setProperty(runtime, "__NATIVE_getRegistryElementMapping", std::move(getRegistryElementMapping));
 }
 
 }

@@ -11,6 +11,7 @@ using namespace facebook::jsi;
 class SLRuntimeManager {
 private:
   jsi::Runtime *_runtime;
+  std::unordered_map<int, int> _tagRegistry;
 
   SLRuntimeManager() : _runtime(nullptr) {}
 
@@ -26,6 +27,19 @@ public:
 
   void setRuntime(jsi::Runtime *runtime) {
     _runtime = runtime;
+  }
+
+  void addTag(int key, int value) {
+    _tagRegistry[key] = value;
+  }
+
+  int getTag(int key) const {
+    auto it = _tagRegistry.find(key);
+    return it != _tagRegistry.end() ? it->second : -1;
+  }
+
+  void removeTag(int key) {
+    _tagRegistry.erase(key);
   }
 
   SLRuntimeManager(const SLRuntimeManager&) = delete;

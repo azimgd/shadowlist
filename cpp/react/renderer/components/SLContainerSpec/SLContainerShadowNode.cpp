@@ -102,7 +102,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     auto elementShadowNodeComponentRegistryIt = elementShadowNodeComponentRegistry.find(elementDataUniqueKey);
     if (elementShadowNodeComponentRegistryIt == elementShadowNodeComponentRegistry.end()) {
       const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-      elementShadowNodeComponentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementData, elementShadowNodeTemplateRegistry["ListChildrenComponentUniqueId"].back());
+      elementShadowNodeComponentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, elementShadowNodeTemplateRegistry["ListChildrenComponentUniqueId"].back());
     } else {
       elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeComponentRegistry[elementDataUniqueKey]->clone({});
     }

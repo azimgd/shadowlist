@@ -35,17 +35,18 @@ static void updateImageProps(const SLContainerProps::SLContainerDataItem &elemen
   updatedProps->sources[0].uri = SLContainerProps::getElementValueByPath(elementData, path);
 }
 
-ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const SLContainerProps::SLContainerDataItem &elementData, const ShadowNode::Shared& shadowNode)
+ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const int& elementDataIndex, const SLContainerProps::SLContainerDataItem &elementData, const ShadowNode::Shared& shadowNode)
 {
   auto const &componentDescriptor = shadowNode->getComponentDescriptor();
   PropsParserContext propsParserContext{shadowNode->getSurfaceId(), *componentDescriptor.getContextContainer().get()};
 
   nextFamilyTag = adjustFamilyTag(nextFamilyTag);
+  SLRuntimeManager::getInstance().addTag(nextFamilyTag, elementDataIndex);
 
   InstanceHandle::Shared instanceHandle = std::make_shared<const InstanceHandle>(
     *SLRuntimeManager::getInstance().getRuntime(),
     shadowNode->getInstanceHandle(*SLRuntimeManager::getInstance().getRuntime()),
-    shadowNode->getTag());
+    nextFamilyTag);
   auto const fragment = ShadowNodeFamilyFragment{nextFamilyTag, shadowNode->getSurfaceId(), instanceHandle};
   auto const family = componentDescriptor.createFamily(fragment);
   
@@ -63,7 +64,7 @@ ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const SLContainerProps::SLC
   updateImageProps(elementData, nextShadowNode, shadowNode);
 
   for (const auto &childShadowNode : shadowNode->getChildren()) {
-    auto const clonedChildShadowNode = cloneShadowNodeTree(elementData, childShadowNode);
+    auto const clonedChildShadowNode = cloneShadowNodeTree(elementDataIndex, elementData, childShadowNode);
     componentDescriptor.appendChild(nextShadowNode, clonedChildShadowNode);
   }
 

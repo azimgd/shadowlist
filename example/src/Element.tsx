@@ -1,16 +1,32 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
-import { type ShadowlistProps } from 'shadowlist';
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  type GestureResponderEvent,
+} from 'react-native';
 
 const stringify = (str: string) => `{{${str}}}`;
 
-const Element: ShadowlistProps['renderItem'] = () => {
+type ElementProps = {
+  data: Array<any>;
+};
+
+const Element = (props: ElementProps) => {
+  const handlePress = (event: GestureResponderEvent) => {
+    const elementDataIndex = __NATIVE_getRegistryElementMapping(
+      event.nativeEvent.target
+    );
+    console.log(props.data[elementDataIndex]);
+  };
+
   return (
-    <View style={styles.container}>
+    <TouchableOpacity style={styles.container} onPress={handlePress}>
       <Image source={{ uri: stringify('image') }} style={styles.image} />
       <Text style={styles.title}>{stringify('id')}</Text>
       <Text style={styles.content}>{stringify('text')}</Text>
       <Text style={styles.footer}>index: {stringify('position')}</Text>
-    </View>
+    </TouchableOpacity>
   );
 };
 

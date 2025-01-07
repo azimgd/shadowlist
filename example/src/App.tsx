@@ -36,10 +36,6 @@ const ListEmptyComponent = () => (
   </View>
 );
 
-const renderItem: ShadowlistProps['renderItem'] = () => {
-  return <Element />;
-};
-
 export default function App() {
   const data = useData({ length: ITEMS_COUNT, inverted: IS_INVERTED });
   const ref = useRef<SLContainerRef>(null);
@@ -73,6 +69,10 @@ export default function App() {
     },
     []
   );
+
+  const renderItem: ShadowlistProps['renderItem'] = () => {
+    return <Element data={data.data} />;
+  };
 
   return (
     <View style={styles.container}>
