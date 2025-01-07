@@ -37,6 +37,12 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.scrollIndexUpdated = true;
   }
 
+  if (!nextStateData.childrenMeasurementsTree.size() && props.inverted) {
+    nextStateData.scrollIndex = props.data.size();
+    nextStateData.scrollPositionUpdated = true;
+    nextStateData.scrollIndexUpdated = true;
+  }
+
   /*
    * Store the child nodes for the container
    */
@@ -135,8 +141,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   /*
    * Render and adjust origin of Header template
    */
-  transformTemplateComponent("ListHeaderComponentUniqueId", 0);
-  containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+  if (props.inverted) {
+    transformTemplateComponent("ListFooterComponentUniqueId", 0);
+    containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
+  } else {
+    transformTemplateComponent("ListFooterComponentUniqueId", 0);
+    containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
+  }
 
   /*
    * Calculate sequence of indices above and below the current scroll index
@@ -207,12 +218,21 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   /*
    * Render and adjust origin of Footer template
    */
-  transformTemplateComponent("ListFooterComponentUniqueId", 1);
-  containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
-  
-  adjustElement(
-    scrollContentAboveOffset + scrollContentBelowOffset,
-    elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
+  if (props.inverted) {
+    transformTemplateComponent("ListHeaderComponentUniqueId", 1);
+    containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+    
+    adjustElement(
+      scrollContentAboveOffset + scrollContentBelowOffset,
+      elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+  } else {
+    transformTemplateComponent("ListHeaderComponentUniqueId", 1);
+    containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+    
+    adjustElement(
+      scrollContentAboveOffset + scrollContentBelowOffset,
+      elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+  }
 
   /*
    * Update children and mark the container as dirty to trigger a layout update on state change

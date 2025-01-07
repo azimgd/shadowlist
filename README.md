@@ -12,7 +12,6 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 | No Sidebar Indicator Jump        | ✅           | ❌         |
 | Native Bidirectional List        | ✅           | ❌         |
 | Instant initialScrollIndex       | ✅           | ❌         |
-| Instant initialScrollIndex       | ✅           | ❌         |
 | Nested ShadowList (ScrollView)   | ✅           | ❌         |
 | Natively Inverted List Support   | ✅           | ❌         |
 | Smooth Scrolling                 | ✅           | ❌         |
