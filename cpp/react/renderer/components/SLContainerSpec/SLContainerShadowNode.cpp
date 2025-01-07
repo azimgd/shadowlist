@@ -289,6 +289,11 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     .visibleStartIndex = scrollContentBelowIndex,
     .visibleEndIndex = scrollContentAboveIndex,
   });
+  
+  getConcreteEventEmitter().onScroll({
+    .contentSize = nextStateData.scrollContent,
+    .contentOffset = nextStateData.scrollPosition,
+  });
 
   setStateData(std::move(nextStateData));
   

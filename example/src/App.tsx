@@ -6,6 +6,7 @@ import {
   type OnStartReached,
   type OnEndReached,
   type OnVisibleChange,
+  type OnScroll,
   type ShadowlistProps,
   type SLContainerRef,
 } from 'shadowlist';
@@ -70,6 +71,10 @@ export default function App() {
     []
   );
 
+  const onScroll = useCallback<DirectEventHandler<OnScroll>>((event) => {
+    event.nativeEvent.contentOffset.y;
+  }, []);
+
   const renderItem: ShadowlistProps['renderItem'] = () => {
     return <Element data={data.data} />;
   };
@@ -84,6 +89,7 @@ export default function App() {
         onVisibleChange={onVisibleChange}
         onStartReached={onStartReached}
         onEndReached={onEndReached}
+        onScroll={onScroll}
         ListHeaderComponent={ListHeaderComponent}
         ListHeaderComponentStyle={styles.static}
         ListFooterComponent={ListFooterComponent}

@@ -29,6 +29,17 @@ export type OnEndReached = {
   distanceFromEnd: Int32;
 };
 
+export type OnScroll = {
+  contentSize: {
+    width: Int32;
+    height: Int32;
+  };
+  contentOffset: {
+    x: Int32;
+    y: Int32;
+  };
+};
+
 export interface SLContainerNativeProps extends ViewProps {
   data: string;
   inverted?: boolean;
@@ -38,6 +49,7 @@ export interface SLContainerNativeProps extends ViewProps {
   onVisibleChange?: DirectEventHandler<Readonly<OnVisibleChange>>;
   onStartReached?: DirectEventHandler<Readonly<OnStartReached>>;
   onEndReached?: DirectEventHandler<Readonly<OnEndReached>>;
+  onScroll?: DirectEventHandler<Readonly<OnScroll>>;
 }
 
 export interface SLContainerNativeCommands {

@@ -45,6 +45,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   private OnVisibleChangeHandler mVisibleChangeHandler = null;
   private OnStartReachedHandler mStartReachedHandler = null;
   private OnEndReachedHandler mEndReachedHandler = null;
+  private OnScrollHandler mScrollHandler = null;
 
   public interface OnVisibleChangeHandler {
     void onVisibleChange(SLContainer view, int visibleStartIndex, int visibleEndIndex);
@@ -54,6 +55,9 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   }
   public interface OnStartReachedHandler {
     void onStartReached(SLContainer view, int distanceFromStart);
+  }
+  public interface OnScrollHandler {
+    void onScroll(SLContainer view, int distanceFromStart);
   }
 
   public SLContainerManager() {
@@ -81,6 +85,9 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     );
     setOnEndReachedHandler((containerView, distanceFromEnd) ->
       mEndReachedHandler.onEndReached(containerView, distanceFromEnd)
+    );
+    setOnScrollHandler((containerView, distanceFromEnd) ->
+      mScrollHandler.onScroll(containerView, distanceFromEnd)
     );
   }
 
@@ -126,7 +133,8 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     return MapBuilder.of(
       "onVisibleChange", MapBuilder.of("registrationName", "onVisibleChange"),
       "onStartReached", MapBuilder.of("registrationName", "onStartReached"),
-      "onEndReached", MapBuilder.of("registrationName", "onEndReached")
+      "onEndReached", MapBuilder.of("registrationName", "onEndReached"),
+      "onScroll", MapBuilder.of("registrationName", "onScroll")
     );
   }
 
@@ -138,7 +146,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     );
   }
 
-  private void handleStartReached(SLContainer view, int distanceFromStart) {
+  private void handleOnStartReached(SLContainer view, int distanceFromStart) {
     ReactContext reactContext = (ReactContext) view.getContext();
     EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, view.getId());
     eventDispatcher.dispatchEvent(
@@ -146,11 +154,19 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     );
   }
 
-  private void handleEndReached(SLContainer view, int distanceFromEnd) {
+  private void handleOnEndReached(SLContainer view, int distanceFromEnd) {
     ReactContext reactContext = (ReactContext) view.getContext();
     EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, view.getId());
     eventDispatcher.dispatchEvent(
       new OnEndReachedEvent(UIManagerHelper.getSurfaceId(view), view.getId(), distanceFromEnd)
+    );
+  }
+
+  private void handleOnScroll(SLContainer view, int scrollContentWidth, int scrollContentHeight, int scrollPositionLeft, int scrollPositionTop) {
+    ReactContext reactContext = (ReactContext) view.getContext();
+    EventDispatcher eventDispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, view.getId());
+    eventDispatcher.dispatchEvent(
+      new OnScrollEvent(UIManagerHelper.getSurfaceId(view), view.getId(), scrollPositionLeft, scrollPositionTop, scrollContentWidth, scrollContentHeight)
     );
   }
 
@@ -166,13 +182,17 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
     mEndReachedHandler = handler;
   }
 
+  public void setOnScrollHandler(OnScrollHandler handler) {
+    mScrollHandler = handler;
+  }
+
   @Nullable
   @Override
   public Object updateState(@NonNull SLContainer view, ReactStylesDiffMap props, StateWrapper stateWrapper) {
     MapBuffer stateMapBuffer = stateWrapper.getStateDataMapBuffer();
 
     if (stateMapBuffer != null) {
-      view.setStateWrapper(stateWrapper, this::handleStartReached, this::handleEndReached, this::handleOnVisibleChange);
+      view.setStateWrapper(stateWrapper, this::handleOnStartReached, this::handleOnEndReached, this::handleOnVisibleChange);
       return super.updateState(view, props, stateWrapper);
     } else {
       return null;

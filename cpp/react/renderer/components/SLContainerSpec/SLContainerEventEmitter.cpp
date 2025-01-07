@@ -26,4 +26,19 @@ void SLContainerEventEmitter::onEndReached(OnEndReached $event) const {
     return $payload;
   });
 }
+
+void SLContainerEventEmitter::onScroll(OnScroll $event) const {
+  dispatchEvent("onScroll", [$event = std::move($event)](jsi::Runtime &runtime) {
+    auto $payload = jsi::Object(runtime);
+    auto $contentSize = jsi::Object(runtime);
+    $contentSize.setProperty(runtime, "width", $event.contentSize.width);
+    $contentSize.setProperty(runtime, "height", $event.contentSize.height);
+    $payload.setProperty(runtime, "contentSize", $contentSize);
+    auto $contentOffset = jsi::Object(runtime);
+    $contentOffset.setProperty(runtime, "x", $event.contentOffset.x);
+    $contentOffset.setProperty(runtime, "y", $event.contentOffset.y);
+    $payload.setProperty(runtime, "contentOffset", $contentOffset);
+    return $payload;
+  });
+}
 }

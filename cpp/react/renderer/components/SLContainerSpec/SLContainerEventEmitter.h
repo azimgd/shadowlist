@@ -15,6 +15,10 @@ struct OnStartReached {
 struct OnEndReached {
   int distanceFromEnd;
 };
+struct OnScroll {
+  Point contentOffset;
+  Size contentSize;
+};
 
 class SLContainerEventEmitter : public ViewEventEmitter {
   public:
@@ -23,5 +27,6 @@ class SLContainerEventEmitter : public ViewEventEmitter {
   void onVisibleChange(OnVisibleChange value) const;
   void onStartReached(OnStartReached value) const;
   void onEndReached(OnEndReached value) const;
+  void onScroll(OnScroll value) const;
 };
 }
