@@ -5,9 +5,6 @@ namespace facebook::react {
 
 extern const char SLContainerComponentName[] = "SLContainer";
 
-std::unordered_map<std::string, std::vector<ShadowNode::Shared>> elementShadowNodeTemplateRegistry{};
-std::unordered_map<std::string, ShadowNode::Unshared> elementShadowNodeComponentRegistry{};
-
 struct ComponentRegistryItem {
   int index;
   Float size;
@@ -19,6 +16,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto start = std::chrono::high_resolution_clock::now();
   #endif
 
+  auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
+  auto &componentRegistry = elementShadowNodeComponentRegistry[getTag()];
+  
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
 
@@ -105,16 +105,16 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto transformElementComponent = [&](int elementDataIndex) -> ComponentRegistryItem {
     auto elementDataUniqueKey = props.uniqueIds[elementDataIndex];
 
-    auto elementShadowNodeComponentRegistryIt = elementShadowNodeComponentRegistry.find(elementDataUniqueKey);
-    if (elementShadowNodeComponentRegistryIt == elementShadowNodeComponentRegistry.end()) {
+    auto elementShadowNodeComponentRegistryIt = componentRegistry.find(elementDataUniqueKey);
+    if (elementShadowNodeComponentRegistryIt == componentRegistry.end()) {
       const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-      elementShadowNodeComponentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, elementShadowNodeTemplateRegistry["ListChildrenComponentUniqueId"].back());
+      componentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateRegistry["ListChildrenComponentUniqueId"].back());
     } else {
-      elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeComponentRegistry[elementDataUniqueKey]->clone({});
+      componentRegistry[elementDataUniqueKey] = componentRegistry[elementDataUniqueKey]->clone({});
     }
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
-    auto elementSize = layoutElement(layoutContext, elementShadowNodeComponentRegistry[elementDataUniqueKey]);
+    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey]);
     nextStateData.childrenMeasurementsTree[elementDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
 
     return ComponentRegistryItem{
@@ -125,10 +125,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   };
 
   auto transformTemplateComponent = [&](std::string elementDataUniqueKey, int templateDataIndex) -> ComponentRegistryItem {
-    elementShadowNodeComponentRegistry[elementDataUniqueKey] = elementShadowNodeTemplateRegistry[elementDataUniqueKey].back()->clone({});
+    componentRegistry[elementDataUniqueKey] = templateRegistry[elementDataUniqueKey].back()->clone({});
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
-    auto elementSize = layoutElement(layoutContext, elementShadowNodeComponentRegistry[elementDataUniqueKey]);
+    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey]);
     nextStateData.templateMeasurementsTree[templateDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
 
     return ComponentRegistryItem{
@@ -143,10 +143,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   if (props.inverted) {
     transformTemplateComponent("ListFooterComponentUniqueId", 0);
-    containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
+    containerShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
   } else {
-    transformTemplateComponent("ListFooterComponentUniqueId", 0);
-    containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListFooterComponentUniqueId"]);
+    transformTemplateComponent("ListHeaderComponentUniqueId", 0);
+    containerShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
   }
 
   /*
@@ -177,7 +177,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   for (ComponentRegistryItem componentRegistryItem : scrollContentAboveComponents) {
     auto elementMetrics = adjustElement(
       scrollContentAboveOffset + scrollContentBelowOffset,
-      elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      componentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
     scrollContentAboveOffset += componentRegistryItem.size;
     scrollContentAboveIndex = componentRegistryItem.index;
@@ -188,7 +188,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
-      containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      containerShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
     }
   }
 
@@ -197,10 +197,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * and add them to the container if they are visible in the current viewport
    */
   for (ComponentRegistryItem componentRegistryItem : scrollContentBelowComponents) {
-    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
     auto elementMetrics = adjustElement(
       scrollContentAboveOffset + scrollContentBelowOffset,
-      elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      componentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
     scrollContentBelowOffset += componentRegistryItem.size;
     scrollContentBelowIndex = componentRegistryItem.index;
@@ -211,7 +211,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
-      containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      containerShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
     }
   }
 
@@ -220,18 +220,18 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   if (props.inverted) {
     transformTemplateComponent("ListHeaderComponentUniqueId", 1);
-    containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+    containerShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
     
     adjustElement(
       scrollContentAboveOffset + scrollContentBelowOffset,
-      elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+      componentRegistry["ListHeaderComponentUniqueId"]);
   } else {
-    transformTemplateComponent("ListHeaderComponentUniqueId", 1);
-    containerShadowNodeChildren->push_back(elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+    transformTemplateComponent("ListFooterComponentUniqueId", 1);
+    containerShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
     
     adjustElement(
       scrollContentAboveOffset + scrollContentBelowOffset,
-      elementShadowNodeComponentRegistry["ListHeaderComponentUniqueId"]);
+      componentRegistry["ListFooterComponentUniqueId"]);
   }
 
   /*
@@ -305,8 +305,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 }
 
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {
+  auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
   auto uniqueId = static_cast<const SLElementProps&>(*child->getProps()).uniqueId;
-  elementShadowNodeTemplateRegistry[uniqueId].push_back(child);
+  templateRegistry[uniqueId].push_back(child);
 }
 
 void SLContainerShadowNode::replaceChild(

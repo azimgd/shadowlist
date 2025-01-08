@@ -2,7 +2,7 @@ import {
   Image,
   StyleSheet,
   Text,
-  TouchableOpacity,
+  Pressable,
   type GestureResponderEvent,
 } from 'react-native';
 
@@ -17,16 +17,16 @@ const Element = (props: ElementProps) => {
     const elementDataIndex = __NATIVE_getRegistryElementMapping(
       event.nativeEvent.target
     );
-    console.log(props.data[elementDataIndex]);
+    console.log(event.nativeEvent.target, props.data[elementDataIndex]);
   };
 
   return (
-    <TouchableOpacity style={styles.container} onPress={handlePress}>
+    <Pressable style={styles.container} onPress={handlePress}>
       <Image source={{ uri: stringify('image') }} style={styles.image} />
       <Text style={styles.title}>{stringify('id')}</Text>
       <Text style={styles.content}>{stringify('text')}</Text>
       <Text style={styles.footer}>index: {stringify('position')}</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
