@@ -8,7 +8,12 @@ import SLContainerNativeComponent, {
   type SLContainerNativeCommands,
 } from './SLContainerNativeComponent';
 
-export type SLContainerWrapperProps = {};
+// @ts-ignore
+// import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
+
+export type SLContainerWrapperProps = {
+  data: Array<any>;
+};
 
 export type SLContainerInstance = InstanceType<
   typeof SLContainerNativeComponent
@@ -20,10 +25,10 @@ export type SLContainerRef = {
 };
 
 const SLContainerWrapper = (
-  props: SLContainerNativeProps & SLContainerWrapperProps,
+  props: Omit<SLContainerNativeProps, 'data'> & SLContainerWrapperProps,
   forwardedRef: React.Ref<Partial<SLContainerNativeCommands>>
 ) => {
-  const instanceRef = React.useRef<SLContainerInstance>(null);
+  const instanceRef = React.useRef<SLContainerInstance | null>(null);
 
   React.useImperativeHandle<Partial<SLContainerNativeCommands>, SLContainerRef>(
     forwardedRef,
@@ -49,11 +54,35 @@ const SLContainerWrapper = (
     ? styles.containerHorizontal
     : styles.containerVertical;
 
+  const nextRef = (ref: SLContainerInstance) => {
+    if (ref) {
+      // global.__NATIVE_registerContainerNode(
+      //   ReactNativeInterface.getNodeFromPublicInstance(ref)
+      // );
+      instanceRef.current = ref;
+    } else {
+      // global.__NATIVE_unregisterContainerNode(
+      //   ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
+      // );
+      instanceRef.current = null;
+    }
+
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        // @ts-ignore
+        forwardedRef(ref);
+      } else {
+        (forwardedRef as React.MutableRefObject<any>).current = ref;
+      }
+    }
+  };
+
   return (
     <SLContainerNativeComponent
       {...props}
-      ref={instanceRef}
+      data={JSON.stringify(props.data)}
       style={[containerStyle, props.style]}
+      ref={nextRef}
     >
       {props.children}
     </SLContainerNativeComponent>
@@ -66,7 +95,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   containerHorizontal: {
-    flex: 0,
+    flex: 1,
     flexDirection: 'row',
   },
 });

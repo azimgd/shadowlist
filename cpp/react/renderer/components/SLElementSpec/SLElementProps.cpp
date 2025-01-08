@@ -10,7 +10,6 @@ SLElementProps::SLElementProps(
   const SLElementProps &sourceProps,
   const RawProps &rawProps): ViewProps(context, sourceProps, rawProps),
 
-  index(convertRawProp(context, rawProps, "index", sourceProps.index, {0})),
   uniqueId(convertRawProp(context, rawProps, "uniqueId", sourceProps.uniqueId, {""}))
     {}
 
@@ -19,7 +18,7 @@ SLElementProps::SLElementProps(
 #if RN_DEBUG_STRING_CONVERTIBLE
 SharedDebugStringConvertibleList SLElementProps::getDebugProps() const {
   return SharedDebugStringConvertibleList{
-      debugStringConvertibleItem("uniqueId", uniqueId)};
+    debugStringConvertibleItem("uniqueId", uniqueId)};
 }
 #endif
 

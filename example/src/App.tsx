@@ -1,11 +1,12 @@
 import { useRef, useCallback, useEffect } from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
 import {
   Shadowlist,
   type OnStartReached,
   type OnEndReached,
   type OnVisibleChange,
+  type OnScroll,
   type ShadowlistProps,
   type SLContainerRef,
 } from 'shadowlist';
@@ -35,10 +36,6 @@ const ListEmptyComponent = () => (
     <Text style={styles.text}>Footer</Text>
   </View>
 );
-
-const renderItem: ShadowlistProps['renderItem'] = ({ item, index }) => {
-  return <Element item={item} index={index} />;
-};
 
 export default function App() {
   const data = useData({ length: ITEMS_COUNT, inverted: IS_INVERTED });
@@ -74,16 +71,25 @@ export default function App() {
     []
   );
 
+  const onScroll = useCallback<DirectEventHandler<OnScroll>>((event) => {
+    event.nativeEvent.contentOffset.y;
+  }, []);
+
+  const renderItem: ShadowlistProps['renderItem'] = () => {
+    return <Element data={data.data} />;
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <Shadowlist
         ref={ref}
         renderItem={renderItem}
         data={data.data}
         keyExtractor={(item) => item.id}
         onVisibleChange={onVisibleChange}
-        onEndReached={onEndReached}
         onStartReached={onStartReached}
+        onEndReached={onEndReached}
+        onScroll={onScroll}
         ListHeaderComponent={ListHeaderComponent}
         ListHeaderComponentStyle={styles.static}
         ListFooterComponent={ListFooterComponent}
@@ -93,9 +99,8 @@ export default function App() {
         inverted={IS_INVERTED}
         horizontal={IS_HORIZONTAL}
         initialScrollIndex={INITIAL_SCROLL_INDEX}
-        contentContainerStyle={styles.container}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -103,6 +108,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#333333',
+    paddingTop: 60,
   },
   text: {
     color: '#333333',

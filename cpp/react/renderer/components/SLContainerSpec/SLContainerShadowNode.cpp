@@ -1,40 +1,316 @@
 #include "SLContainerShadowNode.h"
-
-#define MEASURE_CHILDREN(childrenMeasurementsTree, childNodeMetrics, isHorizontal) \
-  if (isHorizontal) { \
-    childrenMeasurementsTree[index] = childNodeMetrics.frame.size.width; \
-  } else { \
-    childrenMeasurementsTree[index] = childNodeMetrics.frame.size.height; \
-  }
+#include "SLTemplate.h"
 
 namespace facebook::react {
 
+std::unordered_map<Tag, std::unordered_map<std::string, std::vector<ShadowNode::Shared>>> elementShadowNodeTemplateRegistry{};
+std::unordered_map<Tag, std::unordered_map<std::string, ShadowNode::Unshared>> elementShadowNodeComponentRegistry{};
+
 extern const char SLContainerComponentName[] = "SLContainer";
 
+struct ComponentRegistryItem {
+  int index;
+  Float size;
+  std::string elementDataUniqueKey;
+};
+
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
-  ConcreteShadowNode::layout(layoutContext);
+  #ifndef RCT_DEBUG
+  auto start = std::chrono::high_resolution_clock::now();
+  #endif
 
-  auto prevStateData = getStateData();
-  auto nextStateData = getStateData();
+  auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
+  auto &componentRegistry = elementShadowNodeComponentRegistry[getTag()];
+  
   auto &props = getConcreteProps();
+  auto nextStateData = getStateData();
 
-  // The order of operations are important here
-  nextStateData.firstChildUniqueId = calculateFirstChildUniqueId(prevStateData, nextStateData);
-  nextStateData.lastChildUniqueId = calculateLastChildUniqueId(prevStateData, nextStateData);
+  #ifdef ANDROID
+  __android_log_print(ANDROID_LOG_VERBOSE, "shadowlist", "SLContainerShadowNode onLayout %d", nextStateData.scrollIndex);
+  #endif
 
-  nextStateData.childrenMeasurementsTree = calculateChildrenMeasurementsTree(prevStateData, nextStateData);
-  nextStateData.scrollContainer = calculateScrollContainer(prevStateData, nextStateData);
-  nextStateData.scrollContent = calculateScrollContent(prevStateData, nextStateData);
-  nextStateData.scrollPosition = calculateScrollPosition(prevStateData, nextStateData);
+  const int elementsDataSize = props.data.size();
+  const int viewportOffset = 1000;
 
-  nextStateData.horizontal = props.horizontal;
-  nextStateData.initialNumToRender = props.initialNumToRender;
+  nextStateData.scrollPositionUpdated = false;
+
+  if (!nextStateData.childrenMeasurementsTree.size() && props.initialScrollIndex) {
+    nextStateData.scrollIndex = props.initialScrollIndex;
+    nextStateData.scrollPositionUpdated = true;
+    nextStateData.scrollIndexUpdated = true;
+  }
+
+  if (!nextStateData.childrenMeasurementsTree.size() && props.inverted) {
+    nextStateData.scrollIndex = props.data.size();
+    nextStateData.scrollPositionUpdated = true;
+    nextStateData.scrollIndexUpdated = true;
+  }
+
+  /*
+   * Store the child nodes for the container
+   */
+  auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>();
+
+  bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() &&
+    nextStateData.firstChildUniqueId != props.uniqueIds.front();
+  bool elementsDataAppended = elementsDataSize && nextStateData.lastChildUniqueId.size() &&
+    nextStateData.lastChildUniqueId != props.uniqueIds.back();
+
+  if (elementsDataPrepended) {
+    nextStateData.scrollIndex = elementsDataSize - nextStateData.childrenMeasurementsTree.size();
+    nextStateData.scrollPositionUpdated = true;
+  }
+
+  /*
+   * If data is prepended, extend the measurements tree from the beginning 
+   * to match the new data size. If data is appended, resize the tree at the end
+   */
+  if (elementsDataPrepended) {
+    SLFenwickTree childrenMeasurementsTreeNext{};
+
+    for (auto i = 0; i < elementsDataSize - nextStateData.childrenMeasurementsTree.size(); ++i) {
+      childrenMeasurementsTreeNext.push_back(0.0f);
+    }
+    for (auto measurement : nextStateData.childrenMeasurementsTree) {
+      childrenMeasurementsTreeNext.push_back(measurement);
+    }
+
+    nextStateData.childrenMeasurementsTree = childrenMeasurementsTreeNext;
+  } else {
+    nextStateData.childrenMeasurementsTree.resize(elementsDataSize);
+  }
+  
+  /*
+   * Static templates measurements, incl. Header, Empty, Footer
+   */
+  nextStateData.templateMeasurementsTree.resize(3);
+
+  /*
+   * Adjust the scroll index when the user is near the top of the container to load more data,
+   * and updates the scrollPositionUpdated flag to keep track of changes in the list position,
+   * ensuring the visible content stays in the correct place
+   */
+  if (!nextStateData.scrollPositionUpdated && getRelativePointFromPoint(nextStateData.scrollPosition) < getRelativeSizeFromSize(nextStateData.scrollContainer)) {
+    int distanceFromStart = getRelativePointFromPoint(nextStateData.scrollPosition);
+    getConcreteEventEmitter().onStartReached({ .distanceFromStart = distanceFromStart });
+  }
+
+  if (getRelativeSizeFromSize(nextStateData.scrollContainer) == getRelativeSizeFromSize(getLayoutMetrics().frame.size) && getRelativePointFromPoint(nextStateData.scrollPosition) >= getRelativeSizeFromSize(nextStateData.scrollContent) - getRelativeSizeFromSize(nextStateData.scrollContainer) - 1) {
+    int distanceFromEnd = getRelativeSizeFromSize(nextStateData.scrollContainer) - getRelativeSizeFromSize(getLayoutMetrics().frame.size);
+    getConcreteEventEmitter().onEndReached({ .distanceFromEnd = distanceFromEnd });
+  }
+
+  /*
+   * Transforms the element's data into a cached reference to the element instance
+   * Clones a new shadow node from a template and adds it to the registry if not already present
+   * Measures the layout and stores the height in a measurement tree
+   */
+  auto transformElementComponent = [&](int elementDataIndex) -> ComponentRegistryItem {
+    auto elementDataUniqueKey = props.uniqueIds[elementDataIndex];
+
+    auto elementShadowNodeComponentRegistryIt = componentRegistry.find(elementDataUniqueKey);
+    if (elementShadowNodeComponentRegistryIt == componentRegistry.end()) {
+      const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
+      componentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateRegistry["ListChildrenComponentUniqueId"].back());
+    } else {
+      componentRegistry[elementDataUniqueKey] = componentRegistry[elementDataUniqueKey]->clone({});
+    }
+
+    // Prevent re-measuring if the height is already defined, as layouting is expensive
+    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey]);
+    nextStateData.childrenMeasurementsTree[elementDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
+
+    return ComponentRegistryItem{
+      elementDataIndex,
+      nextStateData.childrenMeasurementsTree[elementDataIndex],
+      elementDataUniqueKey
+    };
+  };
+
+  auto transformTemplateComponent = [&](std::string elementDataUniqueKey, int templateDataIndex) -> ComponentRegistryItem {
+    componentRegistry[elementDataUniqueKey] = templateRegistry[elementDataUniqueKey].back()->clone({});
+
+    // Prevent re-measuring if the height is already defined, as layouting is expensive
+    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey]);
+    nextStateData.templateMeasurementsTree[templateDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
+
+    return ComponentRegistryItem{
+      -1,
+      nextStateData.templateMeasurementsTree[templateDataIndex],
+      elementDataUniqueKey
+    };
+  };
+
+  /*
+   * Render and adjust origin of Header template
+   */
+  if (props.inverted) {
+    transformTemplateComponent("ListFooterComponentUniqueId", 0);
+    containerShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
+  } else {
+    transformTemplateComponent("ListHeaderComponentUniqueId", 0);
+    containerShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
+  }
+
+  /*
+   * Calculate sequence of indices above and below the current scroll index
+   */
+  int scrollContentAboveIndex = 0;
+  float scrollContentAboveOffset = nextStateData.templateMeasurementsTree[0];
+  auto scrollContentAboveComponents = std::views::iota(0, nextStateData.scrollIndex)
+    | std::views::transform(transformElementComponent);
+
+  /*
+   * Start from the scroll index and continues until it reaches the end or the next item is
+   * no longer visible on the screen
+   */
+  int scrollContentBelowIndex = 0;
+  float scrollContentBelowOffset = 0;
+  auto scrollContentBelowComponents = std::views::iota(nextStateData.scrollIndex, elementsDataSize)
+    | std::views::take_while([&](int i) {
+      float scrollContentNextOffset = getRelativePointFromPoint(nextStateData.scrollPosition) + viewportOffset;
+      return scrollContentBelowOffset < scrollContentNextOffset;
+    })
+    | std::views::transform(transformElementComponent);
+
+  /*
+   * Iterate through the components above the scroll content, update their position,
+   * and add them to the container if they are visible in the current viewport
+   */
+  for (ComponentRegistryItem componentRegistryItem : scrollContentAboveComponents) {
+    auto elementMetrics = adjustElement(
+      scrollContentAboveOffset + scrollContentBelowOffset,
+      componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+
+    scrollContentAboveOffset += componentRegistryItem.size;
+    scrollContentAboveIndex = componentRegistryItem.index;
+    
+    int scrollPosition = nextStateData.scrollPositionUpdated ? (
+      scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+    ) : getRelativePointFromPoint(nextStateData.scrollPosition);
+    
+    if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
+      (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
+      containerShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    }
+  }
+
+  /*
+   * Go through the components below the scroll content, update their position,
+   * and add them to the container if they are visible in the current viewport
+   */
+  for (ComponentRegistryItem componentRegistryItem : scrollContentBelowComponents) {
+    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    auto elementMetrics = adjustElement(
+      scrollContentAboveOffset + scrollContentBelowOffset,
+      componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+
+    scrollContentBelowOffset += componentRegistryItem.size;
+    scrollContentBelowIndex = componentRegistryItem.index;
+    
+    int scrollPosition = nextStateData.scrollPositionUpdated ? (
+      scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+    ) : getRelativePointFromPoint(nextStateData.scrollPosition);
+    
+    if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
+      (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
+      containerShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    }
+  }
+
+  /*
+   * Render and adjust origin of Footer template
+   */
+  if (props.inverted) {
+    transformTemplateComponent("ListHeaderComponentUniqueId", 1);
+    containerShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
+    
+    adjustElement(
+      scrollContentAboveOffset + scrollContentBelowOffset,
+      componentRegistry["ListHeaderComponentUniqueId"]);
+  } else {
+    transformTemplateComponent("ListFooterComponentUniqueId", 1);
+    containerShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
+    
+    adjustElement(
+      scrollContentAboveOffset + scrollContentBelowOffset,
+      componentRegistry["ListFooterComponentUniqueId"]);
+  }
+
+  /*
+   * Update children and mark the container as dirty to trigger a layout update on state change
+   */
+  this->children_ = containerShadowNodeChildren;
+  yogaNode_.setDirty(true);
+
+  nextStateData.firstChildUniqueId = props.uniqueIds.front();
+  nextStateData.lastChildUniqueId = props.uniqueIds.back();
+  nextStateData.scrollContainer = getLayoutMetrics().frame.size;
+  
+  if (props.horizontal) {
+    nextStateData.scrollContent.height = getLayoutMetrics().frame.size.height;
+    nextStateData.scrollContent.width = (
+      nextStateData.childrenMeasurementsTree.sum(elementsDataSize) +
+      nextStateData.templateMeasurementsTree.sum(2)
+    );
+    nextStateData.scrollContentUpdated = true;
+  } else if (!props.horizontal) {
+    nextStateData.scrollContent.width = getLayoutMetrics().frame.size.width;
+    nextStateData.scrollContent.height = (
+      nextStateData.childrenMeasurementsTree.sum(elementsDataSize) +
+      nextStateData.templateMeasurementsTree.sum(2)
+    );
+    nextStateData.scrollContentUpdated = true;
+  }
+
+  /*
+   * Update the scroll position when new items are prepended to the top of the list
+   */
+  if (!nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && props.horizontal) {
+    nextStateData.scrollPosition.y = 0;
+    nextStateData.scrollPosition.x = (
+      scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+    );
+  } else if (!nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && !props.horizontal) {
+    nextStateData.scrollPosition.x = 0;
+    nextStateData.scrollPosition.y = (
+      scrollContentAboveOffset + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+    );
+  }
+
+  if (nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && props.horizontal) {
+    nextStateData.scrollPosition.y = 0;
+    nextStateData.scrollPosition.x = scrollContentAboveOffset;
+    nextStateData.scrollIndexUpdated = false;
+  } else if (nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && !props.horizontal) {
+    nextStateData.scrollPosition.x = 0;
+    nextStateData.scrollPosition.y = scrollContentAboveOffset;
+    nextStateData.scrollIndexUpdated = false;
+  }
+
+  getConcreteEventEmitter().onVisibleChange({
+    .visibleStartIndex = scrollContentBelowIndex,
+    .visibleEndIndex = scrollContentAboveIndex,
+  });
+  
+  getConcreteEventEmitter().onScroll({
+    .contentSize = nextStateData.scrollContent,
+    .contentOffset = nextStateData.scrollPosition,
+  });
 
   setStateData(std::move(nextStateData));
+  
+  #ifndef RCT_DEBUG
+  auto end = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  std::cout << "SLContainerShadowNode onLayout: " << std::fixed << std::setprecision(2) << duration.count() << " ms" << std::endl;
+  #endif
 }
 
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {
-  ConcreteShadowNode::appendChild(child);
+  auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
+  auto uniqueId = static_cast<const SLElementProps&>(*child->getProps()).uniqueId;
+  templateRegistry[uniqueId].push_back(child);
 }
 
 void SLContainerShadowNode::replaceChild(
@@ -44,121 +320,48 @@ void SLContainerShadowNode::replaceChild(
   ConcreteShadowNode::replaceChild(oldChild, newChild, suggestedIndex);
 }
 
-SLFenwickTree SLContainerShadowNode::calculateChildrenMeasurementsTree(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  auto &props = getConcreteProps();
+LayoutMetrics SLContainerShadowNode::layoutElement(LayoutContext layoutContext, ShadowNode::Unshared shadowNode) {
+  auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(shadowNode);
 
-  int childCount = yogaNode_.getChildCount();
-  SLFenwickTree childrenMeasurementsTree(childCount);
-
-  for (int index = 0; index < childCount; ++index) {
-    auto &childNode = yogaNodeFromContext(yogaNode_.getChild(index));
-    MEASURE_CHILDREN(childrenMeasurementsTree, childNode.getLayoutMetrics(), props.horizontal);
+  if (getRelativeSizeFromSize(elementShadowNodeLayoutable->getLayoutMetrics().frame.size)) {
+    return elementShadowNodeLayoutable->getLayoutMetrics();
   }
 
-  return childrenMeasurementsTree;
+  LayoutConstraints layoutConstraints = {};
+  layoutConstraints.minimumSize.width = getLayoutMetrics().frame.size.width;
+  layoutConstraints.maximumSize.width = getLayoutMetrics().frame.size.width;
+  elementShadowNodeLayoutable->layoutTree(layoutContext, layoutConstraints);
+  
+  return elementShadowNodeLayoutable->getLayoutMetrics();
 }
 
-Point SLContainerShadowNode::calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  auto &props = getConcreteProps();
-
-  bool appended = (
-    prevStateData.firstChildUniqueId.size() > 0 &&
-    prevStateData.firstChildUniqueId == nextStateData.firstChildUniqueId &&
-    prevStateData.lastChildUniqueId != nextStateData.lastChildUniqueId);
-  bool prepended = (
-    prevStateData.firstChildUniqueId.size() > 0 &&
-    prevStateData.firstChildUniqueId != nextStateData.firstChildUniqueId &&
-    prevStateData.lastChildUniqueId == nextStateData.lastChildUniqueId);
-
-  int headerFooter = 1;
-  int scrollPositionDiff = 0;
-  float verticalPosition = 0;
-  float horizontalPosition = 0;
-  float initialScrollPosition = nextStateData.childrenMeasurementsTree.sum(props.initialScrollIndex + headerFooter);
-
-  float scrollContentHorizontalDiff = nextStateData.scrollContent.width - prevStateData.scrollContent.width;
-  float scrollContentVerticalDiff = nextStateData.scrollContent.height - prevStateData.scrollContent.height;
-
-  if (props.inverted) {
-    if (props.horizontal) {
-      if (props.initialScrollIndex > 0 && !prepended && !appended) {
-        horizontalPosition = initialScrollPosition;
-      } else if (prepended) {
-        horizontalPosition = scrollContentHorizontalDiff + scrollPositionDiff;
-      } else if (appended) {
-        horizontalPosition = scrollPositionDiff;
-      } else {
-        horizontalPosition = nextStateData.scrollContent.width - nextStateData.scrollContainer.width;
-      }
-    } else {
-      if (props.initialScrollIndex > 0 && !prepended && !appended) {
-        verticalPosition = initialScrollPosition;
-      } else if (prepended) {
-        verticalPosition = scrollContentVerticalDiff + scrollPositionDiff;
-      } else if (appended) {
-        verticalPosition = scrollPositionDiff;
-      } else {
-        verticalPosition = nextStateData.scrollContent.height - nextStateData.scrollContainer.height;
-      }
-    }
+LayoutMetrics SLContainerShadowNode::adjustElement(float origin, ShadowNode::Unshared shadowNode) {
+  auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(shadowNode);
+  LayoutMetrics layoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
+  if (getConcreteProps().horizontal) {
+    layoutMetrics.frame.origin.x = origin;
   } else {
-    if (props.horizontal) {
-      if (props.initialScrollIndex > 0 && !prepended && !appended) {
-        horizontalPosition = initialScrollPosition;
-      } else if (appended) {
-        horizontalPosition = scrollPositionDiff;
-      } else if (prepended) {
-        horizontalPosition = scrollContentHorizontalDiff + scrollPositionDiff;
-      }
-    } else {
-      if (props.initialScrollIndex > 0 && !prepended && !appended) {
-        verticalPosition = initialScrollPosition;
-      } else if (appended) {
-        verticalPosition = scrollPositionDiff;
-      } else if (prepended) {
-        verticalPosition = scrollContentVerticalDiff + scrollPositionDiff;
-      }
-    }
+    layoutMetrics.frame.origin.y = origin;
   }
-
-  return Point{horizontalPosition, verticalPosition};
+  elementShadowNodeLayoutable->setLayoutMetrics(layoutMetrics);
+  
+  return elementShadowNodeLayoutable->getLayoutMetrics();
 }
 
-Size SLContainerShadowNode::calculateScrollContent(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  auto &props = getConcreteProps();
-
-  Size contentSize;
-  auto headerFooter = 0;
-  auto &headerChildNode = yogaNodeFromContext(yogaNode_.getChild(0));
-  auto &footerChildNode = yogaNodeFromContext(yogaNode_.getChild(yogaNode_.getChildCount() - 1));
-
-  if (props.horizontal) {
-    contentSize = Size{nextStateData.calculateContentSize(), getLayoutMetrics().frame.size.height};
-    headerFooter += headerChildNode.getLayoutMetrics().frame.size.width;
-    headerFooter += footerChildNode.getLayoutMetrics().frame.size.width;
+float SLContainerShadowNode::getRelativeSizeFromSize(Size size) {
+  if (getConcreteProps().horizontal) {
+    return size.width;
   } else {
-    contentSize = Size{getLayoutMetrics().frame.size.width, nextStateData.calculateContentSize()};
-    headerFooter += headerChildNode.getLayoutMetrics().frame.size.height;
-    headerFooter += footerChildNode.getLayoutMetrics().frame.size.height;
+    return size.height;
   }
-
-  return contentSize;
 }
 
-std::string SLContainerShadowNode::calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  return std::to_string(getChildren().at(1)->getTag());
-}
-
-std::string SLContainerShadowNode::calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  return std::to_string(getChildren().at(getChildren().size() - 2)->getTag());
-}
-
-Size SLContainerShadowNode::calculateScrollContainer(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData) {
-  return getLayoutMetrics().frame.size;
-}
-
-YogaLayoutableShadowNode& SLContainerShadowNode::yogaNodeFromContext(YGNodeConstRef yogaNode) {
-  return dynamic_cast<YogaLayoutableShadowNode&>(*static_cast<ShadowNode*>(YGNodeGetContext(yogaNode)));
+float SLContainerShadowNode::getRelativePointFromPoint(Point point) {
+  if (getConcreteProps().horizontal) {
+    return point.x;
+  } else {
+    return point.y;
+  }
 }
 
 }

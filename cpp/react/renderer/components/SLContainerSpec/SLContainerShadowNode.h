@@ -14,6 +14,13 @@
 #include "SLFenwickTree.hpp"
 #include <string>
 
+#ifndef RCT_DEBUG
+#include <iostream>
+#ifdef ANDROID
+#include <android/log.h>
+#endif
+#endif
+
 namespace facebook::react {
 
 JSI_EXPORT extern const char SLContainerComponentName[];
@@ -38,13 +45,12 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
     const ShadowNode& oldChild,
     const ShadowNode::Shared& newChild,
     size_t suggestedIndex = SIZE_MAX) override;
-  SLFenwickTree calculateChildrenMeasurementsTree(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  Point calculateScrollPosition(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  Size calculateScrollContent(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  Size calculateScrollContainer(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  std::string calculateFirstChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  std::string calculateLastChildUniqueId(const ConcreteStateData prevStateData, const ConcreteStateData nextStateData);
-  YogaLayoutableShadowNode& yogaNodeFromContext(YGNodeConstRef yogaNode);
+  
+  LayoutMetrics layoutElement(LayoutContext layoutContext, ShadowNode::Unshared shadowNode);
+  LayoutMetrics adjustElement(float origin, ShadowNode::Unshared shadowNode);
+  
+  float getRelativeSizeFromSize(Size size);
+  float getRelativePointFromPoint(Point point);
 };
 
 }

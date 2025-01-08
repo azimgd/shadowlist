@@ -4,28 +4,31 @@ namespace facebook::react {
 
 SLContainerState::SLContainerState(
   SLFenwickTree childrenMeasurementsTree,
+  SLFenwickTree templateMeasurementsTree,
   Point scrollPosition,
+  bool scrollPositionUpdated,
   Size scrollContainer,
   Size scrollContent,
+  bool scrollContentUpdated,
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
-  bool horizontal,
-  int initialNumToRender) :
+  int scrollIndex,
+  bool scrollIndexUpdated) :
     childrenMeasurementsTree(childrenMeasurementsTree),
+    templateMeasurementsTree(templateMeasurementsTree),
     scrollPosition(scrollPosition),
+    scrollPositionUpdated(scrollPositionUpdated),
     scrollContainer(scrollContainer),
     scrollContent(scrollContent),
+    scrollContentUpdated(scrollContentUpdated),
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
-    horizontal(horizontal),
-    initialNumToRender(initialNumToRender) {}
+    scrollIndex(scrollIndex),
+    scrollIndexUpdated(scrollIndexUpdated) {}
 
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {
   return folly::dynamic::object(
-    "childrenMeasurementsTree",
-    childrenMeasurementsTreeToDynamic(childrenMeasurementsTree)
-  )(
     "scrollContentWidth",
     scrollContent.width
   )(
@@ -44,12 +47,6 @@ folly::dynamic SLContainerState::getDynamic() const {
     "scrollPositionTop",
     scrollPosition.y
   )(
-    "horizontal",
-    horizontal
-  )(
-    "initialNumToRender",
-    initialNumToRender
-  )(
     "firstChildUniqueId",
     firstChildUniqueId
   )(
@@ -60,55 +57,22 @@ folly::dynamic SLContainerState::getDynamic() const {
 
 MapBuffer SLContainerState::getMapBuffer() const {
   auto builder = MapBufferBuilder();
-  builder.putMapBuffer(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE, childrenMeasurementsTreeToMapBuffer(childrenMeasurementsTree));
-  builder.putInt(SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE_SIZE, childrenMeasurementsTree.size());
+
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_LEFT, scrollPosition.x);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_POSITION_TOP, scrollPosition.y);
-  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
-  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT, scrollContent.height);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_POSITION_UPDATED, scrollPositionUpdated);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_WIDTH, scrollContainer.width);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTAINER_HEIGHT, scrollContainer.height);
-  builder.putBool(SLCONTAINER_STATE_HORIZONTAL, horizontal);
-  builder.putInt(SLCONTAINER_STATE_INITIAL_NUM_TO_RENDER, initialNumToRender);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_CONTAINER_UPDATED, true);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
+  builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT, scrollContent.height);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_CONTENT_UPDATED, scrollContentUpdated);
+  builder.putString(SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID, firstChildUniqueId);
+  builder.putString(SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID, lastChildUniqueId);
+  builder.putInt(SLCONTAINER_STATE_SCROLL_INDEX, scrollIndex);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_INDEX_UPDATED, scrollIndexUpdated);
+
   return builder.build();
-}
-#endif
-
-Point SLContainerState::calculateScrollPositionOffset(const float visibleStartOffset) const {
-  if (horizontal) {
-    return Point{visibleStartOffset, scrollPosition.y};
-  }
-  return Point{scrollPosition.x, visibleStartOffset};
-}
-
-float SLContainerState::calculateContentSize() const {
-  return childrenMeasurementsTree.sum(childrenMeasurementsTree.size());
-}
-
-#ifdef ANDROID
-folly::dynamic SLContainerState::childrenMeasurementsTreeToDynamic(SLFenwickTree childrenMeasurementsTree) const {
-  folly::dynamic childrenMeasurementsNext = folly::dynamic::array();
-  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
-    folly::dynamic measurement = static_cast<float>(childrenMeasurementsTree.at(i));
-    childrenMeasurementsNext.push_back(measurement);
-  }
-  return childrenMeasurementsNext;
-}
-
-MapBuffer SLContainerState::childrenMeasurementsTreeToMapBuffer(SLFenwickTree childrenMeasurementsTree) const {
-  auto childrenMeasurementsNext = MapBufferBuilder();
-  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
-    childrenMeasurementsNext.putDouble(i, childrenMeasurementsTree.at(i));
-  }
-  return childrenMeasurementsNext.build();
-}
-
-SLFenwickTree SLContainerState::childrenMeasurementsTreeFromDynamic(folly::dynamic childrenMeasurementsTree) const {
-  SLFenwickTree childrenMeasurementsNext;
-  for (size_t i = 0; i < childrenMeasurementsTree.size(); ++i) {
-    childrenMeasurementsNext[i] = childrenMeasurementsTree[i].getDouble();
-  }
-  return childrenMeasurementsNext;
 }
 #endif
 

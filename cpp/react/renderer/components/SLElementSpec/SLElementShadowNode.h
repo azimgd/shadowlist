@@ -26,6 +26,9 @@ class SLElementShadowNode final : public ConcreteViewShadowNode<
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
 #pragma mark - LayoutableShadowNode
+
+  void layout(LayoutContext layoutContext) override;
+  void appendChild(const ShadowNode::Shared& child) override;
 };
 
 }

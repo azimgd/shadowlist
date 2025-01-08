@@ -4,7 +4,6 @@
 #import "SLElementEventEmitter.h"
 #import "SLElementProps.h"
 #import "SLElementHelpers.h"
-#import "SLScrollable.h"
 
 #import <React/RCTFabricComponentsPlugins.h>
 #import <React/RCTConversions.h>

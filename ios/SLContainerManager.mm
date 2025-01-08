@@ -17,5 +17,6 @@ RCT_EXPORT_MODULE(SLContainer)
 RCT_EXPORT_VIEW_PROPERTY(onVisibleChange, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onStartReached, RCTDirectEventBlock)
 RCT_EXPORT_VIEW_PROPERTY(onEndReached, RCTDirectEventBlock)
+RCT_EXPORT_VIEW_PROPERTY(onScroll, RCTDirectEventBlock)
 
 @end

@@ -4,9 +4,11 @@ import { faker } from '@faker-js/faker';
 const TIMEOUT = 3000;
 
 const initialState = (length: number) =>
-  Array.from({ length }, () => ({
+  Array.from({ length }, (_, position) => ({
     id: faker.database.mongodbObjectId(),
     text: faker.lorem.paragraph(),
+    image: faker.image.avatarGitHub(),
+    position: position.toString(),
   }));
 
 const useData = ({ length }: { length: number; inverted?: boolean }) => {

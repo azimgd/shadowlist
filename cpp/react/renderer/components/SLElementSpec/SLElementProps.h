@@ -12,7 +12,6 @@ class SLElementProps final : public ViewProps {
   SLElementProps(const PropsParserContext& context, const SLElementProps &sourceProps, const RawProps &rawProps);
 
 #pragma mark - Props
-  int index;
   std::string uniqueId{};
   
 #pragma mark - DebugStringConvertible

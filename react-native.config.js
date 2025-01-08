@@ -5,8 +5,11 @@ module.exports = {
   dependency: {
     platforms: {
       android: {
-        componentDescriptors: ['SLContainerComponentDescriptor'],
-        cmakeListsPath: '../cpp/CMakeLists.txt',
+        componentDescriptors: [
+          'SLContainerComponentDescriptor',
+          'SLElementComponentDescriptor',
+        ],
+        cmakeListsPath: '../android/shadowlist/jni/CMakeLists.txt',
       },
     },
   },
