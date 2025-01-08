@@ -23,9 +23,6 @@
 
 namespace facebook::react {
 
-std::unordered_map<Tag, std::unordered_map<std::string, std::vector<ShadowNode::Shared>>> elementShadowNodeTemplateRegistry{};
-std::unordered_map<Tag, std::unordered_map<std::string, ShadowNode::Unshared>> elementShadowNodeComponentRegistry{};
-
 JSI_EXPORT extern const char SLContainerComponentName[];
 
 /*
