@@ -15,6 +15,7 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 | Nested ShadowList (ScrollView)   | ✅           | ❌         |
 | Natively Inverted List Support   | ✅           | ❌         |
 | Smooth Scrolling                 | ✅           | ❌         |
+| Dynamic Components               | ❌           | ✅         |
 
 ## Scroll Performance
 | Number of Items  | ShadowList                 | FlatList             | FlashList            |
@@ -28,12 +29,9 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 ## Important Note
 Shadowlist doesn't support state updates or dynamic prop calculations inside the renderItem function. Any changes to child components should be made through the data prop. This also applies to animations. This restriction will be addressed in future updates.
 
-One temporary way to mitigate this is by implementing list pagination until the [following problem is addressed](https://github.com/reactwg/react-native-new-architecture/discussions/223).
-
 ## Installation
 - CLI: Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
 - Expo: Add the package to your project via `npx expo install shadowlist` and run `npx expo prebuild` in the root directory.
-
 
 ## Usage
 
@@ -76,6 +74,7 @@ import {Shadowlist} from 'shadowlist';
 | `onEndReachedThreshold`    | Double                    | Optional | The threshold (in content length units) at which `onEndReached` is triggered. |
 | `onStartReached`           | Function                  | Optional | Called when the start of the content is within `onStartReachedThreshold`. |
 | `onStartReachedThreshold`  | Double                    | Optional | The threshold (in content length units) at which `onStartReached` is triggered. |
+| `numColumns`               | Number                    | Optional | Defines the number of columns in a grid layout. When enabled, the list will display items in a Masonry-style layout with variable item heights. |
 
 
 ## Methods
