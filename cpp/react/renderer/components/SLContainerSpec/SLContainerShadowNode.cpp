@@ -118,7 +118,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     }
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
-    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey]);
+    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey], props.numColumns);
     nextStateData.childrenMeasurementsTree[elementDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
 
     return ComponentRegistryItem{
@@ -132,7 +132,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     componentRegistry[elementDataUniqueKey] = templateRegistry[elementDataUniqueKey].back()->clone({});
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
-    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey]);
+    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey], 0);
     nextStateData.templateMeasurementsTree[templateDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
 
     return ComponentRegistryItem{
@@ -170,7 +170,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto scrollContentBelowComponents = std::views::iota(nextStateData.scrollIndex, elementsDataSize)
     | std::views::take_while([&](int i) {
       float scrollContentNextOffset = getRelativePointFromPoint(nextStateData.scrollPosition) + viewportOffset;
-      return scrollContentBelowOffset.get(i % 2) < scrollContentNextOffset;
+      return scrollContentBelowOffset.get(i % props.numColumns) < scrollContentNextOffset;
     })
     | std::views::transform(transformElementComponent);
 
@@ -181,16 +181,16 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   for (ComponentRegistryItem componentRegistryItem : scrollContentAboveComponents) {
     auto elementMetrics = adjustElement(
       {
-        .x = componentRegistryItem.index % 2 ? getLayoutMetrics().frame.size.width / 2 : 0,
-        .y = scrollContentAboveOffset.get(componentRegistryItem.index % 2) + scrollContentBelowOffset.get(componentRegistryItem.index % 2)
+        .x = componentRegistryItem.index % props.numColumns ? getLayoutMetrics().frame.size.width / props.numColumns : 0,
+        .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
       },
       componentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
-    scrollContentAboveOffset.add(componentRegistryItem.index % 2, componentRegistryItem.size);
+    scrollContentAboveOffset.add(componentRegistryItem.index % props.numColumns, componentRegistryItem.size);
     scrollContentAboveIndex = componentRegistryItem.index;
     
     int scrollPosition = nextStateData.scrollPositionUpdated ? (
-      scrollContentAboveOffset.get(componentRegistryItem.index % 2) + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
     ) : getRelativePointFromPoint(nextStateData.scrollPosition);
     
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
@@ -207,16 +207,16 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
     auto elementMetrics = adjustElement(
       {
-        .x = componentRegistryItem.index % 2 ? getLayoutMetrics().frame.size.width / 2 : 0,
-        .y = scrollContentAboveOffset.get(componentRegistryItem.index % 2) + scrollContentBelowOffset.get(componentRegistryItem.index % 2)
+        .x = componentRegistryItem.index % props.numColumns ? getLayoutMetrics().frame.size.width / props.numColumns : 0,
+        .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
       },
       componentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
-    scrollContentBelowOffset.add(componentRegistryItem.index % 2, componentRegistryItem.size);
+    scrollContentBelowOffset.add(componentRegistryItem.index % props.numColumns, componentRegistryItem.size);
     scrollContentBelowIndex = componentRegistryItem.index;
     
     int scrollPosition = nextStateData.scrollPositionUpdated ? (
-      scrollContentAboveOffset.get(componentRegistryItem.index % 2) + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
     ) : getRelativePointFromPoint(nextStateData.scrollPosition);
     
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
@@ -263,15 +263,17 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   if (props.horizontal) {
     nextStateData.scrollContent.height = getLayoutMetrics().frame.size.height;
     nextStateData.scrollContent.width = (
-      nextStateData.childrenMeasurementsTree.sum(elementsDataSize) +
-      nextStateData.templateMeasurementsTree.sum(2)
+      scrollContentAboveOffset.max() +
+      scrollContentBelowOffset.max() +
+      nextStateData.templateMeasurementsTree[1]
     );
     nextStateData.scrollContentUpdated = true;
   } else if (!props.horizontal) {
     nextStateData.scrollContent.width = getLayoutMetrics().frame.size.width;
     nextStateData.scrollContent.height = (
-      nextStateData.childrenMeasurementsTree.sum(elementsDataSize) +
-      nextStateData.templateMeasurementsTree.sum(2)
+      scrollContentAboveOffset.max() +
+      scrollContentBelowOffset.max() +
+      nextStateData.templateMeasurementsTree[1]
     );
     nextStateData.scrollContentUpdated = true;
   }
@@ -333,7 +335,7 @@ void SLContainerShadowNode::replaceChild(
   ConcreteShadowNode::replaceChild(oldChild, newChild, suggestedIndex);
 }
 
-LayoutMetrics SLContainerShadowNode::layoutElement(LayoutContext layoutContext, ShadowNode::Unshared shadowNode) {
+LayoutMetrics SLContainerShadowNode::layoutElement(LayoutContext layoutContext, ShadowNode::Unshared shadowNode, int numColumns) {
   auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(shadowNode);
 
   if (getRelativeSizeFromSize(elementShadowNodeLayoutable->getLayoutMetrics().frame.size)) {
@@ -341,8 +343,15 @@ LayoutMetrics SLContainerShadowNode::layoutElement(LayoutContext layoutContext, 
   }
 
   LayoutConstraints layoutConstraints = {};
-  layoutConstraints.minimumSize.width = getLayoutMetrics().frame.size.width / 2;
-  layoutConstraints.maximumSize.width = getLayoutMetrics().frame.size.width / 2;
+
+  if (numColumns > 0) {
+    layoutConstraints.minimumSize.width = getLayoutMetrics().frame.size.width / numColumns;
+    layoutConstraints.maximumSize.width = getLayoutMetrics().frame.size.width / numColumns;
+  } else {
+    layoutConstraints.minimumSize.width = getLayoutMetrics().frame.size.width;
+    layoutConstraints.maximumSize.width = getLayoutMetrics().frame.size.width;
+  }
+
   elementShadowNodeLayoutable->layoutTree(layoutContext, layoutConstraints);
   
   return elementShadowNodeLayoutable->getLayoutMetrics();

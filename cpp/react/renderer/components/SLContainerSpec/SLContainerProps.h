@@ -21,6 +21,7 @@ class SLContainerProps final : public ViewProps {
   bool inverted = false;
   bool horizontal = false;
   int initialNumToRender = 10;
+  int numColumns = 1;
   int initialScrollIndex = 0;
 
   const SLContainerDataItem& getElementByIndex(int index) const;

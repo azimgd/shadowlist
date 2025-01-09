@@ -59,6 +59,7 @@ SLContainerProps::SLContainerProps(
   inverted(convertRawProp(context, rawProps, "inverted", sourceProps.inverted, {})),
   horizontal(convertRawProp(context, rawProps, "horizontal", sourceProps.horizontal, {})),
   initialNumToRender(convertRawProp(context, rawProps, "initialNumToRender", sourceProps.initialNumToRender, {})),
+  numColumns(convertRawProp(context, rawProps, "numColumns", sourceProps.numColumns, {})),
   initialScrollIndex(convertRawProp(context, rawProps, "initialScrollIndex", sourceProps.initialScrollIndex, {}))
   {}
 

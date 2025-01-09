@@ -25,6 +25,9 @@ public class SLContainerManagerDelegate<T extends View, U extends BaseViewManage
       case "initialNumToRender":
         mViewManager.setInitialNumToRender(view, value == null ? 0 : ((Double) value).intValue());
         break;
+      case "numColumns":
+        mViewManager.setNumColumns(view, value == null ? 0 : ((Double) value).intValue());
+        break;
       case "initialScrollIndex":
         mViewManager.setInitialScrollIndex(view, value == null ? 0 : ((Double) value).intValue());
         break;
