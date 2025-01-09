@@ -99,7 +99,7 @@ export default function App() {
         inverted={IS_INVERTED}
         horizontal={IS_HORIZONTAL}
         initialScrollIndex={INITIAL_SCROLL_INDEX}
-        numColumns={1}
+        numColumns={2}
       />
     </View>
   );

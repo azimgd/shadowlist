@@ -157,7 +157,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * Calculate sequence of indices above and below the current scroll index
    */
   int scrollContentAboveIndex = 0;
-  Offsetter scrollContentAboveOffset{2, nextStateData.templateMeasurementsTree[0]};
+  Offsetter scrollContentAboveOffset{props.numColumns, nextStateData.templateMeasurementsTree[0]};
   auto scrollContentAboveComponents = std::views::iota(0, nextStateData.scrollIndex)
     | std::views::transform(transformElementComponent);
 
@@ -166,7 +166,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * no longer visible on the screen
    */
   int scrollContentBelowIndex = 0;
-  Offsetter scrollContentBelowOffset{2};
+  Offsetter scrollContentBelowOffset{props.numColumns};
   auto scrollContentBelowComponents = std::views::iota(nextStateData.scrollIndex, elementsDataSize)
     | std::views::take_while([&](int i) {
       float scrollContentNextOffset = getRelativePointFromPoint(nextStateData.scrollPosition) + viewportOffset;
@@ -181,7 +181,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   for (ComponentRegistryItem componentRegistryItem : scrollContentAboveComponents) {
     auto elementMetrics = adjustElement(
       {
-        .x = componentRegistryItem.index % props.numColumns ? getLayoutMetrics().frame.size.width / props.numColumns : 0,
+        .x = (componentRegistryItem.index % props.numColumns) * (getLayoutMetrics().frame.size.width / props.numColumns),
         .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
       },
       componentRegistry[componentRegistryItem.elementDataUniqueKey]);
@@ -207,7 +207,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
     auto elementMetrics = adjustElement(
       {
-        .x = componentRegistryItem.index % props.numColumns ? getLayoutMetrics().frame.size.width / props.numColumns : 0,
+        .x = (componentRegistryItem.index % props.numColumns) * (getLayoutMetrics().frame.size.width / props.numColumns),
         .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
       },
       componentRegistry[componentRegistryItem.elementDataUniqueKey]);
