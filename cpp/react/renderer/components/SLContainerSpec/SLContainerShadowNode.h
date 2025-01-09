@@ -47,7 +47,7 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
     size_t suggestedIndex = SIZE_MAX) override;
   
   LayoutMetrics layoutElement(LayoutContext layoutContext, ShadowNode::Unshared shadowNode);
-  LayoutMetrics adjustElement(float origin, ShadowNode::Unshared shadowNode);
+  LayoutMetrics adjustElement(Point origin, ShadowNode::Unshared shadowNode);
   
   float getRelativeSizeFromSize(Size size);
   float getRelativePointFromPoint(Point point);
