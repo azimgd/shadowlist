@@ -84,7 +84,7 @@ export default function App() {
       <Shadowlist
         ref={ref}
         renderItem={renderItem}
-        data={[]}
+        data={data.data}
         keyExtractor={(item) => item.id}
         onVisibleChange={onVisibleChange}
         onStartReached={onStartReached}

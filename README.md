@@ -38,6 +38,30 @@ Shadowlist doesn't support state updates or dynamic prop calculations inside the
 ```js
 import {Shadowlist} from 'shadowlist';
 
+const stringify = (str: string) => `{{${str}}}`;
+
+type ElementProps = {
+  data: Array<any>;
+};
+
+const Element = (props: ElementProps) => {
+  const handlePress = (event: GestureResponderEvent) => {
+    const elementDataIndex = __NATIVE_getRegistryElementMapping(
+      event.nativeEvent.target
+    );
+    props.data[elementDataIndex];
+  };
+
+  return (
+    <Pressable style={styles.container} onPress={handlePress}>
+      <Image source={{ uri: stringify('image') }} style={styles.image} />
+      <Text style={styles.title}>{stringify('id')}</Text>
+      <Text style={styles.content}>{stringify('text')}</Text>
+      <Text style={styles.footer}>index: {stringify('position')}</Text>
+    </Pressable>
+  );
+};
+
 <Shadowlist
   contentContainerStyle={styles.container}
   ref={shadowListContainerRef}
@@ -57,7 +81,7 @@ import {Shadowlist} from 'shadowlist';
 ## API
 | Prop                       | Type                      | Required | Description                                     |
 |----------------------------|---------------------------|----------|-------------------------------------------------|
-| `data`                     | Array                     | Required | An array of data to be rendered in the list. |
+| `data`                     | Array                     | Required | An array of data to be rendered in the list, where each item *must* include a required `id` field. |
 | `keyExtractor`             | Function                  | Required | Used to extract a unique key for a given item at the specified index. |
 | `contentContainerStyle`    | ViewStyle                 | Optional | These styles will be applied to the scroll view content container which wraps all of the child views. |
 | `ListHeaderComponent`      | React component           | Optional | A custom component to render at the top of the list. |

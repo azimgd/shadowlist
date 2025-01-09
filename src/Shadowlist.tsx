@@ -2,6 +2,7 @@ import React, { type Ref } from 'react';
 import { type ViewStyle } from 'react-native';
 import { SLContainer } from './SLContainer';
 import { SLElement } from './SLElement';
+import type { ItemProp } from './SLContainer';
 import type {
   SLContainerNativeCommands,
   SLContainerNativeProps,
@@ -19,9 +20,9 @@ const invoker = (Component: Component) => {
 };
 
 export type ShadowlistProps = {
-  data: Array<any>;
+  data: Array<ItemProp>;
   renderItem: () => React.ReactElement;
-  keyExtractor: (item: any, index: number) => string;
+  keyExtractor: (item: ItemProp, index: number) => string;
   contentContainerStyle?: ViewStyle;
   ListHeaderComponent?: Component;
   ListHeaderComponentStyle?: ViewStyle;
