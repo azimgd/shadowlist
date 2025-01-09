@@ -46,6 +46,7 @@ export interface SLContainerNativeProps extends ViewProps {
   horizontal?: boolean;
   initialNumToRender?: Int32;
   initialScrollIndex?: Int32;
+  numColumns?: Int32;
   onVisibleChange?: DirectEventHandler<Readonly<OnVisibleChange>>;
   onStartReached?: DirectEventHandler<Readonly<OnStartReached>>;
   onEndReached?: DirectEventHandler<Readonly<OnEndReached>>;

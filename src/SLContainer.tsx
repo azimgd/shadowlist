@@ -11,8 +11,13 @@ import SLContainerNativeComponent, {
 // @ts-ignore
 // import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
 
+export type ItemProp = {
+  id: string;
+  [key: string]: any;
+};
+
 export type SLContainerWrapperProps = {
-  data: Array<any>;
+  data: Array<ItemProp>;
 };
 
 export type SLContainerInstance = InstanceType<

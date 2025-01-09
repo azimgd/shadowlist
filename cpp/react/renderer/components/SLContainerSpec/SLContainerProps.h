@@ -5,6 +5,13 @@
 #include "SLKeyExtractor.h"
 #include "json.hpp"
 
+#ifndef RCT_DEBUG
+#include <iostream>
+#ifdef ANDROID
+#include <android/log.h>
+#endif
+#endif
+
 namespace facebook::react {
 
 class SLContainerProps final : public ViewProps {
@@ -16,11 +23,13 @@ class SLContainerProps final : public ViewProps {
   using SLContainerDataItem = nlohmann::json;
   using SLContainerDataItemPath = std::string;
 
-  nlohmann::json data;
+  std::string data;
+  nlohmann::json parsed;
   std::vector<std::string> uniqueIds;
   bool inverted = false;
   bool horizontal = false;
   int initialNumToRender = 10;
+  int numColumns = 1;
   int initialScrollIndex = 0;
 
   const SLContainerDataItem& getElementByIndex(int index) const;

@@ -15,6 +15,7 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 | Nested ShadowList (ScrollView)   | ✅           | ❌         |
 | Natively Inverted List Support   | ✅           | ❌         |
 | Smooth Scrolling                 | ✅           | ❌         |
+| Dynamic Components               | ❌           | ✅         |
 
 ## Scroll Performance
 | Number of Items  | ShadowList                 | FlatList             | FlashList            |
@@ -28,17 +29,38 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 ## Important Note
 Shadowlist doesn't support state updates or dynamic prop calculations inside the renderItem function. Any changes to child components should be made through the data prop. This also applies to animations. This restriction will be addressed in future updates.
 
-One temporary way to mitigate this is by implementing list pagination until the [following problem is addressed](https://github.com/reactwg/react-native-new-architecture/discussions/223).
-
 ## Installation
 - CLI: Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
 - Expo: Add the package to your project via `npx expo install shadowlist` and run `npx expo prebuild` in the root directory.
-
 
 ## Usage
 
 ```js
 import {Shadowlist} from 'shadowlist';
+
+const stringify = (str: string) => `{{${str}}}`;
+
+type ElementProps = {
+  data: Array<any>;
+};
+
+const Element = (props: ElementProps) => {
+  const handlePress = (event: GestureResponderEvent) => {
+    const elementDataIndex = __NATIVE_getRegistryElementMapping(
+      event.nativeEvent.target
+    );
+    props.data[elementDataIndex];
+  };
+
+  return (
+    <Pressable style={styles.container} onPress={handlePress}>
+      <Image source={{ uri: stringify('image') }} style={styles.image} />
+      <Text style={styles.title}>{stringify('id')}</Text>
+      <Text style={styles.content}>{stringify('text')}</Text>
+      <Text style={styles.footer}>index: {stringify('position')}</Text>
+    </Pressable>
+  );
+};
 
 <Shadowlist
   contentContainerStyle={styles.container}
@@ -59,7 +81,7 @@ import {Shadowlist} from 'shadowlist';
 ## API
 | Prop                       | Type                      | Required | Description                                     |
 |----------------------------|---------------------------|----------|-------------------------------------------------|
-| `data`                     | Array                     | Required | An array of data to be rendered in the list. |
+| `data`                     | Array                     | Required | An array of data to be rendered in the list, where each item *must* include a required `id` field. |
 | `keyExtractor`             | Function                  | Required | Used to extract a unique key for a given item at the specified index. |
 | `contentContainerStyle`    | ViewStyle                 | Optional | These styles will be applied to the scroll view content container which wraps all of the child views. |
 | `ListHeaderComponent`      | React component           | Optional | A custom component to render at the top of the list. |
@@ -76,6 +98,7 @@ import {Shadowlist} from 'shadowlist';
 | `onEndReachedThreshold`    | Double                    | Optional | The threshold (in content length units) at which `onEndReached` is triggered. |
 | `onStartReached`           | Function                  | Optional | Called when the start of the content is within `onStartReachedThreshold`. |
 | `onStartReachedThreshold`  | Double                    | Optional | The threshold (in content length units) at which `onStartReached` is triggered. |
+| `numColumns`               | Number                    | Optional | Defines the number of columns in a grid layout. When enabled, the list will display items in a Masonry-style layout with variable item heights. |
 
 
 ## Methods

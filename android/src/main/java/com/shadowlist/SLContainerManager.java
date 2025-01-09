@@ -122,6 +122,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public void setInitialNumToRender(SLContainer view, int initialNumToRender) {
   }
 
+  @ReactProp(name = "numColumns")
+  @Override
+  public void setNumColumns(SLContainer view, int numColumns) {
+  }
+
   @ReactProp(name = "initialScrollIndex")
   @Override
   public void setInitialScrollIndex(SLContainer view, int initialScrollIndex) {
