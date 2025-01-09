@@ -196,7 +196,7 @@
     "android": {
       "javaPackageName": "com.shadowlist"
     },
-    "includesGeneratedCode": false
+    "includesGeneratedCode": true
   },
   "create-react-native-library": {
     "type": "view-new",
