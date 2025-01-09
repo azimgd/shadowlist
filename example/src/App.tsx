@@ -33,7 +33,7 @@ const ListFooterComponent = () => (
 
 const ListEmptyComponent = () => (
   <View style={styles.static}>
-    <Text style={styles.text}>Footer</Text>
+    <Text style={styles.text}>Empty</Text>
   </View>
 );
 
@@ -84,7 +84,7 @@ export default function App() {
       <Shadowlist
         ref={ref}
         renderItem={renderItem}
-        data={data.data}
+        data={[]}
         keyExtractor={(item) => item.id}
         onVisibleChange={onVisibleChange}
         onStartReached={onStartReached}

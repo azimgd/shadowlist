@@ -52,9 +52,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>();
 
-  bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() &&
+  bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() && props.uniqueIds.size() &&
     nextStateData.firstChildUniqueId != props.uniqueIds.front();
-  bool elementsDataAppended = elementsDataSize && nextStateData.lastChildUniqueId.size() &&
+  bool elementsDataAppended = elementsDataSize && nextStateData.lastChildUniqueId.size() && props.uniqueIds.size() &&
     nextStateData.lastChildUniqueId != props.uniqueIds.back();
 
   if (elementsDataPrepended) {
@@ -153,12 +153,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     containerShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
   }
 
+
+
   /*
    * Calculate sequence of indices above and below the current scroll index
    */
   int scrollContentAboveIndex = 0;
+  int scrollContentAboveBound = std::min(nextStateData.scrollIndex, (int) props.uniqueIds.size());
   Offsetter scrollContentAboveOffset{props.numColumns, nextStateData.templateMeasurementsTree[0]};
-  auto scrollContentAboveComponents = std::views::iota(0, nextStateData.scrollIndex)
+  auto scrollContentAboveComponents = std::views::iota(0, scrollContentAboveBound)
     | std::views::transform(transformElementComponent);
 
   /*
@@ -166,8 +169,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * no longer visible on the screen
    */
   int scrollContentBelowIndex = 0;
+  int scrollContentBelowBound = std::min(elementsDataSize, (int) props.uniqueIds.size());
   Offsetter scrollContentBelowOffset{props.numColumns};
-  auto scrollContentBelowComponents = std::views::iota(nextStateData.scrollIndex, elementsDataSize)
+  auto scrollContentBelowComponents = std::views::iota(nextStateData.scrollIndex, scrollContentBelowBound)
     | std::views::take_while([&](int i) {
       float scrollContentNextOffset = getRelativePointFromPoint(nextStateData.scrollPosition) + viewportOffset;
       return scrollContentBelowOffset.get(i % props.numColumns) < scrollContentNextOffset;
@@ -225,6 +229,20 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     }
   }
 
+  if (!props.uniqueIds.size()) {
+    auto templateRegistryItem = transformTemplateComponent("ListEmptyComponentUniqueId", 1);
+    containerShadowNodeChildren->push_back(componentRegistry["ListEmptyComponentUniqueId"]);
+    
+    adjustElement(
+      {
+        .x = 0,
+        .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
+      },
+      componentRegistry["ListEmptyComponentUniqueId"]);
+      
+    scrollContentBelowOffset.add(1, templateRegistryItem.size);
+  }
+
   /*
    * Render and adjust origin of Footer template
    */
@@ -255,6 +273,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   this->children_ = containerShadowNodeChildren;
   yogaNode_.setDirty(true);
+
+  /*
+   * Bailout without any state update
+   */
+  if (!props.uniqueIds.size()) {
+    return;
+  }
 
   nextStateData.firstChildUniqueId = props.uniqueIds.front();
   nextStateData.lastChildUniqueId = props.uniqueIds.back();
