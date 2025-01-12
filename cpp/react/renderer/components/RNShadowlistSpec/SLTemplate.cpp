@@ -6,10 +6,10 @@
 namespace facebook::react {
 
 /*
- * An offset of a billion elements should probably be enough for now
+ * Following offset of elements should probably be enough for now
  * However this should be revisited and optimized with different strategy later
  */
-int nextFamilyTag = std::numeric_limits<int>::max() / 2;
+int nextFamilyTag = 524288;
 
 auto adjustFamilyTag = [](int tag) {
   const int MAX_TAG_VALUE = std::numeric_limits<int>::max();
