@@ -5,12 +5,16 @@
 
 namespace facebook::react {
 
-int nextFamilyTag = -2;
+/*
+ * An offset of a billion elements should probably be enough for now
+ * However this should be revisited and optimized with different strategy later
+ */
+int nextFamilyTag = std::numeric_limits<int>::max() / 2;
 
 auto adjustFamilyTag = [](int tag) {
-  const int MIN_TAG_VALUE = -std::numeric_limits<int>::min();
-  const int CLAMPED_TAG = -2;
-  return tag < MIN_TAG_VALUE ? CLAMPED_TAG : tag - 2;
+  const int MAX_TAG_VALUE = std::numeric_limits<int>::max();
+  const int CLAMPED_TAG = 2;
+  return tag > MAX_TAG_VALUE ? CLAMPED_TAG : tag + 2;
 };
 
 static void updateRawTextProps(const SLContainerProps::SLContainerDataItem &elementData, const std::shared_ptr<ShadowNode> &nextShadowNode, const ShadowNode::Shared &shadowNode) {
