@@ -30,7 +30,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   __android_log_print(ANDROID_LOG_VERBOSE, "shadowlist", "SLContainerShadowNode onLayout %d", nextStateData.scrollIndex);
   #endif
 
-  const int elementsDataSize = props.data.size();
+  const int elementsDataSize = props.parsed.size();
   const int viewportOffset = 1000;
 
   nextStateData.scrollPositionUpdated = false;
@@ -42,7 +42,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   }
 
   if (!nextStateData.childrenMeasurementsTree.size() && props.inverted) {
-    nextStateData.scrollIndex = props.data.size();
+    nextStateData.scrollIndex = props.parsed.size();
     nextStateData.scrollPositionUpdated = true;
     nextStateData.scrollIndexUpdated = true;
   }
@@ -385,6 +385,7 @@ LayoutMetrics SLContainerShadowNode::layoutElement(LayoutContext layoutContext, 
 LayoutMetrics SLContainerShadowNode::adjustElement(Point origin, ShadowNode::Unshared shadowNode) {
   auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(shadowNode);
   LayoutMetrics layoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
+
   if (getConcreteProps().horizontal) {
     layoutMetrics.frame.origin.x = origin.x;
     layoutMetrics.frame.origin.y = origin.y;
@@ -394,7 +395,7 @@ LayoutMetrics SLContainerShadowNode::adjustElement(Point origin, ShadowNode::Uns
   }
   elementShadowNodeLayoutable->setLayoutMetrics(layoutMetrics);
   
-  return elementShadowNodeLayoutable->getLayoutMetrics();
+  return layoutMetrics;
 }
 
 float SLContainerShadowNode::getRelativeSizeFromSize(Size size) {
