@@ -8,7 +8,7 @@ namespace facebook::react {
 int nextFamilyTag = -2;
 
 auto adjustFamilyTag = [](int tag) {
-  const int MIN_TAG_VALUE = -2e9;
+  const int MIN_TAG_VALUE = -std::numeric_limits<int>::min();
   const int CLAMPED_TAG = -2;
   return tag < MIN_TAG_VALUE ? CLAMPED_TAG : tag - 2;
 };
@@ -47,21 +47,22 @@ ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const int& elementDataIndex
     *SLRuntimeManager::getInstance().getRuntime(),
     shadowNode->getInstanceHandle(*SLRuntimeManager::getInstance().getRuntime()),
     nextFamilyTag);
-  auto const fragment = ShadowNodeFamilyFragment{nextFamilyTag, shadowNode->getSurfaceId(), instanceHandle};
-  auto const family = componentDescriptor.createFamily(fragment);
-  
+
+  auto const family = componentDescriptor.createFamily({nextFamilyTag, shadowNode->getSurfaceId(), instanceHandle});
+
   #ifdef ANDROID
-  auto const props = componentDescriptor.cloneProps(propsParserContext, shadowNode->getProps(), RawProps(shadowNode->getProps()->rawProps));
+  auto const nextProps = componentDescriptor.cloneProps(propsParserContext, shadowNode->getProps(), RawProps(shadowNode->getProps()->rawProps));
   #else
-  auto const props = componentDescriptor.cloneProps(propsParserContext, shadowNode->getProps(), {});
+  auto const nextProps = componentDescriptor.cloneProps(propsParserContext, shadowNode->getProps(), {});
   #endif
 
-  auto const state = componentDescriptor.createInitialState(props, family);
-  auto const nextShadowNode = componentDescriptor.createShadowNode(
-    ShadowNodeFragment{props, ShadowNodeFragment::childrenPlaceholder(), state}, family);
+  auto const nextState = componentDescriptor.createInitialState(nextProps, family);
+  auto const nextShadowNode = componentDescriptor.createShadowNode({nextProps, ShadowNodeFragment::childrenPlaceholder(), nextState}, family);
 
   updateRawTextProps(elementData, nextShadowNode, shadowNode);
   updateImageProps(elementData, nextShadowNode, shadowNode);
+
+  nextShadowNode->setMounted(true);
 
   for (const auto &childShadowNode : shadowNode->getChildren()) {
     auto const clonedChildShadowNode = cloneShadowNodeTree(elementDataIndex, elementData, childShadowNode);

@@ -153,8 +153,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     containerShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
   }
 
-
-
   /*
    * Calculate sequence of indices above and below the current scroll index
    */
