@@ -36,22 +36,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   nextStateData.scrollPositionUpdated = false;
   nextStateData.scrollContainer = getLayoutMetrics().frame.size;
 
-  #ifdef ANDROID
-    if (getProps()->rawProps.find("height") != getProps()->rawProps.items().end()) {
-      nextStateData.scrollContainer.height = getProps()->rawProps.at("height").asDouble();
-    }
-    if (getProps()->rawProps.find("width") != getProps()->rawProps.items().end()) {
-      nextStateData.scrollContainer.height = getProps()->rawProps.at("width").asDouble();
-    }
-  #else
-    if (((YGValue) getConcreteProps().yogaStyle.dimension(yoga::Dimension::Height)).value > 0) {
-      nextStateData.scrollContainer.height = ((YGValue) getConcreteProps().yogaStyle.dimension(yoga::Dimension::Height)).value;
-    }
-    if (((YGValue) getConcreteProps().yogaStyle.dimension(yoga::Dimension::Width)).value > 0) {
-      nextStateData.scrollContainer.height = ((YGValue) getConcreteProps().yogaStyle.dimension(yoga::Dimension::Width)).value;
-    }
-  #endif
-
   if (!nextStateData.childrenMeasurementsTree.size() && props.initialScrollIndex) {
     nextStateData.scrollIndex = props.initialScrollIndex;
     nextStateData.scrollPositionUpdated = true;
