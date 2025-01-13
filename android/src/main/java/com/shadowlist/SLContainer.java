@@ -13,12 +13,14 @@ import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.common.mapbuffer.MapBuffer;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
+import com.facebook.react.views.scroll.ReactHorizontalScrollView;
+import com.facebook.react.views.scroll.ReactScrollView;
 import com.facebook.react.views.view.ReactViewGroup;
 
 public class SLContainer extends ReactViewGroup {
   private boolean mOrientation;
-  private HorizontalScrollView mScrollContainerHorizontal;
-  private ScrollView mScrollContainerVertical;
+  private ReactHorizontalScrollView mScrollContainerHorizontal;
+  private ReactScrollView mScrollContainerVertical;
   private ReactViewGroup mScrollContent;
   private SLContainerManager.OnStartReachedHandler mOnStartReachedHandler;
   private SLContainerManager.OnEndReachedHandler mOnEndReachedHandler;
@@ -37,8 +39,8 @@ public class SLContainer extends ReactViewGroup {
   }
 
   private void init(Context context) {
-    mScrollContainerHorizontal = new HorizontalScrollView(context);
-    mScrollContainerVertical = new ScrollView(context);
+    mScrollContainerHorizontal = new ReactHorizontalScrollView(context);
+    mScrollContainerVertical = new ReactScrollView(context);
 
     mScrollContent = new ReactViewGroup(context);
 
@@ -48,12 +50,14 @@ public class SLContainer extends ReactViewGroup {
       stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
       mStateWrapper.updateState(stateMapBuffer);
     };
+
     OnScrollChangeListener scrollListenerHorizontal = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
       WritableMap stateMapBuffer = new WritableNativeMap();
       stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(oldScrollX));
       stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
       mStateWrapper.updateState(stateMapBuffer);
     };
+
     mScrollContainerVertical.setOnScrollChangeListener(scrollListenerVertical);
     mScrollContainerVertical.setVerticalScrollBarEnabled(true);
     mScrollContainerHorizontal.setOnScrollChangeListener(scrollListenerHorizontal);
