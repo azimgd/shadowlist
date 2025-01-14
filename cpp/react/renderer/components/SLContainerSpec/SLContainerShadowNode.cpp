@@ -64,6 +64,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
+   * Guard case when list was emptied
+   */
+  if (nextStateData.scrollIndex > props.uniqueIds.size()) {
+    nextStateData.scrollIndex = 0;
+    nextStateData.scrollPositionUpdated = true;
+    nextStateData.scrollIndexUpdated = true;
+  }
+
+  /*
    * If data is prepended, extend the measurements tree from the beginning
    * to match the new data size. If data is appended, resize the tree at the end
    */
@@ -239,7 +248,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       },
       componentRegistry["ListEmptyComponentUniqueId"]);
 
-    scrollContentBelowOffset.add(1, templateRegistryItem.size);
+    scrollContentBelowOffset.add(0, templateRegistryItem.size);
   }
 
   /*
@@ -272,16 +281,14 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   this->children_ = containerShadowNodeChildren;
   yogaNode_.setDirty(true);
-
-  /*
-   * Bailout without any state update
-   */
-  if (!props.uniqueIds.size()) {
-    return;
+  
+  if (props.uniqueIds.size()) {
+    nextStateData.firstChildUniqueId = props.uniqueIds.front();
+    nextStateData.lastChildUniqueId = props.uniqueIds.back();
+  } else {
+    nextStateData.firstChildUniqueId = {};
+    nextStateData.lastChildUniqueId = {};
   }
-
-  nextStateData.firstChildUniqueId = props.uniqueIds.front();
-  nextStateData.lastChildUniqueId = props.uniqueIds.back();
 
   if (props.horizontal) {
     nextStateData.scrollContent.height = nextStateData.scrollContainer.height;
