@@ -100,6 +100,7 @@ export default function App() {
         horizontal={IS_HORIZONTAL}
         initialScrollIndex={INITIAL_SCROLL_INDEX}
         numColumns={1}
+        contentContainerStyle={styles.list}
       />
     </View>
   );
@@ -110,6 +111,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#333333',
     paddingTop: 60,
+  },
+  list: {
+    flex: 1,
   },
   text: {
     color: '#333333',

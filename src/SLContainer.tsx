@@ -96,11 +96,11 @@ const SLContainerWrapper = (
 
 const styles = StyleSheet.create({
   containerVertical: {
-    flex: 1,
+    height: '100%',
     flexDirection: 'column',
   },
   containerHorizontal: {
-    flex: 1,
+    width: '100%',
     flexDirection: 'row',
   },
 });

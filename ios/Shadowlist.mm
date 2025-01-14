@@ -25,6 +25,7 @@ RCT_EXPORT_MODULE()
 {
   self->runtime_ = &runtime;
   SLRuntimeManager::getInstance().setRuntime(self->runtime_);
+  SLModuleJSI::install(runtime);
   SLModuleJSI::install(runtime, commitHook_);
 }
 
