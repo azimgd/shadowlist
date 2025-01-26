@@ -124,7 +124,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     auto elementShadowNodeComponentRegistryIt = componentRegistry.find(elementDataUniqueKey);
     if (elementShadowNodeComponentRegistryIt == componentRegistry.end()) {
       const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-      componentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateRegistry["ListChildrenComponentUniqueId"].back());
+      auto templateKey = SLContainerProps::getElementValueByPath(elementData, "__shadowlist_template_id");
+      componentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateRegistry[templateKey].back());
     } else {
       componentRegistry[elementDataUniqueKey] = componentRegistry[elementDataUniqueKey]->clone({});
     }

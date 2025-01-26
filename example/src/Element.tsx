@@ -4,12 +4,14 @@ import {
   Text,
   Pressable,
   type GestureResponderEvent,
+  type ViewStyle,
 } from 'react-native';
 
 const stringify = (str: string) => `{{${str}}}`;
 
 type ElementProps = {
   data: Array<any>;
+  style: ViewStyle;
 };
 
 const Element = (props: ElementProps) => {
@@ -21,7 +23,7 @@ const Element = (props: ElementProps) => {
   };
 
   return (
-    <Pressable style={styles.container} onPress={handlePress}>
+    <Pressable style={[styles.container, props.style]} onPress={handlePress}>
       <Image source={{ uri: stringify('image') }} style={styles.image} />
       <Text style={styles.title}>{stringify('id')}</Text>
       <Text style={styles.content}>{stringify('text')}</Text>

@@ -72,9 +72,6 @@ const Element = (props: ElementProps) => {
   ListHeaderComponentStyle={styles.ListFooterComponentStyle}
   ListEmptyComponent={ListEmptyComponent}
   ListEmptyComponentStyle={styles.ListFooterComponentStyle}
-  renderItem={({ item, index }) => (
-    <CustomComponent item={item} index={index} />
-  )}
 />
 ```
 
@@ -82,7 +79,6 @@ const Element = (props: ElementProps) => {
 | Prop                       | Type                      | Required | Description                                     |
 |----------------------------|---------------------------|----------|-------------------------------------------------|
 | `data`                     | Array                     | Required | An array of data to be rendered in the list, where each item *must* include a required `id` field. |
-| `keyExtractor`             | Function                  | Required | Used to extract a unique key for a given item at the specified index. |
 | `contentContainerStyle`    | ViewStyle                 | Optional | These styles will be applied to the scroll view content container which wraps all of the child views. |
 | `ListHeaderComponent`      | React component           | Optional | A custom component to render at the top of the list. |
 | `ListHeaderComponentStyle` | ViewStyle                 | Optional | Styling for internal View for `ListHeaderComponent` |
@@ -90,7 +86,6 @@ const Element = (props: ElementProps) => {
 | `ListFooterComponentStyle` | ViewStyle                 | Optional | Styling for internal View for `ListFooterComponent` |
 | `ListEmptyComponent`       | React component           | Optional | A custom component to render when the list is empty. |
 | `ListEmptyComponentStyle`  | ViewStyle                 | Optional | Styling for internal View for `ListEmptyComponent` |
-| `renderItem`               | Function                  | Required | A function to render each item in the list. It receives an object with `item` and `index` properties. |
 | `initialScrollIndex`       | Number                    | Optional | The initial index of the item to scroll to when the list mounts. |
 | `inverted`                 | Boolean                   | Optional | If true, the list will be rendered in an inverted order. |
 | `horizontal`               | Boolean                   | Optional | If true, renders items next to each other horizontally instead of stacked vertically. |

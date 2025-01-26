@@ -22,8 +22,9 @@ const invoker = (Component: Component) => {
 
 export type ShadowlistProps = {
   data: Array<ItemProp>;
-  renderItem: () => React.ReactElement;
-  keyExtractor: (item: ItemProp, index: number) => string;
+  templates?: {
+    [key: string]: () => React.ReactElement;
+  };
   contentContainerStyle?: ViewStyle;
   ListHeaderComponent?: Component;
   ListHeaderComponentStyle?: ViewStyle;
@@ -77,17 +78,12 @@ export const Shadowlist = React.forwardRef(
       </SLElement>
     );
 
-    /**
-     * ListChildrenComponent
-     */
-    const ListChildrenComponent = (
-      <SLElement
-        uniqueId="ListChildrenComponentUniqueId"
-        key="ListChildrenComponentUniqueId"
-      >
-        {props.renderItem()}
+    const templates = Object.entries(props.templates ?? {});
+    const ListTemplatesComponent = templates.map(([templateKey, template]) => (
+      <SLElement uniqueId={templateKey} key={templateKey}>
+        {template()}
       </SLElement>
-    );
+    ));
 
     /**
      * SLContentComponent
@@ -102,7 +98,7 @@ export const Shadowlist = React.forwardRef(
       >
         {SLContentComponent}
         {ListHeaderComponent}
-        {ListChildrenComponent}
+        {ListTemplatesComponent}
         {ListEmptyComponent}
         {ListFooterComponent}
       </SLContainer>

@@ -5,6 +5,10 @@ const TIMEOUT = 3000;
 
 const initialState = (length: number) =>
   Array.from({ length }, (_, position) => ({
+    __shadowlist_template_id:
+      position % 2 === 0
+        ? 'ListTemplateComponentUniqueIdYarrow'
+        : 'ListTemplateComponentUniqueIdRobin',
     id: faker.database.mongodbObjectId(),
     text: faker.lorem.paragraph(),
     image: faker.image.avatarGitHub(),
