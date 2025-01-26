@@ -74,13 +74,21 @@ export default function App() {
     event.nativeEvent.contentOffset.y;
   }, []);
 
-  const templateYarrow = () => {
-    return <Element data={data.data} style={{ backgroundColor: '#00cec9' }} />;
-  };
+  const templateYarrow = () => (
+    <Element
+      onPress={(index: number) => data.update(index)}
+      data={data.data}
+      style={{ backgroundColor: '#00cec9' }}
+    />
+  );
 
-  const templateRobin = () => {
-    return <Element data={data.data} style={{ backgroundColor: '#fdcb6e' }} />;
-  };
+  const templateRobin = () => (
+    <Element
+      onPress={(index: number) => data.update(index)}
+      data={data.data}
+      style={{ backgroundColor: '#fdcb6e' }}
+    />
+  );
 
   return (
     <View style={styles.container}>

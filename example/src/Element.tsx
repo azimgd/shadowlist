@@ -12,6 +12,7 @@ const stringify = (str: string) => `{{${str}}}`;
 type ElementProps = {
   data: Array<any>;
   style: ViewStyle;
+  onPress: (index: number) => void;
 };
 
 const Element = (props: ElementProps) => {
@@ -20,6 +21,7 @@ const Element = (props: ElementProps) => {
       event.nativeEvent.target
     );
     console.log(event.nativeEvent.target, props.data[elementDataIndex]);
+    props.onPress(elementDataIndex);
   };
 
   return (
