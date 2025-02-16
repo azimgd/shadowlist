@@ -11,6 +11,7 @@ class ShadowlistPackage : BaseReactPackage() {
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> {
     val viewManagers = mutableListOf<ViewManager<*, *>>()
     viewManagers.add(SLContainerManager())
+    viewManagers.add(SLContentManager())
     viewManagers.add(SLElementManager())
     return viewManagers
   }

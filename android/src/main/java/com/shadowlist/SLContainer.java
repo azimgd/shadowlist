@@ -17,11 +17,8 @@ import com.facebook.react.views.scroll.ReactHorizontalScrollView;
 import com.facebook.react.views.scroll.ReactScrollView;
 import com.facebook.react.views.view.ReactViewGroup;
 
-public class SLContainer extends ReactViewGroup {
+public class SLContainer extends ReactScrollView {
   private boolean mOrientation;
-  private ReactHorizontalScrollView mScrollContainerHorizontal;
-  private ReactScrollView mScrollContainerVertical;
-  private ReactViewGroup mScrollContent;
   private SLContainerManager.OnStartReachedHandler mOnStartReachedHandler;
   private SLContainerManager.OnEndReachedHandler mOnEndReachedHandler;
   private SLContainerManager.OnVisibleChangeHandler mOnVisibleChangeHandler;
@@ -39,11 +36,6 @@ public class SLContainer extends ReactViewGroup {
   }
 
   private void init(Context context) {
-    mScrollContainerHorizontal = new ReactHorizontalScrollView(context);
-    mScrollContainerVertical = new ReactScrollView(context);
-
-    mScrollContent = new ReactViewGroup(context);
-
     OnScrollChangeListener scrollListenerVertical = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
       WritableMap stateMapBuffer = new WritableNativeMap();
       stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(oldScrollX));
@@ -51,44 +43,26 @@ public class SLContainer extends ReactViewGroup {
       mStateWrapper.updateState(stateMapBuffer);
     };
 
-    OnScrollChangeListener scrollListenerHorizontal = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      WritableMap stateMapBuffer = new WritableNativeMap();
-      stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(oldScrollX));
-      stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
-      mStateWrapper.updateState(stateMapBuffer);
-    };
-
-    mScrollContainerVertical.setOnScrollChangeListener(scrollListenerVertical);
-    mScrollContainerVertical.setVerticalScrollBarEnabled(true);
-    mScrollContainerHorizontal.setOnScrollChangeListener(scrollListenerHorizontal);
-    mScrollContainerHorizontal.setHorizontalScrollBarEnabled(true);
+    this.setOnScrollChangeListener(scrollListenerVertical);
+    this.setVerticalScrollBarEnabled(true);
   }
 
   public void setScrollContainerHorizontal() {
-    if (mOrientation) return;
-    mOrientation = true;
-    mScrollContainerHorizontal.addView(mScrollContent, 0);
-    super.addView(mScrollContainerHorizontal, 0);
   }
 
   public void setScrollContainerVertical() {
-    if (mOrientation) return;
-    mOrientation = true;
-    mScrollContainerVertical.addView(mScrollContent, 0);
-    super.addView(mScrollContainerVertical, 0);
   }
 
   public void setScrollContentLayout(float width, float height) {
-    mScrollContent.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+    getChildAt(0).layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
   }
 
   public void setScrollContainerLayout(float width, float height) {
-    mScrollContainerHorizontal.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
-    mScrollContainerVertical.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+    this.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
   }
 
   public void setScrollContainerOffset(int x, int y) {
-    mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
+    this.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
   }
 
   @Override
@@ -96,16 +70,6 @@ public class SLContainer extends ReactViewGroup {
     if (!mOrientation) {
       setScrollContainerVertical();
     }
-  }
-
-  @Override
-  public void addView(View child, int index) {
-    mScrollContent.addView(child, index);
-  }
-
-  @Override
-  public void removeView(View child) {
-    mScrollContent.removeView(child);
   }
 
   @Override

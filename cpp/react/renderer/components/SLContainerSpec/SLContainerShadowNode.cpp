@@ -1,4 +1,6 @@
 #include "SLContainerShadowNode.h"
+#include "SLContentShadowNode.h"
+#include "SLElementShadowNode.h"
 #include "SLTemplate.h"
 #include "Offsetter.h"
 
@@ -279,7 +281,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   /*
    * Update children and mark the container as dirty to trigger a layout update on state change
    */
-  this->children_ = containerShadowNodeChildren;
+  auto contentShadowNode = getChildren()[0].get();
+  ConcreteShadowNode::replaceChild(*contentShadowNode, contentShadowNode->clone({
+    .children = containerShadowNodeChildren
+  }));
   yogaNode_.setDirty(true);
   
   if (props.uniqueIds.size()) {
@@ -353,9 +358,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 }
 
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {
-  auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
-  auto uniqueId = static_cast<const SLElementProps&>(*child->getProps()).uniqueId;
-  templateRegistry[uniqueId].push_back(child);
+  if (dynamic_cast<const SLElementShadowNode*>(child.get())) {
+    auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
+    auto uniqueId = static_cast<const SLElementProps&>(*child->getProps()).uniqueId;
+    templateRegistry[uniqueId].push_back(child);
+  } else {
+    ConcreteShadowNode::appendChild(child);
+  }
 }
 
 void SLContainerShadowNode::replaceChild(
