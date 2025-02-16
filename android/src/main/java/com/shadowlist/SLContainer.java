@@ -1,10 +1,6 @@
 package com.shadowlist;
 
 import android.content.Context;
-import android.widget.HorizontalScrollView;
-import android.widget.ScrollView;
-import android.view.View;
-import android.graphics.Canvas;
 import android.util.AttributeSet;
 import androidx.annotation.Nullable;
 
@@ -13,12 +9,9 @@ import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.common.mapbuffer.MapBuffer;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
-import com.facebook.react.views.scroll.ReactHorizontalScrollView;
 import com.facebook.react.views.scroll.ReactScrollView;
-import com.facebook.react.views.view.ReactViewGroup;
 
 public class SLContainer extends ReactScrollView {
-  private boolean mOrientation;
   private SLContainerManager.OnStartReachedHandler mOnStartReachedHandler;
   private SLContainerManager.OnEndReachedHandler mOnEndReachedHandler;
   private SLContainerManager.OnVisibleChangeHandler mOnVisibleChangeHandler;
@@ -47,12 +40,6 @@ public class SLContainer extends ReactScrollView {
     this.setVerticalScrollBarEnabled(true);
   }
 
-  public void setScrollContainerHorizontal() {
-  }
-
-  public void setScrollContainerVertical() {
-  }
-
   public void setScrollContentLayout(float width, float height) {
     getChildAt(0).layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
   }
@@ -63,23 +50,6 @@ public class SLContainer extends ReactScrollView {
 
   public void setScrollContainerOffset(int x, int y) {
     this.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
-  }
-
-  @Override
-  protected void onLayout(boolean changed, int l, int t, int r, int b) {
-    if (!mOrientation) {
-      setScrollContainerVertical();
-    }
-  }
-
-  @Override
-  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec));
-  }
-
-  @Override
-  public void draw(Canvas canvas) {
-    super.draw(canvas);
   }
 
   public void setStateWrapper(
