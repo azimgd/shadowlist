@@ -41,7 +41,13 @@ public class SLContainer extends ReactScrollView {
   }
 
   public void setScrollContentLayout(float width, float height) {
-    getChildAt(0).layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+    post(new Runnable() {
+      @Override
+      public void run() {
+        getChildAt(0).layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+        requestLayout();
+      }
+    });
   }
 
   public void setScrollContainerLayout(float width, float height) {
