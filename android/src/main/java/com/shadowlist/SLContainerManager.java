@@ -106,6 +106,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   @ReactProp(name = "horizontal")
   @Override
   public void setHorizontal(SLContainer view, boolean horizontal) {
+    view.setHorizontal(horizontal);
   }
 
   @ReactProp(name = "initialNumToRender")
