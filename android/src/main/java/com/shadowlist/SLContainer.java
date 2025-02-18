@@ -37,21 +37,6 @@ public class SLContainer extends ReactScrollView {
   private void init(Context context) {
     mScrollContainerVertical = new ReactScrollView(context);
     mScrollContainerHorizontal = new ReactHorizontalScrollView(context);
-
-    OnScrollChangeListener scrollListener = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      WritableMap stateMapBuffer = new WritableNativeMap();
-      stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(oldScrollX));
-      stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
-      mStateWrapper.updateState(stateMapBuffer);
-    };
-
-    if (mHorizontal) {
-      mScrollContainerHorizontal.setOnScrollChangeListener(scrollListener);
-      mScrollContainerHorizontal.setHorizontalScrollBarEnabled(true);
-    } else {
-      mScrollContainerVertical.setOnScrollChangeListener(scrollListener);
-      mScrollContainerVertical.setVerticalScrollBarEnabled(true);
-    }
   }
 
   @Override
@@ -74,6 +59,25 @@ public class SLContainer extends ReactScrollView {
 
   @Override
   protected void onLayout(boolean changed, int l, int t, int r, int b) {
+    setContainer();
+  }
+
+  public void setContainer() {
+    OnScrollChangeListener scrollListener = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+      WritableMap stateMapBuffer = new WritableNativeMap();
+      stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
+      stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
+      mStateWrapper.updateState(stateMapBuffer);
+    };
+
+    if (mHorizontal) {
+      mScrollContainerHorizontal.setOnScrollChangeListener(scrollListener);
+      mScrollContainerHorizontal.setHorizontalScrollBarEnabled(true);
+    } else {
+      mScrollContainerVertical.setOnScrollChangeListener(scrollListener);
+      mScrollContainerVertical.setVerticalScrollBarEnabled(true);
+    }
+
     if (mHorizontal) {
       super.addView(mScrollContainerHorizontal, 0);
     } else {
@@ -89,9 +93,10 @@ public class SLContainer extends ReactScrollView {
     post(new Runnable() {
       @Override
       public void run() {
-        if (mHorizontal) {
+        if (mHorizontal && mScrollContainerHorizontal.getChildCount() > 0) {
           mScrollContainerHorizontal.getChildAt(0).layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
-        } else {
+        }
+        if (!mHorizontal && mScrollContainerVertical.getChildCount() > 0) {
           mScrollContainerVertical.getChildAt(0).layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
         }
         requestLayout();

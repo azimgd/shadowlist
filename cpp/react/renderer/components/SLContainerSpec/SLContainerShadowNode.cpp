@@ -53,7 +53,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   /*
    * Store the child nodes for the container
    */
-  auto containerShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>();
+  auto contentShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>();
 
   bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() && props.uniqueIds.size() &&
     nextStateData.firstChildUniqueId != props.uniqueIds.front();
@@ -159,10 +159,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   if (props.inverted) {
     transformTemplateComponent("ListFooterComponentUniqueId", 0);
-    containerShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
+    contentShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
   } else {
     transformTemplateComponent("ListHeaderComponentUniqueId", 0);
-    containerShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
+    contentShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
   }
 
   /*
@@ -209,7 +209,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
-      containerShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
     }
   }
 
@@ -235,13 +235,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
-      containerShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
     }
   }
 
   if (!props.uniqueIds.size()) {
     auto templateRegistryItem = transformTemplateComponent("ListEmptyComponentUniqueId", 1);
-    containerShadowNodeChildren->push_back(componentRegistry["ListEmptyComponentUniqueId"]);
+    contentShadowNodeChildren->push_back(componentRegistry["ListEmptyComponentUniqueId"]);
 
     adjustElement(
       {
@@ -258,7 +258,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   if (props.inverted) {
     transformTemplateComponent("ListHeaderComponentUniqueId", 1);
-    containerShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
+    contentShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
 
     adjustElement(
       {
@@ -268,7 +268,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       componentRegistry["ListHeaderComponentUniqueId"]);
   } else {
     transformTemplateComponent("ListFooterComponentUniqueId", 1);
-    containerShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
+    contentShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
 
     adjustElement(
       {
@@ -283,7 +283,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   auto contentShadowNode = getChildren()[0].get();
   ConcreteShadowNode::replaceChild(*contentShadowNode, contentShadowNode->clone({
-    .children = containerShadowNodeChildren
+    .children = contentShadowNodeChildren
   }));
   yogaNode_.setDirty(true);
   
@@ -401,8 +401,8 @@ LayoutMetrics SLContainerShadowNode::adjustElement(Point origin, ShadowNode::Uns
   LayoutMetrics layoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
 
   if (getConcreteProps().horizontal) {
-    layoutMetrics.frame.origin.x = origin.x;
-    layoutMetrics.frame.origin.y = origin.y;
+    layoutMetrics.frame.origin.y = origin.x;
+    layoutMetrics.frame.origin.x = origin.y;
   } else {
     layoutMetrics.frame.origin.y = origin.y;
     layoutMetrics.frame.origin.x = origin.x;

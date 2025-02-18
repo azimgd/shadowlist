@@ -89,13 +89,18 @@ export const Shadowlist = React.forwardRef(
       </SLElement>
     );
 
+    /**
+     * SLContentComponent
+     */
+    const SLContentComponent = <SLContent />;
+
     return (
       <SLContainer
         {...props}
         ref={forwardedRef}
         style={props.contentContainerStyle}
       >
-        <SLContent />
+        {SLContentComponent}
         {ListHeaderComponent}
         {ListChildrenComponent}
         {ListEmptyComponent}
