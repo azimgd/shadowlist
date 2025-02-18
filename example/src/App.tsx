@@ -7,7 +7,6 @@ import {
   type OnEndReached,
   type OnVisibleChange,
   type OnScroll,
-  type ShadowlistProps,
   type SLContainerRef,
 } from 'shadowlist';
 import useData from './useData';
@@ -75,17 +74,31 @@ export default function App() {
     event.nativeEvent.contentOffset.y;
   }, []);
 
-  const renderItem: ShadowlistProps['renderItem'] = () => {
-    return <Element data={data.data} />;
-  };
+  const templateYarrow = () => (
+    <Element
+      onPress={(index: number) => data.update(index)}
+      data={data.data}
+      style={{ backgroundColor: '#00cec9' }}
+    />
+  );
+
+  const templateRobin = () => (
+    <Element
+      onPress={(index: number) => data.update(index)}
+      data={data.data}
+      style={{ backgroundColor: '#fdcb6e' }}
+    />
+  );
 
   return (
     <View style={styles.container}>
       <Shadowlist
         ref={ref}
-        renderItem={renderItem}
+        templates={{
+          ListTemplateComponentUniqueIdYarrow: templateYarrow,
+          ListTemplateComponentUniqueIdRobin: templateRobin,
+        }}
         data={data.data}
-        keyExtractor={(item) => item.id}
         onVisibleChange={onVisibleChange}
         onStartReached={onStartReached}
         onEndReached={onEndReached}

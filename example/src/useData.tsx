@@ -5,6 +5,10 @@ const TIMEOUT = 3000;
 
 const initialState = (length: number) =>
   Array.from({ length }, (_, position) => ({
+    __shadowlist_template_id:
+      position % 2 === 0
+        ? 'ListTemplateComponentUniqueIdYarrow'
+        : 'ListTemplateComponentUniqueIdRobin',
     id: faker.database.mongodbObjectId(),
     text: faker.lorem.paragraph(),
     image: faker.image.avatarGitHub(),
@@ -39,7 +43,21 @@ const useData = ({ length }: { length: number; inverted?: boolean }) => {
     loading.current = true;
   };
 
-  return { data: data, loadPrepend, loadAppend };
+  const update = (index: number) => {
+    setData((state) => {
+      const newState = [...state];
+      newState.splice(index, 1, {
+        __shadowlist_template_id: 'ListTemplateComponentUniqueIdRobin',
+        id: faker.database.mongodbObjectId(),
+        text: faker.lorem.paragraph(),
+        image: faker.image.avatarGitHub(),
+        position: index.toString(),
+      });
+      return newState;
+    });
+  };
+
+  return { data: data, loadPrepend, loadAppend, update };
 };
 
 export default useData;
