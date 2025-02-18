@@ -67,6 +67,7 @@ using namespace facebook::react;
   if (nextStateData.scrollContentUpdated) {
     CGSize scrollContent = RCTCGSizeFromSize(nextStateData.scrollContent);
     [self->_scrollContent setContentSize:scrollContent];
+    [self->_scrollContent.subviews.firstObject setFrame:CGRectMake(0, 0, scrollContent.width, scrollContent.height)];
   }
 
   if (nextStateData.scrollPositionUpdated) {
