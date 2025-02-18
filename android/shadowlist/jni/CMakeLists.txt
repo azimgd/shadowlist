@@ -9,6 +9,7 @@ file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS
   ${LIB_JNI_DIR}/react/renderer/components/RNShadowlistSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/RNShadowlistSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/SLContainerSpec/*.cpp
+  ${LIB_CPP_DIR}/react/renderer/components/SLContentSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/SLElementSpec/*.cpp
 )
 
@@ -31,6 +32,7 @@ target_include_directories(react_codegen_RNShadowlistSpec PUBLIC
   ${LIB_CPP_DIR}/json
   ${LIB_CPP_DIR}/helpers
   ${LIB_CPP_DIR}/react/renderer/components/SLContainerSpec
+  ${LIB_CPP_DIR}/react/renderer/components/SLContentSpec
   ${LIB_CPP_DIR}/react/renderer/components/SLElementSpec
   ${LIB_CPP_DIR}/react/renderer/components/RNShadowlistSpec
   ${LIB_JNI_DIR}/react/renderer/components/RNShadowlistSpec

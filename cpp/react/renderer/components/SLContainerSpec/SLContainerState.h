@@ -13,8 +13,6 @@
 namespace facebook::react {
 
 #ifdef ANDROID
-constexpr static MapBuffer::Key SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE = 0;
-constexpr static MapBuffer::Key SLCONTAINER_STATE_TEMPLATE_MEASUREMENTS_TREE_SIZE = 1;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 2;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_TOP = 3;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_UPDATED = 4;
@@ -61,8 +59,6 @@ class SLContainerState {
 
 #ifdef ANDROID
   SLContainerState(SLContainerState const &previousState, folly::dynamic data) :
-  childrenMeasurementsTree(previousState.childrenMeasurementsTree),
-  templateMeasurementsTree(previousState.templateMeasurementsTree),
   scrollPosition({
     (Float)data["scrollPositionLeft"].getDouble(),
     (Float)data["scrollPositionTop"].getDouble()

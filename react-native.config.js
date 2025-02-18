@@ -7,6 +7,7 @@ module.exports = {
       android: {
         componentDescriptors: [
           'SLContainerComponentDescriptor',
+          'SLContentComponentDescriptor',
           'SLElementComponentDescriptor',
         ],
         cmakeListsPath: '../android/shadowlist/jni/CMakeLists.txt',

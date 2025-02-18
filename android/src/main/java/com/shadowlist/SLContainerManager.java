@@ -16,8 +16,6 @@ import com.facebook.react.uimanager.ViewManagerDelegate;
 import com.facebook.react.uimanager.annotations.ReactProp;
 import com.facebook.react.common.mapbuffer.MapBuffer;
 import com.facebook.react.uimanager.events.EventDispatcher;
-import com.shadowlist.SLContainerManagerInterface;
-import com.shadowlist.SLContainerManagerDelegate;
 
 import java.util.Map;
 
@@ -25,8 +23,6 @@ import java.util.Map;
 public class SLContainerManager extends ViewGroupManager<SLContainer>
   implements SLContainerManagerInterface<SLContainer> {
 
-  public static final short SLCONTAINER_STATE_CHILDREN_MEASUREMENTS_TREE = 0;
-  public static final short SLCONTAINER_STATE_TEMPLATE_MEASUREMENTS_TREE_SIZE = 1;
   public static final short SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 2;
   public static final short SLCONTAINER_STATE_SCROLL_POSITION_TOP = 3;
   public static final short SLCONTAINER_STATE_SCROLL_POSITION_UPDATED = 4;
@@ -110,11 +106,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   @ReactProp(name = "horizontal")
   @Override
   public void setHorizontal(SLContainer view, boolean horizontal) {
-    if (horizontal) {
-      view.setScrollContainerHorizontal();
-    } else {
-      view.setScrollContainerVertical();
-    }
+    view.setHorizontal(horizontal);
   }
 
   @ReactProp(name = "initialNumToRender")

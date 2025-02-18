@@ -1,6 +1,7 @@
 import React, { type Ref } from 'react';
 import { type ViewStyle } from 'react-native';
 import { SLContainer } from './SLContainer';
+import { SLContent } from './SLContent';
 import { SLElement } from './SLElement';
 import type { ItemProp } from './SLContainer';
 import type {
@@ -88,12 +89,18 @@ export const Shadowlist = React.forwardRef(
       </SLElement>
     );
 
+    /**
+     * SLContentComponent
+     */
+    const SLContentComponent = <SLContent />;
+
     return (
       <SLContainer
         {...props}
         ref={forwardedRef}
         style={props.contentContainerStyle}
       >
+        {SLContentComponent}
         {ListHeaderComponent}
         {ListChildrenComponent}
         {ListEmptyComponent}

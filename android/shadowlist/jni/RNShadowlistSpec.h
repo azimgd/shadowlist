@@ -4,6 +4,7 @@
 #include <ReactCommon/TurboModule.h>
 #include <jsi/jsi.h>
 #include "SLElementComponentDescriptor.h"
+#include "SLContentComponentDescriptor.h"
 #include "SLContainerComponentDescriptor.h"
 
 namespace facebook::react {

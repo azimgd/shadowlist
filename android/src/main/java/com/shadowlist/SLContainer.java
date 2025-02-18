@@ -1,11 +1,9 @@
 package com.shadowlist;
 
 import android.content.Context;
-import android.widget.HorizontalScrollView;
-import android.widget.ScrollView;
-import android.view.View;
-import android.graphics.Canvas;
 import android.util.AttributeSet;
+import android.view.View;
+
 import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.WritableMap;
@@ -15,13 +13,11 @@ import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.views.scroll.ReactHorizontalScrollView;
 import com.facebook.react.views.scroll.ReactScrollView;
-import com.facebook.react.views.view.ReactViewGroup;
 
-public class SLContainer extends ReactViewGroup {
-  private boolean mOrientation;
-  private ReactHorizontalScrollView mScrollContainerHorizontal;
+public class SLContainer extends ReactScrollView {
+  private boolean mHorizontal;
   private ReactScrollView mScrollContainerVertical;
-  private ReactViewGroup mScrollContent;
+  private ReactHorizontalScrollView mScrollContainerHorizontal;
   private SLContainerManager.OnStartReachedHandler mOnStartReachedHandler;
   private SLContainerManager.OnEndReachedHandler mOnEndReachedHandler;
   private SLContainerManager.OnVisibleChangeHandler mOnVisibleChangeHandler;
@@ -39,83 +35,89 @@ public class SLContainer extends ReactViewGroup {
   }
 
   private void init(Context context) {
-    mScrollContainerHorizontal = new ReactHorizontalScrollView(context);
     mScrollContainerVertical = new ReactScrollView(context);
-
-    mScrollContent = new ReactViewGroup(context);
-
-    OnScrollChangeListener scrollListenerVertical = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      WritableMap stateMapBuffer = new WritableNativeMap();
-      stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(oldScrollX));
-      stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
-      mStateWrapper.updateState(stateMapBuffer);
-    };
-
-    OnScrollChangeListener scrollListenerHorizontal = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
-      WritableMap stateMapBuffer = new WritableNativeMap();
-      stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(oldScrollX));
-      stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
-      mStateWrapper.updateState(stateMapBuffer);
-    };
-
-    mScrollContainerVertical.setOnScrollChangeListener(scrollListenerVertical);
-    mScrollContainerVertical.setVerticalScrollBarEnabled(true);
-    mScrollContainerHorizontal.setOnScrollChangeListener(scrollListenerHorizontal);
-    mScrollContainerHorizontal.setHorizontalScrollBarEnabled(true);
-  }
-
-  public void setScrollContainerHorizontal() {
-    if (mOrientation) return;
-    mOrientation = true;
-    mScrollContainerHorizontal.addView(mScrollContent, 0);
-    super.addView(mScrollContainerHorizontal, 0);
-  }
-
-  public void setScrollContainerVertical() {
-    if (mOrientation) return;
-    mOrientation = true;
-    mScrollContainerVertical.addView(mScrollContent, 0);
-    super.addView(mScrollContainerVertical, 0);
-  }
-
-  public void setScrollContentLayout(float width, float height) {
-    mScrollContent.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
-  }
-
-  public void setScrollContainerLayout(float width, float height) {
-    mScrollContainerHorizontal.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
-    mScrollContainerVertical.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
-  }
-
-  public void setScrollContainerOffset(int x, int y) {
-    mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
-  }
-
-  @Override
-  protected void onLayout(boolean changed, int l, int t, int r, int b) {
-    if (!mOrientation) {
-      setScrollContainerVertical();
-    }
+    mScrollContainerHorizontal = new ReactHorizontalScrollView(context);
   }
 
   @Override
   public void addView(View child, int index) {
-    mScrollContent.addView(child, index);
+    if (mHorizontal) {
+      mScrollContainerHorizontal.addView(child, index);
+    } else {
+      mScrollContainerVertical.addView(child, index);
+    }
   }
 
   @Override
   public void removeView(View child) {
-    mScrollContent.removeView(child);
+    if (mHorizontal) {
+      mScrollContainerHorizontal.removeView(child);
+    } else {
+      mScrollContainerVertical.removeView(child);
+    }
   }
 
   @Override
-  protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-    setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec));
+  protected void onLayout(boolean changed, int l, int t, int r, int b) {
+    setContainer();
   }
 
-  @Override
-  public void draw(Canvas canvas) {
-    super.draw(canvas);
+  public void setContainer() {
+    OnScrollChangeListener scrollListener = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+      WritableMap stateMapBuffer = new WritableNativeMap();
+      stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
+      stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
+      mStateWrapper.updateState(stateMapBuffer);
+    };
+
+    if (mHorizontal) {
+      mScrollContainerHorizontal.setOnScrollChangeListener(scrollListener);
+      mScrollContainerHorizontal.setHorizontalScrollBarEnabled(true);
+    } else {
+      mScrollContainerVertical.setOnScrollChangeListener(scrollListener);
+      mScrollContainerVertical.setVerticalScrollBarEnabled(true);
+    }
+
+    if (mHorizontal) {
+      super.addView(mScrollContainerHorizontal, 0);
+    } else {
+      super.addView(mScrollContainerVertical, 0);
+    }
+  }
+
+  public void setHorizontal(boolean horizontal) {
+    mHorizontal = horizontal;
+  }
+
+  public void setScrollContentLayout(float width, float height) {
+    post(new Runnable() {
+      @Override
+      public void run() {
+        if (mHorizontal && mScrollContainerHorizontal.getChildCount() > 0) {
+          mScrollContainerHorizontal.getChildAt(0).layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+        }
+        if (!mHorizontal && mScrollContainerVertical.getChildCount() > 0) {
+          mScrollContainerVertical.getChildAt(0).layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+        }
+        requestLayout();
+      }
+    });
+  }
+
+  public void setScrollContainerLayout(float width, float height) {
+    if (mHorizontal) {
+      mScrollContainerHorizontal.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+    } else {
+      mScrollContainerVertical.layout(0, 0, (int) PixelUtil.toPixelFromDIP(width), (int) PixelUtil.toPixelFromDIP(height));
+    }
+  }
+
+  public void setScrollContainerOffset(int x, int y) {
+    if (mHorizontal) {
+      mScrollContainerHorizontal.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
+    } else {
+      mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
+    }
   }
 
   public void setStateWrapper(
