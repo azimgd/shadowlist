@@ -5,14 +5,13 @@ import {
   Pressable,
   type GestureResponderEvent,
   type ViewStyle,
+  View,
 } from 'react-native';
-
-const stringify = (str: string) => `{{${str}}}`;
 
 type ElementProps = {
   data: Array<any>;
-  style: ViewStyle;
   onPress: (index: number) => void;
+  style?: ViewStyle;
 };
 
 const Element = (props: ElementProps) => {
@@ -20,16 +19,21 @@ const Element = (props: ElementProps) => {
     const elementDataIndex = __NATIVE_getRegistryElementMapping(
       event.nativeEvent.target
     );
-    console.log(event.nativeEvent.target, props.data[elementDataIndex]);
     props.onPress(elementDataIndex);
   };
 
   return (
     <Pressable style={[styles.container, props.style]} onPress={handlePress}>
-      <Image source={{ uri: stringify('image') }} style={styles.image} />
-      <Text style={styles.title}>{stringify('id')}</Text>
-      <Text style={styles.content}>{stringify('text')}</Text>
-      <Text style={styles.footer}>index: {stringify('position')}</Text>
+      <View style={styles.left}>
+        <Image source={{ uri: `{{image}}` }} style={styles.image} />
+        <View style={styles.indicator} />
+      </View>
+
+      <View style={styles.right}>
+        <Text style={styles.title}>{`{{title}}`}</Text>
+        <Text style={styles.subtitle}>{`{{subtitle}}`}</Text>
+        <Text style={styles.content}>{`{{text}}`}</Text>
+      </View>
     </Pressable>
   );
 };
@@ -37,30 +41,43 @@ const Element = (props: ElementProps) => {
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    margin: 16,
-    backgroundColor: '#eeeeee',
-    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 16,
+    borderBottomColor: '#dddddd20',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  left: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  right: {
+    flex: 1,
   },
   title: {
     fontWeight: '600',
-    color: '#333333',
-    marginBottom: 16,
+    color: '#ffffff',
+    marginBottom: 4,
   },
   content: {
-    fontWeight: '400',
-    color: '#333333',
+    fontWeight: '500',
+    color: '#ffffff',
   },
-  footer: {
-    fontWeight: '400',
-    color: '#333333',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#33333330',
-    marginTop: 8,
-    paddingTop: 8,
+  subtitle: {
+    fontWeight: '300',
+    color: '#ffffff',
+    marginBottom: 16,
   },
   image: {
-    width: 100,
-    height: 100,
+    borderRadius: 4,
+    width: 60,
+    height: 60,
+    backgroundColor: '#dddddd20',
+  },
+  indicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 8,
+    backgroundColor: '#1dd1a1',
   },
 });
 

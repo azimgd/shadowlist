@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { faker } from '@faker-js/faker';
 
-const TIMEOUT = 3000;
+const TIMEOUT = 1000;
 
 const initialState = (length: number) =>
   Array.from({ length }, (_, position) => ({
@@ -10,7 +10,10 @@ const initialState = (length: number) =>
         ? 'ListTemplateComponentUniqueIdYarrow'
         : 'ListTemplateComponentUniqueIdRobin',
     id: faker.database.mongodbObjectId(),
+    title: faker.person.fullName(),
     text: faker.lorem.paragraph(),
+    subtitle: faker.person.jobTitle(),
+    color: faker.color.rgb(),
     image: faker.image.avatarGitHub(),
     position: position.toString(),
   }));
@@ -49,7 +52,10 @@ const useData = ({ length }: { length: number; inverted?: boolean }) => {
       newState.splice(index, 1, {
         __shadowlist_template_id: 'ListTemplateComponentUniqueIdRobin',
         id: faker.database.mongodbObjectId(),
+        title: faker.person.fullName(),
         text: faker.lorem.paragraph(),
+        subtitle: faker.person.jobTitle(),
+        color: faker.color.rgb(),
         image: faker.image.avatarGitHub(),
         position: index.toString(),
       });
