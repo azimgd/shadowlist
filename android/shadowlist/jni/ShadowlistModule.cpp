@@ -4,7 +4,10 @@
 #include "ShadowlistModule.h"
 #include "SLModuleJSI.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 using namespace facebook;
 using namespace react;

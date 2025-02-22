@@ -1,6 +1,6 @@
 #include "SLKeyExtractor.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
 
 std::string SLKeyExtractor::extractKey(const std::string& input) {
   std::string key = input;

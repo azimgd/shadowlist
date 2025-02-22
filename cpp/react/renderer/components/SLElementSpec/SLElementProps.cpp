@@ -3,7 +3,10 @@
 #include <react/renderer/core/propsConversions.h>
 #include <react/renderer/debug/debugStringConvertibleUtils.h>
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 SLElementProps::SLElementProps(
   const PropsParserContext &context,

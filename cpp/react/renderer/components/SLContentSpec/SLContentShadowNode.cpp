@@ -1,6 +1,9 @@
 #include "SLContentShadowNode.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 extern const char SLContentComponentName[] = "SLContent";
 

@@ -29,7 +29,10 @@
 - (void)setEventEmitterCallback:(EventEmitterCallbackWrapper *)eventEmitterCallbackWrapper;
 @end
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 /**
   * ObjC++ class for module 'NativeShadowlist'

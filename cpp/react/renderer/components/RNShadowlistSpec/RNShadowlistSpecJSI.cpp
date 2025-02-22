@@ -1,6 +1,9 @@
 #include "RNShadowlistSpecJSI.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 static jsi::Value __hostFunction_NativeShadowlistCxxSpecJSI_setup(jsi::Runtime &rt, TurboModule &turboModule, const jsi::Value* args, size_t count) {
   static_cast<NativeShadowlistCxxSpecJSI *>(&turboModule)->setup(rt);

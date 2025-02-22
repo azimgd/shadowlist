@@ -10,7 +10,10 @@
 #endif
 
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 class SLContentState {
   public:

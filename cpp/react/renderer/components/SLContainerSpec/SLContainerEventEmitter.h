@@ -3,7 +3,12 @@
 #include <react/renderer/components/view/ViewEventEmitter.h>
 
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
+using facebook::react::Size;
+using facebook::react::Point;
 
 struct OnVisibleChange {
   int visibleStartIndex;

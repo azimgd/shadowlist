@@ -9,6 +9,7 @@
 #import <React/RCTFabricComponentsPlugins.h>
 #import <React/RCTConversions.h>
 
+using namespace azimgd::shadowlist;
 using namespace facebook::react;
 
 @interface SLContainer () <SLContainerProtocol>

@@ -10,7 +10,12 @@
 #include <react/renderer/mapbuffer/MapBufferBuilder.h>
 #endif
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
+using facebook::react::Size;
+using facebook::react::Point;
 
 #ifdef ANDROID
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_POSITION_LEFT = 2;

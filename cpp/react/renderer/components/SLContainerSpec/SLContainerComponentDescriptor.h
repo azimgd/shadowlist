@@ -6,6 +6,8 @@
 
 namespace facebook::react {
 
+using namespace azimgd::shadowlist;
+
 class SLContainerComponentDescriptor : public ConcreteComponentDescriptor<SLContainerShadowNode> {
   using ConcreteComponentDescriptor::ConcreteComponentDescriptor;
 

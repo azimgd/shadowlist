@@ -3,7 +3,10 @@
 #include <ReactCommon/TurboModule.h>
 #include <react/bridging/Bridging.h>
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 class JSI_EXPORT NativeShadowlistCxxSpecJSI : public TurboModule {
   protected:

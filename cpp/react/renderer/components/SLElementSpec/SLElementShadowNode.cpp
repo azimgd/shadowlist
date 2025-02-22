@@ -1,6 +1,9 @@
 #include "SLElementShadowNode.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 extern const char SLElementComponentName[] = "SLElement";
 

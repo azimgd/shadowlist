@@ -1,7 +1,10 @@
 #include "SLModuleJSI.h"
 #include "SLRuntimeManager.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 using namespace facebook;
 

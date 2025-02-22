@@ -3,7 +3,10 @@
 #include <react/renderer/components/text/RawTextShadowNode.h>
 #include <react/renderer/components/image/ImageShadowNode.h>
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 /*
  * Following offset of elements should probably be enough for now

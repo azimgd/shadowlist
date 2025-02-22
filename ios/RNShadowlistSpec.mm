@@ -8,7 +8,10 @@
 }
 @end
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 static facebook::jsi::Value __hostFunction_NativeShadowlistSpecJSI_setup(facebook::jsi::Runtime& rt, TurboModule &turboModule, const facebook::jsi::Value* args, size_t count) {
   return static_cast<ObjCTurboModule&>(turboModule).invokeObjCMethod(rt, VoidKind, "setup", @selector(setup), args, count);

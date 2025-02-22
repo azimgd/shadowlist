@@ -5,7 +5,10 @@
 #include "SLTemplate.h"
 #include "Offsetter.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 std::unordered_map<Tag, std::unordered_map<std::string, std::vector<ShadowNode::Shared>>> elementShadowNodeTemplateRegistry{};
 std::unordered_map<Tag, std::unordered_map<std::string, ShadowNode::Unshared>> elementShadowNodeComponentRegistry{};

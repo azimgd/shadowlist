@@ -21,7 +21,10 @@
 #endif
 #endif
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 JSI_EXPORT extern const char SLContainerComponentName[];
 

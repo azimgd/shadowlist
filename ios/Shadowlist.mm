@@ -6,6 +6,7 @@
 #import <React/RCTScheduler.h>
 #import <React/RCTSurfacePresenterStub.h>
 
+using namespace azimgd::shadowlist;
 using namespace facebook::react;
 
 @implementation Shadowlist {
@@ -32,7 +33,7 @@ RCT_EXPORT_MODULE()
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
     (const facebook::react::ObjCTurboModule::InitParams &)params
 {
-  return std::make_shared<facebook::react::NativeShadowlistSpecJSI>(params);
+  return std::make_shared<NativeShadowlistSpecJSI>(params);
 }
 
 - (void)setup
