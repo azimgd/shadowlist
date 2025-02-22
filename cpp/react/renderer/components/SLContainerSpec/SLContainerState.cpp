@@ -1,6 +1,11 @@
 #include "SLContainerState.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
+using facebook::react::Size;
+using facebook::react::Point;
 
 SLContainerState::SLContainerState(
   SLFenwickTree childrenMeasurementsTree,

@@ -27,7 +27,7 @@
 
 #include <vector>
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
 
 template <class T, class Alloc = std::allocator<T>>
 class fenwick {

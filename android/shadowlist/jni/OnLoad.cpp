@@ -4,9 +4,13 @@
 #include "SLRuntimeManager.h"
 #include "SLModuleJSI.h"
 
+using namespace azimgd::shadowlist;
+using namespace facebook::react;
+using namespace facebook::jni;
+
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *) {
-  return facebook::jni::initialize(vm, [] {
-    facebook::react::ShadowlistModule::registerNatives();
+  return initialize(vm, [] {
+    ShadowlistModule::registerNatives();
   });
 }
 

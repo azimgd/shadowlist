@@ -3,7 +3,10 @@
 #include <react/renderer/components/text/RawTextShadowNode.h>
 #include <react/renderer/components/image/ImageShadowNode.h>
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 /*
  * Following offset of elements should probably be enough for now
@@ -45,7 +48,7 @@ ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const int& elementDataIndex
   PropsParserContext propsParserContext{shadowNode->getSurfaceId(), *componentDescriptor.getContextContainer().get()};
 
   nextFamilyTag = adjustFamilyTag(nextFamilyTag);
-  SLRuntimeManager::getInstance().addTag(nextFamilyTag, elementDataIndex);
+  SLRuntimeManager::getInstance().addIndexToTag(nextFamilyTag, elementDataIndex);
 
   InstanceHandle::Shared instanceHandle = std::make_shared<const InstanceHandle>(
     *SLRuntimeManager::getInstance().getRuntime(),

@@ -3,7 +3,10 @@
 
 #include <react/renderer/uimanager/UIManager.h>
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 using namespace facebook::react;
 using namespace facebook::jsi;
@@ -29,17 +32,19 @@ public:
     _runtime = runtime;
   }
 
-  void addTag(int key, int value) {
-    _tagRegistry[key] = value;
+  void shiftIndices(int offset) {
+    for (auto& entry : _tagRegistry) {
+      entry.second += offset;
+    }
+  }
+  
+  void addIndexToTag(int tag, int elementDataIndex) {
+    _tagRegistry[tag] = elementDataIndex;
   }
 
-  int getTag(int key) const {
-    auto it = _tagRegistry.find(key);
+  int getIndexFromTag(int tag) const {
+    auto it = _tagRegistry.find(tag);
     return it != _tagRegistry.end() ? it->second : -1;
-  }
-
-  void removeTag(int key) {
-    _tagRegistry.erase(key);
   }
 
   SLRuntimeManager(const SLRuntimeManager&) = delete;

@@ -12,7 +12,10 @@
 #endif
 #endif
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 class SLContainerProps final : public ViewProps {
   public:

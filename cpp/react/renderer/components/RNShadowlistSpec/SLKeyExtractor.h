@@ -2,7 +2,7 @@
 #include <optional>
 #include <vector>
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
 
 class SLKeyExtractor {
   public:

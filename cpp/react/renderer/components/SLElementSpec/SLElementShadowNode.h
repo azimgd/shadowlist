@@ -9,7 +9,10 @@
 #include <react/renderer/core/LayoutContext.h>
 #include <react/renderer/core/LayoutMetrics.h>
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 JSI_EXPORT extern const char SLElementComponentName[];
 

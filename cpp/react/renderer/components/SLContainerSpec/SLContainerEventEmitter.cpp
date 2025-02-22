@@ -1,6 +1,9 @@
 #include "SLContainerEventEmitter.h"
 
-namespace facebook::react {
+namespace azimgd::shadowlist {
+
+using namespace facebook;
+using namespace facebook::react;
 
 void SLContainerEventEmitter::onVisibleChange(OnVisibleChange $event) const {
   dispatchEvent("visibleChange", [$event = std::move($event)](jsi::Runtime &runtime) {
