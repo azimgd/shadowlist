@@ -45,7 +45,7 @@ ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const int& elementDataIndex
   PropsParserContext propsParserContext{shadowNode->getSurfaceId(), *componentDescriptor.getContextContainer().get()};
 
   nextFamilyTag = adjustFamilyTag(nextFamilyTag);
-  SLRuntimeManager::getInstance().addTag(nextFamilyTag, elementDataIndex);
+  SLRuntimeManager::getInstance().addIndexToTag(nextFamilyTag, elementDataIndex);
 
   InstanceHandle::Shared instanceHandle = std::make_shared<const InstanceHandle>(
     *SLRuntimeManager::getInstance().getRuntime(),

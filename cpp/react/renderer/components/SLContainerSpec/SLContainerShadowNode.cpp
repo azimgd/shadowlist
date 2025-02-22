@@ -1,6 +1,7 @@
 #include "SLContainerShadowNode.h"
 #include "SLContentShadowNode.h"
 #include "SLElementShadowNode.h"
+#include "SLRuntimeManager.h"
 #include "SLTemplate.h"
 #include "Offsetter.h"
 
@@ -61,6 +62,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.lastChildUniqueId != props.uniqueIds.back();
 
   if (elementsDataPrepended) {
+    SLRuntimeManager::getInstance().shiftIndices(elementsDataSize - nextStateData.childrenMeasurementsTree.size());
     nextStateData.scrollIndex = elementsDataSize - nextStateData.childrenMeasurementsTree.size();
     nextStateData.scrollPositionUpdated = true;
   }

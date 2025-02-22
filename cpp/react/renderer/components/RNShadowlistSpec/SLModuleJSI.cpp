@@ -15,8 +15,8 @@ void SLModuleJSI::install(facebook::jsi::Runtime &runtime) {
       const facebook::jsi::Value *arguments,
       size_t count) -> facebook::jsi::Value
     {
-      int elementFamilyTag = SLRuntimeManager::getInstance().getTag(arguments[0].asNumber());
-      return facebook::jsi::Value(elementFamilyTag);
+      int elementDataIndex = SLRuntimeManager::getInstance().getIndexFromTag(arguments[0].asNumber());
+      return facebook::jsi::Value(elementDataIndex);
   });
   runtime.global().setProperty(runtime, "__NATIVE_getRegistryElementMapping", std::move(getRegistryElementMapping));
 }
