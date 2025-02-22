@@ -13,33 +13,44 @@ import useData from './useData';
 import Header, { type OptionsKey } from './Header';
 import Element from './Element';
 import { useNavigation } from '@react-navigation/native';
+import Menu, { type VariantsKey } from './Menu';
 
 const ITEMS_COUNT = 50;
-const IS_INVERTED = false;
-const IS_HORIZONTAL = false;
-const INITIAL_SCROLL_INDEX = 0;
 const FINAL_SCROLL_INDEX = 0;
 
 export default function HomeScreen() {
   const navigation = useNavigation();
-  const data = useData({ length: ITEMS_COUNT, inverted: IS_INVERTED });
-  const ref = useRef<SLContainerRef>(null);
+  const shadowlistRef = useRef<SLContainerRef>(null);
+
+  /**
+   * Options are used to control the behavior of the list
+   */
   const [options, setOptions] = useState({
     pressable: false,
     prepended: false,
     appended: false,
   });
 
+  /**
+   * Variants are used to control the type of the list
+   */
+  const [variants, setVariants] = useState<VariantsKey>('vertical-default');
+  const inverted = variants.includes('inverted');
+  const data = useData({
+    length: ITEMS_COUNT,
+    inverted,
+  });
+
   useEffect(() => {
     if (!FINAL_SCROLL_INDEX) return;
     setTimeout(() => {
-      ref.current?.scrollToIndex({ index: FINAL_SCROLL_INDEX });
+      shadowlistRef.current?.scrollToIndex({ index: FINAL_SCROLL_INDEX });
     }, 1000);
   }, []);
 
   useEffect(() => {
-    navigation.setOptions({ title: `shadowlist: ${data.data.length} items` });
-  }, [data.data.length, navigation]);
+    navigation.setOptions({ title: `${variants}: ${data.data.length} items` });
+  }, [variants, data.data.length, navigation]);
 
   /**
    * When header item is pressed
@@ -47,6 +58,17 @@ export default function HomeScreen() {
   const handleHeaderItemPress = useCallback((key: OptionsKey) => {
     setOptions((state) => ({ ...state, [key]: !state[key] }));
   }, []);
+
+  /**
+   * When header item is pressed
+   */
+  const handleMenuItemPress = useCallback(
+    (key: VariantsKey) => {
+      setVariants(key);
+      navigation.setOptions({ title: `${key}: ${data.data.length} items` });
+    },
+    [data.data.length, navigation]
+  );
 
   /**
    * When element item is pressed
@@ -82,10 +104,10 @@ export default function HomeScreen() {
     (event) => {
       if (!options.prepended) return;
 
-      !IS_INVERTED ? data.loadPrepend() : data.loadAppend();
+      !inverted ? data.loadPrepend() : data.loadAppend();
       event.nativeEvent.distanceFromStart;
     },
-    [data, options.prepended]
+    [data, options.prepended, inverted]
   );
 
   /**
@@ -95,10 +117,10 @@ export default function HomeScreen() {
     (event) => {
       if (!options.appended) return;
 
-      !IS_INVERTED ? data.loadAppend() : data.loadPrepend();
+      !inverted ? data.loadAppend() : data.loadPrepend();
       event.nativeEvent.distanceFromEnd;
     },
-    [data, options.appended]
+    [data, options.appended, inverted]
   );
 
   /**
@@ -130,30 +152,62 @@ export default function HomeScreen() {
     [data.data, handleElementItemPress]
   );
 
+  const listProps = {
+    templates: {
+      ListTemplateComponentUniqueIdYarrow: templateYarrow,
+      ListTemplateComponentUniqueIdRobin: templateRobin,
+    },
+    data: data.data,
+    onVisibleChange: onVisibleChange,
+    onStartReached: onStartReached,
+    onEndReached: onEndReached,
+    onScroll: onScroll,
+    ListHeaderComponent: ListHeaderComponent,
+    ListFooterComponent: ListFooterComponent,
+    ListFooterComponentStyle: styles.static,
+    ListEmptyComponent: ListEmptyComponent,
+    ListEmptyComponentStyle: styles.static,
+  };
+
   return (
     <View style={styles.container}>
-      <Shadowlist
-        ref={ref}
-        templates={{
-          ListTemplateComponentUniqueIdYarrow: templateYarrow,
-          ListTemplateComponentUniqueIdRobin: templateRobin,
-        }}
-        data={data.data}
-        onVisibleChange={onVisibleChange}
-        onStartReached={onStartReached}
-        onEndReached={onEndReached}
-        onScroll={onScroll}
-        ListHeaderComponent={ListHeaderComponent}
-        ListFooterComponent={ListFooterComponent}
-        ListFooterComponentStyle={styles.static}
-        ListEmptyComponent={ListEmptyComponent}
-        ListEmptyComponentStyle={styles.static}
-        inverted={IS_INVERTED}
-        horizontal={IS_HORIZONTAL}
-        initialScrollIndex={INITIAL_SCROLL_INDEX}
-        numColumns={1}
-        contentContainerStyle={styles.list}
-      />
+      {variants === 'vertical-default' && (
+        <Shadowlist
+          {...listProps}
+          ref={shadowlistRef}
+          inverted={false}
+          horizontal={false}
+        />
+      )}
+
+      {variants === 'vertical-inverted' && (
+        <Shadowlist
+          {...listProps}
+          ref={shadowlistRef}
+          inverted={true}
+          horizontal={false}
+        />
+      )}
+
+      {variants === 'horizontal-default' && (
+        <Shadowlist
+          {...listProps}
+          ref={shadowlistRef}
+          inverted={false}
+          horizontal={true}
+        />
+      )}
+
+      {variants === 'horizontal-inverted' && (
+        <Shadowlist
+          {...listProps}
+          ref={shadowlistRef}
+          inverted={true}
+          horizontal={true}
+        />
+      )}
+
+      <Menu onPress={handleMenuItemPress} />
     </View>
   );
 }

@@ -2655,6 +2655,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@react-native-menu/menu@npm:^1.2.2":
+  version: 1.2.2
+  resolution: "@react-native-menu/menu@npm:1.2.2"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: c3f22c11f7a138d559113e1f1e2b187f39438438d506a7997c2e97a7dc69b416f3f42d508a3252b76965527219af32ebea9f0f263a1db23b7b208e5cd65eb914
+  languageName: node
+  linkType: hard
+
 "@react-native/assets-registry@npm:0.76.5":
   version: 0.76.5
   resolution: "@react-native/assets-registry@npm:0.76.5"
@@ -11735,6 +11745,7 @@ __metadata:
     "@react-native-community/cli": 15.0.1
     "@react-native-community/cli-platform-android": 15.0.1
     "@react-native-community/cli-platform-ios": 15.0.1
+    "@react-native-menu/menu": ^1.2.2
     "@react-native/babel-preset": 0.76.5
     "@react-native/metro-config": 0.76.5
     "@react-native/typescript-config": 0.76.5
