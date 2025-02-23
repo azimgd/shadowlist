@@ -11,12 +11,12 @@ import {
 } from 'shadowlist';
 import useData from './useData';
 import Header, { type OptionsKey } from './Header';
-import Element from './Element';
+import ElementVertical from './ElementVertical';
+import ElementGrid from './ElementGrid';
 import { useNavigation } from '@react-navigation/native';
 import Menu, { type VariantsKey } from './Menu';
 
 const ITEMS_COUNT = 50;
-const FINAL_SCROLL_INDEX = 0;
 
 export default function HomeScreen() {
   const navigation = useNavigation();
@@ -42,13 +42,6 @@ export default function HomeScreen() {
   });
 
   useEffect(() => {
-    if (!FINAL_SCROLL_INDEX) return;
-    setTimeout(() => {
-      shadowlistRef.current?.scrollToIndex({ index: FINAL_SCROLL_INDEX });
-    }, 1000);
-  }, []);
-
-  useEffect(() => {
     navigation.setOptions({ title: `${variants}: ${data.data.length} items` });
   }, [variants, data.data.length, navigation]);
 
@@ -64,6 +57,11 @@ export default function HomeScreen() {
    */
   const handleMenuItemPress = useCallback(
     (key: VariantsKey) => {
+      if (key === 'scroll-to-index') {
+        shadowlistRef.current?.scrollToIndex({ index: 10, animated: true });
+        return;
+      }
+
       setVariants(key);
       navigation.setOptions({ title: `${key}: ${data.data.length} items` });
     },
@@ -143,20 +141,24 @@ export default function HomeScreen() {
   /**
    * Element template: Yarrow
    */
-  const templateYarrow = useCallback(
-    () => <Element onPress={handleElementItemPress} data={data.data} />,
+  const templateVerticalYarrow = useCallback(
+    () => <ElementVertical onPress={handleElementItemPress} data={data.data} />,
     [data.data, handleElementItemPress]
   );
-  const templateRobin = useCallback(
-    () => <Element onPress={handleElementItemPress} data={data.data} />,
+  const templateVerticalRobin = useCallback(
+    () => <ElementVertical onPress={handleElementItemPress} data={data.data} />,
+    [data.data, handleElementItemPress]
+  );
+  const templateGridYarrow = useCallback(
+    () => <ElementGrid onPress={handleElementItemPress} data={data.data} />,
+    [data.data, handleElementItemPress]
+  );
+  const templateGridRobin = useCallback(
+    () => <ElementGrid onPress={handleElementItemPress} data={data.data} />,
     [data.data, handleElementItemPress]
   );
 
   const listProps = {
-    templates: {
-      ListTemplateComponentUniqueIdYarrow: templateYarrow,
-      ListTemplateComponentUniqueIdRobin: templateRobin,
-    },
     data: data.data,
     onVisibleChange: onVisibleChange,
     onStartReached: onStartReached,
@@ -174,15 +176,21 @@ export default function HomeScreen() {
       {variants === 'vertical-default' && (
         <Shadowlist
           {...listProps}
+          templates={{
+            ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
+            ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
+          }}
           ref={shadowlistRef}
-          inverted={false}
-          horizontal={false}
         />
       )}
 
       {variants === 'vertical-inverted' && (
         <Shadowlist
           {...listProps}
+          templates={{
+            ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
+            ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
+          }}
           ref={shadowlistRef}
           inverted={true}
           horizontal={false}
@@ -192,6 +200,10 @@ export default function HomeScreen() {
       {variants === 'horizontal-default' && (
         <Shadowlist
           {...listProps}
+          templates={{
+            ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
+            ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
+          }}
           ref={shadowlistRef}
           inverted={false}
           horizontal={true}
@@ -201,9 +213,38 @@ export default function HomeScreen() {
       {variants === 'horizontal-inverted' && (
         <Shadowlist
           {...listProps}
+          templates={{
+            ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
+            ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
+          }}
           ref={shadowlistRef}
           inverted={true}
           horizontal={true}
+        />
+      )}
+
+      {variants === 'grid-3' && (
+        <Shadowlist
+          {...listProps}
+          templates={{
+            ListTemplateComponentUniqueIdYarrow: templateGridYarrow,
+            ListTemplateComponentUniqueIdRobin: templateGridRobin,
+          }}
+          ref={shadowlistRef}
+          numColumns={3}
+          ListHeaderComponentStyle={{ paddingBottom: 12 }}
+        />
+      )}
+
+      {variants === 'initial-scroll-index' && (
+        <Shadowlist
+          {...listProps}
+          templates={{
+            ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
+            ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
+          }}
+          ref={shadowlistRef}
+          initialScrollIndex={10}
         />
       )}
 

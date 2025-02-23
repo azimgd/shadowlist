@@ -6,6 +6,7 @@ import {
   type GestureResponderEvent,
   type ViewStyle,
   View,
+  Dimensions,
 } from 'react-native';
 
 type ElementProps = {
@@ -14,7 +15,7 @@ type ElementProps = {
   style?: ViewStyle;
 };
 
-const Element = (props: ElementProps) => {
+const ElementGrid = (props: ElementProps) => {
   const handlePress = (event: GestureResponderEvent) => {
     const elementDataIndex = __NATIVE_getRegistryElementMapping(
       event.nativeEvent.target
@@ -24,15 +25,11 @@ const Element = (props: ElementProps) => {
 
   return (
     <Pressable style={[styles.container, props.style]} onPress={handlePress}>
-      <View style={styles.left}>
-        <Image source={{ uri: `{{image}}` }} style={styles.image} />
-        <View style={styles.indicator} />
-      </View>
+      <Image source={{ uri: `{{image}}` }} style={styles.image} />
 
-      <View style={styles.right}>
-        <Text style={styles.title}>{`{{title}}`}</Text>
+      <View style={styles.bottom}>
+        <Text style={styles.title} ellipsizeMode="clip">{`{{title}}`}</Text>
         <Text style={styles.subtitle}>{`{{subtitle}}`}</Text>
-        <Text style={styles.content}>{`{{text}}`}</Text>
       </View>
     </Pressable>
   );
@@ -40,45 +37,28 @@ const Element = (props: ElementProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
-    flexDirection: 'row',
-    gap: 16,
-    borderBottomColor: '#dddddd20',
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
   },
-  left: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  right: {
+  bottom: {
     flex: 1,
+    gap: 8,
   },
   title: {
     fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 4,
-  },
-  content: {
-    fontWeight: '500',
     color: '#ffffff',
   },
   subtitle: {
     fontWeight: '300',
     color: '#ffffff',
-    marginBottom: 16,
   },
   image: {
     borderRadius: 4,
-    width: 60,
-    height: 60,
+    marginBottom: 4,
+    width: Dimensions.get('window').width / 3 - 32,
+    height: Dimensions.get('window').width / 3 - 32,
     backgroundColor: '#dddddd20',
-  },
-  indicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 8,
-    backgroundColor: '#1dd1a1',
   },
 });
 
-export default Element;
+export default ElementGrid;

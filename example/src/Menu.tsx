@@ -5,7 +5,10 @@ export type VariantsKey =
   | 'vertical-default'
   | 'vertical-inverted'
   | 'horizontal-default'
-  | 'horizontal-inverted';
+  | 'horizontal-inverted'
+  | 'grid-3'
+  | 'initial-scroll-index'
+  | 'scroll-to-index';
 
 export type MenuProps = {
   onPress: (optionsKey: VariantsKey) => void;
@@ -38,6 +41,21 @@ export default function Menu(props: MenuProps) {
           {
             id: 'horizontal-inverted',
             title: 'Horizontal Inverted',
+            titleColor: '#2367A2',
+          },
+          {
+            id: 'grid-3',
+            title: 'Grid Three',
+            titleColor: '#2367A2',
+          },
+          {
+            id: 'initial-scroll-index',
+            title: 'Initial Scroll Index Ten',
+            titleColor: '#2367A2',
+          },
+          {
+            id: 'scroll-to-index',
+            title: 'Scroll to Index Ten',
             titleColor: '#2367A2',
           },
         ].toReversed()}
