@@ -8,6 +8,7 @@ export type VariantsKey =
   | 'horizontal-inverted'
   | 'grid-masonry-3'
   | 'grid-aligned-3'
+  | 'chatui'
   | 'initial-scroll-index'
   | 'scroll-to-index';
 
@@ -27,42 +28,38 @@ export default function Menu(props: MenuProps) {
           {
             id: 'vertical-default',
             title: 'Vertical Default',
-            titleColor: '#2367A2',
           },
           {
             id: 'vertical-inverted',
             title: 'Vertical Inverted',
-            titleColor: '#2367A2',
           },
           {
             id: 'horizontal-default',
             title: 'Horizontal Default',
-            titleColor: '#2367A2',
           },
           {
             id: 'horizontal-inverted',
             title: 'Horizontal Inverted',
-            titleColor: '#2367A2',
           },
           {
             id: 'grid-masonry-3',
             title: 'Grid Masonry Three',
-            titleColor: '#2367A2',
           },
           {
             id: 'grid-aligned-3',
             title: 'Grid Aligned Three',
-            titleColor: '#2367A2',
+          },
+          {
+            id: 'chatui',
+            title: 'Chat UI',
           },
           {
             id: 'initial-scroll-index',
             title: 'Initial Scroll Index Ten',
-            titleColor: '#2367A2',
           },
           {
             id: 'scroll-to-index',
             title: 'Scroll to Index Ten',
-            titleColor: '#2367A2',
           },
         ].toReversed()}
         shouldOpenOnLongPress={false}

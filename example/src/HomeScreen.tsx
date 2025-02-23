@@ -14,8 +14,10 @@ import Header, { type OptionsKey } from './Header';
 import ElementVertical from './ElementVertical';
 import ElementGridMasonry from './ElementGridMasonry';
 import ElementGridAligned from './ElementGridAligned';
+import ElementLine from './ElementLine';
 import { useNavigation } from '@react-navigation/native';
 import Menu, { type VariantsKey } from './Menu';
+import HeaderInput from './HeaderInput';
 
 const ITEMS_COUNT = 50;
 
@@ -85,6 +87,10 @@ export default function HomeScreen() {
    */
   const ListHeaderComponent = useCallback(
     () => <Header options={options} onPress={handleHeaderItemPress} />,
+    [handleHeaderItemPress, options]
+  );
+  const ListHeaderInputComponent = useCallback(
+    () => <HeaderInput options={options} onPress={handleHeaderItemPress} />,
     [handleHeaderItemPress, options]
   );
   const ListFooterComponent = useCallback(
@@ -172,6 +178,14 @@ export default function HomeScreen() {
     () => (
       <ElementGridAligned onPress={handleElementItemPress} data={data.data} />
     ),
+    [data.data, handleElementItemPress]
+  );
+  const templateLineYarrow = useCallback(
+    () => <ElementLine onPress={handleElementItemPress} data={data.data} />,
+    [data.data, handleElementItemPress]
+  );
+  const templateLineRobin = useCallback(
+    () => <ElementLine onPress={handleElementItemPress} data={data.data} />,
     [data.data, handleElementItemPress]
   );
 
@@ -262,6 +276,19 @@ export default function HomeScreen() {
           }}
           ref={shadowlistRef}
           numColumns={3}
+        />
+      )}
+
+      {variants === 'chatui' && (
+        <Shadowlist
+          {...listProps}
+          ListHeaderComponent={ListHeaderInputComponent}
+          templates={{
+            ListTemplateComponentUniqueIdYarrow: templateLineYarrow,
+            ListTemplateComponentUniqueIdRobin: templateLineRobin,
+          }}
+          ref={shadowlistRef}
+          inverted={true}
         />
       )}
 
