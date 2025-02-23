@@ -12,7 +12,8 @@ import {
 import useData from './useData';
 import Header, { type OptionsKey } from './Header';
 import ElementVertical from './ElementVertical';
-import ElementGrid from './ElementGrid';
+import ElementGridMasonry from './ElementGridMasonry';
+import ElementGridAligned from './ElementGridAligned';
 import { useNavigation } from '@react-navigation/native';
 import Menu, { type VariantsKey } from './Menu';
 
@@ -149,12 +150,28 @@ export default function HomeScreen() {
     () => <ElementVertical onPress={handleElementItemPress} data={data.data} />,
     [data.data, handleElementItemPress]
   );
-  const templateGridYarrow = useCallback(
-    () => <ElementGrid onPress={handleElementItemPress} data={data.data} />,
+  const templateGridMasonryYarrow = useCallback(
+    () => (
+      <ElementGridMasonry onPress={handleElementItemPress} data={data.data} />
+    ),
     [data.data, handleElementItemPress]
   );
-  const templateGridRobin = useCallback(
-    () => <ElementGrid onPress={handleElementItemPress} data={data.data} />,
+  const templateGridMasonryRobin = useCallback(
+    () => (
+      <ElementGridMasonry onPress={handleElementItemPress} data={data.data} />
+    ),
+    [data.data, handleElementItemPress]
+  );
+  const templateGridAlignedYarrow = useCallback(
+    () => (
+      <ElementGridAligned onPress={handleElementItemPress} data={data.data} />
+    ),
+    [data.data, handleElementItemPress]
+  );
+  const templateGridAlignedRobin = useCallback(
+    () => (
+      <ElementGridAligned onPress={handleElementItemPress} data={data.data} />
+    ),
     [data.data, handleElementItemPress]
   );
 
@@ -223,16 +240,28 @@ export default function HomeScreen() {
         />
       )}
 
-      {variants === 'grid-3' && (
+      {variants === 'grid-masonry-3' && (
         <Shadowlist
           {...listProps}
           templates={{
-            ListTemplateComponentUniqueIdYarrow: templateGridYarrow,
-            ListTemplateComponentUniqueIdRobin: templateGridRobin,
+            ListTemplateComponentUniqueIdYarrow: templateGridMasonryYarrow,
+            ListTemplateComponentUniqueIdRobin: templateGridMasonryRobin,
           }}
           ref={shadowlistRef}
           numColumns={3}
           ListHeaderComponentStyle={{ paddingBottom: 12 }}
+        />
+      )}
+
+      {variants === 'grid-aligned-3' && (
+        <Shadowlist
+          {...listProps}
+          templates={{
+            ListTemplateComponentUniqueIdYarrow: templateGridAlignedYarrow,
+            ListTemplateComponentUniqueIdRobin: templateGridAlignedRobin,
+          }}
+          ref={shadowlistRef}
+          numColumns={3}
         />
       )}
 

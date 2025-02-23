@@ -15,7 +15,7 @@ type ElementProps = {
   style?: ViewStyle;
 };
 
-const ElementGrid = (props: ElementProps) => {
+const ElementGridMasonry = (props: ElementProps) => {
   const handlePress = (event: GestureResponderEvent) => {
     const elementDataIndex = __NATIVE_getRegistryElementMapping(
       event.nativeEvent.target
@@ -61,4 +61,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ElementGrid;
+export default ElementGridMasonry;

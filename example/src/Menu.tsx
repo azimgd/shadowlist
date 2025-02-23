@@ -6,7 +6,8 @@ export type VariantsKey =
   | 'vertical-inverted'
   | 'horizontal-default'
   | 'horizontal-inverted'
-  | 'grid-3'
+  | 'grid-masonry-3'
+  | 'grid-aligned-3'
   | 'initial-scroll-index'
   | 'scroll-to-index';
 
@@ -44,8 +45,13 @@ export default function Menu(props: MenuProps) {
             titleColor: '#2367A2',
           },
           {
-            id: 'grid-3',
-            title: 'Grid Three',
+            id: 'grid-masonry-3',
+            title: 'Grid Masonry Three',
+            titleColor: '#2367A2',
+          },
+          {
+            id: 'grid-aligned-3',
+            title: 'Grid Aligned Three',
             titleColor: '#2367A2',
           },
           {
