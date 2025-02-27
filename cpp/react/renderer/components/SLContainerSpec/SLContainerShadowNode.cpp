@@ -199,12 +199,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * and add them to the container if they are visible in the current viewport
    */
   for (ComponentRegistryItem componentRegistryItem : scrollContentAboveComponents) {
-    auto elementMetrics = adjustElement(
-      {
-        .x = (componentRegistryItem.index % props.numColumns) * (nextStateData.scrollContainer.width / props.numColumns),
-        .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
-      },
-      componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    auto elementMetrics = adjustElement({
+      .x = (componentRegistryItem.index % props.numColumns) * (nextStateData.scrollContainer.width / props.numColumns),
+      .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
+    }, componentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
     scrollContentAboveOffset.add(componentRegistryItem.index % props.numColumns, componentRegistryItem.size);
     scrollContentAboveIndex = componentRegistryItem.index;
@@ -225,12 +223,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   for (ComponentRegistryItem componentRegistryItem : scrollContentBelowComponents) {
     auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
-    auto elementMetrics = adjustElement(
-      {
-        .x = (componentRegistryItem.index % props.numColumns) * (nextStateData.scrollContainer.width / props.numColumns),
-        .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
-      },
-      componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    auto elementMetrics = adjustElement({
+      .x = (componentRegistryItem.index % props.numColumns) * (nextStateData.scrollContainer.width / props.numColumns),
+      .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
+    }, componentRegistry[componentRegistryItem.elementDataUniqueKey]);
 
     scrollContentBelowOffset.add(componentRegistryItem.index % props.numColumns, componentRegistryItem.size);
     scrollContentBelowIndex = componentRegistryItem.index;
@@ -249,12 +245,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     auto templateRegistryItem = transformTemplateComponent("ListEmptyComponentUniqueId", 1);
     contentShadowNodeChildren->push_back(componentRegistry["ListEmptyComponentUniqueId"]);
 
-    adjustElement(
-      {
-        .x = 0,
-        .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
-      },
-      componentRegistry["ListEmptyComponentUniqueId"]);
+    adjustElement({
+      .x = 0,
+      .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
+    }, componentRegistry["ListEmptyComponentUniqueId"]);
 
     scrollContentBelowOffset.add(0, templateRegistryItem.size);
   }
@@ -266,23 +260,30 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     transformTemplateComponent("ListHeaderComponentUniqueId", 1);
     contentShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
 
-    adjustElement(
-      {
-        .x = 0,
-        .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
-      },
-      componentRegistry["ListHeaderComponentUniqueId"]);
+    adjustElement({
+      .x = 0,
+      .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
+    }, componentRegistry["ListHeaderComponentUniqueId"]);
   } else {
     transformTemplateComponent("ListFooterComponentUniqueId", 1);
     contentShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
 
-    adjustElement(
-      {
-        .x = 0,
-        .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
-      },
-      componentRegistry["ListFooterComponentUniqueId"]);
+    adjustElement({
+      .x = 0,
+      .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
+    }, componentRegistry["ListFooterComponentUniqueId"]);
   }
+
+  /*
+   * Dynamic overlay
+   */
+  transformTemplateComponent("ListDynamicComponentUniqueId", 1);
+  contentShadowNodeChildren->push_back(componentRegistry["ListDynamicComponentUniqueId"]);
+
+  adjustElement({
+    .x = 0,
+    .y = 0
+  }, componentRegistry["ListDynamicComponentUniqueId"]);
 
   /*
    * Update children and mark the container as dirty to trigger a layout update on state change

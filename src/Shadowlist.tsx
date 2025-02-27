@@ -1,5 +1,5 @@
 import React, { type Ref } from 'react';
-import { type ViewStyle } from 'react-native';
+import { StyleSheet, Text, type ViewStyle } from 'react-native';
 import { SLContainer } from './SLContainer';
 import { SLContent } from './SLContent';
 import { SLElement } from './SLElement';
@@ -90,6 +90,16 @@ export const Shadowlist = React.forwardRef(
      */
     const SLContentComponent = <SLContent />;
 
+    const ListDynamicComponent = (
+      <SLElement
+        style={styles.ListDynamicComponent}
+        uniqueId="ListDynamicComponentUniqueId"
+        key="ListDynamicComponentUniqueId"
+      >
+        <Text>asd</Text>
+      </SLElement>
+    );
+
     return (
       <SLContainer
         {...props}
@@ -97,6 +107,8 @@ export const Shadowlist = React.forwardRef(
         style={props.contentContainerStyle}
       >
         {SLContentComponent}
+        {ListDynamicComponent}
+
         {ListHeaderComponent}
         {ListTemplatesComponent}
         {ListEmptyComponent}
@@ -105,3 +117,10 @@ export const Shadowlist = React.forwardRef(
     );
   }
 );
+
+const styles = StyleSheet.create({
+  ListDynamicComponent: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'red',
+  },
+});
