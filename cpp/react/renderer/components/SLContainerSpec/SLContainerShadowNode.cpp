@@ -214,7 +214,11 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
-      contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      
+      if (true) {
+        contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      }
+
       contentShadowNodeItems.viewableItems.push_back({
         .key = componentRegistryItem.elementDataUniqueKey,
         .index = componentRegistryItem.index,
@@ -251,7 +255,11 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
-      contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      
+      if (true) {
+        contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      }
+
       contentShadowNodeItems.viewableItems.push_back({
         .key = componentRegistryItem.elementDataUniqueKey,
         .index = componentRegistryItem.index,

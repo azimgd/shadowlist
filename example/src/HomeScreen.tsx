@@ -8,10 +8,12 @@ import {
   type OnVisibleChange,
   type OnScroll,
   type SLContainerRef,
+  type ShadowlistProps,
+  type SLContainerNativeProps,
 } from 'shadowlist';
 import useData from './useData';
 import Header, { type OptionsKey } from './Header';
-import ElementVertical from './ElementVertical';
+import ElementVertical, { ElementVerticalDynamic } from './ElementVertical';
 import ElementGridMasonry from './ElementGridMasonry';
 import ElementGridAligned from './ElementGridAligned';
 import ElementLine from './ElementLine';
@@ -19,7 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import Menu, { type VariantsKey } from './Menu';
 import HeaderInput from './HeaderInput';
 
-const ITEMS_COUNT = 50;
+const ITEMS_COUNT = 200;
 
 export default function HomeScreen() {
   const navigation = useNavigation();
@@ -189,7 +191,7 @@ export default function HomeScreen() {
     [data.data, handleElementItemPress]
   );
 
-  const listProps = {
+  const listProps: Omit<SLContainerNativeProps, 'data'> & ShadowlistProps = {
     data: data.data,
     onVisibleChange: onVisibleChange,
     onStartReached: onStartReached,
@@ -200,6 +202,7 @@ export default function HomeScreen() {
     ListFooterComponentStyle: styles.static,
     ListEmptyComponent: ListEmptyComponent,
     ListEmptyComponentStyle: styles.static,
+    renderItem: ({ item }) => <ElementVerticalDynamic item={item} />,
   };
 
   return (

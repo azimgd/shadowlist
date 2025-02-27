@@ -33,6 +33,15 @@ const invoker = (Component: Component) => {
 
 export type ShadowlistProps = {
   data: Array<ItemProp>;
+  renderItem: ({
+    item,
+    key,
+    index,
+  }: {
+    item: any;
+    key: string;
+    index: number;
+  }) => React.ReactElement;
   templates?: {
     [key: string]: () => React.ReactElement;
   };
@@ -143,7 +152,10 @@ export const Shadowlist = React.forwardRef(
             key={viewableItem.key}
             style={viewableItemStyle(viewableItem.origin, viewableItem.size)}
           >
-            {viewableItem.key}
+            {props.renderItem({
+              item: props.data[viewableItem.index],
+              ...viewableItem,
+            })}
           </Text>
         ))}
       </SLElement>

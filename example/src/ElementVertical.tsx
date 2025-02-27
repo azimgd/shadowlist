@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   Image,
   StyleSheet,
@@ -8,13 +9,13 @@ import {
   View,
 } from 'react-native';
 
-type ElementProps = {
+type ElementVerticalProps = {
   data: Array<any>;
   onPress: (index: number) => void;
   style?: ViewStyle;
 };
 
-const ElementVertical = (props: ElementProps) => {
+const ElementVertical = (props: ElementVerticalProps) => {
   const handlePress = (event: GestureResponderEvent) => {
     const elementDataIndex = __NATIVE_getRegistryElementMapping(
       event.nativeEvent.target
@@ -33,6 +34,38 @@ const ElementVertical = (props: ElementProps) => {
         <Text style={styles.title}>{`{{title}}`}</Text>
         <Text style={styles.subtitle}>{`{{subtitle}}`}</Text>
         <Text style={styles.content}>{`{{text}}`}</Text>
+      </View>
+    </Pressable>
+  );
+};
+
+type ElementVerticalDynamicProps = {
+  item: any;
+  style?: ViewStyle;
+};
+
+export const ElementVerticalDynamic = (props: ElementVerticalDynamicProps) => {
+  const [timer, setTimer] = useState('');
+
+  useEffect(() => {
+    const interval = setInterval(
+      () => setTimer(Math.random().toFixed(2)),
+      1000
+    );
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Pressable style={[styles.container, props.style]} onPress={() => {}}>
+      <View style={styles.left}>
+        <Image source={{ uri: props.item?.image }} style={styles.image} />
+        <View style={styles.indicator} />
+      </View>
+
+      <View style={styles.right}>
+        <Text style={styles.title}>{props.item?.title + timer}</Text>
+        <Text style={styles.subtitle}>{props.item?.subtitle}</Text>
+        <Text style={styles.content}>{props.item?.text}</Text>
       </View>
     </Pressable>
   );
