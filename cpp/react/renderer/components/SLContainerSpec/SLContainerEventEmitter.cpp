@@ -44,4 +44,34 @@ void SLContainerEventEmitter::onScroll(OnScroll $event) const {
     return $payload;
   });
 }
+
+void SLContainerEventEmitter::onViewableItemsChanged(OnViewableItemsChanged $event) const {
+  dispatchEvent("onViewableItemsChanged", [$event = std::move($event)](jsi::Runtime &runtime) {
+    auto $payload = jsi::Object(runtime);
+    auto $viewableItems = jsi::Array(runtime, $event.viewableItems.size());
+    
+    for (size_t i = 0; i < $event.viewableItems.size(); ++i) {
+      const auto &item = $event.viewableItems[i];
+      auto $item = jsi::Object(runtime);
+      $item.setProperty(runtime, "key", item.key);
+      $item.setProperty(runtime, "index", item.index);
+      $item.setProperty(runtime, "isViewable", item.isViewable);
+
+      auto $origin = jsi::Object(runtime);
+      $origin.setProperty(runtime, "x", item.origin.x);
+      $origin.setProperty(runtime, "y", item.origin.y);
+      $item.setProperty(runtime, "origin", $origin);
+      
+      auto $size = jsi::Object(runtime);
+      $size.setProperty(runtime, "width", item.size.width);
+      $size.setProperty(runtime, "height", item.size.height);
+      $item.setProperty(runtime, "size", $size);
+      
+      $viewableItems.setValueAtIndex(runtime, i, $item);
+    }
+    
+    $payload.setProperty(runtime, "viewableItems", $viewableItems);
+    return $payload;
+  });
+}
 }

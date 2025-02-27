@@ -58,6 +58,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * Store the child nodes for the container
    */
   auto contentShadowNodeChildren = std::make_shared<ShadowNode::ListOfShared>();
+  OnViewableItemsChanged contentShadowNodeItems = {};
 
   bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() && props.uniqueIds.size() &&
     nextStateData.firstChildUniqueId != props.uniqueIds.front();
@@ -214,6 +215,19 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
       contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      contentShadowNodeItems.viewableItems.push_back({
+        .key = componentRegistryItem.elementDataUniqueKey,
+        .index = componentRegistryItem.index,
+        .isViewable = true,
+        .origin = {
+          .x = elementMetrics.frame.origin.x,
+          .y = elementMetrics.frame.origin.y,
+        },
+        .size = {
+          .width = elementMetrics.frame.size.width,
+          .height = elementMetrics.frame.size.height,
+        },
+      });
     }
   }
 
@@ -238,6 +252,19 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
       contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+      contentShadowNodeItems.viewableItems.push_back({
+        .key = componentRegistryItem.elementDataUniqueKey,
+        .index = componentRegistryItem.index,
+        .isViewable = true,
+        .origin = {
+          .x = elementMetrics.frame.origin.x,
+          .y = elementMetrics.frame.origin.y,
+        },
+        .size = {
+          .width = elementMetrics.frame.size.width,
+          .height = elementMetrics.frame.size.height,
+        },
+      });
     }
   }
 
@@ -289,6 +316,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       scrollContentBelowOffset.max() +
       nextStateData.templateMeasurementsTree[1]
     );
+    nextStateData.scrollContentUpdated = true;
   } else if (!props.horizontal) {
     nextStateData.scrollContent.width = nextStateData.scrollContainer.width;
     nextStateData.scrollContent.height = (
@@ -296,6 +324,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       scrollContentBelowOffset.max() +
       nextStateData.templateMeasurementsTree[1]
     );
+    nextStateData.scrollContentUpdated = true;
   }
 
   /*
@@ -329,16 +358,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   if (nextStateData.scrollContentCompleted) {
     transformTemplateComponent("ListDynamicComponentUniqueId", 1);
     contentShadowNodeChildren->push_back(componentRegistry["ListDynamicComponentUniqueId"]);
-    
+
     adjustElement({
       .x = 0,
       .y = 0
     }, componentRegistry["ListDynamicComponentUniqueId"]);
-    
-    resizeElement({
-      .width = nextStateData.scrollContent.width,
-      .height = nextStateData.scrollContent.height
-    }, componentRegistry["ListDynamicComponentUniqueId"]);
+
+    getConcreteEventEmitter().onViewableItemsChanged({
+      .viewableItems = contentShadowNodeItems.viewableItems
+    });
   }
 
   /*
@@ -349,7 +377,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     .children = contentShadowNodeChildren
   }));
   yogaNode_.setDirty(true);
-  
+
   getConcreteEventEmitter().onVisibleChange({
     .visibleStartIndex = scrollContentBelowIndex,
     .visibleEndIndex = scrollContentAboveIndex,
@@ -359,9 +387,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     .contentSize = nextStateData.scrollContent,
     .contentOffset = nextStateData.scrollPosition,
   });
-  
-  nextStateData.scrollContentUpdated = true;
-  nextStateData.scrollContentCompleted = false;
 
   setStateData(std::move(nextStateData));
 

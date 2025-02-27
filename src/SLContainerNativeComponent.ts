@@ -40,6 +40,22 @@ export type OnScroll = {
   };
 };
 
+export type OnViewableItemsChanged = {
+  viewableItems: {
+    key: string;
+    index: Int32;
+    isViewable: boolean;
+    origin: {
+      x: Int32;
+      y: Int32;
+    };
+    size: {
+      width: Int32;
+      height: Int32;
+    };
+  }[];
+};
+
 export interface SLContainerNativeProps extends ViewProps {
   data: string;
   inverted?: boolean;
@@ -51,6 +67,7 @@ export interface SLContainerNativeProps extends ViewProps {
   onStartReached?: DirectEventHandler<Readonly<OnStartReached>>;
   onEndReached?: DirectEventHandler<Readonly<OnEndReached>>;
   onScroll?: DirectEventHandler<Readonly<OnScroll>>;
+  onViewableItemsChanged?: DirectEventHandler<Readonly<OnViewableItemsChanged>>;
 }
 
 export interface SLContainerNativeCommands {
