@@ -46,12 +46,14 @@ type ElementVerticalDynamicProps = {
 
 export const ElementVerticalDynamic = (props: ElementVerticalDynamicProps) => {
   const [timer, setTimer] = useState('');
+  const [color, setColor] = useState('#ffffff');
 
   useEffect(() => {
-    const interval = setInterval(
-      () => setTimer(Math.random().toFixed(2)),
-      1000
-    );
+    const interval = setInterval(() => {
+      const randomColor = Math.floor(Math.random() * 16777215).toString(16);
+      setTimer(Math.random().toFixed(2));
+      setColor(`#${randomColor}`);
+    }, 1000);
     return () => clearInterval(interval);
   }, []);
 
@@ -59,7 +61,7 @@ export const ElementVerticalDynamic = (props: ElementVerticalDynamicProps) => {
     <Pressable style={[styles.container, props.style]} onPress={() => {}}>
       <View style={styles.left}>
         <Image source={{ uri: props.item?.image }} style={styles.image} />
-        <View style={styles.indicator} />
+        <View style={[styles.indicator, { backgroundColor: color }]} />
       </View>
 
       <View style={styles.right}>
