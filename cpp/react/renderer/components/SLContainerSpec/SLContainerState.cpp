@@ -15,6 +15,7 @@ SLContainerState::SLContainerState(
   Size scrollContainer,
   Size scrollContent,
   bool scrollContentUpdated,
+  bool scrollContentCompleted,
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
   int scrollIndex,
@@ -26,6 +27,7 @@ SLContainerState::SLContainerState(
     scrollContainer(scrollContainer),
     scrollContent(scrollContent),
     scrollContentUpdated(scrollContentUpdated),
+    scrollContentCompleted(scrollContentCompleted),
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
     scrollIndex(scrollIndex),
@@ -72,6 +74,7 @@ MapBuffer SLContainerState::getMapBuffer() const {
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH, scrollContent.width);
   builder.putDouble(SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT, scrollContent.height);
   builder.putBool(SLCONTAINER_STATE_SCROLL_CONTENT_UPDATED, scrollContentUpdated);
+  builder.putBool(SLCONTAINER_STATE_SCROLL_CONTENT_COMPLETED, scrollContentCompleted);
   builder.putString(SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID, firstChildUniqueId);
   builder.putString(SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID, lastChildUniqueId);
   builder.putInt(SLCONTAINER_STATE_SCROLL_INDEX, scrollIndex);

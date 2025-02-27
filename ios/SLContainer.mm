@@ -19,6 +19,7 @@ using namespace facebook::react;
 @implementation SLContainer {
   UIScrollView *_scrollContent;
   SLContainerShadowNode::ConcreteState::Shared _state;
+  bool scrollContentCompleted;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -83,8 +84,56 @@ using namespace facebook::react;
   _state->updateState([scrollPosition](const SLContainerShadowNode::ConcreteState::Data &data) {
     auto newData = data;
     newData.scrollPosition = scrollPosition;
+    newData.scrollContentCompleted = false;
     return std::make_shared<const SLContainerShadowNode::ConcreteState::Data>(newData);
   });
+}
+
+- (void)scrollContentCompleted:(UIScrollView *)scrollView
+{
+  if (!self->scrollContentCompleted) {
+    return;
+  }
+  
+  auto scrollPosition = RCTPointFromCGPoint(scrollView.contentOffset);
+  _state->updateState([scrollPosition](const SLContainerShadowNode::ConcreteState::Data &data) {
+    auto newData = data;
+    newData.scrollPosition = scrollPosition;
+    newData.scrollContentCompleted = true;
+    return std::make_shared<const SLContainerShadowNode::ConcreteState::Data>(newData);
+  });
+}
+
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
+{
+  self->scrollContentCompleted = NO;
+  [self scrollContentCompleted:scrollView];
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
+{
+  if(!decelerate) {
+    self->scrollContentCompleted = YES;
+    [self scrollContentCompleted:scrollView];
+  }
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
+{
+  self->scrollContentCompleted = YES;
+  [self scrollContentCompleted:scrollView];
+}
+
+- (void)scrollViewDidScrollToTop:(UIScrollView *)scrollView
+{
+  self->scrollContentCompleted = YES;
+  [self scrollContentCompleted:scrollView];
+}
+
+- (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView
+{
+  self->scrollContentCompleted = YES;
+  [self scrollContentCompleted:scrollView];
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args

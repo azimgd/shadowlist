@@ -273,26 +273,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
     }, componentRegistry["ListFooterComponentUniqueId"]);
   }
-
-  /*
-   * Dynamic overlay
-   */
-  transformTemplateComponent("ListDynamicComponentUniqueId", 1);
-  contentShadowNodeChildren->push_back(componentRegistry["ListDynamicComponentUniqueId"]);
-
-  adjustElement({
-    .x = 0,
-    .y = 0
-  }, componentRegistry["ListDynamicComponentUniqueId"]);
-
-  /*
-   * Update children and mark the container as dirty to trigger a layout update on state change
-   */
-  auto contentShadowNode = getChildren()[0].get();
-  ConcreteShadowNode::replaceChild(*contentShadowNode, contentShadowNode->clone({
-    .children = contentShadowNodeChildren
-  }));
-  yogaNode_.setDirty(true);
   
   if (props.uniqueIds.size()) {
     nextStateData.firstChildUniqueId = props.uniqueIds.front();
@@ -309,7 +289,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       scrollContentBelowOffset.max() +
       nextStateData.templateMeasurementsTree[1]
     );
-    nextStateData.scrollContentUpdated = true;
   } else if (!props.horizontal) {
     nextStateData.scrollContent.width = nextStateData.scrollContainer.width;
     nextStateData.scrollContent.height = (
@@ -317,7 +296,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       scrollContentBelowOffset.max() +
       nextStateData.templateMeasurementsTree[1]
     );
-    nextStateData.scrollContentUpdated = true;
   }
 
   /*
@@ -345,6 +323,33 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.scrollIndexUpdated = false;
   }
 
+  /*
+   * Dynamic overlay
+   */
+  if (nextStateData.scrollContentCompleted) {
+    transformTemplateComponent("ListDynamicComponentUniqueId", 1);
+    contentShadowNodeChildren->push_back(componentRegistry["ListDynamicComponentUniqueId"]);
+    
+    adjustElement({
+      .x = 0,
+      .y = 0
+    }, componentRegistry["ListDynamicComponentUniqueId"]);
+    
+    resizeElement({
+      .width = nextStateData.scrollContent.width,
+      .height = nextStateData.scrollContent.height
+    }, componentRegistry["ListDynamicComponentUniqueId"]);
+  }
+
+  /*
+   * Update children and mark the container as dirty to trigger a layout update on state change
+   */
+  auto contentShadowNode = getChildren()[0].get();
+  ConcreteShadowNode::replaceChild(*contentShadowNode, contentShadowNode->clone({
+    .children = contentShadowNodeChildren
+  }));
+  yogaNode_.setDirty(true);
+  
   getConcreteEventEmitter().onVisibleChange({
     .visibleStartIndex = scrollContentBelowIndex,
     .visibleEndIndex = scrollContentAboveIndex,
@@ -354,6 +359,9 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     .contentSize = nextStateData.scrollContent,
     .contentOffset = nextStateData.scrollPosition,
   });
+  
+  nextStateData.scrollContentUpdated = true;
+  nextStateData.scrollContentCompleted = false;
 
   setStateData(std::move(nextStateData));
 
@@ -418,6 +426,18 @@ LayoutMetrics SLContainerShadowNode::adjustElement(Point origin, ShadowNode::Uns
 
   return layoutMetrics;
 }
+
+LayoutMetrics SLContainerShadowNode::resizeElement(Size size, ShadowNode::Unshared shadowNode) {
+  auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(shadowNode);
+  LayoutMetrics layoutMetrics = elementShadowNodeLayoutable->getLayoutMetrics();
+
+  layoutMetrics.frame.size.width = size.width;
+  layoutMetrics.frame.size.height = size.height;
+  elementShadowNodeLayoutable->setLayoutMetrics(layoutMetrics);
+
+  return layoutMetrics;
+}
+
 
 float SLContainerShadowNode::getRelativeSizeFromSize(Size size) {
   if (getConcreteProps().horizontal) {

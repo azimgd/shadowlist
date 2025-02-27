@@ -32,6 +32,7 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public static final short SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 8;
   public static final short SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 9;
   public static final short SLCONTAINER_STATE_SCROLL_CONTENT_UPDATED = 10;
+  public static final short SLCONTAINER_STATE_SCROLL_CONTENT_COMPLETED = 15;
   public static final short SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID = 11;
   public static final short SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 12;
   public static final short SLCONTAINER_STATE_SCROLL_INDEX = 13;

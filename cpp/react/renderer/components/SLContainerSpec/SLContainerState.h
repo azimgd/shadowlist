@@ -27,6 +27,7 @@ constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTAINER_UPDATED = 7;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_WIDTH = 8;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_HEIGHT = 9;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_UPDATED = 10;
+constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_CONTENT_COMPLETED = 15;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_FIRST_CHILD_UNIQUE_ID = 11;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_LAST_CHILD_UNIQUE_ID = 12;
 constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_INDEX = 13;
@@ -44,6 +45,7 @@ class SLContainerState {
     Size scrollContainer,
     Size scrollContent,
     bool scrollContentUpdated,
+    bool scrollContentCompleted,
     std::string firstChildUniqueId,
     std::string lastChildUniqueId,
     int scrollIndex,
@@ -57,6 +59,7 @@ class SLContainerState {
   Size scrollContainer;
   Size scrollContent;
   bool scrollContentUpdated;
+  bool scrollContentCompleted;
   std::string firstChildUniqueId;
   std::string lastChildUniqueId;
   int scrollIndex;
@@ -72,6 +75,7 @@ class SLContainerState {
   scrollContainer(previousState.scrollContainer),
   scrollContent(previousState.scrollContent),
   scrollContentUpdated(previousState.scrollContentUpdated),
+  scrollContentCompleted(previousState.scrollContentCompleted),
   firstChildUniqueId(previousState.firstChildUniqueId),
   lastChildUniqueId(previousState.lastChildUniqueId),
   scrollIndex(previousState.scrollIndex),
