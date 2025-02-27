@@ -80,6 +80,13 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+  if (
+    (scrollView.contentOffset.x < 0) ||
+    (scrollView.contentOffset.y < 0)
+  ) {
+    return;
+  }
+
   auto scrollPosition = RCTPointFromCGPoint(scrollView.contentOffset);
   _state->updateState([scrollPosition](const SLContainerShadowNode::ConcreteState::Data &data) {
     auto newData = data;

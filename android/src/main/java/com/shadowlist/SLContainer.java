@@ -64,6 +64,13 @@ public class SLContainer extends ReactScrollView {
 
   public void setContainer() {
     OnScrollChangeListener scrollListener = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+      if (
+        (scrollX < 0) ||
+        (scrollY < 0)
+      ) {
+        return;
+      }
+
       WritableMap stateMapBuffer = new WritableNativeMap();
       stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
       stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
