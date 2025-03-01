@@ -1,5 +1,5 @@
 import React, { useCallback, useState, type Ref } from 'react';
-import { StyleSheet, Text, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { SLContainer } from './SLContainer';
 import { SLContent } from './SLContent';
 import { SLElement } from './SLElement';
@@ -33,7 +33,7 @@ const invoker = (Component: Component) => {
 
 export type ShadowlistProps = {
   data: Array<ItemProp>;
-  renderItem: ({
+  renderItem?: ({
     item,
     key,
     index,
@@ -114,24 +114,35 @@ export const Shadowlist = React.forwardRef(
 
     const handleViewableItemsChanged = useCallback<
       DirectEventHandler<OnViewableItemsChanged>
-    >((event) => {
-      event.persist();
-
-      setViewableItems((state) => {
-        const prevViewableItems = state.map(
-          (viewableItem) => viewableItem.index
-        );
-        const nextViewableItems = event.nativeEvent.viewableItems.map(
-          (viewableItem) => viewableItem.index
-        );
-
-        if (compareArrays(prevViewableItems, nextViewableItems)) {
-          return state;
+    >(
+      (event) => {
+        if (typeof props.onViewableItemsChanged === 'function') {
+          props.onViewableItemsChanged(event);
         }
 
-        return event.nativeEvent.viewableItems;
-      });
-    }, []);
+        if (typeof props.renderItem !== 'function') {
+          return;
+        }
+
+        event.persist();
+
+        setViewableItems((state) => {
+          const prevViewableItems = state.map(
+            (viewableItem) => viewableItem.index
+          );
+          const nextViewableItems = event.nativeEvent.viewableItems.map(
+            (viewableItem) => viewableItem.index
+          );
+
+          if (compareArrays(prevViewableItems, nextViewableItems)) {
+            return state;
+          }
+
+          return event.nativeEvent.viewableItems;
+        });
+      },
+      [props]
+    );
 
     /**
      * SLContentComponent
@@ -141,23 +152,23 @@ export const Shadowlist = React.forwardRef(
     /**
      * ListDynamicComponent
      */
+    const renderItem = props.renderItem ?? (() => null);
+    const ListDynamicComponentItems = viewableItems.map((viewableItem) => (
+      <View key={viewableItem.key} style={viewableItemStyle(viewableItem)}>
+        {renderItem({
+          item: props.data[viewableItem.index],
+          ...viewableItem,
+        })}
+      </View>
+    ));
+
     const ListDynamicComponent = (
       <SLElement
         style={styles.ListDynamicComponent}
         uniqueId="ListDynamicComponentUniqueId"
         key="ListDynamicComponentUniqueId"
       >
-        {viewableItems.map((viewableItem) => (
-          <Text
-            key={viewableItem.key}
-            style={viewableItemStyle(viewableItem.origin, viewableItem.size)}
-          >
-            {props.renderItem({
-              item: props.data[viewableItem.index],
-              ...viewableItem,
-            })}
-          </Text>
-        ))}
+        {ListDynamicComponentItems}
       </SLElement>
     );
 
@@ -181,14 +192,13 @@ export const Shadowlist = React.forwardRef(
 );
 
 export const viewableItemStyle = (
-  origin: OnViewableItemsChanged['viewableItems'][number]['origin'],
-  size: OnViewableItemsChanged['viewableItems'][number]['size']
+  item: OnViewableItemsChanged['viewableItems'][number]
 ): ViewStyle => ({
   position: 'absolute',
-  left: origin.x,
-  top: origin.y,
-  width: size.width,
-  height: size.height,
+  left: item.origin.x,
+  top: item.origin.y,
+  width: item.size.width,
+  height: item.size.height,
 });
 
 const styles = StyleSheet.create({

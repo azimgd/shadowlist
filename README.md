@@ -15,7 +15,6 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 | Nested ShadowList (ScrollView)   | ✅           | ❌         |
 | Natively Inverted List Support   | ✅           | ❌         |
 | Smooth Scrolling                 | ✅           | ❌         |
-| Dynamic Components               | ❌           | ✅         |
 
 ## Scroll Performance
 | Number of Items  | ShadowList                 | FlatList             | FlashList            |
@@ -26,46 +25,48 @@ It invokes Yoga for precise layout measurements of Shadow Nodes and constructs a
 > **FlashList is unreliable and completely breaks when scrolling, resulting in unrealistic metrics.*  
 > Given measurements show memory usage and FPS on fully loaded content, see demo [here](https://github.com/azimgd/shadowlist/issues/1) and implementation details [here](https://github.com/azimgd/shadowlist/blob/main/example/src/App.tsx).
 
-## Important Note
-Shadowlist doesn't support state updates or dynamic prop calculations inside the renderItem function. Any changes to child components should be made through the data prop. This also applies to animations. This restriction will be addressed in future updates.
-
 ## Installation
 - CLI: Add the package to your project via `yarn add shadowlist` and run `pod install` in the `ios` directory.
 - Expo: Add the package to your project via `npx expo install shadowlist` and run `npx expo prebuild` in the root directory.
+
+## Important Note
+Shadowlist uses a native-first rendering approach, where `renderItem` is optional, and `templates` is a required prop. The templates prop is an object of React components rendered synchronously, bypassing the React reconciler at the native level. As a result, you cannot use state updates or dynamic prop calculations inside the components supplied to templates.
+
+If both `renderItem` and `templates` are provided, `templates` will be rendered during scrolling, while `renderItem` will be triggered when scrolling is complete. This ensures native-level performance without frame drops, while still supporting dynamic React components.
 
 ## Usage
 
 ```js
 import {Shadowlist} from 'shadowlist';
 
-const stringify = (str: string) => `{{${str}}}`;
+const data = [{
+  __shadowlist_template_id: 'ElementTemplateDefault',
+  uri: '...',
+  title: '...',
+}]
 
-type ElementProps = {
-  data: Array<any>;
-};
+const ElementTemplateDefault = () => (
+  <View>
+    <Image source={{ uri: `{{image}}` }} />
+    <Text>{`{{title}}`}</Text>
+  </View>
+)
 
-const Element = (props: ElementProps) => {
-  const handlePress = (event: GestureResponderEvent) => {
-    const elementDataIndex = __NATIVE_getRegistryElementMapping(
-      event.nativeEvent.target
-    );
-    props.data[elementDataIndex];
-  };
-
-  return (
-    <Pressable style={styles.container} onPress={handlePress}>
-      <Image source={{ uri: stringify('image') }} style={styles.image} />
-      <Text style={styles.title}>{stringify('id')}</Text>
-      <Text style={styles.content}>{stringify('text')}</Text>
-      <Text style={styles.footer}>index: {stringify('position')}</Text>
-    </Pressable>
-  );
-};
+const renderItem = ({ item }) => (
+  <View>
+    <Image source={{ uri: item.image }} />
+    <Text>{item.title}</Text>
+  </View>
+)
 
 <Shadowlist
-  contentContainerStyle={styles.container}
   ref={shadowListContainerRef}
   data={data}
+  templates={{
+    ElementTemplateDefault,
+  }}
+  renderItem={renderItem}
+  contentContainerStyle={styles.container}
   ListHeaderComponent={ListHeaderComponent}
   ListHeaderComponentStyle={styles.ListHeaderComponentStyle}
   ListFooterComponent={ListFooterComponent}
@@ -75,10 +76,14 @@ const Element = (props: ElementProps) => {
 />
 ```
 
+For advanced usage, see the [example](https://github.com/azimgd/shadowlist/tree/main/example) folder
+
 ## API
 | Prop                       | Type                      | Required | Description                                     |
 |----------------------------|---------------------------|----------|-------------------------------------------------|
 | `data`                     | Array                     | Required | An array of data to be rendered in the list, where each item *must* include a required `id` field. |
+| `renderItem`               | Function                  | Optional | A function that returns a component to render each item when scrolling is complete. If both `renderItem` and `templates` are provided, `templates` will be used during scrolling, and `renderItem` will be triggered afterward. |
+| `templates`                | Object                    | Required | An object containing components to be rendered by default and synchronously during scrolling. The keys of this object are mapped to the values defined in `data[number].__shadowlist_template_id` |
 | `contentContainerStyle`    | ViewStyle                 | Optional | These styles will be applied to the scroll view content container which wraps all of the child views. |
 | `ListHeaderComponent`      | React component           | Optional | A custom component to render at the top of the list. |
 | `ListHeaderComponentStyle` | ViewStyle                 | Optional | Styling for internal View for `ListHeaderComponent` |
