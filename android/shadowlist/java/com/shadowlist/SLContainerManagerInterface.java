@@ -8,6 +8,7 @@ public interface SLContainerManagerInterface<T extends View> {
   void setInverted(T view, boolean value);
   void setHorizontal(T view, boolean value);
   void setInitialNumToRender(T view, int value);
+  void setWindowSize(T view, int value);
   void setNumColumns(T view, int value);
   void setInitialScrollIndex(T view, int value);
   void scrollToIndex(T view, int index, boolean animated);

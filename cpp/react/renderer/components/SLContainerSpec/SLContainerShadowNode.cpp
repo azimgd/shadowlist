@@ -37,7 +37,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   #endif
 
   const int elementsDataSize = props.parsed.size();
-  const int viewportOffset = 1000;
+  
+  int viewportOffset;
+  if (props.horizontal) {
+    viewportOffset = props.windowSize * getLayoutMetrics().frame.size.width;
+  } else {
+    viewportOffset = props.windowSize * getLayoutMetrics().frame.size.height;
+  }
 
   nextStateData.scrollPositionUpdated = false;
   nextStateData.scrollContainer = getLayoutMetrics().frame.size;
@@ -317,21 +323,18 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.lastChildUniqueId = {};
   }
 
+  float scrollContentOffset = (
+    scrollContentAboveOffset.max() +
+    scrollContentBelowOffset.max() +
+    nextStateData.templateMeasurementsTree[1]
+  );
   if (props.horizontal) {
     nextStateData.scrollContent.height = nextStateData.scrollContainer.height;
-    nextStateData.scrollContent.width = (
-      scrollContentAboveOffset.max() +
-      scrollContentBelowOffset.max() +
-      nextStateData.templateMeasurementsTree[1]
-    );
+    nextStateData.scrollContent.width = std::max((Float) scrollContentOffset, nextStateData.scrollContent.width);
     nextStateData.scrollContentUpdated = true;
   } else if (!props.horizontal) {
     nextStateData.scrollContent.width = nextStateData.scrollContainer.width;
-    nextStateData.scrollContent.height = (
-      scrollContentAboveOffset.max() +
-      scrollContentBelowOffset.max() +
-      nextStateData.templateMeasurementsTree[1]
-    );
+    nextStateData.scrollContent.height = std::max((Float) scrollContentOffset, nextStateData.scrollContent.height);
     nextStateData.scrollContentUpdated = true;
   }
 
@@ -384,7 +387,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   ConcreteShadowNode::replaceChild(*contentShadowNode, contentShadowNode->clone({
     .children = contentShadowNodeChildren
   }));
-  yogaNode_.setDirty(true);
+  dirtyLayout();
 
   getConcreteEventEmitter().onVisibleChange({
     .visibleStartIndex = scrollContentBelowIndex,

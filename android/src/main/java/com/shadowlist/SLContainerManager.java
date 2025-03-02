@@ -115,6 +115,11 @@ public class SLContainerManager extends ViewGroupManager<SLContainer>
   public void setInitialNumToRender(SLContainer view, int initialNumToRender) {
   }
 
+  @ReactProp(name = "windowSize")
+  @Override
+  public void setWindowSize(SLContainer view, int windowSize) {
+  }
+
   @ReactProp(name = "numColumns")
   @Override
   public void setNumColumns(SLContainer view, int numColumns) {

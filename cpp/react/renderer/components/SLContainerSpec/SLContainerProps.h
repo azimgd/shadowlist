@@ -32,6 +32,7 @@ class SLContainerProps final : public ViewProps {
   bool inverted = false;
   bool horizontal = false;
   int initialNumToRender = 10;
+  int windowSize = 2;
   int numColumns = 1;
   int initialScrollIndex = 0;
 

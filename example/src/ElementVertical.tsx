@@ -65,7 +65,7 @@ export const ElementVerticalDynamic = (props: ElementVerticalDynamicProps) => {
       </View>
 
       <View style={styles.right}>
-        <Text style={styles.title}>{props.item?.title + timer}</Text>
+        <Text style={styles.title}>{`${props.item?.title} ${timer}`}</Text>
         <Text style={styles.subtitle}>{props.item?.subtitle}</Text>
         <Text style={styles.content}>{props.item?.text}</Text>
       </View>
