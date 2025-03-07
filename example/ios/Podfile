@@ -25,6 +25,11 @@ target 'ShadowlistExample' do
     :app_path => "#{Pod::Config.instance.installation_root}/.."
   )
 
+  target 'ShadowlistExampleTests' do
+    inherit! :complete
+    # Pods for testing
+  end
+
 
   pre_install do |installer|
     system("cd ../../ && npx bob build --target codegen")
