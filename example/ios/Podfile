@@ -30,7 +30,6 @@ target 'ShadowlistExample' do
     # Pods for testing
   end
 
-
   pre_install do |installer|
     system("cd ../../ && npx bob build --target codegen")
   end
