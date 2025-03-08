@@ -51,7 +51,7 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
   
   LayoutMetrics layoutElement(LayoutContext layoutContext, ShadowNode::Unshared shadowNode, int numColumns);
   LayoutMetrics adjustElement(Point origin, ShadowNode::Unshared shadowNode);
-    LayoutMetrics resizeElement(Size size, ShadowNode::Unshared shadowNode);
+  LayoutMetrics resizeElement(Size size, ShadowNode::Unshared shadowNode);
 
   float getRelativeSizeFromSize(Size size);
   float getRelativePointFromPoint(Point point);

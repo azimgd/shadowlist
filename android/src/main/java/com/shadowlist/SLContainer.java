@@ -63,7 +63,7 @@ public class SLContainer extends ReactScrollView {
   }
 
   public void setContainer() {
-    OnScrollChangeListener scrollListener = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+    OnScrollChangeListener horizontalScrollListener = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
       if (
         (scrollX < 0) ||
         (scrollY < 0)
@@ -74,14 +74,30 @@ public class SLContainer extends ReactScrollView {
       WritableMap stateMapBuffer = new WritableNativeMap();
       stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
       stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
+      stateMapBuffer.putBoolean("scrollContentCompleted", v.canScrollHorizontally(1));
+      mStateWrapper.updateState(stateMapBuffer);
+    };
+
+    OnScrollChangeListener verticalScrollListener = (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
+      if (
+        (scrollX < 0) ||
+          (scrollY < 0)
+      ) {
+        return;
+      }
+
+      WritableMap stateMapBuffer = new WritableNativeMap();
+      stateMapBuffer.putDouble("scrollPositionLeft", PixelUtil.toDIPFromPixel(scrollX));
+      stateMapBuffer.putDouble("scrollPositionTop", PixelUtil.toDIPFromPixel(scrollY));
+      stateMapBuffer.putBoolean("scrollContentCompleted", v.canScrollVertically(1));
       mStateWrapper.updateState(stateMapBuffer);
     };
 
     if (mHorizontal) {
-      mScrollContainerHorizontal.setOnScrollChangeListener(scrollListener);
+      mScrollContainerHorizontal.setOnScrollChangeListener(horizontalScrollListener);
       mScrollContainerHorizontal.setHorizontalScrollBarEnabled(true);
     } else {
-      mScrollContainerVertical.setOnScrollChangeListener(scrollListener);
+      mScrollContainerVertical.setOnScrollChangeListener(verticalScrollListener);
       mScrollContainerVertical.setVerticalScrollBarEnabled(true);
     }
 

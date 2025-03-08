@@ -75,7 +75,7 @@ class SLContainerState {
   scrollContainer(previousState.scrollContainer),
   scrollContent(previousState.scrollContent),
   scrollContentUpdated(previousState.scrollContentUpdated),
-  scrollContentCompleted(previousState.scrollContentCompleted),
+  scrollContentCompleted(data["scrollContentCompleted"].getBool()),
   firstChildUniqueId(previousState.firstChildUniqueId),
   lastChildUniqueId(previousState.lastChildUniqueId),
   scrollIndex(previousState.scrollIndex),
