@@ -196,6 +196,13 @@
     "android": {
       "javaPackageName": "com.shadowlist"
     },
+    "ios": {
+      "componentProvider": {
+        "SLContainer": "SLContainer",
+        "SLContent": "SLContent",
+        "SLElement": "SLElement"
+      }
+    },
     "includesGeneratedCode": true
   },
   "create-react-native-library": {
