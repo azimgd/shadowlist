@@ -101,6 +101,10 @@ public class SLContainer extends ReactScrollView {
       mScrollContainerVertical.setVerticalScrollBarEnabled(true);
     }
 
+    if (super.getChildCount() > 0) {
+      return;
+    }
+
     if (mHorizontal) {
       super.addView(mScrollContainerHorizontal, 0);
     } else {
@@ -136,11 +140,16 @@ public class SLContainer extends ReactScrollView {
   }
 
   public void setScrollContainerOffset(int x, int y) {
-    if (mHorizontal) {
-      mScrollContainerHorizontal.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
-    } else {
-      mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
-    }
+    post(new Runnable() {
+      @Override
+      public void run() {
+        if (mHorizontal) {
+          mScrollContainerHorizontal.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
+        } else {
+          mScrollContainerVertical.scrollTo((int)PixelUtil.toPixelFromDIP(x), (int)PixelUtil.toPixelFromDIP(y));
+        }
+      }
+    });
   }
 
   public void setStateWrapper(

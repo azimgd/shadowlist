@@ -32,6 +32,17 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
 
+  /*
+   * The first state update on iOS doesn't trigger :updateState like it does on Android
+   * as a result, flags like scrollPositionUpdated and scrollContentUpdate aren't applied correctly
+   * to fix this, we ignore the first layout phase and gracefully trigger a second layout event
+   */
+  if (getState()->getRevision() == State::initialRevisionValue) {
+    setStateData(std::move(nextStateData));
+    return;
+  }
+  bool isInitialState = getState()->getRevision() == State::initialRevisionValue + 1;
+
   #ifdef ANDROID
   __android_log_print(ANDROID_LOG_VERBOSE, "shadowlist", "SLContainerShadowNode onLayout %d", nextStateData.scrollIndex);
   #endif
@@ -48,7 +59,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   nextStateData.scrollPositionUpdated = false;
   nextStateData.scrollContainer = getLayoutMetrics().frame.size;
 
-  if (!nextStateData.childrenMeasurementsTree.size() && props.initialScrollIndex) {
+  if (!nextStateData.childrenMeasurementsTree.size() && props.initialScrollIndex && isInitialState) {
     nextStateData.scrollIndex = props.initialScrollIndex;
     nextStateData.scrollPositionUpdated = true;
     nextStateData.scrollIndexUpdated = true;
@@ -329,13 +340,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.templateMeasurementsTree[1]
   );
   if (props.horizontal) {
+    auto nextScrollContentWidth = std::max((Float) scrollContentOffset, nextStateData.scrollContent.width);
+    nextStateData.scrollContentUpdated = nextScrollContentWidth != nextStateData.scrollContent.width;
     nextStateData.scrollContent.height = nextStateData.scrollContainer.height;
-    nextStateData.scrollContent.width = std::max((Float) scrollContentOffset, nextStateData.scrollContent.width);
-    nextStateData.scrollContentUpdated = true;
+    nextStateData.scrollContent.width = nextScrollContentWidth;
   } else if (!props.horizontal) {
+    auto nextScrollContentHeight = std::max((Float) scrollContentOffset, nextStateData.scrollContent.height);
+    nextStateData.scrollContentUpdated = nextScrollContentHeight != nextStateData.scrollContent.height;
     nextStateData.scrollContent.width = nextStateData.scrollContainer.width;
-    nextStateData.scrollContent.height = std::max((Float) scrollContentOffset, nextStateData.scrollContent.height);
-    nextStateData.scrollContentUpdated = true;
+    nextStateData.scrollContent.height = nextScrollContentHeight;
   }
 
   /*
