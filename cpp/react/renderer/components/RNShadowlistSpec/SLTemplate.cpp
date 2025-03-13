@@ -50,12 +50,16 @@ ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const int& elementDataIndex
   nextFamilyTag = adjustFamilyTag(nextFamilyTag);
   SLRuntimeManager::getInstance().addIndexToTag(nextFamilyTag, elementDataIndex);
 
+  #ifndef XCTTEST
   InstanceHandle::Shared instanceHandle = std::make_shared<const InstanceHandle>(
     *SLRuntimeManager::getInstance().getRuntime(),
     shadowNode->getInstanceHandle(*SLRuntimeManager::getInstance().getRuntime()),
     nextFamilyTag);
 
   auto const family = componentDescriptor.createFamily({nextFamilyTag, shadowNode->getSurfaceId(), instanceHandle});
+  #else
+  auto const family = componentDescriptor.createFamily({nextFamilyTag, shadowNode->getSurfaceId(), nullptr});
+  #endif
 
   #ifdef ANDROID
   auto const nextProps = componentDescriptor.cloneProps(propsParserContext, shadowNode->getProps(), RawProps(shadowNode->getProps()->rawProps));

@@ -37,11 +37,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * as a result, flags like scrollPositionUpdated and scrollContentUpdate aren't applied correctly
    * to fix this, we ignore the first layout phase and gracefully trigger a second layout event
    */
+  #if TARGET_OS_IPHONE
   if (getState()->getRevision() == State::initialRevisionValue) {
     setStateData(std::move(nextStateData));
     return;
   }
   bool isInitialState = getState()->getRevision() == State::initialRevisionValue + 1;
+  #else
+  bool isInitialState = getState()->getRevision() == State::initialRevisionValue;
+  #endif
 
   #ifdef ANDROID
   __android_log_print(ANDROID_LOG_VERBOSE, "shadowlist", "SLContainerShadowNode onLayout %d", nextStateData.scrollIndex);
@@ -59,13 +63,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   nextStateData.scrollPositionUpdated = false;
   nextStateData.scrollContainer = getLayoutMetrics().frame.size;
 
-  if (!nextStateData.childrenMeasurementsTree.size() && props.initialScrollIndex && isInitialState) {
+  if (isInitialState && props.initialScrollIndex) {
     nextStateData.scrollIndex = props.initialScrollIndex;
     nextStateData.scrollPositionUpdated = true;
     nextStateData.scrollIndexUpdated = true;
   }
 
-  if (!nextStateData.childrenMeasurementsTree.size() && props.inverted) {
+  if (isInitialState && props.inverted) {
     nextStateData.scrollIndex = props.parsed.size();
     nextStateData.scrollPositionUpdated = true;
     nextStateData.scrollIndexUpdated = true;
