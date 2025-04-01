@@ -10,9 +10,6 @@ namespace azimgd::shadowlist {
 using namespace facebook;
 using namespace facebook::react;
 
-std::unordered_map<Tag, std::unordered_map<std::string, std::vector<ShadowNode::Shared>>> elementShadowNodeTemplateRegistry{};
-std::unordered_map<Tag, std::unordered_map<std::string, ShadowNode::Unshared>> elementShadowNodeComponentRegistry{};
-
 extern const char SLContainerComponentName[] = "SLContainer";
 
 struct ComponentRegistryItem {
@@ -21,16 +18,22 @@ struct ComponentRegistryItem {
   std::string elementDataUniqueKey;
 };
 
+void SLContainerShadowNode::setRegistryManager(std::shared_ptr<SLRegistryManager> registry) {
+  registryManager = std::move(registry);
+}
+
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   #ifndef RCT_DEBUG
   auto start = std::chrono::high_resolution_clock::now();
   #endif
 
-  auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
-  auto &componentRegistry = elementShadowNodeComponentRegistry[getTag()];
+  auto &templateRegistry = registryManager->templatesRegistry;
+  auto &componentRegistry = registryManager->componentsRegistry;
 
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
+
+  nextStateData.registryManager = registryManager;
 
   /*
    * The first state update on iOS doesn't trigger :updateState like it does on Android
@@ -152,7 +155,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     if (elementShadowNodeComponentRegistryIt == componentRegistry.end()) {
       const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
       auto templateKey = SLContainerProps::getElementValueByPath(elementData, "__shadowlist_template_id");
-      componentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateRegistry[templateKey].back());
+      componentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateRegistry[templateKey]);
     } else {
       componentRegistry[elementDataUniqueKey] = componentRegistry[elementDataUniqueKey]->clone({});
     }
@@ -169,7 +172,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   };
 
   auto transformTemplateComponent = [&](std::string elementDataUniqueKey, int templateDataIndex) -> ComponentRegistryItem {
-    componentRegistry[elementDataUniqueKey] = templateRegistry[elementDataUniqueKey].back()->clone({});
+    componentRegistry[elementDataUniqueKey] = templateRegistry[elementDataUniqueKey]->clone({});
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
     auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey], 0);
@@ -329,7 +332,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
     }, componentRegistry["ListFooterComponentUniqueId"]);
   }
-  
+
   if (props.uniqueIds.size()) {
     nextStateData.firstChildUniqueId = props.uniqueIds.front();
     nextStateData.lastChildUniqueId = props.uniqueIds.back();
@@ -427,9 +430,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {
   if (dynamic_cast<const SLElementShadowNode*>(child.get())) {
-    auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
     auto uniqueId = static_cast<const SLElementProps&>(*child->getProps()).uniqueId;
-    templateRegistry[uniqueId].push_back(child);
+    registryManager->templatesRegistry[uniqueId] = child;
   } else {
     ConcreteShadowNode::appendChild(child);
   }

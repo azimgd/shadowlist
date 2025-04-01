@@ -6,6 +6,7 @@
 #include "SLContainerShadowNode.h"
 #include "SLElementShadowNode.h"
 #include "SLElementProps.h"
+#include "SLRegistryManager.h"
 #include <jsi/jsi.h>
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutContext.h>
@@ -37,10 +38,11 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
   SLContainerEventEmitter,
   SLContainerState,
   true> {
- public:
+  public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
 #pragma mark - LayoutableShadowNode
+  void setRegistryManager(std::shared_ptr<SLRegistryManager> registryManager);
 
   void layout(LayoutContext layoutContext) override;
   void appendChild(const ShadowNode::Shared& child) override;
@@ -55,6 +57,9 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
 
   float getRelativeSizeFromSize(Size size);
   float getRelativePointFromPoint(Point point);
+
+  private:
+  std::shared_ptr<SLRegistryManager> registryManager;
 };
 
 }

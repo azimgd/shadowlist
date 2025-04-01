@@ -156,6 +156,16 @@ using namespace facebook::react;
 {
 }
 
+- (void)prepareForRecycle
+{
+  [super prepareForRecycle];
+
+  const auto data = std::static_pointer_cast<SLContainerShadowNode::ConcreteState const>(_state);
+  const auto &nextStateData = self->_state->getData();
+
+  nextStateData.registryManager.lock()->cleanup();
+}
+
 Class<RCTComponentViewProtocol> SLContainerCls(void)
 {
   return SLContainer.class;

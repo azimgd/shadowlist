@@ -19,7 +19,8 @@ SLContainerState::SLContainerState(
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
   int scrollIndex,
-  bool scrollIndexUpdated) :
+  bool scrollIndexUpdated,
+  std::weak_ptr<SLRegistryManager> registryManager) :
     childrenMeasurementsTree(childrenMeasurementsTree),
     templateMeasurementsTree(templateMeasurementsTree),
     scrollPosition(scrollPosition),
@@ -31,7 +32,8 @@ SLContainerState::SLContainerState(
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
     scrollIndex(scrollIndex),
-    scrollIndexUpdated(scrollIndexUpdated) {}
+    scrollIndexUpdated(scrollIndexUpdated),
+    registryManager(registryManager) {}
 
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {
