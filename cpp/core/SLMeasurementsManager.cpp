@@ -18,6 +18,10 @@ SLMeasurementsManager::TemplateMeasurements SLMeasurementsManager::getTemplate(T
   return templatesMeasurements[templateUniqueId];
 }
 
+size_t SLMeasurementsManager::getTemplatesSize() {
+  return templatesMeasurements.size();
+}
+
 /*
  *
  */
@@ -28,6 +32,10 @@ void SLMeasurementsManager::appendComponent(ComponentUniqueId componentUniqueId,
 
 SLMeasurementsManager::ComponentMeasurements SLMeasurementsManager::getComponent(ComponentUniqueId componentUniqueId) {
   return componentsMeasurements[componentUniqueId];
+}
+
+size_t SLMeasurementsManager::getComponentsSize() {
+  return componentsMeasurements.size();
 }
 
 /*

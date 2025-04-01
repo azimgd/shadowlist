@@ -13,7 +13,6 @@
 #include <react/renderer/core/LayoutContext.h>
 #include <react/renderer/core/LayoutMetrics.h>
 
-#include "SLFenwickTree.hpp"
 #include <string>
 
 #ifndef RCT_DEBUG

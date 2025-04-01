@@ -89,8 +89,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.firstChildUniqueId != props.uniqueIds.front();
 
   if (elementsDataPrepended) {
-    SLRuntimeManager::getInstance().shiftIndices(elementsDataSize - nextStateData.childrenMeasurementsTree.size());
-    nextStateData.scrollIndex = elementsDataSize - nextStateData.childrenMeasurementsTree.size();
+    SLRuntimeManager::getInstance().shiftIndices(elementsDataSize - measurementsManager->getComponentsSize());
+    nextStateData.scrollIndex = elementsDataSize - measurementsManager->getComponentsSize();
     nextStateData.scrollPositionUpdated = true;
   }
 
@@ -108,18 +108,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * to match the new data size. If data is appended, resize the tree at the end
    */
   if (elementsDataPrepended) {
-    SLFenwickTree childrenMeasurementsTreeNext{};
-
-    for (auto i = 0; i < elementsDataSize - nextStateData.childrenMeasurementsTree.size(); ++i) {
-      childrenMeasurementsTreeNext.push_back(0.0f);
-    }
-    for (auto measurement : nextStateData.childrenMeasurementsTree) {
-      childrenMeasurementsTreeNext.push_back(measurement);
-    }
-
-    nextStateData.childrenMeasurementsTree = childrenMeasurementsTreeNext;
   } else {
-    nextStateData.childrenMeasurementsTree.resize(elementsDataSize);
   }
 
   /*
@@ -160,11 +149,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
     auto elementSize = layoutElement(layoutContext, componentItem, props.numColumns);
-    nextStateData.childrenMeasurementsTree[elementDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
+    auto componentSize = getRelativeSizeFromSize(elementSize.frame.size);
+
+    measurementsManager->appendComponent(elementDataUniqueKey, componentSize);
 
     return ComponentRegistryItem{
       elementDataIndex,
-      nextStateData.childrenMeasurementsTree[elementDataIndex],
+      componentSize,
       elementDataUniqueKey
     };
   };

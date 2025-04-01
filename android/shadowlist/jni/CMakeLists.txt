@@ -14,7 +14,6 @@ file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS
 )
 
 file(GLOB LIB_INCLUDES_SRCS CONFIGURE_DEPENDS
-  ${LIB_CPP_DIR}/fenwick/*.cpp
   ${LIB_CPP_DIR}/json/*.hpp
   ${LIB_CPP_DIR}/core/*.cpp
 )
@@ -28,7 +27,6 @@ add_library(
 
 target_include_directories(react_codegen_RNShadowlistSpec PUBLIC
   ${LIB_JNI_DIR}/
-  ${LIB_CPP_DIR}/fenwick
   ${LIB_CPP_DIR}/json
   ${LIB_CPP_DIR}/core
   ${LIB_CPP_DIR}/react/renderer/components/SLContainerSpec

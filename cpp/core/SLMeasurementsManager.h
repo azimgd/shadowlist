@@ -17,9 +17,11 @@ class SLMeasurementsManager {
 
   void appendTemplate(TemplateUniqueId templateUniqueId, TemplateMeasurements templateMeasurements);
   TemplateMeasurements getTemplate(TemplateUniqueId templateUniqueId);
+  size_t getTemplatesSize();
 
   void appendComponent(ComponentUniqueId componentUniqueId, ComponentMeasurements componentMeasurements);
   ComponentMeasurements getComponent(ComponentUniqueId componentUniqueId);
+  size_t getComponentsSize();
 
   void cleanup();
 

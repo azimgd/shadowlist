@@ -215,7 +215,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
           }}
           ref={shadowlistRef}
-          inverted
         />
       )}
 
