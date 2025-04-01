@@ -13,25 +13,26 @@ void SLRegistryManager::appendTemplate(TemplateUniqueId templateUniqueId, Shadow
 }
 
 ShadowNode::Shared SLRegistryManager::getTemplate(TemplateUniqueId templateUniqueId) {
-  return ShadowNode::Shared{};
+  return templatesRegistry[templateUniqueId];
 }
 
 bool SLRegistryManager::hasTemplate(TemplateUniqueId templateUniqueId) const {
-  return false;
+  return templatesRegistry.find(templateUniqueId) != templatesRegistry.end();
 }
 
 /*
  *
  */
-void SLRegistryManager::appendComponent(TemplateUniqueId templateUniqueId, ComponentUniqueId componentUniqueId, ShadowNode::Shared componentItem) {
+void SLRegistryManager::appendComponent(TemplateUniqueId templateUniqueId, ComponentUniqueId componentUniqueId, ShadowNode::Unshared componentItem) {
+  componentsRegistry[componentUniqueId] = componentItem;
 }
 
-ShadowNode::Shared SLRegistryManager::getComponent(ComponentUniqueId componentUniqueId) {
-  return ShadowNode::Shared{};
+ShadowNode::Unshared SLRegistryManager::getComponent(ComponentUniqueId componentUniqueId) {
+  return componentsRegistry[componentUniqueId];
 }
 
 bool SLRegistryManager::hasComponent(ComponentUniqueId componentUniqueId) const {
-  return false;
+  return componentsRegistry.find(componentUniqueId) != componentsRegistry.end();
 }
 
 /*

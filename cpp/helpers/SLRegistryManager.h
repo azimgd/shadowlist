@@ -17,8 +17,8 @@ class SLRegistryManager {
   ShadowNode::Shared getTemplate(TemplateUniqueId templateUniqueId);
   bool hasTemplate(TemplateUniqueId templateUniqueId) const;
   
-  void appendComponent(TemplateUniqueId templateUniqueId, ComponentUniqueId componentUniqueId, ShadowNode::Shared componentItem);
-  ShadowNode::Shared getComponent(ComponentUniqueId componentUniqueId);
+  void appendComponent(TemplateUniqueId templateUniqueId, ComponentUniqueId componentUniqueId, ShadowNode::Unshared componentItem);
+  ShadowNode::Unshared getComponent(ComponentUniqueId componentUniqueId);
   bool hasComponent(ComponentUniqueId componentUniqueId) const;
 
   void cleanup();
