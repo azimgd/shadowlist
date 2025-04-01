@@ -22,6 +22,10 @@ void SLContainerShadowNode::setRegistryManager(std::shared_ptr<SLRegistryManager
   registryManager = std::move(registry);
 }
 
+void SLContainerShadowNode::setMeasurementsManager(std::shared_ptr<SLMeasurementsManager> measurements) {
+  measurementsManager = std::move(measurements);
+}
+
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   #ifndef RCT_DEBUG
   auto start = std::chrono::high_resolution_clock::now();
@@ -83,8 +87,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
   bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() && props.uniqueIds.size() &&
     nextStateData.firstChildUniqueId != props.uniqueIds.front();
-  bool elementsDataAppended = elementsDataSize && nextStateData.lastChildUniqueId.size() && props.uniqueIds.size() &&
-    nextStateData.lastChildUniqueId != props.uniqueIds.back();
 
   if (elementsDataPrepended) {
     SLRuntimeManager::getInstance().shiftIndices(elementsDataSize - nextStateData.childrenMeasurementsTree.size());
@@ -119,11 +121,6 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   } else {
     nextStateData.childrenMeasurementsTree.resize(elementsDataSize);
   }
-
-  /*
-   * Static templates measurements, incl. Header, Empty, Footer
-   */
-  nextStateData.templateMeasurementsTree.resize(3);
 
   /*
    * Adjust the scroll index when the user is near the top of the container to load more data,
@@ -178,11 +175,13 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
     auto elementSize = layoutElement(layoutContext, componentItem, 0);
-    nextStateData.templateMeasurementsTree[templateDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
+    auto componentSize = getRelativeSizeFromSize(elementSize.frame.size);
+    
+    measurementsManager->appendTemplate(elementDataUniqueKey, componentSize);
 
     return ComponentRegistryItem{
       -1,
-      nextStateData.templateMeasurementsTree[templateDataIndex],
+      componentSize,
       elementDataUniqueKey
     };
   };
@@ -207,7 +206,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   int scrollContentAboveIndex = 0;
   int scrollContentAboveBound = std::min(nextStateData.scrollIndex, (int) props.uniqueIds.size());
-  Offsetter scrollContentAboveOffset{props.numColumns, nextStateData.templateMeasurementsTree[0]};
+  Offsetter scrollContentAboveOffset{props.numColumns, measurementsManager->getTemplate("ListHeaderComponentUniqueId")};
   auto scrollContentAboveComponents = std::views::iota(0, scrollContentAboveBound)
     | std::views::transform(transformElementComponent);
 
@@ -240,7 +239,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     scrollContentAboveIndex = componentRegistryItem.index;
 
     int scrollPosition = nextStateData.scrollPositionUpdated ? (
-      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - measurementsManager->getTemplate("ListHeaderComponentUniqueId")
     ) : getRelativePointFromPoint(nextStateData.scrollPosition);
 
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
@@ -282,7 +281,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
     scrollContentBelowIndex = componentRegistryItem.index;
 
     int scrollPosition = nextStateData.scrollPositionUpdated ? (
-      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - measurementsManager->getTemplate("ListHeaderComponentUniqueId")
     ) : getRelativePointFromPoint(nextStateData.scrollPosition);
 
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
@@ -358,7 +357,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   float scrollContentOffset = (
     scrollContentAboveOffset.max() +
     scrollContentBelowOffset.max() +
-    nextStateData.templateMeasurementsTree[1]
+    measurementsManager->getTemplate("ListFooterComponentUniqueId")
   );
   if (props.horizontal) {
     auto nextScrollContentWidth = std::max((Float) scrollContentOffset, nextStateData.scrollContent.width);
@@ -378,12 +377,12 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   if (!nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && props.horizontal) {
     nextStateData.scrollPosition.y = 0;
     nextStateData.scrollPosition.x = (
-      scrollContentAboveOffset.max() + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.max() + getRelativePointFromPoint(nextStateData.scrollPosition) - measurementsManager->getTemplate("ListHeaderComponentUniqueId")
     );
   } else if (!nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && !props.horizontal) {
     nextStateData.scrollPosition.x = 0;
     nextStateData.scrollPosition.y = (
-      scrollContentAboveOffset.max() + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.max() + getRelativePointFromPoint(nextStateData.scrollPosition) - measurementsManager->getTemplate("ListHeaderComponentUniqueId")
     );
   }
 

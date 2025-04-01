@@ -9,7 +9,6 @@ using facebook::react::Point;
 
 SLContainerState::SLContainerState(
   SLFenwickTree childrenMeasurementsTree,
-  SLFenwickTree templateMeasurementsTree,
   Point scrollPosition,
   bool scrollPositionUpdated,
   Size scrollContainer,
@@ -22,7 +21,6 @@ SLContainerState::SLContainerState(
   bool scrollIndexUpdated,
   std::weak_ptr<SLRegistryManager> registryManager) :
     childrenMeasurementsTree(childrenMeasurementsTree),
-    templateMeasurementsTree(templateMeasurementsTree),
     scrollPosition(scrollPosition),
     scrollPositionUpdated(scrollPositionUpdated),
     scrollContainer(scrollContainer),
