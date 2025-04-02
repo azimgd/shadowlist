@@ -28,8 +28,7 @@ public class ShadowlistModule extends NativeShadowlistSpec implements TurboModul
 
   native HybridData initHybrid();
   private native void createCommitHook(FabricUIManager fabricUIManager);
-  private native void injectJSIBindings(long jsiRuntime);
-  private native BindingsInstallerHolder getBindingsInstallerCxx();
+  private native BindingsInstallerHolder injectJSIBindings();
 
   @DoNotStrip
   @SuppressWarnings("unused")
@@ -42,15 +41,12 @@ public class ShadowlistModule extends NativeShadowlistSpec implements TurboModul
       UIManagerType.FABRIC
     );
 
-    long jsiRuntime = Objects.requireNonNull(getReactApplicationContext().getJavaScriptContextHolder(), "[shadowlist] JavaScriptContextHolder is null").get();
-    injectJSIBindings(jsiRuntime);
-
-   FabricUIManager fabricUIManager = (FabricUIManager)uiManager;
-   createCommitHook(fabricUIManager);
+    FabricUIManager fabricUIManager = (FabricUIManager)uiManager;
+    createCommitHook(fabricUIManager);
   }
 
   @Override
   public BindingsInstallerHolder getBindingsInstaller() {
-    return getBindingsInstallerCxx();
+    return injectJSIBindings();
   }
 }

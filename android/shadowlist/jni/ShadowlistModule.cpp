@@ -2,6 +2,7 @@
 #include <react/renderer/scheduler/Scheduler.h>
 
 #include "ShadowlistModule.h"
+#include "SLRuntimeManager.h"
 #include "SLModuleJSI.h"
 
 namespace azimgd::shadowlist {
@@ -17,7 +18,7 @@ void ShadowlistModule::registerNatives() {
   registerHybrid({
     makeNativeMethod("initHybrid", ShadowlistModule::initHybrid),
     makeNativeMethod("createCommitHook", ShadowlistModule::createCommitHook),
-    makeNativeMethod("getBindingsInstallerCxx", ShadowlistModule::getBindingsInstallerCxx)
+    makeNativeMethod("injectJSIBindings", ShadowlistModule::injectJSIBindings)
   });
 }
 
@@ -30,8 +31,10 @@ jni::local_ref<ShadowlistModule::jhybriddata> ShadowlistModule::initHybrid(jni::
   return makeCxxInstance(jThis);
 }
 
-jni::local_ref<BindingsInstallerHolder::javaobject> ShadowlistModule::getBindingsInstallerCxx() {
+jni::local_ref<BindingsInstallerHolder::javaobject> ShadowlistModule::injectJSIBindings() {
   return jni::make_local(BindingsInstallerHolder::newObjectCxxArgs([&](jsi::Runtime& runtime) {
+    SLRuntimeManager::getInstance().setRuntime(&runtime);
+    SLModuleJSI::install(runtime);
     SLModuleJSI::install(runtime, commitHook_);
   }));
 }
