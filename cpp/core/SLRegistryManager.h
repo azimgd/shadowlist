@@ -13,7 +13,7 @@ class SLRegistryManager {
   using TemplateUniqueId = std::string;
   using ComponentUniqueId = std::string;
   
-  void appendTemplate(
+  void setTemplate(
     Tag containerTag,
     TemplateUniqueId templateUniqueId,
     ShadowNode::Shared templateItem);
@@ -26,7 +26,7 @@ class SLRegistryManager {
     Tag containerTag,
     TemplateUniqueId templateUniqueId);
   
-  void appendComponent(
+  void setComponent(
     Tag containerTag,
     TemplateUniqueId templateUniqueId,
     ComponentUniqueId componentUniqueId,
@@ -40,7 +40,7 @@ class SLRegistryManager {
     Tag containerTag,
     ComponentUniqueId componentUniqueId);
 
-  void cleanup(Tag containerTag);
+  void reset(Tag containerTag);
 
   std::unordered_map<Tag, std::unordered_map<TemplateUniqueId, ShadowNode::Shared>> templatesRegistry{};
   std::unordered_map<Tag, std::unordered_map<ComponentUniqueId, ShadowNode::Unshared>> componentsRegistry{};

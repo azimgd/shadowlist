@@ -15,7 +15,7 @@ extern const char SLContainerComponentName[] = "SLContainer";
 struct ComponentRegistryItem {
   int index;
   Float size;
-  std::string elementDataUniqueKey;
+  std::string componentUniqueId;
 };
 
 void SLContainerShadowNode::setRegistryManager(std::shared_ptr<SLRegistryManager> registry) {
@@ -23,7 +23,7 @@ void SLContainerShadowNode::setRegistryManager(std::shared_ptr<SLRegistryManager
 }
 
 void SLContainerShadowNode::resetRegistryManager() {
-  registryManager->cleanup(getTag());
+  registryManager->reset(getTag());
 }
 
 void SLContainerShadowNode::setMeasurementsManager(std::shared_ptr<SLMeasurementsManager> measurements) {
@@ -31,7 +31,7 @@ void SLContainerShadowNode::setMeasurementsManager(std::shared_ptr<SLMeasurement
 }
 
 void SLContainerShadowNode::resetMeasurementsManager() {
-  measurementsManager->cleanup(getTag());
+  measurementsManager->reset(getTag());
 }
 
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
@@ -140,48 +140,48 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * Measures the layout and stores the height in a measurement tree
    */
   auto transformElementComponent = [&](int elementDataIndex) -> ComponentRegistryItem {
-    auto elementDataUniqueKey = props.uniqueIds[elementDataIndex];
+    auto componentUniqueId = props.uniqueIds[elementDataIndex];
     auto &elementData = props.getElementByIndex(elementDataIndex);
-    auto templateKey = SLContainerProps::getElementValueByPath(elementData, "__shadowlist_template_id");
+    auto templateUniqueId = SLContainerProps::getElementValueByPath(elementData, "__shadowlist_template_id");
 
     ShadowNode::Unshared componentItem;
 
-    if (!registryManager->hasComponent(getTag(), elementDataUniqueKey)) {
-      auto templateItem = registryManager->getTemplate(getTag(), templateKey);
+    if (!registryManager->hasComponent(getTag(), componentUniqueId)) {
+      auto templateItem = registryManager->getTemplate(getTag(), templateUniqueId);
       componentItem = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateItem);
-      registryManager->appendComponent(getTag(), templateKey, elementDataUniqueKey, componentItem);
+      registryManager->setComponent(getTag(), templateUniqueId, componentUniqueId, componentItem);
     } else {
-      componentItem = registryManager->getComponent(getTag(), elementDataUniqueKey)->clone({});
-      registryManager->appendComponent(getTag(), templateKey, elementDataUniqueKey, componentItem);
+      componentItem = registryManager->getComponent(getTag(), componentUniqueId)->clone({});
+      registryManager->setComponent(getTag(), templateUniqueId, componentUniqueId, componentItem);
     }
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
     auto elementSize = layoutElement(layoutContext, componentItem, props.numColumns);
     auto componentSize = getRelativeSizeFromSize(elementSize.frame.size);
 
-    measurementsManager->appendComponent(getTag(), elementDataUniqueKey, componentSize);
+    measurementsManager->setComponent(getTag(), componentUniqueId, componentSize);
 
     return ComponentRegistryItem{
       elementDataIndex,
       componentSize,
-      elementDataUniqueKey
+      componentUniqueId
     };
   };
 
-  auto transformTemplateComponent = [&](std::string elementDataUniqueKey, int templateDataIndex) -> ComponentRegistryItem {
-    auto componentItem = registryManager->getTemplate(getTag(), elementDataUniqueKey)->clone({});
-    registryManager->appendComponent(getTag(), elementDataUniqueKey, elementDataUniqueKey, componentItem);
+  auto transformTemplateComponent = [&](std::string componentUniqueId, int templateDataIndex) {
+    auto componentItem = registryManager->getTemplate(getTag(), componentUniqueId)->clone({});
+    registryManager->setComponent(getTag(), componentUniqueId, componentUniqueId, componentItem);
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
     auto elementSize = layoutElement(layoutContext, componentItem, 0);
     auto componentSize = getRelativeSizeFromSize(elementSize.frame.size);
     
-    measurementsManager->appendTemplate(getTag(), elementDataUniqueKey, componentSize);
+    measurementsManager->setTemplate(getTag(), componentUniqueId, componentSize);
 
     return ComponentRegistryItem{
       -1,
       componentSize,
-      elementDataUniqueKey
+      componentUniqueId
     };
   };
 
@@ -228,7 +228,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * and add them to the container if they are visible in the current viewport
    */
   for (ComponentRegistryItem componentRegistryItem : scrollContentAboveComponents) {
-    auto componentItem = registryManager->getComponent(getTag(), componentRegistryItem.elementDataUniqueKey);
+    auto componentItem = registryManager->getComponent(getTag(), componentRegistryItem.componentUniqueId);
     auto elementMetrics = adjustElement({
       .x = (componentRegistryItem.index % props.numColumns) * (nextStateData.scrollContainer.width / props.numColumns),
       .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
@@ -249,7 +249,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       }
 
       contentShadowNodeItems.viewableItems.push_back({
-        .key = componentRegistryItem.elementDataUniqueKey,
+        .key = componentRegistryItem.componentUniqueId,
         .index = componentRegistryItem.index,
         .isViewable = true,
         .origin = {
@@ -269,7 +269,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * and add them to the container if they are visible in the current viewport
    */
   for (ComponentRegistryItem componentRegistryItem : scrollContentBelowComponents) {
-    auto componentItem = registryManager->getComponent(getTag(), componentRegistryItem.elementDataUniqueKey);
+    auto componentItem = registryManager->getComponent(getTag(), componentRegistryItem.componentUniqueId);
     auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(componentItem);
     auto elementMetrics = adjustElement({
       .x = (componentRegistryItem.index % props.numColumns) * (nextStateData.scrollContainer.width / props.numColumns),
@@ -291,7 +291,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
       }
 
       contentShadowNodeItems.viewableItems.push_back({
-        .key = componentRegistryItem.elementDataUniqueKey,
+        .key = componentRegistryItem.componentUniqueId,
         .index = componentRegistryItem.index,
         .isViewable = true,
         .origin = {
@@ -445,7 +445,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {
   if (dynamic_cast<const SLElementShadowNode*>(child.get())) {
     auto uniqueId = static_cast<const SLElementProps&>(*child->getProps()).uniqueId;
-    registryManager->appendTemplate(getTag(), uniqueId, child);
+    registryManager->setTemplate(getTag(), uniqueId, child);
   } else {
     ConcreteShadowNode::appendChild(child);
   }

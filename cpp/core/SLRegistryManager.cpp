@@ -9,7 +9,7 @@ using namespace facebook::react;
 /*
  *
  */
-void SLRegistryManager::appendTemplate(
+void SLRegistryManager::setTemplate(
   Tag containerTag,
   TemplateUniqueId templateUniqueId,
   ShadowNode::Shared templateItem) {
@@ -31,7 +31,7 @@ bool SLRegistryManager::hasTemplate(
 /*
  *
  */
-void SLRegistryManager::appendComponent(
+void SLRegistryManager::setComponent(
   Tag containerTag,
   TemplateUniqueId templateUniqueId,
   ComponentUniqueId componentUniqueId,
@@ -54,7 +54,7 @@ bool SLRegistryManager::hasComponent(
 /*
  *
  */
-void SLRegistryManager::cleanup(Tag containerTag) {
+void SLRegistryManager::reset(Tag containerTag) {
   componentsRegistry[containerTag].clear();
   templatesRegistry[containerTag].clear();
 }

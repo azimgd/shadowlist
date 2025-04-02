@@ -9,7 +9,7 @@ using namespace facebook::react;
 /*
  *
  */
-void SLMeasurementsManager::appendTemplate(
+void SLMeasurementsManager::setTemplate(
   Tag containerTag,
   TemplateUniqueId templateUniqueId,
   TemplateMeasurements templateMeasurements) {
@@ -31,7 +31,7 @@ size_t SLMeasurementsManager::getTemplatesSize(
 /*
  *
  */
-void SLMeasurementsManager::appendComponent(
+void SLMeasurementsManager::setComponent(
   Tag containerTag,
   ComponentUniqueId componentUniqueId,
   ComponentMeasurements componentMeasurements) {
@@ -53,7 +53,7 @@ size_t SLMeasurementsManager::getComponentsSize(
 /*
  *
  */
-void SLMeasurementsManager::cleanup(Tag containerTag) {
+void SLMeasurementsManager::reset(Tag containerTag) {
   templatesMeasurements[containerTag].clear();
   templatesMeasurementsTotal[containerTag] = 0;
 }

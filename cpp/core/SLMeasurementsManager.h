@@ -15,7 +15,7 @@ class SLMeasurementsManager {
   using ComponentUniqueId = std::string;
   using ComponentMeasurements = float;
 
-  void appendTemplate(
+  void setTemplate(
     Tag containerTag,
     TemplateUniqueId templateUniqueId,
     TemplateMeasurements templateMeasurements);
@@ -26,7 +26,7 @@ class SLMeasurementsManager {
 
   size_t getTemplatesSize(Tag containerTag);
 
-  void appendComponent(
+  void setComponent(
     Tag containerTag,
     ComponentUniqueId componentUniqueId,
     ComponentMeasurements componentMeasurements);
@@ -37,7 +37,7 @@ class SLMeasurementsManager {
 
   size_t getComponentsSize(Tag containerTag);
 
-  void cleanup(Tag containerTag);
+  void reset(Tag containerTag);
 
   std::unordered_map<Tag, std::unordered_map<TemplateUniqueId, TemplateMeasurements>> templatesMeasurements{};
   std::unordered_map<Tag, TemplateMeasurements> templatesMeasurementsTotal;
