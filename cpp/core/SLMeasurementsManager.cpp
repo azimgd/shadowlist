@@ -9,41 +9,53 @@ using namespace facebook::react;
 /*
  *
  */
-void SLMeasurementsManager::appendTemplate(TemplateUniqueId templateUniqueId, TemplateMeasurements templateMeasurements) {
-  templatesMeasurements[templateUniqueId] = templateMeasurements;
-  templatesMeasurementsTotal += templateMeasurements;
+void SLMeasurementsManager::appendTemplate(
+  Tag containerTag,
+  TemplateUniqueId templateUniqueId,
+  TemplateMeasurements templateMeasurements) {
+  templatesMeasurements[containerTag][templateUniqueId] = templateMeasurements;
+  templatesMeasurementsTotal[containerTag] += templateMeasurements;
 }
 
-SLMeasurementsManager::TemplateMeasurements SLMeasurementsManager::getTemplate(TemplateUniqueId templateUniqueId) {
-  return templatesMeasurements[templateUniqueId];
+SLMeasurementsManager::TemplateMeasurements SLMeasurementsManager::getTemplate(
+  Tag containerTag,
+  TemplateUniqueId templateUniqueId) {
+  return templatesMeasurements[containerTag][templateUniqueId];
 }
 
-size_t SLMeasurementsManager::getTemplatesSize() {
-  return templatesMeasurements.size();
-}
-
-/*
- *
- */
-void SLMeasurementsManager::appendComponent(ComponentUniqueId componentUniqueId, ComponentMeasurements componentMeasurements) {
-  componentsMeasurements[componentUniqueId] = componentMeasurements;
-  componentsMeasurementsTotal += componentMeasurements;
-}
-
-SLMeasurementsManager::ComponentMeasurements SLMeasurementsManager::getComponent(ComponentUniqueId componentUniqueId) {
-  return componentsMeasurements[componentUniqueId];
-}
-
-size_t SLMeasurementsManager::getComponentsSize() {
-  return componentsMeasurements.size();
+size_t SLMeasurementsManager::getTemplatesSize(
+  Tag containerTag) {
+  return templatesMeasurements[containerTag].size();
 }
 
 /*
  *
  */
-void SLMeasurementsManager::cleanup() {
-  templatesMeasurements.clear();
-  templatesMeasurementsTotal = 0;
+void SLMeasurementsManager::appendComponent(
+  Tag containerTag,
+  ComponentUniqueId componentUniqueId,
+  ComponentMeasurements componentMeasurements) {
+  componentsMeasurements[containerTag][componentUniqueId] = componentMeasurements;
+  componentsMeasurementsTotal[containerTag] += componentMeasurements;
+}
+
+SLMeasurementsManager::ComponentMeasurements SLMeasurementsManager::getComponent(
+  Tag containerTag,
+  ComponentUniqueId componentUniqueId) {
+  return componentsMeasurements[containerTag][componentUniqueId];
+}
+
+size_t SLMeasurementsManager::getComponentsSize(
+  Tag containerTag) {
+  return componentsMeasurements[containerTag].size();
+}
+
+/*
+ *
+ */
+void SLMeasurementsManager::cleanup(Tag containerTag) {
+  templatesMeasurements[containerTag].clear();
+  templatesMeasurementsTotal[containerTag] = 0;
 }
 
 }

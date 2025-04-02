@@ -8,6 +8,9 @@ import SLContainerNativeComponent, {
   type SLContainerNativeCommands,
 } from './SLContainerNativeComponent';
 
+// @ts-ignore
+import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
+
 export type ItemProp = {
   id: string;
   [key: string]: any;
@@ -56,12 +59,35 @@ const SLContainerWrapper = (
     ? styles.containerHorizontal
     : styles.containerVertical;
 
+  const nextRef = (ref: SLContainerInstance) => {
+    if (ref) {
+      global.__NATIVE_registerContainerNode(
+        ReactNativeInterface.getNodeFromPublicInstance(ref)
+      );
+      instanceRef.current = ref;
+    } else {
+      global.__NATIVE_unregisterContainerNode(
+        ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
+      );
+      instanceRef.current = null;
+    }
+
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        // @ts-ignore
+        forwardedRef(ref);
+      } else {
+        (forwardedRef as React.MutableRefObject<any>).current = ref;
+      }
+    }
+  };
+
   return (
     <SLContainerNativeComponent
       {...props}
       data={JSON.stringify(props.data)}
       style={[containerStyle, props.style]}
-      ref={instanceRef}
+      ref={nextRef}
     >
       {props.children}
     </SLContainerNativeComponent>

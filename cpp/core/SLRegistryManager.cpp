@@ -9,38 +9,54 @@ using namespace facebook::react;
 /*
  *
  */
-void SLRegistryManager::appendTemplate(TemplateUniqueId templateUniqueId, ShadowNode::Shared templateItem) {
+void SLRegistryManager::appendTemplate(
+  Tag containerTag,
+  TemplateUniqueId templateUniqueId,
+  ShadowNode::Shared templateItem) {
+  templatesRegistry[containerTag][templateUniqueId] = templateItem;
 }
 
-ShadowNode::Shared SLRegistryManager::getTemplate(TemplateUniqueId templateUniqueId) {
-  return templatesRegistry[templateUniqueId];
+ShadowNode::Shared SLRegistryManager::getTemplate(
+  Tag containerTag,
+  TemplateUniqueId templateUniqueId) {
+  return templatesRegistry[containerTag][templateUniqueId];
 }
 
-bool SLRegistryManager::hasTemplate(TemplateUniqueId templateUniqueId) const {
-  return templatesRegistry.find(templateUniqueId) != templatesRegistry.end();
-}
-
-/*
- *
- */
-void SLRegistryManager::appendComponent(TemplateUniqueId templateUniqueId, ComponentUniqueId componentUniqueId, ShadowNode::Unshared componentItem) {
-  componentsRegistry[componentUniqueId] = componentItem;
-}
-
-ShadowNode::Unshared SLRegistryManager::getComponent(ComponentUniqueId componentUniqueId) {
-  return componentsRegistry[componentUniqueId];
-}
-
-bool SLRegistryManager::hasComponent(ComponentUniqueId componentUniqueId) const {
-  return componentsRegistry.find(componentUniqueId) != componentsRegistry.end();
+bool SLRegistryManager::hasTemplate(
+  Tag containerTag,
+  TemplateUniqueId templateUniqueId) {
+  return templatesRegistry[containerTag].find(templateUniqueId) != templatesRegistry[containerTag].end();
 }
 
 /*
  *
  */
-void SLRegistryManager::cleanup() {
-  componentsRegistry.clear();
-  templatesRegistry.clear();
+void SLRegistryManager::appendComponent(
+  Tag containerTag,
+  TemplateUniqueId templateUniqueId,
+  ComponentUniqueId componentUniqueId,
+  ShadowNode::Unshared componentItem) {
+  componentsRegistry[containerTag][componentUniqueId] = componentItem;
+}
+
+ShadowNode::Unshared SLRegistryManager::getComponent(
+  Tag containerTag,
+  ComponentUniqueId componentUniqueId) {
+  return componentsRegistry[containerTag][componentUniqueId];
+}
+
+bool SLRegistryManager::hasComponent(
+  Tag containerTag,
+  ComponentUniqueId componentUniqueId) {
+  return componentsRegistry[containerTag].find(componentUniqueId) != componentsRegistry[containerTag].end();
+}
+
+/*
+ *
+ */
+void SLRegistryManager::cleanup(Tag containerTag) {
+  componentsRegistry[containerTag].clear();
+  templatesRegistry[containerTag].clear();
 }
 
 }

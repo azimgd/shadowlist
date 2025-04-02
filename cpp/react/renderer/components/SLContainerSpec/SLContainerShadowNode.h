@@ -43,15 +43,13 @@ class SLContainerShadowNode final : public ConcreteViewShadowNode<
 
 #pragma mark - LayoutableShadowNode
   void setRegistryManager(std::shared_ptr<SLRegistryManager> registryManager);
+  void resetRegistryManager();
   void setMeasurementsManager(std::shared_ptr<SLMeasurementsManager> measurementsManager);
+  void resetMeasurementsManager();
 
   void layout(LayoutContext layoutContext) override;
   void appendChild(const ShadowNode::Shared& child) override;
-  void replaceChild(
-    const ShadowNode& oldChild,
-    const ShadowNode::Shared& newChild,
-    size_t suggestedIndex = SIZE_MAX) override;
-  
+
   LayoutMetrics layoutElement(LayoutContext layoutContext, ShadowNode::Unshared shadowNode, int numColumns);
   LayoutMetrics adjustElement(Point origin, ShadowNode::Unshared shadowNode);
   LayoutMetrics resizeElement(Size size, ShadowNode::Unshared shadowNode);

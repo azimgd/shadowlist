@@ -13,18 +13,37 @@ class SLRegistryManager {
   using TemplateUniqueId = std::string;
   using ComponentUniqueId = std::string;
   
-  void appendTemplate(TemplateUniqueId templateUniqueId, ShadowNode::Shared templateItem);
-  ShadowNode::Shared getTemplate(TemplateUniqueId templateUniqueId);
-  bool hasTemplate(TemplateUniqueId templateUniqueId) const;
+  void appendTemplate(
+    Tag containerTag,
+    TemplateUniqueId templateUniqueId,
+    ShadowNode::Shared templateItem);
+
+  ShadowNode::Shared getTemplate(
+    Tag containerTag,
+    TemplateUniqueId templateUniqueId);
+
+  bool hasTemplate(
+    Tag containerTag,
+    TemplateUniqueId templateUniqueId);
   
-  void appendComponent(TemplateUniqueId templateUniqueId, ComponentUniqueId componentUniqueId, ShadowNode::Unshared componentItem);
-  ShadowNode::Unshared getComponent(ComponentUniqueId componentUniqueId);
-  bool hasComponent(ComponentUniqueId componentUniqueId) const;
+  void appendComponent(
+    Tag containerTag,
+    TemplateUniqueId templateUniqueId,
+    ComponentUniqueId componentUniqueId,
+    ShadowNode::Unshared componentItem);
 
-  void cleanup();
+  ShadowNode::Unshared getComponent(
+    Tag containerTag,
+    ComponentUniqueId componentUniqueId);
 
-  std::unordered_map<TemplateUniqueId, ShadowNode::Shared> templatesRegistry{};
-  std::unordered_map<ComponentUniqueId, ShadowNode::Unshared> componentsRegistry{};
+  bool hasComponent(
+    Tag containerTag,
+    ComponentUniqueId componentUniqueId);
+
+  void cleanup(Tag containerTag);
+
+  std::unordered_map<Tag, std::unordered_map<TemplateUniqueId, ShadowNode::Shared>> templatesRegistry{};
+  std::unordered_map<Tag, std::unordered_map<ComponentUniqueId, ShadowNode::Unshared>> componentsRegistry{};
 };
 
 }
