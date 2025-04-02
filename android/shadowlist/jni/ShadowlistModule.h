@@ -31,6 +31,8 @@ class ShadowlistModule : public jni::HybridClass<ShadowlistModule> {
   explicit ShadowlistModule(jni::alias_ref<ShadowlistModule::javaobject> jThis);
 
   void createCommitHook(jni::alias_ref<facebook::react::JFabricUIManager::javaobject> fabricUIManager);
+  jni::local_ref<BindingsInstallerHolder::javaobject> getBindingsInstallerCxx();
+
 };
 
 }
