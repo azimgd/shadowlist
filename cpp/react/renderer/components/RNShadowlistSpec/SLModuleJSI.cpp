@@ -1,5 +1,6 @@
 #include "SLModuleJSI.h"
 #include "SLRuntimeManager.h"
+#include "SLContainerShadowNode.h"
 
 namespace azimgd::shadowlist {
 
@@ -52,6 +53,10 @@ void SLModuleJSI::install(facebook::jsi::Runtime &runtime, std::shared_ptr<SLCom
     {
       auto shadowNode = shadowNodeFromValue(runtime, arguments[0]);
       commitHook->unregisterContainerNode(shadowNode);
+
+      std::const_pointer_cast<SLContainerShadowNode>(
+        std::static_pointer_cast<const SLContainerShadowNode>(shadowNode)
+      )->resetRegistryManager();
 
       return facebook::jsi::Value::undefined();
   });

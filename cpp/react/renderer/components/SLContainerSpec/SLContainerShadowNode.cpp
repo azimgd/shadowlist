@@ -10,27 +10,39 @@ namespace azimgd::shadowlist {
 using namespace facebook;
 using namespace facebook::react;
 
-std::unordered_map<Tag, std::unordered_map<std::string, std::vector<ShadowNode::Shared>>> elementShadowNodeTemplateRegistry{};
-std::unordered_map<Tag, std::unordered_map<std::string, ShadowNode::Unshared>> elementShadowNodeComponentRegistry{};
-
 extern const char SLContainerComponentName[] = "SLContainer";
 
 struct ComponentRegistryItem {
   int index;
   Float size;
-  std::string elementDataUniqueKey;
+  std::string componentUniqueId;
 };
+
+void SLContainerShadowNode::setRegistryManager(std::shared_ptr<SLRegistryManager> registry) {
+  registryManager = std::move(registry);
+}
+
+void SLContainerShadowNode::resetRegistryManager() {
+  registryManager->reset(getTag());
+}
+
+void SLContainerShadowNode::setMeasurementsManager(std::shared_ptr<SLMeasurementsManager> measurements) {
+  measurementsManager = std::move(measurements);
+}
+
+void SLContainerShadowNode::resetMeasurementsManager() {
+  measurementsManager->reset(getTag());
+}
 
 void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   #ifndef RCT_DEBUG
   auto start = std::chrono::high_resolution_clock::now();
   #endif
 
-  auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
-  auto &componentRegistry = elementShadowNodeComponentRegistry[getTag()];
-
   auto &props = getConcreteProps();
   auto nextStateData = getStateData();
+
+  nextStateData.registryManager = registryManager;
 
   /*
    * The first state update on iOS doesn't trigger :updateState like it does on Android
@@ -83,12 +95,10 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
   bool elementsDataPrepended = elementsDataSize && nextStateData.firstChildUniqueId.size() && props.uniqueIds.size() &&
     nextStateData.firstChildUniqueId != props.uniqueIds.front();
-  bool elementsDataAppended = elementsDataSize && nextStateData.lastChildUniqueId.size() && props.uniqueIds.size() &&
-    nextStateData.lastChildUniqueId != props.uniqueIds.back();
 
   if (elementsDataPrepended) {
-    SLRuntimeManager::getInstance().shiftIndices(elementsDataSize - nextStateData.childrenMeasurementsTree.size());
-    nextStateData.scrollIndex = elementsDataSize - nextStateData.childrenMeasurementsTree.size();
+    SLRuntimeManager::getInstance().shiftIndices(elementsDataSize - measurementsManager->getComponentsSize(getTag()));
+    nextStateData.scrollIndex = elementsDataSize - measurementsManager->getComponentsSize(getTag());
     nextStateData.scrollPositionUpdated = true;
   }
 
@@ -106,24 +116,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * to match the new data size. If data is appended, resize the tree at the end
    */
   if (elementsDataPrepended) {
-    SLFenwickTree childrenMeasurementsTreeNext{};
-
-    for (auto i = 0; i < elementsDataSize - nextStateData.childrenMeasurementsTree.size(); ++i) {
-      childrenMeasurementsTreeNext.push_back(0.0f);
-    }
-    for (auto measurement : nextStateData.childrenMeasurementsTree) {
-      childrenMeasurementsTreeNext.push_back(measurement);
-    }
-
-    nextStateData.childrenMeasurementsTree = childrenMeasurementsTreeNext;
   } else {
-    nextStateData.childrenMeasurementsTree.resize(elementsDataSize);
   }
-
-  /*
-   * Static templates measurements, incl. Header, Empty, Footer
-   */
-  nextStateData.templateMeasurementsTree.resize(3);
 
   /*
    * Adjust the scroll index when the user is near the top of the container to load more data,
@@ -146,39 +140,48 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * Measures the layout and stores the height in a measurement tree
    */
   auto transformElementComponent = [&](int elementDataIndex) -> ComponentRegistryItem {
-    auto elementDataUniqueKey = props.uniqueIds[elementDataIndex];
+    auto componentUniqueId = props.uniqueIds[elementDataIndex];
+    auto &elementData = props.getElementByIndex(elementDataIndex);
+    auto templateUniqueId = SLContainerProps::getElementValueByPath(elementData, "__shadowlist_template_id");
 
-    auto elementShadowNodeComponentRegistryIt = componentRegistry.find(elementDataUniqueKey);
-    if (elementShadowNodeComponentRegistryIt == componentRegistry.end()) {
-      const nlohmann::json& elementData = props.getElementByIndex(elementDataIndex);
-      auto templateKey = SLContainerProps::getElementValueByPath(elementData, "__shadowlist_template_id");
-      componentRegistry[elementDataUniqueKey] = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateRegistry[templateKey].back());
+    ShadowNode::Unshared componentItem;
+
+    if (!registryManager->hasComponent(getTag(), componentUniqueId)) {
+      auto templateItem = registryManager->getTemplate(getTag(), templateUniqueId);
+      componentItem = SLTemplate::cloneShadowNodeTree(elementDataIndex, elementData, templateItem);
+      registryManager->setComponent(getTag(), templateUniqueId, componentUniqueId, componentItem);
     } else {
-      componentRegistry[elementDataUniqueKey] = componentRegistry[elementDataUniqueKey]->clone({});
+      componentItem = registryManager->getComponent(getTag(), componentUniqueId)->clone({});
+      registryManager->setComponent(getTag(), templateUniqueId, componentUniqueId, componentItem);
     }
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
-    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey], props.numColumns);
-    nextStateData.childrenMeasurementsTree[elementDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
+    auto elementSize = layoutElement(layoutContext, componentItem, props.numColumns);
+    auto componentSize = getRelativeSizeFromSize(elementSize.frame.size);
+
+    measurementsManager->setComponent(getTag(), componentUniqueId, componentSize);
 
     return ComponentRegistryItem{
       elementDataIndex,
-      nextStateData.childrenMeasurementsTree[elementDataIndex],
-      elementDataUniqueKey
+      componentSize,
+      componentUniqueId
     };
   };
 
-  auto transformTemplateComponent = [&](std::string elementDataUniqueKey, int templateDataIndex) -> ComponentRegistryItem {
-    componentRegistry[elementDataUniqueKey] = templateRegistry[elementDataUniqueKey].back()->clone({});
+  auto transformTemplateComponent = [&](std::string componentUniqueId, int templateDataIndex) {
+    auto componentItem = registryManager->getTemplate(getTag(), componentUniqueId)->clone({});
+    registryManager->setComponent(getTag(), componentUniqueId, componentUniqueId, componentItem);
 
     // Prevent re-measuring if the height is already defined, as layouting is expensive
-    auto elementSize = layoutElement(layoutContext, componentRegistry[elementDataUniqueKey], 0);
-    nextStateData.templateMeasurementsTree[templateDataIndex] = getRelativeSizeFromSize(elementSize.frame.size);
+    auto elementSize = layoutElement(layoutContext, componentItem, 0);
+    auto componentSize = getRelativeSizeFromSize(elementSize.frame.size);
+    
+    measurementsManager->setTemplate(getTag(), componentUniqueId, componentSize);
 
     return ComponentRegistryItem{
       -1,
-      nextStateData.templateMeasurementsTree[templateDataIndex],
-      elementDataUniqueKey
+      componentSize,
+      componentUniqueId
     };
   };
 
@@ -186,11 +189,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * Render and adjust origin of Header template
    */
   if (props.inverted) {
-    transformTemplateComponent("ListFooterComponentUniqueId", 0);
-    contentShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
+    auto componentUniqueId = "ListFooterComponentUniqueId";
+    transformTemplateComponent(componentUniqueId, 0);
+    auto componentItem = registryManager->getComponent(getTag(), componentUniqueId);
+    contentShadowNodeChildren->push_back(componentItem);
   } else {
-    transformTemplateComponent("ListHeaderComponentUniqueId", 0);
-    contentShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
+    auto componentUniqueId = "ListHeaderComponentUniqueId";
+    transformTemplateComponent(componentUniqueId, 0);
+    auto componentItem = registryManager->getComponent(getTag(), componentUniqueId);
+    contentShadowNodeChildren->push_back(componentItem);
   }
 
   /*
@@ -198,7 +205,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   int scrollContentAboveIndex = 0;
   int scrollContentAboveBound = std::min(nextStateData.scrollIndex, (int) props.uniqueIds.size());
-  Offsetter scrollContentAboveOffset{props.numColumns, nextStateData.templateMeasurementsTree[0]};
+  Offsetter scrollContentAboveOffset{props.numColumns, measurementsManager->getTemplate(getTag(), "ListHeaderComponentUniqueId")};
   auto scrollContentAboveComponents = std::views::iota(0, scrollContentAboveBound)
     | std::views::transform(transformElementComponent);
 
@@ -221,27 +228,28 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * and add them to the container if they are visible in the current viewport
    */
   for (ComponentRegistryItem componentRegistryItem : scrollContentAboveComponents) {
+    auto componentItem = registryManager->getComponent(getTag(), componentRegistryItem.componentUniqueId);
     auto elementMetrics = adjustElement({
       .x = (componentRegistryItem.index % props.numColumns) * (nextStateData.scrollContainer.width / props.numColumns),
       .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
-    }, componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    }, componentItem);
 
     scrollContentAboveOffset.add(componentRegistryItem.index % props.numColumns, componentRegistryItem.size);
     scrollContentAboveIndex = componentRegistryItem.index;
 
     int scrollPosition = nextStateData.scrollPositionUpdated ? (
-      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - measurementsManager->getTemplate(getTag(), "ListHeaderComponentUniqueId")
     ) : getRelativePointFromPoint(nextStateData.scrollPosition);
 
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
       
       if (true) {
-        contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+        contentShadowNodeChildren->push_back(componentItem);
       }
 
       contentShadowNodeItems.viewableItems.push_back({
-        .key = componentRegistryItem.elementDataUniqueKey,
+        .key = componentRegistryItem.componentUniqueId,
         .index = componentRegistryItem.index,
         .isViewable = true,
         .origin = {
@@ -261,28 +269,29 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * and add them to the container if they are visible in the current viewport
    */
   for (ComponentRegistryItem componentRegistryItem : scrollContentBelowComponents) {
-    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    auto componentItem = registryManager->getComponent(getTag(), componentRegistryItem.componentUniqueId);
+    auto elementShadowNodeLayoutable = std::static_pointer_cast<YogaLayoutableShadowNode>(componentItem);
     auto elementMetrics = adjustElement({
       .x = (componentRegistryItem.index % props.numColumns) * (nextStateData.scrollContainer.width / props.numColumns),
       .y = scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + scrollContentBelowOffset.get(componentRegistryItem.index % props.numColumns)
-    }, componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+    }, componentItem);
 
     scrollContentBelowOffset.add(componentRegistryItem.index % props.numColumns, componentRegistryItem.size);
     scrollContentBelowIndex = componentRegistryItem.index;
 
     int scrollPosition = nextStateData.scrollPositionUpdated ? (
-      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.get(componentRegistryItem.index % props.numColumns) + getRelativePointFromPoint(nextStateData.scrollPosition) - measurementsManager->getTemplate(getTag(), "ListHeaderComponentUniqueId")
     ) : getRelativePointFromPoint(nextStateData.scrollPosition);
 
     if (getRelativePointFromPoint(elementMetrics.frame.origin) <= (scrollPosition + getRelativeSizeFromSize(nextStateData.scrollContainer) + viewportOffset) &&
       (getRelativePointFromPoint(elementMetrics.frame.origin) + getRelativeSizeFromSize(elementMetrics.frame.size)) >= (scrollPosition - viewportOffset)) {
       
       if (true) {
-        contentShadowNodeChildren->push_back(componentRegistry[componentRegistryItem.elementDataUniqueKey]);
+        contentShadowNodeChildren->push_back(componentItem);
       }
 
       contentShadowNodeItems.viewableItems.push_back({
-        .key = componentRegistryItem.elementDataUniqueKey,
+        .key = componentRegistryItem.componentUniqueId,
         .index = componentRegistryItem.index,
         .isViewable = true,
         .origin = {
@@ -298,13 +307,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   }
 
   if (!props.uniqueIds.size()) {
-    auto templateRegistryItem = transformTemplateComponent("ListEmptyComponentUniqueId", 1);
-    contentShadowNodeChildren->push_back(componentRegistry["ListEmptyComponentUniqueId"]);
+    auto componentUniqueId = "ListEmptyComponentUniqueId";
+    auto templateRegistryItem = transformTemplateComponent(componentUniqueId, 0);
+    auto componentItem = registryManager->getComponent(getTag(), componentUniqueId);
+    contentShadowNodeChildren->push_back(componentItem);
 
     adjustElement({
       .x = 0,
       .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
-    }, componentRegistry["ListEmptyComponentUniqueId"]);
+    }, componentItem);
 
     scrollContentBelowOffset.add(0, templateRegistryItem.size);
   }
@@ -313,23 +324,27 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * Render and adjust origin of Footer template
    */
   if (props.inverted) {
-    transformTemplateComponent("ListHeaderComponentUniqueId", 1);
-    contentShadowNodeChildren->push_back(componentRegistry["ListHeaderComponentUniqueId"]);
+    auto componentUniqueId = "ListHeaderComponentUniqueId";
+    transformTemplateComponent(componentUniqueId, 1);
+    auto componentItem = registryManager->getComponent(getTag(), componentUniqueId);
+    contentShadowNodeChildren->push_back(componentItem);
 
     adjustElement({
       .x = 0,
       .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
-    }, componentRegistry["ListHeaderComponentUniqueId"]);
+    }, componentItem);
   } else {
-    transformTemplateComponent("ListFooterComponentUniqueId", 1);
-    contentShadowNodeChildren->push_back(componentRegistry["ListFooterComponentUniqueId"]);
+    auto componentUniqueId = "ListFooterComponentUniqueId";
+    transformTemplateComponent(componentUniqueId, 1);
+    auto componentItem = registryManager->getComponent(getTag(), componentUniqueId);
+    contentShadowNodeChildren->push_back(componentItem);
 
     adjustElement({
       .x = 0,
       .y = scrollContentAboveOffset.max() + scrollContentBelowOffset.max()
-    }, componentRegistry["ListFooterComponentUniqueId"]);
+    }, componentItem);
   }
-  
+
   if (props.uniqueIds.size()) {
     nextStateData.firstChildUniqueId = props.uniqueIds.front();
     nextStateData.lastChildUniqueId = props.uniqueIds.back();
@@ -341,7 +356,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   float scrollContentOffset = (
     scrollContentAboveOffset.max() +
     scrollContentBelowOffset.max() +
-    nextStateData.templateMeasurementsTree[1]
+    measurementsManager->getTemplate(getTag(), "ListFooterComponentUniqueId")
   );
   if (props.horizontal) {
     auto nextScrollContentWidth = std::max((Float) scrollContentOffset, nextStateData.scrollContent.width);
@@ -361,12 +376,12 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   if (!nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && props.horizontal) {
     nextStateData.scrollPosition.y = 0;
     nextStateData.scrollPosition.x = (
-      scrollContentAboveOffset.max() + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.max() + getRelativePointFromPoint(nextStateData.scrollPosition) - measurementsManager->getTemplate(getTag(), "ListHeaderComponentUniqueId")
     );
   } else if (!nextStateData.scrollIndexUpdated && nextStateData.scrollPositionUpdated && !props.horizontal) {
     nextStateData.scrollPosition.x = 0;
     nextStateData.scrollPosition.y = (
-      scrollContentAboveOffset.max() + getRelativePointFromPoint(nextStateData.scrollPosition) - nextStateData.templateMeasurementsTree[0]
+      scrollContentAboveOffset.max() + getRelativePointFromPoint(nextStateData.scrollPosition) - measurementsManager->getTemplate(getTag(), "ListHeaderComponentUniqueId")
     );
   }
 
@@ -384,13 +399,15 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    * Dynamic overlay
    */
   if (nextStateData.scrollContentCompleted) {
-    transformTemplateComponent("ListDynamicComponentUniqueId", 1);
-    contentShadowNodeChildren->push_back(componentRegistry["ListDynamicComponentUniqueId"]);
+    auto componentUniqueId = "ListDynamicComponentUniqueId";
+    transformTemplateComponent(componentUniqueId, 1);
+    auto componentItem = registryManager->getComponent(getTag(), componentUniqueId);
+    contentShadowNodeChildren->push_back(componentItem);
 
     adjustElement({
       .x = 0,
       .y = 0
-    }, componentRegistry["ListDynamicComponentUniqueId"]);
+    }, componentItem);
 
     getConcreteEventEmitter().onViewableItemsChanged({
       .viewableItems = contentShadowNodeItems.viewableItems
@@ -427,19 +444,11 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
 
 void SLContainerShadowNode::appendChild(const ShadowNode::Shared& child) {
   if (dynamic_cast<const SLElementShadowNode*>(child.get())) {
-    auto &templateRegistry = elementShadowNodeTemplateRegistry[getTag()];
     auto uniqueId = static_cast<const SLElementProps&>(*child->getProps()).uniqueId;
-    templateRegistry[uniqueId].push_back(child);
+    registryManager->setTemplate(getTag(), uniqueId, child);
   } else {
     ConcreteShadowNode::appendChild(child);
   }
-}
-
-void SLContainerShadowNode::replaceChild(
-  const ShadowNode& oldChild,
-  const ShadowNode::Shared& newChild,
-  size_t suggestedIndex) {
-  ConcreteShadowNode::replaceChild(oldChild, newChild, suggestedIndex);
 }
 
 LayoutMetrics SLContainerShadowNode::layoutElement(LayoutContext layoutContext, ShadowNode::Unshared shadowNode, int numColumns) {

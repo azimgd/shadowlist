@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { StyleSheet } from 'react-native';
 import SLContainerNativeComponent, {
   Commands,
@@ -7,6 +7,9 @@ import SLContainerNativeComponent, {
   type SLContainerNativeProps,
   type SLContainerNativeCommands,
 } from './SLContainerNativeComponent';
+
+// @ts-ignore
+import ReactNativeInterface from 'react-native/Libraries/ReactPrivate/ReactNativePrivateInterface';
 
 export type ItemProp = {
   id: string;
@@ -56,12 +59,37 @@ const SLContainerWrapper = (
     ? styles.containerHorizontal
     : styles.containerVertical;
 
+  const nextRef = useCallback((ref: SLContainerInstance) => {
+    if (ref) {
+      global.__NATIVE_registerContainerNode(
+        ReactNativeInterface.getNodeFromPublicInstance(ref)
+      );
+      instanceRef.current = ref;
+    } else {
+      global.__NATIVE_unregisterContainerNode(
+        ReactNativeInterface.getNodeFromPublicInstance(instanceRef.current)
+      );
+      instanceRef.current = null;
+    }
+
+    if (forwardedRef) {
+      if (typeof forwardedRef === 'function') {
+        // @ts-ignore
+        forwardedRef(ref);
+      } else {
+        (forwardedRef as React.MutableRefObject<any>).current = ref;
+      }
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <SLContainerNativeComponent
       {...props}
       data={JSON.stringify(props.data)}
       style={[containerStyle, props.style]}
-      ref={instanceRef}
+      ref={nextRef}
     >
       {props.children}
     </SLContainerNativeComponent>

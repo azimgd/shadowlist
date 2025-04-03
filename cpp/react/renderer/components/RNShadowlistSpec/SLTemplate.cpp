@@ -73,7 +73,7 @@ ShadowNode::Unshared SLTemplate::cloneShadowNodeTree(const int& elementDataIndex
   updateRawTextProps(elementData, nextShadowNode, shadowNode);
   updateImageProps(elementData, nextShadowNode, shadowNode);
 
-  nextShadowNode->setMounted(true);
+  // nextShadowNode->setMounted(true);
 
   for (const auto &childShadowNode : shadowNode->getChildren()) {
     auto const clonedChildShadowNode = cloneShadowNodeTree(elementDataIndex, elementData, childShadowNode);

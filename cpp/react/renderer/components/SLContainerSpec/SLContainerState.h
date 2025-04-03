@@ -2,7 +2,7 @@
 
 #include <react/renderer/graphics/Point.h>
 #include <react/renderer/graphics/Size.h>
-#include "SLFenwickTree.hpp"
+#include "SLRegistryManager.h"
 
 #ifdef ANDROID
 #include <folly/dynamic.h>
@@ -38,8 +38,6 @@ constexpr static MapBuffer::Key SLCONTAINER_STATE_SCROLL_INDEX_UPDATED = 14;
 class SLContainerState {
   public:
   SLContainerState(
-    SLFenwickTree childrenMeasurementsTree,
-    SLFenwickTree templateMeasurementsTree,
     Point scrollPosition,
     bool scrollPositionUpdated,
     Size scrollContainer,
@@ -49,11 +47,10 @@ class SLContainerState {
     std::string firstChildUniqueId,
     std::string lastChildUniqueId,
     int scrollIndex,
-    bool scrollIndexUpdated);
+    bool scrollIndexUpdated,
+    std::weak_ptr<SLRegistryManager> registryManager);
   SLContainerState() = default;
 
-  SLFenwickTree childrenMeasurementsTree;
-  SLFenwickTree templateMeasurementsTree;
   Point scrollPosition;
   bool scrollPositionUpdated;
   Size scrollContainer;
@@ -64,6 +61,7 @@ class SLContainerState {
   std::string lastChildUniqueId;
   int scrollIndex;
   bool scrollIndexUpdated;
+  std::weak_ptr<SLRegistryManager> registryManager;
 
 #ifdef ANDROID
   SLContainerState(SLContainerState const &previousState, folly::dynamic data) :

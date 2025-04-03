@@ -8,8 +8,6 @@ using facebook::react::Size;
 using facebook::react::Point;
 
 SLContainerState::SLContainerState(
-  SLFenwickTree childrenMeasurementsTree,
-  SLFenwickTree templateMeasurementsTree,
   Point scrollPosition,
   bool scrollPositionUpdated,
   Size scrollContainer,
@@ -19,9 +17,8 @@ SLContainerState::SLContainerState(
   std::string firstChildUniqueId,
   std::string lastChildUniqueId,
   int scrollIndex,
-  bool scrollIndexUpdated) :
-    childrenMeasurementsTree(childrenMeasurementsTree),
-    templateMeasurementsTree(templateMeasurementsTree),
+  bool scrollIndexUpdated,
+  std::weak_ptr<SLRegistryManager> registryManager) :
     scrollPosition(scrollPosition),
     scrollPositionUpdated(scrollPositionUpdated),
     scrollContainer(scrollContainer),
@@ -31,7 +28,8 @@ SLContainerState::SLContainerState(
     firstChildUniqueId(firstChildUniqueId),
     lastChildUniqueId(lastChildUniqueId),
     scrollIndex(scrollIndex),
-    scrollIndexUpdated(scrollIndexUpdated) {}
+    scrollIndexUpdated(scrollIndexUpdated),
+    registryManager(registryManager) {}
 
 #ifdef ANDROID
 folly::dynamic SLContainerState::getDynamic() const {
