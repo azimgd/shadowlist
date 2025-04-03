@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { StyleSheet } from 'react-native';
 import SLContainerNativeComponent, {
   Commands,
@@ -59,7 +59,7 @@ const SLContainerWrapper = (
     ? styles.containerHorizontal
     : styles.containerVertical;
 
-  const nextRef = (ref: SLContainerInstance) => {
+  const nextRef = useCallback((ref: SLContainerInstance) => {
     if (ref) {
       global.__NATIVE_registerContainerNode(
         ReactNativeInterface.getNodeFromPublicInstance(ref)
@@ -80,7 +80,9 @@ const SLContainerWrapper = (
         (forwardedRef as React.MutableRefObject<any>).current = ref;
       }
     }
-  };
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <SLContainerNativeComponent
