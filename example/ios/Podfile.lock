@@ -1804,7 +1804,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - shadowlist (0.4.24):
+  - shadowlist (0.4.25):
     - DoubleConversion
     - glog
     - hermes-engine
@@ -2137,7 +2137,7 @@ SPEC CHECKSUMS:
   ReactCodegen: c63eda03ba1d94353fb97b031fc84f75a0d125ba
   ReactCommon: 76d2dc87136d0a667678668b86f0fca0c16fdeb0
   RNScreens: 5621e3ad5a329fbd16de683344ac5af4192b40d3
-  shadowlist: 11376098a25f8d65085713a9179adb9909763fd8
+  shadowlist: a174cb7f2b6bd995cfd8c0f8f7755df7181cb137
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: c758bfb934100bb4bf9cbaccb52557cee35e8bdf
 
