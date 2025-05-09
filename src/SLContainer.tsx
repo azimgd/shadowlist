@@ -5,7 +5,6 @@ import SLContainerNativeComponent, {
   type ScrollToIndexOptions,
   type ScrollToOffsetOptions,
   type SLContainerNativeProps,
-  type SLContainerNativeCommands,
 } from './SLContainerNativeComponent';
 
 // @ts-ignore
@@ -16,44 +15,41 @@ export type ItemProp = {
   [key: string]: any;
 };
 
+export type SLContainerRef = {
+  scrollToIndex: (options: ScrollToIndexOptions) => void;
+  scrollToOffset: (offset: ScrollToOffsetOptions) => void;
+};
+
 export type SLContainerWrapperProps = {
   data: Array<ItemProp>;
+  ref: React.Ref<SLContainerRef>;
 };
 
 export type SLContainerInstance = InstanceType<
   typeof SLContainerNativeComponent
 >;
 
-export type SLContainerRef = {
-  scrollToIndex: (options: ScrollToIndexOptions) => void;
-  scrollToOffset: (offset: ScrollToOffsetOptions) => void;
-};
-
-const SLContainerWrapper = (
-  props: Omit<SLContainerNativeProps, 'data'> & SLContainerWrapperProps,
-  forwardedRef: React.Ref<Partial<SLContainerNativeCommands>>
+export const SLContainer = (
+  props: Omit<SLContainerNativeProps, 'data'> & SLContainerWrapperProps
 ) => {
   const instanceRef = React.useRef<SLContainerInstance | null>(null);
 
-  React.useImperativeHandle<Partial<SLContainerNativeCommands>, SLContainerRef>(
-    forwardedRef,
-    () => ({
-      scrollToIndex: (options: ScrollToIndexOptions) => {
-        Commands.scrollToIndex(
-          instanceRef.current as never,
-          options.index,
-          options.animated || false
-        );
-      },
-      scrollToOffset: (options: ScrollToOffsetOptions) => {
-        Commands.scrollToOffset(
-          instanceRef.current as never,
-          options.offset,
-          options.animated || false
-        );
-      },
-    })
-  );
+  React.useImperativeHandle(props.ref, () => ({
+    scrollToIndex: (options: ScrollToIndexOptions) => {
+      Commands.scrollToIndex(
+        instanceRef.current as never,
+        options.index,
+        options.animated || false
+      );
+    },
+    scrollToOffset: (options: ScrollToOffsetOptions) => {
+      Commands.scrollToOffset(
+        instanceRef.current as never,
+        options.offset,
+        options.animated || false
+      );
+    },
+  }));
 
   const containerStyle = props.horizontal
     ? styles.containerHorizontal
@@ -72,12 +68,12 @@ const SLContainerWrapper = (
       instanceRef.current = null;
     }
 
-    if (forwardedRef) {
-      if (typeof forwardedRef === 'function') {
+    if (props.ref) {
+      if (typeof props.ref === 'function') {
         // @ts-ignore
-        forwardedRef(ref);
+        props.ref(ref);
       } else {
-        (forwardedRef as React.MutableRefObject<any>).current = ref;
+        (props.ref as React.MutableRefObject<any>).current = ref;
       }
     }
 
@@ -106,5 +102,3 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
 });
-
-export const SLContainer = React.forwardRef(SLContainerWrapper);

@@ -192,6 +192,7 @@ export default function HomeScreen() {
   );
 
   const listProps: Omit<SLContainerNativeProps, 'data'> & ShadowlistProps = {
+    ref: shadowlistRef,
     data: data.data,
     onVisibleChange: onVisibleChange,
     onStartReached: onStartReached,
@@ -214,7 +215,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
             ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
           }}
-          ref={shadowlistRef}
         />
       )}
 
@@ -225,7 +225,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
             ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
           }}
-          ref={shadowlistRef}
           inverted={true}
           horizontal={false}
         />
@@ -238,7 +237,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
             ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
           }}
-          ref={shadowlistRef}
           inverted={false}
           horizontal={true}
         />
@@ -251,7 +249,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
             ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
           }}
-          ref={shadowlistRef}
           inverted={true}
           horizontal={true}
         />
@@ -264,7 +261,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdYarrow: templateGridMasonryYarrow,
             ListTemplateComponentUniqueIdRobin: templateGridMasonryRobin,
           }}
-          ref={shadowlistRef}
           numColumns={3}
           ListHeaderComponentStyle={{ paddingBottom: 12 }}
         />
@@ -277,7 +273,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdYarrow: templateGridAlignedYarrow,
             ListTemplateComponentUniqueIdRobin: templateGridAlignedRobin,
           }}
-          ref={shadowlistRef}
           numColumns={3}
         />
       )}
@@ -290,7 +285,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdYarrow: templateLineYarrow,
             ListTemplateComponentUniqueIdRobin: templateLineRobin,
           }}
-          ref={shadowlistRef}
           inverted={true}
         />
       )}
@@ -302,7 +296,6 @@ export default function HomeScreen() {
             ListTemplateComponentUniqueIdYarrow: templateVerticalYarrow,
             ListTemplateComponentUniqueIdRobin: templateVerticalRobin,
           }}
-          ref={shadowlistRef}
           initialScrollIndex={10}
         />
       )}

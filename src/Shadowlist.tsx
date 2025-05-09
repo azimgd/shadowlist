@@ -1,12 +1,11 @@
-import React, { useCallback, useState, type Ref } from 'react';
+import React, { useCallback, useState } from 'react';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 import { SLContainer } from './SLContainer';
 import { SLContent } from './SLContent';
 import { SLElement } from './SLElement';
-import type { ItemProp } from './SLContainer';
+import type { ItemProp, SLContainerRef } from './SLContainer';
 import type {
   OnViewableItemsChanged,
-  SLContainerNativeCommands,
   SLContainerNativeProps,
 } from './SLContainerNativeComponent';
 import type { DirectEventHandler } from 'react-native/Libraries/Types/CodegenTypes';
@@ -33,6 +32,7 @@ const invoker = (Component: Component) => {
 
 export type ShadowlistProps = {
   data: Array<ItemProp>;
+  ref: React.Ref<SLContainerRef>;
   renderItem?: ({
     item,
     key,
@@ -54,142 +54,138 @@ export type ShadowlistProps = {
   ListEmptyComponentStyle?: ViewStyle;
 };
 
-export const Shadowlist = React.forwardRef(
-  (
-    props: Omit<SLContainerNativeProps, 'data'> & ShadowlistProps,
-    forwardedRef: Ref<Partial<SLContainerNativeCommands>>
-  ) => {
-    /**
-     * ListHeaderComponent
-     */
-    const ListHeaderComponent = (
-      <SLElement
-        style={props.ListHeaderComponentStyle}
-        uniqueId="ListHeaderComponentUniqueId"
-        key="ListHeaderComponentUniqueId"
-      >
-        {invoker(props.ListHeaderComponent)}
-      </SLElement>
-    );
+export const Shadowlist = (
+  props: Omit<SLContainerNativeProps, 'data'> & ShadowlistProps
+) => {
+  /**
+   * ListHeaderComponent
+   */
+  const ListHeaderComponent = (
+    <SLElement
+      style={props.ListHeaderComponentStyle}
+      uniqueId="ListHeaderComponentUniqueId"
+      key="ListHeaderComponentUniqueId"
+    >
+      {invoker(props.ListHeaderComponent)}
+    </SLElement>
+  );
 
-    /**
-     * ListFooterComponent
-     */
-    const ListFooterComponent = (
-      <SLElement
-        style={props.ListFooterComponentStyle}
-        uniqueId="ListFooterComponentUniqueId"
-        key="ListFooterComponentUniqueId"
-      >
-        {invoker(props.ListFooterComponent)}
-      </SLElement>
-    );
+  /**
+   * ListFooterComponent
+   */
+  const ListFooterComponent = (
+    <SLElement
+      style={props.ListFooterComponentStyle}
+      uniqueId="ListFooterComponentUniqueId"
+      key="ListFooterComponentUniqueId"
+    >
+      {invoker(props.ListFooterComponent)}
+    </SLElement>
+  );
 
-    /**
-     * ListEmptyComponent
-     */
-    const ListEmptyComponent = (
-      <SLElement
-        style={props.ListEmptyComponentStyle}
-        uniqueId="ListEmptyComponentUniqueId"
-        key="ListEmptyComponentUniqueId"
-      >
-        {invoker(props.ListEmptyComponent)}
-      </SLElement>
-    );
+  /**
+   * ListEmptyComponent
+   */
+  const ListEmptyComponent = (
+    <SLElement
+      style={props.ListEmptyComponentStyle}
+      uniqueId="ListEmptyComponentUniqueId"
+      key="ListEmptyComponentUniqueId"
+    >
+      {invoker(props.ListEmptyComponent)}
+    </SLElement>
+  );
 
-    const templates = Object.entries(props.templates ?? {});
-    const ListTemplatesComponent = templates.map(([templateKey, template]) => (
-      <SLElement uniqueId={templateKey} key={templateKey}>
-        {template()}
-      </SLElement>
-    ));
+  const templates = Object.entries(props.templates ?? {});
+  const ListTemplatesComponent = templates.map(([templateKey, template]) => (
+    <SLElement uniqueId={templateKey} key={templateKey}>
+      {template()}
+    </SLElement>
+  ));
 
-    /**
-     * onViewableItemsChanged
-     */
-    const [viewableItems, setViewableItems] = useState<
-      OnViewableItemsChanged['viewableItems']
-    >([]);
+  /**
+   * onViewableItemsChanged
+   */
+  const [viewableItems, setViewableItems] = useState<
+    OnViewableItemsChanged['viewableItems']
+  >([]);
 
-    const handleViewableItemsChanged = useCallback<
-      DirectEventHandler<OnViewableItemsChanged>
-    >(
-      (event) => {
-        if (typeof props.onViewableItemsChanged === 'function') {
-          props.onViewableItemsChanged(event);
+  const handleViewableItemsChanged = useCallback<
+    DirectEventHandler<OnViewableItemsChanged>
+  >(
+    (event) => {
+      if (typeof props.onViewableItemsChanged === 'function') {
+        props.onViewableItemsChanged(event);
+      }
+
+      if (typeof props.renderItem !== 'function') {
+        return;
+      }
+
+      event.persist();
+
+      setViewableItems((state) => {
+        const prevViewableItems = state.map(
+          (viewableItem) => viewableItem.index
+        );
+        const nextViewableItems = event.nativeEvent.viewableItems.map(
+          (viewableItem) => viewableItem.index
+        );
+
+        if (compareArrays(prevViewableItems, nextViewableItems)) {
+          return state;
         }
 
-        if (typeof props.renderItem !== 'function') {
-          return;
-        }
+        return event.nativeEvent.viewableItems;
+      });
+    },
+    [props]
+  );
 
-        event.persist();
+  /**
+   * SLContentComponent
+   */
+  const SLContentComponent = <SLContent />;
 
-        setViewableItems((state) => {
-          const prevViewableItems = state.map(
-            (viewableItem) => viewableItem.index
-          );
-          const nextViewableItems = event.nativeEvent.viewableItems.map(
-            (viewableItem) => viewableItem.index
-          );
+  /**
+   * ListDynamicComponent
+   */
+  const renderItem = props.renderItem ?? (() => null);
+  const ListDynamicComponentItems = viewableItems.map((viewableItem) => (
+    <View key={viewableItem.key} style={viewableItemStyle(viewableItem)}>
+      {renderItem({
+        item: props.data[viewableItem.index],
+        ...viewableItem,
+      })}
+    </View>
+  ));
 
-          if (compareArrays(prevViewableItems, nextViewableItems)) {
-            return state;
-          }
+  const ListDynamicComponent = (
+    <SLElement
+      style={styles.ListDynamicComponent}
+      uniqueId="ListDynamicComponentUniqueId"
+      key="ListDynamicComponentUniqueId"
+    >
+      {ListDynamicComponentItems}
+    </SLElement>
+  );
 
-          return event.nativeEvent.viewableItems;
-        });
-      },
-      [props]
-    );
+  return (
+    <SLContainer
+      {...props}
+      style={props.contentContainerStyle}
+      onViewableItemsChanged={handleViewableItemsChanged}
+    >
+      {SLContentComponent}
+      {ListDynamicComponent}
 
-    /**
-     * SLContentComponent
-     */
-    const SLContentComponent = <SLContent />;
-
-    /**
-     * ListDynamicComponent
-     */
-    const renderItem = props.renderItem ?? (() => null);
-    const ListDynamicComponentItems = viewableItems.map((viewableItem) => (
-      <View key={viewableItem.key} style={viewableItemStyle(viewableItem)}>
-        {renderItem({
-          item: props.data[viewableItem.index],
-          ...viewableItem,
-        })}
-      </View>
-    ));
-
-    const ListDynamicComponent = (
-      <SLElement
-        style={styles.ListDynamicComponent}
-        uniqueId="ListDynamicComponentUniqueId"
-        key="ListDynamicComponentUniqueId"
-      >
-        {ListDynamicComponentItems}
-      </SLElement>
-    );
-
-    return (
-      <SLContainer
-        {...props}
-        ref={forwardedRef}
-        style={props.contentContainerStyle}
-        onViewableItemsChanged={handleViewableItemsChanged}
-      >
-        {SLContentComponent}
-        {ListDynamicComponent}
-
-        {ListHeaderComponent}
-        {ListTemplatesComponent}
-        {ListEmptyComponent}
-        {ListFooterComponent}
-      </SLContainer>
-    );
-  }
-);
+      {ListHeaderComponent}
+      {ListTemplatesComponent}
+      {ListEmptyComponent}
+      {ListFooterComponent}
+    </SLContainer>
+  );
+};
 
 export const viewableItemStyle = (
   item: OnViewableItemsChanged['viewableItems'][number]

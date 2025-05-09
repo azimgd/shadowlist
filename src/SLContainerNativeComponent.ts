@@ -73,11 +73,13 @@ export interface SLContainerNativeProps extends ViewProps {
 
 export interface SLContainerNativeCommands {
   scrollToIndex: (
+    // @ts-ignore
     viewRef: React.ElementRef<React.ComponentType>,
     index: Int32,
     animated: boolean
   ) => void;
   scrollToOffset: (
+    // @ts-ignore
     viewRef: React.ElementRef<React.ComponentType>,
     offset: Int32,
     animated: boolean

@@ -7,13 +7,10 @@ export type SLContentWrapperProps = {};
 
 export type SLContentInstance = InstanceType<typeof SLContentNativeComponent>;
 
-const SLContentWrapper = (
-  props: SLContentNativeProps & SLContentWrapperProps,
-  forwardedRef: React.Ref<{}>
+export const SLContent = (
+  props: SLContentNativeProps & SLContentWrapperProps
 ) => {
   const instanceRef = React.useRef<SLContentInstance | null>(null);
-
-  React.useImperativeHandle(forwardedRef, () => ({}));
 
   return (
     <SLContentNativeComponent {...props} ref={instanceRef}>
@@ -21,5 +18,3 @@ const SLContentWrapper = (
     </SLContentNativeComponent>
   );
 };
-
-export const SLContent = React.forwardRef(SLContentWrapper);

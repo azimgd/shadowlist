@@ -7,13 +7,10 @@ export type SLElementWrapperProps = {};
 
 export type SLElementInstance = InstanceType<typeof SLElementNativeComponent>;
 
-const SLElementWrapper = (
-  props: SLElementNativeProps & SLElementWrapperProps,
-  forwardedRef: React.Ref<{}>
+export const SLElement = (
+  props: SLElementNativeProps & SLElementWrapperProps
 ) => {
   const instanceRef = React.useRef<SLElementInstance | null>(null);
-
-  React.useImperativeHandle(forwardedRef, () => ({}));
 
   return (
     <SLElementNativeComponent {...props} ref={instanceRef}>
@@ -21,5 +18,3 @@ const SLElementWrapper = (
     </SLElementNativeComponent>
   );
 };
-
-export const SLElement = React.forwardRef(SLElementWrapper);
