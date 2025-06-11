@@ -3,7 +3,6 @@
 #include <react/renderer/components/view/ViewProps.h>
 #include <react/renderer/core/PropsParserContext.h>
 #include "SLKeyExtractor.h"
-#include "json.hpp"
 
 #ifndef RCT_DEBUG
 #include <iostream>
@@ -22,12 +21,7 @@ class SLContainerProps final : public ViewProps {
   SLContainerProps() = default;
   SLContainerProps(const PropsParserContext& context, const SLContainerProps &sourceProps, const RawProps &rawProps);
 
-  using SLContainerData = nlohmann::json::array_t;
-  using SLContainerDataItem = nlohmann::json;
-  using SLContainerDataItemPath = std::string;
-
-  std::string data;
-  nlohmann::json parsed;
+  folly::dynamic data;
   std::vector<std::string> uniqueIds;
   bool inverted = false;
   bool horizontal = false;
@@ -35,8 +29,5 @@ class SLContainerProps final : public ViewProps {
   int windowSize = 2;
   int numColumns = 1;
   int initialScrollIndex = 0;
-
-  const SLContainerDataItem& getElementByIndex(int index) const;
-  static std::string getElementValueByPath(const SLContainerDataItem& element, const SLContainerDataItemPath& path) ;
   };
 }

@@ -10,7 +10,7 @@ class SLTemplate {
   public:
   static ShadowNode::Unshared cloneShadowNodeTree(
     const int& elementDataIndex,
-    const SLContainerProps::SLContainerDataItem& elementData,
+    const folly::dynamic& elementData,
     const ShadowNode::Shared& shadowNode);
 };
 

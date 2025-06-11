@@ -4,6 +4,7 @@ import type { ViewProps } from 'react-native';
 import type {
   Int32,
   DirectEventHandler,
+  UnsafeMixed,
 } from 'react-native/Libraries/Types/CodegenTypes';
 
 export type ScrollToIndexOptions = {
@@ -57,7 +58,7 @@ export type OnViewableItemsChanged = {
 };
 
 export interface SLContainerNativeProps extends ViewProps {
-  data: string;
+  data: UnsafeMixed;
   inverted?: boolean;
   horizontal?: boolean;
   initialNumToRender?: Int32;

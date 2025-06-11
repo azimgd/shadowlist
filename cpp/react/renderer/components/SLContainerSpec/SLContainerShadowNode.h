@@ -14,9 +14,11 @@
 #include <react/renderer/core/LayoutMetrics.h>
 
 #include <string>
+#include <ranges>
 
 #ifndef RCT_DEBUG
 #include <iostream>
+#include <iomanip>
 #ifdef ANDROID
 #include <android/log.h>
 #endif

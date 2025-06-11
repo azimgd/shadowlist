@@ -83,7 +83,7 @@ export const SLContainer = (
   return (
     <SLContainerNativeComponent
       {...props}
-      data={JSON.stringify(props.data)}
+      data={props.data}
       style={[containerStyle, props.style]}
       ref={nextRef}
     >

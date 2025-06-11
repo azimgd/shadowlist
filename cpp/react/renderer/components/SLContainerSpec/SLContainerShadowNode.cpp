@@ -63,7 +63,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   __android_log_print(ANDROID_LOG_VERBOSE, "shadowlist", "SLContainerShadowNode onLayout %d", nextStateData.scrollIndex);
   #endif
 
-  const int elementsDataSize = props.parsed.size();
+  const int elementsDataSize = props.data.size();
   
   int viewportOffset;
   if (props.horizontal) {
@@ -82,7 +82,7 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
   }
 
   if (isInitialState && props.inverted) {
-    nextStateData.scrollIndex = props.parsed.size();
+    nextStateData.scrollIndex = props.data.size();
     nextStateData.scrollPositionUpdated = true;
     nextStateData.scrollIndexUpdated = true;
   }
@@ -141,8 +141,8 @@ void SLContainerShadowNode::layout(LayoutContext layoutContext) {
    */
   auto transformElementComponent = [&](int elementDataIndex) -> ComponentRegistryItem {
     auto componentUniqueId = props.uniqueIds[elementDataIndex];
-    auto &elementData = props.getElementByIndex(elementDataIndex);
-    auto templateUniqueId = SLContainerProps::getElementValueByPath(elementData, "__shadowlist_template_id");
+    auto &elementData = props.data[elementDataIndex];
+    auto templateUniqueId = elementData["__shadowlist_template_id"].asString();
 
     ShadowNode::Unshared componentItem;
 
