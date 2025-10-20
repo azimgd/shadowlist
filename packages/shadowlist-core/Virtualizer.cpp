@@ -3,6 +3,14 @@
 
 namespace azimgd::shadowlist {
 
+void Virtualizer::measure(Container *container) {
+  if (!container->inverted) {
+    measureDefault(container);
+  } else {
+    measureInverted(container);
+  }
+}
+
 void Virtualizer::measureDefault(Container *container) {
   if (container->nextRevisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use measureDefault outside of a revision");

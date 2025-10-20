@@ -10,6 +10,7 @@
 #import <shadowlist-core/Virtualizer.hpp>
 #import <shadowlist-core/Observer.hpp>
 
+bool INVERTED = true;
 
 using namespace facebook::react;
 
@@ -45,9 +46,7 @@ using namespace facebook::react;
   });
 
   self.container->startRevision();
-  self.container->setContainerOffsetX(self->_scrollView.contentOffset.x);
-  self.container->setContainerOffsetY(self->_scrollView.contentOffset.y);
-  self.virtualizer->measureDefault(self.container);
+  self.virtualizer->measure(self.container);
   self.container->endRevision();
   
   double offsetX = self.container->getElementAtIndex(childViewProps.index).offsetX;
@@ -108,13 +107,53 @@ using namespace facebook::react;
     
     {
       __weak __typeof(self) weakSelf = self;
-      self.container->offsetInitAdjustmentCallback = [](azimgd::shadowlist::Revision revision) -> void {};
-      self.container->offsetMvcpAdjustmentCallback = [](azimgd::shadowlist::Revision revision) -> void {};
-      self.container->sizeAdjustmentCallback = [](azimgd::shadowlist::Revision revision) -> void {};
+      
+      /*
+       * offsetInitAdjustmentCallback
+       */
+      self.container->offsetInitAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
+        __strong auto strongSelf = weakSelf;
+        
+        if (!strongSelf->_container->inverted) {
+          return;
+        }
+        
+        CGPoint adjustedOffset = CGPointMake(0, revision.mvcpDiffHeight + revision.containerOffsetY);
+        [strongSelf->_scrollView setContentOffset:adjustedOffset animated:NO];
+        strongSelf->_container->setOffsetInitAdjustmentCompleted(true);
+      };
+
+      /*
+       * offsetMvcpAdjustmentCallback
+       */
+      self.container->offsetMvcpAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
+        __strong auto strongSelf = weakSelf;
+        
+        if (!strongSelf->_container->inverted) {
+          return;
+        }
+        
+        CGPoint adjustedOffset = CGPointMake(0, revision.mvcpDiffHeight + revision.containerOffsetY);
+        [strongSelf->_scrollView setContentOffset:adjustedOffset animated:NO];
+        strongSelf->_container->setOffsetMvcpAdjustmentCompleted(true);
+      };
+      
+      /*
+       * sizeAdjustmentCallback
+       */
+      self.container->sizeAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
+        __strong auto strongSelf = weakSelf;
+        strongSelf->_scrollView.contentSize = CGSizeMake(revision.totalContainerWidth, revision.totalContainerHeight);
+        strongSelf->_contentView.frame = CGRectMake(0, 0, revision.totalContainerWidth, revision.totalContainerHeight);
+      };
+      
+      /*
+       * measurementCallback
+       */
       self.container->measurementCallback = [](std::size_t index) -> std::pair<double, double> { return {100.0, 100.0}; };
     }
 
-    self.container->inverted = false;
+    self.container->inverted = INVERTED;
     self.container->horizontal = false;
     self.container->resizeElements(1000);
 
@@ -126,9 +165,6 @@ using namespace facebook::react;
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
-  const auto &oldViewProps = *std::static_pointer_cast<ShadowlistViewProps const>(_props);
-  const auto &newViewProps = *std::static_pointer_cast<ShadowlistViewProps const>(props);
-
   [super updateProps:props oldProps:oldProps];
 }
 
@@ -145,14 +181,8 @@ using namespace facebook::react;
   self.container->setContainerOffsetY(self->_scrollView.contentOffset.y);
   self.container->setWindowContainerWidth(_scrollView.bounds.size.width);
   self.container->setWindowContainerHeight(_scrollView.bounds.size.height);
-  self.virtualizer->measureDefault(self.container);
+  self.virtualizer->measure(self.container);
   self.container->endRevision();
-  
-  CGFloat contentWidth = self.container->nextRevision.totalContainerWidth;
-  CGFloat contentHeight = self.container->nextRevision.totalContainerHeight;
-
-  _scrollView.contentSize = CGSizeMake(contentWidth, contentHeight);
-  _contentView.frame = CGRectMake(0, 0, contentWidth, contentHeight);
 }
 
 #pragma mark - UIScrollViewDelegate
@@ -162,22 +192,26 @@ using namespace facebook::react;
   if (!self.container) {
     return;
   }
+  
+  if (!self->_eventEmitter) {
+    return;
+  }
+  
+  if (!self.container->offsetInitAdjustmentCallbackCompleted) {
+    self.container->setOffsetInitAdjustmentCompleted(true);
+    return;
+  }
+  
+  if (!self.container->offsetMvcpAdjustmentCallbackCompleted) {
+    self.container->setOffsetMvcpAdjustmentCompleted(true);
+    return;
+  }
 
   self.container->startRevision();
   self.container->setContainerOffsetX(scrollView.contentOffset.x);
   self.container->setContainerOffsetY(scrollView.contentOffset.y);
-  self.virtualizer->measureDefault(self.container);
+  self.virtualizer->measure(self.container);
   self.container->endRevision();
-  
-  CGFloat contentWidth = self.container->nextRevision.totalContainerWidth;
-  CGFloat contentHeight = self.container->nextRevision.totalContainerHeight;
-
-  _scrollView.contentSize = CGSizeMake(contentWidth, contentHeight);
-  _contentView.frame = CGRectMake(0, 0, contentWidth, contentHeight);
-  
-  if(!self->_eventEmitter) {
-    return;
-  }
 
   const auto visibleIndices = self.container->getVisibleIndices();
 

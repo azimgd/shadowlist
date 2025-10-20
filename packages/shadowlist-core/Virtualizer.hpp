@@ -12,6 +12,11 @@ namespace azimgd::shadowlist {
 class Virtualizer {
 public:
   /*
+   * Measure items
+   */
+  void measure(Container *container);
+
+  /*
    * Measure items in default order by index
    */
   void measureDefault(Container *container);

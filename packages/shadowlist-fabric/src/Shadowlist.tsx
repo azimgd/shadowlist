@@ -6,6 +6,8 @@ import {
   type OnVisibleIndicesChange,
 } from 'react-native-shadowlist';
 
+const INVERTED = true;
+
 function createRangeArray(indices: OnVisibleIndicesChange) {
   if (
     indices.visibleStartIndex === -1 ||
@@ -21,6 +23,37 @@ function createRangeArray(indices: OnVisibleIndicesChange) {
   );
 }
 
+export const inversionBasedInitialIndices = (inverted: boolean) => {
+  if (inverted) {
+    return {
+      visibleStartIndex: 980,
+      visibleEndIndex: 999,
+    };
+  } else {
+    return {
+      visibleStartIndex: 0,
+      visibleEndIndex: 20,
+    };
+  }
+};
+
+export const inversionBasedUpdatingIndices = (
+  indices: OnVisibleIndicesChange,
+  inverted: boolean
+) => {
+  if (inverted) {
+    return {
+      visibleStartIndex: indices.visibleEndIndex,
+      visibleEndIndex: indices.visibleStartIndex,
+    };
+  } else {
+    return {
+      visibleStartIndex: indices.visibleStartIndex,
+      visibleEndIndex: indices.visibleEndIndex,
+    };
+  }
+};
+
 export interface ShadowListProps {
   renderItem: ({ index }: { index: number }) => ReactElement;
   style?: ViewStyle;
@@ -28,10 +61,9 @@ export interface ShadowListProps {
 }
 
 function ShadowList({ renderItem, style, itemStyle }: ShadowListProps) {
-  const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>({
-    visibleStartIndex: 0,
-    visibleEndIndex: 20,
-  });
+  const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>(
+    inversionBasedInitialIndices(INVERTED)
+  );
 
   const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
     OnVisibleIndicesChange,
@@ -51,10 +83,7 @@ function ShadowList({ renderItem, style, itemStyle }: ShadowListProps) {
         return prevIndices;
       }
 
-      return {
-        visibleStartIndex: nextIndices.visibleStartIndex,
-        visibleEndIndex: nextIndices.visibleEndIndex,
-      };
+      return inversionBasedUpdatingIndices(nextIndices, INVERTED);
     });
   }, []);
 
