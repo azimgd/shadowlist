@@ -168,11 +168,6 @@ public:
   double getWindowContainerSize() const;
 
   /**
-   * Resize the elements vector from head
-   */
-  void resizeElementsHead(std::size_t size);
-
-  /**
    * Resize the elements vector from tail
    */
   void resizeElementsTail(std::size_t size);

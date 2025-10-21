@@ -102,9 +102,10 @@ using namespace facebook::react;
     self.virtualizer = new azimgd::shadowlist::Virtualizer();
     self.container = new azimgd::shadowlist::Container();
     self.observer = new azimgd::shadowlist::Observer(*self.container, 16);
-  
+
+    self.container->resizeElementsTail(1000);
     self.container->setObserver(self.observer);
-    
+
     {
       __weak __typeof(self) weakSelf = self;
       
@@ -158,7 +159,6 @@ using namespace facebook::react;
 
     self.container->inverted = INVERTED;
     self.container->horizontal = false;
-    self.container->resizeElementsTail(1000);
 
     self.contentView = _scrollView;
   }
@@ -168,6 +168,9 @@ using namespace facebook::react;
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
+  const auto &prevViewProps = static_cast<const ShadowlistViewProps &>(*_props);
+  const auto &nextViewProps = static_cast<const ShadowlistViewProps &>(*props);
+
   [super updateProps:props oldProps:oldProps];
 }
 
@@ -230,6 +233,21 @@ using namespace facebook::react;
   });
   
   self.container->setSizeAdjustmentCallbackCompleted(false);
+}
+
+- (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
+{
+  RCTShadowlistViewHandleCommand(self, commandName, args);
+}
+
+- (void)prependElements:(NSInteger)size
+{
+  self.virtualizer->prependElements(self.container, size, self.container->nextRevision);
+}
+
+- (void)appendElements:(NSInteger)size
+{
+  self.virtualizer->appendElements(self.container, size, self.container->nextRevision);
 }
 
 Class<RCTComponentViewProtocol> ShadowlistViewCls(void)

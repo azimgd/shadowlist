@@ -1,9 +1,18 @@
-import { useState, useMemo, useCallback, type ReactElement } from 'react';
+import type { ComponentRef, Ref } from 'react';
+import { useRef } from 'react';
+import {
+  useState,
+  useMemo,
+  useImperativeHandle,
+  useCallback,
+  type ReactElement,
+} from 'react';
 import { StyleSheet, type CodegenTypes, type ViewStyle } from 'react-native';
 import {
   ShadowlistView,
   ShadowlistElementView,
   type OnVisibleIndicesChange,
+  Commands,
 } from 'react-native-shadowlist';
 
 const INVERTED = true;
@@ -54,16 +63,43 @@ export const inversionBasedUpdatingIndices = (
   }
 };
 
+export interface ShadowListCommands {
+  prependElements: (size: number) => void;
+  appendElements: (size: number) => void;
+}
+
 export interface ShadowListProps {
   renderItem: ({ index }: { index: number }) => ReactElement;
   style?: ViewStyle;
   itemStyle?: ViewStyle;
+  ref?: Ref<ShadowListCommands>;
 }
 
-function ShadowList({ renderItem, style, itemStyle }: ShadowListProps) {
+function ShadowList({ renderItem, style, itemStyle, ref }: ShadowListProps) {
+  const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
+    null
+  );
+
   const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>(
     inversionBasedInitialIndices(INVERTED)
   );
+
+  useImperativeHandle(ref, () => ({
+    prependElements: (size: number) => {
+      if (!shadowlistViewRef.current) return;
+
+      setVisibleIndices((prev) => ({
+        visibleStartIndex: prev.visibleStartIndex + size,
+        visibleEndIndex: prev.visibleEndIndex + size,
+      }));
+      Commands.prependElements(shadowlistViewRef.current, size);
+    },
+    appendElements: (size: number) => {
+      if (!shadowlistViewRef.current) return;
+
+      Commands.appendElements(shadowlistViewRef.current, size);
+    },
+  }));
 
   const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
     OnVisibleIndicesChange,
@@ -94,20 +130,21 @@ function ShadowList({ renderItem, style, itemStyle }: ShadowListProps) {
 
   return (
     <ShadowlistView
+      ref={shadowlistViewRef}
       style={[styles.container, style]}
       onVisibleIndicesChange={handleVisibleIndicesChange}
+      inverted={false}
+      horizontal={false}
     >
-      {visibleRange.map((index) => {
-        return (
-          <ShadowlistElementView
-            index={index}
-            style={[styles.item, itemStyle]}
-            key={index}
-          >
-            {renderItem({ index })}
-          </ShadowlistElementView>
-        );
-      })}
+      {visibleRange.map((index) => (
+        <ShadowlistElementView
+          index={index}
+          style={[styles.item, itemStyle]}
+          key={index}
+        >
+          {renderItem({ index })}
+        </ShadowlistElementView>
+      ))}
     </ShadowlistView>
   );
 }

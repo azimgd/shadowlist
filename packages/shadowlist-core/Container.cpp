@@ -193,31 +193,6 @@ void Container::resizeElementsTail(std::size_t size) {
   }
 }
 
-void Container::resizeElementsHead(std::size_t size) {
-  std::size_t prevElementsSize = this->nextRevision.elements.size();
-
-  if (size > prevElementsSize) {
-    std::size_t newElementsCount = size - prevElementsSize;
-
-    this->nextRevision.elements.insert(
-      this->nextRevision.elements.begin(), 
-      newElementsCount, 
-      {}
-    );
-  } else if (size < prevElementsSize) {
-    std::size_t elementsToRemove = prevElementsSize - size;
-
-    this->nextRevision.elements.erase(
-      this->nextRevision.elements.begin(), 
-      this->nextRevision.elements.begin() + elementsToRemove
-    );
-  } 
-
-  for (std::size_t i = 0; i < this->nextRevision.elements.size(); ++i) {
-    this->nextRevision.elements[i].index = i;
-  }
-}
-
 std::size_t Container::getElementsSize() const {
   return this->nextRevision.elements.size();
 }

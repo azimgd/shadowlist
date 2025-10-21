@@ -1,34 +1,12 @@
 import { useEffect, useRef, useMemo, memo } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 
-const LOREM_WORDS = [
-  'Lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit',
-  'sed', 'do', 'eiusmod', 'tempor', 'incididunt', 'ut', 'labore', 'et', 'dolore',
-  'magna', 'aliqua', 'Ut', 'enim', 'ad', 'minim', 'veniam', 'quis', 'nostrud',
-  'exercitation', 'ullamco', 'laboris', 'nisi', 'aliquip', 'ex', 'ea', 'commodo',
-  'consequat', 'Duis', 'aute', 'irure', 'in', 'reprehenderit', 'voluptate', 'velit',
-  'esse', 'cillum', 'fugiat', 'nulla', 'pariatur', 'Excepteur', 'sint', 'occaecat',
-];
-
-function generateRandomText(seed: number): string {
-  const wordCount = 20 + (seed % 40); // 20-60 words
-  const words: string[] = [];
-
-  for (let i = 0; i < wordCount; i++) {
-    const index = (seed + i) % LOREM_WORDS.length;
-    words.push(LOREM_WORDS[index]!);
-  }
-
-  return words.join(' ') + '.';
-}
-
-export const ITEM_TEXTS = Array.from({ length: 1000 }, (_, index) => generateRandomText(index));
-
 interface HeavyListItemProps {
   index: number;
+  text: string;
 }
 
-export const HeavyListItem = memo(({ index }: HeavyListItemProps) => {
+export const HeavyListItem = memo(({ index, text }: HeavyListItemProps) => {
   const spinValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -54,8 +32,6 @@ export const HeavyListItem = memo(({ index }: HeavyListItemProps) => {
       }),
     [spinValue]
   );
-
-  const text = ITEM_TEXTS[index] || ITEM_TEXTS[0];
 
   const animatedStyle = useMemo(
     () => [styles.avatar, { transform: [{ rotate }] }],
