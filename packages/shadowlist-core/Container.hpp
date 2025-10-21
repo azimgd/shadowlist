@@ -168,9 +168,14 @@ public:
   double getWindowContainerSize() const;
 
   /**
-   * Resize the elements vector
+   * Resize the elements vector from head
    */
-  void resizeElements(std::size_t size);
+  void resizeElementsHead(std::size_t size);
+
+  /**
+   * Resize the elements vector from tail
+   */
+  void resizeElementsTail(std::size_t size);
 
   /**
    * Get the current number of elements
@@ -221,6 +226,11 @@ public:
    * Set offset mvcp adjustment completion state
    */
   void setOffsetMvcpAdjustmentCompleted(bool completed);
+
+  /**
+   * Set size adjustment completion state
+   */
+  void setSizeAdjustmentCallbackCompleted(bool completed);
 
   /**
    * Get metadata for current revision

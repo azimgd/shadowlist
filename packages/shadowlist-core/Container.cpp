@@ -184,13 +184,37 @@ const Element Container::getElementAtIndex(std::size_t index) const {
   return this->nextRevision.elements[index];
 }
 
-void Container::resizeElements(std::size_t size) {
+void Container::resizeElementsTail(std::size_t size) {
   std::size_t prevElementsSize = this->nextRevision.elements.size();
   this->nextRevision.elements.resize(size);
 
-  // Update indices for newly added elements (if any)
   for (std::size_t nextElementIndex = prevElementsSize; nextElementIndex < size; nextElementIndex++) {
     this->nextRevision.elements[nextElementIndex].index = nextElementIndex;
+  }
+}
+
+void Container::resizeElementsHead(std::size_t size) {
+  std::size_t prevElementsSize = this->nextRevision.elements.size();
+
+  if (size > prevElementsSize) {
+    std::size_t newElementsCount = size - prevElementsSize;
+
+    this->nextRevision.elements.insert(
+      this->nextRevision.elements.begin(), 
+      newElementsCount, 
+      {}
+    );
+  } else if (size < prevElementsSize) {
+    std::size_t elementsToRemove = prevElementsSize - size;
+
+    this->nextRevision.elements.erase(
+      this->nextRevision.elements.begin(), 
+      this->nextRevision.elements.begin() + elementsToRemove
+    );
+  } 
+
+  for (std::size_t i = 0; i < this->nextRevision.elements.size(); ++i) {
+    this->nextRevision.elements[i].index = i;
   }
 }
 
@@ -248,6 +272,10 @@ void Container::setOffsetInitAdjustmentCompleted(bool completed) {
 
 void Container::setOffsetMvcpAdjustmentCompleted(bool completed) {
   this->offsetMvcpAdjustmentCallbackCompleted = completed;
+}
+
+void Container::setSizeAdjustmentCallbackCompleted(bool completed) {
+  this->sizeAdjustmentCallbackCompleted = completed;
 }
 
 std::vector<Element> Container::getVisibleElements() const {

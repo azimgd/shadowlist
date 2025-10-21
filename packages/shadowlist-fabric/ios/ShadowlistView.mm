@@ -115,12 +115,12 @@ using namespace facebook::react;
         __strong auto strongSelf = weakSelf;
         
         if (!strongSelf->_container->inverted) {
+          strongSelf->_container->setOffsetInitAdjustmentCompleted(true);
           return;
         }
         
-        CGPoint adjustedOffset = CGPointMake(0, revision.mvcpDiffHeight + revision.containerOffsetY);
+        CGPoint adjustedOffset = CGPointMake(0, revision.totalContainerHeight - revision.windowContainerHeight);
         [strongSelf->_scrollView setContentOffset:adjustedOffset animated:NO];
-        strongSelf->_container->setOffsetInitAdjustmentCompleted(true);
       };
 
       /*
@@ -130,12 +130,12 @@ using namespace facebook::react;
         __strong auto strongSelf = weakSelf;
         
         if (!strongSelf->_container->inverted) {
+          strongSelf->_container->setOffsetMvcpAdjustmentCompleted(true);
           return;
         }
         
         CGPoint adjustedOffset = CGPointMake(0, revision.mvcpDiffHeight + revision.containerOffsetY);
         [strongSelf->_scrollView setContentOffset:adjustedOffset animated:NO];
-        strongSelf->_container->setOffsetMvcpAdjustmentCompleted(true);
       };
       
       /*
@@ -143,6 +143,7 @@ using namespace facebook::react;
        */
       self.container->sizeAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
         __strong auto strongSelf = weakSelf;
+        
         strongSelf->_scrollView.contentSize = CGSizeMake(revision.totalContainerWidth, revision.totalContainerHeight);
         strongSelf->_contentView.frame = CGRectMake(0, 0, revision.totalContainerWidth, revision.totalContainerHeight);
       };
@@ -150,12 +151,14 @@ using namespace facebook::react;
       /*
        * measurementCallback
        */
-      self.container->measurementCallback = [](std::size_t index) -> std::pair<double, double> { return {100.0, 100.0}; };
+      self.container->measurementCallback = [weakSelf](std::size_t index) -> std::pair<double, double> {
+        return {100.0, 100.0};
+      };
     }
 
     self.container->inverted = INVERTED;
     self.container->horizontal = false;
-    self.container->resizeElements(1000);
+    self.container->resizeElementsTail(1000);
 
     self.contentView = _scrollView;
   }
@@ -206,6 +209,11 @@ using namespace facebook::react;
     self.container->setOffsetMvcpAdjustmentCompleted(true);
     return;
   }
+  
+  if (!self.container->sizeAdjustmentCallbackCompleted) {
+    self.container->setSizeAdjustmentCallbackCompleted(true);
+    return;
+  }
 
   self.container->startRevision();
   self.container->setContainerOffsetX(scrollView.contentOffset.x);
@@ -220,6 +228,8 @@ using namespace facebook::react;
     .visibleStartIndex = static_cast<int>(visibleIndices.first),
     .visibleEndIndex = static_cast<int>(visibleIndices.second)
   });
+  
+  self.container->setSizeAdjustmentCallbackCompleted(false);
 }
 
 Class<RCTComponentViewProtocol> ShadowlistViewCls(void)
