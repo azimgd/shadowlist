@@ -26,27 +26,27 @@ std::string Revision::getDebugRepresentation(const RevisionDebugRepresentationMe
   json << std::fixed << std::setprecision(2);
 
   json << "{";
-  json << "\"timestamp\":" << timestamp.count() << ",";
+  json << "\"timestamp\":" << this->timestamp.count() << ",";
   json << "\"timestampDiff\":" << metadata.timestampDiff << ",";
-  json << "\"containerOffsetX\":" << containerOffsetX << ",";
-  json << "\"containerOffsetY\":" << containerOffsetY << ",";
-  json << "\"measurementElementStartIndex\":" << measurementElementStartIndex << ",";
-  json << "\"measurementElementEndIndex\":" << measurementElementEndIndex << ",";
-  json << "\"measurementElementCount\":" << measurementElementCount << ",";
-  json << "\"averageElementWidth\":" << averageElementWidth << ",";
-  json << "\"averageElementHeight\":" << averageElementHeight << ",";
-  json << "\"measurementElementTotalHeight\":" << measurementElementTotalHeight << ",";
-  json << "\"measurementElementTotalWidth\":" << measurementElementTotalWidth << ",";
-  json << "\"windowContainerHeight\":" << windowContainerHeight << ",";
-  json << "\"windowContainerWidth\":" << windowContainerWidth << ",";
-  json << "\"totalContainerHeight\":" << totalContainerHeight << ",";
-  json << "\"totalContainerWidth\":" << totalContainerWidth << ",";
-  json << "\"mvcpDiffHeight\":" << mvcpDiffHeight << ",";
-  json << "\"mvcpDiffWidth\":" << mvcpDiffWidth << ",";
+  json << "\"containerOffsetX\":" << this->containerOffsetX << ",";
+  json << "\"containerOffsetY\":" << this->containerOffsetY << ",";
+  json << "\"measurementElementStartIndex\":" << this->measurementElementStartIndex << ",";
+  json << "\"measurementElementEndIndex\":" << this->measurementElementEndIndex << ",";
+  json << "\"measurementElementCount\":" << this->measurementElementCount << ",";
+  json << "\"averageElementWidth\":" << this->averageElementWidth << ",";
+  json << "\"averageElementHeight\":" << this->averageElementHeight << ",";
+  json << "\"measurementElementTotalHeight\":" << this->measurementElementTotalHeight << ",";
+  json << "\"measurementElementTotalWidth\":" << this->measurementElementTotalWidth << ",";
+  json << "\"windowContainerHeight\":" << this->windowContainerHeight << ",";
+  json << "\"windowContainerWidth\":" << this->windowContainerWidth << ",";
+  json << "\"totalContainerHeight\":" << this->totalContainerHeight << ",";
+  json << "\"totalContainerWidth\":" << this->totalContainerWidth << ",";
+  json << "\"mvcpDiffHeight\":" << this->mvcpDiffHeight << ",";
+  json << "\"mvcpDiffWidth\":" << this->mvcpDiffWidth << ",";
 
   json << "\"elements\":[";
-  for (size_t nextElementIndex = 0; nextElementIndex < elements.size(); ++nextElementIndex) {
-    const auto& elem = elements[nextElementIndex];
+  for (size_t nextElementIndex = 0; nextElementIndex < this->elements.size(); ++nextElementIndex) {
+    const auto& elem = this->elements[nextElementIndex];
     json << "{";
     json << "\"id\":\"" << elem.id << "\",";
     json << "\"width\":" << elem.width << ",";
@@ -55,7 +55,7 @@ std::string Revision::getDebugRepresentation(const RevisionDebugRepresentationMe
     json << "\"offsetY\":" << elem.offsetY << ",";
     json << "\"measured\":" << (elem.measured ? "true" : "false");
     json << "}";
-    if (nextElementIndex < elements.size() - 1) {
+    if (nextElementIndex < this->elements.size() - 1) {
       json << ",";
     }
   }

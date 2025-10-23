@@ -189,6 +189,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
     accumulatedWidth += nextElement.width;
 
     nextRevision.measurementElementTotalHeight += nextElement.height;
+    nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
 
     /*
@@ -282,8 +283,8 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
      * Skip elements that are outside of the visible window plus 1x window buffer
      */
     double elementOffset = container->horizontal ? prevElement.offsetX : prevElement.offsetY;
-    if (elementOffset < containerOffset - windowSize * 0.5 ||
-      elementOffset > containerOffset + windowSize * 1.5) {
+    if (elementOffset < containerOffset - windowSize * 1 ||
+      elementOffset > containerOffset + windowSize * 2) {
       continue;
     }
 
@@ -329,6 +330,7 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
     }
 
     nextRevision.measurementElementTotalHeight += nextElement.height;
+    nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
 
     /*
@@ -452,6 +454,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
     accumulatedWidth += nextElement.width;
 
     nextRevision.measurementElementTotalHeight += nextElement.height;
+    nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
 
     /*
@@ -545,8 +548,8 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
      * Skip elements that are outside of the visible window plus 1x window buffer
      */
     double elementOffset = container->horizontal ? prevElement.offsetX : prevElement.offsetY;
-    if (elementOffset < containerOffset - windowSize * 0.5 ||
-      elementOffset > containerOffset + windowSize * 1.5) {
+    if (elementOffset < containerOffset - windowSize * 1 ||
+      elementOffset > containerOffset + windowSize * 2) {
       continue;
     }
 
@@ -592,6 +595,7 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
     }
 
     nextRevision.measurementElementTotalHeight += nextElement.height;
+    nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
 
     /*

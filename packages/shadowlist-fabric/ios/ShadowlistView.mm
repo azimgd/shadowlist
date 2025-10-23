@@ -69,12 +69,12 @@ using namespace facebook::react;
      */
     self.container->offsetInitAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
       __strong auto strongSelf = weakSelf;
-      
-      if (!strongSelf->_container->inverted) {
-        strongSelf->_container->setOffsetInitAdjustmentCompleted(true);
+
+      if (!strongSelf.container->inverted) {
+        strongSelf.container->setOffsetInitAdjustmentCompleted(true);
         return;
       }
-      
+
       [strongSelf setContentOffsetPerRevisionDefault];
     };
 
@@ -136,14 +136,6 @@ using namespace facebook::react;
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   [childComponentView removeFromSuperview];
-}
-
-- (void)updateProps:(const Props::Shared &)props oldProps:(const Props::Shared &)prevProps
-{
-  const auto &prevViewProps = static_cast<const ShadowlistViewProps &>(*_props);
-  const auto &nextViewProps = static_cast<const ShadowlistViewProps &>(*props);
-  
-  [super updateProps:props oldProps:prevProps];
 }
 
 - (void)finalizeUpdates:(RNComponentViewUpdateMask)updateMask
@@ -278,17 +270,35 @@ using namespace facebook::react;
 
 - (void)setContentOffsetPerRevisionDefault
 {
-  CGPoint adjustedOffset = CGPointMake(
-    0,
-    self.container->nextRevision.totalContainerHeight - self.container->nextRevision.windowContainerHeight);
+  CGPoint adjustedOffset;
+
+  if (self.container->horizontal) {
+    adjustedOffset = CGPointMake(
+      self.container->nextRevision.totalContainerWidth - self.container->nextRevision.windowContainerWidth,
+      0);
+  } else {
+    adjustedOffset = CGPointMake(
+      0,
+      self.container->nextRevision.totalContainerHeight - self.container->nextRevision.windowContainerHeight);
+  }
+
   [self->_scrollView setContentOffset:adjustedOffset animated:NO];
 }
 
 - (void)setContentOffsetPerRevisionMvcp
 {
-  CGPoint adjustedOffset = CGPointMake(
-    0,
-    self.container->nextRevision.containerOffsetY + self.container->nextRevision.mvcpDiffHeight);
+  CGPoint adjustedOffset;
+
+  if (self.container->horizontal) {
+    adjustedOffset = CGPointMake(
+      self.container->nextRevision.containerOffsetX + self.container->nextRevision.mvcpDiffWidth,
+      0);
+  } else {
+    adjustedOffset = CGPointMake(
+      0,
+      self.container->nextRevision.containerOffsetY + self.container->nextRevision.mvcpDiffHeight);
+  }
+
   [self->_scrollView setContentOffset:adjustedOffset animated:NO];
 }
 

@@ -19,22 +19,22 @@ Observer::Observer(Container& container, std::size_t throttleMs)
 }
 
 Observer::~Observer() {
-  callbacks.clear();
+  this->callbacks.clear();
 }
 
 std::size_t Observer::subscribe(RevisionCallback callback) {
-  std::size_t subscriptionId = nextSubscriptionId++;
-  callbacks.push_back({subscriptionId, callback});
+  std::size_t subscriptionId = this->nextSubscriptionId++;
+  this->callbacks.push_back({subscriptionId, callback});
   return subscriptionId;
 }
 
 void Observer::unsubscribe(std::size_t subscriptionId) {
-  callbacks.erase(
-    std::remove_if(callbacks.begin(), callbacks.end(),
+  this->callbacks.erase(
+    std::remove_if(this->callbacks.begin(), this->callbacks.end(),
       [subscriptionId](const std::pair<std::size_t, RevisionCallback>& pair) {
         return pair.first == subscriptionId;
       }),
-    callbacks.end()
+    this->callbacks.end()
   );
 }
 
@@ -46,20 +46,20 @@ void Observer::notifyEndRevision() {
   auto nextNotificationTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::system_clock::now().time_since_epoch()
   );
-  auto notificationTimestampDiff = nextNotificationTimestamp - prevNotificationTimestamp;
+  auto notificationTimestampDiff = nextNotificationTimestamp - this->prevNotificationTimestamp;
 
   /*
    * Only execute callbacks if enough time has passed (throttling)
    */
-  if (notificationTimestampDiff.count() >= static_cast<long long>(throttleMs)) {
+  if (notificationTimestampDiff.count() >= static_cast<long long>(this->throttleMs)) {
     executeCallbacks();
   } else {
-    pendingNotification = true;
+    this->pendingNotification = true;
   }
 }
 
 void Observer::executeCallbacks() {
-  pendingNotification = false;
+  this->pendingNotification = false;
 
   auto nextNotificationTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::system_clock::now().time_since_epoch()
@@ -68,71 +68,71 @@ void Observer::executeCallbacks() {
   /*
    * Calculate scroll velocity
    */
-  double nextContainerOffset = container.getContainerOffset();
+  double nextContainerOffset = this->container.getContainerOffset();
 
-  if (prevNotificationTimestamp.count() > 0) {
-    auto notificationTimestampDiff = nextNotificationTimestamp - prevNotificationTimestamp;
+  if (this->prevNotificationTimestamp.count() > 0) {
+    auto notificationTimestampDiff = nextNotificationTimestamp - this->prevNotificationTimestamp;
     double notificationTimestampDiffSeconds = notificationTimestampDiff.count() / 1000.0;
-    double containerOffsetDiff = nextContainerOffset - prevContainerOffset;
+    double containerOffsetDiff = nextContainerOffset - this->prevContainerOffset;
 
     if (notificationTimestampDiffSeconds > 0.0) {
-      scrollVelocity = containerOffsetDiff / notificationTimestampDiffSeconds;
+      this->scrollVelocity = containerOffsetDiff / notificationTimestampDiffSeconds;
     } else {
-      scrollVelocity = 0.0;
+      this->scrollVelocity = 0.0;
     }
   } else {
-    scrollVelocity = 0.0;
+    this->scrollVelocity = 0.0;
   }
 
   /*
    * Update prev values BEFORE executing callbacks
    */
-  prevNotificationTimestamp = nextNotificationTimestamp;
-  prevContainerOffset = nextContainerOffset;
+  this->prevNotificationTimestamp = nextNotificationTimestamp;
+  this->prevContainerOffset = nextContainerOffset;
 
-  auto visibleIndices = container.getVisibleIndices();
-  prevMeasurementElementStartIndex = visibleIndices.first;
-  prevMeasurementElementEndIndex = visibleIndices.second;
+  auto visibleIndices = this->container.getVisibleIndices();
+  this->prevMeasurementElementStartIndex = visibleIndices.first;
+  this->prevMeasurementElementEndIndex = visibleIndices.second;
 
-  prevMeasurementElementTotalHeight = container.nextRevision.measurementElementTotalHeight;
-  prevMeasurementElementTotalWidth = container.nextRevision.measurementElementTotalWidth;
+  this->prevMeasurementElementTotalHeight = this->container.nextRevision.measurementElementTotalHeight;
+  this->prevMeasurementElementTotalWidth = this->container.nextRevision.measurementElementTotalWidth;
 
   /*
    * Execute all callbacks with the latest Container state
    */
-  for (const auto& callback : callbacks) {
-    callback.second(container);
+  for (const auto& callback : this->callbacks) {
+    callback.second(this->container);
   }
 }
 
 void Observer::flush() {
-  if (pendingNotification) {
+  if (this->pendingNotification) {
     executeCallbacks();
   }
 }
 
 bool Observer::hasIndicesChanged() const {
-  auto visibleIndices = container.getVisibleIndices();
+  auto visibleIndices = this->container.getVisibleIndices();
   std::size_t nextMeasurementElementStartIndex = visibleIndices.first;
   std::size_t nextMeasurementElementEndIndex = visibleIndices.second;
 
-  double nextMeasurementElementTotalHeight = container.nextRevision.measurementElementTotalHeight;
-  double nextMeasurementElementTotalWidth = container.nextRevision.measurementElementTotalWidth;
+  double nextMeasurementElementTotalHeight = this->container.nextRevision.measurementElementTotalHeight;
+  double nextMeasurementElementTotalWidth = this->container.nextRevision.measurementElementTotalWidth;
 
   /*
    * Check if indices or dimensions have changed
    */
-  bool indicesChanged = (nextMeasurementElementStartIndex != prevMeasurementElementStartIndex) ||
-    (nextMeasurementElementEndIndex != prevMeasurementElementEndIndex);
+  bool indicesChanged = (nextMeasurementElementStartIndex != this->prevMeasurementElementStartIndex) ||
+    (nextMeasurementElementEndIndex != this->prevMeasurementElementEndIndex);
 
-  bool dimensionsChanged = (nextMeasurementElementTotalHeight != prevMeasurementElementTotalHeight) ||
-    (nextMeasurementElementTotalWidth != prevMeasurementElementTotalWidth);
+  bool dimensionsChanged = (nextMeasurementElementTotalHeight != this->prevMeasurementElementTotalHeight) ||
+    (nextMeasurementElementTotalWidth != this->prevMeasurementElementTotalWidth);
 
   return indicesChanged || dimensionsChanged;
 }
 
 double Observer::getScrollVelocity() const {
-  return scrollVelocity;
+  return this->scrollVelocity;
 }
 
 }
