@@ -35,8 +35,8 @@ std::string Revision::getDebugRepresentation(const RevisionDebugRepresentationMe
   json << "\"measurementElementCount\":" << measurementElementCount << ",";
   json << "\"averageElementWidth\":" << averageElementWidth << ",";
   json << "\"averageElementHeight\":" << averageElementHeight << ",";
-  json << "\"measurementContainerHeight\":" << measurementContainerHeight << ",";
-  json << "\"measurementContainerWidth\":" << measurementContainerWidth << ",";
+  json << "\"measurementElementTotalHeight\":" << measurementElementTotalHeight << ",";
+  json << "\"measurementElementTotalWidth\":" << measurementElementTotalWidth << ",";
   json << "\"windowContainerHeight\":" << windowContainerHeight << ",";
   json << "\"windowContainerWidth\":" << windowContainerWidth << ",";
   json << "\"totalContainerHeight\":" << totalContainerHeight << ",";

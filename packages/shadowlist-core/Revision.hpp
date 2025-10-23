@@ -64,12 +64,12 @@ public:
   /*
    * Accumulated height of the container
    */
-  double measurementContainerHeight = 0;
+  double measurementElementTotalHeight = 0;
 
   /*
    * Accumulated width of the container
    */
-  double measurementContainerWidth = 0;
+  double measurementElementTotalWidth = 0;
 
   /*
    * Visible window height of the container

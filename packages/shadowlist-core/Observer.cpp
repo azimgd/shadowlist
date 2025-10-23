@@ -11,8 +11,8 @@ Observer::Observer(Container& container, std::size_t throttleMs)
     prevNotificationTimestamp(std::chrono::milliseconds(0)),
     prevMeasurementElementStartIndex(static_cast<std::size_t>(-1)),
     prevMeasurementElementEndIndex(static_cast<std::size_t>(-1)),
-    prevMeasurementContainerHeight(0.0),
-    prevMeasurementContainerWidth(0.0),
+    prevMeasurementElementTotalHeight(0.0),
+    prevMeasurementElementTotalWidth(0.0),
     prevContainerOffset(0.0),
     scrollVelocity(0.0),
     pendingNotification(false) {
@@ -94,8 +94,8 @@ void Observer::executeCallbacks() {
   prevMeasurementElementStartIndex = visibleIndices.first;
   prevMeasurementElementEndIndex = visibleIndices.second;
 
-  prevMeasurementContainerHeight = container.nextRevision.measurementContainerHeight;
-  prevMeasurementContainerWidth = container.nextRevision.measurementContainerWidth;
+  prevMeasurementElementTotalHeight = container.nextRevision.measurementElementTotalHeight;
+  prevMeasurementElementTotalWidth = container.nextRevision.measurementElementTotalWidth;
 
   /*
    * Execute all callbacks with the latest Container state
@@ -116,8 +116,8 @@ bool Observer::hasIndicesChanged() const {
   std::size_t nextMeasurementElementStartIndex = visibleIndices.first;
   std::size_t nextMeasurementElementEndIndex = visibleIndices.second;
 
-  double nextMeasurementContainerHeight = container.nextRevision.measurementContainerHeight;
-  double nextMeasurementContainerWidth = container.nextRevision.measurementContainerWidth;
+  double nextMeasurementElementTotalHeight = container.nextRevision.measurementElementTotalHeight;
+  double nextMeasurementElementTotalWidth = container.nextRevision.measurementElementTotalWidth;
 
   /*
    * Check if indices or dimensions have changed
@@ -125,8 +125,8 @@ bool Observer::hasIndicesChanged() const {
   bool indicesChanged = (nextMeasurementElementStartIndex != prevMeasurementElementStartIndex) ||
     (nextMeasurementElementEndIndex != prevMeasurementElementEndIndex);
 
-  bool dimensionsChanged = (nextMeasurementContainerHeight != prevMeasurementContainerHeight) ||
-    (nextMeasurementContainerWidth != prevMeasurementContainerWidth);
+  bool dimensionsChanged = (nextMeasurementElementTotalHeight != prevMeasurementElementTotalHeight) ||
+    (nextMeasurementElementTotalWidth != prevMeasurementElementTotalWidth);
 
   return indicesChanged || dimensionsChanged;
 }

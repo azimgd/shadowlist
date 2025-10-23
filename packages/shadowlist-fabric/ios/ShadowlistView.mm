@@ -10,8 +10,6 @@
 #import <shadowlist-core/Virtualizer.hpp>
 #import <shadowlist-core/Observer.hpp>
 
-bool INVERTED = true;
-
 using namespace facebook::react;
 
 @interface ShadowlistView () <RCTShadowlistViewViewProtocol, UIScrollViewDelegate>
@@ -32,6 +30,82 @@ using namespace facebook::react;
   return concreteComponentDescriptorProvider<ShadowlistViewComponentDescriptor>();
 }
 
+- (instancetype)initWithFrame:(CGRect)frame
+{
+  if (self = [super initWithFrame:frame]) {
+    static const auto defaultProps = std::make_shared<const ShadowlistViewProps>();
+    _props = defaultProps;
+
+    _scrollView = [[UIScrollView alloc] init];
+    _scrollView.delegate = self;
+    _scrollView.showsVerticalScrollIndicator = YES;
+    _scrollView.showsHorizontalScrollIndicator = YES;
+    _scrollView.scrollEnabled = YES;
+    _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+
+    _contentView = [[UIView alloc] init];
+    [_scrollView addSubview:_contentView];
+
+    self.contentView = _scrollView;
+  }
+
+  return self;
+}
+
+- (void)intializeShadowlist:(int)size inverted:(bool)inverted horizontal:(bool)horizontal
+{
+  self.virtualizer = new azimgd::shadowlist::Virtualizer();
+  self.container = new azimgd::shadowlist::Container();
+  self.observer = new azimgd::shadowlist::Observer(*self.container, 16);
+
+  self.container->resizeElementsTail(size);
+  self.container->setObserver(self.observer);
+
+  {
+    __weak __typeof(self) weakSelf = self;
+    
+    /*
+     * offsetInitAdjustmentCallback
+     */
+    self.container->offsetInitAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
+      __strong auto strongSelf = weakSelf;
+      
+      if (!strongSelf->_container->inverted) {
+        strongSelf->_container->setOffsetInitAdjustmentCompleted(true);
+        return;
+      }
+      
+      [strongSelf setContentOffsetPerRevisionDefault];
+    };
+
+    /*
+     * offsetMvcpAdjustmentCallback
+     */
+    self.container->offsetMvcpAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
+      __strong auto strongSelf = weakSelf;
+    };
+    
+    /*
+     * sizeAdjustmentCallback
+     */
+    self.container->sizeAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
+      __strong auto strongSelf = weakSelf;
+      
+      [strongSelf setContentSizePerRevisionDefault];
+    };
+    
+    /*
+     * measurementCallback
+     */
+    self.container->measurementCallback = [weakSelf](std::size_t index) -> std::pair<double, double> {
+      return {120.0, 120.0};
+    };
+  }
+
+  self.container->inverted = inverted;
+  self.container->horizontal = horizontal;
+}
+
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   if (![childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
@@ -49,33 +123,14 @@ using namespace facebook::react;
   self.virtualizer->measure(self.container);
   self.container->endRevision();
   
-  double offsetX = self.container->getElementAtIndex(childViewProps.index).offsetX;
-  double offsetY = self.container->getElementAtIndex(childViewProps.index).offsetY;
-
-  CGRect frame = childComponentView.frame;
-  frame.origin.x = offsetX;
-  frame.origin.y = offsetY;
-  childComponentView.frame = frame;
+  [self adjustElementOffsetsPerRevisionDefault:childViewProps.index childComponentView:childComponentView];
   
   [_contentView insertSubview:childComponentView atIndex:childViewProps.index];
   
   /*
    * Update all child component view frames based on virtualization offsets
    */
-  for (UIView<RCTComponentViewProtocol> *childComponentView in _contentView.subviews) {
-    if (![childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
-      continue;
-    }
-
-    const auto &childViewProps = *std::static_pointer_cast<ShadowlistElementViewProps const>(childComponentView.props);
-    double offsetX = self.container->getElementAtIndex(childViewProps.index).offsetX;
-    double offsetY = self.container->getElementAtIndex(childViewProps.index).offsetY;
-
-    CGRect frame = childComponentView.frame;
-    frame.origin.x = offsetX;
-    frame.origin.y = offsetY;
-    childComponentView.frame = frame;
-  }
+  [self adjustElementsOffsetsPerRevisionDefault:static_cast<size_t>(0)];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
@@ -83,100 +138,24 @@ using namespace facebook::react;
   [childComponentView removeFromSuperview];
 }
 
-- (instancetype)initWithFrame:(CGRect)frame
-{
-  if (self = [super initWithFrame:frame]) {
-    static const auto defaultProps = std::make_shared<const ShadowlistViewProps>();
-    _props = defaultProps;
-
-    _scrollView = [[UIScrollView alloc] init];
-    _scrollView.delegate = self;
-    _scrollView.showsVerticalScrollIndicator = YES;
-    _scrollView.showsHorizontalScrollIndicator = YES;
-    _scrollView.scrollEnabled = YES;
-    _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-
-    _contentView = [[UIView alloc] init];
-    [_scrollView addSubview:_contentView];
-
-    self.virtualizer = new azimgd::shadowlist::Virtualizer();
-    self.container = new azimgd::shadowlist::Container();
-    self.observer = new azimgd::shadowlist::Observer(*self.container, 16);
-
-    self.container->resizeElementsTail(1000);
-    self.container->setObserver(self.observer);
-
-    {
-      __weak __typeof(self) weakSelf = self;
-      
-      /*
-       * offsetInitAdjustmentCallback
-       */
-      self.container->offsetInitAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
-        __strong auto strongSelf = weakSelf;
-        
-        if (!strongSelf->_container->inverted) {
-          strongSelf->_container->setOffsetInitAdjustmentCompleted(true);
-          return;
-        }
-        
-        CGPoint adjustedOffset = CGPointMake(0, revision.totalContainerHeight - revision.windowContainerHeight);
-        [strongSelf->_scrollView setContentOffset:adjustedOffset animated:NO];
-      };
-
-      /*
-       * offsetMvcpAdjustmentCallback
-       */
-      self.container->offsetMvcpAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
-        __strong auto strongSelf = weakSelf;
-        
-        if (!strongSelf->_container->inverted) {
-          strongSelf->_container->setOffsetMvcpAdjustmentCompleted(true);
-          return;
-        }
-        
-        CGPoint adjustedOffset = CGPointMake(0, revision.mvcpDiffHeight + revision.containerOffsetY);
-        [strongSelf->_scrollView setContentOffset:adjustedOffset animated:NO];
-      };
-      
-      /*
-       * sizeAdjustmentCallback
-       */
-      self.container->sizeAdjustmentCallback = [weakSelf](azimgd::shadowlist::Revision revision) -> void {
-        __strong auto strongSelf = weakSelf;
-        
-        strongSelf->_scrollView.contentSize = CGSizeMake(revision.totalContainerWidth, revision.totalContainerHeight);
-        strongSelf->_contentView.frame = CGRectMake(0, 0, revision.totalContainerWidth, revision.totalContainerHeight);
-      };
-      
-      /*
-       * measurementCallback
-       */
-      self.container->measurementCallback = [weakSelf](std::size_t index) -> std::pair<double, double> {
-        return {100.0, 100.0};
-      };
-    }
-
-    self.container->inverted = INVERTED;
-    self.container->horizontal = false;
-
-    self.contentView = _scrollView;
-  }
-
-  return self;
-}
-
-- (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
+- (void)updateProps:(const Props::Shared &)props oldProps:(const Props::Shared &)prevProps
 {
   const auto &prevViewProps = static_cast<const ShadowlistViewProps &>(*_props);
   const auto &nextViewProps = static_cast<const ShadowlistViewProps &>(*props);
-
-  [super updateProps:props oldProps:oldProps];
+  
+  [super updateProps:props oldProps:prevProps];
 }
 
 - (void)finalizeUpdates:(RNComponentViewUpdateMask)updateMask
 {
   [super finalizeUpdates:updateMask];
+
+  if (!self.container && self->_eventEmitter) {
+    const auto &nextViewProps = static_cast<const ShadowlistViewProps &>(*_props);
+    [self intializeShadowlist:nextViewProps.size inverted:nextViewProps.inverted horizontal:nextViewProps.horizontal];
+    const auto &eventEmitter = *std::static_pointer_cast<ShadowlistViewEventEmitter const>(self->_eventEmitter);
+    eventEmitter.onInitialized({});
+  }
 
   if (!self.container || !self.virtualizer) {
     return;
@@ -203,13 +182,13 @@ using namespace facebook::react;
     return;
   }
   
-  if (!self.container->offsetInitAdjustmentCallbackCompleted) {
-    self.container->setOffsetInitAdjustmentCompleted(true);
+  if (!self.container->offsetMvcpAdjustmentCallbackCompleted) {
+    self.container->setOffsetMvcpAdjustmentCompleted(true);
     return;
   }
   
-  if (!self.container->offsetMvcpAdjustmentCallbackCompleted) {
-    self.container->setOffsetMvcpAdjustmentCompleted(true);
+  if (!self.container->offsetInitAdjustmentCallbackCompleted) {
+    self.container->setOffsetInitAdjustmentCompleted(true);
     return;
   }
   
@@ -243,11 +222,74 @@ using namespace facebook::react;
 - (void)prependElements:(NSInteger)size
 {
   self.virtualizer->prependElements(self.container, size, self.container->nextRevision);
+
+  [self setContentSizePerRevisionDefault];
+  [self setContentOffsetPerRevisionMvcp];
+
+  self.container->startRevision();
+  self.container->setContainerOffsetX(self->_scrollView.contentOffset.x);
+  self.container->setContainerOffsetY(self->_scrollView.contentOffset.y);
+  self.container->endRevision();
+
+  [self adjustElementsOffsetsPerRevisionDefault:static_cast<size_t>(size)];
 }
 
 - (void)appendElements:(NSInteger)size
 {
   self.virtualizer->appendElements(self.container, size, self.container->nextRevision);
+
+  [self setContentSizePerRevisionDefault];
+}
+
+- (void)adjustElementOffsetsPerRevisionDefault:(size_t)index childComponentView:(UIView<RCTComponentViewProtocol>*)childComponentView
+{
+  double offsetX = self.container->getElementAtIndex(index).offsetX;
+  double offsetY = self.container->getElementAtIndex(index).offsetY;
+
+  CGRect frame = childComponentView.frame;
+  frame.origin.x = offsetX;
+  frame.origin.y = offsetY;
+  childComponentView.frame = frame;
+}
+
+- (void)adjustElementsOffsetsPerRevisionDefault:(size_t)size
+{
+  for (UIView<RCTComponentViewProtocol> *childComponentView in _contentView.subviews) {
+    if (![childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
+      continue;
+    }
+
+    const auto &childViewProps = *std::static_pointer_cast<ShadowlistElementViewProps const>(childComponentView.props);
+    [self adjustElementOffsetsPerRevisionDefault:(childViewProps.index + size) childComponentView:childComponentView];
+  }
+}
+
+- (void)setContentSizePerRevisionDefault
+{
+  self->_scrollView.contentSize = CGSizeMake(
+    self.container->nextRevision.totalContainerWidth,
+    self.container->nextRevision.totalContainerHeight);
+  self->_contentView.frame = CGRectMake(
+    0,
+    0,
+    self.container->nextRevision.totalContainerWidth,
+    self.container->nextRevision.totalContainerHeight);
+}
+
+- (void)setContentOffsetPerRevisionDefault
+{
+  CGPoint adjustedOffset = CGPointMake(
+    0,
+    self.container->nextRevision.totalContainerHeight - self.container->nextRevision.windowContainerHeight);
+  [self->_scrollView setContentOffset:adjustedOffset animated:NO];
+}
+
+- (void)setContentOffsetPerRevisionMvcp
+{
+  CGPoint adjustedOffset = CGPointMake(
+    0,
+    self.container->nextRevision.containerOffsetY + self.container->nextRevision.mvcpDiffHeight);
+  [self->_scrollView setContentOffset:adjustedOffset animated:NO];
 }
 
 Class<RCTComponentViewProtocol> ShadowlistViewCls(void)

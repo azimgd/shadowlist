@@ -13,6 +13,10 @@ const LOREM_WORDS = [
   'esse', 'cillum', 'fugiat', 'nulla', 'pariatur', 'Excepteur', 'sint', 'occaecat',
 ];
 
+function generateUniqueId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 function generateRandomText(seed: number): string {
   const wordCount = 20 + (seed % 40); // 20-60 words
   const words: string[] = [];
@@ -27,31 +31,39 @@ function generateRandomText(seed: number): string {
 
 export default function App() {
   const shadowlistRef = useRef<ShadowListCommands>(null);
-  const [data, setData] = useState<{index: number, text: string}[]>(() =>
-    Array.from({ length: 1000 }, (_, index) => ({
-      index: index,
+  const [data, setData] = useState<{id: string, text: string}[]>(() =>
+    Array.from({ length: 100 }, (_, index) => ({
+      id: generateUniqueId(),
       text: generateRandomText(index),
     }))
   );
 
   const handlePrepend = () => {
-    const newItem = { index: -1, text: generateRandomText(10) };
-    setData((prev) => [newItem, ...prev]);
-    shadowlistRef.current?.prependElements(1);
+    const newItems = Array.from({ length: 10 }, (_, index) => ({
+      id: generateUniqueId(),
+      text: generateRandomText(index),
+    }));
+    setData((prev) => [...newItems, ...prev]);
+    shadowlistRef.current?.prependElements(newItems.length);
   };
 
   const handleAppend = () => {
-    const newItem = { index: 1001, text: generateRandomText(10) };
-    setData((prev) => [...prev, newItem]);
-    shadowlistRef.current?.appendElements(1);
+    const newItems = Array.from({ length: 10 }, (_, index) => ({
+      id: generateUniqueId(),
+      text: generateRandomText(index),
+    }));
+    setData((prev) => [...prev, ...newItems]);
+    shadowlistRef.current?.appendElements(newItems.length);
   };
 
   return (
     <View style={styles.container}>
       <Shadowlist
+        data={data}
         ref={shadowlistRef}
-        renderItem={({ index }) => (
-          <HeavyListItem index={data[index]?.index!} text={(data[index]?.text || data[0]?.text)!} />
+        style={styles.list}
+        renderItem={({ item, index }) => (
+          <HeavyListItem id={item.id} index={index} text={item.text} />
         )}
       />
       <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
@@ -62,5 +74,10 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#333333',
+  },
+  list: {
+    flex: 1,
+    backgroundColor: '#333333',
   },
 });

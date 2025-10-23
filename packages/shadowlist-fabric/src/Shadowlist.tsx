@@ -32,16 +32,20 @@ function createRangeArray(indices: OnVisibleIndicesChange) {
   );
 }
 
-export const inversionBasedInitialIndices = (inverted: boolean) => {
+export const inversionBasedInitialIndices = (
+  size: number,
+  initial: number,
+  inverted: boolean
+) => {
   if (inverted) {
     return {
-      visibleStartIndex: 980,
-      visibleEndIndex: 999,
+      visibleStartIndex: size - initial,
+      visibleEndIndex: size - 1,
     };
   } else {
     return {
       visibleStartIndex: 0,
-      visibleEndIndex: 20,
+      visibleEndIndex: initial,
     };
   }
 };
@@ -68,31 +72,40 @@ export interface ShadowListCommands {
   appendElements: (size: number) => void;
 }
 
-export interface ShadowListProps {
-  renderItem: ({ index }: { index: number }) => ReactElement;
+export interface ShadowListProps<ItemT extends { id: string } = any> {
+  data: ReadonlyArray<ItemT>;
+  renderItem: (info: { item: ItemT; index: number }) => ReactElement;
   style?: ViewStyle;
   itemStyle?: ViewStyle;
   ref?: Ref<ShadowListCommands>;
 }
 
-function ShadowList({ renderItem, style, itemStyle, ref }: ShadowListProps) {
+function ShadowList<ItemT extends { id: string } = any>({
+  data,
+  renderItem,
+  style,
+  itemStyle,
+  ref,
+}: ShadowListProps<ItemT>) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
     null
   );
 
+  const [initialized, setInitialized] = useState(false);
   const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>(
-    inversionBasedInitialIndices(INVERTED)
+    inversionBasedInitialIndices(data.length, 20, INVERTED)
   );
 
   useImperativeHandle(ref, () => ({
     prependElements: (size: number) => {
       if (!shadowlistViewRef.current) return;
 
+      Commands.prependElements(shadowlistViewRef.current, size);
+
       setVisibleIndices((prev) => ({
         visibleStartIndex: prev.visibleStartIndex + size,
         visibleEndIndex: prev.visibleEndIndex + size,
       }));
-      Commands.prependElements(shadowlistViewRef.current, size);
     },
     appendElements: (size: number) => {
       if (!shadowlistViewRef.current) return;
@@ -100,6 +113,10 @@ function ShadowList({ renderItem, style, itemStyle, ref }: ShadowListProps) {
       Commands.appendElements(shadowlistViewRef.current, size);
     },
   }));
+
+  const handleInitialized = useCallback(() => {
+    setInitialized(true);
+  }, []);
 
   const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
     OnVisibleIndicesChange,
@@ -124,27 +141,35 @@ function ShadowList({ renderItem, style, itemStyle, ref }: ShadowListProps) {
   }, []);
 
   const visibleRange = useMemo(
-    () => createRangeArray(visibleIndices),
-    [visibleIndices]
+    () => (initialized ? createRangeArray(visibleIndices) : []),
+    [initialized, visibleIndices]
   );
 
   return (
     <ShadowlistView
       ref={shadowlistViewRef}
       style={[styles.container, style]}
+      onInitialized={handleInitialized}
       onVisibleIndicesChange={handleVisibleIndicesChange}
-      inverted={false}
+      size={data.length}
+      inverted={true}
       horizontal={false}
     >
-      {visibleRange.map((index) => (
-        <ShadowlistElementView
-          index={index}
-          style={[styles.item, itemStyle]}
-          key={index}
-        >
-          {renderItem({ index })}
-        </ShadowlistElementView>
-      ))}
+      {visibleRange.map((index) => {
+        const item = data[index];
+
+        if (!item) return null;
+
+        return (
+          <ShadowlistElementView
+            index={index}
+            style={[styles.item, itemStyle]}
+            key={item.id}
+          >
+            {renderItem({ item, index })}
+          </ShadowlistElementView>
+        );
+      })}
     </ShadowlistView>
   );
 }

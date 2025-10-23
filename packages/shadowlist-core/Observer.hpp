@@ -98,12 +98,12 @@ private:
   /**
    * Previous measurement container height
    */
-  double prevMeasurementContainerHeight;
+  double prevMeasurementElementTotalHeight;
 
   /**
    * Previous measurement container width
    */
-  double prevMeasurementContainerWidth;
+  double prevMeasurementElementTotalWidth;
 
   /**
    * Previous container offset

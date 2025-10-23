@@ -188,7 +188,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
     accumulatedHeight += nextElement.height;
     accumulatedWidth += nextElement.width;
 
-    nextRevision.measurementContainerHeight += nextElement.height;
+    nextRevision.measurementElementTotalHeight += nextElement.height;
     nextRevision.measurementElementCount++;
 
     /*
@@ -214,10 +214,10 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
    */
   if (nextRevision.measurementElementCount > 0) {
     if (nextRevision.averageElementWidth == 0.0) {
-      nextRevision.averageElementWidth = nextRevision.measurementContainerWidth / nextRevision.measurementElementCount;
+      nextRevision.averageElementWidth = nextRevision.measurementElementTotalWidth / nextRevision.measurementElementCount;
     }
     if (nextRevision.averageElementHeight == 0.0) {
-      nextRevision.averageElementHeight = nextRevision.measurementContainerHeight / nextRevision.measurementElementCount;
+      nextRevision.averageElementHeight = nextRevision.measurementElementTotalHeight / nextRevision.measurementElementCount;
     }
   }
 
@@ -328,7 +328,7 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
       nextRevision.measurementElementEndIndex = nextElementIndex;
     }
 
-    nextRevision.measurementContainerHeight += nextElement.height;
+    nextRevision.measurementElementTotalHeight += nextElement.height;
     nextRevision.measurementElementCount++;
 
     /*
@@ -343,10 +343,10 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
    */
   if (nextRevision.measurementElementCount > 0) {
     if (nextRevision.averageElementWidth == 0.0) {
-      nextRevision.averageElementWidth = nextRevision.measurementContainerWidth / nextRevision.measurementElementCount;
+      nextRevision.averageElementWidth = nextRevision.measurementElementTotalWidth / nextRevision.measurementElementCount;
     }
     if (nextRevision.averageElementHeight == 0.0) {
-      nextRevision.averageElementHeight = nextRevision.measurementContainerHeight / nextRevision.measurementElementCount;
+      nextRevision.averageElementHeight = nextRevision.measurementElementTotalHeight / nextRevision.measurementElementCount;
     }
   }
 
@@ -451,7 +451,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
     accumulatedHeight += nextElement.height;
     accumulatedWidth += nextElement.width;
 
-    nextRevision.measurementContainerHeight += nextElement.height;
+    nextRevision.measurementElementTotalHeight += nextElement.height;
     nextRevision.measurementElementCount++;
 
     /*
@@ -477,10 +477,10 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
    */
   if (nextRevision.measurementElementCount > 0 && nextRevision.measurementElementCount < 10) {
     if (nextRevision.averageElementWidth == 0.0) {
-      nextRevision.averageElementWidth = nextRevision.measurementContainerWidth / nextRevision.measurementElementCount;
+      nextRevision.averageElementWidth = nextRevision.measurementElementTotalWidth / nextRevision.measurementElementCount;
     }
     if (nextRevision.averageElementHeight == 0.0) {
-      nextRevision.averageElementHeight = nextRevision.measurementContainerHeight / nextRevision.measurementElementCount;
+      nextRevision.averageElementHeight = nextRevision.measurementElementTotalHeight / nextRevision.measurementElementCount;
     }
   }
 
@@ -591,7 +591,7 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
       nextRevision.measurementElementEndIndex = nextElementIndex;
     }
 
-    nextRevision.measurementContainerHeight += nextElement.height;
+    nextRevision.measurementElementTotalHeight += nextElement.height;
     nextRevision.measurementElementCount++;
 
     /*
@@ -606,10 +606,10 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
    */
   if (nextRevision.measurementElementCount > 0 && nextRevision.measurementElementCount < 10) {
     if (nextRevision.averageElementWidth == 0.0) {
-      nextRevision.averageElementWidth = nextRevision.measurementContainerWidth / nextRevision.measurementElementCount;
+      nextRevision.averageElementWidth = nextRevision.measurementElementTotalWidth / nextRevision.measurementElementCount;
     }
     if (nextRevision.averageElementHeight == 0.0) {
-      nextRevision.averageElementHeight = nextRevision.measurementContainerHeight / nextRevision.measurementElementCount;
+      nextRevision.averageElementHeight = nextRevision.measurementElementTotalHeight / nextRevision.measurementElementCount;
     }
   }
 
@@ -693,8 +693,8 @@ void Virtualizer::addElementAtIndex(Container* container, std::size_t index, Rev
   }
 
   if (nextRevision.averageElementHeight > 0) {
-    nextRevision.measurementContainerHeight += nextElement.height;
-    nextRevision.measurementContainerWidth += nextElement.width;
+    nextRevision.measurementElementTotalHeight += nextElement.height;
+    nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
   }
 
@@ -740,8 +740,8 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
   }
 
   if (nextRevision.averageElementHeight > 0) {
-    nextRevision.measurementContainerHeight += heightDiff;
-    nextRevision.measurementContainerWidth += widthDiff;
+    nextRevision.measurementElementTotalHeight += heightDiff;
+    nextRevision.measurementElementTotalWidth += widthDiff;
   }
 
   double nextOffset = 0.0;
@@ -761,16 +761,30 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
 }
 
 void Virtualizer::prependElements(Container* container, std::size_t count, Revision& nextRevision) {
+  container->nextRevision.mvcpDiffHeight = 0;
+  container->nextRevision.mvcpDiffWidth = 0;
+  
   for (std::size_t prevElementIndex = count; prevElementIndex-- > 0;) {
     addElementAtIndex(container, 0, nextRevision, prevElementIndex);
   }
+  
+  auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
+  nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
+  nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
 }
 
 void Virtualizer::appendElements(Container* container, std::size_t count, Revision& nextRevision) {
+  container->nextRevision.mvcpDiffHeight = 0;
+  container->nextRevision.mvcpDiffWidth = 0;
+
   for (std::size_t prevElementIndex = 0; prevElementIndex < count; prevElementIndex++) {
     std::size_t insertIndex = container->nextRevision.elements.size();
     addElementAtIndex(container, insertIndex, nextRevision);
   }
+
+  auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
+  nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
+  nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
 }
 
 }

@@ -2,11 +2,12 @@ import { useEffect, useRef, useMemo, memo } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 
 interface HeavyListItemProps {
+  id: string;
   index: number;
   text: string;
 }
 
-export const HeavyListItem = memo(({ index, text }: HeavyListItemProps) => {
+export const HeavyListItem = memo(({ id, index, text }: HeavyListItemProps) => {
   const spinValue = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export const HeavyListItem = memo(({ index, text }: HeavyListItemProps) => {
       </Animated.View>
 
       <View style={styles.content}>
-        <Text style={styles.username}>User {index}</Text>
+        <Text style={styles.username}>User {id}</Text>
         <Text style={styles.handle}>@user{index}</Text>
         <Text style={styles.text}>{text}</Text>
       </View>
