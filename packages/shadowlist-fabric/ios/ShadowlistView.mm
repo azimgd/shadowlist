@@ -42,6 +42,7 @@ using namespace facebook::react;
     _scrollView.showsHorizontalScrollIndicator = YES;
     _scrollView.scrollEnabled = YES;
     _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
+    _scrollView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
 
     _contentView = [[UIView alloc] init];
     [_scrollView addSubview:_contentView];
@@ -74,8 +75,6 @@ using namespace facebook::react;
         strongSelf.container->setOffsetInitAdjustmentCompleted(true);
         return;
       }
-
-      [strongSelf setContentOffsetPerRevisionDefault];
     };
 
     /*
@@ -131,6 +130,10 @@ using namespace facebook::react;
    * Update all child component view frames based on virtualization offsets
    */
   [self adjustElementsOffsetsPerRevisionDefault:static_cast<size_t>(0)];
+  
+  if (!self.container->offsetInitAdjustmentCallbackCompleted) {
+    [self setContentOffsetPerRevisionDefault];
+  }
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
@@ -180,7 +183,6 @@ using namespace facebook::react;
   }
   
   if (!self.container->offsetInitAdjustmentCallbackCompleted) {
-    self.container->setOffsetInitAdjustmentCompleted(true);
     return;
   }
   
@@ -204,6 +206,11 @@ using namespace facebook::react;
   });
   
   self.container->setSizeAdjustmentCallbackCompleted(false);
+}
+
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
+{
+  self.container->setOffsetInitAdjustmentCompleted(true);
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args

@@ -1,54 +1,41 @@
-import { useEffect, useRef, useMemo, memo } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { memo, useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 
 interface HeavyListItemProps {
   id: string;
   index: number;
   text: string;
+  isFromMe: boolean;
 }
 
-export const HeavyListItem = memo(({ id, index, text }: HeavyListItemProps) => {
-  const spinValue = useRef(new Animated.Value(0)).current;
+const AVATAR_COLORS = [
+  '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
+  '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B195', '#C06C84',
+];
 
-  useEffect(() => {
-    const spin = Animated.loop(
-      Animated.timing(spinValue, {
-        toValue: 1,
-        duration: 2000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
+export const HeavyListItem = memo(({ id, index, text, isFromMe }: HeavyListItemProps) => {
+  const avatarColor = useMemo(() => {
+    return AVATAR_COLORS[index % AVATAR_COLORS.length];
+  }, [index]);
 
-    spin.start();
-
-    return () => spin.stop();
-  }, [spinValue]);
-
-  const rotate = useMemo(
-    () =>
-      spinValue.interpolate({
-        inputRange: [0, 1],
-        outputRange: ['0deg', '360deg'],
-      }),
-    [spinValue]
-  );
-
-  const animatedStyle = useMemo(
-    () => [styles.avatar, { transform: [{ rotate }] }],
-    [rotate]
-  );
+  const initials = useMemo(() => {
+    return `U${index % 100}`;
+  }, [index]);
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={animatedStyle}>
-        <View style={styles.avatarInner} />
-      </Animated.View>
-
-      <View style={styles.content}>
-        <Text style={styles.username}>User {id}</Text>
-        <Text style={styles.handle}>@user{index}</Text>
-        <Text style={styles.text}>{text}</Text>
+    <View style={[styles.container, isFromMe ? styles.containerFromMe : styles.containerFromThem]}>
+      {!isFromMe && (
+        <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+          <Text style={styles.avatarText}>{initials}</Text>
+        </View>
+      )}
+      <View style={[styles.bubble, isFromMe ? styles.bubbleFromMe : styles.bubbleFromThem]}>
+        <Text style={[styles.text, isFromMe ? styles.textFromMe : styles.textFromThem]}>
+          {index}. {text}
+        </Text>
+        <Text style={styles.timestamp}>
+          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </Text>
       </View>
     </View>
   );
@@ -56,44 +43,60 @@ export const HeavyListItem = memo(({ id, index, text }: HeavyListItemProps) => {
 
 const styles = StyleSheet.create({
   container: {
+    paddingHorizontal: 12,
+    paddingVertical: 2,
     flexDirection: 'row',
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2f3336',
-    backgroundColor: '#333333',
+    alignItems: 'flex-end',
+  },
+  containerFromMe: {
+    justifyContent: 'flex-end',
+  },
+  containerFromThem: {
+    justifyContent: 'flex-start',
   },
   avatar: {
-    width: 48,
-    height: 48,
+    width: 32,
+    height: 32,
     borderRadius: 16,
-    backgroundColor: '#1d9bf0',
-    marginRight: 12,
+    marginRight: 8,
+    marginBottom: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarInner: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+  avatarText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
   },
-  content: {
-    flex: 1,
+  bubble: {
+    maxWidth: '75%',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginVertical: 2,
   },
-  username: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 2,
+  bubbleFromMe: {
+    backgroundColor: '#0A84FF',
+    borderBottomRightRadius: 4,
   },
-  handle: {
-    color: '#71767b',
-    fontSize: 15,
-    marginBottom: 4,
+  bubbleFromThem: {
+    backgroundColor: '#2C2C2E',
+    borderBottomLeftRadius: 4,
   },
   text: {
-    color: '#ffffff',
-    fontSize: 15,
+    fontSize: 16,
     lineHeight: 20,
+  },
+  textFromMe: {
+    color: '#FFFFFF',
+  },
+  textFromThem: {
+    color: '#FFFFFF',
+  },
+  timestamp: {
+    fontSize: 12,
+    marginTop: 4,
+    opacity: 0.5,
+    color: '#FFFFFF',
   },
 });

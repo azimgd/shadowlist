@@ -3,6 +3,8 @@ import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowListCommands } from 'react-native-shadowlist';
 import { HeavyListItem } from './HeavyListItem';
 import { FloatingActionBar } from './FloatingActionBar';
+import { MessageInput } from './MessageInput';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 const LOREM_WORDS = [
   'Lorem', 'ipsum', 'dolor', 'sit', 'amet', 'consectetur', 'adipiscing', 'elit',
@@ -31,10 +33,11 @@ function generateRandomText(seed: number): string {
 
 export default function App() {
   const shadowlistRef = useRef<ShadowListCommands>(null);
-  const [data, setData] = useState<{id: string, text: string}[]>(() =>
-    Array.from({ length: 100 }, (_, index) => ({
+  const [data, setData] = useState<{id: string, text: string, isFromMe: boolean}[]>(() =>
+    Array.from({ length: 1000 }, (_, index) => ({
       id: generateUniqueId(),
       text: generateRandomText(index),
+      isFromMe: index % 3 !== 0, // Every 3rd message is from "them"
     }))
   );
 
@@ -42,6 +45,7 @@ export default function App() {
     const newItems = Array.from({ length: 10 }, (_, index) => ({
       id: generateUniqueId(),
       text: generateRandomText(index),
+      isFromMe: index % 3 !== 0,
     }));
     setData((prev) => [...newItems, ...prev]);
     shadowlistRef.current?.prependElements(newItems.length);
@@ -51,33 +55,52 @@ export default function App() {
     const newItems = Array.from({ length: 10 }, (_, index) => ({
       id: generateUniqueId(),
       text: generateRandomText(index),
+      isFromMe: index % 3 !== 0,
     }));
     setData((prev) => [...prev, ...newItems]);
     shadowlistRef.current?.appendElements(newItems.length);
   };
 
+  const handleSendMessage = (message: string) => {
+    const newMessage = {
+      id: generateUniqueId(),
+      text: message,
+      isFromMe: true,
+    };
+    setData((prev) => [...prev, newMessage]);
+    shadowlistRef.current?.appendElements(1);
+  };
+
   return (
-    <View style={styles.container}>
-      <Shadowlist
-        data={data}
-        ref={shadowlistRef}
-        style={styles.list}
-        renderItem={({ item, index }) => (
-          <HeavyListItem id={item.id} index={index} text={item.text} />
-        )}
-      />
-      <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
-    </View>
+    <SafeAreaProvider>
+      <View style={styles.container}>
+        <Shadowlist
+          data={data}
+          ref={shadowlistRef}
+          style={styles.list}
+          renderItem={({ item, index }) => (
+            <HeavyListItem
+              id={item.id}
+              index={index}
+              text={item.text}
+              isFromMe={item.isFromMe}
+            />
+          )}
+        />
+        <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
+        <MessageInput onSend={handleSendMessage} />
+      </View>
+    </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#333333',
+    backgroundColor: '#000000',
   },
   list: {
     flex: 1,
-    backgroundColor: '#333333',
+    backgroundColor: '#000000',
   },
 });

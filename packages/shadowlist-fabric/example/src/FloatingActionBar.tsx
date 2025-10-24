@@ -1,4 +1,5 @@
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface FloatingActionBarProps {
   onPrepend: () => void;
@@ -6,8 +7,10 @@ interface FloatingActionBarProps {
 }
 
 export const FloatingActionBar = ({ onPrepend, onAppend }: FloatingActionBarProps) => {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { top: insets.top + 8 }]}>
       <TouchableOpacity style={styles.button} onPress={onPrepend}>
         <Text style={styles.buttonText}>↑</Text>
       </TouchableOpacity>
@@ -21,30 +24,24 @@ export const FloatingActionBar = ({ onPrepend, onAppend }: FloatingActionBarProp
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 40,
-    right: 20,
-    flexDirection: 'column',
-    gap: 12,
+    right: 12,
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: 'rgba(28, 28, 30, 0.8)',
+    borderRadius: 18,
+    padding: 4,
   },
   button: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#1d9bf0',
-    justifyContent: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FF9500',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    justifyContent: 'center',
   },
   buttonText: {
-    fontSize: 24,
     color: '#ffffff',
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
