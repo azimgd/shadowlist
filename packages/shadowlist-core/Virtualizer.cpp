@@ -764,31 +764,31 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
   }
 }
 
-void Virtualizer::prependElements(Container* container, std::size_t count, Revision& nextRevision) {
+void Virtualizer::prependElements(Container* container, std::size_t count) {
   container->nextRevision.mvcpDiffHeight = 0;
   container->nextRevision.mvcpDiffWidth = 0;
   
   for (std::size_t prevElementIndex = count; prevElementIndex-- > 0;) {
-    addElementAtIndex(container, 0, nextRevision, prevElementIndex);
+    addElementAtIndex(container, 0, container->nextRevision, prevElementIndex);
   }
   
   auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
-  nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
-  nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
+  container->nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
+  container->nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
 }
 
-void Virtualizer::appendElements(Container* container, std::size_t count, Revision& nextRevision) {
+void Virtualizer::appendElements(Container* container, std::size_t count) {
   container->nextRevision.mvcpDiffHeight = 0;
   container->nextRevision.mvcpDiffWidth = 0;
 
   for (std::size_t prevElementIndex = 0; prevElementIndex < count; prevElementIndex++) {
     std::size_t insertIndex = container->nextRevision.elements.size();
-    addElementAtIndex(container, insertIndex, nextRevision);
+    addElementAtIndex(container, insertIndex, container->nextRevision);
   }
 
   auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
-  nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
-  nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
+  container->nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
+  container->nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
 }
 
 }

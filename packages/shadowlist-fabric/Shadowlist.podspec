@@ -29,7 +29,7 @@ Pod::Spec.new do |s|
   s.source_files = [
     "ios/**/*.{h,m,mm,cpp}",
     "ios/**/*.{m,mm}",
-    "cpp/**/*.{hpp,cpp}",
+    "cpp/**/*.{h,hpp,cpp}",
     "shadowlist-core/**/*.{hpp,cpp}",
   ]
   

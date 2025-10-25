@@ -10,7 +10,7 @@ export const FloatingActionBar = ({ onPrepend, onAppend }: FloatingActionBarProp
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { top: insets.top + 8 }]}>
+    <View style={[styles.container, { top: insets.top }]}>
       <TouchableOpacity style={styles.button} onPress={onPrepend}>
         <Text style={styles.buttonText}>↑</Text>
       </TouchableOpacity>

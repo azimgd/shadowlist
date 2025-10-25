@@ -11,8 +11,6 @@ export type OnVisibleIndicesChange = {
   visibleEndIndex: CodegenTypes.Int32;
 };
 
-export type OnInitialized = {};
-
 interface NativeCommands {
   prependElements: (
     viewRef: React.ElementRef<HostComponent<NativeProps>>,
@@ -25,10 +23,11 @@ interface NativeCommands {
 }
 
 interface NativeProps extends ViewProps {
-  size: CodegenTypes.Int32;
+  elementsAllKeys: string[];
+  elementsHeadKey: string | undefined;
+  elementsTailKey: string | undefined;
   inverted: boolean;
   horizontal: boolean;
-  readonly onInitialized: CodegenTypes.DirectEventHandler<OnInitialized>;
   readonly onVisibleIndicesChange: CodegenTypes.DirectEventHandler<OnVisibleIndicesChange>;
 }
 

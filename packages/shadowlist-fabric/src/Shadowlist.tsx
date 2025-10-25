@@ -91,7 +91,6 @@ function ShadowList<ItemT extends { id: string } = any>({
     null
   );
 
-  const [initialized, setInitialized] = useState(false);
   const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>(
     inversionBasedInitialIndices(data.length, 20, INVERTED)
   );
@@ -113,10 +112,6 @@ function ShadowList<ItemT extends { id: string } = any>({
       Commands.appendElements(shadowlistViewRef.current, size);
     },
   }));
-
-  const handleInitialized = useCallback(() => {
-    setInitialized(true);
-  }, []);
 
   const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
     OnVisibleIndicesChange,
@@ -141,17 +136,22 @@ function ShadowList<ItemT extends { id: string } = any>({
   }, []);
 
   const visibleRange = useMemo(
-    () => (initialized ? createRangeArray(visibleIndices) : []),
-    [initialized, visibleIndices]
+    () => createRangeArray(visibleIndices),
+    [visibleIndices]
   );
+
+  const elementsAllKeys = useMemo(() => data.map((item) => item.id), [data]);
+  const elementsHeadKey = useMemo(() => data.at(0)?.id, [data]);
+  const elementsTailKey = useMemo(() => data.at(-1)?.id, [data]);
 
   return (
     <ShadowlistView
       ref={shadowlistViewRef}
       style={[styles.container, style]}
-      onInitialized={handleInitialized}
       onVisibleIndicesChange={handleVisibleIndicesChange}
-      size={data.length}
+      elementsAllKeys={elementsAllKeys}
+      elementsHeadKey={elementsHeadKey}
+      elementsTailKey={elementsTailKey}
       inverted={true}
       horizontal={false}
     >

@@ -37,7 +37,7 @@ export default function App() {
     Array.from({ length: 1000 }, (_, index) => ({
       id: generateUniqueId(),
       text: generateRandomText(index),
-      isFromMe: index % 3 !== 0, // Every 3rd message is from "them"
+      isFromMe: index % 3 !== 0,
     }))
   );
 

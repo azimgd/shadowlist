@@ -42,12 +42,12 @@ public:
    * Prepend multiple elements to the beginning of the list
    * Iterates from end of incoming array to maintain correct order
    */
-  static void prependElements(Container* container, std::size_t count, Revision& nextRevision);
+  static void prependElements(Container* container, std::size_t count);
 
   /*
    * Append multiple elements to the end of the list
    */
-  static void appendElements(Container* container, std::size_t count, Revision& nextRevision);
+  static void appendElements(Container* container, std::size_t count);
 
 private:
   /*
