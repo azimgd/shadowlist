@@ -10204,6 +10204,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-safe-area-context@npm:^5.6.1":
+  version: 5.6.1
+  resolution: "react-native-safe-area-context@npm:5.6.1"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: f346615d5f8f26c0c8459d29c149ea3f66684b8ae79cea6fd48d118d039851a69a92955d67b455d0e7ab46639155c4357ebf58ec1859b2377ee459e2a04b602b
+  languageName: node
+  linkType: hard
+
 "react-native-shadowlist-example@workspace:example":
   version: 0.0.0-use.local
   resolution: "react-native-shadowlist-example@workspace:example"
@@ -10222,6 +10232,7 @@ __metadata:
     react-native: 0.81.1
     react-native-builder-bob: ^0.40.13
     react-native-monorepo-config: ^0.1.9
+    react-native-safe-area-context: ^5.6.1
   languageName: unknown
   linkType: soft
 

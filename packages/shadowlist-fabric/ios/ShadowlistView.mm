@@ -17,7 +17,7 @@ using namespace facebook::react;
   ShadowlistViewShadowNode::ConcreteState::Shared _state;
   UIScrollView * _scrollView;
   UIView * _contentView;
-  bool _suspense;
+  bool _suspenseMvcp;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -84,6 +84,10 @@ using namespace facebook::react;
     nextStateData.containerOffsetX_,
     nextStateData.containerOffsetY_);
 
+  if (self->_suspenseMvcp) {
+    return;
+  }
+
   const auto &eventEmitter = *std::static_pointer_cast<ShadowlistViewEventEmitter const>(self->_eventEmitter);
   eventEmitter.onVisibleIndicesChange({
     .visibleStartIndex = static_cast<int>(nextStateData.visibleStartIndex_),
@@ -93,7 +97,7 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  if (self->_suspense) {
+  if (self->_suspenseMvcp) {
     return;
   }
 
@@ -110,6 +114,13 @@ using namespace facebook::react;
 
 - (void)prependElements:(NSInteger)size
 {
+  self->_suspenseMvcp = true;
+
+  // suspense state updates temporarily (for 1frame) until mvcp adjustments are completed
+  dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * NSEC_PER_MSEC));
+  dispatch_after(timeout, dispatch_get_main_queue(), ^(void){
+    self->_suspenseMvcp = false;
+  });
 }
 
 - (void)appendElements:(NSInteger)size

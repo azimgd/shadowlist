@@ -35,6 +35,11 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     shadowlistViewShadowNode.setVirtualizerManager(virtualizerManager_);
     
     auto& shadowlistViewProps = static_cast<const ShadowlistViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
+    auto& shadowlistViewState = static_cast<const ShadowlistViewShadowNode::ConcreteState&>(*shadowNode.getState());
+    auto& shadowlistViewStateData = shadowlistViewState.getData();
+    
+    auto& shadowlistViewChildren = shadowNode.getChildren();
+    auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
     
     if (this->containerManager_->nextRevision.elements.size() != shadowlistViewProps.elementsAllKeys.size()) {
       // @TODO: increment only for now, implement decrement as well
@@ -54,6 +59,34 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     
     this->containerManager_->inverted = shadowlistViewProps.inverted;
     this->containerManager_->horizontal = shadowlistViewProps.horizontal;
+    
+    this->containerManager_->startRevision();
+    
+    this->containerManager_->setContainerOffsetX(shadowlistViewStateData.containerOffsetX_);
+    this->containerManager_->setContainerOffsetY(shadowlistViewStateData.containerOffsetY_);
+    this->containerManager_->setWindowContainerWidth(shadowlistViewLayoutMetrics.frame.size.width);
+    this->containerManager_->setWindowContainerHeight(shadowlistViewLayoutMetrics.frame.size.height);
+
+    /*
+     * Revision elements metrics adjustments
+     */
+    for (size_t i = 0; i < shadowlistViewChildren.size(); i++) {
+      if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(shadowlistViewChildren[i]->getProps())) {
+        const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(shadowlistViewChildren[i]);
+
+        this->virtualizerManager_->updateElementAtIndex(
+          this->containerManager_.get(),
+          elementViewProps->index,
+          this->containerManager_->nextRevision,
+          {
+            .width = elementViewNode->getLayoutMetrics().frame.size.width,
+            .height = elementViewNode->getLayoutMetrics().frame.size.height,
+          });
+      }
+    }
+
+    this->virtualizerManager_->measure(this->containerManager_.get());
+    this->containerManager_->endRevision();
   };
 
   private:

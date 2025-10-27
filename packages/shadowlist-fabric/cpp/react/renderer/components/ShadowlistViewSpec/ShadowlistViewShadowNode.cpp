@@ -15,34 +15,6 @@ void ShadowlistViewShadowNode::setVirtualizerManager(std::shared_ptr<azimgd::sha
 void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
 
-  this->containerManager_->startRevision();
-    
-  this->containerManager_->setContainerOffsetX(getStateData().containerOffsetX_);
-  this->containerManager_->setContainerOffsetY(getStateData().containerOffsetY_);
-  this->containerManager_->setWindowContainerWidth(getLayoutMetrics().frame.size.width);
-  this->containerManager_->setWindowContainerHeight(getLayoutMetrics().frame.size.height);
-
-  /*
-   * Revision elements metrics adjustments
-   */
-  for (size_t i = 0; i < getChildren().size(); i++) {
-    if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(getChildren()[i]->getProps())) {
-      const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(getChildren()[i]);
-
-      this->virtualizerManager_->updateElementAtIndex(
-        this->containerManager_.get(),
-        elementViewProps->index,
-        this->containerManager_->nextRevision,
-        {
-          .width = elementViewNode->getLayoutMetrics().frame.size.width,
-          .height = elementViewNode->getLayoutMetrics().frame.size.height,
-        });
-    }
-  }
-
-  this->virtualizerManager_->measure(this->containerManager_.get());
-  this->containerManager_->endRevision();
-
   /*
    * Layoutable elements metrics adjustments
    */
