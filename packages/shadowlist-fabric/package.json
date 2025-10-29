@@ -1,7 +1,7 @@
 {
-  "name": "react-native-shadowlist",
+  "name": "shadowlist",
   "version": "0.1.0",
-  "description": "react-native-shadowlist",
+  "description": "shadowlist",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -33,7 +33,7 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace react-native-shadowlist-example",
+    "example": "yarn workspace shadowlist-example",
     "test": "jest",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",

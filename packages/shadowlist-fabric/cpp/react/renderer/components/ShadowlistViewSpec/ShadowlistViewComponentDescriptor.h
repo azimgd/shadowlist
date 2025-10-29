@@ -100,4 +100,4 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
 void ShadowlistViewSpec_registerComponentDescriptorsFromCodegen(
   std::shared_ptr<const ComponentDescriptorProviderRegistry> registry);
 
-} // namespace facebook::react
+}

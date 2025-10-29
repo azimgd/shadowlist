@@ -1,12 +1,12 @@
-# react-native-shadowlist
+# shadowlist
 
-react-native-shadowlist
+shadowlist
 
 ## Installation
 
 
 ```sh
-npm install react-native-shadowlist
+npm install shadowlist
 ```
 
 
@@ -14,7 +14,7 @@ npm install react-native-shadowlist
 
 
 ```js
-import { ShadowlistView } from "react-native-shadowlist";
+import { ShadowlistView } from "shadowlist";
 
 // ...
 

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Shadowlist, type ShadowListCommands } from 'react-native-shadowlist';
+import { Shadowlist, type ShadowListCommands } from 'shadowlist';
 import { HeavyListItem } from './HeavyListItem';
 import { FloatingActionBar } from './FloatingActionBar';
 import { MessageInput } from './MessageInput';

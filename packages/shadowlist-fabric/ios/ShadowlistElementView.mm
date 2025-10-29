@@ -1,6 +1,6 @@
 #import "ShadowlistElementView.h"
 
-#import <react/renderer/components/ShadowlistViewSpec/ComponentDescriptors.h>
+#import "ShadowlistElementViewComponentDescriptor.h"
 #import <react/renderer/components/ShadowlistViewSpec/EventEmitters.h>
 #import <react/renderer/components/ShadowlistViewSpec/Props.h>
 #import <react/renderer/components/ShadowlistViewSpec/RCTComponentViewHelpers.h>

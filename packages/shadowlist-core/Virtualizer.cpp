@@ -191,6 +191,8 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
     nextRevision.measurementElementTotalHeight += nextElement.height;
     nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
+    nextRevision.measurementElementStartIndex = measurementElementStartIndex;
+    nextRevision.measurementElementEndIndex = measurementElementEndIndex;
 
     /*
      * Create an intersection of newly measured elements
@@ -332,6 +334,8 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
     nextRevision.measurementElementTotalHeight += nextElement.height;
     nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
+    nextRevision.measurementElementStartIndex = measurementElementStartIndex;
+    nextRevision.measurementElementEndIndex = measurementElementEndIndex;
 
     /*
      * Create an intersection of newly measured elements
@@ -456,6 +460,8 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
     nextRevision.measurementElementTotalHeight += nextElement.height;
     nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
+    nextRevision.measurementElementStartIndex = measurementElementStartIndex;
+    nextRevision.measurementElementEndIndex = measurementElementEndIndex;
 
     /*
      * Create an intersection of newly measured elements
@@ -597,6 +603,8 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
     nextRevision.measurementElementTotalHeight += nextElement.height;
     nextRevision.measurementElementTotalWidth += nextElement.width;
     nextRevision.measurementElementCount++;
+    nextRevision.measurementElementStartIndex = measurementElementStartIndex;
+    nextRevision.measurementElementEndIndex = measurementElementEndIndex;
 
     /*
      * Create an intersection of newly measured elements

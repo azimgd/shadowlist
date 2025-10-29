@@ -3,8 +3,6 @@
 
 namespace facebook::react {
 
-extern const char ShadowlistViewComponentName[] = "ShadowlistView";
-
 void ShadowlistViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager) {
   this->containerManager_ = containerManager;
 }

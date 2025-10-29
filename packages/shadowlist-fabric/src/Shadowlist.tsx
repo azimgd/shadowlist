@@ -13,7 +13,7 @@ import {
   ShadowlistElementView,
   type OnVisibleIndicesChange,
   Commands,
-} from 'react-native-shadowlist';
+} from 'shadowlist';
 
 const INVERTED = true;
 

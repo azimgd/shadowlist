@@ -1,10 +1,3 @@
-/*
- * Copyright (c) Meta Platforms, Inc. and affiliates.
- *
- * This source code is licensed under the MIT license found in the
- * LICENSE file in the root directory of this source tree.
- */
-
 #pragma once
 
 #include <react/renderer/imagemanager/ImageRequest.h>
@@ -74,4 +67,4 @@ class ShadowlistViewState final {
   double totalContainerWidth_{0.0};
 };
 
-} // namespace facebook::react
+}
