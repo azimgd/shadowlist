@@ -1,5 +1,4 @@
 #include "ShadowlistViewShadowNode.h"
-#include <iostream>
 
 namespace facebook::react {
 
