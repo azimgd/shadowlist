@@ -1,6 +1,6 @@
 {
   "name": "shadowlist",
-  "version": "0.4.26",
+  "version": "0.4.27",
   "description": "shadowlist",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
