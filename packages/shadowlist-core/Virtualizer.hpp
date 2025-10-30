@@ -30,13 +30,13 @@ public:
    * Add item at specific index
    * prevElementIndex: optional index to use for measurement callback (defaults to insertion index)
    */
-  static void addElementAtIndex(Container* container, std::size_t index, Revision& nextRevision, std::size_t prevElementIndex = (std::size_t)-1);
+  static void addElementAtIndex(Container* container, std::size_t index, std::size_t prevElementIndex = (std::size_t)-1);
 
   /*
    * Update measurements for existing element at specific index
    * Adjusts mvcpDiff to maintain visible content position when element changes
    */
-  static void updateElementAtIndex(Container* container, std::size_t index, Revision& nextRevision, Size size);
+  static void updateElementAtIndex(Container* container, std::size_t index, Size size);
 
   /*
    * Prepend multiple elements to the beginning of the list
@@ -53,22 +53,22 @@ private:
   /*
    * Measure items in default order for the first revision
    */
-  void measureFirstRevisionDefault(Container *container, Revision &nextRevision);
+  void measureFirstRevisionDefault(Container *container);
 
   /*
    * Measure items in default order for the subsequent revisions
    */
-  void measureNextRevisionDefault(Container *container, Revision &nextRevision);
+  void measureNextRevisionDefault(Container *container);
 
   /*
    * Measure items in inverted order for the first revision
    */
-  void measureFirstRevisionInverted(Container *container, Revision &nextRevision);
+  void measureFirstRevisionInverted(Container *container);
 
   /*
    * Measure items in inverted order for the subsequent revisions
    */
-  void measureNextRevisionInverted(Container *container, Revision &nextRevision);
+  void measureNextRevisionInverted(Container *container);
 };
 
 }

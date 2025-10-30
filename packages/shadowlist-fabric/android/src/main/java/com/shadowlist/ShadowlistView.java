@@ -127,13 +127,11 @@ public class ShadowlistView extends ReactScrollView {
     setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
     setFillViewport(false);
 
-    // Create white scrollbar drawable
     GradientDrawable scrollbarDrawable = new GradientDrawable();
     scrollbarDrawable.setShape(GradientDrawable.RECTANGLE);
     scrollbarDrawable.setColor(Color.WHITE);
     scrollbarDrawable.setCornerRadius(8);
 
-    // Set white scrollbar thumb
     setVerticalScrollbarThumbDrawable(scrollbarDrawable);
     setHorizontalScrollbarThumbDrawable(scrollbarDrawable);
 

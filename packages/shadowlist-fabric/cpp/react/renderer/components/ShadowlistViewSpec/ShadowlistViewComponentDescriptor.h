@@ -80,7 +80,6 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
         this->virtualizerManager_->updateElementAtIndex(
           this->containerManager_.get(),
           elementViewProps->index,
-          this->containerManager_->nextRevision,
           {
             .width = elementViewNode->getLayoutMetrics().frame.size.width,
             .height = elementViewNode->getLayoutMetrics().frame.size.height,

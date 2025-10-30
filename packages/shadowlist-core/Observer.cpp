@@ -8,14 +8,14 @@ Observer::Observer(Container& container, std::size_t throttleMs)
   : container(container),
     nextSubscriptionId(0),
     throttleMs(throttleMs),
-    prevNotificationTimestamp(std::chrono::milliseconds(0)),
+    prevDispatchTimestamp(std::chrono::milliseconds(0)),
     prevMeasurementElementStartIndex(static_cast<std::size_t>(-1)),
     prevMeasurementElementEndIndex(static_cast<std::size_t>(-1)),
     prevMeasurementElementTotalHeight(0.0),
     prevMeasurementElementTotalWidth(0.0),
     prevContainerOffset(0.0),
     scrollVelocity(0.0),
-    pendingNotification(false) {
+    pendingDispatch(false) {
 }
 
 Observer::~Observer() {
@@ -43,25 +43,25 @@ void Observer::notifyEndRevision() {
     return;
   }
 
-  auto nextNotificationTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+  auto nextDispatchTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::system_clock::now().time_since_epoch()
   );
-  auto notificationTimestampDiff = nextNotificationTimestamp - this->prevNotificationTimestamp;
+  auto dispatchTimestampDiff = nextDispatchTimestamp - this->prevDispatchTimestamp;
 
   /*
    * Only execute callbacks if enough time has passed (throttling)
    */
-  if (notificationTimestampDiff.count() >= static_cast<long long>(this->throttleMs)) {
+  if (dispatchTimestampDiff.count() >= static_cast<long long>(this->throttleMs)) {
     executeCallbacks();
   } else {
-    this->pendingNotification = true;
+    this->pendingDispatch = true;
   }
 }
 
 void Observer::executeCallbacks() {
-  this->pendingNotification = false;
+  this->pendingDispatch = false;
 
-  auto nextNotificationTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+  auto nextDispatchTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::system_clock::now().time_since_epoch()
   );
 
@@ -70,13 +70,13 @@ void Observer::executeCallbacks() {
    */
   double nextContainerOffset = this->container.getContainerOffset();
 
-  if (this->prevNotificationTimestamp.count() > 0) {
-    auto notificationTimestampDiff = nextNotificationTimestamp - this->prevNotificationTimestamp;
-    double notificationTimestampDiffSeconds = notificationTimestampDiff.count() / 1000.0;
+  if (this->prevDispatchTimestamp.count() > 0) {
+    auto dispatchTimestampDiff = nextDispatchTimestamp - this->prevDispatchTimestamp;
+    double dispatchTimestampDiffSeconds = dispatchTimestampDiff.count() / 1000.0;
     double containerOffsetDiff = nextContainerOffset - this->prevContainerOffset;
 
-    if (notificationTimestampDiffSeconds > 0.0) {
-      this->scrollVelocity = containerOffsetDiff / notificationTimestampDiffSeconds;
+    if (dispatchTimestampDiffSeconds > 0.0) {
+      this->scrollVelocity = containerOffsetDiff / dispatchTimestampDiffSeconds;
     } else {
       this->scrollVelocity = 0.0;
     }
@@ -87,7 +87,7 @@ void Observer::executeCallbacks() {
   /*
    * Update prev values BEFORE executing callbacks
    */
-  this->prevNotificationTimestamp = nextNotificationTimestamp;
+  this->prevDispatchTimestamp = nextDispatchTimestamp;
   this->prevContainerOffset = nextContainerOffset;
 
   auto visibleIndices = this->container.getVisibleIndices();
@@ -106,7 +106,7 @@ void Observer::executeCallbacks() {
 }
 
 void Observer::flush() {
-  if (this->pendingNotification) {
+  if (this->pendingDispatch) {
     executeCallbacks();
   }
 }

@@ -83,7 +83,7 @@ private:
   /**
    * Timestamp of previous callback execution
    */
-  std::chrono::milliseconds prevNotificationTimestamp;
+  std::chrono::milliseconds prevDispatchTimestamp;
 
   /**
    * Previous measurement start index
@@ -117,9 +117,9 @@ private:
   double scrollVelocity;
 
   /**
-   * Indicates if there's a pending notification
+   * Indicates if there's a pending dispatch
    */
-  bool pendingNotification;
+  bool pendingDispatch;
 
   /**
    * Execute callbacks
@@ -128,7 +128,7 @@ private:
 
   /**
    * Check if visible indices have changed
-   * @return True if indices have changed since last notification
+   * @return True if indices have changed since last dispatch
    */
   bool hasIndicesChanged() const;
 };

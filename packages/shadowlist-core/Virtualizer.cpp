@@ -16,23 +16,13 @@ void Virtualizer::measureDefault(Container *container) {
     throw InvalidOperationError("Cannot use measureDefault outside of a revision");
   }
 
-  Revision nextRevision;
-  nextRevision.elements = container->nextRevision.elements;
-  nextRevision.windowContainerWidth = container->nextRevision.windowContainerWidth;
-  nextRevision.windowContainerHeight = container->nextRevision.windowContainerHeight;
-  nextRevision.containerOffsetY = container->nextRevision.containerOffsetY;
-  nextRevision.containerOffsetX = container->nextRevision.containerOffsetX;
-  nextRevision.mvcpDiffHeight = container->nextRevision.mvcpDiffHeight;
-  nextRevision.mvcpDiffWidth = container->nextRevision.mvcpDiffWidth;
-  nextRevision.averageElementWidth = container->nextRevision.averageElementWidth;
-  nextRevision.averageElementHeight = container->nextRevision.averageElementHeight;
-  nextRevision.measurementElementStartIndex = (std::size_t)-1;
-  nextRevision.measurementElementEndIndex = (std::size_t)-1;
+  container->nextRevision.measurementElementStartIndex = (std::size_t)-1;
+  container->nextRevision.measurementElementEndIndex = (std::size_t)-1;
 
   if (container->nextRevisionCount == RevisionCountFirst) {
-    measureFirstRevisionDefault(container, nextRevision);
+    measureFirstRevisionDefault(container);
   } else {
-    measureNextRevisionDefault(container, nextRevision);
+    measureNextRevisionDefault(container);
   }
 
   /*
@@ -41,8 +31,8 @@ void Virtualizer::measureDefault(Container *container) {
   double maxHeight = 0.0;
   double maxWidth = 0.0;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextRevision.elements.size(); nextElementIndex++) {
-    const Element& nextElement = nextRevision.elements[nextElementIndex];
+  for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
+    const Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
     double elementOffsetTop = nextElement.offsetY + nextElement.height;
     double elementOffsetLeft = nextElement.offsetX + nextElement.width;
@@ -55,15 +45,13 @@ void Virtualizer::measureDefault(Container *container) {
     }
   }
 
-  nextRevision.totalContainerHeight = maxHeight;
-  nextRevision.totalContainerWidth = maxWidth;
+  container->nextRevision.totalContainerHeight = maxHeight;
+  container->nextRevision.totalContainerWidth = maxWidth;
 
   if (container->nextRevisionCount == RevisionCountFirst) {
-    nextRevision.containerOffsetY = nextRevision.totalContainerHeight - nextRevision.windowContainerHeight;
-    nextRevision.containerOffsetX = nextRevision.totalContainerWidth - nextRevision.windowContainerWidth;
+    container->nextRevision.containerOffsetY = container->nextRevision.totalContainerHeight - container->nextRevision.windowContainerHeight;
+    container->nextRevision.containerOffsetX = container->nextRevision.totalContainerWidth - container->nextRevision.windowContainerWidth;
   }
-
-  container->nextRevision = nextRevision;
 }
 
 void Virtualizer::measureInverted(Container *container) {
@@ -71,23 +59,13 @@ void Virtualizer::measureInverted(Container *container) {
     throw InvalidOperationError("Cannot use measureInverted outside of a revision");
   }
 
-  Revision nextRevision;
-  nextRevision.elements = container->nextRevision.elements;
-  nextRevision.windowContainerWidth = container->nextRevision.windowContainerWidth;
-  nextRevision.windowContainerHeight = container->nextRevision.windowContainerHeight;
-  nextRevision.containerOffsetY = container->nextRevision.containerOffsetY;
-  nextRevision.containerOffsetX = container->nextRevision.containerOffsetX;
-  nextRevision.mvcpDiffHeight = container->nextRevision.mvcpDiffHeight;
-  nextRevision.mvcpDiffWidth = container->nextRevision.mvcpDiffWidth;
-  nextRevision.averageElementWidth = container->nextRevision.averageElementWidth;
-  nextRevision.averageElementHeight = container->nextRevision.averageElementHeight;
-  nextRevision.measurementElementStartIndex = (std::size_t)-1;
-  nextRevision.measurementElementEndIndex = (std::size_t)-1;
+  container->nextRevision.measurementElementStartIndex = (std::size_t)-1;
+  container->nextRevision.measurementElementEndIndex = (std::size_t)-1;
 
   if (container->nextRevisionCount == RevisionCountFirst) {
-    measureFirstRevisionInverted(container, nextRevision);
+    measureFirstRevisionInverted(container);
   } else {
-    measureNextRevisionInverted(container, nextRevision);
+    measureNextRevisionInverted(container);
   }
 
   /*
@@ -96,8 +74,8 @@ void Virtualizer::measureInverted(Container *container) {
   double maxHeight = 0.0;
   double maxWidth = 0.0;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextRevision.elements.size(); nextElementIndex++) {
-    const Element& nextElement = nextRevision.elements[nextElementIndex];
+  for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
+    const Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
     double elementOffsetTop = nextElement.offsetY + nextElement.height;
     double elementOffsetLeft = nextElement.offsetX + nextElement.width;
@@ -110,18 +88,16 @@ void Virtualizer::measureInverted(Container *container) {
     }
   }
 
-  nextRevision.totalContainerHeight = maxHeight;
-  nextRevision.totalContainerWidth = maxWidth;
+  container->nextRevision.totalContainerHeight = maxHeight;
+  container->nextRevision.totalContainerWidth = maxWidth;
 
   if (container->nextRevisionCount == RevisionCountFirst) {
-    nextRevision.containerOffsetY = nextRevision.totalContainerHeight - nextRevision.windowContainerHeight;
-    nextRevision.containerOffsetX = nextRevision.totalContainerWidth - nextRevision.windowContainerWidth;
+    container->nextRevision.containerOffsetY = container->nextRevision.totalContainerHeight - container->nextRevision.windowContainerHeight;
+    container->nextRevision.containerOffsetX = container->nextRevision.totalContainerWidth - container->nextRevision.windowContainerWidth;
   }
-
-  container->nextRevision = nextRevision;
 }
 
-void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &nextRevision) {
+void Virtualizer::measureFirstRevisionDefault(Container *container) {
   if (container->nextRevisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use measureFirstRevisionDefault outside of a revision");
   }
@@ -138,11 +114,11 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
   /*
    * We are implementing a default list so start iterating from the start
    */
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextRevision.elements.size(); ++nextElementIndex) {
+  for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); ++nextElementIndex) {
     /*
      * Existing element, we don't want to modify it until revision is fully complete
      */
-    const Element& prevElement = nextRevision.elements[nextElementIndex];
+    const Element& prevElement = container->nextRevision.elements[nextElementIndex];
 
     /*
      * Let's create a new temporary element which will later be swapped with the original one
@@ -176,23 +152,23 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
     }
     measurementElementEndIndex = nextElementIndex;
 
-    if (nextRevision.measurementElementStartIndex == (std::size_t)-1 ||
-        nextElementIndex < nextRevision.measurementElementStartIndex) {
-      nextRevision.measurementElementStartIndex = nextElementIndex;
+    if (container->nextRevision.measurementElementStartIndex == (std::size_t)-1 ||
+        nextElementIndex < container->nextRevision.measurementElementStartIndex) {
+      container->nextRevision.measurementElementStartIndex = nextElementIndex;
     }
-    if (nextRevision.measurementElementEndIndex == (std::size_t)-1 ||
-        nextElementIndex > nextRevision.measurementElementEndIndex) {
-      nextRevision.measurementElementEndIndex = nextElementIndex;
+    if (container->nextRevision.measurementElementEndIndex == (std::size_t)-1 ||
+        nextElementIndex > container->nextRevision.measurementElementEndIndex) {
+      container->nextRevision.measurementElementEndIndex = nextElementIndex;
     }
 
     accumulatedHeight += nextElement.height;
     accumulatedWidth += nextElement.width;
 
-    nextRevision.measurementElementTotalHeight += nextElement.height;
-    nextRevision.measurementElementTotalWidth += nextElement.width;
-    nextRevision.measurementElementCount++;
-    nextRevision.measurementElementStartIndex = measurementElementStartIndex;
-    nextRevision.measurementElementEndIndex = measurementElementEndIndex;
+    container->nextRevision.measurementElementTotalHeight += nextElement.height;
+    container->nextRevision.measurementElementTotalWidth += nextElement.width;
+    container->nextRevision.measurementElementCount++;
+    container->nextRevision.measurementElementStartIndex = measurementElementStartIndex;
+    container->nextRevision.measurementElementEndIndex = measurementElementEndIndex;
 
     /*
      * Create an intersection of newly measured elements
@@ -203,11 +179,11 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
     /*
      * Stop measuring if we measured enough items to display in a visible window
      */
-    if (!container->horizontal && accumulatedHeight >= nextRevision.windowContainerHeight) {
+    if (!container->horizontal && accumulatedHeight >= container->nextRevision.windowContainerHeight) {
       break;
     }
 
-    if (container->horizontal && accumulatedWidth >= nextRevision.windowContainerWidth) {
+    if (container->horizontal && accumulatedWidth >= container->nextRevision.windowContainerWidth) {
       break;
     }
   }
@@ -215,12 +191,12 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
   /*
    * Calculate average element dimensions, needed for estimating unmeasured portion of the list
    */
-  if (nextRevision.measurementElementCount > 0) {
-    if (nextRevision.averageElementWidth == 0.0) {
-      nextRevision.averageElementWidth = nextRevision.measurementElementTotalWidth / nextRevision.measurementElementCount;
+  if (container->nextRevision.measurementElementCount > 0) {
+    if (container->nextRevision.averageElementWidth == 0.0) {
+      container->nextRevision.averageElementWidth = container->nextRevision.measurementElementTotalWidth / container->nextRevision.measurementElementCount;
     }
-    if (nextRevision.averageElementHeight == 0.0) {
-      nextRevision.averageElementHeight = nextRevision.measurementElementTotalHeight / nextRevision.measurementElementCount;
+    if (container->nextRevision.averageElementHeight == 0.0) {
+      container->nextRevision.averageElementHeight = container->nextRevision.measurementElementTotalHeight / container->nextRevision.measurementElementCount;
     }
   }
 
@@ -228,7 +204,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
    * Swap elements from newly measured intersection with existing ones
    */
   for (std::size_t nextElementIndex = 0; nextElementIndex < nextElements.size(); nextElementIndex++) {
-    nextRevision.elements[nextElementsIndices[nextElementIndex]] = nextElements[nextElementIndex];
+    container->nextRevision.elements[nextElementsIndices[nextElementIndex]] = nextElements[nextElementIndex];
   }
 
   /*
@@ -237,12 +213,12 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
    */
   double nextOffset = 0.0;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextRevision.elements.size(); nextElementIndex++) {
-    Element& nextElement = nextRevision.elements[nextElementIndex];
+  for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
+    Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
     if (!nextElement.measured) {
-      nextElement.width = nextRevision.averageElementWidth;
-      nextElement.height = nextRevision.averageElementHeight;
+      nextElement.width = container->nextRevision.averageElementWidth;
+      nextElement.height = container->nextRevision.averageElementHeight;
     }
 
     nextElement.index = nextElementIndex;
@@ -258,7 +234,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container, Revision &ne
 
 }
 
-void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nextRevision) {
+void Virtualizer::measureNextRevisionDefault(Container *container) {
   if (container->nextRevisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use measureNextRevisionDefault outside of a revision");
   }
@@ -275,11 +251,11 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
   /*
    * We are implementing a default list so start iterating from the start
    */
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextRevision.elements.size(); ++nextElementIndex) {
+  for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); ++nextElementIndex) {
     /*
      * Existing element, we don't want to modify it until revision is fully complete
      */
-    const Element& prevElement = nextRevision.elements[nextElementIndex];
+    const Element& prevElement = container->nextRevision.elements[nextElementIndex];
 
     /*
      * Skip elements that are outside of the visible window plus 1x window buffer
@@ -322,20 +298,20 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
     }
     measurementElementEndIndex = nextElementIndex;
 
-    if (nextRevision.measurementElementStartIndex == (std::size_t)-1 ||
-        nextElementIndex < nextRevision.measurementElementStartIndex) {
-      nextRevision.measurementElementStartIndex = nextElementIndex;
+    if (container->nextRevision.measurementElementStartIndex == (std::size_t)-1 ||
+        nextElementIndex < container->nextRevision.measurementElementStartIndex) {
+      container->nextRevision.measurementElementStartIndex = nextElementIndex;
     }
-    if (nextRevision.measurementElementEndIndex == (std::size_t)-1 ||
-        nextElementIndex > nextRevision.measurementElementEndIndex) {
-      nextRevision.measurementElementEndIndex = nextElementIndex;
+    if (container->nextRevision.measurementElementEndIndex == (std::size_t)-1 ||
+        nextElementIndex > container->nextRevision.measurementElementEndIndex) {
+      container->nextRevision.measurementElementEndIndex = nextElementIndex;
     }
 
-    nextRevision.measurementElementTotalHeight += nextElement.height;
-    nextRevision.measurementElementTotalWidth += nextElement.width;
-    nextRevision.measurementElementCount++;
-    nextRevision.measurementElementStartIndex = measurementElementStartIndex;
-    nextRevision.measurementElementEndIndex = measurementElementEndIndex;
+    container->nextRevision.measurementElementTotalHeight += nextElement.height;
+    container->nextRevision.measurementElementTotalWidth += nextElement.width;
+    container->nextRevision.measurementElementCount++;
+    container->nextRevision.measurementElementStartIndex = measurementElementStartIndex;
+    container->nextRevision.measurementElementEndIndex = measurementElementEndIndex;
 
     /*
      * Create an intersection of newly measured elements
@@ -347,12 +323,12 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
   /*
    * Calculate average element dimensions, needed for estimating unmeasured portion of the list
    */
-  if (nextRevision.measurementElementCount > 0) {
-    if (nextRevision.averageElementWidth == 0.0) {
-      nextRevision.averageElementWidth = nextRevision.measurementElementTotalWidth / nextRevision.measurementElementCount;
+  if (container->nextRevision.measurementElementCount > 0) {
+    if (container->nextRevision.averageElementWidth == 0.0) {
+      container->nextRevision.averageElementWidth = container->nextRevision.measurementElementTotalWidth / container->nextRevision.measurementElementCount;
     }
-    if (nextRevision.averageElementHeight == 0.0) {
-      nextRevision.averageElementHeight = nextRevision.measurementElementTotalHeight / nextRevision.measurementElementCount;
+    if (container->nextRevision.averageElementHeight == 0.0) {
+      container->nextRevision.averageElementHeight = container->nextRevision.measurementElementTotalHeight / container->nextRevision.measurementElementCount;
     }
   }
 
@@ -360,7 +336,7 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
    * Swap elements from newly measured intersection with existing ones
    */
   for (std::size_t nextElementIndex = 0; nextElementIndex < nextElements.size(); nextElementIndex++) {
-    nextRevision.elements[nextElementsIndices[nextElementIndex]] = nextElements[nextElementIndex];
+    container->nextRevision.elements[nextElementsIndices[nextElementIndex]] = nextElements[nextElementIndex];
   }
 
   /*
@@ -369,12 +345,12 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
    */
   double nextOffset = 0.0;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextRevision.elements.size(); nextElementIndex++) {
-    Element& nextElement = nextRevision.elements[nextElementIndex];
+  for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
+    Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
     if (!nextElement.measured) {
-      nextElement.width = nextRevision.averageElementWidth;
-      nextElement.height = nextRevision.averageElementHeight;
+      nextElement.width = container->nextRevision.averageElementWidth;
+      nextElement.height = container->nextRevision.averageElementHeight;
     }
 
     nextElement.index = nextElementIndex;
@@ -390,7 +366,7 @@ void Virtualizer::measureNextRevisionDefault(Container *container, Revision &nex
 
 }
 
-void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &nextRevision) {
+void Virtualizer::measureFirstRevisionInverted(Container *container) {
   if (container->nextRevisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use measureFirstRevisionInverted outside of a revision");
   }
@@ -407,11 +383,11 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
   /*
    * We are implementing an inverted list so start iterating from the end
    */
-  for (std::size_t nextElementIndex = nextRevision.elements.size(); nextElementIndex-- > 0;) {
+  for (std::size_t nextElementIndex = container->nextRevision.elements.size(); nextElementIndex-- > 0;) {
     /*
      * Existing element, we don't want to modify it until revision is fully complete
      */
-    const Element& prevElement = nextRevision.elements[nextElementIndex];
+    const Element& prevElement = container->nextRevision.elements[nextElementIndex];
 
     /*
      * Let's create a new temporary element which will later be swapped with the original one
@@ -445,23 +421,23 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
     }
     measurementElementEndIndex = nextElementIndex;
 
-    if (nextRevision.measurementElementStartIndex == (std::size_t)-1 ||
-        nextElementIndex > nextRevision.measurementElementStartIndex) {
-      nextRevision.measurementElementStartIndex = nextElementIndex;
+    if (container->nextRevision.measurementElementStartIndex == (std::size_t)-1 ||
+        nextElementIndex > container->nextRevision.measurementElementStartIndex) {
+      container->nextRevision.measurementElementStartIndex = nextElementIndex;
     }
-    if (nextRevision.measurementElementEndIndex == (std::size_t)-1 ||
-        nextElementIndex < nextRevision.measurementElementEndIndex) {
-      nextRevision.measurementElementEndIndex = nextElementIndex;
+    if (container->nextRevision.measurementElementEndIndex == (std::size_t)-1 ||
+        nextElementIndex < container->nextRevision.measurementElementEndIndex) {
+      container->nextRevision.measurementElementEndIndex = nextElementIndex;
     }
 
     accumulatedHeight += nextElement.height;
     accumulatedWidth += nextElement.width;
 
-    nextRevision.measurementElementTotalHeight += nextElement.height;
-    nextRevision.measurementElementTotalWidth += nextElement.width;
-    nextRevision.measurementElementCount++;
-    nextRevision.measurementElementStartIndex = measurementElementStartIndex;
-    nextRevision.measurementElementEndIndex = measurementElementEndIndex;
+    container->nextRevision.measurementElementTotalHeight += nextElement.height;
+    container->nextRevision.measurementElementTotalWidth += nextElement.width;
+    container->nextRevision.measurementElementCount++;
+    container->nextRevision.measurementElementStartIndex = measurementElementStartIndex;
+    container->nextRevision.measurementElementEndIndex = measurementElementEndIndex;
 
     /*
      * Create an intersection of newly measured elements
@@ -472,11 +448,11 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
     /*
      * Stop measuring if we measured enough items to display in a visible window
      */
-    if (!container->horizontal && accumulatedHeight >= nextRevision.windowContainerHeight) {
+    if (!container->horizontal && accumulatedHeight >= container->nextRevision.windowContainerHeight) {
       break;
     }
 
-    if (container->horizontal && accumulatedWidth >= nextRevision.windowContainerWidth) {
+    if (container->horizontal && accumulatedWidth >= container->nextRevision.windowContainerWidth) {
       break;
     }
   }
@@ -484,12 +460,12 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
   /*
    * Calculate average element dimensions, needed for estimating unmeasured portion of the list
    */
-  if (nextRevision.measurementElementCount > 0 && nextRevision.measurementElementCount < 10) {
-    if (nextRevision.averageElementWidth == 0.0) {
-      nextRevision.averageElementWidth = nextRevision.measurementElementTotalWidth / nextRevision.measurementElementCount;
+  if (container->nextRevision.measurementElementCount > 0 && container->nextRevision.measurementElementCount < 10) {
+    if (container->nextRevision.averageElementWidth == 0.0) {
+      container->nextRevision.averageElementWidth = container->nextRevision.measurementElementTotalWidth / container->nextRevision.measurementElementCount;
     }
-    if (nextRevision.averageElementHeight == 0.0) {
-      nextRevision.averageElementHeight = nextRevision.measurementElementTotalHeight / nextRevision.measurementElementCount;
+    if (container->nextRevision.averageElementHeight == 0.0) {
+      container->nextRevision.averageElementHeight = container->nextRevision.measurementElementTotalHeight / container->nextRevision.measurementElementCount;
     }
   }
 
@@ -497,7 +473,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
    * Swap elements from newly measured intersection with existing ones
    */
   for (std::size_t nextElementIndex = 0; nextElementIndex < nextElements.size(); nextElementIndex++) {
-    nextRevision.elements[nextElementsIndices[nextElementIndex]] = nextElements[nextElementIndex];
+    container->nextRevision.elements[nextElementsIndices[nextElementIndex]] = nextElements[nextElementIndex];
   }
 
   /*
@@ -506,12 +482,12 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
    */
   double nextOffset = 0.0;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextRevision.elements.size(); nextElementIndex++) {
-    Element& nextElement = nextRevision.elements[nextElementIndex];
+  for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
+    Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
     if (!nextElement.measured) {
-      nextElement.width = nextRevision.averageElementWidth;
-      nextElement.height = nextRevision.averageElementHeight;
+      nextElement.width = container->nextRevision.averageElementWidth;
+      nextElement.height = container->nextRevision.averageElementHeight;
     }
 
     nextElement.index = nextElementIndex;
@@ -527,7 +503,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container, Revision &n
 
 }
 
-void Virtualizer::measureNextRevisionInverted(Container *container, Revision &nextRevision) {
+void Virtualizer::measureNextRevisionInverted(Container *container) {
   if (container->nextRevisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use measureNextRevisionInverted outside of a revision");
   }
@@ -544,11 +520,11 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
   /*
    * We are implementing an inverted list so start iterating from the end
    */
-  for (std::size_t nextElementIndex = nextRevision.elements.size(); nextElementIndex-- > 0;) {
+  for (std::size_t nextElementIndex = container->nextRevision.elements.size(); nextElementIndex-- > 0;) {
     /*
      * Existing element, we don't want to modify it until revision is fully complete
      */
-    const Element& prevElement = nextRevision.elements[nextElementIndex];
+    const Element& prevElement = container->nextRevision.elements[nextElementIndex];
 
     /*
      * Skip elements that are outside of the visible window plus 1x window buffer
@@ -591,20 +567,20 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
     }
     measurementElementEndIndex = nextElementIndex;
 
-    if (nextRevision.measurementElementStartIndex == (std::size_t)-1 ||
-        nextElementIndex > nextRevision.measurementElementStartIndex) {
-      nextRevision.measurementElementStartIndex = nextElementIndex;
+    if (container->nextRevision.measurementElementStartIndex == (std::size_t)-1 ||
+        nextElementIndex > container->nextRevision.measurementElementStartIndex) {
+      container->nextRevision.measurementElementStartIndex = nextElementIndex;
     }
-    if (nextRevision.measurementElementEndIndex == (std::size_t)-1 ||
-        nextElementIndex < nextRevision.measurementElementEndIndex) {
-      nextRevision.measurementElementEndIndex = nextElementIndex;
+    if (container->nextRevision.measurementElementEndIndex == (std::size_t)-1 ||
+        nextElementIndex < container->nextRevision.measurementElementEndIndex) {
+      container->nextRevision.measurementElementEndIndex = nextElementIndex;
     }
 
-    nextRevision.measurementElementTotalHeight += nextElement.height;
-    nextRevision.measurementElementTotalWidth += nextElement.width;
-    nextRevision.measurementElementCount++;
-    nextRevision.measurementElementStartIndex = measurementElementStartIndex;
-    nextRevision.measurementElementEndIndex = measurementElementEndIndex;
+    container->nextRevision.measurementElementTotalHeight += nextElement.height;
+    container->nextRevision.measurementElementTotalWidth += nextElement.width;
+    container->nextRevision.measurementElementCount++;
+    container->nextRevision.measurementElementStartIndex = measurementElementStartIndex;
+    container->nextRevision.measurementElementEndIndex = measurementElementEndIndex;
 
     /*
      * Create an intersection of newly measured elements
@@ -616,12 +592,12 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
   /*
    * Calculate average element dimensions, needed for estimating unmeasured portion of the list
    */
-  if (nextRevision.measurementElementCount > 0 && nextRevision.measurementElementCount < 10) {
-    if (nextRevision.averageElementWidth == 0.0) {
-      nextRevision.averageElementWidth = nextRevision.measurementElementTotalWidth / nextRevision.measurementElementCount;
+  if (container->nextRevision.measurementElementCount > 0 && container->nextRevision.measurementElementCount < 10) {
+    if (container->nextRevision.averageElementWidth == 0.0) {
+      container->nextRevision.averageElementWidth = container->nextRevision.measurementElementTotalWidth / container->nextRevision.measurementElementCount;
     }
-    if (nextRevision.averageElementHeight == 0.0) {
-      nextRevision.averageElementHeight = nextRevision.measurementElementTotalHeight / nextRevision.measurementElementCount;
+    if (container->nextRevision.averageElementHeight == 0.0) {
+      container->nextRevision.averageElementHeight = container->nextRevision.measurementElementTotalHeight / container->nextRevision.measurementElementCount;
     }
   }
 
@@ -629,7 +605,7 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
    * Swap elements from newly measured intersection with existing ones
    */
   for (std::size_t nextElementIndex = 0; nextElementIndex < nextElements.size(); nextElementIndex++) {
-    nextRevision.elements[nextElementsIndices[nextElementIndex]] = nextElements[nextElementIndex];
+    container->nextRevision.elements[nextElementsIndices[nextElementIndex]] = nextElements[nextElementIndex];
   }
 
   /*
@@ -638,12 +614,12 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
    */
   double nextOffset = 0.0;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextRevision.elements.size(); nextElementIndex++) {
-    Element& nextElement = nextRevision.elements[nextElementIndex];
+  for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
+    Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
     if (!nextElement.measured) {
-      nextElement.width = nextRevision.averageElementWidth;
-      nextElement.height = nextRevision.averageElementHeight;
+      nextElement.width = container->nextRevision.averageElementWidth;
+      nextElement.height = container->nextRevision.averageElementHeight;
     }
 
     nextElement.index = nextElementIndex;
@@ -659,7 +635,7 @@ void Virtualizer::measureNextRevisionInverted(Container *container, Revision &ne
 
 }
 
-void Virtualizer::addElementAtIndex(Container* container, std::size_t index, Revision& nextRevision, std::size_t prevElementIndex) {
+void Virtualizer::addElementAtIndex(Container* container, std::size_t index, std::size_t prevElementIndex) {
   if (index > container->nextRevision.elements.size()) {
     throw std::out_of_range("Index out of bounds");
   }
@@ -673,8 +649,8 @@ void Virtualizer::addElementAtIndex(Container* container, std::size_t index, Rev
    * If callback returns {0, 0}, mark element as not measured and use average dimensions
    */
   if (width == 0.0 && height == 0.0) {
-    nextElement.width = nextRevision.averageElementWidth;
-    nextElement.height = nextRevision.averageElementHeight;
+    nextElement.width = container->nextRevision.averageElementWidth;
+    nextElement.height = container->nextRevision.averageElementHeight;
     nextElement.measured = false;
   } else {
     nextElement.width = width;
@@ -694,20 +670,20 @@ void Virtualizer::addElementAtIndex(Container* container, std::size_t index, Rev
     container->nextRevision.mvcpDiffHeight += (nextElement.height + nextElement.gapY);
   }
 
-  if (nextRevision.measurementElementStartIndex != (std::size_t)-1) {
-    if (index <= nextRevision.measurementElementStartIndex) {
-      nextRevision.measurementElementStartIndex++;
+  if (container->nextRevision.measurementElementStartIndex != (std::size_t)-1) {
+    if (index <= container->nextRevision.measurementElementStartIndex) {
+      container->nextRevision.measurementElementStartIndex++;
     }
 
-    if (index <= nextRevision.measurementElementEndIndex) {
-      nextRevision.measurementElementEndIndex++;
+    if (index <= container->nextRevision.measurementElementEndIndex) {
+      container->nextRevision.measurementElementEndIndex++;
     }
   }
 
-  if (nextRevision.averageElementHeight > 0) {
-    nextRevision.measurementElementTotalHeight += nextElement.height;
-    nextRevision.measurementElementTotalWidth += nextElement.width;
-    nextRevision.measurementElementCount++;
+  if (container->nextRevision.averageElementHeight > 0) {
+    container->nextRevision.measurementElementTotalHeight += nextElement.height;
+    container->nextRevision.measurementElementTotalWidth += nextElement.width;
+    container->nextRevision.measurementElementCount++;
   }
 
   double nextOffset = 0.0;
@@ -726,7 +702,7 @@ void Virtualizer::addElementAtIndex(Container* container, std::size_t index, Rev
   }
 }
 
-void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, Revision& nextRevision, Size size) {
+void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, Size size) {
   if (index >= container->nextRevision.elements.size()) {
     throw std::out_of_range("Index out of bounds");
   }
@@ -751,9 +727,9 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
     container->nextRevision.mvcpDiffHeight += heightDiff;
   }
 
-  if (nextRevision.averageElementHeight > 0) {
-    nextRevision.measurementElementTotalHeight += heightDiff;
-    nextRevision.measurementElementTotalWidth += widthDiff;
+  if (container->nextRevision.averageElementHeight > 0) {
+    container->nextRevision.measurementElementTotalHeight += heightDiff;
+    container->nextRevision.measurementElementTotalWidth += widthDiff;
   }
 
   double nextOffset = 0.0;
@@ -775,11 +751,11 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
 void Virtualizer::prependElements(Container* container, std::size_t count) {
   container->nextRevision.mvcpDiffHeight = 0;
   container->nextRevision.mvcpDiffWidth = 0;
-  
+
   for (std::size_t prevElementIndex = count; prevElementIndex-- > 0;) {
-    addElementAtIndex(container, 0, container->nextRevision, prevElementIndex);
+    addElementAtIndex(container, 0, prevElementIndex);
   }
-  
+
   auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
   container->nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
   container->nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
@@ -791,7 +767,7 @@ void Virtualizer::appendElements(Container* container, std::size_t count) {
 
   for (std::size_t prevElementIndex = 0; prevElementIndex < count; prevElementIndex++) {
     std::size_t insertIndex = container->nextRevision.elements.size();
-    addElementAtIndex(container, insertIndex, container->nextRevision);
+    addElementAtIndex(container, insertIndex);
   }
 
   auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);

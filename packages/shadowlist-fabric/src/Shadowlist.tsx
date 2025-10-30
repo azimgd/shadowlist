@@ -15,8 +15,6 @@ import {
   Commands,
 } from 'shadowlist';
 
-const INVERTED = true;
-
 function createRangeArray(indices: OnVisibleIndicesChange) {
   if (
     indices.visibleStartIndex === -1 ||
@@ -77,6 +75,7 @@ export interface ShadowListProps<ItemT extends { id: string } = any> {
   renderItem: (info: { item: ItemT; index: number }) => ReactElement;
   style?: ViewStyle;
   itemStyle?: ViewStyle;
+  inverted?: boolean;
   ref?: Ref<ShadowListCommands>;
 }
 
@@ -85,6 +84,7 @@ function ShadowList<ItemT extends { id: string } = any>({
   renderItem,
   style,
   itemStyle,
+  inverted = false,
   ref,
 }: ShadowListProps<ItemT>) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
@@ -92,7 +92,7 @@ function ShadowList<ItemT extends { id: string } = any>({
   );
 
   const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>(
-    inversionBasedInitialIndices(data.length, 20, INVERTED)
+    inversionBasedInitialIndices(data.length, 20, inverted)
   );
 
   useImperativeHandle(ref, () => ({
@@ -131,9 +131,9 @@ function ShadowList<ItemT extends { id: string } = any>({
         return prevIndices;
       }
 
-      return inversionBasedUpdatingIndices(nextIndices, INVERTED);
+      return inversionBasedUpdatingIndices(nextIndices, inverted);
     });
-  }, []);
+  }, [inverted]);
 
   const visibleRange = useMemo(
     () => createRangeArray(visibleIndices),
@@ -152,7 +152,7 @@ function ShadowList<ItemT extends { id: string } = any>({
       elementsAllKeys={elementsAllKeys}
       elementsHeadKey={elementsHeadKey}
       elementsTailKey={elementsTailKey}
-      inverted={true}
+      inverted={inverted}
       horizontal={false}
     >
       {visibleRange.map((index) => {
