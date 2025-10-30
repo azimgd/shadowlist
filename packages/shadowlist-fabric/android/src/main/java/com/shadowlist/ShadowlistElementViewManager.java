@@ -44,6 +44,5 @@ public class ShadowlistElementViewManager extends ViewGroupManager<ShadowlistEle
   @Override
   @ReactProp(name = "index")
   public void setIndex(ShadowlistElementView view, int index) {
-
   }
 }

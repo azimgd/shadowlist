@@ -83,16 +83,6 @@ using namespace facebook::react;
   self->_scrollView.contentOffset = CGPointMake(
     nextStateData.containerOffsetX_,
     nextStateData.containerOffsetY_);
-
-  if (self->_suspenseMvcp) {
-    return;
-  }
-
-  const auto &eventEmitter = *std::static_pointer_cast<ShadowlistViewEventEmitter const>(self->_eventEmitter);
-  eventEmitter.onVisibleIndicesChange({
-    .visibleStartIndex = static_cast<int>(nextStateData.visibleStartIndex_),
-    .visibleEndIndex = static_cast<int>(nextStateData.visibleEndIndex_),
-  });
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView

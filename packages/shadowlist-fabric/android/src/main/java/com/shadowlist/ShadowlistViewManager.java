@@ -18,7 +18,7 @@ import com.facebook.react.viewmanagers.ShadowlistViewManagerDelegate;
 
 @ReactModule(name = ShadowlistViewManager.NAME)
 public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
-    implements ShadowlistViewManagerInterface<ShadowlistView> {
+  implements ShadowlistViewManagerInterface<ShadowlistView> {
 
   public static final String NAME = "ShadowlistView";
 
@@ -78,20 +78,21 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
 
   @Override
   public void prependElements(ShadowlistView view, int size) {
-
+    view.prependElements(size);
   }
 
   @Override
   public void appendElements(ShadowlistView view, int size) {
-
+    view.appendElements(size);
   }
 
   @Nullable
   @Override
   public Object updateState(
-      @NonNull ShadowlistView view,
-      @Nullable ReactStylesDiffMap props,
-      @Nullable StateWrapper stateWrapper) {
+    @NonNull ShadowlistView view,
+    @Nullable ReactStylesDiffMap props,
+    @Nullable StateWrapper stateWrapper) {
+    view.updateState(stateWrapper);
     return super.updateState(view, props, stateWrapper);
   }
 }

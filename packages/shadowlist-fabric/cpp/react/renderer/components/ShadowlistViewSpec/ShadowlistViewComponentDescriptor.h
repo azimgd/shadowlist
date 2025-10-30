@@ -36,11 +36,14 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     
     auto& shadowlistViewProps = static_cast<const ShadowlistViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
     auto& shadowlistViewState = static_cast<const ShadowlistViewShadowNode::ConcreteState&>(*shadowNode.getState());
+    auto& shadowlistViewEventEmitter = static_cast<const ShadowlistViewShadowNode::ConcreteEventEmitter&>(*shadowNode.getEventEmitter());
     auto& shadowlistViewStateData = shadowlistViewState.getData();
     
     auto& shadowlistViewChildren = shadowNode.getChildren();
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
     
+    // __android_log_print(ANDROID_LOG_DEBUG, "yoyo", "%f", shadowlistViewStateData.containerOffsetY_);
+
     if (this->containerManager_->nextRevision.elements.size() != shadowlistViewProps.elementsAllKeys.size()) {
       // @TODO: increment only for now, implement decrement as well
       auto elementsSizeDiff = shadowlistViewProps.elementsAllKeys.size() - this->containerManager_->nextRevision.elements.size();
@@ -87,6 +90,11 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
 
     this->virtualizerManager_->measure(this->containerManager_.get());
     this->containerManager_->endRevision();
+    
+    shadowlistViewEventEmitter.onVisibleIndicesChange({
+      .visibleStartIndex = static_cast<int>(this->containerManager_->getVisibleIndices().first),
+      .visibleEndIndex = static_cast<int>(this->containerManager_->getVisibleIndices().second),
+    });
   };
 
   private:

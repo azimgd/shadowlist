@@ -39,21 +39,30 @@ class ShadowlistViewState final {
 
 #ifdef ANDROID
   ShadowlistViewState(const ShadowlistViewState& previousState, folly::dynamic data) :
-    windowContainerHeight_{},
-    windowContainerWidth_{},
-    containerOffsetY_{},
-    containerOffsetX_{},
-    visibleStartIndex_{},
-    visibleEndIndex_{},
-    totalContainerHeight_{},
-    totalContainerWidth_{}
+    windowContainerHeight_((Float)data["windowContainerHeight"].getDouble()),
+    windowContainerWidth_((Float)data["windowContainerWidth"].getDouble()),
+    containerOffsetY_((Float)data["containerOffsetY"].getDouble()),
+    containerOffsetX_((Float)data["containerOffsetX"].getDouble()),
+    visibleStartIndex_(static_cast<size_t>(data["visibleStartIndex"].getInt())),
+    visibleEndIndex_(static_cast<size_t>(data["visibleEndIndex"].getInt())),
+    totalContainerHeight_((Float)data["totalContainerHeight"].getDouble()),
+    totalContainerWidth_((Float)data["totalContainerWidth"].getDouble())
     {};
 
   /*
    * Empty implementation for Android because it doesn't use this class.
    */
   folly::dynamic getDynamic() const {
-    return {};
+    folly::dynamic result = folly::dynamic::object;
+    result["windowContainerHeight"] = windowContainerHeight_;
+    result["windowContainerWidth"] = windowContainerWidth_;
+    result["containerOffsetY"] = containerOffsetY_;
+    result["containerOffsetX"] = containerOffsetX_;
+    result["visibleStartIndex"] = static_cast<int64_t>(visibleStartIndex_);
+    result["visibleEndIndex"] = static_cast<int64_t>(visibleEndIndex_);
+    result["totalContainerHeight"] = totalContainerHeight_;
+    result["totalContainerWidth"] = totalContainerWidth_;
+    return result;
   };
 #endif
   
