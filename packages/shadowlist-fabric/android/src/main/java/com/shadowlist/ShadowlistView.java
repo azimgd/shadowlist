@@ -1,6 +1,8 @@
 package com.shadowlist;
 
 import android.content.Context;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,7 +19,18 @@ import com.facebook.react.views.scroll.ReactScrollView;
 public class ShadowlistView extends ReactScrollView {
   private @Nullable StateWrapper _state = null;
   private ContentContainer _contentView = null;
+
+  /*
+   * Scroll Events → State (suspends sending scroll position to state)
+   * Scroll events don't update state when set to true
+   */
   private boolean _suspenseMvcp = false;
+
+  /*
+   * State → Scroll Position (allows receiving scroll position from state)
+   * State can update scroll position when set to true
+   */
+  private boolean _suspenseScroll = true;
 
   private static class ContentContainer extends ViewGroup {
     public ContentContainer(Context context) {
@@ -62,6 +75,7 @@ public class ShadowlistView extends ReactScrollView {
   @Override
   protected void onScrollChanged(int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
     super.onScrollChanged(scrollX, scrollY, oldScrollX, oldScrollY);
+    _suspenseScroll = false;
     updateScrollState(scrollX, scrollY);
   }
 
@@ -108,7 +122,20 @@ public class ShadowlistView extends ReactScrollView {
 
   private void init(Context context) {
     setVerticalScrollBarEnabled(true);
+    setHorizontalScrollBarEnabled(true);
+    setScrollbarFadingEnabled(true);
+    setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
     setFillViewport(false);
+
+    // Create white scrollbar drawable
+    GradientDrawable scrollbarDrawable = new GradientDrawable();
+    scrollbarDrawable.setShape(GradientDrawable.RECTANGLE);
+    scrollbarDrawable.setColor(Color.WHITE);
+    scrollbarDrawable.setCornerRadius(8);
+
+    // Set white scrollbar thumb
+    setVerticalScrollbarThumbDrawable(scrollbarDrawable);
+    setHorizontalScrollbarThumbDrawable(scrollbarDrawable);
 
     _contentView = new ContentContainer(context);
     super.addView(_contentView, 0);
@@ -135,11 +162,23 @@ public class ShadowlistView extends ReactScrollView {
 
       _contentView.layout(0, 0, newContentWidth, newContentHeight);
     }
+
+    if (_suspenseScroll && nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
+      float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
+      float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
+
+      scrollTo(
+        (int) PixelUtil.toPixelFromDIP(containerOffsetX),
+        (int) PixelUtil.toPixelFromDIP(containerOffsetY)
+      );
+    }
   }
 
   public void prependElements(int size) {
     _suspenseMvcp = true;
+    _suspenseScroll = true;
 
+    // Suspend state updates temporarily (for 1 frame) until mvcp adjustments are completed
     postDelayed(new Runnable() {
       @Override
       public void run() {
@@ -149,5 +188,15 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   public void appendElements(int size) {
+    _suspenseMvcp = true;
+    _suspenseScroll = true;
+
+    // Suspend state updates temporarily (for 1 frame) until mvcp adjustments are completed
+    postDelayed(new Runnable() {
+      @Override
+      public void run() {
+        _suspenseMvcp = false;
+      }
+    }, 16);
   }
 }
