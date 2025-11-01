@@ -86,6 +86,16 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
     view.appendElements(size);
   }
 
+  @Override
+  public void setStartReachedEnabled(ShadowlistView view, boolean enabled) {
+    view.setStartReachedEnabled(enabled);
+  }
+
+  @Override
+  public void setEndReachedEnabled(ShadowlistView view, boolean enabled) {
+    view.setEndReachedEnabled(enabled);
+  }
+
   @Nullable
   @Override
   public Object updateState(

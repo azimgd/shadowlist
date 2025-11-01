@@ -27,7 +27,9 @@ class ShadowlistViewState final {
     size_t visibleStartIndex,
     size_t visibleEndIndex,
     double totalContainerHeight,
-    double totalContainerWidth) :
+    double totalContainerWidth,
+    bool startReachedEnabled,
+    bool endReachedEnabled) :
     windowContainerHeight_(windowContainerHeight),
     windowContainerWidth_(windowContainerWidth),
     containerOffsetY_(containerOffsetY),
@@ -35,18 +37,22 @@ class ShadowlistViewState final {
     visibleStartIndex_(visibleStartIndex),
     visibleEndIndex_(visibleEndIndex),
     totalContainerHeight_(totalContainerHeight),
-    totalContainerWidth_(totalContainerWidth) {}
+    totalContainerWidth_(totalContainerWidth),
+    startReachedEnabled_(startReachedEnabled),
+    endReachedEnabled_(endReachedEnabled) {}
 
 #ifdef ANDROID
   ShadowlistViewState(const ShadowlistViewState& previousState, folly::dynamic data) :
-    windowContainerHeight_((Float)data["windowContainerHeight"].getDouble()),
-    windowContainerWidth_((Float)data["windowContainerWidth"].getDouble()),
-    containerOffsetY_((Float)data["containerOffsetY"].getDouble()),
-    containerOffsetX_((Float)data["containerOffsetX"].getDouble()),
-    visibleStartIndex_(static_cast<size_t>(data["visibleStartIndex"].getInt())),
-    visibleEndIndex_(static_cast<size_t>(data["visibleEndIndex"].getInt())),
-    totalContainerHeight_((Float)data["totalContainerHeight"].getDouble()),
-    totalContainerWidth_((Float)data["totalContainerWidth"].getDouble())
+    windowContainerHeight_(data.count("windowContainerHeight") ? (Float)data["windowContainerHeight"].getDouble() : previousState.windowContainerHeight_),
+    windowContainerWidth_(data.count("windowContainerWidth") ? (Float)data["windowContainerWidth"].getDouble() : previousState.windowContainerWidth_),
+    containerOffsetY_(data.count("containerOffsetY") ? (Float)data["containerOffsetY"].getDouble() : previousState.containerOffsetY_),
+    containerOffsetX_(data.count("containerOffsetX") ? (Float)data["containerOffsetX"].getDouble() : previousState.containerOffsetX_),
+    visibleStartIndex_(data.count("visibleStartIndex") ? static_cast<size_t>(data["visibleStartIndex"].getInt()) : previousState.visibleStartIndex_),
+    visibleEndIndex_(data.count("visibleEndIndex") ? static_cast<size_t>(data["visibleEndIndex"].getInt()) : previousState.visibleEndIndex_),
+    totalContainerHeight_(data.count("totalContainerHeight") ? (Float)data["totalContainerHeight"].getDouble() : previousState.totalContainerHeight_),
+    totalContainerWidth_(data.count("totalContainerWidth") ? (Float)data["totalContainerWidth"].getDouble() : previousState.totalContainerWidth_),
+    startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
+    endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_)
     {};
 
   /*
@@ -62,10 +68,12 @@ class ShadowlistViewState final {
     result["visibleEndIndex"] = static_cast<int64_t>(visibleEndIndex_);
     result["totalContainerHeight"] = totalContainerHeight_;
     result["totalContainerWidth"] = totalContainerWidth_;
+    result["startReachedEnabled"] = startReachedEnabled_;
+    result["endReachedEnabled"] = endReachedEnabled_;
     return result;
   };
 #endif
-  
+
   double windowContainerHeight_{0.0};
   double windowContainerWidth_{0.0};
   double containerOffsetY_{0.0};
@@ -74,6 +82,8 @@ class ShadowlistViewState final {
   size_t visibleEndIndex_{};
   double totalContainerHeight_{0.0};
   double totalContainerWidth_{0.0};
+  double startReachedEnabled_{true};
+  double endReachedEnabled_{true};
 };
 
 }

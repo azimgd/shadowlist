@@ -144,6 +144,20 @@ using namespace facebook::react;
   });
 }
 
+- (void)setStartReachedEnabled:(BOOL)enabled
+{
+  auto nextStateData = self->_state->getData();
+  nextStateData.startReachedEnabled_ = enabled;
+  _state->updateState(std::move(nextStateData));
+}
+
+- (void)setEndReachedEnabled:(BOOL)enabled
+{
+  auto nextStateData = self->_state->getData();
+  nextStateData.endReachedEnabled_ = enabled;
+  _state->updateState(std::move(nextStateData));
+}
+
 Class<RCTComponentViewProtocol> ShadowlistViewCls(void)
 {
   return ShadowlistView.class;

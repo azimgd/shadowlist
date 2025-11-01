@@ -95,25 +95,6 @@ public class ShadowlistView extends ReactScrollView {
 
     WritableMap map = new WritableNativeMap();
 
-    if (currentState.hasKey("windowContainerHeight")) {
-      map.putDouble("windowContainerHeight", currentState.getDouble("windowContainerHeight"));
-    }
-    if (currentState.hasKey("windowContainerWidth")) {
-      map.putDouble("windowContainerWidth", currentState.getDouble("windowContainerWidth"));
-    }
-    if (currentState.hasKey("visibleStartIndex")) {
-      map.putInt("visibleStartIndex", currentState.getInt("visibleStartIndex"));
-    }
-    if (currentState.hasKey("visibleEndIndex")) {
-      map.putInt("visibleEndIndex", currentState.getInt("visibleEndIndex"));
-    }
-    if (currentState.hasKey("totalContainerHeight")) {
-      map.putDouble("totalContainerHeight", currentState.getDouble("totalContainerHeight"));
-    }
-    if (currentState.hasKey("totalContainerWidth")) {
-      map.putDouble("totalContainerWidth", currentState.getDouble("totalContainerWidth"));
-    }
-
     map.putDouble("containerOffsetX", PixelUtil.toDIPFromPixel(scrollX));
     map.putDouble("containerOffsetY", PixelUtil.toDIPFromPixel(scrollY));
 
@@ -196,5 +177,29 @@ public class ShadowlistView extends ReactScrollView {
         _suspenseMvcp = false;
       }
     }, 16);
+  }
+
+  public void setStartReachedEnabled(boolean enabled) {
+    if (_state == null) {
+      return;
+    }
+
+    WritableMap map = new WritableNativeMap();
+
+    map.putBoolean("startReachedEnabled", enabled);
+
+    _state.updateState(map);
+  }
+
+  public void setEndReachedEnabled(boolean enabled) {
+    if (_state == null) {
+      return;
+    }
+
+    WritableMap map = new WritableNativeMap();
+
+    map.putBoolean("endReachedEnabled", enabled);
+
+    _state.updateState(map);
   }
 }

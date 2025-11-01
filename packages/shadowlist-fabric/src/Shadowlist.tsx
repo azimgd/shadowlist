@@ -77,6 +77,8 @@ export interface ShadowListProps<ItemT extends { id: string } = any> {
   itemStyle?: ViewStyle;
   inverted?: boolean;
   ref?: Ref<ShadowListCommands>;
+  onStartReached?: () => void;
+  onEndReached?: () => void;
 }
 
 function ShadowList<ItemT extends { id: string } = any>({
@@ -86,6 +88,8 @@ function ShadowList<ItemT extends { id: string } = any>({
   itemStyle,
   inverted = false,
   ref,
+  onStartReached,
+  onEndReached,
 }: ShadowListProps<ItemT>) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
     null
@@ -111,29 +115,42 @@ function ShadowList<ItemT extends { id: string } = any>({
 
       Commands.appendElements(shadowlistViewRef.current, size);
     },
+    setStartReachedEnabled: (enabled: boolean) => {
+      if (!shadowlistViewRef.current) return;
+
+      Commands.setStartReachedEnabled(shadowlistViewRef.current, enabled);
+    },
+    setEndReachedEnabled: (enabled: boolean) => {
+      if (!shadowlistViewRef.current) return;
+
+      Commands.setEndReachedEnabled(shadowlistViewRef.current, enabled);
+    },
   }));
 
   const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
     OnVisibleIndicesChange,
     never
-  > = useCallback((event) => {
-    const nextIndices = event.nativeEvent;
-    setVisibleIndices((prevIndices) => {
-      const startDiff = Math.abs(
-        nextIndices.visibleStartIndex - prevIndices.visibleStartIndex
-      );
-      const endDiff = Math.abs(
-        nextIndices.visibleEndIndex - prevIndices.visibleEndIndex
-      );
+  > = useCallback(
+    (event) => {
+      const nextIndices = event.nativeEvent;
+      setVisibleIndices((prevIndices) => {
+        const startDiff = Math.abs(
+          nextIndices.visibleStartIndex - prevIndices.visibleStartIndex
+        );
+        const endDiff = Math.abs(
+          nextIndices.visibleEndIndex - prevIndices.visibleEndIndex
+        );
 
-      // If change is within +-1 steps, don't update
-      if (startDiff <= 1 && endDiff <= 1) {
-        return prevIndices;
-      }
+        // If change is within +-1 steps, don't update
+        if (startDiff <= 1 && endDiff <= 1) {
+          return prevIndices;
+        }
 
-      return inversionBasedUpdatingIndices(nextIndices, inverted);
-    });
-  }, [inverted]);
+        return inversionBasedUpdatingIndices(nextIndices, inverted);
+      });
+    },
+    [inverted]
+  );
 
   const visibleRange = useMemo(
     () => createRangeArray(visibleIndices),
@@ -154,6 +171,8 @@ function ShadowList<ItemT extends { id: string } = any>({
       elementsTailKey={elementsTailKey}
       inverted={inverted}
       horizontal={false}
+      onStartReached={onStartReached}
+      onEndReached={onEndReached}
     >
       {visibleRange.map((index) => {
         const item = data[index];

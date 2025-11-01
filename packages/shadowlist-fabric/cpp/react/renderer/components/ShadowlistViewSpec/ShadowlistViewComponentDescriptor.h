@@ -42,7 +42,17 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     auto& shadowlistViewChildren = shadowNode.getChildren();
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
     
-    // __android_log_print(ANDROID_LOG_DEBUG, "yoyo", "%f", shadowlistViewStateData.containerOffsetY_);
+    if (containerManager_->onStartReachedCallback == nullptr) {
+      containerManager_->onStartReachedCallback = [shadowlistViewEventEmitter]() -> void {
+        shadowlistViewEventEmitter.onStartReached({});
+      };
+    }
+
+    if (containerManager_->onEndReachedCallback == nullptr) {
+      containerManager_->onEndReachedCallback = [shadowlistViewEventEmitter]() -> void {
+        shadowlistViewEventEmitter.onEndReached({});
+      };
+    }
 
     if (this->containerManager_->nextRevision.elements.size() != shadowlistViewProps.elementsAllKeys.size()) {
       // @TODO: increment only for now, implement decrement as well
