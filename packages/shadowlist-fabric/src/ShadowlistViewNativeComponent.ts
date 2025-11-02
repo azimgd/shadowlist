@@ -16,14 +16,6 @@ export type OnStartReached = {};
 export type OnEndReached = {};
 
 interface NativeCommands {
-  prependElements: (
-    viewRef: React.ElementRef<HostComponent<NativeProps>>,
-    size: CodegenTypes.Int32
-  ) => void;
-  appendElements: (
-    viewRef: React.ElementRef<HostComponent<NativeProps>>,
-    size: CodegenTypes.Int32
-  ) => void;
   setStartReachedEnabled: (
     viewRef: React.ElementRef<HostComponent<NativeProps>>,
     enabled: boolean
@@ -46,12 +38,7 @@ interface NativeProps extends ViewProps {
 }
 
 export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({
-  supportedCommands: [
-    'prependElements',
-    'appendElements',
-    'setStartReachedEnabled',
-    'setEndReachedEnabled',
-  ],
+  supportedCommands: ['setStartReachedEnabled', 'setEndReachedEnabled'],
 });
 
 export default codegenNativeComponent<NativeProps>('ShadowlistView');

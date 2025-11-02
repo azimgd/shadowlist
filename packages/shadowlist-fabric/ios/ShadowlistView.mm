@@ -97,14 +97,6 @@ using namespace facebook::react;
   RCTShadowlistViewHandleCommand(self, commandName, args);
 }
 
-- (void)prependElements:(NSInteger)size
-{
-}
-
-- (void)appendElements:(NSInteger)size
-{
-}
-
 - (void)setStartReachedEnabled:(BOOL)enabled
 {
   auto nextStateData = self->_state->getData();

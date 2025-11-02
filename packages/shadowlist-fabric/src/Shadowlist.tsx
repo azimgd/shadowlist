@@ -66,8 +66,6 @@ export const inversionBasedUpdatingIndices = (
 };
 
 export interface ShadowListCommands {
-  prependElements: (size: number) => void;
-  appendElements: (size: number) => void;
 }
 
 export interface ShadowListProps<ItemT extends { id: string } = any> {
@@ -100,21 +98,6 @@ function ShadowList<ItemT extends { id: string } = any>({
   );
 
   useImperativeHandle(ref, () => ({
-    prependElements: (size: number) => {
-      if (!shadowlistViewRef.current) return;
-
-      Commands.prependElements(shadowlistViewRef.current, size);
-
-      setVisibleIndices((prev) => ({
-        visibleStartIndex: prev.visibleStartIndex + size,
-        visibleEndIndex: prev.visibleEndIndex + size,
-      }));
-    },
-    appendElements: (size: number) => {
-      if (!shadowlistViewRef.current) return;
-
-      Commands.appendElements(shadowlistViewRef.current, size);
-    },
     setStartReachedEnabled: (enabled: boolean) => {
       if (!shadowlistViewRef.current) return;
 

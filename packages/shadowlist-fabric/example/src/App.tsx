@@ -48,7 +48,6 @@ export default function App() {
       isFromMe: index % 3 !== 0,
     }));
     setData((prev) => [...newItems, ...prev]);
-    shadowlistRef.current?.prependElements(newItems.length);
   };
 
   const handleAppend = () => {
@@ -58,7 +57,6 @@ export default function App() {
       isFromMe: index % 3 !== 0,
     }));
     setData((prev) => [...prev, ...newItems]);
-    shadowlistRef.current?.appendElements(newItems.length);
   };
 
   const handleSendMessage = (message: string) => {

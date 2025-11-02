@@ -136,12 +136,6 @@ public class ShadowlistView extends ReactScrollView {
     }
   }
 
-  public void prependElements(int size) {
-  }
-
-  public void appendElements(int size) {
-  }
-
   public void setStartReachedEnabled(boolean enabled) {
     if (_state == null) {
       return;

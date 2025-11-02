@@ -24,8 +24,6 @@ class ShadowlistViewState final {
     double windowContainerWidth,
     double containerOffsetY,
     double containerOffsetX,
-    size_t visibleStartIndex,
-    size_t visibleEndIndex,
     double totalContainerHeight,
     double totalContainerWidth,
     bool startReachedEnabled,
@@ -34,8 +32,6 @@ class ShadowlistViewState final {
     windowContainerWidth_(windowContainerWidth),
     containerOffsetY_(containerOffsetY),
     containerOffsetX_(containerOffsetX),
-    visibleStartIndex_(visibleStartIndex),
-    visibleEndIndex_(visibleEndIndex),
     totalContainerHeight_(totalContainerHeight),
     totalContainerWidth_(totalContainerWidth),
     startReachedEnabled_(startReachedEnabled),
@@ -47,8 +43,6 @@ class ShadowlistViewState final {
     windowContainerWidth_(data.count("windowContainerWidth") ? (Float)data["windowContainerWidth"].getDouble() : previousState.windowContainerWidth_),
     containerOffsetY_(data.count("containerOffsetY") ? (Float)data["containerOffsetY"].getDouble() : previousState.containerOffsetY_),
     containerOffsetX_(data.count("containerOffsetX") ? (Float)data["containerOffsetX"].getDouble() : previousState.containerOffsetX_),
-    visibleStartIndex_(data.count("visibleStartIndex") ? static_cast<size_t>(data["visibleStartIndex"].getInt()) : previousState.visibleStartIndex_),
-    visibleEndIndex_(data.count("visibleEndIndex") ? static_cast<size_t>(data["visibleEndIndex"].getInt()) : previousState.visibleEndIndex_),
     totalContainerHeight_(data.count("totalContainerHeight") ? (Float)data["totalContainerHeight"].getDouble() : previousState.totalContainerHeight_),
     totalContainerWidth_(data.count("totalContainerWidth") ? (Float)data["totalContainerWidth"].getDouble() : previousState.totalContainerWidth_),
     startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
@@ -64,8 +58,6 @@ class ShadowlistViewState final {
     result["windowContainerWidth"] = windowContainerWidth_;
     result["containerOffsetY"] = containerOffsetY_;
     result["containerOffsetX"] = containerOffsetX_;
-    result["visibleStartIndex"] = static_cast<int64_t>(visibleStartIndex_);
-    result["visibleEndIndex"] = static_cast<int64_t>(visibleEndIndex_);
     result["totalContainerHeight"] = totalContainerHeight_;
     result["totalContainerWidth"] = totalContainerWidth_;
     result["startReachedEnabled"] = startReachedEnabled_;
@@ -78,8 +70,6 @@ class ShadowlistViewState final {
   double windowContainerWidth_{0.0};
   double containerOffsetY_{0.0};
   double containerOffsetX_{0.0};
-  size_t visibleStartIndex_{};
-  size_t visibleEndIndex_{};
   double totalContainerHeight_{0.0};
   double totalContainerWidth_{0.0};
   double startReachedEnabled_{true};
