@@ -18,39 +18,9 @@ static constexpr std::size_t RevisionStatusPending = 1;
 class Container {
 public:
   /*
-   * Callback to be executed for each element measurement
+   * Estimated element size for unmeasured elements (width, height)
    */
-  std::function<std::pair<double, double>(std::size_t)> measurementCallback;
-
-  /*
-   * Callback to be executed for offset adjustment
-   */
-  std::function<void(Revision)> sizeAdjustmentCallback;
-
-  /*
-   * Callback to be executed for size adjustment
-   */
-  bool sizeAdjustmentCallbackCompleted = false;
-
-  /*
-   * Callback to be executed for the initial offset adjustment
-   */
-  std::function<void(Revision)> offsetInitAdjustmentCallback;
-
-  /*
-   * Callback to be executed for size adjustment
-   */
-  bool offsetInitAdjustmentCallbackCompleted = false;
-
-  /*
-   * Callback to be executed for the initial offset adjustment
-   */
-  std::function<void(Revision)> offsetMvcpAdjustmentCallback;
-
-  /*
-   * Callback to be executed for size adjustment
-   */
-  bool offsetMvcpAdjustmentCallbackCompleted = true;
+  std::pair<double, double> estimatedElementSize = {120.0, 120.0};
 
   /*
    * Callback to be executed when scrolled near the end of the list
@@ -211,21 +181,6 @@ public:
    * Get debug representation as JSON string
    */
   std::string getDebugRepresentation(const RevisionDebugRepresentationMetadata& metadata) const;
-
-  /**
-   * Set offset init adjustment completion state
-   */
-  void setOffsetInitAdjustmentCompleted(bool completed);
-
-  /**
-   * Set offset mvcp adjustment completion state
-   */
-  void setOffsetMvcpAdjustmentCompleted(bool completed);
-
-  /**
-   * Set size adjustment completion state
-   */
-  void setSizeAdjustmentCallbackCompleted(bool completed);
 
   /**
    * Get metadata for current revision

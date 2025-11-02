@@ -50,31 +50,6 @@ void Container::endRevision() {
   }
 
   /*
-   * Scroll content width / height adjustments
-   */
-  if (!this->sizeAdjustmentCallbackCompleted) {
-    this->sizeAdjustmentCallback(this->nextRevision);
-  }
-
-  /*
-   * Initial scroll offset adjustments for inverted list
-   */
-  if (!this->offsetInitAdjustmentCallbackCompleted) {
-    this->offsetInitAdjustmentCallback(this->nextRevision);
-  }
-
-  /*
-   * Prepended content scroll offset adjustments for inverted list
-   */
-  if (!this->offsetMvcpAdjustmentCallbackCompleted) {
-    this->offsetMvcpAdjustmentCallbackCompleted = true;
-    this->offsetMvcpAdjustmentCallback(this->nextRevision);
-
-    this->nextRevision.mvcpDiffWidth = 0;
-    this->nextRevision.mvcpDiffHeight = 0;
-  }
-
-  /*
    * Check if we're within one screen size of the end of the list
    */
   if (this->endReachedEnabled && this->onEndReachedCallback) {
@@ -239,18 +214,6 @@ std::size_t Container::getMeasurementElementEndIndex() const {
 
 std::string Container::getDebugRepresentation(const RevisionDebugRepresentationMetadata& metadata) const {
   return this->nextRevision.getDebugRepresentation(metadata);
-}
-
-void Container::setOffsetInitAdjustmentCompleted(bool completed) {
-  this->offsetInitAdjustmentCallbackCompleted = completed;
-}
-
-void Container::setOffsetMvcpAdjustmentCompleted(bool completed) {
-  this->offsetMvcpAdjustmentCallbackCompleted = completed;
-}
-
-void Container::setSizeAdjustmentCallbackCompleted(bool completed) {
-  this->sizeAdjustmentCallbackCompleted = completed;
 }
 
 std::vector<Element> Container::getVisibleElements() const {

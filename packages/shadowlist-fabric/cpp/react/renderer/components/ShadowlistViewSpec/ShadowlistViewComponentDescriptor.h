@@ -18,13 +18,6 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     ConcreteComponentDescriptor<ShadowlistViewShadowNode>(parameters) {
     containerManager_ = std::make_shared<azimgd::shadowlist::Container>();
     virtualizerManager_ = std::make_shared<azimgd::shadowlist::Virtualizer>();
-    
-    containerManager_->offsetInitAdjustmentCallback = [](azimgd::shadowlist::Revision revision) -> void {};
-    containerManager_->offsetMvcpAdjustmentCallback = [](azimgd::shadowlist::Revision revision) -> void {};
-    containerManager_->sizeAdjustmentCallback = [](azimgd::shadowlist::Revision revision) -> void {};
-    containerManager_->measurementCallback = [](std::size_t index) -> std::pair<double, double> {
-      return {120.0, 120.0};
-    };
   };
 
   void adopt(ShadowNode& shadowNode) const override {
@@ -37,8 +30,8 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     auto& shadowlistViewProps = static_cast<const ShadowlistViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
     auto& shadowlistViewState = static_cast<const ShadowlistViewShadowNode::ConcreteState&>(*shadowNode.getState());
     auto& shadowlistViewEventEmitter = static_cast<const ShadowlistViewShadowNode::ConcreteEventEmitter&>(*shadowNode.getEventEmitter());
-    auto& shadowlistViewStateData = shadowlistViewState.getData();
     
+    auto shadowlistViewStateData = shadowlistViewState.getData();
     auto& shadowlistViewChildren = shadowNode.getChildren();
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
     
@@ -60,14 +53,15 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
       
       if (this->elementsHeadKey_.length() > 0 && this->elementsHeadKey_ != shadowlistViewProps.elementsHeadKey) {
         this->virtualizerManager_->prependElements(this->containerManager_.get(), elementsSizeDiff);
+        this->elementsSizeDiff_ = elementsSizeDiff;
       } else if (this->elementsTailKey_.length() > 0  && this->elementsTailKey_ != shadowlistViewProps.elementsTailKey) {
         this->virtualizerManager_->appendElements(this->containerManager_.get(), elementsSizeDiff);
       } else {
         this->containerManager_->resizeElementsTail(shadowlistViewProps.elementsAllKeys.size());
       }
       
-      elementsHeadKey_ = shadowlistViewProps.elementsHeadKey;
-      elementsTailKey_ = shadowlistViewProps.elementsTailKey;
+      this->elementsHeadKey_ = shadowlistViewProps.elementsHeadKey;
+      this->elementsTailKey_ = shadowlistViewProps.elementsTailKey;
     }
     
     this->containerManager_->inverted = shadowlistViewProps.inverted;
@@ -98,6 +92,12 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     this->virtualizerManager_->measure(this->containerManager_.get());
     this->containerManager_->endRevision();
     
+    if (this->elementsSizeDiff_ > 0) {
+      shadowlistViewStateData.containerOffsetY_ += this->containerManager_->getElementAtIndex(this->elementsSizeDiff_).offsetY;
+      shadowlistViewState.updateState(std::move(shadowlistViewStateData));
+      this->elementsSizeDiff_ = 0;
+    }
+
     shadowlistViewEventEmitter.onVisibleIndicesChange({
       .visibleStartIndex = static_cast<int>(this->containerManager_->getVisibleIndices().first),
       .visibleEndIndex = static_cast<int>(this->containerManager_->getVisibleIndices().second),
@@ -107,6 +107,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
   private:
   mutable std::string elementsHeadKey_;
   mutable std::string elementsTailKey_;
+  mutable size_t elementsSizeDiff_;
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
   std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager_;
 };

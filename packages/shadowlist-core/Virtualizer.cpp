@@ -130,7 +130,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container) {
      * hence we don't want to re-measure if we already have a cached value
      */
     if (!prevElement.measured) {
-      auto [width, height] = container->measurementCallback(nextElementIndex);
+      auto [width, height] = container->estimatedElementSize;
 
       /*
        * If callback returns {0, 0}, skip updating this element and mark as not measured
@@ -276,7 +276,7 @@ void Virtualizer::measureNextRevisionDefault(Container *container) {
      * hence we don't want to re-measure if we already have a cached value
      */
     if (!prevElement.measured) {
-      auto [width, height] = container->measurementCallback(nextElementIndex);
+      auto [width, height] = container->estimatedElementSize;
 
       /*
        * If callback returns {0, 0}, skip updating this element and mark as not measured
@@ -399,7 +399,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container) {
      * hence we don't want to re-measure if we already have a cached value
      */
     if (!prevElement.measured) {
-      auto [width, height] = container->measurementCallback(nextElementIndex);
+      auto [width, height] = container->estimatedElementSize;
 
       /*
        * If callback returns {0, 0}, skip updating this element and mark as not measured
@@ -545,7 +545,7 @@ void Virtualizer::measureNextRevisionInverted(Container *container) {
      * hence we don't want to re-measure if we already have a cached value
      */
     if (!prevElement.measured) {
-      auto [width, height] = container->measurementCallback(nextElementIndex);
+      auto [width, height] = container->estimatedElementSize;
 
       /*
        * If callback returns {0, 0}, skip updating this element and mark as not measured
@@ -642,8 +642,7 @@ void Virtualizer::addElementAtIndex(Container* container, std::size_t index, std
 
   Element nextElement;
 
-  std::size_t nextElementIndex = (prevElementIndex == (std::size_t)-1) ? index : prevElementIndex;
-  auto [width, height] = container->measurementCallback(nextElementIndex);
+  auto [width, height] = container->estimatedElementSize;
 
   /*
    * If callback returns {0, 0}, mark element as not measured and use average dimensions
