@@ -17,18 +17,6 @@ using namespace facebook::react;
   ShadowlistViewShadowNode::ConcreteState::Shared _state;
   UIScrollView * _scrollView;
   UIView * _contentView;
-  
-  /*
-   * Scroll Events → State (suspends sending scroll position to state)
-   * Scroll events don't update state when set to true
-   */
-  bool _suspenseMvcp;
-
-  /*
-   * State → Scroll Position (allows receiving scroll position from state)
-   * State can update scroll position when set to true
-   */
-  bool _suspenseScroll;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -41,8 +29,6 @@ using namespace facebook::react;
   if (self = [super initWithFrame:frame]) {
     static const auto defaultProps = std::make_shared<const ShadowlistViewProps>();
     _props = defaultProps;
-
-    _suspenseScroll = true;
 
     _scrollView = [[UIScrollView alloc] init];
     _scrollView.delegate = self;
@@ -93,22 +79,13 @@ using namespace facebook::react;
     0,
     nextStateData.totalContainerWidth_,
     nextStateData.totalContainerHeight_);
-
-  if (self->_suspenseScroll) {
-    self->_scrollView.contentOffset = CGPointMake(
-      nextStateData.containerOffsetX_,
-      nextStateData.containerOffsetY_);
-  }
+  self->_scrollView.contentOffset = CGPointMake(
+    nextStateData.containerOffsetX_,
+    nextStateData.containerOffsetY_);
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
-  self->_suspenseScroll = false;
-
-  if (self->_suspenseMvcp) {
-    return;
-  }
-
   auto nextStateData = self->_state->getData();
   nextStateData.containerOffsetX_ = scrollView.contentOffset.x;
   nextStateData.containerOffsetY_ = scrollView.contentOffset.y;
@@ -122,26 +99,10 @@ using namespace facebook::react;
 
 - (void)prependElements:(NSInteger)size
 {
-  self->_suspenseMvcp = true;
-  self->_suspenseScroll = true;
-
-  // suspense state updates temporarily (for 1frame) until mvcp adjustments are completed
-  dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * NSEC_PER_MSEC));
-  dispatch_after(timeout, dispatch_get_main_queue(), ^(void){
-    self->_suspenseMvcp = false;
-  });
 }
 
 - (void)appendElements:(NSInteger)size
 {
-  self->_suspenseMvcp = true;
-  self->_suspenseScroll = true;
-  
-  // suspense state updates temporarily (for 1frame) until mvcp adjustments are completed
-  dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(16 * NSEC_PER_MSEC));
-  dispatch_after(timeout, dispatch_get_main_queue(), ^(void){
-    self->_suspenseMvcp = false;
-  });
 }
 
 - (void)setStartReachedEnabled:(BOOL)enabled

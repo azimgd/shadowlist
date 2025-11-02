@@ -57,13 +57,13 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     if (this->containerManager_->nextRevision.elements.size() != shadowlistViewProps.elementsAllKeys.size()) {
       // @TODO: increment only for now, implement decrement as well
       auto elementsSizeDiff = shadowlistViewProps.elementsAllKeys.size() - this->containerManager_->nextRevision.elements.size();
-
-      this->containerManager_->resizeElementsTail(shadowlistViewProps.elementsAllKeys.size());
       
       if (this->elementsHeadKey_.length() > 0 && this->elementsHeadKey_ != shadowlistViewProps.elementsHeadKey) {
         this->virtualizerManager_->prependElements(this->containerManager_.get(), elementsSizeDiff);
       } else if (this->elementsTailKey_.length() > 0  && this->elementsTailKey_ != shadowlistViewProps.elementsTailKey) {
         this->virtualizerManager_->appendElements(this->containerManager_.get(), elementsSizeDiff);
+      } else {
+        this->containerManager_->resizeElementsTail(shadowlistViewProps.elementsAllKeys.size());
       }
       
       elementsHeadKey_ = shadowlistViewProps.elementsHeadKey;
@@ -86,14 +86,12 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     for (size_t i = 0; i < shadowlistViewChildren.size(); i++) {
       if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(shadowlistViewChildren[i]->getProps())) {
         const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(shadowlistViewChildren[i]);
+        const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
 
         this->virtualizerManager_->updateElementAtIndex(
           this->containerManager_.get(),
           elementViewProps->index,
-          {
-            .width = elementViewNode->getLayoutMetrics().frame.size.width,
-            .height = elementViewNode->getLayoutMetrics().frame.size.height,
-          });
+          { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
       }
     }
 

@@ -35,19 +35,12 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
    * State updates
    */
   auto nextStateData = getStateData();
-  auto visibleStartIndex = this->containerManager_->getVisibleIndices().first;
-  auto visibleEndIndex = this->containerManager_->getVisibleIndices().second;
+  auto totalContainerHeight = this->containerManager_->nextRevision.totalContainerHeight;
+  auto totalContainerWidth = this->containerManager_->nextRevision.totalContainerWidth;
 
-  if (visibleStartIndex != nextStateData.visibleStartIndex_ || visibleEndIndex != nextStateData.visibleEndIndex_) {
-    nextStateData.totalContainerHeight_ = this->containerManager_->nextRevision.totalContainerHeight;
-    nextStateData.totalContainerWidth_ = this->containerManager_->nextRevision.totalContainerWidth;
-    nextStateData.containerOffsetY_ = this->containerManager_->nextRevision.containerOffsetY + this->containerManager_->nextRevision.mvcpDiffHeight;
-    nextStateData.containerOffsetX_ = this->containerManager_->nextRevision.containerOffsetY + this->containerManager_->nextRevision.mvcpDiffWidth;
-    nextStateData.visibleStartIndex_ = this->containerManager_->getVisibleIndices().first;
-    nextStateData.visibleEndIndex_ = this->containerManager_->getVisibleIndices().second;
-
-    this->containerManager_->nextRevision.mvcpDiffWidth = 0;
-    this->containerManager_->nextRevision.mvcpDiffHeight = 0;
+  if (totalContainerHeight != nextStateData.totalContainerHeight_ || totalContainerWidth != nextStateData.totalContainerWidth_) {
+    nextStateData.totalContainerHeight_ = totalContainerHeight;
+    nextStateData.totalContainerWidth_ = totalContainerWidth;
 
     setStateData(std::move(nextStateData));
   }

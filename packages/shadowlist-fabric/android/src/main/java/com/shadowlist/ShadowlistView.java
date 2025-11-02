@@ -20,18 +20,6 @@ public class ShadowlistView extends ReactScrollView {
   private @Nullable StateWrapper _state = null;
   private ContentContainer _contentView = null;
 
-  /*
-   * Scroll Events → State (suspends sending scroll position to state)
-   * Scroll events don't update state when set to true
-   */
-  private boolean _suspenseMvcp = false;
-
-  /*
-   * State → Scroll Position (allows receiving scroll position from state)
-   * State can update scroll position when set to true
-   */
-  private boolean _suspenseScroll = true;
-
   private static class ContentContainer extends ViewGroup {
     public ContentContainer(Context context) {
       super(context);
@@ -75,15 +63,10 @@ public class ShadowlistView extends ReactScrollView {
   @Override
   protected void onScrollChanged(int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
     super.onScrollChanged(scrollX, scrollY, oldScrollX, oldScrollY);
-    _suspenseScroll = false;
     updateScrollState(scrollX, scrollY);
   }
 
   private void updateScrollState(int scrollX, int scrollY) {
-    if (_suspenseMvcp) {
-      return;
-    }
-
     if (_state == null) {
       return;
     }
@@ -142,7 +125,7 @@ public class ShadowlistView extends ReactScrollView {
       _contentView.layout(0, 0, newContentWidth, newContentHeight);
     }
 
-    if (_suspenseScroll && nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
+    if (nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
       float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
       float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
 
@@ -154,29 +137,9 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   public void prependElements(int size) {
-    _suspenseMvcp = true;
-    _suspenseScroll = true;
-
-    // Suspend state updates temporarily (for 1 frame) until mvcp adjustments are completed
-    postDelayed(new Runnable() {
-      @Override
-      public void run() {
-        _suspenseMvcp = false;
-      }
-    }, 16);
   }
 
   public void appendElements(int size) {
-    _suspenseMvcp = true;
-    _suspenseScroll = true;
-
-    // Suspend state updates temporarily (for 1 frame) until mvcp adjustments are completed
-    postDelayed(new Runnable() {
-      @Override
-      public void run() {
-        _suspenseMvcp = false;
-      }
-    }, 16);
   }
 
   public void setStartReachedEnabled(boolean enabled) {
