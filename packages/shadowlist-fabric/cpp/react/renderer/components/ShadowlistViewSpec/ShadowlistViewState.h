@@ -46,8 +46,7 @@ class ShadowlistViewState final {
     totalContainerHeight_(data.count("totalContainerHeight") ? (Float)data["totalContainerHeight"].getDouble() : previousState.totalContainerHeight_),
     totalContainerWidth_(data.count("totalContainerWidth") ? (Float)data["totalContainerWidth"].getDouble() : previousState.totalContainerWidth_),
     startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
-    endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_),
-    containerOffsetUpdated_(data.count("containerOffsetUpdated") ? data["containerOffsetUpdated"].getBool() : previousState.containerOffsetUpdated_)
+    endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_)
     {};
 
   /*
@@ -63,7 +62,6 @@ class ShadowlistViewState final {
     result["totalContainerWidth"] = totalContainerWidth_;
     result["startReachedEnabled"] = startReachedEnabled_;
     result["endReachedEnabled"] = endReachedEnabled_;
-    result["containerOffsetUpdated"] = containerOffsetUpdated_;
     return result;
   };
 #endif
@@ -76,7 +74,6 @@ class ShadowlistViewState final {
   double totalContainerWidth_{0.0};
   bool startReachedEnabled_{true};
   bool endReachedEnabled_{true};
-  bool containerOffsetUpdated_{false};
 };
 
 }

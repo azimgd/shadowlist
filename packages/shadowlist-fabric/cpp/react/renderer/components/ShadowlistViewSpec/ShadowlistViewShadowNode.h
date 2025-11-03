@@ -29,14 +29,24 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
 
 #pragma mark - LayoutableShadowNode
 
+  enum class ContainerSizeUpdateState {
+    INITIALIZED,
+    UPDATING,
+    UPDATED
+  };
+
   void layout(LayoutContext layoutContext) override;
 
   void setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager);
   void setVirtualizerManager(std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager);
+  void setContainerSizeUpdateState(std::shared_ptr<ContainerSizeUpdateState> state);
+  void setPrependElementsSize(std::shared_ptr<size_t> prependElementsSize);
 
   private:
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
   std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager_;
+  std::shared_ptr<ContainerSizeUpdateState> containerSizeUpdateState_;
+  std::shared_ptr<size_t> prependElementsSize_;
 };
 
 }

@@ -34,7 +34,6 @@ public:
 
   /*
    * Update measurements for existing element at specific index
-   * Adjusts mvcpDiff to maintain visible content position when element changes
    */
   static void updateElementAtIndex(Container* container, std::size_t index, Size size);
 

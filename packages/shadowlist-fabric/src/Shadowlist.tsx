@@ -65,8 +65,7 @@ export const inversionBasedUpdatingIndices = (
   }
 };
 
-export interface ShadowListCommands {
-}
+export interface ShadowListCommands {}
 
 export interface ShadowListProps<ItemT extends { id: string } = any> {
   data: ReadonlyArray<ItemT>;

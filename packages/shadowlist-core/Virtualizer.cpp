@@ -664,11 +664,6 @@ void Virtualizer::addElementAtIndex(Container* container, std::size_t index, std
     container->nextRevision.elements[nextElementIndex].index = nextElementIndex;
   }
 
-  if (index < container->nextRevision.elements.size() - 1) {
-    container->nextRevision.mvcpDiffWidth += (nextElement.width + nextElement.gapX);
-    container->nextRevision.mvcpDiffHeight += (nextElement.height + nextElement.gapY);
-  }
-
   if (container->nextRevision.measurementElementStartIndex != (std::size_t)-1) {
     if (index <= container->nextRevision.measurementElementStartIndex) {
       container->nextRevision.measurementElementStartIndex++;
@@ -718,14 +713,6 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
   double widthDiff = size.width - prevWidth;
   double heightDiff = size.height - prevHeight;
 
-  double containerOffset = container->getContainerOffset();
-  double elementOffset = container->horizontal ? nextElement.offsetX : nextElement.offsetY;
-
-  if (elementOffset < containerOffset) {
-    container->nextRevision.mvcpDiffWidth += widthDiff;
-    container->nextRevision.mvcpDiffHeight += heightDiff;
-  }
-
   if (container->nextRevision.averageElementHeight > 0) {
     container->nextRevision.measurementElementTotalHeight += heightDiff;
     container->nextRevision.measurementElementTotalWidth += widthDiff;
@@ -748,9 +735,6 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
 }
 
 void Virtualizer::prependElements(Container* container, std::size_t count) {
-  container->nextRevision.mvcpDiffHeight = 0;
-  container->nextRevision.mvcpDiffWidth = 0;
-
   for (std::size_t prevElementIndex = count; prevElementIndex-- > 0;) {
     addElementAtIndex(container, 0, prevElementIndex);
   }
@@ -787,9 +771,6 @@ void Virtualizer::prependElements(Container* container, std::size_t count) {
 }
 
 void Virtualizer::appendElements(Container* container, std::size_t count) {
-  container->nextRevision.mvcpDiffHeight = 0;
-  container->nextRevision.mvcpDiffWidth = 0;
-
   for (std::size_t prevElementIndex = 0; prevElementIndex < count; prevElementIndex++) {
     std::size_t insertIndex = container->nextRevision.elements.size();
     addElementAtIndex(container, insertIndex);

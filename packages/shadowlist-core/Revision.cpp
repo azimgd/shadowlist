@@ -41,8 +41,6 @@ std::string Revision::getDebugRepresentation(const RevisionDebugRepresentationMe
   json << "\"windowContainerWidth\":" << this->windowContainerWidth << ",";
   json << "\"totalContainerHeight\":" << this->totalContainerHeight << ",";
   json << "\"totalContainerWidth\":" << this->totalContainerWidth << ",";
-  json << "\"mvcpDiffHeight\":" << this->mvcpDiffHeight << ",";
-  json << "\"mvcpDiffWidth\":" << this->mvcpDiffWidth << ",";
 
   json << "\"elements\":[";
   for (size_t nextElementIndex = 0; nextElementIndex < this->elements.size(); ++nextElementIndex) {

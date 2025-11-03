@@ -5,8 +5,17 @@ namespace facebook::react {
 void ShadowlistViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager) {
   this->containerManager_ = containerManager;
 }
+
 void ShadowlistViewShadowNode::setVirtualizerManager(std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager) {
   this->virtualizerManager_ = virtualizerManager;
+}
+
+void ShadowlistViewShadowNode::setContainerSizeUpdateState(std::shared_ptr<ContainerSizeUpdateState> containerSizeUpdateState) {
+  this->containerSizeUpdateState_ = containerSizeUpdateState;
+}
+
+void ShadowlistViewShadowNode::setPrependElementsSize(std::shared_ptr<size_t> prependElementsSize) {
+  this->prependElementsSize_ = prependElementsSize;
 }
 
 void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
@@ -43,14 +52,13 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.totalContainerWidth_ = totalContainerWidth;
 
     setStateData(std::move(nextStateData));
-  }
 
-  /*
-   * Set initial scroll position for inverted lists
-   */
-  auto stateData = getStateData();
-  if (!stateData.containerOffsetUpdated_) {
-    if (getConcreteProps().inverted) {
+    /*
+     * Initial positioning for inverted lists
+     * Adjust scroll position until container dimensions stabilize
+     */
+    if (getConcreteProps().inverted && *this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED) {
+      auto stateData = getStateData();
       if (getConcreteProps().horizontal) {
         stateData.containerOffsetX_ = this->containerManager_->nextRevision.totalContainerWidth - getLayoutMetrics().frame.size.width;
       } else {
@@ -58,6 +66,30 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       }
 
       setStateData(std::move(stateData));
+    }
+
+    /*
+     * mvcp adjustment for prepended items
+     * Adjust scroll position to maintain visible content when items are prepended
+     */
+    if (*this->prependElementsSize_ > 0) {
+      auto element = this->containerManager_->getElementAtIndex(*this->prependElementsSize_);
+      auto stateData = getStateData();
+      if (this->containerManager_->horizontal) {
+        stateData.containerOffsetX_ += element.offsetX;
+      } else {
+        stateData.containerOffsetY_ += element.offsetY;
+      }
+      setStateData(std::move(stateData));
+      *this->prependElementsSize_ = 0;
+    }
+
+    if (*this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED) {
+      *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATING;
+    }
+  } else {
+    if (*this->containerSizeUpdateState_ == ContainerSizeUpdateState::UPDATING) {
+      *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATED;
     }
   }
 }

@@ -92,16 +92,6 @@ public:
   double totalContainerWidth = 0.0f;
 
   /*
-   * Maintain visible content position diff height
-   */
-  double mvcpDiffHeight = 0.0f;
-
-  /*
-   * Maintain visible content position diff width
-   */
-  double mvcpDiffWidth = 0.0f;
-
-  /*
    * Update containers window height
    */
   void setWindowContainerHeight(double windowContainerHeight);
