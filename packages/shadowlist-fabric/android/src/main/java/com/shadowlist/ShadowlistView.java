@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.util.AttributeSet;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -61,9 +62,27 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   @Override
+  public boolean onTouchEvent(MotionEvent event) {
+    if (event.getAction() == MotionEvent.ACTION_DOWN) {
+      setContainerOffsetUpdated(true);
+    }
+    return super.onTouchEvent(event);
+  }
+
+  @Override
   protected void onScrollChanged(int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
     super.onScrollChanged(scrollX, scrollY, oldScrollX, oldScrollY);
     updateScrollState(scrollX, scrollY);
+  }
+
+  private void setContainerOffsetUpdated(boolean updated) {
+    if (_state == null) {
+      return;
+    }
+
+    WritableMap map = new WritableNativeMap();
+    map.putBoolean("containerOffsetUpdated", updated);
+    _state.updateState(map);
   }
 
   private void updateScrollState(int scrollX, int scrollY) {

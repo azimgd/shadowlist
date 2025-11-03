@@ -66,7 +66,6 @@ export default function App() {
       isFromMe: true,
     };
     setData((prev) => [...prev, newMessage]);
-    shadowlistRef.current?.appendElements(1);
   };
 
   return (
@@ -84,6 +83,7 @@ export default function App() {
               isFromMe={item.isFromMe}
             />
           )}
+          inverted
         />
         <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
         <MessageInput onSend={handleSendMessage} />

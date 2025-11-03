@@ -92,6 +92,13 @@ using namespace facebook::react;
   _state->updateState(std::move(nextStateData));
 }
 
+- (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
+{
+  auto nextStateData = self->_state->getData();
+  nextStateData.containerOffsetUpdated_ = true;
+  _state->updateState(std::move(nextStateData));
+}
+
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
 {
   RCTShadowlistViewHandleCommand(self, commandName, args);

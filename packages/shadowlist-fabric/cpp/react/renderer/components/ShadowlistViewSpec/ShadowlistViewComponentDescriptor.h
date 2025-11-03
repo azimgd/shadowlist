@@ -93,7 +93,14 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     this->containerManager_->endRevision();
     
     if (this->elementsSizeDiff_ > 0) {
-      shadowlistViewStateData.containerOffsetY_ += this->containerManager_->getElementAtIndex(this->elementsSizeDiff_).offsetY;
+      auto element = this->containerManager_->getElementAtIndex(this->elementsSizeDiff_);
+
+      if (this->containerManager_->horizontal) {
+        shadowlistViewStateData.containerOffsetX_ += element.offsetX;
+      } else {
+        shadowlistViewStateData.containerOffsetY_ += element.offsetY;
+      }
+
       shadowlistViewState.updateState(std::move(shadowlistViewStateData));
       this->elementsSizeDiff_ = 0;
     }

@@ -755,9 +755,35 @@ void Virtualizer::prependElements(Container* container, std::size_t count) {
     addElementAtIndex(container, 0, prevElementIndex);
   }
 
-  auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
-  container->nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
-  container->nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
+  /*
+   * Horizontal: total width is last element's right edge, height is max element height
+   * Vertical: total height is last element's bottom edge, width is max element width
+   */
+  if (container->horizontal) {
+    auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
+    container->nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
+
+    double maxHeight = 0.0;
+    for (const auto& element : container->nextRevision.elements) {
+      double elementHeight = element.offsetY + element.height;
+      if (elementHeight > maxHeight) {
+        maxHeight = elementHeight;
+      }
+    }
+    container->nextRevision.totalContainerHeight = maxHeight;
+  } else {
+    auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
+    container->nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
+
+    double maxWidth = 0.0;
+    for (const auto& element : container->nextRevision.elements) {
+      double elementWidth = element.offsetX + element.width;
+      if (elementWidth > maxWidth) {
+        maxWidth = elementWidth;
+      }
+    }
+    container->nextRevision.totalContainerWidth = maxWidth;
+  }
 }
 
 void Virtualizer::appendElements(Container* container, std::size_t count) {
@@ -769,9 +795,35 @@ void Virtualizer::appendElements(Container* container, std::size_t count) {
     addElementAtIndex(container, insertIndex);
   }
 
-  auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
-  container->nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
-  container->nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
+  /*
+   * Horizontal: total width is last element's right edge, height is max element height
+   * Vertical: total height is last element's bottom edge, width is max element width
+   */
+  if (container->horizontal) {
+    auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
+    container->nextRevision.totalContainerWidth = lastElement.offsetX + lastElement.width;
+
+    double maxHeight = 0.0;
+    for (const auto& element : container->nextRevision.elements) {
+      double elementHeight = element.offsetY + element.height;
+      if (elementHeight > maxHeight) {
+        maxHeight = elementHeight;
+      }
+    }
+    container->nextRevision.totalContainerHeight = maxHeight;
+  } else {
+    auto lastElement = container->getElementAtIndex(container->nextRevision.elements.size() - 1);
+    container->nextRevision.totalContainerHeight = lastElement.offsetY + lastElement.height;
+
+    double maxWidth = 0.0;
+    for (const auto& element : container->nextRevision.elements) {
+      double elementWidth = element.offsetX + element.width;
+      if (elementWidth > maxWidth) {
+        maxWidth = elementWidth;
+      }
+    }
+    container->nextRevision.totalContainerWidth = maxWidth;
+  }
 }
 
 }

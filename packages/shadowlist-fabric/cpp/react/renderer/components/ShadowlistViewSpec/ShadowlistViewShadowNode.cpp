@@ -44,6 +44,22 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
 
     setStateData(std::move(nextStateData));
   }
+
+  /*
+   * Set initial scroll position for inverted lists
+   */
+  auto stateData = getStateData();
+  if (!stateData.containerOffsetUpdated_) {
+    if (getConcreteProps().inverted) {
+      if (getConcreteProps().horizontal) {
+        stateData.containerOffsetX_ = this->containerManager_->nextRevision.totalContainerWidth - getLayoutMetrics().frame.size.width;
+      } else {
+        stateData.containerOffsetY_ = this->containerManager_->nextRevision.totalContainerHeight - getLayoutMetrics().frame.size.height;
+      }
+
+      setStateData(std::move(stateData));
+    }
+  }
 }
 
 }
