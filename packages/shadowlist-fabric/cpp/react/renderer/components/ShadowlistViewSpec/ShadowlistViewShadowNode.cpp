@@ -18,6 +18,10 @@ void ShadowlistViewShadowNode::setPrependElementsSize(std::shared_ptr<size_t> pr
   this->prependElementsSize_ = prependElementsSize;
 }
 
+void ShadowlistViewShadowNode::setPrependElementsOffset(std::shared_ptr<double> prependElementsOffset) {
+  this->prependElementsOffset_ = prependElementsOffset;
+}
+
 void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
 
@@ -75,13 +79,16 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     if (*this->prependElementsSize_ > 0) {
       auto element = this->containerManager_->getElementAtIndex(*this->prependElementsSize_);
       auto stateData = getStateData();
+
       if (this->containerManager_->horizontal) {
-        stateData.containerOffsetX_ += element.offsetX;
+        stateData.containerOffsetX_ += element.offsetX - *this->prependElementsOffset_;
+        *this->prependElementsOffset_ = stateData.containerOffsetX_;
       } else {
-        stateData.containerOffsetY_ += element.offsetY;
+        stateData.containerOffsetY_ += element.offsetY - *this->prependElementsOffset_;
+        *this->prependElementsOffset_ = stateData.containerOffsetY_;
       }
+
       setStateData(std::move(stateData));
-      *this->prependElementsSize_ = 0;
     }
 
     if (*this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED) {
@@ -91,6 +98,9 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     if (*this->containerSizeUpdateState_ == ContainerSizeUpdateState::UPDATING) {
       *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATED;
     }
+
+    *this->prependElementsSize_ = 0;
+    *this->prependElementsOffset_ = 0;
   }
 }
 

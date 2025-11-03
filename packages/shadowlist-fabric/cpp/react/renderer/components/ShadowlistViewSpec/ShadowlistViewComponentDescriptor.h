@@ -20,6 +20,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     virtualizerManager_ = std::make_shared<azimgd::shadowlist::Virtualizer>();
     containerSizeUpdateState_ = std::make_shared<ShadowlistViewShadowNode::ContainerSizeUpdateState>(ShadowlistViewShadowNode::ContainerSizeUpdateState::INITIALIZED);
     prependElementsSize_ = std::make_shared<size_t>(0);
+    prependElementsOffset_ = std::make_shared<double>(0.0);
   };
 
   void adopt(ShadowNode& shadowNode) const override {
@@ -30,6 +31,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     shadowlistViewShadowNode.setVirtualizerManager(virtualizerManager_);
     shadowlistViewShadowNode.setContainerSizeUpdateState(containerSizeUpdateState_);
     shadowlistViewShadowNode.setPrependElementsSize(prependElementsSize_);
+    shadowlistViewShadowNode.setPrependElementsOffset(prependElementsOffset_);
     
     auto& shadowlistViewProps = static_cast<const ShadowlistViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
     auto& shadowlistViewState = static_cast<const ShadowlistViewShadowNode::ConcreteState&>(*shadowNode.getState());
@@ -120,6 +122,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
   std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager_;
   std::shared_ptr<ShadowlistViewShadowNode::ContainerSizeUpdateState> containerSizeUpdateState_;
   std::shared_ptr<size_t> prependElementsSize_;
+  std::shared_ptr<double> prependElementsOffset_;
 };
 
 
