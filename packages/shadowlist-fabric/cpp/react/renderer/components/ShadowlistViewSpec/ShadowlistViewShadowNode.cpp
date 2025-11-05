@@ -53,8 +53,13 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
        */
       LayoutMetrics layoutMetrics = elementViewNode->getLayoutMetrics();
 
-      layoutMetrics.frame.origin.y = this->containerManager_->getElementAtIndex(prevElementViewProps->index).offsetY;
-      layoutMetrics.frame.origin.x = this->containerManager_->getElementAtIndex(prevElementViewProps->index).offsetX;
+      if (getConcreteProps().horizontal) {
+        layoutMetrics.frame.origin.x = this->containerManager_->getElementAtIndex(prevElementViewProps->index).offsetX;
+        layoutMetrics.frame.origin.y = 0;
+      } else {
+        layoutMetrics.frame.origin.y = this->containerManager_->getElementAtIndex(prevElementViewProps->index).offsetY;
+        layoutMetrics.frame.origin.x = 0;
+      }
 
       elementViewNode->setLayoutMetrics(layoutMetrics);
       replaceChild(*getChildren()[i], elementViewNode);
