@@ -21,6 +21,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     containerSizeUpdateState_ = std::make_shared<ShadowlistViewShadowNode::ContainerSizeUpdateState>(ShadowlistViewShadowNode::ContainerSizeUpdateState::INITIALIZED);
     prependElementsSize_ = std::make_shared<size_t>(0);
     prependElementsOffset_ = std::make_shared<double>(0.0);
+    prependedElementsOffset_ = std::make_shared<double>(0.0);
   };
 
   void adopt(ShadowNode& shadowNode) const override {
@@ -32,6 +33,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     shadowlistViewShadowNode.setContainerSizeUpdateState(containerSizeUpdateState_);
     shadowlistViewShadowNode.setPrependElementsSize(prependElementsSize_);
     shadowlistViewShadowNode.setPrependElementsOffset(prependElementsOffset_);
+    shadowlistViewShadowNode.setPrependedElementsOffset(prependedElementsOffset_);
     
     auto& shadowlistViewProps = static_cast<const ShadowlistViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
     auto& shadowlistViewState = static_cast<const ShadowlistViewShadowNode::ConcreteState&>(*shadowNode.getState());
@@ -59,7 +61,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
 
       if (this->elementsHeadKey_.length() > 0 && this->elementsHeadKey_ != shadowlistViewProps.elementsHeadKey) {
         this->virtualizerManager_->prependElements(this->containerManager_.get(), prependElementsSize);
-        *this->prependElementsSize_ = prependElementsSize;
+        *this->prependElementsSize_ += prependElementsSize;
       } else if (this->elementsTailKey_.length() > 0  && this->elementsTailKey_ != shadowlistViewProps.elementsTailKey) {
         this->virtualizerManager_->appendElements(this->containerManager_.get(), prependElementsSize);
       } else {
@@ -123,6 +125,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
   std::shared_ptr<ShadowlistViewShadowNode::ContainerSizeUpdateState> containerSizeUpdateState_;
   std::shared_ptr<size_t> prependElementsSize_;
   std::shared_ptr<double> prependElementsOffset_;
+  std::shared_ptr<double> prependedElementsOffset_;
 };
 
 

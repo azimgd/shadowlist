@@ -22,6 +22,10 @@ void ShadowlistViewShadowNode::setPrependElementsOffset(std::shared_ptr<double> 
   this->prependElementsOffset_ = prependElementsOffset;
 }
 
+void ShadowlistViewShadowNode::setPrependedElementsOffset(std::shared_ptr<double> prependedElementsOffset) {
+  this->prependedElementsOffset_ = prependedElementsOffset;
+}
+
 void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
 
@@ -51,56 +55,51 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   auto totalContainerHeight = this->containerManager_->nextRevision.totalContainerHeight;
   auto totalContainerWidth = this->containerManager_->nextRevision.totalContainerWidth;
 
+  if (*this->prependElementsSize_ == 0) {
+    *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+  }
+
   if (totalContainerHeight != nextStateData.totalContainerHeight_ || totalContainerWidth != nextStateData.totalContainerWidth_) {
     nextStateData.totalContainerHeight_ = totalContainerHeight;
     nextStateData.totalContainerWidth_ = totalContainerWidth;
-
-    setStateData(std::move(nextStateData));
 
     /*
      * Initial positioning for inverted lists
      * Adjust scroll position until container dimensions stabilize
      */
     if (getConcreteProps().inverted && *this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED) {
-      auto stateData = getStateData();
       if (getConcreteProps().horizontal) {
-        stateData.containerOffsetX_ = this->containerManager_->nextRevision.totalContainerWidth - getLayoutMetrics().frame.size.width;
+        nextStateData.containerOffsetX_ = this->containerManager_->nextRevision.totalContainerWidth - getLayoutMetrics().frame.size.width;
       } else {
-        stateData.containerOffsetY_ = this->containerManager_->nextRevision.totalContainerHeight - getLayoutMetrics().frame.size.height;
+        nextStateData.containerOffsetY_ = this->containerManager_->nextRevision.totalContainerHeight - getLayoutMetrics().frame.size.height;
       }
-
-      setStateData(std::move(stateData));
     }
 
-    /*
-     * mvcp adjustment for prepended items
-     * Adjust scroll position to maintain visible content when items are prepended
-     */
     if (*this->prependElementsSize_ > 0) {
-      auto element = this->containerManager_->getElementAtIndex(*this->prependElementsSize_);
-      auto stateData = getStateData();
-
-      if (this->containerManager_->horizontal) {
-        stateData.containerOffsetX_ += element.offsetX - *this->prependElementsOffset_;
-        *this->prependElementsOffset_ = stateData.containerOffsetX_;
+      if (getConcreteProps().horizontal) {
+        nextStateData.containerOffsetX_ = *this->prependedElementsOffset_ + this->containerManager_->getElementAtIndex(*this->prependElementsSize_).offsetX;
       } else {
-        stateData.containerOffsetY_ += element.offsetY - *this->prependElementsOffset_;
-        *this->prependElementsOffset_ = stateData.containerOffsetY_;
+        nextStateData.containerOffsetY_ = *this->prependedElementsOffset_ + this->containerManager_->getElementAtIndex(*this->prependElementsSize_).offsetY;
       }
-
-      setStateData(std::move(stateData));
     }
 
-    if (*this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED) {
-      *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATING;
-    }
+    setStateData(std::move(nextStateData));
   } else {
-    if (*this->containerSizeUpdateState_ == ContainerSizeUpdateState::UPDATING) {
-      *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATED;
+    if (*this->containerSizeUpdateState_ == ContainerSizeUpdateState::INITIALIZED) {
+      if (this->containerManager_->getElementAtIndex(this->containerManager_->nextRevision.elements.size() - 1).measured) {
+        *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATED;
+      }
     }
+  }
 
-    *this->prependElementsSize_ = 0;
-    *this->prependElementsOffset_ = 0;
+  if (*this->prependElementsSize_ != 0) {
+    if (
+      this->containerManager_->getVisibleIndices().second > *this->prependElementsSize_ ||
+      this->containerManager_->getElementAtIndex(*this->prependElementsSize_ - 1).measured
+    ) {
+      *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+      *this->prependElementsSize_ = 0;
+    }
   }
 }
 

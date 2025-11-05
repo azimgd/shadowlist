@@ -51,6 +51,7 @@ std::string Revision::getDebugRepresentation(const RevisionDebugRepresentationMe
     json << "\"height\":" << elem.height << ",";
     json << "\"offsetX\":" << elem.offsetX << ",";
     json << "\"offsetY\":" << elem.offsetY << ",";
+    json << "\"estimated\":" << (elem.estimated ? "true" : "false");
     json << "\"measured\":" << (elem.measured ? "true" : "false");
     json << "}";
     if (nextElementIndex < this->elements.size() - 1) {

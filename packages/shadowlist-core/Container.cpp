@@ -117,7 +117,7 @@ void Container::addElementAtIndex(std::size_t index, Element nextElement) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  nextElement.measured = false;
+  nextElement.estimated = false;
   nextElement.width = 0;
   nextElement.height = 0;
   nextElement.offsetY = 0;

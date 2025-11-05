@@ -58,6 +58,11 @@ public:
   double gapY = 0.0f;
 
   /*
+   * Has element been estimated
+   */
+  bool estimated = false;
+
+  /*
    * Has element been measured
    */
   bool measured = false;

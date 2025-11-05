@@ -129,7 +129,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container) {
      * Running measurement is expensive,
      * hence we don't want to re-measure if we already have a cached value
      */
-    if (!prevElement.measured) {
+    if (!prevElement.estimated) {
       auto [width, height] = container->estimatedElementSize;
 
       /*
@@ -141,7 +141,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container) {
 
       nextElement.width = width;
       nextElement.height = height;
-      nextElement.measured = true;
+      nextElement.estimated = true;
     }
 
     /*
@@ -216,7 +216,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container) {
   for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
     Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
-    if (!nextElement.measured) {
+    if (!nextElement.estimated) {
       nextElement.width = container->nextRevision.averageElementWidth;
       nextElement.height = container->nextRevision.averageElementHeight;
     }
@@ -275,7 +275,7 @@ void Virtualizer::measureNextRevisionDefault(Container *container) {
      * Running measurement is expensive,
      * hence we don't want to re-measure if we already have a cached value
      */
-    if (!prevElement.measured) {
+    if (!prevElement.estimated) {
       auto [width, height] = container->estimatedElementSize;
 
       /*
@@ -287,7 +287,7 @@ void Virtualizer::measureNextRevisionDefault(Container *container) {
 
       nextElement.width = width;
       nextElement.height = height;
-      nextElement.measured = true;
+      nextElement.estimated = true;
     }
 
     /*
@@ -348,7 +348,7 @@ void Virtualizer::measureNextRevisionDefault(Container *container) {
   for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
     Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
-    if (!nextElement.measured) {
+    if (!nextElement.estimated) {
       nextElement.width = container->nextRevision.averageElementWidth;
       nextElement.height = container->nextRevision.averageElementHeight;
     }
@@ -398,7 +398,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container) {
      * Running measurement is expensive,
      * hence we don't want to re-measure if we already have a cached value
      */
-    if (!prevElement.measured) {
+    if (!prevElement.estimated) {
       auto [width, height] = container->estimatedElementSize;
 
       /*
@@ -410,7 +410,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container) {
 
       nextElement.width = width;
       nextElement.height = height;
-      nextElement.measured = true;
+      nextElement.estimated = true;
     }
 
     /*
@@ -485,7 +485,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container) {
   for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
     Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
-    if (!nextElement.measured) {
+    if (!nextElement.estimated) {
       nextElement.width = container->nextRevision.averageElementWidth;
       nextElement.height = container->nextRevision.averageElementHeight;
     }
@@ -544,7 +544,7 @@ void Virtualizer::measureNextRevisionInverted(Container *container) {
      * Running measurement is expensive,
      * hence we don't want to re-measure if we already have a cached value
      */
-    if (!prevElement.measured) {
+    if (!prevElement.estimated) {
       auto [width, height] = container->estimatedElementSize;
 
       /*
@@ -556,7 +556,7 @@ void Virtualizer::measureNextRevisionInverted(Container *container) {
 
       nextElement.width = width;
       nextElement.height = height;
-      nextElement.measured = true;
+      nextElement.estimated = true;
     }
 
     /*
@@ -617,7 +617,7 @@ void Virtualizer::measureNextRevisionInverted(Container *container) {
   for (std::size_t nextElementIndex = 0; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
     Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
-    if (!nextElement.measured) {
+    if (!nextElement.estimated) {
       nextElement.width = container->nextRevision.averageElementWidth;
       nextElement.height = container->nextRevision.averageElementHeight;
     }
@@ -650,11 +650,11 @@ void Virtualizer::addElementAtIndex(Container* container, std::size_t index, std
   if (width == 0.0 && height == 0.0) {
     nextElement.width = container->nextRevision.averageElementWidth;
     nextElement.height = container->nextRevision.averageElementHeight;
-    nextElement.measured = false;
+    nextElement.estimated = false;
   } else {
     nextElement.width = width;
     nextElement.height = height;
-    nextElement.measured = true;
+    nextElement.estimated = true;
   }
   nextElement.index = index;
 
@@ -708,6 +708,7 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
 
   nextElement.width = size.width;
   nextElement.height = size.height;
+  nextElement.estimated = true;
   nextElement.measured = true;
 
   double widthDiff = size.width - prevWidth;
