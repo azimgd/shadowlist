@@ -182,6 +182,7 @@ const styles = StyleSheet.create({
   item: {
     width: '100%',
     position: 'absolute',
+    opacity: 0,
   },
 });
 

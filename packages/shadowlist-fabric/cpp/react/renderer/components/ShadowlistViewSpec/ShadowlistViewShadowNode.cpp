@@ -30,17 +30,31 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
 
   /*
-   * Layoutable elements metrics adjustments
+   * Update layout metrics for all virtualized elements
    */
   layoutContext.affectedNodes->clear();
 
   for (size_t i = 0; i < getChildren().size(); i++) {
-    if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(getChildren()[i]->getProps())) {
-      auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(getChildren()[i]->clone({}));
+    if (const auto prevElementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(getChildren()[i]->getProps())) {
+      /*
+       * Set opacity to prevent visual flash when prepending items
+       * Without this, prepended elements briefly render at (0,0) before being positioned
+       */
+      auto nextElementViewProps = std::make_shared<ShadowlistElementViewProps>();
+      nextElementViewProps->opacity = 1;
+      nextElementViewProps->index = prevElementViewProps->index;
+
+      auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(getChildren()[i]->clone({
+        .props = nextElementViewProps
+      }));
+
+      /*
+       * Apply pre-calculated positions from the virtualizer
+       */
       LayoutMetrics layoutMetrics = elementViewNode->getLayoutMetrics();
 
-      layoutMetrics.frame.origin.y = this->containerManager_->getElementAtIndex(elementViewProps->index).offsetY;
-      layoutMetrics.frame.origin.x = this->containerManager_->getElementAtIndex(elementViewProps->index).offsetX;
+      layoutMetrics.frame.origin.y = this->containerManager_->getElementAtIndex(prevElementViewProps->index).offsetY;
+      layoutMetrics.frame.origin.x = this->containerManager_->getElementAtIndex(prevElementViewProps->index).offsetX;
 
       elementViewNode->setLayoutMetrics(layoutMetrics);
       replaceChild(*getChildren()[i], elementViewNode);
@@ -49,7 +63,7 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
-   * State updates
+   * Update container state and handle scroll offset adjustments
    */
   auto nextStateData = getStateData();
   auto totalContainerHeight = this->containerManager_->nextRevision.totalContainerHeight;
@@ -64,8 +78,8 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.totalContainerWidth_ = totalContainerWidth;
 
     /*
-     * Initial positioning for inverted lists
-     * Adjust scroll position until container dimensions stabilize
+     * Position inverted lists at the bottom/right initially, adjusting scroll offset
+     * as container dimensions stabilize during measurement
      */
     if (getConcreteProps().inverted && *this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED) {
       if (getConcreteProps().horizontal) {
@@ -75,6 +89,9 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       }
     }
 
+    /*
+     * Adjust scroll position to keep content visible when prepending elements
+     */
     if (*this->prependElementsSize_ > 0) {
       if (getConcreteProps().horizontal) {
         nextStateData.containerOffsetX_ = *this->prependedElementsOffset_ + this->containerManager_->getElementAtIndex(*this->prependElementsSize_).offsetX;
@@ -91,12 +108,26 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       }
     }
   }
-
+  
+  /*
+   * Reset prepend offset tracking once items are measured and positioned
+   * This typically happens on the next render after prepended items have been laid out
+   */
   if (*this->prependElementsSize_ != 0) {
     if (
+      getConcreteProps().inverted && (
       this->containerManager_->getVisibleIndices().second > *this->prependElementsSize_ ||
       this->containerManager_->getElementAtIndex(*this->prependElementsSize_ - 1).measured
-    ) {
+    )) {
+      *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+      *this->prependElementsSize_ = 0;
+    }
+
+    if (
+      !getConcreteProps().inverted && (
+      this->containerManager_->getVisibleIndices().first > *this->prependElementsSize_ ||
+      this->containerManager_->getElementAtIndex(*this->prependElementsSize_ - 1).measured
+    )) {
       *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
       *this->prependElementsSize_ = 0;
     }
