@@ -73,6 +73,7 @@ export interface ShadowListProps<ItemT extends { id: string } = any> {
   style?: ViewStyle;
   itemStyle?: ViewStyle;
   inverted?: boolean;
+  horizontal?: boolean;
   ref?: Ref<ShadowListCommands>;
   onStartReached?: () => void;
   onEndReached?: () => void;
@@ -84,6 +85,7 @@ function ShadowList<ItemT extends { id: string } = any>({
   style,
   itemStyle,
   inverted = false,
+  horizontal = false,
   ref,
   onStartReached,
   onEndReached,
@@ -152,7 +154,7 @@ function ShadowList<ItemT extends { id: string } = any>({
       elementsHeadKey={elementsHeadKey}
       elementsTailKey={elementsTailKey}
       inverted={inverted}
-      horizontal={false}
+      horizontal={horizontal}
       onStartReached={onStartReached}
       onEndReached={onEndReached}
     >

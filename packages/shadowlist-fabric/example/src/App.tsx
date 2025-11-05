@@ -84,6 +84,7 @@ export default function App() {
             />
           )}
           inverted
+          horizontal
         />
         <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
         <MessageInput onSend={handleSendMessage} />

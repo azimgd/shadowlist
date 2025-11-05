@@ -70,7 +70,11 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   auto totalContainerWidth = this->containerManager_->nextRevision.totalContainerWidth;
 
   if (*this->prependElementsSize_ == 0) {
-    *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+    if (getConcreteProps().horizontal) {
+      *this->prependedElementsOffset_ = nextStateData.containerOffsetX_;
+    } else {
+      *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+    }
   }
 
   if (totalContainerHeight != nextStateData.totalContainerHeight_ || totalContainerWidth != nextStateData.totalContainerWidth_) {
@@ -119,7 +123,11 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       this->containerManager_->getVisibleIndices().second > *this->prependElementsSize_ ||
       this->containerManager_->getElementAtIndex(*this->prependElementsSize_ - 1).measured
     )) {
-      *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+      if (getConcreteProps().horizontal) {
+        *this->prependedElementsOffset_ = nextStateData.containerOffsetX_;
+      } else {
+        *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+      }
       *this->prependElementsSize_ = 0;
     }
 
@@ -128,7 +136,11 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       this->containerManager_->getVisibleIndices().first > *this->prependElementsSize_ ||
       this->containerManager_->getElementAtIndex(*this->prependElementsSize_ - 1).measured
     )) {
-      *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+      if (getConcreteProps().horizontal) {
+        *this->prependedElementsOffset_ = nextStateData.containerOffsetX_;
+      } else {
+        *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
+      }
       *this->prependElementsSize_ = 0;
     }
   }
