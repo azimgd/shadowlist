@@ -2340,7 +2340,7 @@ PODS:
     - React-perflogger (= 0.81.1)
     - React-utils (= 0.81.1)
     - SocketRocket
-  - Shadowlist (0.4.28):
+  - Shadowlist (0.4.29):
     - boost
     - DoubleConversion
     - fast_float
@@ -2673,7 +2673,7 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 448b422f8af1dedf81374eacc90a15439a0ed7f5
   ReactCodegen: 3baedb0c33f963250c866151b825a3c5194b12f1
   ReactCommon: e897f9a1b4afab370cfefaaf5fb3c80371bc3937
-  Shadowlist: 56148db7719343bc9568ff346542aa087a50aeaf
+  Shadowlist: fff6136b2eca32ea1d9c7be928337961aa3a0df0
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 11c9686a21e2cd82a094a723649d9f4507200fb0
 
