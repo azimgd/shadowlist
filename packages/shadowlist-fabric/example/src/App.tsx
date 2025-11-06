@@ -83,8 +83,6 @@ export default function App() {
               isFromMe={item.isFromMe}
             />
           )}
-          inverted
-          horizontal
         />
         <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
         <MessageInput onSend={handleSendMessage} />
