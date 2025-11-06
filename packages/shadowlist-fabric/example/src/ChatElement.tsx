@@ -1,11 +1,12 @@
 import { memo, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 
-interface HeavyListItemProps {
+interface ChatElementProps {
   id: string;
   index: number;
   text: string;
   isFromMe: boolean;
+  imageUrl?: string;
 }
 
 const AVATAR_COLORS = [
@@ -13,7 +14,7 @@ const AVATAR_COLORS = [
   '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B195', '#C06C84',
 ];
 
-export const HeavyListItem = memo(({ id, index, text, isFromMe }: HeavyListItemProps) => {
+export const ChatElement = memo(({ id, index, text, isFromMe, imageUrl }: ChatElementProps) => {
   const avatarColor = useMemo(() => {
     return AVATAR_COLORS[index % AVATAR_COLORS.length];
   }, [index]);
@@ -33,6 +34,15 @@ export const HeavyListItem = memo(({ id, index, text, isFromMe }: HeavyListItemP
         <Text style={[styles.text, isFromMe ? styles.textFromMe : styles.textFromThem]}>
           {index}. {text}
         </Text>
+        {imageUrl && (
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          </View>
+        )}
         <Text style={styles.timestamp}>
           {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </Text>
@@ -98,5 +108,18 @@ const styles = StyleSheet.create({
     marginTop: 4,
     opacity: 0.5,
     color: '#FFFFFF',
+  },
+  imageContainer: {
+    width: '100%',
+    height: 150,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#2F3336',
+    marginTop: 8,
+  },
+  image: {
+    width: '100%',
+    height: '115%',
+    marginTop: 0,
   },
 });

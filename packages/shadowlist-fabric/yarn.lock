@@ -10148,6 +10148,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-freeze@npm:^1.0.0":
+  version: 1.0.4
+  resolution: "react-freeze@npm:1.0.4"
+  peerDependencies:
+    react: ">=17.0.0"
+  checksum: 6b4d93209dff04a1f25d9f8e0c56a9a8a80e7889e8e8267299f34449c7e41a9ab90cad24569d03dd7173b56b7496576dba68f71f1d4e5c8be72f0633023668bc
+  languageName: node
+  linkType: hard
+
 "react-is@npm:^16.13.1":
   version: 16.13.1
   resolution: "react-is@npm:16.13.1"
@@ -10159,6 +10168,20 @@ __metadata:
   version: 18.3.1
   resolution: "react-is@npm:18.3.1"
   checksum: e20fe84c86ff172fc8d898251b7cc2c43645d108bf96d0b8edf39b98f9a2cae97b40520ee7ed8ee0085ccc94736c4886294456033304151c3f94978cec03df21
+  languageName: node
+  linkType: hard
+
+"react-native-bottom-tabs@npm:^1.0.2":
+  version: 1.0.2
+  resolution: "react-native-bottom-tabs@npm:1.0.2"
+  dependencies:
+    react-freeze: ^1.0.0
+    sf-symbols-typescript: ^2.0.0
+    use-latest-callback: ^0.2.1
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 2857569c6873d8fe973e844a25c19a4546b8f2d546c410985c1d31574b1401701e4d7063d174ca8600b3040a0bd2505d5cdddacee8da2db02a41e9b866b98f60
   languageName: node
   linkType: hard
 
@@ -10213,28 +10236,6 @@ __metadata:
   checksum: f346615d5f8f26c0c8459d29c149ea3f66684b8ae79cea6fd48d118d039851a69a92955d67b455d0e7ab46639155c4357ebf58ec1859b2377ee459e2a04b602b
   languageName: node
   linkType: hard
-
-"shadowlist-example@workspace:example":
-  version: 0.0.0-use.local
-  resolution: "shadowlist-example@workspace:example"
-  dependencies:
-    "@babel/core": ^7.25.2
-    "@babel/preset-env": ^7.25.3
-    "@babel/runtime": ^7.25.0
-    "@react-native-community/cli": 20.0.0
-    "@react-native-community/cli-platform-android": 20.0.0
-    "@react-native-community/cli-platform-ios": 20.0.0
-    "@react-native/babel-preset": 0.81.1
-    "@react-native/metro-config": 0.81.1
-    "@react-native/typescript-config": 0.81.1
-    "@types/react": ^19.1.0
-    react: 19.1.0
-    react-native: 0.81.1
-    react-native-builder-bob: ^0.40.13
-    react-native-monorepo-config: ^0.1.9
-    react-native-safe-area-context: ^5.6.1
-  languageName: unknown
-  linkType: soft
 
 "react-native@npm:0.81.1":
   version: 0.81.1
@@ -10819,6 +10820,36 @@ __metadata:
   checksum: be18cbbf70e7d8097c97f713a2e76edf84e87299b40d085c6bf8b65314e994cc15e2e317727342fa6996e38e1f52c59720b53fe621e2eb593a6847bf0356db89
   languageName: node
   linkType: hard
+
+"sf-symbols-typescript@npm:^2.0.0":
+  version: 2.1.0
+  resolution: "sf-symbols-typescript@npm:2.1.0"
+  checksum: 63ddd79f660268e82889618bcf73d111e013b11d8795c6c89232c21b6770e58a37c7e103590caa4d2a6077b1e211fbaeaf39b665cfaf25f5507e03365e0faebe
+  languageName: node
+  linkType: hard
+
+"shadowlist-example@workspace:example":
+  version: 0.0.0-use.local
+  resolution: "shadowlist-example@workspace:example"
+  dependencies:
+    "@babel/core": ^7.25.2
+    "@babel/preset-env": ^7.25.3
+    "@babel/runtime": ^7.25.0
+    "@react-native-community/cli": 20.0.0
+    "@react-native-community/cli-platform-android": 20.0.0
+    "@react-native-community/cli-platform-ios": 20.0.0
+    "@react-native/babel-preset": 0.81.1
+    "@react-native/metro-config": 0.81.1
+    "@react-native/typescript-config": 0.81.1
+    "@types/react": ^19.1.0
+    react: 19.1.0
+    react-native: 0.81.1
+    react-native-bottom-tabs: ^1.0.2
+    react-native-builder-bob: ^0.40.13
+    react-native-monorepo-config: ^0.1.9
+    react-native-safe-area-context: ^5.6.1
+  languageName: unknown
+  linkType: soft
 
 "shadowlist@workspace:.":
   version: 0.0.0-use.local
@@ -11867,6 +11898,15 @@ __metadata:
   version: 5.0.0
   resolution: "url-join@npm:5.0.0"
   checksum: 5921384a8ad4395b49ce4b50aa26efbc429cebe0bc8b3660ad693dd12fd859747b5369be0443e60e53a7850b2bc9d7d0687bcb94386662b40e743596bbf38101
+  languageName: node
+  linkType: hard
+
+"use-latest-callback@npm:^0.2.1":
+  version: 0.2.6
+  resolution: "use-latest-callback@npm:0.2.6"
+  peerDependencies:
+    react: ">=16.8"
+  checksum: 67a245bf91b23ef0d2d2c8a52845da62e006867bd9d93a99ca4d2f859101fcd54c7afd4f5a3b8bb5d24283f516e7e41bd8226250ee39affc33bd1cfd622a5cfb
   languageName: node
   linkType: hard
 

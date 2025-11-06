@@ -36,6 +36,10 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
   };
 
   void layout(LayoutContext layoutContext) override;
+  void replaceChild(
+    const ShadowNode& prevElementShadowNode,
+    const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
+    size_t suggestedIndex = SIZE_MAX) override;
 
   void setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager);
   void setVirtualizerManager(std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager);

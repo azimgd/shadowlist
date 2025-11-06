@@ -151,4 +151,22 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
 }
 
+void ShadowlistViewShadowNode::replaceChild(
+  const ShadowNode& prevElementShadowNode,
+  const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
+  size_t suggestedIndex) {
+
+  if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(nextElementShadowNode->getProps())) {
+    const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
+    const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
+
+    this->virtualizerManager_->updateElementAtIndex(
+      this->containerManager_.get(),
+      elementViewProps->index,
+      { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
+  }
+
+  YogaLayoutableShadowNode::replaceChild(prevElementShadowNode, nextElementShadowNode, suggestedIndex);
+}
+
 }

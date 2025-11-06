@@ -108,21 +108,6 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     shadowlistCoreSharedInstance.containerManager->setWindowContainerWidth(shadowlistViewLayoutMetrics.frame.size.width);
     shadowlistCoreSharedInstance.containerManager->setWindowContainerHeight(shadowlistViewLayoutMetrics.frame.size.height);
 
-    /*
-     * Revision elements metrics adjustments
-     */
-    for (size_t i = 0; i < shadowlistViewChildren.size(); i++) {
-      if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(shadowlistViewChildren[i]->getProps())) {
-        const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(shadowlistViewChildren[i]);
-        const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
-
-        shadowlistCoreSharedInstance.virtualizerManager->updateElementAtIndex(
-          shadowlistCoreSharedInstance.containerManager.get(),
-          elementViewProps->index,
-          { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
-      }
-    }
-
     shadowlistCoreSharedInstance.virtualizerManager->measure(shadowlistCoreSharedInstance.containerManager.get());
     shadowlistCoreSharedInstance.containerManager->endRevision();
 
