@@ -26,6 +26,10 @@ void ShadowlistViewShadowNode::setPrependedElementsOffset(std::shared_ptr<double
   this->prependedElementsOffset_ = prependedElementsOffset;
 }
 
+void ShadowlistViewShadowNode::setMeasuredElementsSize(std::shared_ptr<double> measuredElementsSize) {
+  this->measuredElementsSize_ = measuredElementsSize;
+}
+
 void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
 
@@ -108,6 +112,14 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
         nextStateData.containerOffsetY_ = *this->prependedElementsOffset_ + this->containerManager_->getElementAtIndex(*this->prependElementsSize_).offsetY;
       }
     }
+    
+    if (getConcreteProps().inverted) {
+      if (getConcreteProps().horizontal) {
+        nextStateData.containerOffsetX_ += *this->measuredElementsSize_;
+      } else {
+        nextStateData.containerOffsetY_ += *this->measuredElementsSize_;
+      }
+    }
 
     setStateData(std::move(nextStateData));
   } else {
@@ -149,6 +161,11 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       *this->prependElementsSize_ = 0;
     }
   }
+  
+  /*
+   * Reset measured elements size after applying to all elements
+   */
+  *this->measuredElementsSize_ = 0.0;
 }
 
 void ShadowlistViewShadowNode::replaceChild(
@@ -160,10 +177,28 @@ void ShadowlistViewShadowNode::replaceChild(
     const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
     const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
 
+    /*
+     * Get the old size before updating to calculate size difference
+     */
+    const auto prevElement = this->containerManager_->getElementAtIndex(elementViewProps->index);
+    const auto prevSize = this->containerManager_->getElementSize(elementViewProps->index);
+
     this->virtualizerManager_->updateElementAtIndex(
       this->containerManager_.get(),
       elementViewProps->index,
       { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
+
+    /*
+     * Calculate size difference and accumulate for scroll offset adjustment
+     */
+    double sizeDifference;
+    if (getConcreteProps().horizontal) {
+      sizeDifference = elementViewNodeSize.width - prevSize;
+    } else {
+      sizeDifference = elementViewNodeSize.height - prevSize;
+    }
+
+    *this->measuredElementsSize_ += sizeDifference;
   }
 
   YogaLayoutableShadowNode::replaceChild(prevElementShadowNode, nextElementShadowNode, suggestedIndex);

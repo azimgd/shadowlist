@@ -17,6 +17,7 @@ struct ShadowlistCoreSharedInstance {
   std::shared_ptr<size_t> prependElementsSize;
   std::shared_ptr<double> prependElementsOffset;
   std::shared_ptr<double> prependedElementsOffset;
+  std::shared_ptr<double> measuredElementsSize;
   std::string elementsHeadKey;
   std::string elementsTailKey;
   int prevVisibleStartIndex = -1;
@@ -49,6 +50,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
       shadowlistCoreSharedInstance.prependElementsSize = std::make_shared<size_t>(0);
       shadowlistCoreSharedInstance.prependElementsOffset = std::make_shared<double>(0.0);
       shadowlistCoreSharedInstance.prependedElementsOffset = std::make_shared<double>(0.0);
+      shadowlistCoreSharedInstance.measuredElementsSize = std::make_shared<double>(0.0);
       shadowlistCoreSharedInstances_[tag] = shadowlistCoreSharedInstance;
     }
 
@@ -60,6 +62,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     shadowlistViewShadowNode.setPrependElementsSize(shadowlistCoreSharedInstance.prependElementsSize);
     shadowlistViewShadowNode.setPrependElementsOffset(shadowlistCoreSharedInstance.prependElementsOffset);
     shadowlistViewShadowNode.setPrependedElementsOffset(shadowlistCoreSharedInstance.prependedElementsOffset);
+    shadowlistViewShadowNode.setMeasuredElementsSize(shadowlistCoreSharedInstance.measuredElementsSize);
 
     auto& shadowlistViewProps = static_cast<const ShadowlistViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
     auto& shadowlistViewState = static_cast<const ShadowlistViewShadowNode::ConcreteState&>(*shadowNode.getState());

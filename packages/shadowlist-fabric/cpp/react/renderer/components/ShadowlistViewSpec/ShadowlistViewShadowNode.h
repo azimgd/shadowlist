@@ -47,6 +47,7 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
   void setPrependElementsSize(std::shared_ptr<size_t> prependElementsSize);
   void setPrependElementsOffset(std::shared_ptr<double> prependElementsOffset);
   void setPrependedElementsOffset(std::shared_ptr<double> prependedElementsOffset);
+  void setMeasuredElementsSize(std::shared_ptr<double> measuredElementsSize);
 
   private:
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
@@ -55,6 +56,7 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
   std::shared_ptr<size_t> prependElementsSize_;
   std::shared_ptr<double> prependElementsOffset_;
   std::shared_ptr<double> prependedElementsOffset_;
+  std::shared_ptr<double> measuredElementsSize_;
 };
 
 }
