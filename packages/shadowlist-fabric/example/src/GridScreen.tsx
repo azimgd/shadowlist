@@ -2,27 +2,27 @@ import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowListCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
-import { FeedElement, type FeedElement as FeedElementType } from './FeedElement';
-import { generateFeedElement } from './constants';
+import { GridElement, type GridElement as GridElementType } from './GridElement';
+import { generateGridElement } from './constants';
 
-export const FeedScreen = () => {
+export const GridScreen = () => {
   const shadowlistRef = useRef<ShadowListCommands>(null);
-  const [data, setData] = useState<FeedElementType[]>(() =>
-    Array.from({ length: 1000 }, (_, index) => generateFeedElement(index))
+  const [data, setData] = useState<GridElementType[]>(() =>
+    Array.from({ length: 20 }, (_, index) => generateGridElement(index))
   );
 
   const handlePrepend = () => {
     const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      generateFeedElement(currentLength + index)
+    const newElements = Array.from({ length: 5 }, (_, index) =>
+      generateGridElement(currentLength + index)
     );
     setData((prev) => [...newElements, ...prev]);
   };
 
   const handleAppend = () => {
     const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      generateFeedElement(currentLength + index)
+    const newElements = Array.from({ length: 5 }, (_, index) =>
+      generateGridElement(currentLength + index)
     );
     setData((prev) => [...prev, ...newElements]);
   };
@@ -34,7 +34,7 @@ export const FeedScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         renderItem={({ item: element, index }) => (
-          <FeedElement element={element} index={index} />
+          <GridElement element={element} index={index} />
         )}
       />
       <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
@@ -50,5 +50,6 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     backgroundColor: '#000000',
+    height: 300,
   },
 });

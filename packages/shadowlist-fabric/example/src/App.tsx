@@ -3,10 +3,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TabView, { SceneMap } from 'react-native-bottom-tabs';
 import { FeedScreen } from './FeedScreen';
 import { ChatScreen } from './ChatScreen';
+import { GridScreen } from './GridScreen';
 
 const renderScene = SceneMap({
   feed: FeedScreen,
   chat: ChatScreen,
+  grid: GridScreen,
 });
 
 export default function App() {
@@ -22,6 +24,11 @@ export default function App() {
       title: 'Chat',
       focusedIcon: { sfSymbol: 'message.fill' },
     },
+    {
+      key: 'grid',
+      title: 'Grid',
+      focusedIcon: { sfSymbol: 'square.grid.2x2.fill' },
+    },
   ]);
 
   return (
@@ -32,7 +39,7 @@ export default function App() {
         onIndexChange={setIndex}
         labeled
         tabBarInactiveTintColor="#333333"
-        tabBarActiveTintColor="#000000"
+        tabBarActiveTintColor="#FF9500"
         tabBarStyle={{ backgroundColor: '#00000090' }}
       />
     </SafeAreaProvider>

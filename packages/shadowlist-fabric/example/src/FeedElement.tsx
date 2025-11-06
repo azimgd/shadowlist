@@ -1,19 +1,15 @@
 import { memo, useMemo } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, StyleSheet } from 'react-native';
+import { AVATAR_COLORS } from './constants';
 
 export interface FeedElement {
   id: string;
   username: string;
   handle: string;
   text: string;
-  imageUrl: string;
+  imageUrls: string[];
   timestamp: string;
 }
-
-const AVATAR_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
-  '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B195', '#C06C84',
-];
 
 interface FeedElementProps {
   element: FeedElement;
@@ -37,13 +33,32 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
           <Text style={styles.timestamp}>· {element.timestamp}</Text>
         </View>
         <Text style={styles.tweetText}>{element.text}</Text>
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: element.imageUrl }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-        </View>
+        {element.imageUrls.length === 1 ? (
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: element.imageUrls[0] }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.imageScrollView}
+            contentContainerStyle={styles.imageScrollContent}
+          >
+            {element.imageUrls.map((imageUrl, elementIndex) => (
+              <View key={elementIndex} style={styles.multiImageContainer}>
+                <Image
+                  source={{ uri: imageUrl }}
+                  style={styles.multiImage}
+                  resizeMode="cover"
+                />
+              </View>
+            ))}
+          </ScrollView>
+        )}
       </View>
     </View>
   );
@@ -107,6 +122,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#2F3336',
   },
   image: {
+    width: '100%',
+    height: '115%',
+    marginTop: 0,
+  },
+  imageScrollView: {
+    marginHorizontal: -4,
+  },
+  imageScrollContent: {
+    paddingHorizontal: 4,
+  },
+  multiImageContainer: {
+    width: 280,
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#2F3336',
+    marginHorizontal: 4,
+  },
+  multiImage: {
     width: '100%',
     height: '115%',
     marginTop: 0,
