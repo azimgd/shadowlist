@@ -36,6 +36,7 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
   };
 
   void layout(LayoutContext layoutContext) override;
+  void appendChild(const std::shared_ptr<const ShadowNode>& nextElementShadowNode) override;
   void replaceChild(
     const ShadowNode& prevElementShadowNode,
     const std::shared_ptr<const ShadowNode>& nextElementShadowNode,

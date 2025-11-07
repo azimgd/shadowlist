@@ -77,6 +77,9 @@ export interface ShadowListProps<ElementT extends { id: string } = any> {
   ref?: Ref<ShadowListCommands>;
   onStartReached?: () => void;
   onEndReached?: () => void;
+  ListHeaderComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
 }
 
 function ShadowList<ElementT extends { id: string } = any>({
@@ -89,6 +92,9 @@ function ShadowList<ElementT extends { id: string } = any>({
   ref,
   onStartReached,
   onEndReached,
+  ListHeaderComponent,
+  ListFooterComponent,
+  ListEmptyComponent,
 }: ShadowListProps<ElementT>) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
     null
@@ -150,9 +156,34 @@ function ShadowList<ElementT extends { id: string } = any>({
     [visibleIndices]
   );
 
-  const elementsAllKeys = useMemo(() => data.map((element) => element.id), [data]);
+  const elementsAllKeys = useMemo(
+    () => data.map((element) => element.id),
+    [data]
+  );
   const elementsHeadKey = useMemo(() => data.at(0)?.id, [data]);
   const elementsTailKey = useMemo(() => data.at(-1)?.id, [data]);
+
+  const renderComponent = (
+    component: ReactElement | (() => ReactElement | null) | null | undefined
+  ): ReactElement | null => {
+    if (!component) return null;
+    return typeof component === 'function' ? component() : component;
+  };
+
+  const header = useMemo(
+    () => renderComponent(inverted ? ListFooterComponent : ListHeaderComponent),
+    [inverted, ListHeaderComponent, ListFooterComponent]
+  );
+
+  const footer = useMemo(
+    () => renderComponent(inverted ? ListHeaderComponent : ListFooterComponent),
+    [inverted, ListHeaderComponent, ListFooterComponent]
+  );
+
+  const empty = useMemo(
+    () => renderComponent(ListEmptyComponent),
+    [ListEmptyComponent]
+  );
 
   return (
     <ShadowlistView
@@ -167,21 +198,25 @@ function ShadowList<ElementT extends { id: string } = any>({
       onStartReached={onStartReached}
       onEndReached={onEndReached}
     >
-      {visibleRange.map((index) => {
-        const element = data[index];
+      {header}
+      {data.length === 0
+        ? empty
+        : visibleRange.map((index) => {
+            const element = data[index];
 
-        if (!element) return null;
+            if (!element) return null;
 
-        return (
-          <ShadowlistElementView
-            index={index}
-            style={elementBaseStyle}
-            key={element.id}
-          >
-            {renderElement({ element, index })}
-          </ShadowlistElementView>
-        );
-      })}
+            return (
+              <ShadowlistElementView
+                index={index}
+                style={elementBaseStyle}
+                key={element.id}
+              >
+                {renderElement({ element, index })}
+              </ShadowlistElementView>
+            );
+          })}
+      {footer}
     </ShadowlistView>
   );
 }

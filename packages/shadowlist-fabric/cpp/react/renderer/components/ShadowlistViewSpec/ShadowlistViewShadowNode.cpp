@@ -158,6 +158,10 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   *this->measuredElementsSize_ = 0.0;
 }
 
+void ShadowlistViewShadowNode::appendChild(const std::shared_ptr<const ShadowNode>& nextElementShadowNode) {
+  YogaLayoutableShadowNode::appendChild(nextElementShadowNode);
+}
+
 void ShadowlistViewShadowNode::replaceChild(
   const ShadowNode& prevElementShadowNode,
   const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
