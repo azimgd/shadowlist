@@ -177,7 +177,7 @@ void Virtualizer::measureFirstRevisionDefault(Container *container) {
     nextElementsIndices.push_back(nextElementIndex);
 
     /*
-     * Stop measuring if we measured enough items to display in a visible window
+     * Stop measuring if we measured enough elements to display in a visible window
      */
     if (!container->horizontal && accumulatedHeight >= container->nextRevision.windowContainerHeight) {
       break;
@@ -446,7 +446,7 @@ void Virtualizer::measureFirstRevisionInverted(Container *container) {
     nextElementsIndices.push_back(nextElementIndex);
 
     /*
-     * Stop measuring if we measured enough items to display in a visible window
+     * Stop measuring if we measured enough elements to display in a visible window
      */
     if (!container->horizontal && accumulatedHeight >= container->nextRevision.windowContainerHeight) {
       break;

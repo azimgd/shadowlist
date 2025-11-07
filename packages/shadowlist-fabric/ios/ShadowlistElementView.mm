@@ -34,6 +34,16 @@ using namespace facebook::react;
   return self;
 }
 
+- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+{
+  [_view insertSubview:childComponentView atIndex:index];
+}
+
+- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+{
+  [childComponentView removeFromSuperview];
+}
+
 Class<RCTComponentViewProtocol> ShadowlistElementViewCls(void)
 {
   return ShadowlistElementView.class;

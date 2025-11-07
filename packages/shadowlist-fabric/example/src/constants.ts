@@ -1,5 +1,5 @@
 import type { FeedElement } from './FeedElement';
-import type { GridElement, GridItem } from './GridElement';
+import type { GridElement, GridElementChild } from './GridElement';
 
 export const AVATAR_COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -169,7 +169,7 @@ export function generateFeedElement(index: number): FeedElement {
   };
 }
 
-export function generateGridItem(imageIndex: number): GridItem {
+export function generateGridElementChild(imageIndex: number): GridElementChild {
   const originalImageUrl = IMAGES[imageIndex % IMAGES.length]!;
 
   return {
@@ -180,16 +180,16 @@ export function generateGridItem(imageIndex: number): GridItem {
 }
 
 export function generateGridElement(rowIndex: number): GridElement {
-  const itemsPerRow = 10;
-  const items: GridItem[] = [];
+  const elementsPerRow = 10;
+  const elements: GridElementChild[] = [];
 
-  for (let i = 0; i < itemsPerRow; i++) {
-    items.push(generateGridItem(rowIndex * itemsPerRow + i));
+  for (let i = 0; i < elementsPerRow; i++) {
+    elements.push(generateGridElementChild(rowIndex * elementsPerRow + i));
   }
 
   return {
     id: generateUniqueId(),
     title: SECTION_TITLES[rowIndex % SECTION_TITLES.length]!,
-    items,
+    elements,
   };
 }

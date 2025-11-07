@@ -33,7 +33,7 @@ export const GridScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderItem={({ item: element, index }) => (
+        renderElement={({ element, index }) => (
           <GridElement element={element} index={index} />
         )}
       />

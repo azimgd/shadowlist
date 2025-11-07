@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { Shadowlist } from 'shadowlist';
 
-export interface GridItem {
+export interface GridElementChild {
   id: string;
   imageUrl: string;
   title: string;
@@ -11,7 +11,7 @@ export interface GridItem {
 export interface GridElement {
   id: string;
   title: string;
-  items: GridItem[];
+  elements: GridElementChild[];
 }
 
 interface GridElementProps {
@@ -19,18 +19,18 @@ interface GridElementProps {
   index: number;
 }
 
-const GridItemComponent = memo(({ item }: { item: GridItem }) => {
+const GridElementChildComponent = memo(({ element }: { element: GridElementChild }) => {
   return (
-    <View style={styles.gridItem}>
+    <View style={styles.gridElement}>
       <View style={styles.imageContainer}>
         <Image
-          source={{ uri: item.imageUrl }}
+          source={{ uri: element.imageUrl }}
           style={styles.image}
           resizeMode="cover"
         />
       </View>
       <Text style={styles.title} numberOfLines={2}>
-        {item.title}
+        {element.title}
       </Text>
     </View>
   );
@@ -41,11 +41,11 @@ export const GridElement = memo(({ element, index }: GridElementProps) => {
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>{element.title}</Text>
       <Shadowlist
-        data={element.items}
+        data={element.elements}
         horizontal
         style={styles.horizontalList}
-        renderItem={({ item: gridItem }) => (
-          <GridItemComponent item={gridItem} />
+        renderElement={({ element: gridElementChild }) => (
+          <GridElementChildComponent element={gridElementChild} />
         )}
       />
     </View>
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   horizontalList: {
     backgroundColor: '#000000',
   },
-  gridItem: {
+  gridElement: {
     width: 180,
     marginLeft: 16,
   },

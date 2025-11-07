@@ -33,7 +33,7 @@ export const FeedScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderItem={({ item: element, index }) => (
+        renderElement={({ element, index }) => (
           <FeedElement element={element} index={index} />
         )}
       />

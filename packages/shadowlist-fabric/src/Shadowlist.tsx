@@ -67,11 +67,11 @@ export const inversionBasedUpdatingIndices = (
 
 export interface ShadowListCommands {}
 
-export interface ShadowListProps<ItemT extends { id: string } = any> {
-  data: ReadonlyArray<ItemT>;
-  renderItem: (info: { item: ItemT; index: number }) => ReactElement;
+export interface ShadowListProps<ElementT extends { id: string } = any> {
+  data: ReadonlyArray<ElementT>;
+  renderElement: (info: { element: ElementT; index: number }) => ReactElement;
   style?: ViewStyle;
-  itemStyle?: ViewStyle;
+  elementStyle?: ViewStyle;
   inverted?: boolean;
   horizontal?: boolean;
   ref?: Ref<ShadowListCommands>;
@@ -79,23 +79,32 @@ export interface ShadowListProps<ItemT extends { id: string } = any> {
   onEndReached?: () => void;
 }
 
-function ShadowList<ItemT extends { id: string } = any>({
+function ShadowList<ElementT extends { id: string } = any>({
   data,
-  renderItem,
+  renderElement,
   style,
-  itemStyle,
+  elementStyle,
   inverted = false,
   horizontal = false,
   ref,
   onStartReached,
   onEndReached,
-}: ShadowListProps<ItemT>) {
+}: ShadowListProps<ElementT>) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
     null
   );
 
   const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>(
     inversionBasedInitialIndices(data.length, 20, inverted)
+  );
+
+  const elementBaseStyle = useMemo(
+    () => [
+      styles.element,
+      horizontal ? styles.elementHorizontal : styles.elementVertical,
+      elementStyle,
+    ],
+    [horizontal, elementStyle]
   );
 
   useImperativeHandle(ref, () => ({
@@ -141,7 +150,7 @@ function ShadowList<ItemT extends { id: string } = any>({
     [visibleIndices]
   );
 
-  const elementsAllKeys = useMemo(() => data.map((item) => item.id), [data]);
+  const elementsAllKeys = useMemo(() => data.map((element) => element.id), [data]);
   const elementsHeadKey = useMemo(() => data.at(0)?.id, [data]);
   const elementsTailKey = useMemo(() => data.at(-1)?.id, [data]);
 
@@ -159,17 +168,17 @@ function ShadowList<ItemT extends { id: string } = any>({
       onEndReached={onEndReached}
     >
       {visibleRange.map((index) => {
-        const item = data[index];
+        const element = data[index];
 
-        if (!item) return null;
+        if (!element) return null;
 
         return (
           <ShadowlistElementView
             index={index}
-            style={[styles.item, itemStyle]}
-            key={item.id}
+            style={elementBaseStyle}
+            key={element.id}
           >
-            {renderItem({ item, index })}
+            {renderElement({ element, index })}
           </ShadowlistElementView>
         );
       })}
@@ -181,10 +190,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  item: {
-    width: '100%',
+  element: {
     position: 'absolute',
-    opacity: 0,
+  },
+  elementVertical: {
+    width: '100%',
+  },
+  elementHorizontal: {
+    height: '100%',
   },
 });
 

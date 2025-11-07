@@ -75,7 +75,7 @@ export const ChatScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderItem={({ item: element, index }) => (
+        renderElement={({ element, index }) => (
           <ChatElement
             id={element.id}
             index={index}

@@ -40,17 +40,7 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
 
   for (size_t i = 0; i < getChildren().size(); i++) {
     if (const auto prevElementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(getChildren()[i]->getProps())) {
-      /*
-       * Set opacity to prevent visual flash when prepending items
-       * Without this, prepended elements briefly render at (0,0) before being positioned
-       */
-      auto nextElementViewProps = std::make_shared<ShadowlistElementViewProps>();
-      nextElementViewProps->opacity = 1;
-      nextElementViewProps->index = prevElementViewProps->index;
-
-      auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(getChildren()[i]->clone({
-        .props = nextElementViewProps
-      }));
+      auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(getChildren()[i]->clone({}));
 
       /*
        * Apply pre-calculated positions from the virtualizer
@@ -131,8 +121,8 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
   
   /*
-   * Reset prepend offset tracking once items are measured and positioned
-   * This typically happens on the next render after prepended items have been laid out
+   * Reset prepend offset tracking once elements are measured and positioned
+   * This typically happens on the next render after prepended elements have been laid out
    */
   if (*this->prependElementsSize_ != 0) {
     if (

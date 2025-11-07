@@ -110,7 +110,7 @@ RevisionDebugRepresentationMetadata Container::getMetadata() const {
 
 void Container::addElementAtIndex(std::size_t index, Element nextElement) {
   if (this->nextRevisionStatus != RevisionStatusPending) {
-    throw InvalidOperationError("Cannot add item outside of a revision");
+    throw InvalidOperationError("Cannot add element outside of a revision");
   }
 
   if (index > this->nextRevision.elements.size()) {
@@ -135,7 +135,7 @@ void Container::addElementAtIndex(std::size_t index, Element nextElement) {
 
 void Container::removeElementAtIndex(std::size_t index) {
   if (this->nextRevisionStatus != RevisionStatusPending) {
-    throw InvalidOperationError("Cannot remove item outside of a revision");
+    throw InvalidOperationError("Cannot remove element outside of a revision");
   }
 
   if (index >= this->nextRevision.elements.size()) {

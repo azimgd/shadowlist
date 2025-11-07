@@ -33,14 +33,14 @@ export const ChatElement = memo(({ id, index, text, isFromMe, imageUrl, imageUrl
         )}
         <View style={styles.imageGridContainer}>
           <View style={styles.imageGridRow}>
-            <View style={styles.imageGridItem}>
+            <View style={styles.imageGridElement}>
               <Image
                 source={{ uri: imageUrls[0] }}
                 style={styles.imageGridImage}
                 resizeMode="cover"
               />
             </View>
-            <View style={styles.imageGridItem}>
+            <View style={styles.imageGridElement}>
               <Image
                 source={{ uri: imageUrls[1] }}
                 style={styles.imageGridImage}
@@ -49,14 +49,14 @@ export const ChatElement = memo(({ id, index, text, isFromMe, imageUrl, imageUrl
             </View>
           </View>
           <View style={styles.imageGridRow}>
-            <View style={styles.imageGridItem}>
+            <View style={styles.imageGridElement}>
               <Image
                 source={{ uri: imageUrls[2] }}
                 style={styles.imageGridImage}
                 resizeMode="cover"
               />
             </View>
-            <View style={styles.imageGridItem}>
+            <View style={styles.imageGridElement}>
               <Image
                 source={{ uri: imageUrls[3] }}
                 style={styles.imageGridImage}
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
     gap: 2,
     marginBottom: 2,
   },
-  imageGridItem: {
+  imageGridElement: {
     width: 119,
     height: 119,
     borderRadius: 8,

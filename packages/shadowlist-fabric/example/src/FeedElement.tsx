@@ -22,7 +22,7 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
   }, [index]);
 
   return (
-    <View style={styles.feedItem}>
+    <View style={styles.feedElement}>
       <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
         <Text style={styles.avatarText}>{element.username.charAt(0)}</Text>
       </View>
@@ -48,8 +48,8 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
             style={styles.imageScrollView}
             contentContainerStyle={styles.imageScrollContent}
           >
-            {element.imageUrls.map((imageUrl, elementIndex) => (
-              <View key={elementIndex} style={styles.multiImageContainer}>
+            {element.imageUrls.map((imageUrl, imageIndex) => (
+              <View key={imageIndex} style={styles.multiImageContainer}>
                 <Image
                   source={{ uri: imageUrl }}
                   style={styles.multiImage}
@@ -65,7 +65,7 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
 });
 
 const styles = StyleSheet.create({
-  feedItem: {
+  feedElement: {
     backgroundColor: '#000000',
     borderBottomWidth: 0.5,
     borderBottomColor: '#2F3336',
