@@ -68,6 +68,14 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   auto totalContainerHeight = this->containerManager_->nextRevision.totalContainerHeight;
   auto totalContainerWidth = this->containerManager_->nextRevision.totalContainerWidth;
 
+  /*
+   * Initialize containerOffsetIndex from prop if provided (>= 0) and only once
+   * State starts at -2.0 (initial), gets set to index, then resets to -1.0 (inactive)
+   */
+  if (getConcreteProps().containerOffsetIndex >= 0 && nextStateData.containerOffsetIndex_ == -2.0) {
+    nextStateData.containerOffsetIndex_ = static_cast<double>(getConcreteProps().containerOffsetIndex);
+  }
+
   if (*this->prependElementsSize_ == 0) {
     if (getConcreteProps().horizontal) {
       *this->prependedElementsOffset_ = nextStateData.containerOffsetX_;
@@ -87,8 +95,9 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     /*
      * Position inverted lists at the bottom/right initially, adjusting scroll offset
      * as container dimensions stabilize during measurement
+     * Skip this if containerOffsetIndex prop is provided (>= 0)
      */
-    if (getConcreteProps().inverted && *this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED) {
+    if (getConcreteProps().inverted && *this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED && getConcreteProps().containerOffsetIndex < 0) {
       if (getConcreteProps().horizontal) {
         nextStateData.containerOffsetX_ = this->containerManager_->nextRevision.totalContainerWidth - getLayoutMetrics().frame.size.width;
       } else {
@@ -115,15 +124,26 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       }
     }
 
+    /*
+     * Handle containerOffsetIndex for initial scroll position or scrollToIndex
+     */
     if (nextStateData.containerOffsetIndex_ >= 0) {
       if (getConcreteProps().horizontal) {
         nextStateData.containerOffsetX_ = this->containerManager_->getElementOffset(nextStateData.containerOffsetIndex_);
       } else {
         nextStateData.containerOffsetY_ = this->containerManager_->getElementOffset(nextStateData.containerOffsetIndex_);
       }
-      
+
       if (this->containerManager_->getElementAtIndex(nextStateData.containerOffsetIndex_).measured) {
         nextStateData.containerOffsetIndex_ = -1;
+
+        /*
+         * Mark container size as updated when using containerOffsetIndex on inverted list
+         * This prevents default inverted positioning logic from interfering
+         */
+        if (getConcreteProps().inverted) {
+          *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATED;
+        }
       }
     }
 

@@ -69,7 +69,6 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     auto& shadowlistViewEventEmitter = static_cast<const ShadowlistViewShadowNode::ConcreteEventEmitter&>(*shadowNode.getEventEmitter());
 
     auto shadowlistViewStateData = shadowlistViewState.getData();
-    auto& shadowlistViewChildren = shadowNode.getChildren();
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
     if (shadowlistCoreSharedInstance.containerManager->onStartReachedCallback == nullptr) {

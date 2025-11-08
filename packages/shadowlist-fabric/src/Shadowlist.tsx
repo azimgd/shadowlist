@@ -76,6 +76,8 @@ export interface ShadowListProps<ElementT extends { id: string } = any> {
   elementStyle?: ViewStyle;
   inverted?: boolean;
   horizontal?: boolean;
+  containerOffsetIndex?: number;
+  initialElementsSize?: number;
   ref?: Ref<ShadowListCommands>;
   onStartReached?: () => void;
   onEndReached?: () => void;
@@ -91,6 +93,8 @@ function ShadowList<ElementT extends { id: string } = any>({
   elementStyle,
   inverted = false,
   horizontal = false,
+  containerOffsetIndex = -2,
+  initialElementsSize = 20,
   ref,
   onStartReached,
   onEndReached,
@@ -103,7 +107,7 @@ function ShadowList<ElementT extends { id: string } = any>({
   );
 
   const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>(
-    inversionBasedInitialIndices(data.length, 20, inverted)
+    inversionBasedInitialIndices(data.length, initialElementsSize, inverted)
   );
 
   const elementBaseStyle = useMemo(
@@ -202,6 +206,7 @@ function ShadowList<ElementT extends { id: string } = any>({
       elementsTailKey={elementsTailKey}
       inverted={inverted}
       horizontal={horizontal}
+      containerOffsetIndex={containerOffsetIndex}
       onStartReached={onStartReached}
       onEndReached={onEndReached}
     >

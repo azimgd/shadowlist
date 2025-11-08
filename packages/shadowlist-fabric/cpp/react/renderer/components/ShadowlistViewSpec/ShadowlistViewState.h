@@ -74,7 +74,7 @@ class ShadowlistViewState final {
   double windowContainerWidth_{0.0};
   double containerOffsetY_{0.0};
   double containerOffsetX_{0.0};
-  double containerOffsetIndex_{-1};
+  double containerOffsetIndex_{-2.0};
   double totalContainerHeight_{0.0};
   double totalContainerWidth_{0.0};
   bool startReachedEnabled_{true};
