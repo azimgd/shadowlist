@@ -27,6 +27,10 @@ export const GridScreen = () => {
     setData((prev) => [...prev, ...newElements]);
   };
 
+  const handleScrollToIndex = (index: number) => {
+    shadowlistRef.current?.scrollToIndex(index);
+  };
+
   return (
     <View style={styles.container}>
       <Shadowlist
@@ -37,7 +41,12 @@ export const GridScreen = () => {
           <GridElement element={element} index={index} />
         )}
       />
-      <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
+      <FloatingActionBar
+        onPrepend={handlePrepend}
+        onAppend={handleAppend}
+        onScrollToIndex={handleScrollToIndex}
+        dataLength={data.length}
+      />
     </View>
   );
 };

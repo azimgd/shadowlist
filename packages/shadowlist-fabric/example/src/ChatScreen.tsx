@@ -69,6 +69,10 @@ export const ChatScreen = () => {
     setData((prev) => [...prev, newMessage]);
   };
 
+  const handleScrollToIndex = (index: number) => {
+    shadowlistRef.current?.scrollToIndex(index);
+  };
+
   return (
     <View style={styles.container}>
       <Shadowlist
@@ -87,7 +91,12 @@ export const ChatScreen = () => {
         )}
         inverted
       />
-      <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
+      <FloatingActionBar
+        onPrepend={handlePrepend}
+        onAppend={handleAppend}
+        onScrollToIndex={handleScrollToIndex}
+        dataLength={data.length}
+      />
       <MessageInput onSend={handleSendMessage} />
     </View>
   );

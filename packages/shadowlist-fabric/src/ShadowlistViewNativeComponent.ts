@@ -24,6 +24,10 @@ interface NativeCommands {
     viewRef: React.ElementRef<HostComponent<NativeProps>>,
     enabled: boolean
   ) => void;
+  scrollToIndex: (
+    viewRef: React.ElementRef<HostComponent<NativeProps>>,
+    index: CodegenTypes.Int32
+  ) => void;
 }
 
 interface NativeProps extends ViewProps {
@@ -38,7 +42,11 @@ interface NativeProps extends ViewProps {
 }
 
 export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({
-  supportedCommands: ['setStartReachedEnabled', 'setEndReachedEnabled'],
+  supportedCommands: [
+    'setStartReachedEnabled',
+    'setEndReachedEnabled',
+    'scrollToIndex',
+  ],
 });
 
 export default codegenNativeComponent<NativeProps>('ShadowlistView');

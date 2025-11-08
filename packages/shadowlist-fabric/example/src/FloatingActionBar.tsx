@@ -1,13 +1,23 @@
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useState } from 'react';
 
 interface FloatingActionBarProps {
   onPrepend: () => void;
   onAppend: () => void;
+  onScrollToIndex: (index: number) => void;
+  dataLength: number;
 }
 
-export const FloatingActionBar = ({ onPrepend, onAppend }: FloatingActionBarProps) => {
+export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLength }: FloatingActionBarProps) => {
   const insets = useSafeAreaInsets();
+  const [targetIndex, setTargetIndex] = useState<number | null>(null);
+
+  const handleScrollToRandom = () => {
+    const randomIndex = Math.floor(Math.random() * dataLength);
+    setTargetIndex(randomIndex);
+    onScrollToIndex(randomIndex);
+  };
 
   return (
     <View style={[styles.container, { top: insets.top }]}>
@@ -16,6 +26,9 @@ export const FloatingActionBar = ({ onPrepend, onAppend }: FloatingActionBarProp
       </TouchableOpacity>
       <TouchableOpacity style={styles.button} onPress={onAppend}>
         <Text style={styles.buttonText}>↓</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.scrollButton} onPress={handleScrollToRandom}>
+        <Text style={styles.buttonText}>{targetIndex ?? 'rnd'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -39,9 +52,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scrollButton: {
+    minWidth: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#34C759',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
   buttonText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

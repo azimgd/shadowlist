@@ -65,7 +65,9 @@ export const inversionBasedUpdatingIndices = (
   }
 };
 
-export interface ShadowListCommands {}
+export interface ShadowListCommands {
+  scrollToIndex: (index: number) => void;
+}
 
 export interface ShadowListProps<ElementT extends { id: string } = any> {
   data: ReadonlyArray<ElementT>;
@@ -123,6 +125,11 @@ function ShadowList<ElementT extends { id: string } = any>({
       if (!shadowlistViewRef.current) return;
 
       Commands.setEndReachedEnabled(shadowlistViewRef.current, enabled);
+    },
+    scrollToIndex: (index: number) => {
+      if (!shadowlistViewRef.current) return;
+
+      Commands.scrollToIndex(shadowlistViewRef.current, index);
     },
   }));
 

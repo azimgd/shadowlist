@@ -111,6 +111,13 @@ using namespace facebook::react;
   _state->updateState(std::move(nextStateData));
 }
 
+- (void)scrollToIndex:(NSInteger)index
+{
+  auto nextStateData = self->_state->getData();
+  nextStateData.containerOffsetIndex_ = index;
+  _state->updateState(std::move(nextStateData));
+}
+
 Class<RCTComponentViewProtocol> ShadowlistViewCls(void)
 {
   return ShadowlistView.class;

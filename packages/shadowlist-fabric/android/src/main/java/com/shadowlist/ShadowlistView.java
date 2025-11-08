@@ -162,4 +162,14 @@ public class ShadowlistView extends ReactScrollView {
 
     _state.updateState(map);
   }
+
+  public void scrollToIndex(int index) {
+    if (_state == null) {
+      return;
+    }
+
+    WritableMap map = new WritableNativeMap();
+    map.putDouble("containerOffsetIndex", (double) index);
+    _state.updateState(map);
+  }
 }

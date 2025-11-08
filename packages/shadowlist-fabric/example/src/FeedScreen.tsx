@@ -27,6 +27,10 @@ export const FeedScreen = () => {
     setData((prev) => [...prev, ...newElements]);
   };
 
+  const handleScrollToIndex = (index: number) => {
+    shadowlistRef.current?.scrollToIndex(index);
+  };
+
   return (
     <View style={styles.container}>
       <Shadowlist
@@ -37,7 +41,12 @@ export const FeedScreen = () => {
           <FeedElement element={element} index={index} />
         )}
       />
-      <FloatingActionBar onPrepend={handlePrepend} onAppend={handleAppend} />
+      <FloatingActionBar
+        onPrepend={handlePrepend}
+        onAppend={handleAppend}
+        onScrollToIndex={handleScrollToIndex}
+        dataLength={data.length}
+      />
     </View>
   );
 };
