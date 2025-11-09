@@ -3,6 +3,8 @@ import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowListCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
 import { MasonryElement, type MasonryElement as MasonryElementType } from './MasonryElement';
+import { HeaderListItem } from './HeaderListItem';
+import { FooterListItem } from './FooterListItem';
 import { generateMasonryElement } from './constants';
 
 export const MasonryScreen = () => {
@@ -41,6 +43,8 @@ export const MasonryScreen = () => {
         renderElement={({ element, index }: { element: MasonryElementType; index: number }) => (
           <MasonryElement element={element} index={index} />
         )}
+        ListHeaderComponent={<HeaderListItem title="Masonry" subtitle="Three column grid layout" />}
+        ListFooterComponent={<FooterListItem text="End of masonry grid" />}
       />
       <FloatingActionBar
         onPrepend={handlePrepend}

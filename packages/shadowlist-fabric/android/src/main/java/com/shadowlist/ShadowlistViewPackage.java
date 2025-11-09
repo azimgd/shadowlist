@@ -15,6 +15,7 @@ public class ShadowlistViewPackage implements ReactPackage {
     List<ViewManager> viewManagers = new ArrayList<>();
     viewManagers.add(new ShadowlistViewManager());
     viewManagers.add(new ShadowlistElementViewManager());
+    viewManagers.add(new ShadowlistTemplateViewManager());
     return viewManagers;
   }
 

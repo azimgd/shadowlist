@@ -49,13 +49,16 @@ using namespace facebook::react;
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  if (![childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
+  if ([childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
+    const auto &childViewProps = *std::static_pointer_cast<ShadowlistElementViewProps const>(childComponentView.props);
+    [_contentView insertSubview:childComponentView atIndex:childViewProps.index];
     return;
   }
 
-  const auto &childViewProps = *std::static_pointer_cast<ShadowlistElementViewProps const>(childComponentView.props);
-
-  [_contentView insertSubview:childComponentView atIndex:childViewProps.index];
+  if ([childComponentView conformsToProtocol:@protocol(RCTShadowlistTemplateViewViewProtocol)]) {
+    [_contentView addSubview:childComponentView];
+    return;
+  }
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index

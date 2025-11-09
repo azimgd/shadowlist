@@ -20,7 +20,7 @@ export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLe
   };
 
   return (
-    <View style={[styles.container, { top: insets.top }]}>
+    <View style={[styles.container, { bottom: insets.bottom + 62 }]}>
       <TouchableOpacity style={styles.button} onPress={onPrepend}>
         <Text style={styles.buttonText}>↑</Text>
       </TouchableOpacity>

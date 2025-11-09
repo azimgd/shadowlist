@@ -11,6 +11,7 @@ import { StyleSheet, type CodegenTypes, type ViewStyle } from 'react-native';
 import {
   ShadowlistView,
   ShadowlistElementView,
+  ShadowlistTemplateView,
   type OnVisibleIndicesChange,
   Commands,
 } from 'shadowlist';
@@ -120,8 +121,8 @@ function ShadowList<ElementT extends { id: string } = any>({
           ? { height: `${100 / columns}%` }
           : styles.elementHorizontal
         : columns > 1
-        ? { width: `${100 / columns}%` }
-        : styles.elementVertical,
+          ? { width: `${100 / columns}%` }
+          : styles.elementVertical,
       elementStyle,
     ],
     [horizontal, columns, elementStyle]
@@ -190,13 +191,13 @@ function ShadowList<ElementT extends { id: string } = any>({
   };
 
   const header = useMemo(
-    () => renderComponent(inverted ? ListFooterComponent : ListHeaderComponent),
-    [inverted, ListHeaderComponent, ListFooterComponent]
+    () => renderComponent(ListHeaderComponent),
+    [ListHeaderComponent]
   );
 
   const footer = useMemo(
-    () => renderComponent(inverted ? ListHeaderComponent : ListFooterComponent),
-    [inverted, ListHeaderComponent, ListFooterComponent]
+    () => renderComponent(ListFooterComponent),
+    [ListFooterComponent]
   );
 
   const empty = useMemo(
@@ -219,25 +220,37 @@ function ShadowList<ElementT extends { id: string } = any>({
       onStartReached={onStartReached}
       onEndReached={onEndReached}
     >
-      {header}
-      {data.length === 0
-        ? empty
-        : visibleRange.map((index) => {
-            const element = data[index];
+      {header && (
+        <ShadowlistTemplateView templateType="header">
+          {header}
+        </ShadowlistTemplateView>
+      )}
+      {data.length === 0 && empty ? (
+        <ShadowlistTemplateView templateType="empty">
+          {empty}
+        </ShadowlistTemplateView>
+      ) : (
+        visibleRange.map((index) => {
+          const element = data[index];
 
-            if (!element) return null;
+          if (!element) return null;
 
-            return (
-              <ShadowlistElementView
-                index={index}
-                style={elementBaseStyle}
-                key={element.id}
-              >
-                {renderElement({ element, index })}
-              </ShadowlistElementView>
-            );
-          })}
-      {footer}
+          return (
+            <ShadowlistElementView
+              index={index}
+              style={elementBaseStyle}
+              key={element.id}
+            >
+              {renderElement({ element, index })}
+            </ShadowlistElementView>
+          );
+        })
+      )}
+      {footer && (
+        <ShadowlistTemplateView templateType="footer">
+          {footer}
+        </ShadowlistTemplateView>
+      )}
     </ShadowlistView>
   );
 }

@@ -4,6 +4,8 @@ import { Shadowlist, type ShadowListCommands } from 'shadowlist';
 import { ChatElement } from './ChatElement';
 import { FloatingActionBar } from './FloatingActionBar';
 import { MessageInput } from './MessageInput';
+import { HeaderListItem } from './HeaderListItem';
+import { FooterListItem } from './FooterListItem';
 import { generateUniqueId, generateRandomText, generateOptimizedImageUrl, shouldBeImageGrid, generateImageGrid } from './constants';
 
 export const ChatScreen = () => {
@@ -90,6 +92,8 @@ export const ChatScreen = () => {
           />
         )}
         inverted
+        ListHeaderComponent={<HeaderListItem title="Chat" subtitle="Inverted list" />}
+        ListFooterComponent={<FooterListItem text="Start of conversation" />}
       />
       <FloatingActionBar
         onPrepend={handlePrepend}

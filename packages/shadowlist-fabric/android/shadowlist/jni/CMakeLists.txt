@@ -14,6 +14,7 @@ file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS
 file(GLOB LIB_INCLUDES_SRCS CONFIGURE_DEPENDS
   ${LIB_CPP_DIR}/react/renderer/components/ShadowlistViewSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/ShadowlistElementViewSpec/*.cpp
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowlistTemplateViewSpec/*.cpp
   
   ${LIB_CORE_DIR}/*.cpp
 )
@@ -32,6 +33,7 @@ target_include_directories(react_codegen_ShadowlistViewSpec PUBLIC
 
   ${LIB_CPP_DIR}/react/renderer/components/ShadowlistViewSpec
   ${LIB_CPP_DIR}/react/renderer/components/ShadowlistElementViewSpec
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowlistTemplateViewSpec
   ${LIB_JNI_DIR}/
 )
 

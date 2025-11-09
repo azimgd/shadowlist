@@ -3,6 +3,8 @@ import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowListCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
 import { NestedElement, type NestedElement as NestedElementType } from './NestedElement';
+import { HeaderListItem } from './HeaderListItem';
+import { FooterListItem } from './FooterListItem';
 import { generateNestedElement } from './constants';
 
 export const NestedScreen = () => {
@@ -40,6 +42,8 @@ export const NestedScreen = () => {
         renderElement={({ element, index }: { element: NestedElementType; index: number }) => (
           <NestedElement element={element} index={index} />
         )}
+        ListHeaderComponent={<HeaderListItem title="Nested" subtitle="Nested horizontal lists" />}
+        ListFooterComponent={<FooterListItem text="End of nested list" />}
       />
       <FloatingActionBar
         onPrepend={handlePrepend}

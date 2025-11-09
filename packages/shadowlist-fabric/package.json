@@ -159,7 +159,8 @@
     "ios": {
       "componentProvider": {
         "ShadowlistView": "ShadowlistView",
-        "ShadowlistElementView": "ShadowlistElementView"
+        "ShadowlistElementView": "ShadowlistElementView",
+        "ShadowlistTemplateView": "ShadowlistTemplateView"
       }
     }
   },

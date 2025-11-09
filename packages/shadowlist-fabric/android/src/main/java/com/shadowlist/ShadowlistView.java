@@ -48,7 +48,15 @@ public class ShadowlistView extends ReactScrollView {
 
   @Override
   public void addView(View child, int index) {
-    _contentView.addView(child, index);
+    if (child instanceof ShadowlistElementView) {
+      _contentView.addView(child, index);
+      return;
+    }
+
+    if (child instanceof ShadowlistTemplateView) {
+      _contentView.addView(child);
+      return;
+    }
   }
 
   @Override

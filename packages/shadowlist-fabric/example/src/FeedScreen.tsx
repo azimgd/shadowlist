@@ -3,6 +3,8 @@ import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowListCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
 import { FeedElement, type FeedElement as FeedElementType } from './FeedElement';
+import { HeaderListItem } from './HeaderListItem';
+import { FooterListItem } from './FooterListItem';
 import { generateFeedElement } from './constants';
 
 export const FeedScreen = () => {
@@ -40,6 +42,8 @@ export const FeedScreen = () => {
         renderElement={({ element, index }: { element: FeedElementType; index: number }) => (
           <FeedElement element={element} index={index} />
         )}
+        ListHeaderComponent={<HeaderListItem title="Feed" subtitle="Vertical scrolling list" />}
+        ListFooterComponent={<FooterListItem text="End of feed" />}
       />
       <FloatingActionBar
         onPrepend={handlePrepend}
