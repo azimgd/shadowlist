@@ -47,12 +47,25 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
        */
       LayoutMetrics layoutMetrics = elementViewNode->getLayoutMetrics();
 
-      if (getConcreteProps().horizontal) {
-        layoutMetrics.frame.origin.x = this->containerManager_->getElementOffset(prevElementViewProps->index);
-        layoutMetrics.frame.origin.y = 0;
+      if (this->containerManager_->columns > 1) {
+        /*
+         * Multi-column layout: set both X and Y positions and element width
+         */
+        const auto element = this->containerManager_->getElementAtIndex(prevElementViewProps->index);
+        layoutMetrics.frame.origin.x = element.offsetX;
+        layoutMetrics.frame.origin.y = element.offsetY;
+        layoutMetrics.frame.size.width = element.width;
       } else {
-        layoutMetrics.frame.origin.y = this->containerManager_->getElementOffset(prevElementViewProps->index);
-        layoutMetrics.frame.origin.x = 0;
+        /*
+         * Single column layout: use orientation-based positioning
+         */
+        if (getConcreteProps().horizontal) {
+          layoutMetrics.frame.origin.x = this->containerManager_->getElementOffset(prevElementViewProps->index);
+          layoutMetrics.frame.origin.y = 0;
+        } else {
+          layoutMetrics.frame.origin.y = this->containerManager_->getElementOffset(prevElementViewProps->index);
+          layoutMetrics.frame.origin.x = 0;
+        }
       }
 
       elementViewNode->setLayoutMetrics(layoutMetrics);

@@ -76,6 +76,7 @@ export interface ShadowListProps<ElementT extends { id: string } = any> {
   elementStyle?: ViewStyle;
   inverted?: boolean;
   horizontal?: boolean;
+  columns?: number;
   containerOffsetIndex?: number;
   initialElementsSize?: number;
   ref?: Ref<ShadowListCommands>;
@@ -93,6 +94,7 @@ function ShadowList<ElementT extends { id: string } = any>({
   elementStyle,
   inverted = false,
   horizontal = false,
+  columns = 1,
   containerOffsetIndex = -2,
   initialElementsSize = 20,
   ref,
@@ -113,10 +115,16 @@ function ShadowList<ElementT extends { id: string } = any>({
   const elementBaseStyle = useMemo(
     () => [
       styles.element,
-      horizontal ? styles.elementHorizontal : styles.elementVertical,
+      horizontal
+        ? columns > 1
+          ? { height: `${100 / columns}%` }
+          : styles.elementHorizontal
+        : columns > 1
+        ? { width: `${100 / columns}%` }
+        : styles.elementVertical,
       elementStyle,
     ],
-    [horizontal, elementStyle]
+    [horizontal, columns, elementStyle]
   );
 
   useImperativeHandle(ref, () => ({
@@ -206,6 +214,7 @@ function ShadowList<ElementT extends { id: string } = any>({
       elementsTailKey={elementsTailKey}
       inverted={inverted}
       horizontal={horizontal}
+      columns={columns}
       containerOffsetIndex={containerOffsetIndex}
       onStartReached={onStartReached}
       onEndReached={onEndReached}

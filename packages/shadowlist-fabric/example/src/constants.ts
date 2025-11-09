@@ -1,5 +1,6 @@
 import type { FeedElement } from './FeedElement';
-import type { GridElement, GridElementChild } from './GridElement';
+import type { NestedElement, NestedElementChild } from './NestedElement';
+import type { MasonryElement } from './MasonryElement';
 
 export const AVATAR_COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -169,7 +170,7 @@ export function generateFeedElement(index: number): FeedElement {
   };
 }
 
-export function generateGridElementChild(imageIndex: number): GridElementChild {
+export function generateNestedElementChild(imageIndex: number): NestedElementChild {
   const originalImageUrl = IMAGES[imageIndex % IMAGES.length]!;
 
   return {
@@ -179,17 +180,30 @@ export function generateGridElementChild(imageIndex: number): GridElementChild {
   };
 }
 
-export function generateGridElement(rowIndex: number): GridElement {
+export function generateNestedElement(rowIndex: number): NestedElement {
   const elementsPerRow = 10;
-  const elements: GridElementChild[] = [];
+  const elements: NestedElementChild[] = [];
 
   for (let i = 0; i < elementsPerRow; i++) {
-    elements.push(generateGridElementChild(rowIndex * elementsPerRow + i));
+    elements.push(generateNestedElementChild(rowIndex * elementsPerRow + i));
   }
 
   return {
     id: generateUniqueId(),
     title: SECTION_TITLES[rowIndex % SECTION_TITLES.length]!,
     elements,
+  };
+}
+
+const MASONRY_HEIGHTS = [180, 220, 260, 200, 240, 280, 190, 230, 250, 210];
+
+export function generateMasonryElement(index: number): MasonryElement {
+  const originalImageUrl = IMAGES[index % IMAGES.length]!;
+
+  return {
+    id: generateUniqueId(),
+    imageUrl: optimizeImageUrl(originalImageUrl, 400),
+    title: IMAGE_TITLES[index % IMAGE_TITLES.length]!,
+    height: MASONRY_HEIGHTS[index % MASONRY_HEIGHTS.length]!,
   };
 }

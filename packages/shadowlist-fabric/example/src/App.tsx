@@ -3,12 +3,14 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import TabView, { SceneMap } from 'react-native-bottom-tabs';
 import { FeedScreen } from './FeedScreen';
 import { ChatScreen } from './ChatScreen';
-import { GridScreen } from './GridScreen';
+import { NestedScreen } from './NestedScreen';
+import { MasonryScreen } from './MasonryScreen';
 
 const renderScene = SceneMap({
   feed: FeedScreen,
   chat: ChatScreen,
-  grid: GridScreen,
+  nested: NestedScreen,
+  masonry: MasonryScreen,
 });
 
 export default function App() {
@@ -25,9 +27,14 @@ export default function App() {
       focusedIcon: { sfSymbol: 'message.fill' },
     },
     {
-      key: 'grid',
-      title: 'Grid',
+      key: 'nested',
+      title: 'Nested',
       focusedIcon: { sfSymbol: 'square.grid.2x2.fill' },
+    },
+    {
+      key: 'masonry',
+      title: 'Masonry',
+      focusedIcon: { sfSymbol: 'square.grid.3x3.fill' },
     },
   ]);
 

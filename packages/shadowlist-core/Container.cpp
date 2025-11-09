@@ -225,7 +225,7 @@ std::vector<Element> Container::getVisibleElements() const {
   /*
    * Skip if uninitialized
    */
-  if (measurementElementStartIndex == (std::size_t)-1 || measurementElementEndIndex == (std::size_t)-1) {
+  if (measurementElementStartIndex == UNDEFINED_INDEX || measurementElementEndIndex == UNDEFINED_INDEX) {
     return visibleElements;
   }
 
@@ -237,7 +237,7 @@ std::vector<Element> Container::getVisibleElements() const {
     /*
      * Iterate from high index to low index
      */
-    for (std::size_t visibleElementIndex = measurementElementStartIndex; visibleElementIndex >= measurementElementEndIndex && visibleElementIndex != (std::size_t)-1; --visibleElementIndex) {
+    for (std::size_t visibleElementIndex = measurementElementStartIndex; visibleElementIndex >= measurementElementEndIndex && visibleElementIndex != UNDEFINED_INDEX; --visibleElementIndex) {
       if (visibleElementIndex < this->nextRevision.elements.size()) {
         visibleElements.push_back(this->nextRevision.elements[visibleElementIndex]);
       }
@@ -263,11 +263,11 @@ std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
   /*
    * Return the visible index range, or (-1, -1) if uninitialized
    */
-  if (startIndex != (std::size_t)-1 && endIndex != (std::size_t)-1) {
+  if (startIndex != UNDEFINED_INDEX && endIndex != UNDEFINED_INDEX) {
     return {startIndex, endIndex};
   }
 
-  return {(std::size_t)-1, (std::size_t)-1};
+  return {UNDEFINED_INDEX, UNDEFINED_INDEX};
 }
 
 bool Container::getElementVisible(std::size_t index) const {
@@ -277,7 +277,7 @@ bool Container::getElementVisible(std::size_t index) const {
   /*
    * Skip if uninitialized
    */
-  if (measurementElementStartIndex == (std::size_t)-1 || measurementElementEndIndex == (std::size_t)-1) {
+  if (measurementElementStartIndex == UNDEFINED_INDEX || measurementElementEndIndex == UNDEFINED_INDEX) {
     return false;
   }
 

@@ -2,27 +2,27 @@ import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowListCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
-import { GridElement, type GridElement as GridElementType } from './GridElement';
-import { generateGridElement } from './constants';
+import { MasonryElement, type MasonryElement as MasonryElementType } from './MasonryElement';
+import { generateMasonryElement } from './constants';
 
-export const GridScreen = () => {
+export const MasonryScreen = () => {
   const shadowlistRef = useRef<ShadowListCommands>(null);
-  const [data, setData] = useState<GridElementType[]>(() =>
-    Array.from({ length: 20 }, (_, index) => generateGridElement(index))
+  const [data, setData] = useState<MasonryElementType[]>(() =>
+    Array.from({ length: 100 }, (_, index) => generateMasonryElement(index))
   );
 
   const handlePrepend = () => {
     const currentLength = data.length;
-    const newElements = Array.from({ length: 5 }, (_, index) =>
-      generateGridElement(currentLength + index)
+    const newElements = Array.from({ length: 10 }, (_, index) =>
+      generateMasonryElement(currentLength + index)
     );
     setData((prev) => [...newElements, ...prev]);
   };
 
   const handleAppend = () => {
     const currentLength = data.length;
-    const newElements = Array.from({ length: 5 }, (_, index) =>
-      generateGridElement(currentLength + index)
+    const newElements = Array.from({ length: 10 }, (_, index) =>
+      generateMasonryElement(currentLength + index)
     );
     setData((prev) => [...prev, ...newElements]);
   };
@@ -37,8 +37,9 @@ export const GridScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={({ element, index }) => (
-          <GridElement element={element} index={index} />
+        columns={3}
+        renderElement={({ element, index }: { element: MasonryElementType; index: number }) => (
+          <MasonryElement element={element} index={index} />
         )}
       />
       <FloatingActionBar
@@ -59,6 +60,5 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     backgroundColor: '#000000',
-    height: 300,
   },
 });

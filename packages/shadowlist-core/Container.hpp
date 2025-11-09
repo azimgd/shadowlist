@@ -82,6 +82,11 @@ public:
    */
   bool horizontal = false;
 
+  /*
+   * Number of columns for multi-column layout
+   */
+  size_t columns = 1;
+
   /**
    * Start a new revision cycle for measurements and state updates
    */

@@ -2,26 +2,26 @@ import { memo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { Shadowlist } from 'shadowlist';
 
-export interface GridElementChild {
+export interface NestedElementChild {
   id: string;
   imageUrl: string;
   title: string;
 }
 
-export interface GridElement {
+export interface NestedElement {
   id: string;
   title: string;
-  elements: GridElementChild[];
+  elements: NestedElementChild[];
 }
 
-interface GridElementProps {
-  element: GridElement;
+interface NestedElementProps {
+  element: NestedElement;
   index: number;
 }
 
-const GridElementChildComponent = memo(({ element }: { element: GridElementChild }) => {
+const NestedElementChildComponent = memo(({ element }: { element: NestedElementChild }) => {
   return (
-    <View style={styles.gridElement}>
+    <View style={styles.nestedElement}>
       <View style={styles.imageContainer}>
         <Image
           source={{ uri: element.imageUrl }}
@@ -36,7 +36,7 @@ const GridElementChildComponent = memo(({ element }: { element: GridElementChild
   );
 });
 
-export const GridElement = memo(({ element, index }: GridElementProps) => {
+export const NestedElement = memo(({ element, index }: NestedElementProps) => {
   return (
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>{element.title}</Text>
@@ -44,8 +44,8 @@ export const GridElement = memo(({ element, index }: GridElementProps) => {
         data={element.elements}
         horizontal
         style={styles.horizontalList}
-        renderElement={({ element: gridElementChild }) => (
-          <GridElementChildComponent element={gridElementChild} />
+        renderElement={({ element: nestedElementChild }: { element: NestedElementChild }) => (
+          <NestedElementChildComponent element={nestedElementChild} />
         )}
       />
     </View>
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   horizontalList: {
     backgroundColor: '#000000',
   },
-  gridElement: {
+  nestedElement: {
     width: 180,
     marginLeft: 16,
   },

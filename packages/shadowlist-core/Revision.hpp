@@ -3,6 +3,7 @@
 
 #include <string>
 #include <chrono>
+#include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Element.hpp>
 
 namespace azimgd::shadowlist {
@@ -39,12 +40,12 @@ public:
   /*
    * Start position of measurement loop
    */
-  std::size_t measurementElementStartIndex = (std::size_t)-1;
+  std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
 
   /*
    * End position of measurement loop
    */
-  std::size_t measurementElementEndIndex = (std::size_t)-1;
+  std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
 
   /*
    * How many elements did we measure so far

@@ -102,6 +102,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
 
     shadowlistCoreSharedInstance.containerManager->inverted = shadowlistViewProps.inverted;
     shadowlistCoreSharedInstance.containerManager->horizontal = shadowlistViewProps.horizontal;
+    shadowlistCoreSharedInstance.containerManager->columns = shadowlistViewProps.columns;
 
     shadowlistCoreSharedInstance.containerManager->startRevision();
 
