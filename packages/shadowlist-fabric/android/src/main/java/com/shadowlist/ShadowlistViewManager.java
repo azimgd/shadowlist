@@ -100,7 +100,7 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
 
   @Override
   public void scrollToIndex(ShadowlistView view, int index) {
-
+    view.scrollToIndex(index);
   }
 
   @Nullable

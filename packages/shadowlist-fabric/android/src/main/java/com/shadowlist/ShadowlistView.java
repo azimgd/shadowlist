@@ -80,15 +80,11 @@ public class ShadowlistView extends ReactScrollView {
       return;
     }
 
-    ReadableMap currentState = _state.getStateData();
-    if (currentState == null) {
-      return;
-    }
-
     WritableMap map = new WritableNativeMap();
 
     map.putDouble("containerOffsetX", PixelUtil.toDIPFromPixel(scrollX));
     map.putDouble("containerOffsetY", PixelUtil.toDIPFromPixel(scrollY));
+    map.putBoolean("containerOffsetEnabled", false);
 
     _state.updateState(map);
   }
@@ -99,6 +95,7 @@ public class ShadowlistView extends ReactScrollView {
     setScrollbarFadingEnabled(true);
     setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
     setFillViewport(false);
+    setClipToPadding(false);
 
     GradientDrawable scrollbarDrawable = new GradientDrawable();
     scrollbarDrawable.setShape(GradientDrawable.RECTANGLE);
@@ -136,14 +133,16 @@ public class ShadowlistView extends ReactScrollView {
       _contentView.layout(0, 0, newContentWidth, newContentHeight);
     }
 
-    if (nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
-      float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
-      float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
+    if (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) {
+      if (nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
+        float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
+        float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
 
-      scrollTo(
-        (int) PixelUtil.toPixelFromDIP(containerOffsetX),
-        (int) PixelUtil.toPixelFromDIP(containerOffsetY)
-      );
+        scrollTo(
+          (int) PixelUtil.toPixelFromDIP(containerOffsetX),
+          (int) PixelUtil.toPixelFromDIP(containerOffsetY)
+        );
+      }
     }
   }
 
@@ -178,6 +177,7 @@ public class ShadowlistView extends ReactScrollView {
 
     WritableMap map = new WritableNativeMap();
     map.putDouble("containerOffsetIndex", (double) index);
+    map.putBoolean("containerOffsetEnabled", true);
     _state.updateState(map);
   }
 }

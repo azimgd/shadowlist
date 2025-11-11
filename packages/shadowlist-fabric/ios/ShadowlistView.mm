@@ -82,9 +82,12 @@ using namespace facebook::react;
     0,
     nextStateData.totalContainerWidth_,
     nextStateData.totalContainerHeight_);
-  self->_scrollView.contentOffset = CGPointMake(
-    nextStateData.containerOffsetX_,
-    nextStateData.containerOffsetY_);
+
+  if (nextStateData.containerOffsetEnabled_) {
+    self->_scrollView.contentOffset = CGPointMake(
+      nextStateData.containerOffsetX_,
+      nextStateData.containerOffsetY_);
+  }
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
@@ -92,6 +95,7 @@ using namespace facebook::react;
   auto nextStateData = self->_state->getData();
   nextStateData.containerOffsetX_ = scrollView.contentOffset.x;
   nextStateData.containerOffsetY_ = scrollView.contentOffset.y;
+  nextStateData.containerOffsetEnabled_ = false;
   _state->updateState(std::move(nextStateData));
 }
 
@@ -118,6 +122,7 @@ using namespace facebook::react;
 {
   auto nextStateData = self->_state->getData();
   nextStateData.containerOffsetIndex_ = index;
+  nextStateData.containerOffsetEnabled_ = true;
   _state->updateState(std::move(nextStateData));
 }
 

@@ -28,7 +28,8 @@ class ShadowlistViewState final {
     double totalContainerHeight,
     double totalContainerWidth,
     bool startReachedEnabled,
-    bool endReachedEnabled) :
+    bool endReachedEnabled,
+    bool containerOffsetEnabled) :
     windowContainerHeight_(windowContainerHeight),
     windowContainerWidth_(windowContainerWidth),
     containerOffsetY_(containerOffsetY),
@@ -37,7 +38,8 @@ class ShadowlistViewState final {
     totalContainerHeight_(totalContainerHeight),
     totalContainerWidth_(totalContainerWidth),
     startReachedEnabled_(startReachedEnabled),
-    endReachedEnabled_(endReachedEnabled) {}
+    endReachedEnabled_(endReachedEnabled),
+    containerOffsetEnabled_(containerOffsetEnabled) {}
 
 #ifdef ANDROID
   ShadowlistViewState(const ShadowlistViewState& previousState, folly::dynamic data) :
@@ -49,7 +51,8 @@ class ShadowlistViewState final {
     totalContainerHeight_(data.count("totalContainerHeight") ? (Float)data["totalContainerHeight"].getDouble() : previousState.totalContainerHeight_),
     totalContainerWidth_(data.count("totalContainerWidth") ? (Float)data["totalContainerWidth"].getDouble() : previousState.totalContainerWidth_),
     startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
-    endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_)
+    endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_),
+    containerOffsetEnabled_(data.count("containerOffsetEnabled") ? data["containerOffsetEnabled"].getBool() : previousState.containerOffsetEnabled_)
     {};
 
   /*
@@ -66,6 +69,7 @@ class ShadowlistViewState final {
     result["totalContainerWidth"] = totalContainerWidth_;
     result["startReachedEnabled"] = startReachedEnabled_;
     result["endReachedEnabled"] = endReachedEnabled_;
+    result["containerOffsetEnabled"] = containerOffsetEnabled_;
     return result;
   };
 #endif
@@ -79,6 +83,7 @@ class ShadowlistViewState final {
   double totalContainerWidth_{0.0};
   bool startReachedEnabled_{true};
   bool endReachedEnabled_{true};
+  bool containerOffsetEnabled_{false};
 };
 
 }

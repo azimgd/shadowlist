@@ -186,6 +186,7 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       } else {
         nextStateData.containerOffsetY_ = totalContainerHeight - getLayoutMetrics().frame.size.height;
       }
+      nextStateData.containerOffsetEnabled_ = true;
     }
 
     /*
@@ -197,19 +198,13 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       } else {
         nextStateData.containerOffsetY_ = *this->prependedElementsOffset_ + this->containerManager_->getElementOffset(*this->prependElementsSize_);
       }
+      nextStateData.containerOffsetEnabled_ = true;
     }
     
-    if (getConcreteProps().inverted) {
-      if (getConcreteProps().horizontal) {
-        nextStateData.containerOffsetX_ += *this->measuredElementsSize_;
-      } else {
-        nextStateData.containerOffsetY_ += *this->measuredElementsSize_;
-      }
-    }
-
     /*
      * Handle containerOffsetIndex for initial scroll position or scrollToIndex
      * Add header offset since elements are positioned after the header
+     * This takes precedence over inverted list adjustments
      */
     if (nextStateData.containerOffsetIndex_ >= 0) {
       if (getConcreteProps().horizontal) {
@@ -217,6 +212,7 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       } else {
         nextStateData.containerOffsetY_ = this->containerManager_->getElementOffset(nextStateData.containerOffsetIndex_) + headerSize;
       }
+      nextStateData.containerOffsetEnabled_ = true;
 
       if (this->containerManager_->getElementAtIndex(nextStateData.containerOffsetIndex_).measured) {
         nextStateData.containerOffsetIndex_ = -1;
@@ -229,6 +225,17 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
           *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATED;
         }
       }
+    } else if (getConcreteProps().inverted) {
+      /*
+       * Adjust inverted list offset for measured elements
+       * Only applies if scrollToIndex is not active
+       */
+      if (getConcreteProps().horizontal) {
+        nextStateData.containerOffsetX_ += *this->measuredElementsSize_;
+      } else {
+        nextStateData.containerOffsetY_ += *this->measuredElementsSize_;
+      }
+      nextStateData.containerOffsetEnabled_ = true;
     }
 
     setStateData(std::move(nextStateData));
