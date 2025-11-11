@@ -22,6 +22,8 @@ struct ShadowlistCoreSharedInstance {
   std::string elementsTailKey;
   int prevVisibleStartIndex = -1;
   int prevVisibleEndIndex = -1;
+  double prevContentOffsetX = -1.0;
+  double prevContentOffsetY = -1.0;
 };
 
 /*
@@ -126,6 +128,19 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
 
       shadowlistCoreSharedInstance.prevVisibleStartIndex = nextVisibleStartIndex;
       shadowlistCoreSharedInstance.prevVisibleEndIndex = nextVisibleEndIndex;
+    }
+
+    double currentContentOffsetX = shadowlistViewStateData.containerOffsetX_;
+    double currentContentOffsetY = shadowlistViewStateData.containerOffsetY_;
+
+    if (shadowlistCoreSharedInstance.prevContentOffsetX != currentContentOffsetX || shadowlistCoreSharedInstance.prevContentOffsetY != currentContentOffsetY) {
+      shadowlistViewEventEmitter.onScroll({
+        .contentOffsetX = currentContentOffsetX,
+        .contentOffsetY = currentContentOffsetY,
+      });
+
+      shadowlistCoreSharedInstance.prevContentOffsetX = currentContentOffsetX;
+      shadowlistCoreSharedInstance.prevContentOffsetY = currentContentOffsetY;
     }
   };
 

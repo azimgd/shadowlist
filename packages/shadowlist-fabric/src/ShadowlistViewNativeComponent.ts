@@ -15,6 +15,11 @@ export type OnStartReached = {};
 
 export type OnEndReached = {};
 
+export type OnScroll = {
+  contentOffsetX: CodegenTypes.Double;
+  contentOffsetY: CodegenTypes.Double;
+};
+
 interface NativeCommands {
   setStartReachedEnabled: (
     viewRef: React.ElementRef<HostComponent<NativeProps>>,
@@ -41,6 +46,7 @@ interface NativeProps extends ViewProps {
   readonly onVisibleIndicesChange?: CodegenTypes.DirectEventHandler<OnVisibleIndicesChange>;
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;
   readonly onEndReached?: CodegenTypes.DirectEventHandler<OnEndReached>;
+  readonly onScroll?: CodegenTypes.DirectEventHandler<OnScroll>;
 }
 
 export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({

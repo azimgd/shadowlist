@@ -13,6 +13,7 @@ import {
   ShadowlistElementView,
   ShadowlistTemplateView,
   type OnVisibleIndicesChange,
+  type OnScroll,
   Commands,
 } from 'shadowlist';
 
@@ -100,6 +101,7 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   ref?: Ref<ShadowListCommands>;
   onStartReached?: () => void;
   onEndReached?: () => void;
+  onScroll?: (event: { nativeEvent: OnScroll }) => void;
   ListHeaderComponent?: ReactElement | (() => ReactElement | null) | null;
   ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
   ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
@@ -118,6 +120,7 @@ function ShadowList<ElementT extends { id: string }>({
   ref,
   onStartReached,
   onEndReached,
+  onScroll,
   ListHeaderComponent,
   ListFooterComponent,
   ListEmptyComponent,
@@ -241,6 +244,7 @@ function ShadowList<ElementT extends { id: string }>({
       containerOffsetIndex={containerOffsetIndex}
       onStartReached={onStartReached}
       onEndReached={onEndReached}
+      onScroll={onScroll}
     >
       {header && (
         <ShadowlistTemplateView templateType="header">
