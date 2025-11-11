@@ -86,6 +86,23 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
     view.setEndReachedEnabled(enabled);
   }
 
+  @Override
+  @ReactProp(name = "columns")
+  public void setColumns(ShadowlistView view, int value) {
+
+  }
+
+  @Override
+  @ReactProp(name = "containerOffsetIndex")
+  public void setContainerOffsetIndex(ShadowlistView view, int value) {
+
+  }
+
+  @Override
+  public void scrollToIndex(ShadowlistView view, int index) {
+
+  }
+
   @Nullable
   @Override
   public Object updateState(

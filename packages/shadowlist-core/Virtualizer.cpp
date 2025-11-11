@@ -1003,9 +1003,6 @@ void Virtualizer::measureFirstRevisionColumnsDefault(Container *container) {
   std::vector<std::size_t> nextElementIndices;
   std::vector<double> trackSizes(container->columns, 0.0);
 
-  std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
-  std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
-
   double trackSize = container->horizontal
     ? container->nextRevision.windowContainerHeight / container->columns
     : container->nextRevision.windowContainerWidth / container->columns;
@@ -1068,11 +1065,6 @@ void Virtualizer::measureFirstRevisionColumnsDefault(Container *container) {
     /*
      * Track measurement indices
      */
-    if (measurementElementStartIndex == UNDEFINED_INDEX) {
-      measurementElementStartIndex = nextElementIndex;
-    }
-    measurementElementEndIndex = nextElementIndex;
-
     if (container->nextRevision.measurementElementStartIndex == UNDEFINED_INDEX || nextElementIndex < container->nextRevision.measurementElementStartIndex) {
       container->nextRevision.measurementElementStartIndex = nextElementIndex;
     }
@@ -1119,7 +1111,7 @@ void Virtualizer::measureFirstRevisionColumnsDefault(Container *container) {
   /*
    * Adjust offsets for unmeasured elements using average dimensions
    */
-  for (std::size_t nextElementIndex = measurementElementEndIndex + 1; nextElementIndex < container->nextRevision.elements.size(); ++nextElementIndex) {
+  for (std::size_t nextElementIndex = container->nextRevision.measurementElementEndIndex + 1; nextElementIndex < container->nextRevision.elements.size(); ++nextElementIndex) {
     Element& nextElement = container->nextRevision.elements[nextElementIndex];
 
     if (!nextElement.estimated) {
@@ -1173,9 +1165,6 @@ void Virtualizer::measureNextRevisionColumnsDefault(Container *container) {
   std::vector<Element> nextElements;
   std::vector<std::size_t> nextElementIndices;
   std::vector<double> trackSizes(container->columns, 0.0);
-
-  std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
-  std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
 
   double trackSize = container->horizontal
     ? container->nextRevision.windowContainerHeight / container->columns
@@ -1260,11 +1249,6 @@ void Virtualizer::measureNextRevisionColumnsDefault(Container *container) {
     /*
      * Track measurement indices
      */
-    if (measurementElementStartIndex == UNDEFINED_INDEX) {
-      measurementElementStartIndex = nextElementIndex;
-    }
-    measurementElementEndIndex = nextElementIndex;
-
     if (container->nextRevision.measurementElementStartIndex == UNDEFINED_INDEX || nextElementIndex < container->nextRevision.measurementElementStartIndex) {
       container->nextRevision.measurementElementStartIndex = nextElementIndex;
     }
@@ -1321,9 +1305,6 @@ void Virtualizer::measureFirstRevisionColumnsInverted(Container *container) {
   std::vector<std::size_t> nextElementIndices;
   std::vector<double> trackSizes(container->columns, 0.0);
 
-  std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
-  std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
-
   double trackSize = container->horizontal
     ? container->nextRevision.windowContainerHeight / container->columns
     : container->nextRevision.windowContainerWidth / container->columns;
@@ -1365,11 +1346,6 @@ void Virtualizer::measureFirstRevisionColumnsInverted(Container *container) {
     /*
      * Track measurement indices
      */
-    if (measurementElementStartIndex == UNDEFINED_INDEX) {
-      measurementElementStartIndex = nextElementIndex;
-    }
-    measurementElementEndIndex = nextElementIndex;
-
     if (container->nextRevision.measurementElementStartIndex == UNDEFINED_INDEX || nextElementIndex > container->nextRevision.measurementElementStartIndex) {
       container->nextRevision.measurementElementStartIndex = nextElementIndex;
     }
@@ -1486,9 +1462,6 @@ void Virtualizer::measureNextRevisionColumnsInverted(Container *container) {
   std::vector<Element> nextElements;
   std::vector<std::size_t> nextElementIndices;
 
-  std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
-  std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
-
   double trackSize = container->horizontal
     ? container->nextRevision.windowContainerHeight / container->columns
     : container->nextRevision.windowContainerWidth / container->columns;
@@ -1546,11 +1519,6 @@ void Virtualizer::measureNextRevisionColumnsInverted(Container *container) {
     /*
      * Track measurement indices
      */
-    if (measurementElementStartIndex == UNDEFINED_INDEX) {
-      measurementElementStartIndex = nextElementIndex;
-    }
-    measurementElementEndIndex = nextElementIndex;
-
     if (container->nextRevision.measurementElementStartIndex == UNDEFINED_INDEX || nextElementIndex > container->nextRevision.measurementElementStartIndex) {
       container->nextRevision.measurementElementStartIndex = nextElementIndex;
     }
