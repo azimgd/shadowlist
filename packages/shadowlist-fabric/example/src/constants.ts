@@ -1,6 +1,7 @@
 import type { FeedElement } from './FeedElement';
 import type { NestedElement, NestedElementChild } from './NestedElement';
 import type { MasonryElement } from './MasonryElement';
+import type { ContactElement } from './ContactElement';
 
 export const AVATAR_COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -205,5 +206,25 @@ export function generateMasonryElement(index: number): MasonryElement {
     imageUrl: optimizeImageUrl(originalImageUrl, 400),
     title: IMAGE_TITLES[index % IMAGE_TITLES.length]!,
     height: MASONRY_HEIGHTS[index % MASONRY_HEIGHTS.length]!,
+  };
+}
+
+export function generateContact(index: number): ContactElement {
+  const characterName = CHARACTER_NAMES[index % CHARACTER_NAMES.length]!;
+  const nameParts = characterName.split(' ');
+
+  const firstName = nameParts[0]!;
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+  const areaCode = 100 + (index % 900);
+  const exchange = 200 + (index % 800);
+  const lineNumber = 1000 + (index % 9000);
+  const phoneNumber = `(${areaCode}) ${exchange}-${lineNumber}`;
+
+  return {
+    id: generateUniqueId(),
+    firstName,
+    lastName,
+    phoneNumber,
   };
 }

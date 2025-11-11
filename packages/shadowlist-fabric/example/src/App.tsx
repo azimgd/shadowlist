@@ -7,6 +7,7 @@ import { FeedScreen } from './FeedScreen';
 import { ChatScreen } from './ChatScreen';
 import { NestedScreen } from './NestedScreen';
 import { MasonryScreen } from './MasonryScreen';
+import { ContactsScreen } from './ContactsScreen';
 
 enableScreens();
 
@@ -56,6 +57,13 @@ export default function App() {
             component={MasonryScreen}
             options={{
               title: 'Masonry',
+            }}
+          />
+          <Drawer.Screen
+            name="Contacts"
+            component={ContactsScreen}
+            options={{
+              title: 'Contacts',
             }}
           />
         </Drawer.Navigator>
