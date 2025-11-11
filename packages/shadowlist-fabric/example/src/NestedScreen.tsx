@@ -39,7 +39,7 @@ export const NestedScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={({ element, index }: { element: NestedElementType; index: number }) => (
+        renderElement={({ element, index }) => (
           <NestedElement element={element} index={index} />
         )}
         ListHeaderComponent={<HeaderListItem title="Nested" subtitle="Nested horizontal lists" />}

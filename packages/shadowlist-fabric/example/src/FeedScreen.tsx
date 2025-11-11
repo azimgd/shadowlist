@@ -39,7 +39,7 @@ export const FeedScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={({ element, index }: { element: FeedElementType; index: number }) => (
+        renderElement={({ element, index }) => (
           <FeedElement element={element} index={index} />
         )}
         ListHeaderComponent={<HeaderListItem title="Feed" subtitle="Vertical scrolling list" />}

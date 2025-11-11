@@ -49,7 +49,7 @@ function App() {
   return (
     <Shadowlist
       data={data}
-      renderElement={({ element }: { element: Item; index: number }) => (
+      renderElement={({ element }) => (
         <View style={{ padding: 16 }}>
           <Text>{element.title}</Text>
         </View>
@@ -65,7 +65,7 @@ function App() {
 <Shadowlist
   data={data}
   columns={3}
-  renderElement={({ element }: { element: Item; index: number }) => (
+  renderElement={({ element }) => (
     <View style={{ padding: 8 }}>
       <Text>{element.title}</Text>
     </View>
@@ -79,7 +79,7 @@ function App() {
 <Shadowlist
   data={data}
   horizontal
-  renderElement={({ element }: { element: Item; index: number }) => (
+  renderElement={({ element }) => (
     <View style={{ padding: 16 }}>
       <Text>{element.title}</Text>
     </View>
@@ -93,7 +93,7 @@ function App() {
 <Shadowlist
   data={messages}
   inverted
-  renderElement={({ element }: { element: Message; index: number }) => (
+  renderElement={({ element }) => (
     <View style={{ padding: 12 }}>
       <Text>{element.text}</Text>
     </View>

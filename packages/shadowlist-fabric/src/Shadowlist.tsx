@@ -1,5 +1,5 @@
 import type { ComponentRef, Ref } from 'react';
-import { useRef } from 'react';
+import { useRef, memo } from 'react';
 import {
   useState,
   useMemo,
@@ -66,11 +66,28 @@ export const inversionBasedUpdatingIndices = (
   }
 };
 
+interface ElementRendererProps<ElementT> {
+  element: ElementT;
+  index: number;
+  style: ViewStyle | ViewStyle[];
+  renderElement: (info: { element: ElementT; index: number }) => ReactElement;
+}
+
+const ElementRenderer = memo(function ElementRenderer<
+  ElementT extends { id: string },
+>({ element, index, style, renderElement }: ElementRendererProps<ElementT>) {
+  return (
+    <ShadowlistElementView index={index} style={style} key={element.id}>
+      {renderElement({ element, index })}
+    </ShadowlistElementView>
+  );
+}) as <T extends { id: string }>(props: ElementRendererProps<T>) => ReactElement;
+
 export interface ShadowListCommands {
   scrollToIndex: (index: number) => void;
 }
 
-export interface ShadowListProps<ElementT extends { id: string } = any> {
+export interface ShadowListProps<ElementT extends { id: string }> {
   data: ReadonlyArray<ElementT>;
   renderElement: (info: { element: ElementT; index: number }) => ReactElement;
   style?: ViewStyle;
@@ -88,7 +105,7 @@ export interface ShadowListProps<ElementT extends { id: string } = any> {
   ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
 }
 
-function ShadowList<ElementT extends { id: string } = any>({
+function ShadowList<ElementT extends { id: string }>({
   data,
   renderElement,
   style,
@@ -113,19 +130,24 @@ function ShadowList<ElementT extends { id: string } = any>({
     inversionBasedInitialIndices(data.length, initialElementsSize, inverted)
   );
 
+  const elementDimensionStyle = useMemo(() => {
+    if (horizontal) {
+      return columns > 1
+        ? { height: `${100 / columns}%` }
+        : styles.elementHorizontal;
+    } else {
+      return columns > 1
+        ? { width: `${100 / columns}%` }
+        : styles.elementVertical;
+    }
+  }, [horizontal, columns]);
+
   const elementBaseStyle = useMemo(
-    () => [
-      styles.element,
-      horizontal
-        ? columns > 1
-          ? { height: `${100 / columns}%` }
-          : styles.elementHorizontal
-        : columns > 1
-          ? { width: `${100 / columns}%` }
-          : styles.elementVertical,
-      elementStyle,
-    ],
-    [horizontal, columns, elementStyle]
+    () =>
+      elementStyle
+        ? [styles.element, elementDimensionStyle, elementStyle]
+        : [styles.element, elementDimensionStyle],
+    [elementDimensionStyle, elementStyle]
   );
 
   useImperativeHandle(ref, () => ({
@@ -236,13 +258,13 @@ function ShadowList<ElementT extends { id: string } = any>({
           if (!element) return null;
 
           return (
-            <ShadowlistElementView
+            <ElementRenderer
+              key={element.id}
+              element={element}
               index={index}
               style={elementBaseStyle}
-              key={element.id}
-            >
-              {renderElement({ element, index })}
-            </ShadowlistElementView>
+              renderElement={renderElement}
+            />
           );
         })
       )}

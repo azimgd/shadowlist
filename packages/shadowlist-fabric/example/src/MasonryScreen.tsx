@@ -40,7 +40,7 @@ export const MasonryScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         columns={3}
-        renderElement={({ element, index }: { element: MasonryElementType; index: number }) => (
+        renderElement={({ element, index }) => (
           <MasonryElement element={element} index={index} />
         )}
         ListHeaderComponent={<HeaderListItem title="Masonry" subtitle="Three column grid layout" />}

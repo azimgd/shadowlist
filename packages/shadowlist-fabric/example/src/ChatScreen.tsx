@@ -81,7 +81,7 @@ export const ChatScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={({ element, index }: { element: {id: string, text: string, isFromMe: boolean, imageUrl?: string, imageUrls?: string[]}; index: number }) => (
+        renderElement={({ element, index }) => (
           <ChatElement
             id={element.id}
             index={index}

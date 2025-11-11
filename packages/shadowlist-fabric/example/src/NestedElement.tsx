@@ -44,7 +44,7 @@ export const NestedElement = memo(({ element, index }: NestedElementProps) => {
         data={element.elements}
         horizontal
         style={styles.horizontalList}
-        renderElement={({ element: nestedElementChild }: { element: NestedElementChild }) => (
+        renderElement={({ element: nestedElementChild }) => (
           <NestedElementChildComponent element={nestedElementChild} />
         )}
       />
