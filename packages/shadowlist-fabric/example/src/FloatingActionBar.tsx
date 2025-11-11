@@ -1,5 +1,4 @@
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useState } from 'react';
 
 interface FloatingActionBarProps {
@@ -10,7 +9,6 @@ interface FloatingActionBarProps {
 }
 
 export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLength }: FloatingActionBarProps) => {
-  const insets = useSafeAreaInsets();
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
 
   const handleScrollToRandom = () => {
@@ -20,7 +18,7 @@ export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLe
   };
 
   return (
-    <View style={[styles.container, { bottom: insets.bottom + 62 }]}>
+    <View style={styles.container}>
       <TouchableOpacity style={styles.button} onPress={onPrepend}>
         <Text style={styles.buttonText}>↑</Text>
       </TouchableOpacity>
@@ -37,6 +35,7 @@ export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLe
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
+    top: 12,
     right: 12,
     flexDirection: 'row',
     gap: 8,

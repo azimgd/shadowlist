@@ -1,6 +1,5 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface HeaderListItemProps {
   title?: string;
@@ -8,10 +7,8 @@ interface HeaderListItemProps {
 }
 
 export const HeaderListItem = memo(({ title = 'Header', subtitle }: HeaderListItemProps) => {
-  const insets = useSafeAreaInsets();
-
   return (
-    <View style={[styles.container, { paddingTop: insets.top + 20 }]}>
+    <View style={styles.container}>
       <Text style={styles.title}>{title}</Text>
       {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
     </View>
@@ -21,9 +18,7 @@ export const HeaderListItem = memo(({ title = 'Header', subtitle }: HeaderListIt
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#000000',
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    marginBottom: 8,
+    padding: 16,
     borderBottomWidth: 0.5,
     borderBottomColor: '#2F3336',
   },

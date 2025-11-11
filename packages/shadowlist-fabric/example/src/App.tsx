@@ -1,54 +1,65 @@
-import { useState } from 'react';
+import 'react-native-gesture-handler';
+import { enableScreens } from 'react-native-screens';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import TabView, { SceneMap } from 'react-native-bottom-tabs';
+import { NavigationContainer } from '@react-navigation/native';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 import { FeedScreen } from './FeedScreen';
 import { ChatScreen } from './ChatScreen';
 import { NestedScreen } from './NestedScreen';
 import { MasonryScreen } from './MasonryScreen';
 
-const renderScene = SceneMap({
-  feed: FeedScreen,
-  chat: ChatScreen,
-  nested: NestedScreen,
-  masonry: MasonryScreen,
-});
+enableScreens();
+
+const Drawer = createDrawerNavigator();
 
 export default function App() {
-  const [index, setIndex] = useState(0);
-  const [routes] = useState([
-    {
-      key: 'feed',
-      title: 'Feed',
-      focusedIcon: { sfSymbol: 'newspaper.fill' },
-    },
-    {
-      key: 'chat',
-      title: 'Chat',
-      focusedIcon: { sfSymbol: 'message.fill' },
-    },
-    {
-      key: 'nested',
-      title: 'Nested',
-      focusedIcon: { sfSymbol: 'square.grid.2x2.fill' },
-    },
-    {
-      key: 'masonry',
-      title: 'Masonry',
-      focusedIcon: { sfSymbol: 'square.grid.3x3.fill' },
-    },
-  ]);
-
   return (
     <SafeAreaProvider>
-      <TabView
-        navigationState={{ index, routes }}
-        renderScene={renderScene}
-        onIndexChange={setIndex}
-        labeled
-        tabBarInactiveTintColor="#333333"
-        tabBarActiveTintColor="#FF9500"
-        tabBarStyle={{ backgroundColor: '#00000090' }}
-      />
+      <NavigationContainer>
+        <Drawer.Navigator
+          initialRouteName="Feed"
+          screenOptions={{
+            drawerStyle: {
+              backgroundColor: '#000000',
+            },
+            drawerActiveTintColor: '#FF9500',
+            drawerInactiveTintColor: '#666666',
+            headerStyle: {
+              backgroundColor: '#000000',
+            },
+            headerTintColor: '#FFFFFF',
+          }}
+        >
+          <Drawer.Screen
+            name="Feed"
+            component={FeedScreen}
+            options={{
+              title: 'Feed',
+            }}
+          />
+          <Drawer.Screen
+            name="Chat"
+            component={ChatScreen}
+            options={{
+              title: 'Chat',
+            }}
+          />
+          <Drawer.Screen
+            name="Nested"
+            component={NestedScreen}
+            options={{
+              title: 'Nested',
+            }}
+          />
+          <Drawer.Screen
+            name="Masonry"
+            component={MasonryScreen}
+            options={{
+              title: 'Masonry',
+            }}
+          />
+        </Drawer.Navigator>
+      </NavigationContainer>
     </SafeAreaProvider>
   );
 }
