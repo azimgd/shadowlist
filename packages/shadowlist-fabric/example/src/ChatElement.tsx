@@ -17,7 +17,14 @@ export const ChatElement = memo(({ id, index, text, isFromMe, imageUrl, imageUrl
   }, [index]);
 
   const initials = useMemo(() => {
-    return `U${index % 100}`;
+    const firstLetter = String.fromCharCode(65 + (index % 26));
+    const secondLetter = String.fromCharCode(65 + ((index * 3) % 26));
+    return `${firstLetter}${secondLetter}`;
+  }, [index]);
+
+  const username = useMemo(() => {
+    const names = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry'];
+    return names[index % names.length];
   }, [index]);
 
   const hasImageGrid = imageUrls && imageUrls.length > 0;
@@ -96,8 +103,11 @@ export const ChatElement = memo(({ id, index, text, isFromMe, imageUrl, imageUrl
         </View>
       )}
       <View style={[styles.bubble, isFromMe ? styles.bubbleFromMe : styles.bubbleFromThem]}>
+        <Text style={styles.username}>
+          {username} · {index}
+        </Text>
         <Text style={[styles.text, isFromMe ? styles.textFromMe : styles.textFromThem]}>
-          {index}. {text}
+          {text}
         </Text>
         <Text style={styles.timestamp}>
           {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -109,7 +119,7 @@ export const ChatElement = memo(({ id, index, text, isFromMe, imageUrl, imageUrl
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 2,
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -148,6 +158,20 @@ const styles = StyleSheet.create({
   bubbleFromThem: {
     backgroundColor: '#2C2C2E',
     borderBottomLeftRadius: 4,
+  },
+  username: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+    opacity: 0.8,
+  },
+  imageUsername: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+    opacity: 0.8,
   },
   text: {
     fontSize: 16,

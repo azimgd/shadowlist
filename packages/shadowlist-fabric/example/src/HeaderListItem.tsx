@@ -18,8 +18,8 @@ export const HeaderListItem = memo(({ title = 'Header', subtitle }: HeaderListIt
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#000000',
-    padding: 16,
-    marginBottom: 16,
+    padding: 12,
+    marginBottom: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#2F3336',
   },

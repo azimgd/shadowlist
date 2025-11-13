@@ -29,8 +29,7 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
       <View style={styles.content}>
         <View style={styles.userInfo}>
           <Text style={styles.username}>{element.username}</Text>
-          <Text style={styles.handle}>{element.handle}</Text>
-          <Text style={styles.timestamp}>· {element.timestamp}</Text>
+          <Text style={styles.handle}>{element.handle} · {index}</Text>
         </View>
         <Text style={styles.tweetText}>{element.text}</Text>
         {element.imageUrls.length === 1 ? (
@@ -69,8 +68,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#2F3336',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     flexDirection: 'row',
   },
   avatar: {
@@ -79,7 +78,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   avatarText: {
     color: '#FFFFFF',
@@ -104,15 +103,11 @@ const styles = StyleSheet.create({
     color: '#71767B',
     fontSize: 15,
   },
-  timestamp: {
-    color: '#71767B',
-    fontSize: 15,
-  },
   tweetText: {
     color: '#FFFFFF',
     fontSize: 15,
     lineHeight: 20,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   imageContainer: {
     width: '100%',

@@ -92,7 +92,7 @@ export const ContactElement = memo(({ element, index }: ContactElementProps) => 
             </View>
             <View style={styles.content}>
               <Text style={styles.name}>
-                {element.firstName} {element.lastName}
+                {element.firstName} {element.lastName} · {index}
               </Text>
               <Text style={styles.phoneNumber}>{element.phoneNumber}</Text>
             </View>
@@ -117,8 +117,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#2F3336',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 12,
   },
   avatarText: {
     color: '#FFFFFF',
