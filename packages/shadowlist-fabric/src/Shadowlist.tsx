@@ -82,7 +82,9 @@ const ElementRenderer = memo(function ElementRenderer<
       {renderElement({ element, index })}
     </ShadowlistElementView>
   );
-}) as <T extends { id: string }>(props: ElementRendererProps<T>) => ReactElement;
+}) as <T extends { id: string }>(
+  props: ElementRendererProps<T>
+) => ReactElement;
 
 export interface ShadowListCommands {
   scrollToIndex: (index: number) => void;

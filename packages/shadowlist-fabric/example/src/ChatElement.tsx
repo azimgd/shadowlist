@@ -109,7 +109,7 @@ export const ChatElement = memo(({ id, index, text, isFromMe, imageUrl, imageUrl
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingVertical: 2,
     flexDirection: 'row',
     alignItems: 'flex-end',

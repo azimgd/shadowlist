@@ -65,9 +65,9 @@ export const ContactElement = memo(({ element, index }: ContactElementProps) => 
       }
     });
 
-  const animatedStyle = useAnimatedStyle(() => {
+  const wrapperStyle = useAnimatedStyle(() => {
     return {
-      transform: [{ translateX: translateX.value }],
+      left: translateX.value,
     };
   });
 
@@ -85,17 +85,19 @@ export const ContactElement = memo(({ element, index }: ContactElementProps) => 
         <Text style={styles.deleteButtonText}>Delete</Text>
       </Animated.View>
       <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.contactElement, animatedStyle]}>
-          <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-            <Text style={styles.avatarText}>{initials}</Text>
+        <Animated.View style={[styles.wrapper, wrapperStyle]}>
+          <View style={styles.contactElement}>
+            <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+            <View style={styles.content}>
+              <Text style={styles.name}>
+                {element.firstName} {element.lastName}
+              </Text>
+              <Text style={styles.phoneNumber}>{element.phoneNumber}</Text>
+            </View>
+            <Text style={styles.chevron}>›</Text>
           </View>
-          <View style={styles.content}>
-            <Text style={styles.name}>
-              {element.firstName} {element.lastName}
-            </Text>
-            <Text style={styles.phoneNumber}>{element.phoneNumber}</Text>
-          </View>
-          <Text style={styles.chevron}>›</Text>
         </Animated.View>
       </GestureDetector>
     </View>
@@ -105,13 +107,18 @@ export const ContactElement = memo(({ element, index }: ContactElementProps) => 
 const styles = StyleSheet.create({
   container: {
     position: 'relative',
+    overflow: 'hidden',
+  },
+  wrapper: {
+    position: 'relative',
+    left: 0,
   },
   contactElement: {
     backgroundColor: '#000000',
-    borderBottomWidth: 0.5,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#2F3336',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -121,7 +128,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   avatarText: {
     color: '#FFFFFF',

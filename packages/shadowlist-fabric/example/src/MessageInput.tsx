@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 8,
     backgroundColor: '#1C1C1E',
-    borderTopWidth: 0.5,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#38383A',
   },
   inputContainer: {

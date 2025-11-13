@@ -67,10 +67,10 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
 const styles = StyleSheet.create({
   feedElement: {
     backgroundColor: '#000000',
-    borderBottomWidth: 0.5,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#2F3336',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     flexDirection: 'row',
   },
   avatar: {
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   avatarText: {
     color: '#FFFFFF',
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     lineHeight: 20,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   imageContainer: {
     width: '100%',

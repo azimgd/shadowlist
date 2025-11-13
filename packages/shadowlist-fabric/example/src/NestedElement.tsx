@@ -54,7 +54,7 @@ export const NestedElement = memo(({ element, index }: NestedElementProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 12,
+    marginBottom: 16,
     height: 300,
   },
   sectionTitle: {
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     paddingHorizontal: 16,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   horizontalList: {
     backgroundColor: '#000000',
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: 180,
-    height: 240,
+    height: 220,
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: '#2F3336',
