@@ -83,6 +83,12 @@ using namespace facebook::react;
     nextStateData.totalContainerWidth_,
     nextStateData.totalContainerHeight_);
 
+  SL_LOG("mm.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
+    nextStateData.totalContainerWidth_, nextStateData.totalContainerHeight_,
+    nextStateData.containerOffsetEnabled_ ? 1 : 0,
+    nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
+    self->_scrollView.contentOffset.x, self->_scrollView.contentOffset.y);
+
   if (nextStateData.containerOffsetEnabled_) {
     self->_scrollView.contentOffset = CGPointMake(
       nextStateData.containerOffsetX_,
@@ -92,6 +98,11 @@ using namespace facebook::react;
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
+  if (!self->_state) {
+    return;
+  }
+
+  SL_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f)", scrollView.contentOffset.x, scrollView.contentOffset.y);
   auto nextStateData = self->_state->getData();
   nextStateData.containerOffsetX_ = scrollView.contentOffset.x;
   nextStateData.containerOffsetY_ = scrollView.contentOffset.y;
@@ -106,6 +117,10 @@ using namespace facebook::react;
 
 - (void)setStartReachedEnabled:(BOOL)enabled
 {
+  if (!self->_state) {
+    return;
+  }
+
   auto nextStateData = self->_state->getData();
   nextStateData.startReachedEnabled_ = enabled;
   _state->updateState(std::move(nextStateData));
@@ -113,6 +128,10 @@ using namespace facebook::react;
 
 - (void)setEndReachedEnabled:(BOOL)enabled
 {
+  if (!self->_state) {
+    return;
+  }
+
   auto nextStateData = self->_state->getData();
   nextStateData.endReachedEnabled_ = enabled;
   _state->updateState(std::move(nextStateData));
@@ -120,8 +139,17 @@ using namespace facebook::react;
 
 - (void)scrollToIndex:(NSInteger)index
 {
+  if (!self->_state) {
+    return;
+  }
+
+  /*
+   * Bump the nonce so the core treats this as a fresh request and re-scrolls even
+   * when the index is unchanged from the previous call
+   */
   auto nextStateData = self->_state->getData();
   nextStateData.containerOffsetIndex_ = index;
+  nextStateData.containerOffsetIndexNonce_ = nextStateData.containerOffsetIndexNonce_ + 1;
   nextStateData.containerOffsetEnabled_ = true;
   _state->updateState(std::move(nextStateData));
 }

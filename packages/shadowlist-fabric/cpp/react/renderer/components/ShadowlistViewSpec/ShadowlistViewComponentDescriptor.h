@@ -6,26 +6,8 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
-#include <unordered_map>
 
 namespace facebook::react {
-
-struct ShadowlistCoreSharedInstance {
-  std::shared_ptr<azimgd::shadowlist::Container> containerManager;
-  std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager;
-
-  /*
-   * Header/footer sizes measured by the ShadowNode during layout, fed into the
-   * next frame's Virtualizer::update so the core can position elements
-   */
-  std::shared_ptr<double> headerSize;
-  std::shared_ptr<double> footerSize;
-
-  /*
-   * Last seen scrollToIndex prop value, so the command fires once per change
-   */
-  int prevContainerOffsetIndex = -1;
-};
 
 /*
  * Descriptor for <ShadowlistView> component.
@@ -40,26 +22,20 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     ConcreteComponentDescriptor::adopt(shadowNode);
 
     auto& shadowlistViewShadowNode = static_cast<ShadowlistViewShadowNode&>(shadowNode);
-    auto tag = shadowNode.getTag();
 
     /*
-     * Get or create per-instance state based on ShadowNode tag
+     * Lazily create the core for the initial node of a list. Clones carry these
+     * instances forward (see the ShadowNode clone constructor), so a single core
+     * is shared across a list's committed clones and freed when the node family
+     * is destroyed - no descriptor-level registry that would leak one entry per
+     * mounted list.
      */
-    if (shadowlistCoreSharedInstances_.find(tag) == shadowlistCoreSharedInstances_.end()) {
-      ShadowlistCoreSharedInstance shadowlistCoreSharedInstance;
-      shadowlistCoreSharedInstance.containerManager = std::make_shared<azimgd::shadowlist::Container>();
-      shadowlistCoreSharedInstance.virtualizerManager = std::make_shared<azimgd::shadowlist::Virtualizer>();
-      shadowlistCoreSharedInstance.headerSize = std::make_shared<double>(0.0);
-      shadowlistCoreSharedInstance.footerSize = std::make_shared<double>(0.0);
-      shadowlistCoreSharedInstances_[tag] = shadowlistCoreSharedInstance;
+    if (!shadowlistViewShadowNode.getContainerManager()) {
+      shadowlistViewShadowNode.setContainerManager(std::make_shared<azimgd::shadowlist::Container>());
+      shadowlistViewShadowNode.setVirtualizerManager(std::make_shared<azimgd::shadowlist::Virtualizer>());
+      shadowlistViewShadowNode.setHeaderSize(std::make_shared<double>(0.0));
+      shadowlistViewShadowNode.setFooterSize(std::make_shared<double>(0.0));
     }
-
-    auto& shadowlistCoreSharedInstance = shadowlistCoreSharedInstances_[tag];
-
-    shadowlistViewShadowNode.setContainerManager(shadowlistCoreSharedInstance.containerManager);
-    shadowlistViewShadowNode.setVirtualizerManager(shadowlistCoreSharedInstance.virtualizerManager);
-    shadowlistViewShadowNode.setHeaderSize(shadowlistCoreSharedInstance.headerSize);
-    shadowlistViewShadowNode.setFooterSize(shadowlistCoreSharedInstance.footerSize);
 
     auto& shadowlistViewProps = static_cast<const ShadowlistViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
     auto& shadowlistViewState = static_cast<const ShadowlistViewShadowNode::ConcreteState&>(*shadowNode.getState());
@@ -68,7 +44,7 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     auto shadowlistViewStateData = shadowlistViewState.getData();
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
-    auto containerManager = shadowlistCoreSharedInstance.containerManager.get();
+    auto containerManager = shadowlistViewShadowNode.getContainerManager().get();
 
     /*
      * Forward core events to the event emitter. The core deduplicates so we
@@ -96,18 +72,12 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     /*
      * Resolve a pending scrollToIndex. The imperative command writes the target
      * into state (containerOffsetIndex_); the declarative prop provides an initial
-     * index. Fire the core command once whenever the resolved target changes.
+     * index. The core resolves precedence and fires once per distinct target.
      */
-    int scrollToIndexTarget = -1;
-    if (shadowlistViewStateData.containerOffsetIndex_ >= 0) {
-      scrollToIndexTarget = static_cast<int>(shadowlistViewStateData.containerOffsetIndex_);
-    } else if (shadowlistViewProps.containerOffsetIndex >= 0) {
-      scrollToIndexTarget = shadowlistViewProps.containerOffsetIndex;
-    }
-    if (scrollToIndexTarget >= 0 && scrollToIndexTarget != shadowlistCoreSharedInstance.prevContainerOffsetIndex) {
-      containerManager->scrollToIndex(static_cast<std::size_t>(scrollToIndexTarget));
-    }
-    shadowlistCoreSharedInstance.prevContainerOffsetIndex = scrollToIndexTarget;
+    containerManager->requestScrollToIndex(
+      shadowlistViewStateData.containerOffsetIndex_,
+      shadowlistViewStateData.containerOffsetIndexNonce_,
+      shadowlistViewProps.containerOffsetIndex);
 
     /*
      * Reconcile, measure and resolve scrolling in a single core call
@@ -118,17 +88,14 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     input.containerOffsetY = shadowlistViewStateData.containerOffsetY_;
     input.windowContainerWidth = shadowlistViewLayoutMetrics.frame.size.width;
     input.windowContainerHeight = shadowlistViewLayoutMetrics.frame.size.height;
-    input.headerSize = *shadowlistCoreSharedInstance.headerSize;
-    input.footerSize = *shadowlistCoreSharedInstance.footerSize;
+    input.headerSize = *shadowlistViewShadowNode.getHeaderSize();
+    input.footerSize = *shadowlistViewShadowNode.getFooterSize();
     input.inverted = shadowlistViewProps.inverted;
     input.horizontal = shadowlistViewProps.horizontal;
     input.columns = shadowlistViewProps.columns > 0 ? static_cast<std::size_t>(shadowlistViewProps.columns) : 1;
 
-    shadowlistCoreSharedInstance.virtualizerManager->update(containerManager, input);
+    shadowlistViewShadowNode.getVirtualizerManager()->update(containerManager, input);
   };
-
-  private:
-  mutable std::unordered_map<Tag, ShadowlistCoreSharedInstance> shadowlistCoreSharedInstances_;
 };
 
 void ShadowlistViewSpec_registerComponentDescriptorsFromCodegen(

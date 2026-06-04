@@ -27,6 +27,17 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
   public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
+  /*
+   * Clone constructor. The core instances (container/virtualizer/header/footer)
+   * live on the ShadowNode so they are freed when the node family is destroyed,
+   * but inherited constructors default-initialize derived members, so the clone
+   * must carry the shared instances forward from its source. This keeps a single
+   * core per list instance shared across all its committed clones.
+   */
+  ShadowlistViewShadowNode(
+    const ShadowNode& sourceShadowNode,
+    const ShadowNodeFragment& fragment);
+
 #pragma mark - LayoutableShadowNode
 
   void layout(LayoutContext layoutContext) override;
@@ -40,6 +51,11 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
   void setVirtualizerManager(std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager);
   void setHeaderSize(std::shared_ptr<double> headerSize);
   void setFooterSize(std::shared_ptr<double> footerSize);
+
+  const std::shared_ptr<azimgd::shadowlist::Container>& getContainerManager() const { return containerManager_; }
+  const std::shared_ptr<azimgd::shadowlist::Virtualizer>& getVirtualizerManager() const { return virtualizerManager_; }
+  const std::shared_ptr<double>& getHeaderSize() const { return headerSize_; }
+  const std::shared_ptr<double>& getFooterSize() const { return footerSize_; }
 
   private:
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;

@@ -1,11 +1,21 @@
 #include <shadowlist-core/Virtualizer.hpp>
 #include <algorithm>
 #include <cmath>
+#include <mutex>
 #include <unordered_map>
 
 namespace azimgd::shadowlist {
 
 void Virtualizer::update(Container *container, const FrameInput &input) {
+  std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  SL_LOG("update: keys=%zu prevElements=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d",
+    input.keys.size(), container->nextRevision.elements.size(),
+    input.containerOffsetX, input.containerOffsetY,
+    input.windowContainerWidth, input.windowContainerHeight,
+    input.inverted ? 1 : 0, input.columns, input.headerSize, input.footerSize,
+    container->invertedInitialized ? 1 : 0);
+
   /*
    * Configure layout properties for this frame
    */
@@ -27,6 +37,13 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   captureAnchor(container, inputOffset, anchorKey, anchorDelta);
 
   /*
+   * Remember the anchor so the measurement feedback (updateElementAtIndex, which
+   * runs later during layout) can keep this element fixed on screen
+   */
+  container->anchorKey = anchorKey;
+  container->anchorDelta = anchorDelta;
+
+  /*
    * Reconcile the element list to the incoming keys (handles insert/remove/reorder)
    */
   reconcileElements(container, input.keys);
@@ -41,14 +58,35 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->setWindowContainerHeight(input.windowContainerHeight);
   measure(container);
 
+  SL_LOG("  measured: total=(%.1f,%.1f) offset=(%.1f,%.1f) visible=[%zd..%zd] anchorKey=%s",
+    container->nextRevision.totalContainerWidth, container->nextRevision.totalContainerHeight,
+    container->nextRevision.containerOffsetX, container->nextRevision.containerOffsetY,
+    static_cast<std::ptrdiff_t>(container->getVisibleIndices().first),
+    static_cast<std::ptrdiff_t>(container->getVisibleIndices().second),
+    anchorKey.empty() ? "(none)" : anchorKey.c_str());
+
   /*
-   * Resolve scroll corrections, then end the revision (which dispatches observers)
+   * Resolve scroll corrections. When the offset is moved (scrollToIndex, inverted
+   * bottom anchor, a large MVCP shift) the visible window was selected for the old
+   * offset, so re-measure to select the window matching the new offset.
    */
-  resolveScroll(container, anchorKey, anchorDelta, hadElementsBefore);
+  if (resolveScroll(container, anchorKey, anchorDelta, hadElementsBefore)) {
+    measure(container, true);
+    SL_LOG("  re-measured: offset=(%.1f,%.1f) visible=[%zd..%zd] invInit=%d",
+      container->nextRevision.containerOffsetX, container->nextRevision.containerOffsetY,
+      static_cast<std::ptrdiff_t>(container->getVisibleIndices().first),
+      static_cast<std::ptrdiff_t>(container->getVisibleIndices().second),
+      container->invertedInitialized ? 1 : 0);
+  }
+
+  SL_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d",
+    container->nextRevision.containerOffsetX, container->nextRevision.containerOffsetY,
+    container->containerOffsetCorrected ? 1 : 0, container->invertedInitialized ? 1 : 0);
+
   container->endRevision();
 }
 
-void Virtualizer::measure(Container *container) {
+void Virtualizer::measure(Container *container, bool windowFromOffset) {
   if (container->nextRevisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use measure outside of a revision");
   }
@@ -63,14 +101,20 @@ void Virtualizer::measure(Container *container) {
   container->nextRevision.measurementElementTotalHeight = 0;
   container->nextRevision.measurementElementTotalWidth = 0;
 
-  if (container->nextRevisionCount == RevisionCountFirst) {
+  /*
+   * The first revision fills a window from the edge because element offsets are
+   * not known yet. Once a scroll correction has been applied the offsets exist,
+   * so the re-measure selects the window around the corrected offset instead
+   * (otherwise the visible range would report the edge window, not the target).
+   */
+  if (!windowFromOffset && container->nextRevisionCount == RevisionCountFirst) {
     measureFirstRevision(container);
   } else {
     measureNextRevision(container);
   }
 
   layoutElements(container);
-  finalizeContainer(container);
+  recomputeTotalSize(container);
 }
 
 void Virtualizer::measureFirstRevision(Container *container) {
@@ -194,8 +238,12 @@ void Virtualizer::finalizeMeasurement(Container *container, std::size_t measured
   }
 
   /*
-   * Calculate average element dimensions, needed for estimating the unmeasured
-   * portion of the list. Computed once from the first measured sample.
+   * Calculate average element dimensions, used to size the unmeasured portion of
+   * the list. Computed once and then frozen: it must stay stable across frames so
+   * the same element keeps the same offset between captureAnchor (which reads the
+   * previous layout) and measure (which recomputes it). Recomputing per frame on a
+   * variable-height list swings the average, moves every estimated element's
+   * offset, and makes MVCP chase the moved anchor (violent scroll thrash).
    */
   if (container->nextRevision.measurementElementCount > 0) {
     if (container->nextRevision.averageElementWidth == 0.0) {
@@ -353,19 +401,6 @@ void Virtualizer::recomputeTotalSize(Container *container) {
   }
 }
 
-void Virtualizer::finalizeContainer(Container *container) {
-  recomputeTotalSize(container);
-
-  /*
-   * On the first revision an inverted list starts scrolled to the bottom/right.
-   * Default lists keep the offset supplied by the caller (top/left).
-   */
-  if (container->nextRevisionCount == RevisionCountFirst && container->inverted) {
-    container->nextRevision.containerOffsetY = container->nextRevision.totalContainerHeight - container->nextRevision.windowContainerHeight;
-    container->nextRevision.containerOffsetX = container->nextRevision.totalContainerWidth - container->nextRevision.windowContainerWidth;
-  }
-}
-
 void Virtualizer::addElementAtIndex(Container *container, std::size_t index) {
   if (index > container->nextRevision.elements.size()) {
     throw std::out_of_range("Index out of bounds");
@@ -435,10 +470,65 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
   }
 
   /*
-   * Only the changed element and the elements after it can shift, so re-flow
-   * from this index forward instead of re-flowing the whole list
+   * Only the changed element and the elements after it can shift, so re-flow from
+   * this index forward instead of re-flowing the whole list. The total size is
+   * left to the caller to refresh once after a batch of measurements (via
+   * recomputeTotalSize) rather than rescanning the whole list per measured child.
    */
   recomputeElementOffsets(container, index);
+
+  /*
+   * Maintain the visible content position while off-screen elements are measured:
+   * keep the anchor element fixed on screen. Anchoring to a stable content
+   * reference (instead of summing per-element deltas relative to the scroll offset)
+   * avoids the runaway where the compensation shifts the offset, reveals new
+   * elements, and compensates again.
+   *
+   * During an anchor-driven correction (prepend) we keep that same sticky anchor
+   * fixed; while a fixed-offset correction is being driven (bottom anchor /
+   * scrollToIndex) we leave it to that correction.
+   */
+  std::string compensationKey;
+  double compensationDelta = 0.0;
+  bool compensate = false;
+
+  if (container->pendingScroll && container->pendingAnchorActive) {
+    compensationKey = container->pendingAnchorKey;
+    compensationDelta = container->pendingAnchorDelta;
+    compensate = true;
+  } else if (!container->pendingScroll && !container->anchorKey.empty()) {
+    compensationKey = container->anchorKey;
+    compensationDelta = container->anchorDelta;
+    compensate = true;
+  }
+
+  if (compensate) {
+    std::size_t anchorIndex = container->findElementIndexByKey(compensationKey);
+    if (anchorIndex != UNDEFINED_INDEX) {
+      /*
+       * Only clamp the lower bound here. The total size is recomputed once after
+       * this batch of measurements (see ShadowNode layout), so an upper clamp to
+       * totalSize - windowSize would use a stale, too-small total mid-measurement
+       * and yank the anchor (visibly breaks MVCP on inverted lists). The
+       * over-scroll upper bound is enforced by resolveScroll on the next frame,
+       * which runs after the total has been refreshed.
+       */
+      double anchoredOffset = container->getElementOffset(anchorIndex) + compensationDelta;
+      if (anchoredOffset < 0.0) {
+        anchoredOffset = 0.0;
+      }
+
+      double currentOffset = container->horizontal ? container->nextRevision.containerOffsetX : container->nextRevision.containerOffsetY;
+      if (std::fabs(anchoredOffset - currentOffset) >= 0.5) {
+        if (container->horizontal) {
+          container->nextRevision.containerOffsetX = anchoredOffset;
+        } else {
+          container->nextRevision.containerOffsetY = anchoredOffset;
+        }
+        container->containerOffsetCorrected = true;
+      }
+    }
+  }
 }
 
 void Virtualizer::prependElements(Container *container, std::size_t count) {
@@ -527,61 +617,162 @@ void Virtualizer::captureAnchor(Container *container, double inputOffset, std::s
   anchorDelta = inputOffset - lastElementOffset;
 }
 
-void Virtualizer::resolveScroll(Container *container, const std::string &anchorKey, double anchorDelta, bool hadElementsBefore) {
-  double resolvedOffset = 0.0;
-  bool resolved = false;
+bool Virtualizer::resolveScroll(Container *container, const std::string &anchorKey, double anchorDelta, bool hadElementsBefore) {
+  std::size_t elementsSize = container->nextRevision.elements.size();
+  container->containerOffsetCorrected = false;
 
   /*
-   * A pending scrollToIndex takes precedence: align the element to the viewport start
+   * Re-arm the inverted bottom anchoring (and drop any pending target) when the
+   * list is emptied so it sticks to the bottom again once content arrives
+   */
+  if (elementsSize == 0) {
+    container->invertedInitialized = false;
+    container->pendingScroll = false;
+    container->pendingAnchorActive = false;
+  }
+
+  double windowSize = container->getWindowContainerSize();
+  double totalSize = container->horizontal ? container->nextRevision.totalContainerWidth : container->nextRevision.totalContainerHeight;
+  double currentOffset = container->horizontal ? container->nextRevision.containerOffsetX : container->nextRevision.containerOffsetY;
+  double maxOffset = totalSize - windowSize;
+  if (maxOffset < 0.0) {
+    maxOffset = 0.0;
+  }
+
+  auto clampOffset = [&](double offset) {
+    if (offset < 0.0) offset = 0.0;
+    if (offset > maxOffset) offset = maxOffset;
+    return offset;
+  };
+  auto writeOffset = [&](double offset) {
+    if (container->horizontal) {
+      container->nextRevision.containerOffsetX = offset;
+    } else {
+      container->nextRevision.containerOffsetY = offset;
+    }
+  };
+
+  /*
+   * Drive toward a fixed offset (bottom anchor, scrollToIndex)
+   */
+  auto requestFixed = [&](double offset) {
+    container->pendingScrollOffset = clampOffset(offset);
+    container->pendingScroll = true;
+    container->pendingAnchorActive = false;
+  };
+
+  /*
+   * Drive so the anchor element stays at the same viewport position. The target is
+   * recomputed from the anchor each frame, so it tracks the anchor as nearby
+   * elements are measured/resized while the correction is in flight (prepend).
+   */
+  auto requestAnchor = [&](const std::string &key, double delta) {
+    container->pendingAnchorKey = key;
+    container->pendingAnchorDelta = delta;
+    container->pendingScroll = true;
+    container->pendingAnchorActive = true;
+  };
+
+  /*
+   * 1. scrollToIndex aligns the element to the viewport start
    */
   if (container->scrollToIndexTarget != UNDEFINED_INDEX) {
-    if (container->scrollToIndexTarget < container->nextRevision.elements.size()) {
-      resolvedOffset = container->getElementOffset(container->scrollToIndexTarget);
-      resolved = true;
+    if (container->scrollToIndexTarget < elementsSize) {
+      /*
+       * Drive toward the target ELEMENT (anchored to the viewport start), not a
+       * one-shot offset. The target index is usually far off-screen, so its offset
+       * is built from estimated sizes; jumping to that fixed offset lands on the
+       * wrong element once the region is really measured. Anchoring re-targets the
+       * element's current offset every frame (step 3, pendingAnchorActive) as the
+       * estimates are replaced by measurements, so it converges onto the element.
+       */
+      const std::string targetKey = container->getElementAtIndex(container->scrollToIndexTarget).key;
+      requestAnchor(targetKey, 0.0);
+      /*
+       * An explicit scroll target takes over from the inverted bottom anchor, but
+       * only when it actually applied: an out-of-range target must not silently
+       * disable the bottom pin without scrolling anywhere.
+       */
+      container->invertedInitialized = true;
     }
     container->scrollToIndexTarget = UNDEFINED_INDEX;
   }
 
   /*
-   * Otherwise keep the captured anchor element at the same viewport position so
-   * inserting/removing/resizing elements above the viewport does not shift content
+   * 2. Inverted lists stick to the bottom until the view actually reaches it.
+   *    Covers the initial render and the empty -> populated transition, re-pinning
+   *    while the total size grows as elements are measured. We only pin once the
+   *    window size is known so we don't target total-0 on the first frame.
    */
-  if (!resolved && hadElementsBefore && !anchorKey.empty()) {
-    std::size_t anchorIndex = container->findElementIndexByKey(anchorKey);
-    if (anchorIndex != UNDEFINED_INDEX) {
-      resolvedOffset = container->getElementOffset(anchorIndex) + anchorDelta;
-      resolved = true;
+  if (container->inverted && !container->invertedInitialized && elementsSize > 0 && windowSize > 0.0) {
+    requestFixed(totalSize - windowSize);
+    /*
+     * Only consider the bottom anchor settled once there is an actual scrollable
+     * bottom we have reached. While the content still fits the window (estimated
+     * total <= window on the first frames) keep re-pinning, so a list whose
+     * measured total grows past the window is not left stuck at the top.
+     */
+    if (totalSize > windowSize && std::fabs(currentOffset - container->pendingScrollOffset) < 1.0) {
+      container->invertedInitialized = true;
     }
   }
 
   /*
-   * The inverted first-revision position is already applied by finalizeContainer
+   * 3. Drive an in-flight correction until the view confirms it. This survives the
+   *    racing re-commits the visible-indices event triggers: a stale offset on a
+   *    later frame keeps requesting the same target instead of cancelling it.
    */
-  if (!resolved) {
-    return;
+  if (container->pendingScroll) {
+    double target = container->pendingScrollOffset;
+
+    if (container->pendingAnchorActive) {
+      std::size_t anchorIndex = container->findElementIndexByKey(container->pendingAnchorKey);
+      if (anchorIndex == UNDEFINED_INDEX) {
+        container->pendingScroll = false;
+        container->pendingAnchorActive = false;
+      } else {
+        target = clampOffset(container->getElementOffset(anchorIndex) + container->pendingAnchorDelta);
+      }
+    } else {
+      target = clampOffset(container->pendingScrollOffset);
+    }
+
+    if (container->pendingScroll) {
+      if (std::fabs(currentOffset - target) < 1.0) {
+        container->pendingScroll = false;
+        container->pendingAnchorActive = false;
+      } else {
+        /*
+         * Reached only when |current - target| >= 1.0, i.e. the offset moved, so
+         * the caller always needs to re-measure the window for the new offset.
+         */
+        container->containerOffsetCorrected = true;
+        writeOffset(target);
+        return true;
+      }
+    }
   }
 
   /*
-   * Keep the offset within the scrollable range
+   * 4. Maintain the captured anchor element's viewport position (MVCP) when no
+   *    correction is already in flight. A real shift (content inserted/removed
+   *    above the viewport) starts a new anchor-driven correction; an anchor that
+   *    lands where the user already is (steady scroll, bounce) does nothing.
    */
-  if (resolvedOffset < 0.0) {
-    resolvedOffset = 0.0;
+  if (hadElementsBefore && !anchorKey.empty()) {
+    std::size_t anchorIndex = container->findElementIndexByKey(anchorKey);
+    if (anchorIndex != UNDEFINED_INDEX) {
+      double anchoredOffset = clampOffset(container->getElementOffset(anchorIndex) + anchorDelta);
+      if (std::fabs(anchoredOffset - currentOffset) >= 0.5) {
+        requestAnchor(anchorKey, anchorDelta);
+        container->containerOffsetCorrected = true;
+        writeOffset(anchoredOffset);
+        return true;
+      }
+    }
   }
 
-  /*
-   * Skip negligible corrections so a steady scroll position does not produce a
-   * stream of sub-pixel offset updates back to the integration
-   */
-  double currentOffset = container->horizontal ? container->nextRevision.containerOffsetX : container->nextRevision.containerOffsetY;
-  if (std::fabs(resolvedOffset - currentOffset) < 0.5) {
-    return;
-  }
-
-  if (container->horizontal) {
-    container->nextRevision.containerOffsetX = resolvedOffset;
-  } else {
-    container->nextRevision.containerOffsetY = resolvedOffset;
-  }
+  return false;
 }
 
 }

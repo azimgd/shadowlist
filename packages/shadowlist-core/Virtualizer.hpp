@@ -44,8 +44,17 @@ public:
   /*
    * Measure elements for the current revision
    * Handles default/inverted order and single/multi-column layout
+   * windowFromOffset selects the visible window from the current scroll offset
+   * (used for the re-measure after a scroll correction) instead of filling from
+   * the edge, which is otherwise only correct on the first revision
    */
-  void measure(Container *container);
+  void measure(Container *container, bool windowFromOffset = false);
+
+  /*
+   * Recompute total container size from the maximum element extent. Public so the
+   * integration can refresh it once after feeding back a batch of measured sizes.
+   */
+  static void recomputeTotalSize(Container *container);
 
   /*
    * Reconcile the element list to a new ordered set of keys, preserving the
@@ -100,27 +109,18 @@ private:
   static void recomputeElementOffsets(Container *container, std::size_t fromIndex);
 
   /*
-   * Recompute total container size from the maximum element extent
-   */
-  static void recomputeTotalSize(Container *container);
-
-  /*
-   * Recompute total size and, on the first revision of an inverted list,
-   * position the container at the bottom/right
-   */
-  static void finalizeContainer(Container *container);
-
-  /*
    * Record which element currently sits at the top/left of the viewport and how
    * far we are scrolled into it, so the position can be restored after a reconcile
    */
   static void captureAnchor(Container *container, double inputOffset, std::string &anchorKey, double &anchorDelta);
 
   /*
-   * Apply scroll corrections after measuring: a pending scrollToIndex, otherwise
-   * keep the captured anchor element at the same viewport position (MVCP)
+   * Apply scroll corrections after measuring: a pending scrollToIndex, the inverted
+   * bottom anchor, otherwise keep the captured anchor element at the same viewport
+   * position (MVCP). Returns true when the scroll offset was moved, so the caller
+   * can re-measure the visible window for the new offset.
    */
-  static void resolveScroll(Container *container, const std::string &anchorKey, double anchorDelta, bool hadElementsBefore);
+  static bool resolveScroll(Container *container, const std::string &anchorKey, double anchorDelta, bool hadElementsBefore);
 };
 
 }

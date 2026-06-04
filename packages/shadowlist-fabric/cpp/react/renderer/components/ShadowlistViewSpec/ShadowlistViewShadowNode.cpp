@@ -1,6 +1,23 @@
 #include "ShadowlistViewShadowNode.h"
 
+#include <mutex>
+
 namespace facebook::react {
+
+ShadowlistViewShadowNode::ShadowlistViewShadowNode(
+  const ShadowNode& sourceShadowNode,
+  const ShadowNodeFragment& fragment) :
+  ConcreteViewShadowNode(sourceShadowNode, fragment) {
+  /*
+   * Carry the shared core instances forward from the source so every clone of a
+   * list shares one Container/Virtualizer, freed when the node family dies
+   */
+  const auto& source = static_cast<const ShadowlistViewShadowNode&>(sourceShadowNode);
+  this->containerManager_ = source.containerManager_;
+  this->virtualizerManager_ = source.virtualizerManager_;
+  this->headerSize_ = source.headerSize_;
+  this->footerSize_ = source.footerSize_;
+}
 
 void ShadowlistViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager) {
   this->containerManager_ = containerManager;
@@ -20,6 +37,16 @@ void ShadowlistViewShadowNode::setFooterSize(std::shared_ptr<double> footerSize)
 
 void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
+
+  /*
+   * The core is bound during adopt(); bail out if layout somehow runs first.
+   * Hold the core lock for the whole layout so the commit phase (update) on
+   * another thread cannot reconcile the shared Container underneath us.
+   */
+  if (!this->containerManager_ || !this->virtualizerManager_) {
+    return;
+  }
+  std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
   /*
    * Identify and measure template views (header/footer/empty)
@@ -68,6 +95,15 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
    */
   for (size_t i = 0; i < getChildren().size(); i++) {
     if (const auto prevElementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(getChildren()[i]->getProps())) {
+      /*
+       * A child's index prop comes from a (possibly older) commit's data, so it
+       * can outrun the shared Container's reconciled element count; skip rather
+       * than letting getElementAtIndex throw out of the layout/commit and crash
+       */
+      if (prevElementViewProps->index >= this->containerManager_->getElementsSize()) {
+        continue;
+      }
+
       auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(getChildren()[i]->clone({}));
 
       LayoutMetrics layoutMetrics = elementViewNode->getLayoutMetrics();
@@ -92,6 +128,13 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
+   * Refresh the total once now that the measured sizes for this batch of children
+   * have been fed back, instead of rescanning the whole list per measured child.
+   * The footer position below and the published content size depend on it.
+   */
+  azimgd::shadowlist::Virtualizer::recomputeTotalSize(this->containerManager_.get());
+
+  /*
    * Position header (at the origin) and footer (after the content)
    */
   if (headerNode) {
@@ -111,10 +154,10 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     LayoutMetrics footerMetrics = footerViewNode->getLayoutMetrics();
 
     if (horizontal) {
-      footerMetrics.frame.origin.x = this->containerManager_->nextRevision.totalContainerWidth - footerSize;
+      footerMetrics.frame.origin.x = this->containerManager_->getFooterOffset(footerSize);
       footerMetrics.frame.origin.y = 0;
     } else {
-      footerMetrics.frame.origin.y = this->containerManager_->nextRevision.totalContainerHeight - footerSize;
+      footerMetrics.frame.origin.y = this->containerManager_->getFooterOffset(footerSize);
       footerMetrics.frame.origin.x = 0;
     }
 
@@ -124,31 +167,30 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
-   * Push the core resolved scroll offset and total container size into state.
-   * containerOffsetEnabled is only set when the core moved the offset (scrollToIndex,
-   * maintain-visible-content-position, inverted initial position) so we don't fight
-   * the user's own scrolling.
+   * Resolve the frame into the values to publish. The core decides whether the
+   * content size changed and whether it wants to move the scroll view (only then
+   * is the offset applied, so we never fight the user's own scrolling).
    */
   auto nextStateData = getStateData();
+  auto stateUpdate = this->containerManager_->resolveStateUpdate(
+    nextStateData.containerOffsetX_,
+    nextStateData.containerOffsetY_,
+    nextStateData.totalContainerWidth_,
+    nextStateData.totalContainerHeight_);
 
-  double totalContainerWidth = this->containerManager_->nextRevision.totalContainerWidth;
-  double totalContainerHeight = this->containerManager_->nextRevision.totalContainerHeight;
-  double containerOffsetX = this->containerManager_->nextRevision.containerOffsetX;
-  double containerOffsetY = this->containerManager_->nextRevision.containerOffsetY;
+  SL_LOG("layout: elementChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
+    getChildren().size(), headerSize, footerSize,
+    nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
+    stateUpdate.containerOffsetX, stateUpdate.containerOffsetY,
+    stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
+    stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
-  bool offsetChanged =
-    containerOffsetX != nextStateData.containerOffsetX_ ||
-    containerOffsetY != nextStateData.containerOffsetY_;
-  bool sizeChanged =
-    totalContainerWidth != nextStateData.totalContainerWidth_ ||
-    totalContainerHeight != nextStateData.totalContainerHeight_;
-
-  if (offsetChanged || sizeChanged) {
-    nextStateData.totalContainerWidth_ = totalContainerWidth;
-    nextStateData.totalContainerHeight_ = totalContainerHeight;
-    nextStateData.containerOffsetX_ = containerOffsetX;
-    nextStateData.containerOffsetY_ = containerOffsetY;
-    nextStateData.containerOffsetEnabled_ = offsetChanged;
+  if (stateUpdate.changed) {
+    nextStateData.containerOffsetX_ = stateUpdate.containerOffsetX;
+    nextStateData.containerOffsetY_ = stateUpdate.containerOffsetY;
+    nextStateData.totalContainerWidth_ = stateUpdate.totalContainerWidth;
+    nextStateData.totalContainerHeight_ = stateUpdate.totalContainerHeight;
+    nextStateData.containerOffsetEnabled_ = stateUpdate.applyContainerOffset;
     setStateData(std::move(nextStateData));
   }
 }
@@ -163,16 +205,23 @@ void ShadowlistViewShadowNode::replaceChild(
   size_t suggestedIndex) {
 
   /*
-   * Feed natively measured element sizes back into the virtualizer
+   * Feed natively measured element sizes back into the virtualizer. Guard the
+   * index against the reconciled element count (a stale child can outrun it) and
+   * take the core lock since this can run concurrently with the commit phase.
    */
   if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(nextElementShadowNode->getProps())) {
-    const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
-    const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
+    if (this->containerManager_ && this->virtualizerManager_ &&
+        elementViewProps->index < this->containerManager_->getElementsSize()) {
+      std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
-    this->virtualizerManager_->updateElementAtIndex(
-      this->containerManager_.get(),
-      elementViewProps->index,
-      { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
+      const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
+      const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
+
+      this->virtualizerManager_->updateElementAtIndex(
+        this->containerManager_.get(),
+        elementViewProps->index,
+        { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
+    }
   }
 
   YogaLayoutableShadowNode::replaceChild(prevElementShadowNode, nextElementShadowNode, suggestedIndex);

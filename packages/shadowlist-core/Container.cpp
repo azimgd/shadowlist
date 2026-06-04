@@ -70,6 +70,70 @@ void Container::scrollToIndex(std::size_t index) {
   this->scrollToIndexTarget = index;
 }
 
+void Container::requestScrollToIndex(double commandIndex, double commandNonce, int propIndex) {
+  /*
+   * The imperative command takes precedence over the declarative prop. It fires
+   * once per invocation: the integration bumps the nonce on every scrollToIndex
+   * call, so requesting the same index again still re-scrolls (a value-only dedup
+   * would swallow a repeat scroll to the same index).
+   */
+  bool fired = false;
+  if (commandNonce != this->prevScrollToIndexNonce) {
+    this->prevScrollToIndexNonce = commandNonce;
+    if (commandIndex >= 0.0) {
+      this->scrollToIndex(static_cast<std::size_t>(commandIndex));
+      fired = true;
+    }
+  }
+
+  /*
+   * The declarative prop fires only when its value changes (a negative value is
+   * inactive), so it provides an initial position without re-firing every frame.
+   */
+  if (!fired && propIndex >= 0 && propIndex != this->prevScrollToIndexProp) {
+    this->scrollToIndex(static_cast<std::size_t>(propIndex));
+  }
+  this->prevScrollToIndexProp = propIndex;
+}
+
+ContainerStateUpdate Container::resolveStateUpdate(
+  double prevContainerOffsetX,
+  double prevContainerOffsetY,
+  double prevTotalContainerWidth,
+  double prevTotalContainerHeight) const {
+  ContainerStateUpdate update;
+
+  bool corrected = this->containerOffsetCorrected;
+  bool sizeChanged =
+    this->nextRevision.totalContainerWidth != prevTotalContainerWidth ||
+    this->nextRevision.totalContainerHeight != prevTotalContainerHeight;
+
+  update.totalContainerWidth = this->nextRevision.totalContainerWidth;
+  update.totalContainerHeight = this->nextRevision.totalContainerHeight;
+
+  /*
+   * Only adopt the core's scroll offset when the core actually wants to move the
+   * view; otherwise keep the offset the view reported so we don't fight the user
+   */
+  if (corrected) {
+    update.containerOffsetX = this->nextRevision.containerOffsetX;
+    update.containerOffsetY = this->nextRevision.containerOffsetY;
+  } else {
+    update.containerOffsetX = prevContainerOffsetX;
+    update.containerOffsetY = prevContainerOffsetY;
+  }
+
+  update.applyContainerOffset = corrected;
+  update.changed = corrected || sizeChanged;
+
+  return update;
+}
+
+double Container::getFooterOffset(double footerSize) const {
+  double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
+  return totalSize - footerSize;
+}
+
 std::size_t Container::findElementIndexByKey(const std::string& key) const {
   if (key.empty()) {
     return UNDEFINED_INDEX;
@@ -91,6 +155,8 @@ void Container::dispatchObservers() {
   auto visibleIndices = this->getVisibleIndices();
   if (this->onVisibleIndicesChangeCallback &&
     (visibleIndices.first != this->prevVisibleStartIndex || visibleIndices.second != this->prevVisibleEndIndex)) {
+    SL_LOG("  emit onVisibleIndicesChange(%zd, %zd)",
+      static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second));
     this->onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
   }
   this->prevVisibleStartIndex = visibleIndices.first;

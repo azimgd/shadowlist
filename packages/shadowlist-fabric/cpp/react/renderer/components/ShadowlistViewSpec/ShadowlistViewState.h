@@ -1,8 +1,6 @@
 #pragma once
 
-#include <react/renderer/imagemanager/ImageRequest.h>
-#include <react/renderer/imagemanager/ImageRequestParams.h>
-#include <react/renderer/imagemanager/primitives.h>
+#include <react/renderer/graphics/Float.h>
 
 #ifdef ANDROID
 #include <folly/dynamic.h>
@@ -13,7 +11,7 @@
 namespace facebook::react {
 
 /*
- * State for <Image> component.
+ * State for <ShadowlistView> component.
  */
 class ShadowlistViewState final {
   public:
@@ -25,6 +23,7 @@ class ShadowlistViewState final {
     double containerOffsetY,
     double containerOffsetX,
     double containerOffsetIndex,
+    double containerOffsetIndexNonce,
     double totalContainerHeight,
     double totalContainerWidth,
     bool startReachedEnabled,
@@ -35,6 +34,7 @@ class ShadowlistViewState final {
     containerOffsetY_(containerOffsetY),
     containerOffsetX_(containerOffsetX),
     containerOffsetIndex_(containerOffsetIndex),
+    containerOffsetIndexNonce_(containerOffsetIndexNonce),
     totalContainerHeight_(totalContainerHeight),
     totalContainerWidth_(totalContainerWidth),
     startReachedEnabled_(startReachedEnabled),
@@ -48,6 +48,7 @@ class ShadowlistViewState final {
     containerOffsetY_(data.count("containerOffsetY") ? (Float)data["containerOffsetY"].getDouble() : previousState.containerOffsetY_),
     containerOffsetX_(data.count("containerOffsetX") ? (Float)data["containerOffsetX"].getDouble() : previousState.containerOffsetX_),
     containerOffsetIndex_(data.count("containerOffsetIndex") ? (Float)data["containerOffsetIndex"].getDouble() : previousState.containerOffsetIndex_),
+    containerOffsetIndexNonce_(data.count("containerOffsetIndexNonce") ? (Float)data["containerOffsetIndexNonce"].getDouble() : previousState.containerOffsetIndexNonce_),
     totalContainerHeight_(data.count("totalContainerHeight") ? (Float)data["totalContainerHeight"].getDouble() : previousState.totalContainerHeight_),
     totalContainerWidth_(data.count("totalContainerWidth") ? (Float)data["totalContainerWidth"].getDouble() : previousState.totalContainerWidth_),
     startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
@@ -65,6 +66,7 @@ class ShadowlistViewState final {
     result["containerOffsetY"] = containerOffsetY_;
     result["containerOffsetX"] = containerOffsetX_;
     result["containerOffsetIndex"] = containerOffsetIndex_;
+    result["containerOffsetIndexNonce"] = containerOffsetIndexNonce_;
     result["totalContainerHeight"] = totalContainerHeight_;
     result["totalContainerWidth"] = totalContainerWidth_;
     result["startReachedEnabled"] = startReachedEnabled_;
@@ -79,6 +81,7 @@ class ShadowlistViewState final {
   double containerOffsetY_{0.0};
   double containerOffsetX_{0.0};
   double containerOffsetIndex_{-2.0};
+  double containerOffsetIndexNonce_{0.0};
   double totalContainerHeight_{0.0};
   double totalContainerWidth_{0.0};
   bool startReachedEnabled_{true};

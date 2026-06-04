@@ -87,6 +87,8 @@ const ElementRenderer = memo(function ElementRenderer<
 ) => ReactElement;
 
 export interface ShadowListCommands {
+  setStartReachedEnabled: (enabled: boolean) => void;
+  setEndReachedEnabled: (enabled: boolean) => void;
   scrollToIndex: (index: number) => void;
 }
 
