@@ -2,18 +2,10 @@
 #define Revision_hpp
 
 #include <string>
-#include <chrono>
 #include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Element.hpp>
 
 namespace azimgd::shadowlist {
-
-struct RevisionDebugRepresentationMetadata {
-  /*
-   * Time difference from previous revision (in milliseconds)
-   */
-  long long timestampDiff = 0;
-};
 
 class Revision {
 public:
@@ -21,11 +13,6 @@ public:
    * Elements array
    */
   std::vector<Element> elements;
-
-  /*
-   * Timestamp when revision was created
-   */
-  std::chrono::milliseconds timestamp;
 
   /*
    * Offset of the container within the viewport X axis
@@ -115,7 +102,7 @@ public:
   /*
    * Get debug representation as JSON string
    */
-  std::string getDebugRepresentation(const RevisionDebugRepresentationMetadata& metadata) const;
+  std::string getDebugRepresentation() const;
 };
 
 }

@@ -12,22 +12,6 @@ void Container::startRevision() {
     throw InvalidOperationError("Cannot start the new revision while the previous is in progress");
   }
 
-  /*
-   * On the very first iteration we should have prevRevision == nextRevision
-   * and nextRevisionCount == 0;
-   */
-  if (this->nextRevisionCount != RevisionCountFirst) {
-    this->prevRevision = this->nextRevision;
-    this->prevRevisionTimestamp = this->nextRevisionTimestamp;
-  }
-
-  /*
-   * Set timestamp for next revision
-   */
-  auto now = std::chrono::system_clock::now();
-  this->nextRevisionTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-  this->nextRevision.timestamp = this->nextRevisionTimestamp;
-
   this->nextRevisionStatus = RevisionStatusPending;
 }
 
@@ -50,62 +34,80 @@ void Container::endRevision() {
   }
 
   /*
-   * Check if we're within one screen size of the end of the list
+   * Check whether we're within one screen size of either end of the list.
+   * For inverted lists the start/end are visually swapped.
    */
-  if (this->endReachedEnabled && this->onEndReachedCallback) {
-    double containerOffset = this->getContainerOffset();
-    double windowSize = this->getWindowContainerSize();
-    double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
+  double containerOffset = this->getContainerOffset();
+  double windowSize = this->getWindowContainerSize();
+  double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
 
-    /*
-     * For inverted lists, check if we're scrolled to near the start (which is visually the end)
-     * For default lists, check if we're scrolled to near the end
-     */
-    if (this->inverted) {
-      if (containerOffset <= windowSize) {
-        this->onEndReachedCallback();
-      }
-    } else {
-      if (containerOffset + windowSize >= totalSize - windowSize) {
-        this->onEndReachedCallback();
-      }
-    }
-  }
+  bool nearLowEdge = containerOffset <= windowSize;
+  bool nearHighEdge = containerOffset + windowSize >= totalSize - windowSize;
+
+  bool reachedEnd = this->inverted ? nearLowEdge : nearHighEdge;
+  bool reachedStart = this->inverted ? nearHighEdge : nearLowEdge;
 
   /*
-   * Check if we're within one screen size of the start of the list
+   * When the whole list fits within (or near) a single window both edges are
+   * technically reached; prefer the end callback so we don't double-trigger
    */
-  if (this->startReachedEnabled && this->onStartReachedCallback) {
-    double containerOffset = this->getContainerOffset();
-    double windowSize = this->getWindowContainerSize();
-    double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
-
-    /*
-     * For inverted lists, check if we're scrolled to near the end (which is visually the start)
-     * For default lists, check if we're scrolled to near the start
-     */
-    if (this->inverted) {
-      if (containerOffset + windowSize >= totalSize - windowSize) {
-        this->onStartReachedCallback();
-      }
-    } else {
-      if (containerOffset <= windowSize) {
-        this->onStartReachedCallback();
-      }
-    }
+  if (reachedStart && reachedEnd) {
+    reachedStart = false;
   }
+
+  if (this->endReachedEnabled && this->onEndReachedCallback && reachedEnd) {
+    this->onEndReachedCallback();
+  }
+
+  if (this->startReachedEnabled && this->onStartReachedCallback && reachedStart) {
+    this->onStartReachedCallback();
+  }
+
+  this->dispatchObservers();
 }
 
-RevisionDebugRepresentationMetadata Container::getMetadata() const {
-  RevisionDebugRepresentationMetadata metadata;
+void Container::scrollToIndex(std::size_t index) {
+  this->scrollToIndexTarget = index;
+}
 
-  if (this->nextRevisionCount == 0) {
-    metadata.timestampDiff = 0;
-  } else {
-    metadata.timestampDiff = (this->nextRevisionTimestamp - this->prevRevisionTimestamp).count();
+std::size_t Container::findElementIndexByKey(const std::string& key) const {
+  if (key.empty()) {
+    return UNDEFINED_INDEX;
   }
 
-  return metadata;
+  for (std::size_t nextElementIndex = 0; nextElementIndex < this->nextRevision.elements.size(); nextElementIndex++) {
+    if (this->nextRevision.elements[nextElementIndex].key == key) {
+      return nextElementIndex;
+    }
+  }
+
+  return UNDEFINED_INDEX;
+}
+
+void Container::dispatchObservers() {
+  /*
+   * Notify when the visible index range changes
+   */
+  auto visibleIndices = this->getVisibleIndices();
+  if (this->onVisibleIndicesChangeCallback &&
+    (visibleIndices.first != this->prevVisibleStartIndex || visibleIndices.second != this->prevVisibleEndIndex)) {
+    this->onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
+  }
+  this->prevVisibleStartIndex = visibleIndices.first;
+  this->prevVisibleEndIndex = visibleIndices.second;
+
+  /*
+   * Notify when the scroll offset changes
+   */
+  double containerOffsetX = this->nextRevision.containerOffsetX;
+  double containerOffsetY = this->nextRevision.containerOffsetY;
+  if (this->onScrollCallback &&
+    (!this->prevContainerOffsetValid || containerOffsetX != this->prevContainerOffsetX || containerOffsetY != this->prevContainerOffsetY)) {
+    this->onScrollCallback(containerOffsetX, containerOffsetY);
+  }
+  this->prevContainerOffsetX = containerOffsetX;
+  this->prevContainerOffsetY = containerOffsetY;
+  this->prevContainerOffsetValid = true;
 }
 
 void Container::addElementAtIndex(std::size_t index, Element nextElement) {
@@ -212,8 +214,8 @@ std::size_t Container::getMeasurementElementEndIndex() const {
   return this->nextRevision.measurementElementEndIndex;
 }
 
-std::string Container::getDebugRepresentation(const RevisionDebugRepresentationMetadata& metadata) const {
-  return this->nextRevision.getDebugRepresentation(metadata);
+std::string Container::getDebugRepresentation() const {
+  return this->nextRevision.getDebugRepresentation();
 }
 
 std::vector<Element> Container::getVisibleElements() const {

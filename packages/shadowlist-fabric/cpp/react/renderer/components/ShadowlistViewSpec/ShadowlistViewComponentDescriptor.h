@@ -13,17 +13,18 @@ namespace facebook::react {
 struct ShadowlistCoreSharedInstance {
   std::shared_ptr<azimgd::shadowlist::Container> containerManager;
   std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager;
-  std::shared_ptr<ShadowlistViewShadowNode::ContainerSizeUpdateState> containerSizeUpdateState;
-  std::shared_ptr<size_t> prependElementsSize;
-  std::shared_ptr<double> prependElementsOffset;
-  std::shared_ptr<double> prependedElementsOffset;
-  std::shared_ptr<double> measuredElementsSize;
-  std::string elementsHeadKey;
-  std::string elementsTailKey;
-  int prevVisibleStartIndex = -1;
-  int prevVisibleEndIndex = -1;
-  double prevContentOffsetX = -1.0;
-  double prevContentOffsetY = -1.0;
+
+  /*
+   * Header/footer sizes measured by the ShadowNode during layout, fed into the
+   * next frame's Virtualizer::update so the core can position elements
+   */
+  std::shared_ptr<double> headerSize;
+  std::shared_ptr<double> footerSize;
+
+  /*
+   * Last seen scrollToIndex prop value, so the command fires once per change
+   */
+  int prevContainerOffsetIndex = -1;
 };
 
 /*
@@ -48,11 +49,8 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
       ShadowlistCoreSharedInstance shadowlistCoreSharedInstance;
       shadowlistCoreSharedInstance.containerManager = std::make_shared<azimgd::shadowlist::Container>();
       shadowlistCoreSharedInstance.virtualizerManager = std::make_shared<azimgd::shadowlist::Virtualizer>();
-      shadowlistCoreSharedInstance.containerSizeUpdateState = std::make_shared<ShadowlistViewShadowNode::ContainerSizeUpdateState>(ShadowlistViewShadowNode::ContainerSizeUpdateState::INITIALIZED);
-      shadowlistCoreSharedInstance.prependElementsSize = std::make_shared<size_t>(0);
-      shadowlistCoreSharedInstance.prependElementsOffset = std::make_shared<double>(0.0);
-      shadowlistCoreSharedInstance.prependedElementsOffset = std::make_shared<double>(0.0);
-      shadowlistCoreSharedInstance.measuredElementsSize = std::make_shared<double>(0.0);
+      shadowlistCoreSharedInstance.headerSize = std::make_shared<double>(0.0);
+      shadowlistCoreSharedInstance.footerSize = std::make_shared<double>(0.0);
       shadowlistCoreSharedInstances_[tag] = shadowlistCoreSharedInstance;
     }
 
@@ -60,11 +58,8 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
 
     shadowlistViewShadowNode.setContainerManager(shadowlistCoreSharedInstance.containerManager);
     shadowlistViewShadowNode.setVirtualizerManager(shadowlistCoreSharedInstance.virtualizerManager);
-    shadowlistViewShadowNode.setContainerSizeUpdateState(shadowlistCoreSharedInstance.containerSizeUpdateState);
-    shadowlistViewShadowNode.setPrependElementsSize(shadowlistCoreSharedInstance.prependElementsSize);
-    shadowlistViewShadowNode.setPrependElementsOffset(shadowlistCoreSharedInstance.prependElementsOffset);
-    shadowlistViewShadowNode.setPrependedElementsOffset(shadowlistCoreSharedInstance.prependedElementsOffset);
-    shadowlistViewShadowNode.setMeasuredElementsSize(shadowlistCoreSharedInstance.measuredElementsSize);
+    shadowlistViewShadowNode.setHeaderSize(shadowlistCoreSharedInstance.headerSize);
+    shadowlistViewShadowNode.setFooterSize(shadowlistCoreSharedInstance.footerSize);
 
     auto& shadowlistViewProps = static_cast<const ShadowlistViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
     auto& shadowlistViewState = static_cast<const ShadowlistViewShadowNode::ConcreteState&>(*shadowNode.getState());
@@ -73,75 +68,63 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     auto shadowlistViewStateData = shadowlistViewState.getData();
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
-    if (shadowlistCoreSharedInstance.containerManager->onStartReachedCallback == nullptr) {
-      shadowlistCoreSharedInstance.containerManager->onStartReachedCallback = [shadowlistViewEventEmitter]() -> void {
-        shadowlistViewEventEmitter.onStartReached({});
-      };
-    }
+    auto containerManager = shadowlistCoreSharedInstance.containerManager.get();
 
-    if (shadowlistCoreSharedInstance.containerManager->onEndReachedCallback == nullptr) {
-      shadowlistCoreSharedInstance.containerManager->onEndReachedCallback = [shadowlistViewEventEmitter]() -> void {
-        shadowlistViewEventEmitter.onEndReached({});
-      };
-    }
-
-    if (shadowlistCoreSharedInstance.containerManager->nextRevision.elements.size() != shadowlistViewProps.elementsAllKeys.size()) {
-      // @TODO: increment only for now, implement decrement as well
-      auto prependElementsSize = shadowlistViewProps.elementsAllKeys.size() - shadowlistCoreSharedInstance.containerManager->nextRevision.elements.size();
-
-      if (shadowlistCoreSharedInstance.elementsHeadKey.length() > 0 && shadowlistCoreSharedInstance.elementsHeadKey != shadowlistViewProps.elementsHeadKey) {
-        shadowlistCoreSharedInstance.virtualizerManager->prependElements(shadowlistCoreSharedInstance.containerManager.get(), prependElementsSize);
-        *shadowlistCoreSharedInstance.prependElementsSize += prependElementsSize;
-      } else if (shadowlistCoreSharedInstance.elementsTailKey.length() > 0  && shadowlistCoreSharedInstance.elementsTailKey != shadowlistViewProps.elementsTailKey) {
-        shadowlistCoreSharedInstance.virtualizerManager->appendElements(shadowlistCoreSharedInstance.containerManager.get(), prependElementsSize);
-      } else {
-        shadowlistCoreSharedInstance.containerManager->resizeElementsTail(shadowlistViewProps.elementsAllKeys.size());
-      }
-
-      shadowlistCoreSharedInstance.elementsHeadKey = shadowlistViewProps.elementsHeadKey;
-      shadowlistCoreSharedInstance.elementsTailKey = shadowlistViewProps.elementsTailKey;
-    }
-
-    shadowlistCoreSharedInstance.containerManager->inverted = shadowlistViewProps.inverted;
-    shadowlistCoreSharedInstance.containerManager->horizontal = shadowlistViewProps.horizontal;
-    shadowlistCoreSharedInstance.containerManager->columns = shadowlistViewProps.columns;
-
-    shadowlistCoreSharedInstance.containerManager->startRevision();
-
-    shadowlistCoreSharedInstance.containerManager->setContainerOffsetX(shadowlistViewStateData.containerOffsetX_);
-    shadowlistCoreSharedInstance.containerManager->setContainerOffsetY(shadowlistViewStateData.containerOffsetY_);
-    shadowlistCoreSharedInstance.containerManager->setWindowContainerWidth(shadowlistViewLayoutMetrics.frame.size.width);
-    shadowlistCoreSharedInstance.containerManager->setWindowContainerHeight(shadowlistViewLayoutMetrics.frame.size.height);
-
-    shadowlistCoreSharedInstance.virtualizerManager->measure(shadowlistCoreSharedInstance.containerManager.get());
-    shadowlistCoreSharedInstance.containerManager->endRevision();
-
-    auto nextVisibleIndices = shadowlistCoreSharedInstance.containerManager->getVisibleIndices();
-    int nextVisibleStartIndex = static_cast<int>(nextVisibleIndices.first);
-    int nextVisibleEndIndex = static_cast<int>(nextVisibleIndices.second);
-
-    if (shadowlistCoreSharedInstance.prevVisibleStartIndex != nextVisibleStartIndex || shadowlistCoreSharedInstance.prevVisibleEndIndex != nextVisibleEndIndex) {
+    /*
+     * Forward core events to the event emitter. The core deduplicates so we
+     * only need to translate the payloads here.
+     */
+    containerManager->onStartReachedCallback = [shadowlistViewEventEmitter]() -> void {
+      shadowlistViewEventEmitter.onStartReached({});
+    };
+    containerManager->onEndReachedCallback = [shadowlistViewEventEmitter]() -> void {
+      shadowlistViewEventEmitter.onEndReached({});
+    };
+    containerManager->onVisibleIndicesChangeCallback = [shadowlistViewEventEmitter](std::size_t startIndex, std::size_t endIndex) -> void {
       shadowlistViewEventEmitter.onVisibleIndicesChange({
-        .visibleStartIndex = nextVisibleStartIndex,
-        .visibleEndIndex = nextVisibleEndIndex,
+        .visibleStartIndex = static_cast<int>(startIndex),
+        .visibleEndIndex = static_cast<int>(endIndex),
       });
-
-      shadowlistCoreSharedInstance.prevVisibleStartIndex = nextVisibleStartIndex;
-      shadowlistCoreSharedInstance.prevVisibleEndIndex = nextVisibleEndIndex;
-    }
-
-    double currentContentOffsetX = shadowlistViewStateData.containerOffsetX_;
-    double currentContentOffsetY = shadowlistViewStateData.containerOffsetY_;
-
-    if (shadowlistCoreSharedInstance.prevContentOffsetX != currentContentOffsetX || shadowlistCoreSharedInstance.prevContentOffsetY != currentContentOffsetY) {
+    };
+    containerManager->onScrollCallback = [shadowlistViewEventEmitter](double containerOffsetX, double containerOffsetY) -> void {
       shadowlistViewEventEmitter.onScroll({
-        .contentOffsetX = currentContentOffsetX,
-        .contentOffsetY = currentContentOffsetY,
+        .contentOffsetX = containerOffsetX,
+        .contentOffsetY = containerOffsetY,
       });
+    };
 
-      shadowlistCoreSharedInstance.prevContentOffsetX = currentContentOffsetX;
-      shadowlistCoreSharedInstance.prevContentOffsetY = currentContentOffsetY;
+    /*
+     * Resolve a pending scrollToIndex. The imperative command writes the target
+     * into state (containerOffsetIndex_); the declarative prop provides an initial
+     * index. Fire the core command once whenever the resolved target changes.
+     */
+    int scrollToIndexTarget = -1;
+    if (shadowlistViewStateData.containerOffsetIndex_ >= 0) {
+      scrollToIndexTarget = static_cast<int>(shadowlistViewStateData.containerOffsetIndex_);
+    } else if (shadowlistViewProps.containerOffsetIndex >= 0) {
+      scrollToIndexTarget = shadowlistViewProps.containerOffsetIndex;
     }
+    if (scrollToIndexTarget >= 0 && scrollToIndexTarget != shadowlistCoreSharedInstance.prevContainerOffsetIndex) {
+      containerManager->scrollToIndex(static_cast<std::size_t>(scrollToIndexTarget));
+    }
+    shadowlistCoreSharedInstance.prevContainerOffsetIndex = scrollToIndexTarget;
+
+    /*
+     * Reconcile, measure and resolve scrolling in a single core call
+     */
+    azimgd::shadowlist::FrameInput input;
+    input.keys = shadowlistViewProps.elementsAllKeys;
+    input.containerOffsetX = shadowlistViewStateData.containerOffsetX_;
+    input.containerOffsetY = shadowlistViewStateData.containerOffsetY_;
+    input.windowContainerWidth = shadowlistViewLayoutMetrics.frame.size.width;
+    input.windowContainerHeight = shadowlistViewLayoutMetrics.frame.size.height;
+    input.headerSize = *shadowlistCoreSharedInstance.headerSize;
+    input.footerSize = *shadowlistCoreSharedInstance.footerSize;
+    input.inverted = shadowlistViewProps.inverted;
+    input.horizontal = shadowlistViewProps.horizontal;
+    input.columns = shadowlistViewProps.columns > 0 ? static_cast<std::size_t>(shadowlistViewProps.columns) : 1;
+
+    shadowlistCoreSharedInstance.virtualizerManager->update(containerManager, input);
   };
 
   private:

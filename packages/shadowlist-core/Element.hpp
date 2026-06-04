@@ -23,6 +23,11 @@ public:
   std::string id = "";
 
   /*
+   * Stable user-provided key, used to reconcile elements across updates
+   */
+  std::string key = "";
+
+  /*
    * Index of the element in the list
    */
   std::size_t index = 0;
@@ -69,12 +74,13 @@ public:
   
   /*
    * Random element id generation
+   * Generator state is thread_local so concurrent element construction
+   * (Fabric can commit shadow trees on multiple threads) is race free
    */
   static std::string generateRandomId() {
-    static std::random_device rd;
-    static std::mt19937_64 gen(rd());
-    static std::uniform_int_distribution<uint64_t> dis;
-    
+    thread_local std::mt19937_64 gen(std::random_device{}());
+    thread_local std::uniform_int_distribution<uint64_t> dis;
+
     std::stringstream ss;
     ss << std::hex << std::setfill('0') << std::setw(16) << dis(gen);
     return ss.str();

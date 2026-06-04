@@ -1,5 +1,6 @@
 #include <shadowlist-core/Observer.hpp>
 #include <shadowlist-core/Container.hpp>
+#include <algorithm>
 #include <cmath>
 
 namespace azimgd::shadowlist {
@@ -39,7 +40,10 @@ void Observer::unsubscribe(std::size_t subscriptionId) {
 }
 
 void Observer::notifyEndRevision() {
-  if (!hasIndicesChanged()) {
+  /*
+   * Nothing to dispatch when nothing changed and no throttled dispatch is pending
+   */
+  if (!hasIndicesChanged() && !this->pendingDispatch) {
     return;
   }
 
@@ -50,6 +54,8 @@ void Observer::notifyEndRevision() {
 
   /*
    * Only execute callbacks if enough time has passed (throttling)
+   * A pending dispatch left over from a throttled change is flushed here once
+   * the throttle window elapses, so the trailing update is never lost
    */
   if (dispatchTimestampDiff.count() >= static_cast<long long>(this->throttleMs)) {
     executeCallbacks();

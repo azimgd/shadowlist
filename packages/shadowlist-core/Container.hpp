@@ -33,6 +33,18 @@ public:
   std::function<void()> onStartReachedCallback;
 
   /*
+   * Callback to be executed when the visible element range changes
+   * Arguments are (startIndex, endIndex) of the visible range
+   */
+  std::function<void(std::size_t, std::size_t)> onVisibleIndicesChangeCallback;
+
+  /*
+   * Callback to be executed when the scroll offset changes
+   * Arguments are (containerOffsetX, containerOffsetY)
+   */
+  std::function<void(double, double)> onScrollCallback;
+
+  /*
    * Enable/disable end reached callback
    */
   bool endReachedEnabled = true;
@@ -43,12 +55,7 @@ public:
   bool startReachedEnabled = true;
 
   /*
-   * Previous measurement revision
-   */
-  Revision prevRevision = {};
-
-  /*
-   * Previous measurement revision
+   * Current measurement revision
    */
   Revision nextRevision = {};
 
@@ -61,16 +68,6 @@ public:
    * Current active revision status
    */
   std::size_t nextRevisionStatus = RevisionStatusIdle;
-
-  /*
-   * Timestamp of next revision
-   */
-  std::chrono::milliseconds nextRevisionTimestamp = std::chrono::milliseconds(0);
-
-  /*
-   * Timestamp of previous revision
-   */
-  std::chrono::milliseconds prevRevisionTimestamp = std::chrono::milliseconds(0);
 
   /*
    * Default / Inverted order of the list
@@ -86,6 +83,22 @@ public:
    * Number of columns for multi-column layout
    */
   size_t columns = 1;
+
+  /*
+   * Size of the header (and empty) template along the scroll axis
+   * Elements are positioned after the header and the total size includes it
+   */
+  double headerSize = 0.0;
+
+  /*
+   * Size of the footer template along the scroll axis, included in the total size
+   */
+  double footerSize = 0.0;
+
+  /*
+   * Pending scrollToIndex target, or UNDEFINED_INDEX when inactive
+   */
+  std::size_t scrollToIndexTarget = UNDEFINED_INDEX;
 
   /**
    * Start a new revision cycle for measurements and state updates
@@ -185,12 +198,7 @@ public:
   /**
    * Get debug representation as JSON string
    */
-  std::string getDebugRepresentation(const RevisionDebugRepresentationMetadata& metadata) const;
-
-  /**
-   * Get metadata for current revision
-   */
-  RevisionDebugRepresentationMetadata getMetadata() const;
+  std::string getDebugRepresentation() const;
 
   /**
    * Get all visible elements
@@ -215,6 +223,23 @@ public:
   void toggleStartReached(bool enabled);
 
   /**
+   * Request scrolling so the element at the given index is at the start of the viewport
+   * The request is resolved on the next measurement
+   */
+  void scrollToIndex(std::size_t index);
+
+  /**
+   * Find the index of the element with the given key, or UNDEFINED_INDEX if absent
+   */
+  std::size_t findElementIndexByKey(const std::string& key) const;
+
+  /**
+   * Fire the visible-indices-change and scroll callbacks if their values changed
+   * since the last revision (deduplication lives here so integrations don't repeat it)
+   */
+  void dispatchObservers();
+
+  /**
    * Set observer for this container
    * @param observer Pointer to observer instance (can be nullptr to remove)
    */
@@ -231,6 +256,19 @@ private:
    * Observer for revision changes
    */
   Observer* observer = nullptr;
+
+  /**
+   * Previously dispatched visible range, used to deduplicate onVisibleIndicesChange
+   */
+  std::size_t prevVisibleStartIndex = UNDEFINED_INDEX;
+  std::size_t prevVisibleEndIndex = UNDEFINED_INDEX;
+
+  /**
+   * Previously dispatched scroll offset, used to deduplicate onScroll
+   */
+  double prevContainerOffsetX = 0.0;
+  double prevContainerOffsetY = 0.0;
+  bool prevContainerOffsetValid = false;
 };
 
 }
