@@ -61,7 +61,19 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   @Override
   @ReactProp(name = "horizontal")
   public void setHorizontal(ShadowlistView view, boolean horizontal) {
+    view.setHorizontalAxis(horizontal);
+  }
 
+  @Override
+  @ReactProp(name = "stickyHeader")
+  public void setStickyHeader(ShadowlistView view, boolean stickyHeader) {
+    view.setStickyHeader(stickyHeader);
+  }
+
+  @Override
+  @ReactProp(name = "stickyFooter")
+  public void setStickyFooter(ShadowlistView view, boolean stickyFooter) {
+    view.setStickyFooter(stickyFooter);
   }
 
   @Override

@@ -44,5 +44,6 @@ public class ShadowlistTemplateViewManager extends ViewGroupManager<ShadowlistTe
   @Override
   @ReactProp(name = "templateType")
   public void setTemplateType(ShadowlistTemplateView view, String templateType) {
+    view.setTemplateType(templateType);
   }
 }

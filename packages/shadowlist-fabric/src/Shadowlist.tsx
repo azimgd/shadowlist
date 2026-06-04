@@ -113,6 +113,8 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   elementStyle?: ViewStyle;
   inverted?: boolean;
   horizontal?: boolean;
+  stickyHeader?: boolean;
+  stickyFooter?: boolean;
   columns?: number;
   containerOffsetIndex?: number;
   initialElementsSize?: number;
@@ -132,6 +134,8 @@ function Shadowlist<ElementT extends { id: string }>({
   elementStyle,
   inverted = false,
   horizontal = false,
+  stickyHeader = false,
+  stickyFooter = false,
   columns = 1,
   containerOffsetIndex = -2,
   initialElementsSize = 20,
@@ -267,6 +271,8 @@ function Shadowlist<ElementT extends { id: string }>({
       elementsAllKeys={elementsAllKeys}
       inverted={inverted}
       horizontal={horizontal}
+      stickyHeader={stickyHeader}
+      stickyFooter={stickyFooter}
       columns={columns}
       containerOffsetIndex={containerOffsetIndex}
       onStartReached={onStartReached}

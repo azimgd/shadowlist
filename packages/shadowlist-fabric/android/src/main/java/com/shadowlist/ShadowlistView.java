@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
-import android.util.AttributeSet;
 import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,6 +36,26 @@ public class ShadowlistView extends ReactScrollView {
   private @Nullable StateWrapper mState = null;
   private ContentContainer mContentView = null;
 
+  /*
+   * The last scroll offset (px) the core applied itself. onScrollChanged fires for
+   * both user gestures and our own scrollTo, so we compare against this to tell
+   * them apart: a callback that matches the applied offset is the core's own move
+   * (not a user scroll). See mUserScrolled plumbing below.
+   */
+  private int mAppliedScrollX = 0;
+  private int mAppliedScrollY = 0;
+  private boolean mHasAppliedScroll = false;
+
+  /*
+   * Sticky header/footer are pinned natively here (not in the core layout) so they
+   * track scrolling on the UI thread without the commit-cycle latency that made the
+   * core-driven version choppy. The template views keep their resting position from
+   * the shadow node; we layer a translation on top each scroll frame.
+   */
+  private boolean mStickyHeader = false;
+  private boolean mStickyFooter = false;
+  private boolean mHorizontalAxis = false;
+
   private static class ContentContainer extends ViewGroup {
     public ContentContainer(Context context) {
       super(context);
@@ -49,16 +68,6 @@ public class ShadowlistView extends ReactScrollView {
 
   public ShadowlistView(Context context) {
     super(context);
-    init(context);
-  }
-
-  public ShadowlistView(Context context, AttributeSet attrs) {
-    super(context, attrs);
-    init(context);
-  }
-
-  public ShadowlistView(Context context, AttributeSet attrs, int defStyleAttr) {
-    super(context, attrs, defStyleAttr);
     init(context);
   }
 
@@ -89,6 +98,69 @@ public class ShadowlistView extends ReactScrollView {
   protected void onScrollChanged(int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
     super.onScrollChanged(scrollX, scrollY, oldScrollX, oldScrollY);
     updateScrollState(scrollX, scrollY);
+    applyStickyTranslations();
+  }
+
+  public void setStickyHeader(boolean stickyHeader) {
+    mStickyHeader = stickyHeader;
+    applyStickyTranslations();
+  }
+
+  public void setStickyFooter(boolean stickyFooter) {
+    mStickyFooter = stickyFooter;
+    applyStickyTranslations();
+  }
+
+  public void setHorizontalAxis(boolean horizontal) {
+    mHorizontalAxis = horizontal;
+    applyStickyTranslations();
+  }
+
+  /*
+   * Pin the sticky header/footer to the viewport by translating them relative to
+   * their resting position. The header tracks the scroll offset (stays at the
+   * start); the footer tracks offset + window - content so it stays at the viewport
+   * end and lands exactly on its resting position at the scroll extreme. Runs on
+   * the UI thread per scroll frame, so it stays in lockstep with the gesture.
+   */
+  private void applyStickyTranslations() {
+    if (mContentView == null) {
+      return;
+    }
+
+    int offsetX = getScrollX();
+    int offsetY = getScrollY();
+    int windowW = getWidth();
+    int windowH = getHeight();
+    int contentW = mContentView.getWidth();
+    int contentH = mContentView.getHeight();
+
+    for (int i = 0; i < mContentView.getChildCount(); i++) {
+      View child = mContentView.getChildAt(i);
+      if (!(child instanceof ShadowlistTemplateView)) {
+        continue;
+      }
+
+      boolean isFooter = "footer".equals(((ShadowlistTemplateView) child).getTemplateType());
+      boolean sticky = isFooter ? mStickyFooter : mStickyHeader;
+
+      float translation = 0f;
+      if (sticky) {
+        if (isFooter) {
+          translation = mHorizontalAxis ? (offsetX + windowW - contentW) : (offsetY + windowH - contentH);
+        } else {
+          translation = mHorizontalAxis ? offsetX : offsetY;
+        }
+      }
+
+      if (mHorizontalAxis) {
+        child.setTranslationX(translation);
+        child.setTranslationY(0f);
+      } else {
+        child.setTranslationY(translation);
+        child.setTranslationX(0f);
+      }
+    }
   }
 
   private void updateScrollState(int scrollX, int scrollY) {
@@ -96,14 +168,27 @@ public class ShadowlistView extends ReactScrollView {
       return;
     }
 
+    /*
+     * A callback whose offset matches the one the core just applied is the core's
+     * own move, not a user gesture. Everything else (drag, fling) is a genuine
+     * user scroll, which lets the core abandon an in-flight correction instead of
+     * letting it latch and freeze the visible window (blank list on deep scroll).
+     */
+    boolean userScrolled = true;
+    if (mHasAppliedScroll && Math.abs(scrollX - mAppliedScrollX) <= 2 && Math.abs(scrollY - mAppliedScrollY) <= 2) {
+      userScrolled = false;
+      mHasAppliedScroll = false;
+    }
+
     WritableMap map = new WritableNativeMap();
 
     map.putDouble("containerOffsetX", PixelUtil.toDIPFromPixel(scrollX));
     map.putDouble("containerOffsetY", PixelUtil.toDIPFromPixel(scrollY));
     map.putBoolean("containerOffsetEnabled", false);
+    map.putBoolean("userScrolled", userScrolled);
 
-    slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f)",
-      PixelUtil.toDIPFromPixel(scrollX), PixelUtil.toDIPFromPixel(scrollY)));
+    slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f) userScrolled=%b",
+      PixelUtil.toDIPFromPixel(scrollX), PixelUtil.toDIPFromPixel(scrollY), userScrolled));
     mState.updateState(map);
   }
 
@@ -164,12 +249,17 @@ public class ShadowlistView extends ReactScrollView {
         float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
         float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
 
-        scrollTo(
-          (int) PixelUtil.toPixelFromDIP(containerOffsetX),
-          (int) PixelUtil.toPixelFromDIP(containerOffsetY)
-        );
+        mAppliedScrollX = (int) PixelUtil.toPixelFromDIP(containerOffsetX);
+        mAppliedScrollY = (int) PixelUtil.toPixelFromDIP(containerOffsetY);
+        mHasAppliedScroll = true;
+
+        scrollTo(mAppliedScrollX, mAppliedScrollY);
       }
     }
+
+    // Re-pin after the content size / offset changed (the footer pin depends on
+    // the content size) even when the list is not actively scrolling.
+    applyStickyTranslations();
   }
 
   public void setStartReachedEnabled(boolean enabled) {

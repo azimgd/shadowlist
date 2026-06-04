@@ -131,6 +131,11 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     auto headerViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(headerNode->clone({}));
     LayoutMetrics headerMetrics = headerViewNode->getLayoutMetrics();
 
+    /*
+     * The header rests at the content start. A sticky header is pinned to the
+     * viewport natively in the scroll callback (see the integrations), not here,
+     * because the commit cycle is too slow to track scrolling smoothly.
+     */
     headerMetrics.frame.origin.x = 0;
     headerMetrics.frame.origin.y = 0;
 

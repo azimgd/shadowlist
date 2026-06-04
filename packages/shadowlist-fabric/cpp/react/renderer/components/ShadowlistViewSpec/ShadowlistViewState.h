@@ -53,7 +53,8 @@ class ShadowlistViewState final {
     totalContainerWidth_(data.count("totalContainerWidth") ? (Float)data["totalContainerWidth"].getDouble() : previousState.totalContainerWidth_),
     startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
     endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_),
-    containerOffsetEnabled_(data.count("containerOffsetEnabled") ? data["containerOffsetEnabled"].getBool() : previousState.containerOffsetEnabled_)
+    containerOffsetEnabled_(data.count("containerOffsetEnabled") ? data["containerOffsetEnabled"].getBool() : previousState.containerOffsetEnabled_),
+    userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_)
     {};
 
   /* Serializes the state into folly::dynamic for the Android renderer. */
@@ -70,6 +71,7 @@ class ShadowlistViewState final {
     result["startReachedEnabled"] = startReachedEnabled_;
     result["endReachedEnabled"] = endReachedEnabled_;
     result["containerOffsetEnabled"] = containerOffsetEnabled_;
+    result["userScrolled"] = userScrolled_;
     return result;
   };
 #endif
@@ -85,6 +87,16 @@ class ShadowlistViewState final {
   bool startReachedEnabled_{true};
   bool endReachedEnabled_{true};
   bool containerOffsetEnabled_{false};
+
+  /*
+   * True when the offset in this state came from a genuine user scroll gesture,
+   * false when it is the view's resting position or an offset the core itself
+   * applied. The core uses it to abandon an in-flight scroll correction the moment
+   * the user takes over (see Virtualizer::update / FrameInput::userScrolled), so a
+   * transient maintain-visible-content-position nudge cannot latch and freeze the
+   * virtualization window. The integrations set it from the platform drag state.
+   */
+  bool userScrolled_{false};
 };
 
 }

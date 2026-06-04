@@ -78,6 +78,8 @@ export const ChatScreen = () => {
           />
         )}
         inverted
+        stickyHeader
+        stickyFooter
         ListHeaderComponent={<HeaderListItem title="Chat" subtitle="Inverted list" />}
         ListFooterComponent={<FooterListItem text="Start of conversation" />}
       />

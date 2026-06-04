@@ -90,9 +90,19 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     input.windowContainerHeight = shadowlistViewLayoutMetrics.frame.size.height;
     input.headerSize = *shadowlistViewShadowNode.getHeaderSize();
     input.footerSize = *shadowlistViewShadowNode.getFooterSize();
+    input.stickyHeader = shadowlistViewProps.stickyHeader;
+    input.stickyFooter = shadowlistViewProps.stickyFooter;
     input.inverted = shadowlistViewProps.inverted;
     input.horizontal = shadowlistViewProps.horizontal;
     input.columns = shadowlistViewProps.columns > 0 ? static_cast<std::size_t>(shadowlistViewProps.columns) : 1;
+
+    /*
+     * A genuine user scroll abandons any in-flight scroll correction so the user
+     * takes over instead of being snapped back. Without this the core's "yield to
+     * the user" path never fires and a transient correction can latch and freeze
+     * the visible window (blank list on deep scroll).
+     */
+    input.userScrolled = shadowlistViewStateData.userScrolled_;
 
     shadowlistViewShadowNode.getVirtualizerManager()->update(containerManager, input);
   };

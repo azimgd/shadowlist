@@ -39,6 +39,8 @@ interface NativeProps extends ViewProps {
   elementsAllKeys: string[];
   inverted: boolean;
   horizontal: boolean;
+  stickyHeader: boolean;
+  stickyFooter: boolean;
   columns: CodegenTypes.Int32;
   containerOffsetIndex: CodegenTypes.Int32;
   readonly onVisibleIndicesChange?: CodegenTypes.DirectEventHandler<OnVisibleIndicesChange>;

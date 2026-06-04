@@ -120,6 +120,16 @@ public:
   double footerSize = 0.0;
 
   /*
+   * When set, the header/footer template is pinned to the viewport edge instead of
+   * scrolling with the content: the header stays at the viewport start and the
+   * footer at the viewport end. The reserved header/footer space in the content is
+   * unchanged, so the template settles back onto it at the scroll extremes. See
+   * getStickyHeaderOffset / getStickyFooterOffset.
+   */
+  bool stickyHeader = false;
+  bool stickyFooter = false;
+
+  /*
    * Pending scrollToIndex target, or UNDEFINED_INDEX when inactive
    */
   std::size_t scrollToIndexTarget = UNDEFINED_INDEX;
@@ -239,9 +249,23 @@ public:
     double prevTotalContainerHeight) const;
 
   /*
-   * Offset of the footer along the scroll axis (placed after the content)
+   * Resting offset of the footer along the scroll axis (placed after the content).
    */
   double getFooterOffset(double footerSize) const;
+
+  /*
+   * Viewport-pinned ("sticky") offsets along the scroll axis: the header tracks the
+   * scroll offset to stay at the viewport start, the footer at the viewport end.
+   * Each falls back to its resting offset when the corresponding sticky flag is
+   * unset.
+   *
+   * Kept here so the pin geometry has a single tested definition. The Fabric
+   * integration applies the pin natively in the scroll callback (the commit cycle
+   * is too slow to pin smoothly), but a core-driven integration - e.g. WASM - can
+   * use these directly.
+   */
+  double getStickyHeaderOffset() const;
+  double getStickyFooterOffset(double footerSize) const;
 
   /*
    * Find the index of the element with the given key, or UNDEFINED_INDEX if absent

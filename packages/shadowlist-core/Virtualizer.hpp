@@ -25,6 +25,8 @@ struct FrameInput {
   double windowContainerHeight = 0.0;
   double headerSize = 0.0;
   double footerSize = 0.0;
+  bool stickyHeader = false;
+  bool stickyFooter = false;
   bool inverted = false;
   bool horizontal = false;
   std::size_t columns = 1;

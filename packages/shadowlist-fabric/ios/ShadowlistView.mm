@@ -17,6 +17,19 @@ using namespace facebook::react;
   ShadowlistViewShadowNode::ConcreteState::Shared _state;
   UIScrollView * _scrollView;
   UIView * _contentView;
+
+  /*
+   * Sticky header/footer are pinned natively here (not in the core layout) so they
+   * track scrolling on the UI thread without the commit-cycle latency that made the
+   * core-driven version choppy. The core keeps the pin geometry (getSticky*Offset)
+   * for a future core-driven integration. The template views keep their resting
+   * frame from the shadow node; we layer a translation transform on top each frame.
+   */
+  BOOL _stickyHeader;
+  BOOL _stickyFooter;
+  BOOL _horizontal;
+  __weak UIView * _stickyHeaderView;
+  __weak UIView * _stickyFooterView;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -56,14 +69,82 @@ using namespace facebook::react;
   }
 
   if ([childComponentView conformsToProtocol:@protocol(RCTShadowlistTemplateViewViewProtocol)]) {
+    const auto &templateProps = *std::static_pointer_cast<ShadowlistTemplateViewProps const>(childComponentView.props);
+    if (templateProps.templateType == "footer") {
+      _stickyFooterView = childComponentView;
+    } else {
+      _stickyHeaderView = childComponentView;
+    }
     [_contentView addSubview:childComponentView];
+    [self applyStickyTransforms];
     return;
   }
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
+  if (childComponentView == _stickyHeaderView) {
+    _stickyHeaderView = nil;
+  }
+  if (childComponentView == _stickyFooterView) {
+    _stickyFooterView = nil;
+  }
   [childComponentView removeFromSuperview];
+}
+
+- (void)prepareForRecycle
+{
+  _stickyHeaderView = nil;
+  _stickyFooterView = nil;
+  _stickyHeader = NO;
+  _stickyFooter = NO;
+  _horizontal = NO;
+  [super prepareForRecycle];
+}
+
+- (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
+{
+  const auto &nextProps = *std::static_pointer_cast<ShadowlistViewProps const>(props);
+  _stickyHeader = nextProps.stickyHeader;
+  _stickyFooter = nextProps.stickyFooter;
+  _horizontal = nextProps.horizontal;
+
+  [super updateProps:props oldProps:oldProps];
+
+  [self applyStickyTransforms];
+}
+
+/*
+ * Pin the sticky header/footer to the viewport by translating them relative to
+ * their resting frame. The header tracks the scroll offset (stays at the start);
+ * the footer tracks offset + window - content so it stays at the viewport end and
+ * lands exactly on its resting position at the scroll extreme. Runs on every scroll
+ * tick on the UI thread, so it stays in lockstep with the finger.
+ */
+- (void)applyStickyTransforms
+{
+  CGPoint offset = _scrollView.contentOffset;
+  CGSize window = _scrollView.bounds.size;
+  CGSize content = _scrollView.contentSize;
+
+  if (_stickyHeaderView) {
+    CGFloat translation = _stickyHeader ? (_horizontal ? offset.x : offset.y) : 0.0;
+    _stickyHeaderView.transform = _horizontal
+      ? CGAffineTransformMakeTranslation(translation, 0.0)
+      : CGAffineTransformMakeTranslation(0.0, translation);
+  }
+
+  if (_stickyFooterView) {
+    CGFloat translation = 0.0;
+    if (_stickyFooter) {
+      translation = _horizontal
+        ? offset.x + window.width - content.width
+        : offset.y + window.height - content.height;
+    }
+    _stickyFooterView.transform = _horizontal
+      ? CGAffineTransformMakeTranslation(translation, 0.0)
+      : CGAffineTransformMakeTranslation(0.0, translation);
+  }
 }
 
 #pragma mark - UIScrollViewDelegate
@@ -94,6 +175,12 @@ using namespace facebook::react;
       nextStateData.containerOffsetX_,
       nextStateData.containerOffsetY_);
   }
+
+  /*
+   * Re-pin after the content size / offset changed so a sticky footer (whose pin
+   * depends on contentSize) stays put even when the list is not actively scrolling.
+   */
+  [self applyStickyTransforms];
 }
 
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
@@ -102,12 +189,56 @@ using namespace facebook::react;
     return;
   }
 
-  SL_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f)", scrollView.contentOffset.x, scrollView.contentOffset.y);
+  /*
+   * Distinguish a genuine user gesture from the offset the core applied itself: a
+   * programmatic setContentOffset fires this with the scroll view neither dragging
+   * nor decelerating. Flagging it lets the core abandon an in-flight correction
+   * when the user takes over (otherwise a transient correction latches and freezes
+   * the visible window - blank list on deep scroll).
+   */
+  BOOL userScrolled = scrollView.isDragging || scrollView.isDecelerating || scrollView.isTracking;
+
+  SL_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f) userScrolled=%d",
+    scrollView.contentOffset.x, scrollView.contentOffset.y, userScrolled ? 1 : 0);
   auto nextStateData = _state->getData();
   nextStateData.containerOffsetX_ = scrollView.contentOffset.x;
   nextStateData.containerOffsetY_ = scrollView.contentOffset.y;
   nextStateData.containerOffsetEnabled_ = false;
+  nextStateData.userScrolled_ = userScrolled;
   _state->updateState(std::move(nextStateData));
+
+  [self applyStickyTransforms];
+}
+
+/*
+ * Clear the user-scroll flag once the gesture (and any momentum) ends, so a later
+ * data/layout re-commit is not mistaken for a user scroll and does not cancel a
+ * legitimate correction (e.g. a maintain-visible-content-position shift).
+ */
+- (void)clearUserScrolled
+{
+  if (!_state) {
+    return;
+  }
+
+  auto nextStateData = _state->getData();
+  if (!nextStateData.userScrolled_) {
+    return;
+  }
+  nextStateData.userScrolled_ = false;
+  _state->updateState(std::move(nextStateData));
+}
+
+- (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
+{
+  if (!decelerate) {
+    [self clearUserScrolled];
+  }
+}
+
+- (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
+{
+  [self clearUserScrolled];
 }
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args

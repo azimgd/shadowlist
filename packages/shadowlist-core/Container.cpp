@@ -134,6 +134,29 @@ double Container::getFooterOffset(double footerSize) const {
   return totalSize - footerSize;
 }
 
+double Container::getStickyHeaderOffset() const {
+  /*
+   * Pin the header to the viewport start by tracking the scroll offset; otherwise
+   * it rests at the content start (0).
+   */
+  if (this->stickyHeader) {
+    return this->getContainerOffset();
+  }
+  return 0.0;
+}
+
+double Container::getStickyFooterOffset(double footerSize) const {
+  /*
+   * Pin the footer to the viewport end by tracking the scroll offset. At the
+   * bottom of the list (offset == totalSize - window) this equals the resting
+   * position, so the footer settles seamlessly onto its reserved space.
+   */
+  if (this->stickyFooter) {
+    return this->getContainerOffset() + this->getWindowContainerSize() - footerSize;
+  }
+  return this->getFooterOffset(footerSize);
+}
+
 std::size_t Container::findElementIndexByKey(const std::string& key) const {
   if (key.empty()) {
     return UNDEFINED_INDEX;

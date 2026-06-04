@@ -24,6 +24,8 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->columns = input.columns;
   container->headerSize = input.headerSize;
   container->footerSize = input.footerSize;
+  container->stickyHeader = input.stickyHeader;
+  container->stickyFooter = input.stickyFooter;
   container->estimatedElementSize = input.estimatedElementSize;
 
   /*

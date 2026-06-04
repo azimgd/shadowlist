@@ -51,6 +51,8 @@ struct Sim {
   std::size_t columns = 1;
   double headerSize = 0.0;
   double footerSize = 0.0;
+  bool stickyHeader = false;
+  bool stickyFooter = false;
   double winW = 400.0;
   double winH = 600.0;
   Size estimated = {100.0, 100.0};
@@ -134,6 +136,8 @@ struct Sim {
     input.columns = columns;
     input.headerSize = headerSize;
     input.footerSize = footerSize;
+    input.stickyHeader = stickyHeader;
+    input.stickyFooter = stickyFooter;
     input.estimatedElementSize = {estimated.width, estimated.height};
     input.userScrolled = nextUserScrolled;
     nextUserScrolled = false;
