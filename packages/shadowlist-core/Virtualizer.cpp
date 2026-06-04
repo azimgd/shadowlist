@@ -372,12 +372,22 @@ void Virtualizer::recomputeElementOffsets(Container *container, std::size_t from
 
       std::size_t trackIndex = nextElementIndex % container->columns;
 
+      /*
+       * Force the cross-axis size to the track size here (not only in layoutElements)
+       * so a re-flow with a freshly known window size - e.g. the layout pass applying
+       * a window that the commit-phase update() saw as zero - corrects the element's
+       * cross extent too, not just its position. Without this a multi-column list
+       * laid out before its window was measured keeps a zero cross size until an
+       * unrelated re-commit (a scroll) happens to re-run the full measure.
+       */
       if (container->horizontal) {
         nextElement.offsetY = trackIndex * trackSize;
+        nextElement.height = trackSize;
         nextElement.offsetX = trackSizes[trackIndex];
         trackSizes[trackIndex] += nextElement.width + nextElement.gapX;
       } else {
         nextElement.offsetX = trackIndex * trackSize;
+        nextElement.width = trackSize;
         nextElement.offsetY = trackSizes[trackIndex];
         trackSizes[trackIndex] += nextElement.height + nextElement.gapY;
       }
@@ -436,15 +446,23 @@ void Virtualizer::recomputeTotalSize(Container *container) {
   }
 
   /*
-   * Along the scroll axis include the header (as a floor, for empty lists) and
-   * the trailing footer. The cross axis is left as the maximum element extent.
+   * Along the scroll axis include the header (as a floor, for empty lists) and the
+   * trailing footer. The cross axis is the maximum element extent, floored at the
+   * window's cross size so the content always spans the viewport. This floor is what
+   * makes multi-column (masonry) layouts stable: the integration sizes each element
+   * to a fraction of the content view's cross size (e.g. 1/columns via a percentage
+   * width), and that content view is sized to this total. Without the floor the two
+   * form a feedback loop with a zero fixed point - a cross total that momentarily
+   * collapses (e.g. the first layout before the window is measured) sizes the columns
+   * to a fraction of ~0 and can never recover. A vertical list never scrolls
+   * horizontally (and vice versa), so pinning the cross axis to the window is correct.
    */
   if (container->horizontal) {
     container->revision.totalContainerWidth = std::max(maxWidth, container->headerSize) + container->footerSize;
-    container->revision.totalContainerHeight = maxHeight;
+    container->revision.totalContainerHeight = std::max(maxHeight, container->revision.windowContainerHeight);
   } else {
     container->revision.totalContainerHeight = std::max(maxHeight, container->headerSize) + container->footerSize;
-    container->revision.totalContainerWidth = maxWidth;
+    container->revision.totalContainerWidth = std::max(maxWidth, container->revision.windowContainerWidth);
   }
 
   /*

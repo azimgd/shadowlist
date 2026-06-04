@@ -86,15 +86,28 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   *this->footerSize_ = footerSize;
 
   /*
-   * Apply the freshly measured header/footer to the core now and re-flow the element
-   * offsets in this same pass. update() (run from adopt, before the header is
-   * measured here) otherwise only sees the size on the NEXT commit - a one-frame lag
-   * that on a list with no other re-renders (e.g. a static, non-sticky header) never
-   * settles, leaving the header overlapping the first rows.
+   * Apply the freshly measured header/footer AND the actual window (viewport) size to
+   * the core now and re-flow the element offsets in this same pass. update() runs from
+   * adopt in the commit phase, before this node has been laid out, so it sees a zero
+   * frame on the first render: a multi-column list then sizes every column to
+   * windowWidth/columns == 0 (collapsed masonry), and a static, non-sticky header
+   * overlaps the first rows. The corrected frame only reaches update() on a LATER
+   * commit (e.g. a scroll), and the high-water visible band suppresses the re-render
+   * that might trigger one - so a static list stays broken until the user scrolls.
+   * Applying the real values here makes the first layout correct on its own.
    */
-  if (this->containerManager_->headerSize != headerSize || this->containerManager_->footerSize != footerSize) {
+  const auto& windowFrameSize = getLayoutMetrics().frame.size;
+  bool layoutInputsChanged =
+    this->containerManager_->headerSize != headerSize ||
+    this->containerManager_->footerSize != footerSize ||
+    this->containerManager_->revision.windowContainerWidth != windowFrameSize.width ||
+    this->containerManager_->revision.windowContainerHeight != windowFrameSize.height;
+
+  if (layoutInputsChanged) {
     this->containerManager_->headerSize = headerSize;
     this->containerManager_->footerSize = footerSize;
+    this->containerManager_->revision.windowContainerWidth = windowFrameSize.width;
+    this->containerManager_->revision.windowContainerHeight = windowFrameSize.height;
     azimgd::shadowlist::Virtualizer::recomputeElementOffsets(this->containerManager_.get(), 0);
   }
 
