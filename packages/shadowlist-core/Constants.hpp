@@ -10,11 +10,6 @@ constexpr std::size_t UNDEFINED_INDEX = static_cast<std::size_t>(-1);
 
 }
 
-/*
- * Temporary debug logging. Set SHADOWLIST_DEBUG_LOG to 0 (or remove these calls)
- * once the inverted/virtualization behavior is confirmed. Output is prefixed with
- * "[SL]" and goes to stderr (visible in the Xcode console / `react-native log-ios`).
- */
 #ifndef SHADOWLIST_DEBUG_LOG
 #define SHADOWLIST_DEBUG_LOG 0
 #endif

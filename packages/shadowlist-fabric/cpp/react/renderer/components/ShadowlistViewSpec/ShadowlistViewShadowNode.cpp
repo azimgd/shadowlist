@@ -38,11 +38,6 @@ void ShadowlistViewShadowNode::setFooterSize(std::shared_ptr<double> footerSize)
 void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
 
-  /*
-   * The core is bound during adopt(); bail out if layout somehow runs first.
-   * Hold the core lock for the whole layout so the commit phase (update) on
-   * another thread cannot reconcile the shared Container underneath us.
-   */
   if (!this->containerManager_ || !this->virtualizerManager_) {
     return;
   }
@@ -95,11 +90,6 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
    */
   for (size_t i = 0; i < getChildren().size(); i++) {
     if (const auto prevElementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(getChildren()[i]->getProps())) {
-      /*
-       * A child's index prop comes from a (possibly older) commit's data, so it
-       * can outrun the shared Container's reconciled element count; skip rather
-       * than letting getElementAtIndex throw out of the layout/commit and crash
-       */
       if (prevElementViewProps->index >= this->containerManager_->getElementsSize()) {
         continue;
       }

@@ -74,8 +74,6 @@ public:
   
   /*
    * Random element id generation
-   * Generator state is thread_local so concurrent element construction
-   * (Fabric can commit shadow trees on multiple threads) is race free
    */
   static std::string generateRandomId() {
     thread_local std::mt19937_64 gen(std::random_device{}());
