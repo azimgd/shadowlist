@@ -10,7 +10,7 @@ constexpr std::size_t UNDEFINED_INDEX = static_cast<std::size_t>(-1);
 }
 
 #ifndef SHADOWLIST_DEBUG_LOG
-#define SHADOWLIST_DEBUG_LOG 0
+#define SHADOWLIST_DEBUG_LOG 1
 #endif
 
 #if SHADOWLIST_DEBUG_LOG

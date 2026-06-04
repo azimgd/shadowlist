@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -18,6 +19,21 @@ import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.views.scroll.ReactScrollView;
 
 public class ShadowlistView extends ReactScrollView {
+  /*
+   * Trace the native <-> C++ core state synchronization. Mirrors the
+   * SHADOWLIST_DEBUG_LOG flag in shadowlist-core/Constants.hpp (and the iOS
+   * mm.* logs) and shares the same [SL] tag so all layers interleave into one
+   * stream. Filter with: adb logcat -s SL
+   */
+  private static final boolean DEBUG_LOG = true;
+  private static final String LOG_TAG = "SL";
+
+  private static void slLog(String message) {
+    if (DEBUG_LOG) {
+      Log.d(LOG_TAG, "[SL] " + message);
+    }
+  }
+
   private @Nullable StateWrapper mState = null;
   private ContentContainer mContentView = null;
 
@@ -86,6 +102,8 @@ public class ShadowlistView extends ReactScrollView {
     map.putDouble("containerOffsetY", PixelUtil.toDIPFromPixel(scrollY));
     map.putBoolean("containerOffsetEnabled", false);
 
+    slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f)",
+      PixelUtil.toDIPFromPixel(scrollX), PixelUtil.toDIPFromPixel(scrollY)));
     mState.updateState(map);
   }
 
@@ -123,6 +141,14 @@ public class ShadowlistView extends ReactScrollView {
       return;
     }
 
+    slLog(String.format("java.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
+      nextStateData.hasKey("totalContainerWidth") ? nextStateData.getDouble("totalContainerWidth") : 0.0,
+      nextStateData.hasKey("totalContainerHeight") ? nextStateData.getDouble("totalContainerHeight") : 0.0,
+      (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) ? 1 : 0,
+      nextStateData.hasKey("containerOffsetX") ? nextStateData.getDouble("containerOffsetX") : 0.0,
+      nextStateData.hasKey("containerOffsetY") ? nextStateData.getDouble("containerOffsetY") : 0.0,
+      PixelUtil.toDIPFromPixel(getScrollX()), PixelUtil.toDIPFromPixel(getScrollY())));
+
     if (nextStateData.hasKey("totalContainerWidth") && nextStateData.hasKey("totalContainerHeight")) {
       float totalContainerWidth = (float) nextStateData.getDouble("totalContainerWidth");
       float totalContainerHeight = (float) nextStateData.getDouble("totalContainerHeight");
@@ -155,6 +181,7 @@ public class ShadowlistView extends ReactScrollView {
 
     map.putBoolean("startReachedEnabled", enabled);
 
+    slLog("java.cmd setStartReachedEnabled: enabled=" + (enabled ? 1 : 0));
     mState.updateState(map);
   }
 
@@ -167,6 +194,7 @@ public class ShadowlistView extends ReactScrollView {
 
     map.putBoolean("endReachedEnabled", enabled);
 
+    slLog("java.cmd setEndReachedEnabled: enabled=" + (enabled ? 1 : 0));
     mState.updateState(map);
   }
 
@@ -187,6 +215,7 @@ public class ShadowlistView extends ReactScrollView {
     map.putDouble("containerOffsetIndex", (double) index);
     map.putDouble("containerOffsetIndexNonce", nextNonce);
     map.putBoolean("containerOffsetEnabled", true);
+    slLog("java.cmd scrollToIndex: index=" + index + " nonce=" + (long) nextNonce);
     mState.updateState(map);
   }
 }

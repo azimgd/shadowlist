@@ -17,6 +17,20 @@ import {
   Commands,
 } from 'shadowlist';
 
+/*
+ * Trace the JS <-> native state synchronization. Mirrors the SHADOWLIST_DEBUG_LOG
+ * flag in the C++ core (shadowlist-core/Constants.hpp) and shares the same [SL]
+ * tag, so the JS, C++ and iOS/Android logs interleave into one readable stream.
+ * Only the meaningful boundaries are logged (native events applied upward,
+ * imperative commands sent downward) to keep it off the per-frame scroll path.
+ */
+const SHADOWLIST_DEBUG_LOG = true;
+
+const slLog = (...args: unknown[]) => {
+  if (!SHADOWLIST_DEBUG_LOG) return;
+  console.log('[SL]', ...args);
+};
+
 function createRangeArray(indices: OnVisibleIndicesChange) {
   if (
     indices.visibleStartIndex === -1 ||
@@ -161,16 +175,19 @@ function Shadowlist<ElementT extends { id: string }>({
     setStartReachedEnabled: (enabled: boolean) => {
       if (!shadowlistViewRef.current) return;
 
+      slLog('js.cmd setStartReachedEnabled', `enabled=${enabled ? 1 : 0}`);
       Commands.setStartReachedEnabled(shadowlistViewRef.current, enabled);
     },
     setEndReachedEnabled: (enabled: boolean) => {
       if (!shadowlistViewRef.current) return;
 
+      slLog('js.cmd setEndReachedEnabled', `enabled=${enabled ? 1 : 0}`);
       Commands.setEndReachedEnabled(shadowlistViewRef.current, enabled);
     },
     scrollToIndex: (index: number) => {
       if (!shadowlistViewRef.current) return;
 
+      slLog('js.cmd scrollToIndex', `index=${index}`);
       Commands.scrollToIndex(shadowlistViewRef.current, index);
     },
   }));
@@ -194,7 +211,17 @@ function Shadowlist<ElementT extends { id: string }>({
           return prevIndices;
         }
 
-        return inversionBasedUpdatingIndices(nextIndices, inverted);
+        const updatedIndices = inversionBasedUpdatingIndices(
+          nextIndices,
+          inverted
+        );
+        slLog(
+          'js.onVisibleIndicesChange apply',
+          `native=[${nextIndices.visibleStartIndex}..${nextIndices.visibleEndIndex}]`,
+          `render=[${updatedIndices.visibleStartIndex}..${updatedIndices.visibleEndIndex}]`,
+          `inv=${inverted ? 1 : 0}`
+        );
+        return updatedIndices;
       });
     },
     [inverted]
