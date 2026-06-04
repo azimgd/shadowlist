@@ -75,6 +75,9 @@ public class ShadowlistView extends ReactScrollView {
   public void addView(View child, int index) {
     if (child instanceof ShadowlistElementView) {
       mContentView.addView(child, index);
+      // A newly mounted element can land above the sticky header/footer; keep the
+      // pinned views on top.
+      bringStickyViewsToFront();
       return;
     }
 
@@ -160,6 +163,39 @@ public class ShadowlistView extends ReactScrollView {
         child.setTranslationY(translation);
         child.setTranslationX(0f);
       }
+    }
+
+    bringStickyViewsToFront();
+  }
+
+  /*
+   * A pinned (sticky) header/footer must stay above the scrolling elements, which
+   * mount continuously and would otherwise cover it.
+   */
+  private void bringStickyViewsToFront() {
+    if (mContentView == null || (!mStickyHeader && !mStickyFooter)) {
+      return;
+    }
+
+    View headerView = null;
+    View footerView = null;
+    for (int i = 0; i < mContentView.getChildCount(); i++) {
+      View child = mContentView.getChildAt(i);
+      if (!(child instanceof ShadowlistTemplateView)) {
+        continue;
+      }
+      if ("footer".equals(((ShadowlistTemplateView) child).getTemplateType())) {
+        footerView = child;
+      } else {
+        headerView = child;
+      }
+    }
+
+    if (mStickyHeader && headerView != null) {
+      headerView.bringToFront();
+    }
+    if (mStickyFooter && footerView != null) {
+      footerView.bringToFront();
     }
   }
 
@@ -307,5 +343,28 @@ public class ShadowlistView extends ReactScrollView {
     map.putBoolean("containerOffsetEnabled", true);
     slLog("java.cmd scrollToIndex: index=" + index + " nonce=" + (long) nextNonce);
     mState.updateState(map);
+  }
+
+  public void scrollToOffset(double offset, boolean animated) {
+    // Direct offset scroll along the scroll axis; the core picks up the new
+    // position from the resulting onScrollChanged callback.
+    int px = (int) PixelUtil.toPixelFromDIP((float) offset);
+    if (mHorizontalAxis) {
+      if (animated) smoothScrollTo(px, getScrollY()); else scrollTo(px, getScrollY());
+    } else {
+      if (animated) smoothScrollTo(getScrollX(), px); else scrollTo(getScrollX(), px);
+    }
+  }
+
+  public void scrollToEnd(boolean animated) {
+    int contentW = mContentView != null ? mContentView.getWidth() : 0;
+    int contentH = mContentView != null ? mContentView.getHeight() : 0;
+    if (mHorizontalAxis) {
+      int x = Math.max(0, contentW - getWidth());
+      if (animated) smoothScrollTo(x, getScrollY()); else scrollTo(x, getScrollY());
+    } else {
+      int y = Math.max(0, contentH - getHeight());
+      if (animated) smoothScrollTo(getScrollX(), y); else scrollTo(getScrollX(), y);
+    }
   }
 }

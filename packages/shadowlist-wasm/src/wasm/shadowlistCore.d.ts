@@ -18,6 +18,11 @@ export interface VisibleIndices {
   visibleEndIndex: number;
 }
 
+export interface ViewableIndices {
+  viewableStartIndex: number;
+  viewableEndIndex: number;
+}
+
 export interface StateUpdate {
   changed: boolean;
   applyContainerOffset: boolean;
@@ -44,13 +49,19 @@ export interface ShadowlistCoreInstance {
     columns: number,
     estimatedWidth: number,
     estimatedHeight: number,
-    userScrolled: boolean
+    userScrolled: boolean,
+    stickyHeader: boolean,
+    stickyFooter: boolean,
+    startReachedThreshold: number,
+    endReachedThreshold: number,
+    viewablePercentThreshold: number
   ): void;
   updateElementAtIndex(index: number, width: number, height: number): void;
   recomputeTotalSize(): void;
   getElementsSize(): number;
   getElementAtIndex(index: number): ElementLayout;
   getVisibleIndices(): VisibleIndices;
+  getViewableIndices(): ViewableIndices;
   resolveStateUpdate(
     prevContainerOffsetX: number,
     prevContainerOffsetY: number,
@@ -58,6 +69,8 @@ export interface ShadowlistCoreInstance {
     prevTotalContainerHeight: number
   ): StateUpdate;
   getFooterOffset(footerSize: number): number;
+  getStickyHeaderOffset(): number;
+  getStickyFooterOffset(footerSize: number): number;
   scrollToIndex(index: number): void;
   requestScrollToIndex(commandIndex: number, commandNonce: number, propIndex: number): void;
   toggleEndReached(enabled: boolean): void;
@@ -65,6 +78,7 @@ export interface ShadowlistCoreInstance {
   setOnEndReached(callback: () => void): void;
   setOnStartReached(callback: () => void): void;
   setOnVisibleIndicesChange(callback: (startIndex: number, endIndex: number) => void): void;
+  setOnViewableIndicesChange(callback: (startIndex: number, endIndex: number) => void): void;
   setOnScroll(callback: (containerOffsetX: number, containerOffsetY: number) => void): void;
   delete(): void;
 }

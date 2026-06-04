@@ -41,8 +41,8 @@ void Container::endRevision() {
   double windowSize = this->getWindowContainerSize();
   double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
 
-  bool nearLowEdge = containerOffset <= windowSize;
-  bool nearHighEdge = containerOffset + windowSize >= totalSize - windowSize;
+  bool nearLowEdge = containerOffset <= windowSize * this->startReachedThreshold;
+  bool nearHighEdge = containerOffset + windowSize >= totalSize - windowSize * this->endReachedThreshold;
 
   bool reachedEnd = this->inverted ? nearLowEdge : nearHighEdge;
   bool reachedStart = this->inverted ? nearHighEdge : nearLowEdge;
@@ -184,6 +184,19 @@ void Container::dispatchObservers() {
   }
   this->prevVisibleStartIndex = visibleIndices.first;
   this->prevVisibleEndIndex = visibleIndices.second;
+
+  /*
+   * Notify when the strictly-viewable element range changes
+   */
+  auto viewableIndices = this->getViewableIndices();
+  if (this->onViewableIndicesChangeCallback &&
+    (viewableIndices.first != this->prevViewableStartIndex || viewableIndices.second != this->prevViewableEndIndex)) {
+    SL_LOG("  emit onViewableIndicesChange(%zd, %zd)",
+      static_cast<std::ptrdiff_t>(viewableIndices.first), static_cast<std::ptrdiff_t>(viewableIndices.second));
+    this->onViewableIndicesChangeCallback(viewableIndices.first, viewableIndices.second);
+  }
+  this->prevViewableStartIndex = viewableIndices.first;
+  this->prevViewableEndIndex = viewableIndices.second;
 
   /*
    * Notify when the scroll offset changes
@@ -348,6 +361,62 @@ std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
   }
 
   return {UNDEFINED_INDEX, UNDEFINED_INDEX};
+}
+
+std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
+  std::size_t measuredStartIndex = this->revision.measurementElementStartIndex;
+  std::size_t measuredEndIndex = this->revision.measurementElementEndIndex;
+
+  if (measuredStartIndex == UNDEFINED_INDEX || measuredEndIndex == UNDEFINED_INDEX) {
+    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
+  }
+
+  double viewportStart = this->getContainerOffset();
+  double viewportEnd = viewportStart + this->getWindowContainerSize();
+
+  /*
+   * The measured window is stored start>end for inverted lists; normalise it to an
+   * ascending [lo, hi] scan so the viewability test reads the same either way.
+   */
+  std::size_t lo = this->inverted ? measuredEndIndex : measuredStartIndex;
+  std::size_t hi = this->inverted ? measuredStartIndex : measuredEndIndex;
+
+  std::size_t firstViewable = UNDEFINED_INDEX;
+  std::size_t lastViewable = UNDEFINED_INDEX;
+
+  for (std::size_t nextElementIndex = lo; nextElementIndex <= hi && nextElementIndex < this->revision.elements.size(); ++nextElementIndex) {
+    const Element& nextElement = this->revision.elements[nextElementIndex];
+    double elementStart = this->horizontal ? nextElement.offsetX : nextElement.offsetY;
+    double elementSize = this->horizontal ? nextElement.width : nextElement.height;
+    if (elementSize <= 0.0) {
+      continue;
+    }
+    double elementEnd = elementStart + elementSize;
+
+    double overlapStart = elementStart > viewportStart ? elementStart : viewportStart;
+    double overlapEnd = elementEnd < viewportEnd ? elementEnd : viewportEnd;
+    double visible = overlapEnd - overlapStart;
+
+    if (visible > 0.0 && (visible / elementSize) >= this->viewablePercentThreshold) {
+      if (firstViewable == UNDEFINED_INDEX) {
+        firstViewable = nextElementIndex;
+      }
+      lastViewable = nextElementIndex;
+    }
+  }
+
+  if (firstViewable == UNDEFINED_INDEX) {
+    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
+  }
+
+  /*
+   * Match the orientation convention of getVisibleIndices: inverted reports the
+   * higher index first.
+   */
+  if (this->inverted) {
+    return {lastViewable, firstViewable};
+  }
+  return {firstViewable, lastViewable};
 }
 
 bool Container::getElementVisible(std::size_t index) const {

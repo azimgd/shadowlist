@@ -11,6 +11,11 @@ export type OnVisibleIndicesChange = {
   visibleEndIndex: CodegenTypes.Int32;
 };
 
+export type OnViewableIndicesChange = {
+  viewableStartIndex: CodegenTypes.Int32;
+  viewableEndIndex: CodegenTypes.Int32;
+};
+
 export type OnStartReached = {};
 
 export type OnEndReached = {};
@@ -33,6 +38,15 @@ interface NativeCommands {
     viewRef: React.ElementRef<HostComponent<NativeProps>>,
     index: CodegenTypes.Int32
   ) => void;
+  scrollToOffset: (
+    viewRef: React.ElementRef<HostComponent<NativeProps>>,
+    offset: CodegenTypes.Double,
+    animated: boolean
+  ) => void;
+  scrollToEnd: (
+    viewRef: React.ElementRef<HostComponent<NativeProps>>,
+    animated: boolean
+  ) => void;
 }
 
 interface NativeProps extends ViewProps {
@@ -43,7 +57,11 @@ interface NativeProps extends ViewProps {
   stickyFooter: boolean;
   columns: CodegenTypes.Int32;
   containerOffsetIndex: CodegenTypes.Int32;
+  startReachedThreshold: CodegenTypes.Double;
+  endReachedThreshold: CodegenTypes.Double;
+  viewablePercentThreshold: CodegenTypes.Double;
   readonly onVisibleIndicesChange?: CodegenTypes.DirectEventHandler<OnVisibleIndicesChange>;
+  readonly onViewableIndicesChange?: CodegenTypes.DirectEventHandler<OnViewableIndicesChange>;
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;
   readonly onEndReached?: CodegenTypes.DirectEventHandler<OnEndReached>;
   readonly onScroll?: CodegenTypes.DirectEventHandler<OnScroll>;
@@ -54,6 +72,8 @@ export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({
     'setStartReachedEnabled',
     'setEndReachedEnabled',
     'scrollToIndex',
+    'scrollToOffset',
+    'scrollToEnd',
   ],
 });
 

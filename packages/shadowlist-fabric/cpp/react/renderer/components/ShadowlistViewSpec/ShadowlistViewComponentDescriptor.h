@@ -62,6 +62,12 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
         .visibleEndIndex = static_cast<int>(endIndex),
       });
     };
+    containerManager->onViewableIndicesChangeCallback = [shadowlistViewEventEmitter](std::size_t startIndex, std::size_t endIndex) -> void {
+      shadowlistViewEventEmitter.onViewableIndicesChange({
+        .viewableStartIndex = static_cast<int>(startIndex),
+        .viewableEndIndex = static_cast<int>(endIndex),
+      });
+    };
     containerManager->onScrollCallback = [shadowlistViewEventEmitter](double containerOffsetX, double containerOffsetY) -> void {
       shadowlistViewEventEmitter.onScroll({
         .contentOffsetX = containerOffsetX,
@@ -95,6 +101,9 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     input.inverted = shadowlistViewProps.inverted;
     input.horizontal = shadowlistViewProps.horizontal;
     input.columns = shadowlistViewProps.columns > 0 ? static_cast<std::size_t>(shadowlistViewProps.columns) : 1;
+    input.startReachedThreshold = shadowlistViewProps.startReachedThreshold;
+    input.endReachedThreshold = shadowlistViewProps.endReachedThreshold;
+    input.viewablePercentThreshold = shadowlistViewProps.viewablePercentThreshold;
 
     /*
      * A genuine user scroll abandons any in-flight scroll correction so the user

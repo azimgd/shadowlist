@@ -53,6 +53,9 @@ struct Sim {
   double footerSize = 0.0;
   bool stickyHeader = false;
   bool stickyFooter = false;
+  double startReachedThreshold = 1.0;
+  double endReachedThreshold = 1.0;
+  double viewablePercentThreshold = 0.0;
   double winW = 400.0;
   double winH = 600.0;
   Size estimated = {100.0, 100.0};
@@ -78,6 +81,7 @@ struct Sim {
   int endReached = 0;
   int startReached = 0;
   std::vector<std::pair<std::size_t, std::size_t>> visibleChanges;
+  std::vector<std::pair<std::size_t, std::size_t>> viewableChanges;
   std::vector<std::pair<double, double>> scrolls;
 
   Sim() {
@@ -86,7 +90,21 @@ struct Sim {
     container.onVisibleIndicesChangeCallback = [this](std::size_t s, std::size_t e) {
       visibleChanges.push_back({s, e});
     };
+    container.onViewableIndicesChangeCallback = [this](std::size_t s, std::size_t e) {
+      viewableChanges.push_back({s, e});
+    };
     container.onScrollCallback = [this](double x, double y) { scrolls.push_back({x, y}); };
+  }
+
+  // The viewable window the core reported, normalised to ascending [lo, hi].
+  bool viewableRange(std::size_t& lo, std::size_t& hi) {
+    auto viewable = container.getViewableIndices();
+    if (viewable.first == UNDEFINED_INDEX || viewable.second == UNDEFINED_INDEX) {
+      return false;
+    }
+    lo = inverted ? viewable.second : viewable.first;
+    hi = inverted ? viewable.first : viewable.second;
+    return true;
   }
 
   void setKeys(std::vector<std::string> next) { keys = std::move(next); }
@@ -138,6 +156,9 @@ struct Sim {
     input.footerSize = footerSize;
     input.stickyHeader = stickyHeader;
     input.stickyFooter = stickyFooter;
+    input.startReachedThreshold = startReachedThreshold;
+    input.endReachedThreshold = endReachedThreshold;
+    input.viewablePercentThreshold = viewablePercentThreshold;
     input.estimatedElementSize = {estimated.width, estimated.height};
     input.userScrolled = nextUserScrolled;
     nextUserScrolled = false;

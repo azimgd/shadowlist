@@ -13,9 +13,27 @@ import {
   ShadowlistElementView,
   ShadowlistTemplateView,
   type OnVisibleIndicesChange,
+  type OnViewableIndicesChange,
   type OnScroll,
   Commands,
 } from 'shadowlist';
+
+/*
+ * A single item's viewability state, mirroring FlatList's ViewToken shape so the
+ * onViewableItemsChanged contract is familiar.
+ */
+export interface ViewToken<ElementT> {
+  item: ElementT;
+  index: number;
+  key: string;
+  isViewable: boolean;
+}
+
+/*
+ * Stable default key derivation (element.id), kept module-level so the memo/effect
+ * dependencies stay referentially stable when no keyExtractor is supplied.
+ */
+const defaultKeyExtractor = (item: { id: string }) => item.id;
 
 /*
  * Trace the JS <-> native state synchronization. Mirrors the SHADOWLIST_DEBUG_LOG
@@ -86,14 +104,22 @@ interface ElementRendererProps<ElementT> {
   index: number;
   style: ViewStyle | ViewStyle[];
   renderElement: (info: { element: ElementT; index: number }) => ReactElement;
+  separator: ReactElement | null;
 }
 
 const ElementRenderer = memo(function ElementRenderer<
   ElementT extends { id: string },
->({ element, index, style, renderElement }: ElementRendererProps<ElementT>) {
+>({
+  element,
+  index,
+  style,
+  renderElement,
+  separator,
+}: ElementRendererProps<ElementT>) {
   return (
-    <ShadowlistElementView index={index} style={style} key={element.id}>
+    <ShadowlistElementView index={index} style={style}>
       {renderElement({ element, index })}
+      {separator}
     </ShadowlistElementView>
   );
 }) as <T extends { id: string }>(
@@ -104,11 +130,21 @@ export interface ShadowlistCommands {
   setStartReachedEnabled: (enabled: boolean) => void;
   setEndReachedEnabled: (enabled: boolean) => void;
   scrollToIndex: (index: number) => void;
+  scrollToOffset: (offset: number, animated?: boolean) => void;
+  scrollToEnd: (animated?: boolean) => void;
+}
+
+export interface ViewabilityConfig {
+  /*
+   * Percent (0..100) of an item that must be visible before it counts as viewable.
+   */
+  itemVisiblePercentThreshold?: number;
 }
 
 export interface ShadowlistProps<ElementT extends { id: string }> {
   data: ReadonlyArray<ElementT>;
   renderElement: (info: { element: ElementT; index: number }) => ReactElement;
+  keyExtractor?: (item: ElementT, index: number) => string;
   style?: ViewStyle;
   elementStyle?: ViewStyle;
   inverted?: boolean;
@@ -121,7 +157,19 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   ref?: Ref<ShadowlistCommands>;
   onStartReached?: () => void;
   onEndReached?: () => void;
+  /*
+   * Distance from the start/end, as a fraction of the visible length, at which the
+   * matching callback fires (FlatList semantics). Defaults to 1.
+   */
+  onStartReachedThreshold?: number;
+  onEndReachedThreshold?: number;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
+  viewabilityConfig?: ViewabilityConfig;
+  onViewableItemsChanged?: (info: {
+    viewableItems: ViewToken<ElementT>[];
+    changed: ViewToken<ElementT>[];
+  }) => void;
+  ItemSeparatorComponent?: ReactElement | (() => ReactElement | null) | null;
   ListHeaderComponent?: ReactElement | (() => ReactElement | null) | null;
   ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
   ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
@@ -130,6 +178,7 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
 function Shadowlist<ElementT extends { id: string }>({
   data,
   renderElement,
+  keyExtractor = defaultKeyExtractor,
   style,
   elementStyle,
   inverted = false,
@@ -142,7 +191,12 @@ function Shadowlist<ElementT extends { id: string }>({
   ref,
   onStartReached,
   onEndReached,
+  onStartReachedThreshold = 1,
+  onEndReachedThreshold = 1,
   onScroll,
+  viewabilityConfig,
+  onViewableItemsChanged,
+  ItemSeparatorComponent,
   ListHeaderComponent,
   ListFooterComponent,
   ListEmptyComponent,
@@ -194,6 +248,18 @@ function Shadowlist<ElementT extends { id: string }>({
       slLog('js.cmd scrollToIndex', `index=${index}`);
       Commands.scrollToIndex(shadowlistViewRef.current, index);
     },
+    scrollToOffset: (offset: number, animated: boolean = true) => {
+      if (!shadowlistViewRef.current) return;
+
+      slLog('js.cmd scrollToOffset', `offset=${offset}`, `animated=${animated ? 1 : 0}`);
+      Commands.scrollToOffset(shadowlistViewRef.current, offset, animated);
+    },
+    scrollToEnd: (animated: boolean = true) => {
+      if (!shadowlistViewRef.current) return;
+
+      slLog('js.cmd scrollToEnd', `animated=${animated ? 1 : 0}`);
+      Commands.scrollToEnd(shadowlistViewRef.current, animated);
+    },
   }));
 
   const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
@@ -237,9 +303,61 @@ function Shadowlist<ElementT extends { id: string }>({
   );
 
   const elementsAllKeys = useMemo(
-    () => data.map((element) => element.id),
-    [data]
+    () => data.map((element, index) => keyExtractor(element, index)),
+    [data, keyExtractor]
   );
+
+  const prevViewableRef = useRef<ViewToken<ElementT>[]>([]);
+
+  const handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
+    OnViewableIndicesChange,
+    never
+  > = useCallback(
+    (event) => {
+      if (!onViewableItemsChanged) return;
+
+      const { viewableStartIndex, viewableEndIndex } = event.nativeEvent;
+      // The core reports the higher index first for inverted lists; normalise to
+      // an ascending range before mapping back to items.
+      const lo = Math.min(viewableStartIndex, viewableEndIndex);
+      const hi = Math.max(viewableStartIndex, viewableEndIndex);
+
+      const viewableItems: ViewToken<ElementT>[] = [];
+      if (viewableStartIndex !== -1 && viewableEndIndex !== -1) {
+        for (let index = lo; index <= hi; index++) {
+          const item = data[index];
+          if (!item) continue;
+          viewableItems.push({
+            item,
+            index,
+            key: keyExtractor(item, index),
+            isViewable: true,
+          });
+        }
+      }
+
+      const currentKeys = new Set(viewableItems.map((token) => token.key));
+      const prevKeys = new Set(prevViewableRef.current.map((token) => token.key));
+
+      const changed: ViewToken<ElementT>[] = [
+        ...viewableItems.filter((token) => !prevKeys.has(token.key)),
+        ...prevViewableRef.current
+          .filter((token) => !currentKeys.has(token.key))
+          .map((token) => ({ ...token, isViewable: false })),
+      ];
+
+      prevViewableRef.current = viewableItems;
+
+      if (changed.length > 0) {
+        slLog('js.onViewableItemsChange', `viewable=[${lo}..${hi}]`, `changed=${changed.length}`);
+        onViewableItemsChanged({ viewableItems, changed });
+      }
+    },
+    [data, keyExtractor, onViewableItemsChanged]
+  );
+
+  const viewablePercentThreshold =
+    (viewabilityConfig?.itemVisiblePercentThreshold ?? 0) / 100;
 
   const renderComponent = (
     component: ReactElement | (() => ReactElement | null) | null | undefined
@@ -263,11 +381,19 @@ function Shadowlist<ElementT extends { id: string }>({
     [ListEmptyComponent]
   );
 
+  const separator = useMemo(
+    () => renderComponent(ItemSeparatorComponent),
+    [ItemSeparatorComponent]
+  );
+
   return (
     <ShadowlistView
       ref={shadowlistViewRef}
       style={[styles.container, style]}
       onVisibleIndicesChange={handleVisibleIndicesChange}
+      onViewableIndicesChange={
+        onViewableItemsChanged ? handleViewableIndicesChange : undefined
+      }
       elementsAllKeys={elementsAllKeys}
       inverted={inverted}
       horizontal={horizontal}
@@ -275,6 +401,9 @@ function Shadowlist<ElementT extends { id: string }>({
       stickyFooter={stickyFooter}
       columns={columns}
       containerOffsetIndex={containerOffsetIndex}
+      startReachedThreshold={onStartReachedThreshold}
+      endReachedThreshold={onEndReachedThreshold}
+      viewablePercentThreshold={viewablePercentThreshold}
       onStartReached={onStartReached}
       onEndReached={onEndReached}
       onScroll={onScroll}
@@ -296,11 +425,12 @@ function Shadowlist<ElementT extends { id: string }>({
 
           return (
             <ElementRenderer
-              key={element.id}
+              key={keyExtractor(element, index)}
               element={element}
               index={index}
               style={elementBaseStyle}
               renderElement={renderElement}
+              separator={index < data.length - 1 ? separator : null}
             />
           );
         })

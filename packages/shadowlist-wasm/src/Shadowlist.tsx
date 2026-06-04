@@ -13,9 +13,15 @@ import {
   type ReactNode,
 } from 'react';
 import { createShadowlistCore, type ShadowlistCoreInstance } from './core.js';
-import type { ShadowlistCommands, ShadowlistProps } from './types.js';
+import type { ShadowlistCommands, ShadowlistProps, ViewToken } from './types.js';
 
 const DEFAULT_ESTIMATED_SIZE = 120;
+
+/*
+ * Stable default key derivation (element.id), kept module-level so the memo
+ * dependencies stay referentially stable when no keyExtractor is supplied.
+ */
+const defaultKeyExtractor = (item: { id: string }) => item.id;
 
 /*
  * Cap on the number of follow-up measurement passes triggered by a single
@@ -116,10 +122,13 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const {
     data,
     renderElement,
+    keyExtractor = defaultKeyExtractor,
     style,
     elementStyle,
     inverted = false,
     horizontal = false,
+    stickyHeader = false,
+    stickyFooter = false,
     columns = 1,
     containerOffsetIndex = -1,
     initialElementsSize = 20,
@@ -127,10 +136,18 @@ function ShadowlistInner<ElementT extends { id: string }>(
     estimatedElementHeight = DEFAULT_ESTIMATED_SIZE,
     onStartReached,
     onEndReached,
+    onStartReachedThreshold = 1,
+    onEndReachedThreshold = 1,
+    viewabilityConfig,
+    onViewableItemsChanged,
+    ItemSeparatorComponent,
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
   } = props;
+
+  const viewablePercentThreshold =
+    (viewabilityConfig?.itemVisiblePercentThreshold ?? 0) / 100;
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -166,6 +183,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
   // drop any in-flight scroll correction so the user is not snapped back to it.
   const userScrolledRef = useRef(false);
   const mountedRangeRef = useRef<number[]>([]);
+  // Previously-viewable tokens, used to compute the `changed` set for onViewableItemsChanged.
+  const prevViewableRef = useRef<ViewToken<ElementT>[]>([]);
 
   const [range, setRange] = useState<number[]>(() =>
     initialRange(data.length, initialElementsSize, inverted)
@@ -181,6 +200,12 @@ function ShadowlistInner<ElementT extends { id: string }>(
     estimatedElementWidth,
     estimatedElementHeight,
     containerOffsetIndex,
+    stickyHeader,
+    stickyFooter,
+    startReachedThreshold: onStartReachedThreshold,
+    endReachedThreshold: onEndReachedThreshold,
+    viewablePercentThreshold,
+    keyExtractor,
   });
   latestRef.current = {
     data,
@@ -190,9 +215,18 @@ function ShadowlistInner<ElementT extends { id: string }>(
     estimatedElementWidth,
     estimatedElementHeight,
     containerOffsetIndex,
+    stickyHeader,
+    stickyFooter,
+    startReachedThreshold: onStartReachedThreshold,
+    endReachedThreshold: onEndReachedThreshold,
+    viewablePercentThreshold,
+    keyExtractor,
   };
 
-  const keys = useMemo(() => data.map((element) => element.id), [data]);
+  const keys = useMemo(
+    () => data.map((element, index) => keyExtractor(element, index)),
+    [data, keyExtractor]
+  );
   const keysRef = useRef(keys);
   keysRef.current = keys;
 
@@ -235,7 +269,12 @@ function ShadowlistInner<ElementT extends { id: string }>(
     });
 
     if (headerRef.current) {
-      headerRef.current.style.transform = 'translate(0px, 0px)';
+      // Sticky header tracks the scroll offset; getStickyHeaderOffset returns 0
+      // (the resting position) when stickyHeader is off.
+      const headerOffset = core.getStickyHeaderOffset();
+      headerRef.current.style.transform = isHorizontal
+        ? `translate(${headerOffset}px, 0px)`
+        : `translate(0px, ${headerOffset}px)`;
       if (!isHorizontal) headerRef.current.style.width = '100%';
     }
 
@@ -243,7 +282,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
       const footerSize = isHorizontal
         ? footerRef.current.offsetWidth
         : footerRef.current.offsetHeight;
-      const footerOffset = core.getFooterOffset(footerSize);
+      // Sticky footer tracks the viewport end; getStickyFooterOffset returns the
+      // resting offset (totalSize - footerSize) when stickyFooter is off.
+      const footerOffset = core.getStickyFooterOffset(footerSize);
       footerRef.current.style.transform = isHorizontal
         ? `translate(${footerOffset}px, 0px)`
         : `translate(0px, ${footerOffset}px)`;
@@ -278,6 +319,11 @@ function ShadowlistInner<ElementT extends { id: string }>(
       estimatedElementHeight: estimatedHeight,
       containerOffsetIndex: propIndex,
       data: currentData,
+      stickyHeader: isStickyHeader,
+      stickyFooter: isStickyFooter,
+      startReachedThreshold: startThreshold,
+      endReachedThreshold: endThreshold,
+      viewablePercentThreshold: viewableThreshold,
     } = latestRef.current;
 
     const containerOffsetX = scroll.scrollLeft;
@@ -320,7 +366,12 @@ function ShadowlistInner<ElementT extends { id: string }>(
       columnCount,
       estimatedWidth,
       estimatedHeight,
-      userScrolled
+      userScrolled,
+      isStickyHeader,
+      isStickyFooter,
+      startThreshold,
+      endThreshold,
+      viewableThreshold
     );
 
     const visible = core.getVisibleIndices();
@@ -450,6 +501,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
       });
       created.setOnStartReached(() => latestOnStartReached.current?.());
       created.setOnEndReached(() => latestOnEndReached.current?.());
+      created.setOnViewableIndicesChange((startIndex, endIndex) =>
+        dispatchViewable(startIndex, endIndex)
+      );
 
       setCoreReady(true);
       scheduleTick();
@@ -471,6 +525,44 @@ function ShadowlistInner<ElementT extends { id: string }>(
   latestOnEndReached.current = onEndReached;
   const latestOnScroll = useRef(props.onScroll);
   latestOnScroll.current = props.onScroll;
+  const latestOnViewableItemsChanged = useRef(onViewableItemsChanged);
+  latestOnViewableItemsChanged.current = onViewableItemsChanged;
+
+  /*
+   * Map the core's viewable index range to FlatList-style viewable/changed tokens.
+   * Reads from refs so it stays stable and can be wired into the core once.
+   */
+  const dispatchViewable = useCallback((startIndex: number, endIndex: number) => {
+    const onChanged = latestOnViewableItemsChanged.current;
+    if (!onChanged) return;
+
+    const { data: currentData, keyExtractor: keyOf } = latestRef.current;
+
+    const viewableItems: ViewToken<ElementT>[] = [];
+    if (startIndex >= 0 && endIndex >= 0) {
+      const lo = Math.min(startIndex, endIndex);
+      const hi = Math.max(startIndex, endIndex);
+      for (let index = lo; index <= hi; index++) {
+        const item = currentData[index];
+        if (!item) continue;
+        viewableItems.push({ item, index, key: keyOf(item, index), isViewable: true });
+      }
+    }
+
+    const currentKeys = new Set(viewableItems.map((token) => token.key));
+    const prevKeys = new Set(prevViewableRef.current.map((token) => token.key));
+    const changed: ViewToken<ElementT>[] = [
+      ...viewableItems.filter((token) => !prevKeys.has(token.key)),
+      ...prevViewableRef.current
+        .filter((token) => !currentKeys.has(token.key))
+        .map((token) => ({ ...token, isViewable: false })),
+    ];
+
+    prevViewableRef.current = viewableItems;
+    if (changed.length > 0) {
+      onChanged({ viewableItems, changed });
+    }
+  }, []);
 
   // Re-run the core whenever the data set or layout configuration changes.
   useEffect(() => {
@@ -495,8 +587,48 @@ function ShadowlistInner<ElementT extends { id: string }>(
     measureAndResolveRef.current();
   }, [coreReady, range]);
 
+  /*
+   * Pin the sticky header/footer straight from live scroll geometry, synchronously
+   * in the scroll event. applyPositions also pins them, but only on the rAF tick
+   * after the core runs - too late to track the finger, which reads as lag. This
+   * computes the same content-space position the core would (offset for the header,
+   * offset + window - footerSize for the footer) without waiting for the pipeline.
+   */
+  const pinStickyEdges = useCallback(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const {
+      horizontal: isHorizontal,
+      stickyHeader: isStickyHeader,
+      stickyFooter: isStickyFooter,
+    } = latestRef.current;
+    if (!isStickyHeader && !isStickyFooter) return;
+
+    const offset = isHorizontal ? scroll.scrollLeft : scroll.scrollTop;
+    const windowSize = isHorizontal ? scroll.clientWidth : scroll.clientHeight;
+
+    if (isStickyHeader && headerRef.current) {
+      headerRef.current.style.transform = isHorizontal
+        ? `translate(${offset}px, 0px)`
+        : `translate(0px, ${offset}px)`;
+    }
+    if (isStickyFooter && footerRef.current) {
+      const footerSize = isHorizontal
+        ? footerRef.current.offsetWidth
+        : footerRef.current.offsetHeight;
+      const footerOffset = offset + windowSize - footerSize;
+      footerRef.current.style.transform = isHorizontal
+        ? `translate(${footerOffset}px, 0px)`
+        : `translate(0px, ${footerOffset}px)`;
+    }
+  }, []);
+
   // Native scroll -> new frame. Ignore the scroll we triggered ourselves.
   const handleScroll = useCallback(() => {
+    // Keep the pinned edges glued to the viewport on the scroll event itself,
+    // before the (heavier, rAF-deferred) virtualization pass runs.
+    pinStickyEdges();
+
     if (ignoreScrollRef.current) {
       ignoreScrollRef.current = false;
       return;
@@ -504,7 +636,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     settlePassesRef.current = 0;
     userScrolledRef.current = true;
     scheduleTick();
-  }, [scheduleTick]);
+  }, [pinStickyEdges, scheduleTick]);
 
   // Re-measure on container resize.
   useEffect(() => {
@@ -535,6 +667,26 @@ function ShadowlistInner<ElementT extends { id: string }>(
         settlePassesRef.current = 0;
         scheduleTick();
       },
+      scrollToOffset: (offset: number, animated: boolean = true) => {
+        const scroll = scrollRef.current;
+        if (!scroll) return;
+        const behavior: ScrollBehavior = animated ? 'smooth' : 'auto';
+        if (latestRef.current.horizontal) {
+          scroll.scrollTo({ left: offset, behavior });
+        } else {
+          scroll.scrollTo({ top: offset, behavior });
+        }
+      },
+      scrollToEnd: (animated: boolean = true) => {
+        const scroll = scrollRef.current;
+        if (!scroll) return;
+        const behavior: ScrollBehavior = animated ? 'smooth' : 'auto';
+        if (latestRef.current.horizontal) {
+          scroll.scrollTo({ left: scroll.scrollWidth - scroll.clientWidth, behavior });
+        } else {
+          scroll.scrollTo({ top: scroll.scrollHeight - scroll.clientHeight, behavior });
+        }
+      },
     }),
     [scheduleTick]
   );
@@ -550,6 +702,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const empty = useMemo(
     () => resolveComponent(ListEmptyComponent),
     [ListEmptyComponent]
+  );
+  const separator = useMemo(
+    () => resolveComponent(ItemSeparatorComponent),
+    [ItemSeparatorComponent]
   );
 
   const containerStyle: CSSProperties = {
@@ -581,12 +737,13 @@ function ShadowlistInner<ElementT extends { id: string }>(
             if (!element) return null;
             return (
               <ElementWrapper
-                key={element.id}
+                key={keyExtractor(element, index)}
                 index={index}
                 registerRef={registerRef}
                 elementStyle={elementStyle}
               >
                 {renderElement({ element, index })}
+                {separator && index < data.length - 1 ? separator : null}
               </ElementWrapper>
             );
           })

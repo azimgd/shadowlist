@@ -1,0 +1,15 @@
+{
+  "name": "shadowlist-utils",
+  "version": "0.1.0",
+  "description": "Shared, platform-agnostic helpers and demo data generators for the shadowlist examples (RN + WASM).",
+  "license": "MIT",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "react-native": "./src/index.ts",
+  "source": "./src/index.ts",
+  "sideEffects": false,
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

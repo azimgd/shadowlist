@@ -54,7 +54,12 @@ public:
     int columns,
     double estimatedWidth,
     double estimatedHeight,
-    bool userScrolled) {
+    bool userScrolled,
+    bool stickyHeader,
+    bool stickyFooter,
+    double startReachedThreshold,
+    double endReachedThreshold,
+    double viewablePercentThreshold) {
     FrameInput input;
     input.keys = vecFromJSArray<std::string>(keysVal);
     input.containerOffsetX = containerOffsetX;
@@ -68,6 +73,11 @@ public:
     input.columns = columns > 0 ? static_cast<std::size_t>(columns) : 1;
     input.estimatedElementSize = {estimatedWidth, estimatedHeight};
     input.userScrolled = userScrolled;
+    input.stickyHeader = stickyHeader;
+    input.stickyFooter = stickyFooter;
+    input.startReachedThreshold = startReachedThreshold;
+    input.endReachedThreshold = endReachedThreshold;
+    input.viewablePercentThreshold = viewablePercentThreshold;
 
     virtualizer_.update(&container_, input);
   }
@@ -152,6 +162,30 @@ public:
     return container_.getFooterOffset(footerSize);
   }
 
+  /*
+   * Viewport-pinned ("sticky") offsets along the scroll axis. Each falls back to
+   * its resting offset when the corresponding sticky flag (passed to update) is off.
+   */
+  double getStickyHeaderOffset() const {
+    return container_.getStickyHeaderOffset();
+  }
+
+  double getStickyFooterOffset(double footerSize) const {
+    return container_.getStickyFooterOffset(footerSize);
+  }
+
+  /*
+   * Strictly-viewable index range (inside the viewport, subject to the viewable
+   * percent threshold). Inverted lists report start > end.
+   */
+  val getViewableIndices() const {
+    auto viewableIndices = container_.getViewableIndices();
+    val result = val::object();
+    result.set("viewableStartIndex", toSignedIndex(viewableIndices.first));
+    result.set("viewableEndIndex", toSignedIndex(viewableIndices.second));
+    return result;
+  }
+
   /* Imperative scroll command (fires once per call via the nonce). */
   void scrollToIndex(int index) {
     if (index < 0) {
@@ -212,6 +246,15 @@ public:
     };
   }
 
+  void setOnViewableIndicesChange(val callback) {
+    onViewableIndicesChange_ = callback;
+    container_.onViewableIndicesChangeCallback = [this](std::size_t startIndex, std::size_t endIndex) {
+      if (!onViewableIndicesChange_.isUndefined() && !onViewableIndicesChange_.isNull()) {
+        onViewableIndicesChange_(toSignedIndex(startIndex), toSignedIndex(endIndex));
+      }
+    };
+  }
+
 private:
   Container container_;
   Virtualizer virtualizer_;
@@ -219,6 +262,7 @@ private:
   val onEndReached_ = val::undefined();
   val onStartReached_ = val::undefined();
   val onVisibleIndicesChange_ = val::undefined();
+  val onViewableIndicesChange_ = val::undefined();
   val onScroll_ = val::undefined();
 };
 
@@ -231,8 +275,11 @@ EMSCRIPTEN_BINDINGS(shadowlist_core) {
     .function("getElementsSize", &ShadowlistCore::getElementsSize)
     .function("getElementAtIndex", &ShadowlistCore::getElementAtIndex)
     .function("getVisibleIndices", &ShadowlistCore::getVisibleIndices)
+    .function("getViewableIndices", &ShadowlistCore::getViewableIndices)
     .function("resolveStateUpdate", &ShadowlistCore::resolveStateUpdate)
     .function("getFooterOffset", &ShadowlistCore::getFooterOffset)
+    .function("getStickyHeaderOffset", &ShadowlistCore::getStickyHeaderOffset)
+    .function("getStickyFooterOffset", &ShadowlistCore::getStickyFooterOffset)
     .function("scrollToIndex", &ShadowlistCore::scrollToIndex)
     .function("requestScrollToIndex", &ShadowlistCore::requestScrollToIndex)
     .function("toggleEndReached", &ShadowlistCore::toggleEndReached)
@@ -240,5 +287,6 @@ EMSCRIPTEN_BINDINGS(shadowlist_core) {
     .function("setOnEndReached", &ShadowlistCore::setOnEndReached)
     .function("setOnStartReached", &ShadowlistCore::setOnStartReached)
     .function("setOnVisibleIndicesChange", &ShadowlistCore::setOnVisibleIndicesChange)
+    .function("setOnViewableIndicesChange", &ShadowlistCore::setOnViewableIndicesChange)
     .function("setOnScroll", &ShadowlistCore::setOnScroll);
 }

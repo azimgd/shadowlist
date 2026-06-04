@@ -69,6 +69,14 @@ public:
   std::function<void(double, double)> onScrollCallback;
 
   /*
+   * Callback to be executed when the strictly-visible (viewable) element range
+   * changes. Unlike onVisibleIndicesChangeCallback (the mounted window, which
+   * includes an off-screen buffer) this reports only elements actually inside the
+   * viewport, subject to viewablePercentThreshold. Arguments are (startIndex, endIndex).
+   */
+  std::function<void(std::size_t, std::size_t)> onViewableIndicesChangeCallback;
+
+  /*
    * Enable/disable end reached callback
    */
   bool endReachedEnabled = true;
@@ -107,6 +115,20 @@ public:
    * Number of columns for multi-column layout
    */
   std::size_t columns = 1;
+
+  /*
+   * How close to an edge (as a fraction of the window size) the scroll offset must
+   * be before onStartReached / onEndReached fire. 1.0 reproduces the default of
+   * "within one windowful of the edge"; 0.5 is half a window, etc.
+   */
+  double startReachedThreshold = 1.0;
+  double endReachedThreshold = 1.0;
+
+  /*
+   * Fraction (0..1) of an element that must be inside the viewport for it to count
+   * as viewable (see getViewableIndices). 0 means any overlap counts.
+   */
+  double viewablePercentThreshold = 0.0;
 
   /*
    * Size of the header (and empty) template along the scroll axis
@@ -219,6 +241,14 @@ public:
    */
   std::pair<std::size_t, std::size_t> getVisibleIndices() const;
 
+  /*
+   * Strictly-viewable index range: elements inside the viewport whose visible
+   * fraction is at least viewablePercentThreshold. Orientation aware (inverted
+   * returns start > end, matching getVisibleIndices), or (UNDEFINED_INDEX,
+   * UNDEFINED_INDEX) when nothing is viewable.
+   */
+  std::pair<std::size_t, std::size_t> getViewableIndices() const;
+
   void setEndReachedEnabled(bool enabled);
   void setStartReachedEnabled(bool enabled);
 
@@ -295,6 +325,12 @@ private:
    */
   std::size_t prevVisibleStartIndex = UNDEFINED_INDEX;
   std::size_t prevVisibleEndIndex = UNDEFINED_INDEX;
+
+  /*
+   * Previously dispatched viewable range, used to deduplicate onViewableIndicesChange
+   */
+  std::size_t prevViewableStartIndex = UNDEFINED_INDEX;
+  std::size_t prevViewableEndIndex = UNDEFINED_INDEX;
 
   /*
    * Previously dispatched scroll offset, used to deduplicate onScroll

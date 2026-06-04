@@ -30,6 +30,9 @@ struct FrameInput {
   bool inverted = false;
   bool horizontal = false;
   std::size_t columns = 1;
+  double startReachedThreshold = 1.0;
+  double endReachedThreshold = 1.0;
+  double viewablePercentThreshold = 0.0;
   std::pair<double, double> estimatedElementSize = {120.0, 120.0};
 
   /*

@@ -9,13 +9,21 @@ export default defineConfig({
   resolve: {
     alias: {
       'shadowlist-wasm': fileURLToPath(new URL('../src/index.ts', import.meta.url)),
+      // Shared example helpers, resolved straight from source.
+      'shadowlist-utils': fileURLToPath(
+        new URL('../../shadowlist-utils/src/index.ts', import.meta.url)
+      ),
     },
   },
   server: {
     port: 5173,
     fs: {
-      // Allow importing from the parent package (src + compiled wasm).
-      allow: [fileURLToPath(new URL('..', import.meta.url))],
+      // Allow importing from the parent package (src + compiled wasm) and the
+      // shared shadowlist-utils package.
+      allow: [
+        fileURLToPath(new URL('..', import.meta.url)),
+        fileURLToPath(new URL('../../shadowlist-utils', import.meta.url)),
+      ],
     },
   },
 });

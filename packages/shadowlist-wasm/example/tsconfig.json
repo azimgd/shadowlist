@@ -15,7 +15,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "paths": {
-      "shadowlist-wasm": ["../src/index.ts"]
+      "shadowlist-wasm": ["../src/index.ts"],
+      "shadowlist-utils": ["../../shadowlist-utils/src/index.ts"]
     }
   },
   "include": ["src", "vite.config.ts"]

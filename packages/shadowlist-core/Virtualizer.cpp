@@ -26,6 +26,9 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->footerSize = input.footerSize;
   container->stickyHeader = input.stickyHeader;
   container->stickyFooter = input.stickyFooter;
+  container->startReachedThreshold = input.startReachedThreshold;
+  container->endReachedThreshold = input.endReachedThreshold;
+  container->viewablePercentThreshold = input.viewablePercentThreshold;
   container->estimatedElementSize = input.estimatedElementSize;
 
   /*

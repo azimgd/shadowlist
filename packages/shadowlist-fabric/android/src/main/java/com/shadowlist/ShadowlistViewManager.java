@@ -99,8 +99,36 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   }
 
   @Override
+  @ReactProp(name = "startReachedThreshold")
+  public void setStartReachedThreshold(ShadowlistView view, double startReachedThreshold) {
+    // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
+  @ReactProp(name = "endReachedThreshold")
+  public void setEndReachedThreshold(ShadowlistView view, double endReachedThreshold) {
+    // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
+  @ReactProp(name = "viewablePercentThreshold")
+  public void setViewablePercentThreshold(ShadowlistView view, double viewablePercentThreshold) {
+    // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
   public void scrollToIndex(ShadowlistView view, int index) {
     view.scrollToIndex(index);
+  }
+
+  @Override
+  public void scrollToOffset(ShadowlistView view, double offset, boolean animated) {
+    view.scrollToOffset(offset, animated);
+  }
+
+  @Override
+  public void scrollToEnd(ShadowlistView view, boolean animated) {
+    view.scrollToEnd(animated);
   }
 
   @Nullable

@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react';
 import { FeedScreen } from './FeedScreen';
 import { ChatScreen } from './ChatScreen';
+import { ActivityScreen } from './ActivityScreen';
 import { NestedScreen } from './NestedScreen';
 import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
@@ -8,6 +9,7 @@ import { ContactsScreen } from './ContactsScreen';
 const SCREENS = [
   { name: 'Feed', title: 'Feed', component: FeedScreen },
   { name: 'Chat', title: 'Chat', component: ChatScreen },
+  { name: 'Activity', title: 'Activity', component: ActivityScreen },
   { name: 'Nested', title: 'Nested', component: NestedScreen },
   { name: 'Masonry', title: 'Masonry', component: MasonryScreen },
   { name: 'Contacts', title: 'Contacts', component: ContactsScreen },

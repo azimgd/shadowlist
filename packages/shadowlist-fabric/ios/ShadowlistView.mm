@@ -65,6 +65,9 @@ using namespace facebook::react;
   if ([childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
     const auto &childViewProps = *std::static_pointer_cast<ShadowlistElementViewProps const>(childComponentView.props);
     [_contentView insertSubview:childComponentView atIndex:childViewProps.index];
+    // A newly mounted element can land above the sticky header/footer in z-order
+    // and cover them; keep the pinned views on top.
+    [self bringStickyViewsToFront];
     return;
   }
 
@@ -144,6 +147,22 @@ using namespace facebook::react;
     _stickyFooterView.transform = _horizontal
       ? CGAffineTransformMakeTranslation(translation, 0.0)
       : CGAffineTransformMakeTranslation(0.0, translation);
+  }
+
+  [self bringStickyViewsToFront];
+}
+
+/*
+ * A pinned (sticky) header/footer must stay above the scrolling elements, which
+ * mount continuously and would otherwise cover it.
+ */
+- (void)bringStickyViewsToFront
+{
+  if (_stickyHeader && _stickyHeaderView) {
+    [_contentView bringSubviewToFront:_stickyHeaderView];
+  }
+  if (_stickyFooter && _stickyFooterView) {
+    [_contentView bringSubviewToFront:_stickyFooterView];
   }
 }
 
@@ -283,6 +302,28 @@ using namespace facebook::react;
   nextStateData.containerOffsetIndexNonce_ = nextStateData.containerOffsetIndexNonce_ + 1;
   nextStateData.containerOffsetEnabled_ = true;
   _state->updateState(std::move(nextStateData));
+}
+
+- (void)scrollToOffset:(double)offset animated:(BOOL)animated
+{
+  /*
+   * Direct offset scroll along the scroll axis. The core picks up the new position
+   * from the resulting scroll callback, so no state round-trip is needed here.
+   */
+  CGPoint contentOffset = _horizontal
+    ? CGPointMake(offset, _scrollView.contentOffset.y)
+    : CGPointMake(_scrollView.contentOffset.x, offset);
+  [_scrollView setContentOffset:contentOffset animated:animated];
+}
+
+- (void)scrollToEnd:(BOOL)animated
+{
+  CGSize content = _scrollView.contentSize;
+  CGSize window = _scrollView.bounds.size;
+  CGPoint contentOffset = _horizontal
+    ? CGPointMake(MAX(0.0, content.width - window.width), _scrollView.contentOffset.y)
+    : CGPointMake(_scrollView.contentOffset.x, MAX(0.0, content.height - window.height));
+  [_scrollView setContentOffset:contentOffset animated:animated];
 }
 
 Class<RCTComponentViewProtocol> ShadowlistViewCls(void)

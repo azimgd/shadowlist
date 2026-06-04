@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
-    "rootDir": ".",
+    "rootDir": "..",
     "paths": {
-      "shadowlist": ["./src/index"]
+      "shadowlist": ["./src/index"],
+      "shadowlist-utils": ["../shadowlist-utils/src/index"]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,

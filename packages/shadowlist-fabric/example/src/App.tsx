@@ -5,6 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { FeedScreen } from './FeedScreen';
 import { ChatScreen } from './ChatScreen';
+import { ActivityScreen } from './ActivityScreen';
 import { NestedScreen } from './NestedScreen';
 import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
@@ -43,6 +44,13 @@ export default function App() {
             component={ChatScreen}
             options={{
               title: 'Chat',
+            }}
+          />
+          <Drawer.Screen
+            name="Activity"
+            component={ActivityScreen}
+            options={{
+              title: 'Activity',
             }}
           />
           <Drawer.Screen
