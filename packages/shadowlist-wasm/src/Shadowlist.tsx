@@ -130,7 +130,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     stickyHeader = false,
     stickyFooter = false,
     columns = 1,
-    containerOffsetIndex = -1,
+    containerOffsetIndex = -2,
     initialElementsSize = 20,
     estimatedElementWidth = DEFAULT_ESTIMATED_SIZE,
     estimatedElementHeight = DEFAULT_ESTIMATED_SIZE,
