@@ -1,0 +1,47 @@
+{
+  "name": "shadowlist-wasm",
+  "version": "0.1.0",
+  "description": "WebAssembly virtualization core for React web — the shadowlist-core algorithm compiled to WASM",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "cpp",
+    "scripts"
+  ],
+  "scripts": {
+    "build:wasm": "bash scripts/build-wasm.sh",
+    "example": "yarn --cwd example dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "react",
+    "web",
+    "wasm",
+    "webassembly",
+    "virtualization",
+    "list",
+    "infinite-scroll"
+  ],
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.4.0"
+  }
+}
