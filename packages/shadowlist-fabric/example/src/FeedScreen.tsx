@@ -44,7 +44,6 @@ export const FeedScreen = () => {
         )}
         ListHeaderComponent={<HeaderListItem title="Feed" subtitle="Vertical scrolling list" />}
         ListFooterComponent={<FooterListItem text="End of feed" />}
-        onScroll={console.log}
       />
       <FloatingActionBar
         onPrepend={handlePrepend}

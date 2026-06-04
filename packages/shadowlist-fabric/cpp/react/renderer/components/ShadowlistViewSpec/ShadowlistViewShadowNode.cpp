@@ -1,6 +1,23 @@
 #include "ShadowlistViewShadowNode.h"
 
+#include <mutex>
+
 namespace facebook::react {
+
+ShadowlistViewShadowNode::ShadowlistViewShadowNode(
+  const ShadowNode& sourceShadowNode,
+  const ShadowNodeFragment& fragment) :
+  ConcreteViewShadowNode(sourceShadowNode, fragment) {
+  /*
+   * Carry the shared core instances forward from the source so every clone of a
+   * list shares one Container/Virtualizer, freed when the node family dies
+   */
+  const auto& source = static_cast<const ShadowlistViewShadowNode&>(sourceShadowNode);
+  this->containerManager_ = source.containerManager_;
+  this->virtualizerManager_ = source.virtualizerManager_;
+  this->headerSize_ = source.headerSize_;
+  this->footerSize_ = source.footerSize_;
+}
 
 void ShadowlistViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager) {
   this->containerManager_ = containerManager;
@@ -10,28 +27,26 @@ void ShadowlistViewShadowNode::setVirtualizerManager(std::shared_ptr<azimgd::sha
   this->virtualizerManager_ = virtualizerManager;
 }
 
-void ShadowlistViewShadowNode::setContainerSizeUpdateState(std::shared_ptr<ContainerSizeUpdateState> containerSizeUpdateState) {
-  this->containerSizeUpdateState_ = containerSizeUpdateState;
+void ShadowlistViewShadowNode::setHeaderSize(std::shared_ptr<double> headerSize) {
+  this->headerSize_ = headerSize;
 }
 
-void ShadowlistViewShadowNode::setPrependElementsSize(std::shared_ptr<size_t> prependElementsSize) {
-  this->prependElementsSize_ = prependElementsSize;
-}
-
-void ShadowlistViewShadowNode::setPrependElementsOffset(std::shared_ptr<double> prependElementsOffset) {
-  this->prependElementsOffset_ = prependElementsOffset;
-}
-
-void ShadowlistViewShadowNode::setPrependedElementsOffset(std::shared_ptr<double> prependedElementsOffset) {
-  this->prependedElementsOffset_ = prependedElementsOffset;
-}
-
-void ShadowlistViewShadowNode::setMeasuredElementsSize(std::shared_ptr<double> measuredElementsSize) {
-  this->measuredElementsSize_ = measuredElementsSize;
+void ShadowlistViewShadowNode::setFooterSize(std::shared_ptr<double> footerSize) {
+  this->footerSize_ = footerSize;
 }
 
 void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
+
+  /*
+   * The core is bound during adopt(); bail out if layout somehow runs first.
+   * Hold the core lock for the whole layout so the commit phase (update) on
+   * another thread cannot reconcile the shared Container underneath us.
+   */
+  if (!this->containerManager_ || !this->virtualizerManager_) {
+    return;
+  }
+  std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
   /*
    * Identify and measure template views (header/footer/empty)
@@ -42,6 +57,7 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   std::shared_ptr<const ShadowNode> footerNode = nullptr;
   double headerSize = 0.0;
   double footerSize = 0.0;
+  bool horizontal = getConcreteProps().horizontal;
 
   for (size_t i = 0; i < getChildren().size(); i++) {
     if (std::dynamic_pointer_cast<ShadowlistElementViewProps const>(getChildren()[i]->getProps())) {
@@ -53,7 +69,7 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       if (!templateViewNode) continue;
 
       const auto templateViewNodeLayoutMetrics = templateViewNode->getLayoutMetrics();
-      const auto templateViewNodeSize = getConcreteProps().horizontal
+      const auto templateViewNodeSize = horizontal
         ? templateViewNodeLayoutMetrics.frame.size.width
         : templateViewNodeLayoutMetrics.frame.size.height;
 
@@ -68,36 +84,41 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
-   * Update layout metrics for all virtualized elements (with header offset)
+   * Feed the measured header/footer sizes back so the next Virtualizer::update
+   * positions elements after the header and includes both in the total size
+   */
+  *this->headerSize_ = headerSize;
+  *this->footerSize_ = footerSize;
+
+  /*
+   * Apply pre-calculated positions from the virtualizer (offsets already include the header)
    */
   for (size_t i = 0; i < getChildren().size(); i++) {
     if (const auto prevElementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(getChildren()[i]->getProps())) {
+      /*
+       * A child's index prop comes from a (possibly older) commit's data, so it
+       * can outrun the shared Container's reconciled element count; skip rather
+       * than letting getElementAtIndex throw out of the layout/commit and crash
+       */
+      if (prevElementViewProps->index >= this->containerManager_->getElementsSize()) {
+        continue;
+      }
+
       auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(getChildren()[i]->clone({}));
 
-      /*
-       * Apply pre-calculated positions from the virtualizer
-       */
       LayoutMetrics layoutMetrics = elementViewNode->getLayoutMetrics();
+      const auto element = this->containerManager_->getElementAtIndex(prevElementViewProps->index);
 
       if (this->containerManager_->columns > 1) {
-        /*
-         * Multi-column layout: set both X and Y positions and element width
-         */
-        const auto element = this->containerManager_->getElementAtIndex(prevElementViewProps->index);
         layoutMetrics.frame.origin.x = element.offsetX;
-        layoutMetrics.frame.origin.y = element.offsetY + headerSize;
+        layoutMetrics.frame.origin.y = element.offsetY;
         layoutMetrics.frame.size.width = element.width;
+      } else if (horizontal) {
+        layoutMetrics.frame.origin.x = element.offsetX;
+        layoutMetrics.frame.origin.y = 0;
       } else {
-        /*
-         * Single column layout: use orientation-based positioning with header offset
-         */
-        if (getConcreteProps().horizontal) {
-          layoutMetrics.frame.origin.x = this->containerManager_->getElementOffset(prevElementViewProps->index) + headerSize;
-          layoutMetrics.frame.origin.y = 0;
-        } else {
-          layoutMetrics.frame.origin.y = this->containerManager_->getElementOffset(prevElementViewProps->index) + headerSize;
-          layoutMetrics.frame.origin.x = 0;
-        }
+        layoutMetrics.frame.origin.y = element.offsetY;
+        layoutMetrics.frame.origin.x = 0;
       }
 
       elementViewNode->setLayoutMetrics(layoutMetrics);
@@ -107,7 +128,14 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
-   * Position header and footer template views
+   * Refresh the total once now that the measured sizes for this batch of children
+   * have been fed back, instead of rescanning the whole list per measured child.
+   * The footer position below and the published content size depend on it.
+   */
+  azimgd::shadowlist::Virtualizer::recomputeTotalSize(this->containerManager_.get());
+
+  /*
+   * Position header (at the origin) and footer (after the content)
    */
   if (headerNode) {
     auto headerViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(headerNode->clone({}));
@@ -125,11 +153,11 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     auto footerViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(footerNode->clone({}));
     LayoutMetrics footerMetrics = footerViewNode->getLayoutMetrics();
 
-    if (getConcreteProps().horizontal) {
-      footerMetrics.frame.origin.x = this->containerManager_->nextRevision.totalContainerWidth + headerSize;
+    if (horizontal) {
+      footerMetrics.frame.origin.x = this->containerManager_->getFooterOffset(footerSize);
       footerMetrics.frame.origin.y = 0;
     } else {
-      footerMetrics.frame.origin.y = this->containerManager_->nextRevision.totalContainerHeight + headerSize;
+      footerMetrics.frame.origin.y = this->containerManager_->getFooterOffset(footerSize);
       footerMetrics.frame.origin.x = 0;
     }
 
@@ -139,150 +167,32 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
-   * Update container state and handle scroll offset adjustments
-   * Include header and footer in total container size (only in scroll direction)
+   * Resolve the frame into the values to publish. The core decides whether the
+   * content size changed and whether it wants to move the scroll view (only then
+   * is the offset applied, so we never fight the user's own scrolling).
    */
   auto nextStateData = getStateData();
-  auto totalContainerHeight = getConcreteProps().horizontal
-    ? this->containerManager_->nextRevision.totalContainerHeight
-    : this->containerManager_->nextRevision.totalContainerHeight + headerSize + footerSize;
-  auto totalContainerWidth = getConcreteProps().horizontal
-    ? this->containerManager_->nextRevision.totalContainerWidth + headerSize + footerSize
-    : this->containerManager_->nextRevision.totalContainerWidth;
+  auto stateUpdate = this->containerManager_->resolveStateUpdate(
+    nextStateData.containerOffsetX_,
+    nextStateData.containerOffsetY_,
+    nextStateData.totalContainerWidth_,
+    nextStateData.totalContainerHeight_);
 
-  /*
-   * Initialize containerOffsetIndex from prop if provided (>= 0) and only once
-   * State starts at -2.0 (initial), gets set to index, then resets to -1.0 (inactive)
-   */
-  if (getConcreteProps().containerOffsetIndex >= 0 && nextStateData.containerOffsetIndex_ == -2.0) {
-    nextStateData.containerOffsetIndex_ = static_cast<double>(getConcreteProps().containerOffsetIndex);
-  }
+  SL_LOG("layout: elementChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
+    getChildren().size(), headerSize, footerSize,
+    nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
+    stateUpdate.containerOffsetX, stateUpdate.containerOffsetY,
+    stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
+    stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
-  if (*this->prependElementsSize_ == 0) {
-    if (getConcreteProps().horizontal) {
-      *this->prependedElementsOffset_ = nextStateData.containerOffsetX_;
-    } else {
-      *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
-    }
-  }
-
-  if (
-    totalContainerHeight != nextStateData.totalContainerHeight_ ||
-    totalContainerWidth != nextStateData.totalContainerWidth_ ||
-    nextStateData.containerOffsetIndex_ >= 0
-    ) {
-    nextStateData.totalContainerHeight_ = totalContainerHeight;
-    nextStateData.totalContainerWidth_ = totalContainerWidth;
-
-    /*
-     * Position inverted lists at the bottom/right initially, adjusting scroll offset
-     * as container dimensions stabilize during measurement
-     * Skip this if containerOffsetIndex prop is provided (>= 0)
-     * Use totalContainerHeight/Width which already includes header and footer
-     */
-    if (getConcreteProps().inverted && *this->containerSizeUpdateState_ != ContainerSizeUpdateState::UPDATED && getConcreteProps().containerOffsetIndex < 0) {
-      if (getConcreteProps().horizontal) {
-        nextStateData.containerOffsetX_ = totalContainerWidth - getLayoutMetrics().frame.size.width;
-      } else {
-        nextStateData.containerOffsetY_ = totalContainerHeight - getLayoutMetrics().frame.size.height;
-      }
-      nextStateData.containerOffsetEnabled_ = true;
-    }
-
-    /*
-     * Adjust scroll position to keep content visible when prepending elements
-     */
-    if (*this->prependElementsSize_ > 0) {
-      if (getConcreteProps().horizontal) {
-        nextStateData.containerOffsetX_ = *this->prependedElementsOffset_ + this->containerManager_->getElementOffset(*this->prependElementsSize_);
-      } else {
-        nextStateData.containerOffsetY_ = *this->prependedElementsOffset_ + this->containerManager_->getElementOffset(*this->prependElementsSize_);
-      }
-      nextStateData.containerOffsetEnabled_ = true;
-    }
-    
-    /*
-     * Handle containerOffsetIndex for initial scroll position or scrollToIndex
-     * Add header offset since elements are positioned after the header
-     * This takes precedence over inverted list adjustments
-     */
-    if (nextStateData.containerOffsetIndex_ >= 0) {
-      if (getConcreteProps().horizontal) {
-        nextStateData.containerOffsetX_ = this->containerManager_->getElementOffset(nextStateData.containerOffsetIndex_) + headerSize;
-      } else {
-        nextStateData.containerOffsetY_ = this->containerManager_->getElementOffset(nextStateData.containerOffsetIndex_) + headerSize;
-      }
-      nextStateData.containerOffsetEnabled_ = true;
-
-      if (this->containerManager_->getElementAtIndex(nextStateData.containerOffsetIndex_).measured) {
-        nextStateData.containerOffsetIndex_ = -1;
-
-        /*
-         * Mark container size as updated when using containerOffsetIndex on inverted list
-         * This prevents default inverted positioning logic from interfering
-         */
-        if (getConcreteProps().inverted) {
-          *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATED;
-        }
-      }
-    } else if (getConcreteProps().inverted) {
-      /*
-       * Adjust inverted list offset for measured elements
-       * Only applies if scrollToIndex is not active
-       */
-      if (getConcreteProps().horizontal) {
-        nextStateData.containerOffsetX_ += *this->measuredElementsSize_;
-      } else {
-        nextStateData.containerOffsetY_ += *this->measuredElementsSize_;
-      }
-      nextStateData.containerOffsetEnabled_ = true;
-    }
-
+  if (stateUpdate.changed) {
+    nextStateData.containerOffsetX_ = stateUpdate.containerOffsetX;
+    nextStateData.containerOffsetY_ = stateUpdate.containerOffsetY;
+    nextStateData.totalContainerWidth_ = stateUpdate.totalContainerWidth;
+    nextStateData.totalContainerHeight_ = stateUpdate.totalContainerHeight;
+    nextStateData.containerOffsetEnabled_ = stateUpdate.applyContainerOffset;
     setStateData(std::move(nextStateData));
-  } else {
-    if (*this->containerSizeUpdateState_ == ContainerSizeUpdateState::INITIALIZED) {
-      if (this->containerManager_->getElementAtIndex(this->containerManager_->nextRevision.elements.size() - 1).measured) {
-        *this->containerSizeUpdateState_ = ContainerSizeUpdateState::UPDATED;
-      }
-    }
   }
-  
-  /*
-   * Reset prepend offset tracking once elements are measured and positioned
-   * This typically happens on the next render after prepended elements have been laid out
-   */
-  if (*this->prependElementsSize_ != 0) {
-    if (
-      getConcreteProps().inverted && (
-      this->containerManager_->getVisibleIndices().second > *this->prependElementsSize_ ||
-      this->containerManager_->getElementAtIndex(*this->prependElementsSize_ - 1).measured
-    )) {
-      if (getConcreteProps().horizontal) {
-        *this->prependedElementsOffset_ = nextStateData.containerOffsetX_;
-      } else {
-        *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
-      }
-      *this->prependElementsSize_ = 0;
-    }
-
-    if (
-      !getConcreteProps().inverted && (
-      this->containerManager_->getVisibleIndices().first > *this->prependElementsSize_ ||
-      this->containerManager_->getElementAtIndex(*this->prependElementsSize_ - 1).measured
-    )) {
-      if (getConcreteProps().horizontal) {
-        *this->prependedElementsOffset_ = nextStateData.containerOffsetX_;
-      } else {
-        *this->prependedElementsOffset_ = nextStateData.containerOffsetY_;
-      }
-      *this->prependElementsSize_ = 0;
-    }
-  }
-  
-  /*
-   * Reset measured elements size after applying to all elements
-   */
-  *this->measuredElementsSize_ = 0.0;
 }
 
 void ShadowlistViewShadowNode::appendChild(const std::shared_ptr<const ShadowNode>& nextElementShadowNode) {
@@ -294,32 +204,24 @@ void ShadowlistViewShadowNode::replaceChild(
   const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
   size_t suggestedIndex) {
 
+  /*
+   * Feed natively measured element sizes back into the virtualizer. Guard the
+   * index against the reconciled element count (a stale child can outrun it) and
+   * take the core lock since this can run concurrently with the commit phase.
+   */
   if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(nextElementShadowNode->getProps())) {
-    const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
-    const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
+    if (this->containerManager_ && this->virtualizerManager_ &&
+        elementViewProps->index < this->containerManager_->getElementsSize()) {
+      std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
-    /*
-     * Get the old size before updating to calculate size difference
-     */
-    const auto prevElement = this->containerManager_->getElementAtIndex(elementViewProps->index);
-    const auto prevSize = this->containerManager_->getElementSize(elementViewProps->index);
+      const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
+      const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
 
-    this->virtualizerManager_->updateElementAtIndex(
-      this->containerManager_.get(),
-      elementViewProps->index,
-      { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
-
-    /*
-     * Calculate size difference and accumulate for scroll offset adjustment
-     */
-    double sizeDifference;
-    if (getConcreteProps().horizontal) {
-      sizeDifference = elementViewNodeSize.width - prevSize;
-    } else {
-      sizeDifference = elementViewNodeSize.height - prevSize;
+      this->virtualizerManager_->updateElementAtIndex(
+        this->containerManager_.get(),
+        elementViewProps->index,
+        { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
     }
-
-    *this->measuredElementsSize_ += sizeDifference;
   }
 
   YogaLayoutableShadowNode::replaceChild(prevElementShadowNode, nextElementShadowNode, suggestedIndex);

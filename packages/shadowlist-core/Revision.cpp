@@ -21,13 +21,11 @@ void Revision::setContainerOffsetY(double containerOffsetY) {
   this->containerOffsetY = containerOffsetY;
 }
 
-std::string Revision::getDebugRepresentation(const RevisionDebugRepresentationMetadata& metadata) const {
+std::string Revision::getDebugRepresentation() const {
   std::ostringstream json;
   json << std::fixed << std::setprecision(2);
 
   json << "{";
-  json << "\"timestamp\":" << this->timestamp.count() << ",";
-  json << "\"timestampDiff\":" << metadata.timestampDiff << ",";
   json << "\"containerOffsetX\":" << this->containerOffsetX << ",";
   json << "\"containerOffsetY\":" << this->containerOffsetY << ",";
   json << "\"measurementElementStartIndex\":" << this->measurementElementStartIndex << ",";
@@ -51,7 +49,7 @@ std::string Revision::getDebugRepresentation(const RevisionDebugRepresentationMe
     json << "\"height\":" << elem.height << ",";
     json << "\"offsetX\":" << elem.offsetX << ",";
     json << "\"offsetY\":" << elem.offsetY << ",";
-    json << "\"estimated\":" << (elem.estimated ? "true" : "false");
+    json << "\"estimated\":" << (elem.estimated ? "true" : "false") << ",";
     json << "\"measured\":" << (elem.measured ? "true" : "false");
     json << "}";
     if (nextElementIndex < this->elements.size() - 1) {

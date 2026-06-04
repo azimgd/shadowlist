@@ -175,8 +175,17 @@ public class ShadowlistView extends ReactScrollView {
       return;
     }
 
+    // Bump the nonce so the core treats this as a fresh request and re-scrolls
+    // even when the index is unchanged from the previous call
+    double nextNonce = 0;
+    ReadableMap currentStateData = _state.getStateData();
+    if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexNonce")) {
+      nextNonce = currentStateData.getDouble("containerOffsetIndexNonce") + 1;
+    }
+
     WritableMap map = new WritableNativeMap();
     map.putDouble("containerOffsetIndex", (double) index);
+    map.putDouble("containerOffsetIndexNonce", nextNonce);
     map.putBoolean("containerOffsetEnabled", true);
     _state.updateState(map);
   }

@@ -24,7 +24,7 @@ export const MasonryElement = memo(({ element, index }: MasonryElementProps) => 
         />
       </View>
       <Text style={styles.title} numberOfLines={2}>
-        {element.title}
+        {element.title} · {index}
       </Text>
     </View>
   );

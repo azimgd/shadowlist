@@ -39,7 +39,7 @@ const NestedElementChildComponent = memo(({ element }: { element: NestedElementC
 export const NestedElement = memo(({ element, index }: NestedElementProps) => {
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>{element.title}</Text>
+      <Text style={styles.sectionTitle}>{element.title} · {index}</Text>
       <Shadowlist
         data={element.elements}
         horizontal
@@ -54,14 +54,14 @@ export const NestedElement = memo(({ element, index }: NestedElementProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 12,
+    marginBottom: 12,
     height: 300,
   },
   sectionTitle: {
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: '700',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     marginBottom: 12,
   },
   horizontalList: {
@@ -69,11 +69,11 @@ const styles = StyleSheet.create({
   },
   nestedElement: {
     width: 180,
-    marginLeft: 16,
+    marginLeft: 12,
   },
   imageContainer: {
     width: 180,
-    height: 240,
+    height: 220,
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: '#2F3336',

@@ -2,6 +2,9 @@
 #define Virtualizer_hpp
 
 #include <cstddef>
+#include <string>
+#include <vector>
+#include <utility>
 
 #include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Container.hpp>
@@ -10,38 +13,59 @@
 
 namespace azimgd::shadowlist {
 
+/*
+ * Platform agnostic description of a single frame. Integrations marshal their
+ * props/state into this struct and read the resulting layout back from the
+ * container, so the per-platform glue stays thin.
+ */
+struct FrameInput {
+  std::vector<std::string> keys;
+  double containerOffsetX = 0.0;
+  double containerOffsetY = 0.0;
+  double windowContainerWidth = 0.0;
+  double windowContainerHeight = 0.0;
+  double headerSize = 0.0;
+  double footerSize = 0.0;
+  bool inverted = false;
+  bool horizontal = false;
+  std::size_t columns = 1;
+  std::pair<double, double> estimatedElementSize = {120.0, 120.0};
+};
+
 class Virtualizer {
 public:
   /*
-   * Measure elements
+   * Single per-frame entry point: reconcile elements to the incoming keys,
+   * measure, resolve scroll corrections (scrollToIndex / maintain visible
+   * content position) and dispatch observer callbacks
    */
-  void measure(Container *container);
+  void update(Container *container, const FrameInput &input);
 
   /*
-   * Measure elements in default order by index
+   * Measure elements for the current revision
+   * Handles default/inverted order and single/multi-column layout
+   * windowFromOffset selects the visible window from the current scroll offset
+   * (used for the re-measure after a scroll correction) instead of filling from
+   * the edge, which is otherwise only correct on the first revision
    */
-  void measureDefault(Container *container);
+  void measure(Container *container, bool windowFromOffset = false);
 
   /*
-   * Measure elements in reverse order by index
+   * Recompute total container size from the maximum element extent. Public so the
+   * integration can refresh it once after feeding back a batch of measured sizes.
    */
-  void measureInverted(Container *container);
+  static void recomputeTotalSize(Container *container);
 
   /*
-   * Measure elements in default order with multi-column layout
+   * Reconcile the element list to a new ordered set of keys, preserving the
+   * measured state of surviving elements and creating fresh ones for new keys
    */
-  void measureColumnsDefault(Container *container);
-
-  /*
-   * Measure elements in reverse order with multi-column layout
-   */
-  void measureColumnsInverted(Container *container);
+  static void reconcileElements(Container *container, const std::vector<std::string> &nextKeys);
 
   /*
    * Add element at specific index
-   * prevElementIndex: optional index to use for measurement callback (defaults to insertion index)
    */
-  static void addElementAtIndex(Container *container, std::size_t index, std::size_t prevElementIndex = UNDEFINED_INDEX);
+  static void addElementAtIndex(Container *container, std::size_t index);
 
   /*
    * Update measurements for existing element at specific index
@@ -50,7 +74,6 @@ public:
 
   /*
    * Prepend multiple elements to the beginning of the list
-   * Iterates from end of incoming array to maintain correct order
    */
   static void prependElements(Container *container, std::size_t count);
 
@@ -61,44 +84,43 @@ public:
 
 private:
   /*
-   * Measure elements in default order for the first revision
+   * Measure a window of elements from the edge of the list (first revision)
    */
-  void measureFirstRevisionDefault(Container *container);
+  static void measureFirstRevision(Container *container);
 
   /*
-   * Measure elements in default order for the subsequent revisions
+   * Measure the elements within the visible window plus buffer (subsequent revisions)
    */
-  void measureNextRevisionDefault(Container *container);
+  static void measureNextRevision(Container *container);
 
   /*
-   * Measure elements in inverted order for the first revision
+   * Store the measured index range (orientation aware) and update average dimensions
    */
-  void measureFirstRevisionInverted(Container *container);
+  static void finalizeMeasurement(Container *container, std::size_t measuredMinIndex, std::size_t measuredMaxIndex);
 
   /*
-   * Measure elements in inverted order for the subsequent revisions
+   * Size unmeasured elements with average dimensions and recompute all offsets
    */
-  void measureNextRevisionInverted(Container *container);
+  static void layoutElements(Container *container);
 
   /*
-   * Measure elements in default order for the first revision with multi-column layout
+   * Recompute element offsets starting from a given index (orientation/columns aware)
    */
-  void measureFirstRevisionColumnsDefault(Container *container);
+  static void recomputeElementOffsets(Container *container, std::size_t fromIndex);
 
   /*
-   * Measure elements in default order for the subsequent revisions with multi-column layout
+   * Record which element currently sits at the top/left of the viewport and how
+   * far we are scrolled into it, so the position can be restored after a reconcile
    */
-  void measureNextRevisionColumnsDefault(Container *container);
+  static void captureAnchor(Container *container, double inputOffset, std::string &anchorKey, double &anchorDelta);
 
   /*
-   * Measure elements in inverted order for the first revision with multi-column layout
+   * Apply scroll corrections after measuring: a pending scrollToIndex, the inverted
+   * bottom anchor, otherwise keep the captured anchor element at the same viewport
+   * position (MVCP). Returns true when the scroll offset was moved, so the caller
+   * can re-measure the visible window for the new offset.
    */
-  void measureFirstRevisionColumnsInverted(Container *container);
-
-  /*
-   * Measure elements in inverted order for the subsequent revisions with multi-column layout
-   */
-  void measureNextRevisionColumnsInverted(Container *container);
+  static bool resolveScroll(Container *container, const std::string &anchorKey, double anchorDelta, bool hadElementsBefore);
 };
 
 }

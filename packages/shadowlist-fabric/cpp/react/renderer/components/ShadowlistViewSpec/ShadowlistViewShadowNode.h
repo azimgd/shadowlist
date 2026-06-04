@@ -27,13 +27,18 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
   public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
-#pragma mark - LayoutableShadowNode
+  /*
+   * Clone constructor. The core instances (container/virtualizer/header/footer)
+   * live on the ShadowNode so they are freed when the node family is destroyed,
+   * but inherited constructors default-initialize derived members, so the clone
+   * must carry the shared instances forward from its source. This keeps a single
+   * core per list instance shared across all its committed clones.
+   */
+  ShadowlistViewShadowNode(
+    const ShadowNode& sourceShadowNode,
+    const ShadowNodeFragment& fragment);
 
-  enum class ContainerSizeUpdateState {
-    INITIALIZED,
-    UPDATING,
-    UPDATED
-  };
+#pragma mark - LayoutableShadowNode
 
   void layout(LayoutContext layoutContext) override;
   void appendChild(const std::shared_ptr<const ShadowNode>& nextElementShadowNode) override;
@@ -44,20 +49,24 @@ class ShadowlistViewShadowNode final : public ConcreteViewShadowNode<
 
   void setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager);
   void setVirtualizerManager(std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager);
-  void setContainerSizeUpdateState(std::shared_ptr<ContainerSizeUpdateState> state);
-  void setPrependElementsSize(std::shared_ptr<size_t> prependElementsSize);
-  void setPrependElementsOffset(std::shared_ptr<double> prependElementsOffset);
-  void setPrependedElementsOffset(std::shared_ptr<double> prependedElementsOffset);
-  void setMeasuredElementsSize(std::shared_ptr<double> measuredElementsSize);
+  void setHeaderSize(std::shared_ptr<double> headerSize);
+  void setFooterSize(std::shared_ptr<double> footerSize);
+
+  const std::shared_ptr<azimgd::shadowlist::Container>& getContainerManager() const { return containerManager_; }
+  const std::shared_ptr<azimgd::shadowlist::Virtualizer>& getVirtualizerManager() const { return virtualizerManager_; }
+  const std::shared_ptr<double>& getHeaderSize() const { return headerSize_; }
+  const std::shared_ptr<double>& getFooterSize() const { return footerSize_; }
 
   private:
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
   std::shared_ptr<azimgd::shadowlist::Virtualizer> virtualizerManager_;
-  std::shared_ptr<ContainerSizeUpdateState> containerSizeUpdateState_;
-  std::shared_ptr<size_t> prependElementsSize_;
-  std::shared_ptr<double> prependElementsOffset_;
-  std::shared_ptr<double> prependedElementsOffset_;
-  std::shared_ptr<double> measuredElementsSize_;
+
+  /*
+   * Header/footer sizes are measured during layout and fed back into the next
+   * frame's Virtualizer::update so the core can position elements after the header
+   */
+  std::shared_ptr<double> headerSize_;
+  std::shared_ptr<double> footerSize_;
 };
 
 }

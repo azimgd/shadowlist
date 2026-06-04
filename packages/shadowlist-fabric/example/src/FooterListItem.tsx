@@ -16,10 +16,10 @@ export const FooterListItem = memo(({ text = 'End of list' }: FooterListItemProp
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#000000',
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 20,
     marginTop: 8,
-    borderTopWidth: 0.5,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#2F3336',
     alignItems: 'center',
   },

@@ -35,8 +35,8 @@ export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLe
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 12,
-    right: 12,
+    top: 16,
+    right: 16,
     flexDirection: 'row',
     gap: 8,
     backgroundColor: 'rgba(28, 28, 30, 0.8)',

@@ -12,22 +12,6 @@ void Container::startRevision() {
     throw InvalidOperationError("Cannot start the new revision while the previous is in progress");
   }
 
-  /*
-   * On the very first iteration we should have prevRevision == nextRevision
-   * and nextRevisionCount == 0;
-   */
-  if (this->nextRevisionCount != RevisionCountFirst) {
-    this->prevRevision = this->nextRevision;
-    this->prevRevisionTimestamp = this->nextRevisionTimestamp;
-  }
-
-  /*
-   * Set timestamp for next revision
-   */
-  auto now = std::chrono::system_clock::now();
-  this->nextRevisionTimestamp = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
-  this->nextRevision.timestamp = this->nextRevisionTimestamp;
-
   this->nextRevisionStatus = RevisionStatusPending;
 }
 
@@ -50,62 +34,146 @@ void Container::endRevision() {
   }
 
   /*
-   * Check if we're within one screen size of the end of the list
+   * Check whether we're within one screen size of either end of the list.
+   * For inverted lists the start/end are visually swapped.
    */
-  if (this->endReachedEnabled && this->onEndReachedCallback) {
-    double containerOffset = this->getContainerOffset();
-    double windowSize = this->getWindowContainerSize();
-    double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
+  double containerOffset = this->getContainerOffset();
+  double windowSize = this->getWindowContainerSize();
+  double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
 
-    /*
-     * For inverted lists, check if we're scrolled to near the start (which is visually the end)
-     * For default lists, check if we're scrolled to near the end
-     */
-    if (this->inverted) {
-      if (containerOffset <= windowSize) {
-        this->onEndReachedCallback();
-      }
-    } else {
-      if (containerOffset + windowSize >= totalSize - windowSize) {
-        this->onEndReachedCallback();
-      }
+  bool nearLowEdge = containerOffset <= windowSize;
+  bool nearHighEdge = containerOffset + windowSize >= totalSize - windowSize;
+
+  bool reachedEnd = this->inverted ? nearLowEdge : nearHighEdge;
+  bool reachedStart = this->inverted ? nearHighEdge : nearLowEdge;
+
+  /*
+   * When the whole list fits within (or near) a single window both edges are
+   * technically reached; prefer the end callback so we don't double-trigger
+   */
+  if (reachedStart && reachedEnd) {
+    reachedStart = false;
+  }
+
+  if (this->endReachedEnabled && this->onEndReachedCallback && reachedEnd) {
+    this->onEndReachedCallback();
+  }
+
+  if (this->startReachedEnabled && this->onStartReachedCallback && reachedStart) {
+    this->onStartReachedCallback();
+  }
+
+  this->dispatchObservers();
+}
+
+void Container::scrollToIndex(std::size_t index) {
+  this->scrollToIndexTarget = index;
+}
+
+void Container::requestScrollToIndex(double commandIndex, double commandNonce, int propIndex) {
+  /*
+   * The imperative command takes precedence over the declarative prop. It fires
+   * once per invocation: the integration bumps the nonce on every scrollToIndex
+   * call, so requesting the same index again still re-scrolls (a value-only dedup
+   * would swallow a repeat scroll to the same index).
+   */
+  bool fired = false;
+  if (commandNonce != this->prevScrollToIndexNonce) {
+    this->prevScrollToIndexNonce = commandNonce;
+    if (commandIndex >= 0.0) {
+      this->scrollToIndex(static_cast<std::size_t>(commandIndex));
+      fired = true;
     }
   }
 
   /*
-   * Check if we're within one screen size of the start of the list
+   * The declarative prop fires only when its value changes (a negative value is
+   * inactive), so it provides an initial position without re-firing every frame.
    */
-  if (this->startReachedEnabled && this->onStartReachedCallback) {
-    double containerOffset = this->getContainerOffset();
-    double windowSize = this->getWindowContainerSize();
-    double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
-
-    /*
-     * For inverted lists, check if we're scrolled to near the end (which is visually the start)
-     * For default lists, check if we're scrolled to near the start
-     */
-    if (this->inverted) {
-      if (containerOffset + windowSize >= totalSize - windowSize) {
-        this->onStartReachedCallback();
-      }
-    } else {
-      if (containerOffset <= windowSize) {
-        this->onStartReachedCallback();
-      }
-    }
+  if (!fired && propIndex >= 0 && propIndex != this->prevScrollToIndexProp) {
+    this->scrollToIndex(static_cast<std::size_t>(propIndex));
   }
+  this->prevScrollToIndexProp = propIndex;
 }
 
-RevisionDebugRepresentationMetadata Container::getMetadata() const {
-  RevisionDebugRepresentationMetadata metadata;
+ContainerStateUpdate Container::resolveStateUpdate(
+  double prevContainerOffsetX,
+  double prevContainerOffsetY,
+  double prevTotalContainerWidth,
+  double prevTotalContainerHeight) const {
+  ContainerStateUpdate update;
 
-  if (this->nextRevisionCount == 0) {
-    metadata.timestampDiff = 0;
+  bool corrected = this->containerOffsetCorrected;
+  bool sizeChanged =
+    this->nextRevision.totalContainerWidth != prevTotalContainerWidth ||
+    this->nextRevision.totalContainerHeight != prevTotalContainerHeight;
+
+  update.totalContainerWidth = this->nextRevision.totalContainerWidth;
+  update.totalContainerHeight = this->nextRevision.totalContainerHeight;
+
+  /*
+   * Only adopt the core's scroll offset when the core actually wants to move the
+   * view; otherwise keep the offset the view reported so we don't fight the user
+   */
+  if (corrected) {
+    update.containerOffsetX = this->nextRevision.containerOffsetX;
+    update.containerOffsetY = this->nextRevision.containerOffsetY;
   } else {
-    metadata.timestampDiff = (this->nextRevisionTimestamp - this->prevRevisionTimestamp).count();
+    update.containerOffsetX = prevContainerOffsetX;
+    update.containerOffsetY = prevContainerOffsetY;
   }
 
-  return metadata;
+  update.applyContainerOffset = corrected;
+  update.changed = corrected || sizeChanged;
+
+  return update;
+}
+
+double Container::getFooterOffset(double footerSize) const {
+  double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
+  return totalSize - footerSize;
+}
+
+std::size_t Container::findElementIndexByKey(const std::string& key) const {
+  if (key.empty()) {
+    return UNDEFINED_INDEX;
+  }
+
+  for (std::size_t nextElementIndex = 0; nextElementIndex < this->nextRevision.elements.size(); nextElementIndex++) {
+    if (this->nextRevision.elements[nextElementIndex].key == key) {
+      return nextElementIndex;
+    }
+  }
+
+  return UNDEFINED_INDEX;
+}
+
+void Container::dispatchObservers() {
+  /*
+   * Notify when the visible index range changes
+   */
+  auto visibleIndices = this->getVisibleIndices();
+  if (this->onVisibleIndicesChangeCallback &&
+    (visibleIndices.first != this->prevVisibleStartIndex || visibleIndices.second != this->prevVisibleEndIndex)) {
+    SL_LOG("  emit onVisibleIndicesChange(%zd, %zd)",
+      static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second));
+    this->onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
+  }
+  this->prevVisibleStartIndex = visibleIndices.first;
+  this->prevVisibleEndIndex = visibleIndices.second;
+
+  /*
+   * Notify when the scroll offset changes
+   */
+  double containerOffsetX = this->nextRevision.containerOffsetX;
+  double containerOffsetY = this->nextRevision.containerOffsetY;
+  if (this->onScrollCallback &&
+    (!this->prevContainerOffsetValid || containerOffsetX != this->prevContainerOffsetX || containerOffsetY != this->prevContainerOffsetY)) {
+    this->onScrollCallback(containerOffsetX, containerOffsetY);
+  }
+  this->prevContainerOffsetX = containerOffsetX;
+  this->prevContainerOffsetY = containerOffsetY;
+  this->prevContainerOffsetValid = true;
 }
 
 void Container::addElementAtIndex(std::size_t index, Element nextElement) {
@@ -212,8 +280,8 @@ std::size_t Container::getMeasurementElementEndIndex() const {
   return this->nextRevision.measurementElementEndIndex;
 }
 
-std::string Container::getDebugRepresentation(const RevisionDebugRepresentationMetadata& metadata) const {
-  return this->nextRevision.getDebugRepresentation(metadata);
+std::string Container::getDebugRepresentation() const {
+  return this->nextRevision.getDebugRepresentation();
 }
 
 std::vector<Element> Container::getVisibleElements() const {

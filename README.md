@@ -100,3 +100,23 @@ function App() {
   )}
 />
 ```
+
+## Known Issues
+
+### Animated Transform Not Supported
+
+Using `transform` with Reanimated's `useAnimatedStyle` inside list elements can cause layout measurement issues and revision conflicts. 
+
+**Workaround**: Use layout properties like `left`, `right`, `top`, or `marginLeft` instead of `transform` for animations within list elements.
+
+```tsx
+// Avoid this
+const animatedStyle = useAnimatedStyle(() => ({
+  transform: [{ translateX: offset.value }]
+}));
+
+// Use this instead
+const animatedStyle = useAnimatedStyle(() => ({
+  left: offset.value
+}));
+```
