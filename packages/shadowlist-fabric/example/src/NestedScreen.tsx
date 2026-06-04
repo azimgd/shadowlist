@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Shadowlist, type ShadowListCommands } from 'shadowlist';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
 import { NestedElement, type NestedElement as NestedElementType } from './NestedElement';
 import { HeaderListItem } from './HeaderListItem';
@@ -8,7 +8,7 @@ import { FooterListItem } from './FooterListItem';
 import { generateNestedElement } from './constants';
 
 export const NestedScreen = () => {
-  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<NestedElementType[]>(() =>
     Array.from({ length: 20 }, (_, index) => generateNestedElement(index))
   );

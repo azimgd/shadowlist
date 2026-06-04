@@ -48,7 +48,7 @@ TEST(nested_vertical_outer_with_horizontal_inners) {
   // Each inner is horizontal: content width = 10 * 180, cross-axis height = 300.
   for (auto& inner : inners) {
     CHECK_NEAR(inner.totalAxis(), 1800.0, 0.5);
-    CHECK_NEAR(inner.container.nextRevision.totalContainerHeight, 300.0, 0.5);
+    CHECK_NEAR(inner.container.revision.totalContainerHeight, 300.0, 0.5);
     std::size_t lo = 0, hi = 0;
     CHECK(inner.visibleRange(lo, hi));
     CHECK_EQ(lo, std::size_t(0));

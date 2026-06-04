@@ -10,7 +10,7 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
   SL_LOG("update: keys=%zu prevElements=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d",
-    input.keys.size(), container->nextRevision.elements.size(),
+    input.keys.size(), container->revision.elements.size(),
     input.containerOffsetX, input.containerOffsetY,
     input.windowContainerWidth, input.windowContainerHeight,
     input.inverted ? 1 : 0, input.columns, input.headerSize, input.footerSize,
@@ -27,10 +27,29 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->estimatedElementSize = input.estimatedElementSize;
 
   /*
+   * A genuine user scroll takes over: abandon any in-flight scroll correction
+   * (the MVCP drive after a prepend, a scrollToIndex animation) so we don't snap
+   * the offset back to that target every frame and lock the user out. Stale
+   * data/layout re-commits arrive with this unset, so an in-flight correction
+   * still survives them (step 3 of resolveScroll).
+   *
+   * Marking the inverted bottom pin as initialized disengages it too: once the
+   * user has manually scrolled they have taken control of the position, so step 2
+   * must stop re-pinning to the bottom every frame (which otherwise overrides the
+   * cancel above and locks an inverted list whose pin has not settled yet). The
+   * pin re-arms on its own when the list empties (see resolveScroll).
+   */
+  if (input.userScrolled) {
+    container->pendingScroll = false;
+    container->pendingAnchorActive = false;
+    container->invertedInitialized = true;
+  }
+
+  /*
    * Capture the anchor element from the previous layout and the incoming scroll
    * offset so we can keep the same content in view across a reconcile
    */
-  bool hadElementsBefore = !container->nextRevision.elements.empty();
+  bool hadElementsBefore = !container->revision.elements.empty();
   double inputOffset = container->horizontal ? input.containerOffsetX : input.containerOffsetY;
   std::string anchorKey;
   double anchorDelta = 0.0;
@@ -59,8 +78,8 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   measure(container);
 
   SL_LOG("  measured: total=(%.1f,%.1f) offset=(%.1f,%.1f) visible=[%zd..%zd] anchorKey=%s",
-    container->nextRevision.totalContainerWidth, container->nextRevision.totalContainerHeight,
-    container->nextRevision.containerOffsetX, container->nextRevision.containerOffsetY,
+    container->revision.totalContainerWidth, container->revision.totalContainerHeight,
+    container->revision.containerOffsetX, container->revision.containerOffsetY,
     static_cast<std::ptrdiff_t>(container->getVisibleIndices().first),
     static_cast<std::ptrdiff_t>(container->getVisibleIndices().second),
     anchorKey.empty() ? "(none)" : anchorKey.c_str());
@@ -73,21 +92,21 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   if (resolveScroll(container, anchorKey, anchorDelta, hadElementsBefore)) {
     measure(container, true);
     SL_LOG("  re-measured: offset=(%.1f,%.1f) visible=[%zd..%zd] invInit=%d",
-      container->nextRevision.containerOffsetX, container->nextRevision.containerOffsetY,
+      container->revision.containerOffsetX, container->revision.containerOffsetY,
       static_cast<std::ptrdiff_t>(container->getVisibleIndices().first),
       static_cast<std::ptrdiff_t>(container->getVisibleIndices().second),
       container->invertedInitialized ? 1 : 0);
   }
 
   SL_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d",
-    container->nextRevision.containerOffsetX, container->nextRevision.containerOffsetY,
+    container->revision.containerOffsetX, container->revision.containerOffsetY,
     container->containerOffsetCorrected ? 1 : 0, container->invertedInitialized ? 1 : 0);
 
   container->endRevision();
 }
 
 void Virtualizer::measure(Container *container, bool windowFromOffset) {
-  if (container->nextRevisionStatus != RevisionStatusPending) {
+  if (container->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use measure outside of a revision");
   }
 
@@ -95,11 +114,11 @@ void Virtualizer::measure(Container *container, bool windowFromOffset) {
    * Reset the per-revision measurement accumulators so they reflect only the
    * elements measured in this revision (otherwise they grow unbounded)
    */
-  container->nextRevision.measurementElementStartIndex = UNDEFINED_INDEX;
-  container->nextRevision.measurementElementEndIndex = UNDEFINED_INDEX;
-  container->nextRevision.measurementElementCount = 0;
-  container->nextRevision.measurementElementTotalHeight = 0;
-  container->nextRevision.measurementElementTotalWidth = 0;
+  container->revision.measurementElementStartIndex = UNDEFINED_INDEX;
+  container->revision.measurementElementEndIndex = UNDEFINED_INDEX;
+  container->revision.measurementElementCount = 0;
+  container->revision.measurementElementTotalHeight = 0;
+  container->revision.measurementElementTotalWidth = 0;
 
   /*
    * The first revision fills a window from the edge because element offsets are
@@ -107,7 +126,7 @@ void Virtualizer::measure(Container *container, bool windowFromOffset) {
    * so the re-measure selects the window around the corrected offset instead
    * (otherwise the visible range would report the edge window, not the target).
    */
-  if (!windowFromOffset && container->nextRevisionCount == RevisionCountFirst) {
+  if (!windowFromOffset && container->revisionCount == RevisionCountFirst) {
     measureFirstRevision(container);
   } else {
     measureNextRevision(container);
@@ -118,7 +137,7 @@ void Virtualizer::measure(Container *container, bool windowFromOffset) {
 }
 
 void Virtualizer::measureFirstRevision(Container *container) {
-  std::size_t elementsSize = container->nextRevision.elements.size();
+  std::size_t elementsSize = container->revision.elements.size();
   double windowSize = container->getWindowContainerSize();
   double effectiveColumns = container->columns > 0 ? static_cast<double>(container->columns) : 1.0;
 
@@ -131,7 +150,7 @@ void Virtualizer::measureFirstRevision(Container *container) {
    */
   for (std::size_t iteration = 0; iteration < elementsSize; ++iteration) {
     std::size_t nextElementIndex = container->inverted ? (elementsSize - 1 - iteration) : iteration;
-    Element& nextElement = container->nextRevision.elements[nextElementIndex];
+    Element& nextElement = container->revision.elements[nextElementIndex];
 
     /*
      * Running measurement is expensive,
@@ -159,9 +178,9 @@ void Virtualizer::measureFirstRevision(Container *container) {
       measuredMaxIndex = nextElementIndex;
     }
 
-    container->nextRevision.measurementElementTotalHeight += nextElement.height;
-    container->nextRevision.measurementElementTotalWidth += nextElement.width;
-    container->nextRevision.measurementElementCount++;
+    container->revision.measurementElementTotalHeight += nextElement.height;
+    container->revision.measurementElementTotalWidth += nextElement.width;
+    container->revision.measurementElementCount++;
 
     accumulated += container->horizontal ? nextElement.width : nextElement.height;
 
@@ -178,7 +197,7 @@ void Virtualizer::measureFirstRevision(Container *container) {
 }
 
 void Virtualizer::measureNextRevision(Container *container) {
-  std::size_t elementsSize = container->nextRevision.elements.size();
+  std::size_t elementsSize = container->revision.elements.size();
   double containerOffset = container->getContainerOffset();
   double windowSize = container->getWindowContainerSize();
 
@@ -186,7 +205,7 @@ void Virtualizer::measureNextRevision(Container *container) {
   std::size_t measuredMaxIndex = UNDEFINED_INDEX;
 
   for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
-    Element& nextElement = container->nextRevision.elements[nextElementIndex];
+    Element& nextElement = container->revision.elements[nextElementIndex];
 
     /*
      * Skip elements that are outside of the visible window plus 1x window buffer
@@ -216,9 +235,9 @@ void Virtualizer::measureNextRevision(Container *container) {
       measuredMaxIndex = nextElementIndex;
     }
 
-    container->nextRevision.measurementElementTotalHeight += nextElement.height;
-    container->nextRevision.measurementElementTotalWidth += nextElement.width;
-    container->nextRevision.measurementElementCount++;
+    container->revision.measurementElementTotalHeight += nextElement.height;
+    container->revision.measurementElementTotalWidth += nextElement.width;
+    container->revision.measurementElementCount++;
   }
 
   finalizeMeasurement(container, measuredMinIndex, measuredMaxIndex);
@@ -230,11 +249,11 @@ void Virtualizer::finalizeMeasurement(Container *container, std::size_t measured
    * higher one (e.g. start=99, end=90). For default lists start is the lower one.
    */
   if (container->inverted) {
-    container->nextRevision.measurementElementStartIndex = measuredMaxIndex;
-    container->nextRevision.measurementElementEndIndex = measuredMinIndex;
+    container->revision.measurementElementStartIndex = measuredMaxIndex;
+    container->revision.measurementElementEndIndex = measuredMinIndex;
   } else {
-    container->nextRevision.measurementElementStartIndex = measuredMinIndex;
-    container->nextRevision.measurementElementEndIndex = measuredMaxIndex;
+    container->revision.measurementElementStartIndex = measuredMinIndex;
+    container->revision.measurementElementEndIndex = measuredMaxIndex;
   }
 
   /*
@@ -245,45 +264,45 @@ void Virtualizer::finalizeMeasurement(Container *container, std::size_t measured
    * variable-height list swings the average, moves every estimated element's
    * offset, and makes MVCP chase the moved anchor (violent scroll thrash).
    */
-  if (container->nextRevision.measurementElementCount > 0) {
-    if (container->nextRevision.averageElementWidth == 0.0) {
-      container->nextRevision.averageElementWidth = container->nextRevision.measurementElementTotalWidth / container->nextRevision.measurementElementCount;
+  if (container->revision.measurementElementCount > 0) {
+    if (container->revision.averageElementWidth == 0.0) {
+      container->revision.averageElementWidth = container->revision.measurementElementTotalWidth / container->revision.measurementElementCount;
     }
-    if (container->nextRevision.averageElementHeight == 0.0) {
-      container->nextRevision.averageElementHeight = container->nextRevision.measurementElementTotalHeight / container->nextRevision.measurementElementCount;
+    if (container->revision.averageElementHeight == 0.0) {
+      container->revision.averageElementHeight = container->revision.measurementElementTotalHeight / container->revision.measurementElementCount;
     }
   }
 }
 
 void Virtualizer::layoutElements(Container *container) {
-  std::size_t elementsSize = container->nextRevision.elements.size();
+  std::size_t elementsSize = container->revision.elements.size();
 
   double trackSize = container->horizontal
-    ? container->nextRevision.windowContainerHeight / (container->columns > 0 ? container->columns : 1)
-    : container->nextRevision.windowContainerWidth / (container->columns > 0 ? container->columns : 1);
+    ? container->revision.windowContainerHeight / (container->columns > 0 ? container->columns : 1)
+    : container->revision.windowContainerWidth / (container->columns > 0 ? container->columns : 1);
 
   /*
    * Size unmeasured elements with average dimensions. Multi-column layouts force
    * the cross-axis size to the track size so every column has the same extent.
    */
   for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
-    Element& nextElement = container->nextRevision.elements[nextElementIndex];
+    Element& nextElement = container->revision.elements[nextElementIndex];
 
     if (container->columns > 1) {
       if (container->horizontal) {
         if (!nextElement.estimated) {
-          nextElement.width = container->nextRevision.averageElementWidth;
+          nextElement.width = container->revision.averageElementWidth;
         }
         nextElement.height = trackSize;
       } else {
         if (!nextElement.estimated) {
-          nextElement.height = container->nextRevision.averageElementHeight;
+          nextElement.height = container->revision.averageElementHeight;
         }
         nextElement.width = trackSize;
       }
     } else if (!nextElement.estimated) {
-      nextElement.width = container->nextRevision.averageElementWidth;
-      nextElement.height = container->nextRevision.averageElementHeight;
+      nextElement.width = container->revision.averageElementWidth;
+      nextElement.height = container->revision.averageElementHeight;
     }
   }
 
@@ -291,15 +310,15 @@ void Virtualizer::layoutElements(Container *container) {
 }
 
 void Virtualizer::recomputeElementOffsets(Container *container, std::size_t fromIndex) {
-  std::size_t elementsSize = container->nextRevision.elements.size();
+  std::size_t elementsSize = container->revision.elements.size();
   if (fromIndex >= elementsSize) {
     return;
   }
 
   if (container->columns > 1) {
     double trackSize = container->horizontal
-      ? container->nextRevision.windowContainerHeight / container->columns
-      : container->nextRevision.windowContainerWidth / container->columns;
+      ? container->revision.windowContainerHeight / container->columns
+      : container->revision.windowContainerWidth / container->columns;
 
     /*
      * Tracks start after the header along the scroll axis
@@ -312,7 +331,7 @@ void Virtualizer::recomputeElementOffsets(Container *container, std::size_t from
      * fromIndex, so this only needs to look back columns positions.
      */
     for (std::size_t seedIndex = fromIndex; seedIndex-- > 0 && seedIndex + container->columns >= fromIndex;) {
-      const Element& seedElement = container->nextRevision.elements[seedIndex];
+      const Element& seedElement = container->revision.elements[seedIndex];
       std::size_t trackIndex = seedIndex % container->columns;
       trackSizes[trackIndex] = container->horizontal
         ? seedElement.offsetX + seedElement.width + seedElement.gapX
@@ -320,7 +339,7 @@ void Virtualizer::recomputeElementOffsets(Container *container, std::size_t from
     }
 
     for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
-      Element& nextElement = container->nextRevision.elements[nextElementIndex];
+      Element& nextElement = container->revision.elements[nextElementIndex];
       nextElement.index = nextElementIndex;
 
       std::size_t trackIndex = nextElementIndex % container->columns;
@@ -345,14 +364,14 @@ void Virtualizer::recomputeElementOffsets(Container *container, std::size_t from
      * Seed the running offset from the element preceding fromIndex
      */
     if (fromIndex > 0) {
-      const Element& prevElement = container->nextRevision.elements[fromIndex - 1];
+      const Element& prevElement = container->revision.elements[fromIndex - 1];
       nextOffset = container->horizontal
         ? prevElement.offsetX + prevElement.width + prevElement.gapX
         : prevElement.offsetY + prevElement.height + prevElement.gapY;
     }
 
     for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
-      Element& nextElement = container->nextRevision.elements[nextElementIndex];
+      Element& nextElement = container->revision.elements[nextElementIndex];
       nextElement.index = nextElementIndex;
 
       if (container->horizontal) {
@@ -376,7 +395,7 @@ void Virtualizer::recomputeTotalSize(Container *container) {
   double maxHeight = 0.0;
   double maxWidth = 0.0;
 
-  for (const Element& nextElement : container->nextRevision.elements) {
+  for (const Element& nextElement : container->revision.elements) {
     double elementBottom = nextElement.offsetY + nextElement.height;
     double elementRight = nextElement.offsetX + nextElement.width;
 
@@ -393,17 +412,17 @@ void Virtualizer::recomputeTotalSize(Container *container) {
    * the trailing footer. The cross axis is left as the maximum element extent.
    */
   if (container->horizontal) {
-    container->nextRevision.totalContainerWidth = std::max(maxWidth, container->headerSize) + container->footerSize;
-    container->nextRevision.totalContainerHeight = maxHeight;
+    container->revision.totalContainerWidth = std::max(maxWidth, container->headerSize) + container->footerSize;
+    container->revision.totalContainerHeight = maxHeight;
   } else {
-    container->nextRevision.totalContainerHeight = std::max(maxHeight, container->headerSize) + container->footerSize;
-    container->nextRevision.totalContainerWidth = maxWidth;
+    container->revision.totalContainerHeight = std::max(maxHeight, container->headerSize) + container->footerSize;
+    container->revision.totalContainerWidth = maxWidth;
   }
 }
 
 void Virtualizer::addElementAtIndex(Container *container, std::size_t index) {
-  if (index > container->nextRevision.elements.size()) {
-    throw std::out_of_range("Index out of bounds");
+  if (index > container->revision.elements.size()) {
+    throw InvalidOperationError("Index out of bounds");
   }
 
   Element nextElement;
@@ -414,8 +433,8 @@ void Virtualizer::addElementAtIndex(Container *container, std::size_t index) {
    * If there is no estimate available, fall back to the average dimensions
    */
   if (width == 0.0 && height == 0.0) {
-    nextElement.width = container->nextRevision.averageElementWidth;
-    nextElement.height = container->nextRevision.averageElementHeight;
+    nextElement.width = container->revision.averageElementWidth;
+    nextElement.height = container->revision.averageElementHeight;
     nextElement.estimated = false;
   } else {
     nextElement.width = width;
@@ -424,37 +443,37 @@ void Virtualizer::addElementAtIndex(Container *container, std::size_t index) {
   }
   nextElement.index = index;
 
-  container->nextRevision.elements.insert(container->nextRevision.elements.begin() + index, nextElement);
+  container->revision.elements.insert(container->revision.elements.begin() + index, nextElement);
 
-  for (std::size_t nextElementIndex = index + 1; nextElementIndex < container->nextRevision.elements.size(); nextElementIndex++) {
-    container->nextRevision.elements[nextElementIndex].index = nextElementIndex;
+  for (std::size_t nextElementIndex = index + 1; nextElementIndex < container->revision.elements.size(); nextElementIndex++) {
+    container->revision.elements[nextElementIndex].index = nextElementIndex;
   }
 
-  if (container->nextRevision.measurementElementStartIndex != UNDEFINED_INDEX) {
-    if (index <= container->nextRevision.measurementElementStartIndex) {
-      container->nextRevision.measurementElementStartIndex++;
+  if (container->revision.measurementElementStartIndex != UNDEFINED_INDEX) {
+    if (index <= container->revision.measurementElementStartIndex) {
+      container->revision.measurementElementStartIndex++;
     }
 
-    if (index <= container->nextRevision.measurementElementEndIndex) {
-      container->nextRevision.measurementElementEndIndex++;
+    if (index <= container->revision.measurementElementEndIndex) {
+      container->revision.measurementElementEndIndex++;
     }
   }
 
-  if (container->nextRevision.averageElementHeight > 0) {
-    container->nextRevision.measurementElementTotalHeight += nextElement.height;
-    container->nextRevision.measurementElementTotalWidth += nextElement.width;
-    container->nextRevision.measurementElementCount++;
+  if (container->revision.averageElementHeight > 0) {
+    container->revision.measurementElementTotalHeight += nextElement.height;
+    container->revision.measurementElementTotalWidth += nextElement.width;
+    container->revision.measurementElementCount++;
   }
 
   recomputeElementOffsets(container, index);
 }
 
 void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, Size size) {
-  if (index >= container->nextRevision.elements.size()) {
-    throw std::out_of_range("Index out of bounds");
+  if (index >= container->revision.elements.size()) {
+    throw InvalidOperationError("Index out of bounds");
   }
 
-  Element& nextElement = container->nextRevision.elements[index];
+  Element& nextElement = container->revision.elements[index];
 
   double prevWidth = nextElement.width;
   double prevHeight = nextElement.height;
@@ -464,9 +483,9 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
   nextElement.estimated = true;
   nextElement.measured = true;
 
-  if (container->nextRevision.averageElementHeight > 0) {
-    container->nextRevision.measurementElementTotalHeight += size.height - prevHeight;
-    container->nextRevision.measurementElementTotalWidth += size.width - prevWidth;
+  if (container->revision.averageElementHeight > 0) {
+    container->revision.measurementElementTotalHeight += size.height - prevHeight;
+    container->revision.measurementElementTotalWidth += size.width - prevWidth;
   }
 
   /*
@@ -518,12 +537,12 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
         anchoredOffset = 0.0;
       }
 
-      double currentOffset = container->horizontal ? container->nextRevision.containerOffsetX : container->nextRevision.containerOffsetY;
+      double currentOffset = container->horizontal ? container->revision.containerOffsetX : container->revision.containerOffsetY;
       if (std::fabs(anchoredOffset - currentOffset) >= 0.5) {
         if (container->horizontal) {
-          container->nextRevision.containerOffsetX = anchoredOffset;
+          container->revision.containerOffsetX = anchoredOffset;
         } else {
-          container->nextRevision.containerOffsetY = anchoredOffset;
+          container->revision.containerOffsetY = anchoredOffset;
         }
         container->containerOffsetCorrected = true;
       }
@@ -541,14 +560,14 @@ void Virtualizer::prependElements(Container *container, std::size_t count) {
 
 void Virtualizer::appendElements(Container *container, std::size_t count) {
   for (std::size_t iteration = 0; iteration < count; iteration++) {
-    addElementAtIndex(container, container->nextRevision.elements.size());
+    addElementAtIndex(container, container->revision.elements.size());
   }
 
   recomputeTotalSize(container);
 }
 
 void Virtualizer::reconcileElements(Container *container, const std::vector<std::string> &nextKeys) {
-  std::vector<Element>& prevElements = container->nextRevision.elements;
+  std::vector<Element>& prevElements = container->revision.elements;
 
   /*
    * Index the existing elements by key so surviving elements keep their
@@ -581,14 +600,14 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
     }
   }
 
-  container->nextRevision.elements = std::move(nextElements);
+  container->revision.elements = std::move(nextElements);
 }
 
 void Virtualizer::captureAnchor(Container *container, double inputOffset, std::string &anchorKey, double &anchorDelta) {
   anchorKey.clear();
   anchorDelta = 0.0;
 
-  const std::vector<Element>& prevElements = container->nextRevision.elements;
+  const std::vector<Element>& prevElements = container->revision.elements;
   if (prevElements.empty()) {
     return;
   }
@@ -618,7 +637,7 @@ void Virtualizer::captureAnchor(Container *container, double inputOffset, std::s
 }
 
 bool Virtualizer::resolveScroll(Container *container, const std::string &anchorKey, double anchorDelta, bool hadElementsBefore) {
-  std::size_t elementsSize = container->nextRevision.elements.size();
+  std::size_t elementsSize = container->revision.elements.size();
   container->containerOffsetCorrected = false;
 
   /*
@@ -632,8 +651,8 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
   }
 
   double windowSize = container->getWindowContainerSize();
-  double totalSize = container->horizontal ? container->nextRevision.totalContainerWidth : container->nextRevision.totalContainerHeight;
-  double currentOffset = container->horizontal ? container->nextRevision.containerOffsetX : container->nextRevision.containerOffsetY;
+  double totalSize = container->horizontal ? container->revision.totalContainerWidth : container->revision.totalContainerHeight;
+  double currentOffset = container->horizontal ? container->revision.containerOffsetX : container->revision.containerOffsetY;
   double maxOffset = totalSize - windowSize;
   if (maxOffset < 0.0) {
     maxOffset = 0.0;
@@ -646,9 +665,9 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
   };
   auto writeOffset = [&](double offset) {
     if (container->horizontal) {
-      container->nextRevision.containerOffsetX = offset;
+      container->revision.containerOffsetX = offset;
     } else {
-      container->nextRevision.containerOffsetY = offset;
+      container->revision.containerOffsetY = offset;
     }
   };
 

@@ -13,7 +13,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createShadowlistCore, type ShadowlistCoreInstance } from './core.js';
-import type { ShadowListCommands, ShadowListProps } from './types.js';
+import type { ShadowlistCommands, ShadowlistProps } from './types.js';
 
 const DEFAULT_ESTIMATED_SIZE = 120;
 
@@ -25,7 +25,7 @@ const DEFAULT_ESTIMATED_SIZE = 120;
 const MAX_SETTLE_PASSES = 8;
 
 function resolveComponent(
-  component: ShadowListProps<{ id: string }>['ListHeaderComponent']
+  component: ShadowlistProps<{ id: string }>['ListHeaderComponent']
 ): ReactNode {
   if (!component) return null;
   return typeof component === 'function' ? component() : component;
@@ -101,7 +101,7 @@ const ElementWrapper = memo(function ElementWrapper({
   return (
     <div
       ref={ref}
-      data-sl-index={index}
+      data-shadowlist-index={index}
       style={{ position: 'absolute', top: 0, left: 0, ...elementStyle }}
     >
       {children}
@@ -109,9 +109,9 @@ const ElementWrapper = memo(function ElementWrapper({
   );
 });
 
-function ShadowListInner<ElementT extends { id: string }>(
-  props: ShadowListProps<ElementT>,
-  ref: React.Ref<ShadowListCommands>
+function ShadowlistInner<ElementT extends { id: string }>(
+  props: ShadowlistProps<ElementT>,
+  ref: React.Ref<ShadowlistCommands>
 ) {
   const {
     data,
@@ -155,13 +155,16 @@ function ShadowListInner<ElementT extends { id: string }>(
 
   /*
    * scrollToIndex is an imperative command; bump the nonce on every call so the
-   * core re-scrolls even when targeting the same index twice (matches Fabric).
+   * core re-scrolls even when targeting the same index twice.
    */
   const commandRef = useRef({ index: -1, nonce: 0 });
 
   const rafRef = useRef<number | null>(null);
   const settlePassesRef = useRef(0);
   const ignoreScrollRef = useRef(false);
+  // Set on a genuine user scroll, consumed by the next tick. Tells the core to
+  // drop any in-flight scroll correction so the user is not snapped back to it.
+  const userScrolledRef = useRef(false);
   const mountedRangeRef = useRef<number[]>([]);
 
   const [range, setRange] = useState<number[]>(() =>
@@ -203,8 +206,7 @@ function ShadowListInner<ElementT extends { id: string }>(
 
   /*
    * Position the mounted DOM nodes (elements, header, footer) from the layout
-   * the core computed, and size the content box. Mirrors the offset application
-   * in ShadowlistViewShadowNode::layout.
+   * the core computed, and size the content box.
    */
   const applyPositions = useCallback(() => {
     const core = coreRef.current;
@@ -272,8 +274,8 @@ function ShadowListInner<ElementT extends { id: string }>(
       horizontal: isHorizontal,
       inverted: isInverted,
       columns: columnCount,
-      estimatedElementWidth: estW,
-      estimatedElementHeight: estH,
+      estimatedElementWidth: estimatedWidth,
+      estimatedElementHeight: estimatedHeight,
       containerOffsetIndex: propIndex,
       data: currentData,
     } = latestRef.current;
@@ -300,6 +302,11 @@ function ShadowListInner<ElementT extends { id: string }>(
       propIndex
     );
 
+    // Consume the user-scroll flag: only the tick this gesture scheduled is
+    // user-initiated; the settle passes that follow are corrections, not gestures.
+    const userScrolled = userScrolledRef.current;
+    userScrolledRef.current = false;
+
     core.update(
       keysRef.current,
       containerOffsetX,
@@ -311,8 +318,9 @@ function ShadowListInner<ElementT extends { id: string }>(
       isInverted,
       isHorizontal,
       columnCount,
-      estW,
-      estH
+      estimatedWidth,
+      estimatedHeight,
+      userScrolled
     );
 
     const visible = core.getVisibleIndices();
@@ -335,8 +343,7 @@ function ShadowListInner<ElementT extends { id: string }>(
   /*
    * Feed measured DOM sizes back into the core, refresh the content size, apply
    * positions, then publish the resolved state (content size + scroll
-   * correction). Mirrors the feedback + resolveStateUpdate tail of the Fabric
-   * ShadowNode layout. Schedules another pass while things are still moving.
+   * correction). Schedules another pass while things are still moving.
    */
   const measureAndResolve = useCallback(() => {
     const core = coreRef.current;
@@ -350,8 +357,7 @@ function ShadowListInner<ElementT extends { id: string }>(
     /*
      * Constrain each node to the cross-axis size the core controls (track width
      * for columns, 100% for single column / horizontal) BEFORE measuring, so the
-     * measured main-axis size reflects that constraint — mirroring how Fabric
-     * lays the element out at its track width before reading its frame back.
+     * measured main-axis size reflects that constraint.
      */
     applyPositions();
 
@@ -496,6 +502,7 @@ function ShadowListInner<ElementT extends { id: string }>(
       return;
     }
     settlePassesRef.current = 0;
+    userScrolledRef.current = true;
     scheduleTick();
   }, [scheduleTick]);
 
@@ -601,8 +608,8 @@ function ShadowListInner<ElementT extends { id: string }>(
 /*
  * forwardRef + generics: cast preserves the generic element type for callers.
  */
-const Shadowlist = forwardRef(ShadowListInner) as <ElementT extends { id: string }>(
-  props: ShadowListProps<ElementT> & { ref?: React.Ref<ShadowListCommands> }
+const Shadowlist = forwardRef(ShadowlistInner) as <ElementT extends { id: string }>(
+  props: ShadowlistProps<ElementT> & { ref?: React.Ref<ShadowlistCommands> }
 ) => ReactElement;
 
 export default Shadowlist;

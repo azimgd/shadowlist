@@ -26,7 +26,7 @@ export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLe
         <Text style={styles.buttonText}>↓</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.scrollButton} onPress={handleScrollToRandom}>
-        <Text style={styles.buttonText}>{targetIndex ?? 'rnd'}</Text>
+        <Text style={styles.buttonText}>{targetIndex ?? '🎯'}</Text>
       </TouchableOpacity>
     </View>
   );

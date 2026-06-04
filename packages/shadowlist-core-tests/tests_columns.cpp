@@ -19,9 +19,9 @@ TEST(columns_two_column_grid_layout) {
   sim.settle();
 
   // 20 elements / 2 columns = 10 rows of 100px.
-  CHECK_NEAR(sim.container.nextRevision.totalContainerHeight, 1000.0, 0.5);
+  CHECK_NEAR(sim.container.revision.totalContainerHeight, 1000.0, 0.5);
   // Cross axis is the window width (each track is half of it).
-  CHECK_NEAR(sim.container.nextRevision.totalContainerWidth, 400.0, 0.5);
+  CHECK_NEAR(sim.container.revision.totalContainerWidth, 400.0, 0.5);
 
   // Even indices fill the left track (offsetX 0), odd indices the right (offsetX 200).
   CHECK_NEAR(sim.container.getElementAtIndex(0).offsetX, 0.0, 0.5);

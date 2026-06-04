@@ -1,5 +1,5 @@
 import { useState, useRef, type CSSProperties } from 'react';
-import { Shadowlist, type ShadowListCommands } from 'shadowlist-wasm';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
 import { ChatElement } from './ChatElement';
 import { FloatingActionBar } from './FloatingActionBar';
 import { MessageInput } from './MessageInput';
@@ -22,7 +22,7 @@ type ChatMessage = {
 };
 
 export const ChatScreen = () => {
-  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<ChatMessage[]>(() =>
     Array.from({ length: 1000 }, (_, index) => {
       const isImageGrid = shouldBeImageGrid(index);

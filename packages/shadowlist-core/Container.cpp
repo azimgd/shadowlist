@@ -8,23 +8,23 @@ void Container::startRevision() {
   /*
    * Revisions must be in the idle status before we start
    */
-  if (this->nextRevisionStatus != RevisionStatusIdle) {
+  if (this->revisionStatus != RevisionStatusIdle) {
     throw InvalidOperationError("Cannot start the new revision while the previous is in progress");
   }
 
-  this->nextRevisionStatus = RevisionStatusPending;
+  this->revisionStatus = RevisionStatusPending;
 }
 
 void Container::endRevision() {
   /*
    * Revisions must be in the idle status before we start
    */
-  if (this->nextRevisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("You cannot end the revision while the previous has not started");
   }
 
-  this->nextRevisionCount++;
-  this->nextRevisionStatus = RevisionStatusIdle;
+  this->revisionCount++;
+  this->revisionStatus = RevisionStatusIdle;
 
   /*
    * Notify observer about revision end
@@ -39,7 +39,7 @@ void Container::endRevision() {
    */
   double containerOffset = this->getContainerOffset();
   double windowSize = this->getWindowContainerSize();
-  double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
+  double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
 
   bool nearLowEdge = containerOffset <= windowSize;
   bool nearHighEdge = containerOffset + windowSize >= totalSize - windowSize;
@@ -105,19 +105,19 @@ ContainerStateUpdate Container::resolveStateUpdate(
 
   bool corrected = this->containerOffsetCorrected;
   bool sizeChanged =
-    this->nextRevision.totalContainerWidth != prevTotalContainerWidth ||
-    this->nextRevision.totalContainerHeight != prevTotalContainerHeight;
+    this->revision.totalContainerWidth != prevTotalContainerWidth ||
+    this->revision.totalContainerHeight != prevTotalContainerHeight;
 
-  update.totalContainerWidth = this->nextRevision.totalContainerWidth;
-  update.totalContainerHeight = this->nextRevision.totalContainerHeight;
+  update.totalContainerWidth = this->revision.totalContainerWidth;
+  update.totalContainerHeight = this->revision.totalContainerHeight;
 
   /*
    * Only adopt the core's scroll offset when the core actually wants to move the
    * view; otherwise keep the offset the view reported so we don't fight the user
    */
   if (corrected) {
-    update.containerOffsetX = this->nextRevision.containerOffsetX;
-    update.containerOffsetY = this->nextRevision.containerOffsetY;
+    update.containerOffsetX = this->revision.containerOffsetX;
+    update.containerOffsetY = this->revision.containerOffsetY;
   } else {
     update.containerOffsetX = prevContainerOffsetX;
     update.containerOffsetY = prevContainerOffsetY;
@@ -130,7 +130,7 @@ ContainerStateUpdate Container::resolveStateUpdate(
 }
 
 double Container::getFooterOffset(double footerSize) const {
-  double totalSize = this->horizontal ? this->nextRevision.totalContainerWidth : this->nextRevision.totalContainerHeight;
+  double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
   return totalSize - footerSize;
 }
 
@@ -139,8 +139,8 @@ std::size_t Container::findElementIndexByKey(const std::string& key) const {
     return UNDEFINED_INDEX;
   }
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < this->nextRevision.elements.size(); nextElementIndex++) {
-    if (this->nextRevision.elements[nextElementIndex].key == key) {
+  for (std::size_t nextElementIndex = 0; nextElementIndex < this->revision.elements.size(); nextElementIndex++) {
+    if (this->revision.elements[nextElementIndex].key == key) {
       return nextElementIndex;
     }
   }
@@ -165,8 +165,8 @@ void Container::dispatchObservers() {
   /*
    * Notify when the scroll offset changes
    */
-  double containerOffsetX = this->nextRevision.containerOffsetX;
-  double containerOffsetY = this->nextRevision.containerOffsetY;
+  double containerOffsetX = this->revision.containerOffsetX;
+  double containerOffsetY = this->revision.containerOffsetY;
   if (this->onScrollCallback &&
     (!this->prevContainerOffsetValid || containerOffsetX != this->prevContainerOffsetX || containerOffsetY != this->prevContainerOffsetY)) {
     this->onScrollCallback(containerOffsetX, containerOffsetY);
@@ -177,11 +177,11 @@ void Container::dispatchObservers() {
 }
 
 void Container::addElementAtIndex(std::size_t index, Element nextElement) {
-  if (this->nextRevisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot add element outside of a revision");
   }
 
-  if (index > this->nextRevision.elements.size()) {
+  if (index > this->revision.elements.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
@@ -192,103 +192,92 @@ void Container::addElementAtIndex(std::size_t index, Element nextElement) {
   nextElement.offsetX = 0;
   nextElement.index = index;
 
-  auto it = this->nextRevision.elements.begin() + index;
-  this->nextRevision.elements.insert(it, nextElement);
+  auto it = this->revision.elements.begin() + index;
+  this->revision.elements.insert(it, nextElement);
 
-  // Update indices of all elements after the inserted element
-  for (std::size_t nextElementIndex = index + 1; nextElementIndex < this->nextRevision.elements.size(); nextElementIndex++) {
-    this->nextRevision.elements[nextElementIndex].index = nextElementIndex;
+  for (std::size_t nextElementIndex = index + 1; nextElementIndex < this->revision.elements.size(); nextElementIndex++) {
+    this->revision.elements[nextElementIndex].index = nextElementIndex;
   }
 }
 
 void Container::removeElementAtIndex(std::size_t index) {
-  if (this->nextRevisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot remove element outside of a revision");
   }
 
-  if (index >= this->nextRevision.elements.size()) {
+  if (index >= this->revision.elements.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  auto it = this->nextRevision.elements.begin() + index;
-  this->nextRevision.elements.erase(it);
+  auto it = this->revision.elements.begin() + index;
+  this->revision.elements.erase(it);
 
-  // Update indices of all elements after the removed element
-  for (std::size_t nextElementIndex = index; nextElementIndex < this->nextRevision.elements.size(); nextElementIndex++) {
-    this->nextRevision.elements[nextElementIndex].index = nextElementIndex;
+  for (std::size_t nextElementIndex = index; nextElementIndex < this->revision.elements.size(); nextElementIndex++) {
+    this->revision.elements[nextElementIndex].index = nextElementIndex;
   }
 }
 
 const Element Container::getElementAtIndex(std::size_t index) const {
-  if (index >= this->nextRevision.elements.size()) {
+  if (index >= this->revision.elements.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  return this->nextRevision.elements[index];
-}
-
-void Container::resizeElementsTail(std::size_t size) {
-  std::size_t prevElementsSize = this->nextRevision.elements.size();
-  this->nextRevision.elements.resize(size);
-
-  for (std::size_t nextElementIndex = prevElementsSize; nextElementIndex < size; nextElementIndex++) {
-    this->nextRevision.elements[nextElementIndex].index = nextElementIndex;
-  }
+  return this->revision.elements[index];
 }
 
 std::size_t Container::getElementsSize() const {
-  return this->nextRevision.elements.size();
+  return this->revision.elements.size();
 }
 
 void Container::setWindowContainerHeight(double height) {
-  if (this->nextRevisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use setWindowContainerHeight outside of a revision");
   }
 
-  this->nextRevision.setWindowContainerHeight(height);
+  this->revision.setWindowContainerHeight(height);
 }
 
 void Container::setWindowContainerWidth(double width) {
-  if (this->nextRevisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use setWindowContainerWidth outside of a revision");
   }
 
-  this->nextRevision.setWindowContainerWidth(width);
+  this->revision.setWindowContainerWidth(width);
 }
 
 void Container::setContainerOffsetY(double offsetY) {
-  if (this->nextRevisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use setContainerOffsetY outside of a revision");
   }
 
-  this->nextRevision.setContainerOffsetY(offsetY);
+  this->revision.setContainerOffsetY(offsetY);
 }
 
 void Container::setContainerOffsetX(double offsetX) {
-  if (this->nextRevisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use setContainerOffsetX outside of a revision");
   }
 
-  this->nextRevision.setContainerOffsetX(offsetX);
+  this->revision.setContainerOffsetX(offsetX);
 }
 
 std::size_t Container::getMeasurementElementStartIndex() const {
-  return this->nextRevision.measurementElementStartIndex;
+  return this->revision.measurementElementStartIndex;
 }
 
 std::size_t Container::getMeasurementElementEndIndex() const {
-  return this->nextRevision.measurementElementEndIndex;
+  return this->revision.measurementElementEndIndex;
 }
 
 std::string Container::getDebugRepresentation() const {
-  return this->nextRevision.getDebugRepresentation();
+  return this->revision.getDebugRepresentation();
 }
 
 std::vector<Element> Container::getVisibleElements() const {
   std::vector<Element> visibleElements;
 
-  std::size_t measurementElementStartIndex = this->nextRevision.measurementElementStartIndex;
-  std::size_t measurementElementEndIndex = this->nextRevision.measurementElementEndIndex;
+  std::size_t measurementElementStartIndex = this->revision.measurementElementStartIndex;
+  std::size_t measurementElementEndIndex = this->revision.measurementElementEndIndex;
 
   /*
    * Skip if uninitialized
@@ -306,8 +295,8 @@ std::vector<Element> Container::getVisibleElements() const {
      * Iterate from high index to low index
      */
     for (std::size_t visibleElementIndex = measurementElementStartIndex; visibleElementIndex >= measurementElementEndIndex && visibleElementIndex != UNDEFINED_INDEX; --visibleElementIndex) {
-      if (visibleElementIndex < this->nextRevision.elements.size()) {
-        visibleElements.push_back(this->nextRevision.elements[visibleElementIndex]);
+      if (visibleElementIndex < this->revision.elements.size()) {
+        visibleElements.push_back(this->revision.elements[visibleElementIndex]);
       }
     }
   } else {
@@ -315,8 +304,8 @@ std::vector<Element> Container::getVisibleElements() const {
      * Iterate from low index to high index
      */
     for (std::size_t visibleElementIndex = measurementElementStartIndex; visibleElementIndex <= measurementElementEndIndex; ++visibleElementIndex) {
-      if (visibleElementIndex < this->nextRevision.elements.size()) {
-        visibleElements.push_back(this->nextRevision.elements[visibleElementIndex]);
+      if (visibleElementIndex < this->revision.elements.size()) {
+        visibleElements.push_back(this->revision.elements[visibleElementIndex]);
       }
     }
   }
@@ -325,8 +314,8 @@ std::vector<Element> Container::getVisibleElements() const {
 }
 
 std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
-  std::size_t startIndex = this->nextRevision.measurementElementStartIndex;
-  std::size_t endIndex = this->nextRevision.measurementElementEndIndex;
+  std::size_t startIndex = this->revision.measurementElementStartIndex;
+  std::size_t endIndex = this->revision.measurementElementEndIndex;
 
   /*
    * Return the visible index range, or (-1, -1) if uninitialized
@@ -339,8 +328,8 @@ std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
 }
 
 bool Container::getElementVisible(std::size_t index) const {
-  std::size_t measurementElementStartIndex = this->nextRevision.measurementElementStartIndex;
-  std::size_t measurementElementEndIndex = this->nextRevision.measurementElementEndIndex;
+  std::size_t measurementElementStartIndex = this->revision.measurementElementStartIndex;
+  std::size_t measurementElementEndIndex = this->revision.measurementElementEndIndex;
 
   /*
    * Skip if uninitialized
@@ -364,33 +353,33 @@ bool Container::getElementVisible(std::size_t index) const {
 }
 
 double Container::getElementOffset(std::size_t index) const {
-  if (index >= this->nextRevision.elements.size()) {
+  if (index >= this->revision.elements.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  const Element& nextElement = this->nextRevision.elements[index];
+  const Element& nextElement = this->revision.elements[index];
   return this->horizontal ? nextElement.offsetX : nextElement.offsetY;
 }
 
 double Container::getElementSize(std::size_t index) const {
-  if (index >= this->nextRevision.elements.size()) {
+  if (index >= this->revision.elements.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  const Element& nextElement = this->nextRevision.elements[index];
+  const Element& nextElement = this->revision.elements[index];
   return this->horizontal ? nextElement.width : nextElement.height;
 }
 
 void Container::setElementOffset(std::size_t index, double offset) {
-  if (this->nextRevisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("Cannot use setElementOffset outside of a revision");
   }
 
-  if (index >= this->nextRevision.elements.size()) {
+  if (index >= this->revision.elements.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  Element& nextElement = this->nextRevision.elements[index];
+  Element& nextElement = this->revision.elements[index];
   if (this->horizontal) {
     nextElement.offsetX = offset;
   } else {
@@ -399,18 +388,18 @@ void Container::setElementOffset(std::size_t index, double offset) {
 }
 
 double Container::getContainerOffset() const {
-  return this->horizontal ? this->nextRevision.containerOffsetX : this->nextRevision.containerOffsetY;
+  return this->horizontal ? this->revision.containerOffsetX : this->revision.containerOffsetY;
 }
 
 double Container::getWindowContainerSize() const {
-  return this->horizontal ? this->nextRevision.windowContainerWidth : this->nextRevision.windowContainerHeight;
+  return this->horizontal ? this->revision.windowContainerWidth : this->revision.windowContainerHeight;
 }
 
-void Container::toggleEndReached(bool enabled) {
+void Container::setEndReachedEnabled(bool enabled) {
   this->endReachedEnabled = enabled;
 }
 
-void Container::toggleStartReached(bool enabled) {
+void Container::setStartReachedEnabled(bool enabled) {
   this->startReachedEnabled = enabled;
 }
 

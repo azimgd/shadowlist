@@ -12,7 +12,7 @@ using namespace facebook::react;
 @end
 
 @implementation ShadowlistElementView {
-  UIView * _view;
+  UIView * _contentView;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -26,9 +26,9 @@ using namespace facebook::react;
     static const auto defaultProps = std::make_shared<const ShadowlistElementViewProps>();
     _props = defaultProps;
 
-    _view = [[UIView alloc] init];
+    _contentView = [[UIView alloc] init];
 
-    self.contentView = _view;
+    self.contentView = _contentView;
   }
 
   return self;
@@ -36,7 +36,7 @@ using namespace facebook::react;
 
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  [_view insertSubview:childComponentView atIndex:index];
+  [_contentView insertSubview:childComponentView atIndex:index];
 }
 
 - (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index

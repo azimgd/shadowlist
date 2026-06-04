@@ -1,5 +1,4 @@
-#ifndef Error_hpp
-#define Error_hpp
+#pragma once
 
 #include <stdexcept>
 
@@ -17,4 +16,3 @@ public:
 };
 
 }
-#endif

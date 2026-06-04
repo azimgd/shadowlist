@@ -1,14 +1,13 @@
-#ifndef SLT_Harness_hpp
-#define SLT_Harness_hpp
+#pragma once
 
-// A small driver that exercises the core the same way the Fabric integration
-// does, one "frame" at a time:
+// A small driver that exercises the core one "frame" at a time, the same way an
+// integration does:
 //
-//   1. Virtualizer::update(container, input)         (the commit phase)
-//   2. feed natively-measured sizes for the visible window, then
-//      Virtualizer::recomputeTotalSize(container)    (the layout phase)
-//   3. read Container::resolveStateUpdate(...) and, if the core asked to move
-//      the scroll view, apply the new offset for the next frame              (the platform)
+//   1. Virtualizer::update(container, input)
+//   2. feed measured sizes for the visible window, then
+//      Virtualizer::recomputeTotalSize(container)
+//   3. read Container::resolveStateUpdate(...) and, if the core asked to move the
+//      scroll view, apply the new offset for the next frame
 //
 // Tests configure the list (keys, orientation, header/footer, window, and the
 // real measured size of each row) and then call frame()/settle() and assert on
@@ -64,6 +63,11 @@ struct Sim {
   double offsetX = 0.0;
   double offsetY = 0.0;
 
+  // Whether the NEXT frame should be flagged as user-initiated (set by
+  // userScrollTo, consumed and reset in frame()). The real integration sets this
+  // on a genuine scroll gesture so an in-flight correction yields to the user.
+  bool nextUserScrolled = false;
+
   // What the platform last published (content size), fed back into resolveStateUpdate.
   double prevTotalW = 0.0;
   double prevTotalH = 0.0;
@@ -97,12 +101,12 @@ struct Sim {
   }
 
   double offsetAxis() const { return horizontal ? offsetX : offsetY; }
-  double totalAxis() { return horizontal ? container.nextRevision.totalContainerWidth : container.nextRevision.totalContainerHeight; }
+  double totalAxis() { return horizontal ? container.revision.totalContainerWidth : container.revision.totalContainerHeight; }
   double elementOffset(std::size_t index) { return container.getElementOffset(index); }
   std::size_t indexOfKey(const std::string& key) { return container.findElementIndexByKey(key); }
 
   // The layout phase: feed the real measured size of every currently-visible row
-  // back into the core, then refresh the total once (mirrors ShadowNode::layout).
+  // back into the core, then refresh the total once.
   void feedMeasuredSizes() {
     std::size_t lo = 0;
     std::size_t hi = 0;
@@ -131,6 +135,8 @@ struct Sim {
     input.headerSize = headerSize;
     input.footerSize = footerSize;
     input.estimatedElementSize = {estimated.width, estimated.height};
+    input.userScrolled = nextUserScrolled;
+    nextUserScrolled = false;
 
     virtualizer.update(&container, input);
     feedMeasuredSizes();
@@ -164,8 +170,16 @@ struct Sim {
     offsetY = y;
     settle();
   }
+
+  // A single user-initiated scroll frame: the user dragged to y and the platform
+  // reports it as a genuine gesture (not a correction it applied itself). Runs one
+  // frame so a test can observe whether an in-flight correction snaps it back.
+  bool userScrollTo(double y) {
+    offsetY = y;
+    nextUserScrolled = true;
+    return frame();
+  }
 };
 
 }  // namespace slt
 
-#endif

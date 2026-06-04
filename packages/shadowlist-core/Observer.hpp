@@ -1,5 +1,4 @@
-#ifndef Observer_hpp
-#define Observer_hpp
+#pragma once
 
 #include <functional>
 #include <vector>
@@ -11,7 +10,7 @@ namespace azimgd::shadowlist {
 class Container;
 class Revision;
 
-/**
+/*
  * Observer class to track revision change operations with throttling
  */
 class Observer {
@@ -60,73 +59,73 @@ public:
   double getScrollVelocity() const;
 
 private:
-  /**
+  /*
    * Reference to the Container being observed
    */
   Container& container;
 
-  /**
+  /*
    * Array of callbacks
    */
   std::vector<std::pair<std::size_t, RevisionCallback>> callbacks;
 
-  /**
+  /*
    * Next subscription id
    */
   std::size_t nextSubscriptionId;
 
-  /**
+  /*
    * Throttle limit in milliseconds
    */
   std::size_t throttleMs;
 
-  /**
+  /*
    * Timestamp of previous callback execution
    */
   std::chrono::milliseconds prevDispatchTimestamp;
 
-  /**
+  /*
    * Previous measurement start index
    */
   std::size_t prevMeasurementElementStartIndex;
 
-  /**
+  /*
    * Previous measurement end index
    */
   std::size_t prevMeasurementElementEndIndex;
 
-  /**
+  /*
    * Previous measurement container height
    */
   double prevMeasurementElementTotalHeight;
 
-  /**
+  /*
    * Previous measurement container width
    */
   double prevMeasurementElementTotalWidth;
 
-  /**
+  /*
    * Previous container offset
    */
   double prevContainerOffset;
 
-  /**
+  /*
    * Current scroll velocity in pixels per second
    * Positive = scrolling down/right, Negative = scrolling up/left
    */
   double scrollVelocity;
 
-  /**
+  /*
    * Indicates if there's a pending dispatch
    */
   bool pendingDispatch;
 
-  /**
+  /*
    * Execute callbacks
    */
   void executeCallbacks();
 
-  /**
+  /*
    * Check if visible indices have changed
    * @return True if indices have changed since last dispatch
    */
@@ -135,4 +134,3 @@ private:
 
 }
 
-#endif

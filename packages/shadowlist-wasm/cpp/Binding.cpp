@@ -1,9 +1,7 @@
 /*
- * Emscripten/embind binding around the platform-agnostic shadowlist-core.
- *
- * It mirrors what the React Native Fabric integration
- * (ShadowlistViewShadowNode) does, but exposes a flat API to JavaScript so the
- * react-dom layer can drive the exact same virtualization algorithm:
+ * Emscripten/embind binding around the platform-agnostic shadowlist-core. It
+ * exposes a flat API to JavaScript so the react-dom layer can drive the
+ * virtualization algorithm:
  *
  *   1. update(...)            -> reconcile keys, measure, resolve scroll
  *   2. read getElementAtIndex -> position the rendered DOM nodes
@@ -11,8 +9,7 @@
  *   4. recomputeTotalSize     -> refresh content size once per batch
  *   5. resolveStateUpdate     -> learn the content size / scroll correction
  *
- * One ShadowlistCore instance owns one Container + Virtualizer, matching the
- * "one core per list" lifetime that the Fabric ShadowNode family enforces.
+ * One ShadowlistCore instance owns one Container + Virtualizer (one core per list).
  */
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
@@ -56,7 +53,8 @@ public:
     bool horizontal,
     int columns,
     double estimatedWidth,
-    double estimatedHeight) {
+    double estimatedHeight,
+    bool userScrolled) {
     FrameInput input;
     input.keys = vecFromJSArray<std::string>(keysVal);
     input.containerOffsetX = containerOffsetX;
@@ -69,6 +67,7 @@ public:
     input.horizontal = horizontal;
     input.columns = columns > 0 ? static_cast<std::size_t>(columns) : 1;
     input.estimatedElementSize = {estimatedWidth, estimatedHeight};
+    input.userScrolled = userScrolled;
 
     virtualizer_.update(&container_, input);
   }
@@ -163,18 +162,18 @@ public:
 
   /*
    * Resolve a scrollToIndex from an imperative command (index + monotonic nonce)
-   * and a declarative prop, matching the Fabric command/prop precedence.
+   * and a declarative prop. The imperative command takes precedence.
    */
   void requestScrollToIndex(double commandIndex, double commandNonce, int propIndex) {
     container_.requestScrollToIndex(commandIndex, commandNonce, propIndex);
   }
 
   void toggleEndReached(bool enabled) {
-    container_.toggleEndReached(enabled);
+    container_.setEndReachedEnabled(enabled);
   }
 
   void toggleStartReached(bool enabled) {
-    container_.toggleStartReached(enabled);
+    container_.setStartReachedEnabled(enabled);
   }
 
   void setOnEndReached(val callback) {

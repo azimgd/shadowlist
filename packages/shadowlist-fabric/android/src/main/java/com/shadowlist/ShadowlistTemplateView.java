@@ -2,7 +2,6 @@ package com.shadowlist;
 
 import android.content.Context;
 import android.util.AttributeSet;
-import android.view.View;
 import android.view.ViewGroup;
 
 public class ShadowlistTemplateView extends ViewGroup {
@@ -19,16 +18,7 @@ public class ShadowlistTemplateView extends ViewGroup {
   }
 
   @Override
-  public void addView(View child, int index) {
-    super.addView(child, index);
-  }
-
-  @Override
-  public void removeView(View child) {
-    super.removeView(child);
-  }
-
-  @Override
   protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    // Children are positioned by the shadowlist core, not by Android layout.
   }
 }

@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build:wasm": "bash scripts/build-wasm.sh",
-    "example": "yarn --cwd example dev",
+    "example": "npm --prefix example run dev",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

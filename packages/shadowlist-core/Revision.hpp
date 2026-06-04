@@ -1,5 +1,4 @@
-#ifndef Revision_hpp
-#define Revision_hpp
+#pragma once
 
 #include <string>
 #include <shadowlist-core/Constants.hpp>
@@ -17,12 +16,12 @@ public:
   /*
    * Offset of the container within the viewport X axis
    */
-  double containerOffsetX = 0.0f;
+  double containerOffsetX = 0.0;
 
   /*
    * Offset of the container within the viewport Y axis
    */
-  double containerOffsetY = 0.0f;
+  double containerOffsetY = 0.0;
 
   /*
    * Start position of measurement loop
@@ -42,12 +41,12 @@ public:
   /*
    * Average element width
    */
-  double averageElementWidth = 0.0f;
+  double averageElementWidth = 0.0;
 
   /*
    * Average element height
    */
-  double averageElementHeight = 0.0f;
+  double averageElementHeight = 0.0;
 
   /*
    * Accumulated height of the container
@@ -62,22 +61,22 @@ public:
   /*
    * Visible window height of the container
    */
-  double windowContainerHeight = 0.0f;
+  double windowContainerHeight = 0.0;
 
   /*
    * Visible window width of the container
    */
-  double windowContainerWidth = 0.0f;
+  double windowContainerWidth = 0.0;
 
   /*
    * Total height of the container
    */
-  double totalContainerHeight = 0.0f;
+  double totalContainerHeight = 0.0;
 
   /*
    * Total width of the container
    */
-  double totalContainerWidth = 0.0f;
+  double totalContainerWidth = 0.0;
 
   /*
    * Update containers window height
@@ -106,4 +105,3 @@ public:
 };
 
 }
-#endif

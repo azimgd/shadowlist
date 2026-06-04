@@ -41,7 +41,7 @@ std::string Revision::getDebugRepresentation() const {
   json << "\"totalContainerWidth\":" << this->totalContainerWidth << ",";
 
   json << "\"elements\":[";
-  for (size_t nextElementIndex = 0; nextElementIndex < this->elements.size(); ++nextElementIndex) {
+  for (std::size_t nextElementIndex = 0; nextElementIndex < this->elements.size(); ++nextElementIndex) {
     const auto& elem = this->elements[nextElementIndex];
     json << "{";
     json << "\"id\":\"" << elem.id << "\",";

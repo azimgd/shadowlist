@@ -30,7 +30,7 @@ export const FloatingActionBar = ({
         ↓
       </button>
       <button type="button" style={styles.scrollButton} onClick={handleScrollToRandom}>
-        {targetIndex ?? 'rnd'}
+        {targetIndex ?? '🎯'}
       </button>
     </div>
   );

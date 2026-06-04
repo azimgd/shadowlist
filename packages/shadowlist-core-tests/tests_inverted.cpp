@@ -42,7 +42,7 @@ TEST(inverted_short_list_fits_window) {
 }
 
 // New content appended to an inverted list (the visual bottom) keeps it pinned.
-TEST(inverted_append_restays_at_bottom) {
+TEST(inverted_repopulate_pins_to_bottom) {
   Sim sim;
   sim.inverted = true;
   sim.winH = 600;
@@ -63,6 +63,38 @@ TEST(inverted_append_restays_at_bottom) {
   std::size_t lo = 0, hi = 0;
   CHECK(sim.visibleRange(lo, hi));
   CHECK_EQ(hi, std::size_t(59));
+}
+
+// The inverted bottom pin must yield to a genuine user scroll. While the pin has
+// not settled (a short list that fits the window never reaches a scrollable
+// bottom, so it stays "uninitialized"), growing it past the window re-pins to the
+// bottom. A user dragging away from there must move the view instead of being
+// snapped back to the bottom every frame, which would lock the list.
+TEST(inverted_bottom_pin_yields_to_user_scroll) {
+  Sim sim;
+  sim.inverted = true;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(3));  // 300px content < 600px window: pin never settles
+  sim.settle();
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+
+  // Grow past the window with a single frame, so the bottom pin is freshly engaged
+  // (still in flight) — the offset jumps to the new bottom.
+  std::vector<std::string> next = makeKeys(20, "n");
+  for (const auto& key : makeKeys(3)) {
+    next.push_back(key);
+  }
+  sim.setKeys(next);
+  sim.frame();
+  CHECK_NEAR(sim.offsetY, 2300.0 - 600.0, 1.0);  // pinned to the new bottom
+
+  // The user drags up. The pin must release: the offset follows the user.
+  sim.userScrollTo(800.0);
+  CHECK_NEAR(sim.offsetY, 800.0, 1.0);
+  sim.userScrollTo(300.0);
+  CHECK_NEAR(sim.offsetY, 300.0, 1.0);
 }
 
 // When the estimate is smaller than the real row size the content grows past the

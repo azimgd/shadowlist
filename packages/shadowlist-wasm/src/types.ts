@@ -1,18 +1,17 @@
 import type { CSSProperties, ReactElement, ReactNode } from 'react';
 
 /*
- * Scroll offset payload, matching the React Native onScroll event shape.
+ * Scroll offset payload delivered to the onScroll callback.
  */
-export interface OnScrollEvent {
+export interface OnScroll {
   contentOffsetX: number;
   contentOffsetY: number;
 }
 
 /*
- * Imperative handle exposed via ref, mirroring the React Native ShadowList
- * commands (setStartReachedEnabled / setEndReachedEnabled / scrollToIndex).
+ * Imperative handle exposed via ref.
  */
-export interface ShadowListCommands {
+export interface ShadowlistCommands {
   setStartReachedEnabled: (enabled: boolean) => void;
   setEndReachedEnabled: (enabled: boolean) => void;
   scrollToIndex: (index: number) => void;
@@ -21,10 +20,10 @@ export interface ShadowListCommands {
 type ListComponent = ReactElement | (() => ReactElement | null) | null;
 
 /*
- * Public props, intentionally aligned with the React Native Shadowlist props so
- * application code is portable between the native and web integrations.
+ * Public props. Kept aligned with the native package so application code is
+ * portable across platforms.
  */
-export interface ShadowListProps<ElementT extends { id: string }> {
+export interface ShadowlistProps<ElementT extends { id: string }> {
   data: ReadonlyArray<ElementT>;
   renderElement: (info: { element: ElementT; index: number }) => ReactNode;
 
@@ -53,7 +52,7 @@ export interface ShadowListProps<ElementT extends { id: string }> {
 
   onStartReached?: () => void;
   onEndReached?: () => void;
-  onScroll?: (event: { nativeEvent: OnScrollEvent }) => void;
+  onScroll?: (event: { nativeEvent: OnScroll }) => void;
 
   ListHeaderComponent?: ListComponent;
   ListFooterComponent?: ListComponent;

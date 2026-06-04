@@ -1,8 +1,8 @@
 export { default as Shadowlist } from './Shadowlist.js';
 export type {
-  ShadowListProps,
-  ShadowListCommands,
-  OnScrollEvent,
+  ShadowlistProps,
+  ShadowlistCommands,
+  OnScroll,
 } from './types.js';
 export {
   createShadowlistCore,

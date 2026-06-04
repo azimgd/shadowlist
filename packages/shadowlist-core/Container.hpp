@@ -1,5 +1,4 @@
-#ifndef Container_hpp
-#define Container_hpp
+#pragma once
 
 #include <functional>
 #include <chrono>
@@ -82,17 +81,17 @@ public:
   /*
    * Current measurement revision
    */
-  Revision nextRevision = {};
+  Revision revision = {};
 
   /*
    * Current active revision index
    */
-  std::size_t nextRevisionCount = RevisionCountFirst;
+  std::size_t revisionCount = RevisionCountFirst;
 
   /*
    * Current active revision status
    */
-  std::size_t nextRevisionStatus = RevisionStatusIdle;
+  std::size_t revisionStatus = RevisionStatusIdle;
 
   /*
    * Default / Inverted order of the list
@@ -107,7 +106,7 @@ public:
   /*
    * Number of columns for multi-column layout
    */
-  size_t columns = 1;
+  std::size_t columns = 1;
 
   /*
    * Size of the header (and empty) template along the scroll axis
@@ -167,143 +166,59 @@ public:
   double anchorDelta = 0.0;
 
   /*
-   * Serializes core access to a single container. Fabric runs the commit phase
-   * (Virtualizer::update via the descriptor) and the layout phase (ShadowNode
-   * layout / measurement feedback) lock free and can overlap on background
-   * threads, so every entry point that mutates or reads the revision takes this.
-   * Recursive because layout() locks it and then calls replaceChild().
+   * Serializes access to a single container. An integration may drive the update
+   * pass and the layout/measurement-feedback pass from different threads that can
+   * overlap, so every entry point that mutates or reads the revision takes this.
+   * Recursive because a locked entry point may re-enter another one.
    */
   std::recursive_mutex coreMutex;
 
-  /**
-   * Start a new revision cycle for measurements and state updates
-   */
   void startRevision();
-
-  /**
-   * End the current revision cycle
-   */
   void endRevision();
 
-  /**
-   * Add an element at the specified index
-   */
   void addElementAtIndex(std::size_t index, Element nextElement);
-
-  /**
-   * Remove an element at the specified index
-   */
   void removeElementAtIndex(std::size_t index);
-
-  /**
-   * Get an element at the specified index
-   */
   const Element getElementAtIndex(std::size_t index) const;
-
-  /**
-   * Check if element at index is visible in the current revision
-   */
   bool getElementVisible(std::size_t index) const;
 
-  /**
-   * Get the offset for an element based on orientation (horizontal returns offsetX, vertical returns offsetY)
+  /*
+   * Offset/size getters and setters are orientation aware: horizontal reads/writes
+   * offsetX and width, vertical reads/writes offsetY and height.
    */
   double getElementOffset(std::size_t index) const;
-
-  /**
-   * Get the size for an element based on orientation (horizontal returns width, vertical returns height)
-   */
   double getElementSize(std::size_t index) const;
-
-  /**
-   * Set the offset for an element based on orientation (horizontal sets offsetX, vertical sets offsetY)
-   */
   void setElementOffset(std::size_t index, double offset);
-
-  /**
-   * Get the container scroll offset based on orientation (horizontal returns containerOffsetX, vertical returns containerOffsetY)
-   */
   double getContainerOffset() const;
-
-  /**
-   * Get the window container size based on orientation (horizontal returns windowContainerWidth, vertical returns windowContainerHeight)
-   */
   double getWindowContainerSize() const;
 
-  /**
-   * Resize the elements vector from tail
-   */
-  void resizeElementsTail(std::size_t size);
-
-  /**
-   * Get the current number of elements
-   */
   std::size_t getElementsSize() const;
 
-  /**
-   * Set the window container height
-   */
   void setWindowContainerHeight(double height);
-
-  /**
-   * Set the window container width
-   */
   void setWindowContainerWidth(double width);
-
-  /**
-   * Set the container Y offset
-   */
   void setContainerOffsetY(double offsetY);
-
-  /**
-   * Set the container X offset
-   */
   void setContainerOffsetX(double offsetX);
 
-  /**
-   * Get the measurement start index
-   */
   std::size_t getMeasurementElementStartIndex() const;
-
-  /**
-   * Get the measurement end index
-   */
   std::size_t getMeasurementElementEndIndex() const;
 
-  /**
-   * Get debug representation as JSON string
-   */
   std::string getDebugRepresentation() const;
-
-  /**
-   * Get all visible elements
-   * Returns a vector of elements that are currently visible in the viewport
-   */
   std::vector<Element> getVisibleElements() const;
 
-  /**
-   * Get visible element index range
-   * Returns a pair containing (startIndex, endIndex), or (-1, -1) if uninitialized
+  /*
+   * Visible index range, or (UNDEFINED_INDEX, UNDEFINED_INDEX) if uninitialized.
    */
   std::pair<std::size_t, std::size_t> getVisibleIndices() const;
 
-  /**
-   * Enable or disable the end reached callback
-   */
-  void toggleEndReached(bool enabled);
+  void setEndReachedEnabled(bool enabled);
+  void setStartReachedEnabled(bool enabled);
 
-  /**
-   * Enable or disable the start reached callback
-   */
-  void toggleStartReached(bool enabled);
-
-  /**
-   * Request scrolling so the element at the given index is at the start of the viewport
-   * The request is resolved on the next measurement
+  /*
+   * Request scrolling so the element at the given index sits at the start of the
+   * viewport. The request is resolved on the next measurement.
    */
   void scrollToIndex(std::size_t index);
 
-  /**
+  /*
    * Resolve a scrollToIndex request from an imperative command and a declarative
    * prop index. The imperative command fires once per invocation, tracked by a
    * monotonic nonce so repeating the same index re-scrolls; the declarative prop
@@ -312,7 +227,7 @@ public:
    */
   void requestScrollToIndex(double commandIndex, double commandNonce, int propIndex);
 
-  /**
+  /*
    * Resolve the current frame into the values an integration should publish to its
    * platform scroll view. prev* are the values the platform currently holds (the
    * view's reported scroll offset and the last published content size).
@@ -323,60 +238,54 @@ public:
     double prevTotalContainerWidth,
     double prevTotalContainerHeight) const;
 
-  /**
+  /*
    * Offset of the footer along the scroll axis (placed after the content)
    */
   double getFooterOffset(double footerSize) const;
 
-  /**
+  /*
    * Find the index of the element with the given key, or UNDEFINED_INDEX if absent
    */
   std::size_t findElementIndexByKey(const std::string& key) const;
 
-  /**
+  /*
    * Fire the visible-indices-change and scroll callbacks if their values changed
    * since the last revision (deduplication lives here so integrations don't repeat it)
    */
   void dispatchObservers();
 
-  /**
-   * Set observer for this container
-   * @param observer Pointer to observer instance (can be nullptr to remove)
+  /*
+   * Observer is optional; pass nullptr to remove it.
    */
   void setObserver(Observer* observer);
-
-  /**
-   * Get the current observer
-   * @return Pointer to observer instance (may be nullptr)
-   */
   Observer* getObserver() const;
 
 private:
-  /**
+  /*
    * Observer for revision changes
    */
   Observer* observer = nullptr;
 
-  /**
+  /*
    * Previously dispatched visible range, used to deduplicate onVisibleIndicesChange
    */
   std::size_t prevVisibleStartIndex = UNDEFINED_INDEX;
   std::size_t prevVisibleEndIndex = UNDEFINED_INDEX;
 
-  /**
+  /*
    * Previously dispatched scroll offset, used to deduplicate onScroll
    */
   double prevContainerOffsetX = 0.0;
   double prevContainerOffsetY = 0.0;
   bool prevContainerOffsetValid = false;
 
-  /**
+  /*
    * Last imperative scrollToIndex nonce we acted on, so the command fires once
    * per invocation (a repeated index still re-scrolls because the nonce changes)
    */
   double prevScrollToIndexNonce = 0.0;
 
-  /**
+  /*
    * Last declarative containerOffsetIndex prop we acted on, so the prop fires
    * only when its value changes
    */
@@ -384,4 +293,3 @@ private:
 };
 
 }
-#endif

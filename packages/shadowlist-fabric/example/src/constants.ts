@@ -108,8 +108,11 @@ export const CHARACTER_NAMES = [
   'Hillyer',
 ];
 
+let uniqueIdCounter = 0;
 export function generateUniqueId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  return `${Date.now()}-${(uniqueIdCounter++).toString(36)}-${Math.random()
+    .toString(36)
+    .substr(2, 9)}`;
 }
 
 export function optimizeImageUrl(originalUrl: string, width: number): string {

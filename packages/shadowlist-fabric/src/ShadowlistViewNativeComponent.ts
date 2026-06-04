@@ -37,8 +37,6 @@ interface NativeCommands {
 
 interface NativeProps extends ViewProps {
   elementsAllKeys: string[];
-  elementsHeadKey: string | undefined;
-  elementsTailKey: string | undefined;
   inverted: boolean;
   horizontal: boolean;
   columns: CodegenTypes.Int32;

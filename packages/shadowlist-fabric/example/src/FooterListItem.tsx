@@ -20,7 +20,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     marginTop: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2F3336',
+    borderBottomColor: '#2F3336',
     alignItems: 'center',
   },
   text: {

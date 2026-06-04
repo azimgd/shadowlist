@@ -64,7 +64,7 @@ TEST(concurrent_updates_on_shared_container_are_serialized) {
   // reconcile (whichever committed last), i.e. a valid per-thread length.
   std::size_t size = container.getElementsSize();
   CHECK((size - 100) % 25 == std::size_t(0) && size >= std::size_t(100) && size <= std::size_t(275));
-  CHECK_EQ(container.nextRevisionStatus, std::size_t(0));  // RevisionStatusIdle
+  CHECK_EQ(container.revisionStatus, std::size_t(0));  // RevisionStatusIdle
 }
 
 // Two independent containers driven concurrently never interact (no shared state).

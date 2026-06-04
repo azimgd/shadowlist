@@ -100,8 +100,8 @@ void Observer::executeCallbacks() {
   this->prevMeasurementElementStartIndex = visibleIndices.first;
   this->prevMeasurementElementEndIndex = visibleIndices.second;
 
-  this->prevMeasurementElementTotalHeight = this->container.nextRevision.measurementElementTotalHeight;
-  this->prevMeasurementElementTotalWidth = this->container.nextRevision.measurementElementTotalWidth;
+  this->prevMeasurementElementTotalHeight = this->container.revision.measurementElementTotalHeight;
+  this->prevMeasurementElementTotalWidth = this->container.revision.measurementElementTotalWidth;
 
   /*
    * Execute all callbacks with the latest Container state
@@ -122,8 +122,8 @@ bool Observer::hasIndicesChanged() const {
   std::size_t nextMeasurementElementStartIndex = visibleIndices.first;
   std::size_t nextMeasurementElementEndIndex = visibleIndices.second;
 
-  double nextMeasurementElementTotalHeight = this->container.nextRevision.measurementElementTotalHeight;
-  double nextMeasurementElementTotalWidth = this->container.nextRevision.measurementElementTotalWidth;
+  double nextMeasurementElementTotalHeight = this->container.revision.measurementElementTotalHeight;
+  double nextMeasurementElementTotalWidth = this->container.revision.measurementElementTotalWidth;
 
   /*
    * Check if indices or dimensions have changed

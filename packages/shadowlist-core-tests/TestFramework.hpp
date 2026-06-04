@@ -1,5 +1,4 @@
-#ifndef SLT_TestFramework_hpp
-#define SLT_TestFramework_hpp
+#pragma once
 
 #include <string>
 #include <vector>
@@ -127,4 +126,3 @@ inline int run() {
     }                                                                \
   } while (0)
 
-#endif

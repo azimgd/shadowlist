@@ -1,5 +1,5 @@
 import { useState, useRef, type CSSProperties } from 'react';
-import { Shadowlist, type ShadowListCommands } from 'shadowlist-wasm';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
 import { FloatingActionBar } from './FloatingActionBar';
 import { NestedElement, type NestedElement as NestedElementType } from './NestedElement';
 import { HeaderListItem } from './HeaderListItem';
@@ -7,7 +7,7 @@ import { FooterListItem } from './FooterListItem';
 import { generateNestedElement } from './constants';
 
 export const NestedScreen = () => {
-  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<NestedElementType[]>(() =>
     Array.from({ length: 20 }, (_, index) => generateNestedElement(index))
   );

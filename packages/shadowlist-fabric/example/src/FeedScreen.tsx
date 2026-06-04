@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Shadowlist, type ShadowListCommands } from 'shadowlist';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
 import { FeedElement, type FeedElement as FeedElementType } from './FeedElement';
 import { HeaderListItem } from './HeaderListItem';
@@ -8,7 +8,7 @@ import { FooterListItem } from './FooterListItem';
 import { generateFeedElement } from './constants';
 
 export const FeedScreen = () => {
-  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<FeedElementType[]>(() =>
     Array.from({ length: 1000 }, (_, index) => generateFeedElement(index))
   );

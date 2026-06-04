@@ -1,5 +1,5 @@
 import { useState, useRef, type CSSProperties } from 'react';
-import { Shadowlist, type ShadowListCommands } from 'shadowlist-wasm';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
 import { FloatingActionBar } from './FloatingActionBar';
 import { ContactElement, type ContactElement as ContactElementType } from './ContactElement';
 import { HeaderListItem } from './HeaderListItem';
@@ -7,7 +7,7 @@ import { FooterListItem } from './FooterListItem';
 import { generateContact } from './constants';
 
 export const ContactsScreen = () => {
-  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<ContactElementType[]>(() =>
     Array.from({ length: 100 }, (_, index) => generateContact(index))
   );

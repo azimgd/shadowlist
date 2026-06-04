@@ -43,7 +43,8 @@ export interface ShadowlistCoreInstance {
     horizontal: boolean,
     columns: number,
     estimatedWidth: number,
-    estimatedHeight: number
+    estimatedHeight: number,
+    userScrolled: boolean
   ): void;
   updateElementAtIndex(index: number, width: number, height: number): void;
   recomputeTotalSize(): void;

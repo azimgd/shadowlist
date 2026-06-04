@@ -48,31 +48,19 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
 
   @Override
   @ReactProp(name = "elementsAllKeys")
-  public void setElementsAllKeys(ShadowlistView view, @Nullable ReadableArray value) {
-
-  }
-
-  @Override
-  @ReactProp(name = "elementsHeadKey")
-  public void setElementsHeadKey(ShadowlistView view, @Nullable String value) {
-
-  }
-
-  @Override
-  @ReactProp(name = "elementsTailKey")
-  public void setElementsTailKey(ShadowlistView view, @Nullable String value) {
+  public void setElementsAllKeys(ShadowlistView view, @Nullable ReadableArray elementsAllKeys) {
 
   }
 
   @Override
   @ReactProp(name = "inverted")
-  public void setInverted(ShadowlistView view, boolean value) {
+  public void setInverted(ShadowlistView view, boolean inverted) {
 
   }
 
   @Override
   @ReactProp(name = "horizontal")
-  public void setHorizontal(ShadowlistView view, boolean value) {
+  public void setHorizontal(ShadowlistView view, boolean horizontal) {
 
   }
 
@@ -88,13 +76,13 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
 
   @Override
   @ReactProp(name = "columns")
-  public void setColumns(ShadowlistView view, int value) {
+  public void setColumns(ShadowlistView view, int columns) {
 
   }
 
   @Override
   @ReactProp(name = "containerOffsetIndex")
-  public void setContainerOffsetIndex(ShadowlistView view, int value) {
+  public void setContainerOffsetIndex(ShadowlistView view, int containerOffsetIndex) {
 
   }
 

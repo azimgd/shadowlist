@@ -3,8 +3,8 @@
 WebAssembly virtualization for **React on the web**, powered by the exact same
 `shadowlist-core` C++ algorithm that drives the React Native (Fabric)
 integration. The core is compiled to WASM with Emscripten + embind, and a thin
-react-dom layer drives it the same way the Fabric `ShadowlistViewShadowNode`
-does: reconcile keys → measure → feed measured DOM sizes back → resolve scroll
+react-dom layer drives it through the same per-frame cycle every integration
+uses: reconcile keys → measure → feed measured DOM sizes back → resolve scroll
 corrections → publish content size.
 
 Because the algorithm is shared, the web list behaves identically to native:
@@ -50,9 +50,9 @@ so it always tracks the in-repo source.
 ## Usage
 
 ```tsx
-import { Shadowlist, type ShadowListCommands } from 'shadowlist-wasm';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
 
-const ref = useRef<ShadowListCommands>(null);
+const ref = useRef<ShadowlistCommands>(null);
 
 <Shadowlist
   ref={ref}

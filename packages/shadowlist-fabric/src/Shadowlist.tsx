@@ -86,13 +86,13 @@ const ElementRenderer = memo(function ElementRenderer<
   props: ElementRendererProps<T>
 ) => ReactElement;
 
-export interface ShadowListCommands {
+export interface ShadowlistCommands {
   setStartReachedEnabled: (enabled: boolean) => void;
   setEndReachedEnabled: (enabled: boolean) => void;
   scrollToIndex: (index: number) => void;
 }
 
-export interface ShadowListProps<ElementT extends { id: string }> {
+export interface ShadowlistProps<ElementT extends { id: string }> {
   data: ReadonlyArray<ElementT>;
   renderElement: (info: { element: ElementT; index: number }) => ReactElement;
   style?: ViewStyle;
@@ -102,7 +102,7 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   columns?: number;
   containerOffsetIndex?: number;
   initialElementsSize?: number;
-  ref?: Ref<ShadowListCommands>;
+  ref?: Ref<ShadowlistCommands>;
   onStartReached?: () => void;
   onEndReached?: () => void;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
@@ -111,7 +111,7 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
 }
 
-function ShadowList<ElementT extends { id: string }>({
+function Shadowlist<ElementT extends { id: string }>({
   data,
   renderElement,
   style,
@@ -128,7 +128,7 @@ function ShadowList<ElementT extends { id: string }>({
   ListHeaderComponent,
   ListFooterComponent,
   ListEmptyComponent,
-}: ShadowListProps<ElementT>) {
+}: ShadowlistProps<ElementT>) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
     null
   );
@@ -209,8 +209,6 @@ function ShadowList<ElementT extends { id: string }>({
     () => data.map((element) => element.id),
     [data]
   );
-  const elementsHeadKey = useMemo(() => data.at(0)?.id, [data]);
-  const elementsTailKey = useMemo(() => data.at(-1)?.id, [data]);
 
   const renderComponent = (
     component: ReactElement | (() => ReactElement | null) | null | undefined
@@ -240,8 +238,6 @@ function ShadowList<ElementT extends { id: string }>({
       style={[styles.container, style]}
       onVisibleIndicesChange={handleVisibleIndicesChange}
       elementsAllKeys={elementsAllKeys}
-      elementsHeadKey={elementsHeadKey}
-      elementsTailKey={elementsTailKey}
       inverted={inverted}
       horizontal={horizontal}
       columns={columns}
@@ -300,4 +296,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ShadowList;
+export default Shadowlist;

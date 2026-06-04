@@ -1,5 +1,4 @@
-#ifndef Element_hpp
-#define Element_hpp
+#pragma once
 
 #include <string>
 #include <random>
@@ -35,32 +34,32 @@ public:
   /*
    * Width of an element
    */
-  double width = 0.0f;
+  double width = 0.0;
   
   /*
    * Height of an element
    */
-  double height = 0.0f;
+  double height = 0.0;
   
   /*
    * Position from left
    */
-  double offsetX = 0.0f;
+  double offsetX = 0.0;
   
   /*
    * Position from top
    */
-  double offsetY = 0.0f;
+  double offsetY = 0.0;
   
   /*
    * Gap from left
    */
-  double gapX = 0.0f;
+  double gapX = 0.0;
   
   /*
    * Gap from top
    */
-  double gapY = 0.0f;
+  double gapY = 0.0;
 
   /*
    * Has element been estimated
@@ -86,4 +85,3 @@ public:
 };
 
 }
-#endif

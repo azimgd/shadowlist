@@ -1,5 +1,4 @@
-#ifndef Virtualizer_hpp
-#define Virtualizer_hpp
+#pragma once
 
 #include <cstddef>
 #include <string>
@@ -30,6 +29,14 @@ struct FrameInput {
   bool horizontal = false;
   std::size_t columns = 1;
   std::pair<double, double> estimatedElementSize = {120.0, 120.0};
+
+  /*
+   * Set when this frame comes from a genuine user scroll gesture (as opposed to a
+   * data/layout re-commit). It tells the virtualizer to abandon any in-flight
+   * scroll correction so the user takes over instead of being snapped back to the
+   * correction's target. See Virtualizer::update.
+   */
+  bool userScrolled = false;
 };
 
 class Virtualizer {
@@ -124,4 +131,3 @@ private:
 };
 
 }
-#endif

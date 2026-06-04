@@ -1,5 +1,4 @@
-#ifndef Constants_hpp
-#define Constants_hpp
+#pragma once
 
 #include <cstddef>
 #include <cstdio>
@@ -20,4 +19,3 @@ constexpr std::size_t UNDEFINED_INDEX = static_cast<std::size_t>(-1);
 #define SL_LOG(...) ((void)0)
 #endif
 
-#endif

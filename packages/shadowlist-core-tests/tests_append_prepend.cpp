@@ -123,6 +123,40 @@ TEST(prepend_at_top_keeps_anchor_row_in_view) {
   CHECK_NEAR(k0ScreenAfter, k0ScreenBefore, 1.0);  // k0 still at the top
 }
 
+// A prepend starts an in-flight MVCP correction (it drives the offset toward the
+// anchor element over the next frame). A genuine user scroll must take over from
+// that correction instead of being snapped back to the anchor target every frame,
+// which would lock the list at a fixed offset no matter how far the user drags.
+TEST(prepend_does_not_lock_user_scroll) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(60));
+  sim.settle();
+  sim.scrollTo(1000.0);  // k10 at the top of the viewport
+
+  // Prepend 5 rows and run a SINGLE frame, so the MVCP correction is still in
+  // flight (pending) — exactly the state the list is in right after the data
+  // update commits and before it has settled.
+  std::vector<std::string> next = makeKeys(5, "n");
+  for (const auto& key : makeKeys(60)) {
+    next.push_back(key);
+  }
+  sim.setKeys(next);
+  sim.frame();
+  CHECK_NEAR(sim.offsetY, 1500.0, 1.0);  // shifted by the 5 inserted rows
+
+  // The user now drags the list further down. The in-flight correction must yield:
+  // the offset follows the user instead of snapping back to 1500.
+  sim.userScrollTo(1700.0);
+  CHECK_NEAR(sim.offsetY, 1700.0, 1.0);
+
+  // And it keeps following on the next user drag (the correction is not re-armed).
+  sim.userScrollTo(1900.0);
+  CHECK_NEAR(sim.offsetY, 1900.0, 1.0);
+}
+
 // MVCP on a variable-height list: the anchor row's on-screen position is held by
 // re-targeting the measured anchor element, not by assuming the inserted rows are
 // the estimated size. With non-uniform real heights a fixed "shift by estimate"

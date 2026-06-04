@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Shadowlist, type ShadowListCommands } from 'shadowlist';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { ChatElement } from './ChatElement';
 import { FloatingActionBar } from './FloatingActionBar';
 import { MessageInput } from './MessageInput';
@@ -8,67 +8,53 @@ import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { generateUniqueId, generateRandomText, generateOptimizedImageUrl, shouldBeImageGrid, generateImageGrid } from './constants';
 
-export const ChatScreen = () => {
-  const shadowlistRef = useRef<ShadowListCommands>(null);
-  const [data, setData] = useState<{id: string, text: string, isFromMe: boolean, imageUrl?: string, imageUrls?: string[]}[]>(() =>
-    Array.from({ length: 1000 }, (_, index) => {
-      const isImageGrid = shouldBeImageGrid(index);
-      const imageUrl = generateOptimizedImageUrl(index);
+type ChatMessage = {
+  id: string;
+  text: string;
+  isFromMe: boolean;
+  imageUrl?: string;
+  imageUrls?: string[];
+};
 
-      return {
-        id: generateUniqueId(),
-        text: (isImageGrid || !!imageUrl) ? '' : generateRandomText(index),
-        isFromMe: index % 3 !== 0,
-        imageUrl: imageUrl,
-        imageUrls: isImageGrid ? generateImageGrid(index) : undefined,
-      };
-    })
+export const ChatScreen = () => {
+  const shadowlistRef = useRef<ShadowlistCommands>(null);
+  const buildMessage = (elementIndex: number): ChatMessage => {
+    const isImageGrid = shouldBeImageGrid(elementIndex);
+    const imageUrl = generateOptimizedImageUrl(elementIndex);
+    return {
+      id: generateUniqueId(),
+      text: isImageGrid || !!imageUrl ? '' : generateRandomText(elementIndex),
+      isFromMe: elementIndex % 3 !== 0,
+      imageUrl,
+      imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
+    };
+  };
+
+  const [data, setData] = useState<ChatMessage[]>(() =>
+    Array.from({ length: 1000 }, (_, index) => buildMessage(index))
   );
 
   const handlePrepend = () => {
     const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) => {
-      const elementIndex = currentLength + index;
-      const isImageGrid = shouldBeImageGrid(elementIndex);
-      const imageUrl = generateOptimizedImageUrl(elementIndex);
-
-      return {
-        id: generateUniqueId(),
-        text: (isImageGrid || !!imageUrl) ? '' : generateRandomText(elementIndex),
-        isFromMe: elementIndex % 3 !== 0,
-        imageUrl: imageUrl,
-        imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
-      };
-    });
+    const newElements = Array.from({ length: 10 }, (_, index) =>
+      buildMessage(currentLength + index)
+    );
     setData((prev) => [...newElements, ...prev]);
   };
 
   const handleAppend = () => {
     const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) => {
-      const elementIndex = currentLength + index;
-      const isImageGrid = shouldBeImageGrid(elementIndex);
-      const imageUrl = generateOptimizedImageUrl(elementIndex);
-
-      return {
-        id: generateUniqueId(),
-        text: (isImageGrid || !!imageUrl) ? '' : generateRandomText(elementIndex),
-        isFromMe: elementIndex % 3 !== 0,
-        imageUrl: imageUrl,
-        imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
-      };
-    });
+    const newElements = Array.from({ length: 10 }, (_, index) =>
+      buildMessage(currentLength + index)
+    );
     setData((prev) => [...prev, ...newElements]);
   };
 
   const handleSendMessage = (message: string) => {
-    const newMessage = {
-      id: generateUniqueId(),
-      text: message,
-      isFromMe: true,
-      imageUrl: undefined,
-    };
-    setData((prev) => [...prev, newMessage]);
+    setData((prev) => [
+      ...prev,
+      { id: generateUniqueId(), text: message, isFromMe: true },
+    ]);
   };
 
   const handleScrollToIndex = (index: number) => {

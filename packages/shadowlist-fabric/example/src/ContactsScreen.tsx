@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Shadowlist, type ShadowListCommands } from 'shadowlist';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
 import { ContactElement, type ContactElement as ContactElementType } from './ContactElement';
 import { HeaderListItem } from './HeaderListItem';
@@ -8,7 +8,7 @@ import { FooterListItem } from './FooterListItem';
 import { generateContact } from './constants';
 
 export const ContactsScreen = () => {
-  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<ContactElementType[]>(() =>
     Array.from({ length: 100 }, (_, index) => generateContact(index))
   );

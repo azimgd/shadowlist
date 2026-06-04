@@ -1,5 +1,5 @@
 import { useState, useRef, type CSSProperties } from 'react';
-import { Shadowlist, type ShadowListCommands } from 'shadowlist-wasm';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
 import { FloatingActionBar } from './FloatingActionBar';
 import { MasonryElement, type MasonryElement as MasonryElementType } from './MasonryElement';
 import { HeaderListItem } from './HeaderListItem';
@@ -7,7 +7,7 @@ import { FooterListItem } from './FooterListItem';
 import { generateMasonryElement } from './constants';
 
 export const MasonryScreen = () => {
-  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<MasonryElementType[]>(() =>
     Array.from({ length: 100 }, (_, index) => generateMasonryElement(index))
   );

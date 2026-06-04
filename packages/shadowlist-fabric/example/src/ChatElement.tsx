@@ -11,7 +11,7 @@ interface ChatElementProps {
   imageUrls?: string[];
 }
 
-export const ChatElement = memo(({ id, index, text, isFromMe, imageUrl, imageUrls }: ChatElementProps) => {
+export const ChatElement = memo(({ index, text, isFromMe, imageUrl, imageUrls }: ChatElementProps) => {
   const avatarColor = useMemo(() => {
     return AVATAR_COLORS[index % AVATAR_COLORS.length];
   }, [index]);
@@ -160,13 +160,6 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
   },
   username: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-    opacity: 0.8,
-  },
-  imageUsername: {
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',

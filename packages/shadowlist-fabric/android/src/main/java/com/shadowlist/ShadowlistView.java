@@ -18,8 +18,8 @@ import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.views.scroll.ReactScrollView;
 
 public class ShadowlistView extends ReactScrollView {
-  private @Nullable StateWrapper _state = null;
-  private ContentContainer _contentView = null;
+  private @Nullable StateWrapper mState = null;
+  private ContentContainer mContentView = null;
 
   private static class ContentContainer extends ViewGroup {
     public ContentContainer(Context context) {
@@ -37,31 +37,31 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   public ShadowlistView(Context context, AttributeSet attrs) {
-    super(context);
+    super(context, attrs);
     init(context);
   }
 
   public ShadowlistView(Context context, AttributeSet attrs, int defStyleAttr) {
-    super(context);
+    super(context, attrs, defStyleAttr);
     init(context);
   }
 
   @Override
   public void addView(View child, int index) {
     if (child instanceof ShadowlistElementView) {
-      _contentView.addView(child, index);
+      mContentView.addView(child, index);
       return;
     }
 
     if (child instanceof ShadowlistTemplateView) {
-      _contentView.addView(child);
+      mContentView.addView(child);
       return;
     }
   }
 
   @Override
   public void removeView(View child) {
-    _contentView.removeView(child);
+    mContentView.removeView(child);
   }
 
   @Override
@@ -76,7 +76,7 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   private void updateScrollState(int scrollX, int scrollY) {
-    if (_state == null) {
+    if (mState == null) {
       return;
     }
 
@@ -86,7 +86,7 @@ public class ShadowlistView extends ReactScrollView {
     map.putDouble("containerOffsetY", PixelUtil.toDIPFromPixel(scrollY));
     map.putBoolean("containerOffsetEnabled", false);
 
-    _state.updateState(map);
+    mState.updateState(map);
   }
 
   private void init(Context context) {
@@ -107,18 +107,18 @@ public class ShadowlistView extends ReactScrollView {
       setHorizontalScrollbarThumbDrawable(scrollbarDrawable);
     }
 
-    _contentView = new ContentContainer(context);
-    super.addView(_contentView, 0);
+    mContentView = new ContentContainer(context);
+    super.addView(mContentView, 0);
   }
 
   public void updateState(@Nullable StateWrapper stateWrapper) {
-    _state = stateWrapper;
+    mState = stateWrapper;
 
-    if (_state == null) {
+    if (mState == null) {
       return;
     }
 
-    ReadableMap nextStateData = _state.getStateData();
+    ReadableMap nextStateData = mState.getStateData();
     if (nextStateData == null) {
       return;
     }
@@ -130,7 +130,7 @@ public class ShadowlistView extends ReactScrollView {
       int newContentWidth = (int) PixelUtil.toPixelFromDIP(totalContainerWidth);
       int newContentHeight = (int) PixelUtil.toPixelFromDIP(totalContainerHeight);
 
-      _contentView.layout(0, 0, newContentWidth, newContentHeight);
+      mContentView.layout(0, 0, newContentWidth, newContentHeight);
     }
 
     if (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) {
@@ -147,7 +147,7 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   public void setStartReachedEnabled(boolean enabled) {
-    if (_state == null) {
+    if (mState == null) {
       return;
     }
 
@@ -155,11 +155,11 @@ public class ShadowlistView extends ReactScrollView {
 
     map.putBoolean("startReachedEnabled", enabled);
 
-    _state.updateState(map);
+    mState.updateState(map);
   }
 
   public void setEndReachedEnabled(boolean enabled) {
-    if (_state == null) {
+    if (mState == null) {
       return;
     }
 
@@ -167,18 +167,18 @@ public class ShadowlistView extends ReactScrollView {
 
     map.putBoolean("endReachedEnabled", enabled);
 
-    _state.updateState(map);
+    mState.updateState(map);
   }
 
   public void scrollToIndex(int index) {
-    if (_state == null) {
+    if (mState == null) {
       return;
     }
 
     // Bump the nonce so the core treats this as a fresh request and re-scrolls
     // even when the index is unchanged from the previous call
     double nextNonce = 0;
-    ReadableMap currentStateData = _state.getStateData();
+    ReadableMap currentStateData = mState.getStateData();
     if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexNonce")) {
       nextNonce = currentStateData.getDouble("containerOffsetIndexNonce") + 1;
     }
@@ -187,6 +187,6 @@ public class ShadowlistView extends ReactScrollView {
     map.putDouble("containerOffsetIndex", (double) index);
     map.putDouble("containerOffsetIndexNonce", nextNonce);
     map.putBoolean("containerOffsetEnabled", true);
-    _state.updateState(map);
+    mState.updateState(map);
   }
 }

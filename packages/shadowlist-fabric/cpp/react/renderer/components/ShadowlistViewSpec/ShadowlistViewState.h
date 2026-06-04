@@ -56,9 +56,7 @@ class ShadowlistViewState final {
     containerOffsetEnabled_(data.count("containerOffsetEnabled") ? data["containerOffsetEnabled"].getBool() : previousState.containerOffsetEnabled_)
     {};
 
-  /*
-   * Empty implementation for Android because it doesn't use this class.
-   */
+  /* Serializes the state into folly::dynamic for the Android renderer. */
   folly::dynamic getDynamic() const {
     folly::dynamic result = folly::dynamic::object;
     result["windowContainerHeight"] = windowContainerHeight_;
