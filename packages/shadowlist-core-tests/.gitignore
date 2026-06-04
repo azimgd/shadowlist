@@ -1,0 +1,7 @@
+# CMake build output
+build/
+
+# Direct-compile artifacts
+run_tests
+*.o
+*.out
