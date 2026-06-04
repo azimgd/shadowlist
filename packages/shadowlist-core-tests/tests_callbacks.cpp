@@ -93,3 +93,39 @@ TEST(short_list_reaches_end_not_start) {
   CHECK(sim.endReached > 0);
   CHECK_EQ(sim.startReached, 0);
 }
+
+// onEndReached fires once per arrival at the end band, not on every frame parked
+// there - otherwise a paginating handler re-fires continuously while near the end.
+TEST(end_reached_fires_once_per_arrival) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(100));  // total 10000, maxOffset 9400
+  sim.settle();
+  sim.endReached = 0;
+  sim.scrollTo(9400.0);          // arrive at the bottom
+  CHECK_EQ(sim.endReached, 1);   // fired exactly once on arrival
+  sim.settle();                  // stay parked: no fresh arrival
+  CHECK_EQ(sim.endReached, 1);   // still once - no per-frame spam
+}
+
+// A page smaller than one window must still re-fire onEndReached: appending a new
+// tail while the user stays within the threshold band is a fresh arrival at the
+// (new) end. The edge-trigger dedup re-arms on element-count change for this.
+TEST(end_reached_refires_when_small_page_appended_at_edge) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(20));   // total 2000, maxOffset 1400
+  sim.settle();
+  sim.endReached = 0;
+  sim.scrollTo(1400.0);        // arrive at the bottom
+  CHECK_EQ(sim.endReached, 1); // fired once on arrival
+
+  // Append a small page (3 rows = 300px < one window) while parked at the bottom.
+  sim.setKeys(makeKeys(23));
+  sim.settle();
+  CHECK(sim.endReached >= 2);  // reaching the new tail re-fires onEndReached
+}

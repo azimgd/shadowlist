@@ -5,6 +5,7 @@ import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -37,14 +38,18 @@ public class ShadowlistView extends ReactScrollView {
   private ContentContainer mContentView = null;
 
   /*
-   * The last scroll offset (px) the core applied itself. onScrollChanged fires for
-   * both user gestures and our own scrollTo, so we compare against this to tell
-   * them apart: a callback that matches the applied offset is the core's own move
-   * (not a user scroll). See mUserScrolled plumbing below.
+   * A programmatic scroll we issued (a core correction, or scrollToOffset/End) is in
+   * flight. onScrollChanged fires for these too, so reporting them as user gestures
+   * would make the core abandon its own in-flight correction and latch/blank the
+   * visible window. We track the target and whether it is animated - smoothScrollTo
+   * emits many intermediate frames before reaching the target, none of which match
+   * it - and a user touch (onTouchEvent) clears the flag so a finger taking over
+   * mid-animation correctly wins.
    */
-  private int mAppliedScrollX = 0;
-  private int mAppliedScrollY = 0;
-  private boolean mHasAppliedScroll = false;
+  private int mProgrammaticTargetX = 0;
+  private int mProgrammaticTargetY = 0;
+  private boolean mProgrammaticPending = false;
+  private boolean mProgrammaticAnimated = false;
 
   /*
    * Sticky header/footer are pinned natively here (not in the core layout) so they
@@ -102,6 +107,23 @@ public class ShadowlistView extends ReactScrollView {
     super.onScrollChanged(scrollX, scrollY, oldScrollX, oldScrollY);
     updateScrollState(scrollX, scrollY);
     applyStickyTranslations();
+  }
+
+  @Override
+  public boolean onTouchEvent(MotionEvent ev) {
+    if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+      // A finger on the list takes over from any in-flight programmatic scroll, so
+      // the following onScrollChanged callbacks are reported as genuine user scrolls.
+      mProgrammaticPending = false;
+    }
+    return super.onTouchEvent(ev);
+  }
+
+  private void markProgrammaticScroll(int targetX, int targetY, boolean animated) {
+    mProgrammaticTargetX = targetX;
+    mProgrammaticTargetY = targetY;
+    mProgrammaticAnimated = animated;
+    mProgrammaticPending = true;
   }
 
   public void setStickyHeader(boolean stickyHeader) {
@@ -211,9 +233,21 @@ public class ShadowlistView extends ReactScrollView {
      * letting it latch and freeze the visible window (blank list on deep scroll).
      */
     boolean userScrolled = true;
-    if (mHasAppliedScroll && Math.abs(scrollX - mAppliedScrollX) <= 2 && Math.abs(scrollY - mAppliedScrollY) <= 2) {
-      userScrolled = false;
-      mHasAppliedScroll = false;
+    if (mProgrammaticPending) {
+      boolean reachedTarget =
+        Math.abs(scrollX - mProgrammaticTargetX) <= 2 && Math.abs(scrollY - mProgrammaticTargetY) <= 2;
+      if (reachedTarget) {
+        // The programmatic scroll settled on its target: this is its echo, not a user move.
+        userScrolled = false;
+        mProgrammaticPending = false;
+      } else if (mProgrammaticAnimated) {
+        // An intermediate frame of our own smooth-scroll animation; still not a user move.
+        userScrolled = false;
+      } else {
+        // An instant programmatic scroll that did not land on the target means a real
+        // user scroll arrived instead, so hand control back to the user.
+        mProgrammaticPending = false;
+      }
     }
 
     WritableMap map = new WritableNativeMap();
@@ -285,11 +319,10 @@ public class ShadowlistView extends ReactScrollView {
         float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
         float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
 
-        mAppliedScrollX = (int) PixelUtil.toPixelFromDIP(containerOffsetX);
-        mAppliedScrollY = (int) PixelUtil.toPixelFromDIP(containerOffsetY);
-        mHasAppliedScroll = true;
-
-        scrollTo(mAppliedScrollX, mAppliedScrollY);
+        int appliedX = (int) PixelUtil.toPixelFromDIP(containerOffsetX);
+        int appliedY = (int) PixelUtil.toPixelFromDIP(containerOffsetY);
+        markProgrammaticScroll(appliedX, appliedY, false);
+        scrollTo(appliedX, appliedY);
       }
     }
 
@@ -346,25 +379,38 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   public void scrollToOffset(double offset, boolean animated) {
-    // Direct offset scroll along the scroll axis; the core picks up the new
-    // position from the resulting onScrollChanged callback.
+    // Direct offset scroll along the scroll axis; the core picks up the new position
+    // from the resulting onScrollChanged callback. Marked programmatic so the
+    // animated path's intermediate frames are not mistaken for a user scroll.
     int px = (int) PixelUtil.toPixelFromDIP((float) offset);
-    if (mHorizontalAxis) {
-      if (animated) smoothScrollTo(px, getScrollY()); else scrollTo(px, getScrollY());
-    } else {
-      if (animated) smoothScrollTo(getScrollX(), px); else scrollTo(getScrollX(), px);
-    }
+    int targetX = mHorizontalAxis ? px : getScrollX();
+    int targetY = mHorizontalAxis ? getScrollY() : px;
+    markProgrammaticScroll(targetX, targetY, animated);
+    if (animated) smoothScrollTo(targetX, targetY); else scrollTo(targetX, targetY);
   }
 
   public void scrollToEnd(boolean animated) {
-    int contentW = mContentView != null ? mContentView.getWidth() : 0;
-    int contentH = mContentView != null ? mContentView.getHeight() : 0;
-    if (mHorizontalAxis) {
-      int x = Math.max(0, contentW - getWidth());
-      if (animated) smoothScrollTo(x, getScrollY()); else scrollTo(x, getScrollY());
-    } else {
-      int y = Math.max(0, contentH - getHeight());
-      if (animated) smoothScrollTo(getScrollX(), y); else scrollTo(getScrollX(), y);
+    if (mState == null) {
+      return;
     }
+
+    // Core-driven: ride the scrollToIndex command channel with the SCROLL_TO_END_INDEX
+    // sentinel (-3, see shadowlist-core/Constants.hpp) so the core converges on the
+    // true bottom as off-screen rows are measured, instead of a one-shot jump to the
+    // current content size - a stale, estimate-based bottom that stops short on a
+    // variable-height list. The animated flag no longer applies (the core steps to
+    // the bottom).
+    double nextNonce = 0;
+    ReadableMap currentStateData = mState.getStateData();
+    if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexNonce")) {
+      nextNonce = currentStateData.getDouble("containerOffsetIndexNonce") + 1;
+    }
+
+    WritableMap map = new WritableNativeMap();
+    map.putDouble("containerOffsetIndex", -3.0);
+    map.putDouble("containerOffsetIndexNonce", nextNonce);
+    map.putBoolean("containerOffsetEnabled", true);
+    slLog("java.cmd scrollToEnd: nonce=" + (long) nextNonce);
+    mState.updateState(map);
   }
 }

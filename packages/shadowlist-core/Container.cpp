@@ -1,5 +1,4 @@
 #include <shadowlist-core/Container.hpp>
-#include <shadowlist-core/Observer.hpp>
 #include <shadowlist-core/Error.hpp>
 
 namespace azimgd::shadowlist {
@@ -27,13 +26,6 @@ void Container::endRevision() {
   this->revisionStatus = RevisionStatusIdle;
 
   /*
-   * Notify observer about revision end
-   */
-  if (this->observer) {
-    this->observer->notifyEndRevision();
-  }
-
-  /*
    * Check whether we're within one screen size of either end of the list.
    * For inverted lists the start/end are visually swapped.
    */
@@ -55,19 +47,47 @@ void Container::endRevision() {
     reachedStart = false;
   }
 
-  if (this->endReachedEnabled && this->onEndReachedCallback && reachedEnd) {
+  /*
+   * Re-arm the edge callbacks when the data set changed (e.g. pagination appended a
+   * new tail or prepended a head): reaching the new edge is a fresh arrival even
+   * when the scroll offset never left the threshold band. Without this a page
+   * smaller than endReachedThreshold * window keeps the user "reached" the whole
+   * time, so onEndReached would never fire again and infinite scroll would stall.
+   */
+  std::size_t elementsSize = this->revision.elements.size();
+  if (elementsSize != this->prevReachedElementsSize) {
+    this->prevReachedElementsSize = elementsSize;
+    this->prevReachedEnd = false;
+    this->prevReachedStart = false;
+  }
+
+  /*
+   * Fire once on arrival at an edge (a false->true transition), not every frame
+   * the offset stays within the threshold band - otherwise an onEndReached that
+   * paginates would re-fire continuously while near the edge. The flag re-arms
+   * when the view leaves the band (or the data set changes, above), so reaching the
+   * (new) edge again re-triggers.
+   */
+  if (this->endReachedEnabled && this->onEndReachedCallback && reachedEnd && !this->prevReachedEnd) {
     this->onEndReachedCallback();
   }
 
-  if (this->startReachedEnabled && this->onStartReachedCallback && reachedStart) {
+  if (this->startReachedEnabled && this->onStartReachedCallback && reachedStart && !this->prevReachedStart) {
     this->onStartReachedCallback();
   }
+
+  this->prevReachedEnd = reachedEnd;
+  this->prevReachedStart = reachedStart;
 
   this->dispatchObservers();
 }
 
 void Container::scrollToIndex(std::size_t index) {
   this->scrollToIndexTarget = index;
+}
+
+void Container::scrollToEnd() {
+  this->pendingScrollToEnd = true;
 }
 
 void Container::requestScrollToIndex(double commandIndex, double commandNonce, int propIndex) {
@@ -80,7 +100,14 @@ void Container::requestScrollToIndex(double commandIndex, double commandNonce, i
   bool fired = false;
   if (commandNonce != this->prevScrollToIndexNonce) {
     this->prevScrollToIndexNonce = commandNonce;
-    if (commandIndex >= 0.0) {
+    /*
+     * scrollToEnd rides the same nonce channel as scrollToIndex, distinguished by
+     * the SCROLL_TO_END_INDEX sentinel, so the integrations need no extra state field.
+     */
+    if (commandIndex == SCROLL_TO_END_INDEX) {
+      this->scrollToEnd();
+      fired = true;
+    } else if (commandIndex >= 0.0) {
       this->scrollToIndex(static_cast<std::size_t>(commandIndex));
       fired = true;
     }
@@ -140,7 +167,12 @@ double Container::getStickyHeaderOffset() const {
    * it rests at the content start (0).
    */
   if (this->stickyHeader) {
-    return this->getContainerOffset();
+    /*
+     * Clamp to the content start so rubber-band / bounce overscroll (a negative
+     * offset on iOS/web) does not drag the pinned header above the viewport edge.
+     */
+    double offset = this->getContainerOffset();
+    return offset > 0.0 ? offset : 0.0;
   }
   return 0.0;
 }
@@ -186,17 +218,20 @@ void Container::dispatchObservers() {
   this->prevVisibleEndIndex = visibleIndices.second;
 
   /*
-   * Notify when the strictly-viewable element range changes
+   * Notify when the strictly-viewable element range changes. Only computed when a
+   * listener is registered - getViewableIndices does an O(window) overlap scan, so
+   * there is no reason to pay for it on every frame when nothing consumes it.
    */
-  auto viewableIndices = this->getViewableIndices();
-  if (this->onViewableIndicesChangeCallback &&
-    (viewableIndices.first != this->prevViewableStartIndex || viewableIndices.second != this->prevViewableEndIndex)) {
-    SL_LOG("  emit onViewableIndicesChange(%zd, %zd)",
-      static_cast<std::ptrdiff_t>(viewableIndices.first), static_cast<std::ptrdiff_t>(viewableIndices.second));
-    this->onViewableIndicesChangeCallback(viewableIndices.first, viewableIndices.second);
+  if (this->onViewableIndicesChangeCallback) {
+    auto viewableIndices = this->getViewableIndices();
+    if (viewableIndices.first != this->prevViewableStartIndex || viewableIndices.second != this->prevViewableEndIndex) {
+      SL_LOG("  emit onViewableIndicesChange(%zd, %zd)",
+        static_cast<std::ptrdiff_t>(viewableIndices.first), static_cast<std::ptrdiff_t>(viewableIndices.second));
+      this->onViewableIndicesChangeCallback(viewableIndices.first, viewableIndices.second);
+    }
+    this->prevViewableStartIndex = viewableIndices.first;
+    this->prevViewableEndIndex = viewableIndices.second;
   }
-  this->prevViewableStartIndex = viewableIndices.first;
-  this->prevViewableEndIndex = viewableIndices.second;
 
   /*
    * Notify when the scroll offset changes
@@ -212,48 +247,7 @@ void Container::dispatchObservers() {
   this->prevContainerOffsetValid = true;
 }
 
-void Container::addElementAtIndex(std::size_t index, Element nextElement) {
-  if (this->revisionStatus != RevisionStatusPending) {
-    throw InvalidOperationError("Cannot add element outside of a revision");
-  }
-
-  if (index > this->revision.elements.size()) {
-    throw InvalidOperationError("Index out of bounds");
-  }
-
-  nextElement.estimated = false;
-  nextElement.width = 0;
-  nextElement.height = 0;
-  nextElement.offsetY = 0;
-  nextElement.offsetX = 0;
-  nextElement.index = index;
-
-  auto it = this->revision.elements.begin() + index;
-  this->revision.elements.insert(it, nextElement);
-
-  for (std::size_t nextElementIndex = index + 1; nextElementIndex < this->revision.elements.size(); nextElementIndex++) {
-    this->revision.elements[nextElementIndex].index = nextElementIndex;
-  }
-}
-
-void Container::removeElementAtIndex(std::size_t index) {
-  if (this->revisionStatus != RevisionStatusPending) {
-    throw InvalidOperationError("Cannot remove element outside of a revision");
-  }
-
-  if (index >= this->revision.elements.size()) {
-    throw InvalidOperationError("Index out of bounds");
-  }
-
-  auto it = this->revision.elements.begin() + index;
-  this->revision.elements.erase(it);
-
-  for (std::size_t nextElementIndex = index; nextElementIndex < this->revision.elements.size(); nextElementIndex++) {
-    this->revision.elements[nextElementIndex].index = nextElementIndex;
-  }
-}
-
-const Element Container::getElementAtIndex(std::size_t index) const {
+const Element& Container::getElementAtIndex(std::size_t index) const {
   if (index >= this->revision.elements.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
@@ -297,56 +291,8 @@ void Container::setContainerOffsetX(double offsetX) {
   this->revision.setContainerOffsetX(offsetX);
 }
 
-std::size_t Container::getMeasurementElementStartIndex() const {
-  return this->revision.measurementElementStartIndex;
-}
-
-std::size_t Container::getMeasurementElementEndIndex() const {
-  return this->revision.measurementElementEndIndex;
-}
-
 std::string Container::getDebugRepresentation() const {
   return this->revision.getDebugRepresentation();
-}
-
-std::vector<Element> Container::getVisibleElements() const {
-  std::vector<Element> visibleElements;
-
-  std::size_t measurementElementStartIndex = this->revision.measurementElementStartIndex;
-  std::size_t measurementElementEndIndex = this->revision.measurementElementEndIndex;
-
-  /*
-   * Skip if uninitialized
-   */
-  if (measurementElementStartIndex == UNDEFINED_INDEX || measurementElementEndIndex == UNDEFINED_INDEX) {
-    return visibleElements;
-  }
-
-  /*
-   * For inverted lists, start > end (e.g., 99 to 90)
-   * For default lists, start < end (e.g., 0 to 9)
-   */
-  if (this->inverted) {
-    /*
-     * Iterate from high index to low index
-     */
-    for (std::size_t visibleElementIndex = measurementElementStartIndex; visibleElementIndex >= measurementElementEndIndex && visibleElementIndex != UNDEFINED_INDEX; --visibleElementIndex) {
-      if (visibleElementIndex < this->revision.elements.size()) {
-        visibleElements.push_back(this->revision.elements[visibleElementIndex]);
-      }
-    }
-  } else {
-    /*
-     * Iterate from low index to high index
-     */
-    for (std::size_t visibleElementIndex = measurementElementStartIndex; visibleElementIndex <= measurementElementEndIndex; ++visibleElementIndex) {
-      if (visibleElementIndex < this->revision.elements.size()) {
-        visibleElements.push_back(this->revision.elements[visibleElementIndex]);
-      }
-    }
-  }
-
-  return visibleElements;
 }
 
 std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
@@ -372,7 +318,8 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
   }
 
   double viewportStart = this->getContainerOffset();
-  double viewportEnd = viewportStart + this->getWindowContainerSize();
+  double windowSize = this->getWindowContainerSize();
+  double viewportEnd = viewportStart + windowSize;
 
   /*
    * The measured window is stored start>end for inverted lists; normalise it to an
@@ -397,7 +344,14 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
     double overlapEnd = elementEnd < viewportEnd ? elementEnd : viewportEnd;
     double visible = overlapEnd - overlapStart;
 
-    if (visible > 0.0 && (visible / elementSize) >= this->viewablePercentThreshold) {
+    /*
+     * Measure the visible fraction against min(element, viewport): an element
+     * taller than the viewport can never reach 100% of itself, so without this it
+     * would never count as viewable at a high threshold even when it fills the
+     * screen. Clamping the denominator makes "fully covers the viewport" == 1.0.
+     */
+    double referenceSize = elementSize < windowSize ? elementSize : windowSize;
+    if (visible > 0.0 && referenceSize > 0.0 && (visible / referenceSize) >= this->viewablePercentThreshold) {
       if (firstViewable == UNDEFINED_INDEX) {
         firstViewable = nextElementIndex;
       }
@@ -417,31 +371,6 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
     return {lastViewable, firstViewable};
   }
   return {firstViewable, lastViewable};
-}
-
-bool Container::getElementVisible(std::size_t index) const {
-  std::size_t measurementElementStartIndex = this->revision.measurementElementStartIndex;
-  std::size_t measurementElementEndIndex = this->revision.measurementElementEndIndex;
-
-  /*
-   * Skip if uninitialized
-   */
-  if (measurementElementStartIndex == UNDEFINED_INDEX || measurementElementEndIndex == UNDEFINED_INDEX) {
-    return false;
-  }
-
-  /*
-   * For inverted lists, we iterate from end to start (high index to low index)
-   * so measurementElementStartIndex > measurementElementEndIndex. For example: measurementElementStartIndex=99, measurementElementEndIndex=90
-   *
-   * For default lists, we iterate from start to end (low index to high index)
-   * so measurementElementStartIndex < measurementElementEndIndex. For example: measurementElementStartIndex=0, measurementElementEndIndex=9
-   */
-  if (this->inverted) {
-    return (index >= measurementElementEndIndex && index <= measurementElementStartIndex);
-  } else {
-    return (index >= measurementElementStartIndex && index <= measurementElementEndIndex);
-  }
 }
 
 double Container::getElementOffset(std::size_t index) const {
@@ -493,14 +422,6 @@ void Container::setEndReachedEnabled(bool enabled) {
 
 void Container::setStartReachedEnabled(bool enabled) {
   this->startReachedEnabled = enabled;
-}
-
-void Container::setObserver(Observer* observer) {
-  this->observer = observer;
-}
-
-Observer* Container::getObserver() const {
-  return this->observer;
 }
 
 }

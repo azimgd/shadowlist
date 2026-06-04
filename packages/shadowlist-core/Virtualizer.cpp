@@ -32,11 +32,29 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->estimatedElementSize = input.estimatedElementSize;
 
   /*
+   * The scroll offset the platform reports for this frame (along the scroll axis).
+   */
+  double inputOffset = container->horizontal ? input.containerOffsetX : input.containerOffsetY;
+
+  /*
    * A genuine user scroll takes over: abandon any in-flight scroll correction
    * (the MVCP drive after a prepend, a scrollToIndex animation) so we don't snap
    * the offset back to that target every frame and lock the user out. Stale
    * data/layout re-commits arrive with this unset, so an in-flight correction
    * still survives them (step 3 of resolveScroll).
+   *
+   * The flag latches on the platform - it is set on every scroll tick and only
+   * cleared when the gesture and its momentum end - so a data/layout re-commit that
+   * lands while the user is paused at an edge carries a stale userScrolled with the
+   * offset unmoved. The worst case is a prepend triggered by onStartReached firing
+   * at the top: honouring the stale flag there would cancel the prepend's own MVCP
+   * correction (which a single commit can re-run through here more than once, as
+   * Fabric clones the node several times - the later run re-captures the anchor on
+   * the already-reconciled list and would otherwise drop the shift) and snap the
+   * freshly inserted rows back over the content. So only yield when the reported
+   * offset actually moved since the previous frame; an unmoved offset means the user
+   * is not currently driving and the correction (kept alive by step 3 of
+   * resolveScroll) must stay intact.
    *
    * Marking the inverted bottom pin as initialized disengages it too: once the
    * user has manually scrolled they have taken control of the position, so step 2
@@ -44,18 +62,20 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
    * cancel above and locks an inverted list whose pin has not settled yet). The
    * pin re-arms on its own when the list empties (see resolveScroll).
    */
-  if (input.userScrolled) {
+  bool userMovedOffset = std::fabs(inputOffset - container->lastReportedOffset) >= 0.5;
+  if (input.userScrolled && userMovedOffset) {
     container->pendingScroll = false;
     container->pendingAnchorActive = false;
+    container->pendingScrollToEnd = false;
     container->invertedInitialized = true;
   }
+  container->lastReportedOffset = inputOffset;
 
   /*
    * Capture the anchor element from the previous layout and the incoming scroll
    * offset so we can keep the same content in view across a reconcile
    */
   bool hadElementsBefore = !container->revision.elements.empty();
-  double inputOffset = container->horizontal ? input.containerOffsetX : input.containerOffsetY;
   std::string anchorKey;
   double anchorDelta = 0.0;
   captureAnchor(container, inputOffset, anchorKey, anchorDelta);
@@ -262,21 +282,16 @@ void Virtualizer::finalizeMeasurement(Container *container, std::size_t measured
   }
 
   /*
-   * Calculate average element dimensions, used to size the unmeasured portion of
-   * the list. Computed once and then frozen: it must stay stable across frames so
-   * the same element keeps the same offset between captureAnchor (which reads the
-   * previous layout) and measure (which recomputes it). Recomputing per frame on a
-   * variable-height list swings the average, moves every estimated element's
-   * offset, and makes MVCP chase the moved anchor (violent scroll thrash).
+   * The average element size (used to size the unmeasured portion of the list) is
+   * intentionally NOT computed here. On the first revision the measured window is
+   * estimate-filled, so seeding the average from it would freeze the estimate -
+   * permanently wrong when the estimate differs from the real row size. Instead the
+   * average is frozen from the first batch of real (natively measured) sizes in
+   * recomputeTotalSize; until that exists, layoutElements falls back to the estimate.
+   * Freezing once (rather than recomputing per frame) keeps the same element at the
+   * same offset between captureAnchor and measure, so MVCP does not chase a moving
+   * anchor (violent scroll thrash).
    */
-  if (container->revision.measurementElementCount > 0) {
-    if (container->revision.averageElementWidth == 0.0) {
-      container->revision.averageElementWidth = container->revision.measurementElementTotalWidth / container->revision.measurementElementCount;
-    }
-    if (container->revision.averageElementHeight == 0.0) {
-      container->revision.averageElementHeight = container->revision.measurementElementTotalHeight / container->revision.measurementElementCount;
-    }
-  }
 }
 
 void Virtualizer::layoutElements(Container *container) {
@@ -287,27 +302,35 @@ void Virtualizer::layoutElements(Container *container) {
     : container->revision.windowContainerWidth / (container->columns > 0 ? container->columns : 1);
 
   /*
-   * Size unmeasured elements with average dimensions. Multi-column layouts force
-   * the cross-axis size to the track size so every column has the same extent.
+   * Size unmeasured elements with the average element size, falling back to the
+   * estimate until the average has been frozen from a real measurement batch (see
+   * recomputeTotalSize). Multi-column layouts force the cross-axis size to the
+   * track size so every column has the same extent.
    */
+  auto [estimatedWidth, estimatedHeight] = container->estimatedElementSize;
+  double fallbackWidth = container->revision.averageElementWidth > 0.0
+    ? container->revision.averageElementWidth : estimatedWidth;
+  double fallbackHeight = container->revision.averageElementHeight > 0.0
+    ? container->revision.averageElementHeight : estimatedHeight;
+
   for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
     Element& nextElement = container->revision.elements[nextElementIndex];
 
     if (container->columns > 1) {
       if (container->horizontal) {
         if (!nextElement.estimated) {
-          nextElement.width = container->revision.averageElementWidth;
+          nextElement.width = fallbackWidth;
         }
         nextElement.height = trackSize;
       } else {
         if (!nextElement.estimated) {
-          nextElement.height = container->revision.averageElementHeight;
+          nextElement.height = fallbackHeight;
         }
         nextElement.width = trackSize;
       }
     } else if (!nextElement.estimated) {
-      nextElement.width = container->revision.averageElementWidth;
-      nextElement.height = container->revision.averageElementHeight;
+      nextElement.width = fallbackWidth;
+      nextElement.height = fallbackHeight;
     }
   }
 
@@ -423,54 +446,26 @@ void Virtualizer::recomputeTotalSize(Container *container) {
     container->revision.totalContainerHeight = std::max(maxHeight, container->headerSize) + container->footerSize;
     container->revision.totalContainerWidth = maxWidth;
   }
-}
-
-void Virtualizer::addElementAtIndex(Container *container, std::size_t index) {
-  if (index > container->revision.elements.size()) {
-    throw InvalidOperationError("Index out of bounds");
-  }
-
-  Element nextElement;
-
-  auto [width, height] = container->estimatedElementSize;
 
   /*
-   * If there is no estimate available, fall back to the average dimensions
+   * Freeze the average element size from the first batch of real (natively
+   * measured) sizes. recomputeTotalSize runs once after a measurement batch has
+   * been fed back (updateElementAtIndex), so measuredReal* reflects a full window
+   * here rather than a single element. Seeding the average from real measurements
+   * (instead of the first-revision estimate) keeps the scroll extent honest when
+   * the estimate is wrong; freezing it once (the == 0.0 guard) keeps the unmeasured
+   * region stable across frames so MVCP does not chase a moving anchor.
    */
-  if (width == 0.0 && height == 0.0) {
-    nextElement.width = container->revision.averageElementWidth;
-    nextElement.height = container->revision.averageElementHeight;
-    nextElement.estimated = false;
-  } else {
-    nextElement.width = width;
-    nextElement.height = height;
-    nextElement.estimated = true;
-  }
-  nextElement.index = index;
-
-  container->revision.elements.insert(container->revision.elements.begin() + index, nextElement);
-
-  for (std::size_t nextElementIndex = index + 1; nextElementIndex < container->revision.elements.size(); nextElementIndex++) {
-    container->revision.elements[nextElementIndex].index = nextElementIndex;
-  }
-
-  if (container->revision.measurementElementStartIndex != UNDEFINED_INDEX) {
-    if (index <= container->revision.measurementElementStartIndex) {
-      container->revision.measurementElementStartIndex++;
+  if (container->revision.measuredRealCount > 0) {
+    if (container->revision.averageElementWidth == 0.0) {
+      container->revision.averageElementWidth =
+        container->revision.measuredRealTotalWidth / container->revision.measuredRealCount;
     }
-
-    if (index <= container->revision.measurementElementEndIndex) {
-      container->revision.measurementElementEndIndex++;
+    if (container->revision.averageElementHeight == 0.0) {
+      container->revision.averageElementHeight =
+        container->revision.measuredRealTotalHeight / container->revision.measuredRealCount;
     }
   }
-
-  if (container->revision.averageElementHeight > 0) {
-    container->revision.measurementElementTotalHeight += nextElement.height;
-    container->revision.measurementElementTotalWidth += nextElement.width;
-    container->revision.measurementElementCount++;
-  }
-
-  recomputeElementOffsets(container, index);
 }
 
 void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, Size size) {
@@ -482,6 +477,7 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
 
   double prevWidth = nextElement.width;
   double prevHeight = nextElement.height;
+  bool wasMeasured = nextElement.measured;
 
   nextElement.width = size.width;
   nextElement.height = size.height;
@@ -491,6 +487,21 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
   if (container->revision.averageElementHeight > 0) {
     container->revision.measurementElementTotalHeight += size.height - prevHeight;
     container->revision.measurementElementTotalWidth += size.width - prevWidth;
+  }
+
+  /*
+   * Accumulate the real (natively measured) sizes so the average can be frozen from
+   * them in recomputeTotalSize. Count each element once: a first measurement adds
+   * the full size, a re-measurement adjusts by the delta, keeping the running mean
+   * over distinct measured elements accurate.
+   */
+  if (wasMeasured) {
+    container->revision.measuredRealTotalWidth += size.width - prevWidth;
+    container->revision.measuredRealTotalHeight += size.height - prevHeight;
+  } else {
+    container->revision.measuredRealCount++;
+    container->revision.measuredRealTotalWidth += size.width;
+    container->revision.measuredRealTotalHeight += size.height;
   }
 
   /*
@@ -553,22 +564,6 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
       }
     }
   }
-}
-
-void Virtualizer::prependElements(Container *container, std::size_t count) {
-  for (std::size_t iteration = 0; iteration < count; iteration++) {
-    addElementAtIndex(container, 0);
-  }
-
-  recomputeTotalSize(container);
-}
-
-void Virtualizer::appendElements(Container *container, std::size_t count) {
-  for (std::size_t iteration = 0; iteration < count; iteration++) {
-    addElementAtIndex(container, container->revision.elements.size());
-  }
-
-  recomputeTotalSize(container);
 }
 
 void Virtualizer::reconcileElements(Container *container, const std::vector<std::string> &nextKeys) {
@@ -653,6 +648,7 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
     container->invertedInitialized = false;
     container->pendingScroll = false;
     container->pendingAnchorActive = false;
+    container->pendingScrollToEnd = false;
   }
 
   double windowSize = container->getWindowContainerSize();
@@ -662,6 +658,13 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
   if (maxOffset < 0.0) {
     maxOffset = 0.0;
   }
+
+  /*
+   * Track the total every frame (not only while a scrollToEnd is in flight) so that
+   * step 2b can tell on its very first frame whether the bottom has stopped growing.
+   */
+  double prevTotalForScrollToEnd = container->pendingScrollToEndLastTotal;
+  container->pendingScrollToEndLastTotal = totalSize;
 
   auto clampOffset = [&](double offset) {
     if (offset < 0.0) offset = 0.0;
@@ -738,6 +741,24 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
      */
     if (totalSize > windowSize && std::fabs(currentOffset - container->pendingScrollOffset) < 1.0) {
       container->invertedInitialized = true;
+    }
+  }
+
+  /*
+   * 2b. scrollToEnd drives the view to the very bottom, re-targeting maxOffset every
+   *     frame as the total grows while off-screen rows are measured, so it lands on
+   *     the true end of a variable-height list instead of a stale estimate. It
+   *     settles only once the view has reached the bottom on a frame where the total
+   *     did not change - a total that grows right after arrival would otherwise leave
+   *     the list a screen short. A user scroll cancels it (see Virtualizer::update).
+   */
+  if (container->pendingScrollToEnd && elementsSize > 0 && windowSize > 0.0) {
+    bool atBottom = std::fabs(currentOffset - maxOffset) < 1.0;
+    bool totalStable = totalSize == prevTotalForScrollToEnd;
+    if (atBottom && totalStable) {
+      container->pendingScrollToEnd = false;
+    } else {
+      requestFixed(maxOffset);
     }
   }
 

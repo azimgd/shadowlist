@@ -135,3 +135,90 @@ TEST(scroll_to_index_declarative_prop) {
   sim.settle();
   CHECK_NEAR(sim.offsetY, 2000.0, 1.0);
 }
+
+// scrollToEnd lands exactly at the scrollable bottom (offset == total - window) with
+// the final row mounted.
+TEST(scroll_to_end_fixed_height) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(200));
+  sim.settle();
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);  // starts at the top
+
+  sim.scrollToEnd();
+
+  CHECK_NEAR(sim.totalAxis(), 20000.0, 0.5);
+  CHECK_NEAR(sim.offsetY, 19400.0, 1.0);  // total - window
+  std::size_t lo = 0, hi = 0;
+  CHECK(sim.visibleRange(lo, hi));
+  CHECK(hi == std::size_t(199));  // last row is mounted at the bottom
+}
+
+// scrollToEnd converges on the TRUE bottom of a variable-height list whose rows are
+// taller than the estimate, so the total keeps growing as the bottom rows are
+// measured during the scroll. A one-shot jump to the initially-estimated content
+// size would stop short; the correction re-targets the bottom until the total
+// settles. Asserted self-consistently (independent of the approximate middle): the
+// view sits at the scrollable bottom and the last row's far edge is the content end.
+TEST(scroll_to_end_converges_on_true_bottom_variable_heights) {
+  Sim sim;
+  sim.winH = 700;
+  sim.estimated = {400, 100};  // deliberately smaller than every real row
+  sim.sizeOfKey = [](const std::string& key) {
+    std::size_t n = std::stoul(key.substr(1));
+    return Size{400, 150.0 + double((n * 41) % 250)};  // 150..399, deterministic
+  };
+  sim.setKeys(makeKeys(400));
+  sim.settle();
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+
+  sim.scrollToEnd();
+
+  double maxOffset = sim.totalAxis() - sim.winH;
+  CHECK(maxOffset > 10000.0);          // sanity: it actually travelled far
+  CHECK_NEAR(sim.offsetY, maxOffset, 1.0);
+  CHECK_NEAR(sim.elementOffset(399) + sim.container.getElementSize(399), sim.totalAxis(), 1.0);
+  std::size_t lo = 0, hi = 0;
+  CHECK(sim.visibleRange(lo, hi));
+  CHECK(hi == std::size_t(399));
+}
+
+// scrollToEnd settles cleanly and does NOT linger as a bottom pin: after it lands,
+// appending rows below the viewport must leave the user where they are (maintain
+// visible position) rather than dragging them to the new bottom.
+TEST(scroll_to_end_settles_and_does_not_re_pin_on_append) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(50));
+  sim.settle();
+
+  sim.scrollToEnd();
+  CHECK_NEAR(sim.offsetY, 4400.0, 1.0);  // 50 * 100 - 600
+
+  // Append 20 rows below; the user sits at the old bottom and must stay there.
+  sim.setKeys(makeKeys(70));
+  sim.settle();
+  CHECK_NEAR(sim.offsetY, 4400.0, 1.0);  // unchanged, NOT dragged to the new bottom (6400)
+}
+
+// scrollToEnd rides the scrollToIndex command channel via the SCROLL_TO_END_INDEX
+// sentinel, so the integrations need no extra state field. Driving that path
+// through requestScrollToIndex must scroll to the bottom.
+TEST(scroll_to_end_via_command_sentinel) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(200));
+  sim.settle();
+
+  sim.container.requestScrollToIndex(
+    /*commandIndex*/ azimgd::shadowlist::SCROLL_TO_END_INDEX, /*nonce*/ 1.0, /*propIndex*/ -2);
+  sim.settle();
+
+  CHECK_NEAR(sim.offsetY, 19400.0, 1.0);  // total - window
+}

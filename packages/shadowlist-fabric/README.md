@@ -155,34 +155,3 @@ ref.current?.scrollToIndex(200);
 ref.current?.scrollToOffset(1200);
 ref.current?.scrollToEnd(false);
 ```
-
-## Scripts
-
-From `packages/shadowlist-fabric`:
-
-```sh
-yarn lint
-yarn typecheck
-yarn test
-yarn prepare
-yarn clean
-yarn release
-```
-
-### Example App
-
-From `packages/shadowlist-fabric/example`:
-
-```sh
-yarn start
-yarn android
-yarn ios
-yarn build:android
-yarn build:ios
-```
-
-## Known Limitation
-
-Animated `transform` styles inside list items can interfere with measurement and scroll correction.
-
-Prefer layout-driven animation values such as `top`, `left`, `right`, `bottom`, or margin changes inside mounted items.

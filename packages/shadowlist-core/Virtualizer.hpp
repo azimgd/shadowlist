@@ -75,24 +75,16 @@ public:
   static void reconcileElements(Container *container, const std::vector<std::string> &nextKeys);
 
   /*
-   * Add element at specific index
-   */
-  static void addElementAtIndex(Container *container, std::size_t index);
-
-  /*
    * Update measurements for existing element at specific index
    */
   static void updateElementAtIndex(Container *container, std::size_t index, Size size);
 
   /*
-   * Prepend multiple elements to the beginning of the list
+   * Recompute element offsets starting from a given index (orientation/columns aware).
+   * Public so an integration can re-flow after applying a freshly measured header/
+   * footer size in the same layout pass (avoiding a one-frame lag).
    */
-  static void prependElements(Container *container, std::size_t count);
-
-  /*
-   * Append multiple elements to the end of the list
-   */
-  static void appendElements(Container *container, std::size_t count);
+  static void recomputeElementOffsets(Container *container, std::size_t fromIndex);
 
 private:
   /*
@@ -114,11 +106,6 @@ private:
    * Size unmeasured elements with average dimensions and recompute all offsets
    */
   static void layoutElements(Container *container);
-
-  /*
-   * Recompute element offsets starting from a given index (orientation/columns aware)
-   */
-  static void recomputeElementOffsets(Container *container, std::size_t fromIndex);
 
   /*
    * Record which element currently sits at the top/left of the viewport and how

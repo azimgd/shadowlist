@@ -157,6 +157,41 @@ TEST(prepend_does_not_lock_user_scroll) {
   CHECK_NEAR(sim.offsetY, 1900.0, 1.0);
 }
 
+// Regression: a prepend whose commit carries a STALE userScrolled flag must still
+// maintain the visible content position. The platform latches userScrolled on a
+// scroll tick and only clears it when the gesture and its momentum end, so a
+// prepend triggered by onStartReached firing at the top arrives flagged
+// userScrolled while the offset has not actually moved. Fabric also runs the
+// adopt/update path more than once per commit: the second update re-captures the
+// anchor on the already-reconciled list and finds the new top already at the
+// offset, so the correction survives only because the stale flag does not cancel
+// the pending drive. Under the bug the offset snapped back to the top and the
+// inserted rows shoved the content down.
+TEST(prepend_with_stale_user_scroll_keeps_position) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(20));
+  sim.settle();
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+
+  std::vector<std::string> next = makeKeys(5, "n");
+  for (const auto& key : makeKeys(20)) {
+    next.push_back(key);
+  }
+  sim.setKeys(next);
+
+  // One commit, two adopts, a stale userScrolled flag, and the offset has not
+  // moved from the top: MVCP must still run.
+  sim.commit(2, /*userScrolled=*/true);
+
+  CHECK_NEAR(sim.totalAxis(), 2500.0, 0.5);
+  CHECK_NEAR(sim.offsetY, 500.0, 1.0);  // shifted by the 5 inserted rows
+  double k0Screen = sim.elementOffset(sim.indexOfKey("k0")) - sim.offsetY;
+  CHECK_NEAR(k0Screen, 0.0, 1.0);  // k0 still pinned at the top
+}
+
 // MVCP on a variable-height list: the anchor row's on-screen position is held by
 // re-targeting the measured anchor element, not by assuming the inserted rows are
 // the estimated size. With non-uniform real heights a fixed "shift by estimate"

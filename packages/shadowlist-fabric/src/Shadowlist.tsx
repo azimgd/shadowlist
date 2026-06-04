@@ -49,54 +49,39 @@ const slLog = (...args: unknown[]) => {
   console.log('[SL]', ...args);
 };
 
-function createRangeArray(indices: OnVisibleIndicesChange) {
-  if (
-    indices.visibleStartIndex === -1 ||
-    indices.visibleEndIndex === -1 ||
-    indices.visibleStartIndex > indices.visibleEndIndex
-  ) {
-    return [];
-  }
-  const length = indices.visibleEndIndex - indices.visibleStartIndex + 1;
-  return Array.from(
-    { length },
-    (_, index) => indices.visibleStartIndex + index
-  );
+/*
+ * Mounted index band [low, high] (ascending). The native core already reports a
+ * buffered visible window; we mount SHADOWLIST_OVERSCAN extra rows on each side and
+ * only grow/shift the band - a React re-render - when the reported window leaves
+ * it. This is a low/high-water mark: while the visible window stays inside the band
+ * the rows are already mounted, so we skip the state update entirely. The reported
+ * window is normalised to ascending first, so inverted lists (which report
+ * start > end) use exactly the same logic instead of a separate swap path.
+ */
+export interface VisibleBand {
+  low: number;
+  high: number;
 }
 
-export const inversionBasedInitialIndices = (
+const SHADOWLIST_OVERSCAN = 4;
+
+export const initialBand = (
   size: number,
   initial: number,
   inverted: boolean
-) => {
+): VisibleBand => {
+  if (size <= 0) return { low: -1, high: -1 };
   if (inverted) {
-    return {
-      visibleStartIndex: size - initial,
-      visibleEndIndex: size - 1,
-    };
-  } else {
-    return {
-      visibleStartIndex: 0,
-      visibleEndIndex: initial,
-    };
+    return { low: Math.max(0, size - initial), high: size - 1 };
   }
+  return { low: 0, high: Math.min(initial, size - 1) };
 };
 
-export const inversionBasedUpdatingIndices = (
-  indices: OnVisibleIndicesChange,
-  inverted: boolean
-) => {
-  if (inverted) {
-    return {
-      visibleStartIndex: indices.visibleEndIndex,
-      visibleEndIndex: indices.visibleStartIndex,
-    };
-  } else {
-    return {
-      visibleStartIndex: indices.visibleStartIndex,
-      visibleEndIndex: indices.visibleEndIndex,
-    };
-  }
+const bandToRange = (band: VisibleBand): number[] => {
+  if (band.low < 0 || band.high < 0 || band.low > band.high) return [];
+  const range: number[] = [];
+  for (let index = band.low; index <= band.high; index++) range.push(index);
+  return range;
 };
 
 interface ElementRendererProps<ElementT> {
@@ -205,8 +190,8 @@ function Shadowlist<ElementT extends { id: string }>({
     null
   );
 
-  const [visibleIndices, setVisibleIndices] = useState<OnVisibleIndicesChange>(
-    inversionBasedInitialIndices(data.length, initialElementsSize, inverted)
+  const [visibleBand, setVisibleBand] = useState<VisibleBand>(() =>
+    initialBand(data.length, initialElementsSize, inverted)
   );
 
   const elementDimensionStyle = useMemo(() => {
@@ -267,40 +252,36 @@ function Shadowlist<ElementT extends { id: string }>({
     never
   > = useCallback(
     (event) => {
-      const nextIndices = event.nativeEvent;
-      setVisibleIndices((prevIndices) => {
-        const startDiff = Math.abs(
-          nextIndices.visibleStartIndex - prevIndices.visibleStartIndex
-        );
-        const endDiff = Math.abs(
-          nextIndices.visibleEndIndex - prevIndices.visibleEndIndex
-        );
+      const { visibleStartIndex, visibleEndIndex } = event.nativeEvent;
+      if (visibleStartIndex === -1 || visibleEndIndex === -1) return;
+      // Inverted lists report start > end; normalise to an ascending window.
+      const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
+      const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
 
-        // If change is within +-1 steps, don't update
-        if (startDiff <= 1 && endDiff <= 1) {
-          return prevIndices;
+      setVisibleBand((prevBand) => {
+        // Low/high-water: the reported window is already inside the mounted band,
+        // so those rows are mounted - skip the state update (and the re-render).
+        if (
+          prevBand.low >= 0 &&
+          windowLow >= prevBand.low &&
+          windowHigh <= prevBand.high
+        ) {
+          return prevBand;
         }
-
-        const updatedIndices = inversionBasedUpdatingIndices(
-          nextIndices,
-          inverted
-        );
+        const low = Math.max(0, windowLow - SHADOWLIST_OVERSCAN);
+        const high = Math.min(data.length - 1, windowHigh + SHADOWLIST_OVERSCAN);
         slLog(
           'js.onVisibleIndicesChange apply',
-          `native=[${nextIndices.visibleStartIndex}..${nextIndices.visibleEndIndex}]`,
-          `render=[${updatedIndices.visibleStartIndex}..${updatedIndices.visibleEndIndex}]`,
-          `inv=${inverted ? 1 : 0}`
+          `window=[${windowLow}..${windowHigh}]`,
+          `band=[${low}..${high}]`
         );
-        return updatedIndices;
+        return { low, high };
       });
     },
-    [inverted]
+    [data.length]
   );
 
-  const visibleRange = useMemo(
-    () => createRangeArray(visibleIndices),
-    [visibleIndices]
-  );
+  const visibleRange = useMemo(() => bandToRange(visibleBand), [visibleBand]);
 
   const elementsAllKeys = useMemo(
     () => data.map((element, index) => keyExtractor(element, index)),

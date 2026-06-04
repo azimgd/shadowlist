@@ -32,12 +32,7 @@ mkdir -p "${OUT_DIR}"
 echo "Compiling shadowlist-core -> WASM ..."
 emcc \
   "${PACKAGE_DIR}/cpp/Binding.cpp" \
-  "${CORE_DIR}/Container.cpp" \
-  "${CORE_DIR}/Virtualizer.cpp" \
-  "${CORE_DIR}/Revision.cpp" \
-  "${CORE_DIR}/Observer.cpp" \
-  "${CORE_DIR}/Element.cpp" \
-  "${CORE_DIR}/Error.cpp" \
+  "${CORE_DIR}"/*.cpp \
   -I "${PACKAGES_DIR}" \
   -std=c++20 \
   -O3 \

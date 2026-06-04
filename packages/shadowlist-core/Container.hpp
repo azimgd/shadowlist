@@ -1,14 +1,10 @@
 #pragma once
 
 #include <functional>
-#include <chrono>
-#include <memory>
 #include <mutex>
 #include <shadowlist-core/Revision.hpp>
 
 namespace azimgd::shadowlist {
-
-class Observer;
 
 static constexpr std::size_t RevisionCountFirst = 0;
 
@@ -157,6 +153,18 @@ public:
   std::size_t scrollToIndexTarget = UNDEFINED_INDEX;
 
   /*
+   * Active while a scrollToEnd is converging on the bottom. Unlike a one-shot jump
+   * to the current (estimated) content size, this re-targets maxOffset every frame
+   * as off-screen rows are measured and the total grows, so it lands on the true
+   * end of a variable-height list. Cleared once the view has reached the bottom and
+   * the total has stopped changing (see resolveScroll). pendingScrollToEndLastTotal
+   * holds the previous frame's total - tracked every frame, not just while the flag
+   * is set - so "stopped changing" can be detected on the very first frame too.
+   */
+  bool pendingScrollToEnd = false;
+  double pendingScrollToEndLastTotal = -1.0;
+
+  /*
    * Whether an inverted list has settled at the bottom. While false the list
    * sticks to the bottom (initial render / empty -> populated); once the view
    * actually reaches the bottom the maintain-visible-content-position anchor takes over
@@ -198,6 +206,15 @@ public:
   double anchorDelta = 0.0;
 
   /*
+   * The scroll offset the platform reported on the previous frame (along the
+   * scroll axis). A user scroll only counts as the user taking over when this
+   * actually changes: the userScrolled flag latches on the platform, so a stale
+   * one on an unmoved offset (e.g. a prepend committed while the user is paused at
+   * the top) must not cancel an in-flight correction. See Virtualizer::update.
+   */
+  double lastReportedOffset = 0.0;
+
+  /*
    * Serializes access to a single container. An integration may drive the update
    * pass and the layout/measurement-feedback pass from different threads that can
    * overlap, so every entry point that mutates or reads the revision takes this.
@@ -208,10 +225,7 @@ public:
   void startRevision();
   void endRevision();
 
-  void addElementAtIndex(std::size_t index, Element nextElement);
-  void removeElementAtIndex(std::size_t index);
-  const Element getElementAtIndex(std::size_t index) const;
-  bool getElementVisible(std::size_t index) const;
+  const Element& getElementAtIndex(std::size_t index) const;
 
   /*
    * Offset/size getters and setters are orientation aware: horizontal reads/writes
@@ -230,11 +244,7 @@ public:
   void setContainerOffsetY(double offsetY);
   void setContainerOffsetX(double offsetX);
 
-  std::size_t getMeasurementElementStartIndex() const;
-  std::size_t getMeasurementElementEndIndex() const;
-
   std::string getDebugRepresentation() const;
-  std::vector<Element> getVisibleElements() const;
 
   /*
    * Visible index range, or (UNDEFINED_INDEX, UNDEFINED_INDEX) if uninitialized.
@@ -257,6 +267,13 @@ public:
    * viewport. The request is resolved on the next measurement.
    */
   void scrollToIndex(std::size_t index);
+
+  /*
+   * Request scrolling to the very end of the content. The correction drives toward
+   * the bottom, re-targeting it as off-screen rows are measured, so it converges on
+   * the true end of a variable-height list instead of a stale estimate.
+   */
+  void scrollToEnd();
 
   /*
    * Resolve a scrollToIndex request from an imperative command and a declarative
@@ -308,18 +325,7 @@ public:
    */
   void dispatchObservers();
 
-  /*
-   * Observer is optional; pass nullptr to remove it.
-   */
-  void setObserver(Observer* observer);
-  Observer* getObserver() const;
-
 private:
-  /*
-   * Observer for revision changes
-   */
-  Observer* observer = nullptr;
-
   /*
    * Previously dispatched visible range, used to deduplicate onVisibleIndicesChange
    */
@@ -331,6 +337,17 @@ private:
    */
   std::size_t prevViewableStartIndex = UNDEFINED_INDEX;
   std::size_t prevViewableEndIndex = UNDEFINED_INDEX;
+
+  /*
+   * Whether the previous revision was already at the start/end edge, so the
+   * reached callbacks fire once on arrival (a false->true transition) instead of
+   * every frame the offset stays within the threshold. prevReachedElementsSize
+   * re-arms them when the data set changes (pagination), so reaching a newly
+   * appended/prepended edge counts as a fresh arrival even within the band.
+   */
+  bool prevReachedStart = false;
+  bool prevReachedEnd = false;
+  std::size_t prevReachedElementsSize = UNDEFINED_INDEX;
 
   /*
    * Previously dispatched scroll offset, used to deduplicate onScroll

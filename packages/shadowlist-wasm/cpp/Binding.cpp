@@ -79,7 +79,16 @@ public:
     input.endReachedThreshold = endReachedThreshold;
     input.viewablePercentThreshold = viewablePercentThreshold;
 
-    virtualizer_.update(&container_, input);
+    /*
+     * The core throws on misuse (a bad revision state / out-of-range index). An
+     * uncaught C++ exception propagating across the embind boundary aborts the whole
+     * wasm instance, so contain it here: skip the frame rather than kill the list.
+     */
+    try {
+      virtualizer_.update(&container_, input);
+    } catch (...) {
+      SL_LOG("core.update threw - frame skipped");
+    }
   }
 
   /*
@@ -112,7 +121,7 @@ public:
     if (index < 0 || static_cast<std::size_t>(index) >= container_.getElementsSize()) {
       return result;
     }
-    const Element element = container_.getElementAtIndex(static_cast<std::size_t>(index));
+    const Element& element = container_.getElementAtIndex(static_cast<std::size_t>(index));
     result.set("index", static_cast<int>(element.index));
     result.set("key", element.key);
     result.set("offsetX", element.offsetX);

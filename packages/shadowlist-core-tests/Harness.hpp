@@ -141,8 +141,9 @@ struct Sim {
     Virtualizer::recomputeTotalSize(&container);
   }
 
-  // Run one frame. Returns true if the core moved the scroll offset this frame.
-  bool frame() {
+  // Build the per-frame input from the current configuration (userScrolled is set
+  // by the caller, since it is a per-frame/per-commit signal).
+  FrameInput makeInput() const {
     FrameInput input;
     input.keys = keys;
     input.containerOffsetX = offsetX;
@@ -160,10 +161,12 @@ struct Sim {
     input.endReachedThreshold = endReachedThreshold;
     input.viewablePercentThreshold = viewablePercentThreshold;
     input.estimatedElementSize = {estimated.width, estimated.height};
-    input.userScrolled = nextUserScrolled;
-    nextUserScrolled = false;
+    return input;
+  }
 
-    virtualizer.update(&container, input);
+  // Feed measured sizes, then read the core's resolution and apply the offset for
+  // the next frame if the core asked to move the view. Returns whether it moved.
+  bool publish() {
     feedMeasuredSizes();
 
     auto update = container.resolveStateUpdate(offsetX, offsetY, prevTotalW, prevTotalH);
@@ -175,6 +178,31 @@ struct Sim {
     prevTotalW = update.totalContainerWidth;
     prevTotalH = update.totalContainerHeight;
     return moved;
+  }
+
+  // Run one frame. Returns true if the core moved the scroll offset this frame.
+  bool frame() {
+    FrameInput input = makeInput();
+    input.userScrolled = nextUserScrolled;
+    nextUserScrolled = false;
+
+    virtualizer.update(&container, input);
+    return publish();
+  }
+
+  // Simulate a single platform commit in which the shadow-node adopt path runs
+  // update() more than once before the resulting offset is published. Fabric
+  // clones a list node several times per commit, so the same reported offset (and
+  // the same, possibly stale, latched userScrolled flag) reaches the core on every
+  // adopt; the offset is applied only once, after the last one. Returns whether the
+  // core moved the offset.
+  bool commit(int adopts, bool userScrolled) {
+    FrameInput input = makeInput();
+    input.userScrolled = userScrolled;
+    for (int i = 0; i < adopts; ++i) {
+      virtualizer.update(&container, input);
+    }
+    return publish();
   }
 
   // Run frames until the offset stops moving (or maxFrames is reached), which is
@@ -193,6 +221,14 @@ struct Sim {
   // Set the scroll offset (as if the user dragged) and run to steady state.
   void scrollTo(double y) {
     offsetY = y;
+    settle();
+  }
+
+  // Request a core-driven scroll to the very end and run to steady state. The
+  // correction re-targets the bottom as off-screen rows are measured, so it
+  // converges on the true end of a variable-height list.
+  void scrollToEnd() {
+    container.scrollToEnd();
     settle();
   }
 

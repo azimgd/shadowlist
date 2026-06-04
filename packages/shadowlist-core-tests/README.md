@@ -54,17 +54,3 @@ c++ -std=c++17 -fsanitize=thread -I.. -I. -DSLT_FIXTURES_DIR="\"$PWD/fixtures\""
 | `tests_variable_feed.cpp` | realistic variable-height feed from `fixtures/feed_heights.txt` |
 | `tests_perf.cpp` | timing logs (µs/iteration) for `update()`, full `frame()`, and scrollToIndex convergence |
 
-Every test also prints its own wall-clock time, e.g. `[PASS]   0.035 ms  name`, with a
-total at the end. `tests_perf.cpp` adds `[perf] …` lines with per-iteration cost; build
-with `-O2` for representative release numbers.
-
-## Notes
-
-`Sim` models off-screen rows with the core's frozen estimate (as the real
-integration does), so totals/scrollbars for unmeasured rows are approximate by
-design; the assertions target properties that hold regardless — visible rows
-stacked by their measured size, the scrollToIndex target landing at the viewport
-edge, MVCP shifting the offset by the inserted height, etc.
-
-Add a test by dropping a `TEST(name) { ... }` block into any `tests_*.cpp`
-(CMake globs them); it self-registers.

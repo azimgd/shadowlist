@@ -30,6 +30,15 @@ const defaultKeyExtractor = (item: { id: string }) => item.id;
  */
 const MAX_SETTLE_PASSES = 8;
 
+/*
+ * Sentinel for the scrollToIndex command channel meaning "scroll to the very end".
+ * scrollToEnd reuses the same nonce-based command as scrollToIndex, and the core
+ * (shadowlist-core/Constants.hpp SCROLL_TO_END_INDEX) resolves it to a correction
+ * that re-targets the bottom as off-screen rows are measured, so it lands on the
+ * true end of a variable-height list rather than a stale, estimate-based bottom.
+ */
+const SCROLL_TO_END_INDEX = -3;
+
 function resolveComponent(
   component: ShadowlistProps<{ id: string }>['ListHeaderComponent']
 ): ReactNode {
@@ -77,9 +86,27 @@ function initialRange(
   return rangeFromVisible(0, initialElementsSize, dataLength);
 }
 
-function sameRange(a: number[], b: number[]): boolean {
-  if (a.length !== b.length) return false;
-  return a[0] === b[0] && a[a.length - 1] === b[b.length - 1];
+const SHADOWLIST_OVERSCAN = 4;
+
+/*
+ * Low/high-water mark for the mounted window. The core already reports a buffered
+ * visible window; we mount SHADOWLIST_OVERSCAN extra rows on each side (bandRange)
+ * and only grow/shift the mounted set - a React re-render - when the reported
+ * window leaves it (rangeCovers returns false). While the window stays inside the
+ * band the rows are already mounted, so the re-render is skipped.
+ */
+function rangeCovers(mounted: number[], vs: number, ve: number): boolean {
+  if (mounted.length === 0) return false;
+  return vs >= mounted[0] && ve <= mounted[mounted.length - 1];
+}
+
+function bandRange(vs: number, ve: number, dataLength: number): number[] {
+  if (dataLength === 0 || vs < 0 || ve < 0) return [];
+  const low = Math.max(0, vs - SHADOWLIST_OVERSCAN);
+  const high = Math.min(dataLength - 1, ve + SHADOWLIST_OVERSCAN);
+  const indices: number[] = [];
+  for (let index = low; index <= high; index++) indices.push(index);
+  return indices;
 }
 
 interface ElementWrapperProps {
@@ -375,13 +402,15 @@ function ShadowlistInner<ElementT extends { id: string }>(
     );
 
     const visible = core.getVisibleIndices();
-    const nextRange = rangeFromVisible(
-      visible.visibleStartIndex,
-      visible.visibleEndIndex,
-      currentData.length
-    );
+    const windowLow = Math.min(visible.visibleStartIndex, visible.visibleEndIndex);
+    const windowHigh = Math.max(visible.visibleStartIndex, visible.visibleEndIndex);
+    const validWindow =
+      visible.visibleStartIndex >= 0 && visible.visibleEndIndex >= 0;
 
-    if (!sameRange(nextRange, mountedRangeRef.current)) {
+    // Low/high-water: only grow/shift the mounted band when the reported window
+    // leaves it; while it stays inside, the rows are mounted so skip the re-render.
+    if (validWindow && !rangeCovers(mountedRangeRef.current, windowLow, windowHigh)) {
+      const nextRange = bandRange(windowLow, windowHigh, currentData.length);
       mountedRangeRef.current = nextRange;
       setRange(nextRange);
       // The layout effect will run measureAndResolve after the commit.
@@ -402,7 +431,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     const content = contentRef.current;
     if (!core || !scroll || !content) return;
 
-    const { horizontal: isHorizontal, data: currentData } = latestRef.current;
+    const { horizontal: isHorizontal } = latestRef.current;
     const elementsSize = core.getElementsSize();
 
     /*
@@ -455,14 +484,16 @@ function ShadowlistInner<ElementT extends { id: string }>(
     published.containerOffsetX = scroll.scrollLeft;
     published.containerOffsetY = scroll.scrollTop;
 
-    // The corrected offset / freshly measured sizes may shift the visible window.
+    // The corrected offset / freshly measured sizes may shift the visible window
+    // out of the mounted band, which needs another pass to mount the new rows.
     const visible = core.getVisibleIndices();
-    const nextRange = rangeFromVisible(
-      visible.visibleStartIndex,
-      visible.visibleEndIndex,
-      currentData.length
-    );
-    if (!sameRange(nextRange, mountedRangeRef.current)) {
+    const windowLow = Math.min(visible.visibleStartIndex, visible.visibleEndIndex);
+    const windowHigh = Math.max(visible.visibleStartIndex, visible.visibleEndIndex);
+    if (
+      visible.visibleStartIndex >= 0 &&
+      visible.visibleEndIndex >= 0 &&
+      !rangeCovers(mountedRangeRef.current, windowLow, windowHigh)
+    ) {
       needsAnotherPass = true;
     }
 
@@ -677,15 +708,20 @@ function ShadowlistInner<ElementT extends { id: string }>(
           scroll.scrollTo({ top: offset, behavior });
         }
       },
-      scrollToEnd: (animated: boolean = true) => {
-        const scroll = scrollRef.current;
-        if (!scroll) return;
-        const behavior: ScrollBehavior = animated ? 'smooth' : 'auto';
-        if (latestRef.current.horizontal) {
-          scroll.scrollTo({ left: scroll.scrollWidth - scroll.clientWidth, behavior });
-        } else {
-          scroll.scrollTo({ top: scroll.scrollHeight - scroll.clientHeight, behavior });
-        }
+      scrollToEnd: (_animated: boolean = true) => {
+        /*
+         * Core-driven: ride the scrollToIndex command channel with the
+         * SCROLL_TO_END_INDEX sentinel so the core converges on the true bottom as
+         * off-screen rows are measured, instead of a one-shot jump to the current
+         * scrollHeight (a stale estimate that stops short on a variable-height list).
+         * The animated flag no longer applies (the core steps to the bottom).
+         */
+        commandRef.current = {
+          index: SCROLL_TO_END_INDEX,
+          nonce: commandRef.current.nonce + 1,
+        };
+        settlePassesRef.current = 0;
+        scheduleTick();
       },
     }),
     [scheduleTick]

@@ -30,6 +30,17 @@ using namespace facebook::react;
   BOOL _horizontal;
   __weak UIView * _stickyHeaderView;
   __weak UIView * _stickyFooterView;
+
+  /*
+   * The last offset the core applied itself. scrollViewDidScroll fires for both the
+   * core's own setContentOffset and every user scroll, so we tell them apart by
+   * comparing against this rather than isDragging/isDecelerating - those are only
+   * set for touch gestures, so a trackpad / mouse-wheel scroll (e.g. the iOS
+   * Simulator) would look programmatic and the core would never learn the user took
+   * over, latching its inverted-pin / MVCP correction and blanking the list.
+   */
+  CGPoint _appliedOffset;
+  BOOL _hasAppliedOffset;
 }
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
@@ -190,9 +201,11 @@ using namespace facebook::react;
     _scrollView.contentOffset.x, _scrollView.contentOffset.y);
 
   if (nextStateData.containerOffsetEnabled_) {
-    _scrollView.contentOffset = CGPointMake(
+    _appliedOffset = CGPointMake(
       nextStateData.containerOffsetX_,
       nextStateData.containerOffsetY_);
+    _hasAppliedOffset = YES;
+    _scrollView.contentOffset = _appliedOffset;
   }
 
   /*
@@ -209,13 +222,22 @@ using namespace facebook::react;
   }
 
   /*
-   * Distinguish a genuine user gesture from the offset the core applied itself: a
-   * programmatic setContentOffset fires this with the scroll view neither dragging
-   * nor decelerating. Flagging it lets the core abandon an in-flight correction
-   * when the user takes over (otherwise a transient correction latches and freezes
-   * the visible window - blank list on deep scroll).
+   * Distinguish a genuine user scroll from the offset the core applied itself by
+   * comparing against the last applied offset (an "echo" of our own setContentOffset
+   * lands within a pixel of it). This works for touch, trackpad and mouse-wheel
+   * input alike, unlike isDragging/isDecelerating which only cover touch gestures.
+   * Flagging the user scroll lets the core abandon an in-flight correction when the
+   * user takes over (otherwise the correction latches and the visible window snaps
+   * to a fixed anchor - a blank list on deep scroll).
    */
-  BOOL userScrolled = scrollView.isDragging || scrollView.isDecelerating || scrollView.isTracking;
+  CGPoint offset = scrollView.contentOffset;
+  BOOL userScrolled = YES;
+  if (_hasAppliedOffset &&
+      fabs(offset.x - _appliedOffset.x) <= 2.0 &&
+      fabs(offset.y - _appliedOffset.y) <= 2.0) {
+    userScrolled = NO;
+    _hasAppliedOffset = NO;
+  }
 
   SL_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f) userScrolled=%d",
     scrollView.contentOffset.x, scrollView.contentOffset.y, userScrolled ? 1 : 0);
@@ -318,12 +340,24 @@ using namespace facebook::react;
 
 - (void)scrollToEnd:(BOOL)animated
 {
-  CGSize content = _scrollView.contentSize;
-  CGSize window = _scrollView.bounds.size;
-  CGPoint contentOffset = _horizontal
-    ? CGPointMake(MAX(0.0, content.width - window.width), _scrollView.contentOffset.y)
-    : CGPointMake(_scrollView.contentOffset.x, MAX(0.0, content.height - window.height));
-  [_scrollView setContentOffset:contentOffset animated:animated];
+  if (!_state) {
+    return;
+  }
+
+  /*
+   * Core-driven: ride the scrollToIndex command channel with the SCROLL_TO_END_INDEX
+   * sentinel (-3, see shadowlist-core/Constants.hpp) so the core converges on the
+   * true bottom as off-screen rows are measured, instead of a one-shot jump to the
+   * current contentSize - a stale, estimate-based bottom that stops short on a
+   * variable-height list. The animated flag no longer applies (the core steps to the
+   * bottom); the argument is kept for API compatibility.
+   */
+  (void)animated;
+  auto nextStateData = _state->getData();
+  nextStateData.containerOffsetIndex_ = -3.0;
+  nextStateData.containerOffsetIndexNonce_ = nextStateData.containerOffsetIndexNonce_ + 1;
+  nextStateData.containerOffsetEnabled_ = true;
+  _state->updateState(std::move(nextStateData));
 }
 
 Class<RCTComponentViewProtocol> ShadowlistViewCls(void)

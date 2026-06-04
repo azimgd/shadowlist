@@ -49,3 +49,28 @@ TEST(default_scroll_fills_viewport_with_wrong_estimate) {
     }
   }
 }
+
+// The average element size that sizes the unmeasured tail must be frozen from the
+// REAL measured rows (65px), not from the first-revision estimate (120px). With the
+// old "freeze the first window's estimate" behaviour the average stayed 120 forever,
+// so the scroll extent / scrollbar was permanently ~80% too tall and never converged.
+TEST(wrong_estimate_average_tracks_real_measured_size) {
+  Sim sim;
+  sim.winH = 600;
+  sim.headerSize = 80;
+  sim.estimated = {400, 120};                                  // wrong on purpose
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 65}; };  // real row height
+  sim.setKeys(makeKeys(100));
+  sim.settle();
+
+  // The unmeasured-region average is seeded from the real 65px rows, not the 120
+  // estimate (this is the direct regression guard for the frozen-estimate bug).
+  CHECK_NEAR(sim.container.revision.averageElementHeight, 65.0, 0.5);
+
+  // Once a re-layout runs (any scroll), the total content height converges toward
+  // the real total (header 80 + 100*65 = 6580) instead of staying at the inflated
+  // estimate-based ~11800.
+  sim.userScrollTo(3000);
+  sim.settle();
+  CHECK(sim.totalAxis() < 8000.0);
+}

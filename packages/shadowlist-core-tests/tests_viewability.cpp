@@ -97,6 +97,9 @@ TEST(start_reached_threshold_narrows_trigger) {
     sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
     sim.setKeys(makeKeys(100));
     sim.settle();
+    // onStartReached fires once per arrival at the start band, so move out of it
+    // first; scrolling back in is the fresh arrival this asserts on.
+    sim.scrollTo(2000.0);
     sim.startReached = 0;
     sim.scrollTo(450.0);
     return sim.startReached;
@@ -104,4 +107,22 @@ TEST(start_reached_threshold_narrows_trigger) {
 
   CHECK(run(1.0) > 0);    // 450 <= 600
   CHECK_EQ(run(0.5), 0);  // 450 > 300
+}
+
+// A row taller than the viewport fully covers the screen but can never reach 100%
+// of ITSELF; it must still count as viewable at threshold 1.0 (regression for the
+// min(element, viewport) reference-size clamp in getViewableIndices).
+TEST(viewable_includes_item_taller_than_viewport) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 1000};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 1000}; };
+  sim.viewablePercentThreshold = 1.0;
+  sim.setKeys(makeKeys(20));
+  sim.settle();
+  sim.scrollTo(1200.0);  // viewport [1200,1800] sits entirely inside row 1 ([1000,2000])
+
+  std::size_t lo = 0, hi = 0;
+  CHECK(sim.viewableRange(lo, hi));
+  CHECK(lo <= std::size_t(1) && std::size_t(1) <= hi);
 }

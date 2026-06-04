@@ -86,6 +86,19 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   *this->footerSize_ = footerSize;
 
   /*
+   * Apply the freshly measured header/footer to the core now and re-flow the element
+   * offsets in this same pass. update() (run from adopt, before the header is
+   * measured here) otherwise only sees the size on the NEXT commit - a one-frame lag
+   * that on a list with no other re-renders (e.g. a static, non-sticky header) never
+   * settles, leaving the header overlapping the first rows.
+   */
+  if (this->containerManager_->headerSize != headerSize || this->containerManager_->footerSize != footerSize) {
+    this->containerManager_->headerSize = headerSize;
+    this->containerManager_->footerSize = footerSize;
+    azimgd::shadowlist::Virtualizer::recomputeElementOffsets(this->containerManager_.get(), 0);
+  }
+
+  /*
    * Apply pre-calculated positions from the virtualizer (offsets already include the header)
    */
   for (size_t i = 0; i < getChildren().size(); i++) {
@@ -97,7 +110,7 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(getChildren()[i]->clone({}));
 
       LayoutMetrics layoutMetrics = elementViewNode->getLayoutMetrics();
-      const auto element = this->containerManager_->getElementAtIndex(prevElementViewProps->index);
+      const auto& element = this->containerManager_->getElementAtIndex(prevElementViewProps->index);
 
       if (this->containerManager_->columns > 1) {
         layoutMetrics.frame.origin.x = element.offsetX;

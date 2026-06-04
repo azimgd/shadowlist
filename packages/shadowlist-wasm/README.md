@@ -151,35 +151,3 @@ import {
 ```
 
 Use this only if you are building a custom integration. Most apps should use the `<Shadowlist />` component.
-
-## Scripts
-
-From `packages/shadowlist-wasm`:
-
-```sh
-yarn build:wasm
-yarn typecheck
-yarn example
-```
-
-### Example App
-
-From `packages/shadowlist-wasm/example`:
-
-```sh
-npm install
-npm run dev
-npm run build
-npm run preview
-```
-
-## Rebuilding The WASM Artifacts
-
-`yarn build:wasm` runs `scripts/build-wasm.sh` and writes:
-
-```text
-src/wasm/shadowlistCore.js
-src/wasm/shadowlistCore.wasm
-```
-
-You only need to rebuild these artifacts after changing `shadowlist-core` or the WASM binding in `cpp/Binding.cpp`.
