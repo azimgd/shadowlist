@@ -2608,7 +2608,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - Shadowlist (0.4.32):
+  - Shadowlist (0.5.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -2957,7 +2957,7 @@ SPEC CHECKSUMS:
   RNReanimated: 142b5513b136714ea7abef65b46e04c12ce7194e
   RNScreens: d821082c6dd1cb397cc0c98b026eeafaa68be479
   RNWorklets: ab618bf7d1c7fd2cb793b9f0f39c3e29274b3ebf
-  Shadowlist: a571aa885ffe6ab413e297e92c5db4f7dc9ff1c0
+  Shadowlist: 390a77db9a3f4dc53de3af08d576a36241642784
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 11c9686a21e2cd82a094a723649d9f4507200fb0
 
