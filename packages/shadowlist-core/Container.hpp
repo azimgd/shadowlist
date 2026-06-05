@@ -2,10 +2,21 @@
 
 #include <functional>
 #include <mutex>
+#include <vector>
 #include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Revision.hpp>
 
 namespace azimgd::shadowlist {
+
+/*
+ * Which sticky section header is currently pinned to the viewport edge and how far
+ * to translate it from its resting position along the scroll axis. index is
+ * UNDEFINED_INDEX when none is pinned (scrolled above the first sticky header).
+ */
+struct StickyHeader {
+  std::size_t index = UNDEFINED_INDEX;
+  double translation = 0.0;
+};
 
 static constexpr std::size_t RevisionCountFirst = 0;
 
@@ -147,6 +158,12 @@ public:
    */
   bool stickyHeader = false;
   bool stickyFooter = false;
+
+  /*
+   * Element indices that are sticky section headers (ascending), set each frame
+   * from FrameInput. Drives resolveStickyHeader; empty for a plain list.
+   */
+  std::vector<std::size_t> stickyIndices;
 
   /*
    * Pending scrollToIndex target, or UNDEFINED_INDEX when inactive
@@ -314,6 +331,22 @@ public:
    */
   double getStickyHeaderOffset() const;
   double getStickyFooterOffset(double footerSize) const;
+
+  /*
+   * Resolve which sticky section header (from stickyIndices) is pinned at the
+   * current scroll offset and how far to translate it from its resting position
+   * along the scroll axis. The active header is the last whose resting offset is
+   * at/above the viewport start; it pins to the viewport start and is pushed up by
+   * the next sticky header once that header's top crosses into the active header's
+   * own size. Returns {UNDEFINED_INDEX, 0} when nothing is pinned.
+   *
+   * The per-frame pin is applied natively (on the UI thread, like the single sticky
+   * header/footer template) because the commit cycle is too slow to track scrolling
+   * smoothly; the integrations mirror this exact geometry. Kept here so it has one
+   * tested definition and a core-driven integration (WASM) can use it directly.
+   * Not pinned for inverted lists (an exotic combination); returns none there.
+   */
+  StickyHeader resolveStickyHeader() const;
 
   /*
    * Find the index of the element with the given key, or UNDEFINED_INDEX if absent

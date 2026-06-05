@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include <react/renderer/graphics/Float.h>
 
 #ifdef ANDROID
@@ -54,8 +56,30 @@ class ShadowlistViewState final {
     startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
     endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_),
     containerOffsetEnabled_(data.count("containerOffsetEnabled") ? data["containerOffsetEnabled"].getBool() : previousState.containerOffsetEnabled_),
-    userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_)
-    {};
+    userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_),
+    /*
+     * Sticky section-header geometry is produced by the C++ core (layout pass) and
+     * only ever flows core -> view, so a partial update from the Android view
+     * (e.g. a scroll commit) carries it forward unchanged.
+     */
+    stickyHeaderIndices_(previousState.stickyHeaderIndices_),
+    stickyHeaderOffsets_(previousState.stickyHeaderOffsets_),
+    stickyHeaderSizes_(previousState.stickyHeaderSizes_) {
+    if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
+      stickyHeaderIndices_.clear();
+      stickyHeaderOffsets_.clear();
+      stickyHeaderSizes_.clear();
+      for (const auto& value : data["stickyHeaderIndices"]) {
+        stickyHeaderIndices_.push_back((int)value.getInt());
+      }
+      for (const auto& value : data["stickyHeaderOffsets"]) {
+        stickyHeaderOffsets_.push_back((Float)value.getDouble());
+      }
+      for (const auto& value : data["stickyHeaderSizes"]) {
+        stickyHeaderSizes_.push_back((Float)value.getDouble());
+      }
+    }
+  };
 
   /* Serializes the state into folly::dynamic for the Android renderer. */
   folly::dynamic getDynamic() const {
@@ -72,6 +96,22 @@ class ShadowlistViewState final {
     result["endReachedEnabled"] = endReachedEnabled_;
     result["containerOffsetEnabled"] = containerOffsetEnabled_;
     result["userScrolled"] = userScrolled_;
+
+    folly::dynamic stickyHeaderIndices = folly::dynamic::array;
+    for (auto stickyHeaderIndex : stickyHeaderIndices_) {
+      stickyHeaderIndices.push_back(stickyHeaderIndex);
+    }
+    folly::dynamic stickyHeaderOffsets = folly::dynamic::array;
+    for (auto stickyHeaderOffset : stickyHeaderOffsets_) {
+      stickyHeaderOffsets.push_back((double)stickyHeaderOffset);
+    }
+    folly::dynamic stickyHeaderSizes = folly::dynamic::array;
+    for (auto stickyHeaderSize : stickyHeaderSizes_) {
+      stickyHeaderSizes.push_back((double)stickyHeaderSize);
+    }
+    result["stickyHeaderIndices"] = stickyHeaderIndices;
+    result["stickyHeaderOffsets"] = stickyHeaderOffsets;
+    result["stickyHeaderSizes"] = stickyHeaderSizes;
     return result;
   };
 #endif
@@ -97,6 +137,18 @@ class ShadowlistViewState final {
    * virtualization window. The integrations set it from the platform drag state.
    */
   bool userScrolled_{false};
+
+  /*
+   * Sticky section-header geometry along the scroll axis, produced by the core's
+   * layout pass (one entry per sticky section header, ascending by index). The
+   * integrations pin the active header on the UI thread per scroll frame from this,
+   * mirroring Container::resolveStickyHeader, so the per-frame pin never reads a
+   * (possibly transformed) view frame. Empty for a plain list. Declared after
+   * userScrolled_ so the Android constructor's member-init order matches.
+   */
+  std::vector<int> stickyHeaderIndices_{};
+  std::vector<Float> stickyHeaderOffsets_{};
+  std::vector<Float> stickyHeaderSizes_{};
 };
 
 }

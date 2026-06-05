@@ -98,6 +98,16 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     input.footerSize = *shadowlistViewShadowNode.getFooterSize();
     input.stickyHeader = shadowlistViewProps.stickyHeader;
     input.stickyFooter = shadowlistViewProps.stickyFooter;
+    /*
+     * Section-header element indices (SectionList). Skip negatives defensively; the
+     * core expects an ascending list of valid indices.
+     */
+    input.stickyIndices.reserve(shadowlistViewProps.stickyHeaderIndices.size());
+    for (auto stickyHeaderIndex : shadowlistViewProps.stickyHeaderIndices) {
+      if (stickyHeaderIndex >= 0) {
+        input.stickyIndices.push_back(static_cast<std::size_t>(stickyHeaderIndex));
+      }
+    }
     input.inverted = shadowlistViewProps.inverted;
     input.horizontal = shadowlistViewProps.horizontal;
     input.columns = shadowlistViewProps.columns > 0 ? static_cast<std::size_t>(shadowlistViewProps.columns) : 1;

@@ -103,6 +103,13 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   }
 
   @Override
+  @ReactProp(name = "stickyHeaderIndices")
+  public void setStickyHeaderIndices(ShadowlistView view, @Nullable ReadableArray stickyHeaderIndices) {
+    // Consumed by the C++ core via props; the native pin reads the resulting
+    // section-header geometry back from state.
+  }
+
+  @Override
   public void setStartReachedEnabled(ShadowlistView view, boolean enabled) {
     view.setStartReachedEnabled(enabled);
   }

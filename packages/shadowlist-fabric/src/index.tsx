@@ -1,4 +1,5 @@
 export { default as Shadowlist } from './Shadowlist';
+export { default as SectionList } from './SectionList';
 
 export { default as ShadowlistView } from './ShadowlistViewNativeComponent';
 export { default as ShadowlistElementView } from './ShadowlistElementViewNativeComponent';

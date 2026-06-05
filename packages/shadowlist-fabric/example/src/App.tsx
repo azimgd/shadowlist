@@ -9,6 +9,7 @@ import { ActivityScreen } from './ActivityScreen';
 import { NestedScreen } from './NestedScreen';
 import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
+import { SectionListScreen } from './SectionListScreen';
 
 enableScreens();
 
@@ -72,6 +73,13 @@ export default function App() {
             component={ContactsScreen}
             options={{
               title: 'Contacts',
+            }}
+          />
+          <Drawer.Screen
+            name="SectionList"
+            component={SectionListScreen}
+            options={{
+              title: 'Section List',
             }}
           />
         </Drawer.Navigator>

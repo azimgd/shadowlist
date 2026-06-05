@@ -30,6 +30,15 @@ struct FrameInput {
   bool inverted = false;
   bool horizontal = false;
   std::size_t columns = 1;
+
+  /*
+   * Element indices that are sticky section headers (ascending). A SectionList
+   * flattens its sections into one element stream and tags the section-header rows
+   * here; once scrolled past, the active one pins to the viewport start until the
+   * next section header pushes it out. Empty for a plain list.
+   */
+  std::vector<std::size_t> stickyIndices;
+
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
   double viewablePercentThreshold = 0.0;

@@ -53,6 +53,7 @@ struct Sim {
   double footerSize = 0.0;
   bool stickyHeader = false;
   bool stickyFooter = false;
+  std::vector<std::size_t> stickyIndices;
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
   double viewablePercentThreshold = 0.0;
@@ -157,6 +158,7 @@ struct Sim {
     input.footerSize = footerSize;
     input.stickyHeader = stickyHeader;
     input.stickyFooter = stickyFooter;
+    input.stickyIndices = stickyIndices;
     input.startReachedThreshold = startReachedThreshold;
     input.endReachedThreshold = endReachedThreshold;
     input.viewablePercentThreshold = viewablePercentThreshold;

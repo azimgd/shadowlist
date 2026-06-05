@@ -12,6 +12,7 @@ import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
 
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
@@ -78,6 +79,19 @@ public class ShadowlistView extends FrameLayout {
   private boolean mStickyHeader = false;
   private boolean mStickyFooter = false;
   private boolean mHorizontal = false;
+
+  /*
+   * Sticky section headers (SectionList). The active section header is an
+   * always-mounted overlay template (templateType "sectionHeader"); the core
+   * publishes the resting geometry (offset + size in DIP along the scroll axis) of
+   * the in-flow section headers through state, and we pin the overlay to the
+   * viewport start on each scroll tick (mirroring Container::resolveStickyHeader),
+   * pushing it up as the next in-flow header arrives. The overlay never unmounts, so
+   * its position has no commit-cycle latency.
+   */
+  private int[] mStickyHeaderIndices = new int[0];
+  private double[] mStickyHeaderOffsets = new double[0];
+  private double[] mStickyHeaderSizes = new double[0];
 
   private static class ContentContainer extends ViewGroup {
     public ContentContainer(Context context) {
@@ -192,9 +206,10 @@ public class ShadowlistView extends FrameLayout {
   public void addContentView(View child, int index) {
     if (child instanceof ShadowlistElementView) {
       mContentView.addView(child, index);
-      // A newly mounted element can land above the sticky header/footer; keep the
-      // pinned views on top.
-      bringStickyViewsToFront();
+      // A newly mounted element can land above a pinned header/footer or section
+      // header; re-pin so the active sticky views stay on top (and a freshly mounted
+      // active section header gets its translation at once).
+      applyStickyTranslations();
       return;
     }
     if (child instanceof ShadowlistTemplateView) {
@@ -296,7 +311,103 @@ public class ShadowlistView extends FrameLayout {
       }
     }
 
+    applyStickySectionHeaders();
     bringStickyViewsToFront();
+  }
+
+  /*
+   * Pin the always-mounted section-header overlay to the viewport start, mirroring
+   * Container::resolveStickyHeader. The overlay rests at the content origin and shows
+   * the active section's header (its content is swapped in JS); here we only move it.
+   * Walk the core-published in-flow header geometry for the active section (the last
+   * header resting at/above the scroll offset) and the next one, pin the overlay to
+   * the viewport start, and push it up as the next in-flow header scrolls in. When no
+   * section is active (scrolled above the first header) the overlay is hidden, so the
+   * regular list header shows through.
+   */
+  private void applyStickySectionHeaders() {
+    if (mContentView == null || mScrollView == null) {
+      return;
+    }
+
+    View overlay = findSectionHeaderOverlay();
+    if (overlay == null) {
+      return;
+    }
+
+    if (mStickyHeaderIndices.length == 0) {
+      overlay.setVisibility(View.GONE);
+      return;
+    }
+
+    double axisOffsetPx = mHorizontal ? mScrollView.getScrollX() : mScrollView.getScrollY();
+    if (axisOffsetPx < 0.0) {
+      axisOffsetPx = 0.0;
+    }
+    double axisOffset = PixelUtil.toDIPFromPixel((float) axisOffsetPx);
+
+    /*
+     * Headers are ascending by offset: the active one is the last resting at/above
+     * the viewport start, and the first one past it is the "next" that pushes it up.
+     */
+    boolean hasActive = false;
+    double activeSize = 0.0;
+    boolean hasNext = false;
+    double nextOffset = 0.0;
+    for (int i = 0; i < mStickyHeaderOffsets.length; i++) {
+      double headerOffset = mStickyHeaderOffsets[i];
+      if (headerOffset <= axisOffset) {
+        hasActive = true;
+        activeSize = mStickyHeaderSizes[i];
+      } else {
+        nextOffset = headerOffset;
+        hasNext = true;
+        break;
+      }
+    }
+
+    if (!hasActive) {
+      overlay.setVisibility(View.GONE);
+      return;
+    }
+
+    /*
+     * The overlay rests at the content origin, so its translation along the scroll
+     * axis is simply its displayed top: pinned to the viewport start (axisOffset),
+     * pushed up to nextOffset - activeSize as the next in-flow header arrives.
+     */
+    double translation = axisOffset;
+    if (hasNext) {
+      double pushedTop = nextOffset - activeSize;
+      if (pushedTop < translation) {
+        translation = pushedTop;
+      }
+    }
+    float translationPx = PixelUtil.toPixelFromDIP((float) translation);
+
+    overlay.setVisibility(View.VISIBLE);
+    if (mHorizontal) {
+      overlay.setTranslationX(translationPx);
+      overlay.setTranslationY(0f);
+    } else {
+      overlay.setTranslationY(translationPx);
+      overlay.setTranslationX(0f);
+    }
+    overlay.bringToFront();
+  }
+
+  private @Nullable View findSectionHeaderOverlay() {
+    if (mContentView == null) {
+      return null;
+    }
+    for (int i = 0; i < mContentView.getChildCount(); i++) {
+      View child = mContentView.getChildAt(i);
+      if (child instanceof ShadowlistTemplateView
+          && "sectionHeader".equals(((ShadowlistTemplateView) child).getTemplateType())) {
+        return child;
+      }
+    }
+    return null;
   }
 
   /*
@@ -384,6 +495,27 @@ public class ShadowlistView extends FrameLayout {
     ReadableMap nextStateData = mState.getStateData();
     if (nextStateData == null) {
       return;
+    }
+
+    /*
+     * Cache the sticky section-header geometry the core published this commit so the
+     * per-scroll-tick pin (applyStickySectionHeaders) runs purely off cached values.
+     */
+    if (nextStateData.hasKey("stickyHeaderIndices")
+        && nextStateData.hasKey("stickyHeaderOffsets")
+        && nextStateData.hasKey("stickyHeaderSizes")) {
+      ReadableArray indices = nextStateData.getArray("stickyHeaderIndices");
+      ReadableArray offsets = nextStateData.getArray("stickyHeaderOffsets");
+      ReadableArray sizes = nextStateData.getArray("stickyHeaderSizes");
+      int count = indices != null ? indices.size() : 0;
+      mStickyHeaderIndices = new int[count];
+      mStickyHeaderOffsets = new double[count];
+      mStickyHeaderSizes = new double[count];
+      for (int i = 0; i < count; i++) {
+        mStickyHeaderIndices[i] = indices.getInt(i);
+        mStickyHeaderOffsets[i] = offsets != null ? offsets.getDouble(i) : 0.0;
+        mStickyHeaderSizes[i] = sizes != null ? sizes.getDouble(i) : 0.0;
+      }
     }
 
     if (DEBUG_LOG) {

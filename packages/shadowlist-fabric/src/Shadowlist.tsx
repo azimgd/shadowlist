@@ -18,11 +18,7 @@ import {
   type OnViewableIndicesChange,
   Commands,
 } from 'shadowlist';
-import type {
-  ShadowlistProps,
-  ShadowlistCommands,
-  ViewToken,
-} from './types';
+import type { ShadowlistProps, ShadowlistCommands, ViewToken } from './types';
 
 /*
  * Stable default key derivation (element.id), kept module-level so the memo/effect
@@ -130,6 +126,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     stickyHeader = false,
     stickyFooter = false,
     columns = 1,
+    stickyHeaderIndices,
+    renderStickyHeaderOverlay,
     containerOffsetIndex = -2,
     initialElementsSize = 20,
     onStartReached,
@@ -211,6 +209,32 @@ function ShadowlistInner<ElementT extends { id: string }>(
     },
   }));
 
+  /*
+   * The flat index of the section header for the section currently at the top of the
+   * viewport (the greatest sticky index at/above the topmost visible row). Drives the
+   * content of the always-mounted sticky-header overlay (see renderStickyHeaderOverlay);
+   * -1 when scrolled above the first section header. Updated from the visible window
+   * rather than force-mounting the header element, so the pinned overlay never waits
+   * on a re-render to appear.
+   */
+  const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
+
+  const updateActiveStickyIndex = useCallback(
+    (windowLow: number) => {
+      if (!stickyHeaderIndices || stickyHeaderIndices.length === 0) {
+        setActiveStickyIndex((prev) => (prev === -1 ? prev : -1));
+        return;
+      }
+      let active = -1;
+      for (const stickyIndex of stickyHeaderIndices) {
+        if (stickyIndex <= windowLow) active = stickyIndex;
+        else break;
+      }
+      setActiveStickyIndex((prev) => (prev === active ? prev : active));
+    },
+    [stickyHeaderIndices]
+  );
+
   const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
     OnVisibleIndicesChange,
     never
@@ -221,6 +245,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
       // Inverted lists report start > end; normalise to an ascending window.
       const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
       const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
+
+      updateActiveStickyIndex(windowLow);
 
       setVisibleBand((prevBand) => {
         // Window already inside the band - rows are mounted, skip the re-render.
@@ -244,7 +270,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
         return { low, high };
       });
     },
-    [data.length]
+    [data.length, updateActiveStickyIndex]
   );
 
   const visibleRange = useMemo(() => bandToRange(visibleBand), [visibleBand]);
@@ -339,6 +365,27 @@ function ShadowlistInner<ElementT extends { id: string }>(
     [ItemSeparatorComponent]
   );
 
+  /*
+   * Sticky section-header overlay (SectionList). When sticky section headers are in
+   * play we always mount one overlay template and only swap its content to the
+   * active section's header; the native layer pins it to the viewport on the UI
+   * thread, so its position never lags. Content is null while scrolled above the
+   * first header (native hides the empty overlay).
+   */
+  const stickyEnabled = Boolean(
+    stickyHeaderIndices &&
+      stickyHeaderIndices.length > 0 &&
+      renderStickyHeaderOverlay
+  );
+
+  const stickyOverlay = useMemo(
+    () =>
+      stickyEnabled && activeStickyIndex >= 0 && renderStickyHeaderOverlay
+        ? renderStickyHeaderOverlay(activeStickyIndex)
+        : null,
+    [stickyEnabled, activeStickyIndex, renderStickyHeaderOverlay]
+  );
+
   return (
     <ShadowlistView
       ref={shadowlistViewRef}
@@ -352,6 +399,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       horizontal={horizontal}
       stickyHeader={stickyHeader}
       stickyFooter={stickyFooter}
+      stickyHeaderIndices={stickyHeaderIndices ?? []}
       columns={columns}
       containerOffsetIndex={containerOffsetIndex}
       startReachedThreshold={onStartReachedThreshold}
@@ -391,6 +439,11 @@ function ShadowlistInner<ElementT extends { id: string }>(
       {footer && (
         <ShadowlistTemplateView templateType="footer">
           {footer}
+        </ShadowlistTemplateView>
+      )}
+      {stickyEnabled && (
+        <ShadowlistTemplateView templateType="sectionHeader">
+          {stickyOverlay}
         </ShadowlistTemplateView>
       )}
     </ShadowlistView>

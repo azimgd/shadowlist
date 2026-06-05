@@ -189,6 +189,83 @@ double Container::getStickyFooterOffset(double footerSize) const {
   return this->getFooterOffset(footerSize);
 }
 
+StickyHeader Container::resolveStickyHeader() const {
+  StickyHeader result;
+
+  /*
+   * Inverted sticky section headers (pin to the viewport end) are an exotic
+   * combination; leave them resting so we never pin them to the wrong edge.
+   */
+  if (this->stickyIndices.empty() || this->inverted) {
+    return result;
+  }
+
+  std::size_t elementsSize = this->revision.elements.size();
+
+  /*
+   * Clamp the offset to the content start so rubber-band / bounce overscroll (a
+   * negative offset on iOS/web) does not drag the pinned header above its resting
+   * position.
+   */
+  double offset = this->getContainerOffset();
+  if (offset < 0.0) {
+    offset = 0.0;
+  }
+
+  /*
+   * stickyIndices is ascending, so element offsets along the scroll axis are too:
+   * walk while the resting offset is at/above the viewport start to find the active
+   * (pinned) header, and keep the first one past it as the "next" that pushes it up.
+   */
+  double activeOffset = 0.0;
+  double activeSize = 0.0;
+  bool hasActive = false;
+  double nextOffset = 0.0;
+  bool hasNext = false;
+
+  for (std::size_t stickyIndex : this->stickyIndices) {
+    if (stickyIndex >= elementsSize) {
+      continue;
+    }
+
+    double elementOffset = this->getElementOffset(stickyIndex);
+    if (elementOffset <= offset) {
+      result.index = stickyIndex;
+      activeOffset = elementOffset;
+      activeSize = this->getElementSize(stickyIndex);
+      hasActive = true;
+    } else {
+      nextOffset = elementOffset;
+      hasNext = true;
+      break;
+    }
+  }
+
+  if (!hasActive) {
+    return result;
+  }
+
+  /*
+   * The pinned header sits at the viewport start (offset), unless the next sticky
+   * header has scrolled up close enough to push it out: then its displayed top is
+   * pinned to the next header's top minus its own size, so the two swap seamlessly.
+   */
+  double displayedTop = offset;
+  if (hasNext) {
+    double pushedTop = nextOffset - activeSize;
+    if (pushedTop < displayedTop) {
+      displayedTop = pushedTop;
+    }
+  }
+
+  result.translation = displayedTop - activeOffset;
+  if (result.translation < 0.0) {
+    result.translation = 0.0;
+  }
+
+  return result;
+}
+
 std::size_t Container::findElementIndexByKey(const std::string& key) const {
   if (key.empty()) {
     return UNDEFINED_INDEX;

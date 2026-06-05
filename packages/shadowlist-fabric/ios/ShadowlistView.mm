@@ -7,6 +7,9 @@
 
 #import "RCTFabricComponentsPlugins.h"
 
+#include <cmath>
+#include <vector>
+
 using namespace facebook::react;
 
 /*
@@ -35,6 +38,23 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   BOOL _horizontal;
   __weak UIView * _stickyHeaderView;
   __weak UIView * _stickyFooterView;
+
+  /*
+   * Sticky section headers (SectionList). Rather than pin a virtualized element
+   * (which the JS layer would have to keep mounted, arriving several commits late
+   * at each section boundary - the source of the scroll lag), the active section
+   * header is rendered as an always-mounted overlay template (_sectionHeaderOverlay,
+   * templateType "sectionHeader"). The core publishes the resting geometry (offset +
+   * size along the scroll axis) of the in-flow section headers through state; we pin
+   * the overlay to the viewport start every scroll tick (mirroring
+   * Container::resolveStickyHeader), pushing it up as the next in-flow header
+   * arrives. The overlay never unmounts, so its position never lags - only its
+   * content swaps (in JS) at a boundary, masked by the real in-flow header behind it.
+   */
+  std::vector<int> _stickyHeaderIndices;
+  std::vector<double> _stickyHeaderOffsets;
+  std::vector<double> _stickyHeaderSizes;
+  __weak UIView * _sectionHeaderOverlay;
 
   /*
    * The last offset the core applied itself. scrollViewDidScroll fires for both the
@@ -81,9 +101,10 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   if ([childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
     const auto &childViewProps = *std::static_pointer_cast<ShadowlistElementViewProps const>(childComponentView.props);
     [_contentView insertSubview:childComponentView atIndex:childViewProps.index];
-    // A newly mounted element can land above the sticky header/footer in z-order
-    // and cover them; keep the pinned views on top.
-    [self bringStickyViewsToFront];
+    // A newly mounted element can land above a pinned header/footer or section
+    // header in z-order and cover it; re-pin so the active sticky views stay on top
+    // (and a freshly mounted active section header gets its translation at once).
+    [self applyStickyTransforms];
     return;
   }
 
@@ -91,6 +112,8 @@ static const CGFloat kScrollEchoTolerance = 2.0;
     const auto &templateProps = *std::static_pointer_cast<ShadowlistTemplateViewProps const>(childComponentView.props);
     if (templateProps.templateType == "footer") {
       _stickyFooterView = childComponentView;
+    } else if (templateProps.templateType == "sectionHeader") {
+      _sectionHeaderOverlay = childComponentView;
     } else {
       _stickyHeaderView = childComponentView;
     }
@@ -108,6 +131,9 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   if (childComponentView == _stickyFooterView) {
     _stickyFooterView = nil;
   }
+  if (childComponentView == _sectionHeaderOverlay) {
+    _sectionHeaderOverlay = nil;
+  }
   [childComponentView removeFromSuperview];
 }
 
@@ -118,6 +144,10 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _stickyHeader = NO;
   _stickyFooter = NO;
   _horizontal = NO;
+  _sectionHeaderOverlay = nil;
+  _stickyHeaderIndices.clear();
+  _stickyHeaderOffsets.clear();
+  _stickyHeaderSizes.clear();
   [super prepareForRecycle];
 }
 
@@ -165,7 +195,79 @@ static const CGFloat kScrollEchoTolerance = 2.0;
       : CGAffineTransformMakeTranslation(0.0, translation);
   }
 
+  [self applyStickySectionHeaders];
   [self bringStickyViewsToFront];
+}
+
+/*
+ * Pin the always-mounted section-header overlay to the viewport start, mirroring
+ * Container::resolveStickyHeader. The overlay rests at the content origin and shows
+ * the active section's header (its content is swapped in JS); here we only move it.
+ * Walk the core-published in-flow header geometry for the active section (the last
+ * header resting at/above the scroll offset) and the next one, pin the overlay to
+ * the viewport start, and push it up as the next in-flow header scrolls in. When no
+ * section is active (scrolled above the first header) the overlay is hidden, so the
+ * regular list header shows through.
+ */
+- (void)applyStickySectionHeaders
+{
+  if (!_sectionHeaderOverlay) {
+    return;
+  }
+
+  if (_stickyHeaderIndices.empty()) {
+    _sectionHeaderOverlay.hidden = YES;
+    return;
+  }
+
+  CGFloat axisOffset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
+  if (axisOffset < 0.0) {
+    axisOffset = 0.0;
+  }
+
+  /*
+   * Headers are ascending by offset: the active one is the last resting at/above
+   * the viewport start, and the first one past it is the "next" that pushes it up.
+   */
+  bool hasActive = false;
+  double activeSize = 0.0;
+  bool hasNext = false;
+  double nextOffset = 0.0;
+  for (size_t i = 0; i < _stickyHeaderOffsets.size(); i++) {
+    double headerOffset = _stickyHeaderOffsets[i];
+    if (headerOffset <= axisOffset) {
+      hasActive = true;
+      activeSize = _stickyHeaderSizes[i];
+    } else {
+      nextOffset = headerOffset;
+      hasNext = true;
+      break;
+    }
+  }
+
+  if (!hasActive) {
+    _sectionHeaderOverlay.hidden = YES;
+    return;
+  }
+
+  /*
+   * The overlay rests at the content origin, so its translation along the scroll
+   * axis is simply its displayed top: pinned to the viewport start (axisOffset),
+   * pushed up to nextOffset - activeSize as the next in-flow header arrives.
+   */
+  double translation = axisOffset;
+  if (hasNext) {
+    double pushedTop = nextOffset - activeSize;
+    if (pushedTop < translation) {
+      translation = pushedTop;
+    }
+  }
+
+  _sectionHeaderOverlay.hidden = NO;
+  _sectionHeaderOverlay.transform = _horizontal
+    ? CGAffineTransformMakeTranslation(translation, 0.0)
+    : CGAffineTransformMakeTranslation(0.0, translation);
+  [_contentView bringSubviewToFront:_sectionHeaderOverlay];
 }
 
 /*
@@ -189,6 +291,14 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _state = std::static_pointer_cast<ShadowlistViewShadowNode::ConcreteState const>(state);
 
   const auto &nextStateData = _state->getData();
+
+  /*
+   * Cache the sticky section-header geometry the core published this commit so the
+   * per-scroll-tick pin (applyStickySectionHeaders) runs purely off cached values.
+   */
+  _stickyHeaderIndices.assign(nextStateData.stickyHeaderIndices_.begin(), nextStateData.stickyHeaderIndices_.end());
+  _stickyHeaderOffsets.assign(nextStateData.stickyHeaderOffsets_.begin(), nextStateData.stickyHeaderOffsets_.end());
+  _stickyHeaderSizes.assign(nextStateData.stickyHeaderSizes_.begin(), nextStateData.stickyHeaderSizes_.end());
 
   _scrollView.contentSize = CGSizeMake(
     nextStateData.totalContainerWidth_,

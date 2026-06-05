@@ -102,6 +102,43 @@ type ShadowlistCommands = {
 };
 ```
 
+## SectionList
+
+`SectionList` groups items into sections with native, swapping sticky section
+headers — the active header pins to the top of the viewport and is pushed out by
+the next one as you scroll, pinned on the UI thread by the same C++ core that drives
+the list. It flattens your `sections` into the one virtualized stream, so sections
+cost nothing on top of `Shadowlist`.
+
+```tsx
+import { SectionList } from 'shadowlist';
+
+<SectionList
+  sections={[
+    { key: 'A', title: 'A', data: [{ id: '1', name: 'Alice' }] },
+    { key: 'B', title: 'B', data: [{ id: '2', name: 'Bob' }] },
+  ]}
+  renderItem={({ item }) => <Row item={item} />}
+  renderSectionHeader={({ section }) => <SectionHeader title={section.title} />}
+  ItemSeparatorComponent={<Separator />}
+/>;
+```
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `sections` | `Array<{ data: ItemT[]; key?: string } & SectionT>` | required | Each section's items plus your own fields |
+| `renderItem` | `({ item, index, section }) => ReactElement` | — | `index` is the item's position within its section |
+| `renderSectionHeader` | `({ section }) => ReactElement` | — | Rendered (and pinned) at each section start |
+| `renderSectionFooter` | `({ section }) => ReactElement` | — | Rendered at each section end |
+| `keyExtractor` | `(item, index) => string` | `item.id` | Per-section override via `section.keyExtractor` |
+| `stickySectionHeadersEnabled` | `boolean` | `true` | Pin and swap section headers natively |
+| `ItemSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | — | Between items within a section |
+| `SectionSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | — | Between sections |
+
+`ListHeaderComponent`, `ListFooterComponent`, `ListEmptyComponent`, `inverted`,
+`onScroll`, `onStartReached` / `onEndReached`, the imperative ref (`scrollToIndex`,
+`scrollToOffset`, `scrollToEnd`) all work as on `Shadowlist`.
+
 ## Examples
 
 ### Chat / Inverted

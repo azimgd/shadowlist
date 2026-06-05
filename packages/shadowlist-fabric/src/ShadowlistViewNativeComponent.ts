@@ -55,6 +55,11 @@ interface NativeProps extends ViewProps {
   horizontal: boolean;
   stickyHeader: boolean;
   stickyFooter: boolean;
+  /*
+   * Element indices that are sticky section headers (ascending). Empty for a plain
+   * list; a SectionList passes the flattened indices of its section-header rows.
+   */
+  stickyHeaderIndices: ReadonlyArray<CodegenTypes.Int32>;
   columns: CodegenTypes.Int32;
   containerOffsetIndex: CodegenTypes.Int32;
   startReachedThreshold: CodegenTypes.Double;
