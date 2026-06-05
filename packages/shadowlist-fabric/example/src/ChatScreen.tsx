@@ -6,7 +6,13 @@ import { FloatingActionBar } from './FloatingActionBar';
 import { MessageInput } from './MessageInput';
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
-import { generateUniqueId, generateRandomText, generateOptimizedImageUrl, shouldBeImageGrid, generateImageGrid } from './constants';
+import {
+  generateUniqueId,
+  generateRandomText,
+  generateOptimizedImageUrl,
+  shouldBeImageGrid,
+  generateImageGrid,
+} from './constants';
 
 type ChatMessage = {
   id: string;
@@ -78,7 +84,9 @@ export const ChatScreen = () => {
           />
         )}
         inverted
-        ListHeaderComponent={<HeaderListItem title="Chat" subtitle="Inverted list" />}
+        ListHeaderComponent={
+          <HeaderListItem title="Chat" subtitle="Inverted list" />
+        }
         ListFooterComponent={<FooterListItem text="Start of conversation" />}
       />
       <FloatingActionBar

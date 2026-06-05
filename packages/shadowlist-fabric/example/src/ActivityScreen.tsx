@@ -32,7 +32,9 @@ export const ActivityScreen = () => {
   const handleEndReached = useCallback(() => {
     setData((prev) => [
       ...prev,
-      ...Array.from({ length: 20 }, (_, index) => buildActivity(prev.length + index)),
+      ...Array.from({ length: 20 }, (_, index) =>
+        buildActivity(prev.length + index)
+      ),
     ]);
   }, []);
 
@@ -40,10 +42,16 @@ export const ActivityScreen = () => {
     () => shadowlistRef.current?.scrollToOffset(2000),
     []
   );
-  const handleScrollToEnd = useCallback(() => shadowlistRef.current?.scrollToEnd(), []);
+  const handleScrollToEnd = useCallback(
+    () => shadowlistRef.current?.scrollToEnd(),
+    []
+  );
   // editing: drop the 20th and 50th rows to show keyed reconciliation.
   const handleRemoveItems = useCallback(
-    () => setData((prev) => prev.filter((_, index) => index !== 20 && index !== 50)),
+    () =>
+      setData((prev) =>
+        prev.filter((_, index) => index !== 20 && index !== 50)
+      ),
     []
   );
 

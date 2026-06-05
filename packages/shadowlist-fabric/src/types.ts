@@ -46,6 +46,19 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   stickyHeader?: boolean;
   stickyFooter?: boolean;
   /*
+   * Enables native long-press drag-to-reorder. The pickup, finger tracking, edge
+   * auto-scroll and live shuffle run entirely natively; the component mirrors the
+   * resulting order and reports the final move through onReorder. Pair with a
+   * persisted setData in onReorder, otherwise the list snaps back on drop.
+   */
+  dragEnabled?: boolean;
+  /*
+   * Called once when a drag-to-reorder gesture is released. `data` is the fully
+   * reordered array (the authoritative result - set it back into your state);
+   * `from`/`to` are the picked-up element's original and final indices.
+   */
+  onReorder?: (info: { from: number; to: number; data: ElementT[] }) => void;
+  /*
    * Element indices that are sticky section headers (ascending). Used by SectionList
    * to pin section headers natively; a plain list leaves this undefined.
    */

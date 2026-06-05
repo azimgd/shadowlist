@@ -5,13 +5,15 @@ interface FooterListItemProps {
   text?: string;
 }
 
-export const FooterListItem = memo(({ text = 'End of list' }: FooterListItemProps) => {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.text}>{text}</Text>
-    </View>
-  );
-});
+export const FooterListItem = memo(
+  ({ text = 'End of list' }: FooterListItemProps) => {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.text}>{text}</Text>
+      </View>
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   container: {

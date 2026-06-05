@@ -44,5 +44,8 @@ public class ShadowlistElementViewManager extends ViewGroupManager<ShadowlistEle
   @Override
   @ReactProp(name = "index")
   public void setIndex(ShadowlistElementView view, int index) {
+    // Mirrored onto the view so drag-to-reorder can map a touched child to its
+    // element index; the C++ core consumes the prop for positioning.
+    view.setElementIndex(index);
   }
 }

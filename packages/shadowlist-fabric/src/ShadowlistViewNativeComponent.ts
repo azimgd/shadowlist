@@ -25,6 +25,22 @@ export type OnScroll = {
   contentOffsetY: CodegenTypes.Double;
 };
 
+/*
+ * Drag-to-reorder lifecycle. The whole gesture - finger tracking, edge auto-scroll
+ * and the make-room shuffle - runs on the native UI thread without mutating the JS
+ * tree, so only these two boundaries are relayed back. `index` is the flat element
+ * index the gesture picked up; `fromIndex`/`toIndex` are the picked-up element's
+ * original and final indices for the single reorder applied on drop.
+ */
+export type OnDragStart = {
+  index: CodegenTypes.Int32;
+};
+
+export type OnDragEnd = {
+  fromIndex: CodegenTypes.Int32;
+  toIndex: CodegenTypes.Int32;
+};
+
 interface NativeCommands {
   setStartReachedEnabled: (
     viewRef: React.ElementRef<HostComponent<NativeProps>>,
@@ -56,6 +72,12 @@ interface NativeProps extends ViewProps {
   stickyHeader: boolean;
   stickyFooter: boolean;
   /*
+   * Enables native long-press drag-to-reorder. The press-and-hold pickup, finger
+   * tracking, edge auto-scroll and live shuffle are all handled natively; JS only
+   * mirrors the resulting order and is notified through onDrag* events.
+   */
+  dragEnabled: boolean;
+  /*
    * Element indices that are sticky section headers (ascending). Empty for a plain
    * list; a SectionList passes the flattened indices of its section-header rows.
    */
@@ -70,6 +92,8 @@ interface NativeProps extends ViewProps {
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;
   readonly onEndReached?: CodegenTypes.DirectEventHandler<OnEndReached>;
   readonly onScroll?: CodegenTypes.DirectEventHandler<OnScroll>;
+  readonly onDragStart?: CodegenTypes.DirectEventHandler<OnDragStart>;
+  readonly onDragEnd?: CodegenTypes.DirectEventHandler<OnDragEnd>;
 }
 
 export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({

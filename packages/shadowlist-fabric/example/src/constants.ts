@@ -43,7 +43,9 @@ export function generateFeedElement(index: number): FeedElement {
   };
 }
 
-export function generateNestedElementChild(imageIndex: number): NestedElementChild {
+export function generateNestedElementChild(
+  imageIndex: number
+): NestedElementChild {
   const originalImageUrl = IMAGES[imageIndex % IMAGES.length]!;
 
   return {

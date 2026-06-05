@@ -30,7 +30,11 @@ class ShadowlistViewState final {
     double totalContainerWidth,
     bool startReachedEnabled,
     bool endReachedEnabled,
-    bool containerOffsetEnabled) :
+    bool containerOffsetEnabled,
+    double dragEventNonce,
+    double dragEventType,
+    double dragFromIndex,
+    double dragToIndex) :
     windowContainerHeight_(windowContainerHeight),
     windowContainerWidth_(windowContainerWidth),
     containerOffsetY_(containerOffsetY),
@@ -41,7 +45,11 @@ class ShadowlistViewState final {
     totalContainerWidth_(totalContainerWidth),
     startReachedEnabled_(startReachedEnabled),
     endReachedEnabled_(endReachedEnabled),
-    containerOffsetEnabled_(containerOffsetEnabled) {}
+    containerOffsetEnabled_(containerOffsetEnabled),
+    dragEventNonce_(dragEventNonce),
+    dragEventType_(dragEventType),
+    dragFromIndex_(dragFromIndex),
+    dragToIndex_(dragToIndex) {}
 
 #ifdef ANDROID
   ShadowlistViewState(const ShadowlistViewState& previousState, folly::dynamic data) :
@@ -56,6 +64,10 @@ class ShadowlistViewState final {
     startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
     endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_),
     containerOffsetEnabled_(data.count("containerOffsetEnabled") ? data["containerOffsetEnabled"].getBool() : previousState.containerOffsetEnabled_),
+    dragEventNonce_(data.count("dragEventNonce") ? (Float)data["dragEventNonce"].getDouble() : previousState.dragEventNonce_),
+    dragEventType_(data.count("dragEventType") ? (Float)data["dragEventType"].getDouble() : previousState.dragEventType_),
+    dragFromIndex_(data.count("dragFromIndex") ? (Float)data["dragFromIndex"].getDouble() : previousState.dragFromIndex_),
+    dragToIndex_(data.count("dragToIndex") ? (Float)data["dragToIndex"].getDouble() : previousState.dragToIndex_),
     userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_),
     /*
      * Sticky section-header geometry is produced by the C++ core (layout pass) and
@@ -96,6 +108,10 @@ class ShadowlistViewState final {
     result["endReachedEnabled"] = endReachedEnabled_;
     result["containerOffsetEnabled"] = containerOffsetEnabled_;
     result["userScrolled"] = userScrolled_;
+    result["dragEventNonce"] = dragEventNonce_;
+    result["dragEventType"] = dragEventType_;
+    result["dragFromIndex"] = dragFromIndex_;
+    result["dragToIndex"] = dragToIndex_;
 
     folly::dynamic stickyHeaderIndices = folly::dynamic::array;
     for (auto stickyHeaderIndex : stickyHeaderIndices_) {
@@ -127,6 +143,20 @@ class ShadowlistViewState final {
   bool startReachedEnabled_{true};
   bool endReachedEnabled_{true};
   bool containerOffsetEnabled_{false};
+
+  /*
+   * Drag-to-reorder signalling, written by the platform view as the native gesture
+   * progresses and consumed by the component descriptor to emit the JS onDrag*
+   * events exactly once per change. dragEventNonce_ is bumped on every drag event so
+   * the descriptor can tell a fresh event from a carried-forward one (a plain scroll
+   * commit leaves it unchanged). dragEventType_ is 1=start, 2=move, 3=end (0=none).
+   * dragFromIndex_/dragToIndex_ carry the element indices for that event. Declared
+   * before userScrolled_ so the Android constructor's member-init order matches.
+   */
+  double dragEventNonce_{0.0};
+  double dragEventType_{0.0};
+  double dragFromIndex_{-1.0};
+  double dragToIndex_{-1.0};
 
   /*
    * True when the offset in this state came from a genuine user scroll gesture,

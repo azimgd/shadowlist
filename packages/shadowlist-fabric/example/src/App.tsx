@@ -10,6 +10,7 @@ import { NestedScreen } from './NestedScreen';
 import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
 import { SectionListScreen } from './SectionListScreen';
+import { ReorderScreen } from './ReorderScreen';
 
 enableScreens();
 
@@ -80,6 +81,13 @@ export default function App() {
             component={SectionListScreen}
             options={{
               title: 'Section List',
+            }}
+          />
+          <Drawer.Screen
+            name="Reorder"
+            component={ReorderScreen}
+            options={{
+              title: 'Reorder',
             }}
           />
         </Drawer.Navigator>

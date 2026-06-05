@@ -8,7 +8,12 @@ interface FloatingActionBarProps {
   dataLength: number;
 }
 
-export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLength }: FloatingActionBarProps) => {
+export const FloatingActionBar = ({
+  onPrepend,
+  onAppend,
+  onScrollToIndex,
+  dataLength,
+}: FloatingActionBarProps) => {
   const [targetIndex, setTargetIndex] = useState<number | null>(null);
 
   const handleScrollToRandom = () => {
@@ -25,7 +30,10 @@ export const FloatingActionBar = ({ onPrepend, onAppend, onScrollToIndex, dataLe
       <TouchableOpacity style={styles.button} onPress={onAppend}>
         <Text style={styles.buttonText}>↓</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.scrollButton} onPress={handleScrollToRandom}>
+      <TouchableOpacity
+        style={styles.scrollButton}
+        onPress={handleScrollToRandom}
+      >
         <Text style={styles.buttonText}>{targetIndex ?? '🎯'}</Text>
       </TouchableOpacity>
     </View>

@@ -2,7 +2,10 @@ import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
-import { FeedElement, type FeedElement as FeedElementType } from './FeedElement';
+import {
+  FeedElement,
+  type FeedElement as FeedElementType,
+} from './FeedElement';
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { generateFeedElement } from './constants';
@@ -42,7 +45,9 @@ export const FeedScreen = () => {
         renderElement={({ element, index }) => (
           <FeedElement element={element} index={index} />
         )}
-        ListHeaderComponent={<HeaderListItem title="Feed" subtitle="Vertical scrolling list" />}
+        ListHeaderComponent={
+          <HeaderListItem title="Feed" subtitle="Vertical scrolling list" />
+        }
         ListFooterComponent={<FooterListItem text="End of feed" />}
       />
       <FloatingActionBar

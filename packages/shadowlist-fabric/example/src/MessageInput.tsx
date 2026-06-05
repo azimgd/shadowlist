@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MessageInputProps {
@@ -35,7 +42,10 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
           />
         </View>
         <TouchableOpacity
-          style={[styles.sendButton, !message.trim() && styles.sendButtonDisabled]}
+          style={[
+            styles.sendButton,
+            !message.trim() && styles.sendButtonDisabled,
+          ]}
           onPress={handleSend}
           disabled={!message.trim()}
         />

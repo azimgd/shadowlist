@@ -16,9 +16,35 @@ import {
   ShadowlistTemplateView,
   type OnVisibleIndicesChange,
   type OnViewableIndicesChange,
+  type OnDragStart,
+  type OnDragEnd,
   Commands,
 } from 'shadowlist';
 import type { ShadowlistProps, ShadowlistCommands, ViewToken } from './types';
+
+/*
+ * Move the item at `from` to `to`, returning a new array. Used once on drop to
+ * produce the reordered array handed to onReorder.
+ */
+const arrayMove = <T,>(
+  input: ReadonlyArray<T>,
+  from: number,
+  to: number
+): T[] => {
+  const next = input.slice();
+  if (
+    from < 0 ||
+    from >= next.length ||
+    to < 0 ||
+    to >= next.length ||
+    from === to
+  ) {
+    return next;
+  }
+  const moved = next.splice(from, 1)[0] as T;
+  next.splice(to, 0, moved);
+  return next;
+};
 
 /*
  * Stable default key derivation (element.id), kept module-level so the memo/effect
@@ -125,6 +151,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     horizontal = false,
     stickyHeader = false,
     stickyFooter = false,
+    dragEnabled = false,
+    onReorder,
     columns = 1,
     stickyHeaderIndices,
     renderStickyHeaderOverlay,
@@ -151,6 +179,16 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const [visibleBand, setVisibleBand] = useState<VisibleBand>(() =>
     initialBand(data.length, initialElementsSize, inverted)
   );
+
+  /*
+   * Drag-to-reorder. The drag runs entirely natively (finger tracking, edge auto-
+   * scroll and the make-room shuffle are all UI-thread transforms), so the React tree
+   * is NOT mutated while dragging - that is what keeps it flicker-free. JS only does
+   * two things: force-mount the picked-up row (draggingIndex) so it survives
+   * virtualization while it is carried off-screen, and apply the single reorder on
+   * drop (onDragEnd). No per-move re-render happens in between.
+   */
+  const [draggingIndex, setDraggingIndex] = useState(-1);
 
   const elementDimensionStyle = useMemo(() => {
     if (horizontal) {
@@ -275,10 +313,59 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
   const visibleRange = useMemo(() => bandToRange(visibleBand), [visibleBand]);
 
+  /*
+   * The dragged row must stay mounted while it is carried past the edge of the
+   * window (auto-scroll), so union its index into the rendered set even if the band
+   * has moved off it.
+   */
+  const renderIndices = useMemo(() => {
+    if (
+      draggingIndex < 0 ||
+      draggingIndex >= data.length ||
+      visibleRange.includes(draggingIndex)
+    ) {
+      return visibleRange;
+    }
+    return [...visibleRange, draggingIndex].sort((a, b) => a - b);
+  }, [visibleRange, draggingIndex, data.length]);
+
   const elementsAllKeys = useMemo(
     () => data.map((element, index) => keyExtractor(element, index)),
     [data, keyExtractor]
   );
+
+  /*
+   * Pickup: just keep the picked-up row mounted (it may be carried off-screen by
+   * auto-scroll). The data order is unchanged - the native side opens the gap by
+   * translating sibling views, so nothing re-renders during the drag.
+   */
+  const handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never> =
+    useCallback((event) => {
+      const { index } = event.nativeEvent;
+      setDraggingIndex(index);
+      slLog('js.onDragStart', `index=${index}`);
+    }, []);
+
+  /*
+   * Drop: the single reorder. Native reports the picked-up index and its final slot;
+   * apply one array move and hand the result to onReorder, then release the mount.
+   */
+  const handleDragEnd: CodegenTypes.DirectEventHandler<OnDragEnd, never> =
+    useCallback(
+      (event) => {
+        const { fromIndex, toIndex } = event.nativeEvent;
+        setDraggingIndex(-1);
+        slLog('js.onDragEnd', `from=${fromIndex}`, `to=${toIndex}`);
+        if (fromIndex !== toIndex) {
+          onReorder?.({
+            from: fromIndex,
+            to: toIndex,
+            data: arrayMove(data, fromIndex, toIndex),
+          });
+        }
+      },
+      [data, onReorder]
+    );
 
   const prevViewableRef = useRef<ViewToken<ElementT>[]>([]);
 
@@ -405,9 +492,12 @@ function ShadowlistInner<ElementT extends { id: string }>(
       startReachedThreshold={onStartReachedThreshold}
       endReachedThreshold={onEndReachedThreshold}
       viewablePercentThreshold={viewablePercentThreshold}
+      dragEnabled={dragEnabled}
       onStartReached={onStartReached}
       onEndReached={onEndReached}
       onScroll={onScroll}
+      onDragStart={dragEnabled ? handleDragStart : undefined}
+      onDragEnd={dragEnabled ? handleDragEnd : undefined}
     >
       {header && (
         <ShadowlistTemplateView templateType="header">
@@ -419,7 +509,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
           {empty}
         </ShadowlistTemplateView>
       ) : (
-        visibleRange.map((index) => {
+        renderIndices.map((index) => {
           const element = data[index];
 
           if (!element) return null;

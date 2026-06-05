@@ -103,6 +103,12 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   }
 
   @Override
+  @ReactProp(name = "dragEnabled")
+  public void setDragEnabled(ShadowlistView view, boolean dragEnabled) {
+    view.setDragEnabled(dragEnabled);
+  }
+
+  @Override
   @ReactProp(name = "stickyHeaderIndices")
   public void setStickyHeaderIndices(ShadowlistView view, @Nullable ReadableArray stickyHeaderIndices) {
     // Consumed by the C++ core via props; the native pin reads the resulting

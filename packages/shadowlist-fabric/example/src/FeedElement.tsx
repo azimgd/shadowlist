@@ -29,7 +29,9 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
       <View style={styles.content}>
         <View style={styles.userInfo}>
           <Text style={styles.username}>{element.username}</Text>
-          <Text style={styles.handle}>{element.handle} · {index}</Text>
+          <Text style={styles.handle}>
+            {element.handle} · {index}
+          </Text>
         </View>
         <Text style={styles.tweetText}>{element.text}</Text>
         {element.imageUrls.length === 1 ? (

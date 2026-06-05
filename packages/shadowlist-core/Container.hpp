@@ -166,6 +166,14 @@ public:
   std::vector<std::size_t> stickyIndices;
 
   /*
+   * Last drag-event nonce the integration emitted to JS. The platform view bumps the
+   * nonce in state on every drag event; the descriptor compares it against this to
+   * fire the matching onDrag* event exactly once. Lives on the (per-list) Container
+   * so it survives the ShadowNode clones a single drag spans. -1 means none emitted.
+   */
+  double lastDragEventNonce = -1.0;
+
+  /*
    * Pending scrollToIndex target, or UNDEFINED_INDEX when inactive
    */
   std::size_t scrollToIndexTarget = UNDEFINED_INDEX;

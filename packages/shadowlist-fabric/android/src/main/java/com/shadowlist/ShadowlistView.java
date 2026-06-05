@@ -5,6 +5,8 @@ import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.util.Log;
+import android.view.Choreographer;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -93,6 +95,40 @@ public class ShadowlistView extends FrameLayout {
   private double[] mStickyHeaderOffsets = new double[0];
   private double[] mStickyHeaderSizes = new double[0];
 
+  /*
+   * Drag-to-reorder. The whole gesture runs on the UI thread (like the sticky pin),
+   * so it never waits on the commit cycle. A long press picks an element up; while
+   * held we translate it under the finger every Choreographer frame, auto-scroll near
+   * the viewport edges, and detect when its centre crosses into a neighbour's slot.
+   * Each crossing is relayed to JS through state (a live array move), and the surviving
+   * rows flow to their new slots via the normal layout; the picked-up view re-glues to
+   * the finger against its new resting position. JS only sees onDragStart/Move/End.
+   */
+  private boolean mDragEnabled = false;
+  private GestureDetector mDragGestureDetector;
+  private Choreographer.FrameCallback mDragFrameCallback;
+  private boolean mDragging = false;
+  private ShadowlistElementView mDraggedView = null;
+  /* The data order stays FIXED during the drag. mDragOriginIndex is where the row was
+   * picked up; mDragInsertionIndex is where its centre currently sits (the gap), used
+   * to shuffle the siblings between them. The single reorder is applied on drop. */
+  private int mDragOriginIndex = -1;
+  private int mDragInsertionIndex = -1;
+  /* Size of the picked-up row along the scroll axis - the amount each shuffled sibling
+   * is offset to open the gap. */
+  private float mDraggedExtent = 0f;
+  /* Distance along the scroll axis (content space) from the picked-up cell's leading
+   * edge to the touch point, so the cell stays under the same spot of the finger. */
+  private float mDragGrabOffset = 0f;
+  /* Latest touch position along the scroll axis in viewport space - stable while the
+   * content auto-scrolls under a still finger. */
+  private float mDragTouchViewport = 0f;
+  /* After a drop, hold the shuffle transforms until JS's single reorder commit lands
+   * (the dropped row's index prop reaching mDropInsertionIndex), then clear them. */
+  private boolean mDragDropPending = false;
+  private ShadowlistElementView mDroppedView = null;
+  private int mDropInsertionIndex = -1;
+
   private static class ContentContainer extends ViewGroup {
     public ContentContainer(Context context) {
       super(context);
@@ -157,6 +193,18 @@ public class ShadowlistView extends FrameLayout {
     super(context);
     mContentView = new ContentContainer(context);
     installScrollView(false);
+
+    // Long press picks a row up for drag-to-reorder. A quick swipe moves past the
+    // touch slop and cancels the long press, so it still scrolls.
+    mDragGestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+      @Override
+      public void onLongPress(MotionEvent event) {
+        if (mDragEnabled && !mDragging) {
+          beginDrag(event);
+        }
+      }
+    });
+    mDragGestureDetector.setIsLongpressEnabled(true);
   }
 
   /*
@@ -210,6 +258,13 @@ public class ShadowlistView extends FrameLayout {
       // header; re-pin so the active sticky views stay on top (and a freshly mounted
       // active section header gets its translation at once).
       applyStickyTranslations();
+      // A row mounting mid-drag (auto-scroll) needs its make-room shuffle offset
+      // applied at once so it appears in the right place rather than flashing in at its
+      // resting slot first. The dragged row's translationZ keeps it drawn on top
+      // without reordering the child array (which would desync Fabric's mounting).
+      if (mDragging) {
+        applyDragShuffle();
+      }
       return;
     }
     if (child instanceof ShadowlistTemplateView) {
@@ -245,6 +300,370 @@ public class ShadowlistView extends FrameLayout {
     mProgrammaticTargetY = targetY;
     mProgrammaticAnimated = animated;
     mProgrammaticPending = true;
+  }
+
+  public void setDragEnabled(boolean dragEnabled) {
+    mDragEnabled = dragEnabled;
+    if (!dragEnabled && mDragging) {
+      teardownDrag();
+    }
+  }
+
+  /*
+   * Feed the long-press detector and, once a drag is in flight, steal the gesture from
+   * the inner scroll view (returning true routes the rest of the sequence to our
+   * onTouchEvent; Android delivers ACTION_CANCEL to the scroll view automatically).
+   */
+  @Override
+  public boolean onInterceptTouchEvent(MotionEvent event) {
+    if (mDragEnabled) {
+      mDragGestureDetector.onTouchEvent(event);
+    }
+    if (mDragging) {
+      return true;
+    }
+    return super.onInterceptTouchEvent(event);
+  }
+
+  @Override
+  public boolean onTouchEvent(MotionEvent event) {
+    if (mDragEnabled) {
+      mDragGestureDetector.onTouchEvent(event);
+    }
+    if (mDragging) {
+      switch (event.getActionMasked()) {
+        case MotionEvent.ACTION_MOVE:
+          mDragTouchViewport = mHorizontal ? event.getX() : event.getY();
+          updateDrag();
+          return true;
+        case MotionEvent.ACTION_UP:
+        case MotionEvent.ACTION_CANCEL:
+          finishDrag();
+          return true;
+        default:
+          return true;
+      }
+    }
+    return super.onTouchEvent(event);
+  }
+
+  private void setInnerScrollEnabled(boolean enabled) {
+    if (mScrollView instanceof ReactScrollView) {
+      ((ReactScrollView) mScrollView).setScrollEnabled(enabled);
+    } else if (mScrollView instanceof ReactHorizontalScrollView) {
+      ((ReactHorizontalScrollView) mScrollView).setScrollEnabled(enabled);
+    }
+  }
+
+  /* Topmost element child whose resting bounds contain the content-space point. The
+   * translation a drag applies does not affect getLeft/getTop, so they give the
+   * resting position even while a row is being dragged. */
+  private ShadowlistElementView elementViewAtContent(float cx, float cy) {
+    ShadowlistElementView result = null;
+    for (int i = 0; i < mContentView.getChildCount(); i++) {
+      View child = mContentView.getChildAt(i);
+      if (!(child instanceof ShadowlistElementView)) {
+        continue;
+      }
+      if (cx >= child.getLeft() && cx < child.getRight()
+          && cy >= child.getTop() && cy < child.getBottom()) {
+        result = (ShadowlistElementView) child;
+      }
+    }
+    return result;
+  }
+
+  private void beginDrag(MotionEvent event) {
+    float scrollX = mScrollView.getScrollX();
+    float scrollY = mScrollView.getScrollY();
+    float cx = event.getX() + scrollX;
+    float cy = event.getY() + scrollY;
+
+    ShadowlistElementView view = elementViewAtContent(cx, cy);
+    if (view == null) {
+      return;
+    }
+    int index = view.getElementIndex();
+    if (index < 0) {
+      return;
+    }
+
+    // Cancel any in-flight drop animation from a previous drag of this same view, so
+    // its withEndAction (which resets translationZ) cannot fire mid-drag, and start
+    // from a clean resting transform.
+    view.animate().cancel();
+    view.setTranslationX(0f);
+    view.setTranslationY(0f);
+
+    // Clean slate: drop any leftover post-drop transforms from a previous drag.
+    mDragDropPending = false;
+    mDroppedView = null;
+    clearDragTransforms();
+
+    mDragging = true;
+    mDraggedView = view;
+    mDragOriginIndex = index;
+    mDragInsertionIndex = index;
+
+    float restingLeading = mHorizontal ? view.getLeft() : view.getTop();
+    mDraggedExtent = mHorizontal ? view.getWidth() : view.getHeight();
+    float touchAxisContent = mHorizontal ? cx : cy;
+    mDragGrabOffset = touchAxisContent - restingLeading;
+    mDragTouchViewport = mHorizontal ? event.getX() : event.getY();
+
+    setInnerScrollEnabled(false);
+
+    // Lift feedback: raise the row above its siblings via Z (draw order), NOT
+    // bringToFront(). bringToFront() reorders the child array, which desyncs Fabric's
+    // index-based child mounting (removeContentViewAt) and corrupts the view tree -
+    // breaking consecutive drags and scrambling row content. Android draws children
+    // ordered by Z since API 21, so a higher translationZ lifts it without reordering.
+    view.setTranslationZ(PixelUtil.toPixelFromDIP(8));
+
+    dispatchDragEvent(1, index, index);
+    startDragLoop();
+    updateDrag();
+  }
+
+  private void startDragLoop() {
+    if (mDragFrameCallback == null) {
+      mDragFrameCallback = new Choreographer.FrameCallback() {
+        @Override
+        public void doFrame(long frameTimeNanos) {
+          if (!mDragging) {
+            return;
+          }
+          applyDragAutoScroll();
+          updateDrag();
+          Choreographer.getInstance().postFrameCallback(this);
+        }
+      };
+    }
+    Choreographer.getInstance().postFrameCallback(mDragFrameCallback);
+  }
+
+  private void stopDragLoop() {
+    if (mDragFrameCallback != null) {
+      Choreographer.getInstance().removeFrameCallback(mDragFrameCallback);
+    }
+  }
+
+  private void applyDragAutoScroll() {
+    float window = mHorizontal ? mScrollView.getWidth() : mScrollView.getHeight();
+    float content = mHorizontal ? mContentView.getWidth() : mContentView.getHeight();
+    float maxOffset = Math.max(0f, content - window);
+    float offset = mHorizontal ? mScrollView.getScrollX() : mScrollView.getScrollY();
+    float touch = mDragTouchViewport;
+
+    float edge = PixelUtil.toPixelFromDIP(60);
+    float maxSpeed = PixelUtil.toPixelFromDIP(12);
+    float delta = 0f;
+    if (touch < edge) {
+      delta = -maxSpeed * (1f - touch / edge);
+    } else if (touch > window - edge) {
+      delta = maxSpeed * (1f - (window - touch) / edge);
+    }
+    if (delta == 0f) {
+      return;
+    }
+
+    float newOffset = Math.min(Math.max(offset + delta, 0f), maxOffset);
+    if (newOffset == offset) {
+      return;
+    }
+
+    int nx = mHorizontal ? (int) newOffset : mScrollView.getScrollX();
+    int ny = mHorizontal ? mScrollView.getScrollY() : (int) newOffset;
+    // Let the resulting onScrollChanged report this as a user scroll (do NOT mark it
+    // programmatic): the drag owns the scroll position, so the core must virtualize at
+    // this exact offset and abandon any maintain-visible-position correction. Marking
+    // it programmatic makes the core keep its correction and compute the visible window
+    // at a different offset than the viewport, which blanks rows mid-drag.
+    mScrollView.scrollTo(nx, ny);
+  }
+
+  /*
+   * Glue the picked-up row under the finger, recompute where it would insert, and
+   * shuffle the siblings to open the gap. Nothing is sent to JS - the data order is
+   * fixed until drop - so this never triggers a re-render.
+   */
+  private void updateDrag() {
+    if (!mDragging || mDraggedView == null) {
+      return;
+    }
+
+    float offset = mHorizontal ? mScrollView.getScrollX() : mScrollView.getScrollY();
+    float touchContent = mDragTouchViewport + offset;
+    float restingLeading = mHorizontal ? mDraggedView.getLeft() : mDraggedView.getTop();
+    float extent = mHorizontal ? mDraggedView.getWidth() : mDraggedView.getHeight();
+    float contentExtent = mHorizontal ? mContentView.getWidth() : mContentView.getHeight();
+
+    float desiredLeading = touchContent - mDragGrabOffset;
+    desiredLeading = Math.max(0f, Math.min(desiredLeading, Math.max(0f, contentExtent - extent)));
+
+    float translation = desiredLeading - restingLeading;
+    if (mHorizontal) {
+      mDraggedView.setTranslationX(translation);
+      mDraggedView.setTranslationY(0f);
+    } else {
+      mDraggedView.setTranslationY(translation);
+      mDraggedView.setTranslationX(0f);
+    }
+
+    mDragInsertionIndex = insertionIndexForCenter(desiredLeading + extent / 2f);
+    applyDragShuffle();
+  }
+
+  /*
+   * The index the dragged row would insert at, by comparing its centre against each
+   * neighbour's MIDPOINT relative to the (fixed) pickup index. Because the data order
+   * never changes mid-drag the midpoints are stable, giving a clean half-row dead zone
+   * around each one - boundary jitter cannot flip the insertion back and forth. Returns
+   * the farthest neighbour whose midpoint the centre has crossed.
+   */
+  private int insertionIndexForCenter(float center) {
+    int insertion = mDragOriginIndex;
+    for (int i = 0; i < mContentView.getChildCount(); i++) {
+      View child = mContentView.getChildAt(i);
+      if (!(child instanceof ShadowlistElementView) || child == mDraggedView) {
+        continue;
+      }
+      int idx = ((ShadowlistElementView) child).getElementIndex();
+      if (idx < 0) {
+        continue;
+      }
+      float lead = mHorizontal ? child.getLeft() : child.getTop();
+      float extent = mHorizontal ? child.getWidth() : child.getHeight();
+      float mid = lead + extent / 2f;
+      if (idx > mDragOriginIndex && center > mid) {
+        insertion = Math.max(insertion, idx);
+      } else if (idx < mDragOriginIndex && center < mid) {
+        insertion = Math.min(insertion, idx);
+      }
+    }
+    return insertion;
+  }
+
+  /*
+   * Open a one-row gap at the insertion point by translating the siblings between the
+   * pickup and the insertion toward the vacated pickup slot. The shift equals the
+   * picked-up row's extent, so each shuffled sibling lands exactly on its post-reorder
+   * resting position - which is why clearing the transforms after the drop commit is
+   * seamless (the siblings do not move, only the dragged row settles into the gap).
+   */
+  private void applyDragShuffle() {
+    for (int i = 0; i < mContentView.getChildCount(); i++) {
+      View child = mContentView.getChildAt(i);
+      if (!(child instanceof ShadowlistElementView) || child == mDraggedView) {
+        continue;
+      }
+      int idx = ((ShadowlistElementView) child).getElementIndex();
+      if (idx < 0) {
+        continue;
+      }
+      float shift = 0f;
+      if (mDragOriginIndex < mDragInsertionIndex && idx > mDragOriginIndex && idx <= mDragInsertionIndex) {
+        shift = -mDraggedExtent;
+      } else if (mDragInsertionIndex < mDragOriginIndex && idx >= mDragInsertionIndex && idx < mDragOriginIndex) {
+        shift = mDraggedExtent;
+      }
+      if (mHorizontal) {
+        child.setTranslationX(shift);
+        child.setTranslationY(0f);
+      } else {
+        child.setTranslationY(shift);
+        child.setTranslationX(0f);
+      }
+    }
+  }
+
+  /* Reset every element view's drag transform and lift. */
+  private void clearDragTransforms() {
+    for (int i = 0; i < mContentView.getChildCount(); i++) {
+      View child = mContentView.getChildAt(i);
+      if (!(child instanceof ShadowlistElementView)) {
+        continue;
+      }
+      child.setTranslationX(0f);
+      child.setTranslationY(0f);
+      child.setTranslationZ(0f);
+    }
+  }
+
+  private void dispatchDragEvent(int type, int from, int to) {
+    if (mState == null) {
+      return;
+    }
+    double nonce = 1;
+    ReadableMap currentStateData = mState.getStateData();
+    if (currentStateData != null && currentStateData.hasKey("dragEventNonce")) {
+      nonce = currentStateData.getDouble("dragEventNonce") + 1;
+    }
+
+    WritableMap map = new WritableNativeMap();
+    map.putDouble("dragEventNonce", nonce);
+    map.putDouble("dragEventType", type);
+    map.putDouble("dragFromIndex", from);
+    map.putDouble("dragToIndex", to);
+    // Keep the core's scroll corrections off for the duration of the drag (the drag
+    // owns the offset); a reorder commit must virtualize at the live offset, not snap
+    // to an anchor. Cleared on the end event so normal scrolling resumes afterwards.
+    map.putBoolean("userScrolled", type != 3);
+    slLog("java.drag dispatch type=" + type + " from=" + from + " to=" + to);
+    mState.updateState(map);
+  }
+
+  private void finishDrag() {
+    if (!mDragging) {
+      return;
+    }
+    stopDragLoop();
+    setInnerScrollEnabled(true);
+
+    int from = mDragOriginIndex;
+    int to = mDragInsertionIndex;
+    ShadowlistElementView view = mDraggedView;
+    mDragging = false;
+    mDraggedView = null;
+
+    // Emit the single reorder. Hold the shuffle transforms (the rows already sit at
+    // their post-reorder positions) until JS's reorder commit lands, then
+    // clearDragTransforms runs from updateState - so nothing snaps back in between.
+    dispatchDragEvent(3, from, to);
+
+    if (from == to || view == null) {
+      // No reorder (dropped where it started): no commit will move the index, so settle
+      // immediately instead of waiting for a landing that never changes anything.
+      clearDragTransforms();
+      mDragDropPending = false;
+      mDroppedView = null;
+    } else {
+      mDragDropPending = true;
+      mDroppedView = view;
+      mDropInsertionIndex = to;
+
+      // Safety net: if the reorder never lands (e.g. a consumer that ignores
+      // onReorder), clear the held transforms anyway so the gap cannot get stuck. A
+      // real reorder clears earlier from updateState; a new drag clears at pickup.
+      postDelayed(() -> {
+        if (mDragDropPending && !mDragging) {
+          clearDragTransforms();
+          mDragDropPending = false;
+          mDroppedView = null;
+        }
+      }, 300);
+    }
+  }
+
+  /* Immediate teardown with no reorder (drag disabled). */
+  private void teardownDrag() {
+    stopDragLoop();
+    mDragging = false;
+    mDraggedView = null;
+    mDragDropPending = false;
+    mDroppedView = null;
+    setInnerScrollEnabled(true);
+    clearDragTransforms();
   }
 
   public void setStickyHeader(boolean stickyHeader) {
@@ -538,7 +957,11 @@ public class ShadowlistView extends FrameLayout {
       mContentView.layout(0, 0, newContentWidth, newContentHeight);
     }
 
-    if (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) {
+    // While a drag is in flight (or settling after a drop) we own the scroll offset, so
+    // a core correction must not yank the content under the finger or jump the list as
+    // the reorder lands.
+    if (!mDragging && !mDragDropPending
+        && nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) {
       if (nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
         float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
         float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
@@ -553,6 +976,25 @@ public class ShadowlistView extends FrameLayout {
     // Re-pin after the content size / offset changed (the footer pin depends on
     // the content size) even when the list is not actively scrolling.
     applyStickyTranslations();
+
+    // Mid-drag commit (e.g. an auto-scroll re-virtualization mounted new rows): re-glue
+    // the picked-up row to the finger and re-apply the make-room shuffle so freshly
+    // mounted siblings are offset too.
+    if (mDragging) {
+      updateDrag();
+    }
+
+    // After a drop, the reorder is applied by JS on a later commit. Hold the shuffle
+    // transforms until that commit lands (the dropped row's index prop reaching its
+    // dropped slot) so the rows never snap back to the pre-reorder layout; the shuffled
+    // positions already equal the post-reorder resting positions, so clearing then is
+    // seamless.
+    if (mDragDropPending && mDroppedView != null
+        && mDroppedView.getElementIndex() == mDropInsertionIndex) {
+      clearDragTransforms();
+      mDragDropPending = false;
+      mDroppedView = null;
+    }
   }
 
   public void setStartReachedEnabled(boolean enabled) {

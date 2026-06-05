@@ -6,14 +6,16 @@ interface HeaderListItemProps {
   subtitle?: string;
 }
 
-export const HeaderListItem = memo(({ title = 'Header', subtitle }: HeaderListItemProps) => {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-    </View>
-  );
-});
+export const HeaderListItem = memo(
+  ({ title = 'Header', subtitle }: HeaderListItemProps) => {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+      </View>
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   container: {
