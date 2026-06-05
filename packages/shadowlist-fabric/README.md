@@ -56,7 +56,7 @@ export function Example() {
 | `keyExtractor` | `(item, index) => string` | `item.id` | Use when your list key is not `id` |
 | `style` | `ViewStyle` | `undefined` | Outer scroll view style |
 | `elementStyle` | `ViewStyle` | `undefined` | Applied to each item wrapper |
-| `ItemSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Rendered inside each item wrapper |
+| `ItemSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Rendered between items, not after the last (FlatList semantics) |
 
 ### Layout
 
@@ -68,7 +68,7 @@ export function Example() {
 | `stickyHeader` | `boolean` | `false` | Pins header to the viewport start |
 | `stickyFooter` | `boolean` | `false` | Pins footer to the viewport end |
 | `initialElementsSize` | `number` | `20` | Initial mounted window size |
-| `containerOffsetIndex` | `number` | `-2` | Declarative scroll-to-index; any negative value disables it |
+| `containerOffsetIndex` | `number` | `-2` | Declarative scroll-to-index; `-2` (default) is inactive, set a non-negative index to scroll there |
 
 ### Callbacks
 

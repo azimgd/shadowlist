@@ -25,7 +25,7 @@ public class ShadowlistView extends ReactScrollView {
    * mm.* logs) and shares the same [SL] tag so all layers interleave into one
    * stream. Filter with: adb logcat -s SL
    */
-  private static final boolean DEBUG_LOG = true;
+  private static final boolean DEBUG_LOG = false;
   private static final String LOG_TAG = "SL";
 
   private static void slLog(String message) {
@@ -52,6 +52,12 @@ public class ShadowlistView extends ReactScrollView {
   private boolean mProgrammaticAnimated = false;
 
   /*
+   * An onScrollChanged offset within this many pixels of the offset we applied is
+   * its own echo, not a user scroll.
+   */
+  private static final int PROGRAMMATIC_SCROLL_TOLERANCE_PX = 2;
+
+  /*
    * Sticky header/footer are pinned natively here (not in the core layout) so they
    * track scrolling on the UI thread without the commit-cycle latency that made the
    * core-driven version choppy. The template views keep their resting position from
@@ -59,7 +65,7 @@ public class ShadowlistView extends ReactScrollView {
    */
   private boolean mStickyHeader = false;
   private boolean mStickyFooter = false;
-  private boolean mHorizontalAxis = false;
+  private boolean mHorizontal = false;
 
   private static class ContentContainer extends ViewGroup {
     public ContentContainer(Context context) {
@@ -136,8 +142,8 @@ public class ShadowlistView extends ReactScrollView {
     applyStickyTranslations();
   }
 
-  public void setHorizontalAxis(boolean horizontal) {
-    mHorizontalAxis = horizontal;
+  public void setHorizontal(boolean horizontal) {
+    mHorizontal = horizontal;
     applyStickyTranslations();
   }
 
@@ -172,13 +178,13 @@ public class ShadowlistView extends ReactScrollView {
       float translation = 0f;
       if (sticky) {
         if (isFooter) {
-          translation = mHorizontalAxis ? (offsetX + windowW - contentW) : (offsetY + windowH - contentH);
+          translation = mHorizontal ? (offsetX + windowW - contentW) : (offsetY + windowH - contentH);
         } else {
-          translation = mHorizontalAxis ? offsetX : offsetY;
+          translation = mHorizontal ? offsetX : offsetY;
         }
       }
 
-      if (mHorizontalAxis) {
+      if (mHorizontal) {
         child.setTranslationX(translation);
         child.setTranslationY(0f);
       } else {
@@ -235,7 +241,8 @@ public class ShadowlistView extends ReactScrollView {
     boolean userScrolled = true;
     if (mProgrammaticPending) {
       boolean reachedTarget =
-        Math.abs(scrollX - mProgrammaticTargetX) <= 2 && Math.abs(scrollY - mProgrammaticTargetY) <= 2;
+        Math.abs(scrollX - mProgrammaticTargetX) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX
+          && Math.abs(scrollY - mProgrammaticTargetY) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX;
       if (reachedTarget) {
         // The programmatic scroll settled on its target: this is its echo, not a user move.
         userScrolled = false;
@@ -257,8 +264,10 @@ public class ShadowlistView extends ReactScrollView {
     map.putBoolean("containerOffsetEnabled", false);
     map.putBoolean("userScrolled", userScrolled);
 
-    slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f) userScrolled=%b",
-      PixelUtil.toDIPFromPixel(scrollX), PixelUtil.toDIPFromPixel(scrollY), userScrolled));
+    if (DEBUG_LOG) {
+      slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f) userScrolled=%b",
+        PixelUtil.toDIPFromPixel(scrollX), PixelUtil.toDIPFromPixel(scrollY), userScrolled));
+    }
     mState.updateState(map);
   }
 
@@ -296,13 +305,15 @@ public class ShadowlistView extends ReactScrollView {
       return;
     }
 
-    slLog(String.format("java.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
-      nextStateData.hasKey("totalContainerWidth") ? nextStateData.getDouble("totalContainerWidth") : 0.0,
-      nextStateData.hasKey("totalContainerHeight") ? nextStateData.getDouble("totalContainerHeight") : 0.0,
-      (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) ? 1 : 0,
-      nextStateData.hasKey("containerOffsetX") ? nextStateData.getDouble("containerOffsetX") : 0.0,
-      nextStateData.hasKey("containerOffsetY") ? nextStateData.getDouble("containerOffsetY") : 0.0,
-      PixelUtil.toDIPFromPixel(getScrollX()), PixelUtil.toDIPFromPixel(getScrollY())));
+    if (DEBUG_LOG) {
+      slLog(String.format("java.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
+        nextStateData.hasKey("totalContainerWidth") ? nextStateData.getDouble("totalContainerWidth") : 0.0,
+        nextStateData.hasKey("totalContainerHeight") ? nextStateData.getDouble("totalContainerHeight") : 0.0,
+        (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) ? 1 : 0,
+        nextStateData.hasKey("containerOffsetX") ? nextStateData.getDouble("containerOffsetX") : 0.0,
+        nextStateData.hasKey("containerOffsetY") ? nextStateData.getDouble("containerOffsetY") : 0.0,
+        PixelUtil.toDIPFromPixel(getScrollX()), PixelUtil.toDIPFromPixel(getScrollY())));
+    }
 
     if (nextStateData.hasKey("totalContainerWidth") && nextStateData.hasKey("totalContainerHeight")) {
       float totalContainerWidth = (float) nextStateData.getDouble("totalContainerWidth");
@@ -383,8 +394,8 @@ public class ShadowlistView extends ReactScrollView {
     // from the resulting onScrollChanged callback. Marked programmatic so the
     // animated path's intermediate frames are not mistaken for a user scroll.
     int px = (int) PixelUtil.toPixelFromDIP((float) offset);
-    int targetX = mHorizontalAxis ? px : getScrollX();
-    int targetY = mHorizontalAxis ? getScrollY() : px;
+    int targetX = mHorizontal ? px : getScrollX();
+    int targetY = mHorizontal ? getScrollY() : px;
     markProgrammaticScroll(targetX, targetY, animated);
     if (animated) smoothScrollTo(targetX, targetY); else scrollTo(targetX, targetY);
   }

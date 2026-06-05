@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <mutex>
+#include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Revision.hpp>
 
 namespace azimgd::shadowlist {
@@ -40,7 +41,7 @@ public:
   /*
    * Estimated element size for unmeasured elements (width, height)
    */
-  std::pair<double, double> estimatedElementSize = {120.0, 120.0};
+  std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
 
   /*
    * Callback to be executed when scrolled near the end of the list

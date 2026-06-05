@@ -1,10 +1,12 @@
 import type { ComponentRef, Ref } from 'react';
-import { useRef, memo } from 'react';
 import {
   useState,
+  useRef,
   useMemo,
   useImperativeHandle,
   useCallback,
+  memo,
+  forwardRef,
   type ReactElement,
 } from 'react';
 import { StyleSheet, type CodegenTypes, type ViewStyle } from 'react-native';
@@ -14,20 +16,13 @@ import {
   ShadowlistTemplateView,
   type OnVisibleIndicesChange,
   type OnViewableIndicesChange,
-  type OnScroll,
   Commands,
 } from 'shadowlist';
-
-/*
- * A single item's viewability state, mirroring FlatList's ViewToken shape so the
- * onViewableItemsChanged contract is familiar.
- */
-export interface ViewToken<ElementT> {
-  item: ElementT;
-  index: number;
-  key: string;
-  isViewable: boolean;
-}
+import type {
+  ShadowlistProps,
+  ShadowlistCommands,
+  ViewToken,
+} from './types';
 
 /*
  * Stable default key derivation (element.id), kept module-level so the memo/effect
@@ -42,7 +37,7 @@ const defaultKeyExtractor = (item: { id: string }) => item.id;
  * Only the meaningful boundaries are logged (native events applied upward,
  * imperative commands sent downward) to keep it off the per-frame scroll path.
  */
-const SHADOWLIST_DEBUG_LOG = true;
+const SHADOWLIST_DEBUG_LOG = false;
 
 const slLog = (...args: unknown[]) => {
   if (!SHADOWLIST_DEBUG_LOG) return;
@@ -50,13 +45,10 @@ const slLog = (...args: unknown[]) => {
 };
 
 /*
- * Mounted index band [low, high] (ascending). The native core already reports a
- * buffered visible window; we mount SHADOWLIST_OVERSCAN extra rows on each side and
- * only grow/shift the band - a React re-render - when the reported window leaves
- * it. This is a low/high-water mark: while the visible window stays inside the band
- * the rows are already mounted, so we skip the state update entirely. The reported
- * window is normalised to ascending first, so inverted lists (which report
- * start > end) use exactly the same logic instead of a separate swap path.
+ * Mounted band [low, high] (low/high-water mark). The core reports a buffered
+ * visible window; we mount SHADOWLIST_OVERSCAN extra rows on each side and only
+ * re-render to grow/shift the band when the window leaves it. Windows are
+ * normalised to ascending, so inverted lists (start > end) use the same path.
  */
 export interface VisibleBand {
   low: number;
@@ -101,91 +93,59 @@ const ElementRenderer = memo(function ElementRenderer<
   renderElement,
   separator,
 }: ElementRendererProps<ElementT>) {
+  /*
+   * Memoize on the item identity, not the row index. A prepend (or any insertion
+   * above this row) shifts every row's index, so keying on `element` lets unchanged
+   * rows skip re-rendering.
+   */
+  const children = useMemo(
+    () => (
+      <>
+        {renderElement({ element, index })}
+        {separator}
+      </>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [element, renderElement, separator]
+  );
+
   return (
     <ShadowlistElementView index={index} style={style}>
-      {renderElement({ element, index })}
-      {separator}
+      {children}
     </ShadowlistElementView>
   );
 }) as <T extends { id: string }>(
   props: ElementRendererProps<T>
 ) => ReactElement;
 
-export interface ShadowlistCommands {
-  setStartReachedEnabled: (enabled: boolean) => void;
-  setEndReachedEnabled: (enabled: boolean) => void;
-  scrollToIndex: (index: number) => void;
-  scrollToOffset: (offset: number, animated?: boolean) => void;
-  scrollToEnd: (animated?: boolean) => void;
-}
-
-export interface ViewabilityConfig {
-  /*
-   * Percent (0..100) of an item that must be visible before it counts as viewable.
-   */
-  itemVisiblePercentThreshold?: number;
-}
-
-export interface ShadowlistProps<ElementT extends { id: string }> {
-  data: ReadonlyArray<ElementT>;
-  renderElement: (info: { element: ElementT; index: number }) => ReactElement;
-  keyExtractor?: (item: ElementT, index: number) => string;
-  style?: ViewStyle;
-  elementStyle?: ViewStyle;
-  inverted?: boolean;
-  horizontal?: boolean;
-  stickyHeader?: boolean;
-  stickyFooter?: boolean;
-  columns?: number;
-  containerOffsetIndex?: number;
-  initialElementsSize?: number;
-  ref?: Ref<ShadowlistCommands>;
-  onStartReached?: () => void;
-  onEndReached?: () => void;
-  /*
-   * Distance from the start/end, as a fraction of the visible length, at which the
-   * matching callback fires (FlatList semantics). Defaults to 1.
-   */
-  onStartReachedThreshold?: number;
-  onEndReachedThreshold?: number;
-  onScroll?: (event: { nativeEvent: OnScroll }) => void;
-  viewabilityConfig?: ViewabilityConfig;
-  onViewableItemsChanged?: (info: {
-    viewableItems: ViewToken<ElementT>[];
-    changed: ViewToken<ElementT>[];
-  }) => void;
-  ItemSeparatorComponent?: ReactElement | (() => ReactElement | null) | null;
-  ListHeaderComponent?: ReactElement | (() => ReactElement | null) | null;
-  ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
-  ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
-}
-
-function Shadowlist<ElementT extends { id: string }>({
-  data,
-  renderElement,
-  keyExtractor = defaultKeyExtractor,
-  style,
-  elementStyle,
-  inverted = false,
-  horizontal = false,
-  stickyHeader = false,
-  stickyFooter = false,
-  columns = 1,
-  containerOffsetIndex = -2,
-  initialElementsSize = 20,
-  ref,
-  onStartReached,
-  onEndReached,
-  onStartReachedThreshold = 1,
-  onEndReachedThreshold = 1,
-  onScroll,
-  viewabilityConfig,
-  onViewableItemsChanged,
-  ItemSeparatorComponent,
-  ListHeaderComponent,
-  ListFooterComponent,
-  ListEmptyComponent,
-}: ShadowlistProps<ElementT>) {
+function ShadowlistInner<ElementT extends { id: string }>(
+  {
+    data,
+    renderElement,
+    keyExtractor = defaultKeyExtractor,
+    style,
+    elementStyle,
+    inverted = false,
+    horizontal = false,
+    stickyHeader = false,
+    stickyFooter = false,
+    columns = 1,
+    containerOffsetIndex = -2,
+    initialElementsSize = 20,
+    onStartReached,
+    onEndReached,
+    onStartReachedThreshold = 1,
+    onEndReachedThreshold = 1,
+    onScroll,
+    viewabilityConfig,
+    onViewableItemsChanged,
+    ItemSeparatorComponent,
+    ListHeaderComponent,
+    ListFooterComponent,
+    ListEmptyComponent,
+  }: ShadowlistProps<ElementT>,
+  ref: Ref<ShadowlistCommands>
+) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
     null
   );
@@ -236,7 +196,11 @@ function Shadowlist<ElementT extends { id: string }>({
     scrollToOffset: (offset: number, animated: boolean = true) => {
       if (!shadowlistViewRef.current) return;
 
-      slLog('js.cmd scrollToOffset', `offset=${offset}`, `animated=${animated ? 1 : 0}`);
+      slLog(
+        'js.cmd scrollToOffset',
+        `offset=${offset}`,
+        `animated=${animated ? 1 : 0}`
+      );
       Commands.scrollToOffset(shadowlistViewRef.current, offset, animated);
     },
     scrollToEnd: (animated: boolean = true) => {
@@ -259,8 +223,7 @@ function Shadowlist<ElementT extends { id: string }>({
       const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
 
       setVisibleBand((prevBand) => {
-        // Low/high-water: the reported window is already inside the mounted band,
-        // so those rows are mounted - skip the state update (and the re-render).
+        // Window already inside the band - rows are mounted, skip the re-render.
         if (
           prevBand.low >= 0 &&
           windowLow >= prevBand.low &&
@@ -269,7 +232,10 @@ function Shadowlist<ElementT extends { id: string }>({
           return prevBand;
         }
         const low = Math.max(0, windowLow - SHADOWLIST_OVERSCAN);
-        const high = Math.min(data.length - 1, windowHigh + SHADOWLIST_OVERSCAN);
+        const high = Math.min(
+          data.length - 1,
+          windowHigh + SHADOWLIST_OVERSCAN
+        );
         slLog(
           'js.onVisibleIndicesChange apply',
           `window=[${windowLow}..${windowHigh}]`,
@@ -318,7 +284,9 @@ function Shadowlist<ElementT extends { id: string }>({
       }
 
       const currentKeys = new Set(viewableItems.map((token) => token.key));
-      const prevKeys = new Set(prevViewableRef.current.map((token) => token.key));
+      const prevKeys = new Set(
+        prevViewableRef.current.map((token) => token.key)
+      );
 
       const changed: ViewToken<ElementT>[] = [
         ...viewableItems.filter((token) => !prevKeys.has(token.key)),
@@ -330,7 +298,11 @@ function Shadowlist<ElementT extends { id: string }>({
       prevViewableRef.current = viewableItems;
 
       if (changed.length > 0) {
-        slLog('js.onViewableItemsChange', `viewable=[${lo}..${hi}]`, `changed=${changed.length}`);
+        slLog(
+          'js.onViewableItemsChange',
+          `viewable=[${lo}..${hi}]`,
+          `changed=${changed.length}`
+        );
         onViewableItemsChanged({ viewableItems, changed });
       }
     },
@@ -439,5 +411,14 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 });
+
+/*
+ * forwardRef + generics: cast preserves the generic element type for callers.
+ */
+const Shadowlist = forwardRef(ShadowlistInner) as <
+  ElementT extends { id: string },
+>(
+  props: ShadowlistProps<ElementT> & { ref?: Ref<ShadowlistCommands> }
+) => ReactElement;
 
 export default Shadowlist;

@@ -33,7 +33,7 @@ struct FrameInput {
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
   double viewablePercentThreshold = 0.0;
-  std::pair<double, double> estimatedElementSize = {120.0, 120.0};
+  std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
 
   /*
    * Set when this frame comes from a genuine user scroll gesture (as opposed to a
@@ -51,7 +51,7 @@ public:
    * measure, resolve scroll corrections (scrollToIndex / maintain visible
    * content position) and dispatch observer callbacks
    */
-  void update(Container *container, const FrameInput &input);
+  static void update(Container *container, const FrameInput &input);
 
   /*
    * Measure elements for the current revision
@@ -60,7 +60,7 @@ public:
    * (used for the re-measure after a scroll correction) instead of filling from
    * the edge, which is otherwise only correct on the first revision
    */
-  void measure(Container *container, bool windowFromOffset = false);
+  static void measure(Container *container, bool windowFromOffset = false);
 
   /*
    * Recompute total container size from the maximum element extent. Public so the
@@ -98,7 +98,7 @@ private:
   static void measureNextRevision(Container *container);
 
   /*
-   * Store the measured index range (orientation aware) and update average dimensions
+   * Store the measured index range (orientation aware)
    */
   static void finalizeMeasurement(Container *container, std::size_t measuredMinIndex, std::size_t measuredMaxIndex);
 

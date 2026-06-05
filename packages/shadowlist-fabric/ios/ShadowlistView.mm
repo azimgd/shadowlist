@@ -9,6 +9,12 @@
 
 using namespace facebook::react;
 
+/*
+ * A scrollViewDidScroll offset within this many points of the offset the core
+ * applied is its own echo, not a user scroll.
+ */
+static const CGFloat kScrollEchoTolerance = 2.0;
+
 @interface ShadowlistView () <RCTShadowlistViewViewProtocol, UIScrollViewDelegate>
 
 @end
@@ -21,9 +27,8 @@ using namespace facebook::react;
   /*
    * Sticky header/footer are pinned natively here (not in the core layout) so they
    * track scrolling on the UI thread without the commit-cycle latency that made the
-   * core-driven version choppy. The core keeps the pin geometry (getSticky*Offset)
-   * for a future core-driven integration. The template views keep their resting
-   * frame from the shadow node; we layer a translation transform on top each frame.
+   * core-driven version choppy. The template views keep their resting position from
+   * the shadow node; we layer a translation on top each scroll frame.
    */
   BOOL _stickyHeader;
   BOOL _stickyFooter;
@@ -177,7 +182,7 @@ using namespace facebook::react;
   }
 }
 
-#pragma mark - UIScrollViewDelegate
+#pragma mark - State
 
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
 {
@@ -215,6 +220,8 @@ using namespace facebook::react;
   [self applyStickyTransforms];
 }
 
+#pragma mark - UIScrollViewDelegate
+
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
   if (!_state) {
@@ -233,8 +240,8 @@ using namespace facebook::react;
   CGPoint offset = scrollView.contentOffset;
   BOOL userScrolled = YES;
   if (_hasAppliedOffset &&
-      fabs(offset.x - _appliedOffset.x) <= 2.0 &&
-      fabs(offset.y - _appliedOffset.y) <= 2.0) {
+      fabs(offset.x - _appliedOffset.x) <= kScrollEchoTolerance &&
+      fabs(offset.y - _appliedOffset.y) <= kScrollEchoTolerance) {
     userScrolled = NO;
     _hasAppliedOffset = NO;
   }
@@ -281,6 +288,8 @@ using namespace facebook::react;
 {
   [self clearUserScrolled];
 }
+
+#pragma mark - Commands
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
 {

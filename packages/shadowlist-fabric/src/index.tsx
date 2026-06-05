@@ -5,4 +5,5 @@ export { default as ShadowlistElementView } from './ShadowlistElementViewNativeC
 export { default as ShadowlistTemplateView } from './ShadowlistTemplateViewNativeComponent';
 
 export * from './Shadowlist';
+export * from './types';
 export * from './ShadowlistViewNativeComponent';

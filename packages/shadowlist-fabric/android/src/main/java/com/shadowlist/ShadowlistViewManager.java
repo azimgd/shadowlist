@@ -49,19 +49,19 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   @Override
   @ReactProp(name = "elementsAllKeys")
   public void setElementsAllKeys(ShadowlistView view, @Nullable ReadableArray elementsAllKeys) {
-
+    // Consumed by the C++ core via props; no Android view state needed.
   }
 
   @Override
   @ReactProp(name = "inverted")
   public void setInverted(ShadowlistView view, boolean inverted) {
-
+    // Consumed by the C++ core via props; no Android view state needed.
   }
 
   @Override
   @ReactProp(name = "horizontal")
   public void setHorizontal(ShadowlistView view, boolean horizontal) {
-    view.setHorizontalAxis(horizontal);
+    view.setHorizontal(horizontal);
   }
 
   @Override
@@ -89,13 +89,13 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   @Override
   @ReactProp(name = "columns")
   public void setColumns(ShadowlistView view, int columns) {
-
+    // Consumed by the C++ core via props; no Android view state needed.
   }
 
   @Override
   @ReactProp(name = "containerOffsetIndex")
   public void setContainerOffsetIndex(ShadowlistView view, int containerOffsetIndex) {
-
+    // Consumed by the C++ core via props; no Android view state needed.
   }
 
   @Override

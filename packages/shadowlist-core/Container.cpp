@@ -16,7 +16,7 @@ void Container::startRevision() {
 
 void Container::endRevision() {
   /*
-   * Revisions must be in the idle status before we start
+   * A revision must be in progress (pending) before it can end
    */
   if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("You cannot end the revision while the previous has not started");

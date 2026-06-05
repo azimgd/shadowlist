@@ -89,11 +89,10 @@ function initialRange(
 const SHADOWLIST_OVERSCAN = 4;
 
 /*
- * Low/high-water mark for the mounted window. The core already reports a buffered
- * visible window; we mount SHADOWLIST_OVERSCAN extra rows on each side (bandRange)
- * and only grow/shift the mounted set - a React re-render - when the reported
- * window leaves it (rangeCovers returns false). While the window stays inside the
- * band the rows are already mounted, so the re-render is skipped.
+ * Mounted band (low/high-water mark). The core reports a buffered visible window;
+ * bandRange mounts SHADOWLIST_OVERSCAN extra rows on each side and we only
+ * re-render to grow/shift the band when the window leaves it (rangeCovers is
+ * false). Windows are normalised to ascending, so inverted lists use the same path.
  */
 function rangeCovers(mounted: number[], vs: number, ve: number): boolean {
   if (mounted.length === 0) return false;
@@ -109,11 +108,13 @@ function bandRange(vs: number, ve: number, dataLength: number): number[] {
   return indices;
 }
 
-interface ElementWrapperProps {
+interface ElementRendererProps<ElementT> {
   index: number;
+  element: ElementT;
+  renderElement: (info: { element: ElementT; index: number }) => ReactNode;
+  separator: ReactNode;
   registerRef: (index: number, node: HTMLDivElement | null) => void;
   elementStyle?: CSSProperties;
-  children: ReactNode;
 }
 
 /*
@@ -121,15 +122,34 @@ interface ElementWrapperProps {
  * from the core after each measurement pass (not via React) to avoid a render
  * just to reposition.
  */
-const ElementWrapper = memo(function ElementWrapper({
+const ElementRenderer = memo(function ElementRenderer<
+  ElementT extends { id: string },
+>({
   index,
+  element,
+  renderElement,
+  separator,
   registerRef,
   elementStyle,
-  children,
-}: ElementWrapperProps) {
+}: ElementRendererProps<ElementT>) {
   const ref = useCallback(
     (node: HTMLDivElement | null) => registerRef(index, node),
     [index, registerRef]
+  );
+  /*
+   * Memoize on the item identity, not the row index. A prepend (or any insertion
+   * above this row) shifts every row's index, so keying on `element` lets unchanged
+   * rows skip re-rendering.
+   */
+  const children = useMemo(
+    () => (
+      <>
+        {renderElement({ element, index })}
+        {separator}
+      </>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [element, renderElement, separator]
   );
   return (
     <div
@@ -140,7 +160,9 @@ const ElementWrapper = memo(function ElementWrapper({
       {children}
     </div>
   );
-});
+}) as <T extends { id: string }>(
+  props: ElementRendererProps<T>
+) => ReactElement;
 
 function ShadowlistInner<ElementT extends { id: string }>(
   props: ShadowlistProps<ElementT>,
@@ -772,15 +794,15 @@ function ShadowlistInner<ElementT extends { id: string }>(
             const element = data[index];
             if (!element) return null;
             return (
-              <ElementWrapper
+              <ElementRenderer
                 key={keyExtractor(element, index)}
                 index={index}
+                element={element}
+                renderElement={renderElement}
+                separator={separator && index < data.length - 1 ? separator : null}
                 registerRef={registerRef}
                 elementStyle={elementStyle}
-              >
-                {renderElement({ element, index })}
-                {separator && index < data.length - 1 ? separator : null}
-              </ElementWrapper>
+              />
             );
           })
         )}

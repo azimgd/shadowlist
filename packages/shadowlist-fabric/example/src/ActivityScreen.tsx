@@ -1,33 +1,18 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Shadowlist, type ShadowlistCommands, type OnScroll } from 'shadowlist';
+import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { ActivityElement } from './ActivityElement';
 import { ActivityHeader } from './ActivityHeader';
 import { FooterListItem } from './FooterListItem';
 import { ListItemSeparator } from './ListItemSeparator';
-import {
-  type ActivityData,
-  buildActivity,
-  START_REACHED_THRESHOLDS,
-  END_REACHED_THRESHOLDS,
-  nextInCycle,
-  HEADER_HIDE_THRESHOLD,
-} from 'shadowlist-utils';
+import { type ActivityData, buildActivity } from 'shadowlist-utils';
 
 export const ActivityScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<ActivityData[]>(() =>
-    Array.from({ length: 500 }, (_, index) => buildActivity(index))
+    Array.from({ length: 200 }, (_, index) => buildActivity(index))
   );
   const [viewableLabel, setViewableLabel] = useState('—');
-  const [startThreshold, setStartThreshold] = useState(1);
-  const [endThreshold, setEndThreshold] = useState(1.5);
-  const [headerSticky, setHeaderSticky] = useState(true);
-
-  // Keep the latest data reachable from stable callbacks without rebuilding them.
-  const dataRef = useRef(data);
-  dataRef.current = data;
-  const headerStickyRef = useRef(true);
 
   // viewability: surface the live on-screen index range on the sticky footer.
   const handleViewableItemsChanged = useCallback(
@@ -43,17 +28,7 @@ export const ActivityScreen = () => {
     []
   );
 
-  // The sticky header pins near the top, then hides once scrolled past the
-  // threshold and re-pins on the way back up.
-  const handleScroll = useCallback((event: { nativeEvent: OnScroll }) => {
-    const sticky = event.nativeEvent.contentOffsetY < HEADER_HIDE_THRESHOLD;
-    if (sticky !== headerStickyRef.current) {
-      headerStickyRef.current = sticky;
-      setHeaderSticky(sticky);
-    }
-  }, []);
-
-  // thresholds: append more rows before the bottom edge is reached.
+  // append more rows as the bottom edge is reached.
   const handleEndReached = useCallback(() => {
     setData((prev) => [
       ...prev,
@@ -66,40 +41,21 @@ export const ActivityScreen = () => {
     []
   );
   const handleScrollToEnd = useCallback(() => shadowlistRef.current?.scrollToEnd(), []);
-  const handleScrollToRandom = useCallback(
-    () => shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * dataRef.current.length)),
-    []
-  );
-  const handleCycleStartThreshold = useCallback(
-    () => setStartThreshold((current) => nextInCycle(START_REACHED_THRESHOLDS, current)),
-    []
-  );
-  const handleCycleEndThreshold = useCallback(
-    () => setEndThreshold((current) => nextInCycle(END_REACHED_THRESHOLDS, current)),
+  // editing: drop the 20th and 50th rows to show keyed reconciliation.
+  const handleRemoveItems = useCallback(
+    () => setData((prev) => prev.filter((_, index) => index !== 20 && index !== 50)),
     []
   );
 
   const header = useMemo(
     () => (
       <ActivityHeader
-        startThreshold={startThreshold}
-        endThreshold={endThreshold}
         onScrollToOffset={handleScrollToOffset}
         onScrollToEnd={handleScrollToEnd}
-        onScrollToRandom={handleScrollToRandom}
-        onCycleStartThreshold={handleCycleStartThreshold}
-        onCycleEndThreshold={handleCycleEndThreshold}
+        onRemoveItems={handleRemoveItems}
       />
     ),
-    [
-      startThreshold,
-      endThreshold,
-      handleScrollToOffset,
-      handleScrollToEnd,
-      handleScrollToRandom,
-      handleCycleStartThreshold,
-      handleCycleEndThreshold,
-    ]
+    [handleScrollToOffset, handleScrollToEnd, handleRemoveItems]
   );
 
   const footer = useMemo(
@@ -115,15 +71,12 @@ export const ActivityScreen = () => {
         style={styles.list}
         keyExtractor={(item) => item.id}
         renderElement={({ element }) => <ActivityElement element={element} />}
-        stickyHeader={headerSticky}
+        stickyHeader
         stickyFooter
         ListHeaderComponent={header}
         ListFooterComponent={footer}
         ItemSeparatorComponent={<ListItemSeparator />}
-        onScroll={handleScroll}
         onEndReached={handleEndReached}
-        onStartReachedThreshold={startThreshold}
-        onEndReachedThreshold={endThreshold}
         viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
         onViewableItemsChanged={handleViewableItemsChanged}
       />

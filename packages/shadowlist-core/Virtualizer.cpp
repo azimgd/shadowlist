@@ -62,7 +62,7 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
    * cancel above and locks an inverted list whose pin has not settled yet). The
    * pin re-arms on its own when the list empties (see resolveScroll).
    */
-  bool userMovedOffset = std::fabs(inputOffset - container->lastReportedOffset) >= 0.5;
+  bool userMovedOffset = std::fabs(inputOffset - container->lastReportedOffset) >= OFFSET_MOVED_EPSILON;
   if (input.userScrolled && userMovedOffset) {
     container->pendingScroll = false;
     container->pendingAnchorActive = false;
@@ -572,7 +572,7 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
       }
 
       double currentOffset = container->horizontal ? container->revision.containerOffsetX : container->revision.containerOffsetY;
-      if (std::fabs(anchoredOffset - currentOffset) >= 0.5) {
+      if (std::fabs(anchoredOffset - currentOffset) >= OFFSET_MOVED_EPSILON) {
         if (container->horizontal) {
           container->revision.containerOffsetX = anchoredOffset;
         } else {
@@ -757,7 +757,7 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
      * total <= window on the first frames) keep re-pinning, so a list whose
      * measured total grows past the window is not left stuck at the top.
      */
-    if (totalSize > windowSize && std::fabs(currentOffset - container->pendingScrollOffset) < 1.0) {
+    if (totalSize > windowSize && std::fabs(currentOffset - container->pendingScrollOffset) < OFFSET_ARRIVED_EPSILON) {
       container->invertedInitialized = true;
     }
   }
@@ -771,7 +771,7 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
    *     the list a screen short. A user scroll cancels it (see Virtualizer::update).
    */
   if (container->pendingScrollToEnd && elementsSize > 0 && windowSize > 0.0) {
-    bool atBottom = std::fabs(currentOffset - maxOffset) < 1.0;
+    bool atBottom = std::fabs(currentOffset - maxOffset) < OFFSET_ARRIVED_EPSILON;
     bool totalStable = totalSize == prevTotalForScrollToEnd;
     if (atBottom && totalStable) {
       container->pendingScrollToEnd = false;
@@ -801,13 +801,13 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
     }
 
     if (container->pendingScroll) {
-      if (std::fabs(currentOffset - target) < 1.0) {
+      if (std::fabs(currentOffset - target) < OFFSET_ARRIVED_EPSILON) {
         container->pendingScroll = false;
         container->pendingAnchorActive = false;
       } else {
         /*
-         * Reached only when |current - target| >= 1.0, i.e. the offset moved, so
-         * the caller always needs to re-measure the window for the new offset.
+         * Reached only when |current - target| >= OFFSET_ARRIVED_EPSILON, i.e. the
+         * offset moved, so the caller must re-measure the window for the new offset.
          */
         container->containerOffsetCorrected = true;
         writeOffset(target);
@@ -826,7 +826,7 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
     std::size_t anchorIndex = container->findElementIndexByKey(anchorKey);
     if (anchorIndex != UNDEFINED_INDEX) {
       double anchoredOffset = clampOffset(container->getElementOffset(anchorIndex) + anchorDelta);
-      if (std::fabs(anchoredOffset - currentOffset) >= 0.5) {
+      if (std::fabs(anchoredOffset - currentOffset) >= OFFSET_MOVED_EPSILON) {
         requestAnchor(anchorKey, anchorDelta);
         container->containerOffsetCorrected = true;
         writeOffset(anchoredOffset);

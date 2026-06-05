@@ -2,10 +2,28 @@
 
 #include <cstddef>
 #include <cstdio>
+#include <utility>
 
 namespace azimgd::shadowlist {
 
 constexpr std::size_t UNDEFINED_INDEX = static_cast<std::size_t>(-1);
+
+/*
+ * The offset moved far enough to re-measure the window (rather than floating-point
+ * noise), so a re-measure / user-takeover is warranted.
+ */
+constexpr double OFFSET_MOVED_EPSILON = 0.5;
+
+/*
+ * The offset is close enough to its target (a pending scroll or the bottom) to
+ * count as arrived.
+ */
+constexpr double OFFSET_ARRIVED_EPSILON = 1.0;
+
+/*
+ * Default per-axis size estimate (cross-axis, main-axis) for unmeasured elements.
+ */
+constexpr std::pair<double, double> DEFAULT_ESTIMATED_ELEMENT_SIZE = {120.0, 120.0};
 
 /*
  * Sentinel for the scrollToIndex command channel meaning "scroll to the very end".
@@ -20,7 +38,7 @@ constexpr double SCROLL_TO_END_INDEX = -3.0;
 }
 
 #ifndef SHADOWLIST_DEBUG_LOG
-#define SHADOWLIST_DEBUG_LOG 1
+#define SHADOWLIST_DEBUG_LOG 0
 #endif
 
 #if SHADOWLIST_DEBUG_LOG

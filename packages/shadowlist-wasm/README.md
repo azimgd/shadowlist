@@ -37,9 +37,13 @@ export function Example({ data }: { data: Item[] }) {
 }
 ```
 
+The component loads the WASM core asynchronously on first mount and renders an empty list until it resolves. Make sure your bundler serves the `.wasm` asset shipped with the package (most modern bundlers handle this automatically).
+
 ## Props
 
-### Shared List Props
+The list API mirrors the Fabric package, and the tables below follow the same grouping.
+
+### Data And Rendering
 
 | Prop | Type | Default | Notes |
 | --- | --- | --- | --- |
@@ -48,26 +52,41 @@ export function Example({ data }: { data: Item[] }) {
 | `keyExtractor` | `(item, index) => string` | `item.id` | Use when your list key is not `id` |
 | `style` | `CSSProperties` | `undefined` | Outer scroll container style |
 | `elementStyle` | `CSSProperties` | `undefined` | Applied to each item wrapper |
+| `ItemSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Rendered between items, not after the last (FlatList semantics) |
+
+### Layout
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
 | `horizontal` | `boolean` | `false` | Horizontal list |
 | `inverted` | `boolean` | `false` | Bottom-up / chat-style list |
 | `columns` | `number` | `1` | Multi-column layout |
 | `stickyHeader` | `boolean` | `false` | Pins header to the viewport start |
 | `stickyFooter` | `boolean` | `false` | Pins footer to the viewport end |
-| `containerOffsetIndex` | `number` | `-2` | Declarative scroll-to-index; any negative value disables it |
 | `initialElementsSize` | `number` | `20` | Initial mounted window size |
+| `containerOffsetIndex` | `number` | `-2` | Declarative scroll-to-index; `-2` (default) is inactive, set a non-negative index to scroll there |
+
+### Callbacks
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `onScroll` | `({ nativeEvent }) => void` | `undefined` | Current content offset |
 | `onStartReached` | `() => void` | `undefined` | Fires near the start edge |
 | `onEndReached` | `() => void` | `undefined` | Fires near the end edge |
 | `onStartReachedThreshold` | `number` | `1` | Fraction of viewport length |
 | `onEndReachedThreshold` | `number` | `1` | Fraction of viewport length |
-| `onScroll` | `({ nativeEvent }) => void` | `undefined` | Current content offset |
-| `viewabilityConfig` | `{ itemVisiblePercentThreshold?: number }` | `undefined` | Percent of item that must be visible |
 | `onViewableItemsChanged` | `({ viewableItems, changed }) => void` | `undefined` | FlatList-style viewability callback |
-| `ItemSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Rendered inside each item wrapper |
+| `viewabilityConfig` | `{ itemVisiblePercentThreshold?: number }` | `undefined` | Percent of item that must be visible |
+
+### Templates
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
 | `ListHeaderComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Header template |
 | `ListFooterComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Footer template |
 | `ListEmptyComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Empty-state template |
 
-### Web-Specific Props
+### Web-Specific
 
 | Prop | Type | Default | Notes |
 | --- | --- | --- | --- |
