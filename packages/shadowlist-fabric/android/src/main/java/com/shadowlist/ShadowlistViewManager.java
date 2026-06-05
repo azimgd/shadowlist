@@ -1,5 +1,7 @@
 package com.shadowlist;
 
+import android.view.View;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -44,6 +46,30 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   @Override
   protected ShadowlistView createViewInstance(@NonNull ThemedReactContext context) {
     return new ShadowlistView(context);
+  }
+
+  /*
+   * Element/template children are hosted in the content container inside the inner
+   * scroll view, not directly on the host, so route Fabric's child mounting there.
+   */
+  @Override
+  public void addView(ShadowlistView parent, View child, int index) {
+    parent.addContentView(child, index);
+  }
+
+  @Override
+  public int getChildCount(ShadowlistView parent) {
+    return parent.getContentChildCount();
+  }
+
+  @Override
+  public View getChildAt(ShadowlistView parent, int index) {
+    return parent.getContentChildAt(index);
+  }
+
+  @Override
+  public void removeViewAt(ShadowlistView parent, int index) {
+    parent.removeContentViewAt(index);
   }
 
   @Override

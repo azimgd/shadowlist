@@ -8,6 +8,7 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
 
@@ -16,9 +17,19 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
+import com.facebook.react.views.scroll.ReactHorizontalScrollView;
 import com.facebook.react.views.scroll.ReactScrollView;
 
-public class ShadowlistView extends ReactScrollView {
+/*
+ * Hosts the scrolling content in an inner scroll view picked by the `horizontal`
+ * prop: ReactScrollView for vertical, ReactHorizontalScrollView for horizontal.
+ * Android splits the two (a vertical ScrollView cannot scroll along X), so a
+ * horizontal list needs the horizontal subclass for native fling/overscroll and
+ * for nested touch interception to resolve correctly. All scroll, sticky and
+ * state-sync logic lives here; the inner subclasses just forward scroll and
+ * touch-down callbacks up.
+ */
+public class ShadowlistView extends FrameLayout {
   /*
    * Trace the native <-> C++ core state synchronization. Mirrors the
    * SHADOWLIST_DEBUG_LOG flag in shadowlist-core/Constants.hpp (and the iOS
@@ -35,7 +46,8 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   private @Nullable StateWrapper mState = null;
-  private ContentContainer mContentView = null;
+  private ContentContainer mContentView;
+  private ViewGroup mScrollView;
 
   /*
    * A programmatic scroll we issued (a core correction, or scrollToOffset/End) is in
@@ -77,13 +89,107 @@ public class ShadowlistView extends ReactScrollView {
     }
   }
 
-  public ShadowlistView(Context context) {
-    super(context);
-    init(context);
+  /*
+   * The inner scroll views forward their scroll and touch-down callbacks to the host
+   * so all logic stays in one place regardless of axis.
+   */
+  private static class InnerVerticalScrollView extends ReactScrollView {
+    private final ShadowlistView mHost;
+
+    InnerVerticalScrollView(Context context, ShadowlistView host) {
+      super(context);
+      mHost = host;
+    }
+
+    @Override
+    protected void onScrollChanged(int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
+      super.onScrollChanged(scrollX, scrollY, oldScrollX, oldScrollY);
+      mHost.handleInnerScroll(scrollX, scrollY);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+      if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+        mHost.handleInnerTouchDown();
+      }
+      return super.onTouchEvent(ev);
+    }
   }
 
-  @Override
-  public void addView(View child, int index) {
+  private static class InnerHorizontalScrollView extends ReactHorizontalScrollView {
+    private final ShadowlistView mHost;
+
+    InnerHorizontalScrollView(Context context, ShadowlistView host) {
+      super(context);
+      mHost = host;
+    }
+
+    @Override
+    protected void onScrollChanged(int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
+      super.onScrollChanged(scrollX, scrollY, oldScrollX, oldScrollY);
+      mHost.handleInnerScroll(scrollX, scrollY);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent ev) {
+      if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+        mHost.handleInnerTouchDown();
+      }
+      return super.onTouchEvent(ev);
+    }
+  }
+
+  public ShadowlistView(Context context) {
+    super(context);
+    mContentView = new ContentContainer(context);
+    installScrollView(false);
+  }
+
+  /*
+   * Build the inner scroll view for the current axis and move the content container
+   * into it. Called on construction and whenever the `horizontal` prop flips; the
+   * content (and its mounted children) is re-parented, not rebuilt.
+   */
+  private void installScrollView(boolean horizontal) {
+    if (mScrollView != null) {
+      mScrollView.removeView(mContentView);
+      removeView(mScrollView);
+    }
+
+    Context context = getContext();
+    mScrollView = horizontal
+      ? new InnerHorizontalScrollView(context, this)
+      : new InnerVerticalScrollView(context, this);
+
+    mScrollView.setVerticalScrollBarEnabled(!horizontal);
+    mScrollView.setHorizontalScrollBarEnabled(horizontal);
+    mScrollView.setScrollbarFadingEnabled(true);
+    mScrollView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
+    if (mScrollView instanceof ReactScrollView) {
+      ((ReactScrollView) mScrollView).setFillViewport(false);
+    }
+    mScrollView.setClipToPadding(false);
+
+    GradientDrawable scrollbarDrawable = new GradientDrawable();
+    scrollbarDrawable.setShape(GradientDrawable.RECTANGLE);
+    scrollbarDrawable.setColor(Color.WHITE);
+    scrollbarDrawable.setCornerRadius(8);
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      mScrollView.setVerticalScrollbarThumbDrawable(scrollbarDrawable);
+      mScrollView.setHorizontalScrollbarThumbDrawable(scrollbarDrawable);
+    }
+
+    mScrollView.addView(mContentView);
+    addView(mScrollView, new FrameLayout.LayoutParams(
+      FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+  }
+
+  /*
+   * Content child management. Fabric mounts element/template views into this host;
+   * the ShadowlistViewManager routes those calls here so they land in the content
+   * container inside the inner scroll view (instead of the host or scroll view).
+   */
+  public void addContentView(View child, int index) {
     if (child instanceof ShadowlistElementView) {
       mContentView.addView(child, index);
       // A newly mounted element can land above the sticky header/footer; keep the
@@ -91,38 +197,32 @@ public class ShadowlistView extends ReactScrollView {
       bringStickyViewsToFront();
       return;
     }
-
     if (child instanceof ShadowlistTemplateView) {
       mContentView.addView(child);
-      return;
     }
   }
 
-  @Override
-  public void removeView(View child) {
-    mContentView.removeView(child);
+  public int getContentChildCount() {
+    return mContentView.getChildCount();
   }
 
-  @Override
-  protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-    super.onLayout(changed, left, top, right, bottom);
+  public View getContentChildAt(int index) {
+    return mContentView.getChildAt(index);
   }
 
-  @Override
-  protected void onScrollChanged(int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
-    super.onScrollChanged(scrollX, scrollY, oldScrollX, oldScrollY);
+  public void removeContentViewAt(int index) {
+    mContentView.removeViewAt(index);
+  }
+
+  private void handleInnerScroll(int scrollX, int scrollY) {
     updateScrollState(scrollX, scrollY);
     applyStickyTranslations();
   }
 
-  @Override
-  public boolean onTouchEvent(MotionEvent ev) {
-    if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
-      // A finger on the list takes over from any in-flight programmatic scroll, so
-      // the following onScrollChanged callbacks are reported as genuine user scrolls.
-      mProgrammaticPending = false;
-    }
-    return super.onTouchEvent(ev);
+  private void handleInnerTouchDown() {
+    // A finger on the list takes over from any in-flight programmatic scroll, so
+    // the following onScrollChanged callbacks are reported as genuine user scrolls.
+    mProgrammaticPending = false;
   }
 
   private void markProgrammaticScroll(int targetX, int targetY, boolean animated) {
@@ -143,7 +243,10 @@ public class ShadowlistView extends ReactScrollView {
   }
 
   public void setHorizontal(boolean horizontal) {
-    mHorizontal = horizontal;
+    if (horizontal != mHorizontal) {
+      mHorizontal = horizontal;
+      installScrollView(horizontal);
+    }
     applyStickyTranslations();
   }
 
@@ -155,14 +258,14 @@ public class ShadowlistView extends ReactScrollView {
    * the UI thread per scroll frame, so it stays in lockstep with the gesture.
    */
   private void applyStickyTranslations() {
-    if (mContentView == null) {
+    if (mContentView == null || mScrollView == null) {
       return;
     }
 
-    int offsetX = getScrollX();
-    int offsetY = getScrollY();
-    int windowW = getWidth();
-    int windowH = getHeight();
+    int offsetX = mScrollView.getScrollX();
+    int offsetY = mScrollView.getScrollY();
+    int windowW = mScrollView.getWidth();
+    int windowH = mScrollView.getHeight();
     int contentW = mContentView.getWidth();
     int contentH = mContentView.getHeight();
 
@@ -271,28 +374,6 @@ public class ShadowlistView extends ReactScrollView {
     mState.updateState(map);
   }
 
-  private void init(Context context) {
-    setVerticalScrollBarEnabled(true);
-    setHorizontalScrollBarEnabled(true);
-    setScrollbarFadingEnabled(true);
-    setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
-    setFillViewport(false);
-    setClipToPadding(false);
-
-    GradientDrawable scrollbarDrawable = new GradientDrawable();
-    scrollbarDrawable.setShape(GradientDrawable.RECTANGLE);
-    scrollbarDrawable.setColor(Color.WHITE);
-    scrollbarDrawable.setCornerRadius(8);
-
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      setVerticalScrollbarThumbDrawable(scrollbarDrawable);
-      setHorizontalScrollbarThumbDrawable(scrollbarDrawable);
-    }
-
-    mContentView = new ContentContainer(context);
-    super.addView(mContentView, 0);
-  }
-
   public void updateState(@Nullable StateWrapper stateWrapper) {
     mState = stateWrapper;
 
@@ -312,7 +393,7 @@ public class ShadowlistView extends ReactScrollView {
         (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) ? 1 : 0,
         nextStateData.hasKey("containerOffsetX") ? nextStateData.getDouble("containerOffsetX") : 0.0,
         nextStateData.hasKey("containerOffsetY") ? nextStateData.getDouble("containerOffsetY") : 0.0,
-        PixelUtil.toDIPFromPixel(getScrollX()), PixelUtil.toDIPFromPixel(getScrollY())));
+        PixelUtil.toDIPFromPixel(mScrollView.getScrollX()), PixelUtil.toDIPFromPixel(mScrollView.getScrollY())));
     }
 
     if (nextStateData.hasKey("totalContainerWidth") && nextStateData.hasKey("totalContainerHeight")) {
@@ -333,7 +414,7 @@ public class ShadowlistView extends ReactScrollView {
         int appliedX = (int) PixelUtil.toPixelFromDIP(containerOffsetX);
         int appliedY = (int) PixelUtil.toPixelFromDIP(containerOffsetY);
         markProgrammaticScroll(appliedX, appliedY, false);
-        scrollTo(appliedX, appliedY);
+        mScrollView.scrollTo(appliedX, appliedY);
       }
     }
 
@@ -394,10 +475,18 @@ public class ShadowlistView extends ReactScrollView {
     // from the resulting onScrollChanged callback. Marked programmatic so the
     // animated path's intermediate frames are not mistaken for a user scroll.
     int px = (int) PixelUtil.toPixelFromDIP((float) offset);
-    int targetX = mHorizontal ? px : getScrollX();
-    int targetY = mHorizontal ? getScrollY() : px;
+    int targetX = mHorizontal ? px : mScrollView.getScrollX();
+    int targetY = mHorizontal ? mScrollView.getScrollY() : px;
     markProgrammaticScroll(targetX, targetY, animated);
-    if (animated) smoothScrollTo(targetX, targetY); else scrollTo(targetX, targetY);
+    if (animated) {
+      if (mScrollView instanceof ReactScrollView) {
+        ((ReactScrollView) mScrollView).smoothScrollTo(targetX, targetY);
+      } else {
+        ((ReactHorizontalScrollView) mScrollView).smoothScrollTo(targetX, targetY);
+      }
+    } else {
+      mScrollView.scrollTo(targetX, targetY);
+    }
   }
 
   public void scrollToEnd(boolean animated) {
