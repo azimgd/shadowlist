@@ -160,3 +160,103 @@ export interface SectionListProps<ItemT, SectionT = object> {
   ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
   ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
 }
+
+/*
+ * TreeList types. A directory-browser / outline tree built as a thin data layer
+ * over Shadowlist: the visible subtree (every node whose ancestors are all
+ * expanded) is flattened into one element stream and handed to the virtualizer,
+ * exactly how SectionList flattens sections. Collapsed subtrees are never walked,
+ * so flatten cost scales with the number of *visible* rows, not the total tree.
+ * Expand/collapse only changes the flat key set, so the engine's key-based
+ * reconcile keeps measured row sizes and maintain-visible-content-position keeps
+ * the toggled row anchored - sub-millisecond toggles on trees of any size.
+ *
+ * Nodes are caller-defined (ItemT); the tree is described by two accessors rather
+ * than a fixed wrapper shape, so no per-node objects are allocated for the source
+ * data. `keyExtractor` must return a globally unique, stable id per node (the same
+ * node must keep its key across expand/collapse) so reconcile and measurement
+ * caching line up.
+ */
+export interface TreeListRenderNodeInfo<ItemT> {
+  item: ItemT;
+  /*
+   * Index of the node in the flattened visible stream (not within its parent).
+   */
+  index: number;
+  /*
+   * Nesting level; 0 for roots. Multiply by indentWidth for the leading inset
+   * (also provided pre-computed as `indent`).
+   */
+  depth: number;
+  isExpanded: boolean;
+  hasChildren: boolean;
+  /*
+   * Convenience: depth * indentWidth, the leading inset in px.
+   */
+  indent: number;
+  /*
+   * Toggle this node's expanded state. No-op for leaves. Honours the
+   * controlled/uncontrolled mode the list is in.
+   */
+  toggle: () => void;
+}
+
+/*
+ * Imperative handle for TreeList: the standard Shadowlist commands plus
+ * scrollToNode, which resolves a node id to its current flat index and scrolls to
+ * it (no-op when the node is not in the visible/expanded set).
+ */
+export interface TreeListCommands extends ShadowlistCommands {
+  scrollToNode: (id: string) => void;
+}
+
+export interface TreeListProps<ItemT> {
+  /*
+   * Root nodes. Children are reached through getChildren, recursively.
+   */
+  data: ReadonlyArray<ItemT>;
+  /*
+   * Return a node's children, or undefined/empty for a leaf. Called only for
+   * nodes that are actually visited (visible nodes and the children of expanded
+   * ones), so a lazy-loading implementation can fetch on demand.
+   */
+  getChildren: (item: ItemT) => ReadonlyArray<ItemT> | undefined;
+  /*
+   * Globally unique, stable id per node. Must be stable across expand/collapse.
+   */
+  keyExtractor: (item: ItemT) => string;
+  renderNode: (info: TreeListRenderNodeInfo<ItemT>) => ReactElement;
+  /*
+   * Controlled expansion: the set of expanded node ids. When provided, the list
+   * does not own expansion state and reports intended changes through
+   * onExpandedChange. Omit for uncontrolled mode (see initialExpandedIds).
+   */
+  expandedIds?: ReadonlyArray<string> | ReadonlySet<string>;
+  /*
+   * Uncontrolled mode: ids expanded on first render. Ignored when expandedIds is
+   * provided.
+   */
+  initialExpandedIds?: ReadonlyArray<string> | ReadonlySet<string>;
+  /*
+   * Fires with the next expanded set whenever a node is toggled. Required to
+   * persist state in controlled mode; optional notification in uncontrolled mode.
+   */
+  onExpandedChange?: (expandedIds: Set<string>) => void;
+  /*
+   * Pixels of leading inset per depth level. Default 16.
+   */
+  indentWidth?: number;
+  style?: ViewStyle;
+  elementStyle?: ViewStyle;
+  initialElementsSize?: number;
+  containerOffsetIndex?: number;
+  onScroll?: (event: { nativeEvent: OnScroll }) => void;
+  onStartReached?: () => void;
+  onEndReached?: () => void;
+  onStartReachedThreshold?: number;
+  onEndReachedThreshold?: number;
+  ItemSeparatorComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListHeaderComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
+}
