@@ -63,6 +63,15 @@ public class ShadowlistView extends FrameLayout {
   private boolean mHorizontal = false;
 
   /*
+   * Keyboard-avoidance bottom inset (px), driven by the contentInsetBottom prop. We
+   * apply it as bottom padding on the (vertical) scroll view - clipToPadding is off,
+   * so the content can scroll up into it - and slide the offset up by the delta so
+   * the rows that were behind the keyboard come into view; reversed when it returns
+   * to 0. Held to diff against the next value for the delta.
+   */
+  private int mContentInsetBottom = 0;
+
+  /*
    * A programmatic scroll we issued (a core correction, or scrollToOffset/End) is in
    * flight. onScrollChanged fires for these too, so reporting them as user gestures
    * would make the core abandon its own in-flight correction and latch/blank the
@@ -307,6 +316,38 @@ public class ShadowlistView extends FrameLayout {
       installScrollView(horizontal);
     }
     mStickyController.applyStickyTranslations();
+  }
+
+  /*
+   * Keyboard avoidance. Grow the (vertical) scroll view's bottom padding to the
+   * requested inset - clipToPadding is off, so content scrolls up into it - and
+   * follow the keyboard by shifting the offset up by the inset delta so the rows that
+   * were behind the keyboard come into view; reversed when it returns to 0. The
+   * follow-scroll is marked programmatic so the core does not mistake it for a user
+   * gesture, and is skipped while a drag owns the offset. Vertical lists only.
+   */
+  public void setContentInsetBottom(double insetDip) {
+    int inset = Math.max(0, (int) PixelUtil.toPixelFromDIP((float) insetDip));
+    if (inset == mContentInsetBottom) {
+      return;
+    }
+    int delta = inset - mContentInsetBottom;
+    mContentInsetBottom = inset;
+
+    if (mHorizontal) {
+      return;
+    }
+
+    mScrollView.setPadding(0, 0, 0, inset);
+
+    if (!mDragController.ownsScrollOffset()) {
+      int targetX = mScrollView.getScrollX();
+      int targetY = Math.max(0, mScrollView.getScrollY() + delta);
+      markProgrammaticScroll(targetX, targetY, true);
+      if (mScrollView instanceof ReactScrollView) {
+        ((ReactScrollView) mScrollView).smoothScrollTo(targetX, targetY);
+      }
+    }
   }
 
   private boolean updateScrollState(int scrollX, int scrollY) {

@@ -21,6 +21,14 @@
   UIView * _contentView;
 
   /*
+   * Keyboard-avoidance bottom inset (px), driven by the contentInsetBottom prop. We
+   * grow the scroll view's bottom contentInset by this and slide the content up by
+   * the same delta so rows behind the keyboard come into view; reversed when it
+   * shrinks back to 0. Held here to diff against the next value for the delta.
+   */
+  CGFloat _contentInsetBottom;
+
+  /*
    * Sticky header/footer are pinned natively here (not in the core layout) so they
    * track scrolling on the UI thread without the commit-cycle latency that made the
    * core-driven version choppy. The template views keep their resting position from

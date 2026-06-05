@@ -22,6 +22,7 @@ import {
   Commands,
 } from 'shadowlist';
 import type { ShadowlistProps, ShadowlistCommands, ViewToken } from './types';
+import { useKeyboardInset } from './useKeyboardInset';
 
 /*
  * Move the item at `from` to `to`, returning a new array. Used once on drop to
@@ -160,6 +161,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     stickyHeaderIndices,
     renderStickyHeaderOverlay,
     containerOffsetIndex = -2,
+    keyboardAvoidingEnabled = false,
+    keyboardAvoidingOffset = 0,
     initialElementsSize = 20,
     onStartReached,
     onEndReached,
@@ -178,6 +181,17 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowlistView> | null>(
     null
   );
+
+  /*
+   * Keyboard avoidance (zero-dependency): tracks the keyboard overlap with the list
+   * via RN's Keyboard events and feeds it to the native contentInsetBottom, which
+   * grows the scroll inset and slides the content up. Inert (returns 0) when
+   * keyboardAvoidingEnabled is false.
+   */
+  const contentInsetBottom = useKeyboardInset(shadowlistViewRef, {
+    enabled: keyboardAvoidingEnabled,
+    offset: keyboardAvoidingOffset,
+  });
 
   const [visibleBand, setVisibleBand] = useState<VisibleBand>(() =>
     initialBand(data.length, initialElementsSize, inverted)
@@ -518,6 +532,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       stickyHeaderIndices={stickyHeaderIndices ?? []}
       columns={columns}
       containerOffsetIndex={containerOffsetIndex}
+      contentInsetBottom={contentInsetBottom}
       startReachedThreshold={onStartReachedThreshold}
       endReachedThreshold={onEndReachedThreshold}
       viewablePercentThreshold={viewablePercentThreshold}

@@ -158,6 +158,12 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   }
 
   @Override
+  @ReactProp(name = "contentInsetBottom")
+  public void setContentInsetBottom(ShadowlistView view, double contentInsetBottom) {
+    view.setContentInsetBottom(contentInsetBottom);
+  }
+
+  @Override
   @ReactProp(name = "startReachedThreshold")
   public void setStartReachedThreshold(ShadowlistView view, double startReachedThreshold) {
     // Consumed by the C++ core via props; no Android view state needed.

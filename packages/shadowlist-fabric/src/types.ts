@@ -79,6 +79,19 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
   columns?: number;
   containerOffsetIndex?: number;
+  /*
+   * Zero-dependency keyboard avoidance. When true, the list subscribes to React
+   * Native's Keyboard events and, as the keyboard opens, grows its bottom inset and
+   * slides its content up by the overlap with the keyboard so rows that would sit
+   * behind the keyboard stay visible; it reverses on dismiss. Vertical lists only.
+   */
+  keyboardAvoidingEnabled?: boolean;
+  /*
+   * Extra pixels subtracted from the keyboard overlap when keyboardAvoidingEnabled is
+   * on. Use it to discount UI already above the keyboard (a bottom tab bar) or
+   * safe-area inset already applied below the list. Defaults to 0.
+   */
+  keyboardAvoidingOffset?: number;
   initialElementsSize?: number;
   onStartReached?: () => void;
   onEndReached?: () => void;
@@ -159,6 +172,10 @@ export interface SectionListProps<ItemT, SectionT = object> {
   inverted?: boolean;
   initialElementsSize?: number;
   containerOffsetIndex?: number;
+  /* See ShadowlistProps.keyboardAvoidingEnabled. */
+  keyboardAvoidingEnabled?: boolean;
+  /* See ShadowlistProps.keyboardAvoidingOffset. */
+  keyboardAvoidingOffset?: number;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
   onStartReached?: () => void;
   onEndReached?: () => void;
@@ -258,6 +275,10 @@ export interface TreeListProps<ItemT> {
   elementStyle?: ViewStyle;
   initialElementsSize?: number;
   containerOffsetIndex?: number;
+  /* See ShadowlistProps.keyboardAvoidingEnabled. */
+  keyboardAvoidingEnabled?: boolean;
+  /* See ShadowlistProps.keyboardAvoidingOffset. */
+  keyboardAvoidingOffset?: number;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
   onStartReached?: () => void;
   onEndReached?: () => void;

@@ -66,6 +66,8 @@ function TreeListInner<ItemT>(
     elementStyle,
     initialElementsSize,
     containerOffsetIndex,
+    keyboardAvoidingEnabled,
+    keyboardAvoidingOffset,
     onScroll,
     onStartReached,
     onEndReached,
@@ -213,6 +215,8 @@ function TreeListInner<ItemT>(
       elementStyle={elementStyle}
       initialElementsSize={initialElementsSize}
       containerOffsetIndex={containerOffsetIndex}
+      keyboardAvoidingEnabled={keyboardAvoidingEnabled}
+      keyboardAvoidingOffset={keyboardAvoidingOffset}
       onScroll={onScroll}
       onStartReached={onStartReached}
       onEndReached={onEndReached}

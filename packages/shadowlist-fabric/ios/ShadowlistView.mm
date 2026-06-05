@@ -125,6 +125,9 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _footerHidden = 0.0;
   _lastAutoHideOffset = 0.0;
   _horizontal = NO;
+  _contentInsetBottom = 0.0;
+  _scrollView.contentInset = UIEdgeInsetsZero;
+  _scrollView.verticalScrollIndicatorInsets = UIEdgeInsetsZero;
   _sectionHeaderOverlay = nil;
   _stickyHeaderIndices.clear();
   _stickyHeaderOffsets.clear();
@@ -146,9 +149,58 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _dragEnabled = nextProps.dragEnabled;
   _dragRecognizer.enabled = _dragEnabled;
 
+  [self applyContentInsetBottom:nextProps.contentInsetBottom];
+
   [super updateProps:props oldProps:oldProps];
 
   [self applyStickyTransforms:NO];
+}
+
+/*
+ * Keyboard avoidance. Grow (or shrink) the scroll view's bottom contentInset to the
+ * requested value and slide the content up by the same delta so the rows that were
+ * behind the keyboard come into view - the "list moves when the keyboard opens"
+ * behaviour. The offset shift is clamped to the scrollable range and skipped while a
+ * drag owns the offset or on horizontal lists (the inset is vertical-only). Wrapped
+ * in a short animation so it tracks the keyboard rather than jumping.
+ */
+- (void)applyContentInsetBottom:(CGFloat)inset
+{
+  if (inset < 0) inset = 0;
+  if (inset == _contentInsetBottom) return;
+
+  CGFloat delta = inset - _contentInsetBottom;
+  _contentInsetBottom = inset;
+
+  if (_horizontal) {
+    // The inset is along the vertical (keyboard) axis; a horizontal list has no use
+    // for it, but still keep the stored value in sync (handled above) so a later
+    // axis flip starts clean.
+    return;
+  }
+
+  UIEdgeInsets contentInset = _scrollView.contentInset;
+  contentInset.bottom = inset;
+  UIEdgeInsets indicatorInset = _scrollView.verticalScrollIndicatorInsets;
+  indicatorInset.bottom = inset;
+
+  // Follow the keyboard by shifting the offset by the inset delta, clamped so we
+  // never scroll past the (newly inset-extended) content. Skipped mid-drag.
+  CGPoint offset = _scrollView.contentOffset;
+  CGFloat maxOffset = MAX(-inset, _scrollView.contentSize.height - _scrollView.bounds.size.height + inset);
+  CGFloat followedY = (_dragging || _dragDropPending)
+    ? offset.y
+    : MIN(MAX(offset.y + delta, -contentInset.top), maxOffset);
+
+  [UIView animateWithDuration:0.25
+                        delay:0
+                      options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
+                   animations:^{
+    self->_scrollView.contentInset = contentInset;
+    self->_scrollView.verticalScrollIndicatorInsets = indicatorInset;
+    self->_scrollView.contentOffset = CGPointMake(offset.x, followedY);
+  }
+                   completion:nil];
 }
 
 #pragma mark - State

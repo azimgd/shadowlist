@@ -1,18 +1,18 @@
 import { useState } from 'react';
-import {
-  View,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
 }
 
+/*
+ * Static composer bar. Keyboard avoidance is owned by ChatScreen, which lifts the
+ * whole list+composer unit by the keyboard height; the safe-area paddingBottom here
+ * keeps the bar above the home indicator when the keyboard is closed (and is exactly
+ * the amount ChatScreen subtracts from the lift, so the bar lands flush against the
+ * keyboard when it opens).
+ */
 export const MessageInput = ({ onSend }: MessageInputProps) => {
   const [message, setMessage] = useState('');
   const insets = useSafeAreaInsets();
@@ -25,32 +25,27 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
-    >
-      <View style={[styles.container, { paddingBottom: insets.bottom || 8 }]}>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            value={message}
-            onChangeText={setMessage}
-            placeholder="iMessage"
-            placeholderTextColor="#8E8E93"
-            multiline
-            maxLength={500}
-          />
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            !message.trim() && styles.sendButtonDisabled,
-          ]}
-          onPress={handleSend}
-          disabled={!message.trim()}
+    <View style={[styles.container, { paddingBottom: insets.bottom || 8 }]}>
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={styles.input}
+          value={message}
+          onChangeText={setMessage}
+          placeholder="iMessage"
+          placeholderTextColor="#8E8E93"
+          multiline
+          maxLength={500}
         />
       </View>
-    </KeyboardAvoidingView>
+      <TouchableOpacity
+        style={[
+          styles.sendButton,
+          !message.trim() && styles.sendButtonDisabled,
+        ]}
+        onPress={handleSend}
+        disabled={!message.trim()}
+      />
+    </View>
   );
 };
 

@@ -68,6 +68,8 @@ function SectionListInner<ItemT, SectionT = object>(
     inverted,
     initialElementsSize,
     containerOffsetIndex,
+    keyboardAvoidingEnabled,
+    keyboardAvoidingOffset,
     onScroll,
     onStartReached,
     onEndReached,
@@ -232,6 +234,8 @@ function SectionListInner<ItemT, SectionT = object>(
       inverted={inverted}
       initialElementsSize={initialElementsSize}
       containerOffsetIndex={containerOffsetIndex}
+      keyboardAvoidingEnabled={keyboardAvoidingEnabled}
+      keyboardAvoidingOffset={keyboardAvoidingOffset}
       onScroll={onScroll}
       onStartReached={onStartReached}
       onEndReached={onEndReached}

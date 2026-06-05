@@ -91,6 +91,14 @@ interface NativeProps extends ViewProps {
   stickyHeaderIndices: ReadonlyArray<CodegenTypes.Int32>;
   columns: CodegenTypes.Int32;
   containerOffsetIndex: CodegenTypes.Int32;
+  /*
+   * Bottom inset (px) added to the scroll view's scrollable region, used for
+   * keyboard avoidance. The native side grows the bottom content inset by this
+   * amount and slides the content up by the same delta so rows behind the keyboard
+   * become visible. Driven from JS by the keyboard-avoiding hook (see Shadowlist's
+   * keyboardAvoidingEnabled); 0 when no inset is applied. Vertical lists only.
+   */
+  contentInsetBottom: CodegenTypes.Double;
   startReachedThreshold: CodegenTypes.Double;
   endReachedThreshold: CodegenTypes.Double;
   viewablePercentThreshold: CodegenTypes.Double;
