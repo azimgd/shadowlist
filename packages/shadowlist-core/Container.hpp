@@ -232,6 +232,16 @@ public:
   double anchorDelta = 0.0;
 
   /*
+   * Header reserved size in effect when the anchor was captured. A change in the header
+   * size between capture and the in-layout re-flow shifts every element offset but is
+   * NOT a content scroll, so MVCP must not absorb it: the compensation subtracts
+   * (headerSize - anchorHeaderSize). Without this, the header being measured one commit
+   * after the first layout makes MVCP scroll the list down by the header size to keep
+   * element 0 pinned, so the list opens scrolled past the header (header hidden).
+   */
+  double anchorHeaderSize = 0.0;
+
+  /*
    * The scroll offset the platform reported on the previous frame (along the
    * scroll axis). A user scroll only counts as the user taking over when this
    * actually changes: the userScrolled flag latches on the platform, so a stale

@@ -123,6 +123,20 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     this->containerManager_->revision.windowContainerWidth = windowFrameSize.width;
     this->containerManager_->revision.windowContainerHeight = windowFrameSize.height;
     azimgd::shadowlist::Virtualizer::recomputeElementOffsets(this->containerManager_.get(), 0);
+
+    /*
+     * The header/footer/window just changed, which re-flowed every element offset (e.g.
+     * the header measured one commit late shifts all rows down by its size). The
+     * re-flow alone does not move the scroll view, so without re-asserting the offset
+     * the host leaves contentOffset stale and the list appears scrolled past the header
+     * (or, with a sticky header pinned at the top, the first rows sit under it). Mark
+     * the offset corrected so this commit publishes applyContainerOffset and the host
+     * re-asserts the core's resting offset (0 on first open). The MVCP header-size
+     * compensation keeps that resting offset correct, so this re-assert is a no-op while
+     * the user is scrolled (it re-applies the current offset) and only matters on the
+     * header-measurement/resize commits.
+     */
+    this->containerManager_->containerOffsetCorrected = true;
   }
 
   /*
@@ -240,13 +254,22 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   std::vector<Float> stickyHeaderOffsets;
   std::vector<Float> stickyHeaderSizes;
   std::size_t elementsSize = this->containerManager_->getElementsSize();
-  for (std::size_t stickyIndex : this->containerManager_->stickyIndices) {
-    if (stickyIndex >= elementsSize) {
-      continue;
+  /*
+   * Inverted sticky section headers (pin to the viewport end) are an exotic
+   * combination the core deliberately leaves resting (Container::resolveStickyHeader
+   * bails for inverted), so publish no geometry here either - otherwise the native
+   * pins, which have no inverted case, would pin the overlay to the wrong edge with
+   * ascending (non-inverted) math. Empty geometry hides the overlay everywhere.
+   */
+  if (!this->containerManager_->inverted) {
+    for (std::size_t stickyIndex : this->containerManager_->stickyIndices) {
+      if (stickyIndex >= elementsSize) {
+        continue;
+      }
+      stickyHeaderIndices.push_back(static_cast<int>(stickyIndex));
+      stickyHeaderOffsets.push_back(static_cast<Float>(this->containerManager_->getElementOffset(stickyIndex)));
+      stickyHeaderSizes.push_back(static_cast<Float>(this->containerManager_->getElementSize(stickyIndex)));
     }
-    stickyHeaderIndices.push_back(static_cast<int>(stickyIndex));
-    stickyHeaderOffsets.push_back(static_cast<Float>(this->containerManager_->getElementOffset(stickyIndex)));
-    stickyHeaderSizes.push_back(static_cast<Float>(this->containerManager_->getElementSize(stickyIndex)));
   }
   bool stickyChanged =
     stickyHeaderIndices != nextStateData.stickyHeaderIndices_ ||

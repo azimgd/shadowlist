@@ -114,23 +114,32 @@ function dragAdjustedOffset(
  * header is the last one resting at/above the scroll offset. Hidden when scrolled
  * above the first header. Mirrors the native sticky section-header pin.
  */
+/*
+ * Returns the flat index of the active (pinned) section header - the last one resting
+ * at/above the scroll offset - or -1 when none is active. The overlay's CONTENT is
+ * driven from this return value (the same raw-offset walk that sets its POSITION), so
+ * the pinned header's text always matches the header it is pinned over. Inverted lists
+ * are left resting (the core leaves them unpinned), so the overlay is hidden there.
+ */
 function pinSectionOverlay(
   core: ShadowlistCoreInstance,
   overlay: HTMLDivElement | null,
   rawOffset: number,
   isHorizontal: boolean,
-  stickyIndices: ReadonlyArray<number>
-): void {
-  if (!overlay) return;
-  if (stickyIndices.length === 0) {
+  stickyIndices: ReadonlyArray<number>,
+  isInverted: boolean
+): number {
+  if (!overlay) return -1;
+  if (stickyIndices.length === 0 || isInverted) {
     overlay.style.display = 'none';
-    return;
+    return -1;
   }
   const scrollOffset = Math.max(0, rawOffset);
   const elementsSize = core.getElementsSize();
 
   let hasActive = false;
   let activeSize = 0;
+  let activeIndex = -1;
   let hasNext = false;
   let nextOffset = 0;
   for (let i = 0; i < stickyIndices.length; i++) {
@@ -142,6 +151,7 @@ function pinSectionOverlay(
     if (headerOffset <= scrollOffset) {
       hasActive = true;
       activeSize = headerSize;
+      activeIndex = idx;
     } else {
       nextOffset = headerOffset;
       hasNext = true;
@@ -151,7 +161,7 @@ function pinSectionOverlay(
 
   if (!hasActive) {
     overlay.style.display = 'none';
-    return;
+    return -1;
   }
 
   let translation = scrollOffset;
@@ -164,6 +174,7 @@ function pinSectionOverlay(
   overlay.style.transform = isHorizontal
     ? `translate(${translation}px, 0px)`
     : `translate(0px, ${translation}px)`;
+  return activeIndex;
 }
 
 function resolveComponent(
@@ -360,9 +371,18 @@ function ShadowlistInner<ElementT extends { id: string }>(
     draggedExtent: number;
     grabOffset: number;
     desiredLeading: number;
+    /*
+     * Set on drop while the reordered data is committing: the drag is over but the
+     * make-room transforms are held (not re-following the pointer) until the new
+     * order lands, so the rows never snap back to the pre-reorder layout.
+     */
+    settling?: boolean;
   } | null>(null);
   const [draggingIndex, setDraggingIndex] = useState(-1);
   const dragRafRef = useRef<number | null>(null);
+  // Safety-net timer that releases a held post-drop shuffle if the reorder never
+  // commits (e.g. a consumer that ignores onReorder).
+  const dragSettleTimerRef = useRef<number | null>(null);
   const dragPointerClientRef = useRef(0);
   const dragPointerIdRef = useRef<number | null>(null);
   const dragCandidateRef = useRef<{
@@ -466,7 +486,11 @@ function ShadowlistInner<ElementT extends { id: string }>(
     const content = contentRef.current;
     if (!core || !content) return;
 
-    const { horizontal: isHorizontal, columns: columnCount } = latestRef.current;
+    const {
+      horizontal: isHorizontal,
+      columns: columnCount,
+      inverted: isInverted,
+    } = latestRef.current;
     const elementsSize = core.getElementsSize();
     const drag = dragStateRef.current;
 
@@ -519,13 +543,15 @@ function ShadowlistInner<ElementT extends { id: string }>(
     // activeStickyIndex; this only moves it).
     const scrollEl = scrollRef.current;
     if (scrollEl && sectionOverlayRef.current) {
-      pinSectionOverlay(
+      const active = pinSectionOverlay(
         core,
         sectionOverlayRef.current,
         isHorizontal ? scrollEl.scrollLeft : scrollEl.scrollTop,
         isHorizontal,
-        stickyIndicesRef.current
+        stickyIndicesRef.current,
+        isInverted
       );
+      setActiveStickyIndex((prev) => (prev === active ? prev : active));
     }
 
     if (headerRef.current) {
@@ -552,30 +578,40 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
   }, []);
 
+  /*
+   * Set only the cross-axis size the core controls (track width for columns, 100%
+   * otherwise) on each mounted node. Run BEFORE measuring so the measured main-axis
+   * size reflects that constraint - this is the only part of applyPositions a
+   * pre-measure pass needs, so it avoids re-writing every transform, re-running the
+   * drag shuffle, re-pinning the overlay and a forced footer reflow that the full
+   * applyPositions (called again after measuring) would redo and discard.
+   */
+  const applyCrossAxisSizes = useCallback(() => {
+    const core = coreRef.current;
+    if (!core) return;
+    const { horizontal: isHorizontal, columns: columnCount } = latestRef.current;
+    const elementsSize = core.getElementsSize();
+    elementRefs.current.forEach((node, index) => {
+      if (index >= elementsSize) return;
+      if (columnCount > 1) {
+        node.style.width = `${core.getElementAtIndex(index).width}px`;
+        node.style.height = '';
+      } else if (isHorizontal) {
+        node.style.height = '100%';
+        node.style.width = '';
+      } else {
+        node.style.width = '100%';
+        node.style.height = '';
+      }
+    });
+  }, []);
+
   const scheduleTick = useCallback(() => {
     if (rafRef.current != null) return;
     rafRef.current = requestAnimationFrame(() => {
       rafRef.current = null;
       tickRef.current();
     });
-  }, []);
-
-  /*
-   * The active section header is the greatest sticky index at/above the topmost
-   * visible row; it drives the overlay's content. -1 when scrolled above the first.
-   */
-  const updateActiveStickyIndex = useCallback((windowLow: number) => {
-    const indices = stickyIndicesRef.current;
-    if (indices.length === 0) {
-      setActiveStickyIndex((prev) => (prev === -1 ? prev : -1));
-      return;
-    }
-    let active = -1;
-    for (const idx of indices) {
-      if (idx <= windowLow) active = idx;
-      else break;
-    }
-    setActiveStickyIndex((prev) => (prev === active ? prev : active));
   }, []);
 
   /*
@@ -658,8 +694,6 @@ function ShadowlistInner<ElementT extends { id: string }>(
     const validWindow =
       visible.visibleStartIndex >= 0 && visible.visibleEndIndex >= 0;
 
-    if (validWindow) updateActiveStickyIndex(windowLow);
-
     // Low/high-water: only grow/shift the mounted band when the reported window
     // leaves it; while it stays inside, the rows are mounted so skip the re-render.
     if (validWindow && !rangeCovers(mountedRangeRef.current, windowLow, windowHigh)) {
@@ -671,7 +705,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
 
     measureAndResolveRef.current();
-  }, [updateActiveStickyIndex]);
+  }, []);
 
   /*
    * Feed measured DOM sizes back into the core, refresh the content size, apply
@@ -690,9 +724,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
     /*
      * Constrain each node to the cross-axis size the core controls (track width
      * for columns, 100% for single column / horizontal) BEFORE measuring, so the
-     * measured main-axis size reflects that constraint.
+     * measured main-axis size reflects that constraint. Only sizing is needed here;
+     * the full applyPositions (transforms + pins) runs once after measuring.
      */
-    applyPositions();
+    applyCrossAxisSizes();
 
     elementRefs.current.forEach((node, index) => {
       if (index >= elementsSize) return;
@@ -756,7 +791,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       settlePassesRef.current += 1;
       scheduleTick();
     }
-  }, [applyPositions, scheduleTick]);
+  }, [applyPositions, applyCrossAxisSizes, scheduleTick]);
 
   // Stable indirection so tick/measureAndResolve can reference each other.
   const tickRef = useRef(tick);
@@ -798,6 +833,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
     return () => {
       disposed = true;
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      if (dragRafRef.current != null) cancelAnimationFrame(dragRafRef.current);
+      if (dragSettleTimerRef.current != null) {
+        window.clearTimeout(dragSettleTimerRef.current);
+      }
       coreRef.current = null;
       instance?.delete();
     };
@@ -855,6 +894,16 @@ function ShadowlistInner<ElementT extends { id: string }>(
   // Re-run the core whenever the data set or layout configuration changes.
   useEffect(() => {
     if (!coreReady) return;
+    // A reorder from a drop has committed (the data/keys changed): release the held
+    // make-room shuffle so the now-drag-free pass lands the reordered layout.
+    if (dragStateRef.current?.settling) {
+      if (dragSettleTimerRef.current != null) {
+        window.clearTimeout(dragSettleTimerRef.current);
+        dragSettleTimerRef.current = null;
+      }
+      dragStateRef.current = null;
+      setDraggingIndex(-1);
+    }
     settlePassesRef.current = 0;
     scheduleTick();
   }, [
@@ -887,21 +936,25 @@ function ShadowlistInner<ElementT extends { id: string }>(
     if (!scroll) return;
     const {
       horizontal: isHorizontal,
+      inverted: isInverted,
       stickyHeader: isStickyHeader,
       stickyFooter: isStickyFooter,
     } = latestRef.current;
 
     // Pin the section-header overlay straight from live scroll geometry too, so the
-    // pinned section header never lags the scroll.
+    // pinned section header never lags the scroll, and drive its content from the same
+    // walk so the title always matches the header it is pinned over.
     const core = coreRef.current;
     if (core && sectionOverlayRef.current) {
-      pinSectionOverlay(
+      const active = pinSectionOverlay(
         core,
         sectionOverlayRef.current,
         isHorizontal ? scroll.scrollLeft : scroll.scrollTop,
         isHorizontal,
-        stickyIndicesRef.current
+        stickyIndicesRef.current,
+        isInverted
       );
+      setActiveStickyIndex((prev) => (prev === active ? prev : active));
     }
 
     if (!isStickyHeader && !isStickyFooter) return;
@@ -950,7 +1003,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     const drag = dragStateRef.current;
     const core = coreRef.current;
     const scroll = scrollRef.current;
-    if (!drag || !core || !scroll) return;
+    if (!drag || drag.settling || !core || !scroll) return;
     const { horizontal: isHorizontal } = latestRef.current;
 
     const rect = scroll.getBoundingClientRect();
@@ -989,7 +1042,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const dragLoop = useCallback(() => {
     const drag = dragStateRef.current;
     const scroll = scrollRef.current;
-    if (!drag || !scroll) {
+    if (!drag || drag.settling || !scroll) {
       dragRafRef.current = null;
       return;
     }
@@ -1026,7 +1079,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const finishDrag = useCallback(() => {
     const drag = dragStateRef.current;
     const scroll = scrollRef.current;
-    if (!drag) return;
+    if (!drag || drag.settling) return;
 
     if (dragRafRef.current != null) {
       cancelAnimationFrame(dragRafRef.current);
@@ -1035,9 +1088,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
     const from = drag.originIndex;
     const to = drag.insertionIndex;
-    dragStateRef.current = null;
-    setDraggingIndex(-1);
 
+    // Release the gesture (pointer capture / scroll locks) regardless of outcome.
     if (scroll) {
       scroll.style.touchAction = '';
       scroll.style.userSelect = '';
@@ -1052,23 +1104,44 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
     dragPointerIdRef.current = null;
 
-    if (from !== to) {
-      const currentData = latestRef.current.data as ElementT[];
-      latestOnReorder.current?.({
-        from,
-        to,
-        data: arrayMove(currentData, from, to),
-      });
+    if (from === to) {
+      // Dropped where it started: no reorder will land, so settle immediately.
+      dragStateRef.current = null;
+      setDraggingIndex(-1);
+      settlePassesRef.current = 0;
+      scheduleTick();
+      return;
     }
 
     /*
-     * Re-run positioning. Until this runs the shuffle transforms stay frozen (the
-     * siblings already sit at their post-reorder positions, so it is seamless); then
-     * applyPositions - now drag-free - lands everything from the reordered layout (or
-     * resets to the original order if the consumer ignored onReorder).
+     * Hold the make-room shuffle until the reordered data commits. The siblings
+     * already sit at their post-reorder positions and the picked-up row stays where
+     * it was dropped, so keeping dragStateRef applied (in `settling` mode, no longer
+     * following the pointer) means nothing snaps back to the pre-reorder layout in
+     * between. The data-change effect releases it when the new order lands; the
+     * timeout is a safety net for a consumer that ignores onReorder. Mirrors the
+     * native _dragDropPending / mDragDropPending hold.
      */
-    settlePassesRef.current = 0;
-    scheduleTick();
+    drag.settling = true;
+    const currentData = latestRef.current.data as ElementT[];
+    latestOnReorder.current?.({
+      from,
+      to,
+      data: arrayMove(currentData, from, to),
+    });
+
+    if (dragSettleTimerRef.current != null) {
+      window.clearTimeout(dragSettleTimerRef.current);
+    }
+    dragSettleTimerRef.current = window.setTimeout(() => {
+      dragSettleTimerRef.current = null;
+      if (dragStateRef.current?.settling) {
+        dragStateRef.current = null;
+        setDraggingIndex(-1);
+        settlePassesRef.current = 0;
+        scheduleTick();
+      }
+    }, 300);
   }, [scheduleTick]);
 
   const beginDrag = useCallback(
@@ -1127,6 +1200,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (!latestRef.current.dragEnabled) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
+      // Drop any still-pending long-press candidate from an earlier pointer (e.g. a
+      // second touch, or a quick re-press) so its timer cannot later fire beginDrag
+      // with a stale index / released pointer id.
+      clearDragCandidate();
       const target = event.target as HTMLElement;
       const host = target.closest<HTMLElement>('[data-shadowlist-index]');
       if (!host) return;
@@ -1144,7 +1221,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       }, LONG_PRESS_MS);
       dragCandidateRef.current = { index, client, pointerId, timer };
     },
-    [beginDrag]
+    [beginDrag, clearDragCandidate]
   );
 
   const handlePointerMove = useCallback(
@@ -1172,6 +1249,30 @@ function ShadowlistInner<ElementT extends { id: string }>(
     clearDragCandidate();
     if (dragStateRef.current) finishDrag();
   }, [clearDragCandidate, finishDrag]);
+
+  /*
+   * Dragging turned off (possibly mid-gesture): cancel any pending candidate or
+   * in-flight/settling drag WITHOUT applying a reorder, and release the force-mounted
+   * row so it does not stay latched.
+   */
+  useEffect(() => {
+    if (dragEnabled) return;
+    clearDragCandidate();
+    if (dragRafRef.current != null) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
+    }
+    if (dragSettleTimerRef.current != null) {
+      window.clearTimeout(dragSettleTimerRef.current);
+      dragSettleTimerRef.current = null;
+    }
+    if (dragStateRef.current) {
+      dragStateRef.current = null;
+      setDraggingIndex(-1);
+      settlePassesRef.current = 0;
+      scheduleTick();
+    }
+  }, [dragEnabled, clearDragCandidate, scheduleTick]);
 
   // Re-measure on container resize.
   useEffect(() => {

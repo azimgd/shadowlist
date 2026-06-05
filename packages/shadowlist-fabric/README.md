@@ -139,6 +139,93 @@ import { SectionList } from 'shadowlist';
 `onScroll`, `onStartReached` / `onEndReached`, the imperative ref (`scrollToIndex`,
 `scrollToOffset`, `scrollToEnd`) all work as on `Shadowlist`.
 
+## TreeList
+
+`TreeList` is a directory-browser / outline tree on the same engine. It flattens the
+*visible* subtree — every node whose ancestors are all expanded — into the one
+virtualized stream, so only the rows on screen are mounted no matter how big the tree
+is. Collapsed subtrees are never walked, and expand / collapse only changes the flat
+key set, so measured row sizes are kept and the toggled row stays put (maintain
+visible content position) as its children appear.
+
+```tsx
+import { useState } from 'react';
+import { Pressable, Text } from 'react-native';
+import { TreeList } from 'shadowlist';
+
+type Node = { id: string; name: string; children?: Node[] };
+
+const tree: Node[] = [
+  {
+    id: '1',
+    name: 'src',
+    children: [
+      { id: '1-1', name: 'index.ts' },
+      { id: '1-2', name: 'components', children: [{ id: '1-2-1', name: 'Button.tsx' }] },
+    ],
+  },
+];
+
+export function FileTree() {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(['1']));
+
+  return (
+    <TreeList
+      data={tree}
+      getChildren={(node) => node.children}
+      keyExtractor={(node) => node.id}
+      expandedIds={expanded}
+      onExpandedChange={setExpanded}
+      renderNode={({ item, indent, hasChildren, isExpanded, toggle }) => (
+        <Pressable onPress={toggle} style={{ paddingLeft: indent }}>
+          <Text>
+            {hasChildren ? (isExpanded ? '▾' : '▸') : '·'} {item.name}
+          </Text>
+        </Pressable>
+      )}
+    />
+  );
+}
+```
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `data` | `ReadonlyArray<T>` | required | Root nodes |
+| `getChildren` | `(item) => readonly T[] \| undefined` | required | A node's children, or `undefined` for a leaf |
+| `keyExtractor` | `(item) => string` | required | Globally unique, stable node id |
+| `renderNode` | `(info) => ReactElement` | required | `info` carries `item, index, depth, indent, isExpanded, hasChildren, toggle` |
+| `expandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Controlled expansion set; pair with `onExpandedChange` |
+| `initialExpandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Uncontrolled initial expansion |
+| `onExpandedChange` | `(expandedIds: Set<string>) => void` | `undefined` | Fires with the next set on every toggle |
+| `indentWidth` | `number` | `16` | Pixels of leading inset per depth level |
+
+`style`, `elementStyle`, `initialElementsSize`, `containerOffsetIndex`, `onScroll`,
+`onStartReached` / `onEndReached`, `ItemSeparatorComponent` and the list templates all
+work as on `Shadowlist`. The ref adds `scrollToNode(id)` on top of the usual commands.
+
+## Drag To Reorder
+
+Set `dragEnabled` to turn on native long-press drag-to-reorder. The pickup, finger
+tracking, edge auto-scroll and live shuffle all run on the UI thread; the list reports
+the final move through `onReorder`, whose `data` is the already-reordered array — set
+it back into your state, or the row snaps back on drop.
+
+```tsx
+const [data, setData] = useState(rows);
+
+<Shadowlist
+  data={data}
+  dragEnabled
+  onReorder={({ data: reordered }) => setData(reordered)}
+  renderElement={({ element }) => <Row item={element} />}
+/>;
+```
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `dragEnabled` | `boolean` | `false` | Enable long-press drag-to-reorder |
+| `onReorder` | `({ from, to, data }) => void` | `undefined` | Fires once on drop; `data` is the reordered array, `from` / `to` the moved indices |
+
 ## Examples
 
 ### Chat / Inverted

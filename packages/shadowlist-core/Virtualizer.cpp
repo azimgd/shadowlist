@@ -17,6 +17,13 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
     container->invertedInitialized ? 1 : 0);
 
   /*
+   * Header size from the previous layout, captured before this frame overwrites it, so
+   * MVCP can recognise a header-size change (which shifts every element offset but is
+   * not a content scroll) and refuse to absorb it.
+   */
+  double prevHeaderSize = container->headerSize;
+
+  /*
    * Configure layout properties for this frame
    */
   container->inverted = input.inverted;
@@ -87,6 +94,7 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
    */
   container->anchorKey = anchorKey;
   container->anchorDelta = anchorDelta;
+  container->anchorHeaderSize = prevHeaderSize;
 
   /*
    * Reconcile the element list to the incoming keys (handles insert/remove/reorder)
@@ -567,7 +575,13 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
        * over-scroll upper bound is enforced by resolveScroll on the next frame,
        * which runs after the total has been refreshed.
        */
-      double anchoredOffset = container->getElementOffset(anchorIndex) + compensationDelta;
+      /*
+       * Subtract any header-size change since the anchor was captured: the in-layout
+       * header re-flow shifts the anchor's offset, but that shift is the header
+       * growing/shrinking, not the content scrolling, so MVCP must not chase it.
+       */
+      double anchoredOffset = container->getElementOffset(anchorIndex) + compensationDelta
+        - (container->headerSize - container->anchorHeaderSize);
       if (anchoredOffset < 0.0) {
         anchoredOffset = 0.0;
       }
@@ -720,6 +734,25 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
   };
 
   /*
+   * 0. Content shrank below the current scroll position (e.g. a tree "collapse all"
+   *    removed the rows the viewport was showing), leaving the view scrolled past the
+   *    new end with nothing visible. Drive back to the new bottom. Keying on the shrink
+   *    (total < previous total) rather than offset>maxOffset alone avoids fighting an
+   *    over-scroll bounce (the total is unchanged there). It is driven through
+   *    pendingScroll (step 3), NOT a one-shot write, so it survives the several update()
+   *    clones Fabric runs per commit: the shrink is only detected on the first clone
+   *    (the next one sees the already-updated previous total), but the latched
+   *    pendingScroll keeps every clone - including the last, which the layout publishes -
+   *    driving to the bottom. Step 3 clears it once the view arrives; a user scroll
+   *    cancels it (Virtualizer::update). Inverted lists keep their own bottom pin (step 2).
+   */
+  if (!container->inverted && elementsSize > 0 &&
+      currentOffset > maxOffset + OFFSET_MOVED_EPSILON &&
+      totalSize < prevTotalForScrollToEnd) {
+    requestFixed(maxOffset);
+  }
+
+  /*
    * 1. scrollToIndex aligns the element to the viewport start
    */
   if (container->scrollToIndexTarget != UNDEFINED_INDEX) {
@@ -826,7 +859,9 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
   if (hadElementsBefore && !anchorKey.empty()) {
     std::size_t anchorIndex = container->findElementIndexByKey(anchorKey);
     if (anchorIndex != UNDEFINED_INDEX) {
-      double anchoredOffset = clampOffset(container->getElementOffset(anchorIndex) + anchorDelta);
+      // Exclude a header-size change from the anchored target (see updateElementAtIndex).
+      double anchoredOffset = clampOffset(container->getElementOffset(anchorIndex) + anchorDelta
+        - (container->headerSize - container->anchorHeaderSize));
       if (std::fabs(anchoredOffset - currentOffset) >= OFFSET_MOVED_EPSILON) {
         requestAnchor(anchorKey, anchorDelta);
         container->containerOffsetCorrected = true;

@@ -10,9 +10,19 @@ import type { ContactElement as ContactElementType } from './ContactElement';
  * finger tracking, auto-scroll and shuffle are all handled natively by Shadowlist via
  * the dragEnabled prop. The row only renders content.
  */
+/*
+ * Derive a stable color from the contact's id (not its row index) so a row keeps its
+ * avatar color when it is dragged to a new position.
+ */
+const colorForId = (id: string) => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+};
+
 const ReorderElement = memo(
-  ({ element, index }: { element: ContactElementType; index: number }) => {
-    const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];
+  ({ element }: { element: ContactElementType; index: number }) => {
+    const avatarColor = colorForId(element.id);
     const initials = `${element.firstName.charAt(0)}${element.lastName.charAt(0)}`;
 
     return (

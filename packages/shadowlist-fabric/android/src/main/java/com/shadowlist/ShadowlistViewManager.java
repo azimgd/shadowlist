@@ -48,6 +48,14 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
     return new ShadowlistView(context);
   }
 
+  @Override
+  public void onDropViewInstance(@NonNull ShadowlistView view) {
+    // Tear down any in-flight drag before the host is recycled, so its self-reposting
+    // Choreographer frame callback cannot keep running against a detached view.
+    view.onDropInstance();
+    super.onDropViewInstance(view);
+  }
+
   /*
    * Element/template children are hosted in the content container inside the inner
    * scroll view, not directly on the host, so route Fabric's child mounting there.
@@ -100,6 +108,18 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   @ReactProp(name = "stickyFooter")
   public void setStickyFooter(ShadowlistView view, boolean stickyFooter) {
     view.setStickyFooter(stickyFooter);
+  }
+
+  @Override
+  @ReactProp(name = "autoHideHeader")
+  public void setAutoHideHeader(ShadowlistView view, boolean autoHideHeader) {
+    view.setAutoHideHeader(autoHideHeader);
+  }
+
+  @Override
+  @ReactProp(name = "autoHideFooter")
+  public void setAutoHideFooter(ShadowlistView view, boolean autoHideFooter) {
+    view.setAutoHideFooter(autoHideFooter);
   }
 
   @Override

@@ -3,6 +3,7 @@ import {
   useState,
   useRef,
   useMemo,
+  useEffect,
   useImperativeHandle,
   useCallback,
   memo,
@@ -151,6 +152,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     horizontal = false,
     stickyHeader = false,
     stickyFooter = false,
+    autoHideHeader = false,
+    autoHideFooter = false,
     dragEnabled = false,
     onReorder,
     columns = 1,
@@ -284,8 +287,6 @@ function ShadowlistInner<ElementT extends { id: string }>(
       const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
       const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
 
-      updateActiveStickyIndex(windowLow);
-
       setVisibleBand((prevBand) => {
         // Window already inside the band - rows are mounted, skip the re-render.
         if (
@@ -308,7 +309,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
         return { low, high };
       });
     },
-    [data.length, updateActiveStickyIndex]
+    [data.length]
   );
 
   const visibleRange = useMemo(() => bandToRange(visibleBand), [visibleBand]);
@@ -367,6 +368,18 @@ function ShadowlistInner<ElementT extends { id: string }>(
       [data, onReorder]
     );
 
+  /*
+   * Drag-to-reorder is gated by dragEnabled (onDragStart/onDragEnd only act while it
+   * is on). If the consumer disables dragging mid-gesture (e.g. leaving edit mode),
+   * the native end event is cancelled/dropped, so draggingIndex would stay latched
+   * and keep the picked-up row force-mounted. Releasing it here recovers cleanly.
+   */
+  useEffect(() => {
+    if (!dragEnabled) {
+      setDraggingIndex((prev) => (prev === -1 ? prev : -1));
+    }
+  }, [dragEnabled]);
+
   const prevViewableRef = useRef<ViewToken<ElementT>[]>([]);
 
   const handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
@@ -374,13 +387,25 @@ function ShadowlistInner<ElementT extends { id: string }>(
     never
   > = useCallback(
     (event) => {
-      if (!onViewableItemsChanged) return;
-
       const { viewableStartIndex, viewableEndIndex } = event.nativeEvent;
       // The core reports the higher index first for inverted lists; normalise to
       // an ascending range before mapping back to items.
       const lo = Math.min(viewableStartIndex, viewableEndIndex);
       const hi = Math.max(viewableStartIndex, viewableEndIndex);
+
+      /*
+       * Drive the sticky-overlay content from the strictly-viewable top index (the
+       * element actually at the viewport top), NOT the buffered visible window start
+       * (which sits ~one window above the viewport): the native pin positions the
+       * overlay from the raw scroll offset, so deriving the content from the buffered
+       * window made it lag a whole section behind the pin. The viewable top matches
+       * the pinned header to within a row.
+       */
+      if (viewableStartIndex !== -1 && viewableEndIndex !== -1) {
+        updateActiveStickyIndex(lo);
+      }
+
+      if (!onViewableItemsChanged) return;
 
       const viewableItems: ViewToken<ElementT>[] = [];
       if (viewableStartIndex !== -1 && viewableEndIndex !== -1) {
@@ -419,7 +444,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
         onViewableItemsChanged({ viewableItems, changed });
       }
     },
-    [data, keyExtractor, onViewableItemsChanged]
+    [data, keyExtractor, onViewableItemsChanged, updateActiveStickyIndex]
   );
 
   const viewablePercentThreshold =
@@ -479,13 +504,17 @@ function ShadowlistInner<ElementT extends { id: string }>(
       style={[styles.container, style]}
       onVisibleIndicesChange={handleVisibleIndicesChange}
       onViewableIndicesChange={
-        onViewableItemsChanged ? handleViewableIndicesChange : undefined
+        onViewableItemsChanged || stickyEnabled
+          ? handleViewableIndicesChange
+          : undefined
       }
       elementsAllKeys={elementsAllKeys}
       inverted={inverted}
       horizontal={horizontal}
       stickyHeader={stickyHeader}
       stickyFooter={stickyFooter}
+      autoHideHeader={autoHideHeader}
+      autoHideFooter={autoHideFooter}
       stickyHeaderIndices={stickyHeaderIndices ?? []}
       columns={columns}
       containerOffsetIndex={containerOffsetIndex}
@@ -496,8 +525,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
       onStartReached={onStartReached}
       onEndReached={onEndReached}
       onScroll={onScroll}
-      onDragStart={dragEnabled ? handleDragStart : undefined}
-      onDragEnd={dragEnabled ? handleDragEnd : undefined}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
     >
       {header && (
         <ShadowlistTemplateView templateType="header">

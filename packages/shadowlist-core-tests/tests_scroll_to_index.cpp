@@ -222,3 +222,116 @@ TEST(scroll_to_end_via_command_sentinel) {
 
   CHECK_NEAR(sim.offsetY, 19400.0, 1.0);  // total - window
 }
+
+// Collapsing/removing content while scrolled deep (e.g. a tree "collapse all" at the
+// bottom) leaves the offset past the new end with nothing visible. The core must pull
+// the offset back to the new bottom so content reappears instead of a blank screen.
+TEST(content_shrink_below_offset_pulls_back_to_bottom) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(100));   // total 10000, maxOffset 9400
+  sim.settle();
+  sim.scrollTo(9000.0);
+  CHECK_NEAR(sim.offsetY, 9000.0, 0.5);  // a valid deep offset is NOT spuriously clamped
+
+  // Collapse to a handful of rows that fit within the window (new maxOffset 0).
+  sim.setKeys(makeKeys(5));
+  sim.settle();
+
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);     // pulled back to the new bottom (top here)
+  std::size_t lo = 0, hi = 0;
+  CHECK(sim.visibleRange(lo, hi));        // content is visible again
+  CHECK_EQ(lo, (std::size_t)0);
+}
+
+// A partial shrink pulls back to the new bottom (not all the way to the top).
+TEST(content_shrink_pulls_back_to_new_max_offset) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(100));
+  sim.settle();
+  sim.scrollTo(9000.0);
+
+  sim.setKeys(makeKeys(20));   // total 2000, new maxOffset 1400
+  sim.settle();
+
+  CHECK_NEAR(sim.offsetY, 1400.0, 0.5);
+}
+
+// The clamp must fire from the "no elements visible" signal, NOT from a !userScrolled
+// gate: after a real gesture scroll the user-scroll flag can still be latched on the
+// commit that collapses the content, and the old gate skipped the pull-back, stranding
+// the user on a blank screen. Here the shrink commit reports userScrolled=true and must
+// still pull back to the new bottom.
+TEST(content_shrink_clamps_even_with_stale_user_scroll_flag) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(100));
+  sim.settle();
+  sim.scrollTo(9000.0);
+  CHECK_NEAR(sim.offsetY, 9000.0, 0.5);
+
+  // Collapse to a handful of rows; the commit still carries a (stale) user-scroll flag.
+  sim.setKeys(makeKeys(5));
+  sim.commit(1, /*userScrolled=*/true);
+  sim.settle();
+
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+  std::size_t lo = 0, hi = 0;
+  CHECK(sim.visibleRange(lo, hi));
+}
+
+// The "first collapse" bug: the user scrolled only a little past the (small) collapsed
+// content, so the buffered measure window (which looks ~2 viewports ahead) still reaches
+// the few remaining rows - yet the viewport itself is blank. Keying the pull-back on the
+// content shrinking (not on an empty measure window) handles this shallow case too.
+TEST(content_shrink_shallow_scroll_still_pulls_back) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(11));   // total 1100, maxOffset 500
+  sim.settle();
+  sim.scrollTo(500.0);         // at the bottom of the initial content
+  CHECK_NEAR(sim.offsetY, 500.0, 0.5);
+
+  // Collapse to 2 rows (total 200 < window): offset 500 is past the new end but only
+  // ~half a window beyond it, so the buffered window still reaches the rows.
+  sim.setKeys(makeKeys(2));
+  sim.settle();
+
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+  std::size_t lo = 0, hi = 0;
+  CHECK(sim.visibleRange(lo, hi));
+}
+
+// Fabric runs update() several times per commit (it clones the list node). The shrink
+// is only detectable on the first clone (the next one sees the already-updated previous
+// total), so the pull-back must be LATCHED (pendingScroll) to survive every clone -
+// including the last one, which the layout publishes. A one-shot write only the first
+// clone applied was reset by the later clones, leaving the screen blank on device.
+TEST(content_shrink_clamps_across_multi_adopt_commit) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(11));
+  sim.settle();
+  sim.scrollTo(500.0);
+  CHECK_NEAR(sim.offsetY, 500.0, 0.5);
+
+  // Collapse, with THREE update() clones in the one commit (as Fabric does).
+  sim.setKeys(makeKeys(2));
+  sim.commit(3, /*userScrolled=*/false);
+  sim.settle();
+
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+  std::size_t lo = 0, hi = 0;
+  CHECK(sim.visibleRange(lo, hi));
+}

@@ -1,5 +1,6 @@
 export { default as Shadowlist } from './Shadowlist.js';
 export { default as SectionList } from './SectionList.js';
+export { default as TreeList } from './TreeList.js';
 export type {
   ShadowlistProps,
   ShadowlistCommands,
@@ -11,6 +12,9 @@ export type {
   SectionListProps,
   SectionListRenderItem,
   SectionListRenderItemInfo,
+  TreeListProps,
+  TreeListCommands,
+  TreeListRenderNodeInfo,
 } from './types.js';
 export {
   createShadowlistCore,

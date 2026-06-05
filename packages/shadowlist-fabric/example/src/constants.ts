@@ -129,10 +129,10 @@ const FILE_EXTENSIONS = ['ts', 'tsx', 'js', 'json', 'md', 'css', 'png', 'svg'];
  * regardless of total size.
  */
 export function generateFileTree(
-  rootCount = 8,
-  maxDepth = 4,
-  foldersPerLevel = 3,
-  filesPerLevel = 6
+  rootCount = 4,
+  maxDepth = 3,
+  foldersPerLevel = 2,
+  filesPerLevel = 4
 ): TreeFileNode[] {
   const buildFolder = (name: string, depth: number): TreeFileNode => {
     const children: TreeFileNode[] = [];

@@ -105,6 +105,123 @@ type ShadowlistCommands = {
 };
 ```
 
+## SectionList
+
+`SectionList` groups items into sections with swapping sticky section headers,
+flattening your `sections` into the one virtualized stream — so sections cost nothing
+on top of `Shadowlist`. The API mirrors the Fabric package.
+
+```tsx
+import { SectionList } from 'shadowlist-wasm';
+
+<SectionList
+  sections={[
+    { key: 'A', title: 'A', data: [{ id: '1', name: 'Alice' }] },
+    { key: 'B', title: 'B', data: [{ id: '2', name: 'Bob' }] },
+  ]}
+  style={{ height: 600 }}
+  renderItem={({ item }) => <div className="row">{item.name}</div>}
+  renderSectionHeader={({ section }) => <div className="header">{section.title}</div>}
+/>;
+```
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `sections` | `Array<{ data: ItemT[]; key?: string } & SectionT>` | required | Each section's items plus your own fields |
+| `renderItem` | `({ item, index, section }) => ReactNode` | — | `index` is the item's position within its section |
+| `renderSectionHeader` | `({ section }) => ReactNode` | — | Rendered (and pinned) at each section start |
+| `renderSectionFooter` | `({ section }) => ReactNode` | — | Rendered at each section end |
+| `keyExtractor` | `(item, index) => string` | `item.id` | Per-section override via `section.keyExtractor` |
+| `stickySectionHeadersEnabled` | `boolean` | `true` | Pin and swap section headers |
+| `ItemSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | — | Between items within a section |
+| `SectionSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | — | Between sections |
+
+## TreeList
+
+`TreeList` is a directory-browser / outline tree on the same engine. It flattens the
+*visible* subtree — every node whose ancestors are all expanded — into the one
+virtualized stream, so only the rows on screen are mounted no matter how big the tree
+is. Collapsed subtrees are never walked, and expand / collapse only changes the flat
+key set, so measured row sizes are kept and the toggled row stays put as its children
+appear.
+
+```tsx
+import { useState } from 'react';
+import { TreeList } from 'shadowlist-wasm';
+
+type Node = { id: string; name: string; children?: Node[] };
+
+const tree: Node[] = [
+  {
+    id: '1',
+    name: 'src',
+    children: [
+      { id: '1-1', name: 'index.ts' },
+      { id: '1-2', name: 'components', children: [{ id: '1-2-1', name: 'Button.tsx' }] },
+    ],
+  },
+];
+
+export function FileTree() {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set(['1']));
+
+  return (
+    <TreeList
+      data={tree}
+      style={{ height: 600 }}
+      getChildren={(node) => node.children}
+      keyExtractor={(node) => node.id}
+      expandedIds={expanded}
+      onExpandedChange={setExpanded}
+      renderNode={({ item, indent, hasChildren, isExpanded, toggle }) => (
+        <div onClick={toggle} style={{ paddingLeft: indent, cursor: 'pointer' }}>
+          {hasChildren ? (isExpanded ? '▾' : '▸') : '·'} {item.name}
+        </div>
+      )}
+    />
+  );
+}
+```
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `data` | `ReadonlyArray<T>` | required | Root nodes |
+| `getChildren` | `(item) => readonly T[] \| undefined` | required | A node's children, or `undefined` for a leaf |
+| `keyExtractor` | `(item) => string` | required | Globally unique, stable node id |
+| `renderNode` | `(info) => ReactNode` | required | `info` carries `item, index, depth, indent, isExpanded, hasChildren, toggle` |
+| `expandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Controlled expansion set; pair with `onExpandedChange` |
+| `initialExpandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Uncontrolled initial expansion |
+| `onExpandedChange` | `(expandedIds: Set<string>) => void` | `undefined` | Fires with the next set on every toggle |
+| `indentWidth` | `number` | `16` | Pixels of leading inset per depth level |
+
+`style`, `elementStyle`, `initialElementsSize`, `containerOffsetIndex`, `onScroll`,
+`onStartReached` / `onEndReached`, `ItemSeparatorComponent` and the list templates all
+work as on `Shadowlist`. The ref adds `scrollToNode(id)` on top of the usual commands.
+
+## Drag To Reorder
+
+Set `dragEnabled` to turn on drag-to-reorder (pointer-driven on the web, with edge
+auto-scroll and a live shuffle). The list reports the final move through `onReorder`,
+whose `data` is the already-reordered array — set it back into your state, or the row
+snaps back on drop.
+
+```tsx
+const [data, setData] = useState(rows);
+
+<Shadowlist
+  data={data}
+  style={{ height: 600 }}
+  dragEnabled
+  onReorder={({ data: reordered }) => setData(reordered)}
+  renderElement={({ element }) => <Row item={element} />}
+/>;
+```
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `dragEnabled` | `boolean` | `false` | Enable drag-to-reorder |
+| `onReorder` | `({ from, to, data }) => void` | `undefined` | Fires once on drop; `data` is the reordered array, `from` / `to` the moved indices |
+
 ## Examples
 
 ### Feed

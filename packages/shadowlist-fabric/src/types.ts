@@ -46,6 +46,14 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   stickyHeader?: boolean;
   stickyFooter?: boolean;
   /*
+   * Auto-hide the header/footer on scroll: the bar pins to its edge, then slides away
+   * as you scroll toward the content (down for the header, down for the footer) and
+   * slides back as you scroll the other way. Direction-based, handled natively. The
+   * header stays shown near the top and the footer near the bottom.
+   */
+  autoHideHeader?: boolean;
+  autoHideFooter?: boolean;
+  /*
    * Enables native long-press drag-to-reorder. The pickup, finger tracking, edge
    * auto-scroll and live shuffle run entirely natively; the component mirrors the
    * resulting order and reports the final move through onReorder. Pair with a

@@ -42,6 +42,8 @@ export const FeedScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
+        autoHideHeader
+        autoHideFooter
         renderElement={({ element, index }) => (
           <FeedElement element={element} index={index} />
         )}

@@ -149,8 +149,9 @@ class ShadowlistViewState final {
    * progresses and consumed by the component descriptor to emit the JS onDrag*
    * events exactly once per change. dragEventNonce_ is bumped on every drag event so
    * the descriptor can tell a fresh event from a carried-forward one (a plain scroll
-   * commit leaves it unchanged). dragEventType_ is 1=start, 2=move, 3=end (0=none).
-   * dragFromIndex_/dragToIndex_ carry the element indices for that event. Declared
+   * commit leaves it unchanged). dragEventType_ is 1=start, 3=end (0=none); there is
+   * no mid-drag event - the finger tracking and shuffle stay native and never reach
+   * JS. dragFromIndex_/dragToIndex_ carry the element indices for that event. Declared
    * before userScrolled_ so the Android constructor's member-init order matches.
    */
   double dragEventNonce_{0.0};

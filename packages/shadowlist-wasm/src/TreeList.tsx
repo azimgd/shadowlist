@@ -1,18 +1,19 @@
-import type { Ref, ReactElement } from 'react';
 import {
-  useMemo,
-  useState,
-  useRef,
+  forwardRef,
   useCallback,
   useImperativeHandle,
-  forwardRef,
+  useMemo,
+  useRef,
+  useState,
+  type ReactElement,
+  type Ref,
 } from 'react';
-import Shadowlist from './Shadowlist';
+import Shadowlist from './Shadowlist.js';
 import type {
   ShadowlistCommands,
   TreeListProps,
   TreeListCommands,
-} from './types';
+} from './types.js';
 
 /*
  * TreeList is a thin data layer over Shadowlist, the tree analogue of SectionList.
@@ -24,9 +25,8 @@ import type {
  *
  * Expand/collapse is just "the flat key set changed". Each row keeps a stable key
  * (the node id), so Shadowlist's key-based reconcile preserves the measured height
- * of every surviving row and its maintain-visible-content-position anchor keeps the
- * toggled row fixed under the finger while children appear/disappear below it. No
- * native change is required - all the heavy lifting is the unchanged engine.
+ * of every surviving row while children appear/disappear below it. No engine change
+ * is required - all the heavy lifting is the unchanged virtualizer.
  */
 
 interface TreeFlatRow<ItemT> {
