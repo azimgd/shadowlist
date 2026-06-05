@@ -79,6 +79,11 @@ export const ActivityScreen = () => {
         style={styles.list}
         keyExtractor={(item) => item.id}
         renderElement={({ element }) => <ActivityElement element={element} />}
+        // Initial scroll position: open the list already scrolled to index 30. The
+        // core anchors that row to the viewport top and its rows mount on the first
+        // render (no scroll-from-top, no blank flash). Keep it constant for a pure
+        // initial position.
+        containerOffsetIndex={30}
         stickyHeader
         stickyFooter
         ListHeaderComponent={header}

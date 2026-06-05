@@ -67,8 +67,10 @@ export function Example() {
 | `columns` | `number` | `1` | Multi-column layout |
 | `stickyHeader` | `boolean` | `false` | Pins header to the viewport start |
 | `stickyFooter` | `boolean` | `false` | Pins footer to the viewport end |
+| `autoHideHeader` | `boolean` | `false` | Header slides away as you scroll toward the content and back the other way (direction-based, native) |
+| `autoHideFooter` | `boolean` | `false` | Footer slides away / back the same way |
 | `initialElementsSize` | `number` | `20` | Initial mounted window size |
-| `containerOffsetIndex` | `number` | `-2` | Declarative scroll-to-index; `-2` (default) is inactive, set a non-negative index to scroll there |
+| `containerOffsetIndex` | `number` | `-2` | Initial scroll position / declarative scroll-to-index. `-2` (default) = inactive; a non-negative index opens at that row. See [Initial scroll position](#initial-scroll-position) |
 
 ### Callbacks
 
@@ -136,6 +138,7 @@ import { SectionList } from 'shadowlist';
 | `SectionSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | — | Between sections |
 
 `ListHeaderComponent`, `ListFooterComponent`, `ListEmptyComponent`, `inverted`,
+`containerOffsetIndex`, `keyboardAvoidingEnabled` / `keyboardAvoidingOffset`,
 `onScroll`, `onStartReached` / `onEndReached`, the imperative ref (`scrollToIndex`,
 `scrollToOffset`, `scrollToEnd`) all work as on `Shadowlist`.
 
@@ -199,7 +202,8 @@ export function FileTree() {
 | `onExpandedChange` | `(expandedIds: Set<string>) => void` | `undefined` | Fires with the next set on every toggle |
 | `indentWidth` | `number` | `16` | Pixels of leading inset per depth level |
 
-`style`, `elementStyle`, `initialElementsSize`, `containerOffsetIndex`, `onScroll`,
+`style`, `elementStyle`, `initialElementsSize`, `containerOffsetIndex`,
+`keyboardAvoidingEnabled` / `keyboardAvoidingOffset`, `onScroll`,
 `onStartReached` / `onEndReached`, `ItemSeparatorComponent` and the list templates all
 work as on `Shadowlist`. The ref adds `scrollToNode(id)` on top of the usual commands.
 
@@ -226,7 +230,108 @@ const [data, setData] = useState(rows);
 | `dragEnabled` | `boolean` | `false` | Enable long-press drag-to-reorder |
 | `onReorder` | `({ from, to, data }) => void` | `undefined` | Fires once on drop; `data` is the reordered array, `from` / `to` the moved indices |
 
+## Keyboard
+
+Dependency-free — no `react-native-keyboard-controller`, no `reanimated`. Three tools:
+
+| Tool | Use it for |
+| --- | --- |
+| `keyboardAvoidingEnabled` prop | A text input **inside** the list — the list slides content up to keep focused rows visible |
+| `useKeyboardAnimation()` | Moving your **own** views (e.g. an external chat composer) with the keyboard |
+| `KeyboardDismissView` | Dismissing the keyboard when the content is tapped |
+
+### keyboardAvoidingEnabled (built-in list avoidance)
+
+Available on `Shadowlist`, `SectionList` and `TreeList`. Vertical lists only.
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `keyboardAvoidingEnabled` | `boolean` | `false` | Grow the list's bottom inset by the keyboard overlap and slide content up; reverses on dismiss |
+| `keyboardAvoidingOffset` | `number` | `0` | Pixels subtracted from the overlap (e.g. a tab bar or safe-area already below the list) |
+
+```tsx
+<Shadowlist
+  data={data}
+  keyboardAvoidingEnabled
+  keyboardAvoidingOffset={insets.bottom}
+  renderElement={({ element }) => <Row item={element} />}
+/>
+```
+
+### useKeyboardAnimation (frame-accurate)
+
+Returns `Animated.Value`s tracking the live keyboard frame — move your own views (a
+composer, a backdrop) with it.
+
+```ts
+import { useKeyboardAnimation } from 'shadowlist';
+
+const { height, progress } = useKeyboardAnimation();
+// height: keyboard overlap in dp; progress: 0..1 transition
+```
+
+```tsx
+// Lift an external composer + the (inverted) chat list as one unit:
+const { height } = useKeyboardAnimation();
+const translateY = height.interpolate({
+  inputRange: [0, 1],
+  outputRange: [0, -1], // move up by the keyboard height
+});
+
+<Animated.View style={{ flex: 1, transform: [{ translateY }] }}>
+  <Shadowlist data={messages} inverted renderElement={...} />
+  <Composer />
+</Animated.View>;
+```
+
+- Don't use the native driver on styles that consume these values (they update from JS).
+- **Android**: tracks every frame, including interactive dismiss; the host Activity needs `adjustResize`.
+- **iOS**: matches the system open/close animation (interactive drag not yet tracked).
+- Values stay at `0` if the native module isn't built (no throw).
+
+### KeyboardDismissView (tap to dismiss)
+
+Dismisses the keyboard when its content is tapped. Only intercepts while the keyboard
+is open, so scrolling is otherwise untouched. Inputs and buttons keep working; keep
+your composer outside it so its bar taps don't dismiss.
+
+```tsx
+import { KeyboardDismissView } from 'shadowlist';
+
+<KeyboardDismissView style={{ flex: 1 }}>
+  <Shadowlist data={messages} inverted renderElement={...} />
+</KeyboardDismissView>;
+```
+
+Props: any `ViewProps`, plus `enabled?: boolean` (default `true`) to turn interception
+off.
+
+### useKeyboardInset (low-level)
+
+The hook behind `keyboardAvoidingEnabled` — returns the keyboard's overlap (px) with a
+measured view, to wire up yourself.
+
+```ts
+import { useKeyboardInset } from 'shadowlist';
+
+const inset = useKeyboardInset(viewRef, { enabled: true, offset: 0 });
+```
+
 ## Examples
+
+### Initial Scroll Position
+
+`containerOffsetIndex` opens the list already scrolled to a row — no scroll-from-top, no
+blank flash. Keep it constant for a pure initial position; `scrollToIndex` overrides it
+afterward.
+
+```tsx
+<Shadowlist
+  data={data}
+  containerOffsetIndex={30} // open at item 30
+  renderElement={({ element }) => <Row item={element} />}
+/>
+```
 
 ### Chat / Inverted
 

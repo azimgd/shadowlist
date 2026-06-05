@@ -78,6 +78,14 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
    */
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
   columns?: number;
+  /*
+   * Declarative scroll-to-index, doubling as the initial scroll position. A value
+   * >= 0 opens the list with that index anchored to the viewport start (the target
+   * rows are mounted on the first render, so there is no scroll-from-top); it fires
+   * only when the value changes, so a constant gives a pure initial position. A
+   * negative value is inactive (the default, -2, opens at the top / bottom when
+   * inverted). The imperative scrollToIndex command takes precedence.
+   */
   containerOffsetIndex?: number;
   /*
    * Zero-dependency keyboard avoidance. When true, the list subscribes to React

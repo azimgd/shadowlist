@@ -84,9 +84,25 @@ const SHADOWLIST_OVERSCAN = 4;
 export const initialBand = (
   size: number,
   initial: number,
-  inverted: boolean
+  inverted: boolean,
+  offsetIndex: number
 ): VisibleBand => {
   if (size <= 0) return { low: -1, high: -1 };
+  /*
+   * Initial scroll position (containerOffsetIndex >= 0): the core opens the list with
+   * `offsetIndex` anchored to the viewport start, so seed the mounted band around it -
+   * a few rows of overscan before it through `initial` rows after - instead of [0..n].
+   * Otherwise the first render mounts the top (or bottom, inverted) and the target rows
+   * only appear a JS round-trip later (a blank flash at the target). Applies to both
+   * orientations since an explicit target overrides the inverted bottom anchor.
+   */
+  if (offsetIndex >= 0) {
+    const target = Math.min(offsetIndex, size - 1);
+    return {
+      low: Math.max(0, target - SHADOWLIST_OVERSCAN),
+      high: Math.min(size - 1, target + initial),
+    };
+  }
   if (inverted) {
     return { low: Math.max(0, size - initial), high: size - 1 };
   }
@@ -194,7 +210,12 @@ function ShadowlistInner<ElementT extends { id: string }>(
   });
 
   const [visibleBand, setVisibleBand] = useState<VisibleBand>(() =>
-    initialBand(data.length, initialElementsSize, inverted)
+    initialBand(
+      data.length,
+      initialElementsSize,
+      inverted,
+      containerOffsetIndex
+    )
   );
 
   /*
