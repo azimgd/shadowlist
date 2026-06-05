@@ -39,6 +39,133 @@ const MAX_SETTLE_PASSES = 8;
  */
 const SCROLL_TO_END_INDEX = -3;
 
+/*
+ * Drag-to-reorder tuning. A press must settle for LONG_PRESS_MS (without moving past
+ * DRAG_SLOP, which means the user is scrolling) before a row is picked up. While
+ * dragging, the pointer within DRAG_EDGE of a viewport edge auto-scrolls at up to
+ * DRAG_SPEED px/frame.
+ */
+const LONG_PRESS_MS = 250;
+const DRAG_SLOP = 8;
+const DRAG_EDGE = 80;
+const DRAG_SPEED = 14;
+
+/*
+ * Move the item at `from` to `to`, returning a new array. Used once on drop to
+ * produce the reordered array handed to onReorder.
+ */
+function arrayMove<T>(input: ReadonlyArray<T>, from: number, to: number): T[] {
+  const next = input.slice();
+  if (
+    from < 0 ||
+    from >= next.length ||
+    to < 0 ||
+    to >= next.length ||
+    from === to
+  ) {
+    return next;
+  }
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved as T);
+  return next;
+}
+
+interface DragState {
+  originIndex: number;
+  insertionIndex: number;
+  draggedExtent: number;
+  grabOffset: number;
+  desiredLeading: number;
+}
+
+/*
+ * Main-axis offset for an element during a drag: the picked-up row follows the
+ * pointer (desiredLeading); the siblings between the pickup and the insertion point
+ * shift by one row toward the vacated pickup slot to open the gap; everything else
+ * keeps its base offset. The shift equals the picked-up row's extent, so each shuffled
+ * sibling lands exactly on its post-reorder resting position.
+ */
+function dragAdjustedOffset(
+  index: number,
+  mainBase: number,
+  drag: DragState
+): number {
+  if (index === drag.originIndex) return drag.desiredLeading;
+  if (
+    drag.originIndex < drag.insertionIndex &&
+    index > drag.originIndex &&
+    index <= drag.insertionIndex
+  ) {
+    return mainBase - drag.draggedExtent;
+  }
+  if (
+    drag.insertionIndex < drag.originIndex &&
+    index >= drag.insertionIndex &&
+    index < drag.originIndex
+  ) {
+    return mainBase + drag.draggedExtent;
+  }
+  return mainBase;
+}
+
+/*
+ * Pin the always-mounted section-header overlay to the viewport start: it tracks the
+ * scroll offset, pushed up as the next in-flow section header arrives. The active
+ * header is the last one resting at/above the scroll offset. Hidden when scrolled
+ * above the first header. Mirrors the native sticky section-header pin.
+ */
+function pinSectionOverlay(
+  core: ShadowlistCoreInstance,
+  overlay: HTMLDivElement | null,
+  rawOffset: number,
+  isHorizontal: boolean,
+  stickyIndices: ReadonlyArray<number>
+): void {
+  if (!overlay) return;
+  if (stickyIndices.length === 0) {
+    overlay.style.display = 'none';
+    return;
+  }
+  const scrollOffset = Math.max(0, rawOffset);
+  const elementsSize = core.getElementsSize();
+
+  let hasActive = false;
+  let activeSize = 0;
+  let hasNext = false;
+  let nextOffset = 0;
+  for (let i = 0; i < stickyIndices.length; i++) {
+    const idx = stickyIndices[i];
+    if (idx >= elementsSize) continue;
+    const layout = core.getElementAtIndex(idx);
+    const headerOffset = isHorizontal ? layout.offsetX : layout.offsetY;
+    const headerSize = isHorizontal ? layout.width : layout.height;
+    if (headerOffset <= scrollOffset) {
+      hasActive = true;
+      activeSize = headerSize;
+    } else {
+      nextOffset = headerOffset;
+      hasNext = true;
+      break;
+    }
+  }
+
+  if (!hasActive) {
+    overlay.style.display = 'none';
+    return;
+  }
+
+  let translation = scrollOffset;
+  if (hasNext) {
+    const pushedTop = nextOffset - activeSize;
+    if (pushedTop < translation) translation = pushedTop;
+  }
+
+  overlay.style.display = '';
+  overlay.style.transform = isHorizontal
+    ? `translate(${translation}px, 0px)`
+    : `translate(0px, ${translation}px)`;
+}
+
 function resolveComponent(
   component: ShadowlistProps<{ id: string }>['ListHeaderComponent']
 ): ReactNode {
@@ -179,6 +306,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
     stickyHeader = false,
     stickyFooter = false,
     columns = 1,
+    stickyHeaderIndices,
+    renderStickyHeaderOverlay,
+    dragEnabled = false,
+    onReorder,
     containerOffsetIndex = -2,
     initialElementsSize = 20,
     estimatedElementWidth = DEFAULT_ESTIMATED_SIZE,
@@ -202,7 +333,44 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const contentRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const footerRef = useRef<HTMLDivElement | null>(null);
+  const sectionOverlayRef = useRef<HTMLDivElement | null>(null);
   const elementRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+
+  /*
+   * Sticky section headers (SectionList). The flat indices of the section-header rows;
+   * the topmost one resting at/above the scroll offset is pinned in an always-mounted
+   * overlay (its content is renderStickyHeaderOverlay(activeStickyIndex)), pushed up as
+   * the next header arrives. activeStickyIndex drives the overlay content; the pin
+   * position is applied imperatively every scroll frame.
+   */
+  const stickyIndicesRef = useRef<ReadonlyArray<number>>(stickyHeaderIndices ?? []);
+  stickyIndicesRef.current = stickyHeaderIndices ?? [];
+  const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
+
+  /*
+   * Drag-to-reorder. The data order is FIXED during the drag - the picked-up row
+   * follows the pointer and the siblings between it and the insertion point are
+   * shuffled, all via imperative transforms in applyPositions (no re-render). The
+   * single reorder is applied on drop. draggingIndex force-mounts the picked-up row so
+   * it survives virtualization while auto-scroll carries it off-screen.
+   */
+  const dragStateRef = useRef<{
+    originIndex: number;
+    insertionIndex: number;
+    draggedExtent: number;
+    grabOffset: number;
+    desiredLeading: number;
+  } | null>(null);
+  const [draggingIndex, setDraggingIndex] = useState(-1);
+  const dragRafRef = useRef<number | null>(null);
+  const dragPointerClientRef = useRef(0);
+  const dragPointerIdRef = useRef<number | null>(null);
+  const dragCandidateRef = useRef<{
+    index: number;
+    client: number;
+    pointerId: number;
+    timer: number;
+  } | null>(null);
 
   const coreRef = useRef<ShadowlistCoreInstance | null>(null);
   const [coreReady, setCoreReady] = useState(false);
@@ -251,6 +419,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     containerOffsetIndex,
     stickyHeader,
     stickyFooter,
+    dragEnabled,
     startReachedThreshold: onStartReachedThreshold,
     endReachedThreshold: onEndReachedThreshold,
     viewablePercentThreshold,
@@ -266,6 +435,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     containerOffsetIndex,
     stickyHeader,
     stickyFooter,
+    dragEnabled,
     startReachedThreshold: onStartReachedThreshold,
     endReachedThreshold: onEndReachedThreshold,
     viewablePercentThreshold,
@@ -298,24 +468,65 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
     const { horizontal: isHorizontal, columns: columnCount } = latestRef.current;
     const elementsSize = core.getElementsSize();
+    const drag = dragStateRef.current;
 
     elementRefs.current.forEach((node, index) => {
       if (index >= elementsSize) return;
       const layout = core.getElementAtIndex(index);
+      let tx: number;
+      let ty: number;
       if (columnCount > 1) {
-        node.style.transform = `translate(${layout.offsetX}px, ${layout.offsetY}px)`;
+        tx = layout.offsetX;
+        ty = layout.offsetY;
         node.style.width = `${layout.width}px`;
         node.style.height = '';
       } else if (isHorizontal) {
-        node.style.transform = `translate(${layout.offsetX}px, 0px)`;
+        tx = layout.offsetX;
+        ty = 0;
         node.style.height = '100%';
         node.style.width = '';
       } else {
-        node.style.transform = `translate(0px, ${layout.offsetY}px)`;
+        tx = 0;
+        ty = layout.offsetY;
         node.style.width = '100%';
         node.style.height = '';
       }
+
+      if (drag) {
+        // Follow the pointer / open the make-room gap along the main axis.
+        if (isHorizontal) {
+          tx = dragAdjustedOffset(index, tx, drag);
+        } else {
+          ty = dragAdjustedOffset(index, ty, drag);
+        }
+        // Lift the picked-up row above its siblings.
+        if (index === drag.originIndex) {
+          node.style.zIndex = '3';
+          node.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.25)';
+        } else if (node.style.zIndex || node.style.boxShadow) {
+          node.style.zIndex = '';
+          node.style.boxShadow = '';
+        }
+      } else if (node.style.zIndex || node.style.boxShadow) {
+        node.style.zIndex = '';
+        node.style.boxShadow = '';
+      }
+
+      node.style.transform = `translate(${tx}px, ${ty}px)`;
     });
+
+    // Pin the section-header overlay from the same layout (its content is driven by
+    // activeStickyIndex; this only moves it).
+    const scrollEl = scrollRef.current;
+    if (scrollEl && sectionOverlayRef.current) {
+      pinSectionOverlay(
+        core,
+        sectionOverlayRef.current,
+        isHorizontal ? scrollEl.scrollLeft : scrollEl.scrollTop,
+        isHorizontal,
+        stickyIndicesRef.current
+      );
+    }
 
     if (headerRef.current) {
       // Sticky header tracks the scroll offset; getStickyHeaderOffset returns 0
@@ -347,6 +558,24 @@ function ShadowlistInner<ElementT extends { id: string }>(
       rafRef.current = null;
       tickRef.current();
     });
+  }, []);
+
+  /*
+   * The active section header is the greatest sticky index at/above the topmost
+   * visible row; it drives the overlay's content. -1 when scrolled above the first.
+   */
+  const updateActiveStickyIndex = useCallback((windowLow: number) => {
+    const indices = stickyIndicesRef.current;
+    if (indices.length === 0) {
+      setActiveStickyIndex((prev) => (prev === -1 ? prev : -1));
+      return;
+    }
+    let active = -1;
+    for (const idx of indices) {
+      if (idx <= windowLow) active = idx;
+      else break;
+    }
+    setActiveStickyIndex((prev) => (prev === active ? prev : active));
   }, []);
 
   /*
@@ -429,6 +658,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     const validWindow =
       visible.visibleStartIndex >= 0 && visible.visibleEndIndex >= 0;
 
+    if (validWindow) updateActiveStickyIndex(windowLow);
+
     // Low/high-water: only grow/shift the mounted band when the reported window
     // leaves it; while it stays inside, the rows are mounted so skip the re-render.
     if (validWindow && !rangeCovers(mountedRangeRef.current, windowLow, windowHigh)) {
@@ -440,7 +671,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
 
     measureAndResolveRef.current();
-  }, []);
+  }, [updateActiveStickyIndex]);
 
   /*
    * Feed measured DOM sizes back into the core, refresh the content size, apply
@@ -493,7 +724,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
         content.style.width = '100%';
       }
 
-      if (stateUpdate.applyContainerOffset) {
+      // While dragging, the drag owns the scroll position (the auto-scroll loop drives
+      // it), so a core offset correction must not yank the content under the pointer.
+      if (stateUpdate.applyContainerOffset && !dragStateRef.current) {
         ignoreScrollRef.current = true;
         scroll.scrollLeft = stateUpdate.containerOffsetX;
         scroll.scrollTop = stateUpdate.containerOffsetY;
@@ -580,6 +813,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
   latestOnScroll.current = props.onScroll;
   const latestOnViewableItemsChanged = useRef(onViewableItemsChanged);
   latestOnViewableItemsChanged.current = onViewableItemsChanged;
+  const latestOnReorder = useRef(onReorder);
+  latestOnReorder.current = onReorder;
 
   /*
    * Map the core's viewable index range to FlatList-style viewable/changed tokens.
@@ -655,6 +890,20 @@ function ShadowlistInner<ElementT extends { id: string }>(
       stickyHeader: isStickyHeader,
       stickyFooter: isStickyFooter,
     } = latestRef.current;
+
+    // Pin the section-header overlay straight from live scroll geometry too, so the
+    // pinned section header never lags the scroll.
+    const core = coreRef.current;
+    if (core && sectionOverlayRef.current) {
+      pinSectionOverlay(
+        core,
+        sectionOverlayRef.current,
+        isHorizontal ? scroll.scrollLeft : scroll.scrollTop,
+        isHorizontal,
+        stickyIndicesRef.current
+      );
+    }
+
     if (!isStickyHeader && !isStickyFooter) return;
 
     const offset = isHorizontal ? scroll.scrollLeft : scroll.scrollTop;
@@ -690,6 +939,239 @@ function ShadowlistInner<ElementT extends { id: string }>(
     userScrolledRef.current = true;
     scheduleTick();
   }, [pinStickyEdges, scheduleTick]);
+
+  /*
+   * Drag-to-reorder. The data order is fixed during the drag; updateDrag glues the
+   * picked-up row to the pointer, recomputes where it would insert (midpoints over the
+   * fixed base offsets, so no oscillation), and applyPositions shuffles the siblings -
+   * all imperative, no re-render. The single reorder is applied on drop.
+   */
+  const updateDrag = useCallback(() => {
+    const drag = dragStateRef.current;
+    const core = coreRef.current;
+    const scroll = scrollRef.current;
+    if (!drag || !core || !scroll) return;
+    const { horizontal: isHorizontal } = latestRef.current;
+
+    const rect = scroll.getBoundingClientRect();
+    const rectStart = isHorizontal ? rect.left : rect.top;
+    const offset = isHorizontal ? scroll.scrollLeft : scroll.scrollTop;
+    const pointerContent = dragPointerClientRef.current - rectStart + offset;
+    const contentExtent = isHorizontal ? scroll.scrollWidth : scroll.scrollHeight;
+
+    let desiredLeading = pointerContent - drag.grabOffset;
+    desiredLeading = Math.max(
+      0,
+      Math.min(desiredLeading, Math.max(0, contentExtent - drag.draggedExtent))
+    );
+    drag.desiredLeading = desiredLeading;
+
+    const center = desiredLeading + drag.draggedExtent / 2;
+    let insertion = drag.originIndex;
+    elementRefs.current.forEach((_node, index) => {
+      if (index === drag.originIndex || index >= core.getElementsSize()) return;
+      const layout = core.getElementAtIndex(index);
+      const lead = isHorizontal ? layout.offsetX : layout.offsetY;
+      const extent = isHorizontal ? layout.width : layout.height;
+      const mid = lead + extent / 2;
+      if (index > drag.originIndex && center > mid) {
+        insertion = Math.max(insertion, index);
+      } else if (index < drag.originIndex && center < mid) {
+        insertion = Math.min(insertion, index);
+      }
+    });
+    drag.insertionIndex = insertion;
+
+    applyPositions();
+  }, [applyPositions]);
+
+  // Per-frame loop while dragging: auto-scroll near the edges, then reposition.
+  const dragLoop = useCallback(() => {
+    const drag = dragStateRef.current;
+    const scroll = scrollRef.current;
+    if (!drag || !scroll) {
+      dragRafRef.current = null;
+      return;
+    }
+    const { horizontal: isHorizontal } = latestRef.current;
+
+    const rect = scroll.getBoundingClientRect();
+    const rectStart = isHorizontal ? rect.left : rect.top;
+    const windowSize = isHorizontal ? scroll.clientWidth : scroll.clientHeight;
+    const contentSize = isHorizontal ? scroll.scrollWidth : scroll.scrollHeight;
+    const maxOffset = Math.max(0, contentSize - windowSize);
+    const offset = isHorizontal ? scroll.scrollLeft : scroll.scrollTop;
+    const pointer = dragPointerClientRef.current - rectStart;
+
+    let delta = 0;
+    if (pointer < DRAG_EDGE) {
+      delta = -DRAG_SPEED * (1 - pointer / DRAG_EDGE);
+    } else if (pointer > windowSize - DRAG_EDGE) {
+      delta = DRAG_SPEED * (1 - (windowSize - pointer) / DRAG_EDGE);
+    }
+    if (delta !== 0) {
+      const newOffset = Math.min(Math.max(offset + delta, 0), maxOffset);
+      if (newOffset !== offset) {
+        // A real (user-owned) scroll: handleScroll flags userScrolled so the core
+        // virtualizes at this exact offset instead of fighting it.
+        if (isHorizontal) scroll.scrollLeft = newOffset;
+        else scroll.scrollTop = newOffset;
+      }
+    }
+
+    updateDrag();
+    dragRafRef.current = requestAnimationFrame(dragLoop);
+  }, [updateDrag]);
+
+  const finishDrag = useCallback(() => {
+    const drag = dragStateRef.current;
+    const scroll = scrollRef.current;
+    if (!drag) return;
+
+    if (dragRafRef.current != null) {
+      cancelAnimationFrame(dragRafRef.current);
+      dragRafRef.current = null;
+    }
+
+    const from = drag.originIndex;
+    const to = drag.insertionIndex;
+    dragStateRef.current = null;
+    setDraggingIndex(-1);
+
+    if (scroll) {
+      scroll.style.touchAction = '';
+      scroll.style.userSelect = '';
+      const pid = dragPointerIdRef.current;
+      if (pid != null && scroll.hasPointerCapture?.(pid)) {
+        try {
+          scroll.releasePointerCapture(pid);
+        } catch {
+          // ignore - pointer already released
+        }
+      }
+    }
+    dragPointerIdRef.current = null;
+
+    if (from !== to) {
+      const currentData = latestRef.current.data as ElementT[];
+      latestOnReorder.current?.({
+        from,
+        to,
+        data: arrayMove(currentData, from, to),
+      });
+    }
+
+    /*
+     * Re-run positioning. Until this runs the shuffle transforms stay frozen (the
+     * siblings already sit at their post-reorder positions, so it is seamless); then
+     * applyPositions - now drag-free - lands everything from the reordered layout (or
+     * resets to the original order if the consumer ignored onReorder).
+     */
+    settlePassesRef.current = 0;
+    scheduleTick();
+  }, [scheduleTick]);
+
+  const beginDrag = useCallback(
+    (index: number, pointerId: number) => {
+      const core = coreRef.current;
+      const scroll = scrollRef.current;
+      if (!core || !scroll) return;
+      if (index < 0 || index >= core.getElementsSize()) return;
+      const { horizontal: isHorizontal } = latestRef.current;
+
+      const layout = core.getElementAtIndex(index);
+      const baseLeading = isHorizontal ? layout.offsetX : layout.offsetY;
+      const extent = isHorizontal ? layout.width : layout.height;
+
+      const rect = scroll.getBoundingClientRect();
+      const rectStart = isHorizontal ? rect.left : rect.top;
+      const offset = isHorizontal ? scroll.scrollLeft : scroll.scrollTop;
+      const pointerContent = dragPointerClientRef.current - rectStart + offset;
+
+      dragStateRef.current = {
+        originIndex: index,
+        insertionIndex: index,
+        draggedExtent: extent,
+        grabOffset: pointerContent - baseLeading,
+        desiredLeading: baseLeading,
+      };
+      setDraggingIndex(index);
+
+      // Own the gesture: stop native scroll/selection and keep receiving moves.
+      scroll.style.touchAction = 'none';
+      scroll.style.userSelect = 'none';
+      dragPointerIdRef.current = pointerId;
+      try {
+        scroll.setPointerCapture(pointerId);
+      } catch {
+        // ignore - capture is best-effort
+      }
+
+      if (dragRafRef.current == null) {
+        dragRafRef.current = requestAnimationFrame(dragLoop);
+      }
+      updateDrag();
+    },
+    [dragLoop, updateDrag]
+  );
+
+  const clearDragCandidate = useCallback(() => {
+    const candidate = dragCandidateRef.current;
+    if (candidate) {
+      window.clearTimeout(candidate.timer);
+      dragCandidateRef.current = null;
+    }
+  }, []);
+
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!latestRef.current.dragEnabled) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      const target = event.target as HTMLElement;
+      const host = target.closest<HTMLElement>('[data-shadowlist-index]');
+      if (!host) return;
+      const index = Number(host.getAttribute('data-shadowlist-index'));
+      if (!Number.isFinite(index)) return;
+
+      const client = latestRef.current.horizontal
+        ? event.clientX
+        : event.clientY;
+      dragPointerClientRef.current = client;
+      const pointerId = event.pointerId;
+      const timer = window.setTimeout(() => {
+        dragCandidateRef.current = null;
+        beginDrag(index, pointerId);
+      }, LONG_PRESS_MS);
+      dragCandidateRef.current = { index, client, pointerId, timer };
+    },
+    [beginDrag]
+  );
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      const client = latestRef.current.horizontal
+        ? event.clientX
+        : event.clientY;
+      dragPointerClientRef.current = client;
+
+      if (dragStateRef.current) {
+        event.preventDefault();
+        updateDrag();
+        return;
+      }
+      // Moved past the slop before the long press fired: the user is scrolling.
+      const candidate = dragCandidateRef.current;
+      if (candidate && Math.abs(client - candidate.client) > DRAG_SLOP) {
+        clearDragCandidate();
+      }
+    },
+    [updateDrag, clearDragCandidate]
+  );
+
+  const handlePointerUp = useCallback(() => {
+    clearDragCandidate();
+    if (dragStateRef.current) finishDrag();
+  }, [clearDragCandidate, finishDrag]);
 
   // Re-measure on container resize.
   useEffect(() => {
@@ -766,6 +1248,40 @@ function ShadowlistInner<ElementT extends { id: string }>(
     [ItemSeparatorComponent]
   );
 
+  /*
+   * Sticky section-header overlay (SectionList): always mounted when sticky section
+   * headers are in play; its content is the active section's header and its position
+   * is pinned imperatively (pinSectionOverlay), so it never lags the scroll.
+   */
+  const stickyEnabled = Boolean(
+    stickyHeaderIndices &&
+      stickyHeaderIndices.length > 0 &&
+      renderStickyHeaderOverlay
+  );
+  const stickyOverlayContent = useMemo(
+    () =>
+      renderStickyHeaderOverlay && activeStickyIndex >= 0
+        ? renderStickyHeaderOverlay(activeStickyIndex)
+        : null,
+    [renderStickyHeaderOverlay, activeStickyIndex]
+  );
+
+  /*
+   * The dragged row must stay mounted while it is carried past the edge of the window
+   * (auto-scroll), so union its index into the rendered set even if the band moved off
+   * it. Outside a drag this is just the band.
+   */
+  const renderIndices = useMemo(() => {
+    if (
+      draggingIndex < 0 ||
+      draggingIndex >= data.length ||
+      range.includes(draggingIndex)
+    ) {
+      return range;
+    }
+    return [...range, draggingIndex].sort((a, b) => a - b);
+  }, [range, draggingIndex, data.length]);
+
   const containerStyle: CSSProperties = {
     position: 'relative',
     overflow: 'auto',
@@ -774,7 +1290,15 @@ function ShadowlistInner<ElementT extends { id: string }>(
   };
 
   return (
-    <div ref={scrollRef} style={containerStyle} onScroll={handleScroll}>
+    <div
+      ref={scrollRef}
+      style={containerStyle}
+      onScroll={handleScroll}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
       <div ref={contentRef} style={{ position: 'relative', minHeight: '100%' }}>
         {header && (
           <div
@@ -790,7 +1314,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
             {empty}
           </div>
         ) : (
-          range.map((index) => {
+          renderIndices.map((index) => {
             const element = data[index];
             if (!element) return null;
             return (
@@ -813,6 +1337,22 @@ function ShadowlistInner<ElementT extends { id: string }>(
             style={{ position: 'absolute', top: 0, left: 0, width: '100%' }}
           >
             {footer}
+          </div>
+        )}
+
+        {stickyEnabled && (
+          <div
+            ref={sectionOverlayRef}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              zIndex: 2,
+              display: 'none',
+            }}
+          >
+            {stickyOverlayContent}
           </div>
         )}
       </div>
