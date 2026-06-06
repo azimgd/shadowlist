@@ -6,6 +6,20 @@
 
 namespace azimgd::shadowlist {
 
+/*
+ * Debug-only: the key at a visible/measured index, for cross-correlating native and
+ * JS logs by content (the same index means different content mid-prepend).
+ */
+namespace {
+const char* visKeyAt(const Container *container, std::size_t index) {
+  if (index < container->revision.elements.size()) {
+    const std::string& key = container->revision.elements[index].key;
+    return key.empty() ? "(empty)" : key.c_str();
+  }
+  return "(oob)";
+}
+}
+
 void Virtualizer::update(Container *container, const FrameInput &input) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
@@ -73,6 +87,33 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->anchorHeaderSize = prevHeaderSize;
 
   /*
+   * Debug-only: flag the frame where the key set changed (prepend/insert/reorder),
+   * the root cause of the JS<->native visible-index desync. oldFront@newIdx is how far
+   * the previous top row shifted (= number of rows prepended above it).
+   */
+#if SHADOWLIST_DEBUG_LOG
+  {
+    std::size_t prevSize = container->revision.elements.size();
+    std::size_t nextSize = input.keys.size();
+    bool frontChanged = prevSize && nextSize && container->revision.elements.front().key != input.keys.front();
+    if (prevSize != nextSize || frontChanged) {
+      long oldFrontNewIdx = -1;
+      if (prevSize) {
+        const std::string& oldFront = container->revision.elements.front().key;
+        for (std::size_t i = 0; i < nextSize; ++i) {
+          if (input.keys[i] == oldFront) { oldFrontNewIdx = static_cast<long>(i); break; }
+        }
+      }
+      SL_LOG("  RECONCILE: size %zu->%zu front '%s'->'%s' oldFront@newIdx=%ld anchorKey=%s anchorDelta=%.1f",
+        prevSize, nextSize,
+        prevSize ? container->revision.elements.front().key.c_str() : "(none)",
+        nextSize ? input.keys.front().c_str() : "(none)",
+        oldFrontNewIdx, anchorKey.empty() ? "(none)" : anchorKey.c_str(), anchorDelta);
+    }
+  }
+#endif
+
+  /*
    * Reconcile the element list to the incoming keys (handles insert/remove/reorder)
    */
   reconcileElements(container, input.keys);
@@ -87,12 +128,15 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->setWindowContainerHeight(input.windowContainerHeight);
   measure(container);
 
-  SL_LOG("  measured: total=(%.1f,%.1f) offset=(%.1f,%.1f) visible=[%zd..%zd] anchorKey=%s",
+  SL_LOG("  measured: total=(%.1f,%.1f) offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] anchorKey=%s anchor@newIdx=%zd",
     container->revision.totalContainerWidth, container->revision.totalContainerHeight,
     container->revision.containerOffsetX, container->revision.containerOffsetY,
     static_cast<std::ptrdiff_t>(container->getVisibleIndices().first),
     static_cast<std::ptrdiff_t>(container->getVisibleIndices().second),
-    anchorKey.empty() ? "(none)" : anchorKey.c_str());
+    visKeyAt(container, container->getVisibleIndices().first),
+    visKeyAt(container, container->getVisibleIndices().second),
+    anchorKey.empty() ? "(none)" : anchorKey.c_str(),
+    static_cast<std::ptrdiff_t>(anchorKey.empty() ? UNDEFINED_INDEX : container->findElementIndexByKey(anchorKey)));
 
   /*
    * Resolve scroll corrections. If the offset moved, re-measure to select the
@@ -100,10 +144,12 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
    */
   if (resolveScroll(container, anchorKey, anchorDelta, hadElementsBefore)) {
     measure(container, true);
-    SL_LOG("  re-measured: offset=(%.1f,%.1f) visible=[%zd..%zd] invInit=%d",
+    SL_LOG("  re-measured: offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] invInit=%d",
       container->revision.containerOffsetX, container->revision.containerOffsetY,
       static_cast<std::ptrdiff_t>(container->getVisibleIndices().first),
       static_cast<std::ptrdiff_t>(container->getVisibleIndices().second),
+      visKeyAt(container, container->getVisibleIndices().first),
+      visKeyAt(container, container->getVisibleIndices().second),
       container->invertedInitialized ? 1 : 0);
   }
 

@@ -57,25 +57,25 @@ const slLog = (...args: unknown[]) => {
 };
 
 /*
- * Mounted band [low, high]. Mounts SHADOWLIST_OVERSCAN extra rows on each side of
- * the visible window and only re-renders when the window leaves the band.
+ * Mounted range [low, high]. Mounts SHADOWLIST_OVERSCAN extra rows on each side of
+ * the visible window and only re-renders when the window leaves the mounted range.
  */
-export interface VisibleBand {
+export interface MountedRange {
   low: number;
   high: number;
 }
 
 const SHADOWLIST_OVERSCAN = 4;
 
-export const initialBand = (
+export const initialMountedRange = (
   size: number,
   initial: number,
   inverted: boolean,
   offsetIndex: number
-): VisibleBand => {
+): MountedRange => {
   if (size <= 0) return { low: -1, high: -1 };
   /*
-   * With an explicit initial target, seed the band around it (avoids a blank flash
+   * With an explicit initial target, seed the range around it (avoids a blank flash
    * at the target). An explicit target overrides the inverted bottom anchor.
    */
   if (offsetIndex >= 0) {
@@ -91,11 +91,11 @@ export const initialBand = (
   return { low: 0, high: Math.min(initial, size - 1) };
 };
 
-const bandToRange = (band: VisibleBand): number[] => {
-  if (band.low < 0 || band.high < 0 || band.low > band.high) return [];
-  const range: number[] = [];
-  for (let index = band.low; index <= band.high; index++) range.push(index);
-  return range;
+const rangeToIndices = (range: MountedRange): number[] => {
+  if (range.low < 0 || range.high < 0 || range.low > range.high) return [];
+  const indices: number[] = [];
+  for (let index = range.low; index <= range.high; index++) indices.push(index);
+  return indices;
 };
 
 interface ElementRendererProps<ElementT> {
@@ -190,14 +190,84 @@ function ShadowlistInner<ElementT extends { id: string }>(
     onRefresh?.();
   }, [onRefresh]);
 
-  const [visibleBand, setVisibleBand] = useState<VisibleBand>(() =>
-    initialBand(
+  const [mountedRange, setMountedRange] = useState<MountedRange>(() =>
+    initialMountedRange(
       data.length,
       initialElementsSize,
       inverted,
       containerOffsetIndex
     )
   );
+
+  /*
+   * Debug-only mirrors of the latest data/mounted range so callbacks can map native
+   * indices to keys without changing their dependency semantics. Updated every render.
+   */
+  const renderSequenceRef = useRef(0);
+  const prevDataRef = useRef<ReadonlyArray<ElementT>>(data);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const mountedRangeRef = useRef(mountedRange);
+  mountedRangeRef.current = mountedRange;
+
+  /*
+   * Set when a mounted-range anchor shift just happened, so the next native
+   * onVisibleIndicesChange re-centers (tightens) the range to its window, not skip it.
+   */
+  const tightenAfterShiftRef = useRef(false);
+
+  /*
+   * Content-anchor the mounted range across data changes.
+   *
+   * On a prepend/insert above the viewport, native keeps the same content on screen by
+   * shifting its visible window by +N (the insert count) and only reports the new window
+   * through the async onVisibleIndicesChange round-trip. Until that lands, a range still
+   * expressed in the old index space leaves the viewport over rows JS has not mounted —
+   * the 1-2 frame blank.
+   *
+   * Re-anchor the range here, in the same render that adopts the new data (the
+   * derive-state-during-render pattern, so React re-renders before paint with no
+   * intermediate frame): find the new index of the element currently at range.low and
+   * shift the range by that delta. The shift is a union (never shrunk): a prepend at the
+   * top triggers a large offset correction that sweeps the viewport from the old position
+   * through the freshly inserted rows, so the whole [old .. shifted] range is briefly on
+   * screen and must stay mounted — a pure translate would uncover the top during that
+   * sweep and blank. The union would otherwise grow the range on every prepend (the low
+   * edge never moves back), so tightenAfterShiftRef makes the next native emit re-center
+   * the range to its window, returning it to the normal window+overscan size. This tracks
+   * inserts/removals at or above range.low (the prepend case); rarer mid-range inserts
+   * fall back to the native round-trip.
+   */
+  const [mountedRangeData, setMountedRangeData] = useState<ReadonlyArray<ElementT>>(data);
+  if (mountedRangeData !== data) {
+    setMountedRangeData(data);
+    if (mountedRange.low >= 0 && mountedRange.low < mountedRangeData.length) {
+      const anchorKey = keyExtractor(mountedRangeData[mountedRange.low]!, mountedRange.low);
+      let newLow = -1;
+      for (let index = 0; index < data.length; index++) {
+        if (keyExtractor(data[index]!, index) === anchorKey) {
+          newLow = index;
+          break;
+        }
+      }
+      if (newLow >= 0 && newLow !== mountedRange.low) {
+        const delta = newLow - mountedRange.low;
+        const maxIndex = data.length - 1;
+        const clamp = (value: number) => Math.min(Math.max(0, value), maxIndex);
+        const low = clamp(Math.min(mountedRange.low, mountedRange.low + delta));
+        const high = clamp(Math.max(mountedRange.high, mountedRange.high + delta));
+        tightenAfterShiftRef.current = true;
+        slLog(
+          'js.rangeAnchor shift',
+          `delta=${delta}`,
+          `range=[${mountedRange.low}..${mountedRange.high}]->[${low}..${high}]`
+        );
+        setMountedRange((prev) =>
+          prev.low === low && prev.high === high ? prev : { low, high }
+        );
+      }
+    }
+  }
 
   /*
    * Index of the picked-up row. Force-mounted so it survives virtualization while
@@ -295,14 +365,57 @@ function ShadowlistInner<ElementT extends { id: string }>(
       const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
       const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
 
-      setVisibleBand((prevBand) => {
-        // Window already inside the band; rows are mounted, skip the re-render.
+      if (SHADOWLIST_DEBUG_LOG) {
+        // Map the native window to the keys JS currently holds there: during the
+        // prepend desync these keys differ from what native reported as visible.
+        const current = dataRef.current;
+        const lowKey = current[windowLow]
+          ? keyExtractor(current[windowLow]!, windowLow)
+          : '(oob)';
+        const highKey = current[windowHigh]
+          ? keyExtractor(current[windowHigh]!, windowHigh)
+          : '(oob)';
+        slLog(
+          'js.onVisibleIndicesChange recv',
+          `raw=[${visibleStartIndex}..${visibleEndIndex}]`,
+          `window=[${windowLow}..${windowHigh}]`,
+          `jsKeys=[${lowKey}..${highKey}]`,
+          `curRange=[${mountedRangeRef.current.low}..${mountedRangeRef.current.high}]`,
+          `dataLen=${current.length}`
+        );
+      }
+
+      // First native window after a mounted-range anchor shift: re-center the range on
+      // it (window + overscan), even if it is already inside the unioned shift range. This
+      // returns the range to its normal size so repeated prepends do not grow it.
+      if (tightenAfterShiftRef.current) {
+        tightenAfterShiftRef.current = false;
+        const low = Math.max(0, windowLow - SHADOWLIST_OVERSCAN);
+        const high = Math.min(data.length - 1, windowHigh + SHADOWLIST_OVERSCAN);
+        slLog(
+          'js.onVisibleIndicesChange tighten',
+          `window=[${windowLow}..${windowHigh}]`,
+          `range=[${low}..${high}]`
+        );
+        setMountedRange((prev) =>
+          prev.low === low && prev.high === high ? prev : { low, high }
+        );
+        return;
+      }
+
+      setMountedRange((prevRange) => {
+        // Window already inside the range; rows are mounted, skip the re-render.
         if (
-          prevBand.low >= 0 &&
-          windowLow >= prevBand.low &&
-          windowHigh <= prevBand.high
+          prevRange.low >= 0 &&
+          windowLow >= prevRange.low &&
+          windowHigh <= prevRange.high
         ) {
-          return prevBand;
+          slLog(
+            'js.onVisibleIndicesChange skip (in range)',
+            `window=[${windowLow}..${windowHigh}]`,
+            `range=[${prevRange.low}..${prevRange.high}]`
+          );
+          return prevRange;
         }
         const low = Math.max(0, windowLow - SHADOWLIST_OVERSCAN);
         const high = Math.min(
@@ -312,32 +425,83 @@ function ShadowlistInner<ElementT extends { id: string }>(
         slLog(
           'js.onVisibleIndicesChange apply',
           `window=[${windowLow}..${windowHigh}]`,
-          `band=[${low}..${high}]`
+          `range=[${low}..${high}]`
         );
         return { low, high };
       });
     },
-    [data.length]
+    [data.length, keyExtractor]
   );
 
-  const visibleRange = useMemo(() => bandToRange(visibleBand), [visibleBand]);
+  const mountedIndices = useMemo(() => rangeToIndices(mountedRange), [mountedRange]);
 
   // Union the dragged row's index into the rendered set so it stays mounted.
   const renderIndices = useMemo(() => {
     if (
       draggingIndex < 0 ||
       draggingIndex >= data.length ||
-      visibleRange.includes(draggingIndex)
+      mountedIndices.includes(draggingIndex)
     ) {
-      return visibleRange;
+      return mountedIndices;
     }
-    return [...visibleRange, draggingIndex].sort((a, b) => a - b);
-  }, [visibleRange, draggingIndex, data.length]);
+    return [...mountedIndices, draggingIndex].sort((a, b) => a - b);
+  }, [mountedIndices, draggingIndex, data.length]);
 
   const elementsAllKeys = useMemo(
     () => data.map((element, index) => keyExtractor(element, index)),
     [data, keyExtractor]
   );
+
+  /*
+   * Debug-only: trace each committed frame and detect prepend/insert. `js.commit`
+   * shows the index window JS actually mounted and the keys at its edges, so it can be
+   * lined up against the native `emit`/`measured` logs to see the desync window.
+   * `js.dataChange` reports how far the previous head row shifted (= rows prepended).
+   */
+  useEffect(() => {
+    if (!SHADOWLIST_DEBUG_LOG) return;
+    renderSequenceRef.current += 1;
+    const seq = renderSequenceRef.current;
+    const prev = prevDataRef.current;
+
+    if (prev !== data && prev.length !== data.length) {
+      const oldHeadKey = prev.length ? keyExtractor(prev[0]!, 0) : null;
+      let nowAtIndex = -1;
+      if (oldHeadKey != null) {
+        for (let index = 0; index < data.length; index++) {
+          if (keyExtractor(data[index]!, index) === oldHeadKey) {
+            nowAtIndex = index;
+            break;
+          }
+        }
+      }
+      slLog(
+        `js.dataChange#${seq}`,
+        `len ${prev.length}->${data.length}`,
+        `oldHeadKey=${oldHeadKey}`,
+        `nowAtIndex=${nowAtIndex}`
+      );
+    }
+
+    const headKey = data.length ? keyExtractor(data[0]!, 0) : '(empty)';
+    const lowKey =
+      mountedRange.low >= 0 && data[mountedRange.low]
+        ? keyExtractor(data[mountedRange.low]!, mountedRange.low)
+        : '(none)';
+    const highKey =
+      mountedRange.high >= 0 && data[mountedRange.high]
+        ? keyExtractor(data[mountedRange.high]!, mountedRange.high)
+        : '(none)';
+    slLog(
+      `js.commit#${seq}`,
+      `dataLen=${data.length}`,
+      `headKey=${headKey}`,
+      `range=[${mountedRange.low}..${mountedRange.high}]`,
+      `mounted=${renderIndices.length}`,
+      `rangeKeys=[${lowKey}..${highKey}]`
+    );
+    prevDataRef.current = data;
+  }, [data, mountedRange, renderIndices, keyExtractor]);
 
   // Pickup: keep the picked-up row mounted; data order is unchanged.
   const handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never> =

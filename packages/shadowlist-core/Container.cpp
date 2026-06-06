@@ -3,6 +3,16 @@
 
 namespace azimgd::shadowlist {
 
+namespace {
+// Debug-only: the key at an emitted index, so JS and native logs correlate by content.
+const char* emitKeyAt(const std::vector<Element>& elements, std::size_t index) {
+  if (index < elements.size()) {
+    return elements[index].key.empty() ? "(empty)" : elements[index].key.c_str();
+  }
+  return "(oob)";
+}
+}
+
 void Container::startRevision() {
   // A revision can only start from the idle status.
   if (this->revisionStatus != RevisionStatusIdle) {
@@ -229,8 +239,10 @@ void Container::dispatchObservers() {
   auto visibleIndices = this->getVisibleIndices();
   if (this->onVisibleIndicesChangeCallback &&
     (visibleIndices.first != this->prevVisibleStartIndex || visibleIndices.second != this->prevVisibleEndIndex)) {
-    SL_LOG("  emit onVisibleIndicesChange(%zd, %zd)",
-      static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second));
+    SL_LOG("  emit onVisibleIndicesChange(%zd, %zd) keys=[%s..%s]",
+      static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second),
+      emitKeyAt(this->revision.elements, visibleIndices.first),
+      emitKeyAt(this->revision.elements, visibleIndices.second));
     this->onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
   }
   this->prevVisibleStartIndex = visibleIndices.first;
