@@ -10,10 +10,7 @@ import { HeaderListItem } from './HeaderListItem';
 import { TreeElement, type TreeFileNode } from './TreeElement';
 import { generateFileTree } from './constants';
 
-/*
- * Collect every folder id in the tree (an expanded folder is one whose id is in the
- * set). Used by "Expand all"; "Collapse all" is just the empty set.
- */
+// Collect every folder id in the tree. Used by "Expand all".
 const collectFolderIds = (nodes: TreeFileNode[]): string[] => {
   const ids: string[] = [];
   const stack = [...nodes];
@@ -36,11 +33,7 @@ export const TreeScreen = () => {
   const tree = useMemo(() => generateFileTree(), []);
   const allFolderIds = useMemo(() => collectFolderIds(tree), [tree]);
 
-  /*
-   * Controlled expansion: start with the root folders open so the screen is not a
-   * wall of collapsed roots. Toggling, expand-all and collapse-all all flow through
-   * this one Set; TreeList re-flattens and the engine reconciles by key.
-   */
+  // Controlled expansion state; starts with the root folders open.
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
     () => new Set(tree.map((node) => node.id))
   );

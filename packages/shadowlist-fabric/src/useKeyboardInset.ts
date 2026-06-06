@@ -7,10 +7,8 @@ import {
 } from 'react-native';
 
 /*
- * Minimal viewport handle: anything with measureInWindow (a native host ref). The
- * hook measures the list's on-screen frame when the keyboard appears so the inset is
- * the actual overlap with the list, not the raw keyboard height - a list that does
- * not reach the bottom of the screen (tab bar, padding) is not over-inset.
+ * Minimal viewport handle: anything with measureInWindow. Measuring the list's frame
+ * lets the inset be the actual keyboard overlap, not the raw keyboard height.
  */
 export interface MeasurableRef {
   measureInWindow?: (
@@ -20,29 +18,20 @@ export interface MeasurableRef {
 
 export interface UseKeyboardInsetOptions {
   /*
-   * When false the hook is inert and always returns 0 (the keyboard listeners are
-   * not even attached), so it costs nothing when keyboard avoidance is off.
+   * When false the hook is inert and returns 0 (listeners are not attached).
    */
   enabled?: boolean;
   /*
-   * Extra pixels subtracted from the computed overlap. Use it to discount UI that
-   * already sits above the keyboard (a bottom tab bar) or safe-area inset already
-   * applied below the list. Defaults to 0.
+   * Pixels subtracted from the computed overlap, to discount UI already above the
+   * keyboard (a tab bar) or safe-area inset below the list. Defaults to 0.
    */
   offset?: number;
 }
 
 /*
- * Zero-dependency keyboard avoidance. Subscribes to React Native's built-in Keyboard
- * events and returns the bottom inset (px) the list should reserve for the keyboard -
- * the overlap between the keyboard frame and the list's on-screen frame, never
- * negative. Feed the result into Shadowlist's contentInsetBottom prop; the native
- * side grows the scroll inset and slides the content up so the rows behind the
- * keyboard come into view.
- *
- * iOS uses the will-show/hide events (they fire before the animation, so the inset
- * change rides the same frame); Android only reliably emits did-show/hide. Either
- * way the actual smoothing is done natively.
+ * Returns the bottom inset (px) the list should reserve for the keyboard: the
+ * overlap between the keyboard frame and the list's on-screen frame, never negative.
+ * Feed the result into Shadowlist's contentInsetBottom prop.
  */
 export function useKeyboardInset(
   viewRef: { current: MeasurableRef | null },
@@ -62,8 +51,7 @@ export function useKeyboardInset(
   const handleShow = useCallback(
     (event: KeyboardEvent) => {
       const screenHeight = Dimensions.get('window').height;
-      // screenY is the keyboard's top edge in screen coords (iOS, and most Android
-      // implementations); fall back to deriving it from the height when absent.
+      // Keyboard's top edge in screen coords; derive from height when absent.
       const keyboardTopY =
         event.endCoordinates.screenY ??
         screenHeight - event.endCoordinates.height;

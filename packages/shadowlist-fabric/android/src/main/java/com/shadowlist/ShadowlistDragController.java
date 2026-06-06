@@ -14,54 +14,37 @@ import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
 
 /*
- * Native long-press drag-to-reorder, split out of ShadowlistView. The whole gesture
- * runs on the UI thread (like the sticky pin), so it never waits on the commit cycle.
- * A long press picks an element up; while held we translate it under the finger every
- * Choreographer frame, auto-scroll near the viewport edges, and detect when its centre
- * crosses into a neighbour's slot. Each crossing is relayed to JS through state (a live
- * array move) and the surviving rows flow to their new slots via the normal layout; the
- * picked-up view re-glues to the finger against its new resting position. The data
- * order stays FIXED during the drag and a single reorder is applied on drop; JS only
- * sees onDragStart and onDragEnd (there is no mid-drag event).
- *
- * The host view owns the scroll/content views and the Fabric state; this controller
- * reaches them through the ShadowlistView accessors and drives the gesture entry points
- * the view forwards (onInterceptTouchEvent / onTouchEvent / mount / state commit).
+ * Long-press drag-to-reorder. A long press picks a row up; while held it follows the
+ * finger each frame, auto-scrolls near the edges, and shuffles siblings to open a gap.
+ * Data order stays FIXED during the drag; a single reorder is applied on drop.
  */
 class ShadowlistDragController {
   private final ShadowlistView mView;
   private final GestureDetector mDragGestureDetector;
   private Choreographer.FrameCallback mDragFrameCallback;
-  /* Polls for the reorder commit landing after a drop, so the settle fires even when
-   * the reorder produces no host state commit (a same-size reorder that does not move
-   * the viewport top), which onStateCommitted alone would miss. */
+  /* Polls for the reorder commit landing after a drop, since a same-size reorder may
+   * produce no state commit. */
   private Choreographer.FrameCallback mDropSettleCallback;
 
   private boolean mDragEnabled = false;
   private boolean mDragging = false;
   private ShadowlistElementView mDraggedView = null;
-  /* The data order stays FIXED during the drag. mDragOriginIndex is where the row was
-   * picked up; mDragInsertionIndex is where its centre currently sits (the gap), used
-   * to shuffle the siblings between them. The single reorder is applied on drop. */
+  /* mDragOriginIndex: where the row was picked up. mDragInsertionIndex: where its
+   * centre currently sits (the gap). */
   private int mDragOriginIndex = -1;
   private int mDragInsertionIndex = -1;
-  /* Size of the picked-up row along the scroll axis - the amount each shuffled sibling
-   * is offset to open the gap. */
+  /* Size of the picked-up row along the scroll axis (the gap each sibling opens). */
   private float mDraggedExtent = 0f;
-  /* Distance along the scroll axis (content space) from the picked-up cell's leading
-   * edge to the touch point, so the cell stays under the same spot of the finger. */
+  /* Content-space distance from the picked-up cell's leading edge to the touch point. */
   private float mDragGrabOffset = 0f;
-  /* Latest touch position along the scroll axis in viewport space - stable while the
-   * content auto-scrolls under a still finger. */
+  /* Latest touch position along the scroll axis in viewport space. */
   private float mDragTouchViewport = 0f;
-  /* After a drop, hold the shuffle transforms until JS's single reorder commit lands
-   * (the dropped row's index prop reaching mDropInsertionIndex), then clear them. */
+  /* After a drop, hold the shuffle transforms until the reorder commit lands. */
   private boolean mDragDropPending = false;
   private ShadowlistElementView mDroppedView = null;
   private int mDropInsertionIndex = -1;
   /* Content-space leading of the dragged row at the last drag frame; captured on drop
-   * (mDropReleaseLeading) so the row can animate from where the finger released it into
-   * its post-reorder resting slot rather than snapping. */
+   * (mDropReleaseLeading) to animate from the release point into the resting slot. */
   private float mDragLeading = 0f;
   private float mDropReleaseLeading = 0f;
   private static final long DROP_SETTLE_MS = 180;
@@ -69,8 +52,7 @@ class ShadowlistDragController {
   ShadowlistDragController(ShadowlistView view, Context context) {
     mView = view;
 
-    // Long press picks a row up for drag-to-reorder. A quick swipe moves past the
-    // touch slop and cancels the long press, so it still scrolls.
+    // Long press picks a row up; a quick swipe cancels it so the list still scrolls.
     mDragGestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
       @Override
       public void onLongPress(MotionEvent event) {
@@ -94,18 +76,16 @@ class ShadowlistDragController {
   }
 
   /*
-   * While a drag is in flight (or settling after a drop) the drag owns the scroll
-   * offset, so a core correction must not yank the content under the finger or jump the
-   * list as the reorder lands.
+   * True while a drag or its drop settle owns the scroll offset; core corrections must
+   * not move the content during this window.
    */
   boolean ownsScrollOffset() {
     return mDragging || mDragDropPending;
   }
 
   /*
-   * Feed the long-press detector and, once a drag is in flight, report that the host
-   * should steal the gesture from the inner scroll view (the view returns true from
-   * onInterceptTouchEvent; Android delivers ACTION_CANCEL to the scroll view).
+   * Feed the long-press detector; returns true once a drag is in flight to steal the
+   * gesture from the inner scroll view.
    */
   boolean onInterceptTouchEvent(MotionEvent event) {
     if (mDragEnabled) {
@@ -114,7 +94,7 @@ class ShadowlistDragController {
     return mDragging;
   }
 
-  /* Returns true when the drag consumed the event (the view skips super.onTouchEvent). */
+  /* Returns true when the drag consumed the event. */
   boolean onTouchEvent(MotionEvent event) {
     if (mDragEnabled) {
       mDragGestureDetector.onTouchEvent(event);
@@ -137,24 +117,20 @@ class ShadowlistDragController {
   }
 
   /*
-   * Run after a state commit: re-glue the picked-up row to the finger (an auto-scroll
-   * re-virtualization may have mounted new rows) and, once JS's reorder commit lands
-   * (the dropped row's index prop reaching its dropped slot), clear the held shuffle.
+   * Run after a state commit: re-glue the picked-up row to the finger, since new rows
+   * may have mounted.
    */
   void onStateCommitted() {
     if (mDragging) {
       updateDrag();
     }
-    // The post-drop landing is detected by the Choreographer poll (startDropSettle),
-    // NOT here: a same-size reorder that does not move the viewport top produces no host
-    // state commit, so this path would miss it and the row would snap via the net.
+    // The post-drop landing is detected by startDropSettle, not here: a same-size
+    // reorder may produce no state commit.
   }
 
   /*
-   * After a drop, poll each frame for the reorder commit to land (the dropped row's
-   * index prop reaching its slot) and then animate it into place; if the row unmounted
-   * off-screen there is nothing to settle. Self-stops once handled (or via the 300ms
-   * safety net / a new pickup).
+   * After a drop, poll each frame for the reorder commit to land, then animate the row
+   * into place. Self-stops once handled.
    */
   private void startDropSettle() {
     if (mDropSettleCallback == null) {
@@ -165,7 +141,7 @@ class ShadowlistDragController {
             return;
           }
           if (mDroppedView.getParent() == null) {
-            // Unmounted off-screen: nothing to settle visually.
+            // Unmounted off-screen: nothing to settle.
             clearDragTransforms();
             mDragDropPending = false;
             mDroppedView = null;
@@ -192,11 +168,8 @@ class ShadowlistDragController {
   }
 
   /*
-   * The reorder has landed and the dropped row now sits at its post-reorder slot
-   * (getLeft/getTop). The siblings already rest at their final positions, so clear them
-   * instantly; only the dropped row needs to travel from where the finger released it
-   * (mDropReleaseLeading) into the slot - animate that so the drop settles smoothly
-   * instead of snapping.
+   * The reorder has landed. Clear the siblings (already at final positions) instantly
+   * and animate the dropped row from its release point into its resting slot.
    */
   private void settleDroppedView(ShadowlistElementView view) {
     ViewGroup contentView = mView.getContentView();
@@ -230,18 +203,14 @@ class ShadowlistDragController {
   }
 
   /*
-   * Full teardown of any in-flight drag with no reorder. Called when the host view is
-   * dropped/recycled (ShadowlistViewManager.onDropViewInstance) so the self-reposting
-   * Choreographer callback cannot keep driving a detached view, and the inner scroll /
-   * transforms are restored. Safe to call when not dragging.
+   * Full teardown of any in-flight drag with no reorder, restoring scroll and
+   * transforms. Safe to call when not dragging.
    */
   void teardown() {
     teardownDrag();
   }
 
-  /* Topmost element child whose resting bounds contain the content-space point. The
-   * translation a drag applies does not affect getLeft/getTop, so they give the
-   * resting position even while a row is being dragged. */
+  /* Topmost element child whose resting bounds contain the content-space point. */
   private ShadowlistElementView elementViewAtContent(float cx, float cy) {
     ViewGroup contentView = mView.getContentView();
     ShadowlistElementView result = null;
@@ -275,15 +244,13 @@ class ShadowlistDragController {
       return;
     }
 
-    // Cancel any in-flight drop animation from a previous drag of this same view, so
-    // its withEndAction (which resets translationZ) cannot fire mid-drag, and start
-    // from a clean resting transform.
+    // Cancel any in-flight drop animation from a previous drag and start from a clean
+    // resting transform.
     view.animate().cancel();
     view.setTranslationX(0f);
     view.setTranslationY(0f);
 
-    // Clean slate: stop any in-flight drop settle and drop leftover post-drop
-    // transforms from a previous drag.
+    // Clear any leftover drop settle and transforms from a previous drag.
     stopDropSettle();
     mDragDropPending = false;
     mDroppedView = null;
@@ -302,11 +269,8 @@ class ShadowlistDragController {
 
     mView.setInnerScrollEnabled(false);
 
-    // Lift feedback: raise the row above its siblings via Z (draw order), NOT
-    // bringToFront(). bringToFront() reorders the child array, which desyncs Fabric's
-    // index-based child mounting (removeContentViewAt) and corrupts the view tree -
-    // breaking consecutive drags and scrambling row content. Android draws children
-    // ordered by Z since API 21, so a higher translationZ lifts it without reordering.
+    // Lift via Z, NOT bringToFront(): reordering the child array desyncs index-based
+    // child mounting and corrupts the view tree.
     view.setTranslationZ(PixelUtil.toPixelFromDIP(8));
 
     dispatchDragEvent(1, index, index);
@@ -366,18 +330,14 @@ class ShadowlistDragController {
 
     int nx = horizontal ? (int) newOffset : scrollView.getScrollX();
     int ny = horizontal ? scrollView.getScrollY() : (int) newOffset;
-    // Let the resulting onScrollChanged report this as a user scroll (do NOT mark it
-    // programmatic): the drag owns the scroll position, so the core must virtualize at
-    // this exact offset and abandon any maintain-visible-position correction. Marking
-    // it programmatic makes the core keep its correction and compute the visible window
-    // at a different offset than the viewport, which blanks rows mid-drag.
+    // Report this as a user scroll (do NOT mark it programmatic) so the core virtualizes
+    // at this exact offset; otherwise rows blank mid-drag.
     scrollView.scrollTo(nx, ny);
   }
 
   /*
    * Glue the picked-up row under the finger, recompute where it would insert, and
-   * shuffle the siblings to open the gap. Nothing is sent to JS - the data order is
-   * fixed until drop - so this never triggers a re-render.
+   * shuffle the siblings to open the gap. Nothing is sent to JS until drop.
    */
   private void updateDrag() {
     if (!mDragging || mDraggedView == null) {
@@ -411,11 +371,9 @@ class ShadowlistDragController {
   }
 
   /*
-   * The index the dragged row would insert at, by comparing its centre against each
-   * neighbour's MIDPOINT relative to the (fixed) pickup index. Because the data order
-   * never changes mid-drag the midpoints are stable, giving a clean half-row dead zone
-   * around each one - boundary jitter cannot flip the insertion back and forth. Returns
-   * the farthest neighbour whose midpoint the centre has crossed.
+   * The index the dragged row would insert at: the farthest neighbour whose midpoint
+   * the centre has crossed. Stable midpoints give a half-row dead zone, so jitter
+   * cannot flip the insertion.
    */
   private int insertionIndexForCenter(float center) {
     ViewGroup contentView = mView.getContentView();
@@ -443,11 +401,9 @@ class ShadowlistDragController {
   }
 
   /*
-   * Open a one-row gap at the insertion point by translating the siblings between the
-   * pickup and the insertion toward the vacated pickup slot. The shift equals the
-   * picked-up row's extent, so each shuffled sibling lands exactly on its post-reorder
-   * resting position - which is why clearing the transforms after the drop commit is
-   * seamless (the siblings do not move, only the dragged row settles into the gap).
+   * Open a one-row gap by translating the siblings between pickup and insertion toward
+   * the vacated slot. The shift equals the picked-up row's extent, so each sibling lands
+   * exactly on its post-reorder position (making the post-drop clear seamless).
    */
   void applyDragShuffle() {
     ViewGroup contentView = mView.getContentView();
@@ -507,9 +463,7 @@ class ShadowlistDragController {
     map.putDouble("dragEventType", type);
     map.putDouble("dragFromIndex", from);
     map.putDouble("dragToIndex", to);
-    // Keep the core's scroll corrections off for the duration of the drag (the drag
-    // owns the offset); a reorder commit must virtualize at the live offset, not snap
-    // to an anchor. Cleared on the end event so normal scrolling resumes afterwards.
+    // Keep core scroll corrections off during the drag; cleared on the end event.
     map.putBoolean("userScrolled", type != 3);
     ShadowlistView.slLog("java.drag dispatch type=" + type + " from=" + from + " to=" + to);
     state.updateState(map);
@@ -529,14 +483,12 @@ class ShadowlistDragController {
     mDragging = false;
     mDraggedView = null;
 
-    // Emit the single reorder. Hold the shuffle transforms (the rows already sit at
-    // their post-reorder positions) until JS's reorder commit lands, then
-    // clearDragTransforms runs from updateState - so nothing snaps back in between.
+    // Emit the single reorder; hold the shuffle transforms until the reorder commit
+    // lands so nothing snaps back.
     dispatchDragEvent(3, from, to);
 
     if (from == to || view == null) {
-      // No reorder (dropped where it started): no commit will move the index, so settle
-      // immediately instead of waiting for a landing that never changes anything.
+      // No reorder (dropped where it started): settle immediately.
       clearDragTransforms();
       mDragDropPending = false;
       mDroppedView = null;
@@ -545,13 +497,11 @@ class ShadowlistDragController {
       mDroppedView = view;
       mDropInsertionIndex = to;
 
-      // Poll for the landing rather than waiting for a host state commit (which a
-      // same-size reorder may never produce).
+      // Poll for the landing rather than waiting for a state commit.
       startDropSettle();
 
-      // Safety net: if the reorder never lands (e.g. a consumer that ignores
-      // onReorder), clear the held transforms anyway so the gap cannot get stuck. A
-      // new drag clears at pickup.
+      // Safety net: if the reorder never lands, clear the held transforms so the gap
+      // cannot get stuck.
       mView.postDelayed(() -> {
         if (mDragDropPending && !mDragging) {
           stopDropSettle();

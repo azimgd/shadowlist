@@ -18,11 +18,7 @@ import { generateContact } from './constants';
 
 type ContactSection = SectionListData<ContactElementType, { title: string }>;
 
-/*
- * Group a flat list of contacts into alphabetical sections by the first letter of
- * the first name, sorted A-Z, with contacts sorted within each section. Mirrors the
- * classic phone-book SectionList the native sticky section headers are built for.
- */
+// Group contacts into A-Z sections by first-name initial, sorted within each.
 const buildSections = (contacts: ContactElementType[]): ContactSection[] => {
   const groups = new Map<string, ContactElementType[]>();
 

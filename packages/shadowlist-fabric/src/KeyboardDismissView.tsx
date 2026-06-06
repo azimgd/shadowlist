@@ -3,33 +3,21 @@ import { View, Keyboard, Platform, type ViewProps } from 'react-native';
 
 export interface KeyboardDismissViewProps extends ViewProps {
   children?: ReactNode;
-  /*
-   * When false the wrapper never intercepts touches (fully transparent to gestures).
-   * Default true.
-   */
+  // When false the wrapper never intercepts touches. Default true.
   enabled?: boolean;
 }
 
 /*
- * Wrapper that dismisses the keyboard when its content is touched. Zero-dependency
- * (RN's Keyboard + the responder system).
- *
- * It only claims a touch *while the keyboard is open*, so when the keyboard is closed
- * it is completely transparent - nested scroll views, buttons and inputs behave
- * exactly as if it were a plain View. While the keyboard is open, the first touch on
- * an otherwise inert area is claimed and dismisses the keyboard on release (the
- * familiar "tap the messages to dismiss" behaviour). Interactive descendants that
- * claim their own touches first (TextInput, Touchables, scrollables) win the responder
- * negotiation, so tapping them does not dismiss - keep the composer outside this
- * wrapper if you want its bar taps to dismiss too.
+ * Wrapper that dismisses the keyboard when an inert area is tapped. It only claims a
+ * touch while the keyboard is open, so when closed it is fully transparent to gestures.
+ * Interactive descendants that claim their own touches first do not trigger a dismiss.
  */
 export function KeyboardDismissView({
   enabled = true,
   children,
   ...viewProps
 }: KeyboardDismissViewProps) {
-  // Tracked in a ref so the responder callbacks read the latest value without
-  // re-rendering on every keyboard toggle.
+  // Ref so the responder callbacks read the latest value without re-rendering.
   const keyboardVisible = useRef(false);
 
   useEffect(() => {

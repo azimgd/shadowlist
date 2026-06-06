@@ -1,7 +1,6 @@
-// Nested lists: one vertical "outer" list whose rows each host a horizontal
-// "inner" list. In the core every list is its own Container, so this verifies
-// that independent containers (vertical + several horizontal) coexist and do
-// not interfere when driven interleaved.
+// Nested lists: a vertical outer list whose rows host horizontal inner lists.
+// Verifies independent Containers coexist without interfering when driven
+// interleaved.
 
 #include "TestFramework.hpp"
 #include "Harness.hpp"
@@ -30,7 +29,7 @@ TEST(nested_vertical_outer_with_horizontal_inners) {
     inner.setKeys(makeKeys(10, "cell"));
   }
 
-  // Drive them interleaved, the way the host app commits them.
+  // Drive them interleaved.
   for (int i = 0; i < 5; ++i) {
     outer.frame();
     for (auto& inner : inners) {

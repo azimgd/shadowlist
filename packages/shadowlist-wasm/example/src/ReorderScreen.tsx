@@ -4,10 +4,7 @@ import { HeaderListItem } from './HeaderListItem';
 import { AVATAR_COLORS, generateContact } from './constants';
 import type { ContactElement as ContactElementType } from './ContactElement';
 
-/*
- * A plain row: the long-press drag, pointer tracking, edge auto-scroll and shuffle are
- * all handled by Shadowlist via the dragEnabled prop. The row only renders content.
- */
+// A plain row; drag/reorder is handled by Shadowlist via the dragEnabled prop.
 const ReorderElement = memo(
   ({ element, index }: { element: ContactElementType; index: number }) => {
     const avatarColor = AVATAR_COLORS[index % AVATAR_COLORS.length];

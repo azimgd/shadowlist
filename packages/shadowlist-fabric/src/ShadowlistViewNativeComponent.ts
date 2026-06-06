@@ -21,10 +21,7 @@ export type OnStartReached = {};
 
 export type OnEndReached = {};
 
-/*
- * Pull-to-refresh. Fired when the user pulls past the refresh threshold at the start
- * of a vertical list (native UIRefreshControl on iOS, SwipeRefreshLayout on Android).
- */
+/* Fired when the user pulls past the refresh threshold at the start of a vertical list. */
 export type OnRefresh = {};
 
 export type OnScroll = {
@@ -33,11 +30,8 @@ export type OnScroll = {
 };
 
 /*
- * Drag-to-reorder lifecycle. The whole gesture - finger tracking, edge auto-scroll
- * and the make-room shuffle - runs on the native UI thread without mutating the JS
- * tree, so only these two boundaries are relayed back. `index` is the flat element
- * index the gesture picked up; `fromIndex`/`toIndex` are the picked-up element's
- * original and final indices for the single reorder applied on drop.
+ * Drag-to-reorder boundaries. `index` is the flat element index picked up;
+ * `fromIndex`/`toIndex` are its original and final indices on drop.
  */
 export type OnDragStart = {
   index: CodegenTypes.Int32;
@@ -78,39 +72,20 @@ interface NativeProps extends ViewProps {
   horizontal: boolean;
   stickyHeader: boolean;
   stickyFooter: boolean;
-  /*
-   * Auto-hiding header/footer: the bar pins to its edge, slides away as the user
-   * scrolls toward the content and slides back as they scroll the other way
-   * (direction-based). Handled natively on the UI thread like the sticky pin.
-   */
+  /* Header/footer that pins to its edge and slides away/back based on scroll direction. */
   autoHideHeader: boolean;
   autoHideFooter: boolean;
-  /*
-   * Enables native long-press drag-to-reorder. The press-and-hold pickup, finger
-   * tracking, edge auto-scroll and live shuffle are all handled natively; JS only
-   * mirrors the resulting order and is notified through onDrag* events.
-   */
+  /* Enables long-press drag-to-reorder; JS mirrors the result via onDrag* events. */
   dragEnabled: boolean;
-  /*
-   * Element indices that are sticky section headers (ascending). Empty for a plain
-   * list; a SectionList passes the flattened indices of its section-header rows.
-   */
+  /* Element indices that are sticky section headers (ascending); empty for a plain list. */
   stickyHeaderIndices: ReadonlyArray<CodegenTypes.Int32>;
   columns: CodegenTypes.Int32;
   containerOffsetIndex: CodegenTypes.Int32;
-  /*
-   * Bottom inset (px) added to the scroll view's scrollable region, used for
-   * keyboard avoidance. The native side grows the bottom content inset by this
-   * amount and slides the content up by the same delta so rows behind the keyboard
-   * become visible. Driven from JS by the keyboard-avoiding hook (see Shadowlist's
-   * keyboardAvoidingEnabled); 0 when no inset is applied. Vertical lists only.
-   */
+  /* Bottom inset (px) added for keyboard avoidance; 0 when none. Vertical lists only. */
   contentInsetBottom: CodegenTypes.Double;
   /*
-   * Pull-to-refresh. `refreshEnabled` installs the native refresh control (the JS
-   * layer sets it from the presence of an onRefresh handler); `refreshing` is the
-   * controlled spinner state; `refreshColor` tints the native indicator (the spinner
-   * on iOS, the arc on Android). Vertical lists only.
+   * Pull-to-refresh. `refreshEnabled` installs the refresh control; `refreshing` is
+   * the controlled spinner state; `refreshColor` tints it. Vertical lists only.
    */
   refreshEnabled: boolean;
   refreshing: boolean;

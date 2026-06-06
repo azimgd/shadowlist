@@ -1,8 +1,6 @@
 // Sticky header/footer: the template stays pinned to the viewport edge instead
-// of scrolling with the content. The core only changes where the header/footer
-// template is positioned (getHeaderOffset / getFooterOffset); the reserved
-// header/footer space in the content size is unchanged, so the template settles
-// back onto it at the scroll extremes.
+// of scrolling with the content. Only its position changes; the reserved space in
+// the content size is unchanged, so it settles back onto it at the scroll extremes.
 
 #include "TestFramework.hpp"
 #include "Harness.hpp"
@@ -108,12 +106,9 @@ TEST(sticky_header_horizontal_tracks_offset_x) {
   CHECK_NEAR(sim.container.getStickyHeaderOffset(), 2000.0, 0.5);
 }
 
-// The header's real size is measured one commit after the first layout (its inner
-// content reports its size a frame late), so the header feeds back as 0 on commit 1
-// and its real value on commit 2. The element offsets shift down by the header size
-// between the two commits; MVCP must NOT treat that as a content scroll, otherwise it
-// scrolls the list down by the header size and the list opens with the header hidden
-// and the first item at the top. Regression for "list opens scrolled past header".
+// The header's real size arrives one commit after the first layout (0 on commit 1,
+// real on commit 2). The resulting offset shift must NOT be treated as a content
+// scroll, or the list opens scrolled past the header. Regression.
 TEST(header_measured_late_keeps_list_at_top) {
   Sim sim;
   sim.winH = 600;
@@ -121,11 +116,11 @@ TEST(header_measured_late_keeps_list_at_top) {
   sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
   sim.setKeys(makeKeys(30));
 
-  // Commit 1: header template not measured yet (size 0).
+  // Commit 1: header not measured yet (size 0).
   sim.headerSize = 0.0;
   sim.frame();
 
-  // Commit 2: header measured (size 50) - the one-commit-late measurement.
+  // Commit 2: header measured (size 50).
   sim.headerSize = 50.0;
   sim.frame();
   sim.settle();
@@ -137,7 +132,7 @@ TEST(header_measured_late_keeps_list_at_top) {
 }
 
 // A genuine prepend at a scrolled position must still maintain the visible content
-// position (the header-size compensation must not disable real MVCP).
+// position (the header-size compensation must not disable it).
 TEST(header_compensation_preserves_prepend_mvcp) {
   Sim sim;
   sim.winH = 600;
@@ -162,11 +157,9 @@ TEST(header_compensation_preserves_prepend_mvcp) {
   CHECK_NEAR(anchorAfter, anchorBefore, 1.0);
 }
 
-// Faithful model of the REAL Fabric commit sequence: update() runs in adopt() and
-// sees the header size from the PREVIOUS layout (stale), and the freshly measured
-// header only lands in THIS commit's layout pass (recomputeElementOffsets +
-// updateElementAtIndex), AFTER update() already measured with the stale size. The
-// list must still open at offset 0 with the header visible and element 0 below it.
+// Models the commit sequence where update() sees the stale (previous) header size
+// and the freshly measured header only lands in this commit's layout pass, after
+// update() ran. The list must still open at offset 0 with the header visible.
 TEST(header_late_real_commit_sequence_keeps_top) {
   Sim sim;
   sim.winH = 600;
@@ -178,8 +171,8 @@ TEST(header_late_real_commit_sequence_keeps_top) {
   sim.headerSize = 0.0;
   sim.frame();
 
-  // Commit 2: update() still sees the stale header (0); the real 50 arrives only in
-  // the layout pass below.
+  // Commit 2: update() sees the stale header (0); the real 50 arrives in the layout
+  // pass below.
   FrameInput input = sim.makeInput();
   input.headerSize = 0.0;
   sim.virtualizer.update(&sim.container, input);
@@ -195,17 +188,16 @@ TEST(header_late_real_commit_sequence_keeps_top) {
   }
   Virtualizer::recomputeTotalSize(&sim.container);
 
-  // The shadow node re-asserts the offset on the header-size-change commit so the host
-  // actually applies the resting offset (otherwise the re-flowed rows shift but the
-  // scroll view's offset is left stale -> header scrolled past / overlapped).
+  // Re-assert the offset on the header-size-change commit so the host applies the
+  // resting offset (otherwise the rows re-flow but the offset is left stale).
   sim.container.containerOffsetCorrected = true;
 
   auto upd = sim.container.resolveStateUpdate(sim.offsetX, sim.offsetY, sim.prevTotalW, sim.prevTotalH);
   if (upd.applyContainerOffset) { sim.offsetX = upd.containerOffsetX; sim.offsetY = upd.containerOffsetY; }
   sim.prevTotalW = upd.totalContainerWidth; sim.prevTotalH = upd.totalContainerHeight;
 
-  // The host must be told to apply the offset, and it must be the top (0) with element
-  // 0 resting just below the header.
+  // The host must be told to apply the offset, at the top (0) with element 0 just
+  // below the header.
   CHECK_EQ(upd.applyContainerOffset, true);
   CHECK_NEAR(sim.offsetY, 0.0, 0.5);
   CHECK_NEAR(sim.elementOffset(0), 50.0, 0.5);

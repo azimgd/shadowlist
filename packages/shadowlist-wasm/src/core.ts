@@ -1,7 +1,5 @@
 /*
- * Loads the WebAssembly virtualization core and hands out fresh per-list
- * instances. The module is a singleton (one WASM heap shared by every list);
- * each ShadowlistCore handle owns its own Container + Virtualizer.
+ * Loads the virtualization core and hands out fresh per-list instances.
  */
 import createShadowlistCoreModule, {
   type ShadowlistCoreInstance,
@@ -18,8 +16,7 @@ export type {
 let modulePromise: Promise<ShadowlistCoreModule> | null = null;
 
 /*
- * Initialize (or reuse) the shared WASM module. Safe to call repeatedly; the
- * underlying compile happens exactly once.
+ * Initialize (or reuse) the shared core module. Safe to call repeatedly.
  */
 export function loadShadowlistCoreModule(): Promise<ShadowlistCoreModule> {
   if (!modulePromise) {
@@ -29,8 +26,8 @@ export function loadShadowlistCoreModule(): Promise<ShadowlistCoreModule> {
 }
 
 /*
- * Create a new core handle for a single list. Remember to call instance.delete()
- * when the list unmounts to free the C++ Container/Virtualizer.
+ * Create a new core handle for a single list. Call instance.delete() on
+ * unmount to free the native resources.
  */
 export async function createShadowlistCore(): Promise<ShadowlistCoreInstance> {
   const module = await loadShadowlistCoreModule();

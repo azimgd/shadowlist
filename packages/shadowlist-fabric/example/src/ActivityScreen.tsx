@@ -14,7 +14,7 @@ export const ActivityScreen = () => {
   );
   const [viewableLabel, setViewableLabel] = useState('—');
 
-  // viewability: surface the live on-screen index range on the sticky footer.
+  // Surface the live on-screen index range on the sticky footer.
   const handleViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: { index: number }[] }) => {
       if (viewableItems.length === 0) {
@@ -28,9 +28,7 @@ export const ActivityScreen = () => {
     []
   );
 
-  // Loading-more (pagination) indicator. There's no dedicated prop — render an
-  // ActivityIndicator in ListFooterComponent while a loading flag is set (the
-  // companion to onEndReached). The ref guards against the edge re-firing mid-load.
+  // Pagination indicator; the ref guards against onEndReached re-firing mid-load.
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingRef = useRef(false);
 
@@ -38,7 +36,7 @@ export const ActivityScreen = () => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoadingMore(true);
-    // The timeout stands in for a network fetch.
+    // Timeout stands in for a network fetch.
     setTimeout(() => {
       setData((prev) => [
         ...prev,
@@ -51,9 +49,7 @@ export const ActivityScreen = () => {
     }, 1000);
   }, []);
 
-  // Pull-to-refresh: prepend a fresh batch, then clear the spinner. The native
-  // refresh control is the loading indicator here (the footer ActivityIndicator above
-  // is the companion for loading *more* at the end). The timeout stands in for a fetch.
+  // Pull-to-refresh: prepend a fresh batch, then clear the spinner.
   const [refreshing, setRefreshing] = useState(false);
 
   const handleRefresh = useCallback(() => {
@@ -75,7 +71,7 @@ export const ActivityScreen = () => {
     () => shadowlistRef.current?.scrollToEnd(),
     []
   );
-  // editing: drop the 20th and 50th rows to show keyed reconciliation.
+  // Drop the 20th and 50th rows.
   const handleRemoveItems = useCallback(
     () =>
       setData((prev) =>
@@ -115,10 +111,7 @@ export const ActivityScreen = () => {
         style={styles.list}
         keyExtractor={(item) => item.id}
         renderElement={({ element }) => <ActivityElement element={element} />}
-        // Initial scroll position: open the list already scrolled to index 30. The
-        // core anchors that row to the viewport top and its rows mount on the first
-        // render (no scroll-from-top, no blank flash). Keep it constant for a pure
-        // initial position.
+        // Open the list already scrolled to index 30.
         containerOffsetIndex={30}
         stickyHeader
         stickyFooter

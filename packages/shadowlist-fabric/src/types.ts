@@ -3,8 +3,7 @@ import type { ViewStyle, ColorValue } from 'react-native';
 import type { OnScroll } from './ShadowlistViewNativeComponent';
 
 /*
- * A single item's viewability state, mirroring FlatList's ViewToken shape so the
- * onViewableItemsChanged contract is familiar.
+ * A single item's viewability state.
  */
 export interface ViewToken<ElementT> {
   item: ElementT;
@@ -32,8 +31,7 @@ export interface ViewabilityConfig {
 }
 
 /*
- * Public props. Kept aligned with the web (wasm) package so application code is
- * portable across platforms.
+ * Public props.
  */
 export interface ShadowlistProps<ElementT extends { id: string }> {
   data: ReadonlyArray<ElementT>;
@@ -46,71 +44,56 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   stickyHeader?: boolean;
   stickyFooter?: boolean;
   /*
-   * Auto-hide the header/footer on scroll: the bar pins to its edge, then slides away
-   * as you scroll toward the content (down for the header, down for the footer) and
-   * slides back as you scroll the other way. Direction-based, handled natively. The
-   * header stays shown near the top and the footer near the bottom.
+   * Auto-hide the header/footer on scroll: pins to its edge, then slides away as you
+   * scroll toward the content and slides back the other way.
    */
   autoHideHeader?: boolean;
   autoHideFooter?: boolean;
   /*
-   * Enables native long-press drag-to-reorder. The pickup, finger tracking, edge
-   * auto-scroll and live shuffle run entirely natively; the component mirrors the
-   * resulting order and reports the final move through onReorder. Pair with a
-   * persisted setData in onReorder, otherwise the list snaps back on drop.
+   * Enable long-press drag-to-reorder. Reports the final move through onReorder;
+   * pair with a persisted setData there, otherwise the list snaps back on drop.
    */
   dragEnabled?: boolean;
   /*
-   * Called once when a drag-to-reorder gesture is released. `data` is the fully
-   * reordered array (the authoritative result - set it back into your state);
-   * `from`/`to` are the picked-up element's original and final indices.
+   * Called once when a drag-to-reorder gesture is released. `data` is the reordered
+   * array (set it back into your state); `from`/`to` are the original/final indices.
    */
   onReorder?: (info: { from: number; to: number; data: ElementT[] }) => void;
   /*
-   * Element indices that are sticky section headers (ascending). Used by SectionList
-   * to pin section headers natively; a plain list leaves this undefined.
+   * Element indices that are sticky section headers (ascending). Used by SectionList.
    */
   stickyHeaderIndices?: ReadonlyArray<number>;
   /*
-   * Renders the content of the always-mounted sticky-header overlay for the active
-   * section (identified by its flat element index). Paired with stickyHeaderIndices;
-   * the overlay is pinned to the viewport natively, so its position never lags.
+   * Renders the sticky-header overlay for the active section (by flat element index).
+   * Paired with stickyHeaderIndices.
    */
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
   columns?: number;
   /*
    * Declarative scroll-to-index, doubling as the initial scroll position. A value
-   * >= 0 opens the list with that index anchored to the viewport start (the target
-   * rows are mounted on the first render, so there is no scroll-from-top); it fires
-   * only when the value changes, so a constant gives a pure initial position. A
-   * negative value is inactive (the default, -2, opens at the top / bottom when
-   * inverted). The imperative scrollToIndex command takes precedence.
+   * >= 0 opens the list with that index anchored to the viewport start; fires only
+   * when the value changes. A negative value is inactive (default -2 = top, or bottom
+   * when inverted). The imperative scrollToIndex command takes precedence.
    */
   containerOffsetIndex?: number;
   /*
-   * Zero-dependency keyboard avoidance. When true, the list subscribes to React
-   * Native's Keyboard events and, as the keyboard opens, grows its bottom inset and
-   * slides its content up by the overlap with the keyboard so rows that would sit
-   * behind the keyboard stay visible; it reverses on dismiss. Vertical lists only.
+   * Keyboard avoidance: as the keyboard opens, grow the bottom inset and slide content
+   * up by the keyboard overlap so covered rows stay visible. Vertical lists only.
    */
   keyboardAvoidingEnabled?: boolean;
   /*
-   * Extra pixels subtracted from the keyboard overlap when keyboardAvoidingEnabled is
-   * on. Use it to discount UI already above the keyboard (a bottom tab bar) or
-   * safe-area inset already applied below the list. Defaults to 0.
+   * Pixels subtracted from the keyboard overlap, to discount UI already above the
+   * keyboard (a tab bar) or safe-area inset below the list. Defaults to 0.
    */
   keyboardAvoidingOffset?: number;
   /*
-   * Pull-to-refresh (vertical lists only). Provide onRefresh to enable it; it fires when
-   * the user pulls past the threshold. Drive the native indicator (UIRefreshControl on
-   * iOS, SwipeRefreshLayout on Android) with the controlled `refreshing` flag - set it
-   * true when the refresh starts and back to false when the data has loaded.
+   * Pull-to-refresh (vertical lists only). Provide onRefresh to enable; drive the
+   * indicator with the controlled `refreshing` flag.
    */
   refreshing?: boolean;
   onRefresh?: () => void;
   /*
-   * Tint for the native pull-to-refresh indicator (the spinner on iOS, the arc on
-   * Android). Defaults to the platform default.
+   * Tint for the pull-to-refresh indicator. Defaults to the platform default.
    */
   refreshColor?: ColorValue;
   initialElementsSize?: number;
@@ -135,9 +118,8 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
 }
 
 /*
- * SectionList types, mirroring React Native's SectionList so application code and
- * AI conversions port across with minimal changes. A section is `data` plus any
- * caller fields (SectionT), addressed by an optional stable `key`.
+ * SectionList types. A section is `data` plus any caller fields (SectionT),
+ * addressed by an optional stable `key`.
  */
 export interface SectionBase<ItemT, SectionT = object> {
   data: ReadonlyArray<ItemT>;
@@ -176,8 +158,8 @@ export interface SectionListProps<ItemT, SectionT = object> {
   }) => ReactElement | null;
   keyExtractor?: (item: ItemT, index: number) => string;
   /*
-   * Pin section headers to the viewport top as their section scrolls under them,
-   * swapping as the next section arrives. Pinned natively. Defaults to true.
+   * Pin section headers to the viewport top, swapping as the next section arrives.
+   * Defaults to true.
    */
   stickySectionHeadersEnabled?: boolean;
   /*
@@ -213,20 +195,10 @@ export interface SectionListProps<ItemT, SectionT = object> {
 }
 
 /*
- * TreeList types. A directory-browser / outline tree built as a thin data layer
- * over Shadowlist: the visible subtree (every node whose ancestors are all
- * expanded) is flattened into one element stream and handed to the virtualizer,
- * exactly how SectionList flattens sections. Collapsed subtrees are never walked,
- * so flatten cost scales with the number of *visible* rows, not the total tree.
- * Expand/collapse only changes the flat key set, so the engine's key-based
- * reconcile keeps measured row sizes and maintain-visible-content-position keeps
- * the toggled row anchored - sub-millisecond toggles on trees of any size.
- *
- * Nodes are caller-defined (ItemT); the tree is described by two accessors rather
- * than a fixed wrapper shape, so no per-node objects are allocated for the source
- * data. `keyExtractor` must return a globally unique, stable id per node (the same
- * node must keep its key across expand/collapse) so reconcile and measurement
- * caching line up.
+ * TreeList types. The visible subtree (nodes whose ancestors are all expanded) is
+ * flattened into one element stream; collapsed subtrees are never walked.
+ * `keyExtractor` must return a globally unique, stable id per node (stable across
+ * expand/collapse) so reconcile and measurement caching line up.
  */
 export interface TreeListRenderNodeInfo<ItemT> {
   item: ItemT;
@@ -235,27 +207,24 @@ export interface TreeListRenderNodeInfo<ItemT> {
    */
   index: number;
   /*
-   * Nesting level; 0 for roots. Multiply by indentWidth for the leading inset
-   * (also provided pre-computed as `indent`).
+   * Nesting level; 0 for roots.
    */
   depth: number;
   isExpanded: boolean;
   hasChildren: boolean;
   /*
-   * Convenience: depth * indentWidth, the leading inset in px.
+   * depth * indentWidth, the leading inset in px.
    */
   indent: number;
   /*
-   * Toggle this node's expanded state. No-op for leaves. Honours the
-   * controlled/uncontrolled mode the list is in.
+   * Toggle this node's expanded state. No-op for leaves.
    */
   toggle: () => void;
 }
 
 /*
  * Imperative handle for TreeList: the standard Shadowlist commands plus
- * scrollToNode, which resolves a node id to its current flat index and scrolls to
- * it (no-op when the node is not in the visible/expanded set).
+ * scrollToNode (no-op when the node is not in the visible/expanded set).
  */
 export interface TreeListCommands extends ShadowlistCommands {
   scrollToNode: (id: string) => void;
@@ -267,9 +236,8 @@ export interface TreeListProps<ItemT> {
    */
   data: ReadonlyArray<ItemT>;
   /*
-   * Return a node's children, or undefined/empty for a leaf. Called only for
-   * nodes that are actually visited (visible nodes and the children of expanded
-   * ones), so a lazy-loading implementation can fetch on demand.
+   * Return a node's children, or undefined/empty for a leaf. Called only for visited
+   * nodes, so a lazy-loading implementation can fetch on demand.
    */
   getChildren: (item: ItemT) => ReadonlyArray<ItemT> | undefined;
   /*

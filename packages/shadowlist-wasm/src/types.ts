@@ -20,7 +20,7 @@ export interface ShadowlistCommands {
 }
 
 /*
- * A single item's viewability state, mirroring FlatList's ViewToken shape.
+ * A single item's viewability state.
  */
 export interface ViewToken<ElementT> {
   item: ElementT;
@@ -39,8 +39,7 @@ export interface ViewabilityConfig {
 type ListComponent = ReactElement | (() => ReactElement | null) | null;
 
 /*
- * Public props. Kept aligned with the native package so application code is
- * portable across platforms.
+ * Public props.
  */
 export interface ShadowlistProps<ElementT extends { id: string }> {
   data: ReadonlyArray<ElementT>;
@@ -57,28 +56,23 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   columns?: number;
 
   /*
-   * Element indices that are sticky section headers (ascending). Used by SectionList
-   * to pin section headers; a plain list leaves this undefined.
+   * Element indices that are sticky section headers (ascending).
    */
   stickyHeaderIndices?: ReadonlyArray<number>;
   /*
-   * Renders the content of the always-mounted sticky-header overlay for the active
-   * section (identified by its flat element index). Paired with stickyHeaderIndices;
-   * the overlay is pinned to the viewport on every scroll frame, so it never lags.
+   * Renders the sticky-header overlay for the active section (by flat element index).
+   * Paired with stickyHeaderIndices.
    */
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactNode;
 
   /*
-   * Enables long-press drag-to-reorder. The pickup, pointer tracking, edge auto-
-   * scroll and make-room shuffle are all handled by imperative transforms (no
-   * re-render while dragging); the final move is reported once through onReorder.
-   * Pair with a persisted setData in onReorder, otherwise the list snaps back.
+   * Enables long-press drag-to-reorder. Persist the reordered data in onReorder,
+   * otherwise the list snaps back.
    */
   dragEnabled?: boolean;
   /*
-   * Called once when a drag-to-reorder gesture is released. `data` is the fully
-   * reordered array (set it back into your state); `from`/`to` are the picked-up
-   * element's original and final indices.
+   * Called once when a drag-to-reorder gesture is released. `data` is the reordered
+   * array; `from`/`to` are the element's original and final indices.
    */
   onReorder?: (info: { from: number; to: number; data: ElementT[] }) => void;
 
@@ -102,7 +96,7 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   onEndReached?: () => void;
   /*
    * Distance from the start/end, as a fraction of the visible length, at which the
-   * matching callback fires (FlatList semantics). Defaults to 1.
+   * matching callback fires. Defaults to 1.
    */
   onStartReachedThreshold?: number;
   onEndReachedThreshold?: number;
@@ -121,9 +115,8 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
 }
 
 /*
- * SectionList types, mirroring React Native's SectionList (and the native package)
- * so application code ports across platforms. A section is `data` plus any caller
- * fields (SectionT), addressed by an optional stable `key`.
+ * SectionList types. A section is `data` plus any caller fields (SectionT),
+ * addressed by an optional stable `key`.
  */
 export interface SectionBase<ItemT, SectionT = object> {
   data: ReadonlyArray<ItemT>;
@@ -190,17 +183,10 @@ export interface SectionListProps<ItemT, SectionT = object> {
 }
 
 /*
- * TreeList types. A directory-browser / outline tree built as a thin data layer
- * over Shadowlist: the visible subtree (every node whose ancestors are all
- * expanded) is flattened into one element stream and handed to the virtualizer,
- * exactly how SectionList flattens sections. Collapsed subtrees are never walked,
- * so flatten cost scales with the number of *visible* rows, not the total tree.
- * Expand/collapse only changes the flat key set, so the engine's key-based
- * reconcile keeps measured row sizes and the toggled row stays anchored.
- *
- * Nodes are caller-defined (ItemT); the tree is described by two accessors rather
- * than a fixed wrapper shape. `keyExtractor` must return a globally unique, stable
- * id per node so reconcile and measurement caching line up.
+ * TreeList types. The visible subtree (nodes whose ancestors are all expanded) is
+ * flattened into one element stream; collapsed subtrees are never walked. Nodes are
+ * caller-defined (ItemT), described by accessors. `keyExtractor` must return a
+ * globally unique, stable id per node.
  */
 export interface TreeListRenderNodeInfo<ItemT> {
   item: ItemT;
@@ -209,8 +195,7 @@ export interface TreeListRenderNodeInfo<ItemT> {
    */
   index: number;
   /*
-   * Nesting level; 0 for roots. Multiply by indentWidth for the leading inset
-   * (also provided pre-computed as `indent`).
+   * Nesting level; 0 for roots. Leading inset is provided pre-computed as `indent`.
    */
   depth: number;
   isExpanded: boolean;
@@ -220,16 +205,14 @@ export interface TreeListRenderNodeInfo<ItemT> {
    */
   indent: number;
   /*
-   * Toggle this node's expanded state. No-op for leaves. Honours the
-   * controlled/uncontrolled mode the list is in.
+   * Toggle this node's expanded state. No-op for leaves.
    */
   toggle: () => void;
 }
 
 /*
- * Imperative handle for TreeList: the standard Shadowlist commands plus
- * scrollToNode, which resolves a node id to its current flat index and scrolls to
- * it (no-op when the node is not in the visible/expanded set).
+ * Imperative handle for TreeList: the standard commands plus scrollToNode, which
+ * scrolls to a node by id (no-op when the node is not visible/expanded).
  */
 export interface TreeListCommands extends ShadowlistCommands {
   scrollToNode: (id: string) => void;
@@ -242,8 +225,7 @@ export interface TreeListProps<ItemT> {
   data: ReadonlyArray<ItemT>;
   /*
    * Return a node's children, or undefined/empty for a leaf. Called only for
-   * nodes that are actually visited (visible nodes and the children of expanded
-   * ones), so a lazy-loading implementation can fetch on demand.
+   * visited nodes, so a lazy-loading implementation can fetch on demand.
    */
   getChildren: (item: ItemT) => ReadonlyArray<ItemT> | undefined;
   /*
@@ -253,8 +235,7 @@ export interface TreeListProps<ItemT> {
   renderNode: (info: TreeListRenderNodeInfo<ItemT>) => ReactNode;
   /*
    * Controlled expansion: the set of expanded node ids. When provided, the list
-   * does not own expansion state and reports intended changes through
-   * onExpandedChange. Omit for uncontrolled mode (see initialExpandedIds).
+   * reports intended changes through onExpandedChange. Omit for uncontrolled mode.
    */
   expandedIds?: ReadonlyArray<string> | ReadonlySet<string>;
   /*

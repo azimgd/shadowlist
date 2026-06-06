@@ -19,19 +19,8 @@ import com.facebook.react.uimanager.PixelUtil;
 import java.util.List;
 
 /*
- * TurboModule that streams the system keyboard (IME) frame to JS as onKeyboardMove
- * events (see NativeShadowlistKeyboard.ts / useKeyboardAnimation).
- *
- * Android reads the genuine per-frame inset via WindowInsetsAnimationCompat: onProgress
- * fires every frame of both the system open/close animation and the interactive
- * swipe-to-dismiss, so this is true frame-accurate tracking.
- *
- * Note: the IME animation callback fires reliably when the host Activity uses
- * SOFT_INPUT_ADJUST_RESIZE (and, for edge-to-edge apps, decorFitsSystemWindows=false).
- * We do not mutate the host window here (it is an app-global concern); if a host sees
- * no events, ensure its windowSoftInputMode is adjustResize.
- *
- * NativeShadowlistKeyboardSpec and emitOnKeyboardMove are generated from the JS spec.
+ * Streams the per-frame keyboard (IME) height to JS as onKeyboardMove events.
+ * Requires the host Activity to use SOFT_INPUT_ADJUST_RESIZE for events to fire.
  */
 @ReactModule(name = ShadowlistKeyboardModule.NAME)
 public class ShadowlistKeyboardModule extends NativeShadowlistKeyboardSpec {
@@ -89,8 +78,7 @@ public class ShadowlistKeyboardModule extends NativeShadowlistKeyboardSpec {
       public WindowInsetsAnimationCompat.BoundsCompat onStart(
         @NonNull WindowInsetsAnimationCompat animation,
         @NonNull WindowInsetsAnimationCompat.BoundsCompat bounds) {
-        // getUpperBound() is the fully-shown IME inset (androidx Insets); capture the
-        // target height for the progress fraction.
+        // Fully-shown IME height, used as the denominator for the progress fraction.
         int targetPx = bounds.getUpperBound().bottom;
         mTargetDip = PixelUtil.toDIPFromPixel(targetPx);
         return bounds;

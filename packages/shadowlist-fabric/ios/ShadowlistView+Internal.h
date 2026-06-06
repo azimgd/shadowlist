@@ -5,10 +5,7 @@
 
 #include <vector>
 
-/*
- * Shared ivars and cross-category methods for ShadowlistView and its categories
- * (sticky pinning, drag-to-reorder). Obj-C++ only - never import from a plain .m.
- */
+/* Shared ivars and cross-category methods for ShadowlistView. Obj-C++ only. */
 @interface ShadowlistView () <RCTShadowlistViewViewProtocol, UIScrollViewDelegate> {
 @package
   facebook::react::ShadowlistViewShadowNode::ConcreteState::Shared _state;
@@ -44,7 +41,7 @@
   std::vector<double> _stickyHeaderSizes;
   __weak UIView * _sectionHeaderOverlay;
 
-  /* The last offset we applied, to tell our own echoed scrolls from user scrolls. */
+  /* The last offset we applied, to distinguish echoed scrolls from user scrolls. */
   CGPoint _appliedOffset;
   BOOL _hasAppliedOffset;
 

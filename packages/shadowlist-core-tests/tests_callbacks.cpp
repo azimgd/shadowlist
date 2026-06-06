@@ -5,9 +5,7 @@
 
 using namespace slt;
 
-// onEndReached fires once the offset comes within one window of the end. The
-// threshold is offset + window >= total - window, i.e. offset >= total - 2*window
-// (= 3000 - 1200 = 1800 here); it must not fire just short of that.
+// onEndReached fires at offset >= total - 2*window (1800 here), not before.
 TEST(on_end_reached_fires_near_end_threshold) {
   auto deltaAfterScroll = [](double to) {
     Sim sim;
@@ -80,8 +78,7 @@ TEST(on_scroll_fires_on_offset_change_and_dedups) {
   CHECK_NEAR(sim.scrolls.back().second, 2000.0, 0.5);  // last reported offset
 }
 
-// A list that fits within a single window technically reaches both edges; the
-// dedup prefers the end callback so start does not also fire.
+// A list shorter than one window reaches the end only, not the start.
 TEST(short_list_reaches_end_not_start) {
   Sim sim;
   sim.winH = 600;
@@ -94,8 +91,7 @@ TEST(short_list_reaches_end_not_start) {
   CHECK_EQ(sim.startReached, 0);
 }
 
-// onEndReached fires once per arrival at the end band, not on every frame parked
-// there - otherwise a paginating handler re-fires continuously while near the end.
+// onEndReached fires once per arrival at the end band, not every frame parked there.
 TEST(end_reached_fires_once_per_arrival) {
   Sim sim;
   sim.winH = 600;
@@ -110,9 +106,7 @@ TEST(end_reached_fires_once_per_arrival) {
   CHECK_EQ(sim.endReached, 1);   // still once - no per-frame spam
 }
 
-// A page smaller than one window must still re-fire onEndReached: appending a new
-// tail while the user stays within the threshold band is a fresh arrival at the
-// (new) end. The edge-trigger dedup re-arms on element-count change for this.
+// Appending a small page at the end re-fires onEndReached (dedup re-arms on count change).
 TEST(end_reached_refires_when_small_page_appended_at_edge) {
   Sim sim;
   sim.winH = 600;

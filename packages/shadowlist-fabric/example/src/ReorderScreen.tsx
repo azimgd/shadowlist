@@ -5,15 +5,7 @@ import { HeaderListItem } from './HeaderListItem';
 import { AVATAR_COLORS, generateContact } from './constants';
 import type { ContactElement as ContactElementType } from './ContactElement';
 
-/*
- * A deliberately plain row (no reanimated, no gesture-handler): the long-press drag,
- * finger tracking, auto-scroll and shuffle are all handled natively by Shadowlist via
- * the dragEnabled prop. The row only renders content.
- */
-/*
- * Derive a stable color from the contact's id (not its row index) so a row keeps its
- * avatar color when it is dragged to a new position.
- */
+// Stable color keyed by contact id so a row keeps its color when reordered.
 const colorForId = (id: string) => {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;

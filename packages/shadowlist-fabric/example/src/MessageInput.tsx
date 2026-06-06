@@ -6,13 +6,7 @@ interface MessageInputProps {
   onSend: (message: string) => void;
 }
 
-/*
- * Static composer bar. Keyboard avoidance is owned by ChatScreen, which lifts the
- * whole list+composer unit by the keyboard height; the safe-area paddingBottom here
- * keeps the bar above the home indicator when the keyboard is closed (and is exactly
- * the amount ChatScreen subtracts from the lift, so the bar lands flush against the
- * keyboard when it opens).
- */
+// Composer bar with safe-area bottom padding.
 export const MessageInput = ({ onSend }: MessageInputProps) => {
   const [message, setMessage] = useState('');
   const insets = useSafeAreaInsets();

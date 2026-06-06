@@ -10,22 +10,12 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.uimanager.PixelUtil;
 
 /*
- * Native sticky pinning for the header, footer and section-header overlay, split out of
- * ShadowlistView. The geometry runs on the UI thread every scroll tick off the
- * core-published state the host caches here (mirroring Container::resolveStickyHeader),
- * so it stays in lockstep with the gesture without the commit-cycle latency that made
- * the core-driven version choppy. The host view owns the scroll/content views; this
- * controller reaches them through the ShadowlistView accessors.
+ * Native sticky pinning for the header, footer and section-header overlay. Runs on the
+ * UI thread every scroll tick off the core-published state cached here.
  */
 class ShadowlistStickyController {
-  /*
-   * Lift the pinned views above the scrolling rows via Z (draw order), NOT
-   * bringToFront(): bringToFront() reorders mContentView's child array, which desyncs
-   * Fabric's index-based child mounting (getContentChildAt / removeContentViewAt) and
-   * corrupts the view tree - the same hazard ShadowlistDragController documents and
-   * avoids. The section-header overlay sits above a plain sticky header, both above
-   * the rows; the dragged row (8dp) stays above all.
-   */
+  // Z lift (draw order) for pinned views; never use bringToFront(), which reorders
+  // the content child array and desyncs index-based child mounting.
   private static final int STICKY_LIFT_DP = 4;
   private static final int SECTION_OVERLAY_LIFT_DP = 6;
 
@@ -34,25 +24,16 @@ class ShadowlistStickyController {
   private boolean mStickyHeader = false;
   private boolean mStickyFooter = false;
 
-  /*
-   * Direction-based auto-hide: the header/footer pins to its edge and slides away as
-   * the user scrolls toward the content, sliding back the other way. mHeaderHidden /
-   * mFooterHidden track how far each is currently slid away (px); mLastAutoHideOffset
-   * is the previous offset used to derive the scroll delta.
-   */
+  // Direction-based auto-hide. mHeaderHidden/mFooterHidden = how far each is slid away
+  // (px); mLastAutoHideOffset = previous offset, for the scroll delta.
   private boolean mAutoHideHeader = false;
   private boolean mAutoHideFooter = false;
   private float mHeaderHidden = 0f;
   private float mFooterHidden = 0f;
   private float mLastAutoHideOffset = 0f;
 
-  /*
-   * Sticky section headers (SectionList). The active section header is an
-   * always-mounted overlay template (templateType "sectionHeader"); the core publishes
-   * the resting geometry (offset + size in DIP along the scroll axis) of the in-flow
-   * section headers through state, cached here, and we pin the overlay to the viewport
-   * start on each scroll tick, pushing it up as the next in-flow header arrives.
-   */
+  // Sticky section headers: core-published resting geometry (offset + size in DIP along
+  // the scroll axis) of the in-flow section headers, cached for the per-tick pin.
   private int[] mStickyHeaderIndices = new int[0];
   private double[] mStickyHeaderOffsets = new double[0];
   private double[] mStickyHeaderSizes = new double[0];
@@ -81,20 +62,14 @@ class ShadowlistStickyController {
     applyStickyTranslations();
   }
 
-  /*
-   * Clear the auto-hide accumulators so a recycled host does not start with a stale
-   * hide amount / scroll reference (iOS does this in prepareForRecycle).
-   */
+  // Clear the auto-hide accumulators so a recycled host has no stale state.
   void reset() {
     mHeaderHidden = 0f;
     mFooterHidden = 0f;
     mLastAutoHideOffset = 0f;
   }
 
-  /*
-   * Cache the sticky section-header geometry the core published this commit so the
-   * per-scroll-tick pin (applyStickySectionHeaders) runs purely off cached values.
-   */
+  // Cache the core-published sticky section-header geometry for the per-tick pin.
   void cacheStickyGeometry(ReadableMap nextStateData) {
     if (nextStateData.hasKey("stickyHeaderIndices")
         && nextStateData.hasKey("stickyHeaderOffsets")
@@ -114,23 +89,13 @@ class ShadowlistStickyController {
     }
   }
 
-  /*
-   * Pin the sticky header/footer to the viewport by translating them relative to
-   * their resting position. The header tracks the scroll offset (stays at the
-   * start); the footer tracks offset + window - content so it stays at the viewport
-   * end and lands exactly on its resting position at the scroll extreme. Runs on
-   * the UI thread per scroll frame, so it stays in lockstep with the gesture.
-   */
+  // Pin the sticky header/footer by translating them relative to their resting position.
   void applyStickyTranslations() {
     applyStickyTranslations(false);
   }
 
-  /*
-   * `accumulate` is true only for genuine user-scroll ticks, so the direction-based
-   * auto-hide advances its hide/reveal amount on real scrolling but not on programmatic
-   * offset corrections (MVCP, scrollToIndex, initial positioning), which would otherwise
-   * slide it spuriously.
-   */
+  // `accumulate` is true only for genuine user-scroll ticks; programmatic offset
+  // corrections must not advance the auto-hide amount.
   void applyStickyTranslations(boolean accumulate) {
     ViewGroup contentView = mView.getContentView();
     ViewGroup scrollView = mView.getScrollView();
@@ -148,8 +113,7 @@ class ShadowlistStickyController {
 
     float stickyLift = PixelUtil.toPixelFromDIP(STICKY_LIFT_DP);
 
-    // Pre-scan the header/footer template sizes so each can be "pushed off" by the
-    // other (the section-header swap motion) once they would collide.
+    // Pre-scan header/footer sizes so each can be pushed off by the other on collision.
     float headerSize = 0f;
     float footerSize = 0f;
     for (int i = 0; i < contentView.getChildCount(); i++) {
@@ -172,9 +136,7 @@ class ShadowlistStickyController {
     float windowSize = horizontal ? windowW : windowH;
     float contentSize = horizontal ? contentW : contentH;
 
-    // Direction-based auto-hide: accumulate the scroll delta into how far the header/
-    // footer is slid away. Only advance on genuine user scrolls; a programmatic offset
-    // jump snaps the reference without sliding the bar.
+    // Auto-hide scroll delta; only advances on genuine user scrolls.
     float autoHideDelta = accumulate ? (axisOffset - mLastAutoHideOffset) : 0f;
     mLastAutoHideOffset = axisOffset;
 
@@ -218,8 +180,7 @@ class ShadowlistStickyController {
           }
           translation = axisOffset - mHeaderHidden;
         } else if (mStickyHeader) {
-          // Pin to the viewport start, pushed back off by the content end (the footer's
-          // resting top) as it scrolls up to meet it.
+          // Pin to the viewport start, pushed off by the content end on collision.
           translation = axisOffset;
           float collisionTop = contentSize - footerSize - headerSize;
           if (collisionTop < translation) {
@@ -235,23 +196,15 @@ class ShadowlistStickyController {
         child.setTranslationY(translation);
         child.setTranslationX(0f);
       }
-      // Lift a pinned / auto-hiding header/footer above the rows via Z; rest at 0.
+      // Lift a pinned/auto-hiding header/footer above the rows; rest at 0.
       child.setTranslationZ((sticky || autoHide) ? stickyLift : 0f);
     }
 
     applyStickySectionHeaders();
   }
 
-  /*
-   * Pin the always-mounted section-header overlay to the viewport start, mirroring
-   * Container::resolveStickyHeader. The overlay rests at the content origin and shows
-   * the active section's header (its content is swapped in JS); here we only move it.
-   * Walk the core-published in-flow header geometry for the active section (the last
-   * header resting at/above the scroll offset) and the next one, pin the overlay to
-   * the viewport start, and push it up as the next in-flow header scrolls in. When no
-   * section is active (scrolled above the first header) the overlay is hidden, so the
-   * regular list header shows through.
-   */
+  // Pin the section-header overlay to the viewport start, pushing it up as the next
+  // in-flow header arrives. Hidden when no section is active.
   private void applyStickySectionHeaders() {
     ViewGroup contentView = mView.getContentView();
     ViewGroup scrollView = mView.getScrollView();
@@ -276,10 +229,7 @@ class ShadowlistStickyController {
     }
     double axisOffset = PixelUtil.toDIPFromPixel((float) axisOffsetPx);
 
-    /*
-     * Headers are ascending by offset: the active one is the last resting at/above
-     * the viewport start, and the first one past it is the "next" that pushes it up.
-     */
+    // Headers ascend by offset: active = last at/above the viewport start; next = first past it.
     boolean hasActive = false;
     double activeSize = 0.0;
     boolean hasNext = false;
@@ -301,11 +251,7 @@ class ShadowlistStickyController {
       return;
     }
 
-    /*
-     * The overlay rests at the content origin, so its translation along the scroll
-     * axis is simply its displayed top: pinned to the viewport start (axisOffset),
-     * pushed up to nextOffset - activeSize as the next in-flow header arrives.
-     */
+    // Displayed top: viewport start, pushed up to nextOffset - activeSize on arrival.
     double translation = axisOffset;
     if (hasNext) {
       double pushedTop = nextOffset - activeSize;
@@ -323,9 +269,7 @@ class ShadowlistStickyController {
       overlay.setTranslationY(translationPx);
       overlay.setTranslationX(0f);
     }
-    // Keep the overlay above both the rows and a plain sticky header via Z (draw
-    // order) instead of bringToFront(), which would reorder mContentView's children
-    // and desync Fabric's index-based mounting.
+    // Keep the overlay above the rows and a plain sticky header via Z order.
     overlay.setTranslationZ(PixelUtil.toPixelFromDIP(SECTION_OVERLAY_LIFT_DP));
   }
 

@@ -7,10 +7,7 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.uimanager.events.Event;
 
 /*
- * Fabric event for pull-to-refresh. The SwipeRefreshLayout's onRefresh listener
- * dispatches this through the EventDispatcher; "topRefresh" is the registered name the
- * codegen maps back to the JS `onRefresh` handler (the same top-PascalCase convention
- * RN's own ScrollView uses). Carries no payload.
+ * Pull-to-refresh event. "topRefresh" maps to the JS onRefresh handler. No payload.
  */
 public class ShadowlistRefreshEvent extends Event<ShadowlistRefreshEvent> {
   public static final String EVENT_NAME = "topRefresh";

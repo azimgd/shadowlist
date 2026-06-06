@@ -50,8 +50,8 @@ TEST(perf_update_commit_phase) {
   CHECK(iters > 0);
 }
 
-// Full frame: update + per-row measurement feedback + recomputeTotalSize + publish,
-// while scrolling through a variable-height list (the path a real scroll drives).
+// Full frame: update + per-row measurement + recomputeTotalSize + publish,
+// scrolling through a variable-height list.
 TEST(perf_frame_full_scrollthrough) {
   const std::size_t rows = 5000;
   Sim sim;

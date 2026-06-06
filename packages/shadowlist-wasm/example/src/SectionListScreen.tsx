@@ -25,10 +25,7 @@ const ContactRow = memo(
 );
 
 export const SectionListScreen = () => {
-  /*
-   * Group contacts by the first letter of their last (or first) name into sticky
-   * sections, like the iOS Contacts app.
-   */
+  // Group contacts by the first letter of their last (or first) name.
   const sections = useMemo<Section[]>(() => {
     const contacts = Array.from({ length: 120 }, (_, index) =>
       generateContact(index)

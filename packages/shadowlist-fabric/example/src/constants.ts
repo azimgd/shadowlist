@@ -13,11 +13,7 @@ import {
   optimizeImageUrl,
 } from 'shadowlist-utils';
 
-/*
- * Shared, platform-agnostic data and helpers now live in shadowlist-utils and are
- * re-exported here so existing screen imports (./constants) keep working. Only the
- * generators that build this example's element shapes stay local.
- */
+/* Re-export shared data/helpers from shadowlist-utils; local generators stay below. */
 export * from 'shadowlist-utils';
 
 export function generateFeedElement(index: number): FeedElement {
@@ -121,13 +117,7 @@ const FOLDER_NAMES = [
 
 const FILE_EXTENSIONS = ['ts', 'tsx', 'js', 'json', 'md', 'css', 'png', 'svg'];
 
-/*
- * Build a deep, wide file-system tree for the TreeList example. Folders fan out into
- * `foldersPerLevel` subfolders and `filesPerLevel` files down to `maxDepth`, so the
- * total node count grows geometrically - the default below is several thousand nodes,
- * enough to show that flattening only the *expanded* subtree keeps toggles instant
- * regardless of total size.
- */
+/* Build a deep, wide file-system tree for the TreeList example. */
 export function generateFileTree(
   rootCount = 4,
   maxDepth = 3,

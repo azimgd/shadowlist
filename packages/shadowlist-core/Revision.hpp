@@ -49,10 +49,8 @@ public:
   double averageElementHeight = 0.0;
 
   /*
-   * Cumulative count and size of elements that were actually (natively) measured,
-   * as opposed to the estimate-filled measurement window. The average element size
-   * is frozen from this real sample (see Virtualizer::recomputeTotalSize) so the
-   * unmeasured portion of the list is sized from real data, not the estimate.
+   * Cumulative count and size of natively measured elements; the average size is
+   * frozen from this real sample so unmeasured elements are sized from real data.
    */
   std::size_t measuredRealCount = 0;
   double measuredRealTotalWidth = 0.0;

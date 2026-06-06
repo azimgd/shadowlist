@@ -5,11 +5,8 @@
 
 using namespace slt;
 
-// 50 fixed-height (100px) rows in a 600px window stack from the top. At rest the
-// list never scrolls, so it settles on the first revision, which fills exactly
-// one windowful from the top edge (6 rows of 100px fill the 600px window) and
-// leaves the rest of the list unmeasured. The steady-state virtualization window
-// (measureNextRevision) is covered by default_scroll_selects_window.
+// 50 fixed-height (100px) rows in a 600px window stack from the top, measuring one
+// windowful (6 rows) and leaving the rest unmeasured at rest.
 TEST(default_list_stacks_from_top) {
   Sim sim;
   sim.winH = 600;
@@ -30,9 +27,8 @@ TEST(default_list_stacks_from_top) {
   CHECK_EQ(hi, std::size_t(5));   // exactly one 600px windowful (rows 0..5), not the whole list
 }
 
-// Scrolling re-selects the window around the offset (measureNextRevision keeps
-// elements whose offset falls in [offset - window, offset + 2*window]) and keeps
-// offsets exact. At offset 3000 with 100px rows that window is rows 24..42.
+// Scrolling re-selects the measured window [offset - window, offset + 2*window],
+// keeping offsets exact. At offset 3000 with 100px rows that is rows 24..42.
 TEST(default_scroll_selects_window) {
   Sim sim;
   sim.winH = 600;

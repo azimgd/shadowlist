@@ -1,6 +1,5 @@
-// scrollToIndex, including the precision guarantee on variable-height lists:
-// the *target element* lands at the viewport edge even when the rows above it
-// are still estimated.
+// scrollToIndex: the target element lands at the viewport edge even when the
+// rows above it are still estimated.
 
 #include "TestFramework.hpp"
 #include "Harness.hpp"
@@ -28,8 +27,8 @@ TEST(scroll_to_index_fixed_height) {
   CHECK(lo <= std::size_t(40) && std::size_t(40) <= hi);
 }
 
-// Variable heights: the offset converges onto the target element's real offset
-// (this is the anchored-scrollToIndex behaviour), not a stale estimated offset.
+// Variable heights: the offset converges onto the target element's real offset,
+// not a stale estimated offset.
 TEST(scroll_to_index_precise_with_variable_heights) {
   Sim sim;
   sim.winH = 700;
@@ -44,16 +43,14 @@ TEST(scroll_to_index_precise_with_variable_heights) {
   sim.container.scrollToIndex(150);
   sim.settle();
 
-  // The anchored scroll converges so the target sits at the viewport edge.
+  // The target sits at the viewport edge.
   CHECK_NEAR(sim.offsetY, sim.elementOffset(150), 2.0);
   std::size_t lo = 0, hi = 0;
   CHECK(sim.visibleRange(lo, hi));
   CHECK(lo <= std::size_t(150) && std::size_t(150) <= hi);
 
-  // Ground truth (independent of the convergence target): the landing region is
-  // really measured, so the visible rows stack edge to edge by their real height
-  // rather than the 120px estimate. A scroll that landed on a stale estimated
-  // offset would show 120px gaps here, not the 60..259 measured heights.
+  // The landing region is really measured: visible rows stack edge to edge by
+  // their real height, not the 120px estimate.
   for (std::size_t i = lo; i + 1 <= hi; ++i) {
     double gap = sim.elementOffset(i + 1) - sim.elementOffset(i);
     CHECK_NEAR(gap, heightOf(i), 0.5);
@@ -77,8 +74,8 @@ TEST(scroll_to_index_inverted) {
   CHECK_NEAR(sim.offsetY, 2000.0, 1.0);
 }
 
-// Re-issuing the same index (via the imperative nonce path) scrolls again after
-// the user has moved away.
+// Re-issuing the same index via a fresh nonce scrolls again after the user has
+// moved away; an unchanged nonce must not re-scroll.
 TEST(scroll_to_index_repeats_same_index) {
   Sim sim;
   sim.winH = 600;
@@ -101,8 +98,7 @@ TEST(scroll_to_index_repeats_same_index) {
   sim.settle();
   CHECK_NEAR(sim.offsetY, 0.0, 1.0);
 
-  // User scrolls away again, then the SAME nonce repeats: the command fires once
-  // per invocation, so an unchanged nonce must NOT re-scroll (the dedup half).
+  // Same nonce repeats: must NOT re-scroll.
   sim.scrollTo(5000.0);
   sim.container.requestScrollToIndex(/*commandIndex*/ 0.0, /*nonce*/ 2.0, /*propIndex*/ -2);
   sim.settle();
@@ -136,8 +132,8 @@ TEST(scroll_to_index_declarative_prop) {
   CHECK_NEAR(sim.offsetY, 2000.0, 1.0);
 }
 
-// scrollToEnd lands exactly at the scrollable bottom (offset == total - window) with
-// the final row mounted.
+// scrollToEnd lands at the scrollable bottom (offset == total - window) with the
+// final row mounted.
 TEST(scroll_to_end_fixed_height) {
   Sim sim;
   sim.winH = 600;
@@ -156,12 +152,10 @@ TEST(scroll_to_end_fixed_height) {
   CHECK(hi == std::size_t(199));  // last row is mounted at the bottom
 }
 
-// scrollToEnd converges on the TRUE bottom of a variable-height list whose rows are
-// taller than the estimate, so the total keeps growing as the bottom rows are
-// measured during the scroll. A one-shot jump to the initially-estimated content
-// size would stop short; the correction re-targets the bottom until the total
-// settles. Asserted self-consistently (independent of the approximate middle): the
-// view sits at the scrollable bottom and the last row's far edge is the content end.
+// scrollToEnd converges on the TRUE bottom of a variable-height list whose rows
+// are taller than the estimate (the total keeps growing as bottom rows are
+// measured). Ends with the view at the scrollable bottom and the last row's far
+// edge at the content end.
 TEST(scroll_to_end_converges_on_true_bottom_variable_heights) {
   Sim sim;
   sim.winH = 700;
@@ -185,9 +179,8 @@ TEST(scroll_to_end_converges_on_true_bottom_variable_heights) {
   CHECK(hi == std::size_t(399));
 }
 
-// scrollToEnd settles cleanly and does NOT linger as a bottom pin: after it lands,
-// appending rows below the viewport must leave the user where they are (maintain
-// visible position) rather than dragging them to the new bottom.
+// scrollToEnd does NOT linger as a bottom pin: appending rows below the viewport
+// leaves the user where they are rather than dragging them to the new bottom.
 TEST(scroll_to_end_settles_and_does_not_re_pin_on_append) {
   Sim sim;
   sim.winH = 600;
@@ -206,8 +199,7 @@ TEST(scroll_to_end_settles_and_does_not_re_pin_on_append) {
 }
 
 // scrollToEnd rides the scrollToIndex command channel via the SCROLL_TO_END_INDEX
-// sentinel, so the integrations need no extra state field. Driving that path
-// through requestScrollToIndex must scroll to the bottom.
+// sentinel: driving that path through requestScrollToIndex scrolls to the bottom.
 TEST(scroll_to_end_via_command_sentinel) {
   Sim sim;
   sim.winH = 600;
@@ -223,9 +215,8 @@ TEST(scroll_to_end_via_command_sentinel) {
   CHECK_NEAR(sim.offsetY, 19400.0, 1.0);  // total - window
 }
 
-// Collapsing/removing content while scrolled deep (e.g. a tree "collapse all" at the
-// bottom) leaves the offset past the new end with nothing visible. The core must pull
-// the offset back to the new bottom so content reappears instead of a blank screen.
+// Collapsing content while scrolled deep leaves the offset past the new end with
+// nothing visible; the core must pull the offset back to the new bottom.
 TEST(content_shrink_below_offset_pulls_back_to_bottom) {
   Sim sim;
   sim.winH = 600;
@@ -262,11 +253,8 @@ TEST(content_shrink_pulls_back_to_new_max_offset) {
   CHECK_NEAR(sim.offsetY, 1400.0, 0.5);
 }
 
-// The clamp must fire from the "no elements visible" signal, NOT from a !userScrolled
-// gate: after a real gesture scroll the user-scroll flag can still be latched on the
-// commit that collapses the content, and the old gate skipped the pull-back, stranding
-// the user on a blank screen. Here the shrink commit reports userScrolled=true and must
-// still pull back to the new bottom.
+// The pull-back must fire even when the shrink commit carries a latched
+// userScrolled flag (a stale flag must not gate it out).
 TEST(content_shrink_clamps_even_with_stale_user_scroll_flag) {
   Sim sim;
   sim.winH = 600;
@@ -287,10 +275,9 @@ TEST(content_shrink_clamps_even_with_stale_user_scroll_flag) {
   CHECK(sim.visibleRange(lo, hi));
 }
 
-// The "first collapse" bug: the user scrolled only a little past the (small) collapsed
-// content, so the buffered measure window (which looks ~2 viewports ahead) still reaches
-// the few remaining rows - yet the viewport itself is blank. Keying the pull-back on the
-// content shrinking (not on an empty measure window) handles this shallow case too.
+// Shallow case: the offset is only just past the new end, so the buffered measure
+// window still reaches the rows, yet the viewport is blank. Keying the pull-back
+// on the content shrinking handles this too.
 TEST(content_shrink_shallow_scroll_still_pulls_back) {
   Sim sim;
   sim.winH = 600;
@@ -311,11 +298,8 @@ TEST(content_shrink_shallow_scroll_still_pulls_back) {
   CHECK(sim.visibleRange(lo, hi));
 }
 
-// Fabric runs update() several times per commit (it clones the list node). The shrink
-// is only detectable on the first clone (the next one sees the already-updated previous
-// total), so the pull-back must be LATCHED (pendingScroll) to survive every clone -
-// including the last one, which the layout publishes. A one-shot write only the first
-// clone applied was reset by the later clones, leaving the screen blank on device.
+// update() can run several times per commit; the shrink is only detectable on the
+// first run, so the pull-back must be LATCHED to survive every run.
 TEST(content_shrink_clamps_across_multi_adopt_commit) {
   Sim sim;
   sim.winH = 600;
@@ -326,7 +310,7 @@ TEST(content_shrink_clamps_across_multi_adopt_commit) {
   sim.scrollTo(500.0);
   CHECK_NEAR(sim.offsetY, 500.0, 0.5);
 
-  // Collapse, with THREE update() clones in the one commit (as Fabric does).
+  // Collapse, with THREE update() runs in the one commit.
   sim.setKeys(makeKeys(2));
   sim.commit(3, /*userScrolled=*/false);
   sim.settle();

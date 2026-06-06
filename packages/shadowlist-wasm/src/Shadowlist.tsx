@@ -17,43 +17,26 @@ import type { ShadowlistCommands, ShadowlistProps, ViewToken } from './types.js'
 
 const DEFAULT_ESTIMATED_SIZE = 120;
 
-/*
- * Stable default key derivation (element.id), kept module-level so the memo
- * dependencies stay referentially stable when no keyExtractor is supplied.
- */
+// Default key derivation (element.id); module-level for referential stability.
 const defaultKeyExtractor = (item: { id: string }) => item.id;
 
-/*
- * Cap on the number of follow-up measurement passes triggered by a single
- * burst, so a layout that never settles (e.g. content that resizes itself every
- * frame) cannot spin forever. Reset whenever the user actually scrolls.
- */
+// Cap on follow-up measurement passes so a never-settling layout cannot spin forever.
 const MAX_SETTLE_PASSES = 8;
 
-/*
- * Sentinel for the scrollToIndex command channel meaning "scroll to the very end".
- * scrollToEnd reuses the same nonce-based command as scrollToIndex, and the core
- * (shadowlist-core/Constants.hpp SCROLL_TO_END_INDEX) resolves it to a correction
- * that re-targets the bottom as off-screen rows are measured, so it lands on the
- * true end of a variable-height list rather than a stale, estimate-based bottom.
- */
+// Sentinel on the scrollToIndex channel meaning "scroll to the very end".
 const SCROLL_TO_END_INDEX = -3;
 
 /*
- * Drag-to-reorder tuning. A press must settle for LONG_PRESS_MS (without moving past
- * DRAG_SLOP, which means the user is scrolling) before a row is picked up. While
- * dragging, the pointer within DRAG_EDGE of a viewport edge auto-scrolls at up to
- * DRAG_SPEED px/frame.
+ * Drag-to-reorder tuning. A press must settle for LONG_PRESS_MS without moving
+ * past DRAG_SLOP before a row is picked up; near a viewport edge (DRAG_EDGE) the
+ * drag auto-scrolls at up to DRAG_SPEED px/frame.
  */
 const LONG_PRESS_MS = 250;
 const DRAG_SLOP = 8;
 const DRAG_EDGE = 80;
 const DRAG_SPEED = 14;
 
-/*
- * Move the item at `from` to `to`, returning a new array. Used once on drop to
- * produce the reordered array handed to onReorder.
- */
+// Move the item at `from` to `to`, returning a new array.
 function arrayMove<T>(input: ReadonlyArray<T>, from: number, to: number): T[] {
   const next = input.slice();
   if (
@@ -80,10 +63,8 @@ interface DragState {
 
 /*
  * Main-axis offset for an element during a drag: the picked-up row follows the
- * pointer (desiredLeading); the siblings between the pickup and the insertion point
- * shift by one row toward the vacated pickup slot to open the gap; everything else
- * keeps its base offset. The shift equals the picked-up row's extent, so each shuffled
- * sibling lands exactly on its post-reorder resting position.
+ * pointer; siblings between pickup and insertion shift by the row's extent to open
+ * the gap; everything else keeps its base offset.
  */
 function dragAdjustedOffset(
   index: number,
@@ -109,17 +90,9 @@ function dragAdjustedOffset(
 }
 
 /*
- * Pin the always-mounted section-header overlay to the viewport start: it tracks the
- * scroll offset, pushed up as the next in-flow section header arrives. The active
- * header is the last one resting at/above the scroll offset. Hidden when scrolled
- * above the first header. Mirrors the native sticky section-header pin.
- */
-/*
- * Returns the flat index of the active (pinned) section header - the last one resting
- * at/above the scroll offset - or -1 when none is active. The overlay's CONTENT is
- * driven from this return value (the same raw-offset walk that sets its POSITION), so
- * the pinned header's text always matches the header it is pinned over. Inverted lists
- * are left resting (the core leaves them unpinned), so the overlay is hidden there.
+ * Pin the section-header overlay to the viewport start, pushed up as the next
+ * header arrives. Returns the flat index of the active header (last one resting
+ * at/above the scroll offset), or -1 when none is active.
  */
 function pinSectionOverlay(
   core: ShadowlistCoreInstance,
@@ -186,7 +159,7 @@ function resolveComponent(
 
 /*
  * Normalize the core's visible index range (inverted lists report start > end)
- * into the ascending, clamped list of indices to mount.
+ * into an ascending, clamped list of indices to mount.
  */
 function rangeFromVisible(
   visibleStartIndex: number,
@@ -227,10 +200,9 @@ function initialRange(
 const SHADOWLIST_OVERSCAN = 4;
 
 /*
- * Mounted band (low/high-water mark). The core reports a buffered visible window;
- * bandRange mounts SHADOWLIST_OVERSCAN extra rows on each side and we only
- * re-render to grow/shift the band when the window leaves it (rangeCovers is
- * false). Windows are normalised to ascending, so inverted lists use the same path.
+ * Mounted band (low/high-water mark): bandRange mounts SHADOWLIST_OVERSCAN extra
+ * rows each side; we only re-render to grow/shift it when the visible window leaves
+ * the band (rangeCovers is false).
  */
 function rangeCovers(mounted: number[], vs: number, ve: number): boolean {
   if (mounted.length === 0) return false;
@@ -257,8 +229,7 @@ interface ElementRendererProps<ElementT> {
 
 /*
  * Absolutely positioned wrapper. Its transform/size are applied imperatively
- * from the core after each measurement pass (not via React) to avoid a render
- * just to reposition.
+ * from the core after each measurement pass, not via React.
  */
 const ElementRenderer = memo(function ElementRenderer<
   ElementT extends { id: string },
@@ -274,11 +245,7 @@ const ElementRenderer = memo(function ElementRenderer<
     (node: HTMLDivElement | null) => registerRef(index, node),
     [index, registerRef]
   );
-  /*
-   * Memoize on the item identity, not the row index. A prepend (or any insertion
-   * above this row) shifts every row's index, so keying on `element` lets unchanged
-   * rows skip re-rendering.
-   */
+  // Memoize on item identity, not row index, so unchanged rows skip re-rendering on insert.
   const children = useMemo(
     () => (
       <>
@@ -348,22 +315,18 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const elementRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
   /*
-   * Sticky section headers (SectionList). The flat indices of the section-header rows;
-   * the topmost one resting at/above the scroll offset is pinned in an always-mounted
-   * overlay (its content is renderStickyHeaderOverlay(activeStickyIndex)), pushed up as
-   * the next header arrives. activeStickyIndex drives the overlay content; the pin
-   * position is applied imperatively every scroll frame.
+   * Sticky section headers: flat indices of the header rows; the topmost one
+   * resting at/above the scroll offset is pinned in an overlay. activeStickyIndex
+   * drives the overlay content; the pin position is applied imperatively.
    */
   const stickyIndicesRef = useRef<ReadonlyArray<number>>(stickyHeaderIndices ?? []);
   stickyIndicesRef.current = stickyHeaderIndices ?? [];
   const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
 
   /*
-   * Drag-to-reorder. The data order is FIXED during the drag - the picked-up row
-   * follows the pointer and the siblings between it and the insertion point are
-   * shuffled, all via imperative transforms in applyPositions (no re-render). The
-   * single reorder is applied on drop. draggingIndex force-mounts the picked-up row so
-   * it survives virtualization while auto-scroll carries it off-screen.
+   * Drag-to-reorder. The data order is fixed during the drag; transforms run in
+   * applyPositions and the single reorder is applied on drop. draggingIndex
+   * force-mounts the picked-up row while auto-scroll carries it off-screen.
    */
   const dragStateRef = useRef<{
     originIndex: number;
@@ -371,17 +334,12 @@ function ShadowlistInner<ElementT extends { id: string }>(
     draggedExtent: number;
     grabOffset: number;
     desiredLeading: number;
-    /*
-     * Set on drop while the reordered data is committing: the drag is over but the
-     * make-room transforms are held (not re-following the pointer) until the new
-     * order lands, so the rows never snap back to the pre-reorder layout.
-     */
+    // Set on drop: hold the make-room transforms until the reordered data lands.
     settling?: boolean;
   } | null>(null);
   const [draggingIndex, setDraggingIndex] = useState(-1);
   const dragRafRef = useRef<number | null>(null);
-  // Safety-net timer that releases a held post-drop shuffle if the reorder never
-  // commits (e.g. a consumer that ignores onReorder).
+  // Safety-net timer that releases a held post-drop shuffle if the reorder never commits.
   const dragSettleTimerRef = useRef<number | null>(null);
   const dragPointerClientRef = useRef(0);
   const dragPointerIdRef = useRef<number | null>(null);
@@ -395,11 +353,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const coreRef = useRef<ShadowlistCoreInstance | null>(null);
   const [coreReady, setCoreReady] = useState(false);
 
-  /*
-   * What the DOM currently holds: its scroll offset and the last published
-   * content size. Fed into resolveStateUpdate so the core only moves the view
-   * when it actually wants to (and never fights the user's scrolling).
-   */
+  // Current DOM scroll offset and last published content size, fed into resolveStateUpdate.
   const publishedRef = useRef({
     containerOffsetX: 0,
     containerOffsetY: 0,
@@ -407,17 +361,13 @@ function ShadowlistInner<ElementT extends { id: string }>(
     totalContainerHeight: 0,
   });
 
-  /*
-   * scrollToIndex is an imperative command; bump the nonce on every call so the
-   * core re-scrolls even when targeting the same index twice.
-   */
+  // Imperative scroll command; bump the nonce so re-targeting the same index re-scrolls.
   const commandRef = useRef({ index: -1, nonce: 0 });
 
   const rafRef = useRef<number | null>(null);
   const settlePassesRef = useRef(0);
   const ignoreScrollRef = useRef(false);
-  // Set on a genuine user scroll, consumed by the next tick. Tells the core to
-  // drop any in-flight scroll correction so the user is not snapped back to it.
+  // Set on a genuine user scroll; tells the core to drop any in-flight correction.
   const userScrolledRef = useRef(false);
   const mountedRangeRef = useRef<number[]>([]);
   // Previously-viewable tokens, used to compute the `changed` set for onViewableItemsChanged.
@@ -477,10 +427,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
   }, []);
 
-  /*
-   * Position the mounted DOM nodes (elements, header, footer) from the layout
-   * the core computed, and size the content box.
-   */
+  // Position the mounted nodes (elements, header, footer) from the core's layout.
   const applyPositions = useCallback(() => {
     const core = coreRef.current;
     const content = contentRef.current;
@@ -539,8 +486,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       node.style.transform = `translate(${tx}px, ${ty}px)`;
     });
 
-    // Pin the section-header overlay from the same layout (its content is driven by
-    // activeStickyIndex; this only moves it).
+    // Pin the section-header overlay from the same layout (content is driven by activeStickyIndex).
     const scrollEl = scrollRef.current;
     if (scrollEl && sectionOverlayRef.current) {
       const active = pinSectionOverlay(
@@ -555,8 +501,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
 
     if (headerRef.current) {
-      // Sticky header tracks the scroll offset; getStickyHeaderOffset returns 0
-      // (the resting position) when stickyHeader is off.
+      // Sticky header tracks the scroll offset; offset is 0 (resting) when off.
       const headerOffset = core.getStickyHeaderOffset();
       headerRef.current.style.transform = isHorizontal
         ? `translate(${headerOffset}px, 0px)`
@@ -568,8 +513,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       const footerSize = isHorizontal
         ? footerRef.current.offsetWidth
         : footerRef.current.offsetHeight;
-      // Sticky footer tracks the viewport end; getStickyFooterOffset returns the
-      // resting offset (totalSize - footerSize) when stickyFooter is off.
+      // Sticky footer tracks the viewport end; resting offset (totalSize - footerSize) when off.
       const footerOffset = core.getStickyFooterOffset(footerSize);
       footerRef.current.style.transform = isHorizontal
         ? `translate(${footerOffset}px, 0px)`
@@ -580,11 +524,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
   /*
    * Set only the cross-axis size the core controls (track width for columns, 100%
-   * otherwise) on each mounted node. Run BEFORE measuring so the measured main-axis
-   * size reflects that constraint - this is the only part of applyPositions a
-   * pre-measure pass needs, so it avoids re-writing every transform, re-running the
-   * drag shuffle, re-pinning the overlay and a forced footer reflow that the full
-   * applyPositions (called again after measuring) would redo and discard.
+   * otherwise) on each mounted node. Run before measuring so the measured main-axis
+   * size reflects that constraint.
    */
   const applyCrossAxisSizes = useCallback(() => {
     const core = coreRef.current;
@@ -615,10 +556,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
   }, []);
 
   /*
-   * One virtualization frame: read scroll/window/header/footer geometry, run the
-   * core (reconcile + measure + resolve scroll), then decide which window to
-   * mount. If the window changed React re-renders and the layout effect runs the
-   * measurement pass; otherwise we run it directly.
+   * One virtualization frame: read geometry, run the core, then decide which
+   * window to mount. If the window changed, re-render and let the layout effect
+   * run the measurement pass; otherwise run it directly.
    */
   const tick = useCallback(() => {
     const core = coreRef.current;
@@ -662,8 +602,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       propIndex
     );
 
-    // Consume the user-scroll flag: only the tick this gesture scheduled is
-    // user-initiated; the settle passes that follow are corrections, not gestures.
+    // Consume the user-scroll flag; only this tick is user-initiated, not the settle passes.
     const userScrolled = userScrolledRef.current;
     userScrolledRef.current = false;
 
@@ -694,13 +633,12 @@ function ShadowlistInner<ElementT extends { id: string }>(
     const validWindow =
       visible.visibleStartIndex >= 0 && visible.visibleEndIndex >= 0;
 
-    // Low/high-water: only grow/shift the mounted band when the reported window
-    // leaves it; while it stays inside, the rows are mounted so skip the re-render.
+    // Only grow/shift the mounted band when the window leaves it; otherwise skip the re-render.
     if (validWindow && !rangeCovers(mountedRangeRef.current, windowLow, windowHigh)) {
       const nextRange = bandRange(windowLow, windowHigh, currentData.length);
       mountedRangeRef.current = nextRange;
       setRange(nextRange);
-      // The layout effect will run measureAndResolve after the commit.
+      // The layout effect runs measureAndResolve after the commit.
       return;
     }
 
@@ -709,8 +647,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
   /*
    * Feed measured DOM sizes back into the core, refresh the content size, apply
-   * positions, then publish the resolved state (content size + scroll
-   * correction). Schedules another pass while things are still moving.
+   * positions, then publish the resolved state. Schedules another pass while
+   * things are still moving.
    */
   const measureAndResolve = useCallback(() => {
     const core = coreRef.current;
@@ -721,12 +659,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     const { horizontal: isHorizontal } = latestRef.current;
     const elementsSize = core.getElementsSize();
 
-    /*
-     * Constrain each node to the cross-axis size the core controls (track width
-     * for columns, 100% for single column / horizontal) BEFORE measuring, so the
-     * measured main-axis size reflects that constraint. Only sizing is needed here;
-     * the full applyPositions (transforms + pins) runs once after measuring.
-     */
+    // Constrain each node's cross-axis size before measuring; full positions run after.
     applyCrossAxisSizes();
 
     elementRefs.current.forEach((node, index) => {
@@ -759,8 +692,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
         content.style.width = '100%';
       }
 
-      // While dragging, the drag owns the scroll position (the auto-scroll loop drives
-      // it), so a core offset correction must not yank the content under the pointer.
+      // While dragging the drag owns the scroll position; skip the core's offset correction.
       if (stateUpdate.applyContainerOffset && !dragStateRef.current) {
         ignoreScrollRef.current = true;
         scroll.scrollLeft = stateUpdate.containerOffsetX;
@@ -774,8 +706,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     published.containerOffsetX = scroll.scrollLeft;
     published.containerOffsetY = scroll.scrollTop;
 
-    // The corrected offset / freshly measured sizes may shift the visible window
-    // out of the mounted band, which needs another pass to mount the new rows.
+    // A corrected offset / fresh sizes may push the window out of the band; needs another pass.
     const visible = core.getVisibleIndices();
     const windowLow = Math.min(visible.visibleStartIndex, visible.visibleEndIndex);
     const windowHigh = Math.max(visible.visibleStartIndex, visible.visibleEndIndex);
@@ -855,10 +786,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const latestOnReorder = useRef(onReorder);
   latestOnReorder.current = onReorder;
 
-  /*
-   * Map the core's viewable index range to FlatList-style viewable/changed tokens.
-   * Reads from refs so it stays stable and can be wired into the core once.
-   */
+  // Map the core's viewable index range to viewable/changed tokens for onViewableItemsChanged.
   const dispatchViewable = useCallback((startIndex: number, endIndex: number) => {
     const onChanged = latestOnViewableItemsChanged.current;
     if (!onChanged) return;
@@ -894,8 +822,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
   // Re-run the core whenever the data set or layout configuration changes.
   useEffect(() => {
     if (!coreReady) return;
-    // A reorder from a drop has committed (the data/keys changed): release the held
-    // make-room shuffle so the now-drag-free pass lands the reordered layout.
+    // A drop's reorder has committed: release the held shuffle so the new layout lands.
     if (dragStateRef.current?.settling) {
       if (dragSettleTimerRef.current != null) {
         window.clearTimeout(dragSettleTimerRef.current);
@@ -925,11 +852,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
   }, [coreReady, range]);
 
   /*
-   * Pin the sticky header/footer straight from live scroll geometry, synchronously
-   * in the scroll event. applyPositions also pins them, but only on the rAF tick
-   * after the core runs - too late to track the finger, which reads as lag. This
-   * computes the same content-space position the core would (offset for the header,
-   * offset + window - footerSize for the footer) without waiting for the pipeline.
+   * Pin the sticky header/footer synchronously from live scroll geometry in the
+   * scroll event, so they never lag the scroll (applyPositions pins them too, but
+   * only on the later rAF tick).
    */
   const pinStickyEdges = useCallback(() => {
     const scroll = scrollRef.current;
@@ -941,9 +866,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       stickyFooter: isStickyFooter,
     } = latestRef.current;
 
-    // Pin the section-header overlay straight from live scroll geometry too, so the
-    // pinned section header never lags the scroll, and drive its content from the same
-    // walk so the title always matches the header it is pinned over.
+    // Pin the section-header overlay from live scroll geometry too, so it never lags.
     const core = coreRef.current;
     if (core && sectionOverlayRef.current) {
       const active = pinSectionOverlay(
@@ -978,10 +901,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
   }, []);
 
-  // Native scroll -> new frame. Ignore the scroll we triggered ourselves.
+  // Scroll -> new frame. Ignore the scroll we triggered ourselves.
   const handleScroll = useCallback(() => {
-    // Keep the pinned edges glued to the viewport on the scroll event itself,
-    // before the (heavier, rAF-deferred) virtualization pass runs.
+    // Pin the edges on the scroll event itself, before the deferred virtualization pass.
     pinStickyEdges();
 
     if (ignoreScrollRef.current) {
@@ -994,10 +916,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
   }, [pinStickyEdges, scheduleTick]);
 
   /*
-   * Drag-to-reorder. The data order is fixed during the drag; updateDrag glues the
-   * picked-up row to the pointer, recomputes where it would insert (midpoints over the
-   * fixed base offsets, so no oscillation), and applyPositions shuffles the siblings -
-   * all imperative, no re-render. The single reorder is applied on drop.
+   * Glue the picked-up row to the pointer, recompute the insertion index (midpoints
+   * over the fixed base offsets, so no oscillation), and shuffle the siblings.
    */
   const updateDrag = useCallback(() => {
     const drag = dragStateRef.current;
@@ -1065,8 +985,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     if (delta !== 0) {
       const newOffset = Math.min(Math.max(offset + delta, 0), maxOffset);
       if (newOffset !== offset) {
-        // A real (user-owned) scroll: handleScroll flags userScrolled so the core
-        // virtualizes at this exact offset instead of fighting it.
+        // A user-owned scroll: handleScroll flags userScrolled so the core honors this offset.
         if (isHorizontal) scroll.scrollLeft = newOffset;
         else scroll.scrollTop = newOffset;
       }
@@ -1114,13 +1033,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
 
     /*
-     * Hold the make-room shuffle until the reordered data commits. The siblings
-     * already sit at their post-reorder positions and the picked-up row stays where
-     * it was dropped, so keeping dragStateRef applied (in `settling` mode, no longer
-     * following the pointer) means nothing snaps back to the pre-reorder layout in
-     * between. The data-change effect releases it when the new order lands; the
-     * timeout is a safety net for a consumer that ignores onReorder. Mirrors the
-     * native _dragDropPending / mDragDropPending hold.
+     * Hold the make-room shuffle (in `settling` mode) until the reordered data
+     * commits, so nothing snaps back to the pre-reorder layout in between. The
+     * data-change effect releases it; the timeout is a safety net.
      */
     drag.settling = true;
     const currentData = latestRef.current.data as ElementT[];
@@ -1200,9 +1115,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     (event: React.PointerEvent<HTMLDivElement>) => {
       if (!latestRef.current.dragEnabled) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      // Drop any still-pending long-press candidate from an earlier pointer (e.g. a
-      // second touch, or a quick re-press) so its timer cannot later fire beginDrag
-      // with a stale index / released pointer id.
+      // Drop any pending long-press candidate so its timer cannot fire with a stale index.
       clearDragCandidate();
       const target = event.target as HTMLElement;
       const host = target.closest<HTMLElement>('[data-shadowlist-index]');
@@ -1250,11 +1163,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     if (dragStateRef.current) finishDrag();
   }, [clearDragCandidate, finishDrag]);
 
-  /*
-   * Dragging turned off (possibly mid-gesture): cancel any pending candidate or
-   * in-flight/settling drag WITHOUT applying a reorder, and release the force-mounted
-   * row so it does not stay latched.
-   */
+  // Dragging turned off: cancel any pending/in-flight drag without applying a reorder.
   useEffect(() => {
     if (dragEnabled) return;
     clearDragCandidate();
@@ -1314,13 +1223,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
         }
       },
       scrollToEnd: (_animated: boolean = true) => {
-        /*
-         * Core-driven: ride the scrollToIndex command channel with the
-         * SCROLL_TO_END_INDEX sentinel so the core converges on the true bottom as
-         * off-screen rows are measured, instead of a one-shot jump to the current
-         * scrollHeight (a stale estimate that stops short on a variable-height list).
-         * The animated flag no longer applies (the core steps to the bottom).
-         */
+        // Ride the scrollToIndex channel with SCROLL_TO_END_INDEX so the core
+        // converges on the true bottom as off-screen rows are measured.
         commandRef.current = {
           index: SCROLL_TO_END_INDEX,
           nonce: commandRef.current.nonce + 1,
@@ -1350,9 +1254,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
   );
 
   /*
-   * Sticky section-header overlay (SectionList): always mounted when sticky section
-   * headers are in play; its content is the active section's header and its position
-   * is pinned imperatively (pinSectionOverlay), so it never lags the scroll.
+   * Sticky section-header overlay: mounted when sticky section headers are in play;
+   * its content is the active section's header, pinned imperatively.
    */
   const stickyEnabled = Boolean(
     stickyHeaderIndices &&
@@ -1367,11 +1270,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     [renderStickyHeaderOverlay, activeStickyIndex]
   );
 
-  /*
-   * The dragged row must stay mounted while it is carried past the edge of the window
-   * (auto-scroll), so union its index into the rendered set even if the band moved off
-   * it. Outside a drag this is just the band.
-   */
+  // Keep the dragged row mounted while auto-scroll carries it off-screen: union it into the band.
   const renderIndices = useMemo(() => {
     if (
       draggingIndex < 0 ||
@@ -1461,9 +1360,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
   );
 }
 
-/*
- * forwardRef + generics: cast preserves the generic element type for callers.
- */
+// Cast preserves the generic element type for callers.
 const Shadowlist = forwardRef(ShadowlistInner) as <ElementT extends { id: string }>(
   props: ShadowlistProps<ElementT> & { ref?: React.Ref<ShadowlistCommands> }
 ) => ReactElement;

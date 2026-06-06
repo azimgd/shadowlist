@@ -14,23 +14,14 @@ import type {
 } from './types.js';
 
 /*
- * SectionList is a thin data layer over Shadowlist: it flattens `sections` into one
- * tagged element stream (section header, items, section footer) and hands that to
- * the virtualizer, exactly how React Native's SectionList flattens onto
- * VirtualizedList. Section headers carry their flat indices to `stickyHeaderIndices`
- * so the list pins and swaps them as you scroll. Everything else - virtualization,
- * measurement, maintain-visible-content-position, scrollToIndex - is the unchanged
- * Shadowlist engine, so sections cost nothing extra. Kept aligned with the native
- * package's SectionList so application code ports across platforms.
+ * Flattens `sections` into one tagged element stream (section header, items,
+ * section footer) for Shadowlist; section-header flat indices feed stickyHeaderIndices.
  */
 
 type FlatRowType = 'sectionHeader' | 'item' | 'sectionFooter';
 
 interface FlatRow<ItemT, SectionT> {
-  /*
-   * Stable key for the flattened row (Shadowlist keys on element.id). Derived from
-   * the section key and, for items, the item key so reorders reconcile cleanly.
-   */
+  /* Stable key for the flattened row; reorders reconcile cleanly. */
   id: string;
   type: FlatRowType;
   section: SectionListData<ItemT, SectionT>;
@@ -74,10 +65,7 @@ function SectionListInner<ItemT, SectionT = object>(
   }: SectionListProps<ItemT, SectionT>,
   ref: Ref<ShadowlistCommands>
 ) {
-  /*
-   * Flatten the sections once per `sections` change into the tagged row stream and,
-   * alongside it, the flat indices of the section-header rows (for pinning).
-   */
+  // Flatten sections into the tagged row stream plus section-header flat indices.
   const { data, stickyHeaderIndices } = useMemo(() => {
     const rows: FlatRow<ItemT, SectionT>[] = [];
     const stickyIndices: number[] = [];
@@ -139,10 +127,7 @@ function SectionListInner<ItemT, SectionT = object>(
     stickySectionHeadersEnabled,
   ]);
 
-  /*
-   * Content for the always-mounted sticky-header overlay: Shadowlist passes the flat
-   * index of the active section's header row; render that section's header.
-   */
+  // Render the active section's header for the sticky-header overlay.
   const renderStickyHeaderOverlay = useCallback(
     (activeIndex: number): ReactNode => {
       const row = data[activeIndex];
@@ -161,11 +146,7 @@ function SectionListInner<ItemT, SectionT = object>(
     [SectionSeparatorComponent]
   );
 
-  /*
-   * Dispatch a flattened row to the right renderer. Passed as Shadowlist's
-   * renderElement prop (a render callback, not a mounted component) - Shadowlist
-   * wraps each row in its own memoized element host.
-   */
+  // Dispatch a flattened row to the right renderer.
   const renderElement = useCallback(
     ({ element }: { element: FlatRow<ItemT, SectionT>; index: number }) => {
       if (element.type === 'sectionHeader') {
@@ -189,10 +170,7 @@ function SectionListInner<ItemT, SectionT = object>(
           section: element.section,
         }) ?? null;
 
-      /*
-       * Item separators sit between items in a section; a section boundary row (last
-       * item of a non-final section with no footer) gets the section separator.
-       */
+      // Item separator between items; section separator on a boundary row.
       let separator: ReactNode = null;
       if (element.isSectionBoundary) {
         separator = sectionSeparator;
@@ -240,10 +218,7 @@ function SectionListInner<ItemT, SectionT = object>(
   );
 }
 
-/*
- * forwardRef + generics: the cast preserves the generic item/section types for
- * callers while still forwarding the Shadowlist imperative handle.
- */
+// Cast preserves the generic item/section types through forwardRef.
 const SectionList = forwardRef(SectionListInner) as <ItemT, SectionT = object>(
   props: SectionListProps<ItemT, SectionT> & { ref?: Ref<ShadowlistCommands> }
 ) => ReactElement;

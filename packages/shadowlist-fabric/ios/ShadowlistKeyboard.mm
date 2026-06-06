@@ -2,9 +2,6 @@
 
 #import <UIKit/UIKit.h>
 
-// ShadowlistKeyboard subclasses the generated NativeShadowlistKeyboardSpecBase (see
-// the header), which provides emitOnKeyboardMove: and the _eventEmitterCallback the
-// TurboModule infrastructure wires up.
 @implementation ShadowlistKeyboard {
   BOOL _enabled;
   CGFloat _current;       // last emitted height (dp)
@@ -18,10 +15,6 @@
 
 RCT_EXPORT_MODULE()
 
-/*
- * Required for a New Architecture TurboModule: hand back the generated JSI binding so
- * the module is reachable as TurboModuleRegistry.getEnforcing('ShadowlistKeyboard').
- */
 - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
     (const facebook::react::ObjCTurboModule::InitParams &)params
 {
@@ -76,7 +69,7 @@ RCT_EXPORT_MODULE()
   CGRect endFrame = [info[UIKeyboardFrameEndUserInfoKey] CGRectValue];
   NSTimeInterval duration = [info[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
 
-  // Height of the keyboard overlapping the screen, in points (== dp on iOS).
+  // Height of the keyboard overlapping the screen, in dp.
   CGFloat screenHeight = UIScreen.mainScreen.bounds.size.height;
   CGFloat height = hiding ? 0 : MAX(0, screenHeight - endFrame.origin.y);
   if (hiding) {
@@ -92,8 +85,7 @@ RCT_EXPORT_MODULE()
     return;
   }
 
-  // Drive a CADisplayLink to interpolate from the current value to the target over
-  // the system's reported duration, so our stream matches the keyboard's animation.
+  // Interpolate from current to target over the reported duration.
   _animFrom = _current;
   _animTo = height;
   _animDuration = duration;
@@ -122,7 +114,7 @@ RCT_EXPORT_MODULE()
 {
   CFTimeInterval elapsed = CACurrentMediaTime() - _animStart;
   CGFloat t = _animDuration > 0 ? MIN(1.0, elapsed / _animDuration) : 1.0;
-  // Ease-out, close to the keyboard curve. (The exact system curve is private.)
+  // Ease-out cubic.
   CGFloat eased = 1 - pow(1 - t, 3);
   CGFloat value = _animFrom + (_animTo - _animFrom) * eased;
   [self emitHeight:value];
@@ -137,7 +129,6 @@ RCT_EXPORT_MODULE()
 {
   _current = height;
   CGFloat progress = _targetHeight > 0 ? MIN(1.0, MAX(0.0, height / _targetHeight)) : 0.0;
-  // emitOnKeyboardMove is generated from the onKeyboardMove EventEmitter in the spec.
   [self emitOnKeyboardMove:@{ @"height" : @(height), @"progress" : @(progress) }];
 }
 

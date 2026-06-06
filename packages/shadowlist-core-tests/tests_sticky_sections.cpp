@@ -1,9 +1,7 @@
-// Sticky section headers (SectionList): a flattened list tags its section-header
-// rows via stickyIndices. resolveStickyHeader reports which one is pinned at the
-// current scroll offset and how far to translate it from its resting position -
-// the active header pins to the viewport start and is pushed up by the next
-// section header as it scrolls in. The per-frame pin is applied natively; this
-// exercises the canonical geometry the integrations mirror.
+// Sticky section headers: rows tagged via stickyIndices. resolveStickyHeader
+// reports which header is pinned at the current offset and how far to translate it
+// from its resting position - the active header pins to the viewport start and is
+// pushed up by the next section header as it scrolls in.
 
 #include "TestFramework.hpp"
 #include "Harness.hpp"

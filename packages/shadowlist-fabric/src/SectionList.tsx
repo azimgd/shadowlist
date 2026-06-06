@@ -8,38 +8,25 @@ import type {
 } from './types';
 
 /*
- * SectionList is a thin data layer over Shadowlist: it flattens `sections` into one
- * tagged element stream (section header, items, section footer) and hands that to
- * the virtualizer, exactly how React Native's SectionList flattens onto
- * VirtualizedList. Section headers carry their flat indices to `stickyHeaderIndices`
- * so the native layer pins and swaps them on the UI thread. Everything else -
- * virtualization, measurement, maintain-visible-content-position, scrollToIndex -
- * is the unchanged Shadowlist engine, so sections cost nothing extra.
+ * Flattens `sections` into one tagged element stream (section header, items, section
+ * footer) for Shadowlist. Section headers carry their flat indices to
+ * `stickyHeaderIndices` for native pinning.
  */
 
 type FlatRowType = 'sectionHeader' | 'item' | 'sectionFooter';
 
 interface FlatRow<ItemT, SectionT> {
-  /*
-   * Stable key for the flattened row (Shadowlist keys on element.id). Derived from
-   * the section key and, for items, the item key so reorders reconcile cleanly.
-   */
+  // Stable key for the flattened row, derived from section key and item key.
   id: string;
   type: FlatRowType;
   section: SectionListData<ItemT, SectionT>;
   sectionIndex: number;
-  /*
-   * Item payload (item rows only) and its index within the section.
-   */
+  // Item payload (item rows only) and its index within the section.
   item?: ItemT;
   itemIndex?: number;
-  /*
-   * Whether an item row is the last item in its section (drives separators).
-   */
+  // Last item in its section (drives separators).
   isLastInSection?: boolean;
-  /*
-   * Whether this row is the last row of a non-final section (section separator).
-   */
+  // Last row of a non-final section (section separator).
   isSectionBoundary?: boolean;
 }
 
@@ -81,10 +68,7 @@ function SectionListInner<ItemT, SectionT = object>(
   }: SectionListProps<ItemT, SectionT>,
   ref: Ref<ShadowlistCommands>
 ) {
-  /*
-   * Flatten the sections once per `sections` change into the tagged row stream and,
-   * alongside it, the flat indices of the section-header rows (for native pinning).
-   */
+  // Build the tagged row stream plus the flat indices of section-header rows.
   const { data, stickyHeaderIndices } = useMemo(() => {
     const rows: FlatRow<ItemT, SectionT>[] = [];
     const stickyIndices: number[] = [];
@@ -146,11 +130,7 @@ function SectionListInner<ItemT, SectionT = object>(
     stickySectionHeadersEnabled,
   ]);
 
-  /*
-   * Content for the always-mounted sticky-header overlay: Shadowlist passes the flat
-   * index of the active section's header row; render that section's header. Pinned
-   * natively, so the overlay's position is never a frame behind the scroll.
-   */
+  // Render the active section's header for the sticky-header overlay.
   const renderStickyHeaderOverlay = useCallback(
     (activeIndex: number) => {
       const row = data[activeIndex];
@@ -169,11 +149,7 @@ function SectionListInner<ItemT, SectionT = object>(
     [SectionSeparatorComponent]
   );
 
-  /*
-   * Dispatch a flattened row to the right renderer. Passed as Shadowlist's
-   * renderElement prop (a render callback, not a mounted component) - Shadowlist
-   * wraps each row in its own memoized element host.
-   */
+  // Dispatch a flattened row to the right renderer.
   const renderElement = useCallback(
     ({ element }: { element: FlatRow<ItemT, SectionT>; index: number }) => {
       if (element.type === 'sectionHeader') {
@@ -197,11 +173,7 @@ function SectionListInner<ItemT, SectionT = object>(
           section: element.section,
         }) ?? null;
 
-      /*
-       * Item separators sit between items in a section; a section boundary row
-       * (last item of a non-final section with no footer) gets the section
-       * separator instead.
-       */
+      // Item separator between items; section separator at a section boundary.
       let separator: ReactElement | null = null;
       if (element.isSectionBoundary) {
         separator = sectionSeparator;
@@ -254,10 +226,7 @@ function SectionListInner<ItemT, SectionT = object>(
   );
 }
 
-/*
- * forwardRef + generics: the cast preserves the generic item/section types for
- * callers while still forwarding the Shadowlist imperative handle.
- */
+// Cast preserves the generic item/section types for callers.
 const SectionList = forwardRef(SectionListInner) as <ItemT, SectionT = object>(
   props: SectionListProps<ItemT, SectionT> & { ref?: Ref<ShadowlistCommands> }
 ) => ReactElement;

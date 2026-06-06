@@ -38,8 +38,7 @@ export const FeedScreen = () => {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  // Pull-to-refresh: prepend a fresh batch, then clear the native spinner. The
-  // timeout stands in for a network fetch.
+  // Pull-to-refresh: prepend a fresh batch, then stop refreshing.
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => {
@@ -51,9 +50,8 @@ export const FeedScreen = () => {
     }, 1200);
   }, []);
 
-  // Loading-more (infinite scroll): append the next page as the end is reached, with
-  // a footer ActivityIndicator while it loads. The ref guards the edge from
-  // re-firing mid-load; the timeout stands in for a network fetch.
+  // Infinite scroll: append the next page on end reached.
+  // loadingRef guards against re-firing while a load is in flight.
   const [loadingMore, setLoadingMore] = useState(false);
   const loadingRef = useRef(false);
 

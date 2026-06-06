@@ -24,10 +24,7 @@ import {
 import type { ShadowlistProps, ShadowlistCommands, ViewToken } from './types';
 import { useKeyboardInset } from './useKeyboardInset';
 
-/*
- * Move the item at `from` to `to`, returning a new array. Used once on drop to
- * produce the reordered array handed to onReorder.
- */
+// Move the item at `from` to `to`, returning a new array.
 const arrayMove = <T,>(
   input: ReadonlyArray<T>,
   from: number,
@@ -48,19 +45,10 @@ const arrayMove = <T,>(
   return next;
 };
 
-/*
- * Stable default key derivation (element.id), kept module-level so the memo/effect
- * dependencies stay referentially stable when no keyExtractor is supplied.
- */
+// Default key derivation; module-level so memo/effect deps stay stable.
 const defaultKeyExtractor = (item: { id: string }) => item.id;
 
-/*
- * Trace the JS <-> native state synchronization. Mirrors the SHADOWLIST_DEBUG_LOG
- * flag in the C++ core (shadowlist-core/Constants.hpp) and shares the same [SL]
- * tag, so the JS, C++ and iOS/Android logs interleave into one readable stream.
- * Only the meaningful boundaries are logged (native events applied upward,
- * imperative commands sent downward) to keep it off the per-frame scroll path.
- */
+// Toggle JS-side debug tracing with the [SL] tag.
 const SHADOWLIST_DEBUG_LOG = false;
 
 const slLog = (...args: unknown[]) => {
@@ -69,10 +57,8 @@ const slLog = (...args: unknown[]) => {
 };
 
 /*
- * Mounted band [low, high] (low/high-water mark). The core reports a buffered
- * visible window; we mount SHADOWLIST_OVERSCAN extra rows on each side and only
- * re-render to grow/shift the band when the window leaves it. Windows are
- * normalised to ascending, so inverted lists (start > end) use the same path.
+ * Mounted band [low, high]. Mounts SHADOWLIST_OVERSCAN extra rows on each side of
+ * the visible window and only re-renders when the window leaves the band.
  */
 export interface VisibleBand {
   low: number;
@@ -89,12 +75,8 @@ export const initialBand = (
 ): VisibleBand => {
   if (size <= 0) return { low: -1, high: -1 };
   /*
-   * Initial scroll position (containerOffsetIndex >= 0): the core opens the list with
-   * `offsetIndex` anchored to the viewport start, so seed the mounted band around it -
-   * a few rows of overscan before it through `initial` rows after - instead of [0..n].
-   * Otherwise the first render mounts the top (or bottom, inverted) and the target rows
-   * only appear a JS round-trip later (a blank flash at the target). Applies to both
-   * orientations since an explicit target overrides the inverted bottom anchor.
+   * With an explicit initial target, seed the band around it (avoids a blank flash
+   * at the target). An explicit target overrides the inverted bottom anchor.
    */
   if (offsetIndex >= 0) {
     const target = Math.min(offsetIndex, size - 1);
@@ -133,11 +115,7 @@ const ElementRenderer = memo(function ElementRenderer<
   renderElement,
   separator,
 }: ElementRendererProps<ElementT>) {
-  /*
-   * Memoize on the item identity, not the row index. A prepend (or any insertion
-   * above this row) shifts every row's index, so keying on `element` lets unchanged
-   * rows skip re-rendering.
-   */
+  // Memoize on item identity, not row index, so unchanged rows skip re-rendering.
   const children = useMemo(
     () => (
       <>
@@ -201,22 +179,13 @@ function ShadowlistInner<ElementT extends { id: string }>(
     null
   );
 
-  /*
-   * Keyboard avoidance (zero-dependency): tracks the keyboard overlap with the list
-   * via RN's Keyboard events and feeds it to the native contentInsetBottom, which
-   * grows the scroll inset and slides the content up. Inert (returns 0) when
-   * keyboardAvoidingEnabled is false.
-   */
+  // Keyboard overlap fed to native contentInsetBottom; 0 when disabled.
   const contentInsetBottom = useKeyboardInset(shadowlistViewRef, {
     enabled: keyboardAvoidingEnabled,
     offset: keyboardAvoidingOffset,
   });
 
-  /*
-   * Pull-to-refresh. The native refresh control is installed only when an onRefresh
-   * handler is provided (refreshEnabled); the user pull fires this, and the consumer
-   * drives the spinner through the controlled `refreshing` prop.
-   */
+  // Pull-to-refresh; consumer drives the spinner via the controlled `refreshing` prop.
   const handleRefresh = useCallback(() => {
     onRefresh?.();
   }, [onRefresh]);
@@ -231,12 +200,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
   );
 
   /*
-   * Drag-to-reorder. The drag runs entirely natively (finger tracking, edge auto-
-   * scroll and the make-room shuffle are all UI-thread transforms), so the React tree
-   * is NOT mutated while dragging - that is what keeps it flicker-free. JS only does
-   * two things: force-mount the picked-up row (draggingIndex) so it survives
-   * virtualization while it is carried off-screen, and apply the single reorder on
-   * drop (onDragEnd). No per-move re-render happens in between.
+   * Index of the picked-up row. Force-mounted so it survives virtualization while
+   * carried off-screen; the reorder is applied once on drop.
    */
   const [draggingIndex, setDraggingIndex] = useState(-1);
 
@@ -298,12 +263,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
   }));
 
   /*
-   * The flat index of the section header for the section currently at the top of the
-   * viewport (the greatest sticky index at/above the topmost visible row). Drives the
-   * content of the always-mounted sticky-header overlay (see renderStickyHeaderOverlay);
-   * -1 when scrolled above the first section header. Updated from the visible window
-   * rather than force-mounting the header element, so the pinned overlay never waits
-   * on a re-render to appear.
+   * Flat index of the section header at the top of the viewport (drives the sticky
+   * overlay content); -1 when scrolled above the first section header.
    */
   const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
 
@@ -330,12 +291,12 @@ function ShadowlistInner<ElementT extends { id: string }>(
     (event) => {
       const { visibleStartIndex, visibleEndIndex } = event.nativeEvent;
       if (visibleStartIndex === -1 || visibleEndIndex === -1) return;
-      // Inverted lists report start > end; normalise to an ascending window.
+      // Normalise to an ascending window (inverted lists report start > end).
       const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
       const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
 
       setVisibleBand((prevBand) => {
-        // Window already inside the band - rows are mounted, skip the re-render.
+        // Window already inside the band; rows are mounted, skip the re-render.
         if (
           prevBand.low >= 0 &&
           windowLow >= prevBand.low &&
@@ -361,11 +322,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
   const visibleRange = useMemo(() => bandToRange(visibleBand), [visibleBand]);
 
-  /*
-   * The dragged row must stay mounted while it is carried past the edge of the
-   * window (auto-scroll), so union its index into the rendered set even if the band
-   * has moved off it.
-   */
+  // Union the dragged row's index into the rendered set so it stays mounted.
   const renderIndices = useMemo(() => {
     if (
       draggingIndex < 0 ||
@@ -382,11 +339,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
     [data, keyExtractor]
   );
 
-  /*
-   * Pickup: just keep the picked-up row mounted (it may be carried off-screen by
-   * auto-scroll). The data order is unchanged - the native side opens the gap by
-   * translating sibling views, so nothing re-renders during the drag.
-   */
+  // Pickup: keep the picked-up row mounted; data order is unchanged.
   const handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never> =
     useCallback((event) => {
       const { index } = event.nativeEvent;
@@ -394,10 +347,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       slLog('js.onDragStart', `index=${index}`);
     }, []);
 
-  /*
-   * Drop: the single reorder. Native reports the picked-up index and its final slot;
-   * apply one array move and hand the result to onReorder, then release the mount.
-   */
+  // Drop: apply one array move and hand the result to onReorder.
   const handleDragEnd: CodegenTypes.DirectEventHandler<OnDragEnd, never> =
     useCallback(
       (event) => {
@@ -415,12 +365,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       [data, onReorder]
     );
 
-  /*
-   * Drag-to-reorder is gated by dragEnabled (onDragStart/onDragEnd only act while it
-   * is on). If the consumer disables dragging mid-gesture (e.g. leaving edit mode),
-   * the native end event is cancelled/dropped, so draggingIndex would stay latched
-   * and keep the picked-up row force-mounted. Releasing it here recovers cleanly.
-   */
+  // Release draggingIndex if dragging is disabled mid-gesture (drop event may be lost).
   useEffect(() => {
     if (!dragEnabled) {
       setDraggingIndex((prev) => (prev === -1 ? prev : -1));
@@ -435,19 +380,11 @@ function ShadowlistInner<ElementT extends { id: string }>(
   > = useCallback(
     (event) => {
       const { viewableStartIndex, viewableEndIndex } = event.nativeEvent;
-      // The core reports the higher index first for inverted lists; normalise to
-      // an ascending range before mapping back to items.
+      // Normalise to an ascending range (inverted lists report higher index first).
       const lo = Math.min(viewableStartIndex, viewableEndIndex);
       const hi = Math.max(viewableStartIndex, viewableEndIndex);
 
-      /*
-       * Drive the sticky-overlay content from the strictly-viewable top index (the
-       * element actually at the viewport top), NOT the buffered visible window start
-       * (which sits ~one window above the viewport): the native pin positions the
-       * overlay from the raw scroll offset, so deriving the content from the buffered
-       * window made it lag a whole section behind the pin. The viewable top matches
-       * the pinned header to within a row.
-       */
+      // Drive sticky-overlay content from the viewable top index to match the pin.
       if (viewableStartIndex !== -1 && viewableEndIndex !== -1) {
         updateActiveStickyIndex(lo);
       }
@@ -525,11 +462,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
   );
 
   /*
-   * Sticky section-header overlay (SectionList). When sticky section headers are in
-   * play we always mount one overlay template and only swap its content to the
-   * active section's header; the native layer pins it to the viewport on the UI
-   * thread, so its position never lags. Content is null while scrolled above the
-   * first header (native hides the empty overlay).
+   * Sticky section-header overlay: one mounted template whose content swaps to the
+   * active section's header (null while scrolled above the first header).
    */
   const stickyEnabled = Boolean(
     stickyHeaderIndices &&
@@ -636,9 +570,7 @@ const styles = StyleSheet.create({
   },
 });
 
-/*
- * forwardRef + generics: cast preserves the generic element type for callers.
- */
+// Cast preserves the generic element type for callers.
 const Shadowlist = forwardRef(ShadowlistInner) as <
   ElementT extends { id: string },
 >(

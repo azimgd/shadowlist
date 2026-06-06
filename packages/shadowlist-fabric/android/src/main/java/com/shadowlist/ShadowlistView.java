@@ -26,24 +26,13 @@ import com.facebook.react.views.scroll.ReactScrollView;
 
 /*
  * Hosts the scrolling content in an inner scroll view picked by the `horizontal`
- * prop: ReactScrollView for vertical, ReactHorizontalScrollView for horizontal.
- * Android splits the two (a vertical ScrollView cannot scroll along X), so a
- * horizontal list needs the horizontal subclass for native fling/overscroll and
- * for nested touch interception to resolve correctly.
- *
- * This class keeps the scroll/content plumbing, the Fabric state sync and the
- * imperative commands; sticky pinning lives in ShadowlistStickyController and
- * drag-to-reorder in ShadowlistDragController, both reaching the shared scroll/content
- * views and state through the package-private accessors below. The inner scroll
- * subclasses just forward scroll and touch-down callbacks up.
+ * prop. Keeps the scroll/content plumbing, state sync and imperative commands;
+ * sticky pinning lives in ShadowlistStickyController and drag-to-reorder in
+ * ShadowlistDragController, both reaching the shared views and state through the
+ * package-private accessors below.
  */
 public class ShadowlistView extends FrameLayout {
-  /*
-   * Trace the native <-> C++ core state synchronization. Mirrors the
-   * SHADOWLIST_DEBUG_LOG flag in shadowlist-core/Constants.hpp (and the iOS
-   * mm.* logs) and shares the same [SL] tag so all layers interleave into one
-   * stream. Filter with: adb logcat -s SL
-   */
+  // State-sync trace logging, filter with: adb logcat -s SL
   private static final boolean DEBUG_LOG = false;
   private static final String LOG_TAG = "SL";
 
@@ -59,52 +48,29 @@ public class ShadowlistView extends FrameLayout {
   private final ShadowlistStickyController mStickyController;
   private final ShadowlistDragController mDragController;
 
-  /*
-   * Horizontal / vertical axis (the `horizontal` prop). Shared by the sticky and drag
-   * controllers, which read it through isHorizontal(); a change re-installs the inner
-   * scroll view for the new axis.
-   */
+  // Horizontal/vertical axis (the `horizontal` prop); a change re-installs the inner scroll view.
   private boolean mHorizontal = false;
 
-  /*
-   * Keyboard-avoidance bottom inset (px), driven by the contentInsetBottom prop. We
-   * apply it as bottom padding on the (vertical) scroll view - clipToPadding is off,
-   * so the content can scroll up into it - and slide the offset up by the delta so
-   * the rows that were behind the keyboard come into view; reversed when it returns
-   * to 0. Held to diff against the next value for the delta.
-   */
+  // Keyboard-avoidance bottom inset (px); held to diff against the next value for the delta.
   private int mContentInsetBottom = 0;
 
-  /*
-   * Pull-to-refresh. A vertical list is hosted in a SwipeRefreshLayout (null for
-   * horizontal) which owns the gesture and the native circle indicator (the same widget
-   * RN uses). mRefreshEnabled (driven by the presence of an onRefresh handler) toggles
-   * the gesture; mRefreshing is the controlled spinner state; mRefreshColor tints the
-   * arc (the refreshColor prop). All held so an axis-flip re-install restores them.
-   */
+  // Pull-to-refresh state; all held so an axis-flip re-install restores them.
   @Nullable private SwipeRefreshLayout mRefreshLayout = null;
   private boolean mRefreshEnabled = false;
   private boolean mRefreshing = false;
   @Nullable private Integer mRefreshColor = null;
 
   /*
-   * A programmatic scroll we issued (a core correction, or scrollToOffset/End) is in
-   * flight. onScrollChanged fires for these too, so reporting them as user gestures
-   * would make the core abandon its own in-flight correction and latch/blank the
-   * visible window. We track the target and whether it is animated - smoothScrollTo
-   * emits many intermediate frames before reaching the target, none of which match
-   * it - and a user touch (onTouchEvent) clears the flag so a finger taking over
-   * mid-animation correctly wins.
+   * Tracks a programmatic scroll we issued so its echoed callbacks are not reported as
+   * user gestures, which would make the core abandon its in-flight correction and blank
+   * the visible window. A user touch clears the flag so a finger taking over wins.
    */
   private int mProgrammaticTargetX = 0;
   private int mProgrammaticTargetY = 0;
   private boolean mProgrammaticPending = false;
   private boolean mProgrammaticAnimated = false;
 
-  /*
-   * An onScrollChanged offset within this many pixels of the offset we applied is
-   * its own echo, not a user scroll.
-   */
+  // An offset within this many pixels of the one we applied is our own echo, not a user scroll.
   private static final int PROGRAMMATIC_SCROLL_TOLERANCE_PX = 2;
 
   private static class ContentContainer extends ViewGroup {
@@ -117,10 +83,7 @@ public class ShadowlistView extends FrameLayout {
     }
   }
 
-  /*
-   * The inner scroll views forward their scroll and touch-down callbacks to the host
-   * so all logic stays in one place regardless of axis.
-   */
+  // Inner scroll views forward scroll and touch-down callbacks to the host.
   private static class InnerVerticalScrollView extends ReactScrollView {
     private final ShadowlistView mHost;
 
@@ -175,11 +138,7 @@ public class ShadowlistView extends FrameLayout {
     installScrollView(false);
   }
 
-  /*
-   * Build the inner scroll view for the current axis and move the content container
-   * into it. Called on construction and whenever the `horizontal` prop flips; the
-   * content (and its mounted children) is re-parented, not rebuilt.
-   */
+  // Build the inner scroll view for the current axis and re-parent the content into it.
   private void installScrollView(boolean horizontal) {
     if (mScrollView != null) {
       mScrollView.removeView(mContentView);
@@ -218,8 +177,7 @@ public class ShadowlistView extends FrameLayout {
     mScrollView.addView(mContentView);
 
     if (!horizontal) {
-      // Host the vertical list in a SwipeRefreshLayout so the standard pull-to-refresh
-      // gesture / spinner is available; gated by mRefreshEnabled.
+      // Wrap the vertical list for pull-to-refresh; gated by mRefreshEnabled.
       mRefreshLayout = new SwipeRefreshLayout(context);
       mRefreshLayout.setOnRefreshListener(this::emitRefresh);
       mRefreshLayout.setEnabled(mRefreshEnabled);
@@ -236,12 +194,7 @@ public class ShadowlistView extends FrameLayout {
     }
   }
 
-  /*
-   * Pull-to-refresh. setRefreshEnabled toggles the gesture (the JS layer passes the
-   * presence of an onRefresh handler); setRefreshing drives the controlled state. The
-   * user pull fires emitRefresh -> the onRefresh event; the spinner is then owned by the
-   * controlled refreshing prop, and setRefreshColor tints the native circle.
-   */
+  // Pull-to-refresh: toggle the gesture, drive the controlled spinner, tint the indicator.
   public void setRefreshEnabled(boolean enabled) {
     mRefreshEnabled = enabled;
     if (mRefreshLayout != null) {
@@ -276,22 +229,13 @@ public class ShadowlistView extends FrameLayout {
     }
   }
 
-  /*
-   * Content child management. Fabric mounts element/template views into this host;
-   * the ShadowlistViewManager routes those calls here so they land in the content
-   * container inside the inner scroll view (instead of the host or scroll view).
-   */
+  // Element/template children land in the content container inside the inner scroll view.
   public void addContentView(View child, int index) {
     if (child instanceof ShadowlistElementView) {
       mContentView.addView(child, index);
-      // A newly mounted element can land above a pinned header/footer or section
-      // header; re-pin so the active sticky views stay on top (and a freshly mounted
-      // active section header gets its translation at once).
+      // Re-pin so active sticky views stay on top of the newly mounted element.
       mStickyController.applyStickyTranslations();
-      // A row mounting mid-drag (auto-scroll) needs its make-room shuffle offset
-      // applied at once so it appears in the right place rather than flashing in at its
-      // resting slot first. The dragged row's translationZ keeps it drawn on top
-      // without reordering the child array (which would desync Fabric's mounting).
+      // A row mounting mid-drag needs its make-room shuffle applied at once to avoid a flash.
       if (mDragController.isDragging()) {
         mDragController.applyDragShuffle();
       }
@@ -321,8 +265,7 @@ public class ShadowlistView extends FrameLayout {
   }
 
   private void handleInnerTouchDown() {
-    // A finger on the list takes over from any in-flight programmatic scroll, so
-    // the following onScrollChanged callbacks are reported as genuine user scrolls.
+    // A finger takes over from any in-flight programmatic scroll.
     mProgrammaticPending = false;
   }
 
@@ -337,11 +280,7 @@ public class ShadowlistView extends FrameLayout {
     mDragController.setEnabled(dragEnabled);
   }
 
-  /*
-   * Called when Fabric drops/recycles this host (ShadowlistViewManager.onDropViewInstance):
-   * tear down any in-flight drag so its self-reposting Choreographer callback cannot
-   * keep driving a detached view and the inner scroll is restored.
-   */
+  // Tear down any in-flight drag and sticky state before this host is recycled.
   void onDropInstance() {
     mDragController.teardown();
     mStickyController.reset();
@@ -363,7 +302,7 @@ public class ShadowlistView extends FrameLayout {
     return super.onTouchEvent(event);
   }
 
-  /* Toggle the inner scroll view's gesture handling (the drag drives the offset itself). */
+  // Toggle the inner scroll view's gesture handling.
   void setInnerScrollEnabled(boolean enabled) {
     if (mScrollView instanceof ReactScrollView) {
       ((ReactScrollView) mScrollView).setScrollEnabled(enabled);
@@ -397,12 +336,9 @@ public class ShadowlistView extends FrameLayout {
   }
 
   /*
-   * Keyboard avoidance. Grow the (vertical) scroll view's bottom padding to the
-   * requested inset - clipToPadding is off, so content scrolls up into it - and
-   * follow the keyboard by shifting the offset up by the inset delta so the rows that
-   * were behind the keyboard come into view; reversed when it returns to 0. The
-   * follow-scroll is marked programmatic so the core does not mistake it for a user
-   * gesture, and is skipped while a drag owns the offset. Vertical lists only.
+   * Keyboard avoidance (vertical only): grow the bottom padding to the inset and shift
+   * the offset by the delta so rows behind the keyboard come into view. Skipped while a
+   * drag owns the offset.
    */
   public void setContentInsetBottom(double insetDip) {
     int inset = Math.max(0, (int) PixelUtil.toPixelFromDIP((float) insetDip));
@@ -433,27 +369,22 @@ public class ShadowlistView extends FrameLayout {
       return false;
     }
 
-    /*
-     * A callback whose offset matches the one the core just applied is the core's
-     * own move, not a user gesture. Everything else (drag, fling) is a genuine
-     * user scroll, which lets the core abandon an in-flight correction instead of
-     * letting it latch and freeze the visible window (blank list on deep scroll).
-     */
+    // A callback matching the offset we just applied is our own echo, not a user gesture.
+    // Mislabeling it would let the core latch and freeze the visible window.
     boolean userScrolled = true;
     if (mProgrammaticPending) {
       boolean reachedTarget =
         Math.abs(scrollX - mProgrammaticTargetX) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX
           && Math.abs(scrollY - mProgrammaticTargetY) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX;
       if (reachedTarget) {
-        // The programmatic scroll settled on its target: this is its echo, not a user move.
+        // Settled on the target: this is the echo, not a user move.
         userScrolled = false;
         mProgrammaticPending = false;
       } else if (mProgrammaticAnimated) {
-        // An intermediate frame of our own smooth-scroll animation; still not a user move.
+        // Intermediate frame of our own animation; still not a user move.
         userScrolled = false;
       } else {
-        // An instant programmatic scroll that did not land on the target means a real
-        // user scroll arrived instead, so hand control back to the user.
+        // An instant scroll that missed the target means a real user scroll arrived; yield.
         mProgrammaticPending = false;
       }
     }
@@ -507,9 +438,7 @@ public class ShadowlistView extends FrameLayout {
       mContentView.layout(0, 0, newContentWidth, newContentHeight);
     }
 
-    // While a drag is in flight (or settling after a drop) the drag owns the scroll
-    // offset, so a core correction must not yank the content under the finger or jump
-    // the list as the reorder lands.
+    // While the drag owns the offset, a core correction must not yank the content.
     if (!mDragController.ownsScrollOffset()
         && nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) {
       if (nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
@@ -523,12 +452,10 @@ public class ShadowlistView extends FrameLayout {
       }
     }
 
-    // Re-pin after the content size / offset changed (the footer pin depends on
-    // the content size) even when the list is not actively scrolling.
+    // Re-pin after the content size/offset changed (the footer pin depends on content size).
     mStickyController.applyStickyTranslations();
 
-    // Mid-drag commit: re-glue the picked-up row to the finger, and once JS's reorder
-    // commit lands, clear the held make-room shuffle.
+    // Mid-drag: re-glue the picked-up row to the finger and clear the shuffle once committed.
     mDragController.onStateCommitted();
   }
 
@@ -563,8 +490,7 @@ public class ShadowlistView extends FrameLayout {
       return;
     }
 
-    // Bump the nonce so the core treats this as a fresh request and re-scrolls
-    // even when the index is unchanged from the previous call
+    // Bump the nonce so the core re-scrolls even when the index is unchanged.
     double nextNonce = 0;
     ReadableMap currentStateData = mState.getStateData();
     if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexNonce")) {
@@ -580,9 +506,7 @@ public class ShadowlistView extends FrameLayout {
   }
 
   public void scrollToOffset(double offset, boolean animated) {
-    // Direct offset scroll along the scroll axis; the core picks up the new position
-    // from the resulting onScrollChanged callback. Marked programmatic so the
-    // animated path's intermediate frames are not mistaken for a user scroll.
+    // Direct offset scroll along the axis; marked programmatic so its frames are not user scrolls.
     int px = (int) PixelUtil.toPixelFromDIP((float) offset);
     int targetX = mHorizontal ? px : mScrollView.getScrollX();
     int targetY = mHorizontal ? mScrollView.getScrollY() : px;
@@ -603,12 +527,8 @@ public class ShadowlistView extends FrameLayout {
       return;
     }
 
-    // Core-driven: ride the scrollToIndex command channel with the SCROLL_TO_END_INDEX
-    // sentinel (-3, see shadowlist-core/Constants.hpp) so the core converges on the
-    // true bottom as off-screen rows are measured, instead of a one-shot jump to the
-    // current content size - a stale, estimate-based bottom that stops short on a
-    // variable-height list. The animated flag no longer applies (the core steps to
-    // the bottom).
+    // Use the SCROLL_TO_END_INDEX sentinel (-3) so the core converges on the true bottom
+    // as off-screen rows are measured, instead of jumping to a stale estimated bottom.
     double nextNonce = 0;
     ReadableMap currentStateData = mState.getStateData();
     if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexNonce")) {
@@ -623,11 +543,7 @@ public class ShadowlistView extends FrameLayout {
     mState.updateState(map);
   }
 
-  /*
-   * Package-private accessors for the sticky and drag controllers: the host owns the
-   * scroll/content views, the axis flag and the Fabric state; the controllers read
-   * them here so all the shared mutable plumbing stays in one place.
-   */
+  // Package-private accessors to the shared views, axis flag and state for the controllers.
   ViewGroup getContentView() {
     return mContentView;
   }

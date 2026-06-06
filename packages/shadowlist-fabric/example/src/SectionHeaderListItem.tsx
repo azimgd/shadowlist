@@ -18,7 +18,7 @@ export const SectionHeaderListItem = memo(
 );
 
 const styles = StyleSheet.create({
-  // Opaque so the pinned header fully covers rows scrolling underneath it.
+  // Opaque so the pinned header covers rows scrolling underneath it.
   container: {
     backgroundColor: '#15181C',
     paddingHorizontal: 12,

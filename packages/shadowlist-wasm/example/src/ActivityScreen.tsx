@@ -28,7 +28,7 @@ export const ActivityScreen = () => {
   dataRef.current = data;
   const headerStickyRef = useRef(true);
 
-  // viewability: surface the live on-screen index range on the sticky footer.
+  // Surface the live on-screen index range on the sticky footer.
   const handleViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: { index: number }[] }) => {
       if (viewableItems.length === 0) {
@@ -42,8 +42,7 @@ export const ActivityScreen = () => {
     []
   );
 
-  // The sticky header pins near the top, then hides once scrolled past the
-  // threshold and re-pins on the way back up.
+  // Hide the sticky header past the threshold, re-pin on the way back up.
   const handleScroll = useCallback((event: { nativeEvent: OnScroll }) => {
     const sticky = event.nativeEvent.contentOffsetY < HEADER_HIDE_THRESHOLD;
     if (sticky !== headerStickyRef.current) {
@@ -52,7 +51,7 @@ export const ActivityScreen = () => {
     }
   }, []);
 
-  // thresholds: append more rows before the bottom edge is reached.
+  // Append more rows before the bottom edge is reached.
   const handleEndReached = useCallback(() => {
     setData((prev) => [
       ...prev,

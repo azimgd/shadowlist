@@ -1,10 +1,6 @@
 import { memo, type CSSProperties } from 'react';
 
-/*
- * A file-system node for the TreeList example. Children present => folder; the tree
- * is described by this nested shape, but TreeList itself never requires it - it
- * reaches children through the getChildren accessor the screen passes in.
- */
+// A file-system node for the TreeList example. Nodes with children are folders.
 export interface TreeFileNode {
   id: string;
   name: string;
@@ -21,13 +17,7 @@ interface TreeElementProps {
   onToggle: () => void;
 }
 
-/*
- * One row of the directory browser. Purely presentational: indentation comes from
- * `indent` (depth * indentWidth, resolved by TreeList), the disclosure chevron and
- * folder/file glyph reflect the node, and a click toggles expansion. memo'd so that
- * while scrolling - when TreeList hands back the same row identity - the row never
- * re-renders.
- */
+// One presentational row of the directory browser; a click toggles expansion.
 export const TreeElement = memo(
   ({ element, indent, isExpanded, hasChildren, onToggle }: TreeElementProps) => {
     const isFolder = element.type === 'folder';

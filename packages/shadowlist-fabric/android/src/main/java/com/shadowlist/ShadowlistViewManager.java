@@ -53,16 +53,12 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
 
   @Override
   public void onDropViewInstance(@NonNull ShadowlistView view) {
-    // Tear down any in-flight drag before the host is recycled, so its self-reposting
-    // Choreographer frame callback cannot keep running against a detached view.
+    // Tear down any in-flight drag before the host is recycled.
     view.onDropInstance();
     super.onDropViewInstance(view);
   }
 
-  /*
-   * Element/template children are hosted in the content container inside the inner
-   * scroll view, not directly on the host, so route Fabric's child mounting there.
-   */
+  // Route child mounting into the content container inside the inner scroll view.
   @Override
   public void addView(ShadowlistView parent, View child, int index) {
     parent.addContentView(child, index);
@@ -134,8 +130,7 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   @Override
   @ReactProp(name = "stickyHeaderIndices")
   public void setStickyHeaderIndices(ShadowlistView view, @Nullable ReadableArray stickyHeaderIndices) {
-    // Consumed by the C++ core via props; the native pin reads the resulting
-    // section-header geometry back from state.
+    // Consumed by the core via props; the pin reads section-header geometry back from state.
   }
 
   @Override
