@@ -138,7 +138,7 @@ const ElementRenderer = memo(function ElementRenderer<
 
 function ShadowlistInner<ElementT extends { id: string }>(
   {
-    data,
+    data: dataProp,
     renderElement,
     keyExtractor = defaultKeyExtractor,
     style,
@@ -189,6 +189,56 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const handleRefresh = useCallback(() => {
     onRefresh?.();
   }, [onRefresh]);
+
+  /*
+   * Refresh-prepend deferral. Applying a prepend while the spinner is still retracting
+   * fights the native refresh control for the scroll offset and lands the user at the top.
+   * Instead hold any data change that arrives during a refresh until native signals the
+   * spinner has fully retracted (onRefreshSettle), then apply it as an ordinary prepend on a
+   * free scroll view, which MVCP anchors perfectly. Non-refresh data changes pass through.
+   */
+  const refreshDeferEnabled = !!onRefresh && !inverted && !horizontal;
+  const [committedData, setCommittedData] =
+    useState<ReadonlyArray<ElementT>>(dataProp);
+  const refreshHoldingRef = useRef(false);
+  const refreshHeldDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
+  const prevRefreshingRef = useRef(refreshing);
+  if (refreshDeferEnabled && !prevRefreshingRef.current && refreshing) {
+    // A refresh just started: hold subsequent data changes until it settles.
+    refreshHoldingRef.current = true;
+  }
+  prevRefreshingRef.current = refreshing;
+  if (dataProp !== committedData) {
+    if (refreshHoldingRef.current) {
+      refreshHeldDataRef.current = dataProp; // keep rendering pre-refresh data until settle
+    } else {
+      setCommittedData(dataProp);
+    }
+  }
+  const data = committedData;
+
+  // Apply the held refresh-prepend once native reports the spinner has fully retracted.
+  const handleRefreshSettle = useCallback(() => {
+    refreshHoldingRef.current = false;
+    if (refreshHeldDataRef.current !== null) {
+      setCommittedData(refreshHeldDataRef.current);
+      refreshHeldDataRef.current = null;
+    }
+  }, []);
+
+  // Safety net: release the held prepend shortly after refresh ends in case onRefreshSettle
+  // never arrives (e.g. a platform that doesn't emit it). On iOS it fires first, so this is
+  // a no-op there.
+  const prevRefreshingForFallbackRef = useRef(refreshing);
+  useEffect(() => {
+    const wasRefreshing = prevRefreshingForFallbackRef.current;
+    prevRefreshingForFallbackRef.current = refreshing;
+    if (refreshDeferEnabled && wasRefreshing && !refreshing) {
+      const timer = setTimeout(handleRefreshSettle, 1200);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [refreshing, refreshDeferEnabled, handleRefreshSettle]);
 
   const [mountedRange, setMountedRange] = useState<MountedRange>(() =>
     initialMountedRange(
@@ -675,6 +725,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       onEndReached={onEndReached}
       onScroll={onScroll}
       onRefresh={onRefresh ? handleRefresh : undefined}
+      onRefreshSettle={onRefresh ? handleRefreshSettle : undefined}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >

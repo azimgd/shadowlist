@@ -24,6 +24,9 @@ export type OnEndReached = {};
 /* Fired when the user pulls past the refresh threshold at the start of a vertical list. */
 export type OnRefresh = {};
 
+/* Fired once the pull-to-refresh spinner has fully retracted, so JS can apply a held prepend. */
+export type OnRefreshSettle = {};
+
 export type OnScroll = {
   contentOffsetX: CodegenTypes.Double;
   contentOffsetY: CodegenTypes.Double;
@@ -99,6 +102,7 @@ interface NativeProps extends ViewProps {
   readonly onEndReached?: CodegenTypes.DirectEventHandler<OnEndReached>;
   readonly onScroll?: CodegenTypes.DirectEventHandler<OnScroll>;
   readonly onRefresh?: CodegenTypes.DirectEventHandler<OnRefresh>;
+  readonly onRefreshSettle?: CodegenTypes.DirectEventHandler<OnRefreshSettle>;
   readonly onDragStart?: CodegenTypes.DirectEventHandler<OnDragStart>;
   readonly onDragEnd?: CodegenTypes.DirectEventHandler<OnDragEnd>;
 }

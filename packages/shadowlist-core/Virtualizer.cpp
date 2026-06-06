@@ -8,10 +8,12 @@ namespace azimgd::shadowlist {
 
 /*
  * Debug-only: the key at a visible/measured index, for cross-correlating native and
- * JS logs by content (the same index means different content mid-prepend).
+ * JS logs by content (the same index means different content mid-prepend). Only referenced
+ * inside SL_LOG, which is a no-op unless SHADOWLIST_DEBUG_LOG is set, so mark it
+ * maybe_unused to stay clean under -Werror=unused-function (Android).
  */
 namespace {
-const char* visKeyAt(const Container *container, std::size_t index) {
+[[maybe_unused]] const char* visKeyAt(const Container *container, std::size_t index) {
   if (index < container->revision.elements.size()) {
     const std::string& key = container->revision.elements[index].key;
     return key.empty() ? "(empty)" : key.c_str();

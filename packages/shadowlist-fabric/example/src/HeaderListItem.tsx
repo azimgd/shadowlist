@@ -1,17 +1,20 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { colors, typography } from './theme';
 
 interface HeaderListItemProps {
   title?: string;
   subtitle?: string;
 }
 
+// iOS large-title header. No divider — the list separators below carry the
+// visual break, matching the expanded large-title state.
 export const HeaderListItem = memo(
   ({ title = 'Header', subtitle }: HeaderListItemProps) => {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>{title}</Text>
-        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
     );
   }
@@ -19,20 +22,18 @@ export const HeaderListItem = memo(
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#000000',
-    padding: 12,
-    marginBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2F3336',
+    backgroundColor: colors.background,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
+    color: colors.label,
+    ...typography.largeTitle,
   },
   subtitle: {
-    color: '#71767B',
-    fontSize: 13,
-    marginTop: 4,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
+    marginTop: 2,
   },
 });

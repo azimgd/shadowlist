@@ -1,42 +1,42 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { colors, typography } from './theme';
 
 interface SectionHeaderListItemProps {
   title: string;
   count?: number;
 }
 
+// iOS grouped section header: uppercase secondary-label text on a subtle
+// translucent bar. The pinned header is opaque so rows scroll cleanly under it.
 export const SectionHeaderListItem = memo(
   ({ title, count }: SectionHeaderListItemProps) => {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>{title}</Text>
-        {count !== undefined && <Text style={styles.count}>{count}</Text>}
+        {count !== undefined ? <Text style={styles.count}>{count}</Text> : null}
       </View>
     );
   }
 );
 
 const styles = StyleSheet.create({
-  // Opaque so the pinned header covers rows scrolling underneath it.
   container: {
-    backgroundColor: '#15181C',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: colors.elevated,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2F3336',
   },
   title: {
-    color: '#FF9500',
-    fontSize: 15,
-    fontWeight: '700',
+    color: colors.secondaryLabel,
+    ...typography.footnote,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   count: {
-    color: '#71767B',
-    fontSize: 13,
-    fontWeight: '500',
+    color: colors.tertiaryLabel,
+    ...typography.footnote,
   },
 });

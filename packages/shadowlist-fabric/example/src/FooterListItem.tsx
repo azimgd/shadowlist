@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { colors, typography } from './theme';
 
 interface FooterListItemProps {
   text?: string;
@@ -17,16 +18,13 @@ export const FooterListItem = memo(
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#000000',
-    paddingHorizontal: 12,
+    backgroundColor: colors.background,
+    paddingHorizontal: 16,
     paddingVertical: 20,
-    marginTop: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2F3336',
     alignItems: 'center',
   },
   text: {
-    color: '#71767B',
-    fontSize: 14,
+    color: colors.secondaryLabel,
+    ...typography.footnote,
   },
 });

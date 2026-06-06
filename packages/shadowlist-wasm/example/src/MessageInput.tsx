@@ -1,4 +1,6 @@
 import { useState, type CSSProperties } from 'react';
+import { colors, typography, radius } from './theme';
+import { ArrowUp } from './icons';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
@@ -6,9 +8,10 @@ interface MessageInputProps {
 
 export const MessageInput = ({ onSend }: MessageInputProps) => {
   const [message, setMessage] = useState('');
+  const canSend = message.trim().length > 0;
 
   const handleSend = () => {
-    if (message.trim()) {
+    if (canSend) {
       onSend(message.trim());
       setMessage('');
     }
@@ -36,12 +39,18 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
         type="button"
         style={{
           ...styles.sendButton,
-          ...(message.trim() ? null : styles.sendButtonDisabled),
+          ...(canSend ? null : styles.sendButtonDisabled),
         }}
         onClick={handleSend}
-        disabled={!message.trim()}
+        disabled={!canSend}
         aria-label="Send"
-      />
+      >
+        <ArrowUp
+          size={20}
+          color={canSend ? colors.label : colors.secondaryLabel}
+          strokeWidth={2.4}
+        />
+      </button>
     </div>
   );
 };
@@ -53,24 +62,25 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: '8px 8px',
-    background: '#1C1C1E',
-    borderTop: '1px solid #38383A',
+    background: colors.background,
+    borderTop: `1px solid ${colors.separator}`,
   },
   inputContainer: {
     flex: 1,
     display: 'flex',
-    background: '#2C2C2E',
-    borderRadius: 20,
-    padding: '6px 12px',
+    background: colors.background,
+    border: `1px solid ${colors.separator}`,
+    borderRadius: radius.lg + 2,
+    padding: '7px 12px',
     marginRight: 8,
-    minHeight: 32,
-    maxHeight: 100,
+    minHeight: 36,
+    maxHeight: 120,
+    boxSizing: 'border-box',
   },
   input: {
     flex: 1,
-    color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: '20px',
+    color: colors.label,
+    ...typography.body,
     padding: 0,
     margin: 0,
     border: 'none',
@@ -85,12 +95,15 @@ const styles: Record<string, CSSProperties> = {
     width: 32,
     height: 32,
     borderRadius: 16,
-    background: '#34C759',
+    background: colors.accent,
     cursor: 'pointer',
     flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sendButtonDisabled: {
-    background: '#2C2C2E',
+    background: colors.fill,
     cursor: 'default',
   },
 };

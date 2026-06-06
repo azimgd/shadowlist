@@ -1,5 +1,7 @@
 import { memo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { colors, typography } from './theme';
+import { Chevron, Folder, Doc } from './icons';
 
 /* A file-system node for the TreeList example. */
 export interface TreeFileNode {
@@ -31,14 +33,23 @@ export const TreeElement = memo(
 
     return (
       <Pressable
-        style={styles.row}
+        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
         onPress={hasChildren ? onToggle : undefined}
       >
         <View style={[styles.indent, { width: indent }]} />
-        <Text style={styles.chevron}>
-          {hasChildren ? (isExpanded ? '▾' : '▸') : ' '}
-        </Text>
-        <Text style={styles.glyph}>{isFolder ? '📁' : '📄'}</Text>
+        <View style={styles.chevron}>
+          {hasChildren ? (
+            <Chevron
+              direction={isExpanded ? 'down' : 'right'}
+              color={colors.tertiaryLabel}
+              size={14}
+              weight={1.75}
+            />
+          ) : null}
+        </View>
+        <View style={styles.glyph}>
+          {isFolder ? <Folder size={20} /> : <Doc size={18} />}
+        </View>
         <Text style={styles.name} numberOfLines={1}>
           {element.name}
         </Text>
@@ -54,31 +65,34 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 40,
+    height: 44,
     paddingRight: 16,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
+  },
+  pressed: {
+    backgroundColor: colors.elevated,
   },
   indent: {
     height: '100%',
   },
   chevron: {
-    width: 18,
-    textAlign: 'center',
-    color: '#FF9500',
-    fontSize: 14,
+    width: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   glyph: {
-    fontSize: 16,
+    width: 24,
+    alignItems: 'center',
     marginRight: 8,
   },
   name: {
     flex: 1,
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: colors.label,
+    ...typography.callout,
   },
   count: {
-    color: '#666666',
-    fontSize: 13,
+    color: colors.tertiaryLabel,
+    ...typography.footnote,
     marginLeft: 8,
   },
 });

@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { colors, typography, radius } from './theme';
 
 interface ActivityHeaderProps {
   onScrollToOffset: () => void;
@@ -7,23 +8,34 @@ interface ActivityHeaderProps {
   onRemoveItems: () => void;
 }
 
+const TintedButton = ({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) => (
+  <Pressable
+    onPress={onPress}
+    style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+  >
+    <Text style={styles.actionText}>{label}</Text>
+  </Pressable>
+);
+
 export const ActivityHeader = memo(
   ({ onScrollToOffset, onScrollToEnd, onRemoveItems }: ActivityHeaderProps) => {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Activity</Text>
-        <Text style={styles.subtitle}>Imperative scroll & list editing</Text>
+        <Text style={styles.subtitle}>
+          Imperative scroll &amp; list editing, opens at index 30
+        </Text>
 
         <View style={styles.row}>
-          <TouchableOpacity style={styles.action} onPress={onScrollToOffset}>
-            <Text style={styles.actionText}>Offset 2000</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.action} onPress={onScrollToEnd}>
-            <Text style={styles.actionText}>Scroll to end</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.action} onPress={onRemoveItems}>
-            <Text style={styles.actionText}>Remove 20 & 50</Text>
-          </TouchableOpacity>
+          <TintedButton label="Offset 2000" onPress={onScrollToOffset} />
+          <TintedButton label="Scroll to end" onPress={onScrollToEnd} />
+          <TintedButton label="Remove 20 & 50" onPress={onRemoveItems} />
         </View>
       </View>
     );
@@ -32,37 +44,38 @@ export const ActivityHeader = memo(
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#000000',
-    padding: 12,
-    marginBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2F3336',
+    backgroundColor: colors.background,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: '700',
+    color: colors.label,
+    ...typography.largeTitle,
   },
   subtitle: {
-    color: '#71767B',
-    fontSize: 13,
-    marginTop: 4,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
+    marginTop: 2,
   },
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
+    marginTop: 14,
   },
   action: {
-    backgroundColor: '#FF9500',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  actionPressed: {
+    opacity: 0.6,
   },
   actionText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+    color: colors.accent,
+    ...typography.footnote,
     fontWeight: '600',
   },
 });

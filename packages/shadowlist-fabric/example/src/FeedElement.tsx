@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { View, Text, Image, ScrollView, StyleSheet } from 'react-native';
 import { AVATAR_COLORS } from './constants';
+import { colors, typography, radius, ROW_INSET } from './theme';
 
 export interface FeedElement {
   id: string;
@@ -29,9 +30,7 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
       <View style={styles.content}>
         <View style={styles.userInfo}>
           <Text style={styles.username}>{element.username}</Text>
-          <Text style={styles.handle}>
-            {element.handle} · {index}
-          </Text>
+          <Text style={styles.handle}>{element.handle}</Text>
         </View>
         <Text style={styles.tweetText}>{element.text}</Text>
         {element.imageUrls.length === 1 ? (
@@ -61,16 +60,16 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
           </ScrollView>
         )}
       </View>
+      <View style={styles.separator} />
     </View>
   );
 });
 
 const styles = StyleSheet.create({
   feedElement: {
-    backgroundColor: '#000000',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2F3336',
-    paddingHorizontal: 12,
+    backgroundColor: colors.background,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingVertical: 12,
     flexDirection: 'row',
   },
@@ -83,9 +82,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    color: colors.label,
+    fontSize: 17,
+    fontWeight: '600',
   },
   content: {
     flex: 1,
@@ -94,29 +93,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   username: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
+    color: colors.label,
+    ...typography.subhead,
+    fontWeight: '600',
   },
   handle: {
-    color: '#71767B',
-    fontSize: 15,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
   },
   tweetText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    lineHeight: 20,
+    color: colors.label,
+    ...typography.subhead,
     marginBottom: 12,
   },
   imageContainer: {
     width: '100%',
     height: 200,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    backgroundColor: '#2F3336',
+    backgroundColor: colors.elevated2,
   },
   image: {
     width: '100%',
@@ -132,14 +130,22 @@ const styles = StyleSheet.create({
   multiImageContainer: {
     width: 280,
     height: 200,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    backgroundColor: '#2F3336',
+    backgroundColor: colors.elevated2,
     marginHorizontal: 4,
   },
   multiImage: {
     width: '100%',
     height: '115%',
     marginTop: 0,
+  },
+  separator: {
+    position: 'absolute',
+    left: ROW_INSET,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.separator,
   },
 });

@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, typography, radius } from './theme';
+import { ArrowUp } from './icons';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
@@ -10,9 +12,10 @@ interface MessageInputProps {
 export const MessageInput = ({ onSend }: MessageInputProps) => {
   const [message, setMessage] = useState('');
   const insets = useSafeAreaInsets();
+  const canSend = message.trim().length > 0;
 
   const handleSend = () => {
-    if (message.trim()) {
+    if (canSend) {
       onSend(message.trim());
       setMessage('');
     }
@@ -26,19 +29,22 @@ export const MessageInput = ({ onSend }: MessageInputProps) => {
           value={message}
           onChangeText={setMessage}
           placeholder="iMessage"
-          placeholderTextColor="#8E8E93"
+          placeholderTextColor={colors.secondaryLabel}
           multiline
           maxLength={500}
         />
       </View>
-      <TouchableOpacity
-        style={[
-          styles.sendButton,
-          !message.trim() && styles.sendButtonDisabled,
-        ]}
+      <Pressable
+        style={[styles.sendButton, !canSend && styles.sendButtonDisabled]}
         onPress={handleSend}
-        disabled={!message.trim()}
-      />
+        disabled={!canSend}
+      >
+        <ArrowUp
+          size={20}
+          color={canSend ? colors.label : colors.secondaryLabel}
+          weight={2.4}
+        />
+      </Pressable>
     </View>
   );
 };
@@ -49,24 +55,25 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     paddingHorizontal: 8,
     paddingTop: 8,
-    backgroundColor: '#1C1C1E',
+    backgroundColor: colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#38383A',
+    borderTopColor: colors.separator,
   },
   inputContainer: {
     flex: 1,
-    backgroundColor: '#2C2C2E',
-    borderRadius: 20,
+    backgroundColor: colors.background,
+    borderRadius: radius.lg + 2,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.separator,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 7,
     marginRight: 8,
-    minHeight: 32,
-    maxHeight: 100,
+    minHeight: 36,
+    maxHeight: 120,
   },
   input: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: 20,
+    color: colors.label,
+    ...typography.body,
     padding: 0,
     margin: 0,
   },
@@ -74,12 +81,12 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#34C759',
+    backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 0,
+    marginBottom: 2,
   },
   sendButtonDisabled: {
-    backgroundColor: '#2C2C2E',
+    backgroundColor: colors.fill,
   },
 });

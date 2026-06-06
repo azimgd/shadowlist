@@ -1,4 +1,5 @@
 import { memo, type CSSProperties } from 'react';
+import { colors, ROW_INSET } from './theme';
 
 export const ListItemSeparator = memo(() => {
   return (
@@ -11,11 +12,11 @@ export const ListItemSeparator = memo(() => {
 const styles: Record<string, CSSProperties> = {
   // Opaque full-width row so nothing shows through behind the inset divider.
   container: {
-    background: '#000000',
+    background: colors.background,
   },
   line: {
     height: 1,
-    background: '#2F3336',
-    marginLeft: 64,
+    background: colors.separator,
+    marginLeft: ROW_INSET,
   },
 };

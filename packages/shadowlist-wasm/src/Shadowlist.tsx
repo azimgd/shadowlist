@@ -17,6 +17,13 @@ import type { ShadowlistCommands, ShadowlistProps, ViewToken } from './types.js'
 
 const DEFAULT_ESTIMATED_SIZE = 120;
 
+// Pull-to-refresh tuning (px). REST is the spinner band height held while refreshing.
+const PTR_THRESHOLD = 64;
+const PTR_MAX_PULL = 96;
+const PTR_REST = 56;
+const PTR_RESISTANCE = 0.5;
+const PTR_KEYFRAMES = '@keyframes sl-ptr-spin { to { transform: rotate(360deg); } }';
+
 // Default key derivation (element.id); module-level for referential stability.
 const defaultKeyExtractor = (item: { id: string }) => item.id;
 
@@ -298,6 +305,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
     onEndReachedThreshold = 1,
     viewabilityConfig,
     onViewableItemsChanged,
+    refreshing = false,
+    onRefresh,
+    refreshColor,
     ItemSeparatorComponent,
     ListHeaderComponent,
     ListFooterComponent,
@@ -1282,12 +1292,84 @@ function ShadowlistInner<ElementT extends { id: string }>(
     return [...range, draggingIndex].sort((a, b) => a - b);
   }, [range, draggingIndex, data.length]);
 
+  /*
+   * Pull-to-refresh (touch, non-inverted vertical lists). Tracking is held in a ref
+   * and only acts when the list is at the very top and dragged downward, so it never
+   * interferes with normal scrolling or the drag-reorder pointer pipeline. The pull
+   * only translates the content visually (transform never changes scroll metrics),
+   * revealing a spinner band; releasing past the threshold fires onRefresh.
+   */
+  const ptrEnabled = !!onRefresh && !inverted && !horizontal;
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isPulling, setIsPulling] = useState(false);
+  const refreshingRef = useRef(refreshing);
+  refreshingRef.current = refreshing;
+
+  useEffect(() => {
+    const scrollEl = scrollRef.current;
+    if (!scrollEl || !ptrEnabled) return;
+
+    let startY = 0;
+    let active = false;
+    let distance = 0;
+
+    const onTouchStart = (event: TouchEvent) => {
+      if (scrollEl.scrollTop <= 0 && !refreshingRef.current) {
+        startY = event.touches[0]!.clientY;
+        active = true;
+        setIsPulling(true);
+      } else {
+        active = false;
+      }
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (!active) return;
+      const delta = event.touches[0]!.clientY - startY;
+      if (delta <= 0) {
+        distance = 0;
+        setPullDistance(0);
+        return;
+      }
+      // Resist the pull and cap it so it reads as an elastic overscroll.
+      distance = Math.min(PTR_MAX_PULL, delta * PTR_RESISTANCE);
+      setPullDistance(distance);
+      event.preventDefault();
+    };
+    const onTouchEnd = () => {
+      if (!active) return;
+      active = false;
+      setIsPulling(false);
+      if (distance >= PTR_THRESHOLD && !refreshingRef.current) {
+        onRefresh?.();
+      }
+      distance = 0;
+      setPullDistance(0);
+    };
+
+    scrollEl.addEventListener('touchstart', onTouchStart, { passive: true });
+    scrollEl.addEventListener('touchmove', onTouchMove, { passive: false });
+    scrollEl.addEventListener('touchend', onTouchEnd, { passive: true });
+    scrollEl.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      scrollEl.removeEventListener('touchstart', onTouchStart);
+      scrollEl.removeEventListener('touchmove', onTouchMove);
+      scrollEl.removeEventListener('touchend', onTouchEnd);
+      scrollEl.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [ptrEnabled, onRefresh]);
+
+  // Indicator band height: follows the live pull, then rests while refreshing.
+  const indicatorHeight = refreshing ? PTR_REST : pullDistance;
+
   const containerStyle: CSSProperties = {
     position: 'relative',
     overflow: 'auto',
     WebkitOverflowScrolling: 'touch',
     ...style,
   };
+
+  const contentTransform =
+    indicatorHeight > 0 ? `translateY(${indicatorHeight}px)` : undefined;
 
   return (
     <div
@@ -1299,7 +1381,48 @@ function ShadowlistInner<ElementT extends { id: string }>(
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
     >
-      <div ref={contentRef} style={{ position: 'relative', minHeight: '100%' }}>
+      {ptrEnabled && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: PTR_REST,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            opacity: indicatorHeight > 0 ? 1 : 0,
+          }}
+        >
+          <style>{PTR_KEYFRAMES}</style>
+          <div
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: '50%',
+              boxSizing: 'border-box',
+              border: '2px solid rgba(118,118,128,0.24)',
+              borderTopColor: refreshColor ?? 'rgba(235,235,245,0.6)',
+              animation: refreshing ? 'sl-ptr-spin 0.7s linear infinite' : undefined,
+              transform: refreshing
+                ? undefined
+                : `rotate(${(pullDistance / PTR_THRESHOLD) * 270}deg)`,
+            }}
+          />
+        </div>
+      )}
+      <div
+        ref={contentRef}
+        style={{
+          position: 'relative',
+          minHeight: '100%',
+          background: 'inherit',
+          transform: contentTransform,
+          transition: isPulling ? 'none' : 'transform 0.2s ease',
+        }}
+      >
         {header && (
           <div
             ref={headerRef}

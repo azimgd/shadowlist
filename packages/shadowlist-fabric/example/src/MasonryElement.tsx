@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
+import { colors, typography, radius } from './theme';
 
 export interface MasonryElement {
   id: string;
@@ -13,36 +14,34 @@ interface MasonryElementProps {
   index: number;
 }
 
-export const MasonryElement = memo(
-  ({ element, index }: MasonryElementProps) => {
-    return (
-      <View style={styles.masonryElement}>
-        <View style={[styles.imageContainer, { height: element.height }]}>
-          <Image
-            source={{ uri: element.imageUrl }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-        </View>
-        <Text style={styles.title} numberOfLines={2}>
-          {element.title} · {index}
-        </Text>
+export const MasonryElement = memo(({ element }: MasonryElementProps) => {
+  return (
+    <View style={styles.masonryElement}>
+      <View style={[styles.imageContainer, { height: element.height }]}>
+        <Image
+          source={{ uri: element.imageUrl }}
+          style={styles.image}
+          resizeMode="cover"
+        />
       </View>
-    );
-  }
-);
+      <Text style={styles.title} numberOfLines={2}>
+        {element.title}
+      </Text>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   masonryElement: {
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
     marginBottom: 12,
     paddingHorizontal: 6,
   },
   imageContainer: {
     width: '100%',
-    borderRadius: 8,
+    borderRadius: radius.md,
     overflow: 'hidden',
-    backgroundColor: '#2F3336',
+    backgroundColor: colors.elevated2,
     marginBottom: 8,
   },
   image: {
@@ -50,9 +49,8 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 18,
+    color: colors.label,
+    ...typography.subhead,
     paddingHorizontal: 4,
   },
 });

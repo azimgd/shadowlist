@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { colors, ROW_INSET } from './theme';
 
 export const ListItemSeparator = memo(() => {
   return (
@@ -12,11 +13,11 @@ export const ListItemSeparator = memo(() => {
 const styles = StyleSheet.create({
   // Opaque full-width row so nothing shows through behind the inset divider.
   container: {
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   line: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: '#2F3336',
-    marginLeft: 64,
+    backgroundColor: colors.separator,
+    marginLeft: ROW_INSET,
   },
 });

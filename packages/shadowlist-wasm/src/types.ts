@@ -102,6 +102,17 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   onEndReachedThreshold?: number;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
 
+  /*
+   * Pull-to-refresh (non-inverted vertical lists, touch input). Provide onRefresh
+   * to enable; drive the spinner with the controlled `refreshing` flag.
+   */
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  /*
+   * Tint for the pull-to-refresh spinner. Defaults to a neutral gray.
+   */
+  refreshColor?: string;
+
   viewabilityConfig?: ViewabilityConfig;
   onViewableItemsChanged?: (info: {
     viewableItems: ViewToken<ElementT>[];

@@ -9,6 +9,7 @@ import { TreeList, type TreeListCommands } from 'shadowlist-wasm';
 import { HeaderListItem } from './HeaderListItem';
 import { TreeElement, type TreeFileNode } from './TreeElement';
 import { generateFileTree } from './constants';
+import { colors, typography } from './theme';
 
 // Collect every folder id in the tree. Used by "Expand all".
 const collectFolderIds = (nodes: TreeFileNode[]): string[] => {
@@ -87,12 +88,12 @@ export const TreeScreen = () => {
           <HeaderListItem title="Files" subtitle="Virtualized directory tree" />
         }
       />
-      <div style={styles.bar}>
+      <div style={styles.toolbar}>
         <button type="button" style={styles.button} onClick={expandAll}>
-          Expand all
+          Expand All
         </button>
         <button type="button" style={styles.button} onClick={collapseAll}>
-          Collapse all
+          Collapse All
         </button>
       </div>
     </div>
@@ -106,31 +107,30 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   list: {
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
-  bar: {
+  toolbar: {
     display: 'flex',
     flexDirection: 'row',
     justifyContent: 'space-around',
-    padding: '12px 16px',
-    background: '#111111',
-    borderTop: '1px solid #2F3336',
+    alignItems: 'center',
+    padding: '10px 16px',
+    background: colors.elevated,
+    borderTop: `1px solid ${colors.separator}`,
     flexShrink: 0,
   },
   button: {
     appearance: 'none',
     border: 'none',
-    padding: '8px 20px',
-    borderRadius: 8,
-    background: '#FF9500',
-    color: '#000000',
-    fontWeight: 700,
-    fontSize: 14,
+    background: 'transparent',
+    padding: '6px 12px',
+    color: colors.accent,
+    ...typography.body,
     cursor: 'pointer',
     fontFamily: 'inherit',
   },

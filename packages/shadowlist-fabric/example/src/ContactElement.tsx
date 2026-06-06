@@ -7,6 +7,8 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { AVATAR_COLORS } from './constants';
+import { colors, typography, ROW_INSET } from './theme';
+import { Chevron } from './icons';
 
 export interface ContactElement {
   id: string;
@@ -97,11 +99,17 @@ export const ContactElement = memo(
               </View>
               <View style={styles.content}>
                 <Text style={styles.name}>
-                  {element.firstName} {element.lastName} · {index}
+                  {element.firstName} {element.lastName}
                 </Text>
                 <Text style={styles.phoneNumber}>{element.phoneNumber}</Text>
               </View>
-              <Text style={styles.chevron}>›</Text>
+              <Chevron
+                direction="right"
+                color={colors.tertiaryLabel}
+                size={20}
+                weight={2}
+              />
+              <View style={styles.separator} />
             </View>
           </Animated.View>
         </GestureDetector>
@@ -120,10 +128,9 @@ const styles = StyleSheet.create({
     left: 0,
   },
   contactElement: {
-    backgroundColor: '#000000',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2F3336',
-    paddingHorizontal: 12,
+    backgroundColor: colors.background,
+    paddingLeft: 16,
+    paddingRight: 12,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -137,27 +144,29 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: colors.label,
+    fontSize: 17,
     fontWeight: '600',
   },
   content: {
     flex: 1,
   },
   name: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '400',
-    marginBottom: 2,
+    color: colors.label,
+    ...typography.body,
+    marginBottom: 1,
   },
   phoneNumber: {
-    color: '#71767B',
-    fontSize: 15,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
   },
-  chevron: {
-    color: '#71767B',
-    fontSize: 24,
-    fontWeight: '300',
+  separator: {
+    position: 'absolute',
+    left: ROW_INSET,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.separator,
   },
   deleteButton: {
     position: 'absolute',
@@ -165,13 +174,13 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     minWidth: DELETE_BUTTON_WIDTH,
-    backgroundColor: '#FF3B30',
+    backgroundColor: colors.red,
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: colors.label,
+    ...typography.subhead,
     fontWeight: '600',
   },
 });

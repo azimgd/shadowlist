@@ -3,6 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Shadowlist } from 'shadowlist';
 import { HeaderListItem } from './HeaderListItem';
 import { AVATAR_COLORS, generateContact } from './constants';
+import { colors, typography, ROW_INSET } from './theme';
+import { Grip } from './icons';
 import type { ContactElement as ContactElementType } from './ContactElement';
 
 // Stable color keyed by contact id so a row keeps its color when reordered.
@@ -28,7 +30,8 @@ const ReorderElement = memo(
           </Text>
           <Text style={styles.phone}>{element.phoneNumber}</Text>
         </View>
-        <Text style={styles.grip}>≡</Text>
+        <Grip size={20} color={colors.tertiaryLabel} />
+        <View style={styles.separator} />
       </View>
     );
   }
@@ -63,50 +66,51 @@ export const ReorderScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingVertical: 12,
-    backgroundColor: '#000000',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1C1C1E',
+    backgroundColor: colors.background,
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   initials: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: colors.label,
+    fontSize: 17,
     fontWeight: '600',
   },
   rowText: {
     flex: 1,
   },
   name: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
+    color: colors.label,
+    ...typography.body,
   },
   phone: {
-    color: '#8E8E93',
-    fontSize: 13,
-    marginTop: 2,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
+    marginTop: 1,
   },
-  grip: {
-    color: '#48484A',
-    fontSize: 22,
-    paddingHorizontal: 8,
+  separator: {
+    position: 'absolute',
+    left: ROW_INSET,
+    right: 0,
+    bottom: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.separator,
   },
 });

@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { ActivityData } from 'shadowlist-utils';
+import { colors, typography } from './theme';
 
 interface ActivityElementProps {
   element: ActivityData;
@@ -28,8 +29,9 @@ export const ActivityElement = memo(({ element }: ActivityElementProps) => {
 
 const styles = StyleSheet.create({
   activityElement: {
-    backgroundColor: '#000000',
-    paddingHorizontal: 12,
+    backgroundColor: colors.background,
+    paddingLeft: 16,
+    paddingRight: 16,
     paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -43,32 +45,31 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   avatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+    color: colors.label,
+    fontSize: 17,
+    fontWeight: '600',
   },
   content: {
     flex: 1,
   },
   title: {
-    fontSize: 15,
+    ...typography.subhead,
     marginBottom: 2,
   },
   actor: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: colors.label,
+    fontWeight: '600',
   },
   action: {
-    color: '#71767B',
+    color: colors.secondaryLabel,
   },
   detail: {
-    color: '#71767B',
-    fontSize: 14,
-    lineHeight: 18,
+    color: colors.secondaryLabel,
+    ...typography.footnote,
   },
   timestamp: {
-    color: '#71767B',
-    fontSize: 13,
+    color: colors.tertiaryLabel,
+    ...typography.footnote,
     marginLeft: 8,
   },
 });

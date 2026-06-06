@@ -1,11 +1,11 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { ActivityElement } from './ActivityElement';
 import { ActivityHeader } from './ActivityHeader';
-import { FooterListItem } from './FooterListItem';
 import { ListItemSeparator } from './ListItemSeparator';
 import { type ActivityData, buildActivity } from 'shadowlist-utils';
+import { colors, typography } from './theme';
 
 export const ActivityScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
@@ -91,16 +91,25 @@ export const ActivityScreen = () => {
     [handleScrollToOffset, handleScrollToEnd, handleRemoveItems]
   );
 
+  // Persistent full-width status footer: kept on screen by stickyFooter and always showing
+  // the viewable range + total count. The pagination spinner is appended, not swapped in, so
+  // the info never disappears on load or while loading more.
   const footer = useMemo(
-    () =>
-      loadingMore ? (
-        <View style={styles.loadingFooter}>
-          <ActivityIndicator color="#FF9500" />
-        </View>
-      ) : (
-        <FooterListItem text={`Viewable indices: ${viewableLabel}`} />
-      ),
-    [loadingMore, viewableLabel]
+    () => (
+      <View style={styles.statusFooter}>
+        <Text style={styles.statusText}>
+          {`Viewable: ${viewableLabel} · Total: ${data.length}`}
+        </Text>
+        {loadingMore && (
+          <ActivityIndicator
+            size="small"
+            color={colors.secondaryLabel}
+            style={styles.statusSpinner}
+          />
+        )}
+      </View>
+    ),
+    [loadingMore, viewableLabel, data.length]
   );
 
   return (
@@ -117,7 +126,7 @@ export const ActivityScreen = () => {
         stickyFooter
         refreshing={refreshing}
         onRefresh={handleRefresh}
-        refreshColor="#FF9500"
+        refreshColor={colors.secondaryLabel}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
         ItemSeparatorComponent={<ListItemSeparator />}
@@ -132,14 +141,26 @@ export const ActivityScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
-  loadingFooter: {
-    padding: 16,
+  statusFooter: {
+    width: '100%',
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+  },
+  statusText: {
+    color: colors.secondaryLabel,
+    ...typography.footnote,
+  },
+  statusSpinner: {
+    marginLeft: 8,
   },
 });

@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { Shadowlist } from 'shadowlist';
+import { colors, typography, radius } from './theme';
 
 export interface NestedElementChild {
   id: string;
@@ -38,12 +39,10 @@ const NestedElementChildComponent = memo(
   }
 );
 
-export const NestedElement = memo(({ element, index }: NestedElementProps) => {
+export const NestedElement = memo(({ element }: NestedElementProps) => {
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>
-        {element.title} · {index}
-      </Text>
+      <Text style={styles.sectionTitle}>{element.title}</Text>
       <Shadowlist
         data={element.elements}
         horizontal
@@ -58,29 +57,28 @@ export const NestedElement = memo(({ element, index }: NestedElementProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 12,
+    marginBottom: 16,
     height: 300,
   },
   sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '700',
-    paddingHorizontal: 12,
+    color: colors.label,
+    ...typography.title3,
+    paddingHorizontal: 16,
     marginBottom: 12,
   },
   horizontalList: {
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   nestedElement: {
     width: 180,
-    marginLeft: 12,
+    marginLeft: 16,
   },
   imageContainer: {
     width: 180,
     height: 220,
-    borderRadius: 8,
+    borderRadius: radius.md,
     overflow: 'hidden',
-    backgroundColor: '#2F3336',
+    backgroundColor: colors.elevated2,
     marginBottom: 8,
   },
   image: {
@@ -88,8 +86,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 18,
+    color: colors.label,
+    ...typography.subhead,
   },
 });

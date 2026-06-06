@@ -1,10 +1,11 @@
 import { useState, useRef, type CSSProperties } from 'react';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import { MasonryElement, type MasonryElement as MasonryElementType } from './MasonryElement';
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { generateMasonryElement } from './constants';
+import { colors } from './theme';
 
 export const MasonryScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
@@ -28,9 +29,15 @@ export const MasonryScreen = () => {
     setData((prev) => [...prev, ...newElements]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    shadowlistRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
 
   return (
     <div style={styles.container}>
@@ -47,12 +54,6 @@ export const MasonryScreen = () => {
         }
         ListFooterComponent={<FooterListItem text="End of masonry grid" />}
       />
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={data.length}
-      />
     </div>
   );
 };
@@ -64,11 +65,11 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   list: {
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
 };

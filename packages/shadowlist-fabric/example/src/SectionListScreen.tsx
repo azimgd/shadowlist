@@ -5,7 +5,7 @@ import {
   type ShadowlistCommands,
   type SectionListData,
 } from 'shadowlist';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import {
   ContactElement,
   type ContactElement as ContactElementType,
@@ -15,6 +15,7 @@ import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { ListItemSeparator } from './ListItemSeparator';
 import { generateContact } from './constants';
+import { colors } from './theme';
 
 type ContactSection = SectionListData<ContactElementType, { title: string }>;
 
@@ -69,9 +70,17 @@ export const SectionListScreen = () => {
     setContacts((prev) => [...prev, ...newContacts]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    sectionListRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    sectionListRef.current?.scrollToIndex(
+      Math.floor(Math.random() * contacts.length)
+    );
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
 
   return (
     <View style={styles.container}>
@@ -99,12 +108,6 @@ export const SectionListScreen = () => {
           <FooterListItem text={`${contacts.length} contacts`} />
         }
       />
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={contacts.length}
-      />
     </View>
   );
 };
@@ -112,10 +115,10 @@ export const SectionListScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
 });

@@ -1,5 +1,6 @@
 import { memo, type CSSProperties } from 'react';
 import type { ActivityData } from 'shadowlist-utils';
+import { colors, typography } from './theme';
 
 interface ActivityElementProps {
   element: ActivityData;
@@ -28,8 +29,8 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'flex-start',
-    background: '#000000',
-    padding: '12px 12px',
+    background: colors.background,
+    padding: '12px 16px',
   },
   avatar: {
     width: 40,
@@ -42,9 +43,9 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   avatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 700,
+    color: colors.label,
+    fontSize: 17,
+    fontWeight: 600,
   },
   content: {
     display: 'flex',
@@ -53,31 +54,30 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
   },
   title: {
-    fontSize: 15,
+    ...typography.subhead,
     marginBottom: 2,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
   actor: {
-    color: '#FFFFFF',
-    fontWeight: 700,
+    color: colors.label,
+    fontWeight: 600,
   },
   action: {
-    color: '#71767B',
+    color: colors.secondaryLabel,
   },
   detail: {
-    color: '#71767B',
-    fontSize: 14,
-    lineHeight: '18px',
+    color: colors.secondaryLabel,
+    ...typography.footnote,
     display: '-webkit-box',
     WebkitLineClamp: 2,
     WebkitBoxOrient: 'vertical',
     overflow: 'hidden',
   },
   timestamp: {
-    color: '#71767B',
-    fontSize: 13,
+    color: colors.tertiaryLabel,
+    ...typography.footnote,
     marginLeft: 8,
     flexShrink: 0,
   },

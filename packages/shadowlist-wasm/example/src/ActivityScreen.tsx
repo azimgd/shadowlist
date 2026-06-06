@@ -5,6 +5,7 @@ import { ActivityElement } from './ActivityElement';
 import { ActivityHeader } from './ActivityHeader';
 import { FooterListItem } from './FooterListItem';
 import { ListItemSeparator } from './ListItemSeparator';
+import { colors } from './theme';
 import {
   type ActivityData,
   buildActivity,
@@ -23,6 +24,7 @@ export const ActivityScreen = () => {
   const [startThreshold, setStartThreshold] = useState(1);
   const [endThreshold, setEndThreshold] = useState(1.5);
   const [headerSticky, setHeaderSticky] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -57,6 +59,18 @@ export const ActivityScreen = () => {
       ...prev,
       ...Array.from({ length: 20 }, (_, index) => buildActivity(prev.length + index)),
     ]);
+  }, []);
+
+  // Pull-to-refresh: prepend a fresh batch after a short delay (stand-in fetch).
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    window.setTimeout(() => {
+      setData((prev) => [
+        ...Array.from({ length: 10 }, (_, index) => buildActivity(index)),
+        ...prev,
+      ]);
+      setRefreshing(false);
+    }, 1200);
   }, []);
 
   const handleScrollToOffset = useCallback(
@@ -101,8 +115,12 @@ export const ActivityScreen = () => {
   );
 
   const footer = useMemo(
-    () => <FooterListItem text={`Viewable indices: ${viewableLabel}`} />,
-    [viewableLabel]
+    () => (
+      <FooterListItem
+        text={`Viewable: ${viewableLabel} · Total: ${data.length}`}
+      />
+    ),
+    [viewableLabel, data.length]
   );
 
   return (
@@ -115,6 +133,8 @@ export const ActivityScreen = () => {
         renderElement={({ element }) => <ActivityElement element={element} />}
         stickyHeader={headerSticky}
         stickyFooter
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
         ItemSeparatorComponent={<ListItemSeparator />}
@@ -136,11 +156,11 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   list: {
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
 };

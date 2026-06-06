@@ -2,6 +2,8 @@ import { memo, useState, type CSSProperties } from 'react';
 import { Shadowlist } from 'shadowlist-wasm';
 import { HeaderListItem } from './HeaderListItem';
 import { AVATAR_COLORS, generateContact } from './constants';
+import { colors, typography, ROW_INSET } from './theme';
+import { Grip } from './icons';
 import type { ContactElement as ContactElementType } from './ContactElement';
 
 // A plain row; drag/reorder is handled by Shadowlist via the dragEnabled prop.
@@ -21,7 +23,8 @@ const ReorderElement = memo(
           </span>
           <span style={styles.phone}>{element.phoneNumber}</span>
         </div>
-        <span style={styles.grip}>≡</span>
+        <Grip size={20} color={colors.tertiaryLabel} />
+        <div style={styles.separator} />
       </div>
     );
   }
@@ -60,27 +63,27 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   list: {
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   row: {
+    position: 'relative',
     display: 'flex',
     alignItems: 'center',
     padding: '12px 16px',
-    background: '#000000',
-    borderBottom: '1px solid #1C1C1E',
+    background: colors.background,
     boxSizing: 'border-box',
     cursor: 'grab',
     userSelect: 'none',
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -88,28 +91,31 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   initials: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: colors.label,
+    fontSize: 17,
     fontWeight: 600,
   },
   rowText: {
     display: 'flex',
     flexDirection: 'column',
     flex: 1,
+    minWidth: 0,
   },
   name: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 500,
+    color: colors.label,
+    ...typography.body,
   },
   phone: {
-    color: '#8E8E93',
-    fontSize: 13,
-    marginTop: 2,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
+    marginTop: 1,
   },
-  grip: {
-    color: '#48484A',
-    fontSize: 22,
-    padding: '0 8px',
+  separator: {
+    position: 'absolute',
+    left: ROW_INSET,
+    right: 0,
+    bottom: 0,
+    height: 1,
+    background: colors.separator,
   },
 };

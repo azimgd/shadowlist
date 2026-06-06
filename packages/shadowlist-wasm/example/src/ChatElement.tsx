@@ -1,5 +1,6 @@
 import { memo, useMemo, type CSSProperties } from 'react';
 import { AVATAR_COLORS } from './constants';
+import { colors, typography, radius } from './theme';
 
 interface ChatElementProps {
   id: string;
@@ -82,19 +83,16 @@ export const ChatElement = memo(
     return (
       <div style={containerStyle}>
         {avatar}
-        <div
-          style={{
-            ...styles.bubble,
-            ...(isFromMe ? styles.bubbleFromMe : styles.bubbleFromThem),
-          }}
-        >
-          <span style={styles.username}>
-            {username} · {index}
-          </span>
-          <span style={styles.text}>{text}</span>
-          <span style={styles.timestamp}>
-            {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
+        <div style={styles.bubbleColumn}>
+          {!isFromMe ? <span style={styles.sender}>{username}</span> : null}
+          <div
+            style={{
+              ...styles.bubble,
+              ...(isFromMe ? styles.bubbleFromMe : styles.bubbleFromThem),
+            }}
+          >
+            <span style={styles.text}>{text}</span>
+          </div>
         </div>
       </div>
     );
@@ -109,9 +107,9 @@ const styles: Record<string, CSSProperties> = {
     padding: '2px 12px',
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     marginRight: 8,
     marginBottom: 2,
     display: 'flex',
@@ -120,51 +118,48 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   avatarText: {
-    color: '#FFFFFF',
+    color: colors.label,
     fontSize: 12,
     fontWeight: 600,
+  },
+  bubbleColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    maxWidth: '75%',
+  },
+  sender: {
+    color: colors.secondaryLabel,
+    ...typography.caption,
+    marginLeft: 12,
+    marginBottom: 2,
   },
   bubble: {
     display: 'flex',
     flexDirection: 'column',
-    maxWidth: '75%',
-    padding: '10px 16px',
-    borderRadius: 20,
-    margin: '2px 0',
+    padding: '8px 14px',
+    borderRadius: radius.lg + 2,
   },
   bubbleFromMe: {
-    background: '#0A84FF',
-    borderBottomRightRadius: 4,
+    background: colors.blue,
+    borderBottomRightRadius: 5,
+    alignSelf: 'flex-end',
   },
   bubbleFromThem: {
-    background: '#2C2C2E',
-    borderBottomLeftRadius: 4,
-  },
-  username: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 600,
-    marginBottom: 4,
-    opacity: 0.8,
+    background: colors.elevated2,
+    borderBottomLeftRadius: 5,
+    alignSelf: 'flex-start',
   },
   text: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: '20px',
+    color: colors.label,
+    ...typography.body,
     whiteSpace: 'pre-wrap',
-  },
-  timestamp: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    marginTop: 4,
-    opacity: 0.5,
   },
   singleImageContainer: {
     width: 240,
     height: 320,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    background: '#2F3336',
+    background: colors.elevated2,
     margin: '2px 0',
   },
   singleImage: {
@@ -188,9 +183,9 @@ const styles: Record<string, CSSProperties> = {
   imageGridElement: {
     width: 119,
     height: 119,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     overflow: 'hidden',
-    background: '#2F3336',
+    background: colors.elevated2,
   },
   imageGridImage: {
     width: '100%',

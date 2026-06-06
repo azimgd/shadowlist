@@ -1,4 +1,6 @@
 import { memo, type CSSProperties } from 'react';
+import { colors, typography } from './theme';
+import { Chevron, Folder, Doc } from './icons';
 
 // A file-system node for the TreeList example. Nodes with children are folders.
 export interface TreeFileNode {
@@ -29,9 +31,18 @@ export const TreeElement = memo(
       >
         <div style={{ ...styles.indent, width: indent }} />
         <span style={styles.chevron}>
-          {hasChildren ? (isExpanded ? '▾' : '▸') : ' '}
+          {hasChildren ? (
+            <Chevron
+              direction={isExpanded ? 'down' : 'right'}
+              color={colors.tertiaryLabel}
+              size={14}
+              strokeWidth={1.75}
+            />
+          ) : null}
         </span>
-        <span style={styles.glyph}>{isFolder ? '📁' : '📄'}</span>
+        <span style={styles.glyph}>
+          {isFolder ? <Folder size={20} /> : <Doc size={18} />}
+        </span>
         <span style={styles.name}>{element.name}</span>
         {isFolder && element.children ? (
           <span style={styles.count}>{element.children.length}</span>
@@ -45,9 +56,9 @@ const styles: Record<string, CSSProperties> = {
   row: {
     display: 'flex',
     alignItems: 'center',
-    height: 40,
+    height: 44,
     paddingRight: 16,
-    background: '#000000',
+    background: colors.background,
     boxSizing: 'border-box',
   },
   indent: {
@@ -55,28 +66,31 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   chevron: {
-    width: 18,
-    textAlign: 'center',
-    color: '#FF9500',
-    fontSize: 14,
+    width: 22,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 0,
   },
   glyph: {
-    fontSize: 16,
+    width: 24,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 8,
     flexShrink: 0,
   },
   name: {
     flex: 1,
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: colors.label,
+    ...typography.callout,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
   count: {
-    color: '#666666',
-    fontSize: 13,
+    color: colors.tertiaryLabel,
+    ...typography.footnote,
     marginLeft: 8,
     flexShrink: 0,
   },

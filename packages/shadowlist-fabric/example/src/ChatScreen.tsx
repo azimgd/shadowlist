@@ -8,10 +8,11 @@ import {
   type ShadowlistCommands,
 } from 'shadowlist';
 import { ChatElement } from './ChatElement';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import { MessageInput } from './MessageInput';
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
+import { colors } from './theme';
 import {
   generateUniqueId,
   generateRandomText,
@@ -19,6 +20,9 @@ import {
   shouldBeImageGrid,
   generateImageGrid,
 } from './constants';
+
+// Gap kept between the composer and the keyboard; matches the composer's top padding.
+const KEYBOARD_GAP = 8;
 
 type ChatMessage = {
   id: string;
@@ -35,13 +39,13 @@ export const ChatScreen = () => {
   // Live keyboard height (dp); the list and composer translate up by it.
   const { height } = useKeyboardAnimation();
 
-  // translateY = -max(0, keyboardHeight - safeAreaBottom): clamp at 0 so no lift
-  // until the keyboard rises past the safe-area inset.
+  // Lift the composer to rest KEYBOARD_GAP above the keyboard once it passes the safe-area
+  // inset, so the input keeps the same gap below it as its top padding (not flush).
   const liftTranslateY = useMemo(() => {
     const safe = insets.bottom;
     return height.interpolate({
-      inputRange: safe > 0 ? [0, safe, safe + 1] : [0, 1],
-      outputRange: safe > 0 ? [0, 0, -1] : [0, -1],
+      inputRange: safe > 0 ? [0, safe, safe + 1] : [0, 1, 2],
+      outputRange: [0, -KEYBOARD_GAP, -KEYBOARD_GAP - 1],
     });
   }, [height, insets.bottom]);
 
@@ -84,9 +88,17 @@ export const ChatScreen = () => {
     ]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    shadowlistRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
 
   return (
     <View style={styles.container}>
@@ -121,12 +133,6 @@ export const ChatScreen = () => {
         </KeyboardDismissView>
         <MessageInput onSend={handleSendMessage} />
       </Animated.View>
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={data.length}
-      />
     </View>
   );
 };
@@ -134,16 +140,16 @@ export const ChatScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
     // Clip lifted content so rows sliding up never escape the screen top.
     overflow: 'hidden',
   },
   lifted: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
 });

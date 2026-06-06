@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import {
   MasonryElement,
   type MasonryElement as MasonryElementType,
@@ -9,6 +9,7 @@ import {
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { generateMasonryElement } from './constants';
+import { colors } from './theme';
 
 export const MasonryScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
@@ -32,9 +33,17 @@ export const MasonryScreen = () => {
     setData((prev) => [...prev, ...newElements]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    shadowlistRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
 
   return (
     <View style={styles.container}>
@@ -51,12 +60,6 @@ export const MasonryScreen = () => {
         }
         ListFooterComponent={<FooterListItem text="End of masonry grid" />}
       />
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={data.length}
-      />
     </View>
   );
 };
@@ -64,10 +67,10 @@ export const MasonryScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
 });

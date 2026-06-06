@@ -1,10 +1,11 @@
 import { useState, useRef, type CSSProperties } from 'react';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import { NestedElement, type NestedElement as NestedElementType } from './NestedElement';
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { generateNestedElement } from './constants';
+import { colors } from './theme';
 
 export const NestedScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
@@ -28,9 +29,15 @@ export const NestedScreen = () => {
     setData((prev) => [...prev, ...newElements]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    shadowlistRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
 
   return (
     <div style={styles.container}>
@@ -46,12 +53,6 @@ export const NestedScreen = () => {
         }
         ListFooterComponent={<FooterListItem text="End of nested list" />}
       />
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={data.length}
-      />
     </div>
   );
 };
@@ -63,11 +64,11 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   list: {
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
 };

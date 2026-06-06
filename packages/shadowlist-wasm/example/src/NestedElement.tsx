@@ -1,5 +1,6 @@
 import { memo, type CSSProperties } from 'react';
 import { Shadowlist } from 'shadowlist-wasm';
+import { colors, typography, radius } from './theme';
 
 export interface NestedElementChild {
   id: string;
@@ -31,12 +32,10 @@ const NestedElementChildComponent = memo(
   }
 );
 
-export const NestedElement = memo(({ element, index }: NestedElementProps) => {
+export const NestedElement = memo(({ element }: NestedElementProps) => {
   return (
     <div style={styles.container}>
-      <span style={styles.sectionTitle}>
-        {element.title} · {index}
-      </span>
+      <span style={styles.sectionTitle}>{element.title}</span>
       <Shadowlist
         data={element.elements}
         horizontal
@@ -53,32 +52,31 @@ const styles: Record<string, CSSProperties> = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    marginBottom: 12,
+    marginBottom: 16,
     height: 300,
   },
   sectionTitle: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 700,
-    padding: '0 12px',
+    color: colors.label,
+    ...typography.title3,
+    padding: '0 16px',
     marginBottom: 12,
   },
   horizontalList: {
     flex: 1,
-    background: '#000000',
+    background: colors.background,
   },
   nestedElement: {
     display: 'flex',
     flexDirection: 'column',
     width: 180,
-    marginLeft: 12,
+    marginLeft: 16,
   },
   imageContainer: {
     width: 180,
     height: 220,
-    borderRadius: 8,
+    borderRadius: radius.md,
     overflow: 'hidden',
-    background: '#2F3336',
+    background: colors.elevated2,
     marginBottom: 8,
   },
   image: {
@@ -88,9 +86,8 @@ const styles: Record<string, CSSProperties> = {
     display: 'block',
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: '18px',
+    color: colors.label,
+    ...typography.subhead,
     display: '-webkit-box',
     WebkitLineClamp: 2,
     WebkitBoxOrient: 'vertical',

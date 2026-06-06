@@ -1,15 +1,17 @@
 import { memo, type CSSProperties } from 'react';
+import { colors, typography } from './theme';
 
 interface HeaderListItemProps {
   title?: string;
   subtitle?: string;
 }
 
+// iOS large-title header. No divider — list separators below carry the break.
 export const HeaderListItem = memo(({ title = 'Header', subtitle }: HeaderListItemProps) => {
   return (
     <div style={styles.container}>
       <span style={styles.title}>{title}</span>
-      {subtitle && <span style={styles.subtitle}>{subtitle}</span>}
+      {subtitle ? <span style={styles.subtitle}>{subtitle}</span> : null}
     </div>
   );
 });
@@ -18,19 +20,16 @@ const styles: Record<string, CSSProperties> = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    background: '#000000',
-    padding: 12,
-    marginBottom: 12,
-    borderBottom: '1px solid #2F3336',
+    background: colors.background,
+    padding: '4px 16px 12px',
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 700,
+    color: colors.label,
+    ...typography.largeTitle,
   },
   subtitle: {
-    color: '#71767B',
-    fontSize: 13,
-    marginTop: 4,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
+    marginTop: 2,
   },
 };

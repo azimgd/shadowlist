@@ -1,10 +1,12 @@
-import { useState, useRef, type CSSProperties } from 'react';
+import { useState, useRef, useCallback, useMemo, type CSSProperties } from 'react';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import { FeedElement, type FeedElement as FeedElementType } from './FeedElement';
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
+import { Spinner } from './Spinner';
 import { generateFeedElement } from './constants';
+import { colors } from './theme';
 
 export const FeedScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
@@ -28,9 +30,53 @@ export const FeedScreen = () => {
     setData((prev) => [...prev, ...newElements]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    shadowlistRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
+
+  // Pull-to-refresh: prepend a fresh batch after a short delay (stand-in fetch).
+  const [refreshing, setRefreshing] = useState(false);
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    window.setTimeout(() => {
+      setData((prev) => [
+        ...Array.from({ length: 10 }, (_, index) => generateFeedElement(index)),
+        ...prev,
+      ]);
+      setRefreshing(false);
+    }, 1200);
+  }, []);
+
+  // Infinite scroll: append the next page when the end is reached.
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingRef = useRef(false);
+  const handleEndReached = useCallback(() => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    window.setTimeout(() => {
+      setData((prev) => [
+        ...prev,
+        ...Array.from({ length: 20 }, (_, index) =>
+          generateFeedElement(prev.length + index)
+        ),
+      ]);
+      setLoadingMore(false);
+      loadingRef.current = false;
+    }, 1000);
+  }, []);
+
+  const footer = useMemo(
+    () =>
+      loadingMore ? <Spinner /> : <FooterListItem text="End of feed" />,
+    [loadingMore]
+  );
 
   return (
     <div style={styles.container}>
@@ -38,19 +84,16 @@ export const FeedScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        onEndReached={handleEndReached}
         renderElement={({ element, index }) => (
           <FeedElement element={element} index={index} />
         )}
         ListHeaderComponent={
           <HeaderListItem title="Feed" subtitle="Vertical scrolling list" />
         }
-        ListFooterComponent={<FooterListItem text="End of feed" />}
-      />
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={data.length}
+        ListFooterComponent={footer}
       />
     </div>
   );
@@ -63,11 +106,11 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   list: {
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
 };

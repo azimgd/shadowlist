@@ -1,5 +1,6 @@
 import { memo, useMemo, type CSSProperties } from 'react';
 import { AVATAR_COLORS } from './constants';
+import { colors, typography, radius, ROW_INSET } from './theme';
 
 export interface FeedElement {
   id: string;
@@ -29,9 +30,7 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
       <div style={styles.content}>
         <div style={styles.userInfo}>
           <span style={styles.username}>{element.username}</span>
-          <span style={styles.handle}>
-            {element.handle} · {index}
-          </span>
+          <span style={styles.handle}>{element.handle}</span>
         </div>
         <span style={styles.tweetText}>{element.text}</span>
         {element.imageUrls.length === 1 ? (
@@ -48,17 +47,18 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
           </div>
         )}
       </div>
+      <div style={styles.separator} />
     </div>
   );
 });
 
 const styles: Record<string, CSSProperties> = {
   feedElement: {
+    position: 'relative',
     display: 'flex',
     flexDirection: 'row',
-    background: '#000000',
-    borderBottom: '1px solid #2F3336',
-    padding: '12px 12px',
+    background: colors.background,
+    padding: '12px 16px',
   },
   avatar: {
     width: 40,
@@ -71,9 +71,9 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   avatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 700,
+    color: colors.label,
+    fontSize: 17,
+    fontWeight: 600,
   },
   content: {
     display: 'flex',
@@ -86,30 +86,29 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 4,
+    marginBottom: 2,
   },
   username: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: 700,
+    color: colors.label,
+    ...typography.subhead,
+    fontWeight: 600,
   },
   handle: {
-    color: '#71767B',
-    fontSize: 15,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
   },
   tweetText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    lineHeight: '20px',
+    color: colors.label,
+    ...typography.subhead,
     marginBottom: 12,
     whiteSpace: 'pre-wrap',
   },
   imageContainer: {
     width: '100%',
     height: 200,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    background: '#2F3336',
+    background: colors.elevated2,
   },
   image: {
     width: '100%',
@@ -126,9 +125,9 @@ const styles: Record<string, CSSProperties> = {
   multiImageContainer: {
     width: 280,
     height: 200,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    background: '#2F3336',
+    background: colors.elevated2,
     flexShrink: 0,
   },
   multiImage: {
@@ -136,5 +135,13 @@ const styles: Record<string, CSSProperties> = {
     height: '100%',
     objectFit: 'cover',
     display: 'block',
+  },
+  separator: {
+    position: 'absolute',
+    left: ROW_INSET,
+    right: 0,
+    bottom: 0,
+    height: 1,
+    background: colors.separator,
   },
 };

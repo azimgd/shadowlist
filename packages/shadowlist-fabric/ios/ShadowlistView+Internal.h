@@ -20,6 +20,10 @@
   BOOL _refreshEnabled;
   BOOL _refreshing;
   UIColor * _refreshColor;
+  /* Set when refreshing ends; cleared once the retract spring quiesces, when onRefreshSettle
+   * fires. The token invalidates superseded settle debounces. */
+  BOOL _refreshAwaitingSettle;
+  NSInteger _refreshSettleToken;
 
   /* Sticky header/footer pinned to the viewport each scroll frame. */
   BOOL _stickyHeader;

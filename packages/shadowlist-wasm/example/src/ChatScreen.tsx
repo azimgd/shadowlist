@@ -1,10 +1,11 @@
 import { useState, useRef, type CSSProperties } from 'react';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist-wasm';
 import { ChatElement } from './ChatElement';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import { MessageInput } from './MessageInput';
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
+import { colors } from './theme';
 import {
   generateUniqueId,
   generateRandomText,
@@ -21,34 +22,23 @@ type ChatMessage = {
   imageUrls?: string[];
 };
 
+const buildMessage = (elementIndex: number): ChatMessage => {
+  const isImageGrid = shouldBeImageGrid(elementIndex);
+  const imageUrl = generateOptimizedImageUrl(elementIndex);
+  return {
+    id: generateUniqueId(),
+    text: isImageGrid || !!imageUrl ? '' : generateRandomText(elementIndex),
+    isFromMe: elementIndex % 3 !== 0,
+    imageUrl,
+    imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
+  };
+};
+
 export const ChatScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<ChatMessage[]>(() =>
-    Array.from({ length: 1000 }, (_, index) => {
-      const isImageGrid = shouldBeImageGrid(index);
-      const imageUrl = generateOptimizedImageUrl(index);
-
-      return {
-        id: generateUniqueId(),
-        text: isImageGrid || !!imageUrl ? '' : generateRandomText(index),
-        isFromMe: index % 3 !== 0,
-        imageUrl,
-        imageUrls: isImageGrid ? generateImageGrid(index) : undefined,
-      };
-    })
+    Array.from({ length: 1000 }, (_, index) => buildMessage(index))
   );
-
-  const buildMessage = (elementIndex: number): ChatMessage => {
-    const isImageGrid = shouldBeImageGrid(elementIndex);
-    const imageUrl = generateOptimizedImageUrl(elementIndex);
-    return {
-      id: generateUniqueId(),
-      text: isImageGrid || !!imageUrl ? '' : generateRandomText(elementIndex),
-      isFromMe: elementIndex % 3 !== 0,
-      imageUrl,
-      imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
-    };
-  };
 
   const handlePrepend = () => {
     const currentLength = data.length;
@@ -73,9 +63,15 @@ export const ChatScreen = () => {
     ]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    shadowlistRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
 
   return (
     <div style={styles.container}>
@@ -97,12 +93,6 @@ export const ChatScreen = () => {
         ListHeaderComponent={<HeaderListItem title="Chat" subtitle="Inverted list" />}
         ListFooterComponent={<FooterListItem text="Start of conversation" />}
       />
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={data.length}
-      />
       <MessageInput onSend={handleSendMessage} />
     </div>
   );
@@ -115,11 +105,11 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   list: {
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
 };

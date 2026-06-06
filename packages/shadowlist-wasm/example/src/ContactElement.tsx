@@ -1,5 +1,7 @@
 import { memo, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from 'react';
 import { AVATAR_COLORS } from './constants';
+import { colors, typography, ROW_INSET } from './theme';
+import { Chevron } from './icons';
 
 export interface ContactElement {
   id: string;
@@ -79,11 +81,12 @@ export const ContactElement = memo(({ element, index }: ContactElementProps) => 
           </div>
           <div style={styles.content}>
             <span style={styles.name}>
-              {element.firstName} {element.lastName} · {index}
+              {element.firstName} {element.lastName}
             </span>
             <span style={styles.phoneNumber}>{element.phoneNumber}</span>
           </div>
-          <span style={styles.chevron}>›</span>
+          <Chevron direction="right" color={colors.tertiaryLabel} size={20} strokeWidth={2} />
+          <div style={styles.separator} />
         </div>
       </div>
     </div>
@@ -102,12 +105,12 @@ const styles: Record<string, CSSProperties> = {
     touchAction: 'pan-y',
   },
   contactElement: {
+    position: 'relative',
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
-    background: '#000000',
-    borderBottom: '1px solid #2F3336',
-    padding: '12px 12px',
+    background: colors.background,
+    padding: '12px 12px 12px 16px',
   },
   avatar: {
     width: 40,
@@ -120,8 +123,8 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   avatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+    color: colors.label,
+    fontSize: 17,
     fontWeight: 600,
   },
   content: {
@@ -131,19 +134,21 @@ const styles: Record<string, CSSProperties> = {
     minWidth: 0,
   },
   name: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: 400,
-    marginBottom: 2,
+    color: colors.label,
+    ...typography.body,
+    marginBottom: 1,
   },
   phoneNumber: {
-    color: '#71767B',
-    fontSize: 15,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
   },
-  chevron: {
-    color: '#71767B',
-    fontSize: 24,
-    fontWeight: 300,
+  separator: {
+    position: 'absolute',
+    left: ROW_INSET,
+    right: 0,
+    bottom: 0,
+    height: 1,
+    background: colors.separator,
   },
   deleteButton: {
     position: 'absolute',
@@ -151,14 +156,14 @@ const styles: Record<string, CSSProperties> = {
     top: 0,
     bottom: 0,
     minWidth: DELETE_BUTTON_WIDTH,
-    background: '#FF3B30',
+    background: colors.red,
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: colors.label,
+    ...typography.subhead,
     fontWeight: 600,
   },
 };

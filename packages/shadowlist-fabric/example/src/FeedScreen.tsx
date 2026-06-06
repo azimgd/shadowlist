@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import {
   FeedElement,
   type FeedElement as FeedElementType,
@@ -9,6 +9,7 @@ import {
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { generateFeedElement } from './constants';
+import { colors } from './theme';
 
 export const FeedScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
@@ -32,9 +33,17 @@ export const FeedScreen = () => {
     setData((prev) => [...prev, ...newElements]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    shadowlistRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -75,7 +84,7 @@ export const FeedScreen = () => {
     () =>
       loadingMore ? (
         <View style={styles.loadingFooter}>
-          <ActivityIndicator color="#FF9500" />
+          <ActivityIndicator color={colors.secondaryLabel} />
         </View>
       ) : (
         <FooterListItem text="End of feed" />
@@ -90,10 +99,9 @@ export const FeedScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         autoHideHeader
-        autoHideFooter
         refreshing={refreshing}
         onRefresh={handleRefresh}
-        refreshColor="#FF9500"
+        refreshColor={colors.secondaryLabel}
         onEndReached={handleEndReached}
         renderElement={({ element, index }) => (
           <FeedElement element={element} index={index} />
@@ -103,12 +111,6 @@ export const FeedScreen = () => {
         }
         ListFooterComponent={footer}
       />
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={data.length}
-      />
     </View>
   );
 };
@@ -116,11 +118,11 @@ export const FeedScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   loadingFooter: {
     padding: 16,

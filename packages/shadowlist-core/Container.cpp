@@ -5,7 +5,9 @@ namespace azimgd::shadowlist {
 
 namespace {
 // Debug-only: the key at an emitted index, so JS and native logs correlate by content.
-const char* emitKeyAt(const std::vector<Element>& elements, std::size_t index) {
+// Only referenced inside SL_LOG, which compiles to a no-op unless SHADOWLIST_DEBUG_LOG
+// is set, so mark it maybe_unused to stay clean under -Werror=unused-function.
+[[maybe_unused]] const char* emitKeyAt(const std::vector<Element>& elements, std::size_t index) {
   if (index < elements.size()) {
     return elements[index].key.empty() ? "(empty)" : elements[index].key.c_str();
   }

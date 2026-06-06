@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { AVATAR_COLORS } from './constants';
+import { colors, typography, radius } from './theme';
 
 interface ChatElementProps {
   id: string;
@@ -127,29 +128,16 @@ export const ChatElement = memo(
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
         )}
-        <View
-          style={[
-            styles.bubble,
-            isFromMe ? styles.bubbleFromMe : styles.bubbleFromThem,
-          ]}
-        >
-          <Text style={styles.username}>
-            {username} · {index}
-          </Text>
-          <Text
+        <View style={styles.bubbleColumn}>
+          {!isFromMe && <Text style={styles.sender}>{username}</Text>}
+          <View
             style={[
-              styles.text,
-              isFromMe ? styles.textFromMe : styles.textFromThem,
+              styles.bubble,
+              isFromMe ? styles.bubbleFromMe : styles.bubbleFromThem,
             ]}
           >
-            {text}
-          </Text>
-          <Text style={styles.timestamp}>
-            {new Date().toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
+            <Text style={styles.text}>{text}</Text>
+          </View>
         </View>
       </View>
     );
@@ -170,63 +158,53 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
   },
   avatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     marginRight: 8,
     marginBottom: 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    color: '#FFFFFF',
+    color: colors.label,
     fontSize: 12,
     fontWeight: '600',
+  },
+  bubbleColumn: {
+    maxWidth: '75%',
+  },
+  sender: {
+    color: colors.secondaryLabel,
+    ...typography.caption,
+    marginLeft: 12,
+    marginBottom: 2,
   },
   bubble: {
-    maxWidth: '75%',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginVertical: 2,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.lg + 2,
   },
   bubbleFromMe: {
-    backgroundColor: '#0A84FF',
-    borderBottomRightRadius: 4,
+    backgroundColor: colors.blue,
+    borderBottomRightRadius: 5,
+    alignSelf: 'flex-end',
   },
   bubbleFromThem: {
-    backgroundColor: '#2C2C2E',
-    borderBottomLeftRadius: 4,
-  },
-  username: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-    opacity: 0.8,
+    backgroundColor: colors.elevated2,
+    borderBottomLeftRadius: 5,
+    alignSelf: 'flex-start',
   },
   text: {
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  textFromMe: {
-    color: '#FFFFFF',
-  },
-  textFromThem: {
-    color: '#FFFFFF',
-  },
-  timestamp: {
-    fontSize: 12,
-    marginTop: 4,
-    opacity: 0.5,
-    color: '#FFFFFF',
+    color: colors.label,
+    ...typography.body,
   },
   singleImageContainer: {
     width: 240,
     height: 320,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     overflow: 'hidden',
-    backgroundColor: '#2F3336',
+    backgroundColor: colors.elevated2,
     marginVertical: 2,
   },
   singleImage: {
@@ -246,9 +224,9 @@ const styles = StyleSheet.create({
   imageGridElement: {
     width: 119,
     height: 119,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     overflow: 'hidden',
-    backgroundColor: '#2F3336',
+    backgroundColor: colors.elevated2,
   },
   imageGridImage: {
     width: '100%',

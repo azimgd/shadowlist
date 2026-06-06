@@ -1,9 +1,11 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TreeList, type TreeListCommands } from 'shadowlist';
 import { HeaderListItem } from './HeaderListItem';
 import { TreeElement, type TreeFileNode } from './TreeElement';
 import { generateFileTree } from './constants';
+import { colors, typography } from './theme';
 
 /* Collect every folder id in the tree; used by "Expand all". */
 const collectFolderIds = (nodes: TreeFileNode[]): string[] => {
@@ -24,6 +26,7 @@ const keyExtractor = (node: TreeFileNode) => node.id;
 
 export const TreeScreen = () => {
   const treeRef = useRef<TreeListCommands>(null);
+  const insets = useSafeAreaInsets();
 
   const tree = useMemo(() => generateFileTree(), []);
   const allFolderIds = useMemo(() => collectFolderIds(tree), [tree]);
@@ -82,12 +85,20 @@ export const TreeScreen = () => {
           <HeaderListItem title="Files" subtitle="Virtualized directory tree" />
         }
       />
-      <View style={styles.bar}>
-        <Pressable style={styles.button} onPress={expandAll}>
-          <Text style={styles.buttonText}>Expand all</Text>
+      <View
+        style={[styles.toolbar, { paddingBottom: (insets.bottom || 8) + 8 }]}
+      >
+        <Pressable
+          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          onPress={expandAll}
+        >
+          <Text style={styles.buttonText}>Expand All</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={collapseAll}>
-          <Text style={styles.buttonText}>Collapse all</Text>
+        <Pressable
+          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          onPress={collapseAll}
+        >
+          <Text style={styles.buttonText}>Collapse All</Text>
         </Pressable>
       </View>
     </View>
@@ -97,30 +108,32 @@ export const TreeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
-  bar: {
+  // iOS bottom toolbar: translucent bar with a hairline top edge.
+  toolbar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    paddingVertical: 12,
+    alignItems: 'center',
+    paddingTop: 10,
     paddingHorizontal: 16,
-    backgroundColor: '#111111',
+    backgroundColor: colors.elevated,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2F3336',
+    borderTopColor: colors.separator,
   },
   button: {
-    paddingVertical: 8,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    backgroundColor: '#FF9500',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  pressed: {
+    opacity: 0.4,
   },
   buttonText: {
-    color: '#000000',
-    fontWeight: '700',
-    fontSize: 14,
+    color: colors.accent,
+    ...typography.body,
   },
 });

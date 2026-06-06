@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
-import { FloatingActionBar } from './FloatingActionBar';
+import { useHeaderActions } from './HeaderActions';
 import {
   NestedElement,
   type NestedElement as NestedElementType,
@@ -9,6 +9,7 @@ import {
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { generateNestedElement } from './constants';
+import { colors } from './theme';
 
 export const NestedScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
@@ -32,9 +33,17 @@ export const NestedScreen = () => {
     setData((prev) => [...prev, ...newElements]);
   };
 
-  const handleScrollToIndex = (index: number) => {
-    shadowlistRef.current?.scrollToIndex(index);
+  const handleScrollToRandom = () => {
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
 
   return (
     <View style={styles.container}>
@@ -50,12 +59,6 @@ export const NestedScreen = () => {
         }
         ListFooterComponent={<FooterListItem text="End of nested list" />}
       />
-      <FloatingActionBar
-        onPrepend={handlePrepend}
-        onAppend={handleAppend}
-        onScrollToIndex={handleScrollToIndex}
-        dataLength={data.length}
-      />
     </View>
   );
 };
@@ -63,11 +66,10 @@ export const NestedScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: colors.background,
   },
   list: {
     flex: 1,
-    backgroundColor: '#000000',
-    height: 300,
+    backgroundColor: colors.background,
   },
 });

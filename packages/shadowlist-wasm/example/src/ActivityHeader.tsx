@@ -1,4 +1,5 @@
 import { memo, type CSSProperties } from 'react';
+import { colors, typography, radius } from './theme';
 
 interface ActivityHeaderProps {
   startThreshold: number;
@@ -23,7 +24,7 @@ export const ActivityHeader = memo(
     return (
       <div style={styles.container}>
         <span style={styles.title}>Activity</span>
-        <span style={styles.subtitle}>Imperative scroll & reach thresholds</span>
+        <span style={styles.subtitle}>Imperative scroll &amp; reach thresholds</span>
 
         <div style={styles.row}>
           <button type="button" style={styles.action} onClick={onScrollToOffset}>
@@ -56,36 +57,33 @@ const styles: Record<string, CSSProperties> = {
   container: {
     display: 'flex',
     flexDirection: 'column',
-    background: '#000000',
-    padding: 12,
-    marginBottom: 12,
-    borderBottom: '1px solid #2F3336',
+    background: colors.background,
+    padding: '4px 16px 12px',
   },
   title: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 700,
+    color: colors.label,
+    ...typography.largeTitle,
   },
   subtitle: {
-    color: '#71767B',
-    fontSize: 13,
-    marginTop: 4,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
+    marginTop: 2,
   },
   row: {
     display: 'flex',
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
+    marginTop: 14,
   },
   action: {
     appearance: 'none',
     border: 'none',
-    background: '#FF9500',
-    borderRadius: 16,
-    padding: '7px 12px',
-    color: '#FFFFFF',
-    fontSize: 13,
+    background: colors.accentSoft,
+    borderRadius: radius.sm,
+    padding: '8px 14px',
+    color: colors.accent,
+    ...typography.footnote,
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -95,20 +93,20 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    background: '#1C1C1E',
-    borderRadius: 16,
-    border: '1px solid #2F3336',
-    padding: '7px 12px',
+    background: colors.elevated,
+    borderRadius: radius.sm,
+    border: 'none',
+    padding: '8px 14px',
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
   chipLabel: {
-    color: '#71767B',
-    fontSize: 13,
+    color: colors.secondaryLabel,
+    ...typography.footnote,
   },
   chipValue: {
-    color: '#FF9500',
-    fontSize: 13,
+    color: colors.accent,
+    ...typography.footnote,
     fontWeight: 700,
   },
 };

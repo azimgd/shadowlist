@@ -115,6 +115,7 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _scrollView.verticalScrollIndicatorInsets = UIEdgeInsetsZero;
   _refreshing = NO;
   _refreshEnabled = NO;
+  _refreshAwaitingSettle = NO;
   _refreshColor = nil;
   if (_refreshControl) {
     [_refreshControl endRefreshing];
@@ -221,6 +222,14 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 
   if (refreshing == _refreshing) return;
   _refreshing = refreshing;
+
+  if (!refreshing) {
+    // Refresh ended: fire onRefreshSettle once the retract spring settles (see
+    // scheduleRefreshSettle), so JS applies a held prepend on a free scroll view.
+    _refreshAwaitingSettle = YES;
+    [self scheduleRefreshSettle];
+  }
+
   if (!_refreshControl) return;
 
   if (refreshing) {
@@ -244,6 +253,37 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 {
   if (!_eventEmitter) return;
   std::static_pointer_cast<const ShadowlistViewEventEmitter>(_eventEmitter)->onRefresh({});
+}
+
+// Tell JS the refresh spinner has fully retracted, so it can apply a held refresh-prepend.
+- (void)emitRefreshSettle
+{
+  if (!_eventEmitter) return;
+  std::static_pointer_cast<const ShadowlistViewEventEmitter>(_eventEmitter)->onRefreshSettle({});
+}
+
+// Debounced settle: each call bumps the token and arms a delayed check that fires only for
+// the latest token, so it lands one window after the last retract-spring frame (spring at
+// rest). Re-arms while a finger is down or the offset is still below the top.
+- (void)scheduleRefreshSettle
+{
+  _refreshSettleToken += 1;
+  NSInteger token = _refreshSettleToken;
+  __weak ShadowlistView *weakSelf = self;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    ShadowlistView *strongSelf = weakSelf;
+    if (!strongSelf) return;
+    if (token != strongSelf->_refreshSettleToken) return;        // a later frame rescheduled
+    if (!strongSelf->_refreshAwaitingSettle || strongSelf->_refreshing) return;
+    // Not settled yet (finger still down, or band not fully retracted): keep waiting.
+    if (strongSelf->_scrollView.isDragging || strongSelf->_scrollView.isTracking ||
+        strongSelf->_scrollView.contentOffset.y < -1.0) {
+      [strongSelf scheduleRefreshSettle];
+      return;
+    }
+    strongSelf->_refreshAwaitingSettle = NO;
+    [strongSelf emitRefreshSettle];
+  });
 }
 
 // Push the refresh spinner below a pinned (sticky/auto-hide) header so it is not covered.
@@ -316,6 +356,12 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 {
   if (!_state) {
     return;
+  }
+
+  // The retract spring bounces the offset around the top, firing this each frame. Push the
+  // settle out per frame so it fires only after the spring stops (see scheduleRefreshSettle).
+  if (_refreshAwaitingSettle) {
+    [self scheduleRefreshSettle];
   }
 
   // During refresh or the over-scroll gap above the top, skip the core update (it would

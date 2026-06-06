@@ -1,4 +1,5 @@
 import { memo, type CSSProperties } from 'react';
+import { colors, typography } from './theme';
 
 interface FooterListItemProps {
   text?: string;
@@ -17,13 +18,11 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    background: '#000000',
-    padding: '20px 12px',
-    marginTop: 8,
-    borderBottom: '1px solid #2F3336',
+    background: colors.background,
+    padding: '20px 16px',
   },
   text: {
-    color: '#71767B',
-    fontSize: 14,
+    color: colors.secondaryLabel,
+    ...typography.footnote,
   },
 };

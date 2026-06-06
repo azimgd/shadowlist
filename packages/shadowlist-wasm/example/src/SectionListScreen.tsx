@@ -1,6 +1,7 @@
 import { memo, useMemo, type CSSProperties } from 'react';
 import { SectionList, type SectionListData } from 'shadowlist-wasm';
 import { AVATAR_COLORS, generateContact } from './constants';
+import { colors, typography, ROW_INSET } from './theme';
 import type { ContactElement as ContactElementType } from './ContactElement';
 
 type Section = SectionListData<ContactElementType, { title: string }>;
@@ -19,6 +20,7 @@ const ContactRow = memo(
           </span>
           <span style={styles.phone}>{item.phoneNumber}</span>
         </div>
+        <div style={styles.separator} />
       </div>
     );
   }
@@ -68,28 +70,28 @@ const styles: Record<string, CSSProperties> = {
     flexDirection: 'column',
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   list: {
     flex: 1,
     minHeight: 0,
-    background: '#000000',
+    background: colors.background,
   },
   sectionHeader: {
-    background: '#111113',
-    color: '#FF9500',
-    fontSize: 14,
-    fontWeight: 700,
-    padding: '6px 16px',
-    borderBottom: '1px solid #2F3336',
+    background: colors.elevated,
+    color: colors.secondaryLabel,
+    ...typography.footnote,
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    padding: '10px 16px',
     boxSizing: 'border-box',
   },
   row: {
+    position: 'relative',
     display: 'flex',
     alignItems: 'center',
     padding: '12px 16px',
-    background: '#000000',
-    borderBottom: '1px solid #1C1C1E',
+    background: colors.background,
     boxSizing: 'border-box',
   },
   avatar: {
@@ -103,23 +105,31 @@ const styles: Record<string, CSSProperties> = {
     flexShrink: 0,
   },
   initials: {
-    color: '#FFFFFF',
-    fontSize: 15,
+    color: colors.label,
+    fontSize: 17,
     fontWeight: 600,
   },
   rowText: {
     display: 'flex',
     flexDirection: 'column',
     flex: 1,
+    minWidth: 0,
   },
   name: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 500,
+    color: colors.label,
+    ...typography.body,
   },
   phone: {
-    color: '#8E8E93',
-    fontSize: 13,
-    marginTop: 2,
+    color: colors.secondaryLabel,
+    ...typography.subhead,
+    marginTop: 1,
+  },
+  separator: {
+    position: 'absolute',
+    left: ROW_INSET,
+    right: 0,
+    bottom: 0,
+    height: 1,
+    background: colors.separator,
   },
 };
