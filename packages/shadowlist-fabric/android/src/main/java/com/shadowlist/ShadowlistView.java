@@ -11,12 +11,16 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
+import com.facebook.react.uimanager.UIManagerHelper;
+import com.facebook.react.uimanager.events.EventDispatcher;
 import com.facebook.react.views.scroll.ReactHorizontalScrollView;
 import com.facebook.react.views.scroll.ReactScrollView;
 
@@ -70,6 +74,18 @@ public class ShadowlistView extends FrameLayout {
    * to 0. Held to diff against the next value for the delta.
    */
   private int mContentInsetBottom = 0;
+
+  /*
+   * Pull-to-refresh. A vertical list is hosted in a SwipeRefreshLayout (null for
+   * horizontal) which owns the gesture and the native circle indicator (the same widget
+   * RN uses). mRefreshEnabled (driven by the presence of an onRefresh handler) toggles
+   * the gesture; mRefreshing is the controlled spinner state; mRefreshColor tints the
+   * arc (the refreshColor prop). All held so an axis-flip re-install restores them.
+   */
+  @Nullable private SwipeRefreshLayout mRefreshLayout = null;
+  private boolean mRefreshEnabled = false;
+  private boolean mRefreshing = false;
+  @Nullable private Integer mRefreshColor = null;
 
   /*
    * A programmatic scroll we issued (a core correction, or scrollToOffset/End) is in
@@ -167,7 +183,13 @@ public class ShadowlistView extends FrameLayout {
   private void installScrollView(boolean horizontal) {
     if (mScrollView != null) {
       mScrollView.removeView(mContentView);
-      removeView(mScrollView);
+      if (mRefreshLayout != null) {
+        mRefreshLayout.removeView(mScrollView);
+        removeView(mRefreshLayout);
+        mRefreshLayout = null;
+      } else {
+        removeView(mScrollView);
+      }
     }
 
     Context context = getContext();
@@ -194,8 +216,64 @@ public class ShadowlistView extends FrameLayout {
     }
 
     mScrollView.addView(mContentView);
-    addView(mScrollView, new FrameLayout.LayoutParams(
-      FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+    if (!horizontal) {
+      // Host the vertical list in a SwipeRefreshLayout so the standard pull-to-refresh
+      // gesture / spinner is available; gated by mRefreshEnabled.
+      mRefreshLayout = new SwipeRefreshLayout(context);
+      mRefreshLayout.setOnRefreshListener(this::emitRefresh);
+      mRefreshLayout.setEnabled(mRefreshEnabled);
+      if (mRefreshColor != null) {
+        mRefreshLayout.setColorSchemeColors(mRefreshColor);
+      }
+      mRefreshLayout.addView(mScrollView, new ViewGroup.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+      addView(mRefreshLayout, new FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+    } else {
+      addView(mScrollView, new FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+    }
+  }
+
+  /*
+   * Pull-to-refresh. setRefreshEnabled toggles the gesture (the JS layer passes the
+   * presence of an onRefresh handler); setRefreshing drives the controlled state. The
+   * user pull fires emitRefresh -> the onRefresh event; the spinner is then owned by the
+   * controlled refreshing prop, and setRefreshColor tints the native circle.
+   */
+  public void setRefreshEnabled(boolean enabled) {
+    mRefreshEnabled = enabled;
+    if (mRefreshLayout != null) {
+      mRefreshLayout.setEnabled(enabled);
+    }
+  }
+
+  public void setRefreshing(boolean refreshing) {
+    if (refreshing == mRefreshing) {
+      return;
+    }
+    mRefreshing = refreshing;
+    if (mRefreshLayout != null) {
+      mRefreshLayout.setRefreshing(refreshing);
+    }
+  }
+
+  public void setRefreshColor(@Nullable Integer color) {
+    mRefreshColor = color;
+    if (mRefreshLayout != null && color != null) {
+      mRefreshLayout.setColorSchemeColors(color);
+    }
+  }
+
+  private void emitRefresh() {
+    ReactContext reactContext = (ReactContext) getContext();
+    EventDispatcher dispatcher =
+      UIManagerHelper.getEventDispatcherForReactTag(reactContext, getId());
+    if (dispatcher != null) {
+      dispatcher.dispatchEvent(
+        new ShadowlistRefreshEvent(UIManagerHelper.getSurfaceId(this), getId()));
+    }
   }
 
   /*

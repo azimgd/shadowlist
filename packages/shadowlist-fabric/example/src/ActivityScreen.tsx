@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { ActivityElement } from './ActivityElement';
 import { ActivityHeader } from './ActivityHeader';
@@ -28,14 +28,43 @@ export const ActivityScreen = () => {
     []
   );
 
-  // append more rows as the bottom edge is reached.
+  // Loading-more (pagination) indicator. There's no dedicated prop — render an
+  // ActivityIndicator in ListFooterComponent while a loading flag is set (the
+  // companion to onEndReached). The ref guards against the edge re-firing mid-load.
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingRef = useRef(false);
+
   const handleEndReached = useCallback(() => {
-    setData((prev) => [
-      ...prev,
-      ...Array.from({ length: 20 }, (_, index) =>
-        buildActivity(prev.length + index)
-      ),
-    ]);
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    // The timeout stands in for a network fetch.
+    setTimeout(() => {
+      setData((prev) => [
+        ...prev,
+        ...Array.from({ length: 20 }, (_, index) =>
+          buildActivity(prev.length + index)
+        ),
+      ]);
+      setLoadingMore(false);
+      loadingRef.current = false;
+    }, 1000);
+  }, []);
+
+  // Pull-to-refresh: prepend a fresh batch, then clear the spinner. The native
+  // refresh control is the loading indicator here (the footer ActivityIndicator above
+  // is the companion for loading *more* at the end). The timeout stands in for a fetch.
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setData((prev) => [
+        ...Array.from({ length: 10 }, (_, index) => buildActivity(index)),
+        ...prev,
+      ]);
+      setRefreshing(false);
+    }, 1200);
   }, []);
 
   const handleScrollToOffset = useCallback(
@@ -67,8 +96,15 @@ export const ActivityScreen = () => {
   );
 
   const footer = useMemo(
-    () => <FooterListItem text={`Viewable indices: ${viewableLabel}`} />,
-    [viewableLabel]
+    () =>
+      loadingMore ? (
+        <View style={styles.loadingFooter}>
+          <ActivityIndicator color="#FF9500" />
+        </View>
+      ) : (
+        <FooterListItem text={`Viewable indices: ${viewableLabel}`} />
+      ),
+    [loadingMore, viewableLabel]
   );
 
   return (
@@ -86,6 +122,9 @@ export const ActivityScreen = () => {
         containerOffsetIndex={30}
         stickyHeader
         stickyFooter
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        refreshColor="#FF9500"
         ListHeaderComponent={header}
         ListFooterComponent={footer}
         ItemSeparatorComponent={<ListItemSeparator />}
@@ -105,5 +144,9 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  loadingFooter: {
+    padding: 16,
+    alignItems: 'center',
   },
 });

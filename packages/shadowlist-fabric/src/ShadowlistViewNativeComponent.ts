@@ -3,6 +3,7 @@ import {
   codegenNativeCommands,
   type ViewProps,
   type CodegenTypes,
+  type ColorValue,
   type HostComponent,
 } from 'react-native';
 
@@ -19,6 +20,12 @@ export type OnViewableIndicesChange = {
 export type OnStartReached = {};
 
 export type OnEndReached = {};
+
+/*
+ * Pull-to-refresh. Fired when the user pulls past the refresh threshold at the start
+ * of a vertical list (native UIRefreshControl on iOS, SwipeRefreshLayout on Android).
+ */
+export type OnRefresh = {};
 
 export type OnScroll = {
   contentOffsetX: CodegenTypes.Double;
@@ -99,6 +106,15 @@ interface NativeProps extends ViewProps {
    * keyboardAvoidingEnabled); 0 when no inset is applied. Vertical lists only.
    */
   contentInsetBottom: CodegenTypes.Double;
+  /*
+   * Pull-to-refresh. `refreshEnabled` installs the native refresh control (the JS
+   * layer sets it from the presence of an onRefresh handler); `refreshing` is the
+   * controlled spinner state; `refreshColor` tints the native indicator (the spinner
+   * on iOS, the arc on Android). Vertical lists only.
+   */
+  refreshEnabled: boolean;
+  refreshing: boolean;
+  refreshColor?: ColorValue;
   startReachedThreshold: CodegenTypes.Double;
   endReachedThreshold: CodegenTypes.Double;
   viewablePercentThreshold: CodegenTypes.Double;
@@ -107,6 +123,7 @@ interface NativeProps extends ViewProps {
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;
   readonly onEndReached?: CodegenTypes.DirectEventHandler<OnEndReached>;
   readonly onScroll?: CodegenTypes.DirectEventHandler<OnScroll>;
+  readonly onRefresh?: CodegenTypes.DirectEventHandler<OnRefresh>;
   readonly onDragStart?: CodegenTypes.DirectEventHandler<OnDragStart>;
   readonly onDragEnd?: CodegenTypes.DirectEventHandler<OnDragEnd>;
 }

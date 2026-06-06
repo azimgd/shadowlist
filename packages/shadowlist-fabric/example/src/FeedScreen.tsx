@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useState, useRef, useCallback, useMemo } from 'react';
+import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
 import {
@@ -36,6 +36,55 @@ export const FeedScreen = () => {
     shadowlistRef.current?.scrollToIndex(index);
   };
 
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Pull-to-refresh: prepend a fresh batch, then clear the native spinner. The
+  // timeout stands in for a network fetch.
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setData((prev) => [
+        ...Array.from({ length: 10 }, (_, index) => generateFeedElement(index)),
+        ...prev,
+      ]);
+      setRefreshing(false);
+    }, 1200);
+  }, []);
+
+  // Loading-more (infinite scroll): append the next page as the end is reached, with
+  // a footer ActivityIndicator while it loads. The ref guards the edge from
+  // re-firing mid-load; the timeout stands in for a network fetch.
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingRef = useRef(false);
+
+  const handleEndReached = useCallback(() => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    setTimeout(() => {
+      setData((prev) => [
+        ...prev,
+        ...Array.from({ length: 20 }, (_, index) =>
+          generateFeedElement(prev.length + index)
+        ),
+      ]);
+      setLoadingMore(false);
+      loadingRef.current = false;
+    }, 1000);
+  }, []);
+
+  const footer = useMemo(
+    () =>
+      loadingMore ? (
+        <View style={styles.loadingFooter}>
+          <ActivityIndicator color="#FF9500" />
+        </View>
+      ) : (
+        <FooterListItem text="End of feed" />
+      ),
+    [loadingMore]
+  );
+
   return (
     <View style={styles.container}>
       <Shadowlist
@@ -44,13 +93,17 @@ export const FeedScreen = () => {
         style={styles.list}
         autoHideHeader
         autoHideFooter
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        refreshColor="#FF9500"
+        onEndReached={handleEndReached}
         renderElement={({ element, index }) => (
           <FeedElement element={element} index={index} />
         )}
         ListHeaderComponent={
           <HeaderListItem title="Feed" subtitle="Vertical scrolling list" />
         }
-        ListFooterComponent={<FooterListItem text="End of feed" />}
+        ListFooterComponent={footer}
       />
       <FloatingActionBar
         onPrepend={handlePrepend}
@@ -70,5 +123,9 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     backgroundColor: '#000000',
+  },
+  loadingFooter: {
+    padding: 16,
+    alignItems: 'center',
   },
 });

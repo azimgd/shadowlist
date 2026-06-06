@@ -230,6 +230,51 @@ const [data, setData] = useState(rows);
 | `dragEnabled` | `boolean` | `false` | Enable long-press drag-to-reorder |
 | `onReorder` | `({ from, to, data }) => void` | `undefined` | Fires once on drop; `data` is the reordered array, `from` / `to` the moved indices |
 
+## Pull To Refresh
+
+Provide `onRefresh` to enable pull-to-refresh and drive the indicator with the
+controlled `refreshing` flag. It uses the platform-native control — `UIRefreshControl`
+on iOS, `SwipeRefreshLayout` on Android — so the gesture and physics match the OS
+exactly (this is what React Native's own `RefreshControl` does). Tint the indicator with
+`refreshColor`. Vertical lists only; available on `Shadowlist`, `SectionList` and
+`TreeList`.
+
+```tsx
+const [refreshing, setRefreshing] = useState(false);
+
+const onRefresh = () => {
+  setRefreshing(true);
+  fetchLatest().then(() => setRefreshing(false));
+};
+
+<Shadowlist
+  data={data}
+  refreshing={refreshing}
+  onRefresh={onRefresh}
+  refreshColor="#FF9500"
+  renderElement={({ element }) => <Row item={element} />}
+/>;
+```
+
+| Prop | Type | Default | Notes |
+| --- | --- | --- | --- |
+| `onRefresh` | `() => void` | `undefined` | Fires on pull past the threshold; its presence enables the gesture |
+| `refreshing` | `boolean` | `false` | Controlled state — set true on refresh, false when done |
+| `refreshColor` | `ColorValue` | platform default | Tints the native indicator (the iOS spinner, the Android arc) |
+
+For a **loading-more** spinner at the bottom (the `onEndReached` companion), there's no
+dedicated prop — render an `ActivityIndicator` in `ListFooterComponent` while your load
+is in flight:
+
+```tsx
+<Shadowlist
+  data={data}
+  onEndReached={loadMore}
+  ListFooterComponent={loadingMore ? <ActivityIndicator /> : null}
+  renderElement={({ element }) => <Row item={element} />}
+/>
+```
+
 ## Keyboard
 
 Dependency-free — no `react-native-keyboard-controller`, no `reanimated`. Three tools:

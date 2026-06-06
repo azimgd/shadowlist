@@ -70,6 +70,9 @@ function SectionListInner<ItemT, SectionT = object>(
     containerOffsetIndex,
     keyboardAvoidingEnabled,
     keyboardAvoidingOffset,
+    refreshing,
+    onRefresh,
+    refreshColor,
     onScroll,
     onStartReached,
     onEndReached,
@@ -236,6 +239,9 @@ function SectionListInner<ItemT, SectionT = object>(
       containerOffsetIndex={containerOffsetIndex}
       keyboardAvoidingEnabled={keyboardAvoidingEnabled}
       keyboardAvoidingOffset={keyboardAvoidingOffset}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      refreshColor={refreshColor}
       onScroll={onScroll}
       onStartReached={onStartReached}
       onEndReached={onEndReached}

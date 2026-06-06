@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { ViewStyle } from 'react-native';
+import type { ViewStyle, ColorValue } from 'react-native';
 import type { OnScroll } from './ShadowlistViewNativeComponent';
 
 /*
@@ -100,6 +100,19 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
    * safe-area inset already applied below the list. Defaults to 0.
    */
   keyboardAvoidingOffset?: number;
+  /*
+   * Pull-to-refresh (vertical lists only). Provide onRefresh to enable it; it fires when
+   * the user pulls past the threshold. Drive the native indicator (UIRefreshControl on
+   * iOS, SwipeRefreshLayout on Android) with the controlled `refreshing` flag - set it
+   * true when the refresh starts and back to false when the data has loaded.
+   */
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  /*
+   * Tint for the native pull-to-refresh indicator (the spinner on iOS, the arc on
+   * Android). Defaults to the platform default.
+   */
+  refreshColor?: ColorValue;
   initialElementsSize?: number;
   onStartReached?: () => void;
   onEndReached?: () => void;
@@ -184,6 +197,11 @@ export interface SectionListProps<ItemT, SectionT = object> {
   keyboardAvoidingEnabled?: boolean;
   /* See ShadowlistProps.keyboardAvoidingOffset. */
   keyboardAvoidingOffset?: number;
+  /* See ShadowlistProps.refreshing / onRefresh. */
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  /* See ShadowlistProps.refreshColor. */
+  refreshColor?: ColorValue;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
   onStartReached?: () => void;
   onEndReached?: () => void;
@@ -287,6 +305,11 @@ export interface TreeListProps<ItemT> {
   keyboardAvoidingEnabled?: boolean;
   /* See ShadowlistProps.keyboardAvoidingOffset. */
   keyboardAvoidingOffset?: number;
+  /* See ShadowlistProps.refreshing / onRefresh. */
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  /* See ShadowlistProps.refreshColor. */
+  refreshColor?: ColorValue;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
   onStartReached?: () => void;
   onEndReached?: () => void;

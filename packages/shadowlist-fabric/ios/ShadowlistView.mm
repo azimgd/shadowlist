@@ -7,6 +7,7 @@
 #import <react/renderer/components/ShadowlistViewSpec/RCTComponentViewHelpers.h>
 
 #import "RCTFabricComponentsPlugins.h"
+#import <React/RCTConversions.h>
 
 #include <cmath>
 
@@ -128,6 +129,14 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _contentInsetBottom = 0.0;
   _scrollView.contentInset = UIEdgeInsetsZero;
   _scrollView.verticalScrollIndicatorInsets = UIEdgeInsetsZero;
+  _refreshing = NO;
+  _refreshEnabled = NO;
+  _refreshColor = nil;
+  if (_refreshControl) {
+    [_refreshControl endRefreshing];
+    _scrollView.refreshControl = nil;
+    _refreshControl = nil;
+  }
   _sectionHeaderOverlay = nil;
   _stickyHeaderIndices.clear();
   _stickyHeaderOffsets.clear();
@@ -150,6 +159,9 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _dragRecognizer.enabled = _dragEnabled;
 
   [self applyContentInsetBottom:nextProps.contentInsetBottom];
+  [self applyRefreshState:nextProps.refreshEnabled
+                refreshing:nextProps.refreshing
+                     color:RCTUIColorFromSharedColor(nextProps.refreshColor)];
 
   [super updateProps:props oldProps:oldProps];
 
@@ -203,6 +215,91 @@ static const CGFloat kScrollEchoTolerance = 2.0;
                    completion:nil];
 }
 
+/*
+ * Pull-to-refresh. A native UIRefreshControl attached via scrollView.refreshControl, so
+ * UIKit owns the gap / bounce / settle physics (the same way RN's RCTRefreshControl does);
+ * hand-managing contentInset/contentOffset instead fights UIKit and snaps on release. The
+ * spinner is tinted by the refreshColor prop.
+ */
+- (UIRefreshControl *)ensureRefreshControl
+{
+  if (!_refreshControl) {
+    _refreshControl = [[UIRefreshControl alloc] init];
+    [_refreshControl addTarget:self
+                        action:@selector(handleRefreshValueChanged)
+              forControlEvents:UIControlEventValueChanged];
+    if (_refreshColor) _refreshControl.tintColor = _refreshColor;
+  }
+  return _refreshControl;
+}
+
+/*
+ * Install / remove the control with refreshEnabled (the presence of an onRefresh handler),
+ * apply the tint, and begin / end it from the controlled `refreshing` prop. The user pull
+ * auto-begins the control and fires onRefresh; a programmatic begin also nudges the offset
+ * to reveal the spinner (UIRefreshControl shows but does not scroll itself into view),
+ * mirroring RCTRefreshControl. We only begin/end on a real change of the prop.
+ */
+- (void)applyRefreshState:(BOOL)enabled refreshing:(BOOL)refreshing color:(UIColor *)color
+{
+  _refreshColor = color;
+
+  if (enabled && !_scrollView.refreshControl) {
+    _scrollView.refreshControl = [self ensureRefreshControl];
+  } else if (!enabled && _scrollView.refreshControl) {
+    [_refreshControl endRefreshing];
+    _scrollView.refreshControl = nil;
+  }
+  _refreshEnabled = enabled;
+  if (_refreshControl && color) _refreshControl.tintColor = color;
+  [self applyRefreshProgressOffset];
+
+  if (refreshing == _refreshing) return;
+  _refreshing = refreshing;
+  if (!_refreshControl) return;
+
+  if (refreshing) {
+    if (!_refreshControl.isRefreshing) {
+      [_refreshControl beginRefreshing];
+      // Reveal the spinner for a programmatic refresh (a pull already revealed it).
+      if (!_dragging && !_dragDropPending && _scrollView.contentOffset.y >= 0) {
+        CGFloat reveal = _refreshControl.frame.size.height > 0
+          ? _refreshControl.frame.size.height : 60.0;
+        [_scrollView setContentOffset:CGPointMake(_scrollView.contentOffset.x,
+                                                  _scrollView.contentOffset.y - reveal)
+                             animated:YES];
+      }
+    }
+  } else {
+    [_refreshControl endRefreshing];
+  }
+}
+
+- (void)handleRefreshValueChanged
+{
+  if (!_eventEmitter) return;
+  std::static_pointer_cast<const ShadowlistViewEventEmitter>(_eventEmitter)->onRefresh({});
+}
+
+/*
+ * Push the refresh indicator below a pinned header. A sticky / auto-hide header sits at
+ * the viewport top, so the spinner - which UIKit places at the very top - would render
+ * behind it. Shifting the control's bounds origin moves its content (the spinner) down by
+ * the header's height, so it shows just under the header (the same `progressViewOffset`
+ * mechanism RN uses). A plain header scrolls away with the content and needs no offset.
+ */
+- (void)applyRefreshProgressOffset
+{
+  if (!_refreshControl) return;
+  CGFloat offset = 0.0;
+  if ((_stickyHeader || _autoHideHeader) && _stickyHeaderView) {
+    offset = _stickyHeaderView.frame.size.height;
+  }
+  CGRect bounds = _refreshControl.bounds;
+  if (bounds.origin.y == -offset) return;
+  _refreshControl.bounds = CGRectMake(bounds.origin.x, -offset, bounds.size.width, bounds.size.height);
+}
+
 #pragma mark - State
 
 - (void)updateState:(const State::Shared &)state oldState:(const State::Shared &)oldState
@@ -253,6 +350,9 @@ static const CGFloat kScrollEchoTolerance = 2.0;
    */
   [self applyStickyTransforms:NO];
 
+  // The header may have (re)measured this commit; push the refresh indicator below it.
+  [self applyRefreshProgressOffset];
+
   /*
    * Mid-drag commit (e.g. an auto-scroll re-virtualization mounted new rows): re-glue
    * the picked-up row to the finger and re-apply the make-room shuffle so freshly
@@ -276,6 +376,20 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 - (void)scrollViewDidScroll:(UIScrollView *)scrollView
 {
   if (!_state) {
+    return;
+  }
+
+  /*
+   * Pull-to-refresh: while the gesture is active (the pull has crossed the threshold or
+   * the controlled `refreshing` is on) or the list is in the over-scroll gap above the
+   * top, do NOT run the core update. That update is what re-virtualizes the rows AND
+   * dispatches the JS events (onScroll / onViewableItemsChanged / onStart/onEndReached);
+   * running it for an above-the-top position churned/shifted the rows and let the core
+   * write the offset back mid-settle, snapping the release. The gap is driven entirely
+   * natively, so we just keep the sticky/auto-hide pins live and skip the core round-trip.
+   */
+  if (_refreshEnabled && (_refreshing || scrollView.contentOffset.y < 0)) {
+    [self applyStickyTransforms:NO];
     return;
   }
 
@@ -331,6 +445,8 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
 {
+  // Pull-to-refresh is handled by the UIRefreshControl (UIControlEventValueChanged ->
+  // handleRefreshValueChanged); nothing to do here for it.
   if (!decelerate) {
     [self clearUserScrolled];
   }

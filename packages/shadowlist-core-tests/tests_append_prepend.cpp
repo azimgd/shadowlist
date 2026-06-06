@@ -192,6 +192,32 @@ TEST(prepend_with_stale_user_scroll_keeps_position) {
   CHECK_NEAR(k0Screen, 0.0, 1.0);  // k0 still pinned at the top
 }
 
+// Regression: over-scrolling past the top (a pull-to-refresh drag or a bounce)
+// reports an offset outside the scrollable range, but the anchor row has not
+// actually moved. MVCP must leave the offset alone instead of clamping it back into
+// range and writing that every frame - which fought the finger and made the pull
+// stutter. The raw (unclamped) anchor target equals the reported offset here, so no
+// correction fires.
+TEST(overscroll_top_pull_is_not_snapped_back) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(20));
+  sim.settle();
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+
+  // The user drags the top of the list down past 0 (rubber-band / refresh pull).
+  bool moved = sim.userScrollTo(-250.0);
+  CHECK(!moved);                          // the core did not move the offset
+  CHECK_NEAR(sim.offsetY, -250.0, 0.5);   // the pull is preserved, not clamped to 0
+
+  // A stray non-user commit while the finger still holds the over-scroll must also
+  // leave it in place (MVCP sees no genuine shift).
+  sim.frame();
+  CHECK_NEAR(sim.offsetY, -250.0, 0.5);
+}
+
 // MVCP on a variable-height list: the anchor row's on-screen position is held by
 // re-targeting the measured anchor element, not by assuming the inserted rows are
 // the estimated size. With non-uniform real heights a fixed "shift by estimate"

@@ -179,6 +179,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
     containerOffsetIndex = -2,
     keyboardAvoidingEnabled = false,
     keyboardAvoidingOffset = 0,
+    refreshing = false,
+    onRefresh,
+    refreshColor,
     initialElementsSize = 20,
     onStartReached,
     onEndReached,
@@ -208,6 +211,15 @@ function ShadowlistInner<ElementT extends { id: string }>(
     enabled: keyboardAvoidingEnabled,
     offset: keyboardAvoidingOffset,
   });
+
+  /*
+   * Pull-to-refresh. The native refresh control is installed only when an onRefresh
+   * handler is provided (refreshEnabled); the user pull fires this, and the consumer
+   * drives the spinner through the controlled `refreshing` prop.
+   */
+  const handleRefresh = useCallback(() => {
+    onRefresh?.();
+  }, [onRefresh]);
 
   const [visibleBand, setVisibleBand] = useState<VisibleBand>(() =>
     initialBand(
@@ -554,6 +566,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
       columns={columns}
       containerOffsetIndex={containerOffsetIndex}
       contentInsetBottom={contentInsetBottom}
+      refreshEnabled={!!onRefresh}
+      refreshing={refreshing}
+      refreshColor={refreshColor}
       startReachedThreshold={onStartReachedThreshold}
       endReachedThreshold={onEndReachedThreshold}
       viewablePercentThreshold={viewablePercentThreshold}
@@ -561,6 +576,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
       onStartReached={onStartReached}
       onEndReached={onEndReached}
       onScroll={onScroll}
+      onRefresh={onRefresh ? handleRefresh : undefined}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >

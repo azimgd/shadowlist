@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
+import com.facebook.react.common.MapBuilder;
 import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.uimanager.ReactStylesDiffMap;
 import com.facebook.react.uimanager.StateWrapper;
@@ -17,6 +18,8 @@ import com.facebook.react.uimanager.ViewManagerDelegate;
 import com.facebook.react.uimanager.annotations.ReactProp;
 import com.facebook.react.viewmanagers.ShadowlistViewManagerInterface;
 import com.facebook.react.viewmanagers.ShadowlistViewManagerDelegate;
+
+import java.util.Map;
 
 @ReactModule(name = ShadowlistViewManager.NAME)
 public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
@@ -161,6 +164,35 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   @ReactProp(name = "contentInsetBottom")
   public void setContentInsetBottom(ShadowlistView view, double contentInsetBottom) {
     view.setContentInsetBottom(contentInsetBottom);
+  }
+
+  @Override
+  @ReactProp(name = "refreshEnabled")
+  public void setRefreshEnabled(ShadowlistView view, boolean refreshEnabled) {
+    view.setRefreshEnabled(refreshEnabled);
+  }
+
+  @Override
+  @ReactProp(name = "refreshing")
+  public void setRefreshing(ShadowlistView view, boolean refreshing) {
+    view.setRefreshing(refreshing);
+  }
+
+  @Override
+  @ReactProp(name = "refreshColor", customType = "Color")
+  public void setRefreshColor(ShadowlistView view, @Nullable Integer refreshColor) {
+    view.setRefreshColor(refreshColor);
+  }
+
+  @Nullable
+  @Override
+  public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
+    // Map the dispatched "topRefresh" event to the JS `onRefresh` handler.
+    return MapBuilder.<String, Object>builder()
+      .put(
+        ShadowlistRefreshEvent.EVENT_NAME,
+        MapBuilder.of("registrationName", "onRefresh"))
+      .build();
   }
 
   @Override

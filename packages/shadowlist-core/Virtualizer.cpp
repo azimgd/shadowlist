@@ -579,15 +579,30 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
        * Subtract any header-size change since the anchor was captured: the in-layout
        * header re-flow shifts the anchor's offset, but that shift is the header
        * growing/shrinking, not the content scrolling, so MVCP must not chase it.
+       *
+       * This is the raw target (before the lower clamp). The shift test compares it -
+       * not the clamped value - against the current offset so a top over-scroll (a
+       * pull-to-refresh drag or a bounce) is left alone: the offset is negative but the
+       * anchor has not moved, so raw == current and no correction fires. Comparing the
+       * clamped (>= 0) target instead read the over-scroll as a shift and wrote 0 back
+       * every measurement frame, snapping the pull shut. A genuine insertion above the
+       * viewport still moves the raw target, so MVCP fires and we scroll to the
+       * lower-clamped value.
        */
-      double anchoredOffset = container->getElementOffset(anchorIndex) + compensationDelta
+      double rawAnchoredOffset = container->getElementOffset(anchorIndex) + compensationDelta
         - (container->headerSize - container->anchorHeaderSize);
-      if (anchoredOffset < 0.0) {
-        anchoredOffset = 0.0;
-      }
+      /*
+       * Only clamp the lower bound here. The total size is recomputed once after this
+       * batch of measurements (see ShadowNode layout), so an upper clamp to
+       * totalSize - windowSize would use a stale, too-small total mid-measurement and
+       * yank the anchor (visibly breaks MVCP on inverted lists). The over-scroll upper
+       * bound is enforced by resolveScroll on the next frame, which runs after the
+       * total has been refreshed.
+       */
+      double anchoredOffset = rawAnchoredOffset < 0.0 ? 0.0 : rawAnchoredOffset;
 
       double currentOffset = container->horizontal ? container->revision.containerOffsetX : container->revision.containerOffsetY;
-      if (std::fabs(anchoredOffset - currentOffset) >= OFFSET_MOVED_EPSILON) {
+      if (std::fabs(rawAnchoredOffset - currentOffset) >= OFFSET_MOVED_EPSILON) {
         if (container->horizontal) {
           container->revision.containerOffsetX = anchoredOffset;
         } else {
@@ -859,13 +874,26 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
   if (hadElementsBefore && !anchorKey.empty()) {
     std::size_t anchorIndex = container->findElementIndexByKey(anchorKey);
     if (anchorIndex != UNDEFINED_INDEX) {
-      // Exclude a header-size change from the anchored target (see updateElementAtIndex).
-      double anchoredOffset = clampOffset(container->getElementOffset(anchorIndex) + anchorDelta
-        - (container->headerSize - container->anchorHeaderSize));
-      if (std::fabs(anchoredOffset - currentOffset) >= OFFSET_MOVED_EPSILON) {
+      /*
+       * The target that keeps the anchor pinned, BEFORE clamping to the scrollable
+       * range. Exclude a header-size change from it (see updateElementAtIndex).
+       *
+       * The shift test compares this raw target - not the clamped one - against the
+       * current offset. While the user is over-scrolling (a pull-to-refresh drag or a
+       * top/bottom bounce) the offset is outside [0, maxOffset] but the anchor has not
+       * actually moved, so the raw target equals the current offset and MVCP stays
+       * out of the way. Comparing the clamped target instead would read the
+       * out-of-range offset as a shift and write the offset back every frame, fighting
+       * the finger and making the pull stutter. A genuine insertion/removal above the
+       * viewport still moves the raw target, so MVCP fires and the clamped value is
+       * what we actually scroll to.
+       */
+      double rawAnchoredOffset = container->getElementOffset(anchorIndex) + anchorDelta
+        - (container->headerSize - container->anchorHeaderSize);
+      if (std::fabs(rawAnchoredOffset - currentOffset) >= OFFSET_MOVED_EPSILON) {
         requestAnchor(anchorKey, anchorDelta);
         container->containerOffsetCorrected = true;
-        writeOffset(anchoredOffset);
+        writeOffset(clampOffset(rawAnchoredOffset));
         return true;
       }
     }
