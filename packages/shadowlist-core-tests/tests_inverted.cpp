@@ -65,11 +65,7 @@ TEST(inverted_repopulate_pins_to_bottom) {
   CHECK_EQ(hi, std::size_t(59));
 }
 
-// The inverted bottom pin must yield to a genuine user scroll. While the pin has
-// not settled (a short list that fits the window never reaches a scrollable
-// bottom, so it stays "uninitialized"), growing it past the window re-pins to the
-// bottom. A user dragging away from there must move the view instead of being
-// snapped back to the bottom every frame, which would lock the list.
+// The inverted bottom pin must yield to a user scroll, not snap back every frame.
 TEST(inverted_bottom_pin_yields_to_user_scroll) {
   Sim sim;
   sim.inverted = true;
@@ -80,8 +76,7 @@ TEST(inverted_bottom_pin_yields_to_user_scroll) {
   sim.settle();
   CHECK_NEAR(sim.offsetY, 0.0, 0.5);
 
-  // Grow past the window with a single frame, so the bottom pin is freshly engaged
-  // (still in flight) — the offset jumps to the new bottom.
+  // Grow past the window: the pin engages and the offset jumps to the new bottom.
   std::vector<std::string> next = makeKeys(20, "n");
   for (const auto& key : makeKeys(3)) {
     next.push_back(key);
@@ -97,10 +92,8 @@ TEST(inverted_bottom_pin_yields_to_user_scroll) {
   CHECK_NEAR(sim.offsetY, 300.0, 1.0);
 }
 
-// When the estimate is smaller than the real row size the content grows past the
-// window as rows are measured. The bottom pin must keep re-pinning across that
-// growth (it only settles once there is a real scrollable bottom that has been
-// reached) so the list ends at the bottom, not stranded near the top.
+// When the estimate understates the real row size, the pin must re-pin across
+// the resulting growth so the list ends at the bottom, not near the top.
 TEST(inverted_estimate_grows_still_pins_to_bottom) {
   Sim sim;
   sim.inverted = true;
@@ -110,8 +103,8 @@ TEST(inverted_estimate_grows_still_pins_to_bottom) {
   sim.setKeys(makeKeys(50));
   sim.settle();
 
-  // Totals are approximate under estimate error, so assert the pin property: the
-  // last row is visible and its bottom edge sits at the bottom of the viewport.
+  // Totals are approximate under estimate error; assert the pin property: the
+  // last row is visible with its bottom edge at the viewport bottom.
   std::size_t lo = 0, hi = 0;
   CHECK(sim.visibleRange(lo, hi));
   CHECK_EQ(hi, std::size_t(49));

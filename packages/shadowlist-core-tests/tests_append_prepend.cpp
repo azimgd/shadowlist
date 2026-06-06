@@ -123,10 +123,8 @@ TEST(prepend_at_top_keeps_anchor_row_in_view) {
   CHECK_NEAR(k0ScreenAfter, k0ScreenBefore, 1.0);  // k0 still at the top
 }
 
-// A prepend starts an in-flight MVCP correction (it drives the offset toward the
-// anchor element over the next frame). A genuine user scroll must take over from
-// that correction instead of being snapped back to the anchor target every frame,
-// which would lock the list at a fixed offset no matter how far the user drags.
+// A user scroll must take over from an in-flight MVCP correction instead of being
+// snapped back to the anchor target, which would lock the list at a fixed offset.
 TEST(prepend_does_not_lock_user_scroll) {
   Sim sim;
   sim.winH = 600;
@@ -136,9 +134,7 @@ TEST(prepend_does_not_lock_user_scroll) {
   sim.settle();
   sim.scrollTo(1000.0);  // k10 at the top of the viewport
 
-  // Prepend 5 rows and run a SINGLE frame, so the MVCP correction is still in
-  // flight (pending) — exactly the state the list is in right after the data
-  // update commits and before it has settled.
+  // Prepend 5 rows and run a SINGLE frame, so the MVCP correction is still pending.
   std::vector<std::string> next = makeKeys(5, "n");
   for (const auto& key : makeKeys(60)) {
     next.push_back(key);
@@ -147,26 +143,17 @@ TEST(prepend_does_not_lock_user_scroll) {
   sim.frame();
   CHECK_NEAR(sim.offsetY, 1500.0, 1.0);  // shifted by the 5 inserted rows
 
-  // The user now drags the list further down. The in-flight correction must yield:
-  // the offset follows the user instead of snapping back to 1500.
+  // The user drags further down; the offset follows instead of snapping to 1500.
   sim.userScrollTo(1700.0);
   CHECK_NEAR(sim.offsetY, 1700.0, 1.0);
 
-  // And it keeps following on the next user drag (the correction is not re-armed).
+  // And keeps following on the next drag (the correction is not re-armed).
   sim.userScrollTo(1900.0);
   CHECK_NEAR(sim.offsetY, 1900.0, 1.0);
 }
 
-// Regression: a prepend whose commit carries a STALE userScrolled flag must still
-// maintain the visible content position. The platform latches userScrolled on a
-// scroll tick and only clears it when the gesture and its momentum end, so a
-// prepend triggered by onStartReached firing at the top arrives flagged
-// userScrolled while the offset has not actually moved. Fabric also runs the
-// adopt/update path more than once per commit: the second update re-captures the
-// anchor on the already-reconciled list and finds the new top already at the
-// offset, so the correction survives only because the stale flag does not cancel
-// the pending drive. Under the bug the offset snapped back to the top and the
-// inserted rows shoved the content down.
+// Regression: a prepend whose commit carries a STALE userScrolled flag (offset has
+// not moved) must still maintain the visible content position.
 TEST(prepend_with_stale_user_scroll_keeps_position) {
   Sim sim;
   sim.winH = 600;
@@ -182,8 +169,7 @@ TEST(prepend_with_stale_user_scroll_keeps_position) {
   }
   sim.setKeys(next);
 
-  // One commit, two adopts, a stale userScrolled flag, and the offset has not
-  // moved from the top: MVCP must still run.
+  // Two adopts, a stale userScrolled flag, offset unchanged: MVCP must still run.
   sim.commit(2, /*userScrolled=*/true);
 
   CHECK_NEAR(sim.totalAxis(), 2500.0, 0.5);
@@ -192,10 +178,30 @@ TEST(prepend_with_stale_user_scroll_keeps_position) {
   CHECK_NEAR(k0Screen, 0.0, 1.0);  // k0 still pinned at the top
 }
 
-// MVCP on a variable-height list: the anchor row's on-screen position is held by
-// re-targeting the measured anchor element, not by assuming the inserted rows are
-// the estimated size. With non-uniform real heights a fixed "shift by estimate"
-// would drift; anchoring keeps the anchor pinned exactly.
+// Regression: over-scrolling past the top reports an offset outside the scrollable
+// range while the anchor row has not moved. MVCP must leave the offset alone rather
+// than clamp it back into range.
+TEST(overscroll_top_pull_is_not_snapped_back) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(20));
+  sim.settle();
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+
+  // The user drags the top of the list down past 0.
+  bool moved = sim.userScrollTo(-250.0);
+  CHECK(!moved);                          // the core did not move the offset
+  CHECK_NEAR(sim.offsetY, -250.0, 0.5);   // the pull is preserved, not clamped to 0
+
+  // A stray non-user commit during the over-scroll must also leave it in place.
+  sim.frame();
+  CHECK_NEAR(sim.offsetY, -250.0, 0.5);
+}
+
+// MVCP on a variable-height list holds the anchor row by re-targeting its measured
+// element, not by assuming the inserted rows are the estimated size.
 TEST(prepend_with_variable_heights_maintains_position) {
   Sim sim;
   sim.winH = 600;

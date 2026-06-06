@@ -3,10 +3,18 @@
 
 namespace azimgd::shadowlist {
 
+namespace {
+// Debug-only: the key at an emitted index, so JS and native logs correlate by content.
+const char* emitKeyAt(const std::vector<Element>& elements, std::size_t index) {
+  if (index < elements.size()) {
+    return elements[index].key.empty() ? "(empty)" : elements[index].key.c_str();
+  }
+  return "(oob)";
+}
+}
+
 void Container::startRevision() {
-  /*
-   * Revisions must be in the idle status before we start
-   */
+  // A revision can only start from the idle status.
   if (this->revisionStatus != RevisionStatusIdle) {
     throw InvalidOperationError("Cannot start the new revision while the previous is in progress");
   }
@@ -15,9 +23,7 @@ void Container::startRevision() {
 }
 
 void Container::endRevision() {
-  /*
-   * A revision must be in progress (pending) before it can end
-   */
+  // A revision can only end while pending.
   if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("You cannot end the revision while the previous has not started");
   }
@@ -25,10 +31,7 @@ void Container::endRevision() {
   this->revisionCount++;
   this->revisionStatus = RevisionStatusIdle;
 
-  /*
-   * Check whether we're within one screen size of either end of the list.
-   * For inverted lists the start/end are visually swapped.
-   */
+  // Check whether we're within threshold of either edge. Inverted lists swap start/end.
   double containerOffset = this->getContainerOffset();
   double windowSize = this->getWindowContainerSize();
   double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
@@ -39,21 +42,13 @@ void Container::endRevision() {
   bool reachedEnd = this->inverted ? nearLowEdge : nearHighEdge;
   bool reachedStart = this->inverted ? nearHighEdge : nearLowEdge;
 
-  /*
-   * When the whole list fits within (or near) a single window both edges are
-   * technically reached; prefer the end callback so we don't double-trigger
-   */
+  // When both edges register (a list smaller than a window), prefer the end edge.
   if (reachedStart && reachedEnd) {
     reachedStart = false;
   }
 
-  /*
-   * Re-arm the edge callbacks when the data set changed (e.g. pagination appended a
-   * new tail or prepended a head): reaching the new edge is a fresh arrival even
-   * when the scroll offset never left the threshold band. Without this a page
-   * smaller than endReachedThreshold * window keeps the user "reached" the whole
-   * time, so onEndReached would never fire again and infinite scroll would stall.
-   */
+  // Re-arm the edge callbacks when the data set changed: reaching the new edge is a
+  // fresh arrival even if the offset never left the threshold band.
   std::size_t elementsSize = this->revision.elements.size();
   if (elementsSize != this->prevReachedElementsSize) {
     this->prevReachedElementsSize = elementsSize;
@@ -61,13 +56,7 @@ void Container::endRevision() {
     this->prevReachedStart = false;
   }
 
-  /*
-   * Fire once on arrival at an edge (a false->true transition), not every frame
-   * the offset stays within the threshold band - otherwise an onEndReached that
-   * paginates would re-fire continuously while near the edge. The flag re-arms
-   * when the view leaves the band (or the data set changes, above), so reaching the
-   * (new) edge again re-triggers.
-   */
+  // Fire once on arrival (false->true transition), not every frame within the band.
   if (this->endReachedEnabled && this->onEndReachedCallback && reachedEnd && !this->prevReachedEnd) {
     this->onEndReachedCallback();
   }
@@ -91,19 +80,12 @@ void Container::scrollToEnd() {
 }
 
 void Container::requestScrollToIndex(double commandIndex, double commandNonce, int propIndex) {
-  /*
-   * The imperative command takes precedence over the declarative prop. It fires
-   * once per invocation: the integration bumps the nonce on every scrollToIndex
-   * call, so requesting the same index again still re-scrolls (a value-only dedup
-   * would swallow a repeat scroll to the same index).
-   */
+  // The imperative command takes precedence over the prop and fires once per nonce,
+  // so requesting the same index again still re-scrolls.
   bool fired = false;
   if (commandNonce != this->prevScrollToIndexNonce) {
     this->prevScrollToIndexNonce = commandNonce;
-    /*
-     * scrollToEnd rides the same nonce channel as scrollToIndex, distinguished by
-     * the SCROLL_TO_END_INDEX sentinel, so the integrations need no extra state field.
-     */
+    // scrollToEnd shares this channel, distinguished by the SCROLL_TO_END_INDEX sentinel.
     if (commandIndex == SCROLL_TO_END_INDEX) {
       this->scrollToEnd();
       fired = true;
@@ -113,10 +95,7 @@ void Container::requestScrollToIndex(double commandIndex, double commandNonce, i
     }
   }
 
-  /*
-   * The declarative prop fires only when its value changes (a negative value is
-   * inactive), so it provides an initial position without re-firing every frame.
-   */
+  // The prop fires only when its value changes (negative is inactive).
   if (!fired && propIndex >= 0 && propIndex != this->prevScrollToIndexProp) {
     this->scrollToIndex(static_cast<std::size_t>(propIndex));
   }
@@ -138,10 +117,8 @@ ContainerStateUpdate Container::resolveStateUpdate(
   update.totalContainerWidth = this->revision.totalContainerWidth;
   update.totalContainerHeight = this->revision.totalContainerHeight;
 
-  /*
-   * Only adopt the core's scroll offset when the core actually wants to move the
-   * view; otherwise keep the offset the view reported so we don't fight the user
-   */
+  // Adopt the core's offset only when it wants to move the view; otherwise keep
+  // the reported offset so we don't fight the user.
   if (corrected) {
     update.containerOffsetX = this->revision.containerOffsetX;
     update.containerOffsetY = this->revision.containerOffsetY;
@@ -162,15 +139,9 @@ double Container::getFooterOffset(double footerSize) const {
 }
 
 double Container::getStickyHeaderOffset() const {
-  /*
-   * Pin the header to the viewport start by tracking the scroll offset; otherwise
-   * it rests at the content start (0).
-   */
+  // Pin the header to the viewport start; otherwise it rests at the content start.
   if (this->stickyHeader) {
-    /*
-     * Clamp to the content start so rubber-band / bounce overscroll (a negative
-     * offset on iOS/web) does not drag the pinned header above the viewport edge.
-     */
+    // Clamp to the content start so overscroll (negative offset) doesn't drag it up.
     double offset = this->getContainerOffset();
     return offset > 0.0 ? offset : 0.0;
   }
@@ -178,15 +149,75 @@ double Container::getStickyHeaderOffset() const {
 }
 
 double Container::getStickyFooterOffset(double footerSize) const {
-  /*
-   * Pin the footer to the viewport end by tracking the scroll offset. At the
-   * bottom of the list (offset == totalSize - window) this equals the resting
-   * position, so the footer settles seamlessly onto its reserved space.
-   */
+  // Pin the footer to the viewport end; at the bottom it equals the resting position.
   if (this->stickyFooter) {
     return this->getContainerOffset() + this->getWindowContainerSize() - footerSize;
   }
   return this->getFooterOffset(footerSize);
+}
+
+StickyHeader Container::resolveStickyHeader() const {
+  StickyHeader result;
+
+  // Inverted sticky headers are unsupported; leave them resting.
+  if (this->stickyIndices.empty() || this->inverted) {
+    return result;
+  }
+
+  std::size_t elementsSize = this->revision.elements.size();
+
+  // Clamp to the content start so overscroll (negative offset) doesn't drag it up.
+  double offset = this->getContainerOffset();
+  if (offset < 0.0) {
+    offset = 0.0;
+  }
+
+  // Walk the ascending stickyIndices: the last header at/above the viewport start is
+  // active (pinned), the first one past it is the "next" that pushes it up.
+  double activeOffset = 0.0;
+  double activeSize = 0.0;
+  bool hasActive = false;
+  double nextOffset = 0.0;
+  bool hasNext = false;
+
+  for (std::size_t stickyIndex : this->stickyIndices) {
+    if (stickyIndex >= elementsSize) {
+      continue;
+    }
+
+    double elementOffset = this->getElementOffset(stickyIndex);
+    if (elementOffset <= offset) {
+      result.index = stickyIndex;
+      activeOffset = elementOffset;
+      activeSize = this->getElementSize(stickyIndex);
+      hasActive = true;
+    } else {
+      nextOffset = elementOffset;
+      hasNext = true;
+      break;
+    }
+  }
+
+  if (!hasActive) {
+    return result;
+  }
+
+  // The pinned header sits at the viewport start, unless the next header has scrolled
+  // up close enough to push it out (pinned to nextOffset - own size for a clean swap).
+  double displayedTop = offset;
+  if (hasNext) {
+    double pushedTop = nextOffset - activeSize;
+    if (pushedTop < displayedTop) {
+      displayedTop = pushedTop;
+    }
+  }
+
+  result.translation = displayedTop - activeOffset;
+  if (result.translation < 0.0) {
+    result.translation = 0.0;
+  }
+
+  return result;
 }
 
 std::size_t Container::findElementIndexByKey(const std::string& key) const {
@@ -204,24 +235,21 @@ std::size_t Container::findElementIndexByKey(const std::string& key) const {
 }
 
 void Container::dispatchObservers() {
-  /*
-   * Notify when the visible index range changes
-   */
+  // Notify when the visible index range changes.
   auto visibleIndices = this->getVisibleIndices();
   if (this->onVisibleIndicesChangeCallback &&
     (visibleIndices.first != this->prevVisibleStartIndex || visibleIndices.second != this->prevVisibleEndIndex)) {
-    SL_LOG("  emit onVisibleIndicesChange(%zd, %zd)",
-      static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second));
+    SL_LOG("  emit onVisibleIndicesChange(%zd, %zd) keys=[%s..%s]",
+      static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second),
+      emitKeyAt(this->revision.elements, visibleIndices.first),
+      emitKeyAt(this->revision.elements, visibleIndices.second));
     this->onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
   }
   this->prevVisibleStartIndex = visibleIndices.first;
   this->prevVisibleEndIndex = visibleIndices.second;
 
-  /*
-   * Notify when the strictly-viewable element range changes. Only computed when a
-   * listener is registered - getViewableIndices does an O(window) overlap scan, so
-   * there is no reason to pay for it on every frame when nothing consumes it.
-   */
+  // Notify when the viewable range changes. Computed only when a listener is
+  // registered, since getViewableIndices does an O(window) overlap scan.
   if (this->onViewableIndicesChangeCallback) {
     auto viewableIndices = this->getViewableIndices();
     if (viewableIndices.first != this->prevViewableStartIndex || viewableIndices.second != this->prevViewableEndIndex) {
@@ -233,9 +261,7 @@ void Container::dispatchObservers() {
     this->prevViewableEndIndex = viewableIndices.second;
   }
 
-  /*
-   * Notify when the scroll offset changes
-   */
+  // Notify when the scroll offset changes.
   double containerOffsetX = this->revision.containerOffsetX;
   double containerOffsetY = this->revision.containerOffsetY;
   if (this->onScrollCallback &&
@@ -299,9 +325,7 @@ std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
   std::size_t startIndex = this->revision.measurementElementStartIndex;
   std::size_t endIndex = this->revision.measurementElementEndIndex;
 
-  /*
-   * Return the visible index range, or (-1, -1) if uninitialized
-   */
+  // Return the visible range, or (-1, -1) if uninitialized.
   if (startIndex != UNDEFINED_INDEX && endIndex != UNDEFINED_INDEX) {
     return {startIndex, endIndex};
   }
@@ -321,10 +345,7 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
   double windowSize = this->getWindowContainerSize();
   double viewportEnd = viewportStart + windowSize;
 
-  /*
-   * The measured window is stored start>end for inverted lists; normalise it to an
-   * ascending [lo, hi] scan so the viewability test reads the same either way.
-   */
+  // Inverted lists store the window start>end; normalise to ascending [lo, hi].
   std::size_t lo = this->inverted ? measuredEndIndex : measuredStartIndex;
   std::size_t hi = this->inverted ? measuredStartIndex : measuredEndIndex;
 
@@ -344,12 +365,8 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
     double overlapEnd = elementEnd < viewportEnd ? elementEnd : viewportEnd;
     double visible = overlapEnd - overlapStart;
 
-    /*
-     * Measure the visible fraction against min(element, viewport): an element
-     * taller than the viewport can never reach 100% of itself, so without this it
-     * would never count as viewable at a high threshold even when it fills the
-     * screen. Clamping the denominator makes "fully covers the viewport" == 1.0.
-     */
+    // Measure the visible fraction against min(element, viewport) so an element
+    // taller than the viewport can still reach 1.0 by fully covering the screen.
     double referenceSize = elementSize < windowSize ? elementSize : windowSize;
     if (visible > 0.0 && referenceSize > 0.0 && (visible / referenceSize) >= this->viewablePercentThreshold) {
       if (firstViewable == UNDEFINED_INDEX) {
@@ -363,10 +380,7 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
     return {UNDEFINED_INDEX, UNDEFINED_INDEX};
   }
 
-  /*
-   * Match the orientation convention of getVisibleIndices: inverted reports the
-   * higher index first.
-   */
+  // Match getVisibleIndices: inverted reports the higher index first.
   if (this->inverted) {
     return {lastViewable, firstViewable};
   }

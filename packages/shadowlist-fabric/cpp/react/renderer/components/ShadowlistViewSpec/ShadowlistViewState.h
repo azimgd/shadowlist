@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include <react/renderer/graphics/Float.h>
 
 #ifdef ANDROID
@@ -28,7 +30,11 @@ class ShadowlistViewState final {
     double totalContainerWidth,
     bool startReachedEnabled,
     bool endReachedEnabled,
-    bool containerOffsetEnabled) :
+    bool containerOffsetEnabled,
+    double dragEventNonce,
+    double dragEventType,
+    double dragFromIndex,
+    double dragToIndex) :
     windowContainerHeight_(windowContainerHeight),
     windowContainerWidth_(windowContainerWidth),
     containerOffsetY_(containerOffsetY),
@@ -39,7 +45,11 @@ class ShadowlistViewState final {
     totalContainerWidth_(totalContainerWidth),
     startReachedEnabled_(startReachedEnabled),
     endReachedEnabled_(endReachedEnabled),
-    containerOffsetEnabled_(containerOffsetEnabled) {}
+    containerOffsetEnabled_(containerOffsetEnabled),
+    dragEventNonce_(dragEventNonce),
+    dragEventType_(dragEventType),
+    dragFromIndex_(dragFromIndex),
+    dragToIndex_(dragToIndex) {}
 
 #ifdef ANDROID
   ShadowlistViewState(const ShadowlistViewState& previousState, folly::dynamic data) :
@@ -54,8 +64,34 @@ class ShadowlistViewState final {
     startReachedEnabled_(data.count("startReachedEnabled") ? data["startReachedEnabled"].getBool() : previousState.startReachedEnabled_),
     endReachedEnabled_(data.count("endReachedEnabled") ? data["endReachedEnabled"].getBool() : previousState.endReachedEnabled_),
     containerOffsetEnabled_(data.count("containerOffsetEnabled") ? data["containerOffsetEnabled"].getBool() : previousState.containerOffsetEnabled_),
-    userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_)
-    {};
+    dragEventNonce_(data.count("dragEventNonce") ? (Float)data["dragEventNonce"].getDouble() : previousState.dragEventNonce_),
+    dragEventType_(data.count("dragEventType") ? (Float)data["dragEventType"].getDouble() : previousState.dragEventType_),
+    dragFromIndex_(data.count("dragFromIndex") ? (Float)data["dragFromIndex"].getDouble() : previousState.dragFromIndex_),
+    dragToIndex_(data.count("dragToIndex") ? (Float)data["dragToIndex"].getDouble() : previousState.dragToIndex_),
+    userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_),
+    /*
+     * Sticky section-header geometry is produced by the C++ core (layout pass) and
+     * only ever flows core -> view, so a partial update from the Android view
+     * (e.g. a scroll commit) carries it forward unchanged.
+     */
+    stickyHeaderIndices_(previousState.stickyHeaderIndices_),
+    stickyHeaderOffsets_(previousState.stickyHeaderOffsets_),
+    stickyHeaderSizes_(previousState.stickyHeaderSizes_) {
+    if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
+      stickyHeaderIndices_.clear();
+      stickyHeaderOffsets_.clear();
+      stickyHeaderSizes_.clear();
+      for (const auto& value : data["stickyHeaderIndices"]) {
+        stickyHeaderIndices_.push_back((int)value.getInt());
+      }
+      for (const auto& value : data["stickyHeaderOffsets"]) {
+        stickyHeaderOffsets_.push_back((Float)value.getDouble());
+      }
+      for (const auto& value : data["stickyHeaderSizes"]) {
+        stickyHeaderSizes_.push_back((Float)value.getDouble());
+      }
+    }
+  };
 
   /* Serializes the state into folly::dynamic for the Android renderer. */
   folly::dynamic getDynamic() const {
@@ -72,6 +108,26 @@ class ShadowlistViewState final {
     result["endReachedEnabled"] = endReachedEnabled_;
     result["containerOffsetEnabled"] = containerOffsetEnabled_;
     result["userScrolled"] = userScrolled_;
+    result["dragEventNonce"] = dragEventNonce_;
+    result["dragEventType"] = dragEventType_;
+    result["dragFromIndex"] = dragFromIndex_;
+    result["dragToIndex"] = dragToIndex_;
+
+    folly::dynamic stickyHeaderIndices = folly::dynamic::array;
+    for (auto stickyHeaderIndex : stickyHeaderIndices_) {
+      stickyHeaderIndices.push_back(stickyHeaderIndex);
+    }
+    folly::dynamic stickyHeaderOffsets = folly::dynamic::array;
+    for (auto stickyHeaderOffset : stickyHeaderOffsets_) {
+      stickyHeaderOffsets.push_back((double)stickyHeaderOffset);
+    }
+    folly::dynamic stickyHeaderSizes = folly::dynamic::array;
+    for (auto stickyHeaderSize : stickyHeaderSizes_) {
+      stickyHeaderSizes.push_back((double)stickyHeaderSize);
+    }
+    result["stickyHeaderIndices"] = stickyHeaderIndices;
+    result["stickyHeaderOffsets"] = stickyHeaderOffsets;
+    result["stickyHeaderSizes"] = stickyHeaderSizes;
     return result;
   };
 #endif
@@ -89,6 +145,21 @@ class ShadowlistViewState final {
   bool containerOffsetEnabled_{false};
 
   /*
+   * Drag-to-reorder signalling, written by the platform view as the native gesture
+   * progresses and consumed by the component descriptor to emit the JS onDrag*
+   * events exactly once per change. dragEventNonce_ is bumped on every drag event so
+   * the descriptor can tell a fresh event from a carried-forward one (a plain scroll
+   * commit leaves it unchanged). dragEventType_ is 1=start, 3=end (0=none); there is
+   * no mid-drag event - the finger tracking and shuffle stay native and never reach
+   * JS. dragFromIndex_/dragToIndex_ carry the element indices for that event. Declared
+   * before userScrolled_ so the Android constructor's member-init order matches.
+   */
+  double dragEventNonce_{0.0};
+  double dragEventType_{0.0};
+  double dragFromIndex_{-1.0};
+  double dragToIndex_{-1.0};
+
+  /*
    * True when the offset in this state came from a genuine user scroll gesture,
    * false when it is the view's resting position or an offset the core itself
    * applied. The core uses it to abandon an in-flight scroll correction the moment
@@ -97,6 +168,18 @@ class ShadowlistViewState final {
    * virtualization window. The integrations set it from the platform drag state.
    */
   bool userScrolled_{false};
+
+  /*
+   * Sticky section-header geometry along the scroll axis, produced by the core's
+   * layout pass (one entry per sticky section header, ascending by index). The
+   * integrations pin the active header on the UI thread per scroll frame from this,
+   * mirroring Container::resolveStickyHeader, so the per-frame pin never reads a
+   * (possibly transformed) view frame. Empty for a plain list. Declared after
+   * userScrolled_ so the Android constructor's member-init order matches.
+   */
+  std::vector<int> stickyHeaderIndices_{};
+  std::vector<Float> stickyHeaderOffsets_{};
+  std::vector<Float> stickyHeaderSizes_{};
 };
 
 }

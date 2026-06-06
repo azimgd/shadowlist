@@ -19,27 +19,31 @@ interface NestedElementProps {
   index: number;
 }
 
-const NestedElementChildComponent = memo(({ element }: { element: NestedElementChild }) => {
-  return (
-    <View style={styles.nestedElement}>
-      <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: element.imageUrl }}
-          style={styles.image}
-          resizeMode="cover"
-        />
+const NestedElementChildComponent = memo(
+  ({ element }: { element: NestedElementChild }) => {
+    return (
+      <View style={styles.nestedElement}>
+        <View style={styles.imageContainer}>
+          <Image
+            source={{ uri: element.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        </View>
+        <Text style={styles.title} numberOfLines={2}>
+          {element.title}
+        </Text>
       </View>
-      <Text style={styles.title} numberOfLines={2}>
-        {element.title}
-      </Text>
-    </View>
-  );
-});
+    );
+  }
+);
 
 export const NestedElement = memo(({ element, index }: NestedElementProps) => {
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>{element.title} · {index}</Text>
+      <Text style={styles.sectionTitle}>
+        {element.title} · {index}
+      </Text>
       <Shadowlist
         data={element.elements}
         horizontal

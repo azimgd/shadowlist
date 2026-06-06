@@ -1,8 +1,5 @@
-// Repro: Contacts-like list. Non-inverted, 100 rows, a header, and an ESTIMATE
-// that is wrong (120 like the web default) while rows really measure ~65px.
-// The user scrolls down in steps (userScrolled = true) and we assert the visible
-// window keeps tracking the scroll offset instead of collapsing / snapping back
-// (which would render blank rows past the initial window).
+// Wrong estimate (120) vs real row size (65): the visible window must keep
+// tracking the scroll offset and not render blank rows.
 
 #include "TestFramework.hpp"
 #include "Harness.hpp"
@@ -18,9 +15,8 @@ TEST(default_scroll_fills_viewport_with_wrong_estimate) {
   sim.setKeys(makeKeys(100));
   sim.settle();
 
-  // Walk down the list the way a finger drag would, then let it settle, and
-  // assert the mounted window fills the WHOLE viewport (top and bottom edges),
-  // not just the first few rows — otherwise the rows below render blank.
+  // Scroll down in steps; assert the mounted window covers the whole viewport
+  // (top and bottom edges), not just the first few rows.
   for (double y = 200.0; y <= 4000.0; y += 200.0) {
     sim.userScrollTo(y);
     sim.settle();
@@ -37,23 +33,21 @@ TEST(default_scroll_fills_viewport_with_wrong_estimate) {
     };
 
     double viewTop = sim.offsetY + sim.headerSize;
-    double viewBottom = sim.offsetY + sim.winH;  // bottom edge of the viewport
+    double viewBottom = sim.offsetY + sim.winH;
     std::size_t topIndex = indexAtOffset(viewTop);
     std::size_t bottomIndex = indexAtOffset(viewBottom);
 
     CHECK(topIndex != std::size_t(UNDEFINED_INDEX));
     CHECK(lo <= topIndex && topIndex <= hi);
-    // The row covering the bottom of the viewport must also be mounted.
+    // The row covering the viewport bottom must also be mounted.
     if (bottomIndex != std::size_t(UNDEFINED_INDEX)) {
       CHECK(lo <= bottomIndex && bottomIndex <= hi);
     }
   }
 }
 
-// The average element size that sizes the unmeasured tail must be frozen from the
-// REAL measured rows (65px), not from the first-revision estimate (120px). With the
-// old "freeze the first window's estimate" behaviour the average stayed 120 forever,
-// so the scroll extent / scrollbar was permanently ~80% too tall and never converged.
+// The unmeasured-tail average must track real measured rows (65), not the
+// initial estimate (120), so the scroll extent converges.
 TEST(wrong_estimate_average_tracks_real_measured_size) {
   Sim sim;
   sim.winH = 600;
@@ -63,13 +57,10 @@ TEST(wrong_estimate_average_tracks_real_measured_size) {
   sim.setKeys(makeKeys(100));
   sim.settle();
 
-  // The unmeasured-region average is seeded from the real 65px rows, not the 120
-  // estimate (this is the direct regression guard for the frozen-estimate bug).
+  // Average is seeded from real 65px rows, not the 120 estimate.
   CHECK_NEAR(sim.container.revision.averageElementHeight, 65.0, 0.5);
 
-  // Once a re-layout runs (any scroll), the total content height converges toward
-  // the real total (header 80 + 100*65 = 6580) instead of staying at the inflated
-  // estimate-based ~11800.
+  // After a scroll the total converges to the real total (80 + 100*65 = 6580).
   sim.userScrollTo(3000);
   sim.settle();
   CHECK(sim.totalAxis() < 8000.0);

@@ -76,6 +76,28 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     };
 
     /*
+     * Relay a drag-to-reorder boundary to JS. The platform view bumps dragEventNonce_
+     * in state only at pickup and drop (the per-frame finger tracking and make-room
+     * shuffle stay native and never reach here); fire the matching event once per
+     * fresh nonce. type 1 = pickup, 3 = drop.
+     */
+    if (shadowlistViewStateData.dragEventNonce_ != containerManager->lastDragEventNonce) {
+      containerManager->lastDragEventNonce = shadowlistViewStateData.dragEventNonce_;
+      int dragFromIndex = static_cast<int>(shadowlistViewStateData.dragFromIndex_);
+      int dragToIndex = static_cast<int>(shadowlistViewStateData.dragToIndex_);
+      switch (static_cast<int>(shadowlistViewStateData.dragEventType_)) {
+        case 1:
+          shadowlistViewEventEmitter.onDragStart({ .index = dragFromIndex });
+          break;
+        case 3:
+          shadowlistViewEventEmitter.onDragEnd({ .fromIndex = dragFromIndex, .toIndex = dragToIndex });
+          break;
+        default:
+          break;
+      }
+    }
+
+    /*
      * Resolve a pending scrollToIndex. The imperative command writes the target
      * into state (containerOffsetIndex_); the declarative prop provides an initial
      * index. The core resolves precedence and fires once per distinct target.
@@ -98,6 +120,16 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     input.footerSize = *shadowlistViewShadowNode.getFooterSize();
     input.stickyHeader = shadowlistViewProps.stickyHeader;
     input.stickyFooter = shadowlistViewProps.stickyFooter;
+    /*
+     * Section-header element indices (SectionList). Skip negatives defensively; the
+     * core expects an ascending list of valid indices.
+     */
+    input.stickyIndices.reserve(shadowlistViewProps.stickyHeaderIndices.size());
+    for (auto stickyHeaderIndex : shadowlistViewProps.stickyHeaderIndices) {
+      if (stickyHeaderIndex >= 0) {
+        input.stickyIndices.push_back(static_cast<std::size_t>(stickyHeaderIndex));
+      }
+    }
     input.inverted = shadowlistViewProps.inverted;
     input.horizontal = shadowlistViewProps.horizontal;
     input.columns = shadowlistViewProps.columns > 0 ? static_cast<std::size_t>(shadowlistViewProps.columns) : 1;

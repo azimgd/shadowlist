@@ -2,10 +2,20 @@
 
 #include <functional>
 #include <mutex>
+#include <vector>
 #include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Revision.hpp>
 
 namespace azimgd::shadowlist {
+
+/*
+ * The pinned sticky section header and how far to translate it from its resting
+ * position. index is UNDEFINED_INDEX when none is pinned.
+ */
+struct StickyHeader {
+  std::size_t index = UNDEFINED_INDEX;
+  double translation = 0.0;
+};
 
 static constexpr std::size_t RevisionCountFirst = 0;
 
@@ -13,20 +23,17 @@ static constexpr std::size_t RevisionStatusIdle = 0;
 static constexpr std::size_t RevisionStatusPending = 1;
 
 /*
- * Result of resolving a frame into the values an integration should publish to
- * its platform scroll view. Keeps the "what changed / should we move the view"
- * decision in the core so every integration applies it the same way.
+ * Resolved values to publish to the scroll view for a frame.
  */
 struct ContainerStateUpdate {
   /*
-   * Whether anything changed and the integration should publish new state
+   * Whether anything changed and new state should be published
    */
   bool changed = false;
 
   /*
-   * Whether the integration should move the scroll view to (containerOffsetX,
-   * containerOffsetY). False means the offset is the view's own position and must
-   * be left alone (so we never fight the user's scrolling).
+   * Whether to move the scroll view to (containerOffsetX, containerOffsetY).
+   * False means leave the offset alone (don't fight the user's scrolling).
    */
   bool applyContainerOffset = false;
 
@@ -66,9 +73,7 @@ public:
   std::function<void(double, double)> onScrollCallback;
 
   /*
-   * Callback to be executed when the strictly-visible (viewable) element range
-   * changes. Unlike onVisibleIndicesChangeCallback (the mounted window, which
-   * includes an off-screen buffer) this reports only elements actually inside the
+   * Callback when the strictly-viewable range changes: only elements inside the
    * viewport, subject to viewablePercentThreshold. Arguments are (startIndex, endIndex).
    */
   std::function<void(std::size_t, std::size_t)> onViewableIndicesChangeCallback;
@@ -114,22 +119,21 @@ public:
   std::size_t columns = 1;
 
   /*
-   * How close to an edge (as a fraction of the window size) the scroll offset must
-   * be before onStartReached / onEndReached fire. 1.0 reproduces the default of
-   * "within one windowful of the edge"; 0.5 is half a window, etc.
+   * Distance from an edge (as a fraction of window size) at which
+   * onStartReached / onEndReached fire. 1.0 means within one windowful.
    */
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
 
   /*
-   * Fraction (0..1) of an element that must be inside the viewport for it to count
-   * as viewable (see getViewableIndices). 0 means any overlap counts.
+   * Fraction (0..1) of an element inside the viewport for it to count as
+   * viewable (see getViewableIndices). 0 means any overlap counts.
    */
   double viewablePercentThreshold = 0.0;
 
   /*
-   * Size of the header (and empty) template along the scroll axis
-   * Elements are positioned after the header and the total size includes it
+   * Size of the header (and empty) template along the scroll axis.
+   * Elements are positioned after it; the total size includes it.
    */
   double headerSize = 0.0;
 
@@ -139,14 +143,24 @@ public:
   double footerSize = 0.0;
 
   /*
-   * When set, the header/footer template is pinned to the viewport edge instead of
-   * scrolling with the content: the header stays at the viewport start and the
-   * footer at the viewport end. The reserved header/footer space in the content is
-   * unchanged, so the template settles back onto it at the scroll extremes. See
-   * getStickyHeaderOffset / getStickyFooterOffset.
+   * Pin the header/footer template to the viewport edge instead of scrolling it
+   * with content. Reserved space is unchanged, so it settles back at the extremes.
+   * See getStickyHeaderOffset / getStickyFooterOffset.
    */
   bool stickyHeader = false;
   bool stickyFooter = false;
+
+  /*
+   * Element indices that are sticky section headers (ascending), set each frame.
+   * Drives resolveStickyHeader; empty for a plain list.
+   */
+  std::vector<std::size_t> stickyIndices;
+
+  /*
+   * Last drag-event nonce emitted to JS, used to fire each onDrag* event exactly
+   * once. -1 means none emitted.
+   */
+  double lastDragEventNonce = -1.0;
 
   /*
    * Pending scrollToIndex target, or UNDEFINED_INDEX when inactive
@@ -154,45 +168,39 @@ public:
   std::size_t scrollToIndexTarget = UNDEFINED_INDEX;
 
   /*
-   * Active while a scrollToEnd is converging on the bottom. Unlike a one-shot jump
-   * to the current (estimated) content size, this re-targets maxOffset every frame
-   * as off-screen rows are measured and the total grows, so it lands on the true
-   * end of a variable-height list. Cleared once the view has reached the bottom and
-   * the total has stopped changing (see resolveScroll). pendingScrollToEndLastTotal
-   * holds the previous frame's total - tracked every frame, not just while the flag
-   * is set - so "stopped changing" can be detected on the very first frame too.
+   * Active while a scrollToEnd is converging on the bottom: re-targets maxOffset
+   * every frame as off-screen rows are measured, so it lands on the true end of a
+   * variable-height list. Cleared once the view reaches the bottom and the total
+   * stops changing. pendingScrollToEndLastTotal holds the previous frame's total,
+   * tracked every frame so "stopped changing" is detectable on the first frame.
    */
   bool pendingScrollToEnd = false;
   double pendingScrollToEndLastTotal = -1.0;
 
   /*
-   * Whether an inverted list has settled at the bottom. While false the list
-   * sticks to the bottom (initial render / empty -> populated); once the view
-   * actually reaches the bottom the maintain-visible-content-position anchor takes over
+   * Whether an inverted list has settled at the bottom. While false it sticks to
+   * the bottom; once reached, the maintain-visible-content-position anchor takes over.
    */
   bool invertedInitialized = false;
 
   /*
-   * Set by the scroll resolution each frame: true when the core wants the
-   * integration to apply containerOffset to the scroll view (scrollToIndex,
-   * inverted bottom anchor, or a maintain-visible-content-position shift). When
-   * false the integration must leave the scroll position to the user.
+   * True when the core wants containerOffset applied to the scroll view this frame
+   * (scrollToIndex, inverted bottom anchor, or an MVCP shift); false means leave
+   * the scroll position to the user.
    */
   bool containerOffsetCorrected = false;
 
   /*
-   * A scroll target the core actively drives the view toward until the view
-   * reports it has arrived. This keeps a correction alive across the redundant
-   * re-commits that the visible-indices event triggers, so a stale offset on a
-   * racing frame cannot cancel it.
+   * A scroll target the core drives the view toward until it arrives. Keeps a
+   * correction alive across redundant re-commits so a stale racing offset can't
+   * cancel it.
    */
   double pendingScrollOffset = 0.0;
   bool pendingScroll = false;
 
   /*
-   * When the pending correction is a maintain-visible-content-position shift
-   * (e.g. prepend) the target is the anchor element rather than a fixed offset,
-   * so it tracks the anchor as nearby elements are measured and resized.
+   * When the pending correction is an MVCP shift (e.g. prepend) the target is the
+   * anchor element, so it tracks the anchor as nearby elements are measured.
    */
   std::string pendingAnchorKey = "";
   double pendingAnchorDelta = 0.0;
@@ -200,26 +208,28 @@ public:
 
   /*
    * The element at the viewport edge this frame and how far we are scrolled into
-   * it. Used to keep the visible content fixed while off-screen elements are
-   * measured (their real size differs from the estimate).
+   * it. Keeps visible content fixed while off-screen elements are measured.
    */
   std::string anchorKey = "";
   double anchorDelta = 0.0;
 
   /*
-   * The scroll offset the platform reported on the previous frame (along the
-   * scroll axis). A user scroll only counts as the user taking over when this
-   * actually changes: the userScrolled flag latches on the platform, so a stale
-   * one on an unmoved offset (e.g. a prepend committed while the user is paused at
-   * the top) must not cancel an in-flight correction. See Virtualizer::update.
+   * Header reserved size when the anchor was captured. A header-size change between
+   * capture and re-flow is not a content scroll, so MVCP subtracts
+   * (headerSize - anchorHeaderSize); without it the list opens scrolled past the header.
+   */
+  double anchorHeaderSize = 0.0;
+
+  /*
+   * Scroll offset reported on the previous frame. A user scroll only counts as a
+   * takeover when this actually changes, so a stale userScrolled flag on an unmoved
+   * offset can't cancel an in-flight correction.
    */
   double lastReportedOffset = 0.0;
 
   /*
-   * Serializes access to a single container. An integration may drive the update
-   * pass and the layout/measurement-feedback pass from different threads that can
-   * overlap, so every entry point that mutates or reads the revision takes this.
-   * Recursive because a locked entry point may re-enter another one.
+   * Serializes access to a single container; the update and measurement passes may
+   * run on overlapping threads. Recursive because a locked entry point may re-enter.
    */
   std::recursive_mutex coreMutex;
 
@@ -253,10 +263,9 @@ public:
   std::pair<std::size_t, std::size_t> getVisibleIndices() const;
 
   /*
-   * Strictly-viewable index range: elements inside the viewport whose visible
-   * fraction is at least viewablePercentThreshold. Orientation aware (inverted
-   * returns start > end, matching getVisibleIndices), or (UNDEFINED_INDEX,
-   * UNDEFINED_INDEX) when nothing is viewable.
+   * Strictly-viewable index range: elements whose visible fraction is at least
+   * viewablePercentThreshold. Orientation aware (inverted returns start > end), or
+   * (UNDEFINED_INDEX, UNDEFINED_INDEX) when nothing is viewable.
    */
   std::pair<std::size_t, std::size_t> getViewableIndices() const;
 
@@ -270,25 +279,22 @@ public:
   void scrollToIndex(std::size_t index);
 
   /*
-   * Request scrolling to the very end of the content. The correction drives toward
-   * the bottom, re-targeting it as off-screen rows are measured, so it converges on
-   * the true end of a variable-height list instead of a stale estimate.
+   * Request scrolling to the very end, re-targeting the bottom as off-screen rows
+   * are measured so it converges on the true end of a variable-height list.
    */
   void scrollToEnd();
 
   /*
    * Resolve a scrollToIndex request from an imperative command and a declarative
-   * prop index. The imperative command fires once per invocation, tracked by a
-   * monotonic nonce so repeating the same index re-scrolls; the declarative prop
-   * fires whenever its value changes. Both use a negative index to mean
-   * "inactive", and the imperative command takes precedence.
+   * prop index. The command fires once per invocation (tracked by a monotonic
+   * nonce); the prop fires when its value changes. Negative index means inactive;
+   * the command takes precedence.
    */
   void requestScrollToIndex(double commandIndex, double commandNonce, int propIndex);
 
   /*
-   * Resolve the current frame into the values an integration should publish to its
-   * platform scroll view. prev* are the values the platform currently holds (the
-   * view's reported scroll offset and the last published content size).
+   * Resolve the current frame into values to publish to the scroll view. prev* are
+   * the values currently held (reported scroll offset and last published size).
    */
   ContainerStateUpdate resolveStateUpdate(
     double prevContainerOffsetX,
@@ -302,18 +308,21 @@ public:
   double getFooterOffset(double footerSize) const;
 
   /*
-   * Viewport-pinned ("sticky") offsets along the scroll axis: the header tracks the
-   * scroll offset to stay at the viewport start, the footer at the viewport end.
-   * Each falls back to its resting offset when the corresponding sticky flag is
-   * unset.
-   *
-   * Kept here so the pin geometry has a single tested definition. The Fabric
-   * integration applies the pin natively in the scroll callback (the commit cycle
-   * is too slow to pin smoothly), but a core-driven integration - e.g. WASM - can
-   * use these directly.
+   * Viewport-pinned ("sticky") offsets: the header at the viewport start, the
+   * footer at the viewport end. Each falls back to its resting offset when its
+   * sticky flag is unset.
    */
   double getStickyHeaderOffset() const;
   double getStickyFooterOffset(double footerSize) const;
+
+  /*
+   * Resolve which sticky section header (from stickyIndices) is pinned at the
+   * current scroll offset and how far to translate it. The active header is the
+   * last whose resting offset is at/above the viewport start; it pins there and is
+   * pushed up by the next sticky header. Returns {UNDEFINED_INDEX, 0} when nothing
+   * is pinned. Not pinned for inverted lists.
+   */
+  StickyHeader resolveStickyHeader() const;
 
   /*
    * Find the index of the element with the given key, or UNDEFINED_INDEX if absent
@@ -322,7 +331,7 @@ public:
 
   /*
    * Fire the visible-indices-change and scroll callbacks if their values changed
-   * since the last revision (deduplication lives here so integrations don't repeat it)
+   * since the last revision (deduplication lives here).
    */
   void dispatchObservers();
 
@@ -340,11 +349,9 @@ private:
   std::size_t prevViewableEndIndex = UNDEFINED_INDEX;
 
   /*
-   * Whether the previous revision was already at the start/end edge, so the
-   * reached callbacks fire once on arrival (a false->true transition) instead of
-   * every frame the offset stays within the threshold. prevReachedElementsSize
-   * re-arms them when the data set changes (pagination), so reaching a newly
-   * appended/prepended edge counts as a fresh arrival even within the band.
+   * Whether the previous revision was at the start/end edge, so reached callbacks
+   * fire once on arrival instead of every frame within the threshold.
+   * prevReachedElementsSize re-arms them when the data set changes (pagination).
    */
   bool prevReachedStart = false;
   bool prevReachedEnd = false;

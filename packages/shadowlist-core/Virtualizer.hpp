@@ -13,9 +13,8 @@
 namespace azimgd::shadowlist {
 
 /*
- * Platform agnostic description of a single frame. Integrations marshal their
- * props/state into this struct and read the resulting layout back from the
- * container, so the per-platform glue stays thin.
+ * Description of a single frame: inputs are read, resulting layout is written
+ * back to the container.
  */
 struct FrameInput {
   std::vector<std::string> keys;
@@ -30,16 +29,21 @@ struct FrameInput {
   bool inverted = false;
   bool horizontal = false;
   std::size_t columns = 1;
+
+  /*
+   * Element indices that pin to the viewport start once scrolled past (ascending).
+   * Empty for a plain list.
+   */
+  std::vector<std::size_t> stickyIndices;
+
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
   double viewablePercentThreshold = 0.0;
   std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
 
   /*
-   * Set when this frame comes from a genuine user scroll gesture (as opposed to a
-   * data/layout re-commit). It tells the virtualizer to abandon any in-flight
-   * scroll correction so the user takes over instead of being snapped back to the
-   * correction's target. See Virtualizer::update.
+   * Set for a user scroll gesture; abandons any in-flight scroll correction so the
+   * user is not snapped back.
    */
   bool userScrolled = false;
 };
@@ -47,24 +51,20 @@ struct FrameInput {
 class Virtualizer {
 public:
   /*
-   * Single per-frame entry point: reconcile elements to the incoming keys,
-   * measure, resolve scroll corrections (scrollToIndex / maintain visible
-   * content position) and dispatch observer callbacks
+   * Per-frame entry point: reconcile elements to the incoming keys, measure,
+   * resolve scroll corrections and dispatch observer callbacks.
    */
   static void update(Container *container, const FrameInput &input);
 
   /*
-   * Measure elements for the current revision
-   * Handles default/inverted order and single/multi-column layout
+   * Measure elements for the current revision (orientation/columns aware).
    * windowFromOffset selects the visible window from the current scroll offset
-   * (used for the re-measure after a scroll correction) instead of filling from
-   * the edge, which is otherwise only correct on the first revision
+   * instead of filling from the edge.
    */
   static void measure(Container *container, bool windowFromOffset = false);
 
   /*
-   * Recompute total container size from the maximum element extent. Public so the
-   * integration can refresh it once after feeding back a batch of measured sizes.
+   * Recompute total container size from the maximum element extent.
    */
   static void recomputeTotalSize(Container *container);
 
@@ -75,14 +75,12 @@ public:
   static void reconcileElements(Container *container, const std::vector<std::string> &nextKeys);
 
   /*
-   * Update measurements for existing element at specific index
+   * Update measurements for existing element at specific index.
    */
   static void updateElementAtIndex(Container *container, std::size_t index, Size size);
 
   /*
    * Recompute element offsets starting from a given index (orientation/columns aware).
-   * Public so an integration can re-flow after applying a freshly measured header/
-   * footer size in the same layout pass (avoiding a one-frame lag).
    */
   static void recomputeElementOffsets(Container *container, std::size_t fromIndex);
 
@@ -116,8 +114,7 @@ private:
   /*
    * Apply scroll corrections after measuring: a pending scrollToIndex, the inverted
    * bottom anchor, otherwise keep the captured anchor element at the same viewport
-   * position (MVCP). Returns true when the scroll offset was moved, so the caller
-   * can re-measure the visible window for the new offset.
+   * position. Returns true when the scroll offset was moved.
    */
   static bool resolveScroll(Container *container, const std::string &anchorKey, double anchorDelta, bool hadElementsBefore);
 };

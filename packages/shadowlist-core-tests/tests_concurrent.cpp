@@ -1,15 +1,7 @@
-// Concurrent invocations: Integration can commit (and therefore run Virtualizer::update)
-// from several threads onto the one Container shared by a list's clones. The
-// core's coreMutex must serialize those so no revision-conflict exception
-// escapes and the container is left consistent.
-//
-// NOTE: a missing/incorrect lock is a *data race* (undefined behaviour), which
-// surfaces as a sporadic crash or silent corruption rather than a catchable C++
-// exception, so the assertions below cannot reliably detect it on their own. Build
-// this suite with ThreadSanitizer (`-fsanitize=thread`) for a deterministic check
-// (the real, locked core is race-free under TSan). To give a race something to
-// catch, each thread drives a *different* key set / offset so the threads genuinely
-// contend on the shared revision state instead of converging on identical data.
+// Concurrent Virtualizer::update calls on one shared Container: coreMutex must
+// serialize them so no revision-conflict exception escapes and the container stays
+// consistent. Build with ThreadSanitizer (-fsanitize=thread) for a deterministic
+// race check; each thread drives a distinct key set / offset to force contention.
 
 #include "TestFramework.hpp"
 #include "Harness.hpp"
@@ -33,9 +25,8 @@ TEST(concurrent_updates_on_shared_container_are_serialized) {
   std::vector<std::thread> pool;
   for (int t = 0; t < threadCount; ++t) {
     pool.emplace_back([&, t]() {
-      // Each thread reconciles to a distinct list length and scrolls to a
-      // distinct offset, so overlapping updates mutate the shared revision toward
-      // conflicting states (a real race, not idempotent repetition).
+      // Distinct length and offset per thread, so overlapping updates push the
+      // shared revision toward conflicting states.
       for (int i = 0; i < iterations; ++i) {
         try {
           FrameInput input;
@@ -44,7 +35,7 @@ TEST(concurrent_updates_on_shared_container_are_serialized) {
           input.windowContainerWidth = 400;
           input.windowContainerHeight = 600;
           input.estimatedElementSize = {400, 100};
-          // update() takes container.coreMutex internally, serializing overlaps.
+          // update() takes coreMutex internally, serializing overlaps.
           virtualizer.update(&container, input);
         } catch (...) {
           ++exceptions;
@@ -60,8 +51,7 @@ TEST(concurrent_updates_on_shared_container_are_serialized) {
   CHECK_EQ(exceptions.load(), 0);            // no revision-conflict throw escaped
   CHECK_EQ(completed.load(), threadCount);   // every thread finished
 
-  // The container is left in a consistent, idle state holding one thread's full
-  // reconcile (whichever committed last), i.e. a valid per-thread length.
+  // Container is left idle holding one thread's full reconcile (a valid per-thread length).
   std::size_t size = container.getElementsSize();
   CHECK((size - 100) % 25 == std::size_t(0) && size >= std::size_t(100) && size <= std::size_t(275));
   CHECK_EQ(container.revisionStatus, std::size_t(0));  // RevisionStatusIdle

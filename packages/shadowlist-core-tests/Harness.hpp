@@ -1,17 +1,7 @@
 #pragma once
 
-// A small driver that exercises the core one "frame" at a time, the same way an
-// integration does:
-//
-//   1. Virtualizer::update(container, input)
-//   2. feed measured sizes for the visible window, then
-//      Virtualizer::recomputeTotalSize(container)
-//   3. read Container::resolveStateUpdate(...) and, if the core asked to move the
-//      scroll view, apply the new offset for the next frame
-//
-// Tests configure the list (keys, orientation, header/footer, window, and the
-// real measured size of each row) and then call frame()/settle() and assert on
-// the resulting layout.
+// Driver that exercises the core one frame at a time: update, feed measured
+// sizes, recompute total, then apply any requested scroll offset.
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
@@ -53,6 +43,7 @@ struct Sim {
   double footerSize = 0.0;
   bool stickyHeader = false;
   bool stickyFooter = false;
+  std::vector<std::size_t> stickyIndices;
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
   double viewablePercentThreshold = 0.0;
@@ -60,20 +51,17 @@ struct Sim {
   double winH = 600.0;
   Size estimated = {100.0, 100.0};
 
-  // The "real" size a row measures to once it is laid out natively. Defaults to
-  // the estimate (i.e. a perfectly-estimated list) when left unset.
+  // Real measured size of a row; defaults to the estimate when unset.
   std::function<Size(const std::string& key)> sizeOfKey;
 
-  // The scroll offset the platform currently holds.
+  // Current scroll offset.
   double offsetX = 0.0;
   double offsetY = 0.0;
 
-  // Whether the NEXT frame should be flagged as user-initiated (set by
-  // userScrollTo, consumed and reset in frame()). The real integration sets this
-  // on a genuine scroll gesture so an in-flight correction yields to the user.
+  // Flags the NEXT frame as user-initiated; consumed and reset in frame().
   bool nextUserScrolled = false;
 
-  // What the platform last published (content size), fed back into resolveStateUpdate.
+  // Last published content size, fed back into resolveStateUpdate.
   double prevTotalW = 0.0;
   double prevTotalH = 0.0;
 
@@ -96,7 +84,7 @@ struct Sim {
     container.onScrollCallback = [this](double x, double y) { scrolls.push_back({x, y}); };
   }
 
-  // The viewable window the core reported, normalised to ascending [lo, hi].
+  // Viewable window, normalised to ascending [lo, hi].
   bool viewableRange(std::size_t& lo, std::size_t& hi) {
     auto viewable = container.getViewableIndices();
     if (viewable.first == UNDEFINED_INDEX || viewable.second == UNDEFINED_INDEX) {
@@ -109,7 +97,7 @@ struct Sim {
 
   void setKeys(std::vector<std::string> next) { keys = std::move(next); }
 
-  // The visible window the core selected, normalised to ascending [lo, hi].
+  // Visible window, normalised to ascending [lo, hi].
   bool visibleRange(std::size_t& lo, std::size_t& hi) {
     auto visible = container.getVisibleIndices();
     if (visible.first == UNDEFINED_INDEX || visible.second == UNDEFINED_INDEX) {
@@ -125,8 +113,7 @@ struct Sim {
   double elementOffset(std::size_t index) { return container.getElementOffset(index); }
   std::size_t indexOfKey(const std::string& key) { return container.findElementIndexByKey(key); }
 
-  // The layout phase: feed the real measured size of every currently-visible row
-  // back into the core, then refresh the total once.
+  // Feed the measured size of every visible row, then refresh the total once.
   void feedMeasuredSizes() {
     std::size_t lo = 0;
     std::size_t hi = 0;
@@ -141,8 +128,8 @@ struct Sim {
     Virtualizer::recomputeTotalSize(&container);
   }
 
-  // Build the per-frame input from the current configuration (userScrolled is set
-  // by the caller, since it is a per-frame/per-commit signal).
+  // Build the per-frame input from the current configuration (userScrolled is
+  // set by the caller).
   FrameInput makeInput() const {
     FrameInput input;
     input.keys = keys;
@@ -157,6 +144,7 @@ struct Sim {
     input.footerSize = footerSize;
     input.stickyHeader = stickyHeader;
     input.stickyFooter = stickyFooter;
+    input.stickyIndices = stickyIndices;
     input.startReachedThreshold = startReachedThreshold;
     input.endReachedThreshold = endReachedThreshold;
     input.viewablePercentThreshold = viewablePercentThreshold;
@@ -164,8 +152,7 @@ struct Sim {
     return input;
   }
 
-  // Feed measured sizes, then read the core's resolution and apply the offset for
-  // the next frame if the core asked to move the view. Returns whether it moved.
+  // Feed measured sizes, then apply any requested offset. Returns whether it moved.
   bool publish() {
     feedMeasuredSizes();
 
@@ -190,12 +177,8 @@ struct Sim {
     return publish();
   }
 
-  // Simulate a single platform commit in which the shadow-node adopt path runs
-  // update() more than once before the resulting offset is published. Fabric
-  // clones a list node several times per commit, so the same reported offset (and
-  // the same, possibly stale, latched userScrolled flag) reaches the core on every
-  // adopt; the offset is applied only once, after the last one. Returns whether the
-  // core moved the offset.
+  // Run update() N times with the same input, then publish once. Models a commit
+  // that adopts the node multiple times before applying the offset. Returns moved.
   bool commit(int adopts, bool userScrolled) {
     FrameInput input = makeInput();
     input.userScrolled = userScrolled;
@@ -205,8 +188,7 @@ struct Sim {
     return publish();
   }
 
-  // Run frames until the offset stops moving (or maxFrames is reached), which is
-  // how scroll corrections (scrollToIndex, inverted pin, MVCP) converge.
+  // Run frames until the offset stops moving (or maxFrames is reached).
   void settle(int maxFrames = 40) {
     for (int i = 0; i < maxFrames; ++i) {
       double beforeX = offsetX;
@@ -224,17 +206,13 @@ struct Sim {
     settle();
   }
 
-  // Request a core-driven scroll to the very end and run to steady state. The
-  // correction re-targets the bottom as off-screen rows are measured, so it
-  // converges on the true end of a variable-height list.
+  // Request a core-driven scroll to the end and run to steady state.
   void scrollToEnd() {
     container.scrollToEnd();
     settle();
   }
 
-  // A single user-initiated scroll frame: the user dragged to y and the platform
-  // reports it as a genuine gesture (not a correction it applied itself). Runs one
-  // frame so a test can observe whether an in-flight correction snaps it back.
+  // Run one user-initiated scroll frame to offset y.
   bool userScrollTo(double y) {
     offsetY = y;
     nextUserScrolled = true;

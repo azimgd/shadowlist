@@ -1,15 +1,6 @@
 /*
- * Emscripten/embind binding around the platform-agnostic shadowlist-core. It
- * exposes a flat API to JavaScript so the react-dom layer can drive the
- * virtualization algorithm:
- *
- *   1. update(...)            -> reconcile keys, measure, resolve scroll
- *   2. read getElementAtIndex -> position the rendered DOM nodes
- *   3. updateElementAtIndex   -> feed measured DOM sizes back
- *   4. recomputeTotalSize     -> refresh content size once per batch
- *   5. resolveStateUpdate     -> learn the content size / scroll correction
- *
- * One ShadowlistCore instance owns one Container + Virtualizer (one core per list).
+ * JS binding around shadowlist-core. One ShadowlistCore owns one
+ * Container + Virtualizer (one core per list).
  */
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
@@ -37,10 +28,7 @@ class ShadowlistCore {
 public:
   ShadowlistCore() = default;
 
-  /*
-   * Single per-frame entry point. Marshals JS props into a FrameInput and runs
-   * the virtualizer (reconcile -> measure -> resolve scroll -> dispatch).
-   */
+  /* Per-frame entry point: build a FrameInput and run the virtualizer. */
   void update(
     val keysVal,
     double containerOffsetX,
@@ -79,11 +67,7 @@ public:
     input.endReachedThreshold = endReachedThreshold;
     input.viewablePercentThreshold = viewablePercentThreshold;
 
-    /*
-     * The core throws on misuse (a bad revision state / out-of-range index). An
-     * uncaught C++ exception propagating across the embind boundary aborts the whole
-     * wasm instance, so contain it here: skip the frame rather than kill the list.
-     */
+    // Contain core exceptions: skip the frame rather than abort the instance.
     try {
       virtualizer_.update(&container_, input);
     } catch (...) {
@@ -91,10 +75,7 @@ public:
     }
   }
 
-  /*
-   * Feed a natively measured element size back into the virtualizer. Guarded
-   * against a stale index outrunning the reconciled element count.
-   */
+  // Feed a measured element size back. Guards against a stale index.
   void updateElementAtIndex(int index, double width, double height) {
     if (index < 0 || static_cast<std::size_t>(index) >= container_.getElementsSize()) {
       return;
@@ -102,9 +83,7 @@ public:
     virtualizer_.updateElementAtIndex(&container_, static_cast<std::size_t>(index), {width, height});
   }
 
-  /*
-   * Refresh the total content size once after a batch of measurement feedback.
-   */
+  // Refresh total content size after a batch of measurement feedback.
   void recomputeTotalSize() {
     Virtualizer::recomputeTotalSize(&container_);
   }
@@ -113,9 +92,7 @@ public:
     return static_cast<int>(container_.getElementsSize());
   }
 
-  /*
-   * Layout (offset + size) of a single element, used to position the DOM node.
-   */
+  // Layout (offset + size) of a single element.
   val getElementAtIndex(int index) const {
     val result = val::object();
     if (index < 0 || static_cast<std::size_t>(index) >= container_.getElementsSize()) {
@@ -132,9 +109,7 @@ public:
     return result;
   }
 
-  /*
-   * Current visible index range (inverted lists report start > end).
-   */
+  // Current visible index range (inverted lists report start > end).
   val getVisibleIndices() const {
     auto visibleIndices = container_.getVisibleIndices();
     val result = val::object();
@@ -143,10 +118,7 @@ public:
     return result;
   }
 
-  /*
-   * Resolve the frame into the values to publish to the scroll view. prev* are
-   * what the DOM currently holds (its scroll offset and last content size).
-   */
+  // Resolve the frame into values to publish. prev* are the current offset and content size.
   val resolveStateUpdate(
     double prevContainerOffsetX,
     double prevContainerOffsetY,
@@ -171,10 +143,7 @@ public:
     return container_.getFooterOffset(footerSize);
   }
 
-  /*
-   * Viewport-pinned ("sticky") offsets along the scroll axis. Each falls back to
-   * its resting offset when the corresponding sticky flag (passed to update) is off.
-   */
+  // Sticky offsets along the scroll axis. Fall back to the resting offset when the sticky flag is off.
   double getStickyHeaderOffset() const {
     return container_.getStickyHeaderOffset();
   }
@@ -183,10 +152,7 @@ public:
     return container_.getStickyFooterOffset(footerSize);
   }
 
-  /*
-   * Strictly-viewable index range (inside the viewport, subject to the viewable
-   * percent threshold). Inverted lists report start > end.
-   */
+  // Viewable index range (subject to the viewable percent threshold). Inverted lists report start > end.
   val getViewableIndices() const {
     auto viewableIndices = container_.getViewableIndices();
     val result = val::object();
@@ -203,10 +169,7 @@ public:
     container_.scrollToIndex(static_cast<std::size_t>(index));
   }
 
-  /*
-   * Resolve a scrollToIndex from an imperative command (index + monotonic nonce)
-   * and a declarative prop. The imperative command takes precedence.
-   */
+  // Resolve a scrollToIndex from a command (index + nonce) and a prop; the command wins.
   void requestScrollToIndex(double commandIndex, double commandNonce, int propIndex) {
     container_.requestScrollToIndex(commandIndex, commandNonce, propIndex);
   }

@@ -5,6 +5,9 @@ import { ActivityScreen } from './ActivityScreen';
 import { NestedScreen } from './NestedScreen';
 import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
+import { SectionListScreen } from './SectionListScreen';
+import { ReorderScreen } from './ReorderScreen';
+import { TreeScreen } from './TreeScreen';
 
 const SCREENS = [
   { name: 'Feed', title: 'Feed', component: FeedScreen },
@@ -13,6 +16,9 @@ const SCREENS = [
   { name: 'Nested', title: 'Nested', component: NestedScreen },
   { name: 'Masonry', title: 'Masonry', component: MasonryScreen },
   { name: 'Contacts', title: 'Contacts', component: ContactsScreen },
+  { name: 'SectionList', title: 'Section List', component: SectionListScreen },
+  { name: 'Reorder', title: 'Reorder', component: ReorderScreen },
+  { name: 'Tree', title: 'Tree', component: TreeScreen },
 ] as const;
 
 export const App = () => {

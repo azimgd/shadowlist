@@ -2,7 +2,10 @@ import { useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Shadowlist, type ShadowlistCommands } from 'shadowlist';
 import { FloatingActionBar } from './FloatingActionBar';
-import { ContactElement, type ContactElement as ContactElementType } from './ContactElement';
+import {
+  ContactElement,
+  type ContactElement as ContactElementType,
+} from './ContactElement';
 import { HeaderListItem } from './HeaderListItem';
 import { FooterListItem } from './FooterListItem';
 import { generateContact } from './constants';
@@ -42,8 +45,12 @@ export const ContactsScreen = () => {
         renderElement={({ element, index }) => (
           <ContactElement element={element} index={index} />
         )}
-        ListHeaderComponent={<HeaderListItem title="Contacts" subtitle="Swipe left to delete" />}
-        ListFooterComponent={<FooterListItem text={`${data.length} contacts`} />}
+        ListHeaderComponent={
+          <HeaderListItem title="Contacts" subtitle="Swipe left to delete" />
+        }
+        ListFooterComponent={
+          <FooterListItem text={`${data.length} contacts`} />
+        }
       />
       <FloatingActionBar
         onPrepend={handlePrepend}

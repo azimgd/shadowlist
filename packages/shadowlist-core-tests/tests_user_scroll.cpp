@@ -1,14 +1,11 @@
 // Regression: a genuine user scroll must abandon any in-flight scroll correction
 // so the visible window tracks the user instead of latching at an edge.
 //
-// This reproduces the field bug where an inverted, variable-height list scrolled
-// deep would freeze: a maintain-visible-content-position correction kept re-
-// targeting the clamped bottom offset every frame and the window was measured at
-// that phantom offset, so the rows the user was actually looking at were never
-// mounted (blank screen). The fix is that each user-initiated frame is flagged
-// userScrolled, which cancels the pending correction (Virtualizer::update). The
-// integrations (iOS/Android/WASM) must send that flag; this guards the core side
-// the integrations rely on.
+// Reproduces an inverted, variable-height list scrolled deep that froze: a
+// maintain-visible-content-position correction kept re-targeting the clamped bottom
+// offset, measuring the window at that phantom offset so the user's rows never
+// mounted. Each user-initiated frame is flagged userScrolled, cancelling the
+// pending correction.
 
 #include "TestFramework.hpp"
 #include "Harness.hpp"
@@ -37,8 +34,7 @@ TEST(inverted_deep_user_scroll_tracks_window) {
   double maxOffset = total - sim.winH;
   CHECK(maxOffset > 8000.0);  // sanity: the list is far taller than the window
 
-  // Drag up the list in user-initiated steps (each frame flagged userScrolled,
-  // exactly what the integrations must send on a real gesture).
+  // Drag up the list in user-initiated steps (each frame flagged userScrolled).
   for (double y = maxOffset; y > maxOffset - 6000.0; y -= 400.0) {
     sim.userScrollTo(y);
 

@@ -1,8 +1,6 @@
 // Sticky header/footer: the template stays pinned to the viewport edge instead
-// of scrolling with the content. The core only changes where the header/footer
-// template is positioned (getHeaderOffset / getFooterOffset); the reserved
-// header/footer space in the content size is unchanged, so the template settles
-// back onto it at the scroll extremes.
+// of scrolling with the content. Only its position changes; the reserved space in
+// the content size is unchanged, so it settles back onto it at the scroll extremes.
 
 #include "TestFramework.hpp"
 #include "Harness.hpp"
@@ -106,4 +104,101 @@ TEST(sticky_header_horizontal_tracks_offset_x) {
   sim.offsetX = 2000.0;
   sim.settle();
   CHECK_NEAR(sim.container.getStickyHeaderOffset(), 2000.0, 0.5);
+}
+
+// The header's real size arrives one commit after the first layout (0 on commit 1,
+// real on commit 2). The resulting offset shift must NOT be treated as a content
+// scroll, or the list opens scrolled past the header. Regression.
+TEST(header_measured_late_keeps_list_at_top) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(30));
+
+  // Commit 1: header not measured yet (size 0).
+  sim.headerSize = 0.0;
+  sim.frame();
+
+  // Commit 2: header measured (size 50).
+  sim.headerSize = 50.0;
+  sim.frame();
+  sim.settle();
+
+  // The list must still be at the top showing the header, not scrolled down by 50.
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+  // Element 0 rests just below the header.
+  CHECK_NEAR(sim.elementOffset(0), 50.0, 0.5);
+}
+
+// A genuine prepend at a scrolled position must still maintain the visible content
+// position (the header-size compensation must not disable it).
+TEST(header_compensation_preserves_prepend_mvcp) {
+  Sim sim;
+  sim.winH = 600;
+  sim.headerSize = 50.0;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(30));
+  sim.settle();
+
+  // Scroll into the list, then prepend 5 rows above the viewport.
+  sim.scrollTo(1000.0);
+  std::string anchorKey = "k10";
+  double anchorBefore = sim.elementOffset(sim.indexOfKey(anchorKey)) - sim.offsetY;
+
+  std::vector<std::string> prepended = makeKeys(5, "p");
+  for (const auto& k : makeKeys(30)) prepended.push_back(k);
+  sim.setKeys(prepended);
+  sim.settle();
+
+  // The anchor row stays at the same viewport position (offset grew by the 5 rows).
+  double anchorAfter = sim.elementOffset(sim.indexOfKey(anchorKey)) - sim.offsetY;
+  CHECK_NEAR(anchorAfter, anchorBefore, 1.0);
+}
+
+// Models the commit sequence where update() sees the stale (previous) header size
+// and the freshly measured header only lands in this commit's layout pass, after
+// update() ran. The list must still open at offset 0 with the header visible.
+TEST(header_late_real_commit_sequence_keeps_top) {
+  Sim sim;
+  sim.winH = 600;
+  sim.estimated = {400, 100};
+  sim.sizeOfKey = [](const std::string&) { return Size{400, 100}; };
+  sim.setKeys(makeKeys(30));
+
+  // Commit 1: header not measured yet (update and layout both see 0).
+  sim.headerSize = 0.0;
+  sim.frame();
+
+  // Commit 2: update() sees the stale header (0); the real 50 arrives in the layout
+  // pass below.
+  FrameInput input = sim.makeInput();
+  input.headerSize = 0.0;
+  sim.virtualizer.update(&sim.container, input);
+
+  // Layout pass: apply the freshly measured header, re-flow, feed visible sizes.
+  sim.container.headerSize = 50.0;
+  Virtualizer::recomputeElementOffsets(&sim.container, 0);
+  std::size_t lo = 0, hi = 0;
+  if (sim.visibleRange(lo, hi)) {
+    for (std::size_t i = lo; i <= hi && i < sim.container.getElementsSize(); ++i) {
+      Virtualizer::updateElementAtIndex(&sim.container, i, Size{400, 100});
+    }
+  }
+  Virtualizer::recomputeTotalSize(&sim.container);
+
+  // Re-assert the offset on the header-size-change commit so the host applies the
+  // resting offset (otherwise the rows re-flow but the offset is left stale).
+  sim.container.containerOffsetCorrected = true;
+
+  auto upd = sim.container.resolveStateUpdate(sim.offsetX, sim.offsetY, sim.prevTotalW, sim.prevTotalH);
+  if (upd.applyContainerOffset) { sim.offsetX = upd.containerOffsetX; sim.offsetY = upd.containerOffsetY; }
+  sim.prevTotalW = upd.totalContainerWidth; sim.prevTotalH = upd.totalContainerHeight;
+
+  // The host must be told to apply the offset, at the top (0) with element 0 just
+  // below the header.
+  CHECK_EQ(upd.applyContainerOffset, true);
+  CHECK_NEAR(sim.offsetY, 0.0, 0.5);
+  CHECK_NEAR(sim.elementOffset(0), 50.0, 0.5);
 }

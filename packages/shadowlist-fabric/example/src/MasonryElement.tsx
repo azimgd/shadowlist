@@ -13,22 +13,24 @@ interface MasonryElementProps {
   index: number;
 }
 
-export const MasonryElement = memo(({ element, index }: MasonryElementProps) => {
-  return (
-    <View style={styles.masonryElement}>
-      <View style={[styles.imageContainer, { height: element.height }]}>
-        <Image
-          source={{ uri: element.imageUrl }}
-          style={styles.image}
-          resizeMode="cover"
-        />
+export const MasonryElement = memo(
+  ({ element, index }: MasonryElementProps) => {
+    return (
+      <View style={styles.masonryElement}>
+        <View style={[styles.imageContainer, { height: element.height }]}>
+          <Image
+            source={{ uri: element.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        </View>
+        <Text style={styles.title} numberOfLines={2}>
+          {element.title} · {index}
+        </Text>
       </View>
-      <Text style={styles.title} numberOfLines={2}>
-        {element.title} · {index}
-      </Text>
-    </View>
-  );
-});
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   masonryElement: {

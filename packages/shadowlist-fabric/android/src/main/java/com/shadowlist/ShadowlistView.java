@@ -11,35 +11,32 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import androidx.annotation.Nullable;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
+import com.facebook.react.uimanager.UIManagerHelper;
+import com.facebook.react.uimanager.events.EventDispatcher;
 import com.facebook.react.views.scroll.ReactHorizontalScrollView;
 import com.facebook.react.views.scroll.ReactScrollView;
 
 /*
  * Hosts the scrolling content in an inner scroll view picked by the `horizontal`
- * prop: ReactScrollView for vertical, ReactHorizontalScrollView for horizontal.
- * Android splits the two (a vertical ScrollView cannot scroll along X), so a
- * horizontal list needs the horizontal subclass for native fling/overscroll and
- * for nested touch interception to resolve correctly. All scroll, sticky and
- * state-sync logic lives here; the inner subclasses just forward scroll and
- * touch-down callbacks up.
+ * prop. Keeps the scroll/content plumbing, state sync and imperative commands;
+ * sticky pinning lives in ShadowlistStickyController and drag-to-reorder in
+ * ShadowlistDragController, both reaching the shared views and state through the
+ * package-private accessors below.
  */
 public class ShadowlistView extends FrameLayout {
-  /*
-   * Trace the native <-> C++ core state synchronization. Mirrors the
-   * SHADOWLIST_DEBUG_LOG flag in shadowlist-core/Constants.hpp (and the iOS
-   * mm.* logs) and shares the same [SL] tag so all layers interleave into one
-   * stream. Filter with: adb logcat -s SL
-   */
+  // State-sync trace logging, filter with: adb logcat -s SL
   private static final boolean DEBUG_LOG = false;
   private static final String LOG_TAG = "SL";
 
-  private static void slLog(String message) {
+  static void slLog(String message) {
     if (DEBUG_LOG) {
       Log.d(LOG_TAG, "[SL] " + message);
     }
@@ -48,36 +45,33 @@ public class ShadowlistView extends FrameLayout {
   private @Nullable StateWrapper mState = null;
   private ContentContainer mContentView;
   private ViewGroup mScrollView;
+  private final ShadowlistStickyController mStickyController;
+  private final ShadowlistDragController mDragController;
+
+  // Horizontal/vertical axis (the `horizontal` prop); a change re-installs the inner scroll view.
+  private boolean mHorizontal = false;
+
+  // Keyboard-avoidance bottom inset (px); held to diff against the next value for the delta.
+  private int mContentInsetBottom = 0;
+
+  // Pull-to-refresh state; all held so an axis-flip re-install restores them.
+  @Nullable private SwipeRefreshLayout mRefreshLayout = null;
+  private boolean mRefreshEnabled = false;
+  private boolean mRefreshing = false;
+  @Nullable private Integer mRefreshColor = null;
 
   /*
-   * A programmatic scroll we issued (a core correction, or scrollToOffset/End) is in
-   * flight. onScrollChanged fires for these too, so reporting them as user gestures
-   * would make the core abandon its own in-flight correction and latch/blank the
-   * visible window. We track the target and whether it is animated - smoothScrollTo
-   * emits many intermediate frames before reaching the target, none of which match
-   * it - and a user touch (onTouchEvent) clears the flag so a finger taking over
-   * mid-animation correctly wins.
+   * Tracks a programmatic scroll we issued so its echoed callbacks are not reported as
+   * user gestures, which would make the core abandon its in-flight correction and blank
+   * the visible window. A user touch clears the flag so a finger taking over wins.
    */
   private int mProgrammaticTargetX = 0;
   private int mProgrammaticTargetY = 0;
   private boolean mProgrammaticPending = false;
   private boolean mProgrammaticAnimated = false;
 
-  /*
-   * An onScrollChanged offset within this many pixels of the offset we applied is
-   * its own echo, not a user scroll.
-   */
+  // An offset within this many pixels of the one we applied is our own echo, not a user scroll.
   private static final int PROGRAMMATIC_SCROLL_TOLERANCE_PX = 2;
-
-  /*
-   * Sticky header/footer are pinned natively here (not in the core layout) so they
-   * track scrolling on the UI thread without the commit-cycle latency that made the
-   * core-driven version choppy. The template views keep their resting position from
-   * the shadow node; we layer a translation on top each scroll frame.
-   */
-  private boolean mStickyHeader = false;
-  private boolean mStickyFooter = false;
-  private boolean mHorizontal = false;
 
   private static class ContentContainer extends ViewGroup {
     public ContentContainer(Context context) {
@@ -89,10 +83,7 @@ public class ShadowlistView extends FrameLayout {
     }
   }
 
-  /*
-   * The inner scroll views forward their scroll and touch-down callbacks to the host
-   * so all logic stays in one place regardless of axis.
-   */
+  // Inner scroll views forward scroll and touch-down callbacks to the host.
   private static class InnerVerticalScrollView extends ReactScrollView {
     private final ShadowlistView mHost;
 
@@ -142,18 +133,22 @@ public class ShadowlistView extends FrameLayout {
   public ShadowlistView(Context context) {
     super(context);
     mContentView = new ContentContainer(context);
+    mStickyController = new ShadowlistStickyController(this);
+    mDragController = new ShadowlistDragController(this, context);
     installScrollView(false);
   }
 
-  /*
-   * Build the inner scroll view for the current axis and move the content container
-   * into it. Called on construction and whenever the `horizontal` prop flips; the
-   * content (and its mounted children) is re-parented, not rebuilt.
-   */
+  // Build the inner scroll view for the current axis and re-parent the content into it.
   private void installScrollView(boolean horizontal) {
     if (mScrollView != null) {
       mScrollView.removeView(mContentView);
-      removeView(mScrollView);
+      if (mRefreshLayout != null) {
+        mRefreshLayout.removeView(mScrollView);
+        removeView(mRefreshLayout);
+        mRefreshLayout = null;
+      } else {
+        removeView(mScrollView);
+      }
     }
 
     Context context = getContext();
@@ -180,21 +175,70 @@ public class ShadowlistView extends FrameLayout {
     }
 
     mScrollView.addView(mContentView);
-    addView(mScrollView, new FrameLayout.LayoutParams(
-      FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+
+    if (!horizontal) {
+      // Wrap the vertical list for pull-to-refresh; gated by mRefreshEnabled.
+      mRefreshLayout = new SwipeRefreshLayout(context);
+      mRefreshLayout.setOnRefreshListener(this::emitRefresh);
+      mRefreshLayout.setEnabled(mRefreshEnabled);
+      if (mRefreshColor != null) {
+        mRefreshLayout.setColorSchemeColors(mRefreshColor);
+      }
+      mRefreshLayout.addView(mScrollView, new ViewGroup.LayoutParams(
+        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+      addView(mRefreshLayout, new FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+    } else {
+      addView(mScrollView, new FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+    }
   }
 
-  /*
-   * Content child management. Fabric mounts element/template views into this host;
-   * the ShadowlistViewManager routes those calls here so they land in the content
-   * container inside the inner scroll view (instead of the host or scroll view).
-   */
+  // Pull-to-refresh: toggle the gesture, drive the controlled spinner, tint the indicator.
+  public void setRefreshEnabled(boolean enabled) {
+    mRefreshEnabled = enabled;
+    if (mRefreshLayout != null) {
+      mRefreshLayout.setEnabled(enabled);
+    }
+  }
+
+  public void setRefreshing(boolean refreshing) {
+    if (refreshing == mRefreshing) {
+      return;
+    }
+    mRefreshing = refreshing;
+    if (mRefreshLayout != null) {
+      mRefreshLayout.setRefreshing(refreshing);
+    }
+  }
+
+  public void setRefreshColor(@Nullable Integer color) {
+    mRefreshColor = color;
+    if (mRefreshLayout != null && color != null) {
+      mRefreshLayout.setColorSchemeColors(color);
+    }
+  }
+
+  private void emitRefresh() {
+    ReactContext reactContext = (ReactContext) getContext();
+    EventDispatcher dispatcher =
+      UIManagerHelper.getEventDispatcherForReactTag(reactContext, getId());
+    if (dispatcher != null) {
+      dispatcher.dispatchEvent(
+        new ShadowlistRefreshEvent(UIManagerHelper.getSurfaceId(this), getId()));
+    }
+  }
+
+  // Element/template children land in the content container inside the inner scroll view.
   public void addContentView(View child, int index) {
     if (child instanceof ShadowlistElementView) {
       mContentView.addView(child, index);
-      // A newly mounted element can land above the sticky header/footer; keep the
-      // pinned views on top.
-      bringStickyViewsToFront();
+      // Re-pin so active sticky views stay on top of the newly mounted element.
+      mStickyController.applyStickyTranslations();
+      // A row mounting mid-drag needs its make-room shuffle applied at once to avoid a flash.
+      if (mDragController.isDragging()) {
+        mDragController.applyDragShuffle();
+      }
       return;
     }
     if (child instanceof ShadowlistTemplateView) {
@@ -215,13 +259,13 @@ public class ShadowlistView extends FrameLayout {
   }
 
   private void handleInnerScroll(int scrollX, int scrollY) {
-    updateScrollState(scrollX, scrollY);
-    applyStickyTranslations();
+    // Advance the auto-hide only on genuine user scrolls (not our own echoed offset).
+    boolean userScrolled = updateScrollState(scrollX, scrollY);
+    mStickyController.applyStickyTranslations(userScrolled);
   }
 
   private void handleInnerTouchDown() {
-    // A finger on the list takes over from any in-flight programmatic scroll, so
-    // the following onScrollChanged callbacks are reported as genuine user scrolls.
+    // A finger takes over from any in-flight programmatic scroll.
     mProgrammaticPending = false;
   }
 
@@ -232,14 +276,55 @@ public class ShadowlistView extends FrameLayout {
     mProgrammaticPending = true;
   }
 
+  public void setDragEnabled(boolean dragEnabled) {
+    mDragController.setEnabled(dragEnabled);
+  }
+
+  // Tear down any in-flight drag and sticky state before this host is recycled.
+  void onDropInstance() {
+    mDragController.teardown();
+    mStickyController.reset();
+  }
+
+  @Override
+  public boolean onInterceptTouchEvent(MotionEvent event) {
+    if (mDragController.onInterceptTouchEvent(event)) {
+      return true;
+    }
+    return super.onInterceptTouchEvent(event);
+  }
+
+  @Override
+  public boolean onTouchEvent(MotionEvent event) {
+    if (mDragController.onTouchEvent(event)) {
+      return true;
+    }
+    return super.onTouchEvent(event);
+  }
+
+  // Toggle the inner scroll view's gesture handling.
+  void setInnerScrollEnabled(boolean enabled) {
+    if (mScrollView instanceof ReactScrollView) {
+      ((ReactScrollView) mScrollView).setScrollEnabled(enabled);
+    } else if (mScrollView instanceof ReactHorizontalScrollView) {
+      ((ReactHorizontalScrollView) mScrollView).setScrollEnabled(enabled);
+    }
+  }
+
   public void setStickyHeader(boolean stickyHeader) {
-    mStickyHeader = stickyHeader;
-    applyStickyTranslations();
+    mStickyController.setStickyHeader(stickyHeader);
   }
 
   public void setStickyFooter(boolean stickyFooter) {
-    mStickyFooter = stickyFooter;
-    applyStickyTranslations();
+    mStickyController.setStickyFooter(stickyFooter);
+  }
+
+  public void setAutoHideHeader(boolean autoHideHeader) {
+    mStickyController.setAutoHideHeader(autoHideHeader);
+  }
+
+  public void setAutoHideFooter(boolean autoHideFooter) {
+    mStickyController.setAutoHideFooter(autoHideFooter);
   }
 
   public void setHorizontal(boolean horizontal) {
@@ -247,115 +332,59 @@ public class ShadowlistView extends FrameLayout {
       mHorizontal = horizontal;
       installScrollView(horizontal);
     }
-    applyStickyTranslations();
+    mStickyController.applyStickyTranslations();
   }
 
   /*
-   * Pin the sticky header/footer to the viewport by translating them relative to
-   * their resting position. The header tracks the scroll offset (stays at the
-   * start); the footer tracks offset + window - content so it stays at the viewport
-   * end and lands exactly on its resting position at the scroll extreme. Runs on
-   * the UI thread per scroll frame, so it stays in lockstep with the gesture.
+   * Keyboard avoidance (vertical only): grow the bottom padding to the inset and shift
+   * the offset by the delta so rows behind the keyboard come into view. Skipped while a
+   * drag owns the offset.
    */
-  private void applyStickyTranslations() {
-    if (mContentView == null || mScrollView == null) {
+  public void setContentInsetBottom(double insetDip) {
+    int inset = Math.max(0, (int) PixelUtil.toPixelFromDIP((float) insetDip));
+    if (inset == mContentInsetBottom) {
+      return;
+    }
+    int delta = inset - mContentInsetBottom;
+    mContentInsetBottom = inset;
+
+    if (mHorizontal) {
       return;
     }
 
-    int offsetX = mScrollView.getScrollX();
-    int offsetY = mScrollView.getScrollY();
-    int windowW = mScrollView.getWidth();
-    int windowH = mScrollView.getHeight();
-    int contentW = mContentView.getWidth();
-    int contentH = mContentView.getHeight();
+    mScrollView.setPadding(0, 0, 0, inset);
 
-    for (int i = 0; i < mContentView.getChildCount(); i++) {
-      View child = mContentView.getChildAt(i);
-      if (!(child instanceof ShadowlistTemplateView)) {
-        continue;
+    if (!mDragController.ownsScrollOffset()) {
+      int targetX = mScrollView.getScrollX();
+      int targetY = Math.max(0, mScrollView.getScrollY() + delta);
+      markProgrammaticScroll(targetX, targetY, true);
+      if (mScrollView instanceof ReactScrollView) {
+        ((ReactScrollView) mScrollView).smoothScrollTo(targetX, targetY);
       }
-
-      boolean isFooter = "footer".equals(((ShadowlistTemplateView) child).getTemplateType());
-      boolean sticky = isFooter ? mStickyFooter : mStickyHeader;
-
-      float translation = 0f;
-      if (sticky) {
-        if (isFooter) {
-          translation = mHorizontal ? (offsetX + windowW - contentW) : (offsetY + windowH - contentH);
-        } else {
-          translation = mHorizontal ? offsetX : offsetY;
-        }
-      }
-
-      if (mHorizontal) {
-        child.setTranslationX(translation);
-        child.setTranslationY(0f);
-      } else {
-        child.setTranslationY(translation);
-        child.setTranslationX(0f);
-      }
-    }
-
-    bringStickyViewsToFront();
-  }
-
-  /*
-   * A pinned (sticky) header/footer must stay above the scrolling elements, which
-   * mount continuously and would otherwise cover it.
-   */
-  private void bringStickyViewsToFront() {
-    if (mContentView == null || (!mStickyHeader && !mStickyFooter)) {
-      return;
-    }
-
-    View headerView = null;
-    View footerView = null;
-    for (int i = 0; i < mContentView.getChildCount(); i++) {
-      View child = mContentView.getChildAt(i);
-      if (!(child instanceof ShadowlistTemplateView)) {
-        continue;
-      }
-      if ("footer".equals(((ShadowlistTemplateView) child).getTemplateType())) {
-        footerView = child;
-      } else {
-        headerView = child;
-      }
-    }
-
-    if (mStickyHeader && headerView != null) {
-      headerView.bringToFront();
-    }
-    if (mStickyFooter && footerView != null) {
-      footerView.bringToFront();
     }
   }
 
-  private void updateScrollState(int scrollX, int scrollY) {
+  private boolean updateScrollState(int scrollX, int scrollY) {
     if (mState == null) {
-      return;
+      return false;
     }
 
-    /*
-     * A callback whose offset matches the one the core just applied is the core's
-     * own move, not a user gesture. Everything else (drag, fling) is a genuine
-     * user scroll, which lets the core abandon an in-flight correction instead of
-     * letting it latch and freeze the visible window (blank list on deep scroll).
-     */
+    // A callback matching the offset we just applied is our own echo, not a user gesture.
+    // Mislabeling it would let the core latch and freeze the visible window.
     boolean userScrolled = true;
     if (mProgrammaticPending) {
       boolean reachedTarget =
         Math.abs(scrollX - mProgrammaticTargetX) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX
           && Math.abs(scrollY - mProgrammaticTargetY) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX;
       if (reachedTarget) {
-        // The programmatic scroll settled on its target: this is its echo, not a user move.
+        // Settled on the target: this is the echo, not a user move.
         userScrolled = false;
         mProgrammaticPending = false;
       } else if (mProgrammaticAnimated) {
-        // An intermediate frame of our own smooth-scroll animation; still not a user move.
+        // Intermediate frame of our own animation; still not a user move.
         userScrolled = false;
       } else {
-        // An instant programmatic scroll that did not land on the target means a real
-        // user scroll arrived instead, so hand control back to the user.
+        // An instant scroll that missed the target means a real user scroll arrived; yield.
         mProgrammaticPending = false;
       }
     }
@@ -372,6 +401,7 @@ public class ShadowlistView extends FrameLayout {
         PixelUtil.toDIPFromPixel(scrollX), PixelUtil.toDIPFromPixel(scrollY), userScrolled));
     }
     mState.updateState(map);
+    return userScrolled;
   }
 
   public void updateState(@Nullable StateWrapper stateWrapper) {
@@ -385,6 +415,8 @@ public class ShadowlistView extends FrameLayout {
     if (nextStateData == null) {
       return;
     }
+
+    mStickyController.cacheStickyGeometry(nextStateData);
 
     if (DEBUG_LOG) {
       slLog(String.format("java.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
@@ -406,7 +438,9 @@ public class ShadowlistView extends FrameLayout {
       mContentView.layout(0, 0, newContentWidth, newContentHeight);
     }
 
-    if (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) {
+    // While the drag owns the offset, a core correction must not yank the content.
+    if (!mDragController.ownsScrollOffset()
+        && nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) {
       if (nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
         float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
         float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
@@ -418,9 +452,11 @@ public class ShadowlistView extends FrameLayout {
       }
     }
 
-    // Re-pin after the content size / offset changed (the footer pin depends on
-    // the content size) even when the list is not actively scrolling.
-    applyStickyTranslations();
+    // Re-pin after the content size/offset changed (the footer pin depends on content size).
+    mStickyController.applyStickyTranslations();
+
+    // Mid-drag: re-glue the picked-up row to the finger and clear the shuffle once committed.
+    mDragController.onStateCommitted();
   }
 
   public void setStartReachedEnabled(boolean enabled) {
@@ -454,8 +490,7 @@ public class ShadowlistView extends FrameLayout {
       return;
     }
 
-    // Bump the nonce so the core treats this as a fresh request and re-scrolls
-    // even when the index is unchanged from the previous call
+    // Bump the nonce so the core re-scrolls even when the index is unchanged.
     double nextNonce = 0;
     ReadableMap currentStateData = mState.getStateData();
     if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexNonce")) {
@@ -471,9 +506,7 @@ public class ShadowlistView extends FrameLayout {
   }
 
   public void scrollToOffset(double offset, boolean animated) {
-    // Direct offset scroll along the scroll axis; the core picks up the new position
-    // from the resulting onScrollChanged callback. Marked programmatic so the
-    // animated path's intermediate frames are not mistaken for a user scroll.
+    // Direct offset scroll along the axis; marked programmatic so its frames are not user scrolls.
     int px = (int) PixelUtil.toPixelFromDIP((float) offset);
     int targetX = mHorizontal ? px : mScrollView.getScrollX();
     int targetY = mHorizontal ? mScrollView.getScrollY() : px;
@@ -494,12 +527,8 @@ public class ShadowlistView extends FrameLayout {
       return;
     }
 
-    // Core-driven: ride the scrollToIndex command channel with the SCROLL_TO_END_INDEX
-    // sentinel (-3, see shadowlist-core/Constants.hpp) so the core converges on the
-    // true bottom as off-screen rows are measured, instead of a one-shot jump to the
-    // current content size - a stale, estimate-based bottom that stops short on a
-    // variable-height list. The animated flag no longer applies (the core steps to
-    // the bottom).
+    // Use the SCROLL_TO_END_INDEX sentinel (-3) so the core converges on the true bottom
+    // as off-screen rows are measured, instead of jumping to a stale estimated bottom.
     double nextNonce = 0;
     ReadableMap currentStateData = mState.getStateData();
     if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexNonce")) {
@@ -512,5 +541,22 @@ public class ShadowlistView extends FrameLayout {
     map.putBoolean("containerOffsetEnabled", true);
     slLog("java.cmd scrollToEnd: nonce=" + (long) nextNonce);
     mState.updateState(map);
+  }
+
+  // Package-private accessors to the shared views, axis flag and state for the controllers.
+  ViewGroup getContentView() {
+    return mContentView;
+  }
+
+  ViewGroup getScrollView() {
+    return mScrollView;
+  }
+
+  boolean isHorizontal() {
+    return mHorizontal;
+  }
+
+  @Nullable StateWrapper getStateWrapper() {
+    return mState;
   }
 }

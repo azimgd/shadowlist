@@ -11,111 +11,150 @@ interface ChatElementProps {
   imageUrls?: string[];
 }
 
-export const ChatElement = memo(({ index, text, isFromMe, imageUrl, imageUrls }: ChatElementProps) => {
-  const avatarColor = useMemo(() => {
-    return AVATAR_COLORS[index % AVATAR_COLORS.length];
-  }, [index]);
+export const ChatElement = memo(
+  ({ index, text, isFromMe, imageUrl, imageUrls }: ChatElementProps) => {
+    const avatarColor = useMemo(() => {
+      return AVATAR_COLORS[index % AVATAR_COLORS.length];
+    }, [index]);
 
-  const initials = useMemo(() => {
-    const firstLetter = String.fromCharCode(65 + (index % 26));
-    const secondLetter = String.fromCharCode(65 + ((index * 3) % 26));
-    return `${firstLetter}${secondLetter}`;
-  }, [index]);
+    const initials = useMemo(() => {
+      const firstLetter = String.fromCharCode(65 + (index % 26));
+      const secondLetter = String.fromCharCode(65 + ((index * 3) % 26));
+      return `${firstLetter}${secondLetter}`;
+    }, [index]);
 
-  const username = useMemo(() => {
-    const names = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry'];
-    return names[index % names.length];
-  }, [index]);
+    const username = useMemo(() => {
+      const names = [
+        'Alice',
+        'Bob',
+        'Charlie',
+        'Diana',
+        'Eve',
+        'Frank',
+        'Grace',
+        'Henry',
+      ];
+      return names[index % names.length];
+    }, [index]);
 
-  const hasImageGrid = imageUrls && imageUrls.length > 0;
-  const hasSingleImage = imageUrl && !text;
+    const hasImageGrid = imageUrls && imageUrls.length > 0;
+    const hasSingleImage = imageUrl && !text;
 
-  if (hasImageGrid) {
+    if (hasImageGrid) {
+      return (
+        <View
+          style={[
+            styles.container,
+            isFromMe ? styles.containerFromMe : styles.containerFromThem,
+          ]}
+        >
+          {!isFromMe && (
+            <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
+          <View style={styles.imageGridContainer}>
+            <View style={styles.imageGridRow}>
+              <View style={styles.imageGridElement}>
+                <Image
+                  source={{ uri: imageUrls[0] }}
+                  style={styles.imageGridImage}
+                  resizeMode="cover"
+                />
+              </View>
+              <View style={styles.imageGridElement}>
+                <Image
+                  source={{ uri: imageUrls[1] }}
+                  style={styles.imageGridImage}
+                  resizeMode="cover"
+                />
+              </View>
+            </View>
+            <View style={styles.imageGridRow}>
+              <View style={styles.imageGridElement}>
+                <Image
+                  source={{ uri: imageUrls[2] }}
+                  style={styles.imageGridImage}
+                  resizeMode="cover"
+                />
+              </View>
+              <View style={styles.imageGridElement}>
+                <Image
+                  source={{ uri: imageUrls[3] }}
+                  style={styles.imageGridImage}
+                  resizeMode="cover"
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    if (hasSingleImage) {
+      return (
+        <View
+          style={[
+            styles.container,
+            isFromMe ? styles.containerFromMe : styles.containerFromThem,
+          ]}
+        >
+          {!isFromMe && (
+            <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
+          )}
+          <View style={styles.singleImageContainer}>
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.singleImage}
+              resizeMode="cover"
+            />
+          </View>
+        </View>
+      );
+    }
+
     return (
-      <View style={[styles.container, isFromMe ? styles.containerFromMe : styles.containerFromThem]}>
+      <View
+        style={[
+          styles.container,
+          isFromMe ? styles.containerFromMe : styles.containerFromThem,
+        ]}
+      >
         {!isFromMe && (
           <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
         )}
-        <View style={styles.imageGridContainer}>
-          <View style={styles.imageGridRow}>
-            <View style={styles.imageGridElement}>
-              <Image
-                source={{ uri: imageUrls[0] }}
-                style={styles.imageGridImage}
-                resizeMode="cover"
-              />
-            </View>
-            <View style={styles.imageGridElement}>
-              <Image
-                source={{ uri: imageUrls[1] }}
-                style={styles.imageGridImage}
-                resizeMode="cover"
-              />
-            </View>
-          </View>
-          <View style={styles.imageGridRow}>
-            <View style={styles.imageGridElement}>
-              <Image
-                source={{ uri: imageUrls[2] }}
-                style={styles.imageGridImage}
-                resizeMode="cover"
-              />
-            </View>
-            <View style={styles.imageGridElement}>
-              <Image
-                source={{ uri: imageUrls[3] }}
-                style={styles.imageGridImage}
-                resizeMode="cover"
-              />
-            </View>
-          </View>
+        <View
+          style={[
+            styles.bubble,
+            isFromMe ? styles.bubbleFromMe : styles.bubbleFromThem,
+          ]}
+        >
+          <Text style={styles.username}>
+            {username} · {index}
+          </Text>
+          <Text
+            style={[
+              styles.text,
+              isFromMe ? styles.textFromMe : styles.textFromThem,
+            ]}
+          >
+            {text}
+          </Text>
+          <Text style={styles.timestamp}>
+            {new Date().toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
         </View>
       </View>
     );
   }
-
-  if (hasSingleImage) {
-    return (
-      <View style={[styles.container, isFromMe ? styles.containerFromMe : styles.containerFromThem]}>
-        {!isFromMe && (
-          <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
-        )}
-        <View style={styles.singleImageContainer}>
-          <Image
-            source={{ uri: imageUrl }}
-            style={styles.singleImage}
-            resizeMode="cover"
-          />
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.container, isFromMe ? styles.containerFromMe : styles.containerFromThem]}>
-      {!isFromMe && (
-        <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
-      )}
-      <View style={[styles.bubble, isFromMe ? styles.bubbleFromMe : styles.bubbleFromThem]}>
-        <Text style={styles.username}>
-          {username} · {index}
-        </Text>
-        <Text style={[styles.text, isFromMe ? styles.textFromMe : styles.textFromThem]}>
-          {text}
-        </Text>
-        <Text style={styles.timestamp}>
-          {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </Text>
-      </View>
-    </View>
-  );
-});
+);
 
 const styles = StyleSheet.create({
   container: {

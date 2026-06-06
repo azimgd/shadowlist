@@ -1,7 +1,6 @@
 /*
- * Platform-agnostic helpers and demo data shared by the shadowlist examples
- * (React Native and WASM/web). No React, RN or DOM dependencies live here so a
- * single copy can drive both example apps.
+ * Platform-agnostic helpers and demo data shared by the shadowlist examples.
+ * No framework or DOM dependencies, so one copy drives every example app.
  */
 
 export const AVATAR_COLORS = [

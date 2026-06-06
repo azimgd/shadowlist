@@ -1,6 +1,7 @@
 #include "ShadowlistViewShadowNode.h"
 
 #include <mutex>
+#include <vector>
 
 namespace facebook::react {
 
@@ -50,6 +51,17 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
 
   std::shared_ptr<const ShadowNode> headerNode = nullptr;
   std::shared_ptr<const ShadowNode> footerNode = nullptr;
+  /*
+   * The sticky section-header overlay (SectionList): an always-mounted template
+   * whose content is the active section's header. Unlike a normal header it reserves
+   * NO list space (it floats over the content), so it never contributes to
+   * headerSize / total size or shifts element offsets - it is positioned at the
+   * origin and pinned to the viewport entirely natively (see the integrations),
+   * exactly like the regular sticky header. This is what keeps section headers
+   * smooth: the pinned view is never virtualized, so it has no commit-cycle remount
+   * latency.
+   */
+  std::shared_ptr<const ShadowNode> sectionHeaderNode = nullptr;
   double headerSize = 0.0;
   double footerSize = 0.0;
   bool horizontal = getConcreteProps().horizontal;
@@ -68,7 +80,9 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
         ? templateViewNodeLayoutMetrics.frame.size.width
         : templateViewNodeLayoutMetrics.frame.size.height;
 
-      if (templateProps->templateType == "header" || templateProps->templateType == "empty") {
+      if (templateProps->templateType == "sectionHeader") {
+        sectionHeaderNode = getChildren()[i];
+      } else if (templateProps->templateType == "header" || templateProps->templateType == "empty") {
         headerNode = getChildren()[i];
         headerSize = templateViewNodeSize;
       } else if (templateProps->templateType == "footer") {
@@ -109,6 +123,20 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     this->containerManager_->revision.windowContainerWidth = windowFrameSize.width;
     this->containerManager_->revision.windowContainerHeight = windowFrameSize.height;
     azimgd::shadowlist::Virtualizer::recomputeElementOffsets(this->containerManager_.get(), 0);
+
+    /*
+     * The header/footer/window just changed, which re-flowed every element offset (e.g.
+     * the header measured one commit late shifts all rows down by its size). The
+     * re-flow alone does not move the scroll view, so without re-asserting the offset
+     * the host leaves contentOffset stale and the list appears scrolled past the header
+     * (or, with a sticky header pinned at the top, the first rows sit under it). Mark
+     * the offset corrected so this commit publishes applyContainerOffset and the host
+     * re-asserts the core's resting offset (0 on first open). The MVCP header-size
+     * compensation keeps that resting offset correct, so this re-assert is a no-op while
+     * the user is scrolled (it re-applies the current offset) and only matters on the
+     * header-measurement/resize commits.
+     */
+    this->containerManager_->containerOffsetCorrected = true;
   }
 
   /*
@@ -188,6 +216,22 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
+   * The sticky section-header overlay rests at the content origin; the integration
+   * pins it to the viewport on the UI thread per scroll frame. It floats over the
+   * content (no reserved space), so its position never feeds back into element
+   * offsets or the total size.
+   */
+  if (sectionHeaderNode) {
+    auto sectionHeaderViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(sectionHeaderNode->clone({}));
+    LayoutMetrics sectionHeaderMetrics = sectionHeaderViewNode->getLayoutMetrics();
+    sectionHeaderMetrics.frame.origin.x = 0;
+    sectionHeaderMetrics.frame.origin.y = 0;
+    sectionHeaderViewNode->setLayoutMetrics(sectionHeaderMetrics);
+    replaceChild(*sectionHeaderNode, sectionHeaderViewNode);
+    layoutContext.affectedNodes->push_back(sectionHeaderViewNode.get());
+  }
+
+  /*
    * Resolve the frame into the values to publish. The core decides whether the
    * content size changed and whether it wants to move the scroll view (only then
    * is the offset applied, so we never fight the user's own scrolling).
@@ -199,6 +243,39 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.totalContainerWidth_,
     nextStateData.totalContainerHeight_);
 
+  /*
+   * Gather the resting geometry (offset + size along the scroll axis) of each
+   * sticky section header so the integration can pin the active one on the UI
+   * thread per scroll frame (see ShadowlistViewState / the native pin), mirroring
+   * Container::resolveStickyHeader. Only the core knows these offsets, and they
+   * change as off-screen rows are measured, so they ride along on the state.
+   */
+  std::vector<int> stickyHeaderIndices;
+  std::vector<Float> stickyHeaderOffsets;
+  std::vector<Float> stickyHeaderSizes;
+  std::size_t elementsSize = this->containerManager_->getElementsSize();
+  /*
+   * Inverted sticky section headers (pin to the viewport end) are an exotic
+   * combination the core deliberately leaves resting (Container::resolveStickyHeader
+   * bails for inverted), so publish no geometry here either - otherwise the native
+   * pins, which have no inverted case, would pin the overlay to the wrong edge with
+   * ascending (non-inverted) math. Empty geometry hides the overlay everywhere.
+   */
+  if (!this->containerManager_->inverted) {
+    for (std::size_t stickyIndex : this->containerManager_->stickyIndices) {
+      if (stickyIndex >= elementsSize) {
+        continue;
+      }
+      stickyHeaderIndices.push_back(static_cast<int>(stickyIndex));
+      stickyHeaderOffsets.push_back(static_cast<Float>(this->containerManager_->getElementOffset(stickyIndex)));
+      stickyHeaderSizes.push_back(static_cast<Float>(this->containerManager_->getElementSize(stickyIndex)));
+    }
+  }
+  bool stickyChanged =
+    stickyHeaderIndices != nextStateData.stickyHeaderIndices_ ||
+    stickyHeaderOffsets != nextStateData.stickyHeaderOffsets_ ||
+    stickyHeaderSizes != nextStateData.stickyHeaderSizes_;
+
   SL_LOG("layout: elementChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
     getChildren().size(), headerSize, footerSize,
     nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
@@ -206,12 +283,19 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
     stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
-  if (stateUpdate.changed) {
-    nextStateData.containerOffsetX_ = stateUpdate.containerOffsetX;
-    nextStateData.containerOffsetY_ = stateUpdate.containerOffsetY;
-    nextStateData.totalContainerWidth_ = stateUpdate.totalContainerWidth;
-    nextStateData.totalContainerHeight_ = stateUpdate.totalContainerHeight;
-    nextStateData.containerOffsetEnabled_ = stateUpdate.applyContainerOffset;
+  if (stateUpdate.changed || stickyChanged) {
+    if (stateUpdate.changed) {
+      nextStateData.containerOffsetX_ = stateUpdate.containerOffsetX;
+      nextStateData.containerOffsetY_ = stateUpdate.containerOffsetY;
+      nextStateData.totalContainerWidth_ = stateUpdate.totalContainerWidth;
+      nextStateData.totalContainerHeight_ = stateUpdate.totalContainerHeight;
+      nextStateData.containerOffsetEnabled_ = stateUpdate.applyContainerOffset;
+    }
+    if (stickyChanged) {
+      nextStateData.stickyHeaderIndices_ = std::move(stickyHeaderIndices);
+      nextStateData.stickyHeaderOffsets_ = std::move(stickyHeaderOffsets);
+      nextStateData.stickyHeaderSizes_ = std::move(stickyHeaderSizes);
+    }
     setStateData(std::move(nextStateData));
   }
 }

@@ -2,6 +2,7 @@ import type { FeedElement } from './FeedElement';
 import type { NestedElement, NestedElementChild } from './NestedElement';
 import type { MasonryElement } from './MasonryElement';
 import type { ContactElement } from './ContactElement';
+import type { TreeFileNode } from './TreeElement';
 import {
   IMAGES,
   IMAGE_TITLES,
@@ -12,11 +13,7 @@ import {
   optimizeImageUrl,
 } from 'shadowlist-utils';
 
-/*
- * Shared, platform-agnostic data and helpers now live in shadowlist-utils and are
- * re-exported here so existing screen imports (./constants) keep working. Only the
- * generators that build this example's element shapes stay local.
- */
+/* Re-export shared data/helpers; example-specific generators stay local. */
 export * from 'shadowlist-utils';
 
 export function generateFeedElement(index: number): FeedElement {
@@ -99,4 +96,61 @@ export function generateContact(index: number): ContactElement {
     lastName,
     phoneNumber,
   };
+}
+
+const FOLDER_NAMES = [
+  'src',
+  'components',
+  'screens',
+  'utils',
+  'assets',
+  'hooks',
+  'services',
+  'models',
+  'config',
+  'tests',
+  'node_modules',
+  'docs',
+];
+
+const FILE_EXTENSIONS = ['ts', 'tsx', 'js', 'json', 'md', 'css', 'png', 'svg'];
+
+/* Build a deep file-system tree for the TreeList example. */
+export function generateFileTree(
+  rootCount = 4,
+  maxDepth = 3,
+  foldersPerLevel = 2,
+  filesPerLevel = 4
+): TreeFileNode[] {
+  const buildFolder = (name: string, depth: number): TreeFileNode => {
+    const children: TreeFileNode[] = [];
+
+    if (depth < maxDepth) {
+      for (let i = 0; i < foldersPerLevel; i++) {
+        const childName = FOLDER_NAMES[(depth * 3 + i) % FOLDER_NAMES.length]!;
+        children.push(buildFolder(childName, depth + 1));
+      }
+    }
+
+    for (let i = 0; i < filesPerLevel; i++) {
+      const ext = FILE_EXTENSIONS[(depth + i) % FILE_EXTENSIONS.length]!;
+      const base = FOLDER_NAMES[(depth + i) % FOLDER_NAMES.length]!;
+      children.push({
+        id: generateUniqueId(),
+        name: `${base}-${i}.${ext}`,
+        type: 'file',
+      });
+    }
+
+    return {
+      id: generateUniqueId(),
+      name,
+      type: 'folder',
+      children,
+    };
+  };
+
+  return Array.from({ length: rootCount }, (_, index) =>
+    buildFolder(FOLDER_NAMES[index % FOLDER_NAMES.length]!, 0)
+  );
 }

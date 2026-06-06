@@ -9,6 +9,9 @@ import { ActivityScreen } from './ActivityScreen';
 import { NestedScreen } from './NestedScreen';
 import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
+import { SectionListScreen } from './SectionListScreen';
+import { ReorderScreen } from './ReorderScreen';
+import { TreeScreen } from './TreeScreen';
 
 enableScreens();
 
@@ -72,6 +75,27 @@ export default function App() {
             component={ContactsScreen}
             options={{
               title: 'Contacts',
+            }}
+          />
+          <Drawer.Screen
+            name="SectionList"
+            component={SectionListScreen}
+            options={{
+              title: 'Section List',
+            }}
+          />
+          <Drawer.Screen
+            name="Reorder"
+            component={ReorderScreen}
+            options={{
+              title: 'Reorder',
+            }}
+          />
+          <Drawer.Screen
+            name="Tree"
+            component={TreeScreen}
+            options={{
+              title: 'Tree',
             }}
           />
         </Drawer.Navigator>

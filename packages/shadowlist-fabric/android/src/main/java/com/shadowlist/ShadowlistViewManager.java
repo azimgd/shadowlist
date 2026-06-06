@@ -8,6 +8,7 @@ import androidx.annotation.Nullable;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
+import com.facebook.react.common.MapBuilder;
 import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.uimanager.ReactStylesDiffMap;
 import com.facebook.react.uimanager.StateWrapper;
@@ -17,6 +18,8 @@ import com.facebook.react.uimanager.ViewManagerDelegate;
 import com.facebook.react.uimanager.annotations.ReactProp;
 import com.facebook.react.viewmanagers.ShadowlistViewManagerInterface;
 import com.facebook.react.viewmanagers.ShadowlistViewManagerDelegate;
+
+import java.util.Map;
 
 @ReactModule(name = ShadowlistViewManager.NAME)
 public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
@@ -48,10 +51,14 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
     return new ShadowlistView(context);
   }
 
-  /*
-   * Element/template children are hosted in the content container inside the inner
-   * scroll view, not directly on the host, so route Fabric's child mounting there.
-   */
+  @Override
+  public void onDropViewInstance(@NonNull ShadowlistView view) {
+    // Tear down any in-flight drag before the host is recycled.
+    view.onDropInstance();
+    super.onDropViewInstance(view);
+  }
+
+  // Route child mounting into the content container inside the inner scroll view.
   @Override
   public void addView(ShadowlistView parent, View child, int index) {
     parent.addContentView(child, index);
@@ -103,6 +110,30 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   }
 
   @Override
+  @ReactProp(name = "autoHideHeader")
+  public void setAutoHideHeader(ShadowlistView view, boolean autoHideHeader) {
+    view.setAutoHideHeader(autoHideHeader);
+  }
+
+  @Override
+  @ReactProp(name = "autoHideFooter")
+  public void setAutoHideFooter(ShadowlistView view, boolean autoHideFooter) {
+    view.setAutoHideFooter(autoHideFooter);
+  }
+
+  @Override
+  @ReactProp(name = "dragEnabled")
+  public void setDragEnabled(ShadowlistView view, boolean dragEnabled) {
+    view.setDragEnabled(dragEnabled);
+  }
+
+  @Override
+  @ReactProp(name = "stickyHeaderIndices")
+  public void setStickyHeaderIndices(ShadowlistView view, @Nullable ReadableArray stickyHeaderIndices) {
+    // Consumed by the core via props; the pin reads section-header geometry back from state.
+  }
+
+  @Override
   public void setStartReachedEnabled(ShadowlistView view, boolean enabled) {
     view.setStartReachedEnabled(enabled);
   }
@@ -122,6 +153,41 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   @ReactProp(name = "containerOffsetIndex")
   public void setContainerOffsetIndex(ShadowlistView view, int containerOffsetIndex) {
     // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
+  @ReactProp(name = "contentInsetBottom")
+  public void setContentInsetBottom(ShadowlistView view, double contentInsetBottom) {
+    view.setContentInsetBottom(contentInsetBottom);
+  }
+
+  @Override
+  @ReactProp(name = "refreshEnabled")
+  public void setRefreshEnabled(ShadowlistView view, boolean refreshEnabled) {
+    view.setRefreshEnabled(refreshEnabled);
+  }
+
+  @Override
+  @ReactProp(name = "refreshing")
+  public void setRefreshing(ShadowlistView view, boolean refreshing) {
+    view.setRefreshing(refreshing);
+  }
+
+  @Override
+  @ReactProp(name = "refreshColor", customType = "Color")
+  public void setRefreshColor(ShadowlistView view, @Nullable Integer refreshColor) {
+    view.setRefreshColor(refreshColor);
+  }
+
+  @Nullable
+  @Override
+  public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
+    // Map the dispatched "topRefresh" event to the JS `onRefresh` handler.
+    return MapBuilder.<String, Object>builder()
+      .put(
+        ShadowlistRefreshEvent.EVENT_NAME,
+        MapBuilder.of("registrationName", "onRefresh"))
+      .build();
   }
 
   @Override
