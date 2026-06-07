@@ -403,3 +403,16 @@ export function generateFileTree(
     buildFolder(FOLDER_NAMES[index % FOLDER_NAMES.length]!, 0)
   );
 }
+
+// A blank, accent-tinted card for the snap-paging template.
+export interface SnapItem {
+  id: string;
+  accent: string;
+}
+
+export function generateSnapElement(index: number): SnapItem {
+  return {
+    id: generateUniqueId(),
+    accent: AVATAR_COLORS[index % AVATAR_COLORS.length]!,
+  };
+}

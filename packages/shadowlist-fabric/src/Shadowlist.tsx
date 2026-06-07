@@ -67,6 +67,8 @@ export interface MountedRange {
 
 const SHADOWLIST_OVERSCAN = 4;
 
+const SNAP_ALIGNMENT = { start: 0, center: 1, end: 2 } as const;
+
 export const initialMountedRange = (
   size: number,
   initial: number,
@@ -166,6 +168,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     onStartReachedThreshold = 1,
     onEndReachedThreshold = 1,
     onScroll,
+    snapToItem = false,
+    snapToAlignment = 'start',
     viewabilityConfig,
     onViewableItemsChanged,
     ItemSeparatorComponent,
@@ -635,6 +639,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
       startReachedThreshold={onStartReachedThreshold}
       endReachedThreshold={onEndReachedThreshold}
       viewablePercentThreshold={viewablePercentThreshold}
+      snapToItem={snapToItem}
+      snapToAlignment={SNAP_ALIGNMENT[snapToAlignment]}
       dragEnabled={dragEnabled}
       onStartReached={onStartReached}
       onEndReached={onEndReached}

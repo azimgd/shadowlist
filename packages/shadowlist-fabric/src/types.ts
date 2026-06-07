@@ -106,6 +106,16 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   onStartReachedThreshold?: number;
   onEndReachedThreshold?: number;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
+  /*
+   * Snap the resting scroll position to an element boundary. Combine with
+   * full-viewport elements for fullscreen paging, or smaller elements for
+   * multi-item snapping. Works on both axes.
+   */
+  snapToItem?: boolean;
+  /*
+   * Which element edge aligns to the viewport when snapping. Default 'start'.
+   */
+  snapToAlignment?: 'start' | 'center' | 'end';
   viewabilityConfig?: ViewabilityConfig;
   onViewableItemsChanged?: (info: {
     viewableItems: ViewToken<ElementT>[];

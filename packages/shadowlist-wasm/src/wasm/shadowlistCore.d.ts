@@ -54,7 +54,9 @@ export interface ShadowlistCoreInstance {
     stickyFooter: boolean,
     startReachedThreshold: number,
     endReachedThreshold: number,
-    viewablePercentThreshold: number
+    viewablePercentThreshold: number,
+    snapToItem: boolean,
+    snapAlignment: number
   ): void;
   updateElementAtIndex(index: number, width: number, height: number): void;
   recomputeTotalSize(): void;
@@ -71,6 +73,7 @@ export interface ShadowlistCoreInstance {
   getFooterOffset(footerSize: number): number;
   getStickyHeaderOffset(): number;
   getStickyFooterOffset(footerSize: number): number;
+  getSnapOffsets(): number[];
   scrollToIndex(index: number): void;
   requestScrollToIndex(commandIndex: number, commandNonce: number, propIndex: number): void;
   toggleEndReached(enabled: boolean): void;

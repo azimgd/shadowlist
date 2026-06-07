@@ -47,7 +47,9 @@ public:
     bool stickyFooter,
     double startReachedThreshold,
     double endReachedThreshold,
-    double viewablePercentThreshold) {
+    double viewablePercentThreshold,
+    bool snapToItem,
+    int snapAlignment) {
     FrameInput input;
     input.keys = vecFromJSArray<std::string>(keysVal);
     input.containerOffsetX = containerOffsetX;
@@ -66,6 +68,8 @@ public:
     input.startReachedThreshold = startReachedThreshold;
     input.endReachedThreshold = endReachedThreshold;
     input.viewablePercentThreshold = viewablePercentThreshold;
+    input.snapToItem = snapToItem;
+    input.snapAlignment = snapAlignment;
 
     // Contain core exceptions: skip the frame rather than abort the instance.
     try {
@@ -150,6 +154,16 @@ public:
 
   double getStickyFooterOffset(double footerSize) const {
     return container_.getStickyFooterOffset(footerSize);
+  }
+
+  // Resting snap offsets along the scroll axis (empty unless snapToItem is set).
+  val getSnapOffsets() const {
+    auto snapOffsets = container_.getSnapOffsets();
+    val result = val::array();
+    for (std::size_t i = 0; i < snapOffsets.size(); ++i) {
+      result.set(static_cast<int>(i), snapOffsets[i]);
+    }
+    return result;
   }
 
   // Viewable index range (subject to the viewable percent threshold). Inverted lists report start > end.
@@ -252,6 +266,7 @@ EMSCRIPTEN_BINDINGS(shadowlist_core) {
     .function("getFooterOffset", &ShadowlistCore::getFooterOffset)
     .function("getStickyHeaderOffset", &ShadowlistCore::getStickyHeaderOffset)
     .function("getStickyFooterOffset", &ShadowlistCore::getStickyFooterOffset)
+    .function("getSnapOffsets", &ShadowlistCore::getSnapOffsets)
     .function("scrollToIndex", &ShadowlistCore::scrollToIndex)
     .function("requestScrollToIndex", &ShadowlistCore::requestScrollToIndex)
     .function("toggleEndReached", &ShadowlistCore::toggleEndReached)

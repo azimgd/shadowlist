@@ -128,19 +128,26 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: packages/shadowlist-fabric-example
+
       - name: Cache cocoapods
         id: cocoapods-cache
         uses: actions/cache@v4
         with:
           path: |
-            **/ios/Pods
+            packages/shadowlist-fabric-example/ios/Pods
           key: ${{ runner.os }}-cocoapods-${{ hashFiles('packages/shadowlist-fabric-example/ios/Podfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-cocoapods-
 
       - name: Install cocoapods
         if: steps.cocoapods-cache.outputs.cache-hit != 'true'
-        run: pod install
+        run: bundle exec pod install
         working-directory: packages/shadowlist-fabric-example/ios
         env:
           NO_FLIPPER: 1

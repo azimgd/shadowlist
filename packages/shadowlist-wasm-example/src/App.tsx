@@ -9,6 +9,7 @@ import { SectionListScreen } from './SectionListScreen';
 import { ReorderScreen } from './ReorderScreen';
 import { TreeScreen } from './TreeScreen';
 import { PollScreen } from './PollScreen';
+import { SnapScreen } from './SnapScreen';
 import {
   HeaderActionsContext,
   HeaderActionButtons,
@@ -27,6 +28,7 @@ const SCREENS = [
   { name: 'Reorder', title: 'Reorder', component: ReorderScreen },
   { name: 'Tree', title: 'Tree', component: TreeScreen },
   { name: 'Poll', title: 'Poll', component: PollScreen },
+  { name: 'Snap', title: 'Snap', component: SnapScreen },
 ] as const;
 
 export const App = () => {

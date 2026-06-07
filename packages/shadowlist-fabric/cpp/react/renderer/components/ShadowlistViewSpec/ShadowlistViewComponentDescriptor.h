@@ -136,6 +136,8 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     input.startReachedThreshold = shadowlistViewProps.startReachedThreshold;
     input.endReachedThreshold = shadowlistViewProps.endReachedThreshold;
     input.viewablePercentThreshold = shadowlistViewProps.viewablePercentThreshold;
+    input.snapToItem = shadowlistViewProps.snapToItem;
+    input.snapAlignment = shadowlistViewProps.snapToAlignment;
 
     /*
      * A genuine user scroll abandons any in-flight scroll correction so the user

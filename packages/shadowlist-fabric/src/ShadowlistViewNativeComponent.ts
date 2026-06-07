@@ -106,6 +106,9 @@ interface NativeProps extends ViewProps {
   startReachedThreshold: CodegenTypes.Double;
   endReachedThreshold: CodegenTypes.Double;
   viewablePercentThreshold: CodegenTypes.Double;
+  /* Snap the resting scroll position to an element edge. snapToAlignment is 0 = start, 1 = center, 2 = end. */
+  snapToItem: boolean;
+  snapToAlignment: CodegenTypes.Int32;
   readonly onVisibleIndicesChange?: CodegenTypes.DirectEventHandler<OnVisibleIndicesChange>;
   readonly onViewableIndicesChange?: CodegenTypes.DirectEventHandler<OnViewableIndicesChange>;
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;

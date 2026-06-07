@@ -109,6 +109,17 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
 
   /*
+   * Snap the resting scroll position to an element boundary. Combine with
+   * full-viewport elements for fullscreen paging, or smaller elements for
+   * multi-item snapping. Implemented with native CSS scroll-snap.
+   */
+  snapToItem?: boolean;
+  /*
+   * Which element edge aligns to the viewport when snapping. Default 'start'.
+   */
+  snapToAlignment?: 'start' | 'center' | 'end';
+
+  /*
    * Pull-to-refresh (non-inverted vertical lists, touch input). Provide onRefresh
    * to enable; drive the spinner with the controlled `refreshing` flag.
    */

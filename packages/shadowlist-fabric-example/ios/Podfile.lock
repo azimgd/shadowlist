@@ -2133,7 +2133,7 @@ DEPENDENCIES:
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
-  - Shadowlist (from `../..`)
+  - Shadowlist (from `../../shadowlist-fabric`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 EXTERNAL SOURCES:
@@ -2293,13 +2293,13 @@ EXTERNAL SOURCES:
   RNWorklets:
     :path: "../node_modules/react-native-worklets"
   Shadowlist:
-    :path: "../.."
+    :path: "../../shadowlist-fabric"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
   FBLazyVector: c00c20551d40126351a6783c47ce75f5b374851b
-  hermes-engine: 5fb9aceb6cfe11c3a6dbb4498dae04e65f6dd7d5
+  hermes-engine: ecd2fda5b0c0d1878819b1312d70f9264887cda2
   RCTDeprecation: 3bb167081b134461cfeb875ff7ae1945f8635257
   RCTRequired: 74839f55d5058a133a0bc4569b0afec750957f64
   RCTSwiftUI: 87a316382f3eab4dd13d2a0d0fd2adcce917361a
@@ -2308,7 +2308,7 @@ SPEC CHECKSUMS:
   React: 1b1536b9099195944034e65b1830f463caaa8390
   React-callinvoker: 6dff6d17d1d6cc8fdf85468a649bafed473c65f5
   React-Core: 00faa4d038298089a1d5a5b21dde8660c4f0820d
-  React-Core-prebuilt: 792e7c7a08f67e47df9670e51742ba857a0ba7b9
+  React-Core-prebuilt: 19124b02ea12382a8a5147648fed70c4976d6e51
   React-CoreModules: a17807f849bfd86045b0b9a75ec8c19373b482f6
   React-cxxreact: c7b53ace5827be54048288bce5c55f337c41e95f
   React-debug: e1f00fcd2cef58a2897471a6d76a4ef5f5f90c74
@@ -2370,7 +2370,7 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 5787b37b8e2e51dfeab697ec031cc7c4080dcea2
   ReactCodegen: b3184a229afd01e7f8058dd81b805b843caa2bf9
   ReactCommon: fe2a3af8975e63efa60f95fca8c34dc85deee360
-  ReactNativeDependencies: aefc01a3bde98780c34a66ad54be63355db54a05
+  ReactNativeDependencies: aa8007185468ae11ed833c80ea3165e2a9516ee6
   RNGestureHandler: ed28fea435eee1ea629ed8372c2e98138a73a472
   RNReanimated: 80a8d6e0854c9dddedc054efbce746294a8d3a3b
   RNScreens: 991cc417cd396602a6cf59a42139e5a9d91462a9
@@ -2380,4 +2380,4 @@ SPEC CHECKSUMS:
 
 PODFILE CHECKSUM: 858b24ad25913c22e814153f05b9edd3c1589070
 
-COCOAPODS: 1.16.2
+COCOAPODS: 1.15.2

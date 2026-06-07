@@ -53,6 +53,8 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->endReachedThreshold = input.endReachedThreshold;
   container->viewablePercentThreshold = input.viewablePercentThreshold;
   container->estimatedElementSize = input.estimatedElementSize;
+  container->snapToItem = input.snapToItem;
+  container->snapAlignment = input.snapAlignment;
 
   /*
    * Reported scroll offset along the scroll axis

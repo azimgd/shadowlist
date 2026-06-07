@@ -76,7 +76,8 @@ class ShadowlistViewState final {
      */
     stickyHeaderIndices_(previousState.stickyHeaderIndices_),
     stickyHeaderOffsets_(previousState.stickyHeaderOffsets_),
-    stickyHeaderSizes_(previousState.stickyHeaderSizes_) {
+    stickyHeaderSizes_(previousState.stickyHeaderSizes_),
+    snapOffsets_(previousState.snapOffsets_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
       stickyHeaderIndices_.clear();
       stickyHeaderOffsets_.clear();
@@ -89,6 +90,12 @@ class ShadowlistViewState final {
       }
       for (const auto& value : data["stickyHeaderSizes"]) {
         stickyHeaderSizes_.push_back((Float)value.getDouble());
+      }
+    }
+    if (data.count("snapOffsets")) {
+      snapOffsets_.clear();
+      for (const auto& value : data["snapOffsets"]) {
+        snapOffsets_.push_back((Float)value.getDouble());
       }
     }
   };
@@ -128,6 +135,12 @@ class ShadowlistViewState final {
     result["stickyHeaderIndices"] = stickyHeaderIndices;
     result["stickyHeaderOffsets"] = stickyHeaderOffsets;
     result["stickyHeaderSizes"] = stickyHeaderSizes;
+
+    folly::dynamic snapOffsets = folly::dynamic::array;
+    for (auto snapOffset : snapOffsets_) {
+      snapOffsets.push_back((double)snapOffset);
+    }
+    result["snapOffsets"] = snapOffsets;
     return result;
   };
 #endif
@@ -180,6 +193,13 @@ class ShadowlistViewState final {
   std::vector<int> stickyHeaderIndices_{};
   std::vector<Float> stickyHeaderOffsets_{};
   std::vector<Float> stickyHeaderSizes_{};
+
+  /*
+   * Resting snap offsets along the scroll axis (DIP), produced by the core's layout
+   * pass. Empty unless snapToItem is set. The integrations snap the native scroll
+   * view's landing position to the nearest of these.
+   */
+  std::vector<Float> snapOffsets_{};
 };
 
 }

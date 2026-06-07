@@ -1,6 +1,8 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Error.hpp>
 
+#include <cmath>
+
 namespace azimgd::shadowlist {
 
 namespace {
@@ -156,6 +158,57 @@ double Container::getStickyFooterOffset(double footerSize) const {
     return this->getContainerOffset() + this->getWindowContainerSize() - footerSize;
   }
   return this->getFooterOffset(footerSize);
+}
+
+std::vector<double> Container::getSnapOffsets() const {
+  std::vector<double> snapOffsets;
+  if (!this->snapToItem) {
+    return snapOffsets;
+  }
+
+  std::size_t elementsSize = this->revision.elements.size();
+  if (elementsSize == 0) {
+    return snapOffsets;
+  }
+
+  double windowSize = this->getWindowContainerSize();
+  double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
+  double maxOffset = totalSize - windowSize;
+  if (maxOffset < 0.0) {
+    maxOffset = 0.0;
+  }
+
+  // One target per element, clamped to range. Offsets only increase, so de-duping
+  // consecutive equal values (the head/tail collapse to 0 / maxOffset) keeps the
+  // list ascending and tidy.
+  snapOffsets.reserve(elementsSize);
+  for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
+    const Element& nextElement = this->revision.elements[nextElementIndex];
+    double elementOffset = this->horizontal ? nextElement.offsetX : nextElement.offsetY;
+    double elementSize = this->horizontal ? nextElement.width : nextElement.height;
+
+    double target;
+    if (this->snapAlignment == 1) {
+      target = elementOffset - (windowSize - elementSize) / 2.0;
+    } else if (this->snapAlignment == 2) {
+      target = elementOffset + elementSize - windowSize;
+    } else {
+      target = elementOffset;
+    }
+
+    if (target < 0.0) {
+      target = 0.0;
+    }
+    if (target > maxOffset) {
+      target = maxOffset;
+    }
+
+    if (snapOffsets.empty() || std::fabs(target - snapOffsets.back()) > OFFSET_MOVED_EPSILON) {
+      snapOffsets.push_back(target);
+    }
+  }
+
+  return snapOffsets;
 }
 
 StickyHeader Container::resolveStickyHeader() const {

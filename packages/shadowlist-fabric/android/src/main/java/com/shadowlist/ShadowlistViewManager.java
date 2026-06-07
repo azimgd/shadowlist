@@ -209,6 +209,18 @@ public class ShadowlistViewManager extends ViewGroupManager<ShadowlistView>
   }
 
   @Override
+  @ReactProp(name = "snapToItem")
+  public void setSnapToItem(ShadowlistView view, boolean snapToItem) {
+    view.setSnapToItem(snapToItem);
+  }
+
+  @Override
+  @ReactProp(name = "snapToAlignment")
+  public void setSnapToAlignment(ShadowlistView view, int snapToAlignment) {
+    // Alignment is applied by the C++ core; the view only needs the snap offsets.
+  }
+
+  @Override
   public void scrollToIndex(ShadowlistView view, int index) {
     view.scrollToIndex(index);
   }

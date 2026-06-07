@@ -29,6 +29,9 @@
   BOOL _stickyHeader;
   BOOL _stickyFooter;
   BOOL _horizontal;
+  /* View snapping: enabled flag and the core's resting snap offsets along the scroll axis. */
+  BOOL _snapToItem;
+  std::vector<double> _snapOffsets;
   /* Auto-hide header/footer: how far each is currently slid away, and the previous
    * offset used to derive the scroll delta. */
   BOOL _autoHideHeader;

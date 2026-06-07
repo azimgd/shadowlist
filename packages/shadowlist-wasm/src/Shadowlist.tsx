@@ -35,6 +35,9 @@ const defaultKeyExtractor = (item: { id: string }) => item.id;
 // Cap on follow-up measurement passes so a never-settling layout cannot spin forever.
 const MAX_SETTLE_PASSES = 8;
 
+const SNAP_ALIGN_INT = { start: 0, center: 1, end: 2 } as const;
+const SNAP_ALIGN_CSS = ['start', 'center', 'end'] as const;
+
 // Sentinel on the scrollToIndex channel meaning "scroll to the very end".
 const SCROLL_TO_END_INDEX = -3;
 
@@ -311,6 +314,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     refreshing = false,
     onRefresh,
     refreshColor,
+    snapToItem = false,
+    snapToAlignment = 'start',
     ItemSeparatorComponent,
     ListHeaderComponent,
     ListFooterComponent,
@@ -419,6 +424,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     startReachedThreshold: onStartReachedThreshold,
     endReachedThreshold: onEndReachedThreshold,
     viewablePercentThreshold,
+    snapToItem,
+    snapAlignment: SNAP_ALIGN_INT[snapToAlignment],
     keyExtractor,
   });
   latestRef.current = {
@@ -437,6 +444,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     startReachedThreshold: onStartReachedThreshold,
     endReachedThreshold: onEndReachedThreshold,
     viewablePercentThreshold,
+    snapToItem,
+    snapAlignment: SNAP_ALIGN_INT[snapToAlignment],
     keyExtractor,
   };
 
@@ -470,7 +479,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
       inverted: isInverted,
       autoHideHeader: isAutoHideHeader,
       autoHideFooter: isAutoHideFooter,
+      snapToItem: isSnapToItem,
+      snapAlignment: snapAlignmentInt,
     } = latestRef.current;
+    const snapAlign = isSnapToItem ? SNAP_ALIGN_CSS[snapAlignmentInt] : '';
     const elementsSize = core.getElementsSize();
     const drag = dragStateRef.current;
 
@@ -517,6 +529,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
       }
 
       node.style.transform = `translate(${tx}px, ${ty}px)`;
+      node.style.scrollSnapAlign = snapAlign;
+      node.style.scrollSnapStop = isSnapToItem ? 'always' : '';
     });
 
     // Pin the section-header overlay from the same layout (content is driven by activeStickyIndex).
@@ -630,6 +644,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
       startReachedThreshold: startThreshold,
       endReachedThreshold: endThreshold,
       viewablePercentThreshold: viewableThreshold,
+      snapToItem: isSnapToItem,
+      snapAlignment: snapAlignmentInt,
     } = latestRef.current;
 
     const containerOffsetX = scroll.scrollLeft;
@@ -676,7 +692,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
       isStickyFooter,
       startThreshold,
       endThreshold,
-      viewableThreshold
+      viewableThreshold,
+      isSnapToItem,
+      snapAlignmentInt
     );
 
     const visible = core.getVisibleIndices();
@@ -1463,6 +1481,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
     position: 'relative',
     overflow: 'auto',
     WebkitOverflowScrolling: 'touch',
+    ...(snapToItem
+      ? { scrollSnapType: `${horizontal ? 'x' : 'y'} proximity` }
+      : null),
     ...style,
   };
 
