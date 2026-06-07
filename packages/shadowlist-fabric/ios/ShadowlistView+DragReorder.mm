@@ -327,11 +327,15 @@ using namespace facebook::react;
     _dropSettleLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
     [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
-    // Safety net: clear the held transforms if the reorder never lands.
+    // Safety net: clear the held transforms if the reorder never lands. The token
+    // invalidates this block if a newer drop supersedes it, so a stale timer can't tear
+    // down a fresh drag's settle.
+    NSInteger settleToken = ++_dropSettleToken;
     __weak ShadowlistView *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
       ShadowlistView *strongSelf = weakSelf;
-      if (strongSelf && strongSelf->_dragDropPending && !strongSelf->_dragging) {
+      if (strongSelf && settleToken == strongSelf->_dropSettleToken &&
+          strongSelf->_dragDropPending && !strongSelf->_dragging) {
         [strongSelf->_dropSettleLink invalidate];
         strongSelf->_dropSettleLink = nil;
         [strongSelf clearDragTransforms];

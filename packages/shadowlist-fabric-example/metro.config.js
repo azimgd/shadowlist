@@ -23,7 +23,7 @@ config.watchFolders = [...(config.watchFolders || []), utilsRoot, monorepoRoot];
 config.resolver = config.resolver || {};
 config.resolver.extraNodeModules = {
   ...(config.resolver.extraNodeModules || {}),
-  'shadowlist-utils': path.join(utilsRoot, 'src'),
+  'shadowlist-utils': utilsRoot,
 };
 
 config.resolver.nodeModulesPaths = [

@@ -157,6 +157,8 @@ class ShadowlistStickyController {
 
       float translation = 0f;
       if (isFooter) {
+        float footerStart = horizontal ? child.getLeft() : child.getTop();
+        float restingTranslation = (axisOffset + windowSize - footerSize) - footerStart;
         if (mAutoHideFooter) {
           // Pin to the viewport end, slid down by mFooterHidden; shown near the bottom.
           float maxOffset = Math.max(0f, contentSize - windowSize);
@@ -165,10 +167,9 @@ class ShadowlistStickyController {
           } else {
             mFooterHidden = Math.max(0f, Math.min(mFooterHidden + autoHideDelta, footerSize));
           }
-          translation = (axisOffset + windowSize - contentSize) + mFooterHidden;
+          translation = restingTranslation + mFooterHidden;
         } else if (mStickyFooter) {
-          // The footer always sticks to the viewport end (plain bottom pin).
-          translation = axisOffset + windowSize - contentSize;
+          translation = restingTranslation;
         }
       } else {
         if (mAutoHideHeader) {

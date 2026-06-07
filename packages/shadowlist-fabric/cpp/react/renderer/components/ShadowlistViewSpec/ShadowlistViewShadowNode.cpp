@@ -333,17 +333,19 @@ void ShadowlistViewShadowNode::replaceChild(
    * take the core lock since this can run concurrently with the commit phase.
    */
   if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(nextElementShadowNode->getProps())) {
-    if (this->containerManager_ && this->virtualizerManager_ &&
-        elementViewProps->index < this->containerManager_->getElementsSize()) {
+    if (this->containerManager_ && this->virtualizerManager_) {
       std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
-      const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
-      const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
+      // Read the element count under the lock; a stale child can outrun it.
+      if (elementViewProps->index < this->containerManager_->getElementsSize()) {
+        const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
+        const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
 
-      this->virtualizerManager_->updateElementAtIndex(
-        this->containerManager_.get(),
-        elementViewProps->index,
-        { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
+        this->virtualizerManager_->updateElementAtIndex(
+          this->containerManager_.get(),
+          elementViewProps->index,
+          { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
+      }
     }
   }
 

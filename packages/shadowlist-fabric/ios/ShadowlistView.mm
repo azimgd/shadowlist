@@ -57,8 +57,7 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   if ([childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
-    const auto &childViewProps = *std::static_pointer_cast<ShadowlistElementViewProps const>(childComponentView.props);
-    [_contentView insertSubview:childComponentView atIndex:childViewProps.index];
+    [_contentView insertSubview:childComponentView atIndex:index];
     // Re-pin so sticky views stay on top of the newly mounted element.
     [self applyStickyTransforms:NO];
     // A row mounting mid-drag must stay below the picked-up row and pick up the shuffle offset.
@@ -351,8 +350,12 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   if (_dragging) {
     [self updateDrag];
   }
+}
 
-  // Post-drop landing is detected by the drag category's poll (dropSettleTick), not here.
+- (void)finalizeUpdates:(RNComponentViewUpdateMask)updateMask
+{
+  [super finalizeUpdates:updateMask];
+  [self applyStickyTransforms:NO];
 }
 
 #pragma mark - UIScrollViewDelegate
@@ -515,6 +518,10 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 
 - (void)scrollToOffset:(double)offset animated:(BOOL)animated
 {
+  if (!std::isfinite(offset)) {
+    return;
+  }
+
   // Direct offset scroll along the scroll axis; the core picks up the new position from the callback.
   CGPoint contentOffset = _horizontal
     ? CGPointMake(offset, _scrollView.contentOffset.y)

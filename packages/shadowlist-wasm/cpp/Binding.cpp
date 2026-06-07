@@ -51,7 +51,6 @@ public:
     bool snapToItem,
     int snapAlignment) {
     FrameInput input;
-    input.keys = vecFromJSArray<std::string>(keysVal);
     input.containerOffsetX = containerOffsetX;
     input.containerOffsetY = containerOffsetY;
     input.windowContainerWidth = windowContainerWidth;
@@ -71,8 +70,11 @@ public:
     input.snapToItem = snapToItem;
     input.snapAlignment = snapAlignment;
 
-    // Contain core exceptions: skip the frame rather than abort the instance.
+    // Contain core exceptions: skip the frame rather than abort the instance. Marshalling
+    // the keys stays inside the guard too, so a non-array argument can't throw across the
+    // embind boundary.
     try {
+      input.keys = vecFromJSArray<std::string>(keysVal);
       virtualizer_.update(&container_, input);
     } catch (...) {
       SL_LOG("core.update threw - frame skipped");

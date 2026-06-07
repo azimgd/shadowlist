@@ -50,6 +50,10 @@ public class ShadowlistView extends FrameLayout {
   private final ShadowlistStickyController mStickyController;
   private final ShadowlistDragController mDragController;
 
+  // Re-pin sticky views once a template (header/footer) child is (re)laid out by the mounting
+  // layer, so a sticky footer tracks its real resting position across list-size changes.
+  private final View.OnLayoutChangeListener mTemplateLayoutListener;
+
   // Horizontal/vertical axis (the `horizontal` prop); a change re-installs the inner scroll view.
   private boolean mHorizontal = false;
 
@@ -168,6 +172,12 @@ public class ShadowlistView extends FrameLayout {
     mContentView = new ContentContainer(context);
     mStickyController = new ShadowlistStickyController(this);
     mDragController = new ShadowlistDragController(this, context);
+    mTemplateLayoutListener =
+      (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+        if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+          mStickyController.applyStickyTranslations();
+        }
+      };
     installScrollView(false);
   }
 
@@ -276,6 +286,7 @@ public class ShadowlistView extends FrameLayout {
     }
     if (child instanceof ShadowlistTemplateView) {
       mContentView.addView(child);
+      child.addOnLayoutChangeListener(mTemplateLayoutListener);
     }
   }
 
@@ -288,6 +299,10 @@ public class ShadowlistView extends FrameLayout {
   }
 
   public void removeContentViewAt(int index) {
+    View child = mContentView.getChildAt(index);
+    if (child instanceof ShadowlistTemplateView) {
+      child.removeOnLayoutChangeListener(mTemplateLayoutListener);
+    }
     mContentView.removeViewAt(index);
   }
 

@@ -2,6 +2,7 @@
 #include <shadowlist-core/Error.hpp>
 
 #include <cmath>
+#include <limits>
 
 namespace azimgd::shadowlist {
 
@@ -93,7 +94,8 @@ void Container::requestScrollToIndex(double commandIndex, double commandNonce, i
     if (commandIndex == SCROLL_TO_END_INDEX) {
       this->scrollToEnd();
       fired = true;
-    } else if (commandIndex >= 0.0) {
+    } else if (commandIndex >= 0.0 && std::isfinite(commandIndex) &&
+               commandIndex < static_cast<double>(std::numeric_limits<std::size_t>::max())) {
       this->scrollToIndex(static_cast<std::size_t>(commandIndex));
       fired = true;
     }
