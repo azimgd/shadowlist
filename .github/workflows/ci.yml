@@ -42,6 +42,30 @@ jobs:
       - name: Run unit tests
         run: yarn test --maxWorkers=2 --coverage
 
+  test-core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/shadowlist-core-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build core tests
+        run: |
+          cmake -S . -B build
+          cmake --build build
+
+      - name: Run core tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Run core tests (ThreadSanitizer)
+        run: |
+          c++ -std=c++17 -fsanitize=thread -I.. -I. \
+            -DSLT_FIXTURES_DIR="\"$PWD/fixtures\"" \
+            ../shadowlist-core/*.cpp tests_*.cpp main.cpp -o run_tests_tsan -pthread
+          ./run_tests_tsan
+
   build-library:
     runs-on: ubuntu-latest
     steps:
@@ -111,7 +135,7 @@ jobs:
           yarn turbo run build:android --cache-dir="${{ env.TURBO_CACHE_DIR }}"
 
   build-ios:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       TURBO_CACHE_DIR: .turbo/ios
     steps:
@@ -120,6 +144,11 @@ jobs:
 
       - name: Setup
         uses: ./.github/actions/setup
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Cache turborepo for iOS
         uses: actions/cache@v4
