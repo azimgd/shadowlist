@@ -1,4 +1,5 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "paths": {
       "shadowlist": ["../shadowlist-fabric/src/index"],
@@ -6,10 +7,16 @@
       "shadowlist-utils/native": ["../shadowlist-utils/src/native/index"],
       "react": ["./node_modules/@types/react"],
       "react/*": ["./node_modules/@types/react/*"],
-      "react-native": ["./node_modules/react-native/types_generated/index.d.ts"],
-      "react-native-gesture-handler": ["./node_modules/react-native-gesture-handler"],
+      "react-native": [
+        "./node_modules/react-native/types_generated/index.d.ts"
+      ],
+      "react-native-gesture-handler": [
+        "./node_modules/react-native-gesture-handler"
+      ],
       "react-native-reanimated": ["./node_modules/react-native-reanimated"],
-      "react-native-safe-area-context": ["./node_modules/react-native-safe-area-context"]
+      "react-native-safe-area-context": [
+        "./node_modules/react-native-safe-area-context"
+      ]
     },
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,

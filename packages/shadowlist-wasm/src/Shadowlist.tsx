@@ -13,7 +13,11 @@ import {
   type ReactNode,
 } from 'react';
 import { createShadowlistCore, type ShadowlistCoreInstance } from './core.js';
-import type { ShadowlistCommands, ShadowlistProps, ViewToken } from './types.js';
+import type {
+  ShadowlistCommands,
+  ShadowlistProps,
+  ViewToken,
+} from './types.js';
 
 const DEFAULT_ESTIMATED_SIZE = 120;
 
@@ -22,7 +26,8 @@ const PTR_THRESHOLD = 64;
 const PTR_MAX_PULL = 96;
 const PTR_REST = 56;
 const PTR_RESISTANCE = 0.5;
-const PTR_KEYFRAMES = '@keyframes sl-ptr-spin { to { transform: rotate(360deg); } }';
+const PTR_KEYFRAMES =
+  '@keyframes sl-ptr-spin { to { transform: rotate(360deg); } }';
 
 // Default key derivation (element.id); module-level for referential stability.
 const defaultKeyExtractor = (item: { id: string }) => item.id;
@@ -286,6 +291,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     horizontal = false,
     stickyHeader = false,
     stickyFooter = false,
+    autoHideHeader = false,
+    autoHideFooter = false,
     columns = 1,
     stickyHeaderIndices,
     renderStickyHeaderOverlay,
@@ -325,7 +332,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
    * resting at/above the scroll offset is pinned in an overlay. activeStickyIndex
    * drives the overlay content; the pin position is applied imperatively.
    */
-  const stickyIndicesRef = useRef<ReadonlyArray<number>>(stickyHeaderIndices ?? []);
+  const stickyIndicesRef = useRef<ReadonlyArray<number>>(
+    stickyHeaderIndices ?? []
+  );
   stickyIndicesRef.current = stickyHeaderIndices ?? [];
   const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
 
@@ -370,6 +379,15 @@ function ShadowlistInner<ElementT extends { id: string }>(
   // Imperative scroll command; bump the nonce so re-targeting the same index re-scrolls.
   const commandRef = useRef({ index: -1, nonce: 0 });
 
+  /*
+   * Auto-hide header/footer: current hide translation (header slides up into
+   * [-size, 0]; footer slides down into [0, size]) accumulated from the scroll
+   * delta, plus the last scroll offset used to compute that delta.
+   */
+  const autoHideHeaderRef = useRef(0);
+  const autoHideFooterRef = useRef(0);
+  const autoHideLastOffsetRef = useRef(0);
+
   const rafRef = useRef<number | null>(null);
   const settlePassesRef = useRef(0);
   const ignoreScrollRef = useRef(false);
@@ -395,6 +413,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     containerOffsetIndex,
     stickyHeader,
     stickyFooter,
+    autoHideHeader,
+    autoHideFooter,
     dragEnabled,
     startReachedThreshold: onStartReachedThreshold,
     endReachedThreshold: onEndReachedThreshold,
@@ -411,6 +431,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
     containerOffsetIndex,
     stickyHeader,
     stickyFooter,
+    autoHideHeader,
+    autoHideFooter,
     dragEnabled,
     startReachedThreshold: onStartReachedThreshold,
     endReachedThreshold: onEndReachedThreshold,
@@ -425,13 +447,16 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const keysRef = useRef(keys);
   keysRef.current = keys;
 
-  const registerRef = useCallback((index: number, node: HTMLDivElement | null) => {
-    if (node) {
-      elementRefs.current.set(index, node);
-    } else {
-      elementRefs.current.delete(index);
-    }
-  }, []);
+  const registerRef = useCallback(
+    (index: number, node: HTMLDivElement | null) => {
+      if (node) {
+        elementRefs.current.set(index, node);
+      } else {
+        elementRefs.current.delete(index);
+      }
+    },
+    []
+  );
 
   // Position the mounted nodes (elements, header, footer) from the core's layout.
   const applyPositions = useCallback(() => {
@@ -443,6 +468,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
       horizontal: isHorizontal,
       columns: columnCount,
       inverted: isInverted,
+      autoHideHeader: isAutoHideHeader,
+      autoHideFooter: isAutoHideFooter,
     } = latestRef.current;
     const elementsSize = core.getElementsSize();
     const drag = dragStateRef.current;
@@ -507,8 +534,15 @@ function ShadowlistInner<ElementT extends { id: string }>(
     }
 
     if (headerRef.current) {
-      // Sticky header tracks the scroll offset; offset is 0 (resting) when off.
-      const headerOffset = core.getStickyHeaderOffset();
+      // Auto-hide pins to the viewport and holds the accumulated hide translation;
+      // otherwise the sticky header tracks the scroll offset (0 = resting when off).
+      let headerOffset: number;
+      if (isAutoHideHeader && scrollEl) {
+        const offset = isHorizontal ? scrollEl.scrollLeft : scrollEl.scrollTop;
+        headerOffset = offset + autoHideHeaderRef.current;
+      } else {
+        headerOffset = core.getStickyHeaderOffset();
+      }
       headerRef.current.style.transform = isHorizontal
         ? `translate(${headerOffset}px, 0px)`
         : `translate(0px, ${headerOffset}px)`;
@@ -519,8 +553,19 @@ function ShadowlistInner<ElementT extends { id: string }>(
       const footerSize = isHorizontal
         ? footerRef.current.offsetWidth
         : footerRef.current.offsetHeight;
-      // Sticky footer tracks the viewport end; resting offset (totalSize - footerSize) when off.
-      const footerOffset = core.getStickyFooterOffset(footerSize);
+      // Auto-hide pins to the viewport end and holds the hide translation; otherwise
+      // the sticky footer tracks the viewport end (resting at totalSize - footerSize).
+      let footerOffset: number;
+      if (isAutoHideFooter && scrollEl) {
+        const offset = isHorizontal ? scrollEl.scrollLeft : scrollEl.scrollTop;
+        const windowSize = isHorizontal
+          ? scrollEl.clientWidth
+          : scrollEl.clientHeight;
+        footerOffset =
+          offset + windowSize - footerSize + autoHideFooterRef.current;
+      } else {
+        footerOffset = core.getStickyFooterOffset(footerSize);
+      }
       footerRef.current.style.transform = isHorizontal
         ? `translate(${footerOffset}px, 0px)`
         : `translate(0px, ${footerOffset}px)`;
@@ -536,7 +581,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const applyCrossAxisSizes = useCallback(() => {
     const core = coreRef.current;
     if (!core) return;
-    const { horizontal: isHorizontal, columns: columnCount } = latestRef.current;
+    const { horizontal: isHorizontal, columns: columnCount } =
+      latestRef.current;
     const elementsSize = core.getElementsSize();
     elementRefs.current.forEach((node, index) => {
       if (index >= elementsSize) return;
@@ -634,13 +680,22 @@ function ShadowlistInner<ElementT extends { id: string }>(
     );
 
     const visible = core.getVisibleIndices();
-    const windowLow = Math.min(visible.visibleStartIndex, visible.visibleEndIndex);
-    const windowHigh = Math.max(visible.visibleStartIndex, visible.visibleEndIndex);
+    const windowLow = Math.min(
+      visible.visibleStartIndex,
+      visible.visibleEndIndex
+    );
+    const windowHigh = Math.max(
+      visible.visibleStartIndex,
+      visible.visibleEndIndex
+    );
     const validWindow =
       visible.visibleStartIndex >= 0 && visible.visibleEndIndex >= 0;
 
     // Only grow/shift the mounted band when the window leaves it; otherwise skip the re-render.
-    if (validWindow && !rangeCovers(mountedRangeRef.current, windowLow, windowHigh)) {
+    if (
+      validWindow &&
+      !rangeCovers(mountedRangeRef.current, windowLow, windowHigh)
+    ) {
       const nextRange = bandRange(windowLow, windowHigh, currentData.length);
       mountedRangeRef.current = nextRange;
       setRange(nextRange);
@@ -714,8 +769,14 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
     // A corrected offset / fresh sizes may push the window out of the band; needs another pass.
     const visible = core.getVisibleIndices();
-    const windowLow = Math.min(visible.visibleStartIndex, visible.visibleEndIndex);
-    const windowHigh = Math.max(visible.visibleStartIndex, visible.visibleEndIndex);
+    const windowLow = Math.min(
+      visible.visibleStartIndex,
+      visible.visibleEndIndex
+    );
+    const windowHigh = Math.max(
+      visible.visibleStartIndex,
+      visible.visibleEndIndex
+    );
     if (
       visible.visibleStartIndex >= 0 &&
       visible.visibleEndIndex >= 0 &&
@@ -793,37 +854,47 @@ function ShadowlistInner<ElementT extends { id: string }>(
   latestOnReorder.current = onReorder;
 
   // Map the core's viewable index range to viewable/changed tokens for onViewableItemsChanged.
-  const dispatchViewable = useCallback((startIndex: number, endIndex: number) => {
-    const onChanged = latestOnViewableItemsChanged.current;
-    if (!onChanged) return;
+  const dispatchViewable = useCallback(
+    (startIndex: number, endIndex: number) => {
+      const onChanged = latestOnViewableItemsChanged.current;
+      if (!onChanged) return;
 
-    const { data: currentData, keyExtractor: keyOf } = latestRef.current;
+      const { data: currentData, keyExtractor: keyOf } = latestRef.current;
 
-    const viewableItems: ViewToken<ElementT>[] = [];
-    if (startIndex >= 0 && endIndex >= 0) {
-      const lo = Math.min(startIndex, endIndex);
-      const hi = Math.max(startIndex, endIndex);
-      for (let index = lo; index <= hi; index++) {
-        const item = currentData[index];
-        if (!item) continue;
-        viewableItems.push({ item, index, key: keyOf(item, index), isViewable: true });
+      const viewableItems: ViewToken<ElementT>[] = [];
+      if (startIndex >= 0 && endIndex >= 0) {
+        const lo = Math.min(startIndex, endIndex);
+        const hi = Math.max(startIndex, endIndex);
+        for (let index = lo; index <= hi; index++) {
+          const item = currentData[index];
+          if (!item) continue;
+          viewableItems.push({
+            item,
+            index,
+            key: keyOf(item, index),
+            isViewable: true,
+          });
+        }
       }
-    }
 
-    const currentKeys = new Set(viewableItems.map((token) => token.key));
-    const prevKeys = new Set(prevViewableRef.current.map((token) => token.key));
-    const changed: ViewToken<ElementT>[] = [
-      ...viewableItems.filter((token) => !prevKeys.has(token.key)),
-      ...prevViewableRef.current
-        .filter((token) => !currentKeys.has(token.key))
-        .map((token) => ({ ...token, isViewable: false })),
-    ];
+      const currentKeys = new Set(viewableItems.map((token) => token.key));
+      const prevKeys = new Set(
+        prevViewableRef.current.map((token) => token.key)
+      );
+      const changed: ViewToken<ElementT>[] = [
+        ...viewableItems.filter((token) => !prevKeys.has(token.key)),
+        ...prevViewableRef.current
+          .filter((token) => !currentKeys.has(token.key))
+          .map((token) => ({ ...token, isViewable: false })),
+      ];
 
-    prevViewableRef.current = viewableItems;
-    if (changed.length > 0) {
-      onChanged({ viewableItems, changed });
-    }
-  }, []);
+      prevViewableRef.current = viewableItems;
+      if (changed.length > 0) {
+        onChanged({ viewableItems, changed });
+      }
+    },
+    []
+  );
 
   // Re-run the core whenever the data set or layout configuration changes.
   useEffect(() => {
@@ -870,6 +941,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
       inverted: isInverted,
       stickyHeader: isStickyHeader,
       stickyFooter: isStickyFooter,
+      autoHideHeader: isAutoHideHeader,
+      autoHideFooter: isAutoHideFooter,
     } = latestRef.current;
 
     // Pin the section-header overlay from live scroll geometry too, so it never lags.
@@ -886,21 +959,50 @@ function ShadowlistInner<ElementT extends { id: string }>(
       setActiveStickyIndex((prev) => (prev === active ? prev : active));
     }
 
-    if (!isStickyHeader && !isStickyFooter) return;
+    const anyHeader = isStickyHeader || isAutoHideHeader;
+    const anyFooter = isStickyFooter || isAutoHideFooter;
+    if (!anyHeader && !anyFooter) return;
 
     const offset = isHorizontal ? scroll.scrollLeft : scroll.scrollTop;
     const windowSize = isHorizontal ? scroll.clientWidth : scroll.clientHeight;
 
-    if (isStickyHeader && headerRef.current) {
+    // Accumulate the auto-hide translations from this scroll's delta.
+    const delta = offset - autoHideLastOffsetRef.current;
+    autoHideLastOffsetRef.current = offset;
+
+    if (anyHeader && headerRef.current) {
+      const headerSize = isHorizontal
+        ? headerRef.current.offsetWidth
+        : headerRef.current.offsetHeight;
+      if (isAutoHideHeader) {
+        // Scrolling toward content (delta > 0) slides the header off its edge.
+        autoHideHeaderRef.current = Math.max(
+          -headerSize,
+          Math.min(0, autoHideHeaderRef.current - delta)
+        );
+      }
+      const headerOffset =
+        offset + (isAutoHideHeader ? autoHideHeaderRef.current : 0);
       headerRef.current.style.transform = isHorizontal
-        ? `translate(${offset}px, 0px)`
-        : `translate(0px, ${offset}px)`;
+        ? `translate(${headerOffset}px, 0px)`
+        : `translate(0px, ${headerOffset}px)`;
     }
-    if (isStickyFooter && footerRef.current) {
+    if (anyFooter && footerRef.current) {
       const footerSize = isHorizontal
         ? footerRef.current.offsetWidth
         : footerRef.current.offsetHeight;
-      const footerOffset = offset + windowSize - footerSize;
+      if (isAutoHideFooter) {
+        // Footer hides toward its edge when scrolling back toward content (delta < 0).
+        autoHideFooterRef.current = Math.max(
+          0,
+          Math.min(footerSize, autoHideFooterRef.current - delta)
+        );
+      }
+      const footerOffset =
+        offset +
+        windowSize -
+        footerSize +
+        (isAutoHideFooter ? autoHideFooterRef.current : 0);
       footerRef.current.style.transform = isHorizontal
         ? `translate(${footerOffset}px, 0px)`
         : `translate(0px, ${footerOffset}px)`;
@@ -936,7 +1038,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
     const rectStart = isHorizontal ? rect.left : rect.top;
     const offset = isHorizontal ? scroll.scrollLeft : scroll.scrollTop;
     const pointerContent = dragPointerClientRef.current - rectStart + offset;
-    const contentExtent = isHorizontal ? scroll.scrollWidth : scroll.scrollHeight;
+    const contentExtent = isHorizontal
+      ? scroll.scrollWidth
+      : scroll.scrollHeight;
 
     let desiredLeading = pointerContent - drag.grabOffset;
     desiredLeading = Math.max(
@@ -1265,8 +1369,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
    */
   const stickyEnabled = Boolean(
     stickyHeaderIndices &&
-      stickyHeaderIndices.length > 0 &&
-      renderStickyHeaderOverlay
+    stickyHeaderIndices.length > 0 &&
+    renderStickyHeaderOverlay
   );
   const stickyOverlayContent = useMemo(
     () =>
@@ -1399,7 +1503,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
               boxSizing: 'border-box',
               border: '2px solid rgba(118,118,128,0.24)',
               borderTopColor: refreshColor ?? 'rgba(235,235,245,0.6)',
-              animation: refreshing ? 'sl-ptr-spin 0.7s linear infinite' : undefined,
+              animation: refreshing
+                ? 'sl-ptr-spin 0.7s linear infinite'
+                : undefined,
               transform: refreshing
                 ? undefined
                 : `rotate(${(pullDistance / PTR_THRESHOLD) * 270}deg)`,
@@ -1440,7 +1546,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
                 index={index}
                 element={element}
                 renderElement={renderElement}
-                separator={separator && index < data.length - 1 ? separator : null}
+                separator={
+                  separator && index < data.length - 1 ? separator : null
+                }
                 registerRef={registerRef}
                 elementStyle={elementStyle}
               />
@@ -1478,7 +1586,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
 }
 
 // Cast preserves the generic element type for callers.
-const Shadowlist = forwardRef(ShadowlistInner) as <ElementT extends { id: string }>(
+const Shadowlist = forwardRef(ShadowlistInner) as <
+  ElementT extends { id: string },
+>(
   props: ShadowlistProps<ElementT> & { ref?: React.Ref<ShadowlistCommands> }
 ) => ReactElement;
 

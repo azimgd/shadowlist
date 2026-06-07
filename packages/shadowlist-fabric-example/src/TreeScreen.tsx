@@ -44,7 +44,14 @@ export const TreeScreen = () => {
         data={tree}
         expandedIds={expandedIds}
         onExpandedChange={setExpandedIds}
-        renderNode={({ item, depth, indent, isExpanded, hasChildren, toggle }) => (
+        renderNode={({
+          item,
+          depth,
+          indent,
+          isExpanded,
+          hasChildren,
+          toggle,
+        }) => (
           <Tree.Row
             element={item}
             depth={depth}

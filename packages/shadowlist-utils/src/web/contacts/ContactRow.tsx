@@ -19,79 +19,114 @@ export interface ContactRowProps {
 
 const SWIPE_THRESHOLD = -80;
 const DELETE_BUTTON_WIDTH = 80;
+const FLING_VELOCITY = -500;
 
-export const ContactRow = memo(({ element, index, onDelete }: ContactRowProps) => {
-  const avatarColor = useMemo(
-    () => AVATAR_COLORS[index % AVATAR_COLORS.length],
-    [index]
-  );
+export const ContactRow = memo(
+  ({ element, index, onDelete }: ContactRowProps) => {
+    const avatarColor = useMemo(
+      () => AVATAR_COLORS[index % AVATAR_COLORS.length],
+      [index]
+    );
 
-  const initials = useMemo(
-    () => `${element.firstName.charAt(0)}${element.lastName.charAt(0)}`,
-    [element.firstName, element.lastName]
-  );
+    const initials = useMemo(
+      () => `${element.firstName.charAt(0)}${element.lastName.charAt(0)}`,
+      [element.firstName, element.lastName]
+    );
 
-  const [translateX, setTranslateX] = useState(0);
-  const dragRef = useRef({ active: false, startX: 0, startTranslate: 0 });
+    const [translateX, setTranslateX] = useState(0);
+    const dragRef = useRef({
+      active: false,
+      startX: 0,
+      startTranslate: 0,
+      lastX: 0,
+      lastT: 0,
+      velocity: 0,
+    });
 
-  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
-    dragRef.current = { active: true, startX: event.clientX, startTranslate: translateX };
-    event.currentTarget.setPointerCapture(event.pointerId);
-  };
+    const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+      dragRef.current = {
+        active: true,
+        startX: event.clientX,
+        startTranslate: translateX,
+        lastX: event.clientX,
+        lastT: Date.now(),
+        velocity: 0,
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+    };
 
-  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active) return;
-    const next = dragRef.current.startTranslate + (event.clientX - dragRef.current.startX);
-    setTranslateX(Math.min(0, next));
-  };
+    const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+      const drag = dragRef.current;
+      if (!drag.active) return;
+      const now = Date.now();
+      const dt = now - drag.lastT;
+      if (dt > 0) {
+        drag.velocity = ((event.clientX - drag.lastX) / dt) * 1000;
+        drag.lastX = event.clientX;
+        drag.lastT = now;
+      }
 
-  const onPointerUp = () => {
-    if (!dragRef.current.active) return;
-    dragRef.current.active = false;
-    setTranslateX((current) => (current < SWIPE_THRESHOLD ? -DELETE_BUTTON_WIDTH : 0));
-  };
+      const next = drag.startTranslate + (event.clientX - drag.startX);
+      setTranslateX(Math.min(0, next));
+    };
 
-  return (
-    <div style={styles.container}>
-      <button
-        type="button"
-        style={{
-          ...styles.deleteButton,
-          width: Math.abs(translateX),
-          opacity: translateX < -5 ? 1 : 0,
-        }}
-        onClick={() => onDelete?.(element.id)}
-      >
-        <span style={styles.deleteButtonText}>Delete</span>
-      </button>
-      <div
-        style={{
-          ...styles.wrapper,
-          transform: `translateX(${translateX}px)`,
-          transition: dragRef.current.active ? 'none' : 'transform 0.2s ease',
-        }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        <div style={styles.contactElement}>
-          <div style={{ ...styles.avatar, backgroundColor: avatarColor }}>
-            <span style={styles.avatarText}>{initials}</span>
+    const onPointerUp = () => {
+      const drag = dragRef.current;
+      if (!drag.active) return;
+      drag.active = false;
+      const flung = drag.velocity < FLING_VELOCITY;
+      setTranslateX((current) =>
+        current < SWIPE_THRESHOLD || flung ? -DELETE_BUTTON_WIDTH : 0
+      );
+    };
+
+    return (
+      <div style={styles.container}>
+        <button
+          type="button"
+          style={{
+            ...styles.deleteButton,
+            width: Math.abs(translateX),
+            opacity: translateX < -5 ? 1 : 0,
+          }}
+          onClick={() => onDelete?.(element.id)}
+        >
+          <span style={styles.deleteButtonText}>Delete</span>
+        </button>
+        <div
+          style={{
+            ...styles.wrapper,
+            transform: `translateX(${translateX}px)`,
+            transition: dragRef.current.active ? 'none' : 'transform 0.2s ease',
+          }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <div style={styles.contactElement}>
+            <div style={{ ...styles.avatar, backgroundColor: avatarColor }}>
+              <span style={styles.avatarText}>{initials}</span>
+            </div>
+            <div style={styles.content}>
+              <span style={styles.name}>
+                {element.firstName} {element.lastName}
+              </span>
+              <span style={styles.phoneNumber}>{element.phoneNumber}</span>
+            </div>
+            <Chevron
+              direction="right"
+              color={colors.tertiaryLabel}
+              size={20}
+              strokeWidth={2}
+            />
+            <div style={styles.separator} />
           </div>
-          <div style={styles.content}>
-            <span style={styles.name}>
-              {element.firstName} {element.lastName}
-            </span>
-            <span style={styles.phoneNumber}>{element.phoneNumber}</span>
-          </div>
-          <Chevron direction="right" color={colors.tertiaryLabel} size={20} strokeWidth={2} />
-          <div style={styles.separator} />
         </div>
       </div>
-    </div>
-  );
-});
+    );
+  }
+);
 
 const styles: Record<string, CSSProperties> = {
   container: {

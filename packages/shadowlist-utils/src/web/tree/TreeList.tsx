@@ -18,8 +18,9 @@ export type TreeListProps_ = Omit<
 
 const defaultGetChildren: TreeListProps<TreeFileNode>['getChildren'] = (node) =>
   node.children;
-const defaultKeyExtractor: TreeListProps<TreeFileNode>['keyExtractor'] = (node) =>
-  node.id;
+const defaultKeyExtractor: TreeListProps<TreeFileNode>['keyExtractor'] = (
+  node
+) => node.id;
 const defaultRenderNode: TreeListProps<TreeFileNode>['renderNode'] = ({
   item,
   depth,

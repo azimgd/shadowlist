@@ -30,7 +30,7 @@ export const TreeRow = memo(
               direction={isExpanded ? 'down' : 'right'}
               color={colors.tertiaryLabel}
               size={14}
-              weight={1.75}
+              strokeWidth={1.75}
             />
           ) : null}
         </View>

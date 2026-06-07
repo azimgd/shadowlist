@@ -7,7 +7,10 @@ import {
 import { PollOptionRow } from './PollOption';
 import type { PollOption } from './data';
 
-export type PollListProps = Omit<ShadowlistProps<PollOption>, 'renderElement'> & {
+export type PollListProps = Omit<
+  ShadowlistProps<PollOption>,
+  'renderElement'
+> & {
   renderElement?: ShadowlistProps<PollOption>['renderElement'];
   // Called with the option id when a row is clicked.
   onVote?: (id: string) => void;

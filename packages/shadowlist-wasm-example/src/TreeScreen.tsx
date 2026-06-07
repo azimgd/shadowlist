@@ -1,4 +1,10 @@
-import { useRef, useState, useMemo, useCallback, type CSSProperties } from 'react';
+import {
+  useRef,
+  useState,
+  useMemo,
+  useCallback,
+  type CSSProperties,
+} from 'react';
 import { type TreeListCommands } from 'shadowlist-wasm';
 import { Tree, ListHeader, colors, typography } from 'shadowlist-utils/web';
 import { generateFileTree, type TreeFileNode } from 'shadowlist-utils';
@@ -41,7 +47,14 @@ export const TreeScreen = () => {
         data={tree}
         expandedIds={expandedIds}
         onExpandedChange={setExpandedIds}
-        renderNode={({ item, depth, indent, isExpanded, hasChildren, toggle }) => (
+        renderNode={({
+          item,
+          depth,
+          indent,
+          isExpanded,
+          hasChildren,
+          toggle,
+        }) => (
           <Tree.Row
             element={item}
             depth={depth}

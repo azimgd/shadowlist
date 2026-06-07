@@ -106,7 +106,7 @@ interface ElementRendererProps<ElementT> {
   separator: ReactElement | null;
 }
 
-const ElementRenderer = memo(function ElementRenderer<
+const ElementRenderer = memo(function ElementRendererInner<
   ElementT extends { id: string },
 >({
   element,
@@ -443,7 +443,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
         return { low, high };
       });
     },
-    [data.length, keyExtractor]
+    [data.length]
   );
 
   const mountedIndices = useMemo(

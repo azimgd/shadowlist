@@ -7,7 +7,10 @@ import {
 import type { ContactItem } from 'shadowlist-utils';
 import { ContactRow } from './ContactRow';
 
-export type ContactsListProps = Omit<ShadowlistProps<ContactItem>, 'renderElement'> & {
+export type ContactsListProps = Omit<
+  ShadowlistProps<ContactItem>,
+  'renderElement'
+> & {
   renderElement?: ShadowlistProps<ContactItem>['renderElement'];
   // Forwarded to each row's swipe-to-delete button.
   onDelete?: (id: string) => void;

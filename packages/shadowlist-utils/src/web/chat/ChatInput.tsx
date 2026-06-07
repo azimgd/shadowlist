@@ -8,7 +8,10 @@ export interface ChatInputProps {
 }
 
 // Composer bar; Enter sends, Shift+Enter inserts a newline.
-export const ChatInput = ({ onSend, placeholder = 'iMessage' }: ChatInputProps) => {
+export const ChatInput = ({
+  onSend,
+  placeholder = 'iMessage',
+}: ChatInputProps) => {
   const [message, setMessage] = useState('');
   const canSend = message.trim().length > 0;
 
@@ -39,12 +42,19 @@ export const ChatInput = ({ onSend, placeholder = 'iMessage' }: ChatInputProps) 
       </div>
       <button
         type="button"
-        style={{ ...styles.sendButton, ...(canSend ? null : styles.sendButtonDisabled) }}
+        style={{
+          ...styles.sendButton,
+          ...(canSend ? null : styles.sendButtonDisabled),
+        }}
         onClick={handleSend}
         disabled={!canSend}
         aria-label="Send"
       >
-        <ArrowUp size={20} color={canSend ? colors.label : colors.secondaryLabel} strokeWidth={2.4} />
+        <ArrowUp
+          size={20}
+          color={canSend ? colors.label : colors.secondaryLabel}
+          strokeWidth={2.4}
+        />
       </button>
     </div>
   );

@@ -17,11 +17,16 @@ const renderFeedElement: ShadowlistProps<FeedItem>['renderElement'] = ({
   index,
 }) => <FeedElement element={element} index={index} />;
 
-// A vertical feed list of avatar/text/image rows. Drop in `data` to use.
+/*
+ * A vertical feed list: themed avatar/text/image rows, auto-hiding header.
+ * Drop in `data` to get a working feed; override `renderElement` or any other
+ * Shadowlist prop to customize.
+ */
 export const FeedList = forwardRef<ShadowlistCommands, FeedListProps>(
   ({ renderElement, ...props }, ref) => (
     <Shadowlist
       ref={ref}
+      autoHideHeader
       renderElement={renderElement ?? renderFeedElement}
       {...props}
     />

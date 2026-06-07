@@ -7,7 +7,10 @@ import {
 import type { ContactItem } from 'shadowlist-utils';
 import { ReorderRow } from './ReorderRow';
 
-export type ReorderListProps = Omit<ShadowlistProps<ContactItem>, 'renderElement'> & {
+export type ReorderListProps = Omit<
+  ShadowlistProps<ContactItem>,
+  'renderElement'
+> & {
   renderElement?: ShadowlistProps<ContactItem>['renderElement'];
 };
 

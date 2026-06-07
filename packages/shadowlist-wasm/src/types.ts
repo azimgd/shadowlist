@@ -53,6 +53,12 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   horizontal?: boolean;
   stickyHeader?: boolean;
   stickyFooter?: boolean;
+  /*
+   * Auto-hide the header/footer on scroll: pins to its edge, then slides away as you
+   * scroll toward the content and slides back the other way.
+   */
+  autoHideHeader?: boolean;
+  autoHideFooter?: boolean;
   columns?: number;
 
   /*

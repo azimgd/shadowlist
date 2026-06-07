@@ -49,12 +49,6 @@
     "react-native": {
       "optional": true
     },
-    "shadowlist": {
-      "optional": true
-    },
-    "shadowlist-wasm": {
-      "optional": true
-    },
     "react-native-gesture-handler": {
       "optional": true
     },
@@ -62,6 +56,12 @@
       "optional": true
     },
     "react-native-safe-area-context": {
+      "optional": true
+    },
+    "shadowlist": {
+      "optional": true
+    },
+    "shadowlist-wasm": {
       "optional": true
     }
   },

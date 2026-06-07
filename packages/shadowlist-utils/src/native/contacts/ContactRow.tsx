@@ -107,7 +107,7 @@ export const ContactRow = memo(
                 direction="right"
                 color={colors.tertiaryLabel}
                 size={20}
-                weight={2}
+                strokeWidth={2}
               />
               <View style={styles.separator} />
             </View>

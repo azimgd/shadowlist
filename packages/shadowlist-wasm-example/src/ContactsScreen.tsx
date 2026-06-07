@@ -27,7 +27,9 @@ export const ContactsScreen = () => {
   };
 
   const handleScrollToRandom = () => {
-    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
 
   useHeaderActions({
@@ -47,7 +49,11 @@ export const ContactsScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         renderElement={({ element, index }) => (
-          <Contacts.Row element={element} index={index} onDelete={handleDelete} />
+          <Contacts.Row
+            element={element}
+            index={index}
+            onDelete={handleDelete}
+          />
         )}
         ListHeaderComponent={
           <ListHeader title="Contacts" subtitle="Swipe left to delete" />

@@ -1,15 +1,29 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { type ShadowlistCommands } from 'shadowlist';
-import { Activity, colors, typography } from 'shadowlist-utils/native';
-import { type ActivityData, buildActivity } from 'shadowlist-utils';
+import { View, Text, StyleSheet } from 'react-native';
+import { type ShadowlistCommands, type OnScroll } from 'shadowlist';
+import { Activity, Spinner, colors, typography } from 'shadowlist-utils/native';
+import {
+  type ActivityData,
+  buildActivity,
+  START_REACHED_THRESHOLDS,
+  END_REACHED_THRESHOLDS,
+  nextInCycle,
+  HEADER_HIDE_THRESHOLD,
+} from 'shadowlist-utils';
 
 export const ActivityScreen = () => {
   const shadowlistRef = useRef<ShadowlistCommands>(null);
   const [data, setData] = useState<ActivityData[]>(() =>
-    Array.from({ length: 200 }, (_, index) => buildActivity(index))
+    Array.from({ length: 300 }, (_, index) => buildActivity(index))
   );
   const [viewableLabel, setViewableLabel] = useState('—');
+  const [startThreshold, setStartThreshold] = useState(1);
+  const [endThreshold, setEndThreshold] = useState(1.5);
+  const [headerSticky, setHeaderSticky] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const headerStickyRef = useRef(true);
+  const loadingRef = useRef(false);
 
   // Surface the live on-screen index range on the sticky footer.
   const handleViewableItemsChanged = useCallback(
@@ -25,15 +39,21 @@ export const ActivityScreen = () => {
     []
   );
 
-  // Pagination indicator; the ref guards against onEndReached re-firing mid-load.
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadingRef = useRef(false);
+  // Hide the sticky header past the threshold, re-pin on the way back up.
+  const handleScroll = useCallback((event: { nativeEvent: OnScroll }) => {
+    const sticky = event.nativeEvent.contentOffsetY < HEADER_HIDE_THRESHOLD;
+    if (sticky !== headerStickyRef.current) {
+      headerStickyRef.current = sticky;
+      setHeaderSticky(sticky);
+    }
+  }, []);
 
+  // Pagination: the ref guards against onEndReached re-firing mid-load; the
+  // spinner is appended to the status footer while a fetch is simulated.
   const handleEndReached = useCallback(() => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setLoadingMore(true);
-    // Timeout stands in for a network fetch.
     setTimeout(() => {
       setData((prev) => [
         ...prev,
@@ -47,8 +67,6 @@ export const ActivityScreen = () => {
   }, []);
 
   // Pull-to-refresh: prepend a fresh batch, then clear the spinner.
-  const [refreshing, setRefreshing] = useState(false);
-
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     setTimeout(() => {
@@ -60,14 +78,6 @@ export const ActivityScreen = () => {
     }, 1200);
   }, []);
 
-  const handleScrollToOffset = useCallback(
-    () => shadowlistRef.current?.scrollToOffset(2000),
-    []
-  );
-  const handleScrollToEnd = useCallback(
-    () => shadowlistRef.current?.scrollToEnd(),
-    []
-  );
   // Drop the 20th and 50th rows.
   const handleRemoveItems = useCallback(
     () =>
@@ -81,33 +91,47 @@ export const ActivityScreen = () => {
     () => (
       <Activity.Header
         title="Activity"
-        subtitle="Imperative scroll & list editing, opens at index 30"
+        subtitle="Imperative scroll, thresholds & list editing, opens at index 30"
         actions={[
-          { label: 'Offset 2000', onPress: handleScrollToOffset },
-          { label: 'Scroll to end', onPress: handleScrollToEnd },
+          {
+            label: 'Offset 2000',
+            onPress: () => shadowlistRef.current?.scrollToOffset(2000),
+          },
+          {
+            label: 'Scroll to end',
+            onPress: () => shadowlistRef.current?.scrollToEnd(),
+          },
+          {
+            label: `Start ×${startThreshold}`,
+            onPress: () =>
+              setStartThreshold((current) =>
+                nextInCycle(START_REACHED_THRESHOLDS, current)
+              ),
+          },
+          {
+            label: `End ×${endThreshold}`,
+            onPress: () =>
+              setEndThreshold((current) =>
+                nextInCycle(END_REACHED_THRESHOLDS, current)
+              ),
+          },
           { label: 'Remove 20 & 50', onPress: handleRemoveItems },
         ]}
       />
     ),
-    [handleScrollToOffset, handleScrollToEnd, handleRemoveItems]
+    [startThreshold, endThreshold, handleRemoveItems]
   );
 
-  // Persistent full-width status footer: kept on screen by stickyFooter and always showing
-  // the viewable range + total count. The pagination spinner is appended, not swapped in, so
-  // the info never disappears on load or while loading more.
+  // Persistent full-width status footer: always shows the viewable range + total,
+  // with the pagination spinner appended (not swapped in) so the info never
+  // disappears while loading more.
   const footer = useMemo(
     () => (
       <View style={styles.statusFooter}>
         <Text style={styles.statusText}>
           {`Viewable: ${viewableLabel} · Total: ${data.length}`}
         </Text>
-        {loadingMore && (
-          <ActivityIndicator
-            size="small"
-            color={colors.secondaryLabel}
-            style={styles.statusSpinner}
-          />
-        )}
+        {loadingMore && <Spinner size={16} />}
       </View>
     ),
     [loadingMore, viewableLabel, data.length]
@@ -122,12 +146,16 @@ export const ActivityScreen = () => {
         keyExtractor={(item) => item.id}
         renderElement={({ element }) => <Activity.Row element={element} />}
         containerOffsetIndex={30}
+        stickyHeader={headerSticky}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         refreshColor={colors.secondaryLabel}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
+        onScroll={handleScroll}
         onEndReached={handleEndReached}
+        onStartReachedThreshold={startThreshold}
+        onEndReachedThreshold={endThreshold}
         onViewableItemsChanged={handleViewableItemsChanged}
       />
     </View>
@@ -148,6 +176,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
     backgroundColor: colors.background,
     paddingHorizontal: 16,
     paddingVertical: 20,
@@ -155,8 +184,5 @@ const styles = StyleSheet.create({
   statusText: {
     color: colors.secondaryLabel,
     ...typography.footnote,
-  },
-  statusSpinner: {
-    marginLeft: 8,
   },
 });

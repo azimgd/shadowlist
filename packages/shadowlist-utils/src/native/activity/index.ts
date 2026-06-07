@@ -9,7 +9,6 @@ export type {
   ActivityHeaderAction,
 } from './ActivityHeader';
 
-/* Activity domain: <Activity.List /> + <Activity.Row /> + <Activity.Header />. */
 export const Activity = {
   List: ActivityList,
   Row: ActivityRow,

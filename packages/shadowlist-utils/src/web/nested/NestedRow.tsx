@@ -1,6 +1,9 @@
 import { memo, type CSSProperties } from 'react';
 import { Shadowlist, type ShadowlistProps } from 'shadowlist-wasm';
-import type { NestedItem, NestedCard as NestedCardData } from 'shadowlist-utils';
+import type {
+  NestedItem,
+  NestedCard as NestedCardData,
+} from 'shadowlist-utils';
 import { NestedCard } from './NestedCard';
 import { colors, typography } from '../theme';
 

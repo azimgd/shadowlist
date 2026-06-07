@@ -36,7 +36,7 @@ body:
     attributes:
       label: Library version
       description: What version of the library are you using?
-      placeholder: "x.x.x"
+      placeholder: 'x.x.x'
     validations:
       required: true
   - type: textarea
@@ -61,7 +61,7 @@ body:
   - type: input
     id: reproducible-example
     attributes:
-      label: Reproducible example repository 
+      label: Reproducible example repository
       description: Please provide a link to a repository on GitHub with a reproducible example.
     validations:
       required: true

@@ -58,7 +58,9 @@ export const ChatScreen = () => {
   };
 
   const handleScrollToRandom = () => {
-    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
 
   useHeaderActions({
@@ -82,7 +84,9 @@ export const ChatScreen = () => {
             imageUrls={element.imageUrls}
           />
         )}
-        ListHeaderComponent={<ListHeader title="Chat" subtitle="Inverted list" />}
+        ListHeaderComponent={
+          <ListHeader title="Chat" subtitle="Inverted list" />
+        }
         ListFooterComponent={<ListFooter text="Start of conversation" />}
       />
       <Chat.Input onSend={handleSendMessage} />

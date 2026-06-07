@@ -10,11 +10,10 @@
  * sample-data generators these templates consume.
  */
 
-// Design tokens + icon set.
 export * from './theme';
 export * from './icons';
 
-// Shared, cross-domain primitives.
+export { Spinner } from './primitives/Spinner';
 export { ListHeader } from './primitives/ListHeader';
 export type { ListHeaderProps } from './primitives/ListHeader';
 export { ListFooter } from './primitives/ListFooter';
@@ -23,7 +22,6 @@ export { ItemSeparator } from './primitives/ItemSeparator';
 export { SectionHeader } from './primitives/SectionHeader';
 export type { SectionHeaderProps } from './primitives/SectionHeader';
 
-// Domain compound components.
 export * from './feed';
 export * from './chat';
 export * from './activity';

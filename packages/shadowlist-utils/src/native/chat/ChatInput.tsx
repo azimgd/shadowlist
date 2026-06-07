@@ -46,7 +46,7 @@ export const ChatInput = ({
         <ArrowUp
           size={20}
           color={canSend ? colors.label : colors.secondaryLabel}
-          weight={2.4}
+          strokeWidth={2.4}
         />
       </Pressable>
     </View>

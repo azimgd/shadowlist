@@ -7,7 +7,10 @@ import {
 import type { MasonryItem } from 'shadowlist-utils';
 import { MasonryCard } from './MasonryCard';
 
-export type MasonryListProps = Omit<ShadowlistProps<MasonryItem>, 'renderElement'> & {
+export type MasonryListProps = Omit<
+  ShadowlistProps<MasonryItem>,
+  'renderElement'
+> & {
   renderElement?: ShadowlistProps<MasonryItem>['renderElement'];
 };
 

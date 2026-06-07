@@ -30,7 +30,8 @@ const SCREENS = [
 ] as const;
 
 export const App = () => {
-  const [active, setActive] = useState<(typeof SCREENS)[number]['name']>('Feed');
+  const [active, setActive] =
+    useState<(typeof SCREENS)[number]['name']>('Feed');
   const [actions, setActions] = useState<HeaderActionHandlers | null>(null);
 
   const ActiveScreen =

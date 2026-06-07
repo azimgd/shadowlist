@@ -8,7 +8,10 @@ import type { ActivityData } from 'shadowlist-utils';
 import { ActivityRow } from './ActivityRow';
 import { ItemSeparator } from '../primitives/ItemSeparator';
 
-export type ActivityListProps = Omit<ShadowlistProps<ActivityData>, 'renderElement'> & {
+export type ActivityListProps = Omit<
+  ShadowlistProps<ActivityData>,
+  'renderElement'
+> & {
   renderElement?: ShadowlistProps<ActivityData>['renderElement'];
 };
 

@@ -94,9 +94,19 @@ export const radius = {
   pill: 999,
 } as const;
 
+// React Native's system font token — San Francisco on iOS, Roboto on Android.
+// Mirrors the web `FONT_FAMILY` export so shared code can read the same key.
+export const FONT_FAMILY = 'System';
+
 // Leading inset that aligns separators / section content with the text column
 // (avatar 40 + gutter 12 + leading padding 16).
 export const ROW_INSET = 68;
 
 // Single bundle of the design tokens, handy for spreading or theming.
-export const theme = { colors, typography, radius, ROW_INSET } as const;
+export const theme = {
+  colors,
+  typography,
+  radius,
+  ROW_INSET,
+  FONT_FAMILY,
+} as const;

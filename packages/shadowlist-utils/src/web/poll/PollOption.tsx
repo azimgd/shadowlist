@@ -18,13 +18,23 @@ export const PollOptionRow = memo(
     const Icon = option.Icon;
     return (
       <div style={styles.row} onClick={() => onVote?.(option.id)}>
-        <div style={{ ...styles.iconChip, ...(leading ? styles.iconChipLeading : null) }}>
+        <div
+          style={{
+            ...styles.iconChip,
+            ...(leading ? styles.iconChipLeading : null),
+          }}
+        >
           <Icon size={22} color={leading ? colors.accent : colors.label} />
         </div>
         <div style={styles.body}>
           <div style={styles.bodyTop}>
             <span style={styles.label}>{option.label}</span>
-            <span style={{ ...styles.share, ...(leading ? styles.shareLeading : null) }}>
+            <span
+              style={{
+                ...styles.share,
+                ...(leading ? styles.shareLeading : null),
+              }}
+            >
               {percent}%
             </span>
           </div>

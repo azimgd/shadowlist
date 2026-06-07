@@ -55,7 +55,11 @@ export const ContactsScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         renderElement={({ element, index }) => (
-          <Contacts.Row element={element} index={index} onDelete={handleDelete} />
+          <Contacts.Row
+            element={element}
+            index={index}
+            onDelete={handleDelete}
+          />
         )}
         ListHeaderComponent={
           <ListHeader title="Contacts" subtitle="Swipe left to delete" />

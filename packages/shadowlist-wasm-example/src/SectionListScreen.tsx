@@ -1,36 +1,95 @@
-import { useMemo, type CSSProperties } from 'react';
-import { type SectionListData } from 'shadowlist-wasm';
-import { SectionList, ListHeader, colors } from 'shadowlist-utils/web';
+import { useMemo, useRef, useState, type CSSProperties } from 'react';
+import { type ShadowlistCommands, type SectionListData } from 'shadowlist-wasm';
+import {
+  SectionList,
+  ListHeader,
+  ListFooter,
+  colors,
+} from 'shadowlist-utils/web';
 import { generateContact, type ContactItem } from 'shadowlist-utils';
+import { useHeaderActions } from './HeaderActions';
 
-type Section = SectionListData<ContactItem, { title: string }>;
+type ContactSection = SectionListData<ContactItem, { title: string }>;
 
-// Group contacts by the first letter of their last (or first) name.
-const buildSections = (): Section[] => {
-  const contacts = Array.from({ length: 120 }, (_, index) => generateContact(index));
-  const buckets = new Map<string, ContactItem[]>();
+// Group contacts into A-Z sections by first-name initial, sorted within each.
+const buildSections = (contacts: ContactItem[]): ContactSection[] => {
+  const groups = new Map<string, ContactItem[]>();
+
   for (const contact of contacts) {
-    const letter = (contact.lastName || contact.firstName).charAt(0).toUpperCase();
-    const bucket = buckets.get(letter) ?? [];
-    bucket.push(contact);
-    buckets.set(letter, bucket);
+    const letter = (contact.firstName.charAt(0) || '#').toUpperCase();
+    const group = groups.get(letter);
+    if (group) group.push(contact);
+    else groups.set(letter, [contact]);
   }
-  return [...buckets.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([title, data]) => ({ key: title, title, data }));
+
+  return Array.from(groups.keys())
+    .sort()
+    .map((letter) => ({
+      key: letter,
+      title: letter,
+      data: groups
+        .get(letter)!
+        .slice()
+        .sort((a, b) =>
+          `${a.firstName} ${a.lastName}`.localeCompare(
+            `${b.firstName} ${b.lastName}`
+          )
+        ),
+    }));
 };
 
 export const SectionListScreen = () => {
-  const sections = useMemo<Section[]>(buildSections, []);
+  const sectionListRef = useRef<ShadowlistCommands>(null);
+  const [contacts, setContacts] = useState<ContactItem[]>(() =>
+    Array.from({ length: 300 }, (_, index) => generateContact(index))
+  );
+
+  const sections = useMemo(() => buildSections(contacts), [contacts]);
+
+  const handlePrepend = () => {
+    const currentLength = contacts.length;
+    const newContacts = Array.from({ length: 10 }, (_, index) =>
+      generateContact(currentLength + index)
+    );
+    setContacts((prev) => [...newContacts, ...prev]);
+  };
+
+  const handleAppend = () => {
+    const currentLength = contacts.length;
+    const newContacts = Array.from({ length: 10 }, (_, index) =>
+      generateContact(currentLength + index)
+    );
+    setContacts((prev) => [...prev, ...newContacts]);
+  };
+
+  const handleScrollToRandom = () => {
+    sectionListRef.current?.scrollToIndex(
+      Math.floor(Math.random() * contacts.length)
+    );
+  };
+
+  useHeaderActions({
+    onPrepend: handlePrepend,
+    onAppend: handleAppend,
+    onScrollToRandom: handleScrollToRandom,
+  });
+
+  const handleDelete = (id: string) => {
+    setContacts((prev) => prev.filter((contact) => contact.id !== id));
+  };
 
   return (
     <div style={styles.container}>
       <SectionList.List
+        ref={sectionListRef}
         sections={sections}
         style={styles.list}
-        keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
-          <SectionList.Row element={item} index={index} />
+          <SectionList.Row
+            element={item}
+            index={index}
+            onDelete={handleDelete}
+          />
         )}
         renderSectionHeader={({ section }) => (
           <SectionList.SectionHeader
@@ -40,6 +99,9 @@ export const SectionListScreen = () => {
         )}
         ListHeaderComponent={
           <ListHeader title="Contacts" subtitle="Grouped, sticky sections" />
+        }
+        ListFooterComponent={
+          <ListFooter text={`${contacts.length} contacts`} />
         }
       />
     </div>

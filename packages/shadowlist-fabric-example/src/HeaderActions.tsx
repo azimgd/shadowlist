@@ -48,7 +48,7 @@ export function useHeaderActions(handlers: HeaderActionHandlers) {
               direction="up"
               color={colors.accent}
               size={22}
-              weight={2.25}
+              strokeWidth={2.25}
             />
           </HeaderButton>
           <HeaderButton onPress={() => ref.current.onAppend()}>
@@ -56,11 +56,11 @@ export function useHeaderActions(handlers: HeaderActionHandlers) {
               direction="down"
               color={colors.accent}
               size={22}
-              weight={2.25}
+              strokeWidth={2.25}
             />
           </HeaderButton>
           <HeaderButton onPress={() => ref.current.onScrollToRandom()}>
-            <Viewfinder color={colors.accent} size={22} weight={2} />
+            <Viewfinder color={colors.accent} size={22} strokeWidth={2} />
           </HeaderButton>
         </View>
       ),

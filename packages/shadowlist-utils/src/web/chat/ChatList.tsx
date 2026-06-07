@@ -6,7 +6,10 @@ import {
 } from 'shadowlist-wasm';
 import { ChatBubble, type ChatMessage } from './ChatBubble';
 
-export type ChatListProps = Omit<ShadowlistProps<ChatMessage>, 'renderElement'> & {
+export type ChatListProps = Omit<
+  ShadowlistProps<ChatMessage>,
+  'renderElement'
+> & {
   renderElement?: ShadowlistProps<ChatMessage>['renderElement'];
 };
 

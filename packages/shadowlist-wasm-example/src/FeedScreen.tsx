@@ -1,6 +1,18 @@
-import { useState, useRef, useCallback, useMemo, type CSSProperties } from 'react';
+import {
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  type CSSProperties,
+} from 'react';
 import { type ShadowlistCommands } from 'shadowlist-wasm';
-import { Feed, ListHeader, ListFooter, Spinner, colors } from 'shadowlist-utils/web';
+import {
+  Feed,
+  ListHeader,
+  ListFooter,
+  Spinner,
+  colors,
+} from 'shadowlist-utils/web';
 import { generateFeedElement, type FeedItem } from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
@@ -27,7 +39,9 @@ export const FeedScreen = () => {
   };
 
   const handleScrollToRandom = () => {
-    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
 
   useHeaderActions({
@@ -81,6 +95,7 @@ export const FeedScreen = () => {
         style={styles.list}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        refreshColor={colors.secondaryLabel}
         onEndReached={handleEndReached}
         renderElement={({ element, index }) => (
           <Feed.Element element={element} index={index} />

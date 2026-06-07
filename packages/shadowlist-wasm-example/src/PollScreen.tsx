@@ -1,4 +1,10 @@
-import { useState, useRef, useCallback, useMemo, type CSSProperties } from 'react';
+import {
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+  type CSSProperties,
+} from 'react';
 import { type ShadowlistCommands } from 'shadowlist-wasm';
 import {
   Poll,
@@ -47,7 +53,9 @@ export const PollScreen = () => {
   const handlePrepend = () => {
     const currentLength = data.length;
     setData((prev) => [
-      ...Array.from({ length: 3 }, (_, index) => buildOption(currentLength + index)),
+      ...Array.from({ length: 3 }, (_, index) =>
+        buildOption(currentLength + index)
+      ),
       ...prev,
     ]);
   };
@@ -55,11 +63,15 @@ export const PollScreen = () => {
     const currentLength = data.length;
     setData((prev) => [
       ...prev,
-      ...Array.from({ length: 3 }, (_, index) => buildOption(currentLength + index)),
+      ...Array.from({ length: 3 }, (_, index) =>
+        buildOption(currentLength + index)
+      ),
     ]);
   };
   const handleScrollToRandom = () => {
-    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
   useHeaderActions({
     onPrepend: handlePrepend,

@@ -7,7 +7,10 @@ import {
 import type { NestedItem } from 'shadowlist-utils';
 import { NestedRow } from './NestedRow';
 
-export type NestedListProps = Omit<ShadowlistProps<NestedItem>, 'renderElement'> & {
+export type NestedListProps = Omit<
+  ShadowlistProps<NestedItem>,
+  'renderElement'
+> & {
   renderElement?: ShadowlistProps<NestedItem>['renderElement'];
 };
 

@@ -17,7 +17,10 @@ export type SectionListProps_ = Omit<
   'renderItem' | 'renderSectionHeader'
 > & {
   renderItem?: SectionListProps<ContactItem, ContactSectionMeta>['renderItem'];
-  renderSectionHeader?: SectionListProps<ContactItem, ContactSectionMeta>['renderSectionHeader'];
+  renderSectionHeader?: SectionListProps<
+    ContactItem,
+    ContactSectionMeta
+  >['renderSectionHeader'];
   // Forwarded to each contact row's swipe-to-delete button.
   onDelete?: (id: string) => void;
 };

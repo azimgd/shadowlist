@@ -3,7 +3,13 @@ import { colors } from '../theme';
 
 // Indeterminate loading spinner for infinite-scroll / pull-to-refresh footers.
 export const Spinner = memo(
-  ({ size = 20, color = colors.secondaryLabel }: { size?: number; color?: string }) => {
+  ({
+    size = 20,
+    color = colors.secondaryLabel,
+  }: {
+    size?: number;
+    color?: string;
+  }) => {
     return (
       <div style={styles.container}>
         <style>{KEYFRAMES}</style>

@@ -20,7 +20,13 @@ export interface ChatBubbleProps {
 }
 
 export const ChatBubble = memo(
-  ({ index = 0, text = '', isFromMe = false, imageUrl, imageUrls }: ChatBubbleProps) => {
+  ({
+    index = 0,
+    text = '',
+    isFromMe = false,
+    imageUrl,
+    imageUrls,
+  }: ChatBubbleProps) => {
     const avatarColor = useMemo(
       () => AVATAR_COLORS[index % AVATAR_COLORS.length],
       [index]
@@ -33,7 +39,16 @@ export const ChatBubble = memo(
     }, [index]);
 
     const username = useMemo(() => {
-      const names = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry'];
+      const names = [
+        'Alice',
+        'Bob',
+        'Charlie',
+        'Diana',
+        'Eve',
+        'Frank',
+        'Grace',
+        'Henry',
+      ];
       return names[index % names.length];
     }, [index]);
 

@@ -27,14 +27,54 @@ export const FONT_FAMILY =
 
 // iOS type ramp. lineHeight/letterSpacing are px strings so React DOM keeps units.
 export const typography: Record<string, CSSProperties> = {
-  largeTitle: { fontSize: 34, fontWeight: 700, lineHeight: '41px', letterSpacing: '0.37px' },
-  title2: { fontSize: 22, fontWeight: 700, lineHeight: '28px', letterSpacing: '0.35px' },
-  title3: { fontSize: 20, fontWeight: 600, lineHeight: '25px', letterSpacing: '0.38px' },
-  headline: { fontSize: 17, fontWeight: 600, lineHeight: '22px', letterSpacing: '-0.43px' },
-  body: { fontSize: 17, fontWeight: 400, lineHeight: '22px', letterSpacing: '-0.43px' },
-  callout: { fontSize: 16, fontWeight: 400, lineHeight: '21px', letterSpacing: '-0.31px' },
-  subhead: { fontSize: 15, fontWeight: 400, lineHeight: '20px', letterSpacing: '-0.24px' },
-  footnote: { fontSize: 13, fontWeight: 400, lineHeight: '18px', letterSpacing: '-0.08px' },
+  largeTitle: {
+    fontSize: 34,
+    fontWeight: 700,
+    lineHeight: '41px',
+    letterSpacing: '0.37px',
+  },
+  title2: {
+    fontSize: 22,
+    fontWeight: 700,
+    lineHeight: '28px',
+    letterSpacing: '0.35px',
+  },
+  title3: {
+    fontSize: 20,
+    fontWeight: 600,
+    lineHeight: '25px',
+    letterSpacing: '0.38px',
+  },
+  headline: {
+    fontSize: 17,
+    fontWeight: 600,
+    lineHeight: '22px',
+    letterSpacing: '-0.43px',
+  },
+  body: {
+    fontSize: 17,
+    fontWeight: 400,
+    lineHeight: '22px',
+    letterSpacing: '-0.43px',
+  },
+  callout: {
+    fontSize: 16,
+    fontWeight: 400,
+    lineHeight: '21px',
+    letterSpacing: '-0.31px',
+  },
+  subhead: {
+    fontSize: 15,
+    fontWeight: 400,
+    lineHeight: '20px',
+    letterSpacing: '-0.24px',
+  },
+  footnote: {
+    fontSize: 13,
+    fontWeight: 400,
+    lineHeight: '18px',
+    letterSpacing: '-0.08px',
+  },
   caption: { fontSize: 12, fontWeight: 400, lineHeight: '16px' },
 };
 
@@ -48,4 +88,10 @@ export const radius = {
 // Leading inset aligning separators / text with the content column.
 export const ROW_INSET = 68;
 
-export const theme = { colors, typography, radius, ROW_INSET, FONT_FAMILY } as const;
+export const theme = {
+  colors,
+  typography,
+  radius,
+  ROW_INSET,
+  FONT_FAMILY,
+} as const;

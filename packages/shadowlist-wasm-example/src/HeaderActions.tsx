@@ -56,10 +56,20 @@ export const HeaderActionButtons = ({
   return (
     <div style={styles.container}>
       <HeaderButton onClick={actions.onPrepend}>
-        <Chevron direction="up" color={colors.accent} size={22} strokeWidth={2.25} />
+        <Chevron
+          direction="up"
+          color={colors.accent}
+          size={22}
+          strokeWidth={2.25}
+        />
       </HeaderButton>
       <HeaderButton onClick={actions.onAppend}>
-        <Chevron direction="down" color={colors.accent} size={22} strokeWidth={2.25} />
+        <Chevron
+          direction="down"
+          color={colors.accent}
+          size={22}
+          strokeWidth={2.25}
+        />
       </HeaderButton>
       <HeaderButton onClick={actions.onScrollToRandom}>
         <Viewfinder color={colors.accent} size={22} strokeWidth={2} />

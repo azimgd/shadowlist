@@ -1,0 +1,38 @@
+{
+  "name": "shadowlist-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shadowlist monorepo — native (Fabric) + web (WASM) virtualization, shared utils, and example apps.",
+  "license": "MIT",
+  "packageManager": "yarn@4.11.0",
+  "workspaces": [
+    "packages/shadowlist-fabric",
+    "packages/shadowlist-wasm",
+    "packages/shadowlist-utils",
+    "packages/shadowlist-fabric-example",
+    "packages/shadowlist-wasm-example"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p packages/shadowlist-fabric-example/tsconfig.json && tsc -p packages/shadowlist-utils/tsconfig.json && tsc -p packages/shadowlist-wasm/tsconfig.json && tsc -p packages/shadowlist-wasm-example/tsconfig.json",
+    "test": "yarn workspace shadowlist run test",
+    "build": "yarn workspace shadowlist run prepare && yarn workspace shadowlist-wasm-example run build",
+    "clean": "yarn workspace shadowlist run clean",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "release": "yarn workspaces foreach -A --no-private npm publish --tolerate-republish"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^2.0.3",
+    "@eslint/eslintrc": "^3.3.5",
+    "@eslint/js": "^10.0.1",
+    "@evilmartians/lefthook": "^1.12.3",
+    "@react-native/eslint-config": "0.85.0",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "prettier": "^3.8.1",
+    "typescript": "^6.0.2"
+  }
+}

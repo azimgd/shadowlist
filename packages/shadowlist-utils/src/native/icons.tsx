@@ -1,10 +1,10 @@
 /* eslint-disable react-native/no-inline-styles -- icon geometry is derived from
- * the size/color/weight props, so the shape styles are intentionally dynamic. */
+ * the size/color/strokeWidth props, so the shape styles are intentionally dynamic. */
 import { View } from 'react-native';
 import { colors } from './theme';
 
 /*
- * Lightweight SF-Symbol-style icons drawn purely from <View> primitives — no
+ * LightstrokeWidth SF-Symbol-style icons drawn purely from <View> primitives — no
  * emoji, no font dependency, no SVG. Every glyph is crisp at any size and tints
  * via the `color` prop so it inherits the app accent.
  */
@@ -12,7 +12,7 @@ import { colors } from './theme';
 type IconProps = {
   size?: number;
   color?: string;
-  weight?: number;
+  strokeWidth?: number;
 };
 
 type Direction = 'up' | 'down' | 'left' | 'right';
@@ -37,7 +37,7 @@ const CHEVRON_SHIFT: Record<Direction, { x: number; y: number }> = {
 export const Chevron = ({
   size = 17,
   color = colors.label,
-  weight = 2,
+  strokeWidth = 2,
   direction = 'right',
 }: IconProps & { direction?: Direction }) => {
   const side = size * 0.42;
@@ -61,8 +61,8 @@ export const Chevron = ({
           style={{
             width: side,
             height: side,
-            borderTopWidth: weight,
-            borderRightWidth: weight,
+            borderTopWidth: strokeWidth,
+            borderRightWidth: strokeWidth,
             borderColor: color,
             transform: [{ rotate: CHEVRON_ROTATION[direction] }],
           }}
@@ -76,7 +76,7 @@ export const Chevron = ({
 export const Viewfinder = ({
   size = 22,
   color = colors.label,
-  weight = 2,
+  strokeWidth = 2,
 }: IconProps) => {
   const ring = size * 0.6;
   const tick = size * 0.16;
@@ -94,7 +94,7 @@ export const Viewfinder = ({
           width: ring,
           height: ring,
           borderRadius: ring / 2,
-          borderWidth: weight,
+          borderWidth: strokeWidth,
           borderColor: color,
         }}
       />
@@ -102,7 +102,7 @@ export const Viewfinder = ({
         style={{
           position: 'absolute',
           top: 0,
-          width: weight,
+          width: strokeWidth,
           height: tick,
           backgroundColor: color,
         }}
@@ -111,7 +111,7 @@ export const Viewfinder = ({
         style={{
           position: 'absolute',
           bottom: 0,
-          width: weight,
+          width: strokeWidth,
           height: tick,
           backgroundColor: color,
         }}
@@ -120,7 +120,7 @@ export const Viewfinder = ({
         style={{
           position: 'absolute',
           left: 0,
-          height: weight,
+          height: strokeWidth,
           width: tick,
           backgroundColor: color,
         }}
@@ -129,7 +129,7 @@ export const Viewfinder = ({
         style={{
           position: 'absolute',
           right: 0,
-          height: weight,
+          height: strokeWidth,
           width: tick,
           backgroundColor: color,
         }}
@@ -137,9 +137,9 @@ export const Viewfinder = ({
       <View
         style={{
           position: 'absolute',
-          width: weight * 1.6,
-          height: weight * 1.6,
-          borderRadius: weight,
+          width: strokeWidth * 1.6,
+          height: strokeWidth * 1.6,
+          borderRadius: strokeWidth,
           backgroundColor: color,
         }}
       />
@@ -182,7 +182,7 @@ export const Folder = ({ size = 18, color = colors.accent }: IconProps) => {
 export const Doc = ({
   size = 18,
   color = colors.secondaryLabel,
-  weight = 1.6,
+  strokeWidth = 1.6,
 }: IconProps) => {
   const w = size * 0.72;
   const h = size * 0.9;
@@ -199,7 +199,7 @@ export const Doc = ({
         style={{
           width: w,
           height: h,
-          borderWidth: weight,
+          borderWidth: strokeWidth,
           borderColor: color,
           borderRadius: 2.5,
           paddingHorizontal: w * 0.18,
@@ -209,17 +209,17 @@ export const Doc = ({
       >
         <View
           style={{
-            height: weight,
+            height: strokeWidth,
             backgroundColor: color,
-            borderRadius: weight,
+            borderRadius: strokeWidth,
           }}
         />
         <View
           style={{
-            height: weight,
+            height: strokeWidth,
             width: '70%',
             backgroundColor: color,
-            borderRadius: weight,
+            borderRadius: strokeWidth,
           }}
         />
       </View>
@@ -231,13 +231,13 @@ export const Doc = ({
 export const Grip = ({
   size = 20,
   color = colors.tertiaryLabel,
-  weight = 1.75,
+  strokeWidth = 1.75,
 }: IconProps) => {
   const line = {
     width: size,
-    height: weight,
+    height: strokeWidth,
     backgroundColor: color,
-    borderRadius: weight,
+    borderRadius: strokeWidth,
   };
   return (
     <View
@@ -258,7 +258,7 @@ export const Grip = ({
 export const HalfCircle = ({
   size = 22,
   color = colors.label,
-  weight = 2,
+  strokeWidth = 2,
 }: IconProps) => {
   const d = size * 0.62;
   return (
@@ -275,7 +275,7 @@ export const HalfCircle = ({
           width: d,
           height: d,
           borderRadius: d / 2,
-          borderWidth: weight,
+          borderWidth: strokeWidth,
           borderColor: color,
           overflow: 'hidden',
         }}
@@ -298,7 +298,7 @@ export const HalfCircle = ({
 export const CircleSlash = ({
   size = 22,
   color = colors.label,
-  weight = 2,
+  strokeWidth = 2,
 }: IconProps) => {
   const d = size * 0.62;
   return (
@@ -315,17 +315,17 @@ export const CircleSlash = ({
           width: d,
           height: d,
           borderRadius: d / 2,
-          borderWidth: weight,
+          borderWidth: strokeWidth,
           borderColor: color,
         }}
       />
       <View
         style={{
           position: 'absolute',
-          width: weight,
+          width: strokeWidth,
           height: d,
           backgroundColor: color,
-          borderRadius: weight,
+          borderRadius: strokeWidth,
           transform: [{ rotate: '45deg' }],
         }}
       />
@@ -336,7 +336,7 @@ export const CircleSlash = ({
 export const Bell = ({
   size = 22,
   color = colors.label,
-  weight = 2,
+  strokeWidth = 2,
 }: IconProps) => {
   const bodyW = size * 0.44;
   const bodyH = size * 0.42;
@@ -358,25 +358,25 @@ export const Bell = ({
             borderTopLeftRadius: bodyW / 2,
             borderTopRightRadius: bodyW / 2,
             borderColor: color,
-            borderWidth: weight,
+            borderWidth: strokeWidth,
             borderBottomWidth: 0,
           }}
         />
         <View
           style={{
             width: baseW,
-            height: weight,
+            height: strokeWidth,
             backgroundColor: color,
-            borderRadius: weight,
+            borderRadius: strokeWidth,
           }}
         />
         <View
           style={{
-            width: weight * 1.8,
-            height: weight * 1.8,
-            borderRadius: weight,
+            width: strokeWidth * 1.8,
+            height: strokeWidth * 1.8,
+            borderRadius: strokeWidth,
             backgroundColor: color,
-            marginTop: weight * 0.7,
+            marginTop: strokeWidth * 0.7,
           }}
         />
       </View>
@@ -387,7 +387,7 @@ export const Bell = ({
 export const Globe = ({
   size = 22,
   color = colors.label,
-  weight = 1.8,
+  strokeWidth = 1.8,
 }: IconProps) => {
   const d = size * 0.64;
   return (
@@ -404,7 +404,7 @@ export const Globe = ({
           width: d,
           height: d,
           borderRadius: d / 2,
-          borderWidth: weight,
+          borderWidth: strokeWidth,
           borderColor: color,
           alignItems: 'center',
           justifyContent: 'center',
@@ -416,7 +416,7 @@ export const Globe = ({
             width: d * 0.46,
             height: d,
             borderRadius: d * 0.23,
-            borderWidth: weight,
+            borderWidth: strokeWidth,
             borderColor: color,
           }}
         />
@@ -424,7 +424,7 @@ export const Globe = ({
           style={{
             position: 'absolute',
             width: d,
-            height: weight,
+            height: strokeWidth,
             backgroundColor: color,
           }}
         />
@@ -459,7 +459,7 @@ export const Swatch = ({ size = 22, color = colors.label }: IconProps) => {
 export const ArrowUp = ({
   size = 20,
   color = colors.label,
-  weight = 2.2,
+  strokeWidth = 2.2,
 }: IconProps) => {
   const head = size * 0.36;
   return (
@@ -473,10 +473,10 @@ export const ArrowUp = ({
     >
       <View
         style={{
-          width: weight,
+          width: strokeWidth,
           height: size * 0.56,
           backgroundColor: color,
-          borderRadius: weight,
+          borderRadius: strokeWidth,
           marginTop: size * 0.08,
         }}
       />
@@ -493,8 +493,8 @@ export const ArrowUp = ({
           style={{
             width: head,
             height: head,
-            borderTopWidth: weight,
-            borderRightWidth: weight,
+            borderTopWidth: strokeWidth,
+            borderRightWidth: strokeWidth,
             borderColor: color,
             transform: [{ rotate: '-45deg' }],
           }}

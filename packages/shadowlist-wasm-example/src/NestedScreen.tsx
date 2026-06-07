@@ -27,7 +27,9 @@ export const NestedScreen = () => {
   };
 
   const handleScrollToRandom = () => {
-    shadowlistRef.current?.scrollToIndex(Math.floor(Math.random() * data.length));
+    shadowlistRef.current?.scrollToIndex(
+      Math.floor(Math.random() * data.length)
+    );
   };
 
   useHeaderActions({

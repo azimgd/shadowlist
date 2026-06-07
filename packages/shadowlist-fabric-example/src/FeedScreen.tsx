@@ -1,7 +1,13 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { type ShadowlistCommands } from 'shadowlist';
-import { Feed, ListHeader, ListFooter, colors } from 'shadowlist-utils/native';
+import {
+  Feed,
+  ListHeader,
+  ListFooter,
+  Spinner,
+  colors,
+} from 'shadowlist-utils/native';
 import { generateFeedElement, type FeedItem } from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
@@ -75,14 +81,7 @@ export const FeedScreen = () => {
   }, []);
 
   const footer = useMemo(
-    () =>
-      loadingMore ? (
-        <View style={styles.loadingFooter}>
-          <ActivityIndicator color={colors.secondaryLabel} />
-        </View>
-      ) : (
-        <ListFooter text="End of feed" />
-      ),
+    () => (loadingMore ? <Spinner /> : <ListFooter text="End of feed" />),
     [loadingMore]
   );
 
@@ -116,9 +115,5 @@ const styles = StyleSheet.create({
   list: {
     flex: 1,
     backgroundColor: colors.background,
-  },
-  loadingFooter: {
-    padding: 16,
-    alignItems: 'center',
   },
 });

@@ -7,14 +7,16 @@ export interface ListHeaderProps {
 }
 
 // iOS large-title header. No divider — list separators below carry the break.
-export const ListHeader = memo(({ title = 'Header', subtitle }: ListHeaderProps) => {
-  return (
-    <div style={styles.container}>
-      <span style={styles.title}>{title}</span>
-      {subtitle ? <span style={styles.subtitle}>{subtitle}</span> : null}
-    </div>
-  );
-});
+export const ListHeader = memo(
+  ({ title = 'Header', subtitle }: ListHeaderProps) => {
+    return (
+      <div style={styles.container}>
+        <span style={styles.title}>{title}</span>
+        {subtitle ? <span style={styles.subtitle}>{subtitle}</span> : null}
+      </div>
+    );
+  }
+);
 
 const styles: Record<string, CSSProperties> = {
   container: {
