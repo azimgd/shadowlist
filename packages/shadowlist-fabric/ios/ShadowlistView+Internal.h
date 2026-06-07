@@ -29,6 +29,9 @@
   BOOL _stickyHeader;
   BOOL _stickyFooter;
   BOOL _horizontal;
+  /* View snapping: enabled flag and the core's resting snap offsets along the scroll axis. */
+  BOOL _snapToItem;
+  std::vector<double> _snapOffsets;
   /* Auto-hide header/footer: how far each is currently slid away, and the previous
    * offset used to derive the scroll delta. */
   BOOL _autoHideHeader;
@@ -76,6 +79,8 @@
   CGFloat _dropReleaseLeading;
   /* Polls for the reorder commit landing so the drop settle always fires. */
   CADisplayLink * _dropSettleLink;
+  /* Invalidates a superseded drop safety-net timer so a stale drop can't tear down a newer one. */
+  NSInteger _dropSettleToken;
 }
 
 /* Index from an element view's props, or NSNotFound for a non-element view. */

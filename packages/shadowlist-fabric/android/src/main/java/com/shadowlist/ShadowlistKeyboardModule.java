@@ -16,6 +16,7 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.uimanager.PixelUtil;
 
+import java.lang.ref.WeakReference;
 import java.util.List;
 
 /*
@@ -29,6 +30,7 @@ public class ShadowlistKeyboardModule extends NativeShadowlistKeyboardSpec {
   private boolean mEnabled = false;
   private float mTargetDip = 0f;
   @Nullable private View mObservedView = null;
+  @Nullable private KeyboardInsetsCallback mCallback = null;
 
   public ShadowlistKeyboardModule(ReactApplicationContext context) {
     super(context);
@@ -61,6 +63,7 @@ public class ShadowlistKeyboardModule extends NativeShadowlistKeyboardSpec {
       return;
     }
     mObservedView = activity.getWindow().getDecorView();
+    mCallback = new KeyboardInsetsCallback(this);
     ViewCompat.setWindowInsetsAnimationCallback(mObservedView, mCallback);
   }
 
@@ -69,41 +72,54 @@ public class ShadowlistKeyboardModule extends NativeShadowlistKeyboardSpec {
       ViewCompat.setWindowInsetsAnimationCallback(mObservedView, null);
       mObservedView = null;
     }
+    mCallback = null;
   }
 
-  private final WindowInsetsAnimationCompat.Callback mCallback =
-    new WindowInsetsAnimationCompat.Callback(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_STOP) {
-      @NonNull
-      @Override
-      public WindowInsetsAnimationCompat.BoundsCompat onStart(
-        @NonNull WindowInsetsAnimationCompat animation,
-        @NonNull WindowInsetsAnimationCompat.BoundsCompat bounds) {
-        // Fully-shown IME height, used as the denominator for the progress fraction.
-        int targetPx = bounds.getUpperBound().bottom;
-        mTargetDip = PixelUtil.toDIPFromPixel(targetPx);
-        return bounds;
-      }
+  private static final class KeyboardInsetsCallback extends WindowInsetsAnimationCompat.Callback {
+    private final WeakReference<ShadowlistKeyboardModule> mModuleRef;
 
-      @NonNull
-      @Override
-      public WindowInsetsCompat onProgress(
-        @NonNull WindowInsetsCompat insets,
-        @NonNull List<WindowInsetsAnimationCompat> runningAnimations) {
-        boolean animatingIme = false;
-        for (WindowInsetsAnimationCompat animation : runningAnimations) {
-          if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {
-            animatingIme = true;
-            break;
-          }
-        }
-        if (!animatingIme) {
-          return insets;
-        }
-        int imeBottomPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
-        emitHeight(PixelUtil.toDIPFromPixel(imeBottomPx));
+    KeyboardInsetsCallback(ShadowlistKeyboardModule module) {
+      super(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_STOP);
+      mModuleRef = new WeakReference<>(module);
+    }
+
+    @NonNull
+    @Override
+    public WindowInsetsAnimationCompat.BoundsCompat onStart(
+      @NonNull WindowInsetsAnimationCompat animation,
+      @NonNull WindowInsetsAnimationCompat.BoundsCompat bounds) {
+      ShadowlistKeyboardModule module = mModuleRef.get();
+      if (module != null) {
+        int targetPx = bounds.getUpperBound().bottom;
+        module.mTargetDip = PixelUtil.toDIPFromPixel(targetPx);
+      }
+      return bounds;
+    }
+
+    @NonNull
+    @Override
+    public WindowInsetsCompat onProgress(
+      @NonNull WindowInsetsCompat insets,
+      @NonNull List<WindowInsetsAnimationCompat> runningAnimations) {
+      ShadowlistKeyboardModule module = mModuleRef.get();
+      if (module == null) {
         return insets;
       }
-    };
+      boolean animatingIme = false;
+      for (WindowInsetsAnimationCompat animation : runningAnimations) {
+        if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) != 0) {
+          animatingIme = true;
+          break;
+        }
+      }
+      if (!animatingIme) {
+        return insets;
+      }
+      int imeBottomPx = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom;
+      module.emitHeight(PixelUtil.toDIPFromPixel(imeBottomPx));
+      return insets;
+    }
+  }
 
   private void emitHeight(float heightDip) {
     float progress = mTargetDip > 0 ? Math.min(1f, Math.max(0f, heightDip / mTargetDip)) : 0f;

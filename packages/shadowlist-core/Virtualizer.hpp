@@ -42,6 +42,14 @@ struct FrameInput {
   std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
 
   /*
+   * Snap the resting scroll position to an element edge. snapAlignment selects which
+   * edge aligns to the viewport: 0 = start, 1 = center, 2 = end. The core only
+   * computes the snap offsets (getSnapOffsets); the scroll view applies them.
+   */
+  bool snapToItem = false;
+  int snapAlignment = 0;
+
+  /*
    * Set for a user scroll gesture; abandons any in-flight scroll correction so the
    * user is not snapped back.
    */

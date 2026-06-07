@@ -1,11 +1,5 @@
 name: Setup
-description: Setup Node.js and install dependencies
-
-inputs:
-  working-directory:
-    description: Path to the package to set up (this is a monorepo; the yarn project lives under packages/)
-    required: false
-    default: packages/shadowlist-fabric
+description: Setup Node.js and install workspace dependencies from the repo root
 
 runs:
   using: composite
@@ -13,7 +7,7 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version-file: ${{ inputs.working-directory }}/.nvmrc
+        node-version-file: .nvmrc
 
     - name: Cache dependencies
       id: yarn-cache
@@ -21,8 +15,8 @@ runs:
       with:
         path: |
           **/node_modules
-          ${{ inputs.working-directory }}/.yarn/install-state.gz
-        key: ${{ runner.os }}-yarn-${{ hashFiles(format('{0}/yarn.lock', inputs.working-directory)) }}
+          .yarn/install-state.gz
+        key: ${{ runner.os }}-yarn-${{ hashFiles('yarn.lock') }}
         restore-keys: |
           ${{ runner.os }}-yarn-
 
@@ -30,4 +24,3 @@ runs:
       if: steps.yarn-cache.outputs.cache-hit != 'true'
       run: yarn install --immutable
       shell: bash
-      working-directory: ${{ inputs.working-directory }}

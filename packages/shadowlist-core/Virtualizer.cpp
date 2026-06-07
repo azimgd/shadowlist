@@ -53,6 +53,8 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->endReachedThreshold = input.endReachedThreshold;
   container->viewablePercentThreshold = input.viewablePercentThreshold;
   container->estimatedElementSize = input.estimatedElementSize;
+  container->snapToItem = input.snapToItem;
+  container->snapAlignment = input.snapAlignment;
 
   /*
    * Reported scroll offset along the scroll axis
@@ -124,6 +126,22 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
    * Measure the revision
    */
   container->startRevision();
+
+  /*
+   * Reset a half-applied revision on any exception between start and end (e.g. measure
+   * throwing), so the next frame can start cleanly instead of throwing "previous revision
+   * in progress" forever and wedging the instance. On the success path endRevision() has
+   * already returned the status to idle, so this guard is a no-op.
+   */
+  struct RevisionStatusGuard {
+    Container *container;
+    ~RevisionStatusGuard() {
+      if (container->revisionStatus == RevisionStatusPending) {
+        container->revisionStatus = RevisionStatusIdle;
+      }
+    }
+  } revisionStatusGuard{container};
+
   container->setContainerOffsetX(input.containerOffsetX);
   container->setContainerOffsetY(input.containerOffsetY);
   container->setWindowContainerWidth(input.windowContainerWidth);
@@ -592,7 +610,8 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
   prevElementsByKey.reserve(prevElements.size());
   for (Element& prevElement : prevElements) {
     if (!prevElement.key.empty()) {
-      prevElementsByKey.emplace(prevElement.key, prevElement);
+      std::string prevKey = prevElement.key;
+      prevElementsByKey.emplace(std::move(prevKey), std::move(prevElement));
     }
   }
 
@@ -604,14 +623,14 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
 
     auto prevElementEntry = prevElementsByKey.find(nextKey);
     if (prevElementEntry != prevElementsByKey.end()) {
-      Element nextElement = prevElementEntry->second;
+      Element nextElement = std::move(prevElementEntry->second);
       nextElement.index = nextElementIndex;
-      nextElements.push_back(nextElement);
+      nextElements.push_back(std::move(nextElement));
     } else {
       Element nextElement;
       nextElement.key = nextKey;
       nextElement.index = nextElementIndex;
-      nextElements.push_back(nextElement);
+      nextElements.push_back(std::move(nextElement));
     }
   }
 

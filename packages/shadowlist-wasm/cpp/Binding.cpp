@@ -47,9 +47,10 @@ public:
     bool stickyFooter,
     double startReachedThreshold,
     double endReachedThreshold,
-    double viewablePercentThreshold) {
+    double viewablePercentThreshold,
+    bool snapToItem,
+    int snapAlignment) {
     FrameInput input;
-    input.keys = vecFromJSArray<std::string>(keysVal);
     input.containerOffsetX = containerOffsetX;
     input.containerOffsetY = containerOffsetY;
     input.windowContainerWidth = windowContainerWidth;
@@ -66,9 +67,14 @@ public:
     input.startReachedThreshold = startReachedThreshold;
     input.endReachedThreshold = endReachedThreshold;
     input.viewablePercentThreshold = viewablePercentThreshold;
+    input.snapToItem = snapToItem;
+    input.snapAlignment = snapAlignment;
 
-    // Contain core exceptions: skip the frame rather than abort the instance.
+    // Contain core exceptions: skip the frame rather than abort the instance. Marshalling
+    // the keys stays inside the guard too, so a non-array argument can't throw across the
+    // embind boundary.
     try {
+      input.keys = vecFromJSArray<std::string>(keysVal);
       virtualizer_.update(&container_, input);
     } catch (...) {
       SL_LOG("core.update threw - frame skipped");
@@ -150,6 +156,16 @@ public:
 
   double getStickyFooterOffset(double footerSize) const {
     return container_.getStickyFooterOffset(footerSize);
+  }
+
+  // Resting snap offsets along the scroll axis (empty unless snapToItem is set).
+  val getSnapOffsets() const {
+    auto snapOffsets = container_.getSnapOffsets();
+    val result = val::array();
+    for (std::size_t i = 0; i < snapOffsets.size(); ++i) {
+      result.set(static_cast<int>(i), snapOffsets[i]);
+    }
+    return result;
   }
 
   // Viewable index range (subject to the viewable percent threshold). Inverted lists report start > end.
@@ -252,6 +268,7 @@ EMSCRIPTEN_BINDINGS(shadowlist_core) {
     .function("getFooterOffset", &ShadowlistCore::getFooterOffset)
     .function("getStickyHeaderOffset", &ShadowlistCore::getStickyHeaderOffset)
     .function("getStickyFooterOffset", &ShadowlistCore::getStickyFooterOffset)
+    .function("getSnapOffsets", &ShadowlistCore::getSnapOffsets)
     .function("scrollToIndex", &ShadowlistCore::scrollToIndex)
     .function("requestScrollToIndex", &ShadowlistCore::requestScrollToIndex)
     .function("toggleEndReached", &ShadowlistCore::toggleEndReached)

@@ -49,48 +49,48 @@ export function Example() {
 
 ### Data And Rendering
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `data` | `ReadonlyArray<T>` | required | `T` is currently constrained to `{ id: string }` |
-| `renderElement` | `({ element, index }) => ReactElement` | required | Renders one item |
-| `keyExtractor` | `(item, index) => string` | `item.id` | Use when your list key is not `id` |
-| `style` | `ViewStyle` | `undefined` | Outer scroll view style |
-| `elementStyle` | `ViewStyle` | `undefined` | Applied to each item wrapper |
+| Prop                     | Type                                         | Default     | Notes                                                           |
+| ------------------------ | -------------------------------------------- | ----------- | --------------------------------------------------------------- |
+| `data`                   | `ReadonlyArray<T>`                           | required    | `T` is currently constrained to `{ id: string }`                |
+| `renderElement`          | `({ element, index }) => ReactElement`       | required    | Renders one item                                                |
+| `keyExtractor`           | `(item, index) => string`                    | `item.id`   | Use when your list key is not `id`                              |
+| `style`                  | `ViewStyle`                                  | `undefined` | Outer scroll view style                                         |
+| `elementStyle`           | `ViewStyle`                                  | `undefined` | Applied to each item wrapper                                    |
 | `ItemSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Rendered between items, not after the last (FlatList semantics) |
 
 ### Layout
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `horizontal` | `boolean` | `false` | Horizontal list |
-| `inverted` | `boolean` | `false` | Bottom-up / chat-style list |
-| `columns` | `number` | `1` | Multi-column layout |
-| `stickyHeader` | `boolean` | `false` | Pins header to the viewport start |
-| `stickyFooter` | `boolean` | `false` | Pins footer to the viewport end |
-| `autoHideHeader` | `boolean` | `false` | Header slides away as you scroll toward the content and back the other way (direction-based, native) |
-| `autoHideFooter` | `boolean` | `false` | Footer slides away / back the same way |
-| `initialElementsSize` | `number` | `20` | Initial mounted window size |
-| `containerOffsetIndex` | `number` | `-2` | Initial scroll position / declarative scroll-to-index. `-2` (default) = inactive; a non-negative index opens at that row. See [Initial scroll position](#initial-scroll-position) |
+| Prop                   | Type      | Default | Notes                                                                                                                                                                             |
+| ---------------------- | --------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `horizontal`           | `boolean` | `false` | Horizontal list                                                                                                                                                                   |
+| `inverted`             | `boolean` | `false` | Bottom-up / chat-style list                                                                                                                                                       |
+| `columns`              | `number`  | `1`     | Multi-column layout                                                                                                                                                               |
+| `stickyHeader`         | `boolean` | `false` | Pins header to the viewport start                                                                                                                                                 |
+| `stickyFooter`         | `boolean` | `false` | Pins footer to the viewport end                                                                                                                                                   |
+| `autoHideHeader`       | `boolean` | `false` | Header slides away as you scroll toward the content and back the other way (direction-based, native)                                                                              |
+| `autoHideFooter`       | `boolean` | `false` | Footer slides away / back the same way                                                                                                                                            |
+| `initialElementsSize`  | `number`  | `20`    | Initial mounted window size                                                                                                                                                       |
+| `containerOffsetIndex` | `number`  | `-2`    | Initial scroll position / declarative scroll-to-index. `-2` (default) = inactive; a non-negative index opens at that row. See [Initial scroll position](#initial-scroll-position) |
 
 ### Callbacks
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `onScroll` | `({ nativeEvent }) => void` | `undefined` | Current content offset |
-| `onStartReached` | `() => void` | `undefined` | Fires near the start edge |
-| `onEndReached` | `() => void` | `undefined` | Fires near the end edge |
-| `onStartReachedThreshold` | `number` | `1` | Fraction of viewport length |
-| `onEndReachedThreshold` | `number` | `1` | Fraction of viewport length |
-| `onViewableItemsChanged` | `({ viewableItems, changed }) => void` | `undefined` | FlatList-style viewability callback |
-| `viewabilityConfig` | `{ itemVisiblePercentThreshold?: number }` | `undefined` | Percent of item that must be visible |
+| Prop                      | Type                                       | Default     | Notes                                |
+| ------------------------- | ------------------------------------------ | ----------- | ------------------------------------ |
+| `onScroll`                | `({ nativeEvent }) => void`                | `undefined` | Current content offset               |
+| `onStartReached`          | `() => void`                               | `undefined` | Fires near the start edge            |
+| `onEndReached`            | `() => void`                               | `undefined` | Fires near the end edge              |
+| `onStartReachedThreshold` | `number`                                   | `1`         | Fraction of viewport length          |
+| `onEndReachedThreshold`   | `number`                                   | `1`         | Fraction of viewport length          |
+| `onViewableItemsChanged`  | `({ viewableItems, changed }) => void`     | `undefined` | FlatList-style viewability callback  |
+| `viewabilityConfig`       | `{ itemVisiblePercentThreshold?: number }` | `undefined` | Percent of item that must be visible |
 
 ### Templates
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `ListHeaderComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Header template |
-| `ListFooterComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Footer template |
-| `ListEmptyComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Empty-state template |
+| Prop                  | Type                                         | Default     | Notes                |
+| --------------------- | -------------------------------------------- | ----------- | -------------------- |
+| `ListHeaderComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Header template      |
+| `ListFooterComponent` | `ReactElement \| () => ReactElement \| null` | `undefined` | Footer template      |
+| `ListEmptyComponent`  | `ReactElement \| () => ReactElement \| null` | `undefined` | Empty-state template |
 
 ## Commands
 
@@ -126,16 +126,16 @@ import { SectionList } from 'shadowlist';
 />;
 ```
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `sections` | `Array<{ data: ItemT[]; key?: string } & SectionT>` | required | Each section's items plus your own fields |
-| `renderItem` | `({ item, index, section }) => ReactElement` | — | `index` is the item's position within its section |
-| `renderSectionHeader` | `({ section }) => ReactElement` | — | Rendered (and pinned) at each section start |
-| `renderSectionFooter` | `({ section }) => ReactElement` | — | Rendered at each section end |
-| `keyExtractor` | `(item, index) => string` | `item.id` | Per-section override via `section.keyExtractor` |
-| `stickySectionHeadersEnabled` | `boolean` | `true` | Pin and swap section headers natively |
-| `ItemSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | — | Between items within a section |
-| `SectionSeparatorComponent` | `ReactElement \| () => ReactElement \| null` | — | Between sections |
+| Prop                          | Type                                                | Default   | Notes                                             |
+| ----------------------------- | --------------------------------------------------- | --------- | ------------------------------------------------- |
+| `sections`                    | `Array<{ data: ItemT[]; key?: string } & SectionT>` | required  | Each section's items plus your own fields         |
+| `renderItem`                  | `({ item, index, section }) => ReactElement`        | —         | `index` is the item's position within its section |
+| `renderSectionHeader`         | `({ section }) => ReactElement`                     | —         | Rendered (and pinned) at each section start       |
+| `renderSectionFooter`         | `({ section }) => ReactElement`                     | —         | Rendered at each section end                      |
+| `keyExtractor`                | `(item, index) => string`                           | `item.id` | Per-section override via `section.keyExtractor`   |
+| `stickySectionHeadersEnabled` | `boolean`                                           | `true`    | Pin and swap section headers natively             |
+| `ItemSeparatorComponent`      | `ReactElement \| () => ReactElement \| null`        | —         | Between items within a section                    |
+| `SectionSeparatorComponent`   | `ReactElement \| () => ReactElement \| null`        | —         | Between sections                                  |
 
 `ListHeaderComponent`, `ListFooterComponent`, `ListEmptyComponent`, `inverted`,
 `containerOffsetIndex`, `keyboardAvoidingEnabled` / `keyboardAvoidingOffset`,
@@ -145,7 +145,7 @@ import { SectionList } from 'shadowlist';
 ## TreeList
 
 `TreeList` is a directory-browser / outline tree on the same engine. It flattens the
-*visible* subtree — every node whose ancestors are all expanded — into the one
+_visible_ subtree — every node whose ancestors are all expanded — into the one
 virtualized stream, so only the rows on screen are mounted no matter how big the tree
 is. Collapsed subtrees are never walked, and expand / collapse only changes the flat
 key set, so measured row sizes are kept and the toggled row stays put (maintain
@@ -164,7 +164,11 @@ const tree: Node[] = [
     name: 'src',
     children: [
       { id: '1-1', name: 'index.ts' },
-      { id: '1-2', name: 'components', children: [{ id: '1-2-1', name: 'Button.tsx' }] },
+      {
+        id: '1-2',
+        name: 'components',
+        children: [{ id: '1-2-1', name: 'Button.tsx' }],
+      },
     ],
   },
 ];
@@ -191,16 +195,16 @@ export function FileTree() {
 }
 ```
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `data` | `ReadonlyArray<T>` | required | Root nodes |
-| `getChildren` | `(item) => readonly T[] \| undefined` | required | A node's children, or `undefined` for a leaf |
-| `keyExtractor` | `(item) => string` | required | Globally unique, stable node id |
-| `renderNode` | `(info) => ReactElement` | required | `info` carries `item, index, depth, indent, isExpanded, hasChildren, toggle` |
-| `expandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Controlled expansion set; pair with `onExpandedChange` |
-| `initialExpandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Uncontrolled initial expansion |
-| `onExpandedChange` | `(expandedIds: Set<string>) => void` | `undefined` | Fires with the next set on every toggle |
-| `indentWidth` | `number` | `16` | Pixels of leading inset per depth level |
+| Prop                 | Type                                           | Default     | Notes                                                                        |
+| -------------------- | ---------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `data`               | `ReadonlyArray<T>`                             | required    | Root nodes                                                                   |
+| `getChildren`        | `(item) => readonly T[] \| undefined`          | required    | A node's children, or `undefined` for a leaf                                 |
+| `keyExtractor`       | `(item) => string`                             | required    | Globally unique, stable node id                                              |
+| `renderNode`         | `(info) => ReactElement`                       | required    | `info` carries `item, index, depth, indent, isExpanded, hasChildren, toggle` |
+| `expandedIds`        | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Controlled expansion set; pair with `onExpandedChange`                       |
+| `initialExpandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Uncontrolled initial expansion                                               |
+| `onExpandedChange`   | `(expandedIds: Set<string>) => void`           | `undefined` | Fires with the next set on every toggle                                      |
+| `indentWidth`        | `number`                                       | `16`        | Pixels of leading inset per depth level                                      |
 
 `style`, `elementStyle`, `initialElementsSize`, `containerOffsetIndex`,
 `keyboardAvoidingEnabled` / `keyboardAvoidingOffset`, `onScroll`,
@@ -225,10 +229,10 @@ const [data, setData] = useState(rows);
 />;
 ```
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `dragEnabled` | `boolean` | `false` | Enable long-press drag-to-reorder |
-| `onReorder` | `({ from, to, data }) => void` | `undefined` | Fires once on drop; `data` is the reordered array, `from` / `to` the moved indices |
+| Prop          | Type                           | Default     | Notes                                                                              |
+| ------------- | ------------------------------ | ----------- | ---------------------------------------------------------------------------------- |
+| `dragEnabled` | `boolean`                      | `false`     | Enable long-press drag-to-reorder                                                  |
+| `onReorder`   | `({ from, to, data }) => void` | `undefined` | Fires once on drop; `data` is the reordered array, `from` / `to` the moved indices |
 
 ## Pull To Refresh
 
@@ -256,11 +260,11 @@ const onRefresh = () => {
 />;
 ```
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
-| `onRefresh` | `() => void` | `undefined` | Fires on pull past the threshold; its presence enables the gesture |
-| `refreshing` | `boolean` | `false` | Controlled state — set true on refresh, false when done |
-| `refreshColor` | `ColorValue` | platform default | Tints the native indicator (the iOS spinner, the Android arc) |
+| Prop           | Type         | Default          | Notes                                                              |
+| -------------- | ------------ | ---------------- | ------------------------------------------------------------------ |
+| `onRefresh`    | `() => void` | `undefined`      | Fires on pull past the threshold; its presence enables the gesture |
+| `refreshing`   | `boolean`    | `false`          | Controlled state — set true on refresh, false when done            |
+| `refreshColor` | `ColorValue` | platform default | Tints the native indicator (the iOS spinner, the Android arc)      |
 
 For a **loading-more** spinner at the bottom (the `onEndReached` companion), there's no
 dedicated prop — render an `ActivityIndicator` in `ListFooterComponent` while your load
@@ -279,20 +283,20 @@ is in flight:
 
 Dependency-free — no `react-native-keyboard-controller`, no `reanimated`. Three tools:
 
-| Tool | Use it for |
-| --- | --- |
+| Tool                           | Use it for                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------ |
 | `keyboardAvoidingEnabled` prop | A text input **inside** the list — the list slides content up to keep focused rows visible |
-| `useKeyboardAnimation()` | Moving your **own** views (e.g. an external chat composer) with the keyboard |
-| `KeyboardDismissView` | Dismissing the keyboard when the content is tapped |
+| `useKeyboardAnimation()`       | Moving your **own** views (e.g. an external chat composer) with the keyboard               |
+| `KeyboardDismissView`          | Dismissing the keyboard when the content is tapped                                         |
 
 ### keyboardAvoidingEnabled (built-in list avoidance)
 
 Available on `Shadowlist`, `SectionList` and `TreeList`. Vertical lists only.
 
-| Prop | Type | Default | Notes |
-| --- | --- | --- | --- |
+| Prop                      | Type      | Default | Notes                                                                                          |
+| ------------------------- | --------- | ------- | ---------------------------------------------------------------------------------------------- |
 | `keyboardAvoidingEnabled` | `boolean` | `false` | Grow the list's bottom inset by the keyboard overlap and slide content up; reverses on dismiss |
-| `keyboardAvoidingOffset` | `number` | `0` | Pixels subtracted from the overlap (e.g. a tab bar or safe-area already below the list) |
+| `keyboardAvoidingOffset`  | `number`  | `0`     | Pixels subtracted from the overlap (e.g. a tab bar or safe-area already below the list)        |
 
 ```tsx
 <Shadowlist
@@ -385,9 +389,7 @@ afterward.
   data={messages}
   inverted
   onStartReached={loadOlderMessages}
-  renderElement={({ element }) => (
-    <MessageBubble message={element} />
-  )}
+  renderElement={({ element }) => <MessageBubble message={element} />}
 />
 ```
 
@@ -413,8 +415,14 @@ afterward.
   data={feed}
   viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
   onViewableItemsChanged={({ viewableItems, changed }) => {
-    console.log('viewable', viewableItems.map((item) => item.key));
-    console.log('changed', changed.map((item) => item.key));
+    console.log(
+      'viewable',
+      viewableItems.map((item) => item.key)
+    );
+    console.log(
+      'changed',
+      changed.map((item) => item.key)
+    );
   }}
   renderElement={({ element }) => <FeedCard item={element} />}
 />

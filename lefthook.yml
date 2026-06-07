@@ -1,0 +1,15 @@
+# Activate with `yarn lefthook install` (one-time, after install).
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: '*.{js,ts,tsx}'
+      run: yarn eslint {staged_files}
+    format:
+      glob: '*.{js,ts,tsx,json,md,yml,yaml}'
+      run: yarn prettier --check {staged_files}
+
+pre-push:
+  commands:
+    typecheck:
+      run: yarn typecheck

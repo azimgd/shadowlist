@@ -33,9 +33,9 @@
     "!**/.*"
   ],
   "scripts": {
-    "example": "yarn workspace shadowlist-example",
+    "example": "yarn --cwd ../shadowlist-fabric-example",
     "test": "jest",
-    "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
+    "clean": "del-cli android/build lib",
     "prepare": "node scripts/vendor-core.js && bob build",
     "typecheck": "tsc",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
@@ -90,9 +90,6 @@
     "react": "*",
     "react-native": "*"
   },
-  "workspaces": [
-    "example"
-  ],
   "packageManager": "yarn@4.11.0",
   "jest": {
     "preset": "@react-native/jest-preset",

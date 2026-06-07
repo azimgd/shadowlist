@@ -57,8 +57,7 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 - (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   if ([childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
-    const auto &childViewProps = *std::static_pointer_cast<ShadowlistElementViewProps const>(childComponentView.props);
-    [_contentView insertSubview:childComponentView atIndex:childViewProps.index];
+    [_contentView insertSubview:childComponentView atIndex:index];
     // Re-pin so sticky views stay on top of the newly mounted element.
     [self applyStickyTransforms:NO];
     // A row mounting mid-drag must stay below the picked-up row and pick up the shuffle offset.
@@ -110,6 +109,8 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _footerHidden = 0.0;
   _lastAutoHideOffset = 0.0;
   _horizontal = NO;
+  _snapToItem = NO;
+  _snapOffsets.clear();
   _contentInsetBottom = 0.0;
   _scrollView.contentInset = UIEdgeInsetsZero;
   _scrollView.verticalScrollIndicatorInsets = UIEdgeInsetsZero;
@@ -142,6 +143,8 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _horizontal = nextProps.horizontal;
   _dragEnabled = nextProps.dragEnabled;
   _dragRecognizer.enabled = _dragEnabled;
+  _snapToItem = nextProps.snapToItem;
+  _scrollView.decelerationRate = _snapToItem ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
 
   [self applyContentInsetBottom:nextProps.contentInsetBottom];
   [self applyRefreshState:nextProps.refreshEnabled
@@ -311,6 +314,7 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _stickyHeaderIndices.assign(nextStateData.stickyHeaderIndices_.begin(), nextStateData.stickyHeaderIndices_.end());
   _stickyHeaderOffsets.assign(nextStateData.stickyHeaderOffsets_.begin(), nextStateData.stickyHeaderOffsets_.end());
   _stickyHeaderSizes.assign(nextStateData.stickyHeaderSizes_.begin(), nextStateData.stickyHeaderSizes_.end());
+  _snapOffsets.assign(nextStateData.snapOffsets_.begin(), nextStateData.snapOffsets_.end());
 
   _scrollView.contentSize = CGSizeMake(
     nextStateData.totalContainerWidth_,
@@ -346,8 +350,12 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   if (_dragging) {
     [self updateDrag];
   }
+}
 
-  // Post-drop landing is detected by the drag category's poll (dropSettleTick), not here.
+- (void)finalizeUpdates:(RNComponentViewUpdateMask)updateMask
+{
+  [super finalizeUpdates:updateMask];
+  [self applyStickyTransforms:NO];
 }
 
 #pragma mark - UIScrollViewDelegate
@@ -423,6 +431,34 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   [self clearUserScrolled];
 }
 
+// Redirect the native fling so its deceleration lands on an element boundary. The
+// core publishes the resting snap offsets; pick the one nearest the projected landing.
+- (void)scrollViewWillEndDragging:(UIScrollView *)scrollView
+                     withVelocity:(CGPoint)velocity
+              targetContentOffset:(inout CGPoint *)targetContentOffset
+{
+  if (!_snapToItem || _snapOffsets.empty()) {
+    return;
+  }
+
+  CGFloat projected = _horizontal ? targetContentOffset->x : targetContentOffset->y;
+  CGFloat best = (CGFloat)_snapOffsets.front();
+  CGFloat bestDistance = fabs(best - projected);
+  for (double snapOffset : _snapOffsets) {
+    CGFloat distance = fabs((CGFloat)snapOffset - projected);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = (CGFloat)snapOffset;
+    }
+  }
+
+  if (_horizontal) {
+    targetContentOffset->x = best;
+  } else {
+    targetContentOffset->y = best;
+  }
+}
+
 #pragma mark - Element helpers
 
 - (NSInteger)indexOfElementView:(UIView *)view
@@ -482,6 +518,10 @@ static const CGFloat kScrollEchoTolerance = 2.0;
 
 - (void)scrollToOffset:(double)offset animated:(BOOL)animated
 {
+  if (!std::isfinite(offset)) {
+    return;
+  }
+
   // Direct offset scroll along the scroll axis; the core picks up the new position from the callback.
   CGPoint contentOffset = _horizontal
     ? CGPointMake(offset, _scrollView.contentOffset.y)

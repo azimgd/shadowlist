@@ -119,6 +119,13 @@ public:
   std::size_t columns = 1;
 
   /*
+   * Snap the resting scroll position to an element edge. snapAlignment selects the
+   * edge aligned to the viewport (0 = start, 1 = center, 2 = end). See getSnapOffsets.
+   */
+  bool snapToItem = false;
+  int snapAlignment = 0;
+
+  /*
    * Distance from an edge (as a fraction of window size) at which
    * onStartReached / onEndReached fire. 1.0 means within one windowful.
    */
@@ -314,6 +321,14 @@ public:
    */
   double getStickyHeaderOffset() const;
   double getStickyFooterOffset(double footerSize) const;
+
+  /*
+   * Resting scroll offsets (ascending, along the scroll axis) that align an element
+   * to the viewport edge selected by snapAlignment, each clamped to [0, maxOffset]
+   * and de-duplicated. Empty when snapToItem is unset. The integration snaps to the
+   * nearest of these on scroll end.
+   */
+  std::vector<double> getSnapOffsets() const;
 
   /*
    * Resolve which sticky section header (from stickyIndices) is pinned at the

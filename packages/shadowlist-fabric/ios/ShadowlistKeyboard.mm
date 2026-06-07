@@ -51,6 +51,13 @@ RCT_EXPORT_MODULE()
   }
 }
 
+- (void)dealloc
+{
+  [[NSNotificationCenter defaultCenter] removeObserver:self];
+  [_displayLink invalidate];
+  _displayLink = nil;
+}
+
 #pragma mark - Keyboard notifications
 
 - (void)keyboardWillChangeFrame:(NSNotification *)notification

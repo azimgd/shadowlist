@@ -7,6 +7,8 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
+#include <mutex>
+
 namespace facebook::react {
 
 /*
@@ -45,6 +47,15 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
     auto containerManager = shadowlistViewShadowNode.getContainerManager().get();
+
+    /*
+     * Serialize all access to the shared core for this commit. adopt() can run
+     * concurrently with layout()/replaceChild()/update() on another committed clone of
+     * the same list, so the recursive coreMutex (re-entered by update()) guards the
+     * callback assignments, the drag nonce, requestScrollToIndex and the header/footer
+     * reads below against those passes.
+     */
+    std::lock_guard<std::recursive_mutex> coreLock(containerManager->coreMutex);
 
     /*
      * Forward core events to the event emitter. The core deduplicates so we
@@ -136,6 +147,8 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
     input.startReachedThreshold = shadowlistViewProps.startReachedThreshold;
     input.endReachedThreshold = shadowlistViewProps.endReachedThreshold;
     input.viewablePercentThreshold = shadowlistViewProps.viewablePercentThreshold;
+    input.snapToItem = shadowlistViewProps.snapToItem;
+    input.snapAlignment = shadowlistViewProps.snapToAlignment;
 
     /*
      * A genuine user scroll abandons any in-flight scroll correction so the user
@@ -145,7 +158,14 @@ class ShadowlistViewComponentDescriptor final : public ConcreteComponentDescript
      */
     input.userScrolled = shadowlistViewStateData.userScrolled_;
 
-    shadowlistViewShadowNode.getVirtualizerManager()->update(containerManager, input);
+    /*
+     * Contain core exceptions: skip the frame rather than abort the Fabric commit. The
+     * core resets its own revision status on throw, so the next frame recovers.
+     */
+    try {
+      shadowlistViewShadowNode.getVirtualizerManager()->update(containerManager, input);
+    } catch (...) {
+    }
   };
 };
 

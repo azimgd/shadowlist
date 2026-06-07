@@ -53,6 +53,12 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   horizontal?: boolean;
   stickyHeader?: boolean;
   stickyFooter?: boolean;
+  /*
+   * Auto-hide the header/footer on scroll: pins to its edge, then slides away as you
+   * scroll toward the content and slides back the other way.
+   */
+  autoHideHeader?: boolean;
+  autoHideFooter?: boolean;
   columns?: number;
 
   /*
@@ -101,6 +107,17 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   onStartReachedThreshold?: number;
   onEndReachedThreshold?: number;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
+
+  /*
+   * Snap the resting scroll position to an element boundary. Combine with
+   * full-viewport elements for fullscreen paging, or smaller elements for
+   * multi-item snapping. Implemented with native CSS scroll-snap.
+   */
+  snapToItem?: boolean;
+  /*
+   * Which element edge aligns to the viewport when snapping. Default 'start'.
+   */
+  snapToAlignment?: 'start' | 'center' | 'end';
 
   /*
    * Pull-to-refresh (non-inverted vertical lists, touch input). Provide onRefresh

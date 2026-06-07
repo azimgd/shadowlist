@@ -276,6 +276,21 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     stickyHeaderOffsets != nextStateData.stickyHeaderOffsets_ ||
     stickyHeaderSizes != nextStateData.stickyHeaderSizes_;
 
+  /*
+   * Resting snap offsets along the scroll axis (empty unless snapToItem is set).
+   * Only the core knows element boundaries and they shift as off-screen rows are
+   * measured, so they ride along on the state for the UI-thread snap.
+   */
+  std::vector<Float> snapOffsets;
+  {
+    auto coreSnapOffsets = this->containerManager_->getSnapOffsets();
+    snapOffsets.reserve(coreSnapOffsets.size());
+    for (double snapOffset : coreSnapOffsets) {
+      snapOffsets.push_back(static_cast<Float>(snapOffset));
+    }
+  }
+  bool snapChanged = snapOffsets != nextStateData.snapOffsets_;
+
   SL_LOG("layout: elementChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
     getChildren().size(), headerSize, footerSize,
     nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
@@ -283,7 +298,7 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
     stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
     stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
-  if (stateUpdate.changed || stickyChanged) {
+  if (stateUpdate.changed || stickyChanged || snapChanged) {
     if (stateUpdate.changed) {
       nextStateData.containerOffsetX_ = stateUpdate.containerOffsetX;
       nextStateData.containerOffsetY_ = stateUpdate.containerOffsetY;
@@ -295,6 +310,9 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
       nextStateData.stickyHeaderIndices_ = std::move(stickyHeaderIndices);
       nextStateData.stickyHeaderOffsets_ = std::move(stickyHeaderOffsets);
       nextStateData.stickyHeaderSizes_ = std::move(stickyHeaderSizes);
+    }
+    if (snapChanged) {
+      nextStateData.snapOffsets_ = std::move(snapOffsets);
     }
     setStateData(std::move(nextStateData));
   }
@@ -315,17 +333,19 @@ void ShadowlistViewShadowNode::replaceChild(
    * take the core lock since this can run concurrently with the commit phase.
    */
   if (const auto elementViewProps = std::dynamic_pointer_cast<ShadowlistElementViewProps const>(nextElementShadowNode->getProps())) {
-    if (this->containerManager_ && this->virtualizerManager_ &&
-        elementViewProps->index < this->containerManager_->getElementsSize()) {
+    if (this->containerManager_ && this->virtualizerManager_) {
       std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
-      const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
-      const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
+      // Read the element count under the lock; a stale child can outrun it.
+      if (elementViewProps->index < this->containerManager_->getElementsSize()) {
+        const auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode const>(nextElementShadowNode);
+        const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
 
-      this->virtualizerManager_->updateElementAtIndex(
-        this->containerManager_.get(),
-        elementViewProps->index,
-        { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
+        this->virtualizerManager_->updateElementAtIndex(
+          this->containerManager_.get(),
+          elementViewProps->index,
+          { .width = elementViewNodeSize.width, .height = elementViewNodeSize.height });
+      }
     }
   }
 

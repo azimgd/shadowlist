@@ -9,11 +9,13 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.OverScroller;
 
 import androidx.annotation.Nullable;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
@@ -48,8 +50,21 @@ public class ShadowlistView extends FrameLayout {
   private final ShadowlistStickyController mStickyController;
   private final ShadowlistDragController mDragController;
 
+  // Re-pin sticky views once a template (header/footer) child is (re)laid out by the mounting
+  // layer, so a sticky footer tracks its real resting position across list-size changes.
+  private final View.OnLayoutChangeListener mTemplateLayoutListener;
+
   // Horizontal/vertical axis (the `horizontal` prop); a change re-installs the inner scroll view.
   private boolean mHorizontal = false;
+
+  /*
+   * View snapping. mSnapToItem enables it; mSnapOffsetsPx is the core's resting snap
+   * offsets (DIP -> px) cached from state; mTouching gates the touch-up settle so it
+   * never fights a finger still on screen.
+   */
+  private boolean mSnapToItem = false;
+  private float[] mSnapOffsetsPx = new float[0];
+  private boolean mTouching = false;
 
   // Keyboard-avoidance bottom inset (px); held to diff against the next value for the delta.
   private int mContentInsetBottom = 0;
@@ -99,9 +114,20 @@ public class ShadowlistView extends FrameLayout {
     }
 
     @Override
+    public void fling(int velocityY) {
+      if (mHost.snapFling(velocityY)) {
+        return;
+      }
+      super.fling(velocityY);
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent ev) {
-      if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+      int action = ev.getActionMasked();
+      if (action == MotionEvent.ACTION_DOWN) {
         mHost.handleInnerTouchDown();
+      } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+        mHost.handleInnerTouchUp();
       }
       return super.onTouchEvent(ev);
     }
@@ -122,9 +148,20 @@ public class ShadowlistView extends FrameLayout {
     }
 
     @Override
+    public void fling(int velocityX) {
+      if (mHost.snapFling(velocityX)) {
+        return;
+      }
+      super.fling(velocityX);
+    }
+
+    @Override
     public boolean onTouchEvent(MotionEvent ev) {
-      if (ev.getActionMasked() == MotionEvent.ACTION_DOWN) {
+      int action = ev.getActionMasked();
+      if (action == MotionEvent.ACTION_DOWN) {
         mHost.handleInnerTouchDown();
+      } else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+        mHost.handleInnerTouchUp();
       }
       return super.onTouchEvent(ev);
     }
@@ -135,6 +172,12 @@ public class ShadowlistView extends FrameLayout {
     mContentView = new ContentContainer(context);
     mStickyController = new ShadowlistStickyController(this);
     mDragController = new ShadowlistDragController(this, context);
+    mTemplateLayoutListener =
+      (v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
+        if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+          mStickyController.applyStickyTranslations();
+        }
+      };
     installScrollView(false);
   }
 
@@ -243,6 +286,7 @@ public class ShadowlistView extends FrameLayout {
     }
     if (child instanceof ShadowlistTemplateView) {
       mContentView.addView(child);
+      child.addOnLayoutChangeListener(mTemplateLayoutListener);
     }
   }
 
@@ -255,6 +299,10 @@ public class ShadowlistView extends FrameLayout {
   }
 
   public void removeContentViewAt(int index) {
+    View child = mContentView.getChildAt(index);
+    if (child instanceof ShadowlistTemplateView) {
+      child.removeOnLayoutChangeListener(mTemplateLayoutListener);
+    }
     mContentView.removeViewAt(index);
   }
 
@@ -267,7 +315,83 @@ public class ShadowlistView extends FrameLayout {
   private void handleInnerTouchDown() {
     // A finger takes over from any in-flight programmatic scroll.
     mProgrammaticPending = false;
+    mTouching = true;
+    removeCallbacks(mSnapSettleRunnable);
   }
+
+  // The finger lifted: if no fling follows, settle to the nearest snap from rest.
+  private void handleInnerTouchUp() {
+    mTouching = false;
+    if (mSnapToItem && mSnapOffsetsPx.length > 0) {
+      removeCallbacks(mSnapSettleRunnable);
+      // Short delay so a real fling, which snaps predictively, cancels this first.
+      postDelayed(mSnapSettleRunnable, 40);
+    }
+  }
+
+  public void setSnapToItem(boolean snapToItem) {
+    mSnapToItem = snapToItem;
+  }
+
+  // Predict the fling landing with an OverScroller and glide to the nearest snap offset.
+  boolean snapFling(int velocity) {
+    if (!mSnapToItem || mSnapOffsetsPx.length == 0) {
+      return false;
+    }
+    removeCallbacks(mSnapSettleRunnable);
+    int start = mHorizontal ? mScrollView.getScrollX() : mScrollView.getScrollY();
+    int max = mHorizontal
+      ? Math.max(0, mContentView.getWidth() - mScrollView.getWidth())
+      : Math.max(0, mContentView.getHeight() - mScrollView.getHeight());
+    OverScroller scroller = new OverScroller(getContext());
+    if (mHorizontal) {
+      scroller.fling(start, 0, velocity, 0, 0, max, 0, 0);
+    } else {
+      scroller.fling(0, start, 0, velocity, 0, 0, 0, max);
+    }
+    int predicted = mHorizontal ? scroller.getFinalX() : scroller.getFinalY();
+    smoothSnapTo(nearestSnapOffsetPx(predicted));
+    return true;
+  }
+
+  private int nearestSnapOffsetPx(int target) {
+    int best = Math.round(mSnapOffsetsPx[0]);
+    int bestDistance = Math.abs(best - target);
+    for (float snapOffset : mSnapOffsetsPx) {
+      int candidate = Math.round(snapOffset);
+      int distance = Math.abs(candidate - target);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = candidate;
+      }
+    }
+    return best;
+  }
+
+  private void smoothSnapTo(int target) {
+    int targetX = mHorizontal ? target : mScrollView.getScrollX();
+    int targetY = mHorizontal ? mScrollView.getScrollY() : target;
+    markProgrammaticScroll(targetX, targetY, true);
+    if (mScrollView instanceof ReactScrollView) {
+      ((ReactScrollView) mScrollView).smoothScrollTo(targetX, targetY);
+    } else if (mScrollView instanceof ReactHorizontalScrollView) {
+      ((ReactHorizontalScrollView) mScrollView).smoothScrollTo(targetX, targetY);
+    }
+  }
+
+  private final Runnable mSnapSettleRunnable = new Runnable() {
+    @Override
+    public void run() {
+      if (!mSnapToItem || mSnapOffsetsPx.length == 0 || mTouching) {
+        return;
+      }
+      int current = mHorizontal ? mScrollView.getScrollX() : mScrollView.getScrollY();
+      int target = nearestSnapOffsetPx(current);
+      if (target != current) {
+        smoothSnapTo(target);
+      }
+    }
+  };
 
   private void markProgrammaticScroll(int targetX, int targetY, boolean animated) {
     mProgrammaticTargetX = targetX;
@@ -417,6 +541,17 @@ public class ShadowlistView extends FrameLayout {
     }
 
     mStickyController.cacheStickyGeometry(nextStateData);
+
+    if (nextStateData.hasKey("snapOffsets")) {
+      ReadableArray snapOffsets = nextStateData.getArray("snapOffsets");
+      if (snapOffsets != null) {
+        float[] offsetsPx = new float[snapOffsets.size()];
+        for (int i = 0; i < snapOffsets.size(); i++) {
+          offsetsPx[i] = PixelUtil.toPixelFromDIP((float) snapOffsets.getDouble(i));
+        }
+        mSnapOffsetsPx = offsetsPx;
+      }
+    }
 
     if (DEBUG_LOG) {
       slLog(String.format("java.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",

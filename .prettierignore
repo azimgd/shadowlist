@@ -1,0 +1,11 @@
+**/node_modules
+**/lib
+**/dist
+**/build
+**/coverage
+.yarn
+yarn.lock
+packages/shadowlist-wasm/src/wasm
+**/*.wasm
+packages/shadowlist-fabric-example/android
+packages/shadowlist-fabric-example/ios

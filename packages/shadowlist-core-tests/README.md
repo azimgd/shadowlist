@@ -39,18 +39,17 @@ c++ -std=c++17 -fsanitize=thread -I.. -I. -DSLT_FIXTURES_DIR="\"$PWD/fixtures\""
 
 ## Layout
 
-| File | Covers |
-| --- | --- |
-| `Harness.hpp` | `Sim` — drives one render frame (update → measure → publish) and `settle()`s scroll corrections |
-| `tests_default.cpp` | top-to-bottom layout, scrolling (exact virtualization window), header/footer |
-| `tests_inverted.cpp` | bottom-pinning, short lists, empty → repopulate, estimate-grows re-pin |
-| `tests_append_prepend.cpp` | append growth, reconcile shrink, prepend MVCP (fixed + variable heights) |
-| `tests_scroll_to_index.cpp` | scrollToIndex (fixed + variable heights, inverted, imperative nonce + declarative prop) |
-| `tests_columns.cpp` | multi-column grid layout (uniform + per-track variable heights) |
-| `tests_callbacks.cpp` | onEndReached threshold / onStartReached / onScroll / onVisibleIndicesChange dedup |
-| `tests_observer.cpp` | `Observer` throttling, pending-dispatch flush, subscribe/unsubscribe |
-| `tests_nested.cpp` | independent vertical + horizontal containers driven interleaved |
-| `tests_concurrent.cpp` | concurrent `update()` on a shared `Container` (serialized by `coreMutex`) — run under TSan |
-| `tests_variable_feed.cpp` | realistic variable-height feed from `fixtures/feed_heights.txt` |
-| `tests_perf.cpp` | timing logs (µs/iteration) for `update()`, full `frame()`, and scrollToIndex convergence |
-
+| File                        | Covers                                                                                          |
+| --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `Harness.hpp`               | `Sim` — drives one render frame (update → measure → publish) and `settle()`s scroll corrections |
+| `tests_default.cpp`         | top-to-bottom layout, scrolling (exact virtualization window), header/footer                    |
+| `tests_inverted.cpp`        | bottom-pinning, short lists, empty → repopulate, estimate-grows re-pin                          |
+| `tests_append_prepend.cpp`  | append growth, reconcile shrink, prepend MVCP (fixed + variable heights)                        |
+| `tests_scroll_to_index.cpp` | scrollToIndex (fixed + variable heights, inverted, imperative nonce + declarative prop)         |
+| `tests_columns.cpp`         | multi-column grid layout (uniform + per-track variable heights)                                 |
+| `tests_callbacks.cpp`       | onEndReached threshold / onStartReached / onScroll / onVisibleIndicesChange dedup               |
+| `tests_observer.cpp`        | `Observer` throttling, pending-dispatch flush, subscribe/unsubscribe                            |
+| `tests_nested.cpp`          | independent vertical + horizontal containers driven interleaved                                 |
+| `tests_concurrent.cpp`      | concurrent `update()` on a shared `Container` (serialized by `coreMutex`) — run under TSan      |
+| `tests_variable_feed.cpp`   | realistic variable-height feed from `fixtures/feed_heights.txt`                                 |
+| `tests_perf.cpp`            | timing logs (µs/iteration) for `update()`, full `frame()`, and scrollToIndex convergence        |

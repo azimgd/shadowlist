@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build:wasm": "bash scripts/build-wasm.sh",
-    "example": "npm --prefix example run dev",
+    "example": "npm --prefix ../shadowlist-wasm-example run dev",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
