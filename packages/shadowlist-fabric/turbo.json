@@ -11,11 +11,11 @@
         "!android/build",
         "src/*.ts",
         "src/*.tsx",
-        "example/package.json",
-        "example/android",
-        "!example/android/.gradle",
-        "!example/android/build",
-        "!example/android/app/build"
+        "../shadowlist-fabric-example/package.json",
+        "../shadowlist-fabric-example/android",
+        "!../shadowlist-fabric-example/android/.gradle",
+        "!../shadowlist-fabric-example/android/build",
+        "!../shadowlist-fabric-example/android/app/build"
       ],
       "outputs": []
     },
@@ -32,10 +32,10 @@
         "ios",
         "src/*.ts",
         "src/*.tsx",
-        "example/package.json",
-        "example/ios",
-        "!example/ios/build",
-        "!example/ios/Pods"
+        "../shadowlist-fabric-example/package.json",
+        "../shadowlist-fabric-example/ios",
+        "!../shadowlist-fabric-example/ios/build",
+        "!../shadowlist-fabric-example/ios/Pods"
       ],
       "outputs": []
     }

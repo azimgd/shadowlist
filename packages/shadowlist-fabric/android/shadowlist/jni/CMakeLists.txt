@@ -17,6 +17,8 @@ else()
   set(LIB_CORE_DIR "${LIB_CORE_VENDORED}")
 endif()
 
+get_filename_component(LIB_CORE_PARENT_DIR "${LIB_CORE_DIR}" DIRECTORY)
+
 file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS
   ${LIB_JNI_DIR}/*.cpp
   ${LIB_JNI_DIR}/react/renderer/components/ShadowlistViewSpec/*.cpp
@@ -40,6 +42,7 @@ add_library(
 target_include_directories(react_codegen_ShadowlistViewSpec PUBLIC
   ${LIB_CPP_DIR}/
   ${LIB_CORE_DIR}/
+  ${LIB_CORE_PARENT_DIR}/
   ${LIB_ROOT_DIR}/
 
   ${LIB_CPP_DIR}/react/renderer/components/ShadowlistViewSpec

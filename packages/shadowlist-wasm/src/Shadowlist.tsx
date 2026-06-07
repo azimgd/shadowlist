@@ -33,11 +33,7 @@ const MAX_SETTLE_PASSES = 8;
 // Sentinel on the scrollToIndex channel meaning "scroll to the very end".
 const SCROLL_TO_END_INDEX = -3;
 
-/*
- * Drag-to-reorder tuning. A press must settle for LONG_PRESS_MS without moving
- * past DRAG_SLOP before a row is picked up; near a viewport edge (DRAG_EDGE) the
- * drag auto-scrolls at up to DRAG_SPEED px/frame.
- */
+// Drag-to-reorder tuning: long-press to pick up, auto-scroll near the edges.
 const LONG_PRESS_MS = 250;
 const DRAG_SLOP = 8;
 const DRAG_EDGE = 80;
@@ -334,9 +330,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
   const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
 
   /*
-   * Drag-to-reorder. The data order is fixed during the drag; transforms run in
-   * applyPositions and the single reorder is applied on drop. draggingIndex
-   * force-mounts the picked-up row while auto-scroll carries it off-screen.
+   * Drag-to-reorder: data order is fixed during the drag (transforms run in
+   * applyPositions); the single reorder is applied on drop. draggingIndex force-mounts
+   * the picked-up row while auto-scroll carries it off-screen.
    */
   const dragStateRef = useRef<{
     originIndex: number;
@@ -1293,11 +1289,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
   }, [range, draggingIndex, data.length]);
 
   /*
-   * Pull-to-refresh (touch, non-inverted vertical lists). Tracking is held in a ref
-   * and only acts when the list is at the very top and dragged downward, so it never
-   * interferes with normal scrolling or the drag-reorder pointer pipeline. The pull
-   * only translates the content visually (transform never changes scroll metrics),
-   * revealing a spinner band; releasing past the threshold fires onRefresh.
+   * Pull-to-refresh (touch, non-inverted vertical lists). Acts only at the top on a
+   * downward drag; visually translates the content to reveal a spinner band and fires
+   * onRefresh when released past the threshold.
    */
   const ptrEnabled = !!onRefresh && !inverted && !horizontal;
   const [pullDistance, setPullDistance] = useState(0);

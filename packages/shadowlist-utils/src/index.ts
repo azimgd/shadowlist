@@ -4,8 +4,16 @@
  */
 
 export const AVATAR_COLORS = [
-  '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
-  '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B195', '#C06C84',
+  '#FF6B6B',
+  '#4ECDC4',
+  '#45B7D1',
+  '#FFA07A',
+  '#98D8C8',
+  '#F7DC6F',
+  '#BB8FCE',
+  '#85C1E2',
+  '#F8B195',
+  '#C06C84',
 ];
 
 export const IMAGES = [
@@ -195,3 +203,203 @@ export function nextInCycle(steps: number[], current: number): number {
 // Scroll distance (px) past which the Activity sticky header hides; it re-pins
 // once the user scrolls back above it.
 export const HEADER_HIDE_THRESHOLD = 220;
+
+/*
+ * Domain data shapes + demo-data generators consumed by the reusable list
+ * templates in `shadowlist-utils/native`. They are plain-object factories with
+ * no framework dependency, so they stay in the agnostic root and can seed the
+ * templates on any platform.
+ */
+
+export interface FeedItem {
+  id: string;
+  username: string;
+  handle: string;
+  text: string;
+  imageUrls: string[];
+  timestamp: string;
+}
+
+export function generateFeedElement(index: number): FeedItem {
+  const characterName = CHARACTER_NAMES[index % CHARACTER_NAMES.length]!;
+  const handle = characterName.toLowerCase().replace(/\s+/g, '');
+
+  const hasMultipleImages = index % 10 === 0;
+  const imageCount = hasMultipleImages ? 3 + (index % 2) : 1;
+
+  const imageUrls: string[] = [];
+  for (let i = 0; i < imageCount; i++) {
+    const imageIndex = (index + i) % IMAGES.length;
+    const originalImageUrl = IMAGES[imageIndex]!;
+    imageUrls.push(optimizeImageUrl(originalImageUrl, 800));
+  }
+
+  return {
+    id: generateUniqueId(),
+    username: characterName,
+    handle: `@${handle}`,
+    text: SAMPLE_TEXTS[index % SAMPLE_TEXTS.length]!,
+    imageUrls,
+    timestamp: `${Math.floor(Math.random() * 24)}h`,
+  };
+}
+
+export interface NestedCard {
+  id: string;
+  imageUrl: string;
+  title: string;
+}
+
+export interface NestedItem {
+  id: string;
+  title: string;
+  elements: NestedCard[];
+}
+
+export function generateNestedElementChild(imageIndex: number): NestedCard {
+  const originalImageUrl = IMAGES[imageIndex % IMAGES.length]!;
+
+  return {
+    id: generateUniqueId(),
+    imageUrl: optimizeImageUrl(originalImageUrl, 400),
+    title: IMAGE_TITLES[imageIndex % IMAGE_TITLES.length]!,
+  };
+}
+
+export function generateNestedElement(rowIndex: number): NestedItem {
+  const elementsPerRow = 10;
+  const elements: NestedCard[] = [];
+
+  for (let i = 0; i < elementsPerRow; i++) {
+    elements.push(generateNestedElementChild(rowIndex * elementsPerRow + i));
+  }
+
+  return {
+    id: generateUniqueId(),
+    title: SECTION_TITLES[rowIndex % SECTION_TITLES.length]!,
+    elements,
+  };
+}
+
+export interface MasonryItem {
+  id: string;
+  imageUrl: string;
+  title: string;
+  height: number;
+}
+
+export const MASONRY_HEIGHTS = [
+  180, 220, 260, 200, 240, 280, 190, 230, 250, 210,
+];
+
+export function generateMasonryElement(index: number): MasonryItem {
+  const originalImageUrl = IMAGES[index % IMAGES.length]!;
+
+  return {
+    id: generateUniqueId(),
+    imageUrl: optimizeImageUrl(originalImageUrl, 400),
+    title: IMAGE_TITLES[index % IMAGE_TITLES.length]!,
+    height: MASONRY_HEIGHTS[index % MASONRY_HEIGHTS.length]!,
+  };
+}
+
+export interface ContactItem {
+  id: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+}
+
+export function generateContact(index: number): ContactItem {
+  const characterName = CHARACTER_NAMES[index % CHARACTER_NAMES.length]!;
+  const nameParts = characterName.split(' ');
+
+  const firstName = nameParts[0]!;
+  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
+  const areaCode = 100 + (index % 900);
+  const exchange = 200 + (index % 800);
+  const lineNumber = 1000 + (index % 9000);
+  const phoneNumber = `(${areaCode}) ${exchange}-${lineNumber}`;
+
+  return {
+    id: generateUniqueId(),
+    firstName,
+    lastName,
+    phoneNumber,
+  };
+}
+
+/* A file-system node for the Tree list template. */
+export interface TreeFileNode {
+  id: string;
+  name: string;
+  type: 'folder' | 'file';
+  children?: TreeFileNode[];
+}
+
+export const FOLDER_NAMES = [
+  'src',
+  'components',
+  'screens',
+  'utils',
+  'assets',
+  'hooks',
+  'services',
+  'models',
+  'config',
+  'tests',
+  'node_modules',
+  'docs',
+];
+
+export const FILE_EXTENSIONS = [
+  'ts',
+  'tsx',
+  'js',
+  'json',
+  'md',
+  'css',
+  'png',
+  'svg',
+];
+
+/* Build a deep, wide file-system tree for the Tree list template. */
+export function generateFileTree(
+  rootCount = 4,
+  maxDepth = 3,
+  foldersPerLevel = 2,
+  filesPerLevel = 4
+): TreeFileNode[] {
+  const buildFolder = (name: string, depth: number): TreeFileNode => {
+    const children: TreeFileNode[] = [];
+
+    if (depth < maxDepth) {
+      for (let i = 0; i < foldersPerLevel; i++) {
+        const childName = FOLDER_NAMES[(depth * 3 + i) % FOLDER_NAMES.length]!;
+        children.push(buildFolder(childName, depth + 1));
+      }
+    }
+
+    for (let i = 0; i < filesPerLevel; i++) {
+      const ext = FILE_EXTENSIONS[(depth + i) % FILE_EXTENSIONS.length]!;
+      const base = FOLDER_NAMES[(depth + i) % FOLDER_NAMES.length]!;
+      children.push({
+        id: generateUniqueId(),
+        name: `${base}-${i}.${ext}`,
+        type: 'file',
+      });
+    }
+
+    return {
+      id: generateUniqueId(),
+      name,
+      type: 'folder',
+      children,
+    };
+  };
+
+  return Array.from({ length: rootCount }, (_, index) =>
+    buildFolder(FOLDER_NAMES[index % FOLDER_NAMES.length]!, 0)
+  );
+}

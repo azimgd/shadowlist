@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "shadowlist": ["../shadowlist-fabric/src/index"],
+      "shadowlist-utils": ["../shadowlist-utils/src/index"],
+      "shadowlist-utils/native": ["../shadowlist-utils/src/native/index"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-native": ["./node_modules/react-native/types_generated/index.d.ts"],
+      "react-native-gesture-handler": ["./node_modules/react-native-gesture-handler"],
+      "react-native-reanimated": ["./node_modules/react-native-reanimated"],
+      "react-native-safe-area-context": ["./node_modules/react-native-safe-area-context"]
+    },
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "customConditions": ["react-native-strict-api"],
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "jsx": "react-jsx",
+    "lib": ["ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ESNext",
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src"]
+}

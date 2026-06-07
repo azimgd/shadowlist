@@ -1,0 +1,13 @@
+# OSX
+.DS_Store
+
+# CMake build output
+build/
+
+# Direct-compile artifacts
+*.o
+*.out
+*.a
+*.so
+*.dylib
+run_tests
