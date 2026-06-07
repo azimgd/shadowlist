@@ -4,7 +4,6 @@ import {
   type ViewProps,
   type CodegenTypes,
   type ColorValue,
-  type HostComponent,
 } from 'react-native';
 
 export type OnVisibleIndicesChange = {
@@ -45,26 +44,37 @@ export type OnDragEnd = {
   toIndex: CodegenTypes.Int32;
 };
 
+/*
+ * Native component instance type, derived from codegenNativeComponent's return
+ * type rather than `HostComponent<NativeProps>` (the latter resolves to `never`
+ * under react-native-strict-api, so the command call sites would not typecheck).
+ * The command params are written as `React.ComponentRef<...>` because RN codegen
+ * requires that exact wrapper for a command's first (view ref) argument.
+ */
+type ShadowlistViewComponentType = ReturnType<
+  typeof codegenNativeComponent<NativeProps>
+>;
+
 interface NativeCommands {
   setStartReachedEnabled: (
-    viewRef: React.ElementRef<HostComponent<NativeProps>>,
+    viewRef: React.ComponentRef<ShadowlistViewComponentType>,
     enabled: boolean
   ) => void;
   setEndReachedEnabled: (
-    viewRef: React.ElementRef<HostComponent<NativeProps>>,
+    viewRef: React.ComponentRef<ShadowlistViewComponentType>,
     enabled: boolean
   ) => void;
   scrollToIndex: (
-    viewRef: React.ElementRef<HostComponent<NativeProps>>,
+    viewRef: React.ComponentRef<ShadowlistViewComponentType>,
     index: CodegenTypes.Int32
   ) => void;
   scrollToOffset: (
-    viewRef: React.ElementRef<HostComponent<NativeProps>>,
+    viewRef: React.ComponentRef<ShadowlistViewComponentType>,
     offset: CodegenTypes.Double,
     animated: boolean
   ) => void;
   scrollToEnd: (
-    viewRef: React.ElementRef<HostComponent<NativeProps>>,
+    viewRef: React.ComponentRef<ShadowlistViewComponentType>,
     animated: boolean
   ) => void;
 }

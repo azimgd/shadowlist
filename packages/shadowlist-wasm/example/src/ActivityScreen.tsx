@@ -131,6 +131,7 @@ export const ActivityScreen = () => {
         style={styles.list}
         keyExtractor={(item) => item.id}
         renderElement={({ element }) => <ActivityElement element={element} />}
+        containerOffsetIndex={30}
         stickyHeader={headerSticky}
         stickyFooter
         refreshing={refreshing}

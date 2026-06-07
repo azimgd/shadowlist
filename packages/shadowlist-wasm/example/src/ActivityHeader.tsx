@@ -24,7 +24,7 @@ export const ActivityHeader = memo(
     return (
       <div style={styles.container}>
         <span style={styles.title}>Activity</span>
-        <span style={styles.subtitle}>Imperative scroll &amp; reach thresholds</span>
+        <span style={styles.subtitle}>Imperative scroll &amp; reach thresholds, opens at index 30</span>
 
         <div style={styles.row}>
           <button type="button" style={styles.action} onClick={onScrollToOffset}>

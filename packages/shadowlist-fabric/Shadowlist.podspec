@@ -31,19 +31,18 @@ Pod::Spec.new do |s|
   s.source       = { :git => "https://github.com/azimgd/shadowlist.git", :tag => "#{s.version}" }
 
   s.source_files = [
-    "ios/**/*.{h,m,mm,cpp}",
-    "ios/**/*.{m,mm}",
+    "ios/**/*.{h,m,mm,swift,cpp}",
     "cpp/**/*.{h,hpp,cpp}",
     "shadowlist-core/**/*.{hpp,cpp}",
   ]
-  
+
   s.public_header_files = ["shadowlist-core/**/*.{h,hpp}"]
   s.private_header_files = ["ios/**/*.{h,hpp}", "cpp/**/*.{h,hpp}"]
-  
+
   s.pod_target_xcconfig = {
     'HEADER_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)',
   }
-  
+
   s.user_target_xcconfig = {
     'HEADER_SEARCH_PATHS' => '$(PODS_ROOT)/Shadowlist'
   }

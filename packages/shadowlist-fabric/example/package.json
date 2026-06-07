@@ -10,31 +10,32 @@
     "build:ios": "react-native build-ios --mode Debug"
   },
   "dependencies": {
-    "@react-navigation/drawer": "7.7.2",
-    "@react-navigation/native": "7.1.19",
-    "react": "19.1.0",
-    "react-native": "0.81.1",
-    "react-native-gesture-handler": "2.29.1",
-    "react-native-reanimated": "4.1.5",
-    "react-native-safe-area-context": "5.6.2",
-    "react-native-screens": "4.18.0",
-    "react-native-worklets": "^0.6.1"
+    "@react-navigation/drawer": "7.10.3",
+    "@react-navigation/native": "7.2.5",
+    "react": "19.2.3",
+    "react-native": "0.85.0",
+    "react-native-gesture-handler": "3.0.0",
+    "react-native-reanimated": "4.4.1",
+    "react-native-safe-area-context": "5.8.0",
+    "react-native-screens": "4.25.2",
+    "react-native-worklets": "0.9.1"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@babel/preset-env": "^7.25.3",
     "@babel/runtime": "^7.25.0",
-    "@react-native-community/cli": "20.0.0",
-    "@react-native-community/cli-platform-android": "20.0.0",
-    "@react-native-community/cli-platform-ios": "20.0.0",
-    "@react-native/babel-preset": "0.81.1",
-    "@react-native/metro-config": "0.81.1",
-    "@react-native/typescript-config": "0.81.1",
-    "@types/react": "^19.1.0",
-    "react-native-builder-bob": "^0.40.13",
-    "react-native-monorepo-config": "^0.1.9"
+    "@react-native-community/cli": "20.1.0",
+    "@react-native-community/cli-platform-android": "20.1.0",
+    "@react-native-community/cli-platform-ios": "20.1.0",
+    "@react-native/babel-preset": "0.85.0",
+    "@react-native/jest-preset": "0.85.0",
+    "@react-native/metro-config": "0.85.0",
+    "@react-native/typescript-config": "0.85.0",
+    "@types/react": "^19.2.0",
+    "react-native-builder-bob": "^0.41.0",
+    "react-native-monorepo-config": "^0.3.3"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">= 22.11.0"
   }
 }

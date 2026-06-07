@@ -4,7 +4,18 @@ set(CMAKE_VERBOSE_MAKEFILE on)
 set(LIB_JNI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../build/generated/source/codegen/jni)
 set(LIB_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 set(LIB_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../cpp)
-set(LIB_CORE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../shadowlist-core)
+
+# Shared core sources. In the monorepo the canonical copy lives at
+# packages/shadowlist-core, so compile it directly - Android needs no copy phase.
+# In a published package that path does not exist, so fall back to the vendored
+# mirror shipped inside the package (see scripts/vendor-core.js / the podspec).
+get_filename_component(LIB_CORE_CANONICAL "${CMAKE_CURRENT_SOURCE_DIR}/../../../../shadowlist-core" ABSOLUTE)
+get_filename_component(LIB_CORE_VENDORED "${CMAKE_CURRENT_SOURCE_DIR}/../../../shadowlist-core" ABSOLUTE)
+if(EXISTS "${LIB_CORE_CANONICAL}/Container.cpp")
+  set(LIB_CORE_DIR "${LIB_CORE_CANONICAL}")
+else()
+  set(LIB_CORE_DIR "${LIB_CORE_VENDORED}")
+endif()
 
 file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS
   ${LIB_JNI_DIR}/*.cpp

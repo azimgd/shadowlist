@@ -120,7 +120,6 @@ export const ActivityScreen = () => {
         style={styles.list}
         keyExtractor={(item) => item.id}
         renderElement={({ element }) => <ActivityElement element={element} />}
-        // Open the list already scrolled to index 30.
         containerOffsetIndex={30}
         stickyHeader
         stickyFooter

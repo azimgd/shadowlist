@@ -1,0 +1,6 @@
+# This file exists so npm does NOT fall back to .gitignore when building the
+# publish tarball. The generated `shadowlist-core/` mirror is gitignored (it is
+# a build artifact, not source), but it is listed in package.json "files" and
+# must ship - and npm drops any .gitignore'd path from the tarball unless an
+# .npmignore is present. With this file, packing is governed solely by the
+# "files" allowlist, which already excludes build output and dev-only paths.

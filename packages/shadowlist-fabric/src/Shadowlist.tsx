@@ -288,11 +288,15 @@ function ShadowlistInner<ElementT extends { id: string }>(
    * inserts/removals at or above range.low (the prepend case); rarer mid-range inserts
    * fall back to the native round-trip.
    */
-  const [mountedRangeData, setMountedRangeData] = useState<ReadonlyArray<ElementT>>(data);
+  const [mountedRangeData, setMountedRangeData] =
+    useState<ReadonlyArray<ElementT>>(data);
   if (mountedRangeData !== data) {
     setMountedRangeData(data);
     if (mountedRange.low >= 0 && mountedRange.low < mountedRangeData.length) {
-      const anchorKey = keyExtractor(mountedRangeData[mountedRange.low]!, mountedRange.low);
+      const anchorKey = keyExtractor(
+        mountedRangeData[mountedRange.low]!,
+        mountedRange.low
+      );
       let newLow = -1;
       for (let index = 0; index < data.length; index++) {
         if (keyExtractor(data[index]!, index) === anchorKey) {
@@ -305,7 +309,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
         const maxIndex = data.length - 1;
         const clamp = (value: number) => Math.min(Math.max(0, value), maxIndex);
         const low = clamp(Math.min(mountedRange.low, mountedRange.low + delta));
-        const high = clamp(Math.max(mountedRange.high, mountedRange.high + delta));
+        const high = clamp(
+          Math.max(mountedRange.high, mountedRange.high + delta)
+        );
         tightenAfterShiftRef.current = true;
         slLog(
           'js.rangeAnchor shift',
@@ -441,7 +447,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
       if (tightenAfterShiftRef.current) {
         tightenAfterShiftRef.current = false;
         const low = Math.max(0, windowLow - SHADOWLIST_OVERSCAN);
-        const high = Math.min(data.length - 1, windowHigh + SHADOWLIST_OVERSCAN);
+        const high = Math.min(
+          data.length - 1,
+          windowHigh + SHADOWLIST_OVERSCAN
+        );
         slLog(
           'js.onVisibleIndicesChange tighten',
           `window=[${windowLow}..${windowHigh}]`,
@@ -483,7 +492,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
     [data.length, keyExtractor]
   );
 
-  const mountedIndices = useMemo(() => rangeToIndices(mountedRange), [mountedRange]);
+  const mountedIndices = useMemo(
+    () => rangeToIndices(mountedRange),
+    [mountedRange]
+  );
 
   // Union the dragged row's index into the rendered set so it stays mounted.
   const renderIndices = useMemo(() => {
@@ -681,8 +693,8 @@ function ShadowlistInner<ElementT extends { id: string }>(
    */
   const stickyEnabled = Boolean(
     stickyHeaderIndices &&
-      stickyHeaderIndices.length > 0 &&
-      renderStickyHeaderOverlay
+    stickyHeaderIndices.length > 0 &&
+    renderStickyHeaderOverlay
   );
 
   const stickyOverlay = useMemo(
