@@ -242,7 +242,7 @@ interface ElementRendererProps<ElementT> {
  * Absolutely positioned wrapper. Its transform/size are applied imperatively
  * from the core after each measurement pass, not via React.
  */
-const ElementRenderer = memo(function ElementRenderer<
+const ElementRenderer = memo(function ElementRendererInner<
   ElementT extends { id: string },
 >({
   index,
@@ -805,9 +805,9 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
     if (needsAnotherPass && settlePassesRef.current < MAX_SETTLE_PASSES) {
       settlePassesRef.current += 1;
-      scheduleTick();
+      tickRef.current();
     }
-  }, [applyPositions, applyCrossAxisSizes, scheduleTick]);
+  }, [applyPositions, applyCrossAxisSizes]);
 
   // Stable indirection so tick/measureAndResolve can reference each other.
   const tickRef = useRef(tick);

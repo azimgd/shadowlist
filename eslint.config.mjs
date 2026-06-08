@@ -27,6 +27,16 @@ export default defineConfig([
     },
   },
   {
+    files: [
+      'packages/shadowlist-wasm/**/*.{ts,tsx}',
+      'packages/shadowlist-wasm-example/**/*.{ts,tsx}',
+      'packages/shadowlist-utils/src/web/**/*.{ts,tsx}',
+    ],
+    rules: {
+      'react-native/no-inline-styles': 'off',
+    },
+  },
+  {
     ignores: [
       '**/node_modules/',
       '**/lib/',
@@ -49,6 +59,7 @@ export default defineConfig([
       'eslint.config.mjs',
       'packages/shadowlist-fabric-example/index.js',
       'packages/shadowlist-fabric/scripts/',
+      'packages/shadowlist-wasm/scripts/',
     ],
   },
 ]);

@@ -11,6 +11,7 @@ export interface ReorderRowProps {
 // Stable color keyed by id so a row keeps its color when reordered.
 const colorForId = (id: string) => {
   let hash = 0;
+  // eslint-disable-next-line no-bitwise
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 };
