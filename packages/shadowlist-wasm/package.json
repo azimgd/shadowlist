@@ -3,23 +3,24 @@
   "version": "0.1.0",
   "description": "WebAssembly virtualization core for React web — the shadowlist-core algorithm compiled to WASM",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./package.json": "./package.json"
   },
   "files": [
-    "src",
-    "cpp",
-    "scripts"
+    "dist"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-runtime-assets.mjs",
     "build:wasm": "bash scripts/build-wasm.sh",
     "example": "npm --prefix ../shadowlist-wasm-example run dev",
+    "prepack": "yarn build",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

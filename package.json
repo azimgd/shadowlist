@@ -21,7 +21,8 @@
     "clean": "yarn workspace shadowlist run clean",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "release": "yarn workspaces foreach -A --no-private npm publish --tolerate-republish"
+    "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish",
+    "release:wasm": "yarn workspace shadowlist-wasm npm publish --tolerate-republish"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.3",

@@ -1,6 +1,7 @@
 {
   "name": "shadowlist-utils",
   "version": "0.1.0",
+  "private": true,
   "description": "Shared, platform-agnostic helpers and demo data generators for the shadowlist examples (RN + WASM).",
   "license": "MIT",
   "main": "./src/index.ts",

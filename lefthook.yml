@@ -4,7 +4,7 @@ pre-commit:
   commands:
     lint:
       glob: '*.{js,ts,tsx}'
-      run: yarn eslint {staged_files}
+      run: yarn eslint --no-warn-ignored {staged_files}
     format:
       glob: '*.{js,ts,tsx,json,md,yml,yaml}'
       run: yarn prettier --check {staged_files}

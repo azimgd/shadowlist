@@ -30,6 +30,7 @@ export default defineConfig({
     port: 5173,
     fs: {
       allow: [
+        fileURLToPath(new URL('.', import.meta.url)),
         fileURLToPath(new URL('../shadowlist-wasm', import.meta.url)),
         fileURLToPath(new URL('../shadowlist-utils', import.meta.url)),
       ],
