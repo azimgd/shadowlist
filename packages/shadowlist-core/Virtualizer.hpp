@@ -92,6 +92,17 @@ public:
    */
   static void recomputeElementOffsets(Container *container, std::size_t fromIndex);
 
+  /*
+   * Re-resolve pending scroll corrections after the window/header geometry changed
+   * outside a full update(). The host layout pass learns the real viewport size only
+   * after update() ran from adopt with a zero frame, so corrections that need a
+   * measured window (the inverted bottom pin, a pending scrollToIndex/scrollToEnd
+   * target) would otherwise wait for a later commit that may never come. When the
+   * offset moves, the visible window is re-selected for it and observers re-dispatch.
+   * Returns true when the scroll offset was moved.
+   */
+  static bool resolveWindowChange(Container *container);
+
 private:
   /*
    * Measure a window of elements from the edge of the list (first revision)

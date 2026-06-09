@@ -292,30 +292,38 @@ std::size_t Container::findElementIndexByKey(const std::string& key) const {
 }
 
 void Container::dispatchObservers() {
-  // Notify when the visible index range changes.
-  auto visibleIndices = this->getVisibleIndices();
-  if (this->onVisibleIndicesChangeCallback &&
-    (visibleIndices.first != this->prevVisibleStartIndex || visibleIndices.second != this->prevVisibleEndIndex)) {
-    SL_LOG("  emit onVisibleIndicesChange(%zd, %zd) keys=[%s..%s]",
-      static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second),
-      emitKeyAt(this->revision.elements, visibleIndices.first),
-      emitKeyAt(this->revision.elements, visibleIndices.second));
-    this->onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
-  }
-  this->prevVisibleStartIndex = visibleIndices.first;
-  this->prevVisibleEndIndex = visibleIndices.second;
-
-  // Notify when the viewable range changes. Computed only when a listener is
-  // registered, since getViewableIndices does an O(window) overlap scan.
-  if (this->onViewableIndicesChangeCallback) {
-    auto viewableIndices = this->getViewableIndices();
-    if (viewableIndices.first != this->prevViewableStartIndex || viewableIndices.second != this->prevViewableEndIndex) {
-      SL_LOG("  emit onViewableIndicesChange(%zd, %zd)",
-        static_cast<std::ptrdiff_t>(viewableIndices.first), static_cast<std::ptrdiff_t>(viewableIndices.second));
-      this->onViewableIndicesChangeCallback(viewableIndices.first, viewableIndices.second);
+  /*
+   * Hold the index observers while the viewport is unmeasured: the visible window is
+   * then selected against a zero-size viewport, so the indices are meaningless — an
+   * inverted list would report its top rows before the bottom anchor has applied.
+   * prev* indices are left untouched so the first measured window always emits.
+   */
+  if (this->getWindowContainerSize() > 0.0) {
+    // Notify when the visible index range changes.
+    auto visibleIndices = this->getVisibleIndices();
+    if (this->onVisibleIndicesChangeCallback &&
+      (visibleIndices.first != this->prevVisibleStartIndex || visibleIndices.second != this->prevVisibleEndIndex)) {
+      SL_LOG("  emit onVisibleIndicesChange(%zd, %zd) keys=[%s..%s]",
+        static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second),
+        emitKeyAt(this->revision.elements, visibleIndices.first),
+        emitKeyAt(this->revision.elements, visibleIndices.second));
+      this->onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
     }
-    this->prevViewableStartIndex = viewableIndices.first;
-    this->prevViewableEndIndex = viewableIndices.second;
+    this->prevVisibleStartIndex = visibleIndices.first;
+    this->prevVisibleEndIndex = visibleIndices.second;
+
+    // Notify when the viewable range changes. Computed only when a listener is
+    // registered, since getViewableIndices does an O(window) overlap scan.
+    if (this->onViewableIndicesChangeCallback) {
+      auto viewableIndices = this->getViewableIndices();
+      if (viewableIndices.first != this->prevViewableStartIndex || viewableIndices.second != this->prevViewableEndIndex) {
+        SL_LOG("  emit onViewableIndicesChange(%zd, %zd)",
+          static_cast<std::ptrdiff_t>(viewableIndices.first), static_cast<std::ptrdiff_t>(viewableIndices.second));
+        this->onViewableIndicesChangeCallback(viewableIndices.first, viewableIndices.second);
+      }
+      this->prevViewableStartIndex = viewableIndices.first;
+      this->prevViewableEndIndex = viewableIndices.second;
+    }
   }
 
   // Notify when the scroll offset changes.

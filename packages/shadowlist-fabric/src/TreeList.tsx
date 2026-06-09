@@ -8,6 +8,7 @@ import {
   forwardRef,
 } from 'react';
 import Shadowlist from './Shadowlist';
+import { flattenTree, type TreeFlatRow } from './flattenTree';
 import type {
   ShadowlistCommands,
   TreeListProps,
@@ -15,20 +16,9 @@ import type {
 } from './types';
 
 /*
- * TreeList is a data layer over Shadowlist, the tree analogue of SectionList. It
- * flattens the visible subtree (nodes whose ancestors are all expanded) into one
- * element stream; collapsed subtrees are never descended into. Each row keeps a
- * stable node-id key so surviving rows reconcile across an expand/collapse toggle.
+ * TreeList is a data layer over Shadowlist, the tree analogue of SectionList: it
+ * renders the visible subtree flattened by flattenTree.
  */
-
-interface TreeFlatRow<ItemT> {
-  /* Stable key for the flattened row; equals keyExtractor(item). */
-  id: string;
-  item: ItemT;
-  depth: number;
-  hasChildren: boolean;
-  isExpanded: boolean;
-}
 
 /* Normalise array|Set expansion inputs to a Set for O(1) membership tests. */
 const toSet = (
@@ -86,41 +76,13 @@ function TreeListInner<ItemT>(
   expandedRef.current = expandedSet;
 
   /*
-   * Flatten the visible subtree via iterative pre-order DFS, short-circuiting
-   * collapsed nodes. Also builds id -> flat index for scrollToNode.
+   * Flatten the visible subtree (see flattenTree); also yields id -> flat index
+   * for scrollToNode.
    */
-  const { data: rows, indexByKey } = useMemo(() => {
-    const flat: TreeFlatRow<ItemT>[] = [];
-    const byKey = new Map<string, number>();
-
-    interface Frame {
-      item: ItemT;
-      depth: number;
-    }
-    const stack: Frame[] = [];
-    for (let index = data.length - 1; index >= 0; index--) {
-      stack.push({ item: data[index] as ItemT, depth: 0 });
-    }
-
-    while (stack.length > 0) {
-      const { item, depth } = stack.pop() as Frame;
-      const id = keyExtractor(item);
-      const children = getChildren(item);
-      const hasChildren = !!children && children.length > 0;
-      const isExpanded = hasChildren && expandedSet.has(id);
-
-      byKey.set(id, flat.length);
-      flat.push({ id, item, depth, hasChildren, isExpanded });
-
-      if (isExpanded && children) {
-        for (let index = children.length - 1; index >= 0; index--) {
-          stack.push({ item: children[index] as ItemT, depth: depth + 1 });
-        }
-      }
-    }
-
-    return { data: flat, indexByKey: byKey };
-  }, [data, getChildren, keyExtractor, expandedSet]);
+  const { rows, indexByKey } = useMemo(
+    () => flattenTree(data, getChildren, keyExtractor, expandedSet),
+    [data, getChildren, keyExtractor, expandedSet]
+  );
 
   /* Flip one node's expanded state, routing through the controlled callback or internal state. */
   const toggleId = useCallback(

@@ -179,6 +179,18 @@ void ShadowlistViewShadowNode::layout(LayoutContext layoutContext) {
   azimgd::shadowlist::Virtualizer::recomputeTotalSize(this->containerManager_.get());
 
   /*
+   * The viewport was measured (or resized) in this very pass, while update() ran from
+   * adopt before layout and saw a zero frame - any correction that needs a real window
+   * never applied there. The inverted bottom pin is the critical one: without resolving
+   * it here the list publishes offset 0, opens blank at the top, and the first user
+   * scroll cancels the pin for good. Resolve against the freshly recomputed total so
+   * this same commit publishes the corrected offset.
+   */
+  if (layoutInputsChanged) {
+    azimgd::shadowlist::Virtualizer::resolveWindowChange(this->containerManager_.get());
+  }
+
+  /*
    * Position header (at the origin) and footer (after the content)
    */
   if (headerNode) {

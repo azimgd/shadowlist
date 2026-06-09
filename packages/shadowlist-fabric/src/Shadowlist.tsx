@@ -6,6 +6,7 @@ import {
   useEffect,
   useImperativeHandle,
   useCallback,
+  startTransition,
   memo,
   forwardRef,
   type ReactElement,
@@ -22,83 +23,35 @@ import {
   Commands,
 } from 'shadowlist';
 import type { ShadowlistProps, ShadowlistCommands, ViewToken } from './types';
+import { renderComponent } from './renderComponent';
 import { useKeyboardInset } from './useKeyboardInset';
+import {
+  initialMountedRange,
+  rangeToIndices,
+  type MountedRange,
+} from './virtualization/mountedRange';
+import { resolveVisibleIndices } from './virtualization/resolveVisibleIndices';
+import { resolveRangeAnchorShift } from './virtualization/anchorShift';
+import {
+  diffViewableItems,
+  resolveActiveStickyIndex,
+} from './virtualization/viewableItems';
+import { arrayMove, unionDraggedIndex } from './virtualization/dragReorder';
 
-// Move the item at `from` to `to`, returning a new array.
-const arrayMove = <T,>(
-  input: ReadonlyArray<T>,
-  from: number,
-  to: number
-): T[] => {
-  const next = input.slice();
-  if (
-    from < 0 ||
-    from >= next.length ||
-    to < 0 ||
-    to >= next.length ||
-    from === to
-  ) {
-    return next;
-  }
-  const moved = next.splice(from, 1)[0] as T;
-  next.splice(to, 0, moved);
-  return next;
-};
+export { initialMountedRange, type MountedRange };
 
 // Default key derivation; module-level so memo/effect deps stay stable.
 const defaultKeyExtractor = (item: { id: string }) => item.id;
 
 // Toggle JS-side debug tracing with the [SL] tag.
-const SHADOWLIST_DEBUG_LOG = false;
+const SHADOWLIST_DEBUG_LOG = true;
 
 const slLog = (...args: unknown[]) => {
   if (!SHADOWLIST_DEBUG_LOG) return;
   console.log('[SL]', ...args);
 };
 
-/*
- * Mounted range [low, high]. Mounts SHADOWLIST_OVERSCAN extra rows on each side of
- * the visible window and only re-renders when the window leaves the mounted range.
- */
-export interface MountedRange {
-  low: number;
-  high: number;
-}
-
-const SHADOWLIST_OVERSCAN = 4;
-
 const SNAP_ALIGNMENT = { start: 0, center: 1, end: 2 } as const;
-
-export const initialMountedRange = (
-  size: number,
-  initial: number,
-  inverted: boolean,
-  offsetIndex: number
-): MountedRange => {
-  if (size <= 0) return { low: -1, high: -1 };
-  /*
-   * With an explicit initial target, seed the range around it (avoids a blank flash
-   * at the target). An explicit target overrides the inverted bottom anchor.
-   */
-  if (offsetIndex >= 0) {
-    const target = Math.min(offsetIndex, size - 1);
-    return {
-      low: Math.max(0, target - SHADOWLIST_OVERSCAN),
-      high: Math.min(size - 1, target + initial),
-    };
-  }
-  if (inverted) {
-    return { low: Math.max(0, size - initial), high: size - 1 };
-  }
-  return { low: 0, high: Math.min(initial, size - 1) };
-};
-
-const rangeToIndices = (range: MountedRange): number[] => {
-  if (range.low < 0 || range.high < 0 || range.low > range.high) return [];
-  const indices: number[] = [];
-  for (let index = range.low; index <= range.high; index++) indices.push(index);
-  return indices;
-};
 
 interface ElementRendererProps<ElementT> {
   element: ElementT;
@@ -200,32 +153,31 @@ function ShadowlistInner<ElementT extends { id: string }>(
    * prepend so MVCP anchors them. Non-refresh changes pass through.
    */
   const refreshDeferEnabled = !!onRefresh && !inverted && !horizontal;
-  const [committedData, setCommittedData] =
-    useState<ReadonlyArray<ElementT>>(dataProp);
+  const [refreshFrozenData, setRefreshFrozenData] =
+    useState<ReadonlyArray<ElementT> | null>(null);
   const refreshHoldingRef = useRef(false);
-  const refreshHeldDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
-  const prevRefreshingRef = useRef(refreshing);
-  if (refreshDeferEnabled && !prevRefreshingRef.current && refreshing) {
-    // A refresh just started: hold subsequent data changes until it settles.
-    refreshHoldingRef.current = true;
-  }
-  prevRefreshingRef.current = refreshing;
-  if (dataProp !== committedData) {
-    if (refreshHoldingRef.current) {
-      refreshHeldDataRef.current = dataProp; // keep rendering pre-refresh data until settle
-    } else {
-      setCommittedData(dataProp);
+  const data =
+    refreshDeferEnabled && refreshHoldingRef.current
+      ? (refreshFrozenData ?? dataProp)
+      : dataProp;
+
+  useEffect(() => {
+    if (!refreshDeferEnabled) {
+      refreshHoldingRef.current = false;
+      setRefreshFrozenData((prev) => (prev === null ? prev : null));
+      return;
     }
-  }
-  const data = committedData;
+
+    if (refreshing) {
+      refreshHoldingRef.current = true;
+      setRefreshFrozenData((prev) => prev ?? dataProp);
+    }
+  }, [dataProp, refreshDeferEnabled, refreshing]);
 
   // Apply the held refresh-prepend once native reports the spinner has fully retracted.
   const handleRefreshSettle = useCallback(() => {
     refreshHoldingRef.current = false;
-    if (refreshHeldDataRef.current !== null) {
-      setCommittedData(refreshHeldDataRef.current);
-      refreshHeldDataRef.current = null;
-    }
+    setRefreshFrozenData((prev) => (prev === null ? prev : null));
   }, []);
 
   // Safety net: release the held prepend shortly after refresh ends in case onRefreshSettle
@@ -252,54 +204,42 @@ function ShadowlistInner<ElementT extends { id: string }>(
   );
 
   /*
-   * Set when a mounted-range anchor shift just happened, so the next native
-   * onVisibleIndicesChange re-centers (tightens) the range to its window, not skip it.
+   * Mirror of the latest scheduled mounted range (state lags while a transition is
+   * pending). Lets the scroll handler decide synchronously and never schedule a no-op
+   * update — a no-op transition still re-renders the component once before React bails.
    */
-  const tightenAfterShiftRef = useRef(false);
+  const mountedRangeRef = useRef<MountedRange>(mountedRange);
 
   /*
-   * Content-anchor the mounted range across data changes. On a prepend above the
-   * viewport, native shifts its window by +N but only reports it after an async
-   * round-trip; until then a stale range blanks the viewport. So here, in the same
-   * render that adopts the new data, find the new index of the element at range.low
-   * and shift the range by that delta. The shift is a union (never shrunk) so the
-   * swept-over rows stay mounted; tightenAfterShiftRef makes the next native emit
-   * re-center it back to window+overscan. Mid-range inserts fall back to the round-trip.
+   * Previous visible range, so the overscan can lead in the scroll direction and the
+   * mount tier can tell a fling (visible range jumped clear) from an adjacent scroll.
    */
-  const [mountedRangeData, setMountedRangeData] =
-    useState<ReadonlyArray<ElementT>>(data);
-  if (mountedRangeData !== data) {
-    setMountedRangeData(data);
-    if (mountedRange.low >= 0 && mountedRange.low < mountedRangeData.length) {
-      const anchorKey = keyExtractor(
-        mountedRangeData[mountedRange.low]!,
-        mountedRange.low
+  const prevVisibleRangeRef = useRef<MountedRange>({ low: -1, high: -1 });
+
+  /*
+   * Content-anchor the mounted range across data changes (see resolveRangeAnchorShift)
+   * in the same render that adopts the new data, so a prepend never blanks the
+   * viewport while native's shifted window is still in flight.
+   */
+  const mountedRangeDataRef = useRef<ReadonlyArray<ElementT>>(data);
+  if (mountedRangeDataRef.current !== data) {
+    const prevData = mountedRangeDataRef.current;
+    mountedRangeDataRef.current = data;
+    const shifted = resolveRangeAnchorShift(
+      prevData,
+      data,
+      mountedRange,
+      keyExtractor
+    );
+    if (shifted) {
+      slLog(
+        'js.rangeAnchor shift',
+        `range=[${mountedRange.low}..${mountedRange.high}]->[${shifted.low}..${shifted.high}]`
       );
-      let newLow = -1;
-      for (let index = 0; index < data.length; index++) {
-        if (keyExtractor(data[index]!, index) === anchorKey) {
-          newLow = index;
-          break;
-        }
-      }
-      if (newLow >= 0 && newLow !== mountedRange.low) {
-        const delta = newLow - mountedRange.low;
-        const maxIndex = data.length - 1;
-        const clamp = (value: number) => Math.min(Math.max(0, value), maxIndex);
-        const low = clamp(Math.min(mountedRange.low, mountedRange.low + delta));
-        const high = clamp(
-          Math.max(mountedRange.high, mountedRange.high + delta)
-        );
-        tightenAfterShiftRef.current = true;
-        slLog(
-          'js.rangeAnchor shift',
-          `delta=${delta}`,
-          `range=[${mountedRange.low}..${mountedRange.high}]->[${low}..${high}]`
-        );
-        setMountedRange((prev) =>
-          prev.low === low && prev.high === high ? prev : { low, high }
-        );
-      }
+      mountedRangeRef.current = shifted;
+      setMountedRange((prev) =>
+        prev.low === shifted.low && prev.high === shifted.high ? prev : shifted
+      );
     }
   }
 
@@ -374,15 +314,7 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
   const updateActiveStickyIndex = useCallback(
     (windowLow: number) => {
-      if (!stickyHeaderIndices || stickyHeaderIndices.length === 0) {
-        setActiveStickyIndex((prev) => (prev === -1 ? prev : -1));
-        return;
-      }
-      let active = -1;
-      for (const stickyIndex of stickyHeaderIndices) {
-        if (stickyIndex <= windowLow) active = stickyIndex;
-        else break;
-      }
+      const active = resolveActiveStickyIndex(stickyHeaderIndices, windowLow);
       setActiveStickyIndex((prev) => (prev === active ? prev : active));
     },
     [stickyHeaderIndices]
@@ -393,58 +325,42 @@ function ShadowlistInner<ElementT extends { id: string }>(
     never
   > = useCallback(
     (event) => {
-      const { visibleStartIndex, visibleEndIndex } = event.nativeEvent;
-      if (visibleStartIndex === -1 || visibleEndIndex === -1) return;
-      // Normalise to an ascending window (inverted lists report start > end).
-      const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
-      const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
+      // The policy is pure (see resolveVisibleIndices); this handler owns the refs
+      // and turns the decision into React state updates.
+      const result = resolveVisibleIndices({
+        visibleStartIndex: event.nativeEvent.visibleStartIndex,
+        visibleEndIndex: event.nativeEvent.visibleEndIndex,
+        prevVisibleRange: prevVisibleRangeRef.current,
+        mountedRange: mountedRangeRef.current,
+        dataLength: data.length,
+      });
 
-      // First native window after a mounted-range anchor shift: re-center the range on
-      // it (window + overscan), even if it is already inside the unioned shift range. This
-      // returns the range to its normal size so repeated prepends do not grow it.
-      if (tightenAfterShiftRef.current) {
-        tightenAfterShiftRef.current = false;
-        const low = Math.max(0, windowLow - SHADOWLIST_OVERSCAN);
-        const high = Math.min(
-          data.length - 1,
-          windowHigh + SHADOWLIST_OVERSCAN
-        );
-        slLog(
-          'js.onVisibleIndicesChange tighten',
-          `window=[${windowLow}..${windowHigh}]`,
-          `range=[${low}..${high}]`
-        );
+      if (result.action === 'ignore') return;
+      prevVisibleRangeRef.current = result.visibleRange;
+
+      slLog(
+        `js.onVisibleIndicesChange ${result.action}`,
+        `visible=[${result.visibleRange.low}..${result.visibleRange.high}]`,
+        'band' in result ? `band=[${result.band.low}..${result.band.high}]` : ''
+      );
+
+      if (result.action === 'skip') return;
+
+      /*
+       * Single funnel for range updates: the band mounts as a transition so growing
+       * or trimming the overscan never blocks the active scroll. The ref gate drops
+       * updates whose target is already held (or scheduled), so a no-op transition is
+       * never queued — queuing one re-renders the component once before React can
+       * bail out.
+       */
+      const next = result.band;
+      const scheduled = mountedRangeRef.current;
+      if (scheduled.low === next.low && scheduled.high === next.high) return;
+      mountedRangeRef.current = next;
+      startTransition(() => {
         setMountedRange((prev) =>
-          prev.low === low && prev.high === high ? prev : { low, high }
+          prev.low === next.low && prev.high === next.high ? prev : next
         );
-        return;
-      }
-
-      setMountedRange((prevRange) => {
-        // Window already inside the range; rows are mounted, skip the re-render.
-        if (
-          prevRange.low >= 0 &&
-          windowLow >= prevRange.low &&
-          windowHigh <= prevRange.high
-        ) {
-          slLog(
-            'js.onVisibleIndicesChange skip (in range)',
-            `window=[${windowLow}..${windowHigh}]`,
-            `range=[${prevRange.low}..${prevRange.high}]`
-          );
-          return prevRange;
-        }
-        const low = Math.max(0, windowLow - SHADOWLIST_OVERSCAN);
-        const high = Math.min(
-          data.length - 1,
-          windowHigh + SHADOWLIST_OVERSCAN
-        );
-        slLog(
-          'js.onVisibleIndicesChange apply',
-          `window=[${windowLow}..${windowHigh}]`,
-          `range=[${low}..${high}]`
-        );
-        return { low, high };
       });
     },
     [data.length]
@@ -456,16 +372,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
   );
 
   // Union the dragged row's index into the rendered set so it stays mounted.
-  const renderIndices = useMemo(() => {
-    if (
-      draggingIndex < 0 ||
-      draggingIndex >= data.length ||
-      mountedIndices.includes(draggingIndex)
-    ) {
-      return mountedIndices;
-    }
-    return [...mountedIndices, draggingIndex].sort((a, b) => a - b);
-  }, [mountedIndices, draggingIndex, data.length]);
+  const renderIndices = useMemo(
+    () => unionDraggedIndex(mountedIndices, draggingIndex, data.length),
+    [mountedIndices, draggingIndex, data.length]
+  );
 
   const elementsAllKeys = useMemo(
     () => data.map((element, index) => keyExtractor(element, index)),
@@ -513,51 +423,26 @@ function ShadowlistInner<ElementT extends { id: string }>(
   > = useCallback(
     (event) => {
       const { viewableStartIndex, viewableEndIndex } = event.nativeEvent;
-      // Normalise to an ascending range (inverted lists report higher index first).
-      const lo = Math.min(viewableStartIndex, viewableEndIndex);
-      const hi = Math.max(viewableStartIndex, viewableEndIndex);
 
       // Drive sticky-overlay content from the viewable top index to match the pin.
       if (viewableStartIndex !== -1 && viewableEndIndex !== -1) {
-        updateActiveStickyIndex(lo);
+        updateActiveStickyIndex(Math.min(viewableStartIndex, viewableEndIndex));
       }
 
       if (!onViewableItemsChanged) return;
 
-      const viewableItems: ViewToken<ElementT>[] = [];
-      if (viewableStartIndex !== -1 && viewableEndIndex !== -1) {
-        for (let index = lo; index <= hi; index++) {
-          const item = data[index];
-          if (!item) continue;
-          viewableItems.push({
-            item,
-            index,
-            key: keyExtractor(item, index),
-            isViewable: true,
-          });
-        }
-      }
-
-      const currentKeys = new Set(viewableItems.map((token) => token.key));
-      const prevKeys = new Set(
-        prevViewableRef.current.map((token) => token.key)
+      const { viewableItems, changed } = diffViewableItems(
+        data,
+        viewableStartIndex,
+        viewableEndIndex,
+        prevViewableRef.current,
+        keyExtractor
       );
-
-      const changed: ViewToken<ElementT>[] = [
-        ...viewableItems.filter((token) => !prevKeys.has(token.key)),
-        ...prevViewableRef.current
-          .filter((token) => !currentKeys.has(token.key))
-          .map((token) => ({ ...token, isViewable: false })),
-      ];
 
       prevViewableRef.current = viewableItems;
 
       if (changed.length > 0) {
-        slLog(
-          'js.onViewableItemsChange',
-          `viewable=[${lo}..${hi}]`,
-          `changed=${changed.length}`
-        );
+        slLog('js.onViewableItemsChange', `changed=${changed.length}`);
         onViewableItemsChanged({ viewableItems, changed });
       }
     },
@@ -566,13 +451,6 @@ function ShadowlistInner<ElementT extends { id: string }>(
 
   const viewablePercentThreshold =
     (viewabilityConfig?.itemVisiblePercentThreshold ?? 0) / 100;
-
-  const renderComponent = (
-    component: ReactElement | (() => ReactElement | null) | null | undefined
-  ): ReactElement | null => {
-    if (!component) return null;
-    return typeof component === 'function' ? component() : component;
-  };
 
   const header = useMemo(
     () => renderComponent(ListHeaderComponent),
@@ -611,6 +489,10 @@ function ShadowlistInner<ElementT extends { id: string }>(
         : null,
     [stickyEnabled, activeStickyIndex, renderStickyHeaderOverlay]
   );
+
+  slLog('js.render', `indices=[${mountedRange.low}..${mountedRange.high}]`);
+
+  console.log({ mountedRange });
 
   return (
     <ShadowlistView
