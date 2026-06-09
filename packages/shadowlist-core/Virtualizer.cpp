@@ -857,4 +857,38 @@ bool Virtualizer::resolveScroll(Container *container, const std::string &anchorK
   return false;
 }
 
+bool Virtualizer::resolveWindowChange(Container *container) {
+  std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  /*
+   * Mid-revision means an update() is in flight on this thread; it resolves its own
+   * corrections, so there is nothing stale to fix here.
+   */
+  if (container->revisionStatus != RevisionStatusIdle) {
+    return false;
+  }
+
+  /*
+   * No anchor and hadElementsBefore=false: only pending corrections (the inverted
+   * bottom pin, scrollToIndex/scrollToEnd targets) are resolved; MVCP is left to
+   * update(), which captures the anchor against the pre-reconcile element list.
+   */
+  if (!resolveScroll(container, std::string(), 0.0, false)) {
+    return false;
+  }
+
+  SL_LOG("resolveWindowChange: offset=(%.1f,%.1f) invInit=%d",
+    container->revision.containerOffsetX, container->revision.containerOffsetY,
+    container->invertedInitialized ? 1 : 0);
+
+  /*
+   * The offset moved: re-select the visible window for it and re-dispatch observers,
+   * exactly as update() does after a correction.
+   */
+  container->startRevision();
+  measure(container, true);
+  container->endRevision();
+  return true;
+}
+
 }

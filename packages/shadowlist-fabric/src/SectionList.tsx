@@ -1,41 +1,9 @@
 import type { Ref, ReactElement } from 'react';
 import { useMemo, useCallback, forwardRef } from 'react';
 import Shadowlist from './Shadowlist';
-import type {
-  ShadowlistCommands,
-  SectionListProps,
-  SectionListData,
-} from './types';
-
-/*
- * Flattens `sections` into one tagged element stream (section header, items, section
- * footer) for Shadowlist. Section headers carry their flat indices to
- * `stickyHeaderIndices` for native pinning.
- */
-
-type FlatRowType = 'sectionHeader' | 'item' | 'sectionFooter';
-
-interface FlatRow<ItemT, SectionT> {
-  // Stable key for the flattened row, derived from section key and item key.
-  id: string;
-  type: FlatRowType;
-  section: SectionListData<ItemT, SectionT>;
-  sectionIndex: number;
-  // Item payload (item rows only) and its index within the section.
-  item?: ItemT;
-  itemIndex?: number;
-  // Last item in its section (drives separators).
-  isLastInSection?: boolean;
-  // Last row of a non-final section (section separator).
-  isSectionBoundary?: boolean;
-}
-
-const renderComponent = (
-  component: ReactElement | (() => ReactElement | null) | null | undefined
-): ReactElement | null => {
-  if (!component) return null;
-  return typeof component === 'function' ? component() : component;
-};
+import { flattenSections, type SectionFlatRow } from './flattenSections';
+import { renderComponent } from './renderComponent';
+import type { ShadowlistCommands, SectionListProps } from './types';
 
 function SectionListInner<ItemT, SectionT = object>(
   {
@@ -68,59 +36,19 @@ function SectionListInner<ItemT, SectionT = object>(
   }: SectionListProps<ItemT, SectionT>,
   ref: Ref<ShadowlistCommands>
 ) {
-  // Build the tagged row stream plus the flat indices of section-header rows.
+  // Build the tagged row stream plus the flat indices of section-header rows
+  // (see flattenSections).
   const { data, stickyHeaderIndices } = useMemo(() => {
-    const rows: FlatRow<ItemT, SectionT>[] = [];
-    const stickyIndices: number[] = [];
-
-    sections.forEach((section, sectionIndex) => {
-      const sectionKey = section.key ?? `section-${sectionIndex}`;
-      const sectionKeyExtractor = section.keyExtractor ?? keyExtractor;
-
-      if (renderSectionHeader) {
-        if (stickySectionHeadersEnabled) {
-          stickyIndices.push(rows.length);
-        }
-        rows.push({
-          id: `sh:${sectionKey}`,
-          type: 'sectionHeader',
-          section,
-          sectionIndex,
-        });
-      }
-
-      const lastItemIndex = section.data.length - 1;
-      section.data.forEach((item, itemIndex) => {
-        const itemKey = sectionKeyExtractor
-          ? sectionKeyExtractor(item, itemIndex)
-          : ((item as { id?: string })?.id ?? `${itemIndex}`);
-        const isLastInSection = itemIndex === lastItemIndex;
-        rows.push({
-          id: `si:${sectionKey}:${itemKey}`,
-          type: 'item',
-          section,
-          sectionIndex,
-          item,
-          itemIndex,
-          isLastInSection,
-          isSectionBoundary:
-            isLastInSection &&
-            !renderSectionFooter &&
-            sectionIndex < sections.length - 1,
-        });
-      });
-
-      if (renderSectionFooter) {
-        rows.push({
-          id: `sf:${sectionKey}`,
-          type: 'sectionFooter',
-          section,
-          sectionIndex,
-          isSectionBoundary: sectionIndex < sections.length - 1,
-        });
-      }
+    const { rows, stickyHeaderIndices: stickyIndices } = flattenSections<
+      ItemT,
+      SectionT
+    >({
+      sections,
+      keyExtractor,
+      hasSectionHeader: !!renderSectionHeader,
+      hasSectionFooter: !!renderSectionFooter,
+      stickySectionHeadersEnabled,
     });
-
     return { data: rows, stickyHeaderIndices: stickyIndices };
   }, [
     sections,
@@ -149,9 +77,22 @@ function SectionListInner<ItemT, SectionT = object>(
     [SectionSeparatorComponent]
   );
 
-  // Dispatch a flattened row to the right renderer.
+  // Dispatch a flattened row to the right renderer; the flattener already decided
+  // which separator follows each row.
   const renderElement = useCallback(
-    ({ element }: { element: FlatRow<ItemT, SectionT>; index: number }) => {
+    ({
+      element,
+    }: {
+      element: SectionFlatRow<ItemT, SectionT>;
+      index: number;
+    }) => {
+      const separator =
+        element.separator === 'section'
+          ? sectionSeparator
+          : element.separator === 'item'
+            ? itemSeparator
+            : null;
+
       if (element.type === 'sectionHeader') {
         return renderSectionHeader?.({ section: element.section }) ?? <></>;
       }
@@ -160,7 +101,7 @@ function SectionListInner<ItemT, SectionT = object>(
         return (
           <>
             {renderSectionFooter?.({ section: element.section })}
-            {element.isSectionBoundary ? sectionSeparator : null}
+            {separator}
           </>
         );
       }
@@ -172,14 +113,6 @@ function SectionListInner<ItemT, SectionT = object>(
           index: element.itemIndex as number,
           section: element.section,
         }) ?? null;
-
-      // Item separator between items; section separator at a section boundary.
-      let separator: ReactElement | null = null;
-      if (element.isSectionBoundary) {
-        separator = sectionSeparator;
-      } else if (!element.isLastInSection) {
-        separator = itemSeparator;
-      }
 
       return (
         <>

@@ -116,11 +116,13 @@ export const CHARACTER_NAMES = [
   'Hillyer',
 ];
 
+/*
+ * Monotonic so re-generated low indexes (a refresh prepend rebuilds index 0..n)
+ * still get fresh ids; deterministic so runs are reproducible while debugging.
+ */
 let uniqueIdCounter = 0;
 export function generateUniqueId(): string {
-  return `${Date.now()}-${(uniqueIdCounter++).toString(36)}-${Math.random()
-    .toString(36)
-    .substr(2, 9)}`;
+  return `id-${(uniqueIdCounter++).toString(36)}`;
 }
 
 export function optimizeImageUrl(originalUrl: string, width: number): string {
@@ -132,30 +134,42 @@ export function generateRandomText(seed: number): string {
   return SAMPLE_TEXTS[seed % SAMPLE_TEXTS.length]!;
 }
 
-export function generateOptimizedImageUrl(index: number): string | undefined {
-  const shouldHaveImage = index > 0 && index % 5 === 0;
-  const isGridImage = index > 0 && index % 10 === 0;
-
-  if (!shouldHaveImage || isGridImage) {
-    return undefined;
-  }
-
-  const originalImageUrl = IMAGES[index % IMAGES.length]!;
-  return optimizeImageUrl(originalImageUrl, 800);
+/*
+ * Which media the chat message at `index` carries: every 10th row a 2x2 image grid,
+ * every other 5th row a single image, text otherwise.
+ */
+export function messageMediaKind(index: number): 'none' | 'image' | 'grid' {
+  if (index > 0 && index % 10 === 0) return 'grid';
+  if (index > 0 && index % 5 === 0) return 'image';
+  return 'none';
 }
 
-export function shouldBeImageGrid(index: number): boolean {
-  return index > 0 && index % 10 === 0;
+/* One chat-list message; matches the Chat templates' ChatMessage shape. */
+export interface ChatMessageData {
+  id: string;
+  text: string;
+  isFromMe: boolean;
+  imageUrl?: string;
+  imageUrls?: string[];
 }
 
-export function generateImageGrid(startIndex: number): string[] {
-  const imageUrls: string[] = [];
-  for (let i = 0; i < 4; i++) {
-    const imageIndex = (startIndex + i) % IMAGES.length;
-    const originalImageUrl = IMAGES[imageIndex]!;
-    imageUrls.push(optimizeImageUrl(originalImageUrl, 400));
-  }
-  return imageUrls;
+export function buildChatMessage(index: number): ChatMessageData {
+  const mediaKind = messageMediaKind(index);
+  return {
+    id: generateUniqueId(),
+    text: mediaKind === 'none' ? generateRandomText(index) : '',
+    isFromMe: index % 3 !== 0,
+    imageUrl:
+      mediaKind === 'image'
+        ? optimizeImageUrl(IMAGES[index % IMAGES.length]!, 800)
+        : undefined,
+    imageUrls:
+      mediaKind === 'grid'
+        ? Array.from({ length: 4 }, (_, i) =>
+            optimizeImageUrl(IMAGES[(index + i) % IMAGES.length]!, 400)
+          )
+        : undefined,
+  };
 }
 
 /*
@@ -240,7 +254,7 @@ export function generateFeedElement(index: number): FeedItem {
     handle: `@${handle}`,
     text: SAMPLE_TEXTS[index % SAMPLE_TEXTS.length]!,
     imageUrls,
-    timestamp: `${Math.floor(Math.random() * 24)}h`,
+    timestamp: `${(index % 23) + 1}h`,
   };
 }
 
@@ -327,6 +341,71 @@ export function generateContact(index: number): ContactItem {
     firstName,
     lastName,
     phoneNumber,
+  };
+}
+
+/*
+ * A-Z contact section for the SectionList demos; a structural match for
+ * SectionListData<ContactItem, { title: string }> so screens can pass it straight
+ * to a SectionList without this package depending on the list libraries.
+ */
+export interface ContactSection {
+  key: string;
+  title: string;
+  data: ContactItem[];
+}
+
+// Group contacts into A-Z sections by first-name initial, sorted within each.
+export function groupContactsByInitial(
+  contacts: ReadonlyArray<ContactItem>
+): ContactSection[] {
+  const groups = new Map<string, ContactItem[]>();
+
+  for (const contact of contacts) {
+    const letter = (contact.firstName.charAt(0) || '#').toUpperCase();
+    const group = groups.get(letter);
+    if (group) group.push(contact);
+    else groups.set(letter, [contact]);
+  }
+
+  return Array.from(groups.keys())
+    .sort()
+    .map((letter) => ({
+      key: letter,
+      title: letter,
+      data: groups
+        .get(letter)!
+        .slice()
+        .sort((a, b) =>
+          `${a.firstName} ${a.lastName}`.localeCompare(
+            `${b.firstName} ${b.lastName}`
+          )
+        ),
+    }));
+}
+
+/*
+ * Poll demo: the option labels, vote seeding and id allocation are platform
+ * agnostic; each platform template binds its own icon components (passed in
+ * POLL_OPTION_LABELS order).
+ */
+export const POLL_OPTION_LABELS = [
+  'Dark mode',
+  'Offline mode',
+  'Notifications',
+  'Translations',
+  'Custom themes',
+];
+
+export function buildPollOption<IconT>(
+  index: number,
+  icons: ReadonlyArray<IconT>
+): { id: string; Icon: IconT; label: string; votes: number } {
+  return {
+    id: generateUniqueId(),
+    Icon: icons[index % icons.length]!,
+    label: POLL_OPTION_LABELS[index % POLL_OPTION_LABELS.length]!,
+    votes: 5 + ((index * 17) % 40),
   };
 }
 

@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { generateUniqueId } from 'shadowlist-utils';
+import { buildPollOption } from 'shadowlist-utils';
 import { Bell, CircleSlash, Globe, HalfCircle, Swatch } from '../icons';
 
 export type IconComponent = ComponentType<{ size?: number; color?: string }>;
@@ -11,24 +11,20 @@ export type PollOption = {
   votes: number;
 };
 
-export const OPTION_SEEDS: { Icon: IconComponent; label: string }[] = [
-  { Icon: HalfCircle, label: 'Dark mode' },
-  { Icon: CircleSlash, label: 'Offline mode' },
-  { Icon: Bell, label: 'Notifications' },
-  { Icon: Globe, label: 'Translations' },
-  { Icon: Swatch, label: 'Custom themes' },
+/*
+ * Only the icon binding is platform-specific; labels, votes and ids come from the
+ * agnostic root (buildPollOption). Icons are in POLL_OPTION_LABELS order.
+ */
+const OPTION_ICONS: IconComponent[] = [
+  HalfCircle,
+  CircleSlash,
+  Bell,
+  Globe,
+  Swatch,
 ];
 
-// One option, cycling the seed set; a fresh id keeps prepend/append unique.
-export const buildOption = (index: number): PollOption => {
-  const seed = OPTION_SEEDS[index % OPTION_SEEDS.length]!;
-  return {
-    id: generateUniqueId(),
-    Icon: seed.Icon,
-    label: seed.label,
-    votes: 5 + Math.floor(Math.random() * 40),
-  };
-};
+export const buildOption = (index: number): PollOption =>
+  buildPollOption(index, OPTION_ICONS);
 
 export const buildPoll = (length = 5): PollOption[] =>
   Array.from({ length }, (_, index) => buildOption(index));

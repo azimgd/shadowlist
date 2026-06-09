@@ -7,37 +7,14 @@ import {
   ListFooter,
   colors,
 } from 'shadowlist-utils/native';
-import { generateContact, type ContactItem } from 'shadowlist-utils';
+import {
+  generateContact,
+  groupContactsByInitial,
+  type ContactItem,
+} from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
 type ContactSection = SectionListData<ContactItem, { title: string }>;
-
-// Group contacts into A-Z sections by first-name initial, sorted within each.
-const buildSections = (contacts: ContactItem[]): ContactSection[] => {
-  const groups = new Map<string, ContactItem[]>();
-
-  for (const contact of contacts) {
-    const letter = (contact.firstName.charAt(0) || '#').toUpperCase();
-    const group = groups.get(letter);
-    if (group) group.push(contact);
-    else groups.set(letter, [contact]);
-  }
-
-  return Array.from(groups.keys())
-    .sort()
-    .map((letter) => ({
-      key: letter,
-      title: letter,
-      data: groups
-        .get(letter)!
-        .slice()
-        .sort((a, b) =>
-          `${a.firstName} ${a.lastName}`.localeCompare(
-            `${b.firstName} ${b.lastName}`
-          )
-        ),
-    }));
-};
 
 export const SectionListScreen = () => {
   const sectionListRef = useRef<ShadowlistCommands>(null);
@@ -45,7 +22,10 @@ export const SectionListScreen = () => {
     Array.from({ length: 300 }, (_, index) => generateContact(index))
   );
 
-  const sections = useMemo(() => buildSections(contacts), [contacts]);
+  const sections = useMemo<ContactSection[]>(
+    () => groupContactsByInitial(contacts),
+    [contacts]
+  );
 
   const handlePrepend = () => {
     const currentLength = contacts.length;
