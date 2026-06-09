@@ -13,13 +13,7 @@ import {
   colors,
   type ChatMessage,
 } from 'shadowlist-utils/native';
-import {
-  generateUniqueId,
-  generateRandomText,
-  generateOptimizedImageUrl,
-  shouldBeImageGrid,
-  generateImageGrid,
-} from 'shadowlist-utils';
+import { generateUniqueId, buildChatMessage } from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
 // Gap kept between the composer and the keyboard; matches the composer's top padding.
@@ -42,26 +36,14 @@ export const ChatScreen = () => {
     });
   }, [height, insets.bottom]);
 
-  const buildMessage = (elementIndex: number): ChatMessage => {
-    const isImageGrid = shouldBeImageGrid(elementIndex);
-    const imageUrl = generateOptimizedImageUrl(elementIndex);
-    return {
-      id: generateUniqueId(),
-      text: isImageGrid || !!imageUrl ? '' : generateRandomText(elementIndex),
-      isFromMe: elementIndex % 3 !== 0,
-      imageUrl,
-      imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
-    };
-  };
-
   const [data, setData] = useState<ChatMessage[]>(() =>
-    Array.from({ length: 1000 }, (_, index) => buildMessage(index))
+    Array.from({ length: 1000 }, (_, index) => buildChatMessage(index))
   );
 
   const handlePrepend = () => {
     const currentLength = data.length;
     const newElements = Array.from({ length: 10 }, (_, index) =>
-      buildMessage(currentLength + index)
+      buildChatMessage(currentLength + index)
     );
     setData((prev) => [...newElements, ...prev]);
   };
@@ -69,7 +51,7 @@ export const ChatScreen = () => {
   const handleAppend = () => {
     const currentLength = data.length;
     const newElements = Array.from({ length: 10 }, (_, index) =>
-      buildMessage(currentLength + index)
+      buildChatMessage(currentLength + index)
     );
     setData((prev) => [...prev, ...newElements]);
   };
