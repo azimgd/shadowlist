@@ -14,9 +14,12 @@ export type ContactSectionMeta = { title: string };
 
 export type SectionListProps_ = Omit<
   SectionListProps<ContactItem, ContactSectionMeta>,
-  'renderItem' | 'renderSectionHeader'
+  'renderElement' | 'renderSectionHeader'
 > & {
-  renderItem?: SectionListProps<ContactItem, ContactSectionMeta>['renderItem'];
+  renderElement?: SectionListProps<
+    ContactItem,
+    ContactSectionMeta
+  >['renderElement'];
   renderSectionHeader?: SectionListProps<
     ContactItem,
     ContactSectionMeta
@@ -28,17 +31,17 @@ export type SectionListProps_ = Omit<
 /*
  * A grouped, sticky-section list of contact rows. Pass `sections`
  * (`{ title, data }[]`) to get sticky A–Z headers, inset separators and
- * swipe-to-delete out of the box. Override `renderItem`/`renderSectionHeader`
+ * swipe-to-delete out of the box. Override `renderElement`/`renderSectionHeader`
  * to repurpose it.
  */
 export const SectionList = forwardRef<ShadowlistCommands, SectionListProps_>(
-  ({ renderItem, renderSectionHeader, onDelete, ...props }, ref) => (
+  ({ renderElement, renderSectionHeader, onDelete, ...props }, ref) => (
     <ShadowlistSectionList
       ref={ref}
-      renderItem={
-        renderItem ??
-        (({ item, index }) => (
-          <ContactRow element={item} index={index} onDelete={onDelete} />
+      renderElement={
+        renderElement ??
+        (({ element, index }) => (
+          <ContactRow element={element} index={index} onDelete={onDelete} />
         ))
       }
       renderSectionHeader={

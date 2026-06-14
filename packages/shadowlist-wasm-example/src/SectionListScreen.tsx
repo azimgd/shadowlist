@@ -84,9 +84,9 @@ export const SectionListScreen = () => {
         ref={sectionListRef}
         sections={sections}
         style={styles.list}
-        renderItem={({ item, index }) => (
+        renderElement={({ element, index }) => (
           <SectionList.Row
-            element={item}
+            element={element}
             index={index}
             onDelete={handleDelete}
           />

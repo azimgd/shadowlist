@@ -137,29 +137,29 @@ export interface SectionBase<ItemT, SectionT = object> {
   /*
    * Per-section overrides; fall back to the top-level SectionList props.
    */
-  renderItem?: SectionListRenderItem<ItemT, SectionT>;
+  renderElement?: SectionListRenderElement<ItemT, SectionT>;
   keyExtractor?: (item: ItemT, index: number) => string;
 }
 
 export type SectionListData<ItemT, SectionT = object> = SectionT &
   SectionBase<ItemT, SectionT>;
 
-export interface SectionListRenderItemInfo<ItemT, SectionT = object> {
-  item: ItemT;
+export interface SectionListRenderElementInfo<ItemT, SectionT = object> {
+  element: ItemT;
   /*
-   * The item's index within its section (not the flattened list).
+   * The element's index within its section (not the flattened list).
    */
   index: number;
   section: SectionListData<ItemT, SectionT>;
 }
 
-export type SectionListRenderItem<ItemT, SectionT = object> = (
-  info: SectionListRenderItemInfo<ItemT, SectionT>
+export type SectionListRenderElement<ItemT, SectionT = object> = (
+  info: SectionListRenderElementInfo<ItemT, SectionT>
 ) => ReactElement | null;
 
 export interface SectionListProps<ItemT, SectionT = object> {
   sections: ReadonlyArray<SectionListData<ItemT, SectionT>>;
-  renderItem?: SectionListRenderItem<ItemT, SectionT>;
+  renderElement?: SectionListRenderElement<ItemT, SectionT>;
   renderSectionHeader?: (info: {
     section: SectionListData<ItemT, SectionT>;
   }) => ReactElement | null;
@@ -210,8 +210,8 @@ export interface SectionListProps<ItemT, SectionT = object> {
  * `keyExtractor` must return a globally unique, stable id per node (stable across
  * expand/collapse) so reconcile and measurement caching line up.
  */
-export interface TreeListRenderNodeInfo<ItemT> {
-  item: ItemT;
+export interface TreeListRenderElementInfo<ItemT> {
+  element: ItemT;
   /*
    * Index of the node in the flattened visible stream (not within its parent).
    */
@@ -254,7 +254,7 @@ export interface TreeListProps<ItemT> {
    * Globally unique, stable id per node. Must be stable across expand/collapse.
    */
   keyExtractor: (item: ItemT) => string;
-  renderNode: (info: TreeListRenderNodeInfo<ItemT>) => ReactElement;
+  renderElement: (info: TreeListRenderElementInfo<ItemT>) => ReactElement;
   /*
    * Controlled expansion: the set of expanded node ids. When provided, the list
    * does not own expansion state and reports intended changes through

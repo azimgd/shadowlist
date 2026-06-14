@@ -152,29 +152,29 @@ export interface SectionBase<ItemT, SectionT = object> {
   /*
    * Per-section overrides; fall back to the top-level SectionList props.
    */
-  renderItem?: SectionListRenderItem<ItemT, SectionT>;
+  renderElement?: SectionListRenderElement<ItemT, SectionT>;
   keyExtractor?: (item: ItemT, index: number) => string;
 }
 
 export type SectionListData<ItemT, SectionT = object> = SectionT &
   SectionBase<ItemT, SectionT>;
 
-export interface SectionListRenderItemInfo<ItemT, SectionT = object> {
-  item: ItemT;
+export interface SectionListRenderElementInfo<ItemT, SectionT = object> {
+  element: ItemT;
   /*
-   * The item's index within its section (not the flattened list).
+   * The element's index within its section (not the flattened list).
    */
   index: number;
   section: SectionListData<ItemT, SectionT>;
 }
 
-export type SectionListRenderItem<ItemT, SectionT = object> = (
-  info: SectionListRenderItemInfo<ItemT, SectionT>
+export type SectionListRenderElement<ItemT, SectionT = object> = (
+  info: SectionListRenderElementInfo<ItemT, SectionT>
 ) => ReactNode;
 
 export interface SectionListProps<ItemT, SectionT = object> {
   sections: ReadonlyArray<SectionListData<ItemT, SectionT>>;
-  renderItem?: SectionListRenderItem<ItemT, SectionT>;
+  renderElement?: SectionListRenderElement<ItemT, SectionT>;
   renderSectionHeader?: (info: {
     section: SectionListData<ItemT, SectionT>;
   }) => ReactNode;
@@ -216,8 +216,8 @@ export interface SectionListProps<ItemT, SectionT = object> {
  * caller-defined (ItemT), described by accessors. `keyExtractor` must return a
  * globally unique, stable id per node.
  */
-export interface TreeListRenderNodeInfo<ItemT> {
-  item: ItemT;
+export interface TreeListRenderElementInfo<ItemT> {
+  element: ItemT;
   /*
    * Index of the node in the flattened visible stream (not within its parent).
    */
@@ -260,7 +260,7 @@ export interface TreeListProps<ItemT> {
    * Globally unique, stable id per node. Must be stable across expand/collapse.
    */
   keyExtractor: (item: ItemT) => string;
-  renderNode: (info: TreeListRenderNodeInfo<ItemT>) => ReactNode;
+  renderElement: (info: TreeListRenderElementInfo<ItemT>) => ReactNode;
   /*
    * Controlled expansion: the set of expanded node ids. When provided, the list
    * reports intended changes through onExpandedChange. Omit for uncontrolled mode.

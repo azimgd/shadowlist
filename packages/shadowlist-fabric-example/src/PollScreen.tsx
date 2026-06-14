@@ -98,20 +98,25 @@ export const PollScreen = () => {
     [total]
   );
 
+  const renderElement = useCallback(
+    ({ element }: { element: PollOption }) => (
+      <Poll.Option
+        option={element}
+        total={total}
+        leading={element.id === leadingId}
+        onVote={handleVote}
+      />
+    ),
+    [total, leadingId, handleVote]
+  );
+
   return (
     <View style={styles.container}>
       <Poll.List
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={({ element }) => (
-          <Poll.Option
-            option={element}
-            total={total}
-            leading={element.id === leadingId}
-            onVote={handleVote}
-          />
-        )}
+        renderElement={renderElement}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         refreshColor={colors.secondaryLabel}

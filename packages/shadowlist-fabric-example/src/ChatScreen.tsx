@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useCallback, useState, useRef, useMemo } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -93,27 +93,30 @@ export const ChatScreen = () => {
     onScrollToRandom: handleScrollToRandom,
   });
 
+  const renderElement = useCallback(
+    ({ element, index }: { element: ChatMessage; index: number }) => (
+      <Chat.Bubble
+        index={index}
+        text={element.text}
+        isFromMe={element.isFromMe}
+        imageUrl={element.imageUrl}
+        imageUrls={element.imageUrls}
+      />
+    ),
+    []
+  );
+
   return (
     <View style={styles.container}>
       <Animated.View
         style={[styles.lifted, { transform: [{ translateY: liftTranslateY }] }]}
       >
-        {/* Tapping the messages dismisses the keyboard; the composer stays outside
-         * so tapping the input keeps the keyboard up. */}
         <KeyboardDismissView style={styles.list}>
           <Chat.List
             data={data}
             ref={shadowlistRef}
             style={styles.list}
-            renderElement={({ element, index }) => (
-              <Chat.Bubble
-                index={index}
-                text={element.text}
-                isFromMe={element.isFromMe}
-                imageUrl={element.imageUrl}
-                imageUrls={element.imageUrls}
-              />
-            )}
+            renderElement={renderElement}
             ListHeaderComponent={
               <ListHeader title="Chat" subtitle="Inverted list" />
             }

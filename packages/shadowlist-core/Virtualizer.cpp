@@ -118,9 +118,25 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
 #endif
 
   /*
-   * Reconcile the element list to the incoming keys (handles insert/remove/reorder)
+   * Reconcile the element list to the incoming keys (handles insert/remove/reorder).
+   * adopt() runs update() on every commit, but most commits (scrolling, the measurement
+   * settle, unrelated prop changes) carry an unchanged key set. Detect that with a cheap
+   * O(n) compare and skip the rebuild, which otherwise allocates a fresh element vector
+   * and key map every commit - the bulk of the per-commit cost during the multi-commit
+   * settle that follows a prepend/append.
    */
-  reconcileElements(container, input.keys);
+  bool keysChanged = container->revision.elements.size() != input.keys.size();
+  if (!keysChanged) {
+    for (std::size_t nextElementIndex = 0; nextElementIndex < input.keys.size(); nextElementIndex++) {
+      if (container->revision.elements[nextElementIndex].key != input.keys[nextElementIndex]) {
+        keysChanged = true;
+        break;
+      }
+    }
+  }
+  if (keysChanged) {
+    reconcileElements(container, input.keys);
+  }
 
   /*
    * Measure the revision
@@ -618,8 +634,16 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
   std::vector<Element> nextElements;
   nextElements.reserve(nextKeys.size());
 
+  // Rebuild the key->index map alongside the element list so anchor lookups stay O(1)
+  // (see Container::findElementIndexByKey). emplace keeps the first occurrence of a
+  // duplicate key, matching the previous first-match linear scan.
+  std::unordered_map<std::string, std::size_t> nextElementIndexByKey;
+  nextElementIndexByKey.reserve(nextKeys.size());
+
   for (std::size_t nextElementIndex = 0; nextElementIndex < nextKeys.size(); nextElementIndex++) {
     const std::string& nextKey = nextKeys[nextElementIndex];
+
+    nextElementIndexByKey.emplace(nextKey, nextElementIndex);
 
     auto prevElementEntry = prevElementsByKey.find(nextKey);
     if (prevElementEntry != prevElementsByKey.end()) {
@@ -635,6 +659,7 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
   }
 
   container->revision.elements = std::move(nextElements);
+  container->revision.elementIndexByKey = std::move(nextElementIndexByKey);
 }
 
 void Virtualizer::captureAnchor(Container *container, double inputOffset, std::string &anchorKey, double &anchorDelta) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 #include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Element.hpp>
 
@@ -12,6 +13,14 @@ public:
    * Elements array
    */
   std::vector<Element> elements;
+
+  /*
+   * key -> index into `elements`, kept in sync whenever the element list is rebuilt
+   * (Virtualizer::reconcileElements). Lets findElementIndexByKey resolve an anchor in
+   * O(1) instead of a linear scan; on a duplicate key the first occurrence wins, matching
+   * the previous scan semantics.
+   */
+  std::unordered_map<std::string, std::size_t> elementIndexByKey;
 
   /*
    * Offset of the container within the viewport X axis

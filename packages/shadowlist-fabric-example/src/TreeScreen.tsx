@@ -1,7 +1,10 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { type TreeListCommands } from 'shadowlist';
+import {
+  type TreeListCommands,
+  type TreeListRenderElementInfo,
+} from 'shadowlist';
 import { Tree, ListHeader, colors, typography } from 'shadowlist-utils/native';
 import { generateFileTree, type TreeFileNode } from 'shadowlist-utils';
 
@@ -37,6 +40,27 @@ export const TreeScreen = () => {
   );
   const collapseAll = useCallback(() => setExpandedIds(new Set()), []);
 
+  const renderElement = useCallback(
+    ({
+      element,
+      depth,
+      indent,
+      isExpanded,
+      hasChildren,
+      toggle,
+    }: TreeListRenderElementInfo<TreeFileNode>) => (
+      <Tree.Row
+        element={element}
+        depth={depth}
+        indent={indent}
+        isExpanded={isExpanded}
+        hasChildren={hasChildren}
+        onToggle={toggle}
+      />
+    ),
+    []
+  );
+
   return (
     <View style={styles.container}>
       <Tree.List
@@ -44,23 +68,7 @@ export const TreeScreen = () => {
         data={tree}
         expandedIds={expandedIds}
         onExpandedChange={setExpandedIds}
-        renderNode={({
-          item,
-          depth,
-          indent,
-          isExpanded,
-          hasChildren,
-          toggle,
-        }) => (
-          <Tree.Row
-            element={item}
-            depth={depth}
-            indent={indent}
-            isExpanded={isExpanded}
-            hasChildren={hasChildren}
-            onToggle={toggle}
-          />
-        )}
+        renderElement={renderElement}
         style={styles.list}
         ListHeaderComponent={
           <ListHeader title="Files" subtitle="Virtualized directory tree" />

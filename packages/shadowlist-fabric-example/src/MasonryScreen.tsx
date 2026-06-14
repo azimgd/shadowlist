@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { type ShadowlistCommands } from 'shadowlist';
 import {
@@ -44,6 +44,13 @@ export const MasonryScreen = () => {
     onScrollToRandom: handleScrollToRandom,
   });
 
+  const renderElement = useCallback(
+    ({ element }: { element: MasonryItem }) => (
+      <Masonry.Card element={element} />
+    ),
+    []
+  );
+
   return (
     <View style={styles.container}>
       <Masonry.List
@@ -51,7 +58,7 @@ export const MasonryScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         columns={3}
-        renderElement={({ element }) => <Masonry.Card element={element} />}
+        renderElement={renderElement}
         ListHeaderComponent={
           <ListHeader title="Masonry" subtitle="Three column grid layout" />
         }

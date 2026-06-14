@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { type ShadowlistCommands } from 'shadowlist';
 import {
@@ -44,13 +44,18 @@ export const NestedScreen = () => {
     onScrollToRandom: handleScrollToRandom,
   });
 
+  const renderElement = useCallback(
+    ({ element }: { element: NestedItem }) => <Nested.Row element={element} />,
+    []
+  );
+
   return (
     <View style={styles.container}>
       <Nested.List
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={({ element }) => <Nested.Row element={element} />}
+        renderElement={renderElement}
         ListHeaderComponent={
           <ListHeader title="Nested" subtitle="Nested horizontal lists" />
         }

@@ -43,7 +43,7 @@ function TreeListInner<ItemT>(
     data,
     getChildren,
     keyExtractor,
-    renderNode,
+    renderElement,
     expandedIds,
     initialExpandedIds,
     onExpandedChange,
@@ -153,13 +153,13 @@ function TreeListInner<ItemT>(
   );
 
   /*
-   * Dispatch a flattened row to renderNode, enriching it with tree affordances
+   * Dispatch a flattened row to renderElement, enriching it with tree affordances
    * (depth/indent/expanded/hasChildren) and a per-node toggle.
    */
-  const renderElement = useCallback(
+  const renderRow = useCallback(
     ({ element, index }: { element: TreeFlatRow<ItemT>; index: number }) =>
-      renderNode({
-        item: element.item,
+      renderElement({
+        element: element.item,
         index,
         depth: element.depth,
         isExpanded: element.isExpanded,
@@ -167,14 +167,14 @@ function TreeListInner<ItemT>(
         indent: element.depth * indentWidth,
         toggle: () => toggleId(element.id),
       }),
-    [renderNode, indentWidth, toggleId]
+    [renderElement, indentWidth, toggleId]
   );
 
   return (
     <Shadowlist
       ref={innerRef}
       data={rows}
-      renderElement={renderElement}
+      renderElement={renderRow}
       style={style}
       elementStyle={elementStyle}
       initialElementsSize={initialElementsSize}

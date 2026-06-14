@@ -10,11 +10,11 @@ export type {
   SectionBase,
   SectionListData,
   SectionListProps,
-  SectionListRenderItem,
-  SectionListRenderItemInfo,
+  SectionListRenderElement,
+  SectionListRenderElementInfo,
   TreeListProps,
   TreeListCommands,
-  TreeListRenderNodeInfo,
+  TreeListRenderElementInfo,
 } from './types.js';
 export {
   createShadowlistCore,

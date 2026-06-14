@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { type ShadowlistCommands, type SectionListData } from 'shadowlist';
 import {
@@ -75,9 +75,30 @@ export const SectionListScreen = () => {
     onScrollToRandom: handleScrollToRandom,
   });
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     setContacts((prev) => prev.filter((contact) => contact.id !== id));
-  };
+  }, []);
+
+  const renderElement = useCallback(
+    ({ element, index }: { element: ContactItem; index: number }) => (
+      <SectionList.Row
+        element={element}
+        index={index}
+        onDelete={handleDelete}
+      />
+    ),
+    [handleDelete]
+  );
+
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: ContactSection }) => (
+      <SectionList.SectionHeader
+        title={section.title}
+        count={section.data.length}
+      />
+    ),
+    []
+  );
 
   return (
     <View style={styles.container}>
@@ -85,19 +106,8 @@ export const SectionListScreen = () => {
         ref={sectionListRef}
         sections={sections}
         style={styles.list}
-        renderItem={({ item, index }) => (
-          <SectionList.Row
-            element={item}
-            index={index}
-            onDelete={handleDelete}
-          />
-        )}
-        renderSectionHeader={({ section }) => (
-          <SectionList.SectionHeader
-            title={section.title}
-            count={section.data.length}
-          />
-        )}
+        renderElement={renderElement}
+        renderSectionHeader={renderSectionHeader}
         ListHeaderComponent={
           <ListHeader title="Contacts" subtitle="Grouped, sticky sections" />
         }

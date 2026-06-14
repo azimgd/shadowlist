@@ -137,6 +137,13 @@ export const ActivityScreen = () => {
     [loadingMore, viewableLabel, data.length]
   );
 
+  const renderElement = useCallback(
+    ({ element }: { element: ActivityData }) => (
+      <Activity.Row element={element} />
+    ),
+    []
+  );
+
   return (
     <View style={styles.container}>
       <Activity.List
@@ -144,7 +151,7 @@ export const ActivityScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         keyExtractor={(item) => item.id}
-        renderElement={({ element }) => <Activity.Row element={element} />}
+        renderElement={renderElement}
         containerOffsetIndex={30}
         stickyHeader={headerSticky}
         refreshing={refreshing}

@@ -40,7 +40,7 @@ const renderComponent = (
 function SectionListInner<ItemT, SectionT = object>(
   {
     sections,
-    renderItem,
+    renderElement,
     renderSectionHeader,
     renderSectionFooter,
     keyExtractor,
@@ -150,7 +150,7 @@ function SectionListInner<ItemT, SectionT = object>(
   );
 
   // Dispatch a flattened row to the right renderer.
-  const renderElement = useCallback(
+  const renderRow = useCallback(
     ({ element }: { element: FlatRow<ItemT, SectionT>; index: number }) => {
       if (element.type === 'sectionHeader') {
         return renderSectionHeader?.({ section: element.section }) ?? <></>;
@@ -165,10 +165,11 @@ function SectionListInner<ItemT, SectionT = object>(
         );
       }
 
-      const sectionRenderItem = element.section.renderItem ?? renderItem;
+      const sectionRenderElement =
+        element.section.renderElement ?? renderElement;
       const content =
-        sectionRenderItem?.({
-          item: element.item as ItemT,
+        sectionRenderElement?.({
+          element: element.item as ItemT,
           index: element.itemIndex as number,
           section: element.section,
         }) ?? null;
@@ -189,7 +190,7 @@ function SectionListInner<ItemT, SectionT = object>(
       );
     },
     [
-      renderItem,
+      renderElement,
       renderSectionHeader,
       renderSectionFooter,
       itemSeparator,
@@ -201,7 +202,7 @@ function SectionListInner<ItemT, SectionT = object>(
     <Shadowlist
       ref={ref}
       data={data}
-      renderElement={renderElement}
+      renderElement={renderRow}
       stickyHeaderIndices={stickyHeaderIndices}
       renderStickyHeaderOverlay={renderStickyHeaderOverlay}
       style={style}

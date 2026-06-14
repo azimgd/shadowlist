@@ -85,6 +85,13 @@ export const FeedScreen = () => {
     [loadingMore]
   );
 
+  const renderElement = useCallback(
+    ({ element, index }: { element: FeedItem; index: number }) => (
+      <Feed.Element element={element} index={index} />
+    ),
+    []
+  );
+
   return (
     <View style={styles.container}>
       <Feed.List
@@ -95,9 +102,7 @@ export const FeedScreen = () => {
         onRefresh={handleRefresh}
         refreshColor={colors.secondaryLabel}
         onEndReached={handleEndReached}
-        renderElement={({ element, index }) => (
-          <Feed.Element element={element} index={index} />
-        )}
+        renderElement={renderElement}
         ListHeaderComponent={
           <ListHeader title="Feed" subtitle="Vertical scrolling list" />
         }

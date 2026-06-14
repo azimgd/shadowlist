@@ -20,8 +20,6 @@ enableScreens();
 
 const Drawer = createDrawerNavigator();
 
-// Pure-black navigation theme so there is no off-black seam between the system
-// chrome and the lists.
 const navTheme = {
   ...DefaultTheme,
   colors: {
@@ -41,8 +39,6 @@ export default function App() {
         <Drawer.Navigator
           initialRouteName="Feed"
           screenOptions={{
-            // The in-list large title carries the screen name, so the inline
-            // nav-bar title is suppressed to avoid showing it twice.
             headerTitle: '',
             headerShadowVisible: false,
             headerTintColor: colors.label,

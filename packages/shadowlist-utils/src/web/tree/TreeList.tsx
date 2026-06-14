@@ -9,11 +9,11 @@ import { TreeRow } from './TreeRow';
 
 export type TreeListProps_ = Omit<
   TreeListProps<TreeFileNode>,
-  'getChildren' | 'keyExtractor' | 'renderNode'
+  'getChildren' | 'keyExtractor' | 'renderElement'
 > & {
   getChildren?: TreeListProps<TreeFileNode>['getChildren'];
   keyExtractor?: TreeListProps<TreeFileNode>['keyExtractor'];
-  renderNode?: TreeListProps<TreeFileNode>['renderNode'];
+  renderElement?: TreeListProps<TreeFileNode>['renderElement'];
 };
 
 const defaultGetChildren: TreeListProps<TreeFileNode>['getChildren'] = (node) =>
@@ -21,8 +21,8 @@ const defaultGetChildren: TreeListProps<TreeFileNode>['getChildren'] = (node) =>
 const defaultKeyExtractor: TreeListProps<TreeFileNode>['keyExtractor'] = (
   node
 ) => node.id;
-const defaultRenderNode: TreeListProps<TreeFileNode>['renderNode'] = ({
-  item,
+const defaultRenderElement: TreeListProps<TreeFileNode>['renderElement'] = ({
+  element,
   depth,
   indent,
   isExpanded,
@@ -30,7 +30,7 @@ const defaultRenderNode: TreeListProps<TreeFileNode>['renderNode'] = ({
   toggle,
 }) => (
   <TreeRow
-    element={item}
+    element={element}
     depth={depth}
     indent={indent}
     isExpanded={isExpanded}
@@ -41,12 +41,12 @@ const defaultRenderNode: TreeListProps<TreeFileNode>['renderNode'] = ({
 
 // A virtualized, expandable directory tree over `TreeFileNode` data.
 export const TreeList = forwardRef<TreeListCommands, TreeListProps_>(
-  ({ getChildren, keyExtractor, renderNode, ...props }, ref) => (
+  ({ getChildren, keyExtractor, renderElement, ...props }, ref) => (
     <ShadowlistTreeList<TreeFileNode>
       ref={ref}
       getChildren={getChildren ?? defaultGetChildren}
       keyExtractor={keyExtractor ?? defaultKeyExtractor}
-      renderNode={renderNode ?? defaultRenderNode}
+      renderElement={renderElement ?? defaultRenderElement}
       {...props}
     />
   )

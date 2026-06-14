@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { type ShadowlistCommands } from 'shadowlist';
 import {
@@ -44,9 +44,16 @@ export const ContactsScreen = () => {
     onScrollToRandom: handleScrollToRandom,
   });
 
-  const handleDelete = (id: string) => {
+  const handleDelete = useCallback((id: string) => {
     setData((prev) => prev.filter((contact) => contact.id !== id));
-  };
+  }, []);
+
+  const renderElement = useCallback(
+    ({ element, index }: { element: ContactItem; index: number }) => (
+      <Contacts.Row element={element} index={index} onDelete={handleDelete} />
+    ),
+    [handleDelete]
+  );
 
   return (
     <View style={styles.container}>
@@ -54,13 +61,7 @@ export const ContactsScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={({ element, index }) => (
-          <Contacts.Row
-            element={element}
-            index={index}
-            onDelete={handleDelete}
-          />
-        )}
+        renderElement={renderElement}
         ListHeaderComponent={
           <ListHeader title="Contacts" subtitle="Swipe left to delete" />
         }

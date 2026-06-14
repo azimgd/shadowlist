@@ -282,13 +282,9 @@ std::size_t Container::findElementIndexByKey(const std::string& key) const {
     return UNDEFINED_INDEX;
   }
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < this->revision.elements.size(); nextElementIndex++) {
-    if (this->revision.elements[nextElementIndex].key == key) {
-      return nextElementIndex;
-    }
-  }
-
-  return UNDEFINED_INDEX;
+  // O(1) via the key->index map maintained in Virtualizer::reconcileElements.
+  auto entry = this->revision.elementIndexByKey.find(key);
+  return entry != this->revision.elementIndexByKey.end() ? entry->second : UNDEFINED_INDEX;
 }
 
 void Container::dispatchObservers() {

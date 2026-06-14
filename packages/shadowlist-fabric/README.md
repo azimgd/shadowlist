@@ -120,22 +120,22 @@ import { SectionList } from 'shadowlist';
     { key: 'A', title: 'A', data: [{ id: '1', name: 'Alice' }] },
     { key: 'B', title: 'B', data: [{ id: '2', name: 'Bob' }] },
   ]}
-  renderItem={({ item }) => <Row item={item} />}
+  renderElement={({ element }) => <Row item={element} />}
   renderSectionHeader={({ section }) => <SectionHeader title={section.title} />}
   ItemSeparatorComponent={<Separator />}
 />;
 ```
 
-| Prop                          | Type                                                | Default   | Notes                                             |
-| ----------------------------- | --------------------------------------------------- | --------- | ------------------------------------------------- |
-| `sections`                    | `Array<{ data: ItemT[]; key?: string } & SectionT>` | required  | Each section's items plus your own fields         |
-| `renderItem`                  | `({ item, index, section }) => ReactElement`        | —         | `index` is the item's position within its section |
-| `renderSectionHeader`         | `({ section }) => ReactElement`                     | —         | Rendered (and pinned) at each section start       |
-| `renderSectionFooter`         | `({ section }) => ReactElement`                     | —         | Rendered at each section end                      |
-| `keyExtractor`                | `(item, index) => string`                           | `item.id` | Per-section override via `section.keyExtractor`   |
-| `stickySectionHeadersEnabled` | `boolean`                                           | `true`    | Pin and swap section headers natively             |
-| `ItemSeparatorComponent`      | `ReactElement \| () => ReactElement \| null`        | —         | Between items within a section                    |
-| `SectionSeparatorComponent`   | `ReactElement \| () => ReactElement \| null`        | —         | Between sections                                  |
+| Prop                          | Type                                                | Default   | Notes                                                |
+| ----------------------------- | --------------------------------------------------- | --------- | ---------------------------------------------------- |
+| `sections`                    | `Array<{ data: ItemT[]; key?: string } & SectionT>` | required  | Each section's items plus your own fields            |
+| `renderElement`               | `({ element, index, section }) => ReactElement`     | —         | `index` is the element's position within its section |
+| `renderSectionHeader`         | `({ section }) => ReactElement`                     | —         | Rendered (and pinned) at each section start          |
+| `renderSectionFooter`         | `({ section }) => ReactElement`                     | —         | Rendered at each section end                         |
+| `keyExtractor`                | `(item, index) => string`                           | `item.id` | Per-section override via `section.keyExtractor`      |
+| `stickySectionHeadersEnabled` | `boolean`                                           | `true`    | Pin and swap section headers natively                |
+| `ItemSeparatorComponent`      | `ReactElement \| () => ReactElement \| null`        | —         | Between items within a section                       |
+| `SectionSeparatorComponent`   | `ReactElement \| () => ReactElement \| null`        | —         | Between sections                                     |
 
 `ListHeaderComponent`, `ListFooterComponent`, `ListEmptyComponent`, `inverted`,
 `containerOffsetIndex`, `keyboardAvoidingEnabled` / `keyboardAvoidingOffset`,
@@ -183,10 +183,10 @@ export function FileTree() {
       keyExtractor={(node) => node.id}
       expandedIds={expanded}
       onExpandedChange={setExpanded}
-      renderNode={({ item, indent, hasChildren, isExpanded, toggle }) => (
+      renderElement={({ element, indent, hasChildren, isExpanded, toggle }) => (
         <Pressable onPress={toggle} style={{ paddingLeft: indent }}>
           <Text>
-            {hasChildren ? (isExpanded ? '▾' : '▸') : '·'} {item.name}
+            {hasChildren ? (isExpanded ? '▾' : '▸') : '·'} {element.name}
           </Text>
         </Pressable>
       )}
@@ -195,16 +195,16 @@ export function FileTree() {
 }
 ```
 
-| Prop                 | Type                                           | Default     | Notes                                                                        |
-| -------------------- | ---------------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
-| `data`               | `ReadonlyArray<T>`                             | required    | Root nodes                                                                   |
-| `getChildren`        | `(item) => readonly T[] \| undefined`          | required    | A node's children, or `undefined` for a leaf                                 |
-| `keyExtractor`       | `(item) => string`                             | required    | Globally unique, stable node id                                              |
-| `renderNode`         | `(info) => ReactElement`                       | required    | `info` carries `item, index, depth, indent, isExpanded, hasChildren, toggle` |
-| `expandedIds`        | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Controlled expansion set; pair with `onExpandedChange`                       |
-| `initialExpandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Uncontrolled initial expansion                                               |
-| `onExpandedChange`   | `(expandedIds: Set<string>) => void`           | `undefined` | Fires with the next set on every toggle                                      |
-| `indentWidth`        | `number`                                       | `16`        | Pixels of leading inset per depth level                                      |
+| Prop                 | Type                                           | Default     | Notes                                                                           |
+| -------------------- | ---------------------------------------------- | ----------- | ------------------------------------------------------------------------------- |
+| `data`               | `ReadonlyArray<T>`                             | required    | Root nodes                                                                      |
+| `getChildren`        | `(item) => readonly T[] \| undefined`          | required    | A node's children, or `undefined` for a leaf                                    |
+| `keyExtractor`       | `(item) => string`                             | required    | Globally unique, stable node id                                                 |
+| `renderElement`      | `(info) => ReactElement`                       | required    | `info` carries `element, index, depth, indent, isExpanded, hasChildren, toggle` |
+| `expandedIds`        | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Controlled expansion set; pair with `onExpandedChange`                          |
+| `initialExpandedIds` | `ReadonlyArray<string> \| ReadonlySet<string>` | `undefined` | Uncontrolled initial expansion                                                  |
+| `onExpandedChange`   | `(expandedIds: Set<string>) => void`           | `undefined` | Fires with the next set on every toggle                                         |
+| `indentWidth`        | `number`                                       | `16`        | Pixels of leading inset per depth level                                         |
 
 `style`, `elementStyle`, `initialElementsSize`, `containerOffsetIndex`,
 `keyboardAvoidingEnabled` / `keyboardAvoidingOffset`, `onScroll`,
