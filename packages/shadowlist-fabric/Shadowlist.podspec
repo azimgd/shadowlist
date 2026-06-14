@@ -27,7 +27,8 @@ Pod::Spec.new do |s|
   s.license      = package["license"]
   s.authors      = package["author"]
 
-  s.platforms    = { :ios => min_ios_version_supported }
+  macos_version  = respond_to?(:min_macos_version_supported, true) ? min_macos_version_supported : "11.0"
+  s.platforms    = { :ios => min_ios_version_supported, :osx => macos_version }
   s.source       = { :git => "https://github.com/azimgd/shadowlist.git", :tag => "#{s.version}" }
 
   s.source_files = [

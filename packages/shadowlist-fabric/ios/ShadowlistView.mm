@@ -31,40 +31,52 @@ static const CGFloat kScrollEchoTolerance = 2.0;
     static const auto defaultProps = std::make_shared<const ShadowlistViewProps>();
     _props = defaultProps;
 
-    _scrollView = [[UIScrollView alloc] init];
+    _scrollView = [[RCTUIScrollView alloc] init];
     _scrollView.delegate = self;
     _scrollView.showsVerticalScrollIndicator = YES;
     _scrollView.showsHorizontalScrollIndicator = YES;
     _scrollView.scrollEnabled = YES;
+#if !TARGET_OS_OSX
     _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     _scrollView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
+#endif
 
-    _contentView = [[UIView alloc] init];
+    _contentView = [[RCTUIView alloc] init];
+#if TARGET_OS_OSX
+    // NSScrollView scrolls its documentView; the RCTUIScrollView shim derives contentOffset
+    // and contentSize from it (UIScrollView instead scrolls plain subviews).
+    _scrollView.documentView = _contentView;
+#else
     [_scrollView addSubview:_contentView];
+#endif
 
     self.contentView = _scrollView;
 
-    // Long press to pick a row up; enabled by the dragEnabled prop.
+#if !TARGET_OS_OSX
+    // Long press to pick a row up; enabled by the dragEnabled prop. Drag-to-reorder is iOS only.
     _dragRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragGesture:)];
     _dragRecognizer.minimumPressDuration = 0.2;
     _dragRecognizer.enabled = NO;
     [_scrollView addGestureRecognizer:_dragRecognizer];
+#endif
   }
 
   return self;
 }
 
-- (void)mountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+- (void)mountChildComponentView:(RCTUIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   if ([childComponentView conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
     [_contentView insertSubview:childComponentView atIndex:index];
     // Re-pin so sticky views stay on top of the newly mounted element.
     [self applyStickyTransforms:NO];
+#if !TARGET_OS_OSX
     // A row mounting mid-drag must stay below the picked-up row and pick up the shuffle offset.
     if (_dragging && _draggedView) {
       [_contentView bringSubviewToFront:_draggedView];
       [self applyDragShuffle];
     }
+#endif
     return;
   }
 
@@ -83,7 +95,7 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   }
 }
 
-- (void)unmountChildComponentView:(UIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
+- (void)unmountChildComponentView:(RCTUIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
   if (childComponentView == _stickyHeaderView) {
     _stickyHeaderView = nil;
@@ -113,23 +125,31 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _snapOffsets.clear();
   _contentInsetBottom = 0.0;
   _scrollView.contentInset = UIEdgeInsetsZero;
+#if TARGET_OS_OSX
+  _scrollView.scrollIndicatorInsets = UIEdgeInsetsZero;
+#else
   _scrollView.verticalScrollIndicatorInsets = UIEdgeInsetsZero;
+#endif
   _refreshing = NO;
   _refreshEnabled = NO;
   _refreshAwaitingSettle = NO;
+#if !TARGET_OS_OSX
   _refreshColor = nil;
   if (_refreshControl) {
     [_refreshControl endRefreshing];
     _scrollView.refreshControl = nil;
     _refreshControl = nil;
   }
+#endif
   _sectionHeaderOverlay = nil;
   _stickyHeaderIndices.clear();
   _stickyHeaderOffsets.clear();
   _stickyHeaderSizes.clear();
-  [self teardownDrag];
   _dragEnabled = NO;
+#if !TARGET_OS_OSX
+  [self teardownDrag];
   _dragRecognizer.enabled = NO;
+#endif
   [super prepareForRecycle];
 }
 
@@ -142,14 +162,19 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _autoHideFooter = nextProps.autoHideFooter;
   _horizontal = nextProps.horizontal;
   _dragEnabled = nextProps.dragEnabled;
-  _dragRecognizer.enabled = _dragEnabled;
   _snapToItem = nextProps.snapToItem;
+#if !TARGET_OS_OSX
+  _dragRecognizer.enabled = _dragEnabled;
+  // decelerationRate (for snap-to-item) and pull-to-refresh have no AppKit equivalent.
   _scrollView.decelerationRate = _snapToItem ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
+#endif
 
   [self applyContentInsetBottom:nextProps.contentInsetBottom];
+#if !TARGET_OS_OSX
   [self applyRefreshState:nextProps.refreshEnabled
                 refreshing:nextProps.refreshing
                      color:RCTUIColorFromSharedColor(nextProps.refreshColor)];
+#endif
 
   [super updateProps:props oldProps:oldProps];
 
@@ -171,6 +196,9 @@ static const CGFloat kScrollEchoTolerance = 2.0;
     return;
   }
 
+#if !TARGET_OS_OSX
+  // Keyboard avoidance only applies on iOS (there is no software keyboard on macOS, so the
+  // inset stays 0 and this method returns above before reaching here).
   UIEdgeInsets contentInset = _scrollView.contentInset;
   contentInset.bottom = inset;
   UIEdgeInsets indicatorInset = _scrollView.verticalScrollIndicatorInsets;
@@ -192,8 +220,13 @@ static const CGFloat kScrollEchoTolerance = 2.0;
     self->_scrollView.contentOffset = CGPointMake(offset.x, followedY);
   }
                    completion:nil];
+#else
+  (void)delta;
+#endif
 }
 
+#if !TARGET_OS_OSX
+// Pull-to-refresh (UIRefreshControl) has no AppKit equivalent and is iOS only.
 // Lazily create the pull-to-refresh control, tinted by the refreshColor prop.
 - (UIRefreshControl *)ensureRefreshControl
 {
@@ -301,6 +334,7 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   if (bounds.origin.y == -offset) return;
   _refreshControl.bounds = CGRectMake(bounds.origin.x, -offset, bounds.size.width, bounds.size.height);
 }
+#endif // !TARGET_OS_OSX
 
 #pragma mark - State
 
@@ -343,6 +377,7 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   // Re-pin after content size/offset changed so a sticky footer stays put.
   [self applyStickyTransforms:NO];
 
+#if !TARGET_OS_OSX
   // Header may have re-measured; push the refresh indicator below it.
   [self applyRefreshProgressOffset];
 
@@ -350,6 +385,7 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   if (_dragging) {
     [self updateDrag];
   }
+#endif
 }
 
 - (void)finalizeUpdates:(RNComponentViewUpdateMask)updateMask
@@ -358,19 +394,21 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   [self applyStickyTransforms:NO];
 }
 
-#pragma mark - UIScrollViewDelegate
+#pragma mark - RCTUIScrollViewDelegate
 
-- (void)scrollViewDidScroll:(UIScrollView *)scrollView
+- (void)scrollViewDidScroll:(RCTUIScrollView *)scrollView
 {
   if (!_state) {
     return;
   }
 
+#if !TARGET_OS_OSX
   // The retract spring bounces the offset around the top, firing this each frame. Push the
   // settle out per frame so it fires only after the spring stops (see scheduleRefreshSettle).
   if (_refreshAwaitingSettle) {
     [self scheduleRefreshSettle];
   }
+#endif
 
   // During refresh or the over-scroll gap above the top, skip the core update (it would
   // churn rows and write the offset back mid-settle); just keep the pins live.
@@ -419,6 +457,9 @@ static const CGFloat kScrollEchoTolerance = 2.0;
   _state->updateState(std::move(nextStateData));
 }
 
+// The macOS RCTUIScrollViewDelegate exposes only scrollViewDidScroll:. The drag-end /
+// deceleration / will-end-dragging callbacks below (and with them snap-to-item) are iOS only.
+#if !TARGET_OS_OSX
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
 {
   if (!decelerate) {
@@ -458,15 +499,16 @@ static const CGFloat kScrollEchoTolerance = 2.0;
     targetContentOffset->y = best;
   }
 }
+#endif // !TARGET_OS_OSX
 
 #pragma mark - Element helpers
 
-- (NSInteger)indexOfElementView:(UIView *)view
+- (NSInteger)indexOfElementView:(RCTUIView *)view
 {
   if (![view conformsToProtocol:@protocol(RCTShadowlistElementViewViewProtocol)]) {
     return NSNotFound;
   }
-  auto props = std::static_pointer_cast<ShadowlistElementViewProps const>(((UIView<RCTComponentViewProtocol> *)view).props);
+  auto props = std::static_pointer_cast<ShadowlistElementViewProps const>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
   if (!props) {
     return NSNotFound;
   }

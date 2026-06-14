@@ -139,17 +139,18 @@
   _sectionHeaderOverlay.transform = _horizontal
     ? CGAffineTransformMakeTranslation(translation, 0.0)
     : CGAffineTransformMakeTranslation(0.0, translation);
-  [_contentView bringSubviewToFront:_sectionHeaderOverlay];
+  // Above the sticky header/footer (z 1) so the active section header stays on top.
+  SLRaiseSubview(_contentView, _sectionHeaderOverlay, 2.0);
 }
 
-/* Keep a pinned header/footer above the scrolling elements. */
+/* Keep a pinned header/footer above the scrolling elements (z 1; elements sit at 0). */
 - (void)bringStickyViewsToFront
 {
   if ((_stickyHeader || _autoHideHeader) && _stickyHeaderView) {
-    [_contentView bringSubviewToFront:_stickyHeaderView];
+    SLRaiseSubview(_contentView, _stickyHeaderView, 1.0);
   }
   if ((_stickyFooter || _autoHideFooter) && _stickyFooterView) {
-    [_contentView bringSubviewToFront:_stickyFooterView];
+    SLRaiseSubview(_contentView, _stickyFooterView, 1.0);
   }
 }
 

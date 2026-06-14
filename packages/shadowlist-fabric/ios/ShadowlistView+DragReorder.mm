@@ -1,3 +1,9 @@
+#include <TargetConditionals.h>
+
+// Drag-to-reorder relies on UILongPressGestureRecognizer, CADisplayLink and UIView spring
+// animations, none of which have a clean AppKit equivalent, so the whole feature is iOS only.
+#if !TARGET_OS_OSX
+
 #import "ShadowlistView.h"
 #import "ShadowlistView+Internal.h"
 
@@ -392,3 +398,5 @@ using namespace facebook::react;
 }
 
 @end
+
+#endif // !TARGET_OS_OSX

@@ -1,5 +1,5 @@
 #import <React/RCTViewComponentView.h>
-#import <UIKit/UIKit.h>
+#import "ShadowlistCompat.h"
 
 #ifndef ShadowlistTemplateViewNativeComponent_h
 #define ShadowlistTemplateViewNativeComponent_h

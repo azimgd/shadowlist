@@ -1,16 +1,20 @@
 #import "ShadowlistKeyboard.h"
 
-#import <UIKit/UIKit.h>
+#import "ShadowlistCompat.h"
 
+// The system keyboard is an iOS concept; there is no software keyboard on macOS, so the
+// keyboard observation below compiles only on iOS and setEnabled: is a no-op on macOS.
 @implementation ShadowlistKeyboard {
   BOOL _enabled;
   CGFloat _current;       // last emitted height (dp)
   CGFloat _targetHeight;  // full keyboard height for the in-flight transition (dp)
+#if !TARGET_OS_OSX
   CADisplayLink *_displayLink;
   CFTimeInterval _animStart;
   CFTimeInterval _animDuration;
   CGFloat _animFrom;
   CGFloat _animTo;
+#endif
 }
 
 RCT_EXPORT_MODULE()
@@ -28,6 +32,7 @@ RCT_EXPORT_MODULE()
 
 #pragma mark - Spec
 
+#if !TARGET_OS_OSX
 - (void)setEnabled:(BOOL)enabled
 {
   if (enabled == _enabled) {
@@ -57,7 +62,15 @@ RCT_EXPORT_MODULE()
   [_displayLink invalidate];
   _displayLink = nil;
 }
+#else
+- (void)setEnabled:(BOOL)enabled
+{
+  // No software keyboard on macOS; nothing to observe.
+  _enabled = enabled;
+}
+#endif // !TARGET_OS_OSX
 
+#if !TARGET_OS_OSX
 #pragma mark - Keyboard notifications
 
 - (void)keyboardWillChangeFrame:(NSNotification *)notification
@@ -138,5 +151,6 @@ RCT_EXPORT_MODULE()
   CGFloat progress = _targetHeight > 0 ? MIN(1.0, MAX(0.0, height / _targetHeight)) : 0.0;
   [self emitOnKeyboardMove:@{ @"height" : @(height), @"progress" : @(progress) }];
 }
+#endif // !TARGET_OS_OSX
 
 @end

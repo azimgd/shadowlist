@@ -5,25 +5,48 @@
 
 #include <vector>
 
-/* Shared ivars and cross-category methods for ShadowlistView. Obj-C++ only. */
-@interface ShadowlistView () <RCTShadowlistViewViewProtocol, UIScrollViewDelegate> {
+/* Raise a subview above its siblings. UIKit reorders the subview array via
+ * bringSubviewToFront:; AppKit has no equivalent, so on macOS the (layer-backed) view's
+ * z-position is used instead. Larger zPosition wins; default subviews sit at 0. */
+static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat zPosition)
+{
+#if TARGET_OS_OSX
+  child.layer.zPosition = zPosition;
+#else
+  (void)zPosition;
+  [parent bringSubviewToFront:child];
+#endif
+}
+
+/* Shared ivars and cross-category methods for ShadowlistView. Obj-C++ only.
+ *
+ * Cross-platform via react-native-macos's RCTUIKit shims (RCTUIView / RCTUIScrollView /
+ * RCTUIColor). Features without a clean AppKit equivalent — pull-to-refresh
+ * (UIRefreshControl), drag-to-reorder (UILongPressGestureRecognizer + CADisplayLink) and
+ * snap-to-item (which needs scroll-end delegate callbacks the macOS shim does not expose) —
+ * are compiled out on macOS; their scalar state is kept on both platforms so the shared hot
+ * paths need no inline guards. */
+@interface ShadowlistView () <RCTShadowlistViewViewProtocol, RCTUIScrollViewDelegate> {
 @package
   facebook::react::ShadowlistViewShadowNode::ConcreteState::Shared _state;
-  UIScrollView * _scrollView;
-  UIView * _contentView;
+  RCTUIScrollView * _scrollView;
+  RCTUIView * _contentView;
 
   /* Keyboard-avoidance bottom inset (px); held to diff against the next value. */
   CGFloat _contentInsetBottom;
 
-  /* Pull-to-refresh: control, whether it is installed, the controlled state, the tint. */
-  UIRefreshControl * _refreshControl;
+  /* Pull-to-refresh: the controlled state and tint kept on both platforms; the control
+   * itself is iOS-only (no AppKit equivalent). */
   BOOL _refreshEnabled;
   BOOL _refreshing;
-  UIColor * _refreshColor;
   /* Set when refreshing ends; cleared once the retract spring quiesces, when onRefreshSettle
    * fires. The token invalidates superseded settle debounces. */
   BOOL _refreshAwaitingSettle;
   NSInteger _refreshSettleToken;
+#if !TARGET_OS_OSX
+  UIRefreshControl * _refreshControl;
+  UIColor * _refreshColor;
+#endif
 
   /* Sticky header/footer pinned to the viewport each scroll frame. */
   BOOL _stickyHeader;
@@ -39,25 +62,30 @@
   CGFloat _headerHidden;
   CGFloat _footerHidden;
   CGFloat _lastAutoHideOffset;
-  __weak UIView * _stickyHeaderView;
-  __weak UIView * _stickyFooterView;
+  __weak RCTUIView * _stickyHeaderView;
+  __weak RCTUIView * _stickyFooterView;
 
   /* Active section-header overlay and the in-flow section-header geometry it pins to. */
   std::vector<int> _stickyHeaderIndices;
   std::vector<double> _stickyHeaderOffsets;
   std::vector<double> _stickyHeaderSizes;
-  __weak UIView * _sectionHeaderOverlay;
+  __weak RCTUIView * _sectionHeaderOverlay;
 
   /* The last offset we applied, to distinguish echoed scrolls from user scrolls. */
   CGPoint _appliedOffset;
   BOOL _hasAppliedOffset;
 
-  /* Drag-to-reorder: whether it is enabled, the gesture, the per-frame driver, the
-   * picked-up view, and whether a drag is in progress. */
+  /* Drag-to-reorder (iOS only): the gesture, per-frame driver, picked-up/dropped views and
+   * settle poller are UIKit-specific; the scalar drag state below is shared so the mount and
+   * state hot paths compile unchanged on macOS (where a drag never begins). */
   BOOL _dragEnabled;
+#if !TARGET_OS_OSX
   UILongPressGestureRecognizer * _dragRecognizer;
   CADisplayLink * _dragDisplayLink;
   __weak UIView * _draggedView;
+  __weak UIView * _droppedView;
+  CADisplayLink * _dropSettleLink;
+#endif
   BOOL _dragging;
   /* Where the row was picked up and where its centre currently sits; the siblings
    * between them are shuffled to open a gap. */
@@ -71,24 +99,22 @@
   CGPoint _dragTouchInViewport;
   /* After a drop, hold the shuffle until the reorder commit lands, then clear it. */
   BOOL _dragDropPending;
-  __weak UIView * _droppedView;
   NSInteger _dropInsertionIndex;
   /* Content-space leading of the dragged row at release, so it animates into its
    * resting slot rather than snapping. */
   CGFloat _dragLeading;
   CGFloat _dropReleaseLeading;
-  /* Polls for the reorder commit landing so the drop settle always fires. */
-  CADisplayLink * _dropSettleLink;
   /* Invalidates a superseded drop safety-net timer so a stale drop can't tear down a newer one. */
   NSInteger _dropSettleToken;
 }
 
 /* Index from an element view's props, or NSNotFound for a non-element view. */
-- (NSInteger)indexOfElementView:(UIView *)view;
+- (NSInteger)indexOfElementView:(RCTUIView *)view;
 
 /* Re-pin sticky/auto-hide views; accumulate is YES only on genuine user scrolls. */
 - (void)applyStickyTransforms:(BOOL)accumulate;
 
+#if !TARGET_OS_OSX
 /* Drag-to-reorder, driven from mount/state/recycle. */
 - (void)handleDragGesture:(UILongPressGestureRecognizer *)gesture;
 - (void)updateDrag;
@@ -97,5 +123,6 @@
 - (void)teardownDrag;
 /* Animate the just-dropped row from its release point into its resting slot. */
 - (void)settleDroppedView:(UIView *)view;
+#endif
 
 @end
