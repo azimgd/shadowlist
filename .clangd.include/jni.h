@@ -1,0 +1,1 @@
+/Users/azimgd/Library/Android/sdk/ndk/27.1.12297006/toolchains/llvm/prebuilt/darwin-x86_64/sysroot/usr/include/jni.h

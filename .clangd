@@ -1,0 +1,12 @@
+CompileFlags:
+  CompilationDatabase: packages/shadowlist-fabric-example/android/app/.cxx/tools/debug/arm64-v8a
+  Add:
+    - -isystem/Users/azimgd/codes/shadowlist/.clangd.include
+  Remove:
+    - --target=*
+    - --sysroot=*
+    - --gcc-toolchain=*
+    - -m*
+
+Index:
+  Background: Build
