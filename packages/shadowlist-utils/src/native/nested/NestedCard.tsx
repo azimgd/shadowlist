@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import type { NestedCard as NestedCardData } from 'shadowlist-utils';
-import { colors, typography, radius } from '../theme';
+import { colors, typography, radius, spacing } from '../theme';
 
 export interface NestedCardProps {
   element: NestedCardData;
@@ -27,7 +27,7 @@ export const NestedCard = memo(({ element }: NestedCardProps) => {
 const styles = StyleSheet.create({
   nestedElement: {
     width: 180,
-    marginLeft: 16,
+    marginLeft: spacing.lg,
   },
   imageContainer: {
     width: 180,
@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     overflow: 'hidden',
     backgroundColor: colors.elevated2,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   image: {
     width: '100%',

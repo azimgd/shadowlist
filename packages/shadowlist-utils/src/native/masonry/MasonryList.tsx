@@ -1,20 +1,20 @@
 import { forwardRef } from 'react';
 import {
-  Shadowlist,
-  type ShadowlistProps,
-  type ShadowlistCommands,
+  ShadowList,
+  type ShadowListProps,
+  type ShadowListCommands,
 } from 'shadowlist';
 import type { MasonryItem } from 'shadowlist-utils';
 import { MasonryCard } from './MasonryCard';
 
 export type MasonryListProps = Omit<
-  ShadowlistProps<MasonryItem>,
+  ShadowListProps<MasonryItem>,
   'renderElement'
 > & {
-  renderElement?: ShadowlistProps<MasonryItem>['renderElement'];
+  renderElement?: ShadowListProps<MasonryItem>['renderElement'];
 };
 
-const renderMasonryCard: ShadowlistProps<MasonryItem>['renderElement'] = ({
+const renderMasonryCard: ShadowListProps<MasonryItem>['renderElement'] = ({
   element,
 }) => <MasonryCard element={element} />;
 
@@ -22,9 +22,9 @@ const renderMasonryCard: ShadowlistProps<MasonryItem>['renderElement'] = ({
  * A multi-column grid of variable-height image cards. Defaults to 3 columns;
  * override with the `columns` prop.
  */
-export const MasonryList = forwardRef<ShadowlistCommands, MasonryListProps>(
+export const MasonryList = forwardRef<ShadowListCommands, MasonryListProps>(
   ({ renderElement, ...props }, ref) => (
-    <Shadowlist
+    <ShadowList
       ref={ref}
       columns={3}
       renderElement={renderElement ?? renderMasonryCard}

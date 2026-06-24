@@ -15,8 +15,7 @@ const compat = new FlatCompat({
 });
 
 // Single repo-wide flat config: React Native preset + Prettier, applied across
-// every workspace. typescript-eslint disables core no-undef for TS, so the same
-// preset works for the DOM (web/wasm) packages without browser-globals wiring.
+// every workspace.
 export default defineConfig([
   {
     extends: fixupConfigRules(compat.extends('@react-native', 'prettier')),
@@ -27,16 +26,6 @@ export default defineConfig([
     },
   },
   {
-    files: [
-      'packages/shadowlist-wasm/**/*.{ts,tsx}',
-      'packages/shadowlist-wasm-example/**/*.{ts,tsx}',
-      'packages/shadowlist-utils/src/web/**/*.{ts,tsx}',
-    ],
-    rules: {
-      'react-native/no-inline-styles': 'off',
-    },
-  },
-  {
     ignores: [
       '**/node_modules/',
       '**/lib/',
@@ -44,9 +33,6 @@ export default defineConfig([
       '**/build/',
       '**/.yarn/',
       '**/coverage/',
-      // Generated (emscripten) WASM glue + binaries.
-      'packages/shadowlist-wasm/src/wasm/',
-      '**/*.wasm',
       // Native example build artifacts.
       'packages/shadowlist-fabric-example/android/',
       'packages/shadowlist-fabric-example/ios/',
@@ -59,7 +45,6 @@ export default defineConfig([
       'eslint.config.mjs',
       'packages/shadowlist-fabric-example/index.js',
       'packages/shadowlist-fabric/scripts/',
-      'packages/shadowlist-wasm/scripts/',
     ],
   },
 ]);

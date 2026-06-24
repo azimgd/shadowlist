@@ -1,31 +1,25 @@
-# Shadowlist
+# ShadowList
 
-Shadowlist is a monorepo for the shared list virtualization engine and its platform integrations.
+ShadowList is a monorepo with one shared list-virtualization engine and the React Native package that uses it.
 
 ## Packages
 
 - `shadowlist-core`
   Shared C++ virtualization engine used by every integration.
-  [`packages/shadowlist-core/README.md`](packages/shadowlist-core/README.md)
 
 - `shadowlist`
   React Native Fabric list component.
-  [`packages/shadowlist-fabric/README.md`](packages/shadowlist-fabric/README.md)
-
-- `shadowlist-wasm`
-  React web list component and low-level WASM bindings.
-  [`packages/shadowlist-wasm/README.md`](packages/shadowlist-wasm/README.md)
 
 ## Repo Layout
 
 ```text
-packages/shadowlist-core         Shared C++ core
-packages/shadowlist-core-tests   Core integration tests and perf tests
-packages/shadowlist-fabric       React Native Fabric package + example app
-packages/shadowlist-wasm         React web / WASM package + example app
+packages/shadowlist-core            Shared C++ core
+packages/shadowlist-core-tests      Core integration and perf tests
+packages/shadowlist-fabric          React Native (Fabric) package
+packages/shadowlist-fabric-example  React Native example app
+packages/shadowlist-utils           Shared demo components used by the example app
 ```
 
 ## Examples
 
-- React Native example screens live in `packages/shadowlist-fabric/example/src`
-- React web example screens live in `packages/shadowlist-wasm/example/src`
+- React Native example screens live in `packages/shadowlist-fabric-example/src`

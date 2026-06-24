@@ -4,7 +4,7 @@ import { View } from 'react-native';
 import { colors } from './theme';
 
 /*
- * LightstrokeWidth SF-Symbol-style icons drawn purely from <View> primitives — no
+ * Light-stroke, SF-Symbol-style icons drawn purely from <View> primitives: no
  * emoji, no font dependency, no SVG. Every glyph is crisp at any size and tints
  * via the `color` prop so it inherits the app accent.
  */
@@ -72,7 +72,7 @@ export const Chevron = ({
   );
 };
 
-// Viewfinder / locate target — replaces the 🎯 "scroll to random" affordance.
+// Viewfinder / locate target, used for the "scroll to random" affordance.
 export const Viewfinder = ({
   size = 22,
   color = colors.label,

@@ -1,40 +1,41 @@
 import { forwardRef } from 'react';
 import {
-  Shadowlist,
-  type ShadowlistProps,
-  type ShadowlistCommands,
+  ShadowList,
+  type ShadowListProps,
+  type ShadowListCommands,
 } from 'shadowlist';
 import { ChatBubble, type ChatMessage } from './ChatBubble';
 
 export type ChatListProps = Omit<
-  ShadowlistProps<ChatMessage>,
+  ShadowListProps<ChatMessage>,
   'renderElement'
 > & {
-  renderElement?: ShadowlistProps<ChatMessage>['renderElement'];
+  renderElement?: ShadowListProps<ChatMessage>['renderElement'];
 };
 
-const renderChatBubble: ShadowlistProps<ChatMessage>['renderElement'] = ({
+const renderChatBubble: ShadowListProps<ChatMessage>['renderElement'] = ({
   element,
-  index,
 }) => (
   <ChatBubble
-    index={index}
     text={element.text}
     isFromMe={element.isFromMe}
     imageUrl={element.imageUrl}
     imageUrls={element.imageUrls}
+    username={element.username}
+    avatarColor={element.avatarColor}
+    initials={element.initials}
   />
 );
 
 /*
  * An inverted message list (newest at the bottom). Renders iMessage-style
  * bubbles from `data`; pair with <Chat.Input /> for a full composer. Wrap in
- * the library's KeyboardDismissView + your own keyboard-avoidance for the full
+ * the library's KeyboardView + your own keyboard-avoidance for the full
  * chat experience.
  */
-export const ChatList = forwardRef<ShadowlistCommands, ChatListProps>(
+export const ChatList = forwardRef<ShadowListCommands, ChatListProps>(
   ({ renderElement, ...props }, ref) => (
-    <Shadowlist
+    <ShadowList
       ref={ref}
       inverted
       renderElement={renderElement ?? renderChatBubble}

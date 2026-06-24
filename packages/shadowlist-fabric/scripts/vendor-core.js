@@ -1,6 +1,6 @@
 /*
  * Mirror the canonical shared core (packages/shadowlist-core) into this package
- * so the published npm tarball is self-contained - the package.json `files`
+ * so the published npm tarball is self-contained: the package.json `files`
  * field ships `shadowlist-core/`, and a consumer's pod install / gradle build
  * compiles it from inside node_modules/shadowlist where `../shadowlist-core` is
  * not reachable.
@@ -11,7 +11,7 @@
  * so it is always an exact mirror: a per-file copy would leave behind sources
  * that were since removed from the canonical core.
  *
- * The vendored copy is gitignored - it is a generated artifact, not source.
+ * The vendored copy is gitignored; it is a generated artifact, not source.
  */
 const fs = require('fs');
 const path = require('path');

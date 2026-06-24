@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import {
-  TreeList as ShadowlistTreeList,
+  TreeList as ShadowListTreeList,
   type TreeListProps,
   type TreeListCommands,
 } from 'shadowlist';
@@ -41,12 +41,12 @@ const defaultRenderElement: TreeListProps<TreeFileNode>['renderElement'] = ({
 
 /*
  * A virtualized, expandable directory tree over `TreeFileNode` data. Defaults
- * wire `getChildren`/`keyExtractor`/`renderElement` for the file-tree shape; drive
+ * connect `getChildren`/`keyExtractor`/`renderElement` for the file-tree shape; drive
  * expansion with `expandedIds` + `onExpandedChange` (or `initialExpandedIds`).
  */
 export const TreeList = forwardRef<TreeListCommands, TreeListProps_>(
   ({ getChildren, keyExtractor, renderElement, ...props }, ref) => (
-    <ShadowlistTreeList<TreeFileNode>
+    <ShadowListTreeList<TreeFileNode>
       ref={ref}
       getChildren={getChildren ?? defaultGetChildren}
       keyExtractor={keyExtractor ?? defaultKeyExtractor}

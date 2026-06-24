@@ -1,18 +1,18 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Shadowlist, type ShadowlistProps } from 'shadowlist';
+import { ShadowList, type ShadowListProps } from 'shadowlist';
 import type {
   NestedItem,
   NestedCard as NestedCardData,
 } from 'shadowlist-utils';
 import { NestedCard } from './NestedCard';
-import { colors, typography } from '../theme';
+import { colors, typography, spacing } from '../theme';
 
 export interface NestedRowProps {
   element: NestedItem;
 }
 
-const renderNestedCard: ShadowlistProps<NestedCardData>['renderElement'] = ({
+const renderNestedCard: ShadowListProps<NestedCardData>['renderElement'] = ({
   element,
 }) => <NestedCard element={element} />;
 
@@ -21,7 +21,7 @@ export const NestedRow = memo(({ element }: NestedRowProps) => {
   return (
     <View style={styles.container}>
       <Text style={styles.sectionTitle}>{element.title}</Text>
-      <Shadowlist
+      <ShadowList
         data={element.elements}
         horizontal
         style={styles.horizontalList}
@@ -33,14 +33,14 @@ export const NestedRow = memo(({ element }: NestedRowProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: spacing.lg,
     height: 300,
   },
   sectionTitle: {
     color: colors.label,
     ...typography.title3,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.md,
   },
   horizontalList: {
     backgroundColor: colors.background,

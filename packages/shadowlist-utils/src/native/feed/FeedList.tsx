@@ -1,33 +1,32 @@
 import { forwardRef } from 'react';
 import {
-  Shadowlist,
-  type ShadowlistProps,
-  type ShadowlistCommands,
+  ShadowList,
+  type ShadowListProps,
+  type ShadowListCommands,
 } from 'shadowlist';
 import type { FeedItem } from 'shadowlist-utils';
 import { FeedElement } from './FeedElement';
 
-// `data` + Shadowlist props, with `renderElement` made optional (defaults to
-// the Feed row). Pass any Shadowlist prop to override a baked-in default.
-export type FeedListProps = Omit<ShadowlistProps<FeedItem>, 'renderElement'> & {
-  renderElement?: ShadowlistProps<FeedItem>['renderElement'];
+// `data` + ShadowList props, with `renderElement` made optional (defaults to
+// the Feed row). Pass any ShadowList prop to override a baked-in default.
+export type FeedListProps = Omit<ShadowListProps<FeedItem>, 'renderElement'> & {
+  renderElement?: ShadowListProps<FeedItem>['renderElement'];
 };
 
 // Module-level so the default keeps a stable identity across renders (lets
-// Shadowlist skip re-rendering unchanged rows).
-const renderFeedElement: ShadowlistProps<FeedItem>['renderElement'] = ({
+// ShadowList skip re-rendering unchanged rows).
+const renderFeedElement: ShadowListProps<FeedItem>['renderElement'] = ({
   element,
-  index,
-}) => <FeedElement element={element} index={index} />;
+}) => <FeedElement element={element} />;
 
 /*
  * A vertical feed list: themed avatar/text/image rows, auto-hiding header.
  * Drop in `data` to get a working feed; override `renderElement` or any other
- * Shadowlist prop to customize.
+ * ShadowList prop to customize.
  */
-export const FeedList = forwardRef<ShadowlistCommands, FeedListProps>(
+export const FeedList = forwardRef<ShadowListCommands, FeedListProps>(
   ({ renderElement, ...props }, ref) => (
-    <Shadowlist
+    <ShadowList
       ref={ref}
       autoHideHeader
       renderElement={renderElement ?? renderFeedElement}

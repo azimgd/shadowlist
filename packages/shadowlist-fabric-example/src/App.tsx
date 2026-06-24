@@ -14,6 +14,7 @@ import { ReorderScreen } from './ReorderScreen';
 import { TreeScreen } from './TreeScreen';
 import { PollScreen } from './PollScreen';
 import { SnapScreen } from './SnapScreen';
+import { PersistentKeysScreen } from './PersistentKeysScreen';
 import { colors, typography } from 'shadowlist-utils/native';
 
 enableScreens();
@@ -108,6 +109,11 @@ export default function App() {
             name="Snap"
             component={SnapScreen}
             options={{ title: 'Snap' }}
+          />
+          <Drawer.Screen
+            name="PersistentKeys"
+            component={PersistentKeysScreen}
+            options={{ title: 'Persistent Keys' }}
           />
         </Drawer.Navigator>
       </NavigationContainer>

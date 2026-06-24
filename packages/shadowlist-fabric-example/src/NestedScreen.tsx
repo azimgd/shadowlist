@@ -1,42 +1,44 @@
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { type ShadowlistCommands } from 'shadowlist';
+import { type ShadowListCommands } from 'shadowlist';
 import {
   Nested,
   ListHeader,
   ListFooter,
   colors,
 } from 'shadowlist-utils/native';
-import { generateNestedElement, type NestedItem } from 'shadowlist-utils';
+import {
+  generateNestedElement,
+  useListController,
+  type NestedItem,
+} from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
 export const NestedScreen = () => {
-  const shadowlistRef = useRef<ShadowlistCommands>(null);
-  const [data, setData] = useState<NestedItem[]>(() =>
-    Array.from({ length: 20 }, (_, index) => generateNestedElement(index))
+  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const initialData = useMemo(
+    () =>
+      Array.from({ length: 20 }, (_, index) => generateNestedElement(index)),
+    []
   );
+  const list = useListController<NestedItem>({ initialData });
 
-  const handlePrepend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 5 }, (_, index) =>
-      generateNestedElement(currentLength + index)
+  const handlePrepend = () =>
+    list.prepend(
+      Array.from({ length: 5 }, (_, index) =>
+        generateNestedElement(list.data.length + index)
+      )
     );
-    setData((prev) => [...newElements, ...prev]);
-  };
-
-  const handleAppend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 5 }, (_, index) =>
-      generateNestedElement(currentLength + index)
+  const handleAppend = () =>
+    list.append(
+      Array.from({ length: 5 }, (_, index) =>
+        generateNestedElement(list.data.length + index)
+      )
     );
-    setData((prev) => [...prev, ...newElements]);
-  };
-
-  const handleScrollToRandom = () => {
+  const handleScrollToRandom = () =>
     shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * data.length)
+      Math.floor(Math.random() * list.data.length)
     );
-  };
 
   useHeaderActions({
     onPrepend: handlePrepend,
@@ -52,7 +54,7 @@ export const NestedScreen = () => {
   return (
     <View style={styles.container}>
       <Nested.List
-        data={data}
+        data={list.data}
         ref={shadowlistRef}
         style={styles.list}
         renderElement={renderElement}

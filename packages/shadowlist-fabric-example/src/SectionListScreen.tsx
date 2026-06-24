@@ -1,13 +1,17 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { type ShadowlistCommands, type SectionListData } from 'shadowlist';
+import { type ShadowListCommands, type SectionListData } from 'shadowlist';
 import {
   SectionList,
   ListHeader,
   ListFooter,
   colors,
 } from 'shadowlist-utils/native';
-import { generateContact, type ContactItem } from 'shadowlist-utils';
+import {
+  generateContact,
+  useListController,
+  type ContactItem,
+} from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
 type ContactSection = SectionListData<ContactItem, { title: string }>;
@@ -40,34 +44,32 @@ const buildSections = (contacts: ContactItem[]): ContactSection[] => {
 };
 
 export const SectionListScreen = () => {
-  const sectionListRef = useRef<ShadowlistCommands>(null);
-  const [contacts, setContacts] = useState<ContactItem[]>(() =>
-    Array.from({ length: 300 }, (_, index) => generateContact(index))
+  const sectionListRef = useRef<ShadowListCommands>(null);
+  const initialData = useMemo(
+    () => Array.from({ length: 300 }, (_, index) => generateContact(index)),
+    []
   );
+  const list = useListController<ContactItem>({ initialData });
+  const { removeItems } = list;
 
-  const sections = useMemo(() => buildSections(contacts), [contacts]);
+  const sections = useMemo(() => buildSections(list.data), [list.data]);
 
-  const handlePrepend = () => {
-    const currentLength = contacts.length;
-    const newContacts = Array.from({ length: 10 }, (_, index) =>
-      generateContact(currentLength + index)
+  const handlePrepend = () =>
+    list.prepend(
+      Array.from({ length: 10 }, (_, index) =>
+        generateContact(list.data.length + index)
+      )
     );
-    setContacts((prev) => [...newContacts, ...prev]);
-  };
-
-  const handleAppend = () => {
-    const currentLength = contacts.length;
-    const newContacts = Array.from({ length: 10 }, (_, index) =>
-      generateContact(currentLength + index)
+  const handleAppend = () =>
+    list.append(
+      Array.from({ length: 10 }, (_, index) =>
+        generateContact(list.data.length + index)
+      )
     );
-    setContacts((prev) => [...prev, ...newContacts]);
-  };
-
-  const handleScrollToRandom = () => {
+  const handleScrollToRandom = () =>
     sectionListRef.current?.scrollToIndex(
-      Math.floor(Math.random() * contacts.length)
+      Math.floor(Math.random() * list.data.length)
     );
-  };
 
   useHeaderActions({
     onPrepend: handlePrepend,
@@ -75,17 +77,14 @@ export const SectionListScreen = () => {
     onScrollToRandom: handleScrollToRandom,
   });
 
-  const handleDelete = useCallback((id: string) => {
-    setContacts((prev) => prev.filter((contact) => contact.id !== id));
-  }, []);
+  const handleDelete = useCallback(
+    (key: string) => removeItems([key]),
+    [removeItems]
+  );
 
   const renderElement = useCallback(
-    ({ element, index }: { element: ContactItem; index: number }) => (
-      <SectionList.Row
-        element={element}
-        index={index}
-        onDelete={handleDelete}
-      />
+    ({ element }: { element: ContactItem }) => (
+      <SectionList.Row element={element} onDelete={handleDelete} />
     ),
     [handleDelete]
   );
@@ -112,7 +111,7 @@ export const SectionListScreen = () => {
           <ListHeader title="Contacts" subtitle="Grouped, sticky sections" />
         }
         ListFooterComponent={
-          <ListFooter text={`${contacts.length} contacts`} />
+          <ListFooter text={`${list.data.length} contacts`} />
         }
       />
     </View>

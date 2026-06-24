@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { type ShadowlistCommands } from 'shadowlist';
+import { type ShadowListCommands } from 'shadowlist';
 import {
   Feed,
   ListHeader,
@@ -8,36 +8,54 @@ import {
   Spinner,
   colors,
 } from 'shadowlist-utils/native';
-import { generateFeedElement, type FeedItem } from 'shadowlist-utils';
+import {
+  generateFeedElement,
+  useListController,
+  type FeedItem,
+} from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
-export const FeedScreen = () => {
-  const shadowlistRef = useRef<ShadowlistCommands>(null);
-  const [data, setData] = useState<FeedItem[]>(() =>
-    Array.from({ length: 1000 }, (_, index) => generateFeedElement(index))
+const REFRESH_BATCH = 10;
+const PAGE_SIZE = 20;
+
+const batch = (count: number, offset: number): FeedItem[] =>
+  Array.from({ length: count }, (_, index) =>
+    generateFeedElement(offset + index)
   );
 
-  const handlePrepend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      generateFeedElement(currentLength + index)
-    );
-    setData((prev) => [...newElements, ...prev]);
-  };
+export const FeedScreen = () => {
+  const shadowlistRef = useRef<ShadowListCommands>(null);
 
-  const handleAppend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      generateFeedElement(currentLength + index)
-    );
-    setData((prev) => [...prev, ...newElements]);
-  };
+  const initialData = useMemo(() => batch(1000, 0), []);
 
-  const handleScrollToRandom = () => {
+  // useListController owns the data plus the refreshing / loadingMore flags; each
+  // `handle*` flips its flag while the async work runs and won't double-fire.
+  const list = useListController<FeedItem>({
+    initialData,
+    // Pull-to-refresh: prepend a fresh batch after a short delay.
+    onRefresh: () =>
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          list.prepend(batch(REFRESH_BATCH, 0));
+          resolve();
+        }, 1200)
+      ),
+    // Infinite scroll: append the next page when the end is reached.
+    onEndReached: () =>
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          list.append(batch(PAGE_SIZE, list.data.length));
+          resolve();
+        }, 1000)
+      ),
+  });
+
+  const handlePrepend = () => list.prepend(batch(10, list.data.length));
+  const handleAppend = () => list.append(batch(10, list.data.length));
+  const handleScrollToRandom = () =>
     shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * data.length)
+      Math.floor(Math.random() * list.data.length)
     );
-  };
 
   useHeaderActions({
     onPrepend: handlePrepend,
@@ -45,63 +63,26 @@ export const FeedScreen = () => {
     onScrollToRandom: handleScrollToRandom,
   });
 
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Pull-to-refresh: prepend a fresh batch, then stop refreshing.
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setData((prev) => [
-        ...Array.from({ length: 10 }, (_, index) => generateFeedElement(index)),
-        ...prev,
-      ]);
-      setRefreshing(false);
-    }, 1200);
-  }, []);
-
-  // Infinite scroll: append the next page on end reached.
-  // loadingRef guards against re-firing while a load is in flight.
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadingRef = useRef(false);
-
-  const handleEndReached = useCallback(() => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    setLoadingMore(true);
-    setTimeout(() => {
-      setData((prev) => [
-        ...prev,
-        ...Array.from({ length: 20 }, (_, index) =>
-          generateFeedElement(prev.length + index)
-        ),
-      ]);
-      setLoadingMore(false);
-      loadingRef.current = false;
-    }, 1000);
-  }, []);
-
   const footer = useMemo(
-    () => (loadingMore ? <Spinner /> : <ListFooter text="End of feed" />),
-    [loadingMore]
+    () => (list.loadingMore ? <Spinner /> : <ListFooter text="End of feed" />),
+    [list.loadingMore]
   );
 
   const renderElement = useCallback(
-    ({ element, index }: { element: FeedItem; index: number }) => (
-      <Feed.Element element={element} index={index} />
-    ),
+    ({ element }: { element: FeedItem }) => <Feed.Element element={element} />,
     []
   );
 
   return (
     <View style={styles.container}>
       <Feed.List
-        data={data}
+        data={list.data}
         ref={shadowlistRef}
         style={styles.list}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
+        refreshing={list.refreshing}
+        onRefresh={list.handleRefresh}
         refreshColor={colors.secondaryLabel}
-        onEndReached={handleEndReached}
+        onEndReached={list.handleEndReached}
         renderElement={renderElement}
         ListHeaderComponent={
           <ListHeader title="Feed" subtitle="Vertical scrolling list" />

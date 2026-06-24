@@ -1,58 +1,45 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import { AVATAR_COLORS } from 'shadowlist-utils';
-import { colors, typography, radius } from '../theme';
+import {
+  colors,
+  typography,
+  radius,
+  spacing,
+  fontSize,
+  fontWeight,
+} from '../theme';
 
-// One message in a Chat list. `id` is used as the list key; bubbles render from
-// the remaining fields.
 export interface ChatMessage {
   id: string;
   text: string;
   isFromMe: boolean;
   imageUrl?: string;
   imageUrls?: string[];
+  username?: string;
+  avatarColor?: string;
+  initials?: string;
 }
 
 export interface ChatBubbleProps {
-  index?: number;
   text?: string;
   isFromMe?: boolean;
   imageUrl?: string;
   imageUrls?: string[];
+  username?: string;
+  avatarColor?: string;
+  initials?: string;
 }
 
 export const ChatBubble = memo(
   ({
-    index = 0,
     text = '',
     isFromMe = false,
     imageUrl,
     imageUrls,
+    username = '',
+    avatarColor,
+    initials = '',
   }: ChatBubbleProps) => {
-    const avatarColor = useMemo(() => {
-      return AVATAR_COLORS[index % AVATAR_COLORS.length];
-    }, [index]);
-
-    const initials = useMemo(() => {
-      const firstLetter = String.fromCharCode(65 + (index % 26));
-      const secondLetter = String.fromCharCode(65 + ((index * 3) % 26));
-      return `${firstLetter}${secondLetter}`;
-    }, [index]);
-
-    const username = useMemo(() => {
-      const names = [
-        'Alice',
-        'Bob',
-        'Charlie',
-        'Diana',
-        'Eve',
-        'Frank',
-        'Grace',
-        'Henry',
-      ];
-      return names[index % names.length];
-    }, [index]);
-
     const hasImageGrid = imageUrls && imageUrls.length > 0;
     const hasSingleImage = imageUrl && !text;
 
@@ -161,8 +148,8 @@ export const ChatBubble = memo(
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 12,
-    paddingVertical: 2,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xxs,
     flexDirection: 'row',
     alignItems: 'flex-end',
   },
@@ -176,15 +163,15 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 15,
-    marginRight: 8,
-    marginBottom: 2,
+    marginRight: spacing.sm,
+    marginBottom: spacing.xxs,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
     color: colors.label,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.semibold,
   },
   bubbleColumn: {
     maxWidth: '75%',
@@ -192,12 +179,12 @@ const styles = StyleSheet.create({
   sender: {
     color: colors.secondaryLabel,
     ...typography.caption,
-    marginLeft: 12,
-    marginBottom: 2,
+    marginLeft: spacing.md,
+    marginBottom: spacing.xxs,
   },
   bubble: {
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
     borderRadius: radius.lg + 2,
   },
   bubbleFromMe: {
@@ -220,7 +207,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     backgroundColor: colors.elevated2,
-    marginVertical: 2,
+    marginVertical: spacing.xxs,
   },
   singleImage: {
     width: '100%',
@@ -229,12 +216,12 @@ const styles = StyleSheet.create({
   },
   imageGridContainer: {
     width: 240,
-    marginVertical: 2,
+    marginVertical: spacing.xxs,
   },
   imageGridRow: {
     flexDirection: 'row',
-    gap: 2,
-    marginBottom: 2,
+    gap: spacing.xxs,
+    marginBottom: spacing.xxs,
   },
   imageGridElement: {
     width: 119,

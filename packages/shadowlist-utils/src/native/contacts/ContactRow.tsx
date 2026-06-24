@@ -6,117 +6,120 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import { AVATAR_COLORS, type ContactItem } from 'shadowlist-utils';
-import { colors, typography, ROW_INSET } from '../theme';
+import { type ContactItem } from 'shadowlist-utils';
+import {
+  colors,
+  typography,
+  ROW_INSET,
+  spacing,
+  radius,
+  fontSize,
+  fontWeight,
+} from '../theme';
 import { Chevron } from '../icons';
 
 export interface ContactRowProps {
   element: ContactItem;
-  index: number;
-  // When provided, the swipe-revealed delete button calls this with the id.
-  onDelete?: (id: string) => void;
+  // When provided, the swipe-revealed delete button calls this with the row key.
+  onDelete?: (key: string) => void;
 }
 
 const SWIPE_THRESHOLD = -80;
 const DELETE_BUTTON_WIDTH = 80;
 
-export const ContactRow = memo(
-  ({ element, index, onDelete }: ContactRowProps) => {
-    const avatarColor = useMemo(() => {
-      return AVATAR_COLORS[index % AVATAR_COLORS.length];
-    }, [index]);
+export const ContactRow = memo(({ element, onDelete }: ContactRowProps) => {
+  const initials = useMemo(() => {
+    return `${element.firstName.charAt(0)}${element.lastName.charAt(0)}`;
+  }, [element.firstName, element.lastName]);
 
-    const initials = useMemo(() => {
-      return `${element.firstName.charAt(0)}${element.lastName.charAt(0)}`;
-    }, [element.firstName, element.lastName]);
+  const translateX = useSharedValue(0);
+  const startX = useSharedValue(0);
 
-    const translateX = useSharedValue(0);
-    const startX = useSharedValue(0);
-
-    const panGesture = Gesture.Pan()
-      .activeOffsetX([-10, 10])
-      .failOffsetY([-10, 10])
-      .onStart(() => {
-        startX.value = translateX.value;
-      })
-      .onChange((event) => {
-        const newTranslateX = startX.value + event.translationX;
-        if (newTranslateX <= 0) {
-          translateX.value = newTranslateX;
-        }
-      })
-      .onEnd((event) => {
-        if (translateX.value < SWIPE_THRESHOLD) {
-          translateX.value = withSpring(-DELETE_BUTTON_WIDTH, {
-            damping: 30,
-            stiffness: 400,
-            overshootClamping: true,
-          });
-        } else if (event.velocityX < -500) {
-          translateX.value = withSpring(-DELETE_BUTTON_WIDTH, {
-            damping: 30,
-            stiffness: 400,
-            overshootClamping: true,
-          });
-        } else {
-          translateX.value = withSpring(0, {
-            damping: 30,
-            stiffness: 400,
-            overshootClamping: true,
-          });
-        }
-      });
-
-    const wrapperStyle = useAnimatedStyle(() => {
-      return {
-        left: translateX.value,
-      };
+  const panGesture = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .failOffsetY([-10, 10])
+    .onStart(() => {
+      startX.value = translateX.value;
+    })
+    .onChange((event) => {
+      const newTranslateX = startX.value + event.translationX;
+      if (newTranslateX <= 0) {
+        translateX.value = newTranslateX;
+      }
+    })
+    .onEnd((event) => {
+      if (translateX.value < SWIPE_THRESHOLD) {
+        translateX.value = withSpring(-DELETE_BUTTON_WIDTH, {
+          damping: 30,
+          stiffness: 400,
+          overshootClamping: true,
+        });
+      } else if (event.velocityX < -500) {
+        translateX.value = withSpring(-DELETE_BUTTON_WIDTH, {
+          damping: 30,
+          stiffness: 400,
+          overshootClamping: true,
+        });
+      } else {
+        translateX.value = withSpring(0, {
+          damping: 30,
+          stiffness: 400,
+          overshootClamping: true,
+        });
+      }
     });
 
-    const deleteButtonStyle = useAnimatedStyle(() => {
-      const width = Math.abs(translateX.value);
-      return {
-        width,
-        opacity: translateX.value < -5 ? 1 : 0,
-      };
-    });
+  const wrapperStyle = useAnimatedStyle(() => {
+    return {
+      left: translateX.value,
+    };
+  });
 
-    return (
-      <View style={styles.container}>
-        <Animated.View style={[styles.deleteButton, deleteButtonStyle]}>
-          <Pressable
-            style={styles.deleteButtonInner}
-            onPress={() => onDelete?.(element.id)}
-          >
-            <Text style={styles.deleteButtonText}>Delete</Text>
-          </Pressable>
-        </Animated.View>
-        <GestureDetector gesture={panGesture}>
-          <Animated.View style={[styles.wrapper, wrapperStyle]}>
-            <View style={styles.contactElement}>
-              <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-              <View style={styles.content}>
-                <Text style={styles.name}>
-                  {element.firstName} {element.lastName}
-                </Text>
-                <Text style={styles.phoneNumber}>{element.phoneNumber}</Text>
-              </View>
-              <Chevron
-                direction="right"
-                color={colors.tertiaryLabel}
-                size={20}
-                strokeWidth={2}
-              />
-              <View style={styles.separator} />
+  const deleteButtonStyle = useAnimatedStyle(() => {
+    const width = Math.abs(translateX.value);
+    return {
+      width,
+      opacity: translateX.value < -5 ? 1 : 0,
+    };
+  });
+
+  return (
+    <View style={styles.container}>
+      <Animated.View style={[styles.deleteButton, deleteButtonStyle]}>
+        <Pressable
+          style={styles.deleteButtonInner}
+          onPress={() => onDelete?.(element.id)}
+        >
+          <Text style={styles.deleteButtonText}>Delete</Text>
+        </Pressable>
+      </Animated.View>
+      <GestureDetector gesture={panGesture}>
+        <Animated.View style={[styles.wrapper, wrapperStyle]}>
+          <View style={styles.contactElement}>
+            <View
+              style={[styles.avatar, { backgroundColor: element.avatarColor }]}
+            >
+              <Text style={styles.avatarText}>{initials}</Text>
             </View>
-          </Animated.View>
-        </GestureDetector>
-      </View>
-    );
-  }
-);
+            <View style={styles.content}>
+              <Text style={styles.name}>
+                {element.firstName} {element.lastName}
+              </Text>
+              <Text style={styles.phoneNumber}>{element.phoneNumber}</Text>
+            </View>
+            <Chevron
+              direction="right"
+              color={colors.tertiaryLabel}
+              size={20}
+              strokeWidth={2}
+            />
+            <View style={styles.separator} />
+          </View>
+        </Animated.View>
+      </GestureDetector>
+    </View>
+  );
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -129,24 +132,24 @@ const styles = StyleSheet.create({
   },
   contactElement: {
     backgroundColor: colors.background,
-    paddingLeft: 16,
-    paddingRight: 12,
-    paddingVertical: 12,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.md,
+    paddingVertical: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
   },
   avatar: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radius.xl,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   avatarText: {
     color: colors.label,
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
   },
   content: {
     flex: 1,
@@ -184,6 +187,6 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     color: colors.label,
     ...typography.subhead,
-    fontWeight: '600',
+    fontWeight: fontWeight.semibold,
   },
 });

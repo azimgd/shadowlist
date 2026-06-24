@@ -1,34 +1,32 @@
 import { forwardRef } from 'react';
 import {
-  Shadowlist,
-  type ShadowlistProps,
-  type ShadowlistCommands,
+  ShadowList,
+  type ShadowListProps,
+  type ShadowListCommands,
 } from 'shadowlist';
 import type { ContactItem } from 'shadowlist-utils';
 import { ContactRow } from './ContactRow';
 
 export type ContactsListProps = Omit<
-  ShadowlistProps<ContactItem>,
+  ShadowListProps<ContactItem>,
   'renderElement'
 > & {
-  renderElement?: ShadowlistProps<ContactItem>['renderElement'];
-  // Forwarded to each row's swipe-to-delete button.
-  onDelete?: (id: string) => void;
+  renderElement?: ShadowListProps<ContactItem>['renderElement'];
+  // Forwarded to each row's swipe-to-delete button;
+  onDelete?: (key: string) => void;
 };
 
 /*
  * A contacts list with avatar/name/phone rows and swipe-to-delete. Pass `data`;
  * provide `onDelete` to handle removals (or override `renderElement`).
  */
-export const ContactsList = forwardRef<ShadowlistCommands, ContactsListProps>(
+export const ContactsList = forwardRef<ShadowListCommands, ContactsListProps>(
   ({ renderElement, onDelete, ...props }, ref) => (
-    <Shadowlist
+    <ShadowList
       ref={ref}
       renderElement={
         renderElement ??
-        (({ element, index }) => (
-          <ContactRow element={element} index={index} onDelete={onDelete} />
-        ))
+        (({ element }) => <ContactRow element={element} onDelete={onDelete} />)
       }
       {...props}
     />

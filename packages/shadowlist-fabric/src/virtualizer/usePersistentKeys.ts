@@ -1,0 +1,49 @@
+import { useMemo } from 'react';
+
+interface UsePersistentKeysOptions<ElementT> {
+  data: ReadonlyArray<ElementT>;
+  keyExtractor: (item: ElementT, index: number) => string;
+  persistentKeys: ReadonlyArray<string> | undefined;
+  renderIndices: number[];
+}
+
+/*
+ * Persistent (always-mounted) rows: force-mounts the rows whose key is in
+ * `persistentKeys` so they are never virtualized away, while leaving them at their
+ * natural flow position (unlike sticky headers, which are pinned to the viewport).
+ */
+export function usePersistentKeys<ElementT>({
+  data,
+  keyExtractor,
+  persistentKeys,
+  renderIndices,
+}: UsePersistentKeysOptions<ElementT>): number[] {
+  /*
+   * Resolve the requested keys to their current indices. Walks data only when keys are
+   * given; keys not present in data are dropped (e.g. a pinned row that was removed).
+   */
+  const persistentIndices = useMemo(() => {
+    if (!persistentKeys || persistentKeys.length === 0) return [];
+    const keySet = new Set(persistentKeys);
+    const indices: number[] = [];
+    for (let index = 0; index < data.length; index++) {
+      if (keySet.has(keyExtractor(data[index]!, index))) indices.push(index);
+    }
+    return indices;
+  }, [data, keyExtractor, persistentKeys]);
+
+  // Union the persistent rows into the rendered set, kept sorted and deduplicated.
+  return useMemo(() => {
+    if (persistentIndices.length === 0) return renderIndices;
+    const merged = new Set(renderIndices);
+    let changed = false;
+    for (const index of persistentIndices) {
+      if (!merged.has(index)) {
+        merged.add(index);
+        changed = true;
+      }
+    }
+    if (!changed) return renderIndices;
+    return Array.from(merged).sort((a, b) => a - b);
+  }, [renderIndices, persistentIndices]);
+}

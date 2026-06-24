@@ -9,115 +9,56 @@ namespace azimgd::shadowlist {
 
 class Revision {
 public:
-  /*
-   * Elements array
-   */
   std::vector<Element> elements;
 
   /*
-   * key -> index into `elements`, kept in sync whenever the element list is rebuilt
+   * key -> index into `elements`, rebuilt whenever the element list changes
    * (Virtualizer::reconcileElements). Lets findElementIndexByKey resolve an anchor in
-   * O(1) instead of a linear scan; on a duplicate key the first occurrence wins, matching
-   * the previous scan semantics.
+   * O(1) instead of scanning. On a duplicate key the first occurrence wins.
    */
   std::unordered_map<std::string, std::size_t> elementIndexByKey;
 
-  /*
-   * Offset of the container within the viewport X axis
-   */
+  // Current scroll offset.
   double containerOffsetX = 0.0;
-
-  /*
-   * Offset of the container within the viewport Y axis
-   */
   double containerOffsetY = 0.0;
 
-  /*
-   * Start position of measurement loop
-   */
+  // Range of indices measured in this revision (UNDEFINED_INDEX until measured).
   std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
-
-  /*
-   * End position of measurement loop
-   */
   std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
 
-  /*
-   * How many elements did we measure so far
-   */
+  // Number of elements measured in this revision.
   std::size_t measurementElementCount = 0;
 
-  /*
-   * Average element width
-   */
+  // Average element size, frozen once from real measurements (see recomputeTotalSize).
   double averageElementWidth = 0.0;
-
-  /*
-   * Average element height
-   */
   double averageElementHeight = 0.0;
 
   /*
-   * Cumulative count and size of natively measured elements; the average size is
-   * frozen from this real sample so unmeasured elements are sized from real data.
+   * Running count and total size of natively measured elements. The frozen average is
+   * computed from this real sample, so unmeasured elements are sized from real data.
    */
   std::size_t measuredRealCount = 0;
   double measuredRealTotalWidth = 0.0;
   double measuredRealTotalHeight = 0.0;
 
-  /*
-   * Accumulated height of the container
-   */
+  // Total size of the elements measured in this revision.
   double measurementElementTotalHeight = 0;
-
-  /*
-   * Accumulated width of the container
-   */
   double measurementElementTotalWidth = 0;
 
-  /*
-   * Visible window height of the container
-   */
+  // Size of the visible window (the scroll viewport).
   double windowContainerHeight = 0.0;
-
-  /*
-   * Visible window width of the container
-   */
   double windowContainerWidth = 0.0;
 
-  /*
-   * Total height of the container
-   */
+  // Total scrollable size of the container.
   double totalContainerHeight = 0.0;
-
-  /*
-   * Total width of the container
-   */
   double totalContainerWidth = 0.0;
 
-  /*
-   * Update containers window height
-   */
   void setWindowContainerHeight(double windowContainerHeight);
-
-  /*
-   * Update containers window width
-   */
   void setWindowContainerWidth(double windowContainerWidth);
-
-  /*
-   * Update containers X offset
-   */
   void setContainerOffsetX(double containerOffsetX);
-
-  /*
-   * Update containers Y offset
-   */
   void setContainerOffsetY(double containerOffsetY);
 
-  /*
-   * Get debug representation as JSON string
-   */
+  // Serialize the revision to a JSON string for debugging.
   std::string getDebugRepresentation() const;
 };
 

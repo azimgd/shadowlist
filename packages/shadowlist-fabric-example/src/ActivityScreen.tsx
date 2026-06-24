@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { type ShadowlistCommands, type OnScroll } from 'shadowlist';
+import { type ShadowListCommands, type OnScroll } from 'shadowlist';
 import { Activity, Spinner, colors, typography } from 'shadowlist-utils/native';
 import {
   type ActivityData,
   buildActivity,
+  useListController,
   START_REACHED_THRESHOLDS,
   END_REACHED_THRESHOLDS,
   nextInCycle,
@@ -12,18 +13,46 @@ import {
 } from 'shadowlist-utils';
 
 export const ActivityScreen = () => {
-  const shadowlistRef = useRef<ShadowlistCommands>(null);
-  const [data, setData] = useState<ActivityData[]>(() =>
-    Array.from({ length: 300 }, (_, index) => buildActivity(index))
+  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const initialData = useMemo(
+    () => Array.from({ length: 300 }, (_, index) => buildActivity(index)),
+    []
   );
+
+  // useListController owns the data + refreshing / loadingMore flags; the custom
+  // scroll and viewability handlers below stay local and are passed straight to the list.
+  const list = useListController<ActivityData>({
+    initialData,
+    // Pull-to-refresh: prepend a fresh batch.
+    onRefresh: () =>
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          list.prepend(
+            Array.from({ length: 10 }, (_, index) => buildActivity(index))
+          );
+          resolve();
+        }, 1200)
+      ),
+    // Pagination: append the next page. The hook guards against re-firing mid-load.
+    onEndReached: () =>
+      new Promise<void>((resolve) =>
+        setTimeout(() => {
+          list.append(
+            Array.from({ length: 20 }, (_, index) =>
+              buildActivity(list.data.length + index)
+            )
+          );
+          resolve();
+        }, 1000)
+      ),
+  });
+  const { removeItems } = list;
+
   const [viewableLabel, setViewableLabel] = useState('—');
   const [startThreshold, setStartThreshold] = useState(1);
   const [endThreshold, setEndThreshold] = useState(1.5);
   const [headerSticky, setHeaderSticky] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const headerStickyRef = useRef(true);
-  const loadingRef = useRef(false);
 
   // Surface the live on-screen index range on the sticky footer.
   const handleViewableItemsChanged = useCallback(
@@ -39,7 +68,7 @@ export const ActivityScreen = () => {
     []
   );
 
-  // Hide the sticky header past the threshold, re-pin on the way back up.
+  // Hide the sticky header past the threshold, repin on the way back up.
   const handleScroll = useCallback((event: { nativeEvent: OnScroll }) => {
     const sticky = event.nativeEvent.contentOffsetY < HEADER_HIDE_THRESHOLD;
     if (sticky !== headerStickyRef.current) {
@@ -48,43 +77,10 @@ export const ActivityScreen = () => {
     }
   }, []);
 
-  // Pagination: the ref guards against onEndReached re-firing mid-load; the
-  // spinner is appended to the status footer while a fetch is simulated.
-  const handleEndReached = useCallback(() => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    setLoadingMore(true);
-    setTimeout(() => {
-      setData((prev) => [
-        ...prev,
-        ...Array.from({ length: 20 }, (_, index) =>
-          buildActivity(prev.length + index)
-        ),
-      ]);
-      setLoadingMore(false);
-      loadingRef.current = false;
-    }, 1000);
-  }, []);
-
-  // Pull-to-refresh: prepend a fresh batch, then clear the spinner.
-  const handleRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => {
-      setData((prev) => [
-        ...Array.from({ length: 10 }, (_, index) => buildActivity(index)),
-        ...prev,
-      ]);
-      setRefreshing(false);
-    }, 1200);
-  }, []);
-
   // Drop the 20th and 50th rows.
   const handleRemoveItems = useCallback(
-    () =>
-      setData((prev) =>
-        prev.filter((_, index) => index !== 20 && index !== 50)
-      ),
-    []
+    () => removeItems((_, index) => index === 20 || index === 50),
+    [removeItems]
   );
 
   const header = useMemo(
@@ -129,12 +125,12 @@ export const ActivityScreen = () => {
     () => (
       <View style={styles.statusFooter}>
         <Text style={styles.statusText}>
-          {`Viewable: ${viewableLabel} · Total: ${data.length}`}
+          {`Viewable: ${viewableLabel} · Total: ${list.data.length}`}
         </Text>
-        {loadingMore && <Spinner size={16} />}
+        {list.loadingMore && <Spinner size={16} />}
       </View>
     ),
-    [loadingMore, viewableLabel, data.length]
+    [list.loadingMore, viewableLabel, list.data.length]
   );
 
   const renderElement = useCallback(
@@ -147,20 +143,19 @@ export const ActivityScreen = () => {
   return (
     <View style={styles.container}>
       <Activity.List
-        data={data}
+        data={list.data}
         ref={shadowlistRef}
         style={styles.list}
-        keyExtractor={(item) => item.id}
         renderElement={renderElement}
         containerOffsetIndex={30}
         stickyHeader={headerSticky}
-        refreshing={refreshing}
-        onRefresh={handleRefresh}
+        refreshing={list.refreshing}
+        onRefresh={list.handleRefresh}
         refreshColor={colors.secondaryLabel}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
         onScroll={handleScroll}
-        onEndReached={handleEndReached}
+        onEndReached={list.handleEndReached}
         onStartReachedThreshold={startThreshold}
         onEndReachedThreshold={endThreshold}
         onViewableItemsChanged={handleViewableItemsChanged}

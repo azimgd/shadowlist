@@ -14,5 +14,5 @@
     "verbatimModuleSyntax": true
   },
   "include": ["src"],
-  "exclude": ["src/native", "src/web"]
+  "exclude": ["src/native"]
 }

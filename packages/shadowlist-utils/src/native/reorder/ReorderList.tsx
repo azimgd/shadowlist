@@ -1,32 +1,32 @@
 import { forwardRef } from 'react';
 import {
-  Shadowlist,
-  type ShadowlistProps,
-  type ShadowlistCommands,
+  DraggableList,
+  type ShadowListProps,
+  type ShadowListCommands,
 } from 'shadowlist';
 import type { ContactItem } from 'shadowlist-utils';
 import { ReorderRow } from './ReorderRow';
 
 export type ReorderListProps = Omit<
-  ShadowlistProps<ContactItem>,
+  ShadowListProps<ContactItem>,
   'renderElement'
 > & {
-  renderElement?: ShadowlistProps<ContactItem>['renderElement'];
+  renderElement?: ShadowListProps<ContactItem>['renderElement'];
 };
 
-const renderReorderRow: ShadowlistProps<ContactItem>['renderElement'] = ({
+const renderReorderRow: ShadowListProps<ContactItem>['renderElement'] = ({
   element,
 }) => <ReorderRow element={element} />;
 
 /*
- * A drag-to-reorder list. Long-press a row, then drag. Provide `onReorder` and
- * persist its `data` back into your state, otherwise the list snaps back.
+ * A drag-to-reorder list built on `DraggableList`. Long-press a row, then drag.
+ * Provide `onReorder` and persist its `data` back into your state, otherwise the
+ * list snaps back.
  */
-export const ReorderList = forwardRef<ShadowlistCommands, ReorderListProps>(
+export const ReorderList = forwardRef<ShadowListCommands, ReorderListProps>(
   ({ renderElement, ...props }, ref) => (
-    <Shadowlist
+    <DraggableList
       ref={ref}
-      dragEnabled
       renderElement={renderElement ?? renderReorderRow}
       {...props}
     />

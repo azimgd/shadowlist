@@ -1,27 +1,25 @@
 import type { Ref, ReactElement } from 'react';
 import { useMemo, useCallback, forwardRef } from 'react';
-import Shadowlist from './Shadowlist';
+import ShadowList from './ShadowList';
 import type {
-  ShadowlistCommands,
+  ShadowListCommands,
   SectionListProps,
   SectionListData,
 } from './types';
 
 /*
- * Flattens `sections` into one tagged element stream (section header, items, section
- * footer) for Shadowlist. Section headers carry their flat indices to
- * `stickyHeaderIndices` for native pinning.
+ * ShadowList renders single list, so this flattens `sections` into a single stream of
+ * tagged rows: a header, the items, then a footer for each section. The flat positions
+ * of the header rows are collected into `stickyHeaderIndices` so native can pin them.
  */
 
 type FlatRowType = 'sectionHeader' | 'item' | 'sectionFooter';
 
 interface FlatRow<ItemT, SectionT> {
-  // Stable key for the flattened row, derived from section key and item key.
   id: string;
   type: FlatRowType;
   section: SectionListData<ItemT, SectionT>;
   sectionIndex: number;
-  // Item payload (item rows only) and its index within the section.
   item?: ItemT;
   itemIndex?: number;
   // Last item in its section (drives separators).
@@ -30,6 +28,8 @@ interface FlatRow<ItemT, SectionT> {
   isSectionBoundary?: boolean;
 }
 
+// A separator slot may be a plain element or a function returning one; normalise to
+// an element or null.
 const renderComponent = (
   component: ReactElement | (() => ReactElement | null) | null | undefined
 ): ReactElement | null => {
@@ -55,6 +55,7 @@ function SectionListInner<ItemT, SectionT = object>(
     inverted,
     initialElementsSize,
     containerOffsetIndex,
+    overscan,
     keyboardAvoidingEnabled,
     keyboardAvoidingOffset,
     refreshing,
@@ -66,9 +67,10 @@ function SectionListInner<ItemT, SectionT = object>(
     onStartReachedThreshold,
     onEndReachedThreshold,
   }: SectionListProps<ItemT, SectionT>,
-  ref: Ref<ShadowlistCommands>
+  ref: Ref<ShadowListCommands>
 ) {
-  // Build the tagged row stream plus the flat indices of section-header rows.
+  // Walk every section into the flat row stream, recording where each section-header
+  // row lands so native knows which rows to pin.
   const { data, stickyHeaderIndices } = useMemo(() => {
     const rows: FlatRow<ItemT, SectionT>[] = [];
     const stickyIndices: number[] = [];
@@ -130,7 +132,7 @@ function SectionListInner<ItemT, SectionT = object>(
     stickySectionHeadersEnabled,
   ]);
 
-  // Render the active section's header for the sticky-header overlay.
+  // The sticky overlay shows the header of whichever section is pinned at the top.
   const renderStickyHeaderOverlay = useCallback(
     (activeIndex: number) => {
       const row = data[activeIndex];
@@ -149,7 +151,7 @@ function SectionListInner<ItemT, SectionT = object>(
     [SectionSeparatorComponent]
   );
 
-  // Dispatch a flattened row to the right renderer.
+  // Render one flattened row based on its type: section header, section footer, or item.
   const renderRow = useCallback(
     ({ element }: { element: FlatRow<ItemT, SectionT>; index: number }) => {
       if (element.type === 'sectionHeader') {
@@ -199,7 +201,7 @@ function SectionListInner<ItemT, SectionT = object>(
   );
 
   return (
-    <Shadowlist
+    <ShadowList
       ref={ref}
       data={data}
       renderElement={renderRow}
@@ -210,6 +212,7 @@ function SectionListInner<ItemT, SectionT = object>(
       inverted={inverted}
       initialElementsSize={initialElementsSize}
       containerOffsetIndex={containerOffsetIndex}
+      overscan={overscan}
       keyboardAvoidingEnabled={keyboardAvoidingEnabled}
       keyboardAvoidingOffset={keyboardAvoidingOffset}
       refreshing={refreshing}
@@ -227,9 +230,8 @@ function SectionListInner<ItemT, SectionT = object>(
   );
 }
 
-// Cast preserves the generic item/section types for callers.
 const SectionList = forwardRef(SectionListInner) as <ItemT, SectionT = object>(
-  props: SectionListProps<ItemT, SectionT> & { ref?: Ref<ShadowlistCommands> }
+  props: SectionListProps<ItemT, SectionT> & { ref?: Ref<ShadowListCommands> }
 ) => ReactElement;
 
 export default SectionList;

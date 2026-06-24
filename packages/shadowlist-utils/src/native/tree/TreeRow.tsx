@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import type { TreeFileNode } from 'shadowlist-utils';
-import { colors, typography } from '../theme';
+import { colors, typography, spacing } from '../theme';
 import { Chevron, Folder, Doc } from '../icons';
 
 export interface TreeRowProps {
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     height: 44,
-    paddingRight: 16,
+    paddingRight: spacing.lg,
     backgroundColor: colors.background,
   },
   pressed: {
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   glyph: {
     width: 24,
     alignItems: 'center',
-    marginRight: 8,
+    marginRight: spacing.sm,
   },
   name: {
     flex: 1,
@@ -80,6 +80,6 @@ const styles = StyleSheet.create({
   count: {
     color: colors.tertiaryLabel,
     ...typography.footnote,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
 });

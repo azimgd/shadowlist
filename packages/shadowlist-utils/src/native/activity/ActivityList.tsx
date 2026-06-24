@@ -1,32 +1,32 @@
 import { forwardRef } from 'react';
 import {
-  Shadowlist,
-  type ShadowlistProps,
-  type ShadowlistCommands,
+  ShadowList,
+  type ShadowListProps,
+  type ShadowListCommands,
 } from 'shadowlist';
 import type { ActivityData } from 'shadowlist-utils';
 import { ActivityRow } from './ActivityRow';
 import { ItemSeparator } from '../primitives/ItemSeparator';
 
 export type ActivityListProps = Omit<
-  ShadowlistProps<ActivityData>,
+  ShadowListProps<ActivityData>,
   'renderElement'
 > & {
-  renderElement?: ShadowlistProps<ActivityData>['renderElement'];
+  renderElement?: ShadowListProps<ActivityData>['renderElement'];
 };
 
-const renderActivityRow: ShadowlistProps<ActivityData>['renderElement'] = ({
+const renderActivityRow: ShadowListProps<ActivityData>['renderElement'] = ({
   element,
 }) => <ActivityRow element={element} />;
 
 /*
  * Notification/activity feed with sticky header + footer, inset separators and
- * viewability tracking wired in. Pass `data`; supply a header/footer and
+ * viewability tracking built in. Pass `data`; supply a header/footer and
  * `onViewableItemsChanged` to surface live state.
  */
-export const ActivityList = forwardRef<ShadowlistCommands, ActivityListProps>(
+export const ActivityList = forwardRef<ShadowListCommands, ActivityListProps>(
   ({ renderElement, ...props }, ref) => (
-    <Shadowlist
+    <ShadowList
       ref={ref}
       stickyHeader
       stickyFooter

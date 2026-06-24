@@ -1,21 +1,24 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import { View, Text, Image, ScrollView, StyleSheet } from 'react-native';
-import { AVATAR_COLORS, type FeedItem } from 'shadowlist-utils';
-import { colors, typography, radius, ROW_INSET } from '../theme';
+import { type FeedItem } from 'shadowlist-utils';
+import {
+  colors,
+  typography,
+  radius,
+  ROW_INSET,
+  spacing,
+  fontSize,
+  fontWeight,
+} from '../theme';
 
 export interface FeedElementProps {
   element: FeedItem;
-  index: number;
 }
 
-export const FeedElement = memo(({ element, index }: FeedElementProps) => {
-  const avatarColor = useMemo(() => {
-    return AVATAR_COLORS[index % AVATAR_COLORS.length];
-  }, [index]);
-
+export const FeedElement = memo(({ element }: FeedElementProps) => {
   return (
     <View style={styles.feedElement}>
-      <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
+      <View style={[styles.avatar, { backgroundColor: element.avatarColor }]}>
         <Text style={styles.avatarText}>{element.username.charAt(0)}</Text>
       </View>
       <View style={styles.content}>
@@ -59,23 +62,23 @@ export const FeedElement = memo(({ element, index }: FeedElementProps) => {
 const styles = StyleSheet.create({
   feedElement: {
     backgroundColor: colors.background,
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingVertical: 12,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.lg,
+    paddingVertical: spacing.md,
     flexDirection: 'row',
   },
   avatar: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radius.xl,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   avatarText: {
     color: colors.label,
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
   },
   content: {
     flex: 1,
@@ -83,13 +86,13 @@ const styles = StyleSheet.create({
   userInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginBottom: 2,
+    gap: spacing.xs,
+    marginBottom: spacing.xxs,
   },
   username: {
     color: colors.label,
     ...typography.subhead,
-    fontWeight: '600',
+    fontWeight: fontWeight.semibold,
   },
   handle: {
     color: colors.secondaryLabel,
@@ -98,7 +101,7 @@ const styles = StyleSheet.create({
   tweetText: {
     color: colors.label,
     ...typography.subhead,
-    marginBottom: 12,
+    marginBottom: spacing.md,
   },
   imageContainer: {
     width: '100%',
@@ -116,7 +119,7 @@ const styles = StyleSheet.create({
     marginHorizontal: -4,
   },
   imageScrollContent: {
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xs,
   },
   multiImageContainer: {
     width: 280,
@@ -124,7 +127,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     backgroundColor: colors.elevated2,
-    marginHorizontal: 4,
+    marginHorizontal: spacing.xs,
   },
   multiImage: {
     width: '100%',

@@ -16,64 +16,33 @@ class Element {
 public:
   Element() : id(generateRandomId()) {}
 
-  /*
-   * Unique identifier for the element
-   */
+  // Random id, generated once per element instance.
   std::string id = "";
 
-  /*
-   * Stable user-provided key, used to reconcile elements across updates
-   */
+  // User-provided key, used to match elements across data updates.
   std::string key = "";
 
-  /*
-   * Index of the element in the list
-   */
+  // Position of this element in the list.
   std::size_t index = 0;
 
-  /*
-   * Width of an element
-   */
   double width = 0.0;
-  
-  /*
-   * Height of an element
-   */
   double height = 0.0;
-  
-  /*
-   * Position from left
-   */
+
+  // Top-left position within the container.
   double offsetX = 0.0;
-  
-  /*
-   * Position from top
-   */
   double offsetY = 0.0;
-  
-  /*
-   * Gap from left
-   */
+
+  // Gap after the element before the next one.
   double gapX = 0.0;
-  
-  /*
-   * Gap from top
-   */
   double gapY = 0.0;
 
-  /*
-   * Has element been estimated
-   */
+  // Set once a size estimate has been applied.
   bool estimated = false;
 
-  /*
-   * Has element been measured
-   */
+  // Set once the element has been natively measured.
   bool measured = false;
-  
-  /*
-   * Random element id generation
-   */
+
+  // Generate a random 16-hex-digit id.
   static std::string generateRandomId() {
     thread_local std::mt19937_64 gen(std::random_device{}());
     thread_local std::uniform_int_distribution<uint64_t> dis;

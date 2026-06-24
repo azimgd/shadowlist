@@ -1,23 +1,23 @@
 import { forwardRef } from 'react';
 import {
-  Shadowlist,
-  type ShadowlistProps,
-  type ShadowlistCommands,
+  ShadowList,
+  type ShadowListProps,
+  type ShadowListCommands,
 } from 'shadowlist';
 import type { SnapItem } from 'shadowlist-utils';
 import { SnapCard } from './SnapCard';
 
-export type SnapListProps = Omit<ShadowlistProps<SnapItem>, 'renderElement'> & {
-  renderElement?: ShadowlistProps<SnapItem>['renderElement'];
+export type SnapListProps = Omit<ShadowListProps<SnapItem>, 'renderElement'> & {
+  renderElement?: ShadowListProps<SnapItem>['renderElement'];
 };
 
-const renderSnapCard: ShadowlistProps<SnapItem>['renderElement'] = ({
+const renderSnapCard: ShadowListProps<SnapItem>['renderElement'] = ({
   element,
 }) => <SnapCard element={element} />;
 
-export const SnapList = forwardRef<ShadowlistCommands, SnapListProps>(
+export const SnapList = forwardRef<ShadowListCommands, SnapListProps>(
   ({ renderElement, ...props }, ref) => (
-    <Shadowlist
+    <ShadowList
       ref={ref}
       snapToItem
       renderElement={renderElement ?? renderSnapCard}

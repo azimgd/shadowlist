@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
-import { colors } from '../theme';
+import { colors, spacing } from '../theme';
 
 // Indeterminate loading spinner for infinite-scroll / pull-to-refresh footers.
 export const Spinner = memo(
@@ -23,6 +23,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 16,
+    padding: spacing.lg,
   },
 });

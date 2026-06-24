@@ -1,7 +1,7 @@
 /*
  * Reusable React Native list templates for the `shadowlist` virtualization
- * library. Each domain is a dot-namespaced compound component — e.g.
- * `<Feed.List data={posts} />` with `<Feed.Element />` — that works out of the
+ * library. Each domain is a dot-namespaced compound component (e.g.
+ * `<Feed.List data={posts} />` with `<Feed.Element />`) that works out of the
  * box and is fully overridable. Shared design tokens, icons and primitives are
  * exported alongside so you can match and extend the look.
  *

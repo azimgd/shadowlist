@@ -7,22 +7,21 @@ import {
   useImperativeHandle,
   forwardRef,
 } from 'react';
-import Shadowlist from './Shadowlist';
+import ShadowList from './ShadowList';
 import type {
-  ShadowlistCommands,
+  ShadowListCommands,
   TreeListProps,
   TreeListCommands,
 } from './types';
 
 /*
- * TreeList is a data layer over Shadowlist, the tree analogue of SectionList. It
+ * TreeList is a data layer over ShadowList, the tree analogue of SectionList. It
  * flattens the visible subtree (nodes whose ancestors are all expanded) into one
  * element stream; collapsed subtrees are never descended into. Each row keeps a
  * stable node-id key so surviving rows reconcile across an expand/collapse toggle.
  */
 
 interface TreeFlatRow<ItemT> {
-  /* Stable key for the flattened row; equals keyExtractor(item). */
   id: string;
   item: ItemT;
   depth: number;
@@ -30,7 +29,7 @@ interface TreeFlatRow<ItemT> {
   isExpanded: boolean;
 }
 
-/* Normalise array|Set expansion inputs to a Set for O(1) membership tests. */
+/* The expansion prop can be an array or a Set; copy it into a Set for fast lookups. */
 const toSet = (
   ids: ReadonlyArray<string> | ReadonlySet<string> | undefined
 ): Set<string> => {
@@ -52,6 +51,7 @@ function TreeListInner<ItemT>(
     elementStyle,
     initialElementsSize,
     containerOffsetIndex,
+    overscan,
     keyboardAvoidingEnabled,
     keyboardAvoidingOffset,
     refreshing,
@@ -69,7 +69,7 @@ function TreeListInner<ItemT>(
   }: TreeListProps<ItemT>,
   ref: Ref<TreeListCommands>
 ) {
-  const innerRef = useRef<ShadowlistCommands>(null);
+  const innerRef = useRef<ShadowListCommands>(null);
 
   /* Controlled when expandedIds is provided; else the list owns the set, seeded from initialExpandedIds. */
   const isControlled = expandedIds !== undefined;
@@ -81,13 +81,15 @@ function TreeListInner<ItemT>(
     [isControlled, expandedIds, internalExpanded]
   );
 
-  /* Latest expansion in a ref so two toggles in one tick both compose, not clobber. */
+  /* Mirror the expanded set into a ref so two toggles in the same tick build on each
+   * other instead of overwriting one another. */
   const expandedRef = useRef(expandedSet);
   expandedRef.current = expandedSet;
 
   /*
-   * Flatten the visible subtree via iterative pre-order DFS, short-circuiting
-   * collapsed nodes. Also builds id -> flat index for scrollToNode.
+   * Walk the tree top to bottom into a flat list of rows, skipping the children of any
+   * collapsed node so off-screen subtrees cost nothing. Also records id -> flat index
+   * so scrollToNode can map a node id to its row.
    */
   const { data: rows, indexByKey } = useMemo(() => {
     const flat: TreeFlatRow<ItemT>[] = [];
@@ -122,7 +124,8 @@ function TreeListInner<ItemT>(
     return { data: flat, indexByKey: byKey };
   }, [data, getChildren, keyExtractor, expandedSet]);
 
-  /* Flip one node's expanded state, routing through the controlled callback or internal state. */
+  /* Expand or collapse one node, updating internal state (or just calling the callback
+   * when controlled). */
   const toggleId = useCallback(
     (id: string) => {
       const next = new Set(expandedRef.current);
@@ -136,7 +139,7 @@ function TreeListInner<ItemT>(
     [isControlled, onExpandedChange]
   );
 
-  /* Shadowlist imperative handle plus scrollToNode (id -> current flat index). */
+  /* ShadowList imperative handle plus scrollToNode (id -> current flat index). */
   useImperativeHandle(
     ref,
     () => ({
@@ -157,7 +160,8 @@ function TreeListInner<ItemT>(
     [indexByKey]
   );
 
-  /* Dispatch a flattened row to renderElement with tree affordances and a per-node toggle. */
+  /* Hand one flattened row to renderElement, adding tree info (depth, indent, whether it
+   * has children and is expanded) and a toggle to expand/collapse that node. */
   const renderRow = useCallback(
     ({ element, index }: { element: TreeFlatRow<ItemT>; index: number }) =>
       renderElement({
@@ -173,7 +177,7 @@ function TreeListInner<ItemT>(
   );
 
   return (
-    <Shadowlist
+    <ShadowList
       ref={innerRef}
       data={rows}
       renderElement={renderRow}
@@ -181,6 +185,7 @@ function TreeListInner<ItemT>(
       elementStyle={elementStyle}
       initialElementsSize={initialElementsSize}
       containerOffsetIndex={containerOffsetIndex}
+      overscan={overscan}
       keyboardAvoidingEnabled={keyboardAvoidingEnabled}
       keyboardAvoidingOffset={keyboardAvoidingOffset}
       refreshing={refreshing}

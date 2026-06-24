@@ -142,7 +142,7 @@
     ]
   },
   "codegenConfig": {
-    "name": "ShadowlistViewSpec",
+    "name": "ShadowListViewSpec",
     "type": "all",
     "jsSrcsDir": "src",
     "android": {
@@ -150,14 +150,14 @@
     },
     "ios": {
       "components": {
-        "ShadowlistView": {
-          "className": "ShadowlistView"
+        "ShadowListView": {
+          "className": "ShadowListView"
         },
-        "ShadowlistElementView": {
-          "className": "ShadowlistElementView"
+        "ShadowListElementView": {
+          "className": "ShadowListElementView"
         },
-        "ShadowlistTemplateView": {
-          "className": "ShadowlistTemplateView"
+        "ShadowListTemplateView": {
+          "className": "ShadowListTemplateView"
         }
       }
     }

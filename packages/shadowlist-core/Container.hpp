@@ -1,16 +1,21 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
+#include <string>
+#include <unordered_set>
 #include <vector>
 #include <shadowlist-core/Constants.hpp>
+#include <shadowlist-core/Operation.hpp>
 #include <shadowlist-core/Revision.hpp>
 
 namespace azimgd::shadowlist {
 
 /*
- * The pinned sticky section header and how far to translate it from its resting
- * position. index is UNDEFINED_INDEX when none is pinned.
+ * The pinned sticky section header and how far to shift it from its resting position.
+ * index is UNDEFINED_INDEX when none is pinned.
  */
 struct StickyHeader {
   std::size_t index = UNDEFINED_INDEX;
@@ -23,17 +28,15 @@ static constexpr std::size_t RevisionStatusIdle = 0;
 static constexpr std::size_t RevisionStatusPending = 1;
 
 /*
- * Resolved values to publish to the scroll view for a frame.
+ * Resolved values to publish to the scroll view for one frame.
  */
 struct ContainerStateUpdate {
-  /*
-   * Whether anything changed and new state should be published
-   */
+  // Whether anything changed and new state should be published.
   bool changed = false;
 
   /*
-   * Whether to move the scroll view to (containerOffsetX, containerOffsetY).
-   * False means leave the offset alone (don't fight the user's scrolling).
+   * Whether to move the scroll view to (containerOffsetX, containerOffsetY). False means
+   * leave the offset alone so we don't fight the user's scrolling.
    */
   bool applyContainerOffset = false;
 
@@ -41,82 +44,61 @@ struct ContainerStateUpdate {
   double containerOffsetY = 0.0;
   double totalContainerWidth = 0.0;
   double totalContainerHeight = 0.0;
+
+  /*
+   * Id of the operation that moved the offset this frame. The host echoes it back so the
+   * core can recognise its own write. 0 when no offset was applied.
+   */
+  std::uint64_t commitToken = 0;
 };
 
 class Container {
 public:
-  /*
-   * Estimated element size for unmeasured elements (width, height)
-   */
+  // Size (width, height) used for elements not yet measured.
   std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
 
-  /*
-   * Callback to be executed when scrolled near the end of the list
-   */
+  // Fired when scrolled near the end of the list.
   std::function<void()> onEndReachedCallback;
 
-  /*
-   * Callback to be executed when scrolled near the start of the list
-   */
+  // Fired when scrolled near the start of the list.
   std::function<void()> onStartReachedCallback;
 
-  /*
-   * Callback to be executed when the visible element range changes
-   * Arguments are (startIndex, endIndex) of the visible range
-   */
+  // Fired with (startIndex, endIndex) when the visible element range changes.
   std::function<void(std::size_t, std::size_t)> onVisibleIndicesChangeCallback;
 
-  /*
-   * Callback to be executed when the scroll offset changes
-   * Arguments are (containerOffsetX, containerOffsetY)
-   */
+  // Fired with (containerOffsetX, containerOffsetY) when the scroll offset changes.
   std::function<void(double, double)> onScrollCallback;
 
   /*
-   * Callback when the strictly-viewable range changes: only elements inside the
-   * viewport, subject to viewablePercentThreshold. Arguments are (startIndex, endIndex).
+   * Fired with (startIndex, endIndex) when the strictly-viewable range changes: only
+   * elements inside the viewport, subject to viewablePercentThreshold.
    */
   std::function<void(std::size_t, std::size_t)> onViewableIndicesChangeCallback;
 
-  /*
-   * Enable/disable end reached callback
-   */
+  // Whether the start/end reached callbacks may fire.
   bool endReachedEnabled = true;
-
-  /*
-   * Enable/disable start reached callback
-   */
   bool startReachedEnabled = true;
 
-  /*
-   * Current measurement revision
-   */
+  // Current measurement revision and its index/status.
   Revision revision = {};
-
-  /*
-   * Current active revision index
-   */
   std::size_t revisionCount = RevisionCountFirst;
-
-  /*
-   * Current active revision status
-   */
   std::size_t revisionStatus = RevisionStatusIdle;
 
-  /*
-   * Default / Inverted order of the list
-   */
+  // List order: normal (top to bottom) or inverted (bottom to top).
   bool inverted = false;
-  
-  /*
-   * Horizontal / Vertical position of the list
-   */
+
+  // Scroll axis: vertical (false) or horizontal (true).
   bool horizontal = false;
 
-  /*
-   * Number of columns for multi-column layout
-   */
+  // Number of columns for multi-column layout.
   std::size_t columns = 1;
+
+  /*
+   * Overscan in viewport units: how far beyond the visible window to measure and mount
+   * elements on each side, as a multiple of the window size. 1.0 keeps one viewport above
+   * and one below; 0 measures only the visible window.
+   */
+  double overscan = 1.0;
 
   /*
    * Snap the resting scroll position to an element edge. snapAlignment selects the
@@ -164,18 +146,25 @@ public:
   std::vector<std::size_t> stickyIndices;
 
   /*
-   * Last drag-event nonce emitted to JS, used to fire each onDrag* event exactly
+   * Last drag-event sequence emitted to JS, used to fire each onDrag* event exactly
    * once. -1 means none emitted.
    */
-  double lastDragEventNonce = -1.0;
+  double lastDragEventSequence = -1.0;
 
   /*
-   * Pending scrollToIndex target, or UNDEFINED_INDEX when inactive
+   * Intent inputs.
+   *
+   * These request a correction; they are not correction state. resolveScroll reads each,
+   * creates the matching `operation`, and clears the request. They live across frames as a
+   * request inbox: the request can arrive outside a frame (e.g. a command in adopt()), so
+   * the operation is created once the revision is measured.
    */
+
+  // Pending scrollToIndex target, or UNDEFINED_INDEX when inactive.
   std::size_t scrollToIndexTarget = UNDEFINED_INDEX;
 
   /*
-   * Active while a scrollToEnd is converging on the bottom: re-targets maxOffset
+   * Active while a scrollToEnd is converging on the bottom: retargets maxOffset
    * every frame as off-screen rows are measured, so it lands on the true end of a
    * variable-height list. Cleared once the view reaches the bottom and the total
    * stops changing. pendingScrollToEndLastTotal holds the previous frame's total,
@@ -191,38 +180,60 @@ public:
   bool invertedInitialized = false;
 
   /*
-   * True when the core wants containerOffset applied to the scroll view this frame
-   * (scrollToIndex, inverted bottom anchor, or an MVCP shift); false means leave
-   * the scroll position to the user.
+   * The single in-flight correction (anchor plus operation).
+   *
+   * Scroll correction has exactly one owner: the `operation` below. Everything else in
+   * this group is either its content-space target (`anchor`) or its derived bookkeeping.
+   * The intent inputs above (scrollToIndexTarget / pendingScrollToEnd / invertedInitialized)
+   * request an operation; they are not correction state.
+   */
+
+  /*
+   * Per-frame output bit: true when this frame produced an offset the host should apply
+   * (an operation drove it, an MVCP measurement nudge moved it, or the layout pass
+   * reasserted it after a header reflow). Reset at the top of every resolveScroll and read
+   * once by resolveStateUpdate to set applyContainerOffset. This is not the correction's
+   * lifecycle flag; whether a correction is in flight is `operation.has_value()`.
    */
   bool containerOffsetCorrected = false;
 
   /*
-   * A scroll target the core drives the view toward until it arrives. Keeps a
-   * correction alive across redundant re-commits so a stale racing offset can't
-   * cancel it.
+   * The scroll position in content space (key + sub-offset): the single source of
+   * truth for the element at the viewport edge this frame and how far we are scrolled
+   * into it. Set each frame by captureAnchor (or overridden by FrameInput::suppliedAnchor)
+   * and read by resolveScroll / updateElementAtIndex to keep visible content fixed while
+   * off-screen elements are measured.
    */
-  double pendingScrollOffset = 0.0;
-  bool pendingScroll = false;
+  Anchor anchor = {};
 
   /*
-   * When the pending correction is an MVCP shift (e.g. prepend) the target is the
-   * anchor element, so it tracks the anchor as nearby elements are measured.
+   * The one in-flight offset correction, or none. A typed, cancellable operation whose
+   * `id` is the commit token published to the host (see Operation). A fixed-offset
+   * correction (ScrollToEnd / BottomPin / ShrinkClamp) carries an EndEdge anchor; an
+   * MVCP / scrollToIndex correction carries an Element anchor that tracks its key as
+   * nearby elements are measured.
    */
-  std::string pendingAnchorKey = "";
-  double pendingAnchorDelta = 0.0;
-  bool pendingAnchorActive = false;
+  std::optional<Operation> operation = std::nullopt;
 
   /*
-   * The element at the viewport edge this frame and how far we are scrolled into
-   * it. Keeps visible content fixed while off-screen elements are measured.
+   * Monotonic source of operation ids / commit tokens. Starts at 1 so 0 always means
+   * "no operation" / "host-originated report".
    */
-  std::string anchorKey = "";
-  double anchorDelta = 0.0;
+  std::uint64_t nextOperationId = 1;
+
+  /*
+   * Keys that must never be captured as the MVCP anchor: decoration rows (date pills,
+   * unread dividers, reaction strips, padding) whose identity churns independently of
+   * content. captureAnchor skips them and anchors to the nearest stable content row, so a
+   * key change on decoration cannot perturb the maintained scroll position. Set each frame
+   * from FrameInput::nonAnchorableKeys; empty means every row is anchorable. An explicit
+   * FrameInput::suppliedAnchor is honoured even if its key is in here (the host chose it).
+   */
+  std::unordered_set<std::string> nonAnchorableKeys;
 
   /*
    * Header reserved size when the anchor was captured. A header-size change between
-   * capture and re-flow is not a content scroll, so MVCP subtracts
+   * capture and reflow is not a content scroll, so MVCP subtracts
    * (headerSize - anchorHeaderSize); without it the list opens scrolled past the header.
    */
   double anchorHeaderSize = 0.0;
@@ -235,8 +246,22 @@ public:
   double lastReportedOffset = 0.0;
 
   /*
-   * Serializes access to a single container; the update and measurement passes may
-   * run on overlapping threads. Recursive because a locked entry point may re-enter.
+   * Serializes all access to one Container, which is genuinely shared across threads: in
+   * Fabric a single core instance is carried forward by a list's committed shadow-node
+   * clones, so adopt() / layout() / measurement feedback can run on overlapping commit
+   * threads against the same Container. This mutex is essential, not defensive.
+   *
+   * It is RECURSIVE because:
+   *   1. Every public Virtualizer entry point locks it, and several call one another
+   *      (e.g. update -> measure -> recomputeTotalSize).
+   *   2. An integration may hold it across a whole sequence of those calls plus the
+   *      Container getters to make a frame atomic (Fabric's adopt()/layout() do this),
+   *      and the inner per-method locks then re-enter on the same thread.
+   *
+   * Contract: hold coreMutex for any access to a shared Container. The public Virtualizer
+   * methods lock it themselves, so a standalone driver (tests) need not lock explicitly.
+   * The low-level getters/setters below do NOT lock; call them from inside a Virtualizer
+   * entry point or while holding coreMutex.
    */
   std::recursive_mutex coreMutex;
 
@@ -286,7 +311,7 @@ public:
   void scrollToIndex(std::size_t index);
 
   /*
-   * Request scrolling to the very end, re-targeting the bottom as off-screen rows
+   * Request scrolling to the very end, retargeting the bottom as off-screen rows
    * are measured so it converges on the true end of a variable-height list.
    */
   void scrollToEnd();
@@ -294,10 +319,10 @@ public:
   /*
    * Resolve a scrollToIndex request from an imperative command and a declarative
    * prop index. The command fires once per invocation (tracked by a monotonic
-   * nonce); the prop fires when its value changes. Negative index means inactive;
+   * sequence); the prop fires when its value changes. Negative index means inactive;
    * the command takes precedence.
    */
-  void requestScrollToIndex(double commandIndex, double commandNonce, int propIndex);
+  void requestScrollToIndex(double commandIndex, double commandSequence, int propIndex);
 
   /*
    * Resolve the current frame into values to publish to the scroll view. prev* are
@@ -325,7 +350,7 @@ public:
   /*
    * Resting scroll offsets (ascending, along the scroll axis) that align an element
    * to the viewport edge selected by snapAlignment, each clamped to [0, maxOffset]
-   * and de-duplicated. Empty when snapToItem is unset. The integration snaps to the
+   * and deduplicated. Empty when snapToItem is unset. The integration snaps to the
    * nearest of these on scroll end.
    */
   std::vector<double> getSnapOffsets() const;
@@ -343,6 +368,12 @@ public:
    * Find the index of the element with the given key, or UNDEFINED_INDEX if absent
    */
   std::size_t findElementIndexByKey(const std::string& key) const;
+
+  /*
+   * Whether a key may serve as the MVCP anchor. False only for keys in nonAnchorableKeys
+   * (decoration rows). Empty key is never anchorable. See captureAnchor / nonAnchorableKeys.
+   */
+  bool isAnchorable(const std::string& key) const;
 
   /*
    * Fire the visible-indices-change and scroll callbacks if their values changed
@@ -366,7 +397,7 @@ private:
   /*
    * Whether the previous revision was at the start/end edge, so reached callbacks
    * fire once on arrival instead of every frame within the threshold.
-   * prevReachedElementsSize re-arms them when the data set changes (pagination).
+   * prevReachedElementsSize resets them when the data set changes (pagination).
    */
   bool prevReachedStart = false;
   bool prevReachedEnd = false;
@@ -380,10 +411,10 @@ private:
   bool prevContainerOffsetValid = false;
 
   /*
-   * Last imperative scrollToIndex nonce we acted on, so the command fires once
-   * per invocation (a repeated index still re-scrolls because the nonce changes)
+   * Last imperative scrollToIndex sequence we acted on, so the command fires once
+   * per invocation (a repeated index still rescrolls because the sequence changes)
    */
-  double prevScrollToIndexNonce = 0.0;
+  double prevScrollToIndexSequence = 0.0;
 
   /*
    * Last declarative containerOffsetIndex prop we acted on, so the prop fires

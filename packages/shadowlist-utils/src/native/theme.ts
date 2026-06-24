@@ -2,7 +2,7 @@ import type { TextStyle } from 'react-native';
 
 /*
  * iOS (dark mode) design tokens. Colors follow Apple's semantic system palette
- * so the templates read like a stock iOS app. `accent` is the single app tint —
+ * so the templates read like a stock iOS app. `accent` is the single app tint;
  * change this one value to re-brand every control at once (e.g. Apple-default
  * blue '#0A84FF' vs. an orange '#FF9F0A').
  */
@@ -26,76 +26,107 @@ export const colors = {
   red: '#FF453B',
 } as const;
 
+// Type-ramp sizes (pt) and weights, named after the iOS text styles below. Use these for
+// any raw fontSize / fontWeight so the templates share one type scale.
+export const fontSize = {
+  caption: 12,
+  footnote: 13,
+  subhead: 15,
+  callout: 16,
+  body: 17,
+  title3: 20,
+  title2: 22,
+  largeTitle: 34,
+} as const;
+
+export const fontWeight = {
+  regular: '400',
+  semibold: '600',
+  bold: '700',
+} as const;
+
 /*
  * iOS type ramp. fontFamily is intentionally omitted so React Native falls back
  * to San Francisco on iOS. Sizes/weights/tracking follow Apple's text styles.
  */
 export const typography: Record<string, TextStyle> = {
   largeTitle: {
-    fontSize: 34,
-    fontWeight: '700',
+    fontSize: fontSize.largeTitle,
+    fontWeight: fontWeight.bold,
     lineHeight: 41,
     letterSpacing: 0.37,
   },
   title2: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: fontSize.title2,
+    fontWeight: fontWeight.bold,
     lineHeight: 28,
     letterSpacing: 0.35,
   },
   title3: {
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: fontSize.title3,
+    fontWeight: fontWeight.semibold,
     lineHeight: 25,
     letterSpacing: 0.38,
   },
   headline: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
     lineHeight: 22,
     letterSpacing: -0.43,
   },
   body: {
-    fontSize: 17,
-    fontWeight: '400',
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.regular,
     lineHeight: 22,
     letterSpacing: -0.43,
   },
   callout: {
-    fontSize: 16,
-    fontWeight: '400',
+    fontSize: fontSize.callout,
+    fontWeight: fontWeight.regular,
     lineHeight: 21,
     letterSpacing: -0.31,
   },
   subhead: {
-    fontSize: 15,
-    fontWeight: '400',
+    fontSize: fontSize.subhead,
+    fontWeight: fontWeight.regular,
     lineHeight: 20,
     letterSpacing: -0.24,
   },
   footnote: {
-    fontSize: 13,
-    fontWeight: '400',
+    fontSize: fontSize.footnote,
+    fontWeight: fontWeight.regular,
     lineHeight: 18,
     letterSpacing: -0.08,
   },
   caption: {
-    fontSize: 12,
-    fontWeight: '400',
+    fontSize: fontSize.caption,
+    fontWeight: fontWeight.regular,
     lineHeight: 16,
     letterSpacing: 0,
   },
 };
 
+// Spacing scale (4-point grid) for padding, margin and gap. Use these instead of
+// raw numbers so the templates share one rhythm; re-scale the whole UI from here.
+export const spacing = {
+  xxs: 2,
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 24,
+} as const;
+
 export const radius = {
   sm: 8,
   md: 12,
   lg: 16,
+  xl: 20,
   pill: 999,
 } as const;
 
-// React Native's system font token — San Francisco on iOS, Roboto on Android.
-// Mirrors the web `FONT_FAMILY` export so shared code can read the same key.
+// React Native's system font token: San Francisco on iOS, Roboto on Android.
 export const FONT_FAMILY = 'System';
 
 // Leading inset that aligns separators / section content with the text column
@@ -106,6 +137,9 @@ export const ROW_INSET = 68;
 export const theme = {
   colors,
   typography,
+  fontSize,
+  fontWeight,
+  spacing,
   radius,
   ROW_INSET,
   FONT_FAMILY,

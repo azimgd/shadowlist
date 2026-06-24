@@ -1,19 +1,19 @@
 import { forwardRef, useMemo } from 'react';
 import {
-  Shadowlist,
-  type ShadowlistProps,
-  type ShadowlistCommands,
+  ShadowList,
+  type ShadowListProps,
+  type ShadowListCommands,
 } from 'shadowlist';
 import { PollOptionRow } from './PollOption';
 import type { PollOption } from './data';
 
 export type PollListProps = Omit<
-  ShadowlistProps<PollOption>,
+  ShadowListProps<PollOption>,
   'renderElement'
 > & {
-  renderElement?: ShadowlistProps<PollOption>['renderElement'];
-  // Called with the option id when a row is tapped.
-  onVote?: (id: string) => void;
+  renderElement?: ShadowListProps<PollOption>['renderElement'];
+  // Called with the option key when a row is tapped.
+  onVote?: (key: string) => void;
 };
 
 /*
@@ -21,7 +21,7 @@ export type PollListProps = Omit<
  * option's share and the live leader from `data`; tapping a row fires `onVote`.
  * Drive votes by updating your `data` state in the `onVote` handler.
  */
-export const PollList = forwardRef<ShadowlistCommands, PollListProps>(
+export const PollList = forwardRef<ShadowListCommands, PollListProps>(
   ({ renderElement, onVote, data, ...props }, ref) => {
     const total = useMemo(
       () => data.reduce((sum, option) => sum + option.votes, 0),
@@ -39,7 +39,7 @@ export const PollList = forwardRef<ShadowlistCommands, PollListProps>(
     );
 
     return (
-      <Shadowlist
+      <ShadowList
         ref={ref}
         data={data}
         stickyHeader

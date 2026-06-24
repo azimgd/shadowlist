@@ -2,27 +2,24 @@
   "name": "shadowlist-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Shadowlist monorepo — native (Fabric) + web (WASM) virtualization, shared utils, and example apps.",
+  "description": "ShadowList monorepo — native (Fabric) virtualization, shared utils, and example app.",
   "license": "MIT",
   "packageManager": "yarn@4.11.0",
   "workspaces": [
     "packages/shadowlist-fabric",
-    "packages/shadowlist-wasm",
     "packages/shadowlist-utils",
-    "packages/shadowlist-fabric-example",
-    "packages/shadowlist-wasm-example"
+    "packages/shadowlist-fabric-example"
   ],
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p packages/shadowlist-fabric-example/tsconfig.json && tsc -p packages/shadowlist-utils/tsconfig.json && tsc -p packages/shadowlist-wasm/tsconfig.json && tsc -p packages/shadowlist-wasm-example/tsconfig.json",
+    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p packages/shadowlist-fabric-example/tsconfig.json && tsc -p packages/shadowlist-utils/tsconfig.json",
     "test": "yarn workspace shadowlist run test",
-    "build": "yarn workspace shadowlist run prepare && yarn workspace shadowlist-wasm-example run build",
+    "build": "yarn workspace shadowlist run prepare",
     "clean": "yarn workspace shadowlist run clean",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish",
-    "release:wasm": "yarn workspace shadowlist-wasm npm publish --tolerate-republish"
+    "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.3",

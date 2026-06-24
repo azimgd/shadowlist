@@ -1,7 +1,14 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import type { ActivityData } from 'shadowlist-utils';
-import { colors, typography } from '../theme';
+import {
+  colors,
+  typography,
+  spacing,
+  radius,
+  fontSize,
+  fontWeight,
+} from '../theme';
 
 export interface ActivityRowProps {
   element: ActivityData;
@@ -30,35 +37,35 @@ export const ActivityRow = memo(({ element }: ActivityRowProps) => {
 const styles = StyleSheet.create({
   activityElement: {
     backgroundColor: colors.background,
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingVertical: 12,
+    paddingLeft: spacing.lg,
+    paddingRight: spacing.lg,
+    paddingVertical: spacing.md,
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
   avatar: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radius.xl,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: spacing.md,
   },
   avatarText: {
     color: colors.label,
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
   },
   content: {
     flex: 1,
   },
   title: {
     ...typography.subhead,
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   actor: {
     color: colors.label,
-    fontWeight: '600',
+    fontWeight: fontWeight.semibold,
   },
   action: {
     color: colors.secondaryLabel,
@@ -70,6 +77,6 @@ const styles = StyleSheet.create({
   timestamp: {
     color: colors.tertiaryLabel,
     ...typography.footnote,
-    marginLeft: 8,
+    marginLeft: spacing.sm,
   },
 });

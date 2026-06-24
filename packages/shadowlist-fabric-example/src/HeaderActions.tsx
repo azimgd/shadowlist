@@ -30,9 +30,9 @@ const HeaderButton = ({
 
 /*
  * Renders the per-screen list controls (prepend / append / scroll-to-random) as
- * tinted nav-bar trailing buttons — the standard iOS location for screen
- * actions, so they never float over content. Handlers are read through a ref so
- * the buttons always call the latest closures without re-setting nav options.
+ * tinted nav-bar trailing buttons, the standard iOS location for screen actions,
+ * so they never float over content. Handlers are read through a ref so the
+ * buttons always call the latest closures without re-setting nav options.
  */
 export function useHeaderActions(handlers: HeaderActionHandlers) {
   const navigation = useNavigation<DrawerNavigationProp<ParamListBase>>();

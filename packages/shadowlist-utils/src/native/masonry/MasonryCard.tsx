@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import type { MasonryItem } from 'shadowlist-utils';
-import { colors, typography, radius } from '../theme';
+import { colors, typography, radius, spacing } from '../theme';
 
 export interface MasonryCardProps {
   element: MasonryItem;
@@ -27,7 +27,7 @@ export const MasonryCard = memo(({ element }: MasonryCardProps) => {
 const styles = StyleSheet.create({
   masonryElement: {
     backgroundColor: colors.background,
-    marginBottom: 12,
+    marginBottom: spacing.md,
     paddingHorizontal: 6,
   },
   imageContainer: {
@@ -35,7 +35,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     overflow: 'hidden',
     backgroundColor: colors.elevated2,
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   image: {
     width: '100%',
@@ -44,6 +44,6 @@ const styles = StyleSheet.create({
   title: {
     color: colors.label,
     ...typography.subhead,
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xs,
   },
 });

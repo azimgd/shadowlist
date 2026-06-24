@@ -3,9 +3,9 @@ module.exports = {
     platforms: {
       android: {
         componentDescriptors: [
-          'ShadowlistViewComponentDescriptor',
-          'ShadowlistElementViewComponentDescriptor',
-          'ShadowlistTemplateViewComponentDescriptor',
+          'ShadowListViewComponentDescriptor',
+          'ShadowListElementViewComponentDescriptor',
+          'ShadowListTemplateViewComponentDescriptor',
         ],
         cmakeListsPath: '../android/shadowlist/jni/CMakeLists.txt',
       },

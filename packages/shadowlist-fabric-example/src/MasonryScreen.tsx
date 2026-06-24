@@ -1,42 +1,44 @@
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { type ShadowlistCommands } from 'shadowlist';
+import { type ShadowListCommands } from 'shadowlist';
 import {
   Masonry,
   ListHeader,
   ListFooter,
   colors,
 } from 'shadowlist-utils/native';
-import { generateMasonryElement, type MasonryItem } from 'shadowlist-utils';
+import {
+  generateMasonryElement,
+  useListController,
+  type MasonryItem,
+} from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
 export const MasonryScreen = () => {
-  const shadowlistRef = useRef<ShadowlistCommands>(null);
-  const [data, setData] = useState<MasonryItem[]>(() =>
-    Array.from({ length: 100 }, (_, index) => generateMasonryElement(index))
+  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const initialData = useMemo(
+    () =>
+      Array.from({ length: 100 }, (_, index) => generateMasonryElement(index)),
+    []
   );
+  const list = useListController<MasonryItem>({ initialData });
 
-  const handlePrepend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      generateMasonryElement(currentLength + index)
+  const handlePrepend = () =>
+    list.prepend(
+      Array.from({ length: 10 }, (_, index) =>
+        generateMasonryElement(list.data.length + index)
+      )
     );
-    setData((prev) => [...newElements, ...prev]);
-  };
-
-  const handleAppend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      generateMasonryElement(currentLength + index)
+  const handleAppend = () =>
+    list.append(
+      Array.from({ length: 10 }, (_, index) =>
+        generateMasonryElement(list.data.length + index)
+      )
     );
-    setData((prev) => [...prev, ...newElements]);
-  };
-
-  const handleScrollToRandom = () => {
+  const handleScrollToRandom = () =>
     shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * data.length)
+      Math.floor(Math.random() * list.data.length)
     );
-  };
 
   useHeaderActions({
     onPrepend: handlePrepend,
@@ -54,7 +56,7 @@ export const MasonryScreen = () => {
   return (
     <View style={styles.container}>
       <Masonry.List
-        data={data}
+        data={list.data}
         ref={shadowlistRef}
         style={styles.list}
         columns={3}

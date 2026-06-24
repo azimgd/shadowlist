@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import type { ViewStyle, ColorValue } from 'react-native';
-import type { OnScroll } from './ShadowlistViewNativeComponent';
+import type { OnScroll } from './ShadowListViewNativeComponent';
 
 /*
  * A single item's viewability state.
@@ -15,7 +15,7 @@ export interface ViewToken<ElementT> {
 /*
  * Imperative handle exposed via ref.
  */
-export interface ShadowlistCommands {
+export interface ShadowListCommands {
   setStartReachedEnabled: (enabled: boolean) => void;
   setEndReachedEnabled: (enabled: boolean) => void;
   scrollToIndex: (index: number) => void;
@@ -33,7 +33,7 @@ export interface ViewabilityConfig {
 /*
  * Public props.
  */
-export interface ShadowlistProps<ElementT extends { id: string }> {
+export interface ShadowListProps<ElementT extends { id: string }> {
   data: ReadonlyArray<ElementT>;
   renderElement: (info: { element: ElementT; index: number }) => ReactElement;
   keyExtractor?: (item: ElementT, index: number) => string;
@@ -52,6 +52,7 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
   /*
    * Enable long-press drag-to-reorder. Reports the final move through onReorder;
    * pair with a persisted setData there, otherwise the list snaps back on drop.
+   * `DraggableList` is `ShadowList` with this defaulted to `true`.
    */
   dragEnabled?: boolean;
   /*
@@ -69,6 +70,21 @@ export interface ShadowlistProps<ElementT extends { id: string }> {
    */
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
   columns?: number;
+  /*
+   * How far beyond the visible area to render rows, in viewport units. 1 (the default)
+   * keeps one viewport of rows mounted above and one below, so scrolling reveals ready
+   * rows instead of blanks. Raise it for smoother fast scrolling at the cost of more
+   * mounted rows; lower it toward 0 to mount fewer.
+   */
+  overscan?: number;
+  /*
+   * Row keys (matching keyExtractor) to keep mounted at all times, even when scrolled
+   * far outside the virtualization window. The rows stay at their natural position in
+   * the list flow (unlike stickyHeaderIndices, which pin to the viewport edge). Keyed
+   * rather than indexed so a pinned row keeps its identity across inserts/removes. Keep
+   * the set small: each entry is a permanently live view.
+   */
+  persistentKeys?: ReadonlyArray<string>;
   /*
    * Declarative scroll-to-index, doubling as the initial scroll position. A value
    * >= 0 opens the list with that index anchored to the viewport start; fires only
@@ -185,14 +201,16 @@ export interface SectionListProps<ItemT, SectionT = object> {
   inverted?: boolean;
   initialElementsSize?: number;
   containerOffsetIndex?: number;
-  /* See ShadowlistProps.keyboardAvoidingEnabled. */
+  /* See ShadowListProps.overscan. */
+  overscan?: number;
+  /* See ShadowListProps.keyboardAvoidingEnabled. */
   keyboardAvoidingEnabled?: boolean;
-  /* See ShadowlistProps.keyboardAvoidingOffset. */
+  /* See ShadowListProps.keyboardAvoidingOffset. */
   keyboardAvoidingOffset?: number;
-  /* See ShadowlistProps.refreshing / onRefresh. */
+  /* See ShadowListProps.refreshing / onRefresh. */
   refreshing?: boolean;
   onRefresh?: () => void;
-  /* See ShadowlistProps.refreshColor. */
+  /* See ShadowListProps.refreshColor. */
   refreshColor?: ColorValue;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
   onStartReached?: () => void;
@@ -233,10 +251,10 @@ export interface TreeListRenderElementInfo<ItemT> {
 }
 
 /*
- * Imperative handle for TreeList: the standard Shadowlist commands plus
+ * Imperative handle for TreeList: the standard ShadowList commands plus
  * scrollToNode (no-op when the node is not in the visible/expanded set).
  */
-export interface TreeListCommands extends ShadowlistCommands {
+export interface TreeListCommands extends ShadowListCommands {
   scrollToNode: (id: string) => void;
 }
 
@@ -279,14 +297,16 @@ export interface TreeListProps<ItemT> {
   elementStyle?: ViewStyle;
   initialElementsSize?: number;
   containerOffsetIndex?: number;
-  /* See ShadowlistProps.keyboardAvoidingEnabled. */
+  /* See ShadowListProps.overscan. */
+  overscan?: number;
+  /* See ShadowListProps.keyboardAvoidingEnabled. */
   keyboardAvoidingEnabled?: boolean;
-  /* See ShadowlistProps.keyboardAvoidingOffset. */
+  /* See ShadowListProps.keyboardAvoidingOffset. */
   keyboardAvoidingOffset?: number;
-  /* See ShadowlistProps.refreshing / onRefresh. */
+  /* See ShadowListProps.refreshing / onRefresh. */
   refreshing?: boolean;
   onRefresh?: () => void;
-  /* See ShadowlistProps.refreshColor. */
+  /* See ShadowListProps.refreshColor. */
   refreshColor?: ColorValue;
   onScroll?: (event: { nativeEvent: OnScroll }) => void;
   onStartReached?: () => void;

@@ -1,10 +1,10 @@
-import { useCallback, useState, useRef, useMemo } from 'react';
+import { useCallback, useRef, useMemo } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  KeyboardDismissView,
+  KeyboardView,
   useKeyboardAnimation,
-  type ShadowlistCommands,
+  type ShadowListCommands,
 } from 'shadowlist';
 import {
   Chat,
@@ -19,14 +19,32 @@ import {
   generateOptimizedImageUrl,
   shouldBeImageGrid,
   generateImageGrid,
+  generateAvatar,
+  useListController,
 } from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
 // Gap kept between the composer and the keyboard; matches the composer's top padding.
 const KEYBOARD_GAP = 8;
 
+const buildMessage = (elementIndex: number): ChatMessage => {
+  const isImageGrid = shouldBeImageGrid(elementIndex);
+  const imageUrl = generateOptimizedImageUrl(elementIndex);
+  const avatar = generateAvatar(elementIndex);
+  return {
+    id: generateUniqueId(),
+    text: isImageGrid || !!imageUrl ? '' : generateRandomText(elementIndex),
+    isFromMe: elementIndex % 3 !== 0,
+    imageUrl,
+    imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
+    username: avatar.name,
+    avatarColor: avatar.color,
+    initials: avatar.initials,
+  };
+};
+
 export const ChatScreen = () => {
-  const shadowlistRef = useRef<ShadowlistCommands>(null);
+  const shadowlistRef = useRef<ShadowListCommands>(null);
   const insets = useSafeAreaInsets();
 
   // Live keyboard height (dp); the list and composer translate up by it.
@@ -42,50 +60,30 @@ export const ChatScreen = () => {
     });
   }, [height, insets.bottom]);
 
-  const buildMessage = (elementIndex: number): ChatMessage => {
-    const isImageGrid = shouldBeImageGrid(elementIndex);
-    const imageUrl = generateOptimizedImageUrl(elementIndex);
-    return {
-      id: generateUniqueId(),
-      text: isImageGrid || !!imageUrl ? '' : generateRandomText(elementIndex),
-      isFromMe: elementIndex % 3 !== 0,
-      imageUrl,
-      imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
-    };
-  };
-
-  const [data, setData] = useState<ChatMessage[]>(() =>
-    Array.from({ length: 1000 }, (_, index) => buildMessage(index))
+  const initialData = useMemo(
+    () => Array.from({ length: 1000 }, (_, index) => buildMessage(index)),
+    []
   );
+  const list = useListController<ChatMessage>({ initialData });
 
-  const handlePrepend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      buildMessage(currentLength + index)
+  const handlePrepend = () =>
+    list.prepend(
+      Array.from({ length: 10 }, (_, index) =>
+        buildMessage(list.data.length + index)
+      )
     );
-    setData((prev) => [...newElements, ...prev]);
-  };
-
-  const handleAppend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      buildMessage(currentLength + index)
+  const handleAppend = () =>
+    list.append(
+      Array.from({ length: 10 }, (_, index) =>
+        buildMessage(list.data.length + index)
+      )
     );
-    setData((prev) => [...prev, ...newElements]);
-  };
-
-  const handleSendMessage = (message: string) => {
-    setData((prev) => [
-      ...prev,
-      { id: generateUniqueId(), text: message, isFromMe: true },
-    ]);
-  };
-
-  const handleScrollToRandom = () => {
+  const handleSendMessage = (message: string) =>
+    list.append([{ id: generateUniqueId(), text: message, isFromMe: true }]);
+  const handleScrollToRandom = () =>
     shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * data.length)
+      Math.floor(Math.random() * list.data.length)
     );
-  };
 
   useHeaderActions({
     onPrepend: handlePrepend,
@@ -94,13 +92,15 @@ export const ChatScreen = () => {
   });
 
   const renderElement = useCallback(
-    ({ element, index }: { element: ChatMessage; index: number }) => (
+    ({ element }: { element: ChatMessage }) => (
       <Chat.Bubble
-        index={index}
         text={element.text}
         isFromMe={element.isFromMe}
         imageUrl={element.imageUrl}
         imageUrls={element.imageUrls}
+        username={element.username}
+        avatarColor={element.avatarColor}
+        initials={element.initials}
       />
     ),
     []
@@ -111,9 +111,9 @@ export const ChatScreen = () => {
       <Animated.View
         style={[styles.lifted, { transform: [{ translateY: liftTranslateY }] }]}
       >
-        <KeyboardDismissView style={styles.list}>
+        <KeyboardView style={styles.list}>
           <Chat.List
-            data={data}
+            data={list.data}
             ref={shadowlistRef}
             style={styles.list}
             renderElement={renderElement}
@@ -122,7 +122,7 @@ export const ChatScreen = () => {
             }
             ListFooterComponent={<ListFooter text="Start of conversation" />}
           />
-        </KeyboardDismissView>
+        </KeyboardView>
         <Chat.Input onSend={handleSendMessage} />
       </Animated.View>
     </View>

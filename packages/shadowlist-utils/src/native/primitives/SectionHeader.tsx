@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, typography } from '../theme';
+import { colors, typography, spacing, fontWeight } from '../theme';
 
 export interface SectionHeaderProps {
   title: string;
@@ -21,7 +21,7 @@ export const SectionHeader = memo(({ title, count }: SectionHeaderProps) => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.elevated,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -30,7 +30,7 @@ const styles = StyleSheet.create({
   title: {
     color: colors.secondaryLabel,
     ...typography.footnote,
-    fontWeight: '600',
+    fontWeight: fontWeight.semibold,
     textTransform: 'uppercase',
   },
   count: {

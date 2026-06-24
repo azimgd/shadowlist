@@ -1,7 +1,9 @@
 /*
  * Platform-agnostic helpers and demo data shared by the shadowlist examples.
- * No framework or DOM dependencies, so one copy drives every example app.
+ * No DOM or native dependencies (React only), so one copy drives every example app.
  */
+
+export * from './useListController';
 
 export const AVATAR_COLORS = [
   '#FF6B6B',
@@ -15,6 +17,39 @@ export const AVATAR_COLORS = [
   '#F8B195',
   '#C06C84',
 ];
+
+export const AVATAR_NAMES = [
+  'Alice',
+  'Bob',
+  'Charlie',
+  'Diana',
+  'Eve',
+  'Frank',
+  'Grace',
+  'Henry',
+];
+
+// A row's avatar color, derived once at data-generation time so the templates can take it
+// as a prop instead of recomputing it from the list index.
+export const avatarColorForIndex = (index: number): string =>
+  AVATAR_COLORS[index % AVATAR_COLORS.length]!;
+
+export interface Avatar {
+  color: string;
+  name: string;
+  initials: string;
+}
+
+// Full avatar identity (color, display name, initials) for a row at the given index.
+export function generateAvatar(index: number): Avatar {
+  const firstLetter = String.fromCharCode(65 + (index % 26));
+  const secondLetter = String.fromCharCode(65 + ((index * 3) % 26));
+  return {
+    color: avatarColorForIndex(index),
+    name: AVATAR_NAMES[index % AVATAR_NAMES.length]!,
+    initials: `${firstLetter}${secondLetter}`,
+  };
+}
 
 export const IMAGES = [
   'https://apod.nasa.gov/apod/image/2507/Pleiades_Kayali_2560.jpg',
@@ -200,7 +235,7 @@ export function nextInCycle(steps: number[], current: number): number {
   return steps[(steps.indexOf(current) + 1) % steps.length]!;
 }
 
-// Scroll distance (px) past which the Activity sticky header hides; it re-pins
+// Scroll distance (px) past which the Activity sticky header hides; it repins
 // once the user scrolls back above it.
 export const HEADER_HIDE_THRESHOLD = 220;
 
@@ -218,6 +253,7 @@ export interface FeedItem {
   text: string;
   imageUrls: string[];
   timestamp: string;
+  avatarColor: string;
 }
 
 export function generateFeedElement(index: number): FeedItem {
@@ -241,6 +277,7 @@ export function generateFeedElement(index: number): FeedItem {
     text: SAMPLE_TEXTS[index % SAMPLE_TEXTS.length]!,
     imageUrls,
     timestamp: `${Math.floor(Math.random() * 24)}h`,
+    avatarColor: avatarColorForIndex(index),
   };
 }
 
@@ -308,6 +345,7 @@ export interface ContactItem {
   firstName: string;
   lastName: string;
   phoneNumber: string;
+  avatarColor: string;
 }
 
 export function generateContact(index: number): ContactItem {
@@ -327,6 +365,7 @@ export function generateContact(index: number): ContactItem {
     firstName,
     lastName,
     phoneNumber,
+    avatarColor: avatarColorForIndex(index),
   };
 }
 

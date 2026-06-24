@@ -9,11 +9,7 @@ const data = Array.from({ length: 50 }, (_, index) =>
 export const SnapScreen = () => {
   return (
     <View style={styles.container}>
-      <Snap.List
-        data={data}
-        style={styles.list}
-        keyExtractor={(item) => item.id}
-      />
+      <Snap.List data={data} style={styles.list} />
     </View>
   );
 };

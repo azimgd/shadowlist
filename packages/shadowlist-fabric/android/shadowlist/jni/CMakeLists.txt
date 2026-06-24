@@ -21,40 +21,40 @@ get_filename_component(LIB_CORE_PARENT_DIR "${LIB_CORE_DIR}" DIRECTORY)
 
 file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS
   ${LIB_JNI_DIR}/*.cpp
-  ${LIB_JNI_DIR}/react/renderer/components/ShadowlistViewSpec/*.cpp
+  ${LIB_JNI_DIR}/react/renderer/components/ShadowListViewSpec/*.cpp
 )
 
 file(GLOB LIB_INCLUDES_SRCS CONFIGURE_DEPENDS
-  ${LIB_CPP_DIR}/react/renderer/components/ShadowlistViewSpec/*.cpp
-  ${LIB_CPP_DIR}/react/renderer/components/ShadowlistElementViewSpec/*.cpp
-  ${LIB_CPP_DIR}/react/renderer/components/ShadowlistTemplateViewSpec/*.cpp
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowListViewSpec/*.cpp
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowListElementViewSpec/*.cpp
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowListTemplateViewSpec/*.cpp
   
   ${LIB_CORE_DIR}/*.cpp
 )
 
 add_library(
-  react_codegen_ShadowlistViewSpec
+  react_codegen_ShadowListViewSpec
   SHARED
   ${LIB_CODEGEN_SRCS}
   ${LIB_INCLUDES_SRCS}
 )
 
-target_include_directories(react_codegen_ShadowlistViewSpec PUBLIC
+target_include_directories(react_codegen_ShadowListViewSpec PUBLIC
   ${LIB_CPP_DIR}/
   ${LIB_CORE_DIR}/
   ${LIB_CORE_PARENT_DIR}/
   ${LIB_ROOT_DIR}/
 
-  ${LIB_CPP_DIR}/react/renderer/components/ShadowlistViewSpec
-  ${LIB_CPP_DIR}/react/renderer/components/ShadowlistElementViewSpec
-  ${LIB_CPP_DIR}/react/renderer/components/ShadowlistTemplateViewSpec
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowListViewSpec
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowListElementViewSpec
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowListTemplateViewSpec
   ${LIB_JNI_DIR}/
 )
 
 find_library(logger log)
 
 target_link_libraries(
-  react_codegen_ShadowlistViewSpec
+  react_codegen_ShadowListViewSpec
   fbjni
   jsi
   # We need to link different libraries based on whether we are building rncore or not, that's necessary
@@ -63,4 +63,4 @@ target_link_libraries(
   ${logger}
 )
 
-target_compile_reactnative_options(react_codegen_ShadowlistViewSpec PRIVATE)
+target_compile_reactnative_options(react_codegen_ShadowListViewSpec PRIVATE)

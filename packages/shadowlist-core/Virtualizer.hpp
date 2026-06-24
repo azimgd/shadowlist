@@ -5,10 +5,13 @@
 #include <vector>
 #include <utility>
 
+#include <cstdint>
+
 #include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Element.hpp>
 #include <shadowlist-core/Error.hpp>
+#include <shadowlist-core/Operation.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -29,6 +32,9 @@ struct FrameInput {
   bool inverted = false;
   bool horizontal = false;
   std::size_t columns = 1;
+
+  // Overscan in viewport units (see Container::overscan). 1.0 = one viewport on each side.
+  double overscan = 1.0;
 
   /*
    * Element indices that pin to the viewport start once scrolled past (ascending).
@@ -54,8 +60,52 @@ struct FrameInput {
    * user is not snapped back.
    */
   bool userScrolled = false;
+
+  /*
+   * True when containerOffsetX/Y came from a core-requested state update that the
+   * host scroll view has not confirmed yet. The core may use the offset for
+   * measurement, but must not treat it as proof that a pending correction arrived.
+   */
+  bool containerOffsetEnabled = false;
+
+  /*
+   * The commit token the host echoes back with this scroll report: the id of the
+   * operation whose offset write produced it, or 0 for a report the core did not
+   * cause. Lets the core recognise its own echo exactly instead of by pixel proximity.
+   */
+  std::uint64_t commitToken = 0;
+
+  /*
+   * The live gesture phase reported by the host. Dragging/Settling mean a human is
+   * driving (a real takeover); Idle covers programmatic moves and their echoes.
+   */
+  ScrollPhase scrollPhase = ScrollPhase::Idle;
+
+  /*
+   * Anchor authored upstream (e.g. by JS on a data commit). When its key is empty the
+   * core captures the anchor itself in key space; when set it is the source of truth
+   * for what content must stay in view across this frame.
+   */
+  Anchor suppliedAnchor = {};
+
+  /*
+   * Keys that must never be auto-captured as the MVCP anchor: decoration rows (date pills,
+   * unread dividers, reaction strips, padding) whose identity churns independently of
+   * content. The core anchors to the nearest stable content row instead, so a key change
+   * on decoration cannot perturb the maintained scroll position. An explicit suppliedAnchor
+   * still wins even if its key is listed here.
+   */
+  std::vector<std::string> nonAnchorableKeys;
 };
 
+/*
+ * Threading contract: a Container may be shared across threads (see Container::coreMutex).
+ * Every PUBLIC method below acquires container->coreMutex on entry, so each is safe to
+ * call concurrently on a shared Container and need not be externally locked. The mutex is
+ * recursive, so these methods may also be invoked while an integration holds an outer lock
+ * across a whole frame, and may call one another, without deadlock. The private helpers
+ * assume coreMutex is already held by the public method that called them.
+ */
 class Virtualizer {
 public:
   /*
@@ -117,14 +167,19 @@ private:
    * Record which element currently sits at the top/left of the viewport and how
    * far we are scrolled into it, so the position can be restored after a reconcile
    */
-  static void captureAnchor(Container *container, double inputOffset, std::string &anchorKey, double &anchorDelta);
+  static void captureAnchor(Container *container, double inputOffset);
 
   /*
    * Apply scroll corrections after measuring: a pending scrollToIndex, the inverted
    * bottom anchor, otherwise keep the captured anchor element at the same viewport
    * position. Returns true when the scroll offset was moved.
    */
-  static bool resolveScroll(Container *container, const std::string &anchorKey, double anchorDelta, bool hadElementsBefore);
+  static bool resolveScroll(
+    Container *container,
+    const std::string &anchorKey,
+    double anchorDelta,
+    bool hadElementsBefore,
+    bool offsetConfirmed);
 };
 
 }

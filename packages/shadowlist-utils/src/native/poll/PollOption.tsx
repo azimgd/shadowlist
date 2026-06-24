@@ -1,13 +1,13 @@
 import { memo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { colors, typography, radius } from '../theme';
+import { colors, typography, radius, spacing, fontWeight } from '../theme';
 import type { PollOption as PollOptionData } from './data';
 
 export interface PollOptionProps {
   option: PollOptionData;
   total: number;
   leading?: boolean;
-  onVote?: (id: string) => void;
+  onVote?: (key: string) => void;
 }
 
 // One option: icon chip, label, its share, and an inline result bar. The current
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.background,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
     paddingVertical: 14,
   },
   rowPressed: {
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.sm,
   },
   label: {
     color: colors.label,
@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   },
   shareLeading: {
     color: colors.accent,
-    fontWeight: '600',
+    fontWeight: fontWeight.semibold,
   },
   barTrack: {
     height: 6,

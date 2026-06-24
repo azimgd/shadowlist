@@ -1,42 +1,44 @@
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { type ShadowlistCommands } from 'shadowlist';
+import { type ShadowListCommands } from 'shadowlist';
 import {
   Contacts,
   ListHeader,
   ListFooter,
   colors,
 } from 'shadowlist-utils/native';
-import { generateContact, type ContactItem } from 'shadowlist-utils';
+import {
+  generateContact,
+  useListController,
+  type ContactItem,
+} from 'shadowlist-utils';
 import { useHeaderActions } from './HeaderActions';
 
 export const ContactsScreen = () => {
-  const shadowlistRef = useRef<ShadowlistCommands>(null);
-  const [data, setData] = useState<ContactItem[]>(() =>
-    Array.from({ length: 100 }, (_, index) => generateContact(index))
+  const shadowlistRef = useRef<ShadowListCommands>(null);
+  const initialData = useMemo(
+    () => Array.from({ length: 100 }, (_, index) => generateContact(index)),
+    []
   );
+  const list = useListController<ContactItem>({ initialData });
+  const { removeItems } = list;
 
-  const handlePrepend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      generateContact(currentLength + index)
+  const handlePrepend = () =>
+    list.prepend(
+      Array.from({ length: 10 }, (_, index) =>
+        generateContact(list.data.length + index)
+      )
     );
-    setData((prev) => [...newElements, ...prev]);
-  };
-
-  const handleAppend = () => {
-    const currentLength = data.length;
-    const newElements = Array.from({ length: 10 }, (_, index) =>
-      generateContact(currentLength + index)
+  const handleAppend = () =>
+    list.append(
+      Array.from({ length: 10 }, (_, index) =>
+        generateContact(list.data.length + index)
+      )
     );
-    setData((prev) => [...prev, ...newElements]);
-  };
-
-  const handleScrollToRandom = () => {
+  const handleScrollToRandom = () =>
     shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * data.length)
+      Math.floor(Math.random() * list.data.length)
     );
-  };
 
   useHeaderActions({
     onPrepend: handlePrepend,
@@ -44,13 +46,14 @@ export const ContactsScreen = () => {
     onScrollToRandom: handleScrollToRandom,
   });
 
-  const handleDelete = useCallback((id: string) => {
-    setData((prev) => prev.filter((contact) => contact.id !== id));
-  }, []);
+  const handleDelete = useCallback(
+    (key: string) => removeItems([key]),
+    [removeItems]
+  );
 
   const renderElement = useCallback(
-    ({ element, index }: { element: ContactItem; index: number }) => (
-      <Contacts.Row element={element} index={index} onDelete={handleDelete} />
+    ({ element }: { element: ContactItem }) => (
+      <Contacts.Row element={element} onDelete={handleDelete} />
     ),
     [handleDelete]
   );
@@ -58,14 +61,16 @@ export const ContactsScreen = () => {
   return (
     <View style={styles.container}>
       <Contacts.List
-        data={data}
+        data={list.data}
         ref={shadowlistRef}
         style={styles.list}
         renderElement={renderElement}
         ListHeaderComponent={
           <ListHeader title="Contacts" subtitle="Swipe left to delete" />
         }
-        ListFooterComponent={<ListFooter text={`${data.length} contacts`} />}
+        ListFooterComponent={
+          <ListFooter text={`${list.data.length} contacts`} />
+        }
       />
     </View>
   );

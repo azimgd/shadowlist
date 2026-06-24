@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { View, useWindowDimensions, StyleSheet } from 'react-native';
 import type { SnapItem } from 'shadowlist-utils';
-import { radius } from '../theme';
+import { radius, spacing } from '../theme';
 
 export interface SnapCardProps {
   element: SnapItem;
@@ -20,7 +20,7 @@ export const SnapCard = memo(({ element }: SnapCardProps) => {
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    margin: 8,
+    margin: spacing.sm,
     borderRadius: radius.lg,
   },
 });

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, TextInput, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, typography, radius } from '../theme';
+import { colors, typography, radius, spacing } from '../theme';
 import { ArrowUp } from '../icons';
 
 export interface ChatInputProps {
@@ -57,8 +57,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    paddingHorizontal: 8,
-    paddingTop: 8,
+    paddingHorizontal: spacing.sm,
+    paddingTop: spacing.sm,
     backgroundColor: colors.background,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.separator,
@@ -69,9 +69,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg + 2,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.separator,
-    paddingHorizontal: 12,
+    paddingHorizontal: spacing.md,
     paddingVertical: 7,
-    marginRight: 8,
+    marginRight: spacing.sm,
     minHeight: 36,
     maxHeight: 120,
   },
@@ -84,11 +84,11 @@ const styles = StyleSheet.create({
   sendButton: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: radius.lg,
     backgroundColor: colors.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: spacing.xxs,
   },
   sendButtonDisabled: {
     backgroundColor: colors.fill,

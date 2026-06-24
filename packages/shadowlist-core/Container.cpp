@@ -8,9 +8,7 @@ namespace azimgd::shadowlist {
 
 namespace {
 // Debug-only: the key at an emitted index, so JS and native logs correlate by content.
-// Only referenced inside SL_LOG, which compiles to a no-op unless SHADOWLIST_DEBUG_LOG
-// is set, so mark it maybe_unused to stay clean under -Werror=unused-function.
-[[maybe_unused]] const char* emitKeyAt(const std::vector<Element>& elements, std::size_t index) {
+[[maybe_unused]] const char* debugKeyAt(const std::vector<Element>& elements, std::size_t index) {
   if (index < elements.size()) {
     return elements[index].key.empty() ? "(empty)" : elements[index].key.c_str();
   }
@@ -19,7 +17,6 @@ namespace {
 }
 
 void Container::startRevision() {
-  // A revision can only start from the idle status.
   if (this->revisionStatus != RevisionStatusIdle) {
     throw InvalidOperationError("Cannot start the new revision while the previous is in progress");
   }
@@ -28,31 +25,33 @@ void Container::startRevision() {
 }
 
 void Container::endRevision() {
-  // A revision can only end while pending.
   if (this->revisionStatus != RevisionStatusPending) {
     throw InvalidOperationError("You cannot end the revision while the previous has not started");
   }
 
-  this->revisionCount++;
+  if (this->revision.elements.empty()) {
+    this->revisionCount = RevisionCountFirst;
+  } else {
+    this->revisionCount++;
+  }
   this->revisionStatus = RevisionStatusIdle;
 
-  // Check whether we're within threshold of either edge. Inverted lists swap start/end.
   double containerOffset = this->getContainerOffset();
   double windowSize = this->getWindowContainerSize();
   double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
 
-  bool nearLowEdge = containerOffset <= windowSize * this->startReachedThreshold;
-  bool nearHighEdge = containerOffset + windowSize >= totalSize - windowSize * this->endReachedThreshold;
+  bool reachingLowEdge = containerOffset <= windowSize * this->startReachedThreshold;
+  bool reachingHighEdge = containerOffset + windowSize >= totalSize - windowSize * this->endReachedThreshold;
 
-  bool reachedEnd = this->inverted ? nearLowEdge : nearHighEdge;
-  bool reachedStart = this->inverted ? nearHighEdge : nearLowEdge;
+  bool reachedEnd = this->inverted ? reachingLowEdge : reachingHighEdge;
+  bool reachedStart = this->inverted ? reachingHighEdge : reachingLowEdge;
 
   // When both edges register (a list smaller than a window), prefer the end edge.
   if (reachedStart && reachedEnd) {
     reachedStart = false;
   }
 
-  // Re-arm the edge callbacks when the data set changed: reaching the new edge is a
+  // Reset the edge callbacks when the data set changed: reaching the new edge is a
   // fresh arrival even if the offset never left the threshold band.
   std::size_t elementsSize = this->revision.elements.size();
   if (elementsSize != this->prevReachedElementsSize) {
@@ -84,13 +83,15 @@ void Container::scrollToEnd() {
   this->pendingScrollToEnd = true;
 }
 
-void Container::requestScrollToIndex(double commandIndex, double commandNonce, int propIndex) {
-  // The imperative command takes precedence over the prop and fires once per nonce,
-  // so requesting the same index again still re-scrolls.
+void Container::requestScrollToIndex(double commandIndex, double commandSequence, int propIndex) {
+  // The imperative command takes priority over the prop. Each call bumps a counter, and
+  // we act whenever that counter changes, so requesting the same index twice still
+  // scrolls both times.
   bool fired = false;
-  if (commandNonce != this->prevScrollToIndexNonce) {
-    this->prevScrollToIndexNonce = commandNonce;
-    // scrollToEnd shares this channel, distinguished by the SCROLL_TO_END_INDEX sentinel.
+  if (commandSequence != this->prevScrollToIndexSequence) {
+    this->prevScrollToIndexSequence = commandSequence;
+    // scrollToEnd uses the same command channel as scrollToIndex. It is told apart by a
+    // special reserved value (SCROLL_TO_END_INDEX) instead of a real index.
     if (commandIndex == SCROLL_TO_END_INDEX) {
       this->scrollToEnd();
       fired = true;
@@ -101,7 +102,7 @@ void Container::requestScrollToIndex(double commandIndex, double commandNonce, i
     }
   }
 
-  // The prop fires only when its value changes (negative is inactive).
+  // The prop only takes effect when its value changes. A negative value means it is off.
   if (!fired && propIndex >= 0 && propIndex != this->prevScrollToIndexProp) {
     this->scrollToIndex(static_cast<std::size_t>(propIndex));
   }
@@ -135,6 +136,12 @@ ContainerStateUpdate Container::resolveStateUpdate(
 
   update.applyContainerOffset = corrected;
   update.changed = corrected || sizeChanged;
+
+  // Publish the in-flight correction's token (its operation id) only on a frame that
+  // actually applies an offset driven by an operation, so the host echoes it back and we
+  // recognise our own write. A bare measurement nudge / layout reassert with no operation
+  // publishes 0; the host classifies those by causality, not by token.
+  update.commitToken = (corrected && this->operation) ? this->operation->id : 0;
 
   return update;
 }
@@ -180,7 +187,7 @@ std::vector<double> Container::getSnapOffsets() const {
     maxOffset = 0.0;
   }
 
-  // One target per element, clamped to range. Offsets only increase, so de-duping
+  // One target per element, clamped to range. Offsets only increase, so deduping
   // consecutive equal values (the head/tail collapse to 0 / maxOffset) keeps the
   // list ascending and tidy.
   snapOffsets.reserve(elementsSize);
@@ -205,7 +212,7 @@ std::vector<double> Container::getSnapOffsets() const {
       target = maxOffset;
     }
 
-    if (snapOffsets.empty() || std::fabs(target - snapOffsets.back()) > OFFSET_MOVED_EPSILON) {
+    if (snapOffsets.empty() || std::fabs(target - snapOffsets.back()) > OFFSET_MOVED_THRESHOLD) {
       snapOffsets.push_back(target);
     }
   }
@@ -287,15 +294,23 @@ std::size_t Container::findElementIndexByKey(const std::string& key) const {
   return entry != this->revision.elementIndexByKey.end() ? entry->second : UNDEFINED_INDEX;
 }
 
+bool Container::isAnchorable(const std::string& key) const {
+  if (key.empty()) {
+    return false;
+  }
+  // Fast path: no policy set means every row is anchorable.
+  return this->nonAnchorableKeys.empty() ||
+    this->nonAnchorableKeys.find(key) == this->nonAnchorableKeys.end();
+}
+
 void Container::dispatchObservers() {
-  // Notify when the visible index range changes.
   auto visibleIndices = this->getVisibleIndices();
   if (this->onVisibleIndicesChangeCallback &&
     (visibleIndices.first != this->prevVisibleStartIndex || visibleIndices.second != this->prevVisibleEndIndex)) {
     SL_LOG("  emit onVisibleIndicesChange(%zd, %zd) keys=[%s..%s]",
       static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second),
-      emitKeyAt(this->revision.elements, visibleIndices.first),
-      emitKeyAt(this->revision.elements, visibleIndices.second));
+      debugKeyAt(this->revision.elements, visibleIndices.first),
+      debugKeyAt(this->revision.elements, visibleIndices.second));
     this->onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
   }
   this->prevVisibleStartIndex = visibleIndices.first;
@@ -314,7 +329,6 @@ void Container::dispatchObservers() {
     this->prevViewableEndIndex = viewableIndices.second;
   }
 
-  // Notify when the scroll offset changes.
   double containerOffsetX = this->revision.containerOffsetX;
   double containerOffsetY = this->revision.containerOffsetY;
   if (this->onScrollCallback &&
@@ -378,7 +392,6 @@ std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
   std::size_t startIndex = this->revision.measurementElementStartIndex;
   std::size_t endIndex = this->revision.measurementElementEndIndex;
 
-  // Return the visible range, or (-1, -1) if uninitialized.
   if (startIndex != UNDEFINED_INDEX && endIndex != UNDEFINED_INDEX) {
     return {startIndex, endIndex};
   }
@@ -398,14 +411,14 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
   double windowSize = this->getWindowContainerSize();
   double viewportEnd = viewportStart + windowSize;
 
-  // Inverted lists store the window start>end; normalise to ascending [lo, hi].
-  std::size_t lo = this->inverted ? measuredEndIndex : measuredStartIndex;
-  std::size_t hi = this->inverted ? measuredStartIndex : measuredEndIndex;
+  // Inverted lists store the window start>end; normalise to an ascending window.
+  std::size_t windowLow = this->inverted ? measuredEndIndex : measuredStartIndex;
+  std::size_t windowHigh = this->inverted ? measuredStartIndex : measuredEndIndex;
 
   std::size_t firstViewable = UNDEFINED_INDEX;
   std::size_t lastViewable = UNDEFINED_INDEX;
 
-  for (std::size_t nextElementIndex = lo; nextElementIndex <= hi && nextElementIndex < this->revision.elements.size(); ++nextElementIndex) {
+  for (std::size_t nextElementIndex = windowLow; nextElementIndex <= windowHigh && nextElementIndex < this->revision.elements.size(); ++nextElementIndex) {
     const Element& nextElement = this->revision.elements[nextElementIndex];
     double elementStart = this->horizontal ? nextElement.offsetX : nextElement.offsetY;
     double elementSize = this->horizontal ? nextElement.width : nextElement.height;

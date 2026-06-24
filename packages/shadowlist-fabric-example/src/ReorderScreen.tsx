@@ -1,11 +1,23 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Reorder, ListHeader, colors } from 'shadowlist-utils/native';
-import { generateContact, type ContactItem } from 'shadowlist-utils';
+import {
+  generateContact,
+  useListController,
+  type ContactItem,
+} from 'shadowlist-utils';
 
 export const ReorderScreen = () => {
-  const [data, setData] = useState<ContactItem[]>(() =>
-    Array.from({ length: 80 }, (_, index) => generateContact(index))
+  const initialData = useMemo(
+    () => Array.from({ length: 80 }, (_, index) => generateContact(index)),
+    []
+  );
+  const list = useListController<ContactItem>({ initialData });
+  const { setData } = list;
+
+  const handleReorder = useCallback(
+    ({ data: reordered }: { data: ContactItem[] }) => setData(reordered),
+    [setData]
   );
 
   const renderElement = useCallback(
@@ -18,9 +30,9 @@ export const ReorderScreen = () => {
   return (
     <View style={styles.container}>
       <Reorder.List
-        data={data}
+        data={list.data}
         style={styles.list}
-        onReorder={({ data: reordered }) => setData(reordered)}
+        onReorder={handleReorder}
         renderElement={renderElement}
         ListHeaderComponent={
           <ListHeader

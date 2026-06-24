@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, typography } from '../theme';
+import { colors, typography, spacing } from '../theme';
 
 export interface ListFooterProps {
   text?: string;
@@ -17,8 +17,8 @@ export const ListFooter = memo(({ text = 'End of list' }: ListFooterProps) => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.background,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
     alignItems: 'center',
   },
   text: {
