@@ -73,17 +73,21 @@ using namespace facebook::react;
       [_contentView bringSubviewToFront:_draggedView];
       [self applyDragShuffle];
     }
+    // VoiceOver alternative to the long-press drag gesture (no-op unless dragEnabled).
+    [self applyDragAccessibilityActionsToView:childComponentView];
 #endif
     return;
   }
 
   if ([childComponentView conformsToProtocol:@protocol(RCTShadowListTemplateViewViewProtocol)]) {
     const auto &templateProps = *std::static_pointer_cast<ShadowListTemplateViewProps const>(childComponentView.props);
+    // Match template types explicitly: ShadowList can mount `header` and `empty` simultaneously,
+    // and a catch-all else here would let `empty` silently overwrite the real sticky header.
     if (templateProps.templateType == "footer") {
       _stickyFooterView = childComponentView;
     } else if (templateProps.templateType == "sectionHeader") {
       _sectionHeaderOverlay = childComponentView;
-    } else {
+    } else if (templateProps.templateType == "header") {
       _stickyHeaderView = childComponentView;
     }
     [_contentView addSubview:childComponentView];
@@ -103,6 +107,14 @@ using namespace facebook::react;
   if (childComponentView == _sectionHeaderOverlay) {
     _sectionHeaderOverlay = nil;
   }
+#if !TARGET_OS_OSX
+  // The dragged (or just-dropped, still-settling) row's underlying data can be deleted
+  // mid-drag, unmounting it here. Abort the drag/settle instead of leaving dangling
+  // auto-scroll/state; teardownDrag does not dispatch a reorder commit.
+  if ((UIView *)childComponentView == _draggedView || (UIView *)childComponentView == _droppedView) {
+    [self teardownDrag];
+  }
+#endif
   [childComponentView removeFromSuperview];
 }
 
@@ -147,12 +159,23 @@ using namespace facebook::react;
   [self teardownDrag];
   _dragRecognizer.enabled = NO;
 #endif
+  // A recycled view must not hand a leftover scroll position or the previous mount's state
+  // to the next list. Reset _state BEFORE moving the offset: setContentOffset: fires
+  // scrollViewDidScroll synchronously, which would otherwise publish the reset as a phantom
+  // user scroll-to-top into the outgoing surface's state.
+  _appliedOffset = CGPointZero;
+  _hasAppliedOffset = NO;
+  _armedToken = 0;
+  _state.reset();
+  [_scrollView setContentOffset:CGPointZero animated:NO];
   [super prepareForRecycle];
 }
 
 - (void)updateProps:(Props::Shared const &)props oldProps:(Props::Shared const &)oldProps
 {
   const auto &nextProps = *std::static_pointer_cast<ShadowListViewProps const>(props);
+  // _props holds the previous commit's props until [super updateProps:] swaps it.
+  const auto &prevProps = *std::static_pointer_cast<ShadowListViewProps const>(_props);
   _stickyHeader = nextProps.stickyHeader;
   _stickyFooter = nextProps.stickyFooter;
   _autoHideHeader = nextProps.autoHideHeader;
@@ -162,6 +185,16 @@ using namespace facebook::react;
   _snapToItem = nextProps.snapToItem;
 #if !TARGET_OS_OSX
   _dragRecognizer.enabled = _dragEnabled;
+  // Sync mounted rows' VoiceOver custom actions only when dragEnabled actually changes:
+  // updateProps runs on every prop commit, and rebuilding the actions per row each time
+  // is allocation churn. Newly mounted rows are covered by mountChildComponentView.
+  if (prevProps.dragEnabled != nextProps.dragEnabled) {
+    for (UIView *sub in _contentView.subviews) {
+      if ([sub conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+        [self applyDragAccessibilityActionsToView:sub];
+      }
+    }
+  }
   // decelerationRate (for snap-to-item) and pull-to-refresh have no AppKit equivalent.
   _scrollView.decelerationRate = _snapToItem ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
 #endif

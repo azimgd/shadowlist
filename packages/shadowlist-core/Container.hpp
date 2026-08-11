@@ -239,6 +239,38 @@ public:
   double anchorHeaderSize = 0.0;
 
   /*
+   * Layout inputs as of the last offset recompute, so layoutElements can skip that
+   * O(elements) pass when none of them changed. Window sizes are included because
+   * multi-column track size (and every cross-axis offset) derives from them.
+   */
+  double lastLayoutHeaderSize = -1.0;
+  double lastLayoutFooterSize = -1.0;
+  double lastLayoutWindowWidth = -1.0;
+  double lastLayoutWindowHeight = -1.0;
+  std::size_t lastLayoutColumns = 0;
+  bool lastLayoutHorizontal = false;
+
+  /*
+   * Set by reconcileElements on any insert/remove/reorder: positions shift even when
+   * no element's size changed. Defaults true so the first layout always recomputes.
+   */
+  bool elementsStructureDirty = true;
+
+  /*
+   * Set by the measure passes when they resize an element outside layoutElements'
+   * own loop (which cannot see those changes via its estimated checks).
+   */
+  bool elementsSizeDirty = false;
+
+  /*
+   * Max cross-axis element extent (offset + size on the non-scroll axis). Cross extents
+   * are not monotone by index, so recomputeTotalSize's tail-only scan would miss a
+   * mid-list element wider/taller than the window without this. Rebuilt exactly by full
+   * recomputeElementOffsets passes, only grown by partial ones.
+   */
+  double maxCrossAxisExtent = 0.0;
+
+  /*
    * Scroll offset reported on the previous frame. A user scroll only counts as a
    * takeover when this actually changes, so a stale userScrolled flag on an unmoved
    * offset can't cancel an in-flight correction.

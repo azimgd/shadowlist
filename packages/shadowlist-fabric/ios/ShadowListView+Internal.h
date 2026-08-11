@@ -135,6 +135,13 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 - (void)teardownDrag;
 /* Animate the just-dropped row from its release point into its resting slot. */
 - (void)settleDroppedView:(UIView *)view;
+
+/* VoiceOver alternative to the long-press gesture: installs/removes "Move up"/"Move down"
+ * custom actions on a row view depending on dragEnabled. */
+- (void)applyDragAccessibilityActionsToView:(UIView *)view;
+/* Commits a one-step reorder with the adjacent mounted row via the same path a drag drop
+ * uses (dispatchDragEventType:3); returns NO if there is no such neighbour. */
+- (BOOL)performAccessibilityMove:(UIView *)view up:(BOOL)up;
 #endif
 
 @end

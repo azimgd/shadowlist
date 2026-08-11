@@ -9,7 +9,11 @@ export type KeyboardMoveEvent = {
 };
 
 export interface Spec extends TurboModule {
-  // Start/stop the native keyboard observer. Reference-counted by consumers; safe to call repeatedly.
+  // Start/stop the native keyboard observer. The native side reference-counts calls, so
+  // multiple independent consumers (e.g. several ShadowList instances) can each call
+  // setEnabled(true)/setEnabled(false) without stopping the observer out from under one
+  // another; the observer only actually stops once every enabled call has a matching
+  // disabled call. Safe to call repeatedly and from multiple call sites.
   setEnabled(enabled: boolean): void;
 
   // Fires for every frame of a keyboard transition.

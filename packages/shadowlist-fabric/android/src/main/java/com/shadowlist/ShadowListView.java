@@ -289,7 +289,7 @@ public class ShadowListView extends FrameLayout {
       return;
     }
     if (child instanceof ShadowListTemplateView) {
-      mContentView.addView(child);
+      mContentView.addView(child, index);
       child.addOnLayoutChangeListener(mTemplateLayoutListener);
     }
   }
@@ -306,6 +306,12 @@ public class ShadowListView extends FrameLayout {
     View child = mContentView.getChildAt(index);
     if (child instanceof ShadowListTemplateView) {
       child.removeOnLayoutChangeListener(mTemplateLayoutListener);
+    }
+    // The row being dragged is about to disappear out from under the gesture (e.g. its
+    // data was deleted mid-drag): abort the drag first so the controller stops
+    // intercepting touches against a now-parentless, invisible row.
+    if (child != null && child == mDragController.getDraggedView()) {
+      mDragController.teardown();
     }
     mContentView.removeViewAt(index);
   }

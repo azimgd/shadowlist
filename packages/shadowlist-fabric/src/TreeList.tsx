@@ -66,6 +66,11 @@ function TreeListInner<ItemT>(
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
+    accessible,
+    accessibilityLabel,
+    accessibilityRole,
+    accessibilityHint,
+    testID,
   }: TreeListProps<ItemT>,
   ref: Ref<TreeListCommands>
 ) {
@@ -200,6 +205,11 @@ function TreeListInner<ItemT>(
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
       ListEmptyComponent={ListEmptyComponent}
+      accessible={accessible}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
+      accessibilityHint={accessibilityHint}
+      testID={testID}
     />
   );
 }

@@ -50,6 +50,13 @@ export function useMountedRange<ElementT extends { id: string }>({
   // key -> first index, rebuilt only when the data array identity changes. Resolves a
   // stored edge key back to its current index in O(1); first occurrence wins on a
   // duplicate key, matching the core's reconcile semantics.
+  //
+  // This is an O(N) full rescan on every data mutation, including a single append or
+  // prepend. A plain array gives no cheap diff signal (no keyed diffing, no way to tell
+  // "one item added at the end" from "everything changed" without already walking it),
+  // so a genuinely incremental update would need extra bookkeeping (e.g. diffing against
+  // the previous array) for a case that's already cheap in absolute terms (one Map build
+  // per data change, not per row). Accepted as-is rather than adding that complexity.
   const keyToIndex = useMemo(() => {
     const map = new Map<string, number>();
     for (let index = 0; index < data.length; index++) {

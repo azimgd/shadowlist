@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from 'react';
+import { forwardRef, useCallback, useMemo } from 'react';
 import {
   ShadowList,
   type ShadowListProps,
@@ -38,6 +38,23 @@ export const PollList = forwardRef<ShadowListCommands, PollListProps>(
       [data]
     );
 
+    // Recreated only when total/leadingId/onVote change, so ElementRenderer's per-row
+    // memoization (keyed on renderElement identity) isn't defeated by every re-render of
+    // this wrapper (e.g. from an unrelated prop change).
+    const defaultRenderElement = useCallback<
+      NonNullable<ShadowListProps<PollOption>['renderElement']>
+    >(
+      ({ element }) => (
+        <PollOptionRow
+          option={element}
+          total={total}
+          leading={element.id === leadingId}
+          onVote={onVote}
+        />
+      ),
+      [total, leadingId, onVote]
+    );
+
     return (
       <ShadowList
         ref={ref}
@@ -45,17 +62,7 @@ export const PollList = forwardRef<ShadowListCommands, PollListProps>(
         stickyHeader
         stickyFooter
         keyExtractor={(item) => item.id}
-        renderElement={
-          renderElement ??
-          (({ element }) => (
-            <PollOptionRow
-              option={element}
-              total={total}
-              leading={element.id === leadingId}
-              onVote={onVote}
-            />
-          ))
-        }
+        renderElement={renderElement ?? defaultRenderElement}
         {...props}
       />
     );

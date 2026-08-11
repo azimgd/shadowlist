@@ -78,6 +78,11 @@ function ShadowListInner<ElementT extends { id: string }>(
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
+    accessible,
+    accessibilityLabel,
+    accessibilityRole,
+    accessibilityHint,
+    testID,
   }: ShadowListProps<ElementT>,
   ref: Ref<ShadowListCommands>
 ) {
@@ -226,6 +231,11 @@ function ShadowListInner<ElementT extends { id: string }>(
     <ShadowListView
       ref={shadowlistViewRef}
       style={[styles.container, style]}
+      accessible={accessible}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
+      accessibilityHint={accessibilityHint}
+      testID={testID}
       onVisibleIndicesChange={handleVisibleIndicesChange}
       onViewableIndicesChange={
         onViewableItemsChanged || stickyEnabled

@@ -156,6 +156,20 @@ using namespace facebook::react;
     return;
   }
 
+  // Re-derive the pivot's current index/key every time drag state is recomputed: an unrelated
+  // data mutation mid-drag (e.g. updateState: firing while _dragging == YES from another
+  // commit) can shift the already-mounted dragged view's live index/key without a re-pickup,
+  // and insertionIndexForCenter:/this view's geometry must key off that current value rather
+  // than the one cached once at pickup in beginDrag.
+  NSInteger currentIndex = [self indexOfElementView:view];
+  if (currentIndex != NSNotFound) {
+    _dragOriginIndex = currentIndex;
+  }
+  NSString *currentKey = [self keyOfElementView:view];
+  if (currentKey) {
+    _dragOriginKey = currentKey;
+  }
+
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   CGFloat touchViewport = _horizontal ? _dragTouchInViewport.x : _dragTouchInViewport.y;
   CGFloat touchContent = touchViewport + offset;
@@ -404,6 +418,83 @@ using namespace facebook::react;
   _droppedView = nil;
   _scrollView.scrollEnabled = YES;
   [self clearDragTransforms];
+}
+
+#pragma mark - Accessibility
+
+/*
+ * VoiceOver alternative to the long-press gesture: while dragEnabled, every row gets
+ * "Move up"/"Move down" custom actions; removed again when disabled. The action handlers
+ * are looked up live (indexOfElementView:/keyOfElementView:) at invocation time rather than
+ * capturing the row's index/key here, so a data change between mount and activation can't
+ * make the action stale.
+ */
+- (void)applyDragAccessibilityActionsToView:(UIView *)view
+{
+  if (!_dragEnabled) {
+    view.accessibilityCustomActions = nil;
+    return;
+  }
+
+  __weak ShadowListView *weakSelf = self;
+  __weak UIView *weakView = view;
+  UIAccessibilityCustomAction *moveUp = [[UIAccessibilityCustomAction alloc]
+      initWithName:NSLocalizedString(@"Move up", nil)
+     actionHandler:^BOOL(UIAccessibilityCustomAction *action) {
+       (void)action;
+       return [weakSelf performAccessibilityMove:weakView up:YES];
+     }];
+  UIAccessibilityCustomAction *moveDown = [[UIAccessibilityCustomAction alloc]
+      initWithName:NSLocalizedString(@"Move down", nil)
+     actionHandler:^BOOL(UIAccessibilityCustomAction *action) {
+       (void)action;
+       return [weakSelf performAccessibilityMove:weakView up:NO];
+     }];
+  view.accessibilityCustomActions = @[ moveUp, moveDown ];
+}
+
+/*
+ * Commit a one-step reorder with the adjacent mounted row (closest lower index for "up",
+ * closest higher index for "down"), via the same dispatchDragEventType:3 commit path a real
+ * drag drop uses, so JS's existing onDragEnd/useDragReorder handling applies unchanged.
+ */
+- (BOOL)performAccessibilityMove:(UIView *)view up:(BOOL)up
+{
+  NSInteger index = [self indexOfElementView:view];
+  if (index == NSNotFound) {
+    return NO;
+  }
+  NSString *key = [self keyOfElementView:view];
+  if (!key) {
+    return NO;
+  }
+
+  UIView *neighbor = nil;
+  NSInteger neighborIndex = up ? NSIntegerMin : NSIntegerMax;
+  for (UIView *sub in _contentView.subviews) {
+    if (sub == view) {
+      continue;
+    }
+    NSInteger subIndex = [self indexOfElementView:sub];
+    if (subIndex == NSNotFound) {
+      continue;
+    }
+    if (up ? (subIndex < index && subIndex > neighborIndex)
+           : (subIndex > index && subIndex < neighborIndex)) {
+      neighborIndex = subIndex;
+      neighbor = sub;
+    }
+  }
+  if (!neighbor) {
+    return NO;
+  }
+  NSString *neighborKey = [self keyOfElementView:neighbor];
+  if (!neighborKey) {
+    return NO;
+  }
+
+  [self dispatchDragEventType:3 fromKey:key toKey:neighborKey];
+  return YES;
 }
 
 @end

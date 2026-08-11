@@ -310,6 +310,8 @@ void Virtualizer::measureFirstRevision(Container *container) {
       nextElement.width = width;
       nextElement.height = height;
       nextElement.estimated = true;
+      // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
+      container->elementsSizeDirty = true;
     }
 
     if (measuredMinIndex == UNDEFINED_INDEX || nextElementIndex < measuredMinIndex) {
@@ -354,12 +356,32 @@ void Virtualizer::measureNextRevision(Container *container) {
   std::size_t measuredMinIndex = UNDEFINED_INDEX;
   std::size_t measuredMaxIndex = UNDEFINED_INDEX;
 
+  /*
+   * Single-column offsets are non-decreasing by index (see recomputeElementOffsets), so
+   * the scan can stop at the first element past upperBound. Multi-column interleaves
+   * tracks and must keep scanning. Not on the reconcile frame though: reconciled
+   * elements still carry pre-reorder offsets (reflowed only later in layoutElements),
+   * so a row moved toward the front could break the scan early with its stale offset.
+   */
+  bool canEarlyExit = container->columns <= 1 && !container->elementsStructureDirty;
+
   for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
     Element& nextElement = container->revision.elements[nextElementIndex];
 
-    // Skip elements outside the visible window plus overscan buffer.
     double elementOffset = container->horizontal ? nextElement.offsetX : nextElement.offsetY;
-    if (elementOffset < lowerBound || elementOffset > upperBound) {
+    double elementSize = container->horizontal ? nextElement.width : nextElement.height;
+
+    // Skip elements outside the visible window plus overscan buffer. This is an
+    // interval-overlap test (mirroring captureAnchor's), not a leading-edge-only test:
+    // an element whose leading edge is before lowerBound but whose body still overlaps
+    // it must still be measured/counted as visible.
+    if (elementOffset > upperBound) {
+      if (canEarlyExit) {
+        break;
+      }
+      continue;
+    }
+    if (elementOffset + elementSize <= lowerBound) {
       continue;
     }
 
@@ -373,6 +395,8 @@ void Virtualizer::measureNextRevision(Container *container) {
       nextElement.width = width;
       nextElement.height = height;
       nextElement.estimated = true;
+      // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
+      container->elementsSizeDirty = true;
     }
 
     if (measuredMinIndex == UNDEFINED_INDEX || nextElementIndex < measuredMinIndex) {
@@ -427,6 +451,8 @@ void Virtualizer::layoutElements(Container *container) {
   double fallbackHeight = container->revision.averageElementHeight > 0.0
     ? container->revision.averageElementHeight : estimatedHeight;
 
+  bool anyNewlyEstimated = false;
+
   for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
     Element& nextElement = container->revision.elements[nextElementIndex];
 
@@ -434,28 +460,63 @@ void Virtualizer::layoutElements(Container *container) {
       if (container->horizontal) {
         if (!nextElement.estimated) {
           nextElement.width = fallbackWidth;
+          anyNewlyEstimated = true;
         }
         nextElement.height = trackSize;
       } else {
         if (!nextElement.estimated) {
           nextElement.height = fallbackHeight;
+          anyNewlyEstimated = true;
         }
         nextElement.width = trackSize;
       }
     } else if (!nextElement.estimated) {
       nextElement.width = fallbackWidth;
       nextElement.height = fallbackHeight;
+      anyNewlyEstimated = true;
     }
   }
 
-  recomputeElementOffsets(container, 0);
+  /*
+   * recomputeElementOffsets is an O(elements) pass. Skip it unless something that feeds
+   * offsets changed this call: a fresh fallback size above, a size stamped by the
+   * measure pass (elementsSizeDirty), a structural change (elementsStructureDirty), or
+   * a layout parameter. This keeps a plain scroll frame O(window) instead of O(N).
+   */
+  bool layoutParamsChanged =
+    container->headerSize != container->lastLayoutHeaderSize ||
+    container->footerSize != container->lastLayoutFooterSize ||
+    container->revision.windowContainerWidth != container->lastLayoutWindowWidth ||
+    container->revision.windowContainerHeight != container->lastLayoutWindowHeight ||
+    container->columns != container->lastLayoutColumns ||
+    container->horizontal != container->lastLayoutHorizontal;
+
+  if (anyNewlyEstimated || layoutParamsChanged || container->elementsStructureDirty || container->elementsSizeDirty) {
+    recomputeElementOffsets(container, 0);
+    container->lastLayoutHeaderSize = container->headerSize;
+    container->lastLayoutFooterSize = container->footerSize;
+    container->lastLayoutWindowWidth = container->revision.windowContainerWidth;
+    container->lastLayoutWindowHeight = container->revision.windowContainerHeight;
+    container->lastLayoutColumns = container->columns;
+    container->lastLayoutHorizontal = container->horizontal;
+    container->elementsStructureDirty = false;
+    container->elementsSizeDirty = false;
+  }
 }
 
 void Virtualizer::recomputeElementOffsets(Container *container, std::size_t fromIndex) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
   std::size_t elementsSize = container->revision.elements.size();
+
+  /*
+   * Maintain Container::maxCrossAxisExtent alongside the offsets: a full pass rebuilds
+   * it exactly; a partial pass only grows it (the untouched prefix keeps its share).
+   */
+  double crossMax = fromIndex == 0 ? 0.0 : container->maxCrossAxisExtent;
+
   if (fromIndex >= elementsSize) {
+    container->maxCrossAxisExtent = crossMax;
     return;
   }
 
@@ -503,6 +564,13 @@ void Virtualizer::recomputeElementOffsets(Container *container, std::size_t from
         nextElement.offsetY = trackSizes[trackIndex];
         trackSizes[trackIndex] += nextElement.height + nextElement.gapY;
       }
+
+      double crossExtent = container->horizontal
+        ? nextElement.offsetY + nextElement.height
+        : nextElement.offsetX + nextElement.width;
+      if (crossExtent > crossMax) {
+        crossMax = crossExtent;
+      }
     }
   } else {
     /*
@@ -531,8 +599,17 @@ void Virtualizer::recomputeElementOffsets(Container *container, std::size_t from
         nextElement.offsetY = nextOffset;
         nextOffset += nextElement.height + nextElement.gapY;
       }
+
+      double crossExtent = container->horizontal
+        ? nextElement.offsetY + nextElement.height
+        : nextElement.offsetX + nextElement.width;
+      if (crossExtent > crossMax) {
+        crossMax = crossExtent;
+      }
     }
   }
+
+  container->maxCrossAxisExtent = crossMax;
 }
 
 void Virtualizer::recomputeTotalSize(Container *container) {
@@ -547,7 +624,18 @@ void Virtualizer::recomputeTotalSize(Container *container) {
   double maxHeight = 0.0;
   double maxWidth = 0.0;
 
-  for (const Element& nextElement : container->revision.elements) {
+  /*
+   * Per-track scroll-axis offsets only grow with index, so the last `columns` elements
+   * always contain every track's furthest edge -- scanning just that tail finds the
+   * scroll-axis maximum. Cross-axis extents are not monotone by index, so the cross
+   * axis folds in Container::maxCrossAxisExtent below instead.
+   */
+  std::size_t elementsSize = container->revision.elements.size();
+  std::size_t scanColumns = container->columns > 0 ? container->columns : 1;
+  std::size_t scanFrom = elementsSize > scanColumns ? elementsSize - scanColumns : 0;
+
+  for (std::size_t index = scanFrom; index < elementsSize; ++index) {
+    const Element& nextElement = container->revision.elements[index];
     double elementBottom = nextElement.offsetY + nextElement.height;
     double elementRight = nextElement.offsetX + nextElement.width;
 
@@ -562,14 +650,18 @@ void Virtualizer::recomputeTotalSize(Container *container) {
   /*
    * Scroll axis includes the header (a floor for empty lists) and trailing footer.
    * The cross axis is floored at the window's cross size so content spans the viewport
-   * and multi-column layouts cannot collapse to a zero-width feedback loop.
+   * and multi-column layouts cannot collapse to a zero-width feedback loop, and takes
+   * the maintained cross maximum so an element measured past the window's cross size
+   * is still covered by the published content size.
    */
   if (container->horizontal) {
     container->revision.totalContainerWidth = std::max(maxWidth, container->headerSize) + container->footerSize;
-    container->revision.totalContainerHeight = std::max(maxHeight, container->revision.windowContainerHeight);
+    container->revision.totalContainerHeight =
+      std::max({maxHeight, container->maxCrossAxisExtent, container->revision.windowContainerHeight});
   } else {
     container->revision.totalContainerHeight = std::max(maxHeight, container->headerSize) + container->footerSize;
-    container->revision.totalContainerWidth = std::max(maxWidth, container->revision.windowContainerWidth);
+    container->revision.totalContainerWidth =
+      std::max({maxWidth, container->maxCrossAxisExtent, container->revision.windowContainerWidth});
   }
 
   /*
@@ -706,6 +798,8 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
   std::unordered_map<std::string, std::size_t> nextElementIndexByKey;
   nextElementIndexByKey.reserve(nextKeys.size());
 
+  std::size_t survivorCount = 0;
+
   for (std::size_t nextElementIndex = 0; nextElementIndex < nextKeys.size(); nextElementIndex++) {
     const std::string& nextKey = nextKeys[nextElementIndex];
 
@@ -714,8 +808,16 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
     auto prevElementEntry = prevElementsByKey.find(nextKey);
     if (prevElementEntry != prevElementsByKey.end()) {
       Element nextElement = std::move(prevElementEntry->second);
+      nextElement.key = nextKey;
       nextElement.index = nextElementIndex;
       nextElements.push_back(std::move(nextElement));
+      /*
+       * Erase the consumed entry so a DUPLICATE key later in nextKeys cannot move from
+       * this same already-moved-from Element again (it falls into the "not found"
+       * branch below instead, getting a fresh Element with its key correctly stamped).
+       */
+      prevElementsByKey.erase(prevElementEntry);
+      survivorCount++;
     } else {
       Element nextElement;
       nextElement.key = nextKey;
@@ -726,6 +828,29 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
 
   container->revision.elements = std::move(nextElements);
   container->revision.elementIndexByKey = std::move(nextElementIndexByKey);
+
+  /*
+   * A structural change (insert/remove/reorder) always requires the next layoutElements
+   * to recompute offsets, even if no element needs a fresh fallback size (see
+   * Virtualizer::layoutElements).
+   */
+  container->elementsStructureDirty = true;
+
+  /*
+   * Zero surviving elements means every key was replaced (a full dataset swap on a
+   * reused Container, or an empty-then-refill), so the frozen average no longer
+   * describes any content still in the list -- reset it so the next recomputeTotalSize
+   * re-freezes from the new dataset's real measurements instead of chasing stale
+   * old-dataset sizing. A partial reconcile (some survivors) keeps the existing average,
+   * since it still reflects real, still-present content.
+   */
+  if (survivorCount == 0) {
+    container->revision.averageElementWidth = 0.0;
+    container->revision.averageElementHeight = 0.0;
+    container->revision.measuredRealCount = 0;
+    container->revision.measuredRealTotalWidth = 0.0;
+    container->revision.measuredRealTotalHeight = 0.0;
+  }
 }
 
 void Virtualizer::captureAnchor(Container *container, double inputOffset) {
@@ -739,6 +864,9 @@ void Virtualizer::captureAnchor(Container *container, double inputOffset) {
   auto elementOffsetOf = [&](const Element& element) {
     return container->horizontal ? element.offsetX : element.offsetY;
   };
+  auto elementSizeOf = [&](const Element& element) {
+    return container->horizontal ? element.width : element.height;
+  };
 
   /*
    * The anchor is the first ANCHORABLE element whose trailing edge is past the current
@@ -747,11 +875,35 @@ void Virtualizer::captureAnchor(Container *container, double inputOffset) {
    * never perturbs the maintained position; the scan walks down to the next content row.
    * firstPast remembers the literal viewport-top row so a degenerate viewport of nothing
    * but decoration still anchors somewhere instead of failing.
+   *
+   * Offsets are non-decreasing by index for single-column layouts (see
+   * recomputeElementOffsets), so "first element whose trailing edge is past inputOffset"
+   * is a monotonic boundary that can be binary-searched instead of scanned from element 0
+   * -- this is what keeps captureAnchor cheap deep into a very large list. Multi-column
+   * (grid) layouts interleave tracks and lose that monotonicity, so they scan from 0 as
+   * before.
    */
+  std::size_t scanStart = 0;
+  if (container->columns <= 1) {
+    std::size_t low = 0;
+    std::size_t high = prevElements.size();
+    while (low < high) {
+      std::size_t mid = low + (high - low) / 2;
+      const Element& element = prevElements[mid];
+      if (elementOffsetOf(element) + elementSizeOf(element) <= inputOffset) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    scanStart = low;
+  }
+
   const Element* firstPast = nullptr;
-  for (const Element& prevElement : prevElements) {
+  for (std::size_t index = scanStart; index < prevElements.size(); ++index) {
+    const Element& prevElement = prevElements[index];
     double elementOffset = elementOffsetOf(prevElement);
-    double elementSize = container->horizontal ? prevElement.width : prevElement.height;
+    double elementSize = elementSizeOf(prevElement);
 
     if (elementOffset + elementSize <= inputOffset) {
       continue;
@@ -973,8 +1125,23 @@ bool Virtualizer::resolveScroll(
        * settle and auto-follows new content while the user is at the bottom. Every other
        * anchor (scrolled up, prepend) keeps the normal maintain-its-position behaviour.
        */
-      bool invertedBottomAnchor =
-        container->inverted && elementsSize > 0 && anchorIndex == elementsSize - 1;
+      /*
+       * "Last row" means the last ANCHORABLE row, not the raw last index: a trailing
+       * decoration row (bottom padding etc.) would otherwise defeat this check, since
+       * captureAnchor never anchors to it. The anchor is the last anchorable row exactly
+       * when it is anchorable and nothing anchorable follows it -- testing it that way
+       * bounds the walk to the rows after the anchor instead of rescanning the list.
+       */
+      bool invertedBottomAnchor = false;
+      if (container->inverted && container->isAnchorable(container->revision.elements[anchorIndex].key)) {
+        invertedBottomAnchor = true;
+        for (std::size_t nextIndex = anchorIndex + 1; nextIndex < elementsSize; ++nextIndex) {
+          if (container->isAnchorable(container->revision.elements[nextIndex].key)) {
+            invertedBottomAnchor = false;
+            break;
+          }
+        }
+      }
       double rawAnchoredOffset = invertedBottomAnchor
         ? maxOffset
         : container->getElementOffset(anchorIndex) + anchorDelta

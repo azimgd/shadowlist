@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { ViewStyle, ColorValue } from 'react-native';
+import type { ViewStyle, ColorValue, AccessibilityRole } from 'react-native';
 import type { OnScroll } from './ShadowListViewNativeComponent';
 
 /*
@@ -39,6 +39,19 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   keyExtractor?: (item: ElementT, index: number) => string;
   style?: ViewStyle;
   elementStyle?: ViewStyle;
+  /*
+   * Standard RN accessibility props for the list's own container view -- the same
+   * ones any RN <View> accepts, passed through as-is rather than a bespoke
+   * accessibility API. They describe the list container as a whole, not its rows: give
+   * each row its own accessibilityLabel/accessibilityRole etc. from inside
+   * `renderElement` instead (ShadowList doesn't add per-row accessibility props of its
+   * own since renderElement already returns an arbitrary element you fully control).
+   */
+  accessible?: boolean;
+  accessibilityLabel?: string;
+  accessibilityRole?: AccessibilityRole;
+  accessibilityHint?: string;
+  testID?: string;
   inverted?: boolean;
   horizontal?: boolean;
   stickyHeader?: boolean;
@@ -198,6 +211,12 @@ export interface SectionListProps<ItemT, SectionT = object> {
   SectionSeparatorComponent?: ReactElement | (() => ReactElement | null) | null;
   style?: ViewStyle;
   elementStyle?: ViewStyle;
+  /* See ShadowListProps.accessible / accessibilityLabel / accessibilityRole / accessibilityHint / testID. */
+  accessible?: boolean;
+  accessibilityLabel?: string;
+  accessibilityRole?: AccessibilityRole;
+  accessibilityHint?: string;
+  testID?: string;
   inverted?: boolean;
   initialElementsSize?: number;
   containerOffsetIndex?: number;
@@ -295,6 +314,12 @@ export interface TreeListProps<ItemT> {
   indentWidth?: number;
   style?: ViewStyle;
   elementStyle?: ViewStyle;
+  /* See ShadowListProps.accessible / accessibilityLabel / accessibilityRole / accessibilityHint / testID. */
+  accessible?: boolean;
+  accessibilityLabel?: string;
+  accessibilityRole?: AccessibilityRole;
+  accessibilityHint?: string;
+  testID?: string;
   initialElementsSize?: number;
   containerOffsetIndex?: number;
   /* See ShadowListProps.overscan. */

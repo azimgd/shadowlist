@@ -7,6 +7,8 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.Nullable;
+
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
@@ -78,6 +80,11 @@ class ShadowListDragController {
 
   boolean isDragging() {
     return mDragging;
+  }
+
+  /* The row currently picked up by an in-flight drag, or null when none is dragging. */
+  @Nullable ShadowListElementView getDraggedView() {
+    return mDraggedView;
   }
 
   /*
@@ -378,6 +385,22 @@ class ShadowListDragController {
   }
 
   /*
+   * The dragged view's own index prop can be updated mid-gesture by an unrelated data
+   * mutation that shifts indices while the row is still held. Re-read it live from the
+   * view rather than trusting the index cached once in beginDrag(), falling back to the
+   * cached value only if the view no longer reports a valid index.
+   */
+  private int currentDragOriginIndex() {
+    if (mDraggedView != null) {
+      int liveIndex = mDraggedView.getElementIndex();
+      if (liveIndex >= 0) {
+        return liveIndex;
+      }
+    }
+    return mDragOriginIndex;
+  }
+
+  /*
    * The index the dragged row would insert at: the farthest neighbour whose midpoint
    * the centre has crossed. Stable midpoints give a half-row dead zone, so jitter
    * cannot flip the insertion.
@@ -385,7 +408,8 @@ class ShadowListDragController {
   private int insertionIndexForCenter(float center) {
     ViewGroup contentView = mView.getContentView();
     boolean horizontal = mView.isHorizontal();
-    int insertion = mDragOriginIndex;
+    int originIndex = currentDragOriginIndex();
+    int insertion = originIndex;
     // Track the key of the row at the chosen insertion slot so the drop event carries a
     // stable identity, not just an index. Defaults to the origin (no crossing => no move).
     String insertionKey = mDragOriginKey;
@@ -402,10 +426,10 @@ class ShadowListDragController {
       float lead = horizontal ? child.getLeft() : child.getTop();
       float extent = horizontal ? child.getWidth() : child.getHeight();
       float midpoint = lead + extent / 2f;
-      if (elementIndex > mDragOriginIndex && center > midpoint && elementIndex > insertion) {
+      if (elementIndex > originIndex && center > midpoint && elementIndex > insertion) {
         insertion = elementIndex;
         insertionKey = elementChild.getElementKey();
-      } else if (elementIndex < mDragOriginIndex && center < midpoint && elementIndex < insertion) {
+      } else if (elementIndex < originIndex && center < midpoint && elementIndex < insertion) {
         insertion = elementIndex;
         insertionKey = elementChild.getElementKey();
       }
@@ -422,6 +446,7 @@ class ShadowListDragController {
   void applyDragShuffle() {
     ViewGroup contentView = mView.getContentView();
     boolean horizontal = mView.isHorizontal();
+    int originIndex = currentDragOriginIndex();
     for (int i = 0; i < contentView.getChildCount(); i++) {
       View child = contentView.getChildAt(i);
       if (!(child instanceof ShadowListElementView) || child == mDraggedView) {
@@ -432,9 +457,9 @@ class ShadowListDragController {
         continue;
       }
       float shift = 0f;
-      if (mDragOriginIndex < mDragInsertionIndex && elementIndex > mDragOriginIndex && elementIndex <= mDragInsertionIndex) {
+      if (originIndex < mDragInsertionIndex && elementIndex > originIndex && elementIndex <= mDragInsertionIndex) {
         shift = -mDraggedExtent;
-      } else if (mDragInsertionIndex < mDragOriginIndex && elementIndex >= mDragInsertionIndex && elementIndex < mDragOriginIndex) {
+      } else if (mDragInsertionIndex < originIndex && elementIndex >= mDragInsertionIndex && elementIndex < originIndex) {
         shift = mDraggedExtent;
       }
       if (horizontal) {
@@ -490,7 +515,7 @@ class ShadowListDragController {
     stopDragLoop();
     mView.setInnerScrollEnabled(true);
 
-    int from = mDragOriginIndex;
+    int from = currentDragOriginIndex();
     int to = mDragInsertionIndex;
     ShadowListElementView view = mDraggedView;
     mDropReleaseLeading = mDragLeading;

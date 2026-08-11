@@ -39,10 +39,19 @@ export function useDragReorder<ElementT>({
     [data, keyExtractor]
   );
   /*
-   * Index of the picked-up row. Force-mounted so it stays mounted through virtualization
-   * while off-screen; the reorder is applied once on drop.
+   * Key of the picked-up row (not its index): a data mutation mid-gesture (insert/remove
+   * before the dragged row) must not leave the force-mount pointed at a stale index, so we
+   * track identity and re-resolve the index below on every render, the same way
+   * handleDragEnd re-resolves from/to keys on drop.
    */
-  const [draggingIndex, setDraggingIndex] = useState(-1);
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+
+  // Current index of the picked-up row, re-resolved against live `data` whenever it
+  // changes identity (-1 if the key is no longer present, e.g. it was removed mid-drag).
+  const draggingIndex = useMemo(
+    () => (draggingKey === null ? -1 : indexOfKey(draggingKey)),
+    [draggingKey, indexOfKey]
+  );
 
   // Union the picked-up row's index into the rendered set so it stays mounted.
   const renderIndices = useMemo(() => {
@@ -59,21 +68,18 @@ export function useDragReorder<ElementT>({
   // Pickup: keep the picked-up row mounted; data order is unchanged. Resolve the key to
   // its current index for the force-mount union.
   const handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never> =
-    useCallback(
-      (event) => {
-        const { key } = event.nativeEvent;
-        setDraggingIndex(indexOfKey(key));
-        slLog('js.onDragStart', `key=${key}`);
-      },
-      [indexOfKey]
-    );
+    useCallback((event) => {
+      const { key } = event.nativeEvent;
+      setDraggingKey(key);
+      slLog('js.onDragStart', `key=${key}`);
+    }, []);
 
   // Drop: resolve the from/to keys to current indices and apply one array move.
   const handleDragEnd: CodegenTypes.DirectEventHandler<OnDragEnd, never> =
     useCallback(
       (event) => {
         const { fromKey, toKey } = event.nativeEvent;
-        setDraggingIndex(-1);
+        setDraggingKey(null);
         const fromIndex = indexOfKey(fromKey);
         const toIndex = indexOfKey(toKey);
         slLog(
@@ -92,10 +98,10 @@ export function useDragReorder<ElementT>({
       [data, onReorder, indexOfKey]
     );
 
-  // Release draggingIndex if dragging is disabled mid-gesture (drop event may be lost).
+  // Release draggingKey if dragging is disabled mid-gesture (drop event may be lost).
   useEffect(() => {
     if (!dragEnabled) {
-      setDraggingIndex((prev) => (prev === -1 ? prev : -1));
+      setDraggingKey((prev) => (prev === null ? prev : null));
     }
   }, [dragEnabled]);
 

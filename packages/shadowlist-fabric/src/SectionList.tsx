@@ -66,6 +66,11 @@ function SectionListInner<ItemT, SectionT = object>(
     onEndReached,
     onStartReachedThreshold,
     onEndReachedThreshold,
+    accessible,
+    accessibilityLabel,
+    accessibilityRole,
+    accessibilityHint,
+    testID,
   }: SectionListProps<ItemT, SectionT>,
   ref: Ref<ShadowListCommands>
 ) {
@@ -226,6 +231,11 @@ function SectionListInner<ItemT, SectionT = object>(
       ListHeaderComponent={ListHeaderComponent}
       ListFooterComponent={ListFooterComponent}
       ListEmptyComponent={ListEmptyComponent}
+      accessible={accessible}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
+      accessibilityHint={accessibilityHint}
+      testID={testID}
     />
   );
 }

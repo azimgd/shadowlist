@@ -22,8 +22,18 @@ constexpr double SCROLL_TO_END_INDEX = -3.0;
 
 }
 
+/*
+ * Off by default in release builds (NDEBUG is defined by CMake Release configs, Xcode's
+ * Release configuration, and Android release/minified variants without any extra wiring
+ * from this library's own build files), on by default otherwise. A consumer can still
+ * force either value by defining SHADOWLIST_DEBUG_LOG before this header is included.
+ */
 #ifndef SHADOWLIST_DEBUG_LOG
+#ifdef NDEBUG
+#define SHADOWLIST_DEBUG_LOG 0
+#else
 #define SHADOWLIST_DEBUG_LOG 1
+#endif
 #endif
 
 #if SHADOWLIST_DEBUG_LOG

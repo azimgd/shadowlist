@@ -6,8 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # The platform-agnostic core has no third-party dependencies, so we just compile
 # its sources straight into the test binary.
-file(GLOB CORE_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/*.cpp)
-file(GLOB TEST_SRCS
+file(GLOB CORE_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/*.cpp)
+file(GLOB TEST_SRCS CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/tests_*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 

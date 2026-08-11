@@ -46,8 +46,16 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
   /*
    * Identify and measure template views (header/footer/empty)
+   *
+   * affectedNodes is NOT this node's scratch space: ShadowTree::commit() allocates it
+   * once per commit for the WHOLE surface and passes it down through the entire
+   * recursive Yoga layout, then fires onLayout afterward for every node it collects
+   * (see YogaLayoutableShadowNode::layout, which appends here rather than clearing).
+   * Clearing it wipes every sibling/ancestor's entry recorded earlier in this same
+   * commit, silently dropping their onLayout. It is also documented as nullable
+   * (LayoutContext.h) and every other call site in the framework guards it before use
+   * -- do the same below instead of dereferencing unconditionally.
    */
-  layoutContext.affectedNodes->clear();
 
   std::shared_ptr<const ShadowNode> headerNode = nullptr;
   std::shared_ptr<const ShadowNode> footerNode = nullptr;
@@ -62,6 +70,12 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    * latency.
    */
   std::shared_ptr<const ShadowNode> sectionHeaderNode = nullptr;
+  /*
+   * Kept separate from headerNode: ShadowList mounts `header` and `empty` at the same
+   * time when data is empty, so folding empty into the header would overwrite the real
+   * header's node and size.
+   */
+  std::shared_ptr<const ShadowNode> emptyNode = nullptr;
   double headerSize = 0.0;
   double footerSize = 0.0;
   bool horizontal = getConcreteProps().horizontal;
@@ -82,9 +96,11 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
       if (templateProps->templateType == "sectionHeader") {
         sectionHeaderNode = getChildren()[i];
-      } else if (templateProps->templateType == "header" || templateProps->templateType == "empty") {
+      } else if (templateProps->templateType == "header") {
         headerNode = getChildren()[i];
         headerSize = templateViewNodeSize;
+      } else if (templateProps->templateType == "empty") {
+        emptyNode = getChildren()[i];
       } else if (templateProps->templateType == "footer") {
         footerNode = getChildren()[i];
         footerSize = templateViewNodeSize;
@@ -176,7 +192,9 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
       elementViewNode->setLayoutMetrics(layoutMetrics);
       replaceChild(*getChildren()[i], elementViewNode);
-      layoutContext.affectedNodes->push_back(elementViewNode.get());
+      if (layoutContext.affectedNodes != nullptr) {
+        layoutContext.affectedNodes->push_back(elementViewNode.get());
+      }
     }
   }
 
@@ -204,7 +222,32 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
     headerViewNode->setLayoutMetrics(headerMetrics);
     replaceChild(*headerNode, headerViewNode);
-    layoutContext.affectedNodes->push_back(headerViewNode.get());
+    if (layoutContext.affectedNodes != nullptr) {
+      layoutContext.affectedNodes->push_back(headerViewNode.get());
+    }
+  }
+
+  /*
+   * The empty template rests where content would start: just after the header
+   * (at the origin when there is none). It contributes nothing to headerSize.
+   */
+  if (emptyNode) {
+    auto emptyViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(emptyNode->clone({}));
+    LayoutMetrics emptyMetrics = emptyViewNode->getLayoutMetrics();
+
+    if (horizontal) {
+      emptyMetrics.frame.origin.x = headerSize;
+      emptyMetrics.frame.origin.y = 0;
+    } else {
+      emptyMetrics.frame.origin.y = headerSize;
+      emptyMetrics.frame.origin.x = 0;
+    }
+
+    emptyViewNode->setLayoutMetrics(emptyMetrics);
+    replaceChild(*emptyNode, emptyViewNode);
+    if (layoutContext.affectedNodes != nullptr) {
+      layoutContext.affectedNodes->push_back(emptyViewNode.get());
+    }
   }
 
   if (footerNode) {
@@ -221,7 +264,9 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
     footerViewNode->setLayoutMetrics(footerMetrics);
     replaceChild(*footerNode, footerViewNode);
-    layoutContext.affectedNodes->push_back(footerViewNode.get());
+    if (layoutContext.affectedNodes != nullptr) {
+      layoutContext.affectedNodes->push_back(footerViewNode.get());
+    }
   }
 
   /*
@@ -237,7 +282,9 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     sectionHeaderMetrics.frame.origin.y = 0;
     sectionHeaderViewNode->setLayoutMetrics(sectionHeaderMetrics);
     replaceChild(*sectionHeaderNode, sectionHeaderViewNode);
-    layoutContext.affectedNodes->push_back(sectionHeaderViewNode.get());
+    if (layoutContext.affectedNodes != nullptr) {
+      layoutContext.affectedNodes->push_back(sectionHeaderViewNode.get());
+    }
   }
 
   /*

@@ -122,14 +122,13 @@ class ShadowListStickyController {
         continue;
       }
       String type = ((ShadowListTemplateView) child).getTemplateType();
-      if ("sectionHeader".equals(type)) {
-        continue;
-      }
       if ("footer".equals(type)) {
         footerSize = horizontal ? child.getWidth() : child.getHeight();
-      } else {
+      } else if ("header".equals(type)) {
         headerSize = horizontal ? child.getWidth() : child.getHeight();
       }
+      // Any other template type (e.g. "empty", "sectionHeader") is neither the sticky
+      // header nor footer and must not be folded into either size.
     }
 
     float axisOffset = horizontal ? offsetX : offsetY;
@@ -146,12 +145,15 @@ class ShadowListStickyController {
         continue;
       }
       String type = ((ShadowListTemplateView) child).getTemplateType();
-      // The section-header overlay is pinned (and Z-lifted) separately below.
-      if ("sectionHeader".equals(type)) {
+      boolean isFooter = "footer".equals(type);
+      boolean isHeader = "header".equals(type);
+      // The section-header overlay is pinned (and Z-lifted) separately below, and any
+      // other template type (e.g. "empty", mounted alongside "header" when data is
+      // empty) is neither the sticky header nor footer and must not be pinned as one.
+      if (!isFooter && !isHeader) {
         continue;
       }
 
-      boolean isFooter = "footer".equals(type);
       boolean autoHide = isFooter ? mAutoHideFooter : mAutoHideHeader;
       boolean sticky = isFooter ? mStickyFooter : mStickyHeader;
 

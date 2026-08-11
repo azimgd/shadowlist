@@ -68,8 +68,14 @@
       }
       translation = (axisOffset + windowSize - contentSize) + _footerHidden;
     } else if (_stickyFooter) {
-      // The footer always sticks to the viewport end (plain bottom pin).
+      // The footer always sticks to the viewport end (plain bottom pin), but in a short
+      // viewport it must not push up past the header's reserved region as it scrolls.
+      // Mirrors the sticky-header branch's collisionTop clamp above.
       translation = axisOffset + windowSize - contentSize;
+      CGFloat collisionBottom = headerSize - contentSize + footerSize;
+      if (translation < collisionBottom) {
+        translation = collisionBottom;
+      }
     }
     _stickyFooterView.transform = _horizontal
       ? CGAffineTransformMakeTranslation(translation, 0.0)

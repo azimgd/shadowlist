@@ -5,7 +5,10 @@
 // The system keyboard is an iOS concept; there is no software keyboard on macOS, so the
 // keyboard observation below compiles only on iOS and setEnabled: is a no-op on macOS.
 @implementation ShadowListKeyboard {
-  BOOL _enabled;
+  // Reference count of active useKeyboardAnimation() consumers. The observer/display link are
+  // attached only on the 0->1 transition and detached only on the ->0 transition, so one
+  // consumer's unmount never tears down another concurrent consumer's subscription.
+  NSInteger _enabledCount;
   CGFloat _current;       // last emitted height (dp)
   CGFloat _targetHeight;  // full keyboard height for the in-flight transition (dp)
 #if !TARGET_OS_OSX
@@ -35,10 +38,35 @@ RCT_EXPORT_MODULE()
 #if !TARGET_OS_OSX
 - (void)setEnabled:(BOOL)enabled
 {
-  if (enabled == _enabled) {
-    return;
+  // NSNotificationCenter add/removeObserver and CADisplayLink start/invalidate are only safe
+  // on the main thread; RN may invoke this TurboModule method from a background thread.
+  if ([NSThread isMainThread]) {
+    [self applyEnabled:enabled];
+  } else {
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [self applyEnabled:enabled];
+    });
   }
-  _enabled = enabled;
+}
+
+// Reference-counted per the TS spec ("safe to call repeatedly"): only actually attach the
+// observer/display link on the 0->1 transition, only detach on the ->0 transition. Must be
+// called on the main thread.
+- (void)applyEnabled:(BOOL)enabled
+{
+  if (enabled) {
+    _enabledCount++;
+    if (_enabledCount != 1) {
+      return;
+    }
+  } else {
+    if (_enabledCount == 0) {
+      return;
+    }
+    if (--_enabledCount != 0) {
+      return;
+    }
+  }
 
   NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
   if (enabled) {
@@ -56,6 +84,24 @@ RCT_EXPORT_MODULE()
   }
 }
 
+// RCTInvalidating: CADisplayLink retains its target, so -dealloc isn't guaranteed to run
+// promptly around bridge teardown. Clean up on the main thread, but never via dispatch_sync:
+// during teardown the main thread waits on module invalidation (RCTTurboModuleManager), so a
+// sync hop deadlocks. The block retains self, keeping the module alive until cleanup runs.
+- (void)invalidate
+{
+  void (^cleanup)(void) = ^{
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self stopDisplayLink];
+    self->_enabledCount = 0;
+  };
+  if ([NSThread isMainThread]) {
+    cleanup();
+  } else {
+    dispatch_async(dispatch_get_main_queue(), cleanup);
+  }
+}
+
 - (void)dealloc
 {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -65,8 +111,17 @@ RCT_EXPORT_MODULE()
 #else
 - (void)setEnabled:(BOOL)enabled
 {
-  // No software keyboard on macOS; nothing to observe.
-  _enabled = enabled;
+  // No software keyboard on macOS; nothing to observe, but keep the reference count consistent.
+  if (enabled) {
+    _enabledCount++;
+  } else if (_enabledCount > 0) {
+    _enabledCount--;
+  }
+}
+
+- (void)invalidate
+{
+  _enabledCount = 0;
 }
 #endif // !TARGET_OS_OSX
 
@@ -92,9 +147,11 @@ RCT_EXPORT_MODULE()
   // Height of the keyboard overlapping the screen, in dp.
   CGFloat screenHeight = UIScreen.mainScreen.bounds.size.height;
   CGFloat height = hiding ? 0 : MAX(0, screenHeight - endFrame.origin.y);
-  if (hiding) {
-    _targetHeight = 0;
-  } else if (height > 0) {
+  // Keep _targetHeight at the last known full keyboard height throughout a hide transition so
+  // that emitHeight's progress (height / _targetHeight) ramps 1.0 -> 0.0 instead of reading 0.0
+  // for the whole animation. It's reset to 0 once the hide transition actually completes, or
+  // overwritten by the next genuine show above.
+  if (!hiding && height > 0) {
     _targetHeight = height;
   }
 
@@ -102,6 +159,9 @@ RCT_EXPORT_MODULE()
     // No animation reported: jump straight to the value.
     [self stopDisplayLink];
     [self emitHeight:height];
+    if (hiding) {
+      _targetHeight = 0;
+    }
     return;
   }
 
@@ -140,6 +200,11 @@ RCT_EXPORT_MODULE()
   [self emitHeight:value];
   if (t >= 1.0) {
     [self stopDisplayLink];
+    if (_animTo <= 0) {
+      // Hide transition finished: reset so the next hide notification's progress ramps
+      // correctly instead of dividing against a stale target.
+      _targetHeight = 0;
+    }
   }
 }
 

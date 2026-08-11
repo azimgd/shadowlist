@@ -31,6 +31,13 @@ export function useKeyboardInset(
   const offsetRef = useRef(offset);
   offsetRef.current = offset;
 
+  // measureInWindow resolves asynchronously across the bridge, so a later, faster event
+  // (a synchronous hide, or a subsequent show's own measurement) can resolve before an
+  // earlier one. Tag each request with an incrementing id and only apply a callback's
+  // result if it's still the latest request, so a stale measurement can't overwrite a
+  // newer (correct) inset.
+  const requestIdRef = useRef(0);
+
   const commit = useCallback((next: number) => {
     const clamped = next > 0 ? next : 0;
     setInset((prev) => (prev === clamped ? prev : clamped));
@@ -38,6 +45,7 @@ export function useKeyboardInset(
 
   const handleShow = useCallback(
     (event: KeyboardEvent) => {
+      const requestId = ++requestIdRef.current;
       const screenHeight = Dimensions.get('window').height;
 
       const keyboardTopY =
@@ -47,6 +55,7 @@ export function useKeyboardInset(
       const node = viewRef.current;
       if (node?.measureInWindow) {
         node.measureInWindow((_x, y, _width, height) => {
+          if (requestIdRef.current !== requestId) return;
           commit(y + height - keyboardTopY - offsetRef.current);
         });
       } else {
@@ -67,7 +76,12 @@ export function useKeyboardInset(
     const hideEvent = isIos ? 'keyboardWillHide' : 'keyboardDidHide';
 
     const showSub = Keyboard.addListener(showEvent, handleShow);
-    const hideSub = Keyboard.addListener(hideEvent, () => commit(0));
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      // Invalidate any in-flight measureInWindow from a prior show so it can't land
+      // after this (synchronous) hide and re-open the inset.
+      requestIdRef.current++;
+      commit(0);
+    });
 
     return () => {
       showSub.remove();

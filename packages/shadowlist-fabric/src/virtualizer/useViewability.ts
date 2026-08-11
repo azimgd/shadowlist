@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
 import type { OnViewableIndicesChange } from 'shadowlist';
 import { slLog } from './helpers';
@@ -58,37 +58,42 @@ export function useViewability<ElementT>({
   );
 
   const prevViewableRef = useRef<ViewToken<ElementT>[]>([]);
+  // Last reported index window (ascending, inclusive) and the data length it was
+  // reported against; null when no rows are viewable. Lets the effect below recompute
+  // viewability for the same window on a data change, with dataLength telling a pure
+  // reorder apart from an insert/remove that shifted indices under the window.
+  const activeWindowRef = useRef<{
+    low: number;
+    high: number;
+    dataLength: number;
+  } | null>(null);
 
-  const handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
-    OnViewableIndicesChange,
-    never
-  > = useCallback(
-    (event) => {
-      const { viewableStartIndex, viewableEndIndex } = event.nativeEvent;
-      // Normalise to an ascending window (inverted lists report start > end).
-      const windowLow = Math.min(viewableStartIndex, viewableEndIndex);
-      const windowHigh = Math.max(viewableStartIndex, viewableEndIndex);
-
-      // Drive sticky-overlay content from the viewable top index to match the pin.
-      if (viewableStartIndex !== -1 && viewableEndIndex !== -1) {
-        updateActiveStickyIndex(windowLow);
-      }
-
-      if (!onViewableItemsChanged) return;
-
+  // Builds the viewable ViewTokens for an index window. Shared by the native callback
+  // and the data-identity effect so the token shape cannot diverge.
+  const buildViewableItems = useCallback(
+    (windowLow: number, windowHigh: number) => {
       const viewableItems: ViewToken<ElementT>[] = [];
-      if (viewableStartIndex !== -1 && viewableEndIndex !== -1) {
-        for (let index = windowLow; index <= windowHigh; index++) {
-          const item = data[index];
-          if (!item) continue;
-          viewableItems.push({
-            item,
-            index,
-            key: keyExtractor(item, index),
-            isViewable: true,
-          });
-        }
+      for (let index = windowLow; index <= windowHigh; index++) {
+        const item = data[index];
+        if (!item) continue;
+        viewableItems.push({
+          item,
+          index,
+          key: keyExtractor(item, index),
+          isViewable: true,
+        });
       }
+      return viewableItems;
+    },
+    [data, keyExtractor]
+  );
+
+  // Diffs `viewableItems` against the previous emission by key and, if anything
+  // changed, updates prevViewableRef and fires onViewableItemsChanged. Shared by both
+  // the native callback and the data-identity effect below so the two stay in sync.
+  const diffAndEmit = useCallback(
+    (viewableItems: ViewToken<ElementT>[]) => {
+      if (!onViewableItemsChanged) return;
 
       const currentKeys = new Set(viewableItems.map((token) => token.key));
       const prevKeys = new Set(
@@ -107,14 +112,69 @@ export function useViewability<ElementT>({
       if (changed.length > 0) {
         slLog(
           'js.onViewableItemsChange',
-          `viewable=[${windowLow}..${windowHigh}]`,
+          `viewable=${viewableItems.length}`,
           `changed=${changed.length}`
         );
         onViewableItemsChanged({ viewableItems, changed });
       }
     },
-    [data, keyExtractor, onViewableItemsChanged, updateActiveStickyIndex]
+    [onViewableItemsChanged]
   );
+
+  const handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
+    OnViewableIndicesChange,
+    never
+  > = useCallback(
+    (event) => {
+      const { viewableStartIndex, viewableEndIndex } = event.nativeEvent;
+      const isActive = viewableStartIndex !== -1 && viewableEndIndex !== -1;
+      // Normalise to an ascending window (inverted lists report start > end).
+      const windowLow = Math.min(viewableStartIndex, viewableEndIndex);
+      const windowHigh = Math.max(viewableStartIndex, viewableEndIndex);
+
+      // Drive sticky-overlay content from the viewable top index to match the pin.
+      if (isActive) {
+        updateActiveStickyIndex(windowLow);
+      }
+
+      activeWindowRef.current = isActive
+        ? { low: windowLow, high: windowHigh, dataLength: data.length }
+        : null;
+
+      // Tokens exist only for the onViewableItemsChanged consumer; skip the work when
+      // nobody listens (sticky tracking and the window cache above are already done).
+      if (!onViewableItemsChanged) return;
+
+      diffAndEmit(isActive ? buildViewableItems(windowLow, windowHigh) : []);
+    },
+    [
+      data,
+      onViewableItemsChanged,
+      updateActiveStickyIndex,
+      buildViewableItems,
+      diffAndEmit,
+    ]
+  );
+
+  // A reorder can change which items occupy an already-reported index window without
+  // native re-firing the viewable-index event (the window itself hasn't moved), so
+  // recompute viewability whenever `data` changes identity.
+  useEffect(() => {
+    if (!onViewableItemsChanged) return;
+    const window = activeWindowRef.current;
+    if (!window) return;
+
+    // Only a same-length change can be a pure reorder. An insert/remove shifts indices,
+    // so replaying the cached window would report the wrong rows (e.g. a prepend's new
+    // rows as viewable); native's own corrected event covers those cases.
+    if (window.dataLength !== data.length) {
+      window.dataLength = data.length;
+      return;
+    }
+
+    diffAndEmit(buildViewableItems(window.low, window.high));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   return { activeStickyIndex, handleViewableIndicesChange };
 }

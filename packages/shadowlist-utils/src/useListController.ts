@@ -177,30 +177,40 @@ export function useListController<
     if (busyRef.current.refresh) return;
     busyRef.current.refresh = true;
     dispatch({ type: 'refreshStarted' });
-    Promise.resolve(optionsRef.current.onRefresh?.()).finally(() => {
-      busyRef.current.refresh = false;
-      dispatch({ type: 'refreshEnded' });
-    });
+    // The callback is invoked inside the `.then`, not eagerly as the argument to
+    // `Promise.resolve(...)`, so a *synchronous* throw from the consumer's callback still
+    // produces a rejection this chain can observe -- otherwise `.finally()` would never
+    // run and the busy flag / loading UI flag would stay stuck true forever.
+    Promise.resolve()
+      .then(() => optionsRef.current.onRefresh?.())
+      .finally(() => {
+        busyRef.current.refresh = false;
+        dispatch({ type: 'refreshEnded' });
+      });
   }, []);
 
   const handleEndReached = useCallback(() => {
     if (busyRef.current.end) return;
     busyRef.current.end = true;
     dispatch({ type: 'endReachStarted' });
-    Promise.resolve(optionsRef.current.onEndReached?.()).finally(() => {
-      busyRef.current.end = false;
-      dispatch({ type: 'endReachEnded' });
-    });
+    Promise.resolve()
+      .then(() => optionsRef.current.onEndReached?.())
+      .finally(() => {
+        busyRef.current.end = false;
+        dispatch({ type: 'endReachEnded' });
+      });
   }, []);
 
   const handleStartReached = useCallback(() => {
     if (busyRef.current.start) return;
     busyRef.current.start = true;
     dispatch({ type: 'startReachStarted' });
-    Promise.resolve(optionsRef.current.onStartReached?.()).finally(() => {
-      busyRef.current.start = false;
-      dispatch({ type: 'startReachEnded' });
-    });
+    Promise.resolve()
+      .then(() => optionsRef.current.onStartReached?.())
+      .finally(() => {
+        busyRef.current.start = false;
+        dispatch({ type: 'startReachEnded' });
+      });
   }, []);
 
   const handleScroll = useCallback((event: ScrollEventT) => {

@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useCallback } from 'react';
 import {
   ShadowList,
   type ShadowListProps,
@@ -21,14 +21,22 @@ export type ContactsListProps = Omit<
  * provide `onDelete` to handle removals (or override `renderElement`).
  */
 export const ContactsList = forwardRef<ShadowListCommands, ContactsListProps>(
-  ({ renderElement, onDelete, ...props }, ref) => (
-    <ShadowList
-      ref={ref}
-      renderElement={
-        renderElement ??
-        (({ element }) => <ContactRow element={element} onDelete={onDelete} />)
-      }
-      {...props}
-    />
-  )
+  ({ renderElement, onDelete, ...props }, ref) => {
+    // Stable unless `onDelete` changes, so ElementRenderer's per-row memoization (keyed
+    // on renderElement identity) isn't defeated by every re-render of this wrapper.
+    const defaultRenderElement = useCallback<
+      NonNullable<ShadowListProps<ContactItem>['renderElement']>
+    >(
+      ({ element }) => <ContactRow element={element} onDelete={onDelete} />,
+      [onDelete]
+    );
+
+    return (
+      <ShadowList
+        ref={ref}
+        renderElement={renderElement ?? defaultRenderElement}
+        {...props}
+      />
+    );
+  }
 );

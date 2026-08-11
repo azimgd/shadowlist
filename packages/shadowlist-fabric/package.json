@@ -88,8 +88,8 @@
     "typescript": "^6.0.2"
   },
   "peerDependencies": {
-    "react": "*",
-    "react-native": "*"
+    "react": ">=18.2.0",
+    "react-native": ">=0.74.0"
   },
   "packageManager": "yarn@4.11.0",
   "jest": {
