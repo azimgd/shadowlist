@@ -2030,7 +2030,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - ShadowList (0.6.2):
+  - ShadowList (0.6.3):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2375,7 +2375,7 @@ SPEC CHECKSUMS:
   RNReanimated: 80a8d6e0854c9dddedc054efbce746294a8d3a3b
   RNScreens: 991cc417cd396602a6cf59a42139e5a9d91462a9
   RNWorklets: a6ebd7b1ae53f150d747986d70bfc34932d7ffb4
-  ShadowList: 52af0551b79e36e12c9b7acd146f7140eea23d1d
+  ShadowList: 8c6e5d2e20b5aa0b39a842e69aaf29ab4fe6040d
   Yoga: e83c3121d079541e69f3c5c623faaaf933fb5812
 
 PODFILE CHECKSUM: 66b89cb91fb7b2754d68df730596db36d04d8e84

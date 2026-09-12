@@ -6,7 +6,7 @@ import type { ViewToken } from '../types';
 
 interface UseViewabilityOptions<ElementT> {
   data: ReadonlyArray<ElementT>;
-  keyExtractor: (item: ElementT, index: number) => string;
+  keyExtractor: (element: ElementT, index: number) => string;
   stickyHeaderIndices: ReadonlyArray<number> | undefined;
   onViewableItemsChanged:
     | ((info: {
@@ -58,18 +58,22 @@ export function useViewability<ElementT>({
   );
 
   const prevViewableRef = useRef<ViewToken<ElementT>[]>([]);
-  // Last reported index window (ascending, inclusive) and the data length it was
-  // reported against; null when no rows are viewable. Lets the effect below recompute
-  // viewability for the same window on a data change, with dataLength telling a pure
-  // reorder apart from an insert/remove that shifted indices under the window.
+  /*
+   * Last reported index window (ascending, inclusive) and the data length it was
+   * reported against; null when no rows are viewable. Lets the effect below recompute
+   * viewability for the same window on a data change, with dataLength telling a pure
+   * reorder apart from an insert/remove that shifted indices under the window.
+   */
   const activeWindowRef = useRef<{
     low: number;
     high: number;
     dataLength: number;
   } | null>(null);
 
-  // Builds the viewable ViewTokens for an index window. Shared by the native callback
-  // and the data-identity effect so the token shape cannot diverge.
+  /*
+   * Builds the viewable ViewTokens for an index window. Shared by the native callback
+   * and the data-identity effect so the token shape cannot diverge.
+   */
   const buildViewableItems = useCallback(
     (windowLow: number, windowHigh: number) => {
       const viewableItems: ViewToken<ElementT>[] = [];
@@ -88,9 +92,11 @@ export function useViewability<ElementT>({
     [data, keyExtractor]
   );
 
-  // Diffs `viewableItems` against the previous emission by key and, if anything
-  // changed, updates prevViewableRef and fires onViewableItemsChanged. Shared by both
-  // the native callback and the data-identity effect below so the two stay in sync.
+  /*
+   * Diffs `viewableItems` against the previous emission by key and, if anything
+   * changed, updates prevViewableRef and fires onViewableItemsChanged. Shared by both
+   * the native callback and the data-identity effect below so the two stay in sync.
+   */
   const diffAndEmit = useCallback(
     (viewableItems: ViewToken<ElementT>[]) => {
       if (!onViewableItemsChanged) return;
@@ -141,8 +147,10 @@ export function useViewability<ElementT>({
         ? { low: windowLow, high: windowHigh, dataLength: data.length }
         : null;
 
-      // Tokens exist only for the onViewableItemsChanged consumer; skip the work when
-      // nobody listens (sticky tracking and the window cache above are already done).
+      /*
+       * Tokens exist only for the onViewableItemsChanged consumer; skip the work when
+       * nobody listens (sticky tracking and the window cache above are already done).
+       */
       if (!onViewableItemsChanged) return;
 
       diffAndEmit(isActive ? buildViewableItems(windowLow, windowHigh) : []);
@@ -156,17 +164,21 @@ export function useViewability<ElementT>({
     ]
   );
 
-  // A reorder can change which items occupy an already-reported index window without
-  // native re-firing the viewable-index event (the window itself hasn't moved), so
-  // recompute viewability whenever `data` changes identity.
+  /*
+   * A reorder can change which items occupy an already-reported index window without
+   * native re-firing the viewable-index event (the window itself hasn't moved), so
+   * recompute viewability whenever `data` changes identity.
+   */
   useEffect(() => {
     if (!onViewableItemsChanged) return;
     const window = activeWindowRef.current;
     if (!window) return;
 
-    // Only a same-length change can be a pure reorder. An insert/remove shifts indices,
-    // so replaying the cached window would report the wrong rows (e.g. a prepend's new
-    // rows as viewable); native's own corrected event covers those cases.
+    /*
+     * Only a same-length change can be a pure reorder. An insert/remove shifts indices,
+     * so replaying the cached window would report the wrong rows (e.g. a prepend's new
+     * rows as viewable); native's own corrected event covers those cases.
+     */
     if (window.dataLength !== data.length) {
       window.dataLength = data.length;
       return;

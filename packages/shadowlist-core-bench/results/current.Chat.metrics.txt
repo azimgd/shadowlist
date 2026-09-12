@@ -1,0 +1,29 @@
+device metrics: current / Chat
+  elapsed                    12.98 s
+  -- frames --
+  total frames rendered      1732
+  janky frames               13  (0.8%)
+  sampled frames             117
+  frame time p50 / p90       17.16 / 17.95 ms
+  frame time p95 / p99       18.18 / 19.47 ms
+  frame time worst           27.30 ms
+  frames > 16.7ms            84  (71.8%)
+  frames > 33.3ms            0  (0.0%)
+  -- blank cells --
+  sampled screenshots        80
+  background colour          #000000
+  blank band mean            96 px
+  blank band worst           248 px
+  frames with band > 200px   7  (8.8%)
+  -- memory --
+  PSS total                  485503 kB
+  native heap                268564 kB
+  Gfx dev                    3332 kB
+  live Views                 413
+  -- cpu --
+  process CPU                9.04 s  (69.6% of one core)
+
+#BEGIN_TSV
+label	screen	total_frames	janky	sampled	p50	p90	p95	p99	worst	over16	over33	blank_band_mean_px	blank_band_worst_px	blank_frames_over200	pss_kb	native_kb	gfx_kb	views	cpu_s	cpu_pct
+current	Chat	1732	13	117	17.16	17.95	18.18	19.47	27.30	84	0	96	248	7	485503	268564	3332	413	9.04	69.6
+#END_TSV

@@ -20,5 +20,8 @@ build/
 coverage/
 *.log
 
+# Benchmark output (regenerate with packages/shadowlist-core-bench/run.sh)
+packages/shadowlist-core-bench/results/*.raw
+
 # OS
 .DS_Store

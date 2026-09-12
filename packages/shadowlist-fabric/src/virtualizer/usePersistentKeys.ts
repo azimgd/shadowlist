@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 
 interface UsePersistentKeysOptions<ElementT> {
   data: ReadonlyArray<ElementT>;
-  keyExtractor: (item: ElementT, index: number) => string;
+  keyExtractor: (element: ElementT, index: number) => string;
   persistentKeys: ReadonlyArray<string> | undefined;
   renderIndices: number[];
 }

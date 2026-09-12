@@ -43,6 +43,52 @@ const buildMessage = (elementIndex: number): ChatMessage => {
   };
 };
 
+/*
+ * What a text bubble measures to, derived from ChatBubble's own styles.
+ *
+ * Native computes the real height from this before React renders the row, so the list has
+ * correct geometry on the first frame instead of estimating every bubble and reflowing the
+ * ones below it as each is laid out -- which on an inverted chat list also means the scroll
+ * position stops being nudged while you read.
+ *
+ * The numbers below are a transcription of ChatBubble's stylesheet, and they have to stay
+ * one: a spec that disagrees with the row it describes produces a confidently wrong height,
+ * which is worse than no prediction at all. Anything the styles cannot express exactly --
+ * here, the image rows -- returns null and is estimated and measured the ordinary way.
+ *
+ *   container   paddingHorizontal 12, paddingVertical 2
+ *   avatar      30 wide + 8 margin, only on messages from others
+ *   bubbleColumn maxWidth 75% of the container's content box
+ *   sender      caption line (16) + 2 margin, only on messages from others
+ *   bubble      paddingHorizontal 14, paddingVertical 8
+ *   text        typography.body: 17/22, letterSpacing -0.43
+ */
+const BUBBLE_WIDTH_FRACTION = 0.75;
+// 0.75 x (W - 24) - 28  ==  0.75 x W - 46
+const BUBBLE_INSET_WIDTH = 46;
+// container 2+2, bubble 8+8
+const BUBBLE_INSET_HEIGHT = 20;
+// sender caption line + its bottom margin, on messages from others only
+const SENDER_HEIGHT = 18;
+
+const measureElement = (element: ChatMessage) => {
+  /*
+   * An image row's height comes from the images, not from text. There is nothing honest to
+   * predict, so say so and let the core measure it.
+   */
+  if (!element.text) return null;
+
+  return {
+    text: element.text,
+    fontSize: 17,
+    lineHeight: 22,
+    letterSpacing: -0.43,
+    widthFraction: BUBBLE_WIDTH_FRACTION,
+    insetWidth: BUBBLE_INSET_WIDTH,
+    insetHeight: BUBBLE_INSET_HEIGHT + (element.isFromMe ? 0 : SENDER_HEIGHT),
+  };
+};
+
 export const ChatScreen = () => {
   const shadowlistRef = useRef<ShadowListCommands>(null);
   const insets = useSafeAreaInsets();
@@ -61,7 +107,7 @@ export const ChatScreen = () => {
   }, [height, insets.bottom]);
 
   const initialData = useMemo(
-    () => Array.from({ length: 1000 }, (_, index) => buildMessage(index)),
+    () => Array.from({ length: 20000 }, (_, index) => buildMessage(index)),
     []
   );
   const list = useListController<ChatMessage>({ initialData });
@@ -117,10 +163,13 @@ export const ChatScreen = () => {
             ref={shadowlistRef}
             style={styles.list}
             renderElement={renderElement}
+            measureElement={measureElement}
             ListHeaderComponent={
               <ListHeader title="Chat" subtitle="Inverted list" />
             }
             ListFooterComponent={<ListFooter text="Start of conversation" />}
+            overscan={3}
+            materializationOverscan={0.5}
           />
         </KeyboardView>
         <Chat.Input onSend={handleSendMessage} />

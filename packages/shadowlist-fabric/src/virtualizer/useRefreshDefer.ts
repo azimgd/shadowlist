@@ -57,9 +57,11 @@ export function useRefreshDefer<ElementT>({
     }
   }, []);
 
-  // Safety net: release the held prepend shortly after refresh ends in case onRefreshSettle
-  // never arrives (e.g. a platform that doesn't emit it). On iOS it fires first, so this is
-  // a no-op there.
+  /*
+   * Safety net: release the held prepend shortly after refresh ends in case onRefreshSettle
+   * never arrives (e.g. a platform that doesn't emit it). On iOS it fires first, so this is
+   * a no-op there.
+   */
   const prevRefreshingForFallbackRef = useRef(refreshing);
   useEffect(() => {
     const wasRefreshing = prevRefreshingForFallbackRef.current;

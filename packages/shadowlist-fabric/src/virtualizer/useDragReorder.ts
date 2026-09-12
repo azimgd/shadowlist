@@ -30,9 +30,11 @@ export function useDragReorder<ElementT>({
   dragEnabled,
   onReorder,
 }: UseDragReorderOptions<ElementT>): UseDragReorderResult {
-  // Resolve a data key to its current index in `data` (-1 if gone). Native
-  // identifies drag rows by key; we map back to an index against the live data here so a
-  // data change between the gesture and the drop reorders the right rows, not stale ones.
+  /*
+   * Resolve a data key to its current index in `data` (-1 if gone). Native
+   * identifies drag rows by key; we map back to an index against the live data here so a
+   * data change between the gesture and the drop reorders the right rows, not stale ones.
+   */
   const indexOfKey = useCallback(
     (key: string) =>
       data.findIndex((element, i) => keyExtractor(element, i) === key),
@@ -46,8 +48,10 @@ export function useDragReorder<ElementT>({
    */
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
 
-  // Current index of the picked-up row, re-resolved against live `data` whenever it
-  // changes identity (-1 if the key is no longer present, e.g. it was removed mid-drag).
+  /*
+   * Current index of the picked-up row, re-resolved against live `data` whenever it
+   * changes identity (-1 if the key is no longer present, e.g. it was removed mid-drag).
+   */
   const draggingIndex = useMemo(
     () => (draggingKey === null ? -1 : indexOfKey(draggingKey)),
     [draggingKey, indexOfKey]
@@ -65,8 +69,10 @@ export function useDragReorder<ElementT>({
     return [...mountedIndices, draggingIndex].sort((a, b) => a - b);
   }, [mountedIndices, draggingIndex, data.length]);
 
-  // Pickup: keep the picked-up row mounted; data order is unchanged. Resolve the key to
-  // its current index for the force-mount union.
+  /*
+   * Pickup: keep the picked-up row mounted; data order is unchanged. Resolve the key to
+   * its current index for the force-mount union.
+   */
   const handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never> =
     useCallback((event) => {
       const { key } = event.nativeEvent;

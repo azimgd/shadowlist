@@ -1,8 +1,9 @@
 #pragma once
 
-#include "ShadowListElementViewShadowNode.h"
-#include <react/renderer/core/ConcreteComponentDescriptor.h>
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
+#include <react/renderer/core/ConcreteComponentDescriptor.h>
+
+#include "ShadowListElementViewShadowNode.h"
 
 namespace facebook::react {
 
@@ -10,7 +11,7 @@ namespace facebook::react {
  * Descriptor for <ShadowListElementView> component.
  */
 class ShadowListElementViewComponentDescriptor final : public ConcreteComponentDescriptor<ShadowListElementViewShadowNode> {
-  public:
+public:
   ShadowListElementViewComponentDescriptor(const ComponentDescriptorParameters& parameters) :
     ConcreteComponentDescriptor<ShadowListElementViewShadowNode>(parameters) {
   };

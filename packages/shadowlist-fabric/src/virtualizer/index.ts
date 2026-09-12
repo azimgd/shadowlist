@@ -10,4 +10,5 @@ export { useRefreshDefer } from './useRefreshDefer';
 export { useDragReorder } from './useDragReorder';
 export { usePersistentKeys } from './usePersistentKeys';
 export { useViewability } from './useViewability';
+export { useMeasureSpecs } from './useMeasureSpecs';
 export { useImperativeCommands } from './useImperativeCommands';

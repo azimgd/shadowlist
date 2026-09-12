@@ -31,11 +31,13 @@ export function useKeyboardInset(
   const offsetRef = useRef(offset);
   offsetRef.current = offset;
 
-  // measureInWindow resolves asynchronously across the bridge, so a later, faster event
-  // (a synchronous hide, or a subsequent show's own measurement) can resolve before an
-  // earlier one. Tag each request with an incrementing id and only apply a callback's
-  // result if it's still the latest request, so a stale measurement can't overwrite a
-  // newer (correct) inset.
+  /*
+   * measureInWindow resolves asynchronously across the bridge, so a later, faster event
+   * (a synchronous hide, or a subsequent show's own measurement) can resolve before an
+   * earlier one. Tag each request with an incrementing id and only apply a callback's
+   * result if it's still the latest request, so a stale measurement can't overwrite a
+   * newer (correct) inset.
+   */
   const requestIdRef = useRef(0);
 
   const commit = useCallback((next: number) => {
@@ -77,8 +79,10 @@ export function useKeyboardInset(
 
     const showSub = Keyboard.addListener(showEvent, handleShow);
     const hideSub = Keyboard.addListener(hideEvent, () => {
-      // Invalidate any in-flight measureInWindow from a prior show so it can't land
-      // after this (synchronous) hide and re-open the inset.
+      /*
+       * Invalidate any in-flight measureInWindow from a prior show so it can't land
+       * after this (synchronous) hide and re-open the inset.
+       */
       requestIdRef.current++;
       commit(0);
     });

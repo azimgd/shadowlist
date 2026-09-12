@@ -136,8 +136,10 @@ class ShadowListDragController {
     if (mDragging) {
       updateDrag();
     }
-    // The post-drop landing is detected by startDropSettle, not here: a same-size
-    // reorder may produce no state commit.
+    /*
+     * The post-drop landing is detected by startDropSettle, not here: a same-size
+     * reorder may produce no state commit.
+     */
   }
 
   /*
@@ -256,8 +258,10 @@ class ShadowListDragController {
       return;
     }
 
-    // Cancel any in-flight drop animation from a previous drag and start from a clean
-    // resting transform.
+    /*
+     * Cancel any in-flight drop animation from a previous drag and start from a clean
+     * resting transform.
+     */
     view.animate().cancel();
     view.setTranslationX(0f);
     view.setTranslationY(0f);
@@ -283,8 +287,10 @@ class ShadowListDragController {
 
     mView.setInnerScrollEnabled(false);
 
-    // Lift via Z, NOT bringToFront(): reordering the child array desyncs index-based
-    // child mounting and corrupts the view tree.
+    /*
+     * Lift via Z, NOT bringToFront(): reordering the child array desyncs index-based
+     * child mounting and corrupts the view tree.
+     */
     view.setTranslationZ(PixelUtil.toPixelFromDIP(8));
 
     dispatchDragEvent(1, mDragOriginKey, mDragOriginKey);
@@ -344,8 +350,10 @@ class ShadowListDragController {
 
     int nx = horizontal ? (int) newOffset : scrollView.getScrollX();
     int ny = horizontal ? scrollView.getScrollY() : (int) newOffset;
-    // Report this as a user scroll (do NOT mark it programmatic) so the core virtualizes
-    // at this exact offset; otherwise rows blank mid-drag.
+    /*
+     * Report this as a user scroll (do NOT mark it programmatic) so the core virtualizes
+     * at this exact offset; otherwise rows blank mid-drag.
+     */
     scrollView.scrollTo(nx, ny);
   }
 
@@ -410,8 +418,10 @@ class ShadowListDragController {
     boolean horizontal = mView.isHorizontal();
     int originIndex = currentDragOriginIndex();
     int insertion = originIndex;
-    // Track the key of the row at the chosen insertion slot so the drop event carries a
-    // stable identity, not just an index. Defaults to the origin (no crossing => no move).
+    /*
+     * Track the key of the row at the chosen insertion slot so the drop event carries a
+     * stable identity, not just an index. Defaults to the origin (no crossing => no move).
+     */
     String insertionKey = mDragOriginKey;
     for (int i = 0; i < contentView.getChildCount(); i++) {
       View child = contentView.getChildAt(i);
@@ -522,8 +532,10 @@ class ShadowListDragController {
     mDragging = false;
     mDraggedView = null;
 
-    // Emit the single reorder by key; hold the shuffle transforms until the reorder
-    // commit lands so nothing snaps back. (from/to indices still drive the visual settle.)
+    /*
+     * Emit the single reorder by key; hold the shuffle transforms until the reorder
+     * commit lands so nothing snaps back. (from/to indices still drive the visual settle.)
+     */
     dispatchDragEvent(3, mDragOriginKey, mDragInsertionKey);
 
     if (from == to || view == null) {
@@ -539,8 +551,10 @@ class ShadowListDragController {
       // Poll for the landing rather than waiting for a state commit.
       startDropSettle();
 
-      // Safety net: if the reorder never lands, clear the held transforms so the gap
-      // cannot get stuck.
+      /*
+       * Safety net: if the reorder never lands, clear the held transforms so the gap
+       * cannot get stuck.
+       */
       mView.postDelayed(() -> {
         if (mDragDropPending && !mDragging) {
           stopDropSettle();

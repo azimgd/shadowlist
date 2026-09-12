@@ -1,0 +1,30 @@
+device metrics: props2 / Chat
+  elapsed                    30.89 s
+  -- frames --
+  total frames rendered      969
+  janky frames               215  (22.2%)
+  sampled frames             117
+  frame time p50 / p90       60.99 / 123.29 ms
+  frame time p95 / p99       200.43 / 374.36 ms
+  frame time worst           410.40 ms
+  frames > 16.7ms            117  (100.0%)
+  frames > 33.3ms            87  (74.4%)
+  -- blank cells --
+  sampled screenshots        90
+  background colour          #000000
+  blank band mean            26 px
+  blank band worst           28 px
+  frames that changed        75/89  (84%)
+  frames with band > 200px   0  (0.0%)
+  -- memory --
+  PSS total                  257058 kB
+  native heap                178774 kB
+  Gfx dev                    None kB
+  live Views                 449
+  -- cpu --
+  process CPU                8.05 s  (26.1% of one core)
+
+#BEGIN_TSV
+label	screen	total_frames	janky	sampled	p50	p90	p95	p99	worst	over16	over33	blank_band_mean_px	blank_band_worst_px	blank_frames_over200	frames_changed_pct	pss_kb	native_kb	gfx_kb	views	cpu_s	cpu_pct
+props2	Chat	969	215	117	60.99	123.29	200.43	374.36	410.40	117	87	26	28	0	84	257058	178774	None	449	8.05	26.1
+#END_TSV

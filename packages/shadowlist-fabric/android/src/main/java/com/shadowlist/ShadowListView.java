@@ -50,8 +50,10 @@ public class ShadowListView extends FrameLayout {
   private final ShadowListStickyController mStickyController;
   private final ShadowListDragController mDragController;
 
-  // Re-pin sticky views once a template (header/footer) child is (re)laid out by the mounting
-  // layer, so a sticky footer tracks its real resting position across list-size changes.
+  /*
+   * Re-pin sticky views once a template (header/footer) child is (re)laid out by the mounting
+   * layer, so a sticky footer tracks its real resting position across list-size changes.
+   */
   private final View.OnLayoutChangeListener mTemplateLayoutListener;
 
   // Horizontal/vertical axis (the `horizontal` prop); a change reinstalls the inner scroll view.
@@ -84,12 +86,16 @@ public class ShadowListView extends FrameLayout {
   private int mProgrammaticTargetY = 0;
   private boolean mProgrammaticPending = false;
   private boolean mProgrammaticAnimated = false;
-  // Commit token of an in-flight core correction, echoed back so the core matches its
-  // own write exactly. 0 for a local programmatic scroll (snap / scrollToOffset).
+  /*
+   * Commit token of an in-flight core correction, echoed back so the core matches its
+   * own write exactly. 0 for a local programmatic scroll (snap / scrollToOffset).
+   */
   private long mArmedToken = 0;
 
-  // Used only to detect the end of an animated programmatic scroll (snap); the core
-  // correction echo is classified by causality, not by this tolerance.
+  /*
+   * Used only to detect the end of an animated programmatic scroll (snap); the core
+   * correction echo is classified by causality, not by this tolerance.
+   */
   private static final int PROGRAMMATIC_SCROLL_TOLERANCE_PX = 2;
 
   private static class ContentContainer extends ViewGroup {
@@ -307,9 +313,11 @@ public class ShadowListView extends FrameLayout {
     if (child instanceof ShadowListTemplateView) {
       child.removeOnLayoutChangeListener(mTemplateLayoutListener);
     }
-    // The row being dragged is about to disappear out from under the gesture (e.g. its
-    // data was deleted mid-drag): abort the drag first so the controller stops
-    // intercepting touches against a now-parentless, invisible row.
+    /*
+     * The row being dragged is about to disappear out from under the gesture (e.g. its
+     * data was deleted mid-drag): abort the drag first so the controller stops
+     * intercepting touches against a now-parentless, invisible row.
+     */
     if (child != null && child == mDragController.getDraggedView()) {
       mDragController.teardown();
     }
@@ -323,8 +331,10 @@ public class ShadowListView extends FrameLayout {
   }
 
   private void handleInnerTouchDown() {
-    // A finger takes over from any in-flight programmatic scroll: drop the echo arm so
-    // the drag is reported as a user scroll, not mistaken for our correction's echo.
+    /*
+     * A finger takes over from any in-flight programmatic scroll: drop the echo arm so
+     * the drag is reported as a user scroll, not mistaken for our correction's echo.
+     */
     mProgrammaticPending = false;
     mArmedToken = 0;
     mTouching = true;
@@ -426,6 +436,18 @@ public class ShadowListView extends FrameLayout {
   void onDropInstance() {
     mDragController.teardown();
     mStickyController.reset();
+    /*
+     * A recycled host must not hand a leftover scroll position or content size to the next
+     * list: the sticky/auto-hide pins derive every translation from the content size, and
+     * they run on mount, before the new list's first state lands. Mirrors the iOS
+     * prepareForRecycle. Reset the echo latch too, or the first genuine scroll of the next
+     * list is swallowed as this one's echo.
+     */
+    mProgrammaticPending = false;
+    mProgrammaticAnimated = false;
+    mArmedToken = 0;
+    mScrollView.scrollTo(0, 0);
+    mContentView.layout(0, 0, 0, 0);
   }
 
   @Override
@@ -511,11 +533,13 @@ public class ShadowListView extends FrameLayout {
       return false;
     }
 
-    // Classify our own echo vs a user gesture. An instant programmatic scroll (the core
-    // correction) is classified by CAUSALITY: the onScrollChanged it triggers is our echo
-    // wherever it landed, even when clamped short. An animated programmatic scroll (snap)
-    // spans many frames, all ours until it settles on the target. Mislabeling an echo as a
-    // user scroll would let the core abandon its correction and freeze the visible window.
+    /*
+     * Classify our own echo vs a user gesture. An instant programmatic scroll (the core
+     * correction) is classified by CAUSALITY: the onScrollChanged it triggers is our echo
+     * wherever it landed, even when clamped short. An animated programmatic scroll (snap)
+     * spans many frames, all ours until it settles on the target. Mislabeling an echo as a
+     * user scroll would let the core abandon its correction and freeze the visible window.
+     */
     boolean userScrolled = true;
     long echoToken = 0;
     if (mProgrammaticPending) {
@@ -612,12 +636,16 @@ public class ShadowListView extends FrameLayout {
         long token = nextStateData.hasKey("commitToken") ? (long) nextStateData.getDouble("commitToken") : 0;
         int beforeX = mScrollView.getScrollX();
         int beforeY = mScrollView.getScrollY();
-        // Arm before the write: scrollTo invokes onScrollChanged synchronously when it
-        // moves, and updateScrollState must see the armed token to echo it back.
+        /*
+         * Arm before the write: scrollTo invokes onScrollChanged synchronously when it
+         * moves, and updateScrollState must see the armed token to echo it back.
+         */
         markProgrammaticScroll(appliedX, appliedY, false, token);
         mScrollView.scrollTo(appliedX, appliedY);
-        // No-op / fully-clamped write moves nothing, so no onScrollChanged fires and the
-        // arm would never clear, swallowing the next genuine user scroll: disarm it now.
+        /*
+         * No-op / fully-clamped write moves nothing, so no onScrollChanged fires and the
+         * arm would never clear, swallowing the next genuine user scroll: disarm it now.
+         */
         if (Math.abs(mScrollView.getScrollX() - beforeX) <= 1
             && Math.abs(mScrollView.getScrollY() - beforeY) <= 1) {
           mProgrammaticPending = false;
@@ -701,8 +729,10 @@ public class ShadowListView extends FrameLayout {
       return;
     }
 
-    // Use the SCROLL_TO_END_INDEX sentinel (-3) so the core converges on the true bottom
-    // as off-screen rows are measured, instead of jumping to a stale estimated bottom.
+    /*
+     * Use the SCROLL_TO_END_INDEX sentinel (-3) so the core converges on the true bottom
+     * as off-screen rows are measured, instead of jumping to a stale estimated bottom.
+     */
     double nextSequence = 0;
     ReadableMap currentStateData = mState.getStateData();
     if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexSequence")) {

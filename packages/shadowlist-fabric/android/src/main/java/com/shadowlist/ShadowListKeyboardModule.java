@@ -29,14 +29,18 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
     implements LifecycleEventListener {
   public static final String NAME = "ShadowListKeyboard";
 
-  // Reference-counted per the TS spec so concurrent consumers can't desync each other's
-  // attach/detach. volatile: written under synchronized, read on the UI thread.
+  /*
+   * Reference-counted per the TS spec so concurrent consumers can't desync each other's
+   * attach/detach. volatile: written under synchronized, read on the UI thread.
+   */
   private volatile int mEnabledCount = 0;
   private float mTargetDip = 0f;
   @Nullable private View mObservedView = null;
   @Nullable private KeyboardInsetsCallback mCallback = null;
-  // Set synchronously by invalidate() before its async detach is posted, so a callback
-  // firing in that race window becomes a safe no-op instead of touching torn-down state.
+  /*
+   * Set synchronously by invalidate() before its async detach is posted, so a callback
+   * firing in that race window becomes a safe no-op instead of touching torn-down state.
+   */
   private volatile boolean mInvalidated = false;
 
   public ShadowListKeyboardModule(ReactApplicationContext context) {
@@ -91,9 +95,11 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
     if (mEnabledCount <= 0) {
       return;
     }
-    // Attach whenever enabled but not observing the CURRENT Activity's decorView: the
-    // first enable may predate any Activity, and an Activity recreation swaps the
-    // decorView, which would otherwise leave the callback bound to a destroyed window.
+    /*
+     * Attach whenever enabled but not observing the CURRENT Activity's decorView: the
+     * first enable may predate any Activity, and an Activity recreation swaps the
+     * decorView, which would otherwise leave the callback bound to a destroyed window.
+     */
     Activity activity = getReactApplicationContext().getCurrentActivity();
     View decorView = activity != null ? activity.getWindow().getDecorView() : null;
     if (decorView != null && mObservedView != decorView) {
@@ -128,8 +134,10 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
       if (module == null || module.mInvalidated) {
         return bounds;
       }
-      // Same IME-only filter as onProgress: an unrelated concurrent animation (e.g. a
-      // system-bar visibility change) must not overwrite mTargetDip with its own bound.
+      /*
+       * Same IME-only filter as onProgress: an unrelated concurrent animation (e.g. a
+       * system-bar visibility change) must not overwrite mTargetDip with its own bound.
+       */
       if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) == 0) {
         return bounds;
       }
@@ -173,9 +181,11 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
 
   @Override
   public void invalidate() {
-    // Set synchronously, before the async detach is even posted, so a callback firing
-    // in the window between this call and detach() actually running on the UI thread
-    // sees the flag and no-ops instead of touching state super.invalidate() tears down.
+    /*
+     * Set synchronously, before the async detach is even posted, so a callback firing
+     * in the window between this call and detach() actually running on the UI thread
+     * sees the flag and no-ops instead of touching state super.invalidate() tears down.
+     */
     mInvalidated = true;
     getReactApplicationContext().removeLifecycleEventListener(this);
     UiThreadUtil.runOnUiThread(this::detach);

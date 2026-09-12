@@ -5,9 +5,11 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <shadowlist-core/Constants.hpp>
+#include <shadowlist-core/Element.hpp>
 #include <shadowlist-core/Operation.hpp>
 #include <shadowlist-core/Revision.hpp>
 
@@ -21,11 +23,6 @@ struct StickyHeader {
   std::size_t index = UNDEFINED_INDEX;
   double translation = 0.0;
 };
-
-static constexpr std::size_t RevisionCountFirst = 0;
-
-static constexpr std::size_t RevisionStatusIdle = 0;
-static constexpr std::size_t RevisionStatusPending = 1;
 
 /*
  * Resolved values to publish to the scroll view for one frame.
@@ -81,8 +78,8 @@ public:
 
   // Current measurement revision and its index/status.
   Revision revision = {};
-  std::size_t revisionCount = RevisionCountFirst;
-  std::size_t revisionStatus = RevisionStatusIdle;
+  std::size_t revisionCount = REVISION_COUNT_FIRST;
+  std::size_t revisionStatus = REVISION_STATUS_IDLE;
 
   // List order: normal (top to bottom) or inverted (bottom to top).
   bool inverted = false;
@@ -99,6 +96,25 @@ public:
    * and one below; 0 measures only the visible window.
    */
   double overscan = 1.0;
+
+  /*
+   * Overscan for MATERIALIZATION, in viewport units, measured the same way as `overscan`.
+   *
+   * `overscan` is a RETENTION band: how far out rows stay reconciled into the shadow tree,
+   * which is what keeps a fast scroll off the JS round trip (native scroll -> event ->
+   * setState -> render -> commit) that produces blank rows. Widening it is the fix for
+   * blanks, but today it also widens what is natively mounted, so the fix costs live views
+   * on the UI thread, which is the resource that is never reclaimed.
+   *
+   * This band separates the two. Rows inside `overscan` but outside this narrower band stay
+   * reconciled and keep their measured geometry, while their CONTENTS are pruned from the
+   * shadow tree before layout (see the Fabric commit hook). Revealing such a row is then a
+   * native-driven commit with no JS involvement.
+   *
+   * Negative disables pruning entirely, which is the default: retention and materialization
+   * coincide exactly as before, so an integration that does not opt in is unaffected.
+   */
+  double materializationOverscan = -1.0;
 
   /*
    * Snap the resting scroll position to an element edge. snapAlignment selects the
@@ -222,6 +238,47 @@ public:
   std::uint64_t nextOperationId = 1;
 
   /*
+   * Ahead-of-time sizes by key: what a row WILL measure to, supplied by the host before
+   * the row has ever been rendered (on Fabric, by measuring its text through the same
+   * TextLayoutManager the real layout pass will use, so the later native measure is a
+   * cache hit rather than a second measurement).
+   *
+   * This is a STAGING area, not the source of truth. A prediction is consumed the moment
+   * its key exists as an element -- reconcileElements stamps fresh rows from it, and
+   * Virtualizer::applyPredictedElementSize stamps a row that already exists -- after which
+   * the size lives on the Element and the entry here is erased. So the map holds only
+   * predictions that arrived before their row did, which is the normal case when the host
+   * measures a screen or two ahead of the retention band.
+   *
+   * Predictions never feed the frozen average (Revision::measuredReal*): that average
+   * exists to size rows nobody has any information about, and must keep describing real
+   * native measurements only.
+   *
+   * Bounded by the host. The core never grows this on its own, and a host that stages
+   * predictions for an entire 100k-row dataset has simply moved the cost it was trying to
+   * avoid -- measure a window ahead of the band, not the world.
+   */
+  std::unordered_map<std::string, Size> predictedSizes;
+
+  /*
+   * Stage an ahead-of-time size for `key`. Safe to call for a key that is not in the list
+   * (and may never be): it simply waits to be consumed by a later reconcile.
+   *
+   * This only stages. To apply a prediction to a row that ALREADY exists -- and reflow the
+   * geometry behind it -- use Virtualizer::applyPredictedElementSize, which consumes the
+   * staged entry as part of the same call.
+   */
+  void setPredictedSize(const std::string& key, Size size);
+
+  /*
+   * Drop every staged prediction. For a host discarding its measurement window (a dataset
+   * swap, a width change that invalidates every text layout). Sizes already stamped onto
+   * elements are untouched -- they are the rows' current geometry, and replacing them with
+   * a fallback estimate would be a strict loss of information.
+   */
+  void clearPredictedSizes();
+
+  /*
    * Keys that must never be captured as the MVCP anchor: decoration rows (date pills,
    * unread dividers, reaction strips, padding) whose identity churns independently of
    * content. captureAnchor skips them and anchors to the nearest stable content row, so a
@@ -251,16 +308,86 @@ public:
   bool lastLayoutHorizontal = false;
 
   /*
+   * Fallback dimensions handed to unmeasured elements by the last layoutElements pass.
+   * While these (and the layout parameters) are unchanged every unmeasured element
+   * already carries exactly these dimensions, so the O(elements) sizing loop is a
+   * guaranteed no-op and is skipped. -1 forces the first pass to run.
+   */
+  double lastFallbackWidth = -1.0;
+  double lastFallbackHeight = -1.0;
+
+  /*
+   * Bumped whenever element offsets/sizes are recomputed or the element list changes.
+   * Lets an integration cache derived geometry (snap offsets, sticky header positions)
+   * that a pure scroll-offset change cannot invalidate, instead of rebuilding it on
+   * every published frame. Starts at 1 so 0 always means "nothing cached yet".
+   */
+  std::uint64_t geometryVersion = 1;
+
+  /*
    * Set by reconcileElements on any insert/remove/reorder: positions shift even when
    * no element's size changed. Defaults true so the first layout always recomputes.
    */
   bool elementsStructureDirty = true;
 
   /*
-   * Set by the measure passes when they resize an element outside layoutElements'
-   * own loop (which cannot see those changes via its estimated checks).
+   * Lowest element index whose size changed outside layoutElements' own loop (which
+   * cannot see those changes via its estimated checks), or UNDEFINED_INDEX when none.
+   *
+   * This used to be a bare bool, which cost every such change a FULL reflow from index 0.
+   * That is the wrong price by orders of magnitude on a large list: offsets accumulate
+   * strictly forward, so a size change at row 80,000 cannot move any row before it, and
+   * reflowing 80,000 untouched rows to discover that is pure waste. A single prediction
+   * landing deep in the list -- the normal case, since consumePredictions drains every
+   * frame -- forced exactly that.
+   *
+   * Merged with min() at every site that records a size change, so a batch of changes
+   * reflows once from the earliest of them.
    */
-  bool elementsSizeDirty = false;
+  std::size_t elementsSizeDirtyFromIndex = UNDEFINED_INDEX;
+
+  /*
+   * HIGHEST index whose size changed, the companion to the lowest above.
+   *
+   * The pair brackets the span a reflow actually has to propagate through. Past the
+   * highest changed row the stored offsets were a valid prefix sum before this batch, so
+   * once the running offset reconverges with one of them, every row after it is already
+   * correct and the walk can stop -- see recomputeElementOffsets.
+   *
+   * Both bounds are needed. The lowest alone is not enough to stop early: a batch can
+   * change rows i and j, and the offsets can coincidentally reconverge at some row between
+   * them, where stopping would strand everything past j.
+   */
+  std::size_t elementsSizeDirtyToIndex = 0;
+
+  /*
+   * Record a size change at `index` that the next LAYOUT PASS must reflow through.
+   *
+   * For changes nothing else is going to propagate -- the measure passes, predictions.
+   * A caller that reflows the change itself must use noteElementSizeSpan instead, or the
+   * layout pass will redo the same work a second time.
+   */
+  void markElementSizeDirty(std::size_t index) {
+    if (index < this->elementsSizeDirtyFromIndex) {
+      this->elementsSizeDirtyFromIndex = index;
+    }
+    noteElementSizeSpan(index);
+  }
+
+  /*
+   * Widen the changed span WITHOUT scheduling a layout-pass reflow.
+   *
+   * For the batched intake path: applyElementSize records sizes and the caller then calls
+   * commitElementSizes once, which reflows them. That reflow still needs to know how far
+   * the batch reaches so it can stop early past it -- but scheduling the layout pass to
+   * reflow the same rows again costs a second full suffix walk per frame, which measured
+   * as a 2x regression on a scroll-indicator drag.
+   */
+  void noteElementSizeSpan(std::size_t index) {
+    if (index > this->elementsSizeDirtyToIndex) {
+      this->elementsSizeDirtyToIndex = index;
+    }
+  }
 
   /*
    * Max cross-axis element extent (offset + size on the non-scroll axis). Cross extents
@@ -333,6 +460,36 @@ public:
    */
   std::pair<std::size_t, std::size_t> getViewableIndices() const;
 
+  /*
+   * The index range whose contents must exist natively: the viewport widened by
+   * materializationOverscan viewports on each side. Orientation aware in the same
+   * convention as getVisibleIndices (inverted returns start > end).
+   *
+   * Returns (UNDEFINED_INDEX, UNDEFINED_INDEX) when pruning is disabled
+   * (materializationOverscan < 0), when nothing has been measured yet, or when no row
+   * intersects the band. Callers must read that as "materialize everything" rather than
+   * "materialize nothing": prefer shouldMaterialize(), which encodes that fail-open rule.
+   */
+  std::pair<std::size_t, std::size_t> getMaterializedIndices() const;
+
+  /*
+   * Whether the row at `index` carries geometry the core can trust without having laid it
+   * out natively: either a real native measurement, or a host-supplied prediction.
+   *
+   * This is the precondition for dematerializing a row (see the Fabric commit hook). A row
+   * with neither has only the generic fallback estimate, and pruning it would freeze it at
+   * that estimate forever -- a hidden row lays out to zero and can never be measured.
+   */
+  bool hasTrustedSize(std::size_t index) const;
+
+  /*
+   * Whether the row at `index` must have its contents present in the shadow tree this
+   * frame. Fails OPEN: any state in which the band cannot be trusted (pruning disabled,
+   * nothing measured, degenerate window, index out of range) returns true, so a bug here
+   * costs performance rather than blanking content.
+   */
+  bool shouldMaterialize(std::size_t index) const;
+
   void setEndReachedEnabled(bool enabled);
   void setStartReachedEnabled(bool enabled);
 
@@ -384,8 +541,14 @@ public:
    * to the viewport edge selected by snapAlignment, each clamped to [0, maxOffset]
    * and deduplicated. Empty when snapToItem is unset. The integration snaps to the
    * nearest of these on scroll end.
+   *
+   * There is one target per element, so this is an O(elements) build with an
+   * O(elements) allocation. It is published from the layout pass, which runs far more
+   * often than the geometry actually changes, so the result is cached against
+   * geometryVersion and the handful of scalars it also depends on. The returned
+   * reference is owned by this Container and is invalidated by the next call.
    */
-  std::vector<double> getSnapOffsets() const;
+  const std::vector<double>& getSnapOffsets() const;
 
   /*
    * Resolve which sticky section header (from stickyIndices) is pinned at the
@@ -414,6 +577,18 @@ public:
   void dispatchObservers();
 
 private:
+  /*
+   * Memoized getSnapOffsets() result and the inputs it was built from. `snapCacheVersion`
+   * of 0 means nothing is cached yet.
+   */
+  mutable std::vector<double> snapOffsetsCache;
+  mutable std::uint64_t snapCacheVersion = 0;
+  mutable bool snapCacheSnapToItem = false;
+  mutable int snapCacheAlignment = -1;
+  mutable double snapCacheWindowSize = -1.0;
+  mutable double snapCacheTotalSize = -1.0;
+  mutable bool snapCacheHorizontal = false;
+
   /*
    * Previously dispatched visible range, used to deduplicate onVisibleIndicesChange
    */

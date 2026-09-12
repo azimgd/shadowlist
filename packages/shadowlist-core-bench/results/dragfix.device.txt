@@ -1,0 +1,130 @@
+shadowlist core benchmark
+scenario                                                   rows        median  unit
+---------------------------------------------------------------------------------------
+  warm top update, partially estimated                     1000         0.262  us/op
+  warm top update, fully measured                          1000         0.258  us/op
+  warm deep update, fully measured                         1000         0.281  us/op
+  20 unchanged measurements at start                       1000         1.104  us/20-row batch
+  20 unchanged measurements at midpoint                    1000         1.094  us/20-row batch
+  20 unchanged measurements in final 20 rows               1000         1.094  us/20-row batch
+  copy short keys into new FrameInput                      1000         2.154  us/op
+  copy long keys into new FrameInput                       1000        86.021  us/op
+  generate snap offsets                                    1000         0.267  us/op
+  reconcile alternating append-one/remove-one              1000       179.163  us/op
+  cold first update                                        1000        96.198  us/op
+  construct and destroy N default Elements                 1000         3.136  us/op
+  FLING vertical single column                             1000         1.368  us/frame
+  FLING vertical, deep in list                             1000         1.507  us/frame
+  FLING horizontal                                         1000         0.773  us/frame
+  FLING 3-column grid                                      1000         3.594  us/frame
+  FLING inverted (chat)                                    1000         1.373  us/frame
+  DRAG scrollbar top to bottom                             1000         2.595  us/frame
+  inverted list: jump to top (tap status bar)              1000         0.542  us/jump
+  prepend 30 rows while scrolled (chat)                    1000       192.057  us/prepend
+---------------------------------------------------------------------------------------
+  warm top update, partially estimated                    10000         0.265  us/op
+  warm top update, fully measured                         10000         0.265  us/op
+  warm deep update, fully measured                        10000         0.283  us/op
+  20 unchanged measurements at start                      10000         1.042  us/20-row batch
+  20 unchanged measurements at midpoint                   10000         1.052  us/20-row batch
+  20 unchanged measurements in final 20 rows              10000         1.042  us/20-row batch
+  copy short keys into new FrameInput                     10000        23.098  us/op
+  copy long keys into new FrameInput                      10000       898.568  us/op
+  generate snap offsets                                   10000         2.619  us/op
+  reconcile alternating append-one/remove-one             10000      3400.456  us/op
+  cold first update                                       10000      1241.250  us/op
+  construct and destroy N default Elements                10000        99.875  us/op
+  FLING vertical single column                            10000         1.380  us/frame
+  FLING vertical, deep in list                            10000         1.523  us/frame
+  FLING horizontal                                        10000         0.790  us/frame
+  FLING 3-column grid                                     10000         3.609  us/frame
+  FLING inverted (chat)                                   10000         1.380  us/frame
+  DRAG scrollbar top to bottom                            10000        20.567  us/frame
+  inverted list: jump to top (tap status bar)             10000         0.578  us/jump
+  prepend 30 rows while scrolled (chat)                   10000      4137.083  us/prepend
+---------------------------------------------------------------------------------------
+  warm top update, partially estimated                   100000         0.273  us/op
+  warm top update, fully measured                        100000         0.271  us/op
+  warm deep update, fully measured                       100000         0.294  us/op
+  20 unchanged measurements at start                     100000         1.042  us/20-row batch
+  20 unchanged measurements at midpoint                  100000         1.042  us/20-row batch
+  20 unchanged measurements in final 20 rows             100000         1.052  us/20-row batch
+  copy short keys into new FrameInput                    100000       998.104  us/op
+  copy long keys into new FrameInput                     100000     27701.552  us/op
+  generate snap offsets                                  100000        72.408  us/op
+  reconcile alternating append-one/remove-one            100000     91959.252  us/op
+  cold first update                                      100000     37109.375  us/op
+  construct and destroy N default Elements               100000      4388.719  us/op
+  FLING vertical single column                           100000         1.399  us/frame
+  FLING vertical, deep in list                           100000         1.530  us/frame
+  FLING horizontal                                       100000         0.795  us/frame
+  FLING 3-column grid                                    100000         3.630  us/frame
+  FLING inverted (chat)                                  100000         1.398  us/frame
+  DRAG scrollbar top to bottom                           100000       541.846  us/frame
+  inverted list: jump to top (tap status bar)            100000         0.589  us/jump
+  prepend 30 rows while scrolled (chat)                  100000     94206.260  us/prepend
+---------------------------------------------------------------------------------------
+
+#BEGIN_TSV
+scenario	rows	median_us	min_us	max_us	unit
+warm top update, partially estimated	1000	0.262	0.260	0.285	us/op
+warm top update, fully measured	1000	0.258	0.256	0.260	us/op
+warm deep update, fully measured	1000	0.281	0.281	0.283	us/op
+20 unchanged measurements at start	1000	1.104	1.094	1.104	us/20-row batch
+20 unchanged measurements at midpoint	1000	1.094	1.083	1.104	us/20-row batch
+20 unchanged measurements in final 20 rows	1000	1.094	1.083	1.104	us/20-row batch
+copy short keys into new FrameInput	1000	2.154	2.150	2.156	us/op
+copy long keys into new FrameInput	1000	86.021	84.880	94.224	us/op
+generate snap offsets	1000	0.267	0.265	0.269	us/op
+reconcile alternating append-one/remove-one	1000	179.163	177.906	180.648	us/op
+cold first update	1000	96.198	95.937	96.302	us/op
+construct and destroy N default Elements	1000	3.136	3.125	3.177	us/op
+FLING vertical single column	1000	1.368	1.366	1.373	us/frame
+FLING vertical, deep in list	1000	1.507	1.505	1.622	us/frame
+FLING horizontal	1000	0.773	0.769	0.774	us/frame
+FLING 3-column grid	1000	3.594	3.590	3.597	us/frame
+FLING inverted (chat)	1000	1.373	1.370	1.377	us/frame
+DRAG scrollbar top to bottom	1000	2.595	2.582	3.326	us/frame
+inverted list: jump to top (tap status bar)	1000	0.542	0.536	0.547	us/jump
+prepend 30 rows while scrolled (chat)	1000	192.057	191.745	199.047	us/prepend
+warm top update, partially estimated	10000	0.265	0.262	0.269	us/op
+warm top update, fully measured	10000	0.265	0.262	0.269	us/op
+warm deep update, fully measured	10000	0.283	0.279	0.290	us/op
+20 unchanged measurements at start	10000	1.042	1.042	1.073	us/20-row batch
+20 unchanged measurements at midpoint	10000	1.052	1.042	1.063	us/20-row batch
+20 unchanged measurements in final 20 rows	10000	1.042	1.031	1.062	us/20-row batch
+copy short keys into new FrameInput	10000	23.098	22.819	25.140	us/op
+copy long keys into new FrameInput	10000	898.568	895.677	905.703	us/op
+generate snap offsets	10000	2.619	2.598	2.642	us/op
+reconcile alternating append-one/remove-one	10000	3400.456	3378.181	3413.410	us/op
+cold first update	10000	1241.250	1227.083	1326.093	us/op
+construct and destroy N default Elements	10000	99.875	99.375	104.313	us/op
+FLING vertical single column	10000	1.380	1.375	1.385	us/frame
+FLING vertical, deep in list	10000	1.523	1.516	1.528	us/frame
+FLING horizontal	10000	0.790	0.783	1.089	us/frame
+FLING 3-column grid	10000	3.609	3.606	3.615	us/frame
+FLING inverted (chat)	10000	1.380	1.377	1.382	us/frame
+DRAG scrollbar top to bottom	10000	20.567	20.149	22.156	us/frame
+inverted list: jump to top (tap status bar)	10000	0.578	0.578	0.599	us/jump
+prepend 30 rows while scrolled (chat)	10000	4137.083	4084.620	4224.964	us/prepend
+warm top update, partially estimated	100000	0.273	0.271	0.277	us/op
+warm top update, fully measured	100000	0.271	0.269	0.281	us/op
+warm deep update, fully measured	100000	0.294	0.292	0.306	us/op
+20 unchanged measurements at start	100000	1.042	1.042	1.052	us/20-row batch
+20 unchanged measurements at midpoint	100000	1.042	1.042	1.052	us/20-row batch
+20 unchanged measurements in final 20 rows	100000	1.052	1.042	1.052	us/20-row batch
+copy short keys into new FrameInput	100000	998.104	992.023	1005.231	us/op
+copy long keys into new FrameInput	100000	27701.552	26987.698	27836.464	us/op
+generate snap offsets	100000	72.408	71.548	77.373	us/op
+reconcile alternating append-one/remove-one	100000	91959.252	91938.833	92267.135	us/op
+cold first update	100000	37109.375	36721.563	37429.740	us/op
+construct and destroy N default Elements	100000	4388.719	4360.521	4466.667	us/op
+FLING vertical single column	100000	1.399	1.396	1.405	us/frame
+FLING vertical, deep in list	100000	1.530	1.526	1.576	us/frame
+FLING horizontal	100000	0.795	0.793	0.802	us/frame
+FLING 3-column grid	100000	3.630	3.630	3.635	us/frame
+FLING inverted (chat)	100000	1.398	1.392	3.215	us/frame
+DRAG scrollbar top to bottom	100000	541.846	535.917	621.950	us/frame
+inverted list: jump to top (tap status bar)	100000	0.589	0.583	0.609	us/jump
+prepend 30 rows while scrolled (chat)	100000	94206.260	94087.698	94599.083	us/prepend
+#END_TSV

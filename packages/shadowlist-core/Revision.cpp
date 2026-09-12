@@ -1,6 +1,7 @@
 #include <shadowlist-core/Revision.hpp>
-#include <sstream>
+
 #include <iomanip>
+#include <sstream>
 
 namespace azimgd::shadowlist {
 
@@ -44,7 +45,7 @@ std::string Revision::getDebugRepresentation() const {
   for (std::size_t nextElementIndex = 0; nextElementIndex < this->elements.size(); ++nextElementIndex) {
     const auto& elem = this->elements[nextElementIndex];
     json << "{";
-    json << "\"id\":\"" << elem.id << "\",";
+    json << "\"id\":\"" << elem.getId() << "\",";
     json << "\"width\":" << elem.width << ",";
     json << "\"height\":" << elem.height << ",";
     json << "\"offsetX\":" << elem.offsetX << ",";

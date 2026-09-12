@@ -1,7 +1,9 @@
 #include <TargetConditionals.h>
 
-// Drag-to-reorder relies on UILongPressGestureRecognizer, CADisplayLink and UIView spring
-// animations, none of which have a clean AppKit equivalent, so the whole feature is iOS only.
+/*
+ * Drag-to-reorder relies on UILongPressGestureRecognizer, CADisplayLink and UIView spring
+ * animations, none of which have a clean AppKit equivalent, so the whole feature is iOS only.
+ */
 #if !TARGET_OS_OSX
 
 #import "ShadowListView.h"
@@ -123,13 +125,13 @@ using namespace facebook::react;
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   CGFloat touch = _horizontal ? _dragTouchInViewport.x : _dragTouchInViewport.y;
 
-  static const CGFloat kEdge = 90.0;
-  static const CGFloat kMaxSpeed = 16.0;
+  static const CGFloat AUTO_SCROLL_EDGE = 90.0;
+  static const CGFloat AUTO_SCROLL_MAX_SPEED = 16.0;
   CGFloat delta = 0.0;
-  if (touch < kEdge) {
-    delta = -kMaxSpeed * (1.0 - touch / kEdge);
-  } else if (touch > window - kEdge) {
-    delta = kMaxSpeed * (1.0 - (window - touch) / kEdge);
+  if (touch < AUTO_SCROLL_EDGE) {
+    delta = -AUTO_SCROLL_MAX_SPEED * (1.0 - touch / AUTO_SCROLL_EDGE);
+  } else if (touch > window - AUTO_SCROLL_EDGE) {
+    delta = AUTO_SCROLL_MAX_SPEED * (1.0 - (window - touch) / AUTO_SCROLL_EDGE);
   }
   if (delta == 0.0) {
     return;
@@ -143,8 +145,10 @@ using namespace facebook::react;
   CGPoint next = _horizontal
     ? CGPointMake(newOffset, _scrollView.contentOffset.y)
     : CGPointMake(_scrollView.contentOffset.x, newOffset);
-  // Must report as a user scroll so the core virtualizes at this exact offset;
-  // echo-suppressing here blanks rows mid-drag.
+  /*
+   * Must report as a user scroll so the core virtualizes at this exact offset;
+   * echo-suppressing here blanks rows mid-drag.
+   */
   _scrollView.contentOffset = next;
 }
 
@@ -156,11 +160,13 @@ using namespace facebook::react;
     return;
   }
 
-  // Re-derive the pivot's current index/key every time drag state is recomputed: an unrelated
-  // data mutation mid-drag (e.g. updateState: firing while _dragging == YES from another
-  // commit) can shift the already-mounted dragged view's live index/key without a re-pickup,
-  // and insertionIndexForCenter:/this view's geometry must key off that current value rather
-  // than the one cached once at pickup in beginDrag.
+  /*
+   * Re-derive the pivot's current index/key every time drag state is recomputed: an unrelated
+   * data mutation mid-drag (e.g. updateState: firing while _dragging == YES from another
+   * commit) can shift the already-mounted dragged view's live index/key without a re-pickup,
+   * and insertionIndexForCenter:/this view's geometry must key off that current value rather
+   * than the one cached once at pickup in beginDrag.
+   */
   NSInteger currentIndex = [self indexOfElementView:view];
   if (currentIndex != NSNotFound) {
     _dragOriginIndex = currentIndex;
@@ -199,8 +205,10 @@ using namespace facebook::react;
 - (NSInteger)insertionIndexForCenter:(CGFloat)center
 {
   NSInteger insertion = _dragOriginIndex;
-  // Track the key of the row at the chosen insertion slot so the drop event carries a
-  // stable identity, not just an index. Defaults to the origin (no crossing => no move).
+  /*
+   * Track the key of the row at the chosen insertion slot so the drop event carries a
+   * stable identity, not just an index. Defaults to the origin (no crossing => no move).
+   */
   NSString *insertionKey = _dragOriginKey;
   for (UIView *sub in _contentView.subviews) {
     if (sub == _draggedView) {
@@ -336,8 +344,10 @@ using namespace facebook::react;
   _dragging = NO;
   _draggedView = nil;
 
-  // Emit the reorder by key; hold the shuffle transforms until the commit lands.
-  // (from/to indices below still drive the visual settle on the live mounted views.)
+  /*
+   * Emit the reorder by key; hold the shuffle transforms until the commit lands.
+   * (from/to indices below still drive the visual settle on the live mounted views.)
+   */
   [self dispatchDragEventType:3 fromKey:_dragOriginKey toKey:_dragInsertionKey];
 
   if (from == to || !view) {
@@ -350,15 +360,19 @@ using namespace facebook::react;
     _droppedView = view;
     _dropInsertionIndex = to;
 
-    // Poll for the landing: a same-size reorder may publish no new state, so detect
-    // the dropped row's index reaching its slot directly.
+    /*
+     * Poll for the landing: a same-size reorder may publish no new state, so detect
+     * the dropped row's index reaching its slot directly.
+     */
     [_dropSettleLink invalidate];
     _dropSettleLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
     [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
-    // Safety net: clear the held transforms if the reorder never lands. The token
-    // invalidates this block if a newer drop supersedes it, so a stale timer can't tear
-    // down a fresh drag's settle.
+    /*
+     * Safety net: clear the held transforms if the reorder never lands. The token
+     * invalidates this block if a newer drop supersedes it, so a stale timer can't tear
+     * down a fresh drag's settle.
+     */
     NSInteger settleToken = ++_dropSettleToken;
     __weak ShadowListView *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{

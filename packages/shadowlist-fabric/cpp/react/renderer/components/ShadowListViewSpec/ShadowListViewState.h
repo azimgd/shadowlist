@@ -1,9 +1,10 @@
 #pragma once
 
+#include <react/renderer/graphics/Float.h>
+
+#include <memory>
 #include <string>
 #include <vector>
-
-#include <react/renderer/graphics/Float.h>
 
 #ifdef ANDROID
 #include <folly/dynamic.h>
@@ -17,7 +18,7 @@ namespace facebook::react {
  * State for <ShadowListView> component.
  */
 class ShadowListViewState final {
-  public:
+public:
   ShadowListViewState() = default;
 
   ShadowListViewState(
@@ -81,24 +82,33 @@ class ShadowListViewState final {
     snapOffsets_(previousState.snapOffsets_),
     commitToken_(data.count("commitToken") ? (Float)data["commitToken"].getDouble() : previousState.commitToken_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
-      stickyHeaderIndices_.clear();
-      stickyHeaderOffsets_.clear();
-      stickyHeaderSizes_.clear();
+      auto stickyHeaderIndices = std::make_shared<std::vector<int>>();
+      auto stickyHeaderOffsets = std::make_shared<std::vector<Float>>();
+      auto stickyHeaderSizes = std::make_shared<std::vector<Float>>();
       for (const auto& value : data["stickyHeaderIndices"]) {
-        stickyHeaderIndices_.push_back((int)value.getInt());
+        stickyHeaderIndices->push_back((int)value.getInt());
       }
       for (const auto& value : data["stickyHeaderOffsets"]) {
-        stickyHeaderOffsets_.push_back((Float)value.getDouble());
+        stickyHeaderOffsets->push_back((Float)value.getDouble());
       }
       for (const auto& value : data["stickyHeaderSizes"]) {
-        stickyHeaderSizes_.push_back((Float)value.getDouble());
+        stickyHeaderSizes->push_back((Float)value.getDouble());
       }
+      /*
+       * Normalise empty back to null, the same way the layout pass publishes it, so a
+       * round trip through the Android renderer cannot hand the shadow node a non-null
+       * empty collection that its pointer comparison would read as a change.
+       */
+      stickyHeaderIndices_ = stickyHeaderIndices->empty() ? nullptr : std::move(stickyHeaderIndices);
+      stickyHeaderOffsets_ = stickyHeaderOffsets->empty() ? nullptr : std::move(stickyHeaderOffsets);
+      stickyHeaderSizes_ = stickyHeaderSizes->empty() ? nullptr : std::move(stickyHeaderSizes);
     }
     if (data.count("snapOffsets")) {
-      snapOffsets_.clear();
+      auto snapOffsets = std::make_shared<std::vector<Float>>();
       for (const auto& value : data["snapOffsets"]) {
-        snapOffsets_.push_back((Float)value.getDouble());
+        snapOffsets->push_back((Float)value.getDouble());
       }
+      snapOffsets_ = snapOffsets->empty() ? nullptr : std::move(snapOffsets);
     }
   };
 
@@ -122,25 +132,34 @@ class ShadowListViewState final {
     result["dragFromKey"] = dragFromKey_;
     result["dragToKey"] = dragToKey_;
 
+    // A null pointer means empty; see the member declarations.
     folly::dynamic stickyHeaderIndices = folly::dynamic::array;
-    for (auto stickyHeaderIndex : stickyHeaderIndices_) {
-      stickyHeaderIndices.push_back(stickyHeaderIndex);
+    if (stickyHeaderIndices_) {
+      for (auto stickyHeaderIndex : *stickyHeaderIndices_) {
+        stickyHeaderIndices.push_back(stickyHeaderIndex);
+      }
     }
     folly::dynamic stickyHeaderOffsets = folly::dynamic::array;
-    for (auto stickyHeaderOffset : stickyHeaderOffsets_) {
-      stickyHeaderOffsets.push_back((double)stickyHeaderOffset);
+    if (stickyHeaderOffsets_) {
+      for (auto stickyHeaderOffset : *stickyHeaderOffsets_) {
+        stickyHeaderOffsets.push_back((double)stickyHeaderOffset);
+      }
     }
     folly::dynamic stickyHeaderSizes = folly::dynamic::array;
-    for (auto stickyHeaderSize : stickyHeaderSizes_) {
-      stickyHeaderSizes.push_back((double)stickyHeaderSize);
+    if (stickyHeaderSizes_) {
+      for (auto stickyHeaderSize : *stickyHeaderSizes_) {
+        stickyHeaderSizes.push_back((double)stickyHeaderSize);
+      }
     }
     result["stickyHeaderIndices"] = stickyHeaderIndices;
     result["stickyHeaderOffsets"] = stickyHeaderOffsets;
     result["stickyHeaderSizes"] = stickyHeaderSizes;
 
     folly::dynamic snapOffsets = folly::dynamic::array;
-    for (auto snapOffset : snapOffsets_) {
-      snapOffsets.push_back((double)snapOffset);
+    if (snapOffsets_) {
+      for (auto snapOffset : *snapOffsets_) {
+        snapOffsets.push_back((double)snapOffset);
+      }
     }
     result["snapOffsets"] = snapOffsets;
     result["commitToken"] = commitToken_;
@@ -194,17 +213,31 @@ class ShadowListViewState final {
    * mirroring Container::resolveStickyHeader, so the per-frame pin never reads a
    * (possibly transformed) view frame. Empty for a plain list. Declared after
    * userScrolled_ so the Android constructor's member-init order matches.
+   *
+   * HELD BY POINTER, NOT BY VALUE. State is copied constantly -- adopt() copies it once
+   * per commit, layout() again, and the iOS scroll delegate once per scroll frame on the
+   * main thread -- while these collections change only when the element geometry moves.
+   * By value, snapOffsets_ alone (one entry per row, see Container::getSnapOffsets) meant
+   * copying a 100k-element vector several times per frame for a large snapping list.
+   * Shared, immutable and refcounted, a state copy is a few atomic increments, and the
+   * "did this change?" test the layout pass runs every frame becomes a pointer comparison
+   * instead of an O(rows) element-wise one.
+   *
+   * A NULL pointer means empty; readers must treat the two as identical. Nothing mutates
+   * a pointee after it is published, so sharing one across state copies (and across
+   * threads) is safe.
    */
-  std::vector<int> stickyHeaderIndices_{};
-  std::vector<Float> stickyHeaderOffsets_{};
-  std::vector<Float> stickyHeaderSizes_{};
+  std::shared_ptr<const std::vector<int>> stickyHeaderIndices_{};
+  std::shared_ptr<const std::vector<Float>> stickyHeaderOffsets_{};
+  std::shared_ptr<const std::vector<Float>> stickyHeaderSizes_{};
 
   /*
    * Resting snap offsets along the scroll axis (DIP), produced by the core's layout
    * pass. Empty unless snapToItem is set. The integrations snap the native scroll
-   * view's landing position to the nearest of these.
+   * view's landing position to the nearest of these. Held by pointer for the reason
+   * above -- this is the collection that made it necessary.
    */
-  std::vector<Float> snapOffsets_{};
+  std::shared_ptr<const std::vector<Float>> snapOffsets_{};
 
   /*
    * Commit token: the id of the in-flight offset correction. Core -> view it rides on

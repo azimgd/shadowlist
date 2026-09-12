@@ -1,4 +1,5 @@
 #include <shadowlist-core/Virtualizer.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <mutex>
@@ -13,12 +14,31 @@ namespace azimgd::shadowlist {
  * maybe_unused to stay clean under -Werror=unused-function (Android).
  */
 namespace {
-[[maybe_unused]] const char* visKeyAt(const Container *container, std::size_t index) {
+[[maybe_unused]] const char* visKeyAt(const Container* container, std::size_t index) {
   if (index < container->revision.elements.size()) {
     const std::string& key = container->revision.elements[index].key;
     return key.empty() ? "(empty)" : key.c_str();
   }
   return "(oob)";
+}
+
+/*
+ * The size an element that has never been natively measured should carry: the average
+ * frozen from real measurements once there is one, otherwise the configured estimate.
+ *
+ * Every pass that sizes an unmeasured row uses this, so they all agree. When the measure
+ * pass used the raw estimate while the layout pass used the frozen average, simply
+ * bringing a row into the window RESIZED it, which reflowed everything after it -- after
+ * the window had already been chosen from the old geometry. The row that shift pulled
+ * into range was then left out for a frame. Agreeing on one fallback removes both the
+ * spurious reflow and that lag.
+ */
+std::pair<double, double> effectiveFallbackSize(const Container* container) {
+  auto [estimatedWidth, estimatedHeight] = container->estimatedElementSize;
+  return {
+    container->revision.averageElementWidth > 0.0 ? container->revision.averageElementWidth : estimatedWidth,
+    container->revision.averageElementHeight > 0.0 ? container->revision.averageElementHeight : estimatedHeight,
+  };
 }
 
 /*
@@ -32,7 +52,7 @@ namespace {
  * frame a header size changes, where resolveScroll/updateElementAtIndex apply it inline
  * to the immediate write. The cross-frame drive uses the raw element offset.
  */
-bool resolveAnchorOffset(Container *container, const Operation &operation, double maxOffset, double &outOffset) {
+bool resolveAnchorOffset(Container* container, const Operation& operation, double maxOffset, double& outOffset) {
   if (operation.target.mode != AnchorMode::Element) {
     outOffset = maxOffset;
     return true;
@@ -46,11 +66,18 @@ bool resolveAnchorOffset(Container *container, const Operation &operation, doubl
 }
 }
 
-void Virtualizer::update(Container *container, const FrameInput &input) {
+void Virtualizer::update(Container* container, const FrameInput& input) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
+  /*
+   * The frame's keys, borrowed from the caller when it owns an immutable collection for
+   * this commit (see FrameInput::keysRef). Valid only for the duration of this call.
+   */
+  const std::vector<std::string>& inputKeys = input.keyList();
+  const std::vector<std::string>& inputNonAnchorableKeys = input.nonAnchorableKeyList();
+
   SL_LOG("update: keys=%zu prevElements=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d",
-    input.keys.size(), container->revision.elements.size(),
+    inputKeys.size(), container->revision.elements.size(),
     input.containerOffsetX, input.containerOffsetY,
     input.windowContainerWidth, input.windowContainerHeight,
     input.inverted ? 1 : 0, input.columns, input.headerSize, input.footerSize,
@@ -69,6 +96,7 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->horizontal = input.horizontal;
   container->columns = input.columns;
   container->overscan = input.overscan;
+  container->materializationOverscan = input.materializationOverscan;
   container->headerSize = input.headerSize;
   container->footerSize = input.footerSize;
   container->stickyHeader = input.stickyHeader;
@@ -86,9 +114,13 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
    * as the MVCP anchor. Set before captureAnchor (which reads it). Rebuilt each frame so a
    * row toggling decoration<->content takes effect immediately.
    */
-  container->nonAnchorableKeys.clear();
-  for (const std::string &ignoredKey : input.nonAnchorableKeys) {
-    container->nonAnchorableKeys.insert(ignoredKey);
+  if (container->nonAnchorableKeys.size() != inputNonAnchorableKeys.size() ||
+      !std::all_of(inputNonAnchorableKeys.begin(), inputNonAnchorableKeys.end(),
+        [&](const std::string& ignoredKey) { return container->nonAnchorableKeys.count(ignoredKey) != 0; })) {
+    container->nonAnchorableKeys.clear();
+    for (const std::string& ignoredKey : inputNonAnchorableKeys) {
+      container->nonAnchorableKeys.insert(ignoredKey);
+    }
   }
 
   /*
@@ -143,20 +175,23 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
 #if SHADOWLIST_DEBUG_LOG
   {
     std::size_t prevSize = container->revision.elements.size();
-    std::size_t nextSize = input.keys.size();
-    bool frontChanged = prevSize && nextSize && container->revision.elements.front().key != input.keys.front();
+    std::size_t nextSize = inputKeys.size();
+    bool frontChanged = prevSize && nextSize && container->revision.elements.front().key != inputKeys.front();
     if (prevSize != nextSize || frontChanged) {
       long oldFrontNewIdx = -1;
       if (prevSize) {
         const std::string& oldFront = container->revision.elements.front().key;
-        for (std::size_t i = 0; i < nextSize; ++i) {
-          if (input.keys[i] == oldFront) { oldFrontNewIdx = static_cast<long>(i); break; }
+        for (std::size_t nextElementIndex = 0; nextElementIndex < nextSize; ++nextElementIndex) {
+          if (inputKeys[nextElementIndex] == oldFront) {
+            oldFrontNewIdx = static_cast<long>(nextElementIndex);
+            break;
+          }
         }
       }
       SL_LOG("  RECONCILE: size %zu->%zu front '%s'->'%s' oldFront@newIdx=%ld anchorKey=%s anchorDelta=%.1f",
         prevSize, nextSize,
         prevSize ? container->revision.elements.front().key.c_str() : "(none)",
-        nextSize ? input.keys.front().c_str() : "(none)",
+        nextSize ? inputKeys.front().c_str() : "(none)",
         oldFrontNewIdx, anchorKey.empty() ? "(none)" : anchorKey.c_str(), anchorDelta);
     }
   }
@@ -170,18 +205,26 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
    * and key map every commit; that rebuild is the bulk of the per-commit cost during the
    * multi-commit settle that follows a prepend/append.
    */
-  bool keysChanged = container->revision.elements.size() != input.keys.size();
-  if (!keysChanged) {
-    for (std::size_t nextElementIndex = 0; nextElementIndex < input.keys.size(); nextElementIndex++) {
-      if (container->revision.elements[nextElementIndex].key != input.keys[nextElementIndex]) {
+  bool keysChanged = !input.keysUnchanged && container->revision.elements.size() != inputKeys.size();
+  if (!keysChanged && !input.keysUnchanged) {
+    for (std::size_t nextElementIndex = 0; nextElementIndex < inputKeys.size(); ++nextElementIndex) {
+      if (container->revision.elements[nextElementIndex].key != inputKeys[nextElementIndex]) {
         keysChanged = true;
         break;
       }
     }
   }
   if (keysChanged) {
-    reconcileElements(container, input.keys);
+    reconcileElements(container, inputKeys);
   }
+
+  /*
+   * Stamp any ahead-of-time sizes the host staged since the last frame. Must run after the
+   * reconcile (so predictions for rows this commit introduced land immediately) and before
+   * measure() (so this frame's window is chosen from the predicted geometry rather than
+   * from estimates it is about to replace).
+   */
+  consumePredictions(container);
 
   /*
    * Measure the revision
@@ -195,10 +238,10 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
    * already returned the status to idle, so this guard is a no-op.
    */
   struct RevisionStatusGuard {
-    Container *container;
+    Container* container;
     ~RevisionStatusGuard() {
-      if (container->revisionStatus == RevisionStatusPending) {
-        container->revisionStatus = RevisionStatusIdle;
+      if (container->revisionStatus == REVISION_STATUS_PENDING) {
+        container->revisionStatus = REVISION_STATUS_IDLE;
       }
     }
   } revisionStatusGuard{container};
@@ -247,10 +290,10 @@ void Virtualizer::update(Container *container, const FrameInput &input) {
   container->endRevision();
 }
 
-void Virtualizer::measure(Container *container, bool windowFromOffset) {
+void Virtualizer::measure(Container* container, bool windowFromOffset) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
-  if (container->revisionStatus != RevisionStatusPending) {
+  if (container->revisionStatus != REVISION_STATUS_PENDING) {
     throw InvalidOperationError("Cannot use measure outside of a revision");
   }
 
@@ -265,10 +308,25 @@ void Virtualizer::measure(Container *container, bool windowFromOffset) {
   container->revision.measurementElementTotalWidth = 0;
 
   /*
+   * An insert/remove/reorder leaves every element carrying its PRE-mutation offset, and
+   * newly created rows carry no size at all, until a reflow runs. Selecting the window
+   * from that geometry answers a question about where the rows used to be: on the frame a
+   * mutation lands, a row that moved into view could be reported as outside the window and
+   * therefore not mounted -- a blank gap until some later frame happened to re-measure.
+   *
+   * So reflow first and choose the window from real positions. This also lets the window
+   * pass use its ordered index seek on mutation frames instead of falling back to
+   * scanning every row, which is where the extra pass pays for itself.
+   */
+  if (container->elementsStructureDirty) {
+    layoutElements(container);
+  }
+
+  /*
    * The first revision fills a window from the edge (offsets not known yet). After a
    * scroll correction the remeasure selects the window around the corrected offset.
    */
-  if (!windowFromOffset && container->revisionCount == RevisionCountFirst) {
+  if (!windowFromOffset && container->revisionCount == REVISION_COUNT_FIRST) {
     measureFirstRevision(container);
   } else {
     measureNextRevision(container);
@@ -278,7 +336,7 @@ void Virtualizer::measure(Container *container, bool windowFromOffset) {
   recomputeTotalSize(container);
 }
 
-void Virtualizer::measureFirstRevision(Container *container) {
+void Virtualizer::measureFirstRevision(Container* container) {
   std::size_t elementsSize = container->revision.elements.size();
   double windowSize = container->getWindowContainerSize();
   double effectiveColumns = container->columns > 0 ? static_cast<double>(container->columns) : 1.0;
@@ -298,7 +356,7 @@ void Virtualizer::measureFirstRevision(Container *container) {
      * Only assign an estimate to elements that don't already have a size.
      */
     if (!nextElement.estimated) {
-      auto [width, height] = container->estimatedElementSize;
+      auto [width, height] = effectiveFallbackSize(container);
 
       /*
        * No estimate configured: leave this element unsized.
@@ -307,11 +365,14 @@ void Virtualizer::measureFirstRevision(Container *container) {
         continue;
       }
 
-      nextElement.width = width;
-      nextElement.height = height;
+      // Same reasoning as measureNextRevision: only a real size change dirties geometry.
+      if (nextElement.width != width || nextElement.height != height) {
+        nextElement.width = width;
+        nextElement.height = height;
+        // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
+        container->markElementSizeDirty(nextElementIndex);
+      }
       nextElement.estimated = true;
-      // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
-      container->elementsSizeDirty = true;
     }
 
     if (measuredMinIndex == UNDEFINED_INDEX || nextElementIndex < measuredMinIndex) {
@@ -339,7 +400,7 @@ void Virtualizer::measureFirstRevision(Container *container) {
   finalizeMeasurement(container, measuredMinIndex, measuredMaxIndex);
 }
 
-void Virtualizer::measureNextRevision(Container *container) {
+void Virtualizer::measureNextRevision(Container* container) {
   std::size_t elementsSize = container->revision.elements.size();
   double containerOffset = container->getContainerOffset();
   double windowSize = container->getWindowContainerSize();
@@ -357,46 +418,55 @@ void Virtualizer::measureNextRevision(Container *container) {
   std::size_t measuredMaxIndex = UNDEFINED_INDEX;
 
   /*
-   * Single-column offsets are non-decreasing by index (see recomputeElementOffsets), so
-   * the scan can stop at the first element past upperBound. Multi-column interleaves
-   * tracks and must keep scanning. Not on the reconcile frame though: reconciled
-   * elements still carry pre-reorder offsets (reflowed only later in layoutElements),
-   * so a row moved toward the front could break the scan early with its stale offset.
+   * Offsets are only trustworthy once the current structure has been reflowed:
+   * reconciled elements still carry pre-reorder offsets until layoutElements runs, so a
+   * row moved toward the front could terminate an ordered walk early with a stale offset.
+   * In that state fall back to the exhaustive scan.
    */
-  bool canEarlyExit = container->columns <= 1 && !container->elementsStructureDirty;
+  bool geometryOrdered = !container->elementsStructureDirty;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
+  auto elementOffsetAt = [&](std::size_t index) {
+    const Element& element = container->revision.elements[index];
+    return container->horizontal ? element.offsetX : element.offsetY;
+  };
+  auto elementSizeAt = [&](std::size_t index) {
+    const Element& element = container->revision.elements[index];
+    return container->horizontal ? element.width : element.height;
+  };
+
+  /*
+   * Visit one candidate row: apply a size estimate if it has none and fold it into this
+   * revision's measurement accumulators. Returns false when the row had to be skipped
+   * because no estimate is configured.
+   */
+  auto visit = [&](std::size_t nextElementIndex) {
     Element& nextElement = container->revision.elements[nextElementIndex];
 
-    double elementOffset = container->horizontal ? nextElement.offsetX : nextElement.offsetY;
-    double elementSize = container->horizontal ? nextElement.width : nextElement.height;
-
-    // Skip elements outside the visible window plus overscan buffer. This is an
-    // interval-overlap test (mirroring captureAnchor's), not a leading-edge-only test:
-    // an element whose leading edge is before lowerBound but whose body still overlaps
-    // it must still be measured/counted as visible.
-    if (elementOffset > upperBound) {
-      if (canEarlyExit) {
-        break;
-      }
-      continue;
-    }
-    if (elementOffset + elementSize <= lowerBound) {
-      continue;
-    }
-
     if (!nextElement.estimated) {
-      auto [width, height] = container->estimatedElementSize;
+      auto [width, height] = effectiveFallbackSize(container);
 
       if (width == 0.0 && height == 0.0) {
-        continue;
+        return;
       }
 
-      nextElement.width = width;
-      nextElement.height = height;
+      /*
+       * layoutElements has already given every unmeasured row exactly this fallback size,
+       * so a row crossing into the window normally does not change size at all -- only its
+       * state. Marking geometry dirty regardless forced a full O(rows) offset reflow on
+       * every frame that revealed a row nobody had visited yet.
+       *
+       * A fling shrugs that off: it reveals a couple of rows and then spends the gesture
+       * inside territory it has already been through. Dragging the scroll indicator does
+       * the opposite -- it sweeps the whole list, so EVERY frame lands in fresh rows and
+       * paid that reflow for the entire drag.
+       */
+      if (nextElement.width != width || nextElement.height != height) {
+        nextElement.width = width;
+        nextElement.height = height;
+        // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
+        container->markElementSizeDirty(nextElementIndex);
+      }
       nextElement.estimated = true;
-      // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
-      container->elementsSizeDirty = true;
     }
 
     if (measuredMinIndex == UNDEFINED_INDEX || nextElementIndex < measuredMinIndex) {
@@ -409,12 +479,83 @@ void Virtualizer::measureNextRevision(Container *container) {
     container->revision.measurementElementTotalHeight += nextElement.height;
     container->revision.measurementElementTotalWidth += nextElement.width;
     container->revision.measurementElementCount++;
+  };
+
+  /*
+   * Find the first index of an ordered track (stride `step`, starting at `first`) whose
+   * TRAILING edge is past lowerBound -- the first row that can still overlap the window.
+   * Rows are laid out end to end within a track, so `offset + size` is non-decreasing
+   * along it and the boundary is binary-searchable. This is what keeps a deep scroll
+   * O(log N + window) instead of walking the whole prefix on every frame.
+   */
+  auto seekTrack = [&](std::size_t first, std::size_t step) {
+    std::size_t low = 0;
+    std::size_t high = first < elementsSize ? (elementsSize - 1 - first) / step + 1 : 0;
+    while (low < high) {
+      std::size_t mid = low + (high - low) / 2;
+      std::size_t index = first + mid * step;
+      if (elementOffsetAt(index) + elementSizeAt(index) <= lowerBound) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    return low;
+  };
+
+  if (geometryOrdered && container->columns <= 1) {
+    /*
+     * Single column: one ordered track over every index.
+     */
+    for (std::size_t nextElementIndex = seekTrack(0, 1); nextElementIndex < elementsSize; ++nextElementIndex) {
+      if (elementOffsetAt(nextElementIndex) > upperBound) {
+        break;
+      }
+      visit(nextElementIndex);
+    }
+  } else if (geometryOrdered && container->columns > 1) {
+    /*
+     * Multi-column: rows are assigned to tracks round-robin by `index % columns`
+     * (recomputeElementOffsets), so global index order is not offset-ordered but each
+     * track is. Search and walk each track independently instead of scanning all N rows,
+     * which is what a grid previously did on every single frame.
+     */
+    for (std::size_t track = 0; track < container->columns && track < elementsSize; ++track) {
+      std::size_t stepsPast = seekTrack(track, container->columns);
+      for (std::size_t nextElementIndex = track + stepsPast * container->columns;
+           nextElementIndex < elementsSize;
+           nextElementIndex += container->columns) {
+        if (elementOffsetAt(nextElementIndex) > upperBound) {
+          break;
+        }
+        visit(nextElementIndex);
+      }
+    }
+  } else {
+    /*
+     * Geometry is mid-reconcile and offsets cannot be trusted to be ordered: check every
+     * row against the window.
+     */
+    for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
+      double elementOffset = elementOffsetAt(nextElementIndex);
+      double elementSize = elementSizeAt(nextElementIndex);
+
+      /*
+       * Interval-overlap test (mirroring captureAnchor's), not a leading-edge-only test:
+       * an element whose leading edge is before lowerBound but whose body still overlaps
+       * it must still be measured/counted as visible.
+       */
+      if (elementOffset > upperBound || elementOffset + elementSize <= lowerBound) {
+        continue;
+      }
+      visit(nextElementIndex);
+    }
   }
 
   finalizeMeasurement(container, measuredMinIndex, measuredMaxIndex);
 }
 
-void Virtualizer::finalizeMeasurement(Container *container, std::size_t measuredMinIndex, std::size_t measuredMaxIndex) {
+void Virtualizer::finalizeMeasurement(Container* container, std::size_t measuredMinIndex, std::size_t measuredMaxIndex) {
   /*
    * For inverted lists we iterate from end to start so the start index is the
    * higher one (e.g. start=99, end=90). For default lists start is the lower one.
@@ -434,7 +575,7 @@ void Virtualizer::finalizeMeasurement(Container *container, std::size_t measured
    */
 }
 
-void Virtualizer::layoutElements(Container *container) {
+void Virtualizer::layoutElements(Container* container) {
   std::size_t elementsSize = container->revision.elements.size();
 
   double trackSize = container->horizontal
@@ -445,44 +586,8 @@ void Virtualizer::layoutElements(Container *container) {
    * Size unmeasured elements with the average, falling back to the estimate until
    * the average is frozen. Multi-column layouts force the cross-axis to the track size.
    */
-  auto [estimatedWidth, estimatedHeight] = container->estimatedElementSize;
-  double fallbackWidth = container->revision.averageElementWidth > 0.0
-    ? container->revision.averageElementWidth : estimatedWidth;
-  double fallbackHeight = container->revision.averageElementHeight > 0.0
-    ? container->revision.averageElementHeight : estimatedHeight;
+  auto [fallbackWidth, fallbackHeight] = effectiveFallbackSize(container);
 
-  bool anyNewlyEstimated = false;
-
-  for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
-    Element& nextElement = container->revision.elements[nextElementIndex];
-
-    if (container->columns > 1) {
-      if (container->horizontal) {
-        if (!nextElement.estimated) {
-          nextElement.width = fallbackWidth;
-          anyNewlyEstimated = true;
-        }
-        nextElement.height = trackSize;
-      } else {
-        if (!nextElement.estimated) {
-          nextElement.height = fallbackHeight;
-          anyNewlyEstimated = true;
-        }
-        nextElement.width = trackSize;
-      }
-    } else if (!nextElement.estimated) {
-      nextElement.width = fallbackWidth;
-      nextElement.height = fallbackHeight;
-      anyNewlyEstimated = true;
-    }
-  }
-
-  /*
-   * recomputeElementOffsets is an O(elements) pass. Skip it unless something that feeds
-   * offsets changed this call: a fresh fallback size above, a size stamped by the
-   * measure pass (elementsSizeDirty), a structural change (elementsStructureDirty), or
-   * a layout parameter. This keeps a plain scroll frame O(window) instead of O(N).
-   */
   bool layoutParamsChanged =
     container->headerSize != container->lastLayoutHeaderSize ||
     container->footerSize != container->lastLayoutFooterSize ||
@@ -491,8 +596,85 @@ void Virtualizer::layoutElements(Container *container) {
     container->columns != container->lastLayoutColumns ||
     container->horizontal != container->lastLayoutHorizontal;
 
-  if (anyNewlyEstimated || layoutParamsChanged || container->elementsStructureDirty || container->elementsSizeDirty) {
-    recomputeElementOffsets(container, 0);
+  /*
+   * The sizing loop below is O(elements) and, crucially, it does NOT mark the rows it
+   * touches as estimated -- that flag is reserved for the window/native measurement
+   * states. So on a settled list it used to reassign the same fallback dimensions to
+   * every far-away row on every single frame and, because each assignment counted as
+   * "newly estimated", force a full offset reflow behind it. That made an ordinary scroll
+   * frame O(N) twice over.
+   *
+   * The loop is only capable of changing anything when the fallback dimensions changed,
+   * a layout parameter changed (multi-column cross-axis is derived from the track size),
+   * or the element list itself changed and brought in unsized rows. Otherwise every
+   * unmeasured row already holds exactly these dimensions and the pass is a guaranteed
+   * no-op, so skip it and leave the offsets alone.
+   */
+  bool fallbackDimensionsChanged =
+    fallbackWidth != container->lastFallbackWidth ||
+    fallbackHeight != container->lastFallbackHeight;
+
+  bool anyNewlyEstimated = false;
+
+  if (fallbackDimensionsChanged || layoutParamsChanged || container->elementsStructureDirty) {
+    for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
+      Element& nextElement = container->revision.elements[nextElementIndex];
+
+      if (container->columns > 1) {
+        if (container->horizontal) {
+          if (!nextElement.estimated && nextElement.width != fallbackWidth) {
+            nextElement.width = fallbackWidth;
+            anyNewlyEstimated = true;
+          }
+          if (nextElement.height != trackSize) {
+            nextElement.height = trackSize;
+            anyNewlyEstimated = true;
+          }
+        } else {
+          if (!nextElement.estimated && nextElement.height != fallbackHeight) {
+            nextElement.height = fallbackHeight;
+            anyNewlyEstimated = true;
+          }
+          if (nextElement.width != trackSize) {
+            nextElement.width = trackSize;
+            anyNewlyEstimated = true;
+          }
+        }
+      } else if (!nextElement.estimated &&
+                 (nextElement.width != fallbackWidth || nextElement.height != fallbackHeight)) {
+        nextElement.width = fallbackWidth;
+        nextElement.height = fallbackHeight;
+        anyNewlyEstimated = true;
+      }
+    }
+
+    container->lastFallbackWidth = fallbackWidth;
+    container->lastFallbackHeight = fallbackHeight;
+  }
+
+  /*
+   * recomputeElementOffsets is an O(elements) pass. Skip it unless something that feeds
+   * offsets changed this call: a fresh fallback size above, a size stamped by the
+   * measure pass (elementsSizeDirtyFromIndex), a structural change (elementsStructureDirty), or
+   * a layout parameter. This keeps a plain scroll frame O(window) instead of O(N).
+   */
+  bool sizesDirty = container->elementsSizeDirtyFromIndex != UNDEFINED_INDEX;
+
+  if (anyNewlyEstimated || layoutParamsChanged || container->elementsStructureDirty || sizesDirty) {
+    /*
+     * Reflow from the earliest row that actually moved. A structural change or a layout
+     * parameter change genuinely perturbs the prefix (positions shift, the multi-column
+     * track size is rederived, the header moves everything), so those still start at 0 --
+     * as does a fresh fallback size, which the sizing loop above may have applied anywhere.
+     * A recorded size change alone cannot touch anything before it, because offsets
+     * accumulate strictly forward: this is the same invariant commitElementSizes relies on.
+     */
+    std::size_t reflowFrom =
+      (anyNewlyEstimated || layoutParamsChanged || container->elementsStructureDirty)
+        ? 0
+        : container->elementsSizeDirtyFromIndex;
+
+    recomputeElementOffsets(container, reflowFrom, container->elementsSizeDirtyToIndex);
     container->lastLayoutHeaderSize = container->headerSize;
     container->lastLayoutFooterSize = container->footerSize;
     container->lastLayoutWindowWidth = container->revision.windowContainerWidth;
@@ -500,12 +682,26 @@ void Virtualizer::layoutElements(Container *container) {
     container->lastLayoutColumns = container->columns;
     container->lastLayoutHorizontal = container->horizontal;
     container->elementsStructureDirty = false;
-    container->elementsSizeDirty = false;
+    container->elementsSizeDirtyFromIndex = UNDEFINED_INDEX;
+    container->elementsSizeDirtyToIndex = 0;
   }
 }
 
-void Virtualizer::recomputeElementOffsets(Container *container, std::size_t fromIndex) {
+void Virtualizer::recomputeElementOffsets(Container* container, std::size_t fromIndex, std::size_t changedThroughIndex) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  /*
+   * Every element position this list will publish is written here, so this is the one
+   * place derived geometry (snap targets, sticky header positions) can become stale.
+   *
+   * The bump is deferred to the end and made CONDITIONAL on something actually moving. It
+   * used to be unconditional, which meant every reflow -- including the very common one
+   * that rewrites each row with the offset it already had -- invalidated every cache keyed
+   * on it: the snap-offset table (one entry per row), the published sticky table, and the
+   * host-side geometry cache. A reflow that changes no offset cannot invalidate anything
+   * derived from offsets.
+   */
+  bool anyOffsetChanged = false;
 
   std::size_t elementsSize = container->revision.elements.size();
 
@@ -554,11 +750,15 @@ void Virtualizer::recomputeElementOffsets(Container *container, std::size_t from
        * freshly known window size corrects the cross extent, not just the position.
        */
       if (container->horizontal) {
+        anyOffsetChanged = anyOffsetChanged || nextElement.offsetX != trackSizes[trackIndex] ||
+          nextElement.offsetY != trackIndex * trackSize;
         nextElement.offsetY = trackIndex * trackSize;
         nextElement.height = trackSize;
         nextElement.offsetX = trackSizes[trackIndex];
         trackSizes[trackIndex] += nextElement.width + nextElement.gapX;
       } else {
+        anyOffsetChanged = anyOffsetChanged || nextElement.offsetY != trackSizes[trackIndex] ||
+          nextElement.offsetX != trackIndex * trackSize;
         nextElement.offsetX = trackIndex * trackSize;
         nextElement.width = trackSize;
         nextElement.offsetY = trackSizes[trackIndex];
@@ -588,31 +788,81 @@ void Virtualizer::recomputeElementOffsets(Container *container, std::size_t from
         : prevElement.offsetY + prevElement.height + prevElement.gapY;
     }
 
-    for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
-      Element& nextElement = container->revision.elements[nextElementIndex];
-      nextElement.index = nextElementIndex;
+    /*
+     * This walk is the hot loop of the whole core: it runs over the suffix every time a
+     * row's measured size changes, and a gesture that reveals fresh rows every frame (a
+     * scroll-indicator drag) runs it on a large suffix every frame. It is memory bound, so
+     * the orientation branch is hoisted out rather than re-tested per row, and `index` is
+     * only written when it is actually stale -- a size-only reflow never renumbers rows,
+     * and the store would otherwise dirty a cache line per element for nothing.
+     */
+    Element* elements = container->revision.elements.data();
 
-      if (container->horizontal) {
+    /*
+     * EARLY EXIT. Past the last row whose size changed, the stored offsets were a valid
+     * prefix sum before this pass began. So the first row at or beyond that point which is
+     * already sitting at the offset we would write proves the running offset has
+     * reconverged -- and since nothing downstream changed size, every row after it is
+     * already correct too.
+     *
+     * This is what makes an exact ahead-of-time prediction free: the reflow it triggers
+     * stops within a row or two instead of walking to the end of the dataset. It also
+     * collapses the very common "reflow that moves nothing" into O(1).
+     *
+     * Both guards matter. `changedThroughIndex` is required because a batch can change
+     * rows i and j and the offsets can reconverge between them, where stopping would
+     * strand everything past j. `fromIndex > 0` is required because a full pass rebuilds
+     * maxCrossAxisExtent from zero and must visit every row to do so, whereas a partial
+     * pass seeds it from the stored value, which already accounts for the skipped rows.
+     */
+    bool canStopEarly = fromIndex > 0 && changedThroughIndex != UNDEFINED_INDEX;
+
+    if (container->horizontal) {
+      for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
+        Element& nextElement = elements[nextElementIndex];
+        if (nextElement.index != nextElementIndex) {
+          nextElement.index = nextElementIndex;
+        } else if (canStopEarly && nextElementIndex > changedThroughIndex &&
+                   nextElement.offsetX == nextOffset) {
+          break;
+        }
+
+        anyOffsetChanged = anyOffsetChanged || nextElement.offsetX != nextOffset;
         nextElement.offsetX = nextOffset;
         nextOffset += nextElement.width + nextElement.gapX;
-      } else {
+
+        double crossExtent = nextElement.offsetY + nextElement.height;
+        if (crossExtent > crossMax) {
+          crossMax = crossExtent;
+        }
+      }
+    } else {
+      for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
+        Element& nextElement = elements[nextElementIndex];
+        if (nextElement.index != nextElementIndex) {
+          nextElement.index = nextElementIndex;
+        }
+
+        anyOffsetChanged = anyOffsetChanged || nextElement.offsetY != nextOffset;
         nextElement.offsetY = nextOffset;
         nextOffset += nextElement.height + nextElement.gapY;
-      }
 
-      double crossExtent = container->horizontal
-        ? nextElement.offsetY + nextElement.height
-        : nextElement.offsetX + nextElement.width;
-      if (crossExtent > crossMax) {
-        crossMax = crossExtent;
+        double crossExtent = nextElement.offsetX + nextElement.width;
+        if (crossExtent > crossMax) {
+          crossMax = crossExtent;
+        }
       }
     }
   }
 
   container->maxCrossAxisExtent = crossMax;
+
+  if (anyOffsetChanged) {
+    container->geometryVersion++;
+  }
 }
 
-void Virtualizer::recomputeTotalSize(Container *container) {
+void Virtualizer::recomputeTotalSize(Container* container) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
   /*
@@ -680,7 +930,7 @@ void Virtualizer::recomputeTotalSize(Container *container) {
   }
 }
 
-void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, Size size) {
+bool Virtualizer::applyElementSize(Container* container, std::size_t index, Size size) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
   if (index >= container->revision.elements.size()) {
@@ -692,11 +942,37 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
   double prevWidth = nextElement.width;
   double prevHeight = nextElement.height;
   bool wasMeasured = nextElement.measured;
+  bool dimensionsChanged = prevWidth != size.width || prevHeight != size.height;
+
+  /*
+   * Nothing at all to record: this row is already measured at exactly this size. Fabric
+   * hands back a size for EVERY mounted row on EVERY layout pass, so in a steady scroll
+   * almost all of these calls land here. Returning early is what keeps a layout with M
+   * mounted rows from costing O(M x N): the reflow below walks the whole suffix, so a
+   * mounted window near the start of a 100k-row list used to visit ~2M elements per
+   * layout to record sizes that had not moved a pixel.
+   */
+  if (!dimensionsChanged && wasMeasured) {
+    return false;
+  }
 
   nextElement.width = size.width;
   nextElement.height = size.height;
   nextElement.estimated = true;
   nextElement.measured = true;
+
+  /*
+   * A real native measurement always supersedes a prediction: the prediction existed only
+   * to stand in until this arrived. Clearing the flag also stops the row being counted as
+   * predicted-but-unmeasured by hasTrustedSize's callers.
+   */
+  nextElement.predicted = false;
+
+  /*
+   * Bound the reflow that commitElementSizes is about to perform, without scheduling a
+   * second one in the layout pass -- see Container::noteElementSizeSpan.
+   */
+  container->noteElementSizeSpan(index);
 
   if (container->revision.averageElementHeight > 0) {
     container->revision.measurementElementTotalHeight += size.height - prevHeight;
@@ -717,10 +993,92 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
   }
 
   /*
+   * A first measurement that happens to match the estimate exactly still had to be
+   * recorded above (it feeds the frozen average), but it moved no geometry, so the
+   * caller has nothing to reflow.
+   */
+  return dimensionsChanged;
+}
+
+std::size_t Virtualizer::applyPredictedElementSize(Container* container, const std::string& key, Size size) {
+  std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  if (key.empty()) {
+    return UNDEFINED_INDEX;
+  }
+
+  std::size_t index = container->findElementIndexByKey(key);
+
+  /*
+   * The row does not exist yet, which is the normal case for a host measuring ahead of the
+   * data it has committed. Stage the size; the next reconcile stamps it (see
+   * Virtualizer::reconcileElements).
+   */
+  if (index >= container->revision.elements.size()) {
+    container->setPredictedSize(key, size);
+    return UNDEFINED_INDEX;
+  }
+
+  Element& nextElement = container->revision.elements[index];
+
+  /*
+   * A real native measurement outranks a prediction unconditionally. Returning here (rather
+   * than staging) means a late prediction for an already-measured row is simply discarded,
+   * so it cannot resurface and overwrite the truth after a later reconcile.
+   */
+  if (nextElement.measured) {
+    return UNDEFINED_INDEX;
+  }
+
+  bool dimensionsChanged = nextElement.width != size.width || nextElement.height != size.height;
+
+  double prevWidth = nextElement.width;
+  double prevHeight = nextElement.height;
+
+  nextElement.width = size.width;
+  nextElement.height = size.height;
+  nextElement.estimated = true;
+  nextElement.predicted = true;
+
+  /*
+   * Keep this revision's measured totals consistent with the sizes they were accumulated
+   * from, exactly as applyElementSize does: if this row is inside the measured window its
+   * contribution just changed.
+   */
+  if (container->revision.averageElementHeight > 0) {
+    container->revision.measurementElementTotalHeight += size.height - prevHeight;
+    container->revision.measurementElementTotalWidth += size.width - prevWidth;
+  }
+
+  /*
+   * Predictions deliberately do NOT feed Revision::measuredReal* -- the frozen average is
+   * what sizes rows nobody knows anything about, and it stays a sample of real native
+   * measurements. Folding predictions in would let an estimate derived from other estimates
+   * masquerade as measured data.
+   */
+
+  if (!dimensionsChanged) {
+    return UNDEFINED_INDEX;
+  }
+
+  container->markElementSizeDirty(index);
+
+  return index;
+}
+
+void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex) {
+  std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  if (fromIndex >= container->revision.elements.size()) {
+    return;
+  }
+
+  /*
    * Only this element and the ones after it can shift, so reflow from here forward.
    * The caller refreshes the total once per measurement batch.
    */
-  recomputeElementOffsets(container, index);
+  recomputeElementOffsets(container, fromIndex, container->elementsSizeDirtyToIndex);
+  container->elementsSizeDirtyToIndex = 0;
 
   /*
    * Keep the anchor element fixed on screen while off-screen elements are measured.
@@ -771,63 +1129,312 @@ void Virtualizer::updateElementAtIndex(Container *container, std::size_t index, 
   }
 }
 
-void Virtualizer::reconcileElements(Container *container, const std::vector<std::string> &nextKeys) {
+void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, Size size) {
+  std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  if (applyElementSize(container, index, size)) {
+    commitElementSizes(container, index);
+  }
+}
+
+/*
+ * Consume staged predictions whose rows now exist (see Container::predictedSizes).
+ *
+ * This walks the PREDICTIONS, not the elements: the staging map holds a window's worth of
+ * rows the host measured ahead, while the element list can be the whole dataset. So the
+ * pass costs O(staged), not the O(elements) a per-row lookup would add to every frame, and
+ * on the overwhelmingly common frame where nothing is staged it is a single empty() check.
+ *
+ * It runs per FRAME rather than per reconcile on purpose. Predictions arrive whenever the
+ * host finishes measuring, which is usually a frame that changed no keys at all -- and a
+ * reconcile-only drain would leave those sitting in the map until the next data commit,
+ * which on a settled list may never come.
+ *
+ * Covering fresh rows and survivors in one place also keeps reconcileElements ignorant of
+ * predictions entirely.
+ */
+/*
+ * Discard every prediction, both staged and already stamped, returning predicted rows to
+ * the ordinary estimate.
+ *
+ * For a host whose measurements are no longer valid -- overwhelmingly a WIDTH CHANGE, since
+ * text wraps to the row width and every height measured at the old width is now wrong.
+ * Keeping those sizes would be worse than never having predicted: the list would sit on
+ * confidently wrong geometry that nothing marks as suspect.
+ *
+ * Rows that have since been measured natively are untouched. Their size is real, it does
+ * not come from a prediction, and the host will re-measure them the usual way if the new
+ * width changes them.
+ */
+void Virtualizer::invalidatePredictions(Container* container) {
+  std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  container->predictedSizes.clear();
+
+  bool anyCleared = false;
+  for (Element& nextElement : container->revision.elements) {
+    if (!nextElement.predicted) {
+      continue;
+    }
+
+    nextElement.predicted = false;
+    /*
+     * Clearing `estimated` too is what actually returns the row to the fallback: it is the
+     * flag every sizing pass checks, and a row left estimated would keep its stale
+     * predicted size forever.
+     */
+    nextElement.estimated = false;
+    anyCleared = true;
+  }
+
+  if (anyCleared) {
+    // Every predicted row reverted to the fallback, so reflow the whole list.
+    container->markElementSizeDirty(0);
+  }
+}
+
+void Virtualizer::consumePredictions(Container* container) {
+  if (container->predictedSizes.empty()) {
+    return;
+  }
+
+  for (auto entry = container->predictedSizes.begin(); entry != container->predictedSizes.end();) {
+    std::size_t predictedIndex = container->revision.indexForKey(entry->first);
+    if (predictedIndex >= container->revision.elements.size()) {
+      ++entry;
+      continue;
+    }
+
+    Element& predictedElement = container->revision.elements[predictedIndex];
+
+    /*
+     * A row that has been laid out natively knows better than any prediction; drop the
+     * entry rather than letting it fight the real measurement on a later frame.
+     */
+    if (!predictedElement.measured &&
+        (predictedElement.width != entry->second.width || predictedElement.height != entry->second.height)) {
+      predictedElement.width = entry->second.width;
+      predictedElement.height = entry->second.height;
+      /*
+       * Sizes changed outside layoutElements' own loop, which cannot see this through its
+       * estimated checks -- without this the new geometry would not be reflowed until
+       * something else dirtied the list.
+       */
+      container->markElementSizeDirty(predictedIndex);
+    }
+    if (!predictedElement.measured) {
+      predictedElement.estimated = true;
+      predictedElement.predicted = true;
+    }
+
+    entry = container->predictedSizes.erase(entry);
+  }
+}
+
+void Virtualizer::reconcileElements(Container* container, const std::vector<std::string>& nextKeys) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
   std::vector<Element>& prevElements = container->revision.elements;
 
   /*
-   * Index the existing elements by key so surviving elements keep their
-   * measured state (size, estimated/measured flags) across the update
+   * Locate surviving elements through the key->index map the previous reconcile already
+   * built (Revision::elementIndexByKey) rather than constructing a throwaway
+   * key->Element map. That temporary duplicated every key string and moved every 112-byte
+   * Element twice, which dominated the cost of an ordinary append-one or prepend-page on
+   * a large list. The map is only ever written here and elements are never reordered in
+   * place, so it stays in step with `prevElements`; the key check below makes that an
+   * assertion rather than an assumption.
    */
-  std::unordered_map<std::string, Element> prevElementsByKey;
-  prevElementsByKey.reserve(prevElements.size());
-  for (Element& prevElement : prevElements) {
-    if (!prevElement.key.empty()) {
-      std::string prevKey = prevElement.key;
-      prevElementsByKey.emplace(std::move(prevKey), std::move(prevElement));
+  const std::unordered_map<std::string, std::size_t>& prevIndexByKey =
+    container->revision.elementIndexByKey;
+
+  /*
+   * FAST PATH: a pure append.
+   *
+   * The general path below rebuilds both the element vector and the whole key->index map
+   * from scratch. The map rebuild is the expensive part by a wide margin -- one heap node
+   * allocated and one freed per row, plus a hash and a probe each -- and at 100k rows it is
+   * the bulk of a ~6ms reconcile. That is a dropped frame every time a chat appends a
+   * message or a page paginates in, which is the single most common data change a list sees.
+   *
+   * An append needs none of it. Detect the shape with one forward pass of string compares
+   * (tens of microseconds at 100k, versus milliseconds to rebuild), then extend the existing
+   * vector and map in place: the surviving rows keep their indices, so every map entry
+   * already present stays correct.
+   *
+   * Deliberately excludes the empty-previous case, which is a cold start rather than an
+   * append: survivorCount would be 0 and the general path's frozen-average reset has to run.
+   */
+  if (!prevElements.empty() && nextKeys.size() > prevElements.size()) {
+    bool isAppend = true;
+    for (std::size_t index = 0; index < prevElements.size(); ++index) {
+      if (prevElements[index].key != nextKeys[index]) {
+        isAppend = false;
+        break;
+      }
+    }
+
+    if (isAppend) {
+      prevElements.reserve(nextKeys.size());
+      container->revision.elementIndexByKey.reserve(nextKeys.size());
+
+      for (std::size_t index = prevElements.size(); index < nextKeys.size(); ++index) {
+        prevElements.emplace_back();
+        prevElements.back().key = nextKeys[index];
+        prevElements.back().index = index;
+        /*
+         * setIndexForKey keeps the FIRST occurrence of a duplicate, exactly as the general
+         * path's rebuild does.
+         */
+        container->revision.setIndexForKey(nextKeys[index], index);
+      }
+
+      container->geometryVersion++;
+      container->elementsStructureDirty = true;
+      return;
+    }
+  }
+
+  /*
+   * FAST PATH: a pure prepend.
+   *
+   * Paginating older messages into a chat is a prepend, and it is the shape that hurts
+   * most: the whole existing list survives, yet the general path throws away the key->index
+   * map and builds a new one node by node purely because every index shifted.
+   *
+   * It does not have to. Shifting the values of the existing map is an O(rows) walk of nodes
+   * that are already allocated -- no malloc, no free, no hashing, no key copies -- against a
+   * rebuild that allocates and frees one node per row. The element vector still has to shift
+   * (it is contiguous), but that is a move of already-owned memory and is an order of
+   * magnitude cheaper than the map churn it replaces.
+   */
+  if (!prevElements.empty() && nextKeys.size() > prevElements.size()) {
+    std::size_t prependCount = nextKeys.size() - prevElements.size();
+
+    bool isPrepend = true;
+    for (std::size_t index = 0; index < prevElements.size(); ++index) {
+      if (prevElements[index].key != nextKeys[index + prependCount]) {
+        isPrepend = false;
+        break;
+      }
+    }
+
+    /*
+     * A prepended key that already exists further down would change which occurrence the
+     * map resolves to, and the general path's first-occurrence-wins rule is easier to keep
+     * by just taking the slow path for it. Rare enough to be worth the simplicity.
+     */
+    if (isPrepend) {
+      for (std::size_t index = 0; index < prependCount; ++index) {
+        if (container->revision.indexForKey(nextKeys[index]) != UNDEFINED_INDEX) {
+          isPrepend = false;
+          break;
+        }
+      }
+    }
+
+    if (isPrepend) {
+      /*
+       * Every surviving row's index rises by prependCount. Rather than walk the map adding
+       * prependCount to each of its values -- an O(rows) chase through scattered nodes --
+       * shift the bias once: every stored value is read back through it, so the effect is
+       * identical and the existing nodes are not touched at all.
+       */
+      container->revision.indexBias -= prependCount;
+
+      prevElements.insert(prevElements.begin(), prependCount, Element{});
+
+      container->revision.elementIndexByKey.reserve(nextKeys.size());
+      for (std::size_t index = 0; index < prependCount; ++index) {
+        prevElements[index].key = nextKeys[index];
+        container->revision.setIndexForKey(nextKeys[index], index);
+      }
+
+      /*
+       * Element::index is deliberately NOT renumbered here. Setting elementsStructureDirty
+       * forces layoutElements to reflow from row 0, and recomputeElementOffsets assigns
+       * `index` to every row as it goes -- so a renumber loop here is a second O(rows) pass
+       * writing exactly the values the first one is about to write. Nothing reads
+       * Element::index in between: update() goes reconcile -> consumePredictions (which
+       * resolves through elementIndexByKey) -> measure -> layoutElements.
+       */
+      container->geometryVersion++;
+      container->elementsStructureDirty = true;
+      return;
     }
   }
 
   std::vector<Element> nextElements;
   nextElements.reserve(nextKeys.size());
 
-  // Rebuild the key->index map alongside the element list so anchor lookups stay O(1)
-  // (see Container::findElementIndexByKey). emplace keeps the first occurrence of a
-  // duplicate key.
+  /*
+   * Rebuild the key->index map alongside the element list so anchor lookups stay O(1)
+   * (see Container::findElementIndexByKey). emplace keeps the first occurrence of a
+   * duplicate key.
+   */
   std::unordered_map<std::string, std::size_t> nextElementIndexByKey;
   nextElementIndexByKey.reserve(nextKeys.size());
 
+  /*
+   * The OLD map's values are biased by the bias in force when they were written, so they
+   * have to be unbiased to be usable here. The reset to zero happens below, once the old
+   * map has been read for the last time -- doing it up front would make every lookup in
+   * this loop resolve to the wrong row.
+   */
+  const std::size_t prevIndexBias = container->revision.indexBias;
+
   std::size_t survivorCount = 0;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextKeys.size(); nextElementIndex++) {
+  for (std::size_t nextElementIndex = 0; nextElementIndex < nextKeys.size(); ++nextElementIndex) {
     const std::string& nextKey = nextKeys[nextElementIndex];
 
-    nextElementIndexByKey.emplace(nextKey, nextElementIndex);
+    /*
+     * emplace keeps the first occurrence of a duplicate key, and its `second` therefore
+     * says whether THIS is that first occurrence.
+     *
+     * That single bool replaces the separate "already consumed" bitmap this loop used to
+     * carry. prevIndexByKey also maps a key to its first occurrence, so a previous element
+     * can only ever be claimed by the first nextKeys occurrence of its key -- which is
+     * exactly the case emplace reports. A later duplicate gets a fresh Element, identical
+     * to the old behaviour, without an allocation or 2N bit operations per reconcile.
+     */
+    bool firstOccurrence = nextElementIndexByKey.emplace(nextKey, nextElementIndex).second;
 
-    auto prevElementEntry = prevElementsByKey.find(nextKey);
-    if (prevElementEntry != prevElementsByKey.end()) {
-      Element nextElement = std::move(prevElementEntry->second);
-      nextElement.key = nextKey;
-      nextElement.index = nextElementIndex;
-      nextElements.push_back(std::move(nextElement));
+    auto prevElementEntry = nextKey.empty() ? prevIndexByKey.end() : prevIndexByKey.find(nextKey);
+    std::size_t prevElementIndex = prevElementEntry != prevIndexByKey.end()
+      ? prevElementEntry->second - prevIndexBias
+      : UNDEFINED_INDEX;
+    bool survives =
+      firstOccurrence &&
+      prevElementIndex < prevElements.size() &&
+      prevElements[prevElementIndex].key == nextKey;
+
+    if (survives) {
       /*
-       * Erase the consumed entry so a DUPLICATE key later in nextKeys cannot move from
-       * this same already-moved-from Element again (it falls into the "not found"
-       * branch below instead, getting a fresh Element with its key correctly stamped).
+       * Carries the key, measured size and estimated/measured/predicted flags across
+       * untouched. Moved straight into place rather than via a named local, which cost a
+       * second move of the whole 112-byte Element (two more string moves) per survivor.
        */
-      prevElementsByKey.erase(prevElementEntry);
+      nextElements.push_back(std::move(prevElements[prevElementIndex]));
+      nextElements.back().index = nextElementIndex;
       survivorCount++;
     } else {
-      Element nextElement;
-      nextElement.key = nextKey;
-      nextElement.index = nextElementIndex;
-      nextElements.push_back(std::move(nextElement));
+      nextElements.emplace_back();
+      nextElements.back().key = nextKey;
+      nextElements.back().index = nextElementIndex;
     }
   }
 
   container->revision.elements = std::move(nextElements);
   container->revision.elementIndexByKey = std::move(nextElementIndexByKey);
+  // The rebuilt map holds true indices.
+  container->revision.indexBias = 0;
+
+  /*
+   * Positions and the key->index mapping both changed, so any geometry an integration
+   * derived from the previous element list is stale (see Container::geometryVersion).
+   */
+  container->geometryVersion++;
 
   /*
    * A structural change (insert/remove/reorder) always requires the next layoutElements
@@ -853,7 +1460,7 @@ void Virtualizer::reconcileElements(Container *container, const std::vector<std:
   }
 }
 
-void Virtualizer::captureAnchor(Container *container, double inputOffset) {
+void Virtualizer::captureAnchor(Container* container, double inputOffset) {
   container->anchor = Anchor{"", 0.0, AnchorMode::Element};
 
   const std::vector<Element>& prevElements = container->revision.elements;
@@ -934,8 +1541,8 @@ void Virtualizer::captureAnchor(Container *container, double inputOffset) {
 }
 
 bool Virtualizer::resolveScroll(
-  Container *container,
-  const std::string &anchorKey,
+  Container* container,
+  const std::string& anchorKey,
   double anchorDelta,
   bool hadElementsBefore,
   bool offsetConfirmed) {
@@ -967,8 +1574,12 @@ bool Virtualizer::resolveScroll(
   container->pendingScrollToEndLastTotal = totalSize;
 
   auto clampOffset = [&](double offset) {
-    if (offset < 0.0) offset = 0.0;
-    if (offset > maxOffset) offset = maxOffset;
+    if (offset < 0.0) {
+      offset = 0.0;
+    }
+    if (offset > maxOffset) {
+      offset = maxOffset;
+    }
     return offset;
   };
   auto writeOffset = [&](double offset) {
@@ -986,7 +1597,7 @@ bool Virtualizer::resolveScroll(
    * is what lets the host's echo match it across the multi-frame settle. A genuinely new
    * intent (different type, or a new anchored key) gets a fresh id.
    */
-  auto operationId = [&](OperationType type, AnchorMode mode, const std::string &key) -> std::uint64_t {
+  auto operationId = [&](OperationType type, AnchorMode mode, const std::string& key) -> std::uint64_t {
     if (container->operation && container->operation->type == type &&
         container->operation->target.mode == mode &&
         (mode != AnchorMode::Element || container->operation->target.key == key)) {
@@ -1010,7 +1621,7 @@ bool Virtualizer::resolveScroll(
    * is an Element anchor, recomputed from its key each frame so it tracks the anchor
    * as nearby elements are measured/resized while the correction is in flight.
    */
-  auto requestAnchor = [&](OperationType type, const std::string &key, double delta) {
+  auto requestAnchor = [&](OperationType type, const std::string& key, double delta) {
     container->operation =
       Operation{operationId(type, AnchorMode::Element, key), type, Anchor{key, delta, AnchorMode::Element}};
   };
