@@ -28,8 +28,10 @@ export const FeedScreen = () => {
 
   const initialData = useMemo(() => batch(1000, 0), []);
 
-  // useListController owns the data plus the refreshing / loadingMore flags; each
-  // `handle*` flips its flag while the async work runs and won't double-fire.
+  /*
+   * useListController owns the data plus the refreshing / loadingMore flags; each
+   * `handle*` flips its flag while the async work runs and won't double-fire.
+   */
   const list = useListController<FeedItem>({
     initialData,
     // Pull-to-refresh: prepend a fresh batch after a short delay.

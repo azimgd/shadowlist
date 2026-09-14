@@ -33,3 +33,4 @@ export * from './reorder';
 export * from './tree';
 export * from './poll';
 export * from './snap';
+export * from './assistant';

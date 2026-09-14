@@ -6,19 +6,18 @@ import type { ParamListBase } from '@react-navigation/native';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Chevron, Viewfinder, colors } from 'shadowlist-utils/native';
 
-export type HeaderActionHandlers = {
+export interface HeaderActionHandlers {
   onPrepend: () => void;
   onAppend: () => void;
   onScrollToRandom: () => void;
-};
+}
 
-const HeaderButton = ({
-  onPress,
-  children,
-}: {
+interface HeaderButtonProps {
   onPress: () => void;
   children: ReactNode;
-}) => (
+}
+
+const HeaderButton = ({ onPress, children }: HeaderButtonProps) => (
   <Pressable
     onPress={onPress}
     hitSlop={8}

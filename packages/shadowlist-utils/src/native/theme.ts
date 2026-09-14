@@ -1,4 +1,4 @@
-import type { TextStyle } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
 /*
  * iOS (dark mode) design tokens. Colors follow Apple's semantic system palette
@@ -19,15 +19,20 @@ export const colors = {
   fill: 'rgba(118,118,128,0.24)',
 
   accent: '#0A84FF',
+  // accent (#0A84FF) at 16 %
   accentSoft: 'rgba(10,132,255,0.16)',
 
   blue: '#0A84FF',
   green: '#30D158',
   red: '#FF453B',
+  // red (#FF453B) at 16 %
+  redSoft: 'rgba(255,69,59,0.16)',
 } as const;
 
-// Type-ramp sizes (pt) and weights, named after the iOS text styles below. Use these for
-// any raw fontSize / fontWeight so the templates share one type scale.
+/*
+ * Type-ramp sizes (pt) and weights, named after the iOS text styles below. Use these for
+ * any raw fontSize / fontWeight so the templates share one type scale.
+ */
 export const fontSize = {
   caption: 12,
   footnote: 13,
@@ -49,7 +54,7 @@ export const fontWeight = {
  * iOS type ramp. fontFamily is intentionally omitted so React Native falls back
  * to San Francisco on iOS. Sizes/weights/tracking follow Apple's text styles.
  */
-export const typography: Record<string, TextStyle> = {
+export const typography = {
   largeTitle: {
     fontSize: fontSize.largeTitle,
     fontWeight: fontWeight.bold,
@@ -104,10 +109,12 @@ export const typography: Record<string, TextStyle> = {
     lineHeight: 16,
     letterSpacing: 0,
   },
-};
+} satisfies Record<string, TextStyle>;
 
-// Spacing scale (4-point grid) for padding, margin and gap. Use these instead of
-// raw numbers so the templates share one rhythm; re-scale the whole UI from here.
+/*
+ * Spacing scale (4-point grid) for padding, margin and gap. Use these instead of
+ * raw numbers so the templates share one rhythm; re-scale the whole UI from here.
+ */
 export const spacing = {
   xxs: 2,
   xs: 4,
@@ -129,8 +136,16 @@ export const radius = {
 // React Native's system font token: San Francisco on iOS, Roboto on Android.
 export const FONT_FAMILY = 'System';
 
-// Leading inset that aligns separators / section content with the text column
-// (avatar 40 + gutter 12 + leading padding 16).
+/*
+ * Fixed-width face for code: Menlo ships on every iOS version, `monospace` resolves to
+ * Droid Sans Mono / Roboto Mono on Android.
+ */
+export const MONO_FONT_FAMILY = Platform.OS === 'ios' ? 'Menlo' : 'monospace';
+
+/*
+ * Leading inset that aligns separators / section content with the text column
+ * (avatar 40 + gutter 12 + leading padding 16).
+ */
 export const ROW_INSET = 68;
 
 // Single bundle of the design tokens, handy for spreading or theming.
@@ -143,4 +158,5 @@ export const theme = {
   radius,
   ROW_INSET,
   FONT_FAMILY,
+  MONO_FONT_FAMILY,
 } as const;

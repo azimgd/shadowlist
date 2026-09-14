@@ -3,6 +3,7 @@ import { ChatBubble } from './ChatBubble';
 import { ChatInput } from './ChatInput';
 
 export type { ChatListProps } from './ChatList';
+export { getChatMessageSizeSpec } from './ChatBubble';
 export type { ChatBubbleProps, ChatMessage } from './ChatBubble';
 export type { ChatInputProps } from './ChatInput';
 

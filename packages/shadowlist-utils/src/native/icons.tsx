@@ -9,11 +9,11 @@ import { colors } from './theme';
  * via the `color` prop so it inherits the app accent.
  */
 
-type IconProps = {
+interface IconProps {
   size?: number;
   color?: string;
   strokeWidth?: number;
-};
+}
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -24,9 +24,11 @@ const CHEVRON_ROTATION: Record<Direction, string> = {
   up: '-45deg',
 };
 
-// A chevron is two borders of a rotated square, so its ink sits ~0.35·side off
-// the box center toward the apex. Counter-translate along the pointing axis so
-// the glyph is optically centered in its frame.
+/*
+ * A chevron is two borders of a rotated square, so its ink sits ~0.35·side off
+ * the box center toward the apex. Counter-translate along the pointing axis so
+ * the glyph is optically centered in its frame.
+ */
 const CHEVRON_SHIFT: Record<Direction, { x: number; y: number }> = {
   up: { x: 0, y: 1 },
   down: { x: 0, y: -1 },
@@ -497,6 +499,313 @@ export const ArrowUp = ({
             borderRightWidth: strokeWidth,
             borderColor: color,
             transform: [{ rotate: '-45deg' }],
+          }}
+        />
+      </View>
+    </View>
+  );
+};
+
+export const Plus = ({
+  size = 20,
+  color = colors.label,
+  strokeWidth = 2,
+}: IconProps) => {
+  const bar = size * 0.56;
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: bar,
+          height: strokeWidth,
+          backgroundColor: color,
+          borderRadius: strokeWidth,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: (size - bar) / 2,
+          left: (size - strokeWidth) / 2,
+          width: strokeWidth,
+          height: bar,
+          backgroundColor: color,
+          borderRadius: strokeWidth,
+        }}
+      />
+    </View>
+  );
+};
+
+// A plus turned 45deg, used to dismiss and remove.
+export const Close = ({
+  size = 20,
+  color = colors.label,
+  strokeWidth = 2,
+}: IconProps) => {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        transform: [{ rotate: '45deg' }],
+      }}
+    >
+      <Plus size={size} color={color} strokeWidth={strokeWidth} />
+    </View>
+  );
+};
+
+// Filled rounded square, the "stop generating" glyph.
+export const Stop = ({ size = 20, color = colors.label }: IconProps) => {
+  const side = size * 0.4;
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: side,
+          height: side,
+          borderRadius: side * 0.2,
+          backgroundColor: color,
+        }}
+      />
+    </View>
+  );
+};
+
+// Two borders of a tall rotated box, the same trick as Chevron.
+export const Check = ({
+  size = 20,
+  color = colors.label,
+  strokeWidth = 2.2,
+}: IconProps) => {
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: size * 0.26,
+          height: size * 0.5,
+          borderRightWidth: strokeWidth,
+          borderBottomWidth: strokeWidth,
+          borderColor: color,
+          transform: [{ translateY: -size * 0.06 }, { rotate: '45deg' }],
+        }}
+      />
+    </View>
+  );
+};
+
+// Two offset outlined sheets.
+export const Copy = ({
+  size = 20,
+  color = colors.label,
+  strokeWidth = 1.6,
+}: IconProps) => {
+  const sheet = size * 0.5;
+  const sheetStyle = {
+    position: 'absolute' as const,
+    width: sheet,
+    height: sheet,
+    borderRadius: sheet * 0.22,
+    borderWidth: strokeWidth,
+    borderColor: color,
+  };
+  return (
+    <View style={{ width: size, height: size }}>
+      <View style={[sheetStyle, { left: size * 0.16, top: size * 0.16 }]} />
+      <View style={[sheetStyle, { left: size * 0.34, top: size * 0.34 }]} />
+    </View>
+  );
+};
+
+// An open ring with a chevron head at the gap: regenerate / retry.
+export const Retry = ({
+  size = 20,
+  color = colors.label,
+  strokeWidth = 1.8,
+}: IconProps) => {
+  const ring = size * 0.6;
+  const head = size * 0.2;
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: ring,
+          height: ring,
+          borderRadius: ring / 2,
+          borderWidth: strokeWidth,
+          borderColor: color,
+          borderTopColor: 'transparent',
+          transform: [{ rotate: '45deg' }],
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: size * 0.2,
+          left: size * 0.62,
+          width: head,
+          height: head,
+          borderTopWidth: strokeWidth,
+          borderRightWidth: strokeWidth,
+          borderColor: color,
+          transform: [{ rotate: '100deg' }],
+        }}
+      />
+    </View>
+  );
+};
+
+// Open-topped tray with an arrow leaving it.
+export const Share = ({
+  size = 20,
+  color = colors.label,
+  strokeWidth = 1.8,
+}: IconProps) => {
+  const trayWidth = size * 0.56;
+  const head = size * 0.22;
+  return (
+    <View style={{ width: size, height: size }}>
+      <View
+        style={{
+          position: 'absolute',
+          left: (size - trayWidth) / 2,
+          bottom: size * 0.12,
+          width: trayWidth,
+          height: size * 0.4,
+          borderWidth: strokeWidth,
+          borderTopWidth: 0,
+          borderColor: color,
+          borderBottomLeftRadius: 3,
+          borderBottomRightRadius: 3,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: (size - strokeWidth) / 2,
+          top: size * 0.1,
+          width: strokeWidth,
+          height: size * 0.52,
+          backgroundColor: color,
+          borderRadius: strokeWidth,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: (size - head) / 2,
+          top: size * 0.12,
+          width: head,
+          height: head,
+          borderTopWidth: strokeWidth,
+          borderRightWidth: strokeWidth,
+          borderColor: color,
+          transform: [{ rotate: '-45deg' }],
+        }}
+      />
+    </View>
+  );
+};
+
+// Two overlapping squares, one turned 45deg: an eight-point star for the assistant mark.
+export const Sparkle = ({ size = 20, color = colors.label }: IconProps) => {
+  const side = size * 0.46;
+  const offset = (size - side) / 2;
+  return (
+    <View style={{ width: size, height: size }}>
+      <View
+        style={{
+          position: 'absolute',
+          left: offset,
+          top: offset,
+          width: side,
+          height: side,
+          borderRadius: side * 0.14,
+          backgroundColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          left: offset,
+          top: offset,
+          width: side,
+          height: side,
+          borderRadius: side * 0.14,
+          backgroundColor: color,
+          transform: [{ rotate: '45deg' }],
+        }}
+      />
+    </View>
+  );
+};
+
+// Outlined barrel with a triangular nib, leaning 45deg.
+export const Pencil = ({
+  size = 20,
+  color = colors.label,
+  strokeWidth = 1.6,
+}: IconProps) => {
+  const barrel = size * 0.22;
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View style={{ alignItems: 'center', transform: [{ rotate: '45deg' }] }}>
+        <View
+          style={{
+            width: barrel,
+            height: size * 0.5,
+            borderWidth: strokeWidth,
+            borderColor: color,
+            borderTopLeftRadius: 2,
+            borderTopRightRadius: 2,
+          }}
+        />
+        <View
+          style={{
+            width: 0,
+            height: 0,
+            borderLeftWidth: barrel / 2,
+            borderRightWidth: barrel / 2,
+            borderTopWidth: size * 0.16,
+            borderLeftColor: 'transparent',
+            borderRightColor: 'transparent',
+            borderTopColor: color,
           }}
         />
       </View>

@@ -11,6 +11,7 @@ import {
   ListHeader,
   ListFooter,
   colors,
+  getChatMessageSizeSpec,
   type ChatMessage,
 } from 'shadowlist-utils/native';
 import {
@@ -50,8 +51,10 @@ export const ChatScreen = () => {
   // Live keyboard height (dp); the list and composer translate up by it.
   const { height } = useKeyboardAnimation();
 
-  // Lift the composer to rest KEYBOARD_GAP above the keyboard once it passes the safe-area
-  // inset, so the input keeps the same gap below it as its top padding (not flush).
+  /*
+   * Lift the composer to rest KEYBOARD_GAP above the keyboard once it passes the safe-area
+   * inset, so the input keeps the same gap below it as its top padding (not flush).
+   */
   const liftTranslateY = useMemo(() => {
     const safe = insets.bottom;
     return height.interpolate({
@@ -117,10 +120,13 @@ export const ChatScreen = () => {
             ref={shadowlistRef}
             style={styles.list}
             renderElement={renderElement}
+            getElementSizeSpec={getChatMessageSizeSpec}
             ListHeaderComponent={
               <ListHeader title="Chat" subtitle="Inverted list" />
             }
             ListFooterComponent={<ListFooter text="Start of conversation" />}
+            // Demonstrates the opt-in native view band (iOS only).
+            nativeViewOverscan={0.5}
           />
         </KeyboardView>
         <Chat.Input onSend={handleSendMessage} />

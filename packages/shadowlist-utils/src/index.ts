@@ -29,10 +29,13 @@ export const AVATAR_NAMES = [
   'Henry',
 ];
 
-// A row's avatar color, derived once at data-generation time so the templates can take it
-// as a prop instead of recomputing it from the list index.
-export const avatarColorForIndex = (index: number): string =>
-  AVATAR_COLORS[index % AVATAR_COLORS.length]!;
+/*
+ * A row's avatar color, derived once at data-generation time so the templates can take it
+ * as a prop instead of recomputing it from the list index.
+ */
+export function avatarColorForIndex(index: number): string {
+  return AVATAR_COLORS[index % AVATAR_COLORS.length]!;
+}
 
 export interface Avatar {
   color: string;
@@ -235,8 +238,10 @@ export function nextInCycle(steps: number[], current: number): number {
   return steps[(steps.indexOf(current) + 1) % steps.length]!;
 }
 
-// Scroll distance (px) past which the Activity sticky header hides; it repins
-// once the user scrolls back above it.
+/*
+ * Scroll distance (px) past which the Activity sticky header hides; it repins
+ * once the user scrolls back above it.
+ */
 export const HEADER_HIDE_THRESHOLD = 220;
 
 /*
