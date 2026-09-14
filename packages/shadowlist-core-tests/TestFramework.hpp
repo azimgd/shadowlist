@@ -89,7 +89,7 @@ inline int run() {
   return failed == 0 ? 0 : 1;
 }
 
-}  // namespace slt
+}
 
 #define TEST(name)                                                   \
   static void name();                                                \
