@@ -1,9 +1,10 @@
 #pragma once
 
+#include <react/renderer/graphics/Float.h>
+
+#include <memory>
 #include <string>
 #include <vector>
-
-#include <react/renderer/graphics/Float.h>
 
 #ifdef ANDROID
 #include <folly/dynamic.h>
@@ -14,10 +15,19 @@
 namespace facebook::react {
 
 /*
+ * Values of ShadowListViewState::scrollPhase_, mirrored by the Android host's
+ * ShadowListView.SCROLL_PHASE_* constants and mapped to ScrollPhase by the component
+ * descriptor.
+ */
+constexpr double SCROLL_PHASE_IDLE = 0.0;
+constexpr double SCROLL_PHASE_DRAGGING = 1.0;
+constexpr double SCROLL_PHASE_SETTLING = 2.0;
+
+/*
  * State for <ShadowListView> component.
  */
 class ShadowListViewState final {
-  public:
+public:
   ShadowListViewState() = default;
 
   ShadowListViewState(
@@ -70,6 +80,7 @@ class ShadowListViewState final {
     dragFromKey_(data.count("dragFromKey") ? data["dragFromKey"].getString() : previousState.dragFromKey_),
     dragToKey_(data.count("dragToKey") ? data["dragToKey"].getString() : previousState.dragToKey_),
     userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_),
+    scrollPhase_(data.count("scrollPhase") ? data["scrollPhase"].getDouble() : previousState.scrollPhase_),
     /*
      * Sticky section-header geometry is produced by the C++ core (layout pass) and
      * only ever flows core -> view, so a partial update from the Android view
@@ -79,30 +90,42 @@ class ShadowListViewState final {
     stickyHeaderOffsets_(previousState.stickyHeaderOffsets_),
     stickyHeaderSizes_(previousState.stickyHeaderSizes_),
     snapOffsets_(previousState.snapOffsets_),
-    commitToken_(data.count("commitToken") ? (Float)data["commitToken"].getDouble() : previousState.commitToken_) {
+    commitToken_(data.count("commitToken") ? (Float)data["commitToken"].getDouble() : previousState.commitToken_),
+    // A host-built state carries no correction of its own, so its correction delta is zero.
+    containerOffsetBaseX_(containerOffsetX_),
+    containerOffsetBaseY_(containerOffsetY_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
-      stickyHeaderIndices_.clear();
-      stickyHeaderOffsets_.clear();
-      stickyHeaderSizes_.clear();
+      auto stickyHeaderIndices = std::make_shared<std::vector<int>>();
+      auto stickyHeaderOffsets = std::make_shared<std::vector<Float>>();
+      auto stickyHeaderSizes = std::make_shared<std::vector<Float>>();
       for (const auto& value : data["stickyHeaderIndices"]) {
-        stickyHeaderIndices_.push_back((int)value.getInt());
+        stickyHeaderIndices->push_back((int)value.getInt());
       }
       for (const auto& value : data["stickyHeaderOffsets"]) {
-        stickyHeaderOffsets_.push_back((Float)value.getDouble());
+        stickyHeaderOffsets->push_back((Float)value.getDouble());
       }
       for (const auto& value : data["stickyHeaderSizes"]) {
-        stickyHeaderSizes_.push_back((Float)value.getDouble());
+        stickyHeaderSizes->push_back((Float)value.getDouble());
       }
+      /*
+       * Normalise empty back to null, the same way the layout pass publishes it, so a
+       * round trip through the Android renderer cannot hand the shadow node a non-null
+       * empty collection that its pointer comparison would read as a change.
+       */
+      stickyHeaderIndices_ = stickyHeaderIndices->empty() ? nullptr : std::move(stickyHeaderIndices);
+      stickyHeaderOffsets_ = stickyHeaderOffsets->empty() ? nullptr : std::move(stickyHeaderOffsets);
+      stickyHeaderSizes_ = stickyHeaderSizes->empty() ? nullptr : std::move(stickyHeaderSizes);
     }
     if (data.count("snapOffsets")) {
-      snapOffsets_.clear();
+      auto snapOffsets = std::make_shared<std::vector<Float>>();
       for (const auto& value : data["snapOffsets"]) {
-        snapOffsets_.push_back((Float)value.getDouble());
+        snapOffsets->push_back((Float)value.getDouble());
       }
+      snapOffsets_ = snapOffsets->empty() ? nullptr : std::move(snapOffsets);
     }
   };
 
-  /* Serializes the state into folly::dynamic for the Android renderer. */
+  // Serializes the state into folly::dynamic for the Android renderer.
   folly::dynamic getDynamic() const {
     folly::dynamic result = folly::dynamic::object;
     result["windowContainerHeight"] = windowContainerHeight_;
@@ -117,33 +140,45 @@ class ShadowListViewState final {
     result["endReachedEnabled"] = endReachedEnabled_;
     result["containerOffsetEnabled"] = containerOffsetEnabled_;
     result["userScrolled"] = userScrolled_;
+    result["scrollPhase"] = scrollPhase_;
     result["dragEventSequence"] = dragEventSequence_;
     result["dragEventType"] = dragEventType_;
     result["dragFromKey"] = dragFromKey_;
     result["dragToKey"] = dragToKey_;
 
+    // A null pointer means empty; see the member declarations.
     folly::dynamic stickyHeaderIndices = folly::dynamic::array;
-    for (auto stickyHeaderIndex : stickyHeaderIndices_) {
-      stickyHeaderIndices.push_back(stickyHeaderIndex);
+    if (stickyHeaderIndices_) {
+      for (auto stickyHeaderIndex : *stickyHeaderIndices_) {
+        stickyHeaderIndices.push_back(stickyHeaderIndex);
+      }
     }
     folly::dynamic stickyHeaderOffsets = folly::dynamic::array;
-    for (auto stickyHeaderOffset : stickyHeaderOffsets_) {
-      stickyHeaderOffsets.push_back((double)stickyHeaderOffset);
+    if (stickyHeaderOffsets_) {
+      for (auto stickyHeaderOffset : *stickyHeaderOffsets_) {
+        stickyHeaderOffsets.push_back((double)stickyHeaderOffset);
+      }
     }
     folly::dynamic stickyHeaderSizes = folly::dynamic::array;
-    for (auto stickyHeaderSize : stickyHeaderSizes_) {
-      stickyHeaderSizes.push_back((double)stickyHeaderSize);
+    if (stickyHeaderSizes_) {
+      for (auto stickyHeaderSize : *stickyHeaderSizes_) {
+        stickyHeaderSizes.push_back((double)stickyHeaderSize);
+      }
     }
     result["stickyHeaderIndices"] = stickyHeaderIndices;
     result["stickyHeaderOffsets"] = stickyHeaderOffsets;
     result["stickyHeaderSizes"] = stickyHeaderSizes;
 
     folly::dynamic snapOffsets = folly::dynamic::array;
-    for (auto snapOffset : snapOffsets_) {
-      snapOffsets.push_back((double)snapOffset);
+    if (snapOffsets_) {
+      for (auto snapOffset : *snapOffsets_) {
+        snapOffsets.push_back((double)snapOffset);
+      }
     }
     result["snapOffsets"] = snapOffsets;
     result["commitToken"] = commitToken_;
+    result["containerOffsetBaseX"] = containerOffsetBaseX_;
+    result["containerOffsetBaseY"] = containerOffsetBaseY_;
     return result;
   };
 #endif
@@ -188,23 +223,48 @@ class ShadowListViewState final {
   bool userScrolled_{false};
 
   /*
+   * The live gesture phase the host last reported: SCROLL_PHASE_IDLE,
+   * SCROLL_PHASE_DRAGGING (a finger is down) or SCROLL_PHASE_SETTLING (momentum is
+   * running). Unlike userScrolled_, which describes where THIS offset came from, the
+   * phase persists across the commits that land between touch frames, so the core can
+   * tell "a finger is still on the list" on a frame whose offset did not move (see
+   * FrameInput::scrollPhase). A double like the other scalar fields. Declared after
+   * userScrolled_ so the Android constructor's member-init order matches.
+   */
+  double scrollPhase_{0.0};
+
+  /*
    * Sticky section-header geometry along the scroll axis, produced by the core's
    * layout pass (one entry per sticky section header, ascending by index). The
    * integrations pin the active header on the UI thread per scroll frame from this,
    * mirroring Container::resolveStickyHeader, so the per-frame pin never reads a
    * (possibly transformed) view frame. Empty for a plain list. Declared after
-   * userScrolled_ so the Android constructor's member-init order matches.
+   * scrollPhase_ so the Android constructor's member-init order matches.
+   *
+   * HELD BY POINTER, NOT BY VALUE. State is copied constantly -- adopt() copies it once
+   * per commit, layout() again, and the iOS scroll delegate once per scroll frame on the
+   * main thread -- while these collections change only when the element geometry moves.
+   * By value, snapOffsets_ alone (one entry per row, see Container::getSnapOffsets) meant
+   * copying a 100k-element vector several times per frame for a large snapping list.
+   * Shared, immutable and refcounted, a state copy is a few atomic increments, and the
+   * "did this change?" test the layout pass runs every frame becomes a pointer comparison
+   * instead of an O(rows) element-wise one.
+   *
+   * A NULL pointer means empty; readers must treat the two as identical. Nothing mutates
+   * a pointee after it is published, so sharing one across state copies (and across
+   * threads) is safe.
    */
-  std::vector<int> stickyHeaderIndices_{};
-  std::vector<Float> stickyHeaderOffsets_{};
-  std::vector<Float> stickyHeaderSizes_{};
+  std::shared_ptr<const std::vector<int>> stickyHeaderIndices_{};
+  std::shared_ptr<const std::vector<Float>> stickyHeaderOffsets_{};
+  std::shared_ptr<const std::vector<Float>> stickyHeaderSizes_{};
 
   /*
    * Resting snap offsets along the scroll axis (DIP), produced by the core's layout
    * pass. Empty unless snapToItem is set. The integrations snap the native scroll
-   * view's landing position to the nearest of these.
+   * view's landing position to the nearest of these. Held by pointer for the reason
+   * above -- this is the collection that made it necessary.
    */
-  std::vector<Float> snapOffsets_{};
+  std::shared_ptr<const std::vector<Float>> snapOffsets_{};
 
   /*
    * Commit token: the id of the in-flight offset correction. Core -> view it rides on
@@ -212,9 +272,26 @@ class ShadowListViewState final {
    * write exactly (by id), instead of by a pixel-distance heuristic. 0 = no correction
    * / a host-originated report. Carried as a double to match the other scalar state
    * fields; the integer id never approaches double's exact-integer range in practice.
-   * Declared last so the Android constructor's member-init order matches.
+   * Declared after snapOffsets_ so the Android constructor's member-init order matches.
    */
   double commitToken_{0.0};
+
+  /*
+   * The offset the core started from when the layout pass published a correction: the
+   * reported offset in the state it read. containerOffsetX_/Y_ minus this is the
+   * correction as a delta. A commit can mount frames after the report it was built on,
+   * and a view still moving on its own has travelled on by then; writing the absolute
+   * offset throws that travel away and the content jumps. Both hosts apply the delta to
+   * the live offset instead while the view is moving (iOS: scroll-to-top animation, a
+   * finger dragging, deceleration; Android: a token-0 correction while a finger drags or a
+   * fling settles).
+   * Meaningful only on a state whose containerOffsetEnabled_ the layout pass set. The
+   * Android partial-update constructor sets it to the state's own offset, since a
+   * host-built state carries no correction. Declared after commitToken_ so the Android
+   * constructor's member-init order matches.
+   */
+  double containerOffsetBaseX_{0.0};
+  double containerOffsetBaseY_{0.0};
 };
 
 }
