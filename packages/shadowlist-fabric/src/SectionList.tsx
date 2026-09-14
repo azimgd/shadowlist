@@ -9,35 +9,39 @@ import type {
 
 /*
  * ShadowList renders single list, so this flattens `sections` into a single stream of
- * tagged rows: a header, the items, then a footer for each section. The flat positions
+ * tagged rows: a header, the elements, then a footer for each section. The flat positions
  * of the header rows are collected into `stickyHeaderIndices` so native can pin them.
  */
 
-type FlatRowType = 'sectionHeader' | 'item' | 'sectionFooter';
+type FlatRowType = 'sectionHeader' | 'element' | 'sectionFooter';
 
-interface FlatRow<ItemT, SectionT> {
+interface FlatRow<ElementT, SectionT> {
   id: string;
   type: FlatRowType;
-  section: SectionListData<ItemT, SectionT>;
+  section: SectionListData<ElementT, SectionT>;
   sectionIndex: number;
-  item?: ItemT;
-  itemIndex?: number;
-  // Last item in its section (drives separators).
+  element?: ElementT;
+  elementIndex?: number;
+  // The caller's key for an element row (keyExtractor), matched against nonAnchorKeys.
+  elementKey?: string;
+  // Last element in its section (drives separators).
   isLastInSection?: boolean;
   // Last row of a non-final section (section separator).
   isSectionBoundary?: boolean;
 }
 
-// A separator slot may be a plain element or a function returning one; normalise to
-// an element or null.
-const renderComponent = (
+/*
+ * A separator slot may be a plain element or a function returning one; normalise to
+ * an element or null.
+ */
+function renderComponent(
   component: ReactElement | (() => ReactElement | null) | null | undefined
-): ReactElement | null => {
+): ReactElement | null {
   if (!component) return null;
   return typeof component === 'function' ? component() : component;
-};
+}
 
-function SectionListInner<ItemT, SectionT = object>(
+function SectionListInner<ElementT, SectionT = object>(
   {
     sections,
     renderElement,
@@ -56,6 +60,10 @@ function SectionListInner<ItemT, SectionT = object>(
     initialElementsSize,
     containerOffsetIndex,
     overscan,
+    nativeViewOverscan,
+    getElementSizeSpec,
+    measureLookaheadRows,
+    nonAnchorKeys,
     keyboardAvoidingEnabled,
     keyboardAvoidingOffset,
     refreshing,
@@ -71,13 +79,15 @@ function SectionListInner<ItemT, SectionT = object>(
     accessibilityRole,
     accessibilityHint,
     testID,
-  }: SectionListProps<ItemT, SectionT>,
+  }: SectionListProps<ElementT, SectionT>,
   ref: Ref<ShadowListCommands>
 ) {
-  // Walk every section into the flat row stream, recording where each section-header
-  // row lands so native knows which rows to pin.
+  /*
+   * Walk every section into the flat row stream, recording where each section-header
+   * row lands so native knows which rows to pin.
+   */
   const { data, stickyHeaderIndices } = useMemo(() => {
-    const rows: FlatRow<ItemT, SectionT>[] = [];
+    const rows: FlatRow<ElementT, SectionT>[] = [];
     const stickyIndices: number[] = [];
 
     sections.forEach((section, sectionIndex) => {
@@ -96,19 +106,20 @@ function SectionListInner<ItemT, SectionT = object>(
         });
       }
 
-      const lastItemIndex = section.data.length - 1;
-      section.data.forEach((item, itemIndex) => {
-        const itemKey = sectionKeyExtractor
-          ? sectionKeyExtractor(item, itemIndex)
-          : ((item as { id?: string })?.id ?? `${itemIndex}`);
-        const isLastInSection = itemIndex === lastItemIndex;
+      const lastElementIndex = section.data.length - 1;
+      section.data.forEach((element, elementIndex) => {
+        const elementKey = sectionKeyExtractor
+          ? sectionKeyExtractor(element, elementIndex)
+          : ((element as { id?: string })?.id ?? `${elementIndex}`);
+        const isLastInSection = elementIndex === lastElementIndex;
         rows.push({
-          id: `si:${sectionKey}:${itemKey}`,
-          type: 'item',
+          id: `si:${sectionKey}:${elementKey}`,
+          type: 'element',
           section,
           sectionIndex,
-          item,
-          itemIndex,
+          element,
+          elementIndex,
+          elementKey,
           isLastInSection,
           isSectionBoundary:
             isLastInSection &&
@@ -147,7 +158,36 @@ function SectionListInner<ItemT, SectionT = object>(
     [data, renderSectionHeader]
   );
 
-  const itemSeparator = useMemo(
+  /*
+   * The caller describes elements, not flattened rows: unwrap each element row and leave
+   * headers and footers undescribed. Undefined when no getElementSizeSpec was supplied, so
+   * the feature stays off.
+   */
+  const getRowSizeSpec = useMemo(
+    () =>
+      getElementSizeSpec
+        ? (row: FlatRow<ElementT, SectionT>) =>
+            row.type === 'element'
+              ? getElementSizeSpec(
+                  row.element as ElementT,
+                  row.elementIndex as number,
+                  row.section
+                )
+              : null
+        : undefined,
+    [getElementSizeSpec]
+  );
+
+  // nonAnchorKeys name elements by the caller's key; ShadowList sees the flattened row ids.
+  const rowNonAnchorKeys = useMemo(() => {
+    if (!nonAnchorKeys || nonAnchorKeys.length === 0) return undefined;
+    const keys = new Set(nonAnchorKeys);
+    return data
+      .filter((row) => row.elementKey !== undefined && keys.has(row.elementKey))
+      .map((row) => row.id);
+  }, [data, nonAnchorKeys]);
+
+  const elementSeparator = useMemo(
     () => renderComponent(ItemSeparatorComponent),
     [ItemSeparatorComponent]
   );
@@ -156,37 +196,44 @@ function SectionListInner<ItemT, SectionT = object>(
     [SectionSeparatorComponent]
   );
 
-  // Render one flattened row based on its type: section header, section footer, or item.
+  /*
+   * Render one flattened row based on its type: section header, section footer, or a
+   * section element.
+   */
   const renderRow = useCallback(
-    ({ element }: { element: FlatRow<ItemT, SectionT>; index: number }) => {
-      if (element.type === 'sectionHeader') {
-        return renderSectionHeader?.({ section: element.section }) ?? <></>;
+    ({
+      element: row,
+    }: {
+      element: FlatRow<ElementT, SectionT>;
+      index: number;
+    }) => {
+      if (row.type === 'sectionHeader') {
+        return renderSectionHeader?.({ section: row.section }) ?? <></>;
       }
 
-      if (element.type === 'sectionFooter') {
+      if (row.type === 'sectionFooter') {
         return (
           <>
-            {renderSectionFooter?.({ section: element.section })}
-            {element.isSectionBoundary ? sectionSeparator : null}
+            {renderSectionFooter?.({ section: row.section })}
+            {row.isSectionBoundary ? sectionSeparator : null}
           </>
         );
       }
 
-      const sectionRenderElement =
-        element.section.renderElement ?? renderElement;
+      const sectionRenderElement = row.section.renderElement ?? renderElement;
       const content =
         sectionRenderElement?.({
-          element: element.item as ItemT,
-          index: element.itemIndex as number,
-          section: element.section,
+          element: row.element as ElementT,
+          index: row.elementIndex as number,
+          section: row.section,
         }) ?? null;
 
-      // Item separator between items; section separator at a section boundary.
+      // Element separator between elements; section separator at a section boundary.
       let separator: ReactElement | null = null;
-      if (element.isSectionBoundary) {
+      if (row.isSectionBoundary) {
         separator = sectionSeparator;
-      } else if (!element.isLastInSection) {
-        separator = itemSeparator;
+      } else if (!row.isLastInSection) {
+        separator = elementSeparator;
       }
 
       return (
@@ -200,7 +247,7 @@ function SectionListInner<ItemT, SectionT = object>(
       renderElement,
       renderSectionHeader,
       renderSectionFooter,
-      itemSeparator,
+      elementSeparator,
       sectionSeparator,
     ]
   );
@@ -218,6 +265,10 @@ function SectionListInner<ItemT, SectionT = object>(
       initialElementsSize={initialElementsSize}
       containerOffsetIndex={containerOffsetIndex}
       overscan={overscan}
+      nativeViewOverscan={nativeViewOverscan}
+      getElementSizeSpec={getRowSizeSpec}
+      measureLookaheadRows={measureLookaheadRows}
+      nonAnchorKeys={rowNonAnchorKeys}
       keyboardAvoidingEnabled={keyboardAvoidingEnabled}
       keyboardAvoidingOffset={keyboardAvoidingOffset}
       refreshing={refreshing}
@@ -240,8 +291,13 @@ function SectionListInner<ItemT, SectionT = object>(
   );
 }
 
-const SectionList = forwardRef(SectionListInner) as <ItemT, SectionT = object>(
-  props: SectionListProps<ItemT, SectionT> & { ref?: Ref<ShadowListCommands> }
+const SectionList = forwardRef(SectionListInner) as <
+  ElementT,
+  SectionT = object,
+>(
+  props: SectionListProps<ElementT, SectionT> & {
+    ref?: Ref<ShadowListCommands>;
+  }
 ) => ReactElement;
 
 export default SectionList;
