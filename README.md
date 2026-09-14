@@ -15,6 +15,7 @@ ShadowList is a monorepo with one shared list-virtualization engine and the Reac
 ```text
 packages/shadowlist-core            Shared C++ core
 packages/shadowlist-core-tests      Core integration and perf tests
+packages/shadowlist-core-bench      Core micro-benchmarks and device metrics scripts
 packages/shadowlist-fabric          React Native (Fabric) package
 packages/shadowlist-fabric-example  React Native example app
 packages/shadowlist-utils           Shared demo components used by the example app

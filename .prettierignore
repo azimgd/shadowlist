@@ -3,6 +3,7 @@
 **/dist
 **/build
 **/coverage
+**/vendor
 .yarn
 yarn.lock
 packages/shadowlist-wasm/src/wasm
