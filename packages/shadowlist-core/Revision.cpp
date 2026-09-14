@@ -1,6 +1,7 @@
 #include <shadowlist-core/Revision.hpp>
-#include <sstream>
+
 #include <iomanip>
+#include <sstream>
 
 namespace azimgd::shadowlist {
 
@@ -11,7 +12,6 @@ void Revision::setWindowContainerHeight(double windowContainerHeight) {
 void Revision::setWindowContainerWidth(double windowContainerWidth) {
   this->windowContainerWidth = windowContainerWidth;
 }
-
 
 void Revision::setContainerOffsetX(double containerOffsetX) {
   this->containerOffsetX = containerOffsetX;
@@ -42,15 +42,15 @@ std::string Revision::getDebugRepresentation() const {
 
   json << "\"elements\":[";
   for (std::size_t nextElementIndex = 0; nextElementIndex < this->elements.size(); ++nextElementIndex) {
-    const auto& elem = this->elements[nextElementIndex];
+    const Element& nextElement = this->elements[nextElementIndex];
     json << "{";
-    json << "\"id\":\"" << elem.id << "\",";
-    json << "\"width\":" << elem.width << ",";
-    json << "\"height\":" << elem.height << ",";
-    json << "\"offsetX\":" << elem.offsetX << ",";
-    json << "\"offsetY\":" << elem.offsetY << ",";
-    json << "\"estimated\":" << (elem.estimated ? "true" : "false") << ",";
-    json << "\"measured\":" << (elem.measured ? "true" : "false");
+    json << "\"id\":\"" << nextElement.getId() << "\",";
+    json << "\"width\":" << nextElement.width << ",";
+    json << "\"height\":" << nextElement.height << ",";
+    json << "\"offsetX\":" << nextElement.offsetX << ",";
+    json << "\"offsetY\":" << nextElement.offsetY << ",";
+    json << "\"estimated\":" << (nextElement.estimated ? "true" : "false") << ",";
+    json << "\"measured\":" << (nextElement.measured ? "true" : "false");
     json << "}";
     if (nextElementIndex < this->elements.size() - 1) {
       json << ",";

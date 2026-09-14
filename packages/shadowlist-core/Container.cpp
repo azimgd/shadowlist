@@ -17,24 +17,24 @@ namespace {
 }
 
 void Container::startRevision() {
-  if (this->revisionStatus != RevisionStatusIdle) {
+  if (this->revisionStatus != REVISION_STATUS_IDLE) {
     throw InvalidOperationError("Cannot start the new revision while the previous is in progress");
   }
 
-  this->revisionStatus = RevisionStatusPending;
+  this->revisionStatus = REVISION_STATUS_PENDING;
 }
 
 void Container::endRevision() {
-  if (this->revisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != REVISION_STATUS_PENDING) {
     throw InvalidOperationError("You cannot end the revision while the previous has not started");
   }
 
   if (this->revision.elements.empty()) {
-    this->revisionCount = RevisionCountFirst;
+    this->revisionCount = REVISION_COUNT_FIRST;
   } else {
     this->revisionCount++;
   }
-  this->revisionStatus = RevisionStatusIdle;
+  this->revisionStatus = REVISION_STATUS_IDLE;
 
   double containerOffset = this->getContainerOffset();
   double windowSize = this->getWindowContainerSize();
@@ -43,16 +43,27 @@ void Container::endRevision() {
   bool reachingLowEdge = containerOffset <= windowSize * this->startReachedThreshold;
   bool reachingHighEdge = containerOffset + windowSize >= totalSize - windowSize * this->endReachedThreshold;
 
-  bool reachedEnd = this->inverted ? reachingLowEdge : reachingHighEdge;
-  bool reachedStart = this->inverted ? reachingHighEdge : reachingLowEdge;
+  /*
+   * Start is element 0 and end is the last element, in every orientation. `inverted` only
+   * pins the resting position to the end; it does not flip the data order, so the start
+   * edge stays at offset 0 and the end edge at the end of the content. Swapping the edges
+   * for inverted lists (FlatList's convention, where inverting also reverses the render
+   * order) would make onStartReached fire at the bottom of an inverted chat: every prepend
+   * it triggers changes the element count, which re-arms the edge below, so the callback
+   * would fire again on the next frame and "load earlier" would run in an endless loop.
+   */
+  bool reachedEnd = reachingHighEdge;
+  bool reachedStart = reachingLowEdge;
 
   // When both edges register (a list smaller than a window), prefer the end edge.
   if (reachedStart && reachedEnd) {
     reachedStart = false;
   }
 
-  // Reset the edge callbacks when the data set changed: reaching the new edge is a
-  // fresh arrival even if the offset never left the threshold band.
+  /*
+   * Reset the edge callbacks when the data set changed: reaching the new edge is a
+   * fresh arrival even if the offset never left the threshold band.
+   */
   std::size_t elementsSize = this->revision.elements.size();
   if (elementsSize != this->prevReachedElementsSize) {
     this->prevReachedElementsSize = elementsSize;
@@ -84,14 +95,18 @@ void Container::scrollToEnd() {
 }
 
 void Container::requestScrollToIndex(double commandIndex, double commandSequence, int propIndex) {
-  // The imperative command takes priority over the prop. Each call bumps a counter, and
-  // we act whenever that counter changes, so requesting the same index twice still
-  // scrolls both times.
+  /*
+   * The imperative command takes priority over the prop. Each call bumps a counter, and
+   * we act whenever that counter changes, so requesting the same index twice still
+   * scrolls both times.
+   */
   bool fired = false;
   if (commandSequence != this->prevScrollToIndexSequence) {
     this->prevScrollToIndexSequence = commandSequence;
-    // scrollToEnd uses the same command channel as scrollToIndex. It is told apart by a
-    // special reserved value (SCROLL_TO_END_INDEX) instead of a real index.
+    /*
+     * scrollToEnd uses the same command channel as scrollToIndex. It is told apart by a
+     * special reserved value (SCROLL_TO_END_INDEX) instead of a real index.
+     */
     if (commandIndex == SCROLL_TO_END_INDEX) {
       this->scrollToEnd();
       fired = true;
@@ -124,8 +139,10 @@ ContainerStateUpdate Container::resolveStateUpdate(
   update.totalContainerWidth = this->revision.totalContainerWidth;
   update.totalContainerHeight = this->revision.totalContainerHeight;
 
-  // Adopt the core's offset only when it wants to move the view; otherwise keep
-  // the reported offset so we don't fight the user.
+  /*
+   * Adopt the core's offset only when it wants to move the view; otherwise keep
+   * the reported offset so we don't fight the user.
+   */
   if (corrected) {
     update.containerOffsetX = this->revision.containerOffsetX;
     update.containerOffsetY = this->revision.containerOffsetY;
@@ -137,10 +154,12 @@ ContainerStateUpdate Container::resolveStateUpdate(
   update.applyContainerOffset = corrected;
   update.changed = corrected || sizeChanged;
 
-  // Publish the in-flight correction's token (its operation id) only on a frame that
-  // actually applies an offset driven by an operation, so the host echoes it back and we
-  // recognise our own write. A bare measurement nudge / layout reassert with no operation
-  // publishes 0; the host classifies those by causality, not by token.
+  /*
+   * Publish the in-flight correction's token (its operation id) only on a frame that
+   * actually applies an offset driven by an operation, so the host echoes it back and we
+   * recognise our own write. A bare measurement nudge / layout reassert with no operation
+   * publishes 0; the host classifies those by causality, not by token.
+   */
   update.commitToken = (corrected && this->operation) ? this->operation->id : 0;
 
   return update;
@@ -169,8 +188,34 @@ double Container::getStickyFooterOffset(double footerSize) const {
   return this->getFooterOffset(footerSize);
 }
 
-std::vector<double> Container::getSnapOffsets() const {
-  std::vector<double> snapOffsets;
+const std::vector<double>& Container::getSnapOffsets() const {
+  double windowSize = this->getWindowContainerSize();
+  double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
+
+  /*
+   * Snap targets derive from element geometry plus these scalars, and from nothing that
+   * changes on a plain scroll. Rebuild only when one of them moved; the layout pass calls
+   * this on every published frame.
+   */
+  if (this->snapCacheVersion == this->geometryVersion &&
+      this->snapCacheSnapToItem == this->snapToItem &&
+      this->snapCacheAlignment == this->snapAlignment &&
+      this->snapCacheWindowSize == windowSize &&
+      this->snapCacheTotalSize == totalSize &&
+      this->snapCacheHorizontal == this->horizontal) {
+    return this->snapOffsetsCache;
+  }
+
+  this->snapCacheVersion = this->geometryVersion;
+  this->snapCacheSnapToItem = this->snapToItem;
+  this->snapCacheAlignment = this->snapAlignment;
+  this->snapCacheWindowSize = windowSize;
+  this->snapCacheTotalSize = totalSize;
+  this->snapCacheHorizontal = this->horizontal;
+
+  std::vector<double>& snapOffsets = this->snapOffsetsCache;
+  snapOffsets.clear();
+
   if (!this->snapToItem) {
     return snapOffsets;
   }
@@ -180,16 +225,16 @@ std::vector<double> Container::getSnapOffsets() const {
     return snapOffsets;
   }
 
-  double windowSize = this->getWindowContainerSize();
-  double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
   double maxOffset = totalSize - windowSize;
   if (maxOffset < 0.0) {
     maxOffset = 0.0;
   }
 
-  // One target per element, clamped to range. Offsets only increase, so deduping
-  // consecutive equal values (the head/tail collapse to 0 / maxOffset) keeps the
-  // list ascending and tidy.
+  /*
+   * One target per element, clamped to range. Offsets only increase, so deduping
+   * consecutive equal values (the head/tail collapse to 0 / maxOffset) keeps the
+   * list ascending and tidy.
+   */
   snapOffsets.reserve(elementsSize);
   for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
     const Element& nextElement = this->revision.elements[nextElementIndex];
@@ -236,8 +281,10 @@ StickyHeader Container::resolveStickyHeader() const {
     offset = 0.0;
   }
 
-  // Walk the ascending stickyIndices: the last header at/above the viewport start is
-  // active (pinned), the first one past it is the "next" that pushes it up.
+  /*
+   * Walk the ascending stickyIndices: the last header at/above the viewport start is
+   * active (pinned), the first one past it is the "next" that pushes it up.
+   */
   double activeOffset = 0.0;
   double activeSize = 0.0;
   bool hasActive = false;
@@ -266,8 +313,10 @@ StickyHeader Container::resolveStickyHeader() const {
     return result;
   }
 
-  // The pinned header sits at the viewport start, unless the next header has scrolled
-  // up close enough to push it out (pinned to nextOffset - own size for a clean swap).
+  /*
+   * The pinned header sits at the viewport start, unless the next header has scrolled
+   * up close enough to push it out (pinned to nextOffset - own size for a clean swap).
+   */
   double displayedTop = offset;
   if (hasNext) {
     double pushedTop = nextOffset - activeSize;
@@ -290,8 +339,7 @@ std::size_t Container::findElementIndexByKey(const std::string& key) const {
   }
 
   // O(1) via the key->index map maintained in Virtualizer::reconcileElements.
-  auto entry = this->revision.elementIndexByKey.find(key);
-  return entry != this->revision.elementIndexByKey.end() ? entry->second : UNDEFINED_INDEX;
+  return this->revision.indexForKey(key);
 }
 
 bool Container::isAnchorable(const std::string& key) const {
@@ -316,8 +364,10 @@ void Container::dispatchObservers() {
   this->prevVisibleStartIndex = visibleIndices.first;
   this->prevVisibleEndIndex = visibleIndices.second;
 
-  // Notify when the viewable range changes. Computed only when a listener is
-  // registered, since getViewableIndices does an O(window) overlap scan.
+  /*
+   * Notify when the viewable range changes. Computed only when a listener is
+   * registered, since getViewableIndices does an O(window) overlap scan.
+   */
   if (this->onViewableIndicesChangeCallback) {
     auto viewableIndices = this->getViewableIndices();
     if (viewableIndices.first != this->prevViewableStartIndex || viewableIndices.second != this->prevViewableEndIndex) {
@@ -353,7 +403,7 @@ std::size_t Container::getElementsSize() const {
 }
 
 void Container::setWindowContainerHeight(double height) {
-  if (this->revisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != REVISION_STATUS_PENDING) {
     throw InvalidOperationError("Cannot use setWindowContainerHeight outside of a revision");
   }
 
@@ -361,7 +411,7 @@ void Container::setWindowContainerHeight(double height) {
 }
 
 void Container::setWindowContainerWidth(double width) {
-  if (this->revisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != REVISION_STATUS_PENDING) {
     throw InvalidOperationError("Cannot use setWindowContainerWidth outside of a revision");
   }
 
@@ -369,7 +419,7 @@ void Container::setWindowContainerWidth(double width) {
 }
 
 void Container::setContainerOffsetY(double offsetY) {
-  if (this->revisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != REVISION_STATUS_PENDING) {
     throw InvalidOperationError("Cannot use setContainerOffsetY outside of a revision");
   }
 
@@ -377,7 +427,7 @@ void Container::setContainerOffsetY(double offsetY) {
 }
 
 void Container::setContainerOffsetX(double offsetX) {
-  if (this->revisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != REVISION_STATUS_PENDING) {
     throw InvalidOperationError("Cannot use setContainerOffsetX outside of a revision");
   }
 
@@ -431,8 +481,10 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
     double overlapEnd = elementEnd < viewportEnd ? elementEnd : viewportEnd;
     double visible = overlapEnd - overlapStart;
 
-    // Measure the visible fraction against min(element, viewport) so an element
-    // taller than the viewport can still reach 1.0 by fully covering the screen.
+    /*
+     * Measure the visible fraction against min(element, viewport) so an element
+     * taller than the viewport can still reach 1.0 by fully covering the screen.
+     */
     double referenceSize = elementSize < windowSize ? elementSize : windowSize;
     if (visible > 0.0 && referenceSize > 0.0 && (visible / referenceSize) >= this->viewablePercentThreshold) {
       if (firstViewable == UNDEFINED_INDEX) {
@@ -451,6 +503,108 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
     return {lastViewable, firstViewable};
   }
   return {firstViewable, lastViewable};
+}
+
+std::pair<std::size_t, std::size_t> Container::getMaterializedIndices() const {
+  if (this->materializationOverscan < 0.0) {
+    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
+  }
+
+  std::size_t measuredStartIndex = this->revision.measurementElementStartIndex;
+  std::size_t measuredEndIndex = this->revision.measurementElementEndIndex;
+
+  if (measuredStartIndex == UNDEFINED_INDEX || measuredEndIndex == UNDEFINED_INDEX) {
+    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
+  }
+
+  double windowSize = this->getWindowContainerSize();
+  if (windowSize <= 0.0) {
+    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
+  }
+
+  /*
+   * The retention band is already the measured window, so the materialization band is
+   * that window narrowed to the viewport plus materializationOverscan viewports. Scanning
+   * only the measured window keeps this O(retained rows) rather than O(all rows), and
+   * offsets outside it are not reflowed yet anyway.
+   */
+  double bandSize = windowSize * this->materializationOverscan;
+  double bandStart = this->getContainerOffset() - bandSize;
+  double bandEnd = this->getContainerOffset() + windowSize + bandSize;
+
+  // Inverted lists store the window start>end; normalise to an ascending walk.
+  std::size_t windowLow = this->inverted ? measuredEndIndex : measuredStartIndex;
+  std::size_t windowHigh = this->inverted ? measuredStartIndex : measuredEndIndex;
+
+  std::size_t firstIndex = UNDEFINED_INDEX;
+  std::size_t lastIndex = UNDEFINED_INDEX;
+
+  for (std::size_t nextElementIndex = windowLow; nextElementIndex <= windowHigh && nextElementIndex < this->revision.elements.size(); ++nextElementIndex) {
+    const Element& nextElement = this->revision.elements[nextElementIndex];
+    double elementStart = this->horizontal ? nextElement.offsetX : nextElement.offsetY;
+    double elementSize = this->horizontal ? nextElement.width : nextElement.height;
+    double elementEnd = elementStart + elementSize;
+
+    /*
+     * A zero-sized row is kept rather than skipped: unlike getViewableIndices, which
+     * reports what the user can see, this decides what may be destroyed. An unmeasured or
+     * collapsed row sitting inside the band must stay materialized so it can be measured.
+     */
+    if (elementEnd < bandStart || elementStart > bandEnd) {
+      continue;
+    }
+
+    if (firstIndex == UNDEFINED_INDEX) {
+      firstIndex = nextElementIndex;
+    }
+    lastIndex = nextElementIndex;
+  }
+
+  if (firstIndex == UNDEFINED_INDEX) {
+    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
+  }
+
+  // Match getVisibleIndices: inverted reports the higher index first.
+  if (this->inverted) {
+    return {lastIndex, firstIndex};
+  }
+  return {firstIndex, lastIndex};
+}
+
+bool Container::shouldMaterialize(std::size_t index) const {
+  if (this->materializationOverscan < 0.0) {
+    return true;
+  }
+
+  if (index >= this->revision.elements.size()) {
+    return true;
+  }
+
+  auto band = this->getMaterializedIndices();
+  if (band.first == UNDEFINED_INDEX || band.second == UNDEFINED_INDEX) {
+    return true;
+  }
+
+  std::size_t bandLow = this->inverted ? band.second : band.first;
+  std::size_t bandHigh = this->inverted ? band.first : band.second;
+
+  return index >= bandLow && index <= bandHigh;
+}
+
+void Container::setPredictedSize(const std::string& key, Size size) {
+  if (key.empty()) {
+    return;
+  }
+  this->predictedSizes[key] = size;
+}
+
+bool Container::hasTrustedSize(std::size_t index) const {
+  if (index >= this->revision.elements.size()) {
+    return false;
+  }
+
+  const Element& nextElement = this->revision.elements[index];
+  return nextElement.measured || nextElement.predicted;
 }
 
 double Container::getElementOffset(std::size_t index) const {
@@ -472,7 +626,7 @@ double Container::getElementSize(std::size_t index) const {
 }
 
 void Container::setElementOffset(std::size_t index, double offset) {
-  if (this->revisionStatus != RevisionStatusPending) {
+  if (this->revisionStatus != REVISION_STATUS_PENDING) {
     throw InvalidOperationError("Cannot use setElementOffset outside of a revision");
   }
 

@@ -1,12 +1,10 @@
 #pragma once
 
 #include <cstddef>
-#include <string>
-#include <vector>
-#include <utility>
-
 #include <cstdint>
-
+#include <string>
+#include <utility>
+#include <vector>
 #include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Element.hpp>
@@ -20,7 +18,36 @@ namespace azimgd::shadowlist {
  * back to the container.
  */
 struct FrameInput {
+  /*
+   * The frame's ordered row keys. An integration that already owns an immutable key
+   * vector for the commit (Fabric's Props) should point `keysRef` at it instead of
+   * filling `keys`: the core only reads the keys during the synchronous update() call,
+   * so copying the whole collection into every frame costs one allocation per row for
+   * keys long enough to spill the small-string buffer, for nothing. `keys` remains the
+   * owning path for standalone drivers and tests. Use keyList() to read either.
+   */
   std::vector<std::string> keys;
+  const std::vector<std::string>* keysRef = nullptr;
+
+  const std::vector<std::string>& keyList() const {
+    return this->keysRef != nullptr ? *this->keysRef : this->keys;
+  }
+
+  /*
+   * Set only by an integration that can prove these are the very same keys the previous
+   * completed update() consumed: not "probably the same", but the same immutable
+   * collection, kept alive across both calls so its address cannot have been reused.
+   * Fabric can: a scroll clones the shadow node with a new state and the same props
+   * object, and props are immutable.
+   *
+   * The core otherwise compares every key against every element on every commit to
+   * decide whether to reconcile. That comparison is correct but dataset-sized, and it is
+   * the last O(N) step left on an ordinary scroll frame. When this flag is set the core
+   * trusts it and skips straight past reconciliation. A false positive would leave the
+   * core's element list out of step with the data, so leave it false when in any doubt.
+   */
+  bool keysUnchanged = false;
+
   double containerOffsetX = 0.0;
   double containerOffsetY = 0.0;
   double windowContainerWidth = 0.0;
@@ -35,6 +62,13 @@ struct FrameInput {
 
   // Overscan in viewport units (see Container::overscan). 1.0 = one viewport on each side.
   double overscan = 1.0;
+
+  /*
+   * Materialization overscan in viewport units (see Container::materializationOverscan).
+   * Negative (the default) keeps retention and materialization identical. Only natively
+   * measured rows outside the band are hidden; predicted and estimated rows stay.
+   */
+  double materializationOverscan = -1.0;
 
   /*
    * Element indices that pin to the viewport start once scrolled past (ascending).
@@ -96,11 +130,18 @@ struct FrameInput {
    * still wins even if its key is listed here.
    */
   std::vector<std::string> nonAnchorableKeys;
+
+  // Borrowed alternative to nonAnchorableKeys, with the same lifetime rules as keysRef.
+  const std::vector<std::string>* nonAnchorableKeysRef = nullptr;
+
+  const std::vector<std::string>& nonAnchorableKeyList() const {
+    return this->nonAnchorableKeysRef != nullptr ? *this->nonAnchorableKeysRef : this->nonAnchorableKeys;
+  }
 };
 
 /*
  * Threading contract: a Container may be shared across threads (see Container::coreMutex).
- * Every PUBLIC method below acquires container->coreMutex on entry, so each is safe to
+ * Every public method below acquires container->coreMutex on entry, so each is safe to
  * call concurrently on a shared Container and need not be externally locked. The mutex is
  * recursive, so these methods may also be invoked while an integration holds an outer lock
  * across a whole frame, and may call one another, without deadlock. The private helpers
@@ -112,62 +153,118 @@ public:
    * Per-frame entry point: reconcile elements to the incoming keys, measure,
    * resolve scroll corrections and dispatch observer callbacks.
    */
-  static void update(Container *container, const FrameInput &input);
+  static void update(Container* container, const FrameInput& input);
 
   /*
    * Measure elements for the current revision (orientation/columns aware).
    * windowFromOffset selects the visible window from the current scroll offset
    * instead of filling from the edge.
    */
-  static void measure(Container *container, bool windowFromOffset = false);
+  static void measure(Container* container, bool windowFromOffset = false);
 
   /*
    * Recompute total container size from the maximum element extent.
    */
-  static void recomputeTotalSize(Container *container);
+  static void recomputeTotalSize(Container* container);
 
   /*
    * Reconcile the element list to a new ordered set of keys, preserving the
    * measured state of surviving elements and creating fresh ones for new keys
    */
-  static void reconcileElements(Container *container, const std::vector<std::string> &nextKeys);
+  static void reconcileElements(Container* container, const std::vector<std::string>& nextKeys);
 
   /*
-   * Update measurements for existing element at specific index.
+   * Update measurements for existing element at specific index, then propagate the
+   * resulting geometry. Equivalent to applyElementSize() followed by commitElementSizes()
+   * when the size actually changed; a size identical to the one already recorded costs
+   * nothing.
    */
-  static void updateElementAtIndex(Container *container, std::size_t index, Size size);
+  static void updateElementAtIndex(Container* container, std::size_t index, Size size);
+
+  /*
+   * Record a natively measured size without reflowing offsets or re-pinning the anchor.
+   * Returns true when the recorded geometry actually changed, i.e. when the suffix from
+   * `index` onward needs to be reflowed.
+   *
+   * A host that feeds back a whole batch of mounted rows in one pass (Fabric's layout)
+   * should call this for each row, track the lowest index that returned true, and then
+   * call commitElementSizes() once. Reflowing per row instead makes a layout with M
+   * mounted rows cost O(M x N) near the start of an N-row list, even when every size is
+   * unchanged.
+   */
+  static bool applyElementSize(Container* container, std::size_t index, Size size);
+
+  /*
+   * Record a host-supplied ahead-of-time size for the row with this key: what it will
+   * measure to once laid out, computed before it was ever rendered.
+   *
+   * Returns the index that needs reflowing, or UNDEFINED_INDEX when nothing moved: the
+   * row does not exist yet (the size is staged for the next reconcile), it has already been
+   * natively measured (a real measurement always wins), or the prediction matched the size
+   * it already carried. As with applyElementSize, a host applying a batch should track the
+   * lowest index returned and call commitElementSizes() once for the whole batch.
+   *
+   * A predicted row is `estimated` (the fallback passes leave it alone) but not `measured`:
+   * it still gets laid out natively when it is revealed, and that measurement supersedes
+   * the prediction.
+   */
+  static std::size_t applyPredictedElementSize(Container* container, const std::string& key, Size size);
+
+  /*
+   * Drop every prediction, staged and already applied, so predicted rows fall back to
+   * the ordinary estimate and are measured natively again. For when the host's measurements
+   * stop being valid, above all a width change: text wraps to the row width, so every
+   * height measured at the old one is wrong. Natively measured rows are left alone.
+   */
+  static void invalidatePredictions(Container* container);
+
+  /*
+   * Propagate geometry after a batch of applyElementSize() calls: reflow offsets from
+   * `fromIndex` and keep the anchored row fixed on screen. Safe to skip entirely when no
+   * applyElementSize() call reported a change.
+   */
+  static void commitElementSizes(Container* container, std::size_t fromIndex);
 
   /*
    * Recompute element offsets starting from a given index (orientation/columns aware).
    */
-  static void recomputeElementOffsets(Container *container, std::size_t fromIndex);
+  static void recomputeElementOffsets(
+    Container* container,
+    std::size_t fromIndex,
+    std::size_t changedThroughIndex = UNDEFINED_INDEX);
 
 private:
   /*
+   * Stamp staged ahead-of-time sizes (Container::predictedSizes) onto the rows that now
+   * exist, consuming each entry. Runs once per frame between reconcile and measure.
+   */
+  static void consumePredictions(Container* container);
+
+  /*
    * Measure a window of elements from the edge of the list (first revision)
    */
-  static void measureFirstRevision(Container *container);
+  static void measureFirstRevision(Container* container);
 
   /*
    * Measure the elements within the visible window plus buffer (subsequent revisions)
    */
-  static void measureNextRevision(Container *container);
+  static void measureNextRevision(Container* container);
 
   /*
    * Store the measured index range (orientation aware)
    */
-  static void finalizeMeasurement(Container *container, std::size_t measuredMinIndex, std::size_t measuredMaxIndex);
+  static void finalizeMeasurement(Container* container, std::size_t measuredMinIndex, std::size_t measuredMaxIndex);
 
   /*
    * Size unmeasured elements with average dimensions and recompute all offsets
    */
-  static void layoutElements(Container *container);
+  static void layoutElements(Container* container);
 
   /*
    * Record which element currently sits at the top/left of the viewport and how
    * far we are scrolled into it, so the position can be restored after a reconcile
    */
-  static void captureAnchor(Container *container, double inputOffset);
+  static void captureAnchor(Container* container, double inputOffset);
 
   /*
    * Apply scroll corrections after measuring: a pending scrollToIndex, the inverted
@@ -175,8 +272,8 @@ private:
    * position. Returns true when the scroll offset was moved.
    */
   static bool resolveScroll(
-    Container *container,
-    const std::string &anchorKey,
+    Container* container,
+    const std::string& anchorKey,
     double anchorDelta,
     bool hadElementsBefore,
     bool offsetConfirmed);
