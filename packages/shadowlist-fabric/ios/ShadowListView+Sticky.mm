@@ -1,7 +1,7 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Internal.h"
 
-/* Sticky pinning for the header, footer and section-header overlay. */
+// Sticky pinning for the header, footer and section-header overlay.
 @implementation ShadowListView (Sticky)
 
 /*
@@ -25,17 +25,21 @@
     ? (_horizontal ? _stickyFooterView.bounds.size.width : _stickyFooterView.bounds.size.height)
     : 0.0;
 
-  // Direction-based auto-hide: accumulate the scroll delta into how far the bar is
-  // slid away. Only advance on genuine user scrolls; programmatic jumps just reseat
-  // the reference.
+  /*
+   * Direction-based auto-hide: accumulate the scroll delta into how far the bar is
+   * slid away. Only advance on genuine user scrolls; programmatic jumps just reseat
+   * the reference.
+   */
   CGFloat autoHideDelta = accumulate ? (axisOffset - _lastAutoHideOffset) : 0.0;
   _lastAutoHideOffset = axisOffset;
 
   if (_stickyHeaderView) {
     CGFloat translation = 0.0;
     if (_autoHideHeader) {
-      // Pin to the viewport start, slid up by _headerHidden once scrolled past its
-      // own height.
+      /*
+       * Pin to the viewport start, slid up by _headerHidden once scrolled past its
+       * own height.
+       */
       if (axisOffset <= headerSize) {
         _headerHidden = 0.0;
       } else {
@@ -43,8 +47,10 @@
       }
       translation = axisOffset - _headerHidden;
     } else if (_stickyHeader) {
-      // Pin to the viewport start, but let the content end (or the footer's resting
-      // top) push the header back off as it scrolls up to meet it.
+      /*
+       * Pin to the viewport start, but let the content end (or the footer's resting
+       * top) push the header back off as it scrolls up to meet it.
+       */
       translation = axisOffset;
       CGFloat collisionTop = contentSize - footerSize - headerSize;
       if (collisionTop < translation) {
@@ -68,9 +74,11 @@
       }
       translation = (axisOffset + windowSize - contentSize) + _footerHidden;
     } else if (_stickyFooter) {
-      // The footer always sticks to the viewport end (plain bottom pin), but in a short
-      // viewport it must not push up past the header's reserved region as it scrolls.
-      // Mirrors the sticky-header branch's collisionTop clamp above.
+      /*
+       * The footer always sticks to the viewport end (plain bottom pin), but in a short
+       * viewport it must not push up past the header's reserved region as it scrolls.
+       * Mirrors the sticky-header branch's collisionTop clamp above.
+       */
       translation = axisOffset + windowSize - contentSize;
       CGFloat collisionBottom = headerSize - contentSize + footerSize;
       if (translation < collisionBottom) {
@@ -82,8 +90,10 @@
       : CGAffineTransformMakeTranslation(0.0, translation);
   }
 
-  // Raise the sticky header/footer first, then the section-header overlay, so the
-  // active section header stays on top.
+  /*
+   * Raise the sticky header/footer first, then the section-header overlay, so the
+   * active section header stays on top.
+   */
   [self bringStickyViewsToFront];
   [self applyStickySectionHeaders];
 }
@@ -108,17 +118,19 @@
     axisOffset = 0.0;
   }
 
-  // Headers ascend by offset: active is the last at/above the viewport start; the
-  // first one past it is the "next" that pushes it up.
+  /*
+   * Headers ascend by offset: active is the last at/above the viewport start; the
+   * first one past it is the "next" that pushes it up.
+   */
   bool hasActive = false;
   double activeSize = 0.0;
   bool hasNext = false;
   double nextOffset = 0.0;
-  for (size_t i = 0; i < _stickyHeaderOffsets.size(); i++) {
-    double headerOffset = _stickyHeaderOffsets[i];
+  for (std::size_t headerIndex = 0; headerIndex < _stickyHeaderOffsets.size(); ++headerIndex) {
+    double headerOffset = _stickyHeaderOffsets[headerIndex];
     if (headerOffset <= axisOffset) {
       hasActive = true;
-      activeSize = _stickyHeaderSizes[i];
+      activeSize = _stickyHeaderSizes[headerIndex];
     } else {
       nextOffset = headerOffset;
       hasNext = true;
@@ -131,8 +143,10 @@
     return;
   }
 
-  // Translation is the overlay's displayed top: viewport start, pushed up to
-  // nextOffset - activeSize as the next header arrives.
+  /*
+   * Translation is the overlay's displayed top: viewport start, pushed up to
+   * nextOffset - activeSize as the next header arrives.
+   */
   double translation = axisOffset;
   if (hasNext) {
     double pushedTop = nextOffset - activeSize;
@@ -149,7 +163,7 @@
   SLRaiseSubview(_contentView, _sectionHeaderOverlay, 2.0);
 }
 
-/* Keep a pinned header/footer above the scrolling elements (z 1; elements sit at 0). */
+// Keep a pinned header/footer above the scrolling elements (z 1; elements sit at 0).
 - (void)bringStickyViewsToFront
 {
   if ((_stickyHeader || _autoHideHeader) && _stickyHeaderView) {

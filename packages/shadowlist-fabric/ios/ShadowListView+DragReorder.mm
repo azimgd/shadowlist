@@ -1,7 +1,9 @@
 #include <TargetConditionals.h>
 
-// Drag-to-reorder relies on UILongPressGestureRecognizer, CADisplayLink and UIView spring
-// animations, none of which have a clean AppKit equivalent, so the whole feature is iOS only.
+/*
+ * Drag-to-reorder relies on UILongPressGestureRecognizer, CADisplayLink and UIView spring
+ * animations, none of which have a clean AppKit equivalent, so the whole feature is iOS only.
+ */
 #if !TARGET_OS_OSX
 
 #import "ShadowListView.h"
@@ -12,10 +14,12 @@
 
 using namespace facebook::react;
 
-/* Long-press drag-to-reorder. */
+// Long-press drag-to-reorder.
 @implementation ShadowListView (DragReorder)
 
-/* The view's resting frame, ignoring any active drag translation. */
+#pragma mark - Drag gesture
+
+// The view's resting frame, ignoring any active drag translation.
 - (CGRect)restingFrameForView:(UIView *)view
 {
   CGSize size = view.bounds.size;
@@ -23,16 +27,16 @@ using namespace facebook::react;
   return CGRectMake(center.x - size.width / 2.0, center.y - size.height / 2.0, size.width, size.height);
 }
 
-/* Topmost element view whose resting frame contains the content-space point. */
+// Topmost element view whose resting frame contains the content-space point.
 - (UIView *)elementViewAtContentPoint:(CGPoint)point
 {
   UIView *result = nil;
-  for (UIView *sub in _contentView.subviews) {
-    if (![sub conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+  for (UIView *subview in _contentView.subviews) {
+    if (![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
     }
-    if (CGRectContainsPoint([self restingFrameForView:sub], point)) {
-      result = sub;
+    if (CGRectContainsPoint([self restingFrameForView:subview], point)) {
+      result = subview;
     }
   }
   return result;
@@ -105,7 +109,7 @@ using namespace facebook::react;
   [self updateDrag];
 }
 
-/* Per-frame: auto-scroll at the edges, then re-place the row and shuffle siblings. */
+// Per-frame: auto-scroll at the edges, then re-place the row and shuffle siblings.
 - (void)dragTick
 {
   if (!_dragging) {
@@ -123,13 +127,13 @@ using namespace facebook::react;
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   CGFloat touch = _horizontal ? _dragTouchInViewport.x : _dragTouchInViewport.y;
 
-  static const CGFloat kEdge = 90.0;
-  static const CGFloat kMaxSpeed = 16.0;
+  static const CGFloat AUTO_SCROLL_EDGE = 90.0;
+  static const CGFloat AUTO_SCROLL_MAX_SPEED = 16.0;
   CGFloat delta = 0.0;
-  if (touch < kEdge) {
-    delta = -kMaxSpeed * (1.0 - touch / kEdge);
-  } else if (touch > window - kEdge) {
-    delta = kMaxSpeed * (1.0 - (window - touch) / kEdge);
+  if (touch < AUTO_SCROLL_EDGE) {
+    delta = -AUTO_SCROLL_MAX_SPEED * (1.0 - touch / AUTO_SCROLL_EDGE);
+  } else if (touch > window - AUTO_SCROLL_EDGE) {
+    delta = AUTO_SCROLL_MAX_SPEED * (1.0 - (window - touch) / AUTO_SCROLL_EDGE);
   }
   if (delta == 0.0) {
     return;
@@ -143,12 +147,14 @@ using namespace facebook::react;
   CGPoint next = _horizontal
     ? CGPointMake(newOffset, _scrollView.contentOffset.y)
     : CGPointMake(_scrollView.contentOffset.x, newOffset);
-  // Must report as a user scroll so the core virtualizes at this exact offset;
-  // echo-suppressing here blanks rows mid-drag.
+  /*
+   * Must report as a user scroll so the core virtualizes at this exact offset;
+   * echo-suppressing here blanks rows mid-drag.
+   */
   _scrollView.contentOffset = next;
 }
 
-/* Place the row under the finger, recompute the insertion point, shuffle siblings. */
+// Place the row under the finger, recompute the insertion point, shuffle siblings.
 - (void)updateDrag
 {
   UIView *view = _draggedView;
@@ -156,11 +162,13 @@ using namespace facebook::react;
     return;
   }
 
-  // Re-derive the pivot's current index/key every time drag state is recomputed: an unrelated
-  // data mutation mid-drag (e.g. updateState: firing while _dragging == YES from another
-  // commit) can shift the already-mounted dragged view's live index/key without a re-pickup,
-  // and insertionIndexForCenter:/this view's geometry must key off that current value rather
-  // than the one cached once at pickup in beginDrag.
+  /*
+   * Re-derive the pivot's current index/key every time drag state is recomputed: an unrelated
+   * data mutation mid-drag (e.g. updateState: firing while _dragging == YES from another
+   * commit) can shift the already-mounted dragged view's live index/key without a re-pickup,
+   * and insertionIndexForCenter:/this view's geometry must key off that current value rather
+   * than the one cached once at pickup in beginDrag.
+   */
   NSInteger currentIndex = [self indexOfElementView:view];
   if (currentIndex != NSNotFound) {
     _dragOriginIndex = currentIndex;
@@ -199,27 +207,29 @@ using namespace facebook::react;
 - (NSInteger)insertionIndexForCenter:(CGFloat)center
 {
   NSInteger insertion = _dragOriginIndex;
-  // Track the key of the row at the chosen insertion slot so the drop event carries a
-  // stable identity, not just an index. Defaults to the origin (no crossing => no move).
+  /*
+   * Track the key of the row at the chosen insertion slot so the drop event carries a
+   * stable identity, not just an index. Defaults to the origin (no crossing => no move).
+   */
   NSString *insertionKey = _dragOriginKey;
-  for (UIView *sub in _contentView.subviews) {
-    if (sub == _draggedView) {
+  for (UIView *subview in _contentView.subviews) {
+    if (subview == _draggedView) {
       continue;
     }
-    NSInteger elementIndex = [self indexOfElementView:sub];
+    NSInteger elementIndex = [self indexOfElementView:subview];
     if (elementIndex == NSNotFound) {
       continue;
     }
-    CGRect r = [self restingFrameForView:sub];
-    CGFloat lead = _horizontal ? r.origin.x : r.origin.y;
-    CGFloat extent = _horizontal ? r.size.width : r.size.height;
-    CGFloat midpoint = lead + extent / 2.0;
+    CGRect restingFrame = [self restingFrameForView:subview];
+    CGFloat leading = _horizontal ? restingFrame.origin.x : restingFrame.origin.y;
+    CGFloat extent = _horizontal ? restingFrame.size.width : restingFrame.size.height;
+    CGFloat midpoint = leading + extent / 2.0;
     if (elementIndex > _dragOriginIndex && center > midpoint && elementIndex > insertion) {
       insertion = elementIndex;
-      insertionKey = [self keyOfElementView:sub] ?: insertionKey;
+      insertionKey = [self keyOfElementView:subview] ?: insertionKey;
     } else if (elementIndex < _dragOriginIndex && center < midpoint && elementIndex < insertion) {
       insertion = elementIndex;
-      insertionKey = [self keyOfElementView:sub] ?: insertionKey;
+      insertionKey = [self keyOfElementView:subview] ?: insertionKey;
     }
   }
   _dragInsertionKey = insertionKey;
@@ -232,12 +242,12 @@ using namespace facebook::react;
  */
 - (void)applyDragShuffle
 {
-  for (UIView *sub in _contentView.subviews) {
-    if (sub == _draggedView ||
-        ![sub conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+  for (UIView *subview in _contentView.subviews) {
+    if (subview == _draggedView ||
+        ![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
     }
-    NSInteger elementIndex = [self indexOfElementView:sub];
+    NSInteger elementIndex = [self indexOfElementView:subview];
     if (elementIndex == NSNotFound) {
       continue;
     }
@@ -247,7 +257,7 @@ using namespace facebook::react;
     } else if (_dragInsertionIndex < _dragOriginIndex && elementIndex >= _dragInsertionIndex && elementIndex < _dragOriginIndex) {
       shift = _draggedExtent;
     }
-    sub.transform = _horizontal
+    subview.transform = _horizontal
       ? CGAffineTransformMakeTranslation(shift, 0.0)
       : CGAffineTransformMakeTranslation(0.0, shift);
   }
@@ -264,12 +274,12 @@ using namespace facebook::react;
     return;
   }
 
-  for (UIView *sub in _contentView.subviews) {
-    if (sub == view || ![sub conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+  for (UIView *subview in _contentView.subviews) {
+    if (subview == view || ![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
     }
-    sub.transform = CGAffineTransformIdentity;
-    sub.layer.shadowOpacity = 0.0;
+    subview.transform = CGAffineTransformIdentity;
+    subview.layer.shadowOpacity = 0.0;
   }
 
   CGRect resting = [self restingFrameForView:view];
@@ -290,17 +300,17 @@ using namespace facebook::react;
                    }];
 }
 
-/* Reset every element view's drag transform and lift shadow. */
+// Reset every element view's drag transform and lift shadow.
 - (void)clearDragTransforms
 {
-  for (UIView *sub in _contentView.subviews) {
-    if (![sub conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+  for (UIView *subview in _contentView.subviews) {
+    if (![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
     }
     // Cancel any in-flight drop-settle animation before a fresh pickup.
-    [sub.layer removeAllAnimations];
-    sub.transform = CGAffineTransformIdentity;
-    sub.layer.shadowOpacity = 0.0;
+    [subview.layer removeAllAnimations];
+    subview.transform = CGAffineTransformIdentity;
+    subview.layer.shadowOpacity = 0.0;
   }
 }
 
@@ -316,6 +326,7 @@ using namespace facebook::react;
   data.dragToKey_ = toKey ? std::string(toKey.UTF8String) : std::string();
   // Disable scroll corrections during the drag; cleared on the end event (type 3).
   data.userScrolled_ = (type != 3);
+  [self carryScrollCommandInto:data];
   _state->updateState(std::move(data));
 }
 
@@ -336,8 +347,10 @@ using namespace facebook::react;
   _dragging = NO;
   _draggedView = nil;
 
-  // Emit the reorder by key; hold the shuffle transforms until the commit lands.
-  // (from/to indices below still drive the visual settle on the live mounted views.)
+  /*
+   * Emit the reorder by key; hold the shuffle transforms until the commit lands.
+   * (from/to indices below still drive the visual settle on the live mounted views.)
+   */
   [self dispatchDragEventType:3 fromKey:_dragOriginKey toKey:_dragInsertionKey];
 
   if (from == to || !view) {
@@ -350,15 +363,19 @@ using namespace facebook::react;
     _droppedView = view;
     _dropInsertionIndex = to;
 
-    // Poll for the landing: a same-size reorder may publish no new state, so detect
-    // the dropped row's index reaching its slot directly.
+    /*
+     * Poll for the landing: a same-size reorder may publish no new state, so detect
+     * the dropped row's index reaching its slot directly.
+     */
     [_dropSettleLink invalidate];
     _dropSettleLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
     [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
-    // Safety net: clear the held transforms if the reorder never lands. The token
-    // invalidates this block if a newer drop supersedes it, so a stale timer can't tear
-    // down a fresh drag's settle.
+    /*
+     * Safety net: clear the held transforms if the reorder never lands. The token
+     * invalidates this block if a newer drop supersedes it, so a stale timer can't tear
+     * down a fresh drag's settle.
+     */
     NSInteger settleToken = ++_dropSettleToken;
     __weak ShadowListView *weakSelf = self;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
@@ -404,7 +421,7 @@ using namespace facebook::react;
   }
 }
 
-/* Immediate teardown with no reorder (view recycle / drag disabled). */
+// Immediate teardown with no reorder (view recycle / drag disabled).
 - (void)teardownDrag
 {
   [_dragDisplayLink invalidate];
@@ -471,18 +488,18 @@ using namespace facebook::react;
 
   UIView *neighbor = nil;
   NSInteger neighborIndex = up ? NSIntegerMin : NSIntegerMax;
-  for (UIView *sub in _contentView.subviews) {
-    if (sub == view) {
+  for (UIView *subview in _contentView.subviews) {
+    if (subview == view) {
       continue;
     }
-    NSInteger subIndex = [self indexOfElementView:sub];
-    if (subIndex == NSNotFound) {
+    NSInteger subviewIndex = [self indexOfElementView:subview];
+    if (subviewIndex == NSNotFound) {
       continue;
     }
-    if (up ? (subIndex < index && subIndex > neighborIndex)
-           : (subIndex > index && subIndex < neighborIndex)) {
-      neighborIndex = subIndex;
-      neighbor = sub;
+    if (up ? (subviewIndex < index && subviewIndex > neighborIndex)
+           : (subviewIndex > index && subviewIndex < neighborIndex)) {
+      neighborIndex = subviewIndex;
+      neighbor = subview;
     }
   }
   if (!neighbor) {

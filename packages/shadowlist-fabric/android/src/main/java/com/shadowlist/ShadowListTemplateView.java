@@ -5,7 +5,7 @@ import android.util.AttributeSet;
 import android.view.ViewGroup;
 
 public class ShadowListTemplateView extends ViewGroup {
-  /* "header", "footer" or "empty"; used by the parent to pin sticky templates. */
+  // "header", "footer" or "empty"; used by the parent to pin sticky templates.
   private String mTemplateType = "";
 
   public ShadowListTemplateView(Context context) {
