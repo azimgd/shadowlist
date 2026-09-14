@@ -22,8 +22,10 @@ export type ContactsListProps = Omit<
  */
 export const ContactsList = forwardRef<ShadowListCommands, ContactsListProps>(
   ({ renderElement, onDelete, ...props }, ref) => {
-    // Stable unless `onDelete` changes, so ElementRenderer's per-row memoization (keyed
-    // on renderElement identity) isn't defeated by every re-render of this wrapper.
+    /*
+     * Stable unless `onDelete` changes, so ElementRenderer's per-row memoization (keyed
+     * on renderElement identity) isn't defeated by every re-render of this wrapper.
+     */
     const defaultRenderElement = useCallback<
       NonNullable<ShadowListProps<ContactItem>['renderElement']>
     >(

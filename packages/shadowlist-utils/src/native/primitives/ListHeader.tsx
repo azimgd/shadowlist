@@ -7,8 +7,10 @@ export interface ListHeaderProps {
   subtitle?: string;
 }
 
-// iOS large-title header. No divider; the list separators below carry the
-// visual break, matching the expanded large-title state.
+/*
+ * iOS large-title header. No divider; the list separators below carry the
+ * visual break, matching the expanded large-title state.
+ */
 export const ListHeader = memo(
   ({ title = 'Header', subtitle }: ListHeaderProps) => {
     return (

@@ -21,23 +21,23 @@ import type {
  * stable node-id key so surviving rows reconcile across an expand/collapse toggle.
  */
 
-interface TreeFlatRow<ItemT> {
+interface TreeFlatRow<ElementT> {
   id: string;
-  item: ItemT;
+  element: ElementT;
   depth: number;
   hasChildren: boolean;
   isExpanded: boolean;
 }
 
 /* The expansion prop can be an array or a Set; copy it into a Set for fast lookups. */
-const toSet = (
+function toSet(
   ids: ReadonlyArray<string> | ReadonlySet<string> | undefined
-): Set<string> => {
+): Set<string> {
   if (!ids) return new Set();
   return ids instanceof Set ? new Set(ids) : new Set(ids as Iterable<string>);
-};
+}
 
-function TreeListInner<ItemT>(
+function TreeListInner<ElementT>(
   {
     data,
     getChildren,
@@ -52,6 +52,10 @@ function TreeListInner<ItemT>(
     initialElementsSize,
     containerOffsetIndex,
     overscan,
+    nativeViewOverscan,
+    getElementSizeSpec,
+    measureLookaheadRows,
+    nonAnchorKeys,
     keyboardAvoidingEnabled,
     keyboardAvoidingOffset,
     refreshing,
@@ -71,7 +75,7 @@ function TreeListInner<ItemT>(
     accessibilityRole,
     accessibilityHint,
     testID,
-  }: TreeListProps<ItemT>,
+  }: TreeListProps<ElementT>,
   ref: Ref<TreeListCommands>
 ) {
   const innerRef = useRef<ShadowListCommands>(null);
@@ -97,31 +101,34 @@ function TreeListInner<ItemT>(
    * so scrollToNode can map a node id to its row.
    */
   const { data: rows, indexByKey } = useMemo(() => {
-    const flat: TreeFlatRow<ItemT>[] = [];
+    const flat: TreeFlatRow<ElementT>[] = [];
     const byKey = new Map<string, number>();
 
     interface Frame {
-      item: ItemT;
+      element: ElementT;
       depth: number;
     }
     const stack: Frame[] = [];
     for (let index = data.length - 1; index >= 0; index--) {
-      stack.push({ item: data[index] as ItemT, depth: 0 });
+      stack.push({ element: data[index] as ElementT, depth: 0 });
     }
 
     while (stack.length > 0) {
-      const { item, depth } = stack.pop() as Frame;
-      const id = keyExtractor(item);
-      const children = getChildren(item);
+      const { element, depth } = stack.pop() as Frame;
+      const id = keyExtractor(element);
+      const children = getChildren(element);
       const hasChildren = !!children && children.length > 0;
       const isExpanded = hasChildren && expandedSet.has(id);
 
       byKey.set(id, flat.length);
-      flat.push({ id, item, depth, hasChildren, isExpanded });
+      flat.push({ id, element, depth, hasChildren, isExpanded });
 
       if (isExpanded && children) {
         for (let index = children.length - 1; index >= 0; index--) {
-          stack.push({ item: children[index] as ItemT, depth: depth + 1 });
+          stack.push({
+            element: children[index] as ElementT,
+            depth: depth + 1,
+          });
         }
       }
     }
@@ -168,17 +175,34 @@ function TreeListInner<ItemT>(
   /* Hand one flattened row to renderElement, adding tree info (depth, indent, whether it
    * has children and is expanded) and a toggle to expand/collapse that node. */
   const renderRow = useCallback(
-    ({ element, index }: { element: TreeFlatRow<ItemT>; index: number }) =>
+    ({
+      element: row,
+      index,
+    }: {
+      element: TreeFlatRow<ElementT>;
+      index: number;
+    }) =>
       renderElement({
-        element: element.item,
+        element: row.element,
         index,
-        depth: element.depth,
-        isExpanded: element.isExpanded,
-        hasChildren: element.hasChildren,
-        indent: element.depth * indentWidth,
-        toggle: () => toggleId(element.id),
+        depth: row.depth,
+        isExpanded: row.isExpanded,
+        hasChildren: row.hasChildren,
+        indent: row.depth * indentWidth,
+        toggle: () => toggleId(row.id),
       }),
     [renderElement, indentWidth, toggleId]
+  );
+
+  /* The caller describes nodes, not flattened rows: unwrap each row and pass its depth.
+   * Undefined when no getElementSizeSpec was supplied, so the feature stays off. */
+  const getRowSizeSpec = useMemo(
+    () =>
+      getElementSizeSpec
+        ? (row: TreeFlatRow<ElementT>, index: number) =>
+            getElementSizeSpec(row.element, index, row.depth)
+        : undefined,
+    [getElementSizeSpec]
   );
 
   return (
@@ -191,6 +215,11 @@ function TreeListInner<ItemT>(
       initialElementsSize={initialElementsSize}
       containerOffsetIndex={containerOffsetIndex}
       overscan={overscan}
+      nativeViewOverscan={nativeViewOverscan}
+      getElementSizeSpec={getRowSizeSpec}
+      measureLookaheadRows={measureLookaheadRows}
+      /* Row ids are the node ids from keyExtractor, so these pass through unchanged. */
+      nonAnchorKeys={nonAnchorKeys}
       keyboardAvoidingEnabled={keyboardAvoidingEnabled}
       keyboardAvoidingOffset={keyboardAvoidingOffset}
       refreshing={refreshing}
@@ -215,8 +244,8 @@ function TreeListInner<ItemT>(
 }
 
 /* Cast preserves the generic node type for callers across forwardRef. */
-const TreeList = forwardRef(TreeListInner) as <ItemT>(
-  props: TreeListProps<ItemT> & { ref?: Ref<TreeListCommands> }
+const TreeList = forwardRef(TreeListInner) as <ElementT>(
+  props: TreeListProps<ElementT> & { ref?: Ref<TreeListCommands> }
 ) => ReactElement;
 
 export default TreeList;

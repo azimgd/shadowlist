@@ -7,8 +7,10 @@ export interface SectionHeaderProps {
   count?: number;
 }
 
-// iOS grouped section header: uppercase secondary-label text on a subtle
-// translucent bar. The pinned header is opaque so rows scroll cleanly under it.
+/*
+ * iOS grouped section header: uppercase secondary-label text on a subtle
+ * translucent bar. The pinned header is opaque so rows scroll cleanly under it.
+ */
 export const SectionHeader = memo(({ title, count }: SectionHeaderProps) => {
   return (
     <View style={styles.container}>

@@ -38,9 +38,11 @@ export const PollList = forwardRef<ShadowListCommands, PollListProps>(
       [data]
     );
 
-    // Recreated only when total/leadingId/onVote change, so ElementRenderer's per-row
-    // memoization (keyed on renderElement identity) isn't defeated by every re-render of
-    // this wrapper (e.g. from an unrelated prop change).
+    /*
+     * Recreated only when total/leadingId/onVote change, so ElementRenderer's per-row
+     * memoization (keyed on renderElement identity) isn't defeated by every re-render of
+     * this wrapper (e.g. from an unrelated prop change).
+     */
     const defaultRenderElement = useCallback<
       NonNullable<ShadowListProps<PollOption>['renderElement']>
     >(
@@ -61,7 +63,7 @@ export const PollList = forwardRef<ShadowListCommands, PollListProps>(
         data={data}
         stickyHeader
         stickyFooter
-        keyExtractor={(item) => item.id}
+        keyExtractor={(option) => option.id}
         renderElement={renderElement ?? defaultRenderElement}
         {...props}
       />

@@ -10,8 +10,10 @@ export interface PollOptionProps {
   onVote?: (key: string) => void;
 }
 
-// One option: icon chip, label, its share, and an inline result bar. The current
-// leader is tinted with the app accent. Tapping anywhere on the row casts a vote.
+/*
+ * One option: icon chip, label, its share, and an inline result bar. The current
+ * leader is tinted with the app accent. Tapping anywhere on the row casts a vote.
+ */
 export const PollOptionRow = memo(
   ({ option, total, leading = false, onVote }: PollOptionProps) => {
     const share = total > 0 ? option.votes / total : 0;

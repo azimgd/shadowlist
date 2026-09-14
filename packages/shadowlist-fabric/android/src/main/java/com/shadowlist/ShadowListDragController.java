@@ -24,34 +24,42 @@ class ShadowListDragController {
   private final ShadowListView mView;
   private final GestureDetector mDragGestureDetector;
   private Choreographer.FrameCallback mDragFrameCallback;
-  /* Polls for the reorder commit landing after a drop, since a same-size reorder may
-   * produce no state commit. */
+  /*
+   * Polls for the reorder commit landing after a drop, since a same-size reorder may
+   * produce no state commit.
+   */
   private Choreographer.FrameCallback mDropSettleCallback;
 
   private boolean mDragEnabled = false;
   private boolean mDragging = false;
   private ShadowListElementView mDraggedView = null;
-  /* mDragOriginIndex: where the row was picked up. mDragInsertionIndex: where its
+  /*
+   * mDragOriginIndex: where the row was picked up. mDragInsertionIndex: where its
    * centre currently sits (the gap). These drive the visual shuffle on the live mounted
-   * views; the KEYS below are the identity emitted to JS on drop. */
+   * views; the KEYS below are the identity emitted to JS on drop.
+   */
   private int mDragOriginIndex = -1;
   private int mDragInsertionIndex = -1;
-  /* Keys for the picked-up row and the current drop-target neighbour, emitted
-   * in the drag events so JS reorders by identity. */
+  /*
+   * Keys for the picked-up row and the current drop-target neighbour, emitted
+   * in the drag events so JS reorders by identity.
+   */
   private String mDragOriginKey = "";
   private String mDragInsertionKey = "";
-  /* Size of the picked-up row along the scroll axis (the gap each sibling opens). */
+  // Size of the picked-up row along the scroll axis (the gap each sibling opens).
   private float mDraggedExtent = 0f;
-  /* Content-space distance from the picked-up cell's leading edge to the touch point. */
+  // Content-space distance from the picked-up cell's leading edge to the touch point.
   private float mDragGrabOffset = 0f;
-  /* Latest touch position along the scroll axis in viewport space. */
-  private float mDragTouchViewport = 0f;
-  /* After a drop, hold the shuffle transforms until the reorder commit lands. */
+  // Latest touch position along the scroll axis in viewport space.
+  private float mDragTouchInViewport = 0f;
+  // After a drop, hold the shuffle transforms until the reorder commit lands.
   private boolean mDragDropPending = false;
   private ShadowListElementView mDroppedView = null;
   private int mDropInsertionIndex = -1;
-  /* Content-space leading of the dragged row at the last drag frame; captured on drop
-   * (mDropReleaseLeading) to animate from the release point into the resting slot. */
+  /*
+   * Content-space leading of the dragged row at the last drag frame; captured on drop
+   * (mDropReleaseLeading) to animate from the release point into the resting slot.
+   */
   private float mDragLeading = 0f;
   private float mDropReleaseLeading = 0f;
   private static final long DROP_SETTLE_MS = 180;
@@ -82,7 +90,7 @@ class ShadowListDragController {
     return mDragging;
   }
 
-  /* The row currently picked up by an in-flight drag, or null when none is dragging. */
+  // The row currently picked up by an in-flight drag, or null when none is dragging.
   @Nullable ShadowListElementView getDraggedView() {
     return mDraggedView;
   }
@@ -106,7 +114,7 @@ class ShadowListDragController {
     return mDragging;
   }
 
-  /* Returns true when the drag consumed the event. */
+  // Returns true when the drag consumed the event.
   boolean onTouchEvent(MotionEvent event) {
     if (mDragEnabled) {
       mDragGestureDetector.onTouchEvent(event);
@@ -114,7 +122,7 @@ class ShadowListDragController {
     if (mDragging) {
       switch (event.getActionMasked()) {
         case MotionEvent.ACTION_MOVE:
-          mDragTouchViewport = mView.isHorizontal() ? event.getX() : event.getY();
+          mDragTouchInViewport = mView.isHorizontal() ? event.getX() : event.getY();
           updateDrag();
           return true;
         case MotionEvent.ACTION_UP:
@@ -136,8 +144,10 @@ class ShadowListDragController {
     if (mDragging) {
       updateDrag();
     }
-    // The post-drop landing is detected by startDropSettle, not here: a same-size
-    // reorder may produce no state commit.
+    /*
+     * The post-drop landing is detected by startDropSettle, not here: a same-size
+     * reorder may produce no state commit.
+     */
   }
 
   /*
@@ -222,8 +232,8 @@ class ShadowListDragController {
     teardownDrag();
   }
 
-  /* Topmost element child whose resting bounds contain the content-space point. */
-  private ShadowListElementView elementViewAtContent(float cx, float cy) {
+  // Topmost element child whose resting bounds contain the content-space point.
+  private ShadowListElementView elementViewAtContentPoint(float contentX, float contentY) {
     ViewGroup contentView = mView.getContentView();
     ShadowListElementView result = null;
     for (int i = 0; i < contentView.getChildCount(); i++) {
@@ -231,8 +241,8 @@ class ShadowListDragController {
       if (!(child instanceof ShadowListElementView)) {
         continue;
       }
-      if (cx >= child.getLeft() && cx < child.getRight()
-          && cy >= child.getTop() && cy < child.getBottom()) {
+      if (contentX >= child.getLeft() && contentX < child.getRight()
+          && contentY >= child.getTop() && contentY < child.getBottom()) {
         result = (ShadowListElementView) child;
       }
     }
@@ -244,10 +254,10 @@ class ShadowListDragController {
     boolean horizontal = mView.isHorizontal();
     float scrollX = scrollView.getScrollX();
     float scrollY = scrollView.getScrollY();
-    float cx = event.getX() + scrollX;
-    float cy = event.getY() + scrollY;
+    float contentX = event.getX() + scrollX;
+    float contentY = event.getY() + scrollY;
 
-    ShadowListElementView view = elementViewAtContent(cx, cy);
+    ShadowListElementView view = elementViewAtContentPoint(contentX, contentY);
     if (view == null) {
       return;
     }
@@ -256,8 +266,10 @@ class ShadowListDragController {
       return;
     }
 
-    // Cancel any in-flight drop animation from a previous drag and start from a clean
-    // resting transform.
+    /*
+     * Cancel any in-flight drop animation from a previous drag and start from a clean
+     * resting transform.
+     */
     view.animate().cancel();
     view.setTranslationX(0f);
     view.setTranslationY(0f);
@@ -277,14 +289,16 @@ class ShadowListDragController {
 
     float restingLeading = horizontal ? view.getLeft() : view.getTop();
     mDraggedExtent = horizontal ? view.getWidth() : view.getHeight();
-    float touchAxisContent = horizontal ? cx : cy;
+    float touchAxisContent = horizontal ? contentX : contentY;
     mDragGrabOffset = touchAxisContent - restingLeading;
-    mDragTouchViewport = horizontal ? event.getX() : event.getY();
+    mDragTouchInViewport = horizontal ? event.getX() : event.getY();
 
     mView.setInnerScrollEnabled(false);
 
-    // Lift via Z, NOT bringToFront(): reordering the child array desyncs index-based
-    // child mounting and corrupts the view tree.
+    /*
+     * Lift via Z, NOT bringToFront(): reordering the child array desyncs index-based
+     * child mounting and corrupts the view tree.
+     */
     view.setTranslationZ(PixelUtil.toPixelFromDIP(8));
 
     dispatchDragEvent(1, mDragOriginKey, mDragOriginKey);
@@ -323,7 +337,7 @@ class ShadowListDragController {
     float content = horizontal ? contentView.getWidth() : contentView.getHeight();
     float maxOffset = Math.max(0f, content - window);
     float offset = horizontal ? scrollView.getScrollX() : scrollView.getScrollY();
-    float touch = mDragTouchViewport;
+    float touch = mDragTouchInViewport;
 
     float edge = PixelUtil.toPixelFromDIP(60);
     float maxSpeed = PixelUtil.toPixelFromDIP(12);
@@ -342,11 +356,13 @@ class ShadowListDragController {
       return;
     }
 
-    int nx = horizontal ? (int) newOffset : scrollView.getScrollX();
-    int ny = horizontal ? scrollView.getScrollY() : (int) newOffset;
-    // Report this as a user scroll (do NOT mark it programmatic) so the core virtualizes
-    // at this exact offset; otherwise rows blank mid-drag.
-    scrollView.scrollTo(nx, ny);
+    int nextX = horizontal ? (int) newOffset : scrollView.getScrollX();
+    int nextY = horizontal ? scrollView.getScrollY() : (int) newOffset;
+    /*
+     * Report this as a user scroll (do NOT mark it programmatic) so the core virtualizes
+     * at this exact offset; otherwise rows blank mid-drag.
+     */
+    scrollView.scrollTo(nextX, nextY);
   }
 
   /*
@@ -362,7 +378,7 @@ class ShadowListDragController {
     ViewGroup contentView = mView.getContentView();
     boolean horizontal = mView.isHorizontal();
     float offset = horizontal ? scrollView.getScrollX() : scrollView.getScrollY();
-    float touchContent = mDragTouchViewport + offset;
+    float touchContent = mDragTouchInViewport + offset;
     float restingLeading = horizontal ? mDraggedView.getLeft() : mDraggedView.getTop();
     float extent = horizontal ? mDraggedView.getWidth() : mDraggedView.getHeight();
     float contentExtent = horizontal ? contentView.getWidth() : contentView.getHeight();
@@ -410,8 +426,10 @@ class ShadowListDragController {
     boolean horizontal = mView.isHorizontal();
     int originIndex = currentDragOriginIndex();
     int insertion = originIndex;
-    // Track the key of the row at the chosen insertion slot so the drop event carries a
-    // stable identity, not just an index. Defaults to the origin (no crossing => no move).
+    /*
+     * Track the key of the row at the chosen insertion slot so the drop event carries a
+     * stable identity, not just an index. Defaults to the origin (no crossing => no move).
+     */
     String insertionKey = mDragOriginKey;
     for (int i = 0; i < contentView.getChildCount(); i++) {
       View child = contentView.getChildAt(i);
@@ -472,7 +490,7 @@ class ShadowListDragController {
     }
   }
 
-  /* Reset every element view's drag transform and lift. */
+  // Reset every element view's drag transform and lift.
   private void clearDragTransforms() {
     ViewGroup contentView = mView.getContentView();
     for (int i = 0; i < contentView.getChildCount(); i++) {
@@ -504,7 +522,12 @@ class ShadowListDragController {
     map.putString("dragToKey", toKey != null ? toKey : "");
     // Keep core scroll corrections off during the drag; cleared on the end event.
     map.putBoolean("userScrolled", type != 3);
-    ShadowListView.slLog("java.drag dispatch type=" + type + " from=" + fromKey + " to=" + toKey);
+    // Built on the mounted state like every host update, so it carries the live offset and the last scroll command.
+    mView.carryLiveOffset(map);
+    mView.carryScrollCommand(map);
+    if (ShadowListView.DEBUG_LOG) {
+      ShadowListView.slLog("java.drag dispatch type=" + type + " from=" + fromKey + " to=" + toKey);
+    }
     state.updateState(map);
   }
 
@@ -522,8 +545,10 @@ class ShadowListDragController {
     mDragging = false;
     mDraggedView = null;
 
-    // Emit the single reorder by key; hold the shuffle transforms until the reorder
-    // commit lands so nothing snaps back. (from/to indices still drive the visual settle.)
+    /*
+     * Emit the single reorder by key; hold the shuffle transforms until the reorder
+     * commit lands so nothing snaps back. (from/to indices still drive the visual settle.)
+     */
     dispatchDragEvent(3, mDragOriginKey, mDragInsertionKey);
 
     if (from == to || view == null) {
@@ -539,8 +564,10 @@ class ShadowListDragController {
       // Poll for the landing rather than waiting for a state commit.
       startDropSettle();
 
-      // Safety net: if the reorder never lands, clear the held transforms so the gap
-      // cannot get stuck.
+      /*
+       * Safety net: if the reorder never lands, clear the held transforms so the gap
+       * cannot get stuck.
+       */
       mView.postDelayed(() -> {
         if (mDragDropPending && !mDragging) {
           stopDropSettle();
@@ -552,7 +579,7 @@ class ShadowListDragController {
     }
   }
 
-  /* Immediate teardown with no reorder (drag disabled). */
+  // Immediate teardown with no reorder (drag disabled).
   private void teardownDrag() {
     stopDragLoop();
     stopDropSettle();

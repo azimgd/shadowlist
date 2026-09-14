@@ -19,8 +19,10 @@ export const ActivityScreen = () => {
     []
   );
 
-  // useListController owns the data + refreshing / loadingMore flags; the custom
-  // scroll and viewability handlers below stay local and are passed straight to the list.
+  /*
+   * useListController owns the data + refreshing / loadingMore flags; the custom
+   * scroll and viewability handlers below stay local and are passed straight to the list.
+   */
   const list = useListController<ActivityData>({
     initialData,
     // Pull-to-refresh: prepend a fresh batch.
@@ -118,9 +120,11 @@ export const ActivityScreen = () => {
     [startThreshold, endThreshold, handleRemoveItems]
   );
 
-  // Persistent full-width status footer: always shows the viewable range + total,
-  // with the pagination spinner appended (not swapped in) so the info never
-  // disappears while loading more.
+  /*
+   * Persistent full-width status footer: always shows the viewable range + total,
+   * with the pagination spinner appended (not swapped in) so the info never
+   * disappears while loading more.
+   */
   const footer = useMemo(
     () => (
       <View style={styles.statusFooter}>

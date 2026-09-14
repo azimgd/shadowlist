@@ -20,5 +20,8 @@ build/
 coverage/
 *.log
 
+# Benchmark output (regenerate with packages/shadowlist-core-bench/run.sh or device-metrics.sh)
+packages/shadowlist-core-bench/results/
+
 # OS
 .DS_Store

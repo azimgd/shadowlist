@@ -1,5 +1,7 @@
 package com.shadowlist;
 
+import android.view.View;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -39,6 +41,26 @@ public class ShadowListTemplateViewManager extends ViewGroupManager<ShadowListTe
   @Override
   protected ShadowListTemplateView createViewInstance(@NonNull ThemedReactContext context) {
     return new ShadowListTemplateView(context);
+  }
+
+  /*
+   * Recycled template views are pooled per surface and handed to ANY ShadowList in that
+   * surface, so with a single-surface navigator that means a list on a different screen. The
+   * base implementation clears translationX/Y, elevation and alpha, but not translationZ or
+   * visibility -- and ShadowListStickyController sets both, hiding the section-header
+   * overlay outright (View.GONE) whenever no section is active and lifting pinned views in Z.
+   *
+   * A GONE overlay recycled as another list's header stays invisible while the shadow node
+   * keeps reserving its measured size, which reads as a freshly opened list laid out around
+   * a header that is not there.
+   */
+  @Nullable
+  @Override
+  protected ShadowListTemplateView prepareToRecycleView(
+      @NonNull ThemedReactContext reactContext, @NonNull ShadowListTemplateView view) {
+    view.setTranslationZ(0f);
+    view.setVisibility(View.VISIBLE);
+    return super.prepareToRecycleView(reactContext, view);
   }
 
   @Override

@@ -17,12 +17,12 @@ const timers = globalThis as unknown as {
  */
 
 export interface UseListControllerOptions<
-  ItemT,
+  ElementT,
   ScrollEventT = unknown,
   ViewableInfoT = unknown,
 > {
   /* Seed rows; the controller owns the array from here on. */
-  initialData?: readonly ItemT[];
+  initialData?: readonly ElementT[];
   /* Pull-to-refresh work. `refreshing` is true while it runs. */
   onRefresh?: () => void | Promise<void>;
   /* Load-more work for the end edge. `loadingMore` is true while it runs. */
@@ -37,8 +37,8 @@ export interface UseListControllerOptions<
   scrollIdleMs?: number;
 }
 
-interface ListState<ItemT> {
-  data: ItemT[];
+interface ListState<ElementT> {
+  data: ElementT[];
   refreshing: boolean;
   loadingMore: boolean;
   loadingOlder: boolean;
@@ -46,7 +46,7 @@ interface ListState<ItemT> {
 }
 
 /* The reducer actions, named as the start/end markers the state moves between. */
-type ListAction<ItemT> =
+type ListAction<ElementT> =
   | { type: 'refreshStarted' }
   | { type: 'refreshEnded' }
   | { type: 'endReachStarted' }
@@ -55,17 +55,23 @@ type ListAction<ItemT> =
   | { type: 'startReachEnded' }
   | { type: 'scrollStarted' }
   | { type: 'scrollEnded' }
-  | { type: 'itemsSet'; update: ItemT[] | ((prev: ItemT[]) => ItemT[]) }
-  | { type: 'itemsPrepended'; items: readonly ItemT[] }
-  | { type: 'itemsAppended'; items: readonly ItemT[] }
-  | { type: 'itemsRemoved'; match: (item: ItemT, index: number) => boolean };
+  | {
+      type: 'itemsSet';
+      update: ElementT[] | ((prev: ElementT[]) => ElementT[]);
+    }
+  | { type: 'itemsPrepended'; items: readonly ElementT[] }
+  | { type: 'itemsAppended'; items: readonly ElementT[] }
+  | {
+      type: 'itemsRemoved';
+      match: (element: ElementT, index: number) => boolean;
+    };
 
 /* Flag actions return the same state object when nothing changes, so an already-true
  * `scrollStarted` on every scroll event doesn't trigger a re-render. */
-function listReducer<ItemT>(
-  state: ListState<ItemT>,
-  action: ListAction<ItemT>
-): ListState<ItemT> {
+function listReducer<ElementT>(
+  state: ListState<ElementT>,
+  action: ListAction<ElementT>
+): ListState<ElementT> {
   switch (action.type) {
     case 'refreshStarted':
       return state.refreshing ? state : { ...state, refreshing: true };
@@ -98,7 +104,9 @@ function listReducer<ItemT>(
     case 'itemsRemoved':
       return {
         ...state,
-        data: state.data.filter((item, index) => !action.match(item, index)),
+        data: state.data.filter(
+          (element, index) => !action.match(element, index)
+        ),
       };
     default:
       return state;
@@ -118,11 +126,11 @@ export interface ListMarkers {
 }
 
 export interface ListController<
-  ItemT,
+  ElementT,
   ScrollEventT = unknown,
   ViewableInfoT = unknown,
 > {
-  data: ItemT[];
+  data: ElementT[];
   refreshing: boolean;
   loadingMore: boolean;
   loadingOlder: boolean;
@@ -134,27 +142,27 @@ export interface ListController<
   handleScroll: (event: ScrollEventT) => void;
   handleViewableItemsChanged: (info: ViewableInfoT) => void;
 
-  setData: (update: ItemT[] | ((prev: ItemT[]) => ItemT[])) => void;
-  prepend: (items: readonly ItemT[]) => void;
-  append: (items: readonly ItemT[]) => void;
+  setData: (update: ElementT[] | ((prev: ElementT[]) => ElementT[])) => void;
+  prepend: (items: readonly ElementT[]) => void;
+  append: (items: readonly ElementT[]) => void;
   removeItems: (
-    ids: readonly string[] | ((item: ItemT, index: number) => boolean)
+    ids: readonly string[] | ((element: ElementT, index: number) => boolean)
   ) => void;
 
   markers: ListMarkers;
 }
 
 export function useListController<
-  ItemT extends { id: string },
+  ElementT extends { id: string },
   ScrollEventT = unknown,
   ViewableInfoT = unknown,
 >(
-  options: UseListControllerOptions<ItemT, ScrollEventT, ViewableInfoT> = {}
-): ListController<ItemT, ScrollEventT, ViewableInfoT> {
+  options: UseListControllerOptions<ElementT, ScrollEventT, ViewableInfoT> = {}
+): ListController<ElementT, ScrollEventT, ViewableInfoT> {
   const [state, dispatch] = useReducer(
-    listReducer<ItemT>,
+    listReducer<ElementT>,
     options.initialData,
-    (seed): ListState<ItemT> => ({
+    (seed): ListState<ElementT> => ({
       data: seed ? [...seed] : [],
       refreshing: false,
       loadingMore: false,
@@ -167,8 +175,10 @@ export function useListController<
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  // Synchronous busy guards. dispatch only flips a flag on the next render, so a
-  // second call in the same tick would slip past a state-based check.
+  /*
+   * Synchronous busy guards. dispatch only flips a flag on the next render, so a
+   * second call in the same tick would slip past a state-based check.
+   */
   const busyRef = useRef({ refresh: false, end: false, start: false });
 
   const scrollIdleTimer = useRef<number | null>(null);
@@ -177,10 +187,12 @@ export function useListController<
     if (busyRef.current.refresh) return;
     busyRef.current.refresh = true;
     dispatch({ type: 'refreshStarted' });
-    // The callback is invoked inside the `.then`, not eagerly as the argument to
-    // `Promise.resolve(...)`, so a *synchronous* throw from the consumer's callback still
-    // produces a rejection this chain can observe -- otherwise `.finally()` would never
-    // run and the busy flag / loading UI flag would stay stuck true forever.
+    /*
+     * The callback is invoked inside the `.then`, not eagerly as the argument to
+     * `Promise.resolve(...)`, so a *synchronous* throw from the consumer's callback still
+     * produces a rejection this chain can observe -- otherwise `.finally()` would never
+     * run and the busy flag / loading UI flag would stay stuck true forever.
+     */
     Promise.resolve()
       .then(() => optionsRef.current.onRefresh?.())
       .finally(() => {
@@ -227,29 +239,31 @@ export function useListController<
   }, []);
 
   const setData = useCallback(
-    (update: ItemT[] | ((prev: ItemT[]) => ItemT[])) =>
+    (update: ElementT[] | ((prev: ElementT[]) => ElementT[])) =>
       dispatch({ type: 'itemsSet', update }),
     []
   );
 
   const prepend = useCallback(
-    (items: readonly ItemT[]) => dispatch({ type: 'itemsPrepended', items }),
+    (items: readonly ElementT[]) => dispatch({ type: 'itemsPrepended', items }),
     []
   );
 
   const append = useCallback(
-    (items: readonly ItemT[]) => dispatch({ type: 'itemsAppended', items }),
+    (items: readonly ElementT[]) => dispatch({ type: 'itemsAppended', items }),
     []
   );
 
   const removeItems = useCallback(
-    (ids: readonly string[] | ((item: ItemT, index: number) => boolean)) => {
+    (
+      ids: readonly string[] | ((element: ElementT, index: number) => boolean)
+    ) => {
       const match =
         typeof ids === 'function'
           ? ids
-          : ((): ((item: ItemT) => boolean) => {
+          : ((): ((element: ElementT) => boolean) => {
               const set = new Set(ids);
-              return (item: ItemT) => set.has(item.id);
+              return (element: ElementT) => set.has(element.id);
             })();
       dispatch({ type: 'itemsRemoved', match });
     },

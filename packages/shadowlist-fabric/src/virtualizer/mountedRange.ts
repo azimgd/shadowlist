@@ -9,12 +9,12 @@ export interface MountedRange {
   high: number;
 }
 
-export const initialMountedRange = (
+export function initialMountedRange(
   size: number,
   initial: number,
   inverted: boolean,
   offsetIndex: number
-): MountedRange => {
+): MountedRange {
   if (size <= 0) return { low: -1, high: -1 };
   /*
    * With an explicit initial target, seed the range around it (avoids a blank flash
@@ -31,11 +31,11 @@ export const initialMountedRange = (
     return { low: Math.max(0, size - initial), high: size - 1 };
   }
   return { low: 0, high: Math.min(initial, size - 1) };
-};
+}
 
-export const rangeToIndices = (range: MountedRange): number[] => {
+export function rangeToIndices(range: MountedRange): number[] {
   if (range.low < 0 || range.high < 0 || range.low > range.high) return [];
   const indices: number[] = [];
   for (let index = range.low; index <= range.high; index++) indices.push(index);
   return indices;
-};
+}

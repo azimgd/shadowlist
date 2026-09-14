@@ -86,6 +86,20 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
+  @ReactProp(name = "elementsAnchorIgnoreKeys")
+  public void setElementsAnchorIgnoreKeys(
+      ShadowListView view, @Nullable ReadableArray elementsAnchorIgnoreKeys) {
+    // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
+  @ReactProp(name = "elementsSizeSpecs")
+  public void setElementsSizeSpecs(
+      ShadowListView view, @Nullable String elementsSizeSpecs) {
+    // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
   @ReactProp(name = "inverted")
   public void setInverted(ShadowListView view, boolean inverted) {
     // Consumed by the C++ core via props; no Android view state needed.
@@ -212,6 +226,27 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @ReactProp(name = "overscan")
   public void setOverscan(ShadowListView view, double overscan) {
     // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
+  @ReactProp(name = "nativeViewOverscan")
+  public void setNativeViewOverscan(ShadowListView view, double nativeViewOverscan) {
+    // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
+  @ReactProp(name = "scrollEventEnabled")
+  public void setScrollEventEnabled(ShadowListView view, boolean scrollEventEnabled) {
+    /*
+     * Read by the component descriptor to decide whether to install the core's scroll
+     * observer at all; no Android view state needed.
+     */
+  }
+
+  @Override
+  @ReactProp(name = "viewableEventEnabled")
+  public void setViewableEventEnabled(ShadowListView view, boolean viewableEventEnabled) {
+    // As above, for the viewable-range observer.
   }
 
   @Override

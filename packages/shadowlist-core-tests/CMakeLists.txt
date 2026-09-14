@@ -15,7 +15,10 @@ add_executable(shadowlist_core_tests ${CORE_SRCS} ${TEST_SRCS})
 
 target_include_directories(shadowlist_core_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/..   # so <shadowlist-core/...> resolves
-  ${CMAKE_CURRENT_SOURCE_DIR})     # so "TestFramework.hpp" resolves
+  ${CMAKE_CURRENT_SOURCE_DIR})     # so "TestFramework.hpp" and "TestHelpers.hpp" resolve
+
+# Keep core [SL] traces out of test output regardless of build type.
+target_compile_definitions(shadowlist_core_tests PRIVATE SHADOWLIST_DEBUG_LOG=0)
 
 find_package(Threads REQUIRED)
 target_link_libraries(shadowlist_core_tests PRIVATE Threads::Threads)

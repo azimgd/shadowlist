@@ -3,9 +3,9 @@ import { ShadowListView, Commands } from 'shadowlist';
 import { slLog } from './helpers';
 import type { ShadowListCommands } from '../types';
 
-type ShadowListViewRef = {
+interface ShadowListViewRef {
   current: ComponentRef<typeof ShadowListView> | null;
-};
+}
 
 export function useImperativeCommands(
   ref: Ref<ShadowListCommands>,

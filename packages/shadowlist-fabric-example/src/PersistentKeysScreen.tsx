@@ -9,8 +9,10 @@ interface Row {
   pinned: boolean;
 }
 
-// Two rows are pinned by key: the first row and one deep in the list. Everything else
-// virtualizes normally.
+/*
+ * Two rows are pinned by key: the first row and one deep in the list. Everything else
+ * virtualizes normally.
+ */
 const PINNED_INDICES = [0, 40];
 
 const DATA: Row[] = Array.from({ length: 200 }, (_, index) => ({
@@ -19,8 +21,10 @@ const DATA: Row[] = Array.from({ length: 200 }, (_, index) => ({
   pinned: PINNED_INDICES.includes(index),
 }));
 
-// persistentKeys takes keys (keyExtractor output), not indices, so a pinned row keeps
-// its identity even if the data is reordered or items are inserted above it.
+/*
+ * persistentKeys takes keys (keyExtractor output), not indices, so a pinned row keeps
+ * its identity even if the data is reordered or items are inserted above it.
+ */
 const PERSISTENT_KEYS = DATA.filter((row) => row.pinned).map((row) => row.id);
 
 /*

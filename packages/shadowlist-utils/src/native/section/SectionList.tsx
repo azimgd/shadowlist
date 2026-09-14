@@ -11,11 +11,15 @@ import { SectionHeader } from '../primitives/SectionHeader';
 import { ItemSeparator } from '../primitives/ItemSeparator';
 
 // A section carrying a display `title` (used by the default sticky header).
-export type ContactSectionMeta = { title: string };
+export interface ContactSectionMeta {
+  title: string;
+}
 
-// Doesn't close over any per-render props/state, so it's hoisted to module scope
-// instead of being recreated (and defeating ElementRenderer's memoization) on every
-// render of the wrapper below.
+/*
+ * Doesn't close over any per-render props/state, so it's hoisted to module scope
+ * instead of being recreated (and defeating ElementRenderer's memoization) on every
+ * render of the wrapper below.
+ */
 function defaultRenderSectionHeader({
   section,
 }: {
@@ -48,8 +52,10 @@ export type SectionListProps_ = Omit<
  */
 export const SectionList = forwardRef<ShadowListCommands, SectionListProps_>(
   ({ renderElement, renderSectionHeader, onDelete, ...props }, ref) => {
-    // Stable unless `onDelete` changes, so ElementRenderer's per-row memoization (keyed
-    // on renderElement identity) isn't defeated by every re-render of this wrapper.
+    /*
+     * Stable unless `onDelete` changes, so ElementRenderer's per-row memoization (keyed
+     * on renderElement identity) isn't defeated by every re-render of this wrapper.
+     */
     const defaultRenderElement = useCallback<
       NonNullable<
         SectionListProps<ContactItem, ContactSectionMeta>['renderElement']

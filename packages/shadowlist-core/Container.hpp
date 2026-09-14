@@ -5,9 +5,11 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include <shadowlist-core/Constants.hpp>
+#include <shadowlist-core/Element.hpp>
 #include <shadowlist-core/Operation.hpp>
 #include <shadowlist-core/Revision.hpp>
 
@@ -21,11 +23,6 @@ struct StickyHeader {
   std::size_t index = UNDEFINED_INDEX;
   double translation = 0.0;
 };
-
-static constexpr std::size_t RevisionCountFirst = 0;
-
-static constexpr std::size_t RevisionStatusIdle = 0;
-static constexpr std::size_t RevisionStatusPending = 1;
 
 /*
  * Resolved values to publish to the scroll view for one frame.
@@ -81,8 +78,8 @@ public:
 
   // Current measurement revision and its index/status.
   Revision revision = {};
-  std::size_t revisionCount = RevisionCountFirst;
-  std::size_t revisionStatus = RevisionStatusIdle;
+  std::size_t revisionCount = REVISION_COUNT_FIRST;
+  std::size_t revisionStatus = REVISION_STATUS_IDLE;
 
   // List order: normal (top to bottom) or inverted (bottom to top).
   bool inverted = false;
@@ -99,6 +96,27 @@ public:
    * and one below; 0 measures only the visible window.
    */
   double overscan = 1.0;
+
+  /*
+   * Overscan for materialization, in viewport units, measured the same way as `overscan`.
+   *
+   * `overscan` is a retention band: how far out rows stay reconciled into the shadow tree,
+   * which is what keeps a fast scroll off the JS round trip (native scroll -> event ->
+   * setState -> render -> commit) that produces blank rows. Widening it prevents blanks,
+   * but on its own it also widens what is natively mounted, so it costs live views on the
+   * UI thread, which is the resource that is never reclaimed.
+   *
+   * This band separates the two. Rows inside `overscan` but outside this narrower band stay
+   * reconciled and keep their measured geometry, while their contents are pruned from the
+   * shadow tree before layout (see the Fabric commit hook). Only rows that have been
+   * measured natively are pruned; a row with a prediction or an estimate stays materialized
+   * until it has laid out once. Revealing a pruned row is then a native-driven commit with
+   * no JS involvement.
+   *
+   * Negative disables pruning entirely, which is the default: retention and materialization
+   * coincide, so an integration that does not opt in is unaffected.
+   */
+  double materializationOverscan = -1.0;
 
   /*
    * Snap the resting scroll position to an element edge. snapAlignment selects the
@@ -168,7 +186,9 @@ public:
    * every frame as off-screen rows are measured, so it lands on the true end of a
    * variable-height list. Cleared once the view reaches the bottom and the total
    * stops changing. pendingScrollToEndLastTotal holds the previous frame's total,
-   * tracked every frame so "stopped changing" is detectable on the first frame.
+   * tracked every frame so "stopped changing" is detectable on the first frame. Also raised
+   * by Virtualizer::update when rows are appended below the newest row of an inverted list
+   * resting at its bottom, so the list follows them.
    */
   bool pendingScrollToEnd = false;
   double pendingScrollToEndLastTotal = -1.0;
@@ -178,6 +198,66 @@ public:
    * the bottom; once reached, the maintain-visible-content-position anchor takes over.
    */
   bool invertedInitialized = false;
+
+  /*
+   * Set when the user scrolls an inverted list up off the bottom. While set, the bottom pin
+   * (resolveScroll's inverted bottom anchor) stands down and plain anchoring holds the view
+   * still. Without it a last row taller than the viewport, or one left as the only
+   * anchorable row, is re-pinned to the bottom on every frame of the drag: the finger fights
+   * the pin and the view snaps back. Cleared once the offset moves back to the bottom
+   * (within INVERTED_FOLLOW_BAND). It has to be a move, because content shrinking underneath
+   * a resting reader brings the bottom to them, and that must not re-arm the pin on their
+   * behalf. Maintained in Virtualizer::update, before the frame reconciles or measures anything.
+   */
+  bool invertedBottomReleased = false;
+
+  /*
+   * True for the frame being resolved when a gesture is driving the offset: a finger is
+   * down, momentum is running, or this frame's report moved under a user scroll. Set by
+   * Virtualizer::update from the host's phase and userScrolled flag. While set, the
+   * inverted bottom pin stands down even inside INVERTED_FOLLOW_BAND: re-pinning under a
+   * finger snaps the content back every frame and the drag fights the pin until it has
+   * travelled the whole band. Once the finger lifts inside the band the pin re-engages
+   * and returns the view to the bottom.
+   */
+  bool gestureActive = false;
+
+  /*
+   * Id of the last operation that was in flight on a gesture frame, or 0. While a gesture
+   * drives, a host places a correction onto its live offset, which has moved on from the report
+   * the correction was computed against; a report carrying that travel can be superseded by the
+   * echo before the core adopts it. The echo of such an operation confirms it even once the
+   * motion has stopped, instead of the core driving the view on to an absolute target that
+   * leaves that travel out. Maintained by Virtualizer::update.
+   */
+  std::uint64_t gestureOperationId = 0;
+
+  /*
+   * Set while an inverted list is still settling on the bottom it opened at: from the first
+   * bottom pin until the first gesture, scroll command or change of keys. While it is set and
+   * the view rests at the bottom, a remeasure keeps the view on the true bottom rather than on
+   * the row at the viewport top. Rows mounted after the pin converges are commonly measured or
+   * predicted smaller above that row and larger below it; holding the row would park the view
+   * short of the bottom, where appended rows are no longer followed. Once the reader has
+   * touched the list, plain anchoring applies again, which a screen that stops following on
+   * purpose relies on.
+   */
+  bool invertedOpeningPin = false;
+
+  /*
+   * Whether the inverted list rested at its bottom when the frame being resolved began, judged
+   * against the geometry the reader was looking at. Set by Virtualizer::update.
+   */
+  bool restingAtInvertedBottom = false;
+
+  /*
+   * How much the row the measurement compensation anchors to grew (negative: shrank) on its
+   * first native measurement since the last commitElementSizes. That row usually straddles
+   * the viewport start, and its estimate was never what the reader saw below it, so
+   * commitElementSizes absorbs this change above the viewport instead of moving the rows
+   * below. Recorded by applyElementSize, consumed and reset by commitElementSizes.
+   */
+  double anchorFirstMeasurementDelta = 0.0;
 
   /*
    * The single in-flight correction (anchor plus operation).
@@ -222,6 +302,39 @@ public:
   std::uint64_t nextOperationId = 1;
 
   /*
+   * Ahead-of-time sizes by key: what a row will measure to, supplied by the host before
+   * the row has ever been rendered (on Fabric, by measuring its text through the same
+   * TextLayoutManager the real layout pass will use, so the later native measure is a
+   * cache hit rather than a second measurement).
+   *
+   * This is a staging area, not the source of truth. A prediction is consumed once its key
+   * exists as an element: Virtualizer::consumePredictions stamps them on the next update(),
+   * and Virtualizer::applyPredictedElementSize stamps a row that already exists. After that
+   * the size lives on the Element and the entry here is erased. So the map holds only
+   * predictions that arrived before their row did, which is the normal case when the host
+   * measures a screen or two ahead of the retention band.
+   *
+   * Predictions never feed the frozen average (Revision::measuredReal*): that average
+   * exists to size rows nobody has any information about, and must keep describing real
+   * native measurements only.
+   *
+   * Bounded by the host. The core never grows this on its own, and a host that stages
+   * predictions for an entire 100k-row dataset has simply moved the cost it was trying to
+   * avoid: measure a window ahead of the band, not the world.
+   */
+  std::unordered_map<std::string, Size> predictedSizes;
+
+  /*
+   * Stage an ahead-of-time size for `key`. Safe to call for a key that is not in the list
+   * (and may never be): it simply waits to be consumed by a later update().
+   *
+   * This only stages. To apply a prediction to a row that already exists, and reflow the
+   * geometry behind it, use Virtualizer::applyPredictedElementSize, which consumes the
+   * staged entry as part of the same call.
+   */
+  void setPredictedSize(const std::string& key, Size size);
+
+  /*
    * Keys that must never be captured as the MVCP anchor: decoration rows (date pills,
    * unread dividers, reaction strips, padding) whose identity churns independently of
    * content. captureAnchor skips them and anchors to the nearest stable content row, so a
@@ -251,16 +364,83 @@ public:
   bool lastLayoutHorizontal = false;
 
   /*
+   * Fallback dimensions handed to unmeasured elements by the last layoutElements pass.
+   * While these (and the layout parameters) are unchanged every unmeasured element
+   * already carries exactly these dimensions, so the O(elements) sizing loop is a
+   * guaranteed no-op and is skipped. -1 forces the first pass to run.
+   */
+  double lastFallbackWidth = -1.0;
+  double lastFallbackHeight = -1.0;
+
+  /*
+   * Bumped whenever element offsets/sizes are recomputed or the element list changes.
+   * Lets an integration cache derived geometry (snap offsets, sticky header positions)
+   * that a pure scroll-offset change cannot invalidate, instead of rebuilding it on
+   * every published frame. Starts at 1 so 0 always means "nothing cached yet".
+   */
+  std::uint64_t geometryVersion = 1;
+
+  /*
    * Set by reconcileElements on any insert/remove/reorder: positions shift even when
    * no element's size changed. Defaults true so the first layout always recomputes.
    */
   bool elementsStructureDirty = true;
 
   /*
-   * Set by the measure passes when they resize an element outside layoutElements'
-   * own loop (which cannot see those changes via its estimated checks).
+   * Lowest element index whose size changed outside layoutElements' own loop (which
+   * cannot see those changes via its estimated checks), or UNDEFINED_INDEX when none.
+   *
+   * An index rather than a flag because offsets accumulate strictly forward: a size change
+   * at row 80,000 cannot move any row before it, so the reflow starts there instead of at
+   * row 0. A single prediction landing deep in the list is the normal case, since
+   * consumePredictions drains every frame.
+   *
+   * Merged with min() at every site that records a size change, so a batch of changes
+   * reflows once from the earliest of them.
    */
-  bool elementsSizeDirty = false;
+  std::size_t elementsSizeDirtyFromIndex = UNDEFINED_INDEX;
+
+  /*
+   * Highest index whose size changed, the companion to the lowest above.
+   *
+   * The pair brackets the span a reflow actually has to propagate through. Past the
+   * highest changed row the stored offsets were a valid prefix sum before this batch, so
+   * once the running offset reconverges with one of them, every row after it is already
+   * correct and the walk can stop (see recomputeElementOffsets).
+   *
+   * Both bounds are needed. The lowest alone is not enough to stop early: a batch can
+   * change rows i and j, and the offsets can coincidentally reconverge at some row between
+   * them, where stopping would strand everything past j.
+   */
+  std::size_t elementsSizeDirtyToIndex = 0;
+
+  /*
+   * Record a size change at `index` that the next layout pass must reflow through.
+   *
+   * For changes nothing else is going to propagate: the measure passes and predictions.
+   * A caller that reflows the change itself must use noteElementSizeSpan instead, or the
+   * layout pass will redo the same work a second time.
+   */
+  void markElementSizeDirty(std::size_t index) {
+    if (index < this->elementsSizeDirtyFromIndex) {
+      this->elementsSizeDirtyFromIndex = index;
+    }
+    this->noteElementSizeSpan(index);
+  }
+
+  /*
+   * Widen the changed span without scheduling a layout-pass reflow.
+   *
+   * For the batched intake path: applyElementSize records sizes and the caller then calls
+   * commitElementSizes once, which reflows them. That reflow still needs to know how far
+   * the batch reaches so it can stop early past it, but scheduling the layout pass to
+   * reflow the same rows again would cost a second full suffix walk per frame.
+   */
+  void noteElementSizeSpan(std::size_t index) {
+    if (index > this->elementsSizeDirtyToIndex) {
+      this->elementsSizeDirtyToIndex = index;
+    }
+  }
 
   /*
    * Max cross-axis element extent (offset + size on the non-scroll axis). Cross extents
@@ -271,9 +451,11 @@ public:
   double maxCrossAxisExtent = 0.0;
 
   /*
-   * Scroll offset reported on the previous frame. A user scroll only counts as a
-   * takeover when this actually changes, so a stale userScrolled flag on an unmoved
-   * offset can't cancel an in-flight correction.
+   * Scroll offset of the last host report. A user scroll only counts as a takeover when
+   * this actually changes, so a stale userScrolled flag on an unmoved offset can't cancel
+   * an in-flight correction. A frame carrying the core's own offset write back
+   * (FrameInput::containerOffsetEnabled) leaves it alone: the host is not there yet, and
+   * the travel of the next report is measured from where the host really was.
    */
   double lastReportedOffset = 0.0;
 
@@ -283,7 +465,7 @@ public:
    * clones, so adopt() / layout() / measurement feedback can run on overlapping commit
    * threads against the same Container. This mutex is essential, not defensive.
    *
-   * It is RECURSIVE because:
+   * It is recursive because:
    *   1. Every public Virtualizer entry point locks it, and several call one another
    *      (e.g. update -> measure -> recomputeTotalSize).
    *   2. An integration may hold it across a whole sequence of those calls plus the
@@ -292,7 +474,7 @@ public:
    *
    * Contract: hold coreMutex for any access to a shared Container. The public Virtualizer
    * methods lock it themselves, so a standalone driver (tests) need not lock explicitly.
-   * The low-level getters/setters below do NOT lock; call them from inside a Virtualizer
+   * The low-level getters/setters below do not lock; call them from inside a Virtualizer
    * entry point or while holding coreMutex.
    */
   std::recursive_mutex coreMutex;
@@ -332,6 +514,38 @@ public:
    * (UNDEFINED_INDEX, UNDEFINED_INDEX) when nothing is viewable.
    */
   std::pair<std::size_t, std::size_t> getViewableIndices() const;
+
+  /*
+   * The index range whose contents must exist natively: the viewport widened by
+   * materializationOverscan viewports on each side. Orientation aware in the same
+   * convention as getVisibleIndices (inverted returns start > end).
+   *
+   * Returns (UNDEFINED_INDEX, UNDEFINED_INDEX) when pruning is disabled
+   * (materializationOverscan < 0), when nothing has been measured yet, or when no row
+   * intersects the band. Callers must read that as "materialize everything" rather than
+   * "materialize nothing": prefer shouldMaterialize(), which encodes that fail-open rule.
+   */
+  std::pair<std::size_t, std::size_t> getMaterializedIndices() const;
+
+  /*
+   * Whether the row at `index` carries geometry the core can trust without having laid it
+   * out natively: either a real native measurement, or a host-supplied prediction.
+   *
+   * Not enough on its own to dematerialize a row: the Fabric commit hook hides only rows
+   * that have been measured natively (Element::measured). The band is evaluated before
+   * layout, so a row that arrives with a prediction could be hidden before it ever lays out,
+   * and a hidden row lays out to zero and can never be measured.
+   */
+  bool hasTrustedSize(std::size_t index) const;
+
+  /*
+   * Whether the row at `index` falls inside the materialization band this frame. Fails
+   * open: any state in which the band cannot be trusted (pruning disabled, nothing
+   * measured, degenerate window, index out of range) returns true, so a bug here costs
+   * performance rather than blanking content. The commit hook additionally keeps every
+   * row that has not been measured natively, whatever this returns.
+   */
+  bool shouldMaterialize(std::size_t index) const;
 
   void setEndReachedEnabled(bool enabled);
   void setStartReachedEnabled(bool enabled);
@@ -384,8 +598,14 @@ public:
    * to the viewport edge selected by snapAlignment, each clamped to [0, maxOffset]
    * and deduplicated. Empty when snapToItem is unset. The integration snaps to the
    * nearest of these on scroll end.
+   *
+   * There is one target per element, so this is an O(elements) build with an
+   * O(elements) allocation. It is published from the layout pass, which runs far more
+   * often than the geometry actually changes, so the result is cached against
+   * geometryVersion and the handful of scalars it also depends on. The returned
+   * reference is owned by this Container and is invalidated by the next call.
    */
-  std::vector<double> getSnapOffsets() const;
+  const std::vector<double>& getSnapOffsets() const;
 
   /*
    * Resolve which sticky section header (from stickyIndices) is pinned at the
@@ -414,6 +634,18 @@ public:
   void dispatchObservers();
 
 private:
+  /*
+   * Memoized getSnapOffsets() result and the inputs it was built from. `snapCacheVersion`
+   * of 0 means nothing is cached yet.
+   */
+  mutable std::vector<double> snapOffsetsCache;
+  mutable std::uint64_t snapCacheVersion = 0;
+  mutable bool snapCacheSnapToItem = false;
+  mutable int snapCacheAlignment = -1;
+  mutable double snapCacheWindowSize = -1.0;
+  mutable double snapCacheTotalSize = -1.0;
+  mutable bool snapCacheHorizontal = false;
+
   /*
    * Previously dispatched visible range, used to deduplicate onVisibleIndicesChange
    */

@@ -1,5 +1,7 @@
 package com.shadowlist;
 
+import android.view.View;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -39,6 +41,23 @@ public class ShadowListElementViewManager extends ViewGroupManager<ShadowListEle
   @Override
   protected ShadowListElementView createViewInstance(@NonNull ThemedReactContext context) {
     return new ShadowListElementView(context);
+  }
+
+  /*
+   * Recycled row views are pooled per surface and handed to ANY ShadowList in that surface,
+   * so with a single-surface navigator that means a list on a different screen. The base
+   * implementation clears translationX/Y, elevation and alpha, but not translationZ or
+   * visibility -- both of which drag-to-reorder writes (ShadowListDragController lifts the
+   * picked-up row in Z and shifts its siblings). A row unmounted mid-drag would otherwise
+   * return to the pool displaced in Z and reappear floating above another list's content.
+   */
+  @Nullable
+  @Override
+  protected ShadowListElementView prepareToRecycleView(
+      @NonNull ThemedReactContext reactContext, @NonNull ShadowListElementView view) {
+    view.setTranslationZ(0f);
+    view.setVisibility(View.VISIBLE);
+    return super.prepareToRecycleView(reactContext, view);
   }
 
   @Override

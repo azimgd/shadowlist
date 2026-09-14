@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
+import type { ElementSizeSpec } from 'shadowlist';
 import {
   colors,
   typography,
@@ -28,6 +29,47 @@ export interface ChatBubbleProps {
   username?: string;
   avatarColor?: string;
   initials?: string;
+}
+
+/*
+ * What a text bubble measures to, derived from the styles below. Native computes the real
+ * height from it before the row renders, so the list has correct geometry on the first
+ * frame instead of estimating every bubble and reflowing the ones below it -- which on an
+ * inverted chat list also means the scroll position stops being nudged while you read.
+ *
+ * The insets are a transcription of the stylesheet and have to stay one: a spec that
+ * disagrees with its row predicts a confidently wrong height.
+ *
+ *   container     paddingHorizontal spacing.md, paddingVertical spacing.xxs
+ *   avatar        beside the column, not inside it, so it narrows nothing
+ *   bubbleColumn  maxWidth 75% of the container's content box
+ *   sender        typography.caption line + spacing.xxs margin, on messages from others
+ *   bubble        paddingHorizontal 14, paddingVertical spacing.sm
+ *   text          typography.body
+ */
+const BUBBLE_WIDTH_FRACTION = 0.75;
+const BUBBLE_PADDING_HORIZONTAL = 14;
+// 0.75 x (W - 2 x container padding) - 2 x bubble padding
+const BUBBLE_INSET_WIDTH =
+  BUBBLE_WIDTH_FRACTION * 2 * spacing.md + 2 * BUBBLE_PADDING_HORIZONTAL;
+const BUBBLE_INSET_HEIGHT = 2 * spacing.xxs + 2 * spacing.sm;
+const SENDER_HEIGHT = typography.caption.lineHeight + spacing.xxs;
+
+// Image rows get their height from the images, not from text, so they are measured natively.
+export function getChatMessageSizeSpec(
+  message: ChatMessage
+): ElementSizeSpec | null {
+  if (!message.text) return null;
+
+  return {
+    text: message.text,
+    fontSize: typography.body.fontSize,
+    lineHeight: typography.body.lineHeight,
+    letterSpacing: typography.body.letterSpacing,
+    widthFraction: BUBBLE_WIDTH_FRACTION,
+    insetWidth: BUBBLE_INSET_WIDTH,
+    insetHeight: BUBBLE_INSET_HEIGHT + (message.isFromMe ? 0 : SENDER_HEIGHT),
+  };
 }
 
 export const ChatBubble = memo(
@@ -183,7 +225,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxs,
   },
   bubble: {
-    paddingHorizontal: 14,
+    paddingHorizontal: BUBBLE_PADDING_HORIZONTAL,
     paddingVertical: spacing.sm,
     borderRadius: radius.lg + 2,
   },

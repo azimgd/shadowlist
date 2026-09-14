@@ -11,4 +11,4 @@ NS_ASSUME_NONNULL_BEGIN
 
 NS_ASSUME_NONNULL_END
 
-#endif /* ShadowListElementViewNativeComponent_h */
+#endif // ShadowListElementViewNativeComponent_h
