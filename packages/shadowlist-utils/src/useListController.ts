@@ -21,19 +21,17 @@ export interface UseListControllerOptions<
   ScrollEventT = unknown,
   ViewableInfoT = unknown,
 > {
-  /* Seed rows; the controller owns the array from here on. */
   initialData?: readonly ElementT[];
-  /* Pull-to-refresh work. `refreshing` is true while it runs. */
   onRefresh?: () => void | Promise<void>;
-  /* Load-more work for the end edge. `loadingMore` is true while it runs. */
   onEndReached?: () => void | Promise<void>;
-  /* Load-older work for the start edge. `loadingOlder` is true while it runs. */
   onStartReached?: () => void | Promise<void>;
-  /* Forwarded as-is; the controller only flips the `scrolling` flag around it. */
   onScroll?: (event: ScrollEventT) => void;
-  /* Forwarded as-is. */
   onViewableItemsChanged?: (info: ViewableInfoT) => void;
-  /* Idle delay (ms) before `scrolling` flips back to false. Default 150. */
+  /*
+   * Receives a throw or rejection from onRefresh / onEndReached / onStartReached. Without
+   * it the rejection is left unhandled; the loading flag resets either way.
+   */
+  onError?: (error: unknown) => void;
   scrollIdleMs?: number;
 }
 
@@ -61,6 +59,7 @@ type ListAction<ElementT> =
     }
   | { type: 'itemsPrepended'; items: readonly ElementT[] }
   | { type: 'itemsAppended'; items: readonly ElementT[] }
+  | { type: 'itemsUpserted'; items: readonly ElementT[] }
   | {
       type: 'itemsRemoved';
       match: (element: ElementT, index: number) => boolean;
@@ -68,7 +67,7 @@ type ListAction<ElementT> =
 
 /* Flag actions return the same state object when nothing changes, so an already-true
  * `scrollStarted` on every scroll event doesn't trigger a re-render. */
-function listReducer<ElementT>(
+function listReducer<ElementT extends { id: string }>(
   state: ListState<ElementT>,
   action: ListAction<ElementT>
 ): ListState<ElementT> {
@@ -89,18 +88,29 @@ function listReducer<ElementT>(
       return state.scrolling ? state : { ...state, scrolling: true };
     case 'scrollEnded':
       return state.scrolling ? { ...state, scrolling: false } : state;
-    case 'itemsSet':
-      return {
-        ...state,
-        data:
-          typeof action.update === 'function'
-            ? action.update(state.data)
-            : action.update,
-      };
+    case 'itemsSet': {
+      const data =
+        typeof action.update === 'function'
+          ? action.update(state.data)
+          : action.update;
+      // An updater that changed nothing returns `prev`; skip the re-render.
+      return data === state.data ? state : { ...state, data };
+    }
     case 'itemsPrepended':
       return { ...state, data: [...action.items, ...state.data] };
     case 'itemsAppended':
       return { ...state, data: [...state.data, ...action.items] };
+    case 'itemsUpserted': {
+      if (action.items.length === 0) return state;
+      const pending = new Map(action.items.map((item) => [item.id, item]));
+      const data = state.data.map((element) => {
+        const replacement = pending.get(element.id);
+        if (replacement === undefined) return element;
+        pending.delete(element.id);
+        return replacement;
+      });
+      return { ...state, data: [...data, ...pending.values()] };
+    }
     case 'itemsRemoved':
       return {
         ...state,
@@ -113,7 +123,6 @@ function listReducer<ElementT>(
   }
 }
 
-/* Raw markers: flip the state by hand when you aren't using the `handle*` wrappers. */
 export interface ListMarkers {
   refreshStarted: () => void;
   refreshEnded: () => void;
@@ -145,6 +154,10 @@ export interface ListController<
   setData: (update: ElementT[] | ((prev: ElementT[]) => ElementT[])) => void;
   prepend: (items: readonly ElementT[]) => void;
   append: (items: readonly ElementT[]) => void;
+  // Replaces the rows whose id exists in place and appends the rest.
+  upsertItems: (items: readonly ElementT[]) => void;
+  // Replaces one row by id; a missing id is a no-op.
+  updateItem: (id: string, update: (element: ElementT) => ElementT) => void;
   removeItems: (
     ids: readonly string[] | ((element: ElementT, index: number) => boolean)
   ) => void;
@@ -183,47 +196,58 @@ export function useListController<
 
   const scrollIdleTimer = useRef<number | null>(null);
 
+  /*
+   * Runs one consumer callback and then `settle`. The callback is invoked inside the `.then`,
+   * not eagerly, so a *synchronous* throw still becomes a rejection this chain observes --
+   * otherwise `settle` would never run and the busy flag / loading UI would stay stuck true.
+   */
+  const run = useCallback(
+    (callback: () => void | Promise<void>, settle: () => void) => {
+      const pending = Promise.resolve().then(callback).finally(settle);
+      const { onError } = optionsRef.current;
+      if (onError) pending.catch(onError);
+    },
+    []
+  );
+
   const handleRefresh = useCallback(() => {
     if (busyRef.current.refresh) return;
     busyRef.current.refresh = true;
     dispatch({ type: 'refreshStarted' });
-    /*
-     * The callback is invoked inside the `.then`, not eagerly as the argument to
-     * `Promise.resolve(...)`, so a *synchronous* throw from the consumer's callback still
-     * produces a rejection this chain can observe -- otherwise `.finally()` would never
-     * run and the busy flag / loading UI flag would stay stuck true forever.
-     */
-    Promise.resolve()
-      .then(() => optionsRef.current.onRefresh?.())
-      .finally(() => {
+    run(
+      () => optionsRef.current.onRefresh?.(),
+      () => {
         busyRef.current.refresh = false;
         dispatch({ type: 'refreshEnded' });
-      });
-  }, []);
+      }
+    );
+  }, [run]);
 
   const handleEndReached = useCallback(() => {
     if (busyRef.current.end) return;
     busyRef.current.end = true;
     dispatch({ type: 'endReachStarted' });
-    Promise.resolve()
-      .then(() => optionsRef.current.onEndReached?.())
-      .finally(() => {
+    run(
+      () => optionsRef.current.onEndReached?.(),
+      () => {
         busyRef.current.end = false;
         dispatch({ type: 'endReachEnded' });
-      });
-  }, []);
+      }
+    );
+  }, [run]);
 
   const handleStartReached = useCallback(() => {
     if (busyRef.current.start) return;
     busyRef.current.start = true;
     dispatch({ type: 'startReachStarted' });
-    Promise.resolve()
-      .then(() => optionsRef.current.onStartReached?.())
-      .finally(() => {
+    run(
+      () => optionsRef.current.onStartReached?.(),
+      () => {
         busyRef.current.start = false;
         dispatch({ type: 'startReachEnded' });
-      });
-  }, []);
+      }
+    );
+  }, [run]);
 
   const handleScroll = useCallback((event: ScrollEventT) => {
     dispatch({ type: 'scrollStarted' });
@@ -251,6 +275,26 @@ export function useListController<
 
   const append = useCallback(
     (items: readonly ElementT[]) => dispatch({ type: 'itemsAppended', items }),
+    []
+  );
+
+  const upsertItems = useCallback(
+    (items: readonly ElementT[]) => dispatch({ type: 'itemsUpserted', items }),
+    []
+  );
+
+  const updateItem = useCallback(
+    (id: string, update: (element: ElementT) => ElementT) =>
+      dispatch({
+        type: 'itemsSet',
+        update: (prev) => {
+          const index = prev.findIndex((element) => element.id === id);
+          if (index === -1) return prev;
+          const next = [...prev];
+          next[index] = update(prev[index]!);
+          return next;
+        },
+      }),
     []
   );
 
@@ -306,6 +350,8 @@ export function useListController<
     setData,
     prepend,
     append,
+    upsertItems,
+    updateItem,
     removeItems,
     markers,
   };
