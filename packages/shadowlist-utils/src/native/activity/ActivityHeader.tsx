@@ -1,52 +1,57 @@
-import { memo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { colors, typography, radius, spacing, fontWeight } from '../theme';
+import { memo, type ReactNode } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { createStyles } from '../theme';
 
 export interface ActivityHeaderAction {
   label: string;
   onPress: () => void;
+  icon?: ReactNode;
+  accessibilityLabel?: string;
 }
 
 export interface ActivityHeaderProps {
-  title?: string;
+  title: string;
   subtitle?: string;
-  actions?: ActivityHeaderAction[];
+  actions?: ReadonlyArray<ActivityHeaderAction>;
+  style?: StyleProp<ViewStyle>;
 }
 
-const TintedButton = ({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) => (
-  <Pressable
-    onPress={onPress}
-    style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
-  >
-    <Text style={styles.actionText}>{label}</Text>
-  </Pressable>
-);
+const ActionButton = ({ action }: { action: ActivityHeaderAction }) => {
+  const styles = useStyles();
+  return (
+    <Pressable
+      onPress={action.onPress}
+      accessibilityRole="button"
+      accessibilityLabel={action.accessibilityLabel ?? action.label}
+      style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+    >
+      {action.icon}
+      <Text style={styles.actionText}>{action.label}</Text>
+    </Pressable>
+  );
+};
 
-/*
- * Large-title header with an optional row of tinted action buttons. Pass
- * `actions` to surface imperative controls (scroll, edit, ...) above a list.
- */
 export const ActivityHeader = memo(
-  ({ title = 'Activity', subtitle, actions }: ActivityHeaderProps) => {
+  ({ title, subtitle, actions, style }: ActivityHeaderProps) => {
+    const styles = useStyles();
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>{title}</Text>
+      <View style={[styles.container, style]}>
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-
         {actions && actions.length > 0 ? (
-          <View style={styles.row}>
-            {actions.map((action) => (
-              <TintedButton
-                key={action.label}
-                label={action.label}
-                onPress={action.onPress}
-              />
+          <View style={styles.actions}>
+            {actions.map((action, index) => (
+              // Actions are positional; labels may change (e.g. a counter) without remounting.
+              <ActionButton key={index} action={action} />
             ))}
           </View>
         ) : null}
@@ -55,40 +60,45 @@ export const ActivityHeader = memo(
   }
 );
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.background,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.md,
-  },
-  title: {
-    color: colors.label,
-    ...typography.largeTitle,
-  },
-  subtitle: {
-    color: colors.secondaryLabel,
-    ...typography.subhead,
-    marginTop: spacing.xxs,
-  },
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: 14,
-  },
-  action: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.sm,
-    paddingHorizontal: 14,
-    paddingVertical: spacing.sm,
-  },
-  actionPressed: {
-    opacity: 0.6,
-  },
-  actionText: {
-    color: colors.accent,
-    ...typography.footnote,
-    fontWeight: fontWeight.semibold,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: theme.colors.background,
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.xs,
+      paddingBottom: theme.spacing.md,
+    },
+    title: {
+      color: theme.colors.label,
+      ...theme.typography.largeTitle,
+    },
+    subtitle: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.subhead,
+      marginTop: theme.spacing.xxs,
+    },
+    actions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+      marginTop: 14,
+    },
+    action: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      backgroundColor: theme.colors.accentSoft,
+      borderRadius: theme.radius.sm,
+      paddingHorizontal: 14,
+      paddingVertical: theme.spacing.sm,
+    },
+    actionPressed: {
+      opacity: 0.6,
+    },
+    actionText: {
+      color: theme.colors.accent,
+      ...theme.typography.footnote,
+      fontWeight: theme.fontWeight.semibold,
+    },
+  })
+);

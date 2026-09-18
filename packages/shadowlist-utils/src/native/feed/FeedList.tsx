@@ -1,40 +1,47 @@
-import { forwardRef } from 'react';
+import { forwardRef, useCallback } from 'react';
 import {
   ShadowList,
   type ShadowListProps,
   type ShadowListCommands,
 } from 'shadowlist';
-import type { FeedItem } from 'shadowlist-utils';
-import { FeedElement } from './FeedElement';
+import { useLabels } from '../labels';
+import { FeedRow, type FeedRowProps } from './FeedRow';
+import { defaultFeedLabels } from './labels';
+import type { FeedItem } from './types';
 
-/*
- * `data` + ShadowList props, with `renderElement` made optional (defaults to
- * the Feed row). Pass any ShadowList prop to override a baked-in default.
- */
-export type FeedListProps = Omit<ShadowListProps<FeedItem>, 'renderElement'> & {
-  renderElement?: ShadowListProps<FeedItem>['renderElement'];
-};
+type RenderFeedItem = NonNullable<ShadowListProps<FeedItem>['renderElement']>;
 
-/*
- * Module-level so the default keeps a stable identity across renders (lets
- * ShadowList skip re-rendering unchanged rows).
- */
-const renderFeedElement: ShadowListProps<FeedItem>['renderElement'] = ({
-  element,
-}) => <FeedElement element={element} />;
+export type FeedListProps = Omit<ShadowListProps<FeedItem>, 'renderElement'> &
+  Pick<FeedRowProps, 'onPressImage' | 'formatTime' | 'labels'> & {
+    renderElement?: RenderFeedItem;
+    onPressItem?: (item: FeedItem) => void;
+  };
 
-/*
- * A vertical feed list: themed avatar/text/image rows, auto-hiding header.
- * Drop in `data` to get a working feed; override `renderElement` or any other
- * ShadowList prop to customize.
- */
 export const FeedList = forwardRef<ShadowListCommands, FeedListProps>(
-  ({ renderElement, ...props }, ref) => (
-    <ShadowList
-      ref={ref}
-      autoHideHeader
-      renderElement={renderElement ?? renderFeedElement}
-      {...props}
-    />
-  )
+  (
+    { renderElement, onPressItem, onPressImage, formatTime, labels, ...props },
+    ref
+  ) => {
+    const rowLabels = useLabels(defaultFeedLabels, labels);
+    const renderRow = useCallback<RenderFeedItem>(
+      ({ element }) => (
+        <FeedRow
+          item={element}
+          onPress={onPressItem}
+          onPressImage={onPressImage}
+          formatTime={formatTime}
+          labels={rowLabels}
+        />
+      ),
+      [onPressItem, onPressImage, formatTime, rowLabels]
+    );
+    return (
+      <ShadowList
+        ref={ref}
+        autoHideHeader
+        renderElement={renderElement ?? renderRow}
+        {...props}
+      />
+    );
+  }
 );
