@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
 
-interface UsePersistentKeysOptions<ElementT> {
-  data: ReadonlyArray<ElementT>;
-  keyExtractor: (element: ElementT, index: number) => string;
+interface UsePersistentKeysOptions {
+  keys: ReadonlyArray<string>;
   persistentKeys: ReadonlyArray<string> | undefined;
   renderIndices: number[];
 }
@@ -12,25 +11,24 @@ interface UsePersistentKeysOptions<ElementT> {
  * `persistentKeys` so they are never virtualized away, while leaving them at their
  * natural flow position (unlike sticky headers, which are pinned to the viewport).
  */
-export function usePersistentKeys<ElementT>({
-  data,
-  keyExtractor,
+export function usePersistentKeys({
+  keys,
   persistentKeys,
   renderIndices,
-}: UsePersistentKeysOptions<ElementT>): number[] {
+}: UsePersistentKeysOptions): number[] {
   /*
-   * Resolve the requested keys to their current indices. Walks data only when keys are
+   * Resolve the requested keys to their current indices. Walks the keys only when keys are
    * given; keys not present in data are dropped (e.g. a pinned row that was removed).
    */
   const persistentIndices = useMemo(() => {
     if (!persistentKeys || persistentKeys.length === 0) return [];
     const keySet = new Set(persistentKeys);
     const indices: number[] = [];
-    for (let index = 0; index < data.length; index++) {
-      if (keySet.has(keyExtractor(data[index]!, index))) indices.push(index);
+    for (let index = 0; index < keys.length; index++) {
+      if (keySet.has(keys[index]!)) indices.push(index);
     }
     return indices;
-  }, [data, keyExtractor, persistentKeys]);
+  }, [keys, persistentKeys]);
 
   // Union the persistent rows into the rendered set, kept sorted and deduplicated.
   return useMemo(() => {
