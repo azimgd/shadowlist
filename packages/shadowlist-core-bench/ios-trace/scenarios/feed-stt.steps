@@ -1,0 +1,22 @@
+# Default list: status-bar scroll-to-top from deep, and with a prepend landing mid-animation.
+route Feed
+latency 250,700
+wait 2
+mark go-deep
+repeat 10 pan 200 780 0 -650 100
+wait 2
+mark stt-deep
+statusbar
+wait 2.5
+mark go-deep-2
+repeat 6 pan 200 780 0 -650 100
+wait 1.5
+mark stt-with-prepend
+statusbar
+press 296 80
+wait 3
+mark stt-short
+pan 200 700 0 -500 300
+wait 1
+statusbar
+wait 2

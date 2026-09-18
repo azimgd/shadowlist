@@ -1,0 +1,18 @@
+# Horizontal lists nested in a vertical one: carousel drags and vertical flings.
+route Nested
+latency 250,700
+wait 2
+mark carousel-drag
+repeat 4 pan 330 520 -260 0 250
+wait 1.5
+mark carousel-back
+repeat 4 pan 80 520 260 0 250
+wait 1.5
+mark vertical-flings
+repeat 5 pan 200 780 0 -600 120
+wait 1.5
+mark carousel-drag-deep
+repeat 4 pan 330 400 -260 0 150
+wait 1.5
+statusbar
+wait 2

@@ -1,0 +1,26 @@
+# Streaming assistant: the reply grows in place while the reader follows the bottom, then
+# drags away (following is released) and comes back; history is prepended at the top.
+route Assistant
+latency 250,700
+wait 3
+mark send-suggestion
+press 105 337
+wait 8
+mark drag-away-mid-stream
+pan 200 300 0 420 700
+wait 6
+mark drag-back-mid-stream
+repeat 3 pan 200 700 0 -500 200
+wait 10
+mark send-next
+press 333 80
+wait 12
+mark drag-away-again
+pan 200 300 0 450 600
+wait 8
+mark load-earlier
+press 296 80
+wait 4
+mark statusbar-top
+statusbar
+wait 4
