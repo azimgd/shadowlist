@@ -1,9 +1,52 @@
 #include "ShadowListViewShadowNode.h"
 
+#include <folly/dynamic.h>
+#include <react/renderer/core/ComponentDescriptor.h>
+#include <react/renderer/core/PropsParserContext.h>
+#include <react/renderer/core/RawProps.h>
+
+#include <algorithm>
 #include <mutex>
 #include <vector>
 
 namespace facebook::react {
+
+namespace {
+
+/*
+ * Rows are concealed only on hosts that ack the generation of the state they mounted (see
+ * ShadowListViewState::concealGenerationAck_). The Android host merges its reports onto the
+ * newest state rather than the mounted one, so it cannot make that claim and never conceals.
+ */
+#ifdef __APPLE__
+constexpr bool CONCEAL_UNSETTLED_ROWS = true;
+#else
+constexpr bool CONCEAL_UNSETTLED_ROWS = false;
+#endif
+
+/*
+ * Layout passes a row may stay concealed through before it is revealed regardless. Every pass
+ * is a commit, so this only matters when corrections keep landing without settling.
+ */
+constexpr std::size_t MAX_CONCEALED_LAYOUT_PASSES = 8;
+
+/*
+ * Parse `opacity: 0` onto a row's props, through the parse-from-raw path (props are not
+ * copy-constructible). Null without a ContextContainer.
+ */
+std::shared_ptr<const Props> concealedPropsForRow(const ShadowNode& rowShadowNode) {
+  const auto contextContainer = rowShadowNode.getContextContainer();
+  if (!contextContainer) {
+    return nullptr;
+  }
+  PropsParserContext propsParserContext{rowShadowNode.getSurfaceId(), *contextContainer};
+  return rowShadowNode.getComponentDescriptor().cloneProps(
+    propsParserContext,
+    rowShadowNode.getProps(),
+    RawProps(folly::dynamic::object("opacity", 0)));
+}
+
+}
 
 ShadowListViewShadowNode::ShadowListViewShadowNode(
   const ShadowNode& sourceShadowNode,
@@ -15,21 +58,11 @@ ShadowListViewShadowNode::ShadowListViewShadowNode(
    */
   const auto& source = static_cast<const ShadowListViewShadowNode&>(sourceShadowNode);
   this->containerManager_ = source.containerManager_;
-  this->headerSize_ = source.headerSize_;
-  this->footerSize_ = source.footerSize_;
   this->geometryCache_ = source.geometryCache_;
 }
 
 void ShadowListViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager) {
   this->containerManager_ = containerManager;
-}
-
-void ShadowListViewShadowNode::setHeaderSize(std::shared_ptr<double> headerSize) {
-  this->headerSize_ = headerSize;
-}
-
-void ShadowListViewShadowNode::setFooterSize(std::shared_ptr<double> footerSize) {
-  this->footerSize_ = footerSize;
 }
 
 void ShadowListViewShadowNode::setGeometryCache(std::shared_ptr<ShadowListViewGeometryCache> geometryCache) {
@@ -101,16 +134,6 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   for (std::size_t childIndex = 0; childIndex < getChildren().size(); ++childIndex) {
     if (const auto elementViewProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(getChildren()[childIndex]->getProps())) {
       /*
-       * Skip a row the commit hook dematerialized (see ShadowListCommitHook): Yoga zeroed
-       * its subtree, so it has no frame worth placing and produces no views to place it
-       * for. Leaving it out of mountedElements also keeps its zeroed frame away from the
-       * measurement feedback below.
-       */
-      if (getChildren()[childIndex]->getTraits().check(ShadowNodeTraits::Trait::Hidden)) {
-        continue;
-      }
-
-      /*
        * Resolve the mounted view to its CURRENT core element by key: a child committed
        * before a prepend/insert/reorder carries a stale index. findElementIndexByKey
        * returns the row's live position, or UNDEFINED_INDEX if the key is gone (drop the
@@ -151,13 +174,6 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
-   * Feed the measured header/footer sizes back so the next Virtualizer::update
-   * positions elements after the header and includes both in the total size
-   */
-  *this->headerSize_ = headerSize;
-  *this->footerSize_ = footerSize;
-
-  /*
    * Apply the freshly measured header/footer AND the actual window (viewport) size to
    * the core now and reflow the element offsets in this same pass. update() runs from
    * adopt in the commit phase, before this node has been laid out, so it sees a zero
@@ -166,7 +182,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    * overlaps the first rows. The corrected frame only reaches update() on a LATER
    * commit (e.g. a scroll), and the high-water visible band suppresses the re-render
    * that might trigger one, so a static list stays broken until the user scrolls.
-   * Applying the real values here makes the first layout correct on its own.
+   * Applying the real values here makes the first layout correct on its own. The next
+   * Virtualizer::update reads the header/footer back from the core, so they carry over.
    */
   const auto& windowFrameSize = getLayoutMetrics().frame.size;
   bool layoutInputsChanged =
@@ -176,11 +193,23 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     this->containerManager_->revision.windowContainerHeight != windowFrameSize.height;
 
   if (layoutInputsChanged) {
+    double previousHeaderSize = this->containerManager_->headerSize;
+    double previousWindowSize = this->containerManager_->getWindowContainerSize();
     this->containerManager_->headerSize = headerSize;
     this->containerManager_->footerSize = footerSize;
     this->containerManager_->revision.windowContainerWidth = windowFrameSize.width;
     this->containerManager_->revision.windowContainerHeight = windowFrameSize.height;
     azimgd::shadowlist::Virtualizer::recomputeElementOffsets(this->containerManager_.get(), 0);
+    /*
+     * update() for this commit ran with the previous header size, so its anchor correction
+     * does not know the rows just moved. Settle the header change now: publishing the offset
+     * it computed would show the rows shifted by the change until the next commit resolved
+     * the correction again (a one-frame jump when a loading spinner in the header toggles
+     * with a prepend).
+     */
+    azimgd::shadowlist::Virtualizer::applyHeaderSizeChange(this->containerManager_.get(), previousHeaderSize);
+    // A chat resting at its bottom keeps it as the composer resizes the list.
+    azimgd::shadowlist::Virtualizer::applyWindowSizeChange(this->containerManager_.get(), previousWindowSize);
 
     /*
      * The header/footer/window just changed, which reflowed every element offset (e.g.
@@ -232,8 +261,12 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       }
     }
 
+    bool firstMeasurement = !this->containerManager_->getElementAtIndex(mounted.elementIndex).measured;
     bool changed = azimgd::shadowlist::Virtualizer::applyElementSize(
       this->containerManager_.get(), mounted.elementIndex, feedSize);
+    if (firstMeasurement) {
+      this->firstMeasuredTags_.push_back(getChildren()[mounted.childIndex]->getTag());
+    }
 
     if (changed && mounted.elementIndex < lowestChangedIndex) {
       lowestChangedIndex = mounted.elementIndex;
@@ -249,6 +282,35 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    * The footer position below and the published content size depend on it.
    */
   azimgd::shadowlist::Virtualizer::recomputeTotalSize(this->containerManager_.get());
+
+  auto& geometry = *this->geometryCache_;
+
+  /*
+   * Row concealment (see ShadowListViewGeometryCache::concealedRows). The correction this pass
+   * publishes is final by now: resolveStateUpdate below only reads it.
+   */
+  const auto& inputStateData = getStateData();
+  bool correcting = this->containerManager_->containerOffsetCorrected;
+  auto concealAck = static_cast<std::uint64_t>(inputStateData.concealGenerationAck_);
+
+  /*
+   * A correction anchored to a row keeps that row still only once the host mounts it. Rows
+   * before the anchor measured for the first time in this cycle are what moved it; conceal
+   * them. A fixed-offset correction (bottom pin, scroll to end) has no anchor row and conceals
+   * nothing. The anchor is the one commitElementSizes compensates for.
+   */
+  std::size_t concealBeforeIndex = 0;
+  if (CONCEAL_UNSETTLED_ROWS && correcting && !this->firstMeasuredTags_.empty()) {
+    const auto* compensationAnchor = this->containerManager_->compensationAnchor();
+    if (compensationAnchor != nullptr && !compensationAnchor->key.empty()) {
+      std::size_t anchorIndex = this->containerManager_->findElementIndexByKey(compensationAnchor->key);
+      if (anchorIndex != azimgd::shadowlist::UNDEFINED_INDEX) {
+        concealBeforeIndex = anchorIndex;
+      }
+    }
+  }
+  std::uint64_t nextConcealGeneration = geometry.concealGeneration + 1;
+  std::vector<Tag> stillConcealedTags;
 
   /*
    * Pass 2: placement. Apply the virtualizer's positions (offsets already include the
@@ -268,6 +330,52 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       continue;
     }
 
+    /*
+     * The props this row should carry, or null to keep its own. A concealed row is revealed once
+     * the host acked its generation with no correction in flight, or after too many passes.
+     * While it stays concealed, a React commit that handed its original props back is concealed
+     * again, and new props from a re-render are concealed too.
+     */
+    const Tag tag = prevChild->getTag();
+    std::shared_ptr<const facebook::react::Props> nextProps = nullptr;
+    auto concealedRow = geometry.concealedRows.find(tag);
+    if (concealedRow != geometry.concealedRows.end()) {
+      auto& row = concealedRow->second;
+      ++row.layoutPasses;
+      bool settled = (concealAck >= row.generation && !correcting) || row.layoutPasses > MAX_CONCEALED_LAYOUT_PASSES;
+      if (!settled && prevChild->getProps() != row.sourceProps && prevChild->getProps() != row.concealedProps) {
+        row.sourceProps = prevChild->getProps();
+        row.concealedProps = concealedPropsForRow(*prevChild);
+        settled = row.concealedProps == nullptr;
+      }
+      if (settled) {
+        SL_LOG("  reveal: tag=%d gen=%llu ack=%llu passes=%zu correcting=%d",
+          tag, static_cast<unsigned long long>(row.generation), static_cast<unsigned long long>(concealAck),
+          row.layoutPasses, correcting ? 1 : 0);
+        if (row.concealedProps != nullptr && prevChild->getProps() == row.concealedProps) {
+          nextProps = row.sourceProps;
+        }
+        geometry.concealedRows.erase(concealedRow);
+      } else {
+        stillConcealedTags.push_back(tag);
+        if (prevChild->getProps() != row.concealedProps) {
+          nextProps = row.concealedProps;
+        }
+      }
+    } else if (mounted.elementIndex < concealBeforeIndex &&
+               std::find(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end(), tag) != this->firstMeasuredTags_.end()) {
+      auto concealedProps = concealedPropsForRow(*prevChild);
+      if (concealedProps != nullptr) {
+        SL_LOG("  conceal: tag=%d index=%zu anchorIndex=%zu gen=%llu",
+          tag, mounted.elementIndex, concealBeforeIndex, static_cast<unsigned long long>(nextConcealGeneration));
+        geometry.concealGeneration = nextConcealGeneration;
+        geometry.concealedRows.insert_or_assign(
+          tag, ShadowListViewGeometryCache::ConcealedRow{prevChild->getProps(), concealedProps, nextConcealGeneration, 0});
+        stillConcealedTags.push_back(tag);
+        nextProps = std::move(concealedProps);
+      }
+    }
+
     LayoutMetrics layoutMetrics = prevLayoutableChild->getLayoutMetrics();
     const LayoutMetrics prevLayoutMetrics = layoutMetrics;
     const auto& element = this->containerManager_->getElementAtIndex(mounted.elementIndex);
@@ -284,11 +392,22 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       layoutMetrics.frame.origin.x = 0;
     }
 
-    if (layoutMetrics == prevLayoutMetrics) {
+    if (layoutMetrics == prevLayoutMetrics && nextProps == nullptr) {
       continue;
     }
 
-    auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(prevChild->clone({}));
+    /*
+     * Opacity is not a Yoga style, so a props clone leaves the row's Yoga node clean and its
+     * laid-out frame intact.
+     */
+    /*
+     * A clone that only moves the row hands React's reference over, so React's node keeps a
+     * laid-out frame. One that conceals the row does not: on a JS-thread commit React's
+     * reference would move to it, and React's next update of the row would build on the
+     * concealed props.
+     */
+    auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(
+      prevChild->clone({.props = nextProps, .runtimeShadowNodeReference = nextProps == nullptr}));
     elementViewNode->setLayoutMetrics(layoutMetrics);
     /*
      * The child's own position is known here, and both ShadowNode::replaceChild and
@@ -307,6 +426,15 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     this->suppressElementSizeFeedback_ = false;
     if (layoutContext.affectedNodes != nullptr) {
       layoutContext.affectedNodes->push_back(elementViewNode.get());
+    }
+  }
+
+  // Forget concealed rows that are no longer mounted: unmounted, or their key left the list.
+  if (geometry.concealedRows.size() > stillConcealedTags.size()) {
+    for (auto iterator = geometry.concealedRows.begin(); iterator != geometry.concealedRows.end();) {
+      bool stillConcealed =
+        std::find(stillConcealedTags.begin(), stillConcealedTags.end(), iterator->first) != stillConcealedTags.end();
+      iterator = stillConcealed ? std::next(iterator) : geometry.concealedRows.erase(iterator);
     }
   }
 
@@ -392,8 +520,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   /*
    * Gather the resting geometry (offset + size along the scroll axis) of each
    * sticky section header so the integration can pin the active one on the UI
-   * thread per scroll frame (see ShadowListViewState / the native pin), mirroring
-   * Container::resolveStickyHeader. Only the core knows these offsets, and they
+   * thread per scroll frame (see ShadowListViewState / the native pin). Only the core knows these offsets, and they
    * change as off-screen rows are measured, so they ride along on the state.
    *
    * Rebuild the publishable geometry only when the element geometry it derives from has
@@ -402,7 +529,6 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    * allocate. None of it depends on the scroll offset, which is the thing that changed
    * on almost all of those frames.
    */
-  auto& geometry = *this->geometryCache_;
   double windowSize = this->containerManager_->getWindowContainerSize();
   double totalSize = this->containerManager_->horizontal
     ? this->containerManager_->revision.totalContainerWidth
@@ -456,8 +582,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     std::size_t elementsSize = this->containerManager_->getElementsSize();
     /*
      * Inverted sticky section headers (pin to the viewport end) are an exotic
-     * combination the core deliberately leaves resting (Container::resolveStickyHeader
-     * bails for inverted), so publish no geometry here either; otherwise the native
+     * combination left resting, so publish no geometry for them; otherwise the native
      * pins, which have no inverted case, would pin the overlay to the wrong edge with
      * ascending (non-inverted) math. Empty geometry hides the overlay everywhere.
      */
@@ -502,6 +627,10 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
   bool snapChanged = geometry.snapOffsets != nextStateData.snapOffsets_;
 
+  // The newest concealment while any row stays concealed; 0 tells the host nothing waits on it.
+  double concealGeneration = geometry.concealedRows.empty() ? 0.0 : static_cast<double>(geometry.concealGeneration);
+  bool concealChanged = nextStateData.concealGeneration_ != concealGeneration;
+
   SL_LOG("layout: elementChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
     getChildren().size(), headerSize, footerSize,
     nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
@@ -509,7 +638,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
     stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
-  if (stateUpdate.changed || stickyChanged || snapChanged) {
+  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged) {
     if (stateUpdate.changed) {
       /*
        * What the correction was computed from; see ShadowListViewState::containerOffsetBaseX_.
@@ -549,12 +678,11 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     if (snapChanged) {
       nextStateData.snapOffsets_ = geometry.snapOffsets;
     }
+    nextStateData.concealGeneration_ = concealGeneration;
     setStateData(std::move(nextStateData));
   }
-}
 
-void ShadowListViewShadowNode::appendChild(const std::shared_ptr<const ShadowNode>& nextElementShadowNode) {
-  YogaLayoutableShadowNode::appendChild(nextElementShadowNode);
+  this->firstMeasuredTags_.clear();
 }
 
 void ShadowListViewShadowNode::replaceChild(
@@ -575,15 +703,6 @@ void ShadowListViewShadowNode::replaceChild(
      * Our own placement pass already fed this batch's measurements to the core (see
      * layout()); reporting the frame it just wrote back would be redundant at best.
      */
-  } else if (nextElementShadowNode->getTraits().check(ShadowNodeTraits::Trait::Hidden)) {
-    /*
-     * A row the commit hook dematerialized (see ShadowListCommitHook). Yoga lays a
-     * display:none subtree out to zero, so its frame is not a measurement of anything --
-     * feeding it back would record height 0 for a row that has a real, already-measured
-     * size, collapsing the content size and jumping the scroll offset. The core keeps the
-     * size it recorded while the row was materialized, which is exactly what the pruned
-     * row still occupies.
-     */
   } else if (const auto elementViewProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(nextElementShadowNode->getProps())) {
     if (this->containerManager_) {
       std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
@@ -592,14 +711,30 @@ void ShadowListViewShadowNode::replaceChild(
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
         : this->containerManager_->findElementIndexByKey(elementViewProps->elementKey);
-      if (elementIndex < this->containerManager_->getElementsSize()) {
-        const auto elementViewNode = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(nextElementShadowNode);
-        const auto elementViewNodeSize = elementViewNode->getLayoutMetrics().frame.size;
+      const auto elementViewNode = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(nextElementShadowNode);
+      const auto elementViewNodeSize = elementViewNode
+        ? elementViewNode->getLayoutMetrics().frame.size
+        : Size{};
+      /*
+       * A child with no extent along the scroll axis has not been laid out: React's own node
+       * for a row the layout pass last cloned, or a row mounting in this
+       * commit, carries an empty frame until Yoga runs. Recording 0 would collapse the row
+       * outside any anchor capture (the next update() re-anchors on the collapsed geometry,
+       * so the content under the reader jumps by the row's size). The layout pass measures
+       * the row from its real frame.
+       */
+      bool laidOut = (this->containerManager_->horizontal ? elementViewNodeSize.width : elementViewNodeSize.height) > 0.0;
+      if (elementIndex < this->containerManager_->getElementsSize() && elementViewNode && laidOut) {
+        bool firstMeasurement = !this->containerManager_->getElementAtIndex(elementIndex).measured;
 
         azimgd::shadowlist::Virtualizer::updateElementAtIndex(
           this->containerManager_.get(),
           elementIndex,
           {.width = elementViewNodeSize.width, .height = elementViewNodeSize.height});
+
+        if (firstMeasurement) {
+          this->firstMeasuredTags_.push_back(nextElementShadowNode->getTag());
+        }
       }
     }
   }

@@ -25,6 +25,52 @@
 
 using namespace facebook::react;
 
+#if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
+/*
+ * Frame trace for MVCP/scroll debugging, off unless the app is launched with
+ * SHADOWLIST_FRAME_TRACE=1 (simulator: `SIMCTL_CHILD_SHADOWLIST_FRAME_TRACE=1 xcrun simctl launch
+ * --console-pty ...`). Lines read `[SLF] t=<CACurrentMediaTime>`. Event lines (ev=) mark every
+ * place the host moves the view; frame lines show what each Core Animation commit actually put
+ * on screen, so a correction that lands a frame apart from its content shows up as rows
+ * jumping and coming back.
+ */
+static BOOL SLFrameTraceEnabled(void)
+{
+  static BOOL enabled = NO;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    const char *value = getenv("SHADOWLIST_FRAME_TRACE");
+    enabled = value != NULL && strcmp(value, "1") == 0;
+  });
+  return enabled;
+}
+
+#define SLF_TRACE(fmt, ...)                                                    \
+  do {                                                                         \
+    if (SLFrameTraceEnabled()) {                                               \
+      printf("[SLF] t=%.4f id=%ld " fmt "\n", CACurrentMediaTime(),            \
+        (long)self.tag, ##__VA_ARGS__);                                        \
+    }                                                                          \
+  } while (0)
+
+@interface ShadowListView () {
+  CFRunLoopObserverRef _frameTraceObserver;
+  NSString *_frameTraceLast;
+}
+- (void)traceFrame;
+@end
+
+// Runs after Core Animation's commit observer (order 2000000), so it sees the committed frame.
+static const CFIndex SLF_TRACE_OBSERVER_ORDER = 2000001;
+
+static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivity activity, void *info)
+{
+  [(__bridge ShadowListView *)info traceFrame];
+}
+#else
+#define SLF_TRACE(...) ((void)0)
+#endif
+
 /*
  * Host list view: lifecycle, child mounting, state/props, scroll delegate and commands.
  * Sticky pinning lives in ShadowListView+Sticky, drag-to-reorder in ShadowListView+DragReorder.
@@ -74,10 +120,29 @@ using namespace facebook::react;
     _dragRecognizer.enabled = NO;
     [_scrollView addGestureRecognizer:_dragRecognizer];
 #endif
+#if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
+    if (SLFrameTraceEnabled()) {
+      CFRunLoopObserverContext context = {0, (__bridge void *)self, NULL, NULL, NULL};
+      _frameTraceObserver = CFRunLoopObserverCreate(
+        kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, true, SLF_TRACE_OBSERVER_ORDER,
+        SLFrameTraceCallback, &context);
+      CFRunLoopAddObserver(CFRunLoopGetMain(), _frameTraceObserver, kCFRunLoopCommonModes);
+    }
+#endif
   }
 
   return self;
 }
+
+#if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
+- (void)dealloc
+{
+  if (_frameTraceObserver) {
+    CFRunLoopObserverInvalidate(_frameTraceObserver);
+    CFRelease(_frameTraceObserver);
+  }
+}
+#endif
 
 #pragma mark - Mounting
 
@@ -156,13 +221,6 @@ using namespace facebook::react;
   _horizontal = NO;
   _snapToItem = NO;
   _snapOffsets.clear();
-  _contentInsetBottom = 0.0;
-  _scrollView.contentInset = UIEdgeInsetsZero;
-#if TARGET_OS_OSX
-  _scrollView.scrollIndicatorInsets = UIEdgeInsetsZero;
-#else
-  _scrollView.verticalScrollIndicatorInsets = UIEdgeInsetsZero;
-#endif
   _refreshing = NO;
   _refreshEnabled = NO;
   _refreshAwaitingSettle = NO;
@@ -196,6 +254,7 @@ using namespace facebook::react;
   _publishedGesture = NO;
   _shiftedToken = 0;
   _shiftedTokenDelta = 0.0;
+  _reportedDuringStateUpdate = NO;
   _commandIndex = 0.0;
   _commandSequence = 0.0;
 #if !TARGET_OS_OSX
@@ -243,10 +302,6 @@ using namespace facebook::react;
   }
   // decelerationRate (for snap-to-item) and pull-to-refresh have no AppKit equivalent.
   _scrollView.decelerationRate = _snapToItem ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
-#endif
-
-  [self applyContentInsetBottom:nextProps.contentInsetBottom];
-#if !TARGET_OS_OSX
   [self applyRefreshState:nextProps.refreshEnabled
                 refreshing:nextProps.refreshing
                      color:RCTUIColorFromSharedColor(nextProps.refreshColor)];
@@ -255,58 +310,6 @@ using namespace facebook::react;
   [super updateProps:props oldProps:oldProps];
 
   [self applyStickyTransforms:NO];
-}
-
-/*
- * Keyboard avoidance: set the bottom contentInset and shift the offset by the same delta
- * so rows behind the keyboard come into view. Clamped to range; skipped mid-drag and when horizontal.
- */
-- (void)applyContentInsetBottom:(CGFloat)inset
-{
-  if (inset < 0) {
-    inset = 0;
-  }
-  if (inset == _contentInsetBottom) {
-    return;
-  }
-
-  CGFloat delta = inset - _contentInsetBottom;
-  _contentInsetBottom = inset;
-
-  if (_horizontal) {
-    // Inset is vertical-only; stored value is kept in sync above for a later axis flip.
-    return;
-  }
-
-#if !TARGET_OS_OSX
-  /*
-   * Keyboard avoidance only applies on iOS (there is no software keyboard on macOS, so the
-   * inset stays 0 and this method returns above before reaching here).
-   */
-  UIEdgeInsets contentInset = _scrollView.contentInset;
-  contentInset.bottom = inset;
-  UIEdgeInsets indicatorInset = _scrollView.verticalScrollIndicatorInsets;
-  indicatorInset.bottom = inset;
-
-  // Shift the offset by the inset delta, clamped to range; skipped mid-drag.
-  CGPoint offset = _scrollView.contentOffset;
-  CGFloat maxOffset = MAX(-inset, _scrollView.contentSize.height - _scrollView.bounds.size.height + inset);
-  CGFloat followedY = (_dragging || _dragDropPending)
-    ? offset.y
-    : MIN(MAX(offset.y + delta, -contentInset.top), maxOffset);
-
-  [UIView animateWithDuration:0.25
-                        delay:0
-                      options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
-                   animations:^{
-    self->_scrollView.contentInset = contentInset;
-    self->_scrollView.verticalScrollIndicatorInsets = indicatorInset;
-    self->_scrollView.contentOffset = CGPointMake(offset.x, followedY);
-  }
-                   completion:nil];
-#else
-  (void)delta;
-#endif
 }
 
 #if !TARGET_OS_OSX
@@ -353,6 +356,7 @@ using namespace facebook::react;
   if (refreshing == _refreshing) {
     return;
   }
+  SLF_TRACE("ev=refresh-prop refreshing=%d off=%.1f", refreshing ? 1 : 0, _scrollView.contentOffset.y);
   _refreshing = refreshing;
 
   if (!refreshing) {
@@ -387,6 +391,7 @@ using namespace facebook::react;
 
 - (void)handleRefreshValueChanged
 {
+  SLF_TRACE("ev=refresh-pull off=%.1f", _scrollView.contentOffset.y);
   if (!_eventEmitter) {
     return;
   }
@@ -396,6 +401,7 @@ using namespace facebook::react;
 // Tell JS the refresh spinner has fully retracted, so it can apply a held refresh-prepend.
 - (void)emitRefreshSettle
 {
+  SLF_TRACE("ev=refresh-settle off=%.1f", _scrollView.contentOffset.y);
   if (!_eventEmitter) {
     return;
   }
@@ -458,6 +464,7 @@ using namespace facebook::react;
 - (void)updateState:(const State::Shared&)state oldState:(const State::Shared&)oldState
 {
   _state = std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteState>(state);
+  _reportedDuringStateUpdate = NO;
 
   const auto& nextStateData = _state->getData();
 
@@ -478,6 +485,8 @@ using namespace facebook::react;
   copyPublished(_stickyHeaderSizes, nextStateData.stickyHeaderSizes_);
   copyPublished(_snapOffsets, nextStateData.snapOffsets_);
 
+  __unused CGFloat traceBeforeY = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
+  __unused CGFloat traceBeforeHeight = _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height;
   // A clamp these writes cause is reported as a non-user scroll; see _applyingContentSize.
   _applyingContentSize = YES;
   _scrollView.contentSize = CGSizeMake(
@@ -506,6 +515,18 @@ using namespace facebook::react;
   if (retargetsScrollToTopJump) {
     _scrollToTopJumpY = nextStateData.containerOffsetY_;
     _scrollToTopJumpToken = (uint64_t)nextStateData.commitToken_;
+#if !TARGET_OS_OSX
+    /*
+     * Landing the jump applies this correction in full. The core republishes the same token
+     * against that base while it resolves (the header spinner appearing with the load the jump
+     * triggered, say), and each republish carries the whole correction again; record what the
+     * landing applies so the shift below adds only the rest instead of applying it twice.
+     */
+    if (_scrollToTopJumpToken != 0) {
+      _shiftedToken = _scrollToTopJumpToken;
+      _shiftedTokenDelta = nextStateData.containerOffsetY_ - nextStateData.containerOffsetBaseY_;
+    }
+#endif
   } else if (nextStateData.containerOffsetEnabled_ && !_dragging && !_dragDropPending) {
     // We own the offset while dragging/settling; ignore core offset corrections then.
     CGPoint before = _scrollView.contentOffset;
@@ -533,10 +554,15 @@ using namespace facebook::react;
       (nextStateData.userScrolled_ || nextStateData.scrollPhase_ != SCROLL_PHASE_IDLE);
     if (_scrollingToTop || _scrollView.isDragging || _scrollView.isDecelerating || continuesShiftedCorrection ||
         computedDuringGesture) {
-      CGFloat top = -_scrollView.contentInset.top;
-      CGFloat maxY = MAX(top, _scrollView.contentSize.height - _scrollView.bounds.size.height
-        + _scrollView.contentInset.bottom);
-      CGFloat shift = nextStateData.containerOffsetY_ - nextStateData.containerOffsetBaseY_;
+      // Along the scroll axis: a horizontal list's correction is on x.
+      BOOL horizontal = _horizontal;
+      CGFloat top = horizontal ? -_scrollView.contentInset.left : -_scrollView.contentInset.top;
+      CGFloat maxY = horizontal
+        ? MAX(top, _scrollView.contentSize.width - _scrollView.bounds.size.width + _scrollView.contentInset.right)
+        : MAX(top, _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom);
+      CGFloat shift = horizontal
+        ? nextStateData.containerOffsetX_ - nextStateData.containerOffsetBaseX_
+        : nextStateData.containerOffsetY_ - nextStateData.containerOffsetBaseY_;
       /*
        * The core retargets an operation's correction against every newer report until the
        * host echoes its token, and each retarget carries the whole correction again. Shift
@@ -549,7 +575,9 @@ using namespace facebook::react;
         _shiftedTokenDelta = shift;
         shift = unapplied;
       }
-      _appliedOffset = CGPointMake(before.x, MIN(MAX(before.y + shift, top), maxY));
+      _appliedOffset = horizontal
+        ? CGPointMake(MIN(MAX(before.x + shift, top), maxY), before.y)
+        : CGPointMake(before.x, MIN(MAX(before.y + shift, top), maxY));
     }
 #endif
     /*
@@ -571,6 +599,24 @@ using namespace facebook::react;
       _armedToken = 0;
     }
   }
+
+  /*
+   * A state that conceals rows waits for a report built on it. The offset write above normally
+   * sends one through scrollViewDidScroll:; when it did not, send it here.
+   */
+  if (nextStateData.concealGeneration_ != 0.0 && nextStateData.containerOffsetEnabled_ && !_reportedDuringStateUpdate) {
+    [self reportConcealedRowsMounted];
+  }
+
+  SLF_TRACE("ev=state cs=%.1f->%.1f off=%.1f->%.1f enabled=%d core=%.1f base=%.1f token=%llu user=%d phase=%.0f stt=%d jumpPending=%d retarget=%d conceal=%.0f",
+    traceBeforeHeight, _horizontal ? nextStateData.totalContainerWidth_ : nextStateData.totalContainerHeight_,
+    traceBeforeY, _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y,
+    nextStateData.containerOffsetEnabled_ ? 1 : 0,
+    _horizontal ? nextStateData.containerOffsetX_ : nextStateData.containerOffsetY_,
+    _horizontal ? nextStateData.containerOffsetBaseX_ : nextStateData.containerOffsetBaseY_,
+    (unsigned long long)nextStateData.commitToken_,
+    nextStateData.userScrolled_ ? 1 : 0, nextStateData.scrollPhase_, _scrollingToTop ? 1 : 0,
+    _scrollToTopJumpPending ? 1 : 0, retargetsScrollToTopJump ? 1 : 0, nextStateData.concealGeneration_);
 
   // Re-pin after content size/offset changed so a sticky footer stays put.
   [self applyStickyTransforms:NO];
@@ -650,6 +696,9 @@ using namespace facebook::react;
   nextStateData.containerOffsetY_ = scrollView.contentOffset.y;
   nextStateData.containerOffsetEnabled_ = false;
   nextStateData.commitToken_ = (double)echoToken;
+  // Built on the mounted state, so this report acks the concealment that state carries.
+  nextStateData.concealGenerationAck_ = nextStateData.concealGeneration_;
+  _reportedDuringStateUpdate = YES;
   nextStateData.userScrolled_ = userScrolled;
   /*
    * The live gesture phase (finger down, momentum, idle). It persists across the commits
@@ -729,6 +778,7 @@ using namespace facebook::react;
    * A human grabbed the list: drop any pending echo expectation so the drag is reported
    * as a user scroll instead of being mistaken for our own correction's echo.
    */
+  SLF_TRACE("ev=drag-begin off=%.1f,%.1f", scrollView.contentOffset.x, scrollView.contentOffset.y);
   _hasAppliedOffset = NO;
   _armedToken = 0;
   // A finger takes over from a running scroll-to-top; the drag reports its own phase.
@@ -737,6 +787,7 @@ using namespace facebook::react;
 
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
 {
+  SLF_TRACE("ev=drag-end off=%.1f,%.1f decel=%d", scrollView.contentOffset.x, scrollView.contentOffset.y, decelerate ? 1 : 0);
   if (!decelerate) {
     [self clearUserScrolled];
   }
@@ -744,6 +795,7 @@ using namespace facebook::react;
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
 {
+  SLF_TRACE("ev=decel-end off=%.1f,%.1f", scrollView.contentOffset.x, scrollView.contentOffset.y);
   [self clearUserScrolled];
 }
 
@@ -816,7 +868,7 @@ static const CGFloat SCROLL_TO_TOP_JUMP_COVERAGE = 0.9;
 
 /*
  * Longest wait for the jump target's rows, in seconds. A list whose rows never cover the
- * target (every row hidden by the materialization band, a JS thread stalled elsewhere)
+ * target (a JS thread stalled elsewhere)
  * lands anyway rather than leaving the status-bar tap unanswered.
  */
 static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
@@ -830,6 +882,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   // Stop any momentum first, as UIKit does before its own scroll-to-top.
   [_scrollView setContentOffset:_scrollView.contentOffset animated:NO];
 
+  SLF_TRACE("ev=stt-start off=%.1f cs=%.1f", _scrollView.contentOffset.y, _scrollView.contentSize.height);
   _scrollingToTop = YES;
   _scrollToTopProgress = 0.0;
   _scrollToTopStartTime = CACurrentMediaTime();
@@ -928,6 +981,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     _hasAppliedOffset = YES;
     _armedToken = _scrollToTopJumpToken;
   }
+  SLF_TRACE("ev=stt-land %.1f->%.1f waitedTooLong=%d", before.y, target.y, waitedTooLong ? 1 : 0);
   _scrollView.contentOffset = target;
   if (fabs(_scrollView.contentOffset.y - before.y) < 0.01) {
     _hasAppliedOffset = NO;
@@ -997,6 +1051,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   _scrollToTopProgress = progress;
 
   if (fabs(nextY - currentY) >= 0.01) {
+    SLF_TRACE("ev=stt-tick %.1f->%.1f progress=%.3f", currentY, nextY, progress);
     _scrollView.contentOffset = CGPointMake(_scrollView.contentOffset.x, nextY);
   }
 }
@@ -1023,6 +1078,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
  */
 - (void)finishScrollToTop
 {
+  SLF_TRACE("ev=stt-finish off=%.1f", _scrollView.contentOffset.y);
   [self cancelScrollToTop];
   if (!_state) {
     return;
@@ -1039,6 +1095,82 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   _state->updateState(std::move(nextStateData));
 }
 #endif // !TARGET_OS_OSX
+
+#if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
+#pragma mark - Frame trace
+
+/*
+ * One line per committed frame that differs from the last: offset, content size, header, and
+ * every row intersecting the viewport as key@screenY+height (the key's last 8 chars: generated
+ * ids tend to share a timestamp prefix).
+ */
+- (void)traceFrame
+{
+  if (!_state || !self.window) {
+    return;
+  }
+  // Everything below is along the scroll axis: y for a vertical list, x for a horizontal one.
+  BOOL horizontal = _horizontal;
+  CGFloat offset = horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
+  CGFloat viewport = horizontal ? _scrollView.bounds.size.width : _scrollView.bounds.size.height;
+  auto leading = ^CGFloat(CGRect frame) {
+    return horizontal ? CGRectGetMinX(frame) : CGRectGetMinY(frame);
+  };
+  auto extent = ^CGFloat(CGRect frame) {
+    return horizontal ? frame.size.width : frame.size.height;
+  };
+  NSMutableArray<UIView *> *rows = [NSMutableArray array];
+  for (UIView *subview in _contentView.subviews) {
+    if (subview.hidden || ![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+      continue;
+    }
+    CGRect frame = subview.frame;
+    if (leading(frame) + extent(frame) <= offset || leading(frame) >= offset + viewport) {
+      continue;
+    }
+    [rows addObject:subview];
+  }
+  [rows sortUsingComparator:^NSComparisonResult(UIView *a, UIView *b) {
+    CGFloat aLeading = leading(a.frame);
+    CGFloat bLeading = leading(b.frame);
+    return aLeading < bLeading ? NSOrderedAscending : (aLeading > bLeading ? NSOrderedDescending : NSOrderedSame);
+  }];
+  NSMutableString *rowsDescription = [NSMutableString string];
+  for (UIView *row in rows) {
+    NSString *key = [self keyOfElementView:row] ?: @"?";
+    if (key.length > 8) {
+      key = [key substringFromIndex:key.length - 8];
+    }
+    // A trailing `~` marks a row concealed by the layout pass (opacity 0).
+    [rowsDescription appendFormat:@" %@@%.1f+%.1f%@", key, leading(row.frame) - offset, extent(row.frame),
+      row.layer.opacity < 0.5 ? @"~" : @""];
+  }
+  UIView *header = _stickyHeaderView;
+  /*
+   * ph: 0 idle, 1 finger down, 2 momentum, 3 scroll-to-top animation. ins is the leading
+   * content inset (the refresh control adds one while it spins), ref the refreshing prop.
+   */
+  int phase = _scrollView.isTracking ? 1 : (_scrollView.isDecelerating ? 2 : (_scrollingToTop ? 3 : 0));
+  BOOL inverted = std::static_pointer_cast<const ShadowListViewProps>(_props)->inverted;
+  // Pinned views, on screen coordinates like the rows: the footer and the section overlay.
+  UIView *footer = _stickyFooterView;
+  UIView *overlay = _sectionHeaderOverlay;
+  BOOL overlayVisible = overlay != nil && !overlay.hidden;
+  NSString *signature = [NSString stringWithFormat:@"ax=%@ inv=%d off=%.1f cs=%.1f vp=%.1f ins=%.1f ph=%d ref=%d hdr=%.1f+%.1f ftr=%.1f+%.1f ovl=%.1f+%.1f stt=%d jump=%d rows=[%@ ]",
+    horizontal ? @"h" : @"v", inverted ? 1 : 0, offset,
+    horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
+    viewport, horizontal ? _scrollView.adjustedContentInset.left : _scrollView.adjustedContentInset.top, phase,
+    _refreshing ? 1 : 0, header ? leading(header.frame) - offset : -1.0, header ? extent(header.frame) : 0.0,
+    footer ? leading(footer.frame) - offset : -1.0, footer ? extent(footer.frame) : 0.0,
+    overlayVisible ? leading(overlay.frame) - offset : -1.0, overlayVisible ? extent(overlay.frame) : 0.0,
+    _scrollingToTop ? 1 : 0, _scrollToTopJumpPending ? 1 : 0, rowsDescription];
+  if ([signature isEqualToString:_frameTraceLast]) {
+    return;
+  }
+  _frameTraceLast = signature;
+  SLF_TRACE("frame %s", signature.UTF8String);
+}
+#endif
 
 #pragma mark - Element helpers
 
@@ -1121,6 +1253,27 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   stateData.containerOffsetY_ = _scrollView.contentOffset.y;
   stateData.containerOffsetEnabled_ = false;
   stateData.commitToken_ = (double)_echoedToken;
+  stateData.concealGenerationAck_ = stateData.concealGeneration_;
+}
+
+/*
+ * Ack a state that conceals rows when no scroll report will (see concealGenerationAck_): its
+ * correction moved nothing, or this view did not apply it. Without the ack the rows would stay
+ * concealed until the next scroll. Skipped where a report would be wrong and one follows
+ * anyway: a pending scroll-to-top jump reports when it lands, a refresh when it settles.
+ */
+- (void)reportConcealedRowsMounted
+{
+  if (!_state || _scrollToTopJumpPending) {
+    return;
+  }
+  if (_refreshEnabled && (_refreshing || _scrollView.contentOffset.y < 0)) {
+    return;
+  }
+  auto nextStateData = _state->getData();
+  [self carryLiveOffsetInto:nextStateData];
+  [self carryScrollCommandInto:nextStateData];
+  _state->updateState(std::move(nextStateData));
 }
 
 - (void)setStartReachedEnabled:(BOOL)enabled
@@ -1155,6 +1308,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     return;
   }
 
+  SLF_TRACE("ev=cmd-scroll-to-index index=%ld", (long)index);
   // Bump the sequence so an unchanged index still triggers a fresh scroll.
   auto nextStateData = _state->getData();
   [self yieldMomentumInto:nextStateData];
@@ -1193,6 +1347,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
    * as off-screen rows are measured. The animated flag is unused but kept for API compatibility.
    */
   (void)animated;
+  SLF_TRACE("ev=cmd-scroll-to-end off=%.1f,%.1f", _scrollView.contentOffset.x, _scrollView.contentOffset.y);
   auto nextStateData = _state->getData();
   [self yieldMomentumInto:nextStateData];
   _commandIndex = -3.0;
