@@ -1,45 +1,72 @@
-import { forwardRef } from 'react';
+import { forwardRef, useCallback } from 'react';
 import {
   ShadowList,
   type ShadowListProps,
   type ShadowListCommands,
 } from 'shadowlist';
-import { ChatBubble, type ChatMessage } from './ChatBubble';
+import { useLabels } from '../labels';
+import { useTheme } from '../theme';
+import { ChatBubble } from './ChatBubble';
+import { defaultChatLabels, type ChatLabels } from './labels';
+import { getChatMessageSizeSpec } from './sizeSpec';
+import type { ChatMessage } from './types';
+
+type RenderChatMessage = NonNullable<
+  ShadowListProps<ChatMessage>['renderElement']
+>;
 
 export type ChatListProps = Omit<
   ShadowListProps<ChatMessage>,
   'renderElement'
 > & {
-  renderElement?: ShadowListProps<ChatMessage>['renderElement'];
+  renderElement?: RenderChatMessage;
+  // Passed to the default bubble. Keep them stable, or every mounted bubble re-renders.
+  onRetryMessage?: (message: ChatMessage) => void;
+  onLongPressMessage?: (message: ChatMessage) => void;
+  labels?: Partial<ChatLabels>;
 };
 
-const renderChatBubble: ShadowListProps<ChatMessage>['renderElement'] = ({
-  element,
-}) => (
-  <ChatBubble
-    text={element.text}
-    isFromMe={element.isFromMe}
-    imageUrl={element.imageUrl}
-    imageUrls={element.imageUrls}
-    username={element.username}
-    avatarColor={element.avatarColor}
-    initials={element.initials}
-  />
-);
-
-/*
- * An inverted message list (newest at the bottom). Renders iMessage-style
- * bubbles from `data`; pair with <Chat.Input /> for a full composer. Wrap in
- * the library's KeyboardView + your own keyboard-avoidance for the full
- * chat experience.
- */
 export const ChatList = forwardRef<ShadowListCommands, ChatListProps>(
-  ({ renderElement, ...props }, ref) => (
-    <ShadowList
-      ref={ref}
-      inverted
-      renderElement={renderElement ?? renderChatBubble}
-      {...props}
-    />
-  )
+  (
+    {
+      renderElement,
+      getElementSizeSpec,
+      onRetryMessage,
+      onLongPressMessage,
+      labels,
+      ...props
+    },
+    ref
+  ) => {
+    const theme = useTheme();
+    const bubbleLabels = useLabels(defaultChatLabels, labels);
+    const renderBubble = useCallback<RenderChatMessage>(
+      ({ element }) => (
+        <ChatBubble
+          message={element}
+          onRetry={onRetryMessage}
+          onLongPress={onLongPressMessage}
+          labels={bubbleLabels}
+        />
+      ),
+      [bubbleLabels, onRetryMessage, onLongPressMessage]
+    );
+    const getDefaultSizeSpec = useCallback(
+      (message: ChatMessage) => getChatMessageSizeSpec(message, theme),
+      [theme]
+    );
+    return (
+      <ShadowList
+        ref={ref}
+        inverted
+        renderElement={renderElement ?? renderBubble}
+        // The default spec describes the default bubble only; a custom renderer brings its own.
+        getElementSizeSpec={
+          getElementSizeSpec ??
+          (renderElement === undefined ? getDefaultSizeSpec : undefined)
+        }
+        {...props}
+      />
+    );
+  }
 );

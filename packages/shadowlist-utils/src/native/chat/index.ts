@@ -1,14 +1,10 @@
-import { ChatList } from './ChatList';
-import { ChatBubble } from './ChatBubble';
-import { ChatInput } from './ChatInput';
+export { Chat } from './Chat';
+export { defaultChatLabels } from './labels';
+export { getChatMessageSizeSpec } from './sizeSpec';
 
 export type { ChatListProps } from './ChatList';
-export { getChatMessageSizeSpec } from './ChatBubble';
-export type { ChatBubbleProps, ChatMessage } from './ChatBubble';
+export type { ChatBubbleProps } from './ChatBubble';
 export type { ChatInputProps } from './ChatInput';
-
-export const Chat = {
-  List: ChatList,
-  Bubble: ChatBubble,
-  Input: ChatInput,
-};
+export type { ChatLabels } from './labels';
+export type { ChatMessageSizeSpecOptions } from './sizeSpec';
+export type { ChatAuthor, ChatMessage, ChatMessageStatus } from './types';
