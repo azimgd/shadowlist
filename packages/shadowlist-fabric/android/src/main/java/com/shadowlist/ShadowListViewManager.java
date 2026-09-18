@@ -106,6 +106,12 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
+  @ReactProp(name = "followAppends")
+  public void setFollowAppends(ShadowListView view, boolean followAppends) {
+    // Consumed by the C++ core via props; no Android view state needed.
+  }
+
+  @Override
   @ReactProp(name = "horizontal")
   public void setHorizontal(ShadowListView view, boolean horizontal) {
     view.setHorizontal(horizontal);
@@ -170,12 +176,6 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "contentInsetBottom")
-  public void setContentInsetBottom(ShadowListView view, double contentInsetBottom) {
-    view.setContentInsetBottom(contentInsetBottom);
-  }
-
-  @Override
   @ReactProp(name = "refreshEnabled")
   public void setRefreshEnabled(ShadowListView view, boolean refreshEnabled) {
     view.setRefreshEnabled(refreshEnabled);
@@ -196,11 +196,14 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Nullable
   @Override
   public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
-    // Map the dispatched "topRefresh" event to the JS `onRefresh` handler.
+    // Map the dispatched refresh events to the JS `onRefresh` / `onRefreshSettle` handlers.
     return MapBuilder.<String, Object>builder()
       .put(
         ShadowListRefreshEvent.EVENT_NAME,
         MapBuilder.of("registrationName", "onRefresh"))
+      .put(
+        ShadowListRefreshEvent.SETTLE_EVENT_NAME,
+        MapBuilder.of("registrationName", "onRefreshSettle"))
       .build();
   }
 
@@ -225,12 +228,6 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "overscan")
   public void setOverscan(ShadowListView view, double overscan) {
-    // Consumed by the C++ core via props; no Android view state needed.
-  }
-
-  @Override
-  @ReactProp(name = "nativeViewOverscan")
-  public void setNativeViewOverscan(ShadowListView view, double nativeViewOverscan) {
     // Consumed by the C++ core via props; no Android view state needed.
   }
 
