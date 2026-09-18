@@ -1,113 +1,140 @@
-import { useCallback, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  KeyboardView,
-  useKeyboardAnimation,
-  type ShadowListCommands,
-} from 'shadowlist';
+import { KeyboardView, type ShadowListCommands } from 'shadowlist';
+import { useInfiniteListProps } from 'shadowlist-utils';
 import {
   Chat,
   ListHeader,
   ListFooter,
-  colors,
+  Spinner,
   getChatMessageSizeSpec,
+  createStyles,
+  useKeyboardLift,
+  useTheme,
   type ChatMessage,
 } from 'shadowlist-utils/native';
-import {
-  generateUniqueId,
-  generateRandomText,
-  generateOptimizedImageUrl,
-  shouldBeImageGrid,
-  generateImageGrid,
-  generateAvatar,
-  useListController,
-} from 'shadowlist-utils';
+import { useItemOrdinals } from './itemOrdinals';
 import { useHeaderActions } from './HeaderActions';
+import { QueryStatus } from './QueryStatus';
+import { createOutgoingMessage, simulateIncomingMessages } from './api/chat';
+import {
+  useChatMessagesQuery,
+  useIncomingChatMessages,
+  useSendChatMessage,
+} from './queries/chat';
 
-// Gap kept between the composer and the keyboard; matches the composer's top padding.
 const KEYBOARD_GAP = 8;
-
-const buildMessage = (elementIndex: number): ChatMessage => {
-  const isImageGrid = shouldBeImageGrid(elementIndex);
-  const imageUrl = generateOptimizedImageUrl(elementIndex);
-  const avatar = generateAvatar(elementIndex);
-  return {
-    id: generateUniqueId(),
-    text: isImageGrid || !!imageUrl ? '' : generateRandomText(elementIndex),
-    isFromMe: elementIndex % 3 !== 0,
-    imageUrl,
-    imageUrls: isImageGrid ? generateImageGrid(elementIndex) : undefined,
-    username: avatar.name,
-    avatarColor: avatar.color,
-    initials: avatar.initials,
-  };
-};
+const INCOMING_COUNT = 10;
+const INPUT_LABELS = { placeholder: 'Message your crew' };
 
 export const ChatScreen = () => {
   const shadowlistRef = useRef<ShadowListCommands>(null);
-  const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const styles = useStyles();
+  const liftTranslateY = useKeyboardLift({ gap: KEYBOARD_GAP });
 
-  // Live keyboard height (dp); the list and composer translate up by it.
-  const { height } = useKeyboardAnimation();
+  const messages = useChatMessagesQuery();
+  const list = useInfiniteListProps(messages);
+  const { mutate: sendMessage } = useSendChatMessage();
+  useIncomingChatMessages();
 
   /*
-   * Lift the composer to rest KEYBOARD_GAP above the keyboard once it passes the safe-area
-   * inset, so the input keeps the same gap below it as its top padding (not flush).
+   * Incoming messages keep the reader where they are (the list does not followAppends); the
+   * reader's own message is brought into view once it is in the list.
    */
-  const liftTranslateY = useMemo(() => {
-    const safe = insets.bottom;
-    return height.interpolate({
-      inputRange: safe > 0 ? [0, safe, safe + 1] : [0, 1, 2],
-      outputRange: [0, -KEYBOARD_GAP, -KEYBOARD_GAP - 1],
-    });
-  }, [height, insets.bottom]);
-
-  const initialData = useMemo(
-    () => Array.from({ length: 1000 }, (_, index) => buildMessage(index)),
-    []
+  const sentIdRef = useRef<string | null>(null);
+  const handleSendMessage = useCallback(
+    (text: string) => {
+      const message = createOutgoingMessage(text);
+      sentIdRef.current = message.id;
+      sendMessage(message);
+    },
+    [sendMessage]
   );
-  const list = useListController<ChatMessage>({ initialData });
+  const lastMessage = list.data[list.data.length - 1];
+  const lastId = lastMessage?.id;
+  useEffect(() => {
+    if (lastId !== undefined && lastId === sentIdRef.current) {
+      sentIdRef.current = null;
+      shadowlistRef.current?.scrollToEnd();
+    }
+  }, [lastId]);
 
-  const handlePrepend = () =>
-    list.prepend(
-      Array.from({ length: 10 }, (_, index) =>
-        buildMessage(list.data.length + index)
-      )
-    );
-  const handleAppend = () =>
-    list.append(
-      Array.from({ length: 10 }, (_, index) =>
-        buildMessage(list.data.length + index)
-      )
-    );
-  const handleSendMessage = (message: string) =>
-    list.append([{ id: generateUniqueId(), text: message, isFromMe: true }]);
-  const handleScrollToRandom = () =>
-    shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * list.data.length)
-    );
+  /*
+   * A failed send grows its row by the retry line. The list keeps the visible area where it
+   * is, so on the newest message that line would land under the composer, out of sight.
+   */
+  const lastFailed =
+    lastMessage?.isOwn === true && lastMessage.status === 'failed';
+  useEffect(() => {
+    if (lastFailed) shadowlistRef.current?.scrollToEnd();
+  }, [lastFailed, lastId]);
 
-  useHeaderActions({
-    onPrepend: handlePrepend,
-    onAppend: handleAppend,
-    onScrollToRandom: handleScrollToRandom,
-  });
+  /*
+   * The position of each message in the thread, under its bubble. Numbers are assigned once
+   * per message id (see useItemOrdinals), so loading older history labels only the new page
+   * and leaves every mounted bubble alone -- both the renderer and the size spec below stay
+   * referentially stable for the same reason.
+   */
+  const ordinals = useItemOrdinals(list.data);
+  const { labelOf } = ordinals;
 
-  const renderElement = useCallback(
+  // The same id goes out again; the bubble flips back to 'sending' in place.
+  const handleRetry = useCallback(
+    (message: ChatMessage) => sendMessage(message),
+    [sendMessage]
+  );
+
+  const renderBubble = useCallback(
     ({ element }: { element: ChatMessage }) => (
       <Chat.Bubble
-        text={element.text}
-        isFromMe={element.isFromMe}
-        imageUrl={element.imageUrl}
-        imageUrls={element.imageUrls}
-        username={element.username}
-        avatarColor={element.avatarColor}
-        initials={element.initials}
+        message={element}
+        caption={labelOf(element.id)}
+        onRetry={handleRetry}
       />
     ),
-    []
+    [labelOf, handleRetry]
   );
+
+  // The caption is a line of its own, so the predicted height has to include it (the spec
+  // adds a failed message's status line by itself).
+  const getSizeSpec = useCallback(
+    (message: ChatMessage) =>
+      getChatMessageSizeSpec(message, theme, { caption: true }),
+    [theme]
+  );
+
+  useHeaderActions({
+    onPrepend: list.onStartReached,
+    onAppend: () => simulateIncomingMessages(INCOMING_COUNT),
+    onScrollToRandom: () =>
+      shadowlistRef.current?.scrollToIndex(
+        Math.floor(Math.random() * list.data.length)
+      ),
+  });
+
+  const { isFetchingPreviousPage, hasPreviousPage } = messages;
+  const header = useMemo(
+    () => (
+      <View>
+        <ListHeader
+          title="Lisbon Crew"
+          subtitle="8 travellers · departs Oct 12"
+        />
+        {isFetchingPreviousPage ? <Spinner size={16} /> : null}
+      </View>
+    ),
+    [isFetchingPreviousPage]
+  );
+  const footer = useMemo(
+    () =>
+      hasPreviousPage ? null : <ListFooter text="Start of the trip chat" />,
+    [hasPreviousPage]
+  );
+
+  if (messages.data === undefined) {
+    return <QueryStatus error={messages.error} onRetry={messages.refetch} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -119,34 +146,33 @@ export const ChatScreen = () => {
             data={list.data}
             ref={shadowlistRef}
             style={styles.list}
-            renderElement={renderElement}
-            getElementSizeSpec={getChatMessageSizeSpec}
-            ListHeaderComponent={
-              <ListHeader title="Chat" subtitle="Inverted list" />
-            }
-            ListFooterComponent={<ListFooter text="Start of conversation" />}
-            // Demonstrates the opt-in native view band (iOS only).
-            nativeViewOverscan={0.5}
+            renderElement={renderBubble}
+            getElementSizeSpec={getSizeSpec}
+            onStartReached={list.onStartReached}
+            ListHeaderComponent={header}
+            ListFooterComponent={footer}
           />
         </KeyboardView>
-        <Chat.Input onSend={handleSendMessage} />
+        <Chat.Input onSend={handleSendMessage} labels={INPUT_LABELS} />
       </Animated.View>
     </View>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-    overflow: 'hidden',
-  },
-  lifted: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});
+const useStyles = createStyles(({ colors }) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      overflow: 'hidden',
+    },
+    lifted: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    list: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+  })
+);

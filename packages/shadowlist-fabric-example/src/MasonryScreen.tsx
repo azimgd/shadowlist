@@ -1,57 +1,45 @@
-import { useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useMemo, useRef } from 'react';
+import { View } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
+import { useInfiniteListProps } from 'shadowlist-utils';
 import {
   Masonry,
   ListHeader,
   ListFooter,
-  colors,
+  Spinner,
 } from 'shadowlist-utils/native';
-import {
-  generateMasonryElement,
-  useListController,
-  type MasonryItem,
-} from 'shadowlist-utils';
+import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
+import { QueryStatus } from './QueryStatus';
+import { usePhotosQuery, usePublishPhotos } from './queries/gallery';
 
 export const MasonryScreen = () => {
+  const styles = useScreenStyles();
   const shadowlistRef = useRef<ShadowListCommands>(null);
-  const initialData = useMemo(
-    () =>
-      Array.from({ length: 100 }, (_, index) => generateMasonryElement(index)),
-    []
-  );
-  const list = useListController<MasonryItem>({ initialData });
 
-  const handlePrepend = () =>
-    list.prepend(
-      Array.from({ length: 10 }, (_, index) =>
-        generateMasonryElement(list.data.length + index)
-      )
-    );
-  const handleAppend = () =>
-    list.append(
-      Array.from({ length: 10 }, (_, index) =>
-        generateMasonryElement(list.data.length + index)
-      )
-    );
-  const handleScrollToRandom = () =>
-    shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * list.data.length)
-    );
+  const photos = usePhotosQuery();
+  const list = useInfiniteListProps(photos);
+  const { mutate: publishPhotos } = usePublishPhotos();
 
   useHeaderActions({
-    onPrepend: handlePrepend,
-    onAppend: handleAppend,
-    onScrollToRandom: handleScrollToRandom,
+    onPrepend: () => publishPhotos(10),
+    onAppend: list.onEndReached,
+    onScrollToRandom: () =>
+      shadowlistRef.current?.scrollToIndex(
+        Math.floor(Math.random() * list.data.length)
+      ),
   });
 
-  const renderElement = useCallback(
-    ({ element }: { element: MasonryItem }) => (
-      <Masonry.Card element={element} />
-    ),
-    []
+  const { hasNextPage } = photos;
+  const footer = useMemo(
+    () =>
+      hasNextPage ? <Spinner /> : <ListFooter text="End of the gallery" />,
+    [hasNextPage]
   );
+
+  if (photos.data === undefined) {
+    return <QueryStatus error={photos.error} onRetry={photos.refetch} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -59,24 +47,15 @@ export const MasonryScreen = () => {
         data={list.data}
         ref={shadowlistRef}
         style={styles.list}
-        columns={3}
-        renderElement={renderElement}
+        onEndReached={list.onEndReached}
         ListHeaderComponent={
-          <ListHeader title="Masonry" subtitle="Three column grid layout" />
+          <ListHeader
+            title="Gallery"
+            subtitle="Night skies shared by travellers"
+          />
         }
-        ListFooterComponent={<ListFooter text="End of masonry grid" />}
+        ListFooterComponent={footer}
       />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});

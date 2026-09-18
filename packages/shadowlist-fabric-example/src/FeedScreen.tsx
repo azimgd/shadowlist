@@ -1,79 +1,50 @@
-import { useRef, useCallback, useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useRef, useMemo } from 'react';
+import { View } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
+import { useInfiniteListProps } from 'shadowlist-utils';
 import {
   Feed,
   ListHeader,
   ListFooter,
   Spinner,
-  colors,
+  useTheme,
 } from 'shadowlist-utils/native';
-import {
-  generateFeedElement,
-  useListController,
-  type FeedItem,
-} from 'shadowlist-utils';
+import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
+import { QueryStatus } from './QueryStatus';
+import { useFeedQuery, usePublishPosts, useRefreshFeed } from './queries/feed';
 
-const REFRESH_BATCH = 10;
-const PAGE_SIZE = 20;
-
-const batch = (count: number, offset: number): FeedItem[] =>
-  Array.from({ length: count }, (_, index) =>
-    generateFeedElement(offset + index)
-  );
+const PUBLISH_COUNT = 10;
 
 export const FeedScreen = () => {
+  const styles = useScreenStyles();
+  const { colors } = useTheme();
   const shadowlistRef = useRef<ShadowListCommands>(null);
 
-  const initialData = useMemo(() => batch(1000, 0), []);
-
-  /*
-   * useListController owns the data plus the refreshing / loadingMore flags; each
-   * `handle*` flips its flag while the async work runs and won't double-fire.
-   */
-  const list = useListController<FeedItem>({
-    initialData,
-    // Pull-to-refresh: prepend a fresh batch after a short delay.
-    onRefresh: () =>
-      new Promise<void>((resolve) =>
-        setTimeout(() => {
-          list.prepend(batch(REFRESH_BATCH, 0));
-          resolve();
-        }, 1200)
-      ),
-    // Infinite scroll: append the next page when the end is reached.
-    onEndReached: () =>
-      new Promise<void>((resolve) =>
-        setTimeout(() => {
-          list.append(batch(PAGE_SIZE, list.data.length));
-          resolve();
-        }, 1000)
-      ),
-  });
-
-  const handlePrepend = () => list.prepend(batch(10, list.data.length));
-  const handleAppend = () => list.append(batch(10, list.data.length));
-  const handleScrollToRandom = () =>
-    shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * list.data.length)
-    );
+  const feed = useFeedQuery();
+  const refreshFeed = useRefreshFeed();
+  const list = useInfiniteListProps(feed, { refresh: refreshFeed });
+  const { mutate: publishPosts } = usePublishPosts();
 
   useHeaderActions({
-    onPrepend: handlePrepend,
-    onAppend: handleAppend,
-    onScrollToRandom: handleScrollToRandom,
+    onPrepend: () => publishPosts(PUBLISH_COUNT),
+    onAppend: list.onEndReached,
+    onScrollToRandom: () =>
+      shadowlistRef.current?.scrollToIndex(
+        Math.floor(Math.random() * list.data.length)
+      ),
   });
 
+  const { hasNextPage } = feed;
   const footer = useMemo(
-    () => (list.loadingMore ? <Spinner /> : <ListFooter text="End of feed" />),
-    [list.loadingMore]
+    () =>
+      hasNextPage ? <Spinner /> : <ListFooter text="You're all caught up" />,
+    [hasNextPage]
   );
 
-  const renderElement = useCallback(
-    ({ element }: { element: FeedItem }) => <Feed.Element element={element} />,
-    []
-  );
+  if (feed.data === undefined) {
+    return <QueryStatus error={feed.error} onRetry={feed.refetch} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -82,26 +53,14 @@ export const FeedScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         refreshing={list.refreshing}
-        onRefresh={list.handleRefresh}
+        onRefresh={list.onRefresh}
         refreshColor={colors.secondaryLabel}
-        onEndReached={list.handleEndReached}
-        renderElement={renderElement}
+        onEndReached={list.onEndReached}
         ListHeaderComponent={
-          <ListHeader title="Feed" subtitle="Vertical scrolling list" />
+          <ListHeader title="Skyfy" subtitle="Trips and skies from your crew" />
         }
         ListFooterComponent={footer}
       />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});

@@ -1,95 +1,72 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { type ShadowListCommands, type OnScroll } from 'shadowlist';
-import { Activity, Spinner, colors, typography } from 'shadowlist-utils/native';
+import { type ShadowListCommands } from 'shadowlist';
 import {
-  type ActivityData,
-  buildActivity,
-  useListController,
+  getViewableRange,
+  useInfiniteListProps,
+  useScrollThreshold,
+} from 'shadowlist-utils';
+import {
+  Activity,
+  Spinner,
+  createStyles,
+  useTheme,
+} from 'shadowlist-utils/native';
+import {
   START_REACHED_THRESHOLDS,
   END_REACHED_THRESHOLDS,
   nextInCycle,
   HEADER_HIDE_THRESHOLD,
-} from 'shadowlist-utils';
+} from './fixtures/activity';
+import { QueryStatus } from './QueryStatus';
+import {
+  useActivityQuery,
+  useDeleteActivities,
+  useRefreshActivity,
+} from './queries/activity';
 
 export const ActivityScreen = () => {
+  const styles = useStyles();
+  const { colors } = useTheme();
   const shadowlistRef = useRef<ShadowListCommands>(null);
-  const initialData = useMemo(
-    () => Array.from({ length: 300 }, (_, index) => buildActivity(index)),
-    []
-  );
 
-  /*
-   * useListController owns the data + refreshing / loadingMore flags; the custom
-   * scroll and viewability handlers below stay local and are passed straight to the list.
-   */
-  const list = useListController<ActivityData>({
-    initialData,
-    // Pull-to-refresh: prepend a fresh batch.
-    onRefresh: () =>
-      new Promise<void>((resolve) =>
-        setTimeout(() => {
-          list.prepend(
-            Array.from({ length: 10 }, (_, index) => buildActivity(index))
-          );
-          resolve();
-        }, 1200)
-      ),
-    // Pagination: append the next page. The hook guards against re-firing mid-load.
-    onEndReached: () =>
-      new Promise<void>((resolve) =>
-        setTimeout(() => {
-          list.append(
-            Array.from({ length: 20 }, (_, index) =>
-              buildActivity(list.data.length + index)
-            )
-          );
-          resolve();
-        }, 1000)
-      ),
-  });
-  const { removeItems } = list;
+  const activity = useActivityQuery();
+  const refreshActivity = useRefreshActivity();
+  const list = useInfiniteListProps(activity, { refresh: refreshActivity });
+  const { mutate: deleteActivities } = useDeleteActivities();
 
   const [viewableLabel, setViewableLabel] = useState('—');
   const [startThreshold, setStartThreshold] = useState(1);
   const [endThreshold, setEndThreshold] = useState(1.5);
-  const [headerSticky, setHeaderSticky] = useState(true);
-  const headerStickyRef = useRef(true);
 
-  // Surface the live on-screen index range on the sticky footer.
+  const { isPastThreshold: headerHidden, onScroll } = useScrollThreshold(
+    HEADER_HIDE_THRESHOLD
+  );
+
   const handleViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: { index: number }[] }) => {
-      if (viewableItems.length === 0) {
-        setViewableLabel('—');
-        return;
-      }
-      const first = viewableItems[0]!.index;
-      const last = viewableItems[viewableItems.length - 1]!.index;
-      setViewableLabel(`${first}–${last}`);
+      const range = getViewableRange(viewableItems);
+      setViewableLabel(range ? `${range.firstIndex}–${range.lastIndex}` : '—');
     },
     []
   );
 
-  // Hide the sticky header past the threshold, repin on the way back up.
-  const handleScroll = useCallback((event: { nativeEvent: OnScroll }) => {
-    const sticky = event.nativeEvent.contentOffsetY < HEADER_HIDE_THRESHOLD;
-    if (sticky !== headerStickyRef.current) {
-      headerStickyRef.current = sticky;
-      setHeaderSticky(sticky);
-    }
-  }, []);
+  const dataRef = useRef(list.data);
+  dataRef.current = list.data;
 
-  // Drop the 20th and 50th rows.
-  const handleRemoveItems = useCallback(
-    () => removeItems((_, index) => index === 20 || index === 50),
-    [removeItems]
-  );
+  const handleRemoveItems = useCallback(() => {
+    const ids = [20, 50].flatMap((index) => {
+      const row = dataRef.current[index];
+      return row ? [row.id] : [];
+    });
+    deleteActivities(ids);
+  }, [deleteActivities]);
 
   const header = useMemo(
     () => (
       <Activity.Header
         title="Activity"
-        subtitle="Imperative scroll, thresholds & list editing, opens at index 30"
+        subtitle="Boarding calls, likes and new followers, opens at index 30"
         actions={[
           {
             label: 'Offset 2000',
@@ -120,29 +97,23 @@ export const ActivityScreen = () => {
     [startThreshold, endThreshold, handleRemoveItems]
   );
 
-  /*
-   * Persistent full-width status footer: always shows the viewable range + total,
-   * with the pagination spinner appended (not swapped in) so the info never
-   * disappears while loading more.
-   */
+  const { isFetchingNextPage } = activity;
   const footer = useMemo(
     () => (
       <View style={styles.statusFooter}>
         <Text style={styles.statusText}>
           {`Viewable: ${viewableLabel} · Total: ${list.data.length}`}
         </Text>
-        {list.loadingMore && <Spinner size={16} />}
+        {isFetchingNextPage && <Spinner size={16} />}
       </View>
     ),
-    [list.loadingMore, viewableLabel, list.data.length]
+    [styles, isFetchingNextPage, viewableLabel, list.data.length]
   );
 
-  const renderElement = useCallback(
-    ({ element }: { element: ActivityData }) => (
-      <Activity.Row element={element} />
-    ),
-    []
-  );
+  // The list mounts with its first page, so containerOffsetIndex has rows to land on.
+  if (activity.data === undefined) {
+    return <QueryStatus error={activity.error} onRetry={activity.refetch} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -150,16 +121,15 @@ export const ActivityScreen = () => {
         data={list.data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={renderElement}
         containerOffsetIndex={30}
-        stickyHeader={headerSticky}
+        stickyHeader={!headerHidden}
         refreshing={list.refreshing}
-        onRefresh={list.handleRefresh}
+        onRefresh={list.onRefresh}
         refreshColor={colors.secondaryLabel}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
-        onScroll={handleScroll}
-        onEndReached={list.handleEndReached}
+        onScroll={onScroll}
+        onEndReached={list.onEndReached}
         onStartReachedThreshold={startThreshold}
         onEndReachedThreshold={endThreshold}
         onViewableItemsChanged={handleViewableItemsChanged}
@@ -168,27 +138,29 @@ export const ActivityScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  statusFooter: {
-    width: '100%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.background,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-  },
-  statusText: {
-    color: colors.secondaryLabel,
-    ...typography.footnote,
-  },
-});
+const useStyles = createStyles(({ colors, typography }) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    list: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    statusFooter: {
+      width: '100%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: colors.background,
+      paddingHorizontal: 16,
+      paddingVertical: 20,
+    },
+    statusText: {
+      color: colors.secondaryLabel,
+      ...typography.footnote,
+    },
+  })
+);
