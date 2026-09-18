@@ -1,10 +1,7 @@
-import { TreeList } from './TreeList';
-import { TreeRow } from './TreeRow';
+export { Tree } from './Tree';
+export { defaultTreeLabels } from './labels';
 
-export type { TreeListProps_ } from './TreeList';
+export type { TreeListProps } from './TreeList';
 export type { TreeRowProps } from './TreeRow';
-
-export const Tree = {
-  List: TreeList,
-  Row: TreeRow,
-};
+export type { TreeLabels } from './labels';
+export type { TreeNode, TreeNodeKind } from './types';

@@ -1,48 +1,81 @@
 import { memo } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
-import type { NestedCard as NestedCardData } from 'shadowlist-utils';
-import { colors, typography, radius, spacing } from '../theme';
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ImageStyle,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { createStyles } from '../theme';
+import type { NestedCardItem } from './types';
 
 export interface NestedCardProps {
-  element: NestedCardData;
+  item: NestedCardItem;
+  onPress?: (item: NestedCardItem) => void;
+  style?: StyleProp<ViewStyle>;
+  imageStyle?: StyleProp<ImageStyle>;
 }
 
-export const NestedCard = memo(({ element }: NestedCardProps) => {
-  return (
-    <View style={styles.nestedElement}>
-      <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: element.imageUrl }}
-          style={styles.image}
-          resizeMode="cover"
-        />
-      </View>
-      <Text style={styles.title} numberOfLines={2}>
-        {element.title}
-      </Text>
-    </View>
-  );
-});
+export const NestedCard = memo(
+  ({ item, onPress, style, imageStyle }: NestedCardProps) => {
+    const styles = useStyles();
+    const content = (
+      <>
+        <View style={styles.imageFrame}>
+          <Image
+            source={{ uri: item.image.uri }}
+            style={[styles.image, imageStyle]}
+            resizeMode="cover"
+            accessible={item.image.alt !== undefined}
+            accessibilityLabel={item.image.alt}
+          />
+        </View>
+        <Text style={styles.title} numberOfLines={2}>
+          {item.title}
+        </Text>
+      </>
+    );
 
-const styles = StyleSheet.create({
-  nestedElement: {
-    width: 180,
-    marginLeft: spacing.lg,
-  },
-  imageContainer: {
-    width: 180,
-    height: 220,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    backgroundColor: colors.elevated2,
-    marginBottom: spacing.sm,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  title: {
-    color: colors.label,
-    ...typography.subhead,
-  },
-});
+    if (onPress === undefined) {
+      return <View style={[styles.card, style]}>{content}</View>;
+    }
+    return (
+      <Pressable
+        style={[styles.card, style]}
+        accessibilityRole="button"
+        accessibilityLabel={item.title}
+        onPress={() => onPress(item)}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+);
+
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    card: {
+      width: 180,
+      marginLeft: theme.spacing.lg,
+    },
+    imageFrame: {
+      width: 180,
+      height: 220,
+      borderRadius: theme.radius.md,
+      overflow: 'hidden',
+      backgroundColor: theme.colors.elevated2,
+      marginBottom: theme.spacing.sm,
+    },
+    image: {
+      width: '100%',
+      height: '100%',
+    },
+    title: {
+      color: theme.colors.label,
+      ...theme.typography.subhead,
+    },
+  })
+);

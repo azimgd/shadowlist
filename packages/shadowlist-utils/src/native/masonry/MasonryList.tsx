@@ -1,34 +1,43 @@
-import { forwardRef } from 'react';
+import { forwardRef, useCallback } from 'react';
 import {
   ShadowList,
   type ShadowListProps,
   type ShadowListCommands,
 } from 'shadowlist';
-import type { MasonryItem } from 'shadowlist-utils';
+import { useLabels } from '../labels';
+import { defaultMasonryLabels, type MasonryLabels } from './labels';
 import { MasonryCard } from './MasonryCard';
+import type { MasonryItem } from './types';
+
+type RenderMasonryItem = NonNullable<
+  ShadowListProps<MasonryItem>['renderElement']
+>;
 
 export type MasonryListProps = Omit<
   ShadowListProps<MasonryItem>,
   'renderElement'
 > & {
-  renderElement?: ShadowListProps<MasonryItem>['renderElement'];
+  renderElement?: RenderMasonryItem;
+  onPressItem?: (item: MasonryItem) => void;
+  labels?: Partial<MasonryLabels>;
 };
 
-const renderMasonryCard: ShadowListProps<MasonryItem>['renderElement'] = ({
-  element,
-}) => <MasonryCard element={element} />;
-
-/*
- * A multi-column grid of variable-height image cards. Defaults to 3 columns;
- * override with the `columns` prop.
- */
 export const MasonryList = forwardRef<ShadowListCommands, MasonryListProps>(
-  ({ renderElement, ...props }, ref) => (
-    <ShadowList
-      ref={ref}
-      columns={3}
-      renderElement={renderElement ?? renderMasonryCard}
-      {...props}
-    />
-  )
+  ({ renderElement, onPressItem, labels, ...props }, ref) => {
+    const cardLabels = useLabels(defaultMasonryLabels, labels);
+    const renderCard = useCallback<RenderMasonryItem>(
+      ({ element }) => (
+        <MasonryCard item={element} onPress={onPressItem} labels={cardLabels} />
+      ),
+      [onPressItem, cardLabels]
+    );
+    return (
+      <ShadowList
+        ref={ref}
+        columns={3}
+        renderElement={renderElement ?? renderCard}
+        {...props}
+      />
+    );
+  }
 );

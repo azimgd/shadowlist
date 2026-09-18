@@ -1,10 +1,7 @@
-import { SnapList } from './SnapList';
-import { SnapCard } from './SnapCard';
+export { Snap } from './Snap';
+export { defaultSnapLabels } from './labels';
 
 export type { SnapListProps } from './SnapList';
 export type { SnapCardProps } from './SnapCard';
-
-export const Snap = {
-  List: SnapList,
-  Card: SnapCard,
-};
+export type { SnapLabels } from './labels';
+export type { SnapItem, SnapImage } from './types';
