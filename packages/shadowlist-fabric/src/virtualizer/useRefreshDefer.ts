@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { slTrace, slTraceEnabled } from './helpers';
 
 interface UseRefreshDeferOptions<ElementT> {
   data: ReadonlyArray<ElementT>;
@@ -42,6 +43,9 @@ export function useRefreshDefer<ElementT>({
 
   if (dataProp !== committedData) {
     if (refreshHoldingRef.current) {
+      if (slTraceEnabled() && refreshHeldDataRef.current !== dataProp) {
+        slTrace(`refresh hold n=${dataProp.length}`);
+      }
       refreshHeldDataRef.current = dataProp;
     } else {
       setCommittedData(dataProp);
@@ -50,6 +54,11 @@ export function useRefreshDefer<ElementT>({
 
   // Apply the held refresh-prepend once native reports the spinner has fully retracted.
   const handleRefreshSettle = useCallback(() => {
+    if (slTraceEnabled()) {
+      slTrace(
+        `refresh settle held=${refreshHeldDataRef.current !== null ? 1 : 0}`
+      );
+    }
     refreshHoldingRef.current = false;
     if (refreshHeldDataRef.current !== null) {
       setCommittedData(refreshHeldDataRef.current);
