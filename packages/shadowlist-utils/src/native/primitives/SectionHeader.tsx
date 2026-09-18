@@ -1,42 +1,52 @@
 import { memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { colors, typography, spacing, fontWeight } from '../theme';
+import {
+  View,
+  Text,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { createStyles } from '../theme';
 
 export interface SectionHeaderProps {
   title: string;
   count?: number;
+  style?: StyleProp<ViewStyle>;
 }
 
-/*
- * iOS grouped section header: uppercase secondary-label text on a subtle
- * translucent bar. The pinned header is opaque so rows scroll cleanly under it.
- */
-export const SectionHeader = memo(({ title, count }: SectionHeaderProps) => {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{title}</Text>
-      {count !== undefined ? <Text style={styles.count}>{count}</Text> : null}
-    </View>
-  );
-});
+export const SectionHeader = memo(
+  ({ title, count, style }: SectionHeaderProps) => {
+    const styles = useStyles();
+    return (
+      <View style={[styles.container, style]}>
+        <Text style={styles.title} accessibilityRole="header">
+          {title}
+        </Text>
+        {count !== undefined ? <Text style={styles.count}>{count}</Text> : null}
+      </View>
+    );
+  }
+);
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.elevated,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  title: {
-    color: colors.secondaryLabel,
-    ...typography.footnote,
-    fontWeight: fontWeight.semibold,
-    textTransform: 'uppercase',
-  },
-  count: {
-    color: colors.tertiaryLabel,
-    ...typography.footnote,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: theme.colors.elevated,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: 10,
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      justifyContent: 'space-between',
+    },
+    title: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.footnote,
+      fontWeight: theme.fontWeight.semibold,
+      textTransform: 'uppercase',
+    },
+    count: {
+      color: theme.colors.tertiaryLabel,
+      ...theme.typography.footnote,
+    },
+  })
+);

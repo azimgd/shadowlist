@@ -1,19 +1,31 @@
 /* eslint-disable react-native/no-inline-styles -- icon geometry is derived from
  * the size/color/strokeWidth props, so the shape styles are intentionally dynamic. */
+import type { ComponentType } from 'react';
 import { View } from 'react-native';
-import { colors } from './theme';
+import { useTheme, type ThemeColors } from './theme';
 
 /*
  * Light-stroke, SF-Symbol-style icons drawn purely from <View> primitives: no
- * emoji, no font dependency, no SVG. Every glyph is crisp at any size and tints
- * via the `color` prop so it inherits the app accent.
+ * emoji, no font dependency, no SVG. `color` defaults to a theme color.
  */
 
-interface IconProps {
+export interface IconProps {
   size?: number;
   color?: string;
   strokeWidth?: number;
 }
+
+export type IconComponent = ComponentType<IconProps>;
+
+type IconColor = Exclude<keyof ThemeColors, 'avatarPalette'>;
+
+const useIconColor = (
+  color: string | undefined,
+  fallback: IconColor
+): string => {
+  const theme = useTheme();
+  return color ?? theme.colors[fallback];
+};
 
 type Direction = 'up' | 'down' | 'left' | 'right';
 
@@ -36,12 +48,13 @@ const CHEVRON_SHIFT: Record<Direction, { x: number; y: number }> = {
   right: { x: -1, y: 0 },
 };
 
-export const Chevron = ({
+export const ChevronIcon = ({
   size = 17,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 2,
   direction = 'right',
 }: IconProps & { direction?: Direction }) => {
+  const color = useIconColor(colorProp, 'label');
   const side = size * 0.42;
   const k = side * 0.3535;
   const shift = CHEVRON_SHIFT[direction];
@@ -74,83 +87,8 @@ export const Chevron = ({
   );
 };
 
-// Viewfinder / locate target, used for the "scroll to random" affordance.
-export const Viewfinder = ({
-  size = 22,
-  color = colors.label,
-  strokeWidth = 2,
-}: IconProps) => {
-  const ring = size * 0.6;
-  const tick = size * 0.16;
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <View
-        style={{
-          width: ring,
-          height: ring,
-          borderRadius: ring / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          width: strokeWidth,
-          height: tick,
-          backgroundColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          width: strokeWidth,
-          height: tick,
-          backgroundColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          height: strokeWidth,
-          width: tick,
-          backgroundColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          right: 0,
-          height: strokeWidth,
-          width: tick,
-          backgroundColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          width: strokeWidth * 1.6,
-          height: strokeWidth * 1.6,
-          borderRadius: strokeWidth,
-          backgroundColor: color,
-        }}
-      />
-    </View>
-  );
-};
-
-// Filled folder, tinted with the accent (Files-app style).
-export const Folder = ({ size = 18, color = colors.accent }: IconProps) => {
+export const FolderIcon = ({ size = 18, color: colorProp }: IconProps) => {
+  const color = useIconColor(colorProp, 'accent');
   return (
     <View style={{ width: size, height: size * 0.82 }}>
       <View
@@ -180,12 +118,12 @@ export const Folder = ({ size = 18, color = colors.accent }: IconProps) => {
   );
 };
 
-// Outlined document with two text lines.
-export const Doc = ({
+export const DocIcon = ({
   size = 18,
-  color = colors.secondaryLabel,
+  color: colorProp,
   strokeWidth = 1.6,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'secondaryLabel');
   const w = size * 0.72;
   const h = size * 0.9;
   return (
@@ -229,12 +167,12 @@ export const Doc = ({
   );
 };
 
-// Three-line reorder grip.
-export const Grip = ({
+export const GripIcon = ({
   size = 20,
-  color = colors.tertiaryLabel,
+  color: colorProp,
   strokeWidth = 1.75,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'tertiaryLabel');
   const line = {
     width: size,
     height: strokeWidth,
@@ -257,212 +195,12 @@ export const Grip = ({
   );
 };
 
-export const HalfCircle = ({
-  size = 22,
-  color = colors.label,
-  strokeWidth = 2,
-}: IconProps) => {
-  const d = size * 0.62;
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <View
-        style={{
-          width: d,
-          height: d,
-          borderRadius: d / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-          overflow: 'hidden',
-        }}
-      >
-        <View
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: d / 2,
-            backgroundColor: color,
-          }}
-        />
-      </View>
-    </View>
-  );
-};
-
-export const CircleSlash = ({
-  size = 22,
-  color = colors.label,
-  strokeWidth = 2,
-}: IconProps) => {
-  const d = size * 0.62;
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <View
-        style={{
-          width: d,
-          height: d,
-          borderRadius: d / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-        }}
-      />
-      <View
-        style={{
-          position: 'absolute',
-          width: strokeWidth,
-          height: d,
-          backgroundColor: color,
-          borderRadius: strokeWidth,
-          transform: [{ rotate: '45deg' }],
-        }}
-      />
-    </View>
-  );
-};
-
-export const Bell = ({
-  size = 22,
-  color = colors.label,
-  strokeWidth = 2,
-}: IconProps) => {
-  const bodyW = size * 0.44;
-  const bodyH = size * 0.42;
-  const baseW = size * 0.6;
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <View style={{ alignItems: 'center' }}>
-        <View
-          style={{
-            width: bodyW,
-            height: bodyH,
-            borderTopLeftRadius: bodyW / 2,
-            borderTopRightRadius: bodyW / 2,
-            borderColor: color,
-            borderWidth: strokeWidth,
-            borderBottomWidth: 0,
-          }}
-        />
-        <View
-          style={{
-            width: baseW,
-            height: strokeWidth,
-            backgroundColor: color,
-            borderRadius: strokeWidth,
-          }}
-        />
-        <View
-          style={{
-            width: strokeWidth * 1.8,
-            height: strokeWidth * 1.8,
-            borderRadius: strokeWidth,
-            backgroundColor: color,
-            marginTop: strokeWidth * 0.7,
-          }}
-        />
-      </View>
-    </View>
-  );
-};
-
-export const Globe = ({
-  size = 22,
-  color = colors.label,
-  strokeWidth = 1.8,
-}: IconProps) => {
-  const d = size * 0.64;
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <View
-        style={{
-          width: d,
-          height: d,
-          borderRadius: d / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <View
-          style={{
-            position: 'absolute',
-            width: d * 0.46,
-            height: d,
-            borderRadius: d * 0.23,
-            borderWidth: strokeWidth,
-            borderColor: color,
-          }}
-        />
-        <View
-          style={{
-            position: 'absolute',
-            width: d,
-            height: strokeWidth,
-            backgroundColor: color,
-          }}
-        />
-      </View>
-    </View>
-  );
-};
-
-export const Swatch = ({ size = 22, color = colors.label }: IconProps) => {
-  const d = size * 0.56;
-  return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <View
-        style={{
-          width: d,
-          height: d,
-          borderRadius: d * 0.3,
-          backgroundColor: color,
-        }}
-      />
-    </View>
-  );
-};
-
-export const ArrowUp = ({
+export const ArrowUpIcon = ({
   size = 20,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 2.2,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   const head = size * 0.36;
   return (
     <View
@@ -506,11 +244,12 @@ export const ArrowUp = ({
   );
 };
 
-export const Plus = ({
+export const PlusIcon = ({
   size = 20,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 2,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   const bar = size * 0.56;
   return (
     <View
@@ -544,12 +283,12 @@ export const Plus = ({
   );
 };
 
-// A plus turned 45deg, used to dismiss and remove.
-export const Close = ({
+export const CloseIcon = ({
   size = 20,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 2,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   return (
     <View
       style={{
@@ -558,13 +297,13 @@ export const Close = ({
         transform: [{ rotate: '45deg' }],
       }}
     >
-      <Plus size={size} color={color} strokeWidth={strokeWidth} />
+      <PlusIcon size={size} color={color} strokeWidth={strokeWidth} />
     </View>
   );
 };
 
-// Filled rounded square, the "stop generating" glyph.
-export const Stop = ({ size = 20, color = colors.label }: IconProps) => {
+export const StopIcon = ({ size = 20, color: colorProp }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   const side = size * 0.4;
   return (
     <View
@@ -587,12 +326,12 @@ export const Stop = ({ size = 20, color = colors.label }: IconProps) => {
   );
 };
 
-// Two borders of a tall rotated box, the same trick as Chevron.
-export const Check = ({
+export const CheckIcon = ({
   size = 20,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 2.2,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   return (
     <View
       style={{
@@ -616,12 +355,12 @@ export const Check = ({
   );
 };
 
-// Two offset outlined sheets.
-export const Copy = ({
+export const CopyIcon = ({
   size = 20,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 1.6,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   const sheet = size * 0.5;
   const sheetStyle = {
     position: 'absolute' as const,
@@ -639,12 +378,12 @@ export const Copy = ({
   );
 };
 
-// An open ring with a chevron head at the gap: regenerate / retry.
-export const Retry = ({
+export const RetryIcon = ({
   size = 20,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 1.8,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   const ring = size * 0.6;
   const head = size * 0.2;
   return (
@@ -684,12 +423,12 @@ export const Retry = ({
   );
 };
 
-// Open-topped tray with an arrow leaving it.
-export const Share = ({
+export const ShareIcon = ({
   size = 20,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 1.8,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   const trayWidth = size * 0.56;
   const head = size * 0.22;
   return (
@@ -736,8 +475,8 @@ export const Share = ({
   );
 };
 
-// Two overlapping squares, one turned 45deg: an eight-point star for the assistant mark.
-export const Sparkle = ({ size = 20, color = colors.label }: IconProps) => {
+export const SparkleIcon = ({ size = 20, color: colorProp }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   const side = size * 0.46;
   const offset = (size - side) / 2;
   return (
@@ -769,12 +508,12 @@ export const Sparkle = ({ size = 20, color = colors.label }: IconProps) => {
   );
 };
 
-// Outlined barrel with a triangular nib, leaning 45deg.
-export const Pencil = ({
+export const PencilIcon = ({
   size = 20,
-  color = colors.label,
+  color: colorProp,
   strokeWidth = 1.6,
 }: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
   const barrel = size * 0.22;
   return (
     <View
