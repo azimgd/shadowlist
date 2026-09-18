@@ -9,6 +9,12 @@ export interface KeyboardAnimation {
   progress: Animated.Value;
 }
 
+/*
+ * The native module is one global switch. Count the mounted hooks so a screen unmounting
+ * (or a drawer screen detaching) does not stop keyboard events for another one still mounted.
+ */
+let enabledCount = 0;
+
 export function useKeyboardAnimation(): KeyboardAnimation {
   const height = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(0)).current;
@@ -18,7 +24,7 @@ export function useKeyboardAnimation(): KeyboardAnimation {
       return;
     }
 
-    ShadowListKeyboard.setEnabled(true);
+    if (enabledCount++ === 0) ShadowListKeyboard.setEnabled(true);
     const subscription = ShadowListKeyboard.onKeyboardMove(
       (event: KeyboardMoveEvent) => {
         height.setValue(event.height);
@@ -28,7 +34,7 @@ export function useKeyboardAnimation(): KeyboardAnimation {
 
     return () => {
       subscription.remove();
-      ShadowListKeyboard?.setEnabled(false);
+      if (--enabledCount === 0) ShadowListKeyboard?.setEnabled(false);
     };
   }, [height, progress]);
 

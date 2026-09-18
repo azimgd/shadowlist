@@ -16,7 +16,6 @@ export function KeyboardView({
   children,
   ...viewProps
 }: KeyboardViewProps) {
-  // Ref so the responder callbacks read the latest value without re-rendering.
   const keyboardVisible = useRef(false);
 
   useEffect(() => {

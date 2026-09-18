@@ -3,14 +3,8 @@ export { default as SectionList } from './SectionList';
 export { default as TreeList } from './TreeList';
 export { default as DraggableList } from './DraggableList';
 
-export {
-  useKeyboardInset,
-  useKeyboardAnimation,
-  KeyboardView,
-} from './keyboard';
+export { useKeyboardAnimation, KeyboardView } from './keyboard';
 export type {
-  MeasurableRef,
-  UseKeyboardInsetOptions,
   KeyboardAnimation,
   KeyboardMoveEvent,
   KeyboardViewProps,
