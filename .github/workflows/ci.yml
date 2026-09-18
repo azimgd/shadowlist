@@ -38,6 +38,9 @@ jobs:
       - name: Run unit tests
         run: yarn workspace shadowlist run test --maxWorkers=2 --coverage
 
+      - name: Run utils unit tests
+        run: yarn workspace shadowlist-utils run test --maxWorkers=2
+
   test-core:
     runs-on: ubuntu-latest
     defaults:
@@ -73,6 +76,10 @@ jobs:
 
       - name: Build package
         run: yarn workspace shadowlist run prepare
+
+      # Its declarations build against the fabric package's lib/typescript output.
+      - name: Build utils package
+        run: yarn workspace shadowlist-utils run prepare
 
   build-android:
     runs-on: ubuntu-latest
