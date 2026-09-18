@@ -489,9 +489,15 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   __unused CGFloat traceBeforeHeight = _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height;
   // A clamp these writes cause is reported as a non-user scroll; see _applyingContentSize.
   _applyingContentSize = YES;
-  _scrollView.contentSize = CGSizeMake(
-    nextStateData.totalContainerWidth_,
-    nextStateData.totalContainerHeight_);
+  /*
+   * Only the scroll axis gets a scroll range. The core's cross-axis size can lag a frame change
+   * (a vertical list inside a horizontal scroller that got narrower, e.g. a zoomed-out grid): a
+   * contentSize wider than the bounds made the vertical list scroll sideways under the finger,
+   * sliding rows away from everything outside the list.
+   */
+  _scrollView.contentSize = _horizontal
+    ? CGSizeMake(nextStateData.totalContainerWidth_, 0)
+    : CGSizeMake(0, nextStateData.totalContainerHeight_);
   _contentView.frame = CGRectMake(
     0,
     0,
