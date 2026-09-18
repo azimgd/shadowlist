@@ -1,8 +1,10 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "./tsconfig",
   "compilerOptions": {
+    "rootDir": ".",
+    "types": [],
     "paths": {
-      "shadowlist": ["../shadowlist-fabric/src/index"],
+      "shadowlist": ["../shadowlist-fabric/lib/typescript/src/index.d.ts"],
       "react": ["../shadowlist-fabric-example/node_modules/@types/react"],
       "react/*": ["../shadowlist-fabric-example/node_modules/@types/react/*"],
       "react-native": [
@@ -17,23 +19,7 @@
       "react-native-safe-area-context": [
         "../shadowlist-fabric-example/node_modules/react-native-safe-area-context"
       ]
-    },
-    "customConditions": ["react-native-strict-api"],
-    "jsx": "react-jsx",
-    "lib": ["ESNext"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "noFallthroughCasesInSwitch": true,
-    "noImplicitReturns": true,
-    "noUncheckedIndexedAccess": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "target": "ESNext",
-    "types": ["jest"],
-    "verbatimModuleSyntax": true
+    }
   },
-  "include": ["src"],
-  "exclude": ["lib"]
+  "exclude": ["lib", "**/__tests__"]
 }

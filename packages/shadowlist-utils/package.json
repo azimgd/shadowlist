@@ -1,46 +1,67 @@
 {
   "name": "shadowlist-utils",
   "version": "0.1.0",
-  "private": true,
-  "description": "Shared, platform-agnostic helpers and demo data generators for the shadowlist examples (RN).",
-  "license": "MIT",
-  "main": "./src/index.ts",
-  "module": "./src/index.ts",
-  "types": "./src/index.ts",
-  "react-native": "./src/index.ts",
-  "source": "./src/index.ts",
+  "description": "List helpers, hooks and React Native list templates for shadowlist.",
+  "main": "./lib/module/index.js",
+  "types": "./lib/typescript/src/index.d.ts",
   "sideEffects": false,
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "react-native": "./src/index.ts",
-      "default": "./src/index.ts"
+      "source": "./src/index.ts",
+      "types": "./lib/typescript/src/index.d.ts",
+      "default": "./lib/module/index.js"
     },
     "./native": {
-      "types": "./src/native/index.ts",
-      "react-native": "./src/native/index.ts",
-      "default": "./src/native/index.ts"
+      "source": "./src/native/index.ts",
+      "types": "./lib/typescript/src/native/index.d.ts",
+      "default": "./lib/module/native/index.js"
     },
     "./package.json": "./package.json"
   },
+  "files": [
+    "src",
+    "lib",
+    "!**/__tests__",
+    "!**/__fixtures__",
+    "!**/__mocks__",
+    "!**/.*"
+  ],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "clean": "rm -rf lib",
+    "prepare": "bob build",
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
+  },
+  "keywords": [
+    "react-native",
+    "shadowlist",
+    "list",
+    "virtualization",
+    "templates"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/azimgd/shadowlist.git",
+    "directory": "packages/shadowlist-utils"
+  },
+  "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/azimgd/shadowlist/issues"
+  },
+  "homepage": "https://github.com/azimgd/shadowlist#readme",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
   },
   "peerDependencies": {
-    "react": "*",
-    "react-native": "*",
+    "react": ">=18.2.0",
+    "react-native": ">=0.74.0",
     "react-native-gesture-handler": "*",
     "react-native-reanimated": "*",
     "react-native-safe-area-context": "*",
     "shadowlist": "*"
   },
   "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-native": {
-      "optional": true
-    },
     "react-native-gesture-handler": {
       "optional": true
     },
@@ -49,12 +70,37 @@
     },
     "react-native-safe-area-context": {
       "optional": true
-    },
-    "shadowlist": {
-      "optional": true
     }
   },
   "devDependencies": {
-    "@types/react": "^19.2.17"
+    "@types/jest": "^29.5.14",
+    "@types/react": "^19.2.17",
+    "jest": "^29.7.0",
+    "react-native-builder-bob": "^0.41.0",
+    "typescript": "^6.0.2"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "modulePathIgnorePatterns": [
+      "<rootDir>/lib/"
+    ]
+  },
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "targets": [
+      [
+        "module",
+        {
+          "esm": true
+        }
+      ],
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
+    ]
   }
 }
