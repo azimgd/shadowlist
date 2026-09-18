@@ -3306,6 +3306,24 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@tanstack/query-core@npm:5.102.8":
+  version: 5.102.8
+  resolution: "@tanstack/query-core@npm:5.102.8"
+  checksum: 10c0/b8b8413c2372ff26605f63283f2bfe0edc17be1daad858a437d154ca38b30e8b6e47a5b8a0eb5c40b93fd66b8461f1cf2ac6cf5e1c9a03919d0079a0b4ae8bfa
+  languageName: node
+  linkType: hard
+
+"@tanstack/react-query@npm:^5.101.0":
+  version: 5.102.8
+  resolution: "@tanstack/react-query@npm:5.102.8"
+  dependencies:
+    "@tanstack/query-core": "npm:5.102.8"
+  peerDependencies:
+    react: ^18 || ^19
+  checksum: 10c0/cae0b1c9eb4b6cce8679ebe58d0391cd247bc26c39105aaa4d2c624db14deb8c051f747f714aaa0dbe6bb3ac94c70e30af6423090e9014aa5c7c6ef6cf5b4af4
+  languageName: node
+  linkType: hard
+
 "@tootallnate/quickjs-emscripten@npm:^0.23.0":
   version: 0.23.0
   resolution: "@tootallnate/quickjs-emscripten@npm:0.23.0"
@@ -10592,6 +10610,7 @@ __metadata:
     "@react-native/typescript-config": "npm:0.85.0"
     "@react-navigation/drawer": "npm:7.10.3"
     "@react-navigation/native": "npm:7.2.5"
+    "@tanstack/react-query": "npm:^5.101.0"
     "@types/react": "npm:^19.2.0"
     react: "npm:19.2.3"
     react-native: "npm:0.85.0"
@@ -10626,26 +10645,24 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "shadowlist-utils@workspace:packages/shadowlist-utils"
   dependencies:
+    "@types/jest": "npm:^29.5.14"
     "@types/react": "npm:^19.2.17"
+    jest: "npm:^29.7.0"
+    react-native-builder-bob: "npm:^0.41.0"
+    typescript: "npm:^6.0.2"
   peerDependencies:
-    react: "*"
-    react-native: "*"
+    react: ">=18.2.0"
+    react-native: ">=0.74.0"
     react-native-gesture-handler: "*"
     react-native-reanimated: "*"
     react-native-safe-area-context: "*"
     shadowlist: "*"
   peerDependenciesMeta:
-    react:
-      optional: true
-    react-native:
-      optional: true
     react-native-gesture-handler:
       optional: true
     react-native-reanimated:
       optional: true
     react-native-safe-area-context:
-      optional: true
-    shadowlist:
       optional: true
   languageName: unknown
   linkType: soft
