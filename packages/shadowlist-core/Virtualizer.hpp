@@ -54,21 +54,18 @@ struct FrameInput {
   double windowContainerHeight = 0.0;
   double headerSize = 0.0;
   double footerSize = 0.0;
-  bool stickyHeader = false;
-  bool stickyFooter = false;
   bool inverted = false;
+  /*
+   * Whether an inverted list resting at its bottom scrolls onto rows appended below the
+   * newest one (an assistant conversation). Off, an append keeps the rows on screen where
+   * they are, like any other insert (a chat receiving messages while the reader reads).
+   */
+  bool followAppends = false;
   bool horizontal = false;
   std::size_t columns = 1;
 
   // Overscan in viewport units (see Container::overscan). 1.0 = one viewport on each side.
   double overscan = 1.0;
-
-  /*
-   * Materialization overscan in viewport units (see Container::materializationOverscan).
-   * Negative (the default) keeps retention and materialization identical. Only natively
-   * measured rows outside the band are hidden; predicted and estimated rows stay.
-   */
-  double materializationOverscan = -1.0;
 
   /*
    * Element indices that pin to the viewport start once scrolled past (ascending).
@@ -116,18 +113,10 @@ struct FrameInput {
   ScrollPhase scrollPhase = ScrollPhase::Idle;
 
   /*
-   * Anchor authored upstream (e.g. by JS on a data commit). When its key is empty the
-   * core captures the anchor itself in key space; when set it is the source of truth
-   * for what content must stay in view across this frame.
-   */
-  Anchor suppliedAnchor = {};
-
-  /*
    * Keys that must never be auto-captured as the MVCP anchor: decoration rows (date pills,
    * unread dividers, reaction strips, padding) whose identity churns independently of
    * content. The core anchors to the nearest stable content row instead, so a key change
-   * on decoration cannot perturb the maintained scroll position. An explicit suppliedAnchor
-   * still wins even if its key is listed here.
+   * on decoration cannot perturb the maintained scroll position.
    */
   std::vector<std::string> nonAnchorableKeys;
 
@@ -224,6 +213,27 @@ public:
    * applyElementSize() call reported a change.
    */
   static void commitElementSizes(Container* container, std::size_t fromIndex);
+
+  /*
+   * Settle a header size change after the offsets were reflowed for it. Call with the header
+   * size the reflow replaced. update() calls it for a header size change in its input; Fabric
+   * measures the header in its layout pass, outside update(), and calls it there. A header wholly scrolled out of view moves the offset with it, so the
+   * rows on screen stay put in this same frame; a header on screen pushes the rows, and the
+   * anchor is moved so no later pass or frame holds them back. Without this, an in-flight
+   * anchor correction re-resolves against the reflowed rows one commit later and the content
+   * jumps by the header change for a frame.
+   */
+  static void applyHeaderSizeChange(Container* container, double previousHeaderSize);
+
+  /*
+   * Settle a window (viewport) size change. Call after the new size is set, with the size it
+   * replaced; Fabric applies the window in its layout pass, outside update(). An inverted list
+   * resting at its bottom keeps it: a chat composer growing a line at a time shrinks the
+   * window from the bottom, and plain anchoring holds the row at the viewport top, so the
+   * newest rows would slide under the composer and, a few lines later, the reader would sit
+   * outside the follow band and stop following the messages they send.
+   */
+  static void applyWindowSizeChange(Container* container, double previousWindowSize);
 
   /*
    * Recompute element offsets starting from a given index (orientation/columns aware).

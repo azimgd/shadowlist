@@ -6,13 +6,11 @@
 namespace azimgd::shadowlist {
 
 /*
- * What an anchor pins to. Element pins to a specific row by key; StartEdge and EndEdge
- * pin to the content extremes (EndEdge drives the inverted bottom pin and scrollToEnd).
- * The edge modes ignore Anchor::key.
+ * What an anchor pins to. Element pins to a specific row by key; EndEdge pins to the content
+ * end (the inverted bottom pin and scrollToEnd) and ignores Anchor::key.
  */
 enum class AnchorMode {
   Element,
-  StartEdge,
   EndEdge,
 };
 
