@@ -42,6 +42,7 @@ struct Fixture {
   std::size_t columns = 1;
   bool horizontal = false;
   bool inverted = false;
+  bool followAppends = false;
   double overscan = 1.0;
   double estimatedWidth = WINDOW_WIDTH;
   double estimatedHeight = ESTIMATED_ROW_HEIGHT;
@@ -55,6 +56,7 @@ FrameInput inputFor(const std::vector<std::string>& keys, double offset, const F
   input.columns = fixture.columns;
   input.horizontal = fixture.horizontal;
   input.inverted = fixture.inverted;
+  input.followAppends = fixture.followAppends;
   input.overscan = fixture.overscan;
   input.estimatedElementSize = {fixture.estimatedWidth, fixture.estimatedHeight};
   if (fixture.horizontal) {
@@ -112,7 +114,6 @@ void checkGeometryContiguous(const Container& container, const std::string& cont
 
   std::vector<double> trackEdges(columns, headerSize);
   for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
-    const Element& element = container.revision.elements[index];
     std::size_t track = columns > 1 ? index % columns : 0;
     double expected = trackEdges[track];
     double actual = offsetOf(container, index);
@@ -120,8 +121,7 @@ void checkGeometryContiguous(const Container& container, const std::string& cont
       fail(context + ": row " + std::to_string(index) + " sits at " + std::to_string(actual) +
         " but the running track edge is " + std::to_string(expected));
     }
-    trackEdges[track] = actual + sizeOf(container, index) +
-      (container.horizontal ? element.gapX : element.gapY);
+    trackEdges[track] = actual + sizeOf(container, index);
   }
 }
 
@@ -1492,14 +1492,15 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
 }
 
 /*
- * A chat resting at the bottom of an inverted list follows the messages appended below the
- * newest one, with no anchor policy: the new rows are measured taller than the estimate
+ * With followAppends, an inverted list resting at its bottom follows the rows appended below
+ * the newest one, with no anchor policy: the new rows are measured taller than the estimate
  * after they land, and the view still ends on the true bottom rather than leaving them
  * below the fold.
  */
 TEST(inverted_list_at_the_bottom_follows_appended_rows) {
   Fixture fixture;
   fixture.inverted = true;
+  fixture.followAppends = true;
 
   std::vector<std::string> keys = keysFor(40);
   Container container;
@@ -1531,6 +1532,39 @@ TEST(inverted_list_at_the_bottom_follows_appended_rows) {
 }
 
 /*
+ * By default an append keeps what the reader at the bottom is looking at, like any other
+ * insert: the new rows land below the fold, measured or not, and nothing on screen moves.
+ */
+TEST(inverted_list_at_the_bottom_holds_appended_rows_by_default) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  double bottom = settleAtBottom(container, keys, fixture);
+
+  std::vector<std::string> grown = keys;
+  for (std::size_t index = 0; index < 3; ++index) {
+    grown.push_back("appended" + std::to_string(index));
+  }
+  double offset = bottom;
+  for (int frame = 0; frame < 8; ++frame) {
+    Virtualizer::update(&container, inputFor(grown, offset, fixture));
+    if (frame == 1) {
+      for (std::size_t index = keys.size(); index < grown.size(); ++index) {
+        Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, 180.0});
+      }
+    }
+    offset = container.revision.containerOffsetY;
+    CHECK_NEAR(offset, bottom, 0.01);
+  }
+  CHECK(!container.pendingScrollToEnd);
+  CHECK(!container.operation.has_value());
+}
+
+/*
  * The same append while the reader has scrolled up the conversation leaves them where they
  * are: the rows land below, off screen, and nothing on screen moves.
  */
@@ -1556,6 +1590,97 @@ TEST(inverted_list_scrolled_up_holds_when_rows_are_appended) {
   grown.push_back("appended");
   for (int frame = 0; frame < 4; ++frame) {
     Virtualizer::update(&container, inputFor(grown, parked, fixture));
+    CHECK_NEAR(container.revision.containerOffsetY, parked, 0.01);
+  }
+  CHECK(!container.pendingScrollToEnd);
+}
+
+/*
+ * A chat's composer grows a line at a time as the message wraps, shrinking the list's
+ * viewport from the bottom. A reader resting at the bottom keeps it: without that the offset
+ * stays put, the newest rows slide under the composer, and after a few lines the reader sits
+ * outside the follow band, so the message they send next lands below the fold. The composer
+ * shrinking back after the send keeps the bottom too.
+ */
+TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  double offset = settleAtBottom(container, keys, fixture);
+
+  auto frame = [&](const std::vector<std::string>& frameKeys, double windowHeight) {
+    FrameInput input = inputFor(frameKeys, offset, fixture);
+    input.windowContainerHeight = windowHeight;
+    Virtualizer::update(&container, input);
+    offset = container.revision.containerOffsetY;
+  };
+
+  // A page of history ends the opening settle, as it does on a device.
+  keys.insert(keys.begin(), "earlier");
+  for (int settle = 0; settle < 6; ++settle) {
+    frame(keys, WINDOW_HEIGHT);
+    if (settle == 1) {
+      Virtualizer::updateElementAtIndex(&container, 0, {WINDOW_WIDTH, 100.0});
+    }
+  }
+  CHECK(!container.invertedOpeningPin);
+  CHECK(!container.pendingScrollToEnd);
+
+  double windowHeight = WINDOW_HEIGHT;
+  for (int line = 0; line < 3; ++line) {
+    windowHeight -= 22.0;
+    frame(keys, windowHeight);
+    frame(keys, windowHeight);
+    CHECK_NEAR(offset, container.revision.totalContainerHeight - windowHeight, 1.0);
+  }
+
+  fixture.followAppends = true;
+  std::vector<std::string> grown = keys;
+  grown.push_back("sent");
+  for (int settle = 0; settle < 6; ++settle) {
+    frame(grown, windowHeight);
+    if (settle == 1) {
+      Virtualizer::updateElementAtIndex(&container, grown.size() - 1, {WINDOW_WIDTH, 100.0});
+    }
+  }
+  CHECK_NEAR(offset, container.revision.totalContainerHeight - windowHeight, 1.0);
+
+  for (int settle = 0; settle < 4; ++settle) {
+    frame(grown, WINDOW_HEIGHT);
+  }
+  CHECK_NEAR(offset, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
+  CHECK(!container.operation.has_value());
+  CHECK(!container.pendingScrollToEnd);
+}
+
+/*
+ * The same resize under a reader who scrolled up the conversation moves nothing on screen.
+ */
+TEST(inverted_list_scrolled_up_holds_when_the_viewport_resizes) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  double bottom = settleAtBottom(container, keys, fixture);
+
+  double parked = bottom - 500.0;
+  FrameInput drag = inputFor(keys, parked, fixture);
+  drag.userScrolled = true;
+  drag.scrollPhase = ScrollPhase::Dragging;
+  Virtualizer::update(&container, drag);
+  Virtualizer::update(&container, inputFor(keys, parked, fixture));
+
+  for (int frame = 0; frame < 4; ++frame) {
+    FrameInput input = inputFor(keys, parked, fixture);
+    input.windowContainerHeight = WINDOW_HEIGHT - 66.0;
+    Virtualizer::update(&container, input);
     CHECK_NEAR(container.revision.containerOffsetY, parked, 0.01);
   }
   CHECK(!container.pendingScrollToEnd);
