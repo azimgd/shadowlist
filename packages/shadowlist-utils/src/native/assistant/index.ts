@@ -1,15 +1,4 @@
-import { AssistantList } from './AssistantList';
-import { AssistantReplyMessage } from './AssistantReplyMessage';
-import { AssistantUserMessage } from './AssistantUserMessage';
-import { AssistantComposer } from './AssistantComposer';
-import { AssistantEmpty } from './AssistantEmpty';
-import { AssistantScrollButton } from './AssistantScrollButton';
-import { AssistantMarkdown } from './AssistantMarkdown';
-import { AssistantThinking } from './AssistantThinking';
-import { AssistantToolCallCard } from './AssistantToolCallCard';
-import { AssistantAttachmentChip } from './AssistantAttachmentChip';
-import { AssistantTypingIndicator } from './AssistantTypingIndicator';
-
+export { Assistant } from './Assistant';
 export type { AssistantListProps } from './AssistantList';
 export type { AssistantReplyMessageProps } from './AssistantReplyMessage';
 export type { AssistantUserMessageProps } from './AssistantUserMessage';
@@ -23,20 +12,21 @@ export type { AssistantMarkdownProps } from './AssistantMarkdown';
 export type { AssistantThinkingProps } from './AssistantThinking';
 export type { AssistantToolCallCardProps } from './AssistantToolCallCard';
 export type { AssistantAttachmentChipProps } from './AssistantAttachmentChip';
+export type { AssistantTypingIndicatorProps } from './AssistantTypingIndicator';
 
-export { createStreamStore, playScript } from './stream';
-export type { AssistantStreamStore, StreamHandle } from './stream';
-export {
-  ASSISTANT_END_ID,
-  ASSISTANT_END_MARKER,
-  ASSISTANT_MODELS,
-  ASSISTANT_SUGGESTIONS,
-  emptyTurn,
-  buildUserMessage,
-  buildReply,
-  buildHistory,
-  pickScript,
-} from './data';
+export { defaultAssistantLabels } from './labels';
+export type { AssistantLabels } from './labels';
+export { createStreamStore, useStreamingTurn } from './stream';
+export type { AssistantStreamStore } from './stream';
+export { createTurnWriter } from './turnWriter';
+export type {
+  AssistantTurnWriter,
+  CreateTurnWriterOptions,
+} from './turnWriter';
+export { emptyTurn } from './turn';
+// The default onOpenLink: opens http(s) and mailto only. Call it from a custom handler to keep that check.
+export { openUrl } from './openUrl';
+export { ASSISTANT_END_ID, ASSISTANT_END_MARKER } from './endMarker';
 export type {
   AssistantMessage,
   AssistantPrompt,
@@ -44,24 +34,18 @@ export type {
   AssistantEndMarker,
   AssistantTurn,
   AssistantTurnStatus,
-  AssistantToolInvocation,
+  AssistantStreamingTurn,
+  AssistantDoneTurn,
+  AssistantStoppedTurn,
+  AssistantFailedTurn,
+  AssistantToolCall,
   AssistantToolStatus,
+  AssistantRunningToolCall,
+  AssistantDoneToolCall,
+  AssistantFailedToolCall,
+  AssistantStoppedToolCall,
   AssistantSource,
   AssistantAttachment,
   AssistantFeedback,
-  AssistantScript,
-} from './data';
-
-export const Assistant = {
-  List: AssistantList,
-  ReplyMessage: AssistantReplyMessage,
-  UserMessage: AssistantUserMessage,
-  Composer: AssistantComposer,
-  Empty: AssistantEmpty,
-  ScrollButton: AssistantScrollButton,
-  Markdown: AssistantMarkdown,
-  Thinking: AssistantThinking,
-  ToolCallCard: AssistantToolCallCard,
-  AttachmentChip: AssistantAttachmentChip,
-  TypingIndicator: AssistantTypingIndicator,
-};
+  AssistantSuggestion,
+} from './types';

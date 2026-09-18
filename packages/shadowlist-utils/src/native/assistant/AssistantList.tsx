@@ -6,6 +6,9 @@ import {
   type ShadowListProps,
   type ShadowListCommands,
 } from 'shadowlist';
+import { useLabels } from '../labels';
+import { useTheme } from '../theme';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
 import {
   AssistantReplyMessage,
   type AssistantReplyMessageProps,
@@ -14,11 +17,9 @@ import {
   AssistantUserMessage,
   getUserMessageSizeSpec,
 } from './AssistantUserMessage';
-import type { AssistantMessage } from './data';
+import { ASSISTANT_END_MARKER_HEIGHT } from './endMarker';
+import type { AssistantMessage } from './types';
 import type { AssistantStreamStore } from './stream';
-
-// The end marker's height: invisible, but a real row, so "it is viewable" means "the bottom is on screen".
-const ASSISTANT_END_MARKER_HEIGHT = 1;
 
 type ReplyHandlers = Pick<
   AssistantReplyMessageProps,
@@ -30,6 +31,7 @@ type ReplyHandlers = Pick<
   | 'onSelectVariant'
   | 'onFeedback'
   | 'onFollowUp'
+  | 'onOpenLink'
 >;
 
 export type AssistantListProps = Omit<
@@ -38,42 +40,13 @@ export type AssistantListProps = Omit<
 > &
   ReplyHandlers & {
     renderElement?: ShadowListProps<AssistantMessage>['renderElement'];
-    // Where streaming replies read their in-flight turn from.
     store: AssistantStreamStore;
-    /*
-     * A reply is streaming somewhere in the conversation. Forwarded to the rows so the
-     * actions that would start a second one (edit, regenerate, retry) are disabled.
-     */
+    // A reply is streaming: disables regenerate, retry and edit on every row.
     streaming?: boolean;
     onEdit?: (messageId: string) => void;
+    labels?: Partial<AssistantLabels>;
   };
 
-/*
- * Ahead-of-time sizes (ShadowListProps.getElementSizeSpec). Plain-text prompts are described
- * exactly and the end marker has a fixed height. Replies return null: Markdown with code
- * and tables is not one text run, and the reply that is streaming is mounted by
- * definition, where a real measurement outranks any prediction -- describing it would
- * only cost work that is thrown away.
- */
-function getAssistantElementSizeSpec(
-  element: AssistantMessage
-): ElementSizeSpec | null {
-  switch (element.role) {
-    case 'user':
-      return getUserMessageSizeSpec(element);
-    case 'end':
-      return { text: '', fixedHeight: ASSISTANT_END_MARKER_HEIGHT };
-    default:
-      return null;
-  }
-}
-
-/*
- * An inverted assistant conversation (newest at the bottom): prompts, streaming Markdown
- * replies and a trailing end marker. Pair with <Assistant.Composer /> and
- * <Assistant.ScrollButton />, and wrap in the library's KeyboardView plus your own
- * keyboard lift, as on the Chat template.
- */
 export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
   (
     {
@@ -88,12 +61,37 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
       onSelectVariant,
       onFeedback,
       onFollowUp,
+      onOpenLink,
       onEdit,
+      labels,
       data,
       ...props
     },
     ref
   ) => {
+    const theme = useTheme();
+    const l = useLabels(defaultAssistantLabels, labels);
+
+    /*
+     * Plain-text prompts are described exactly and the end marker has a fixed height.
+     * Replies return null: Markdown with code and tables is not one text run, and the reply
+     * that is streaming is mounted by definition, where a real measurement outranks any
+     * prediction -- describing it would only cost work that is thrown away.
+     */
+    const getElementSizeSpec = useCallback(
+      (element: AssistantMessage): ElementSizeSpec | null => {
+        switch (element.role) {
+          case 'user':
+            return getUserMessageSizeSpec(element, theme);
+          case 'end':
+            return { text: '', fixedHeight: ASSISTANT_END_MARKER_HEIGHT };
+          default:
+            return null;
+        }
+      },
+      [theme]
+    );
+
     /*
      * The newest reply, by IDENTITY rather than by index. An index is a function of the
      * list length, so prepending a page of earlier history renames the newest row and
@@ -115,6 +113,7 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
                 busy={streaming}
                 onCopy={onCopy}
                 onEdit={onEdit}
+                labels={l}
               />
             );
           case 'assistant':
@@ -132,6 +131,8 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
                 onSelectVariant={onSelectVariant}
                 onFeedback={onFeedback}
                 onFollowUp={onFollowUp}
+                onOpenLink={onOpenLink}
+                labels={l}
               />
             );
           default:
@@ -150,7 +151,9 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
         onSelectVariant,
         onFeedback,
         onFollowUp,
+        onOpenLink,
         onEdit,
+        l,
       ]
     );
 
@@ -159,7 +162,8 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
         ref={ref}
         data={data}
         inverted
-        getElementSizeSpec={getAssistantElementSizeSpec}
+        followAppends
+        getElementSizeSpec={getElementSizeSpec}
         renderElement={renderElement ?? defaultRenderElement}
         {...props}
       />

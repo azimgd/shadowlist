@@ -1,38 +1,44 @@
 import { memo, useEffect, useState } from 'react';
-import { View, Text, Pressable, Linking, StyleSheet } from 'react-native';
 import {
-  colors,
-  typography,
-  spacing,
-  radius,
-  fontSize,
-  fontWeight,
-} from '../theme';
-import { ArrowUp, Check, Chevron, Copy, Retry, Share, Sparkle } from '../icons';
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import {
+  ArrowUpIcon,
+  CheckIcon,
+  ChevronIcon,
+  CopyIcon,
+  RetryIcon,
+  ShareIcon,
+  SparkleIcon,
+} from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
+import { openUrl } from './openUrl';
 import { AssistantActionButton } from './AssistantActionButton';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { AssistantTypingIndicator } from './AssistantTypingIndicator';
 import { AssistantThinking } from './AssistantThinking';
 import { AssistantToolCallCard } from './AssistantToolCallCard';
 import { useStreamingTurn, type AssistantStreamStore } from './stream';
-import {
-  emptyTurn,
-  type AssistantFeedback,
-  type AssistantReply,
-  type AssistantSource,
-  type AssistantTurn,
-} from './data';
+import type {
+  AssistantFeedback,
+  AssistantReply,
+  AssistantSource,
+  AssistantTurn,
+} from './types';
 
 export interface AssistantReplyMessageProps {
   message: AssistantReply;
-  // Where this reply's in-flight turn lives while it streams.
   store: AssistantStreamStore;
-  // Follow-up suggestions appear only under the newest reply.
+  // Follow-up suggestions are shown only under the newest reply.
   isLatest?: boolean;
-  /*
-   * Some reply in the conversation is streaming. Only one may at a time, so everything that
-   * would start another (regenerate, retry) is disabled until it finishes.
-   */
+  // Disables Regenerate and Retry while another reply is streaming.
   busy?: boolean;
   onCopy?: (text: string) => void;
   onCopyCode?: (code: string) => void;
@@ -40,51 +46,61 @@ export interface AssistantReplyMessageProps {
   onRegenerate?: (messageId: string) => void;
   onRetry?: (messageId: string) => void;
   onSelectVariant?: (messageId: string, variantIndex: number) => void;
-  onFeedback?: (messageId: string, feedback: AssistantFeedback) => void;
+  // `undefined` clears the reader's feedback.
+  onFeedback?: (
+    messageId: string,
+    feedback: AssistantFeedback | undefined
+  ) => void;
   onFollowUp?: (prompt: string) => void;
+  // Opens sources and Markdown links. Defaults to Linking.openURL for http(s) and mailto only.
+  onOpenLink?: (url: string) => void;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
-// How long the copy action reads "Copied" before reverting.
 const COPIED_RESET_MS = 1500;
 
-// Rendered only if variantIndex ever points past the variants array.
-const MISSING_TURN: AssistantTurn = { ...emptyTurn(), status: 'done' };
+const MISSING_TURN: AssistantTurn = { status: 'done', content: '' };
 
-const openSource = (url: string) => {
-  Linking.openURL(url).catch(() => {});
-};
+const domainOf = (source: AssistantSource) =>
+  source.domain ?? source.url.replace(/^[a-z]+:\/\//i, '').split('/')[0];
 
 const SourceChip = memo(
-  ({ source, index }: { source: AssistantSource; index: number }) => (
-    <Pressable
-      onPress={() => openSource(source.url)}
-      accessibilityRole="link"
-      accessibilityLabel={`Source ${index + 1}: ${source.title}`}
-      style={({ pressed }) => [styles.source, pressed && styles.pressed]}
-    >
-      <View style={styles.sourceIndex}>
-        <Text style={styles.sourceIndexText}>{index + 1}</Text>
-      </View>
-      <View style={styles.sourceMeta}>
-        <Text style={styles.sourceTitle} numberOfLines={1}>
-          {source.title}
-        </Text>
-        <Text style={styles.sourceDomain} numberOfLines={1}>
-          {source.domain}
-        </Text>
-      </View>
-    </Pressable>
-  )
+  ({
+    source,
+    index,
+    onOpenLink,
+    labels,
+  }: {
+    source: AssistantSource;
+    index: number;
+    onOpenLink: (url: string) => void;
+    labels: AssistantLabels;
+  }) => {
+    const styles = useStyles();
+    return (
+      <Pressable
+        onPress={() => onOpenLink(source.url)}
+        accessibilityRole="link"
+        accessibilityLabel={labels.source(index + 1, source.title)}
+        style={({ pressed }) => [styles.source, pressed && styles.pressed]}
+      >
+        <View style={styles.sourceIndex}>
+          <Text style={styles.sourceIndexText}>{index + 1}</Text>
+        </View>
+        <View style={styles.sourceMeta}>
+          <Text style={styles.sourceTitle} numberOfLines={1}>
+            {source.title}
+          </Text>
+          <Text style={styles.sourceDomain} numberOfLines={1}>
+            {domainOf(source)}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
 );
 
-/*
- * One assistant reply, Claude/ChatGPT style: full width, no bubble. Top to bottom it is
- * reasoning, tool calls, the Markdown answer with a trailing cursor, a stopped or failed
- * notice, sources, the action bar with a variant pager, and follow-up suggestions.
- *
- * While streaming, the turn comes from the store rather than from `message`, so the list
- * `data` never changes per token; only this row re-renders, once per flush.
- */
 export const AssistantReplyMessage = memo(
   ({
     message,
@@ -99,7 +115,14 @@ export const AssistantReplyMessage = memo(
     onSelectVariant,
     onFeedback,
     onFollowUp,
+    onOpenLink = openUrl,
+    labels,
+    style,
   }: AssistantReplyMessageProps) => {
+    const theme = useTheme();
+    const { colors } = theme;
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
     const live = useStreamingTurn(store, message.id);
     const turn = live ?? message.variants[message.variantIndex] ?? MISSING_TURN;
     const [copied, setCopied] = useState(false);
@@ -111,23 +134,24 @@ export const AssistantReplyMessage = memo(
     }, [copied]);
 
     const streaming = turn.status === 'streaming';
+    const toolCalls = turn.toolCalls ?? [];
     const thinkingActive = streaming && !turn.thinkingMs && !!turn.thinking;
-    // Nothing has arrived yet: no reasoning, no tools, no text.
     const waiting =
-      streaming &&
-      !turn.thinking &&
-      !turn.content &&
-      turn.toolCalls.length === 0;
+      streaming && !turn.thinking && !turn.content && toolCalls.length === 0;
+    const sources = turn.status === 'done' ? (turn.sources ?? []) : [];
+    const followUps = turn.status === 'done' ? (turn.followUps ?? []) : [];
     const variantCount = message.variants.length;
 
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, style]}>
         <View style={styles.header}>
           <View style={styles.avatar}>
-            <Sparkle size={14} color={colors.label} />
+            <SparkleIcon size={14} color={colors.label} />
           </View>
-          <Text style={styles.name}>Assistant</Text>
-          <Text style={styles.model}>{message.model}</Text>
+          <Text style={styles.name}>{l.assistantName}</Text>
+          {message.model ? (
+            <Text style={styles.model}>{message.model}</Text>
+          ) : null}
         </View>
 
         {turn.thinking ? (
@@ -135,51 +159,62 @@ export const AssistantReplyMessage = memo(
             thinking={turn.thinking}
             thinkingMs={turn.thinkingMs}
             active={thinkingActive}
+            labels={l}
           />
         ) : null}
 
-        {turn.toolCalls.map((call) => (
-          <AssistantToolCallCard key={call.id} call={call} />
+        {toolCalls.map((call) => (
+          <AssistantToolCallCard key={call.id} call={call} labels={l} />
         ))}
 
-        {waiting ? <AssistantTypingIndicator /> : null}
+        {waiting ? <AssistantTypingIndicator labels={l} /> : null}
 
         {turn.content ? (
           <AssistantMarkdown
             text={turn.content}
             streaming={streaming}
             onCopyCode={onCopyCode}
+            onOpenLink={onOpenLink}
+            labels={l}
           />
         ) : null}
 
         {turn.status === 'stopped' ? (
-          <Text style={styles.notice}>Response stopped</Text>
+          <Text style={styles.notice}>{l.responseStopped}</Text>
         ) : null}
 
-        {turn.status === 'error' ? (
+        {turn.status === 'failed' ? (
           <View style={styles.error}>
-            <Text style={styles.errorText}>{turn.error}</Text>
+            <Text style={styles.errorText}>
+              {turn.error || l.responseFailed}
+            </Text>
             <Pressable
               onPress={() => onRetry?.(message.id)}
               disabled={busy}
               accessibilityRole="button"
-              accessibilityLabel="Retry"
+              accessibilityLabel={l.retry}
               accessibilityState={{ disabled: busy }}
               style={({ pressed }) => [
                 styles.retryButton,
                 (pressed || busy) && styles.pressed,
               ]}
             >
-              <Retry size={16} color={colors.label} strokeWidth={1.6} />
-              <Text style={styles.retryText}>Retry</Text>
+              <RetryIcon size={16} color={colors.label} strokeWidth={1.6} />
+              <Text style={styles.retryText}>{l.retry}</Text>
             </Pressable>
           </View>
         ) : null}
 
-        {turn.sources.length > 0 ? (
+        {sources.length > 0 ? (
           <View style={styles.sources}>
-            {turn.sources.map((source, index) => (
-              <SourceChip key={source.id} source={source} index={index} />
+            {sources.map((source, index) => (
+              <SourceChip
+                key={source.id}
+                source={source}
+                index={index}
+                onOpenLink={onOpenLink}
+                labels={l}
+              />
             ))}
           </View>
         ) : null}
@@ -198,37 +233,37 @@ export const AssistantReplyMessage = memo(
         >
           {turn.content ? (
             <AssistantActionButton
-              label={copied ? 'Copied' : 'Copy'}
+              label={copied ? l.copied : l.copy}
               onPress={() => {
                 onCopy?.(turn.content);
                 setCopied(true);
               }}
             >
               {copied ? (
-                <Check size={16} color={colors.secondaryLabel} />
+                <CheckIcon size={16} color={colors.secondaryLabel} />
               ) : (
-                <Copy size={18} color={colors.secondaryLabel} />
+                <CopyIcon size={18} color={colors.secondaryLabel} />
               )}
             </AssistantActionButton>
           ) : null}
           <AssistantActionButton
-            label="Regenerate"
+            label={l.regenerate}
             disabled={busy}
             onPress={() => onRegenerate?.(message.id)}
           >
-            <Retry size={18} color={colors.secondaryLabel} />
+            <RetryIcon size={18} color={colors.secondaryLabel} />
           </AssistantActionButton>
           <AssistantActionButton
-            label="Good response"
+            label={l.goodResponse}
             selected={message.feedback === 'good'}
             onPress={() =>
               onFeedback?.(
                 message.id,
-                message.feedback === 'good' ? null : 'good'
+                message.feedback === 'good' ? undefined : 'good'
               )
             }
           >
-            <ArrowUp
+            <ArrowUpIcon
               size={18}
               strokeWidth={1.8}
               color={
@@ -239,17 +274,17 @@ export const AssistantReplyMessage = memo(
             />
           </AssistantActionButton>
           <AssistantActionButton
-            label="Bad response"
+            label={l.badResponse}
             selected={message.feedback === 'bad'}
             onPress={() =>
               onFeedback?.(
                 message.id,
-                message.feedback === 'bad' ? null : 'bad'
+                message.feedback === 'bad' ? undefined : 'bad'
               )
             }
           >
             <View style={styles.flipped}>
-              <ArrowUp
+              <ArrowUpIcon
                 size={18}
                 strokeWidth={1.8}
                 color={
@@ -262,39 +297,39 @@ export const AssistantReplyMessage = memo(
           </AssistantActionButton>
           {turn.content ? (
             <AssistantActionButton
-              label="Share"
+              label={l.share}
               onPress={() => onShare?.(turn.content)}
             >
-              <Share size={18} color={colors.secondaryLabel} />
+              <ShareIcon size={18} color={colors.secondaryLabel} />
             </AssistantActionButton>
           ) : null}
 
           {variantCount > 1 ? (
             <View style={styles.pager}>
               <AssistantActionButton
-                label="Previous version"
+                label={l.previousVersion}
                 disabled={message.variantIndex === 0}
                 onPress={() =>
                   onSelectVariant?.(message.id, message.variantIndex - 1)
                 }
               >
-                <Chevron
+                <ChevronIcon
                   direction="left"
                   size={14}
                   color={colors.secondaryLabel}
                 />
               </AssistantActionButton>
               <Text style={styles.pagerText}>
-                {`${message.variantIndex + 1} / ${variantCount}`}
+                {l.versionPosition(message.variantIndex + 1, variantCount)}
               </Text>
               <AssistantActionButton
-                label="Next version"
+                label={l.nextVersion}
                 disabled={message.variantIndex === variantCount - 1}
                 onPress={() =>
                   onSelectVariant?.(message.id, message.variantIndex + 1)
                 }
               >
-                <Chevron
+                <ChevronIcon
                   direction="right"
                   size={14}
                   color={colors.secondaryLabel}
@@ -309,13 +344,14 @@ export const AssistantReplyMessage = memo(
          * 'done', so they appear after the pin has already settled, and reserving space for
          * suggestions that may never come would leave a gap under every reply.
          */}
-        {isLatest && turn.status === 'done' && turn.followUps.length > 0 ? (
+        {isLatest && followUps.length > 0 ? (
           <View style={styles.followUps}>
-            {turn.followUps.map((prompt) => (
+            {followUps.map((prompt) => (
               <Pressable
                 key={prompt}
                 onPress={() => onFollowUp?.(prompt)}
                 accessibilityRole="button"
+                accessibilityLabel={prompt}
                 style={({ pressed }) => [
                   styles.followUp,
                   pressed && styles.followUpPressed,
@@ -331,151 +367,153 @@ export const AssistantReplyMessage = memo(
   }
 );
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    gap: spacing.md,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  avatar: {
-    width: 24,
-    height: 24,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  name: {
-    color: colors.label,
-    ...typography.subhead,
-    fontWeight: fontWeight.semibold,
-  },
-  model: {
-    color: colors.tertiaryLabel,
-    ...typography.footnote,
-  },
-  notice: {
-    color: colors.tertiaryLabel,
-    ...typography.footnote,
-    fontStyle: 'italic',
-  },
-  error: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.redSoft,
-  },
-  errorText: {
-    flex: 1,
-    color: colors.red,
-    ...typography.subhead,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-    borderRadius: radius.sm,
-    backgroundColor: colors.fill,
-  },
-  retryText: {
-    color: colors.label,
-    ...typography.footnote,
-    fontWeight: fontWeight.semibold,
-  },
-  sources: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  source: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    maxWidth: 200,
-    paddingVertical: spacing.xs + 2,
-    paddingLeft: spacing.xs + 2,
-    paddingRight: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.elevated,
-  },
-  sourceIndex: {
-    width: 20,
-    height: 20,
-    borderRadius: radius.pill,
-    backgroundColor: colors.fill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sourceIndexText: {
-    color: colors.label,
-    fontSize: fontSize.caption,
-    fontWeight: fontWeight.semibold,
-  },
-  sourceMeta: {
-    flexShrink: 1,
-  },
-  sourceTitle: {
-    color: colors.label,
-    ...typography.caption,
-    fontWeight: fontWeight.semibold,
-  },
-  sourceDomain: {
-    color: colors.secondaryLabel,
-    ...typography.caption,
-  },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    marginLeft: -spacing.sm,
-  },
-  // Invisible but still occupying its row, so finishing a reply changes no height.
-  actionsHidden: {
-    opacity: 0,
-  },
-  flipped: {
-    transform: [{ rotate: '180deg' }],
-  },
-  pager: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 'auto',
-  },
-  pagerText: {
-    color: colors.secondaryLabel,
-    ...typography.footnote,
-    minWidth: 36,
-    textAlign: 'center',
-  },
-  followUps: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  followUp: {
-    backgroundColor: colors.accentSoft,
-    borderRadius: radius.sm,
-    paddingHorizontal: 14,
-    paddingVertical: spacing.sm,
-  },
-  followUpPressed: {
-    opacity: 0.6,
-  },
-  followUpText: {
-    color: colors.accent,
-    ...typography.footnote,
-    fontWeight: fontWeight.semibold,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      gap: theme.spacing.md,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    avatar: {
+      width: 24,
+      height: 24,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    name: {
+      color: theme.colors.label,
+      ...theme.typography.subhead,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    model: {
+      color: theme.colors.tertiaryLabel,
+      ...theme.typography.footnote,
+    },
+    notice: {
+      color: theme.colors.tertiaryLabel,
+      ...theme.typography.footnote,
+      fontStyle: 'italic',
+    },
+    error: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.redSoft,
+    },
+    errorText: {
+      flex: 1,
+      color: theme.colors.red,
+      ...theme.typography.subhead,
+    },
+    retryButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.xs + 2,
+      borderRadius: theme.radius.sm,
+      backgroundColor: theme.colors.fill,
+    },
+    retryText: {
+      color: theme.colors.label,
+      ...theme.typography.footnote,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    sources: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+    },
+    source: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      maxWidth: 200,
+      paddingVertical: theme.spacing.xs + 2,
+      paddingLeft: theme.spacing.xs + 2,
+      paddingRight: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.elevated,
+    },
+    sourceIndex: {
+      width: 20,
+      height: 20,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.fill,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sourceIndexText: {
+      color: theme.colors.label,
+      fontSize: theme.fontSize.caption,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    sourceMeta: {
+      flexShrink: 1,
+    },
+    sourceTitle: {
+      color: theme.colors.label,
+      ...theme.typography.caption,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    sourceDomain: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.caption,
+    },
+    actions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      marginLeft: -theme.spacing.sm,
+    },
+    // Invisible but still occupying its row, so finishing a reply changes no height.
+    actionsHidden: {
+      opacity: 0,
+    },
+    flipped: {
+      transform: [{ rotate: '180deg' }],
+    },
+    pager: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginLeft: 'auto',
+    },
+    pagerText: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.footnote,
+      minWidth: 36,
+      textAlign: 'center',
+    },
+    followUps: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+    },
+    followUp: {
+      backgroundColor: theme.colors.accentSoft,
+      borderRadius: theme.radius.sm,
+      paddingHorizontal: 14,
+      paddingVertical: theme.spacing.sm,
+    },
+    followUpPressed: {
+      opacity: 0.6,
+    },
+    followUpText: {
+      color: theme.colors.accent,
+      ...theme.typography.footnote,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    pressed: {
+      opacity: 0.6,
+    },
+  })
+);

@@ -1,27 +1,34 @@
 import { memo, useEffect } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { colors, spacing, radius } from '../theme';
-import { Chevron } from '../icons';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import { ChevronIcon } from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
 
 export interface AssistantScrollButtonProps {
   visible: boolean;
   onPress: () => void;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
 const FADE_MS = 180;
 
-/*
- * Floating "jump to latest" button, centered over the bottom edge of its parent. Place it
- * as a sibling after the list. It fades and scales rather than mounting, so showing it
- * never shifts layout, and it ignores touches while hidden.
- */
 export const AssistantScrollButton = memo(
-  ({ visible, onPress }: AssistantScrollButtonProps) => {
+  ({ visible, onPress, labels, style }: AssistantScrollButtonProps) => {
+    const theme = useTheme();
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
     const progress = useSharedValue(visible ? 1 : 0);
 
     useEffect(() => {
@@ -38,12 +45,10 @@ export const AssistantScrollButton = memo(
         style={[
           styles.container,
           visible ? styles.interactive : styles.inert,
+          style,
           animatedStyle,
         ]}
-        /*
-         * Faded out it is still in the tree, so a screen reader would otherwise offer
-         * "Scroll to latest" on a button nobody can see or press.
-         */
+        // Faded out it is still in the tree; hide it so a screen reader doesn't offer it.
         accessibilityElementsHidden={!visible}
         importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
       >
@@ -51,13 +56,13 @@ export const AssistantScrollButton = memo(
           onPress={onPress}
           hitSlop={8}
           accessibilityRole="button"
-          accessibilityLabel="Scroll to latest"
+          accessibilityLabel={l.scrollToLatest}
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}
         >
-          <Chevron
+          <ChevronIcon
             direction="down"
             size={18}
-            color={colors.label}
+            color={theme.colors.label}
             strokeWidth={2.2}
           />
         </Pressable>
@@ -66,33 +71,33 @@ export const AssistantScrollButton = memo(
   }
 );
 
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: spacing.md,
-    alignItems: 'center',
-  },
-  // Only the button takes touches; the full-width row around it passes them through.
-  interactive: {
-    pointerEvents: 'box-none',
-  },
-  // Faded out: ignore touches entirely so the list underneath stays scrollable.
-  inert: {
-    pointerEvents: 'none',
-  },
-  button: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.pill,
-    backgroundColor: colors.elevated2,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.separator,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      bottom: theme.spacing.md,
+      alignItems: 'center',
+    },
+    interactive: {
+      pointerEvents: 'box-none',
+    },
+    inert: {
+      pointerEvents: 'none',
+    },
+    button: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.elevated2,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.separator,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pressed: {
+      opacity: 0.6,
+    },
+  })
+);

@@ -1,15 +1,25 @@
 import { memo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated from 'react-native-reanimated';
-import { colors, typography, spacing } from '../theme';
-import { Chevron } from '../icons';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import { ChevronIcon } from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
 import { usePulseStyle } from './AssistantTypingIndicator';
 
 export interface AssistantThinkingProps {
   thinking: string;
-  thinkingMs: number;
-  // Still reasoning: the label breathes and the collapsed row previews the latest words.
+  thinkingMs?: number;
   active: boolean;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
 /*
@@ -20,27 +30,29 @@ export interface AssistantThinkingProps {
  */
 const PREVIEW_TAIL_CHARS = 160;
 
-/*
- * The breathing label, split out so the repeating animation exists only while reasoning is
- * active. A finished reply keeps its label static instead of animating forever.
- */
 const PulsingLabel = ({ label }: { label: string }) => {
+  const styles = useStyles();
   const pulse = usePulseStyle();
   return <Animated.Text style={[styles.label, pulse]}>{label}</Animated.Text>;
 };
 
-/*
- * Collapsible reasoning. Collapsed by default so a long chain of thought never pushes the
- * answer off screen; while active, one line shows the tail of what is being thought.
- */
 export const AssistantThinking = memo(
-  ({ thinking, thinkingMs, active }: AssistantThinkingProps) => {
+  ({
+    thinking,
+    thinkingMs = 0,
+    active,
+    labels,
+    style,
+  }: AssistantThinkingProps) => {
+    const theme = useTheme();
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
     const [expanded, setExpanded] = useState(false);
     const seconds = Math.max(1, Math.round(thinkingMs / 1000));
-    const label = active ? 'Thinking' : `Thought for ${seconds}s`;
+    const label = active ? l.thinking : l.thoughtFor(seconds);
 
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, style]}>
         <Pressable
           onPress={() => setExpanded((current) => !current)}
           hitSlop={10}
@@ -54,10 +66,10 @@ export const AssistantThinking = memo(
           ) : (
             <Text style={styles.label}>{label}</Text>
           )}
-          <Chevron
+          <ChevronIcon
             direction={expanded ? 'down' : 'right'}
             size={14}
-            color={colors.secondaryLabel}
+            color={theme.colors.secondaryLabel}
             strokeWidth={1.8}
           />
         </Pressable>
@@ -84,35 +96,37 @@ export const AssistantThinking = memo(
   }
 );
 
-const styles = StyleSheet.create({
-  container: {
-    gap: spacing.xs,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: spacing.xs,
-    paddingVertical: spacing.xxs,
-  },
-  label: {
-    color: colors.secondaryLabel,
-    ...typography.subhead,
-  },
-  preview: {
-    color: colors.tertiaryLabel,
-    ...typography.footnote,
-  },
-  body: {
-    borderLeftWidth: 2,
-    borderLeftColor: colors.separator,
-    paddingLeft: spacing.md,
-  },
-  bodyText: {
-    color: colors.secondaryLabel,
-    ...typography.footnote,
-  },
-  pressed: {
-    opacity: 0.35,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      gap: theme.spacing.xs,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: theme.spacing.xs,
+      paddingVertical: theme.spacing.xxs,
+    },
+    label: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.subhead,
+    },
+    preview: {
+      color: theme.colors.tertiaryLabel,
+      ...theme.typography.footnote,
+    },
+    body: {
+      borderLeftWidth: 2,
+      borderLeftColor: theme.colors.separator,
+      paddingLeft: theme.spacing.md,
+    },
+    bodyText: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.footnote,
+    },
+    pressed: {
+      opacity: 0.35,
+    },
+  })
+);

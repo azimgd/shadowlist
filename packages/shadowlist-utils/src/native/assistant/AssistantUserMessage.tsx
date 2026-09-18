@@ -1,85 +1,99 @@
-import { memo, useCallback, useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { memo, useCallback, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import type { ElementSizeSpec } from 'shadowlist';
-import { colors, typography, spacing, radius } from '../theme';
-import { Copy, Pencil } from '../icons';
+import { useLabels } from '../labels';
+import { createStyles, useTheme, type Theme } from '../theme';
+import { CopyIcon, PencilIcon } from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
 import { AssistantActionButton } from './AssistantActionButton';
 import { AssistantAttachmentChip } from './AssistantAttachmentChip';
-import type { AssistantPrompt } from './data';
+import type { AssistantPrompt } from './types';
 
 export interface AssistantUserMessageProps {
   message: AssistantPrompt;
-  onCopy?: (text: string) => void;
-  // Called with the message id; the screen loads it into the composer for resending.
-  onEdit?: (messageId: string) => void;
-  /*
-   * A reply is streaming. Editing rewinds the conversation from this prompt on, which would
-   * strand the in-flight reply, so it waits until the stream finishes.
-   */
+  // Disables Edit while a reply is streaming.
   busy?: boolean;
+  onCopy?: (text: string) => void;
+  onEdit?: (messageId: string) => void;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
 /*
- * What a plain-text user message measures to, derived from the styles below. Native
- * computes the real height from it before the row renders, so sending a message never
- * lands on an estimated height and reflows the reply under it.
- *
- * The numbers are a transcription of the stylesheet and have to stay one: a spec that
- * disagrees with its row predicts a confidently wrong height.
- *
- *   container  paddingHorizontal 16, paddingVertical 8
- *   bubble     maxWidth 80% of the container's content box, padding 14 / 10
- *   text       typography.body
+ * The spec below is a transcription of these numbers and the container/bubble styles; a spec
+ * that disagrees with its row predicts a confidently wrong height.
  */
 const BUBBLE_WIDTH_FRACTION = 0.8;
-// 0.8 x (W - 32) - 28  ==  0.8 x W - 53.6
-const BUBBLE_INSET_WIDTH = 53.6;
-// container 8+8, bubble 10+10
-const BUBBLE_INSET_HEIGHT = 36;
+const BUBBLE_PADDING_HORIZONTAL = 14;
+const BUBBLE_PADDING_VERTICAL = 10;
+const EMPTY_ATTACHMENTS: AssistantPrompt['attachments'] = [];
 
-// The long-press toggle, exposed to assistive technology as a named action.
-const ACTIONS_ACCESSIBILITY_ACTIONS = [
-  { name: 'longpress', label: 'Show actions' },
-];
-
-// Attachments add rows the spec can't describe; those messages are measured natively.
+/*
+ * What a plain-text user message measures to. Native computes the real height from it
+ * before the row renders, so sending a message never lands on an estimated height and
+ * reflows the reply under it. Attachments add rows the spec can't describe; those
+ * messages are measured natively.
+ */
 export function getUserMessageSizeSpec(
-  message: AssistantPrompt
+  message: AssistantPrompt,
+  theme: Theme
 ): ElementSizeSpec | null {
-  if (!message.text || message.attachments.length > 0) return null;
+  if (!message.text || (message.attachments?.length ?? 0) > 0) return null;
 
+  const { body } = theme.typography;
   return {
     text: message.text,
-    fontSize: typography.body.fontSize,
-    lineHeight: typography.body.lineHeight,
-    letterSpacing: typography.body.letterSpacing,
+    fontSize: body.fontSize,
+    lineHeight: body.lineHeight,
+    letterSpacing: body.letterSpacing,
     widthFraction: BUBBLE_WIDTH_FRACTION,
-    insetWidth: BUBBLE_INSET_WIDTH,
-    insetHeight: BUBBLE_INSET_HEIGHT,
+    // maxWidth is a fraction of the container's content box, then the bubble's own padding.
+    insetWidth:
+      BUBBLE_WIDTH_FRACTION * theme.spacing.lg * 2 +
+      BUBBLE_PADDING_HORIZONTAL * 2,
+    insetHeight: theme.spacing.sm * 2 + BUBBLE_PADDING_VERTICAL * 2,
   };
 }
 
-/*
- * Right-aligned prompt bubble with its attachments above it. Long-press reveals Copy and
- * Edit; the revealed row is measured natively, since a real measurement always outranks
- * the collapsed prediction.
- */
 export const AssistantUserMessage = memo(
-  ({ message, onCopy, onEdit, busy = false }: AssistantUserMessageProps) => {
+  ({
+    message,
+    busy = false,
+    onCopy,
+    onEdit,
+    labels,
+    style,
+  }: AssistantUserMessageProps) => {
+    const theme = useTheme();
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
     const [actionsVisible, setActionsVisible] = useState(false);
     const toggleActions = useCallback(
       () => setActionsVisible((current) => !current),
       []
     );
+    const accessibilityActions = useMemo(
+      () => [{ name: 'longpress', label: l.showActions }],
+      [l.showActions]
+    );
+    const attachments = message.attachments ?? EMPTY_ATTACHMENTS;
 
     return (
-      <View style={styles.container}>
-        {message.attachments.length > 0 ? (
+      <View style={[styles.container, style]}>
+        {attachments.length > 0 ? (
           <View style={styles.attachments}>
-            {message.attachments.map((attachment) => (
+            {attachments.map((attachment) => (
               <AssistantAttachmentChip
                 key={attachment.id}
                 attachment={attachment}
+                labels={l}
               />
             ))}
           </View>
@@ -90,13 +104,13 @@ export const AssistantUserMessage = memo(
             onLongPress={toggleActions}
             delayLongPress={300}
             accessibilityRole="button"
-            accessibilityHint="Long press for copy and edit"
+            accessibilityHint={l.showActionsHint}
             /*
              * A long press is not reachable by assistive technology, so the same toggle is
              * exposed as a named custom action. Without it Copy and Edit simply do not
              * exist for a screen reader.
              */
-            accessibilityActions={ACTIONS_ACCESSIBILITY_ACTIONS}
+            accessibilityActions={accessibilityActions}
             onAccessibilityAction={toggleActions}
             style={styles.bubble}
           >
@@ -107,17 +121,21 @@ export const AssistantUserMessage = memo(
         {actionsVisible ? (
           <View style={styles.actions}>
             <AssistantActionButton
-              label="Copy"
+              label={l.copy}
               showLabel
               onPress={() => {
                 onCopy?.(message.text);
                 setActionsVisible(false);
               }}
             >
-              <Copy size={14} color={colors.label} strokeWidth={1.3} />
+              <CopyIcon
+                size={14}
+                color={theme.colors.label}
+                strokeWidth={1.3}
+              />
             </AssistantActionButton>
             <AssistantActionButton
-              label="Edit"
+              label={l.edit}
               showLabel
               disabled={busy}
               onPress={() => {
@@ -125,7 +143,11 @@ export const AssistantUserMessage = memo(
                 setActionsVisible(false);
               }}
             >
-              <Pencil size={14} color={colors.label} strokeWidth={1.3} />
+              <PencilIcon
+                size={14}
+                color={theme.colors.label}
+                strokeWidth={1.3}
+              />
             </AssistantActionButton>
           </View>
         ) : null}
@@ -134,34 +156,36 @@ export const AssistantUserMessage = memo(
   }
 );
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    alignItems: 'flex-end',
-  },
-  attachments: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
-  },
-  bubble: {
-    maxWidth: '80%',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: radius.xl,
-    borderBottomRightRadius: 6,
-    backgroundColor: colors.elevated2,
-  },
-  text: {
-    color: colors.label,
-    ...typography.body,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm,
+      alignItems: 'flex-end',
+    },
+    attachments: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
+    },
+    bubble: {
+      maxWidth: `${BUBBLE_WIDTH_FRACTION * 100}%`,
+      paddingHorizontal: BUBBLE_PADDING_HORIZONTAL,
+      paddingVertical: BUBBLE_PADDING_VERTICAL,
+      borderRadius: theme.radius.xl,
+      borderBottomRightRadius: 6,
+      backgroundColor: theme.colors.elevated2,
+    },
+    text: {
+      color: theme.colors.label,
+      ...theme.typography.body,
+    },
+    actions: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.sm,
+    },
+  })
+);
