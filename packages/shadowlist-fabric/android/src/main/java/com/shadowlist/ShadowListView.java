@@ -89,14 +89,18 @@ public class ShadowListView extends FrameLayout {
   private static final long SETTLE_POLL_DELAY_MS = 20;
   private static final int SETTLE_STABLE_FRAMES = 3;
 
-  // Keyboard-avoidance bottom inset (px); held to diff against the next value for the delta.
-  private int mContentInsetBottom = 0;
-
   // Pull-to-refresh state; all held so an axis-flip reinstall restores them.
   @Nullable private SwipeRefreshLayout mRefreshLayout = null;
   private boolean mRefreshEnabled = false;
   private boolean mRefreshing = false;
   @Nullable private Integer mRefreshColor = null;
+  /*
+   * Set when refreshing ends; cleared once the spinner has retracted and the list is at rest,
+   * when onRefreshSettle fires (see mRefreshSettleRunnable).
+   */
+  private boolean mRefreshAwaitingSettle = false;
+  // SwipeRefreshLayout's retract runs 150-200ms; check just after it, then poll until at rest.
+  private static final long REFRESH_SETTLE_DELAY_MS = 250;
 
   /*
    * Tracks a programmatic scroll we issued so its echoed callbacks are not reported as
@@ -114,6 +118,13 @@ public class ShadowListView extends FrameLayout {
   private long mArmedToken = 0;
   // The token of the last correction whose echo was reported, carried on later reports.
   private long mEchoedToken = 0;
+  /*
+   * The last operation correction shifted onto the live offset: its commit token and the
+   * correction (DIP, along the scroll axis) already applied for it. The core republishes a
+   * token's whole cumulative correction on each retarget; shift only the part not yet applied.
+   */
+  private long mShiftedToken = 0;
+  private double mShiftedTokenDelta = 0.0;
 
   /*
    * The last scroll command this host issued (scrollToIndex / scrollToEnd), carried on every
@@ -322,7 +333,34 @@ public class ShadowListView extends FrameLayout {
     if (mRefreshLayout != null) {
       mRefreshLayout.setRefreshing(refreshing);
     }
+    removeCallbacks(mRefreshSettleRunnable);
+    mRefreshAwaitingSettle = !refreshing;
+    if (!refreshing) {
+      /*
+       * Refresh ended: fire onRefreshSettle once the spinner has retracted and no finger or
+       * fling moves the list, so JS applies a held refresh-prepend on a list at rest (as iOS
+       * does after its retract spring). JS keeps a timeout fallback.
+       */
+      postDelayed(mRefreshSettleRunnable, REFRESH_SETTLE_DELAY_MS);
+    }
   }
+
+  private final Runnable mRefreshSettleRunnable = new Runnable() {
+    @Override
+    public void run() {
+      if (!mRefreshAwaitingSettle || mRefreshing) {
+        return;
+      }
+      // Not settled yet: a finger is down, momentum is running, or a new pull already started.
+      boolean pulling = mRefreshLayout != null && mRefreshLayout.isRefreshing();
+      if (mTouching || mSettling || pulling) {
+        postDelayed(this, REFRESH_SETTLE_DELAY_MS);
+        return;
+      }
+      mRefreshAwaitingSettle = false;
+      emitRefreshEvent(ShadowListRefreshEvent.SETTLE_EVENT_NAME);
+    }
+  };
 
   public void setRefreshColor(@Nullable Integer color) {
     mRefreshColor = color;
@@ -332,12 +370,17 @@ public class ShadowListView extends FrameLayout {
   }
 
   private void emitRefresh() {
+    emitRefreshEvent(ShadowListRefreshEvent.EVENT_NAME);
+  }
+
+  private void emitRefreshEvent(String eventName) {
+    slLog("java.emitRefreshEvent: " + eventName);
     ReactContext reactContext = (ReactContext) getContext();
     EventDispatcher dispatcher =
       UIManagerHelper.getEventDispatcherForReactTag(reactContext, getId());
     if (dispatcher != null) {
       dispatcher.dispatchEvent(
-        new ShadowListRefreshEvent(UIManagerHelper.getSurfaceId(this), getId()));
+        new ShadowListRefreshEvent(UIManagerHelper.getSurfaceId(this), getId(), eventName));
     }
   }
 
@@ -576,6 +619,10 @@ public class ShadowListView extends FrameLayout {
     mEchoedToken = 0;
     mCommandIndex = -2.0;
     mCommandSequence = 0.0;
+    mShiftedToken = 0;
+    mShiftedTokenDelta = 0.0;
+    mRefreshAwaitingSettle = false;
+    removeCallbacks(mRefreshSettleRunnable);
     stopSettling();
     mScrollView.scrollTo(0, 0);
     mContentView.layout(0, 0, 0, 0);
@@ -628,35 +675,6 @@ public class ShadowListView extends FrameLayout {
       installScrollView(horizontal);
     }
     mStickyController.applyStickyTransforms();
-  }
-
-  /*
-   * Keyboard avoidance (vertical only): grow the bottom padding to the inset and shift
-   * the offset by the delta so rows behind the keyboard come into view. Skipped while a
-   * drag owns the offset.
-   */
-  public void setContentInsetBottom(double insetDip) {
-    int inset = Math.max(0, (int) PixelUtil.toPixelFromDIP((float) insetDip));
-    if (inset == mContentInsetBottom) {
-      return;
-    }
-    int delta = inset - mContentInsetBottom;
-    mContentInsetBottom = inset;
-
-    if (mHorizontal) {
-      return;
-    }
-
-    mScrollView.setPadding(0, 0, 0, inset);
-
-    if (!mDragController.ownsScrollOffset()) {
-      int targetX = mScrollView.getScrollX();
-      int targetY = Math.max(0, mScrollView.getScrollY() + delta);
-      markProgrammaticScroll(targetX, targetY, true);
-      if (mScrollView instanceof ReactScrollView) {
-        ((ReactScrollView) mScrollView).smoothScrollTo(targetX, targetY);
-      }
-    }
   }
 
   private boolean updateScrollState(int scrollX, int scrollY) {
@@ -785,20 +803,38 @@ public class ShadowListView extends FrameLayout {
         int beforeY = mScrollView.getScrollY();
         /*
          * A finger or a fling keeps moving the view after the report this correction was
-         * computed from, and the commit mounts frames later. Writing the absolute offset of a
-         * token-0 correction (a measurement nudge or a layout reassert) throws that travel away
-         * and yanks the view back to where it was; a nudge of a fraction of a point then reads
-         * as a jump of a whole screen. Shift the live offset by the correction instead
-         * (containerOffsetBase is the offset the core started from). An operation-driven
-         * correction keeps its absolute target: the core retargets it against each newer
-         * report until the host echoes its token, so applying every retarget as a delta would
-         * shift the view once per retarget.
+         * computed from, and the commit mounts frames later. Writing the absolute offset throws
+         * that travel away and yanks the view back to where it was; a nudge of a fraction of a
+         * point then reads as a jump of a whole screen. Shift the live offset by the correction
+         * instead (containerOffsetBase is the offset the core started from), as iOS does.
+         *
+         * That covers operation corrections (MVCP) too: the core confirms a correction that ran
+         * under a gesture by its echo, without driving the view on to an absolute target (see
+         * Container::gestureOperationId), so travel dropped by an absolute write is never
+         * recovered. A correction computed from a gesture report stays a shift once the motion
+         * has stopped, and so does a retarget of a correction already shifted. The core
+         * retargets an operation against every newer report until the host echoes its token,
+         * and each retarget carries the whole correction again (the base stays where its first
+         * write started), so only the part this token has not applied yet is shifted.
          */
-        boolean shiftLiveOffset = token == 0 && (mTouching || mSettling)
-          && nextStateData.hasKey("containerOffsetBaseX") && nextStateData.hasKey("containerOffsetBaseY");
+        boolean hasBase = nextStateData.hasKey("containerOffsetBaseX") && nextStateData.hasKey("containerOffsetBaseY");
+        boolean continuesShiftedCorrection = token != 0 && token == mShiftedToken;
+        boolean computedDuringGesture = token != 0
+          && ((nextStateData.hasKey("userScrolled") && nextStateData.getBoolean("userScrolled"))
+            || (nextStateData.hasKey("scrollPhase") && nextStateData.getDouble("scrollPhase") != SCROLL_PHASE_IDLE));
+        boolean shiftLiveOffset = hasBase
+          && (mTouching || mSettling || continuesShiftedCorrection || computedDuringGesture);
         if (shiftLiveOffset) {
           double deltaX = containerOffsetX - nextStateData.getDouble("containerOffsetBaseX");
           double deltaY = containerOffsetY - nextStateData.getDouble("containerOffsetBaseY");
+          if (token != 0) {
+            double shift = mHorizontal ? deltaX : deltaY;
+            double unapplied = token == mShiftedToken ? shift - mShiftedTokenDelta : shift;
+            mShiftedToken = token;
+            mShiftedTokenDelta = shift;
+            deltaX = mHorizontal ? unapplied : 0.0;
+            deltaY = mHorizontal ? 0.0 : unapplied;
+          }
           appliedX = beforeX + Math.round(PixelUtil.toPixelFromDIP((float) deltaX));
           appliedY = beforeY + Math.round(PixelUtil.toPixelFromDIP((float) deltaY));
         }

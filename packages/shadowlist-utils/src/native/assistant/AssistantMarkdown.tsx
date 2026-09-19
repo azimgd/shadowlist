@@ -4,19 +4,15 @@ import {
   Text,
   ScrollView,
   Pressable,
-  Linking,
   StyleSheet,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
-import {
-  colors,
-  typography,
-  spacing,
-  radius,
-  fontSize,
-  fontWeight,
-  MONO_FONT_FAMILY,
-} from '../theme';
-import { Check, Copy } from '../icons';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import { CheckIcon, CopyIcon } from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
+import { openUrl } from './openUrl';
 import { PulsingDot } from './AssistantTypingIndicator';
 import {
   parseMarkdown,
@@ -26,21 +22,25 @@ import {
 
 export interface AssistantMarkdownProps {
   text: string;
-  // True while the text is still arriving: a cursor trails the last block.
+  // Shows a trailing pulse after the text.
   streaming?: boolean;
   onCopyCode?: (code: string) => void;
+  // Defaults to Linking.openURL for http(s) and mailto links only.
+  onOpenLink?: (url: string) => void;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
-// How long a code block's button reads "Copied" before reverting.
+type Styles = ReturnType<typeof useStyles>;
+
 const COPIED_RESET_MS = 1500;
-// Fixed column width keeps cells aligned across rows without measuring every cell first.
 const TABLE_COLUMN_WIDTH = 140;
 
-const openLink = (href: string) => {
-  Linking.openURL(href).catch(() => {});
-};
-
-const renderInlines = (inlines: MarkdownInline[]) =>
+const renderInlines = (
+  inlines: MarkdownInline[],
+  styles: Styles,
+  onOpenLink: (url: string) => void
+) =>
   inlines.map((inline, index) => {
     switch (inline.style) {
       case 'bold':
@@ -67,7 +67,8 @@ const renderInlines = (inlines: MarkdownInline[]) =>
           <Text
             key={index}
             style={styles.link}
-            onPress={href ? () => openLink(href) : undefined}
+            accessibilityRole={href ? 'link' : undefined}
+            onPress={href ? () => onOpenLink(href) : undefined}
           >
             {inline.text}
           </Text>
@@ -83,12 +84,16 @@ const CodeBlock = ({
   code,
   closed,
   onCopyCode,
+  labels,
 }: {
   language: string;
   code: string;
   closed: boolean;
   onCopyCode?: (code: string) => void;
+  labels: AssistantLabels;
 }) => {
+  const theme = useTheme();
+  const styles = useStyles();
   const [copied, setCopied] = useState(false);
   /*
    * One <Text> per line rather than one <Text> for the block. A fence that is still
@@ -107,7 +112,9 @@ const CodeBlock = ({
   return (
     <View style={styles.codeBlock}>
       <View style={styles.codeHeader}>
-        <Text style={styles.codeLanguage}>{language || 'code'}</Text>
+        <Text style={styles.codeLanguage}>
+          {language || labels.codeLanguageFallback}
+        </Text>
         {/* Copying half a block is never what anyone wants; wait for the closing fence. */}
         {closed ? (
           <Pressable
@@ -117,23 +124,27 @@ const CodeBlock = ({
             }}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Copy code"
+            accessibilityLabel={copied ? labels.copied : labels.copyCode}
             style={({ pressed }) => [
               styles.codeCopy,
               pressed && styles.pressed,
             ]}
           >
             {copied ? (
-              <Check
+              <CheckIcon
                 size={14}
-                color={colors.secondaryLabel}
+                color={theme.colors.secondaryLabel}
                 strokeWidth={1.8}
               />
             ) : (
-              <Copy size={14} color={colors.secondaryLabel} strokeWidth={1.3} />
+              <CopyIcon
+                size={14}
+                color={theme.colors.secondaryLabel}
+                strokeWidth={1.3}
+              />
             )}
             <Text style={styles.codeCopyText}>
-              {copied ? 'Copied' : 'Copy'}
+              {copied ? labels.copied : labels.copy}
             </Text>
           </Pressable>
         ) : null}
@@ -143,11 +154,10 @@ const CodeBlock = ({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.codeScroll}
       >
-        {/* The horizontal content container lays out in a row; the lines stack in here. */}
         <View>
           {codeLines.map((line, index) => (
             <Text key={index} style={styles.code}>
-              {line || '\u00a0'}
+              {line || ' '}
             </Text>
           ))}
         </View>
@@ -159,42 +169,46 @@ const CodeBlock = ({
 const TableBlock = ({
   header,
   rows,
+  onOpenLink,
 }: {
   header: MarkdownInline[][];
   rows: MarkdownInline[][][];
-}) => (
-  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-    <View style={styles.table}>
-      <View style={[styles.tableRow, styles.tableHeaderRow]}>
-        {header.map((cell, column) => (
-          <View key={column} style={styles.tableCell}>
-            <Text style={[styles.tableText, styles.tableHeaderText]}>
-              {renderInlines(cell)}
-            </Text>
-          </View>
-        ))}
-      </View>
-      {rows.map((row, rowIndex) => (
-        <View
-          key={rowIndex}
-          style={[
-            styles.tableRow,
-            rowIndex === rows.length - 1 && styles.tableRowLast,
-          ]}
-        >
-          {/* Driven by the header so a row still streaming in keeps its column slots. */}
-          {header.map((_, column) => (
+  onOpenLink: (url: string) => void;
+}) => {
+  const styles = useStyles();
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View style={styles.table}>
+        <View style={[styles.tableRow, styles.tableHeaderRow]}>
+          {header.map((cell, column) => (
             <View key={column} style={styles.tableCell}>
-              <Text style={styles.tableText}>
-                {renderInlines(row[column] ?? [])}
+              <Text style={[styles.tableText, styles.tableHeaderText]}>
+                {renderInlines(cell, styles, onOpenLink)}
               </Text>
             </View>
           ))}
         </View>
-      ))}
-    </View>
-  </ScrollView>
-);
+        {rows.map((row, rowIndex) => (
+          <View
+            key={rowIndex}
+            style={[
+              styles.tableRow,
+              rowIndex === rows.length - 1 && styles.tableRowLast,
+            ]}
+          >
+            {header.map((_, column) => (
+              <View key={column} style={styles.tableCell}>
+                <Text style={styles.tableText}>
+                  {renderInlines(row[column] ?? [], styles, onOpenLink)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+};
 
 /*
  * One block. Memoized on its source text: once a later block exists this one is final,
@@ -204,10 +218,15 @@ const MarkdownBlockView = memo(
   ({
     block,
     onCopyCode,
+    onOpenLink,
+    labels,
   }: {
     block: MarkdownBlock;
     onCopyCode?: (code: string) => void;
+    onOpenLink: (url: string) => void;
+    labels: AssistantLabels;
   }) => {
+    const styles = useStyles();
     switch (block.type) {
       case 'heading':
         return (
@@ -221,13 +240,15 @@ const MarkdownBlockView = memo(
             }
             accessibilityRole="header"
           >
-            {renderInlines(block.inlines)}
+            {renderInlines(block.inlines, styles, onOpenLink)}
           </Text>
         );
       case 'quote':
         return (
           <View style={styles.quote}>
-            <Text style={styles.quoteText}>{renderInlines(block.inlines)}</Text>
+            <Text style={styles.quoteText}>
+              {renderInlines(block.inlines, styles, onOpenLink)}
+            </Text>
           </View>
         );
       case 'list':
@@ -238,7 +259,9 @@ const MarkdownBlockView = memo(
                 <Text style={styles.listMarker}>
                   {block.ordered ? `${block.start + index}.` : '•'}
                 </Text>
-                <Text style={styles.paragraph}>{renderInlines(item)}</Text>
+                <Text style={styles.paragraph}>
+                  {renderInlines(item, styles, onOpenLink)}
+                </Text>
               </View>
             ))}
           </View>
@@ -250,36 +273,57 @@ const MarkdownBlockView = memo(
             code={block.code}
             closed={block.closed}
             onCopyCode={onCopyCode}
+            labels={labels}
           />
         );
       case 'table':
-        return <TableBlock header={block.header} rows={block.rows} />;
+        return (
+          <TableBlock
+            header={block.header}
+            rows={block.rows}
+            onOpenLink={onOpenLink}
+          />
+        );
       case 'rule':
         return <View style={styles.rule} />;
       default:
         return (
-          <Text style={styles.paragraph}>{renderInlines(block.inlines)}</Text>
+          <Text style={styles.paragraph}>
+            {renderInlines(block.inlines, styles, onOpenLink)}
+          </Text>
         );
     }
   },
   (prev, next) =>
     prev.block.key === next.block.key &&
     prev.block.raw === next.block.raw &&
-    prev.onCopyCode === next.onCopyCode
+    prev.onCopyCode === next.onCopyCode &&
+    prev.onOpenLink === next.onOpenLink &&
+    prev.labels === next.labels
 );
 
-// Renders a (possibly still streaming) Markdown reply as native text, code and tables.
 export const AssistantMarkdown = memo(
-  ({ text, streaming = false, onCopyCode }: AssistantMarkdownProps) => {
+  ({
+    text,
+    streaming = false,
+    onCopyCode,
+    onOpenLink = openUrl,
+    labels,
+    style,
+  }: AssistantMarkdownProps) => {
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
     const blocks = useMemo(() => parseMarkdown(text), [text]);
 
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, style]}>
         {blocks.map((block) => (
           <MarkdownBlockView
             key={block.key}
             block={block}
             onCopyCode={onCopyCode}
+            onOpenLink={onOpenLink}
+            labels={l}
           />
         ))}
         {streaming ? <PulsingDot /> : null}
@@ -288,134 +332,136 @@ export const AssistantMarkdown = memo(
   }
 );
 
-const styles = StyleSheet.create({
-  container: {
-    gap: spacing.md,
-  },
-  heading1: {
-    color: colors.label,
-    ...typography.title2,
-  },
-  heading2: {
-    color: colors.label,
-    ...typography.title3,
-  },
-  heading3: {
-    color: colors.label,
-    ...typography.headline,
-  },
-  paragraph: {
-    flex: 1,
-    color: colors.label,
-    ...typography.body,
-  },
-  bold: {
-    fontWeight: fontWeight.semibold,
-  },
-  italic: {
-    fontStyle: 'italic',
-  },
-  inlineCode: {
-    fontFamily: MONO_FONT_FAMILY,
-    fontSize: fontSize.subhead,
-    color: colors.label,
-    backgroundColor: colors.fill,
-  },
-  link: {
-    color: colors.accent,
-    textDecorationLine: 'underline',
-  },
-  quote: {
-    borderLeftWidth: 3,
-    borderLeftColor: colors.separator,
-    paddingLeft: spacing.md,
-  },
-  quoteText: {
-    color: colors.secondaryLabel,
-    ...typography.body,
-  },
-  list: {
-    gap: spacing.xs,
-  },
-  listItem: {
-    flexDirection: 'row',
-  },
-  listMarker: {
-    width: 22,
-    color: colors.secondaryLabel,
-    ...typography.body,
-  },
-  codeBlock: {
-    backgroundColor: colors.elevated,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-  },
-  codeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    backgroundColor: colors.elevated2,
-  },
-  codeLanguage: {
-    color: colors.secondaryLabel,
-    ...typography.caption,
-    fontFamily: MONO_FONT_FAMILY,
-  },
-  codeCopy: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  codeCopyText: {
-    color: colors.secondaryLabel,
-    ...typography.caption,
-    fontWeight: fontWeight.semibold,
-  },
-  codeScroll: {
-    padding: spacing.md,
-  },
-  code: {
-    color: colors.label,
-    fontFamily: MONO_FONT_FAMILY,
-    fontSize: fontSize.footnote,
-    lineHeight: 20,
-  },
-  table: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.separator,
-    borderRadius: radius.sm,
-    overflow: 'hidden',
-  },
-  tableRow: {
-    flexDirection: 'row',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.separator,
-  },
-  tableRowLast: {
-    borderBottomWidth: 0,
-  },
-  tableHeaderRow: {
-    backgroundColor: colors.elevated,
-  },
-  tableCell: {
-    width: TABLE_COLUMN_WIDTH,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  tableText: {
-    color: colors.label,
-    ...typography.subhead,
-  },
-  tableHeaderText: {
-    fontWeight: fontWeight.semibold,
-  },
-  rule: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
-  },
-  pressed: {
-    opacity: 0.35,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      gap: theme.spacing.md,
+    },
+    heading1: {
+      color: theme.colors.label,
+      ...theme.typography.title2,
+    },
+    heading2: {
+      color: theme.colors.label,
+      ...theme.typography.title3,
+    },
+    heading3: {
+      color: theme.colors.label,
+      ...theme.typography.headline,
+    },
+    paragraph: {
+      flex: 1,
+      color: theme.colors.label,
+      ...theme.typography.body,
+    },
+    bold: {
+      fontWeight: theme.fontWeight.semibold,
+    },
+    italic: {
+      fontStyle: 'italic',
+    },
+    inlineCode: {
+      fontFamily: theme.fonts.mono,
+      fontSize: theme.fontSize.subhead,
+      color: theme.colors.label,
+      backgroundColor: theme.colors.fill,
+    },
+    link: {
+      color: theme.colors.accent,
+      textDecorationLine: 'underline',
+    },
+    quote: {
+      borderLeftWidth: 3,
+      borderLeftColor: theme.colors.separator,
+      paddingLeft: theme.spacing.md,
+    },
+    quoteText: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.body,
+    },
+    list: {
+      gap: theme.spacing.xs,
+    },
+    listItem: {
+      flexDirection: 'row',
+    },
+    listMarker: {
+      width: 22,
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.body,
+    },
+    codeBlock: {
+      backgroundColor: theme.colors.elevated,
+      borderRadius: theme.radius.md,
+      overflow: 'hidden',
+    },
+    codeHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: theme.colors.elevated2,
+    },
+    codeLanguage: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.caption,
+      fontFamily: theme.fonts.mono,
+    },
+    codeCopy: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+    },
+    codeCopyText: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.caption,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    codeScroll: {
+      padding: theme.spacing.md,
+    },
+    code: {
+      color: theme.colors.label,
+      fontFamily: theme.fonts.mono,
+      fontSize: theme.fontSize.footnote,
+      lineHeight: 20,
+    },
+    table: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.separator,
+      borderRadius: theme.radius.sm,
+      overflow: 'hidden',
+    },
+    tableRow: {
+      flexDirection: 'row',
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.separator,
+    },
+    tableRowLast: {
+      borderBottomWidth: 0,
+    },
+    tableHeaderRow: {
+      backgroundColor: theme.colors.elevated,
+    },
+    tableCell: {
+      width: TABLE_COLUMN_WIDTH,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+    },
+    tableText: {
+      color: theme.colors.label,
+      ...theme.typography.subhead,
+    },
+    tableHeaderText: {
+      fontWeight: theme.fontWeight.semibold,
+    },
+    rule: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.separator,
+    },
+    pressed: {
+      opacity: 0.35,
+    },
+  })
+);

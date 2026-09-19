@@ -38,6 +38,9 @@ jobs:
       - name: Run unit tests
         run: yarn workspace shadowlist run test --maxWorkers=2 --coverage
 
+      - name: Run utils unit tests
+        run: yarn workspace shadowlist-utils run test --maxWorkers=2
+
   test-core:
     runs-on: ubuntu-latest
     defaults:
@@ -73,6 +76,10 @@ jobs:
 
       - name: Build package
         run: yarn workspace shadowlist run prepare
+
+      # Its declarations build against the fabric package's lib/typescript output.
+      - name: Build utils package
+        run: yarn workspace shadowlist-utils run prepare
 
   build-android:
     runs-on: ubuntu-latest
@@ -136,7 +143,6 @@ jobs:
           working-directory: packages/shadowlist-fabric-example
 
       - name: Cache cocoapods
-        id: cocoapods-cache
         uses: actions/cache@v4
         with:
           path: |
@@ -145,12 +151,5 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cocoapods-
 
-      - name: Install cocoapods
-        if: steps.cocoapods-cache.outputs.cache-hit != 'true'
-        run: bundle exec pod install
-        working-directory: packages/shadowlist-fabric-example/ios
-        env:
-          NO_FLIPPER: 1
-
       - name: Build example for iOS
-        run: yarn workspace shadowlist-example run build:ios
+        run: yarn workspace shadowlist-example run build:ios --force-pods

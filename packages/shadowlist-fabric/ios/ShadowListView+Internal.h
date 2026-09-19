@@ -36,9 +36,6 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   RCTUIScrollView *_scrollView;
   RCTUIView *_contentView;
 
-  // Keyboard-avoidance bottom inset (px); held to diff against the next value.
-  CGFloat _contentInsetBottom;
-
   /*
    * Pull-to-refresh: the controlled state and tint kept on both platforms; the control
    * itself is iOS-only (no AppKit equivalent).
@@ -104,6 +101,11 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
    */
   uint64_t _shiftedToken;
   CGFloat _shiftedTokenDelta;
+  /*
+   * Set when a scroll report goes out while updateState: runs, so updateState: knows whether a
+   * state that conceals rows has been acked already (see reportConcealedRowsMounted).
+   */
+  BOOL _reportedDuringStateUpdate;
 
   /*
    * Set while updateState writes the core's content size. A smaller content size clamps the
@@ -203,6 +205,9 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 
 // Re-pin sticky/auto-hide views; accumulate is YES only on genuine user scrolls.
 - (void)applyStickyTransforms:(BOOL)accumulate;
+
+// Writes the live offset (and the last echoed token) into a state update built from the mounted state.
+- (void)carryLiveOffsetInto:(facebook::react::ShadowListViewShadowNode::ConcreteState::Data&)stateData;
 
 // Writes the last scroll command into a state update built from the mounted state.
 - (void)carryScrollCommandInto:(facebook::react::ShadowListViewShadowNode::ConcreteState::Data&)stateData;

@@ -19,7 +19,6 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
-#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -232,29 +231,5 @@ TEST(borrowed_keys_behave_like_owned_keys) {
   CHECK(offsetsOf(owned) == offsetsOf(borrowed));
   for (std::size_t index = 0; index < keys.size(); ++index) {
     CHECK_EQ(owned.revision.elements[index].key, borrowed.revision.elements[index].key);
-  }
-}
-
-// Every Element gets a distinct, stable debug id, generated on first use.
-TEST(lazy_element_ids_are_unique_and_stable) {
-  std::vector<std::string> keys = keysFor(500);
-  Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
-
-  std::vector<std::string> ids;
-  ids.reserve(keys.size());
-  for (const Element& element : container.revision.elements) {
-    const std::string& id = element.getId();
-    CHECK_EQ(id.size(), static_cast<std::size_t>(16));
-    ids.push_back(id);
-  }
-
-  std::vector<std::string> sorted = ids;
-  std::sort(sorted.begin(), sorted.end());
-  CHECK(std::adjacent_find(sorted.begin(), sorted.end()) == sorted.end());
-
-  // Asking again must return the same id, not a fresh one.
-  for (std::size_t index = 0; index < keys.size(); ++index) {
-    CHECK_EQ(container.revision.elements[index].getId(), ids[index]);
   }
 }

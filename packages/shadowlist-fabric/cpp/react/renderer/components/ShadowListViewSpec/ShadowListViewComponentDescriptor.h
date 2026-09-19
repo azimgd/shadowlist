@@ -3,13 +3,14 @@
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
-#include "ShadowListCommitHook.h"
 #include "ShadowListTextMeasurer.h"
+#include "ShadowListTrace.h"
 #include "ShadowListViewShadowNode.h"
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
+#include <atomic>
 #include <mutex>
 
 namespace facebook::react {
@@ -27,12 +28,16 @@ public:
      * built after us, shares our measure cache instead of creating a private one. Doing it
      * lazily at measure time would always be too late. See getSharedTextLayoutManager.
      */
-    textLayoutManager_(getSharedTextLayoutManager(this->contextContainer_)),
-    commitHook_(std::make_shared<ShadowListCommitHook>(this->contextContainer_)) {
+    textLayoutManager_(getSharedTextLayoutManager(this->contextContainer_)) {
   };
 
   void adopt(ShadowNode& shadowNode) const override {
     ConcreteComponentDescriptor::adopt(shadowNode);
+
+    // Debug device trace only; a no-op unless the app was launched with SHADOWLIST_FRAME_TRACE=1.
+    if (!jsTraceInstalled_.exchange(true, std::memory_order_relaxed)) {
+      shadowlist::detail::installJsTrace(this->contextContainer_);
+    }
 
     auto& shadowlistViewShadowNode = static_cast<ShadowListViewShadowNode&>(shadowNode);
 
@@ -45,19 +50,7 @@ public:
      */
     if (!shadowlistViewShadowNode.getContainerManager()) {
       shadowlistViewShadowNode.setContainerManager(std::make_shared<azimgd::shadowlist::Container>());
-      shadowlistViewShadowNode.setHeaderSize(std::make_shared<double>(0.0));
-      shadowlistViewShadowNode.setFooterSize(std::make_shared<double>(0.0));
       shadowlistViewShadowNode.setGeometryCache(std::make_shared<ShadowListViewGeometryCache>());
-    }
-
-    /*
-     * The commit hook clones a list only to swap which rows are hidden. That clone carries
-     * the props and state this list already adopted earlier in the same commit, so there is
-     * nothing new for the core to consume, and running Virtualizer::update again would only
-     * repeat the frame.
-     */
-    if (shadowlist::detail::isCommitHookCloneInProgress()) {
-      return;
     }
 
     auto& shadowlistViewProps = static_cast<const ShadowListViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
@@ -123,6 +116,12 @@ public:
     containerManager->onEndReachedCallback = [shadowlistViewEventEmitter]() -> void {
       shadowlistViewEventEmitter.onEndReached({});
     };
+    /*
+     * The imperative setStartReachedEnabled / setEndReachedEnabled commands write these flags
+     * into state; the core gates the reached callbacks on them when update() ends the frame.
+     */
+    containerManager->setStartReachedEnabled(shadowlistViewStateData.startReachedEnabled_);
+    containerManager->setEndReachedEnabled(shadowlistViewStateData.endReachedEnabled_);
     containerManager->onVisibleIndicesChangeCallback = [shadowlistViewEventEmitter](std::size_t startIndex, std::size_t endIndex) -> void {
       int visibleStartIndex = static_cast<int>(startIndex);
       int visibleEndIndex = static_cast<int>(endIndex);
@@ -237,10 +236,13 @@ public:
     input.containerOffsetEnabled = shadowlistViewStateData.containerOffsetEnabled_;
     input.windowContainerWidth = shadowlistViewLayoutMetrics.frame.size.width;
     input.windowContainerHeight = shadowlistViewLayoutMetrics.frame.size.height;
-    input.headerSize = *shadowlistViewShadowNode.getHeaderSize();
-    input.footerSize = *shadowlistViewShadowNode.getFooterSize();
-    input.stickyHeader = shadowlistViewProps.stickyHeader;
-    input.stickyFooter = shadowlistViewProps.stickyFooter;
+    /*
+     * The layout pass measures the header/footer templates and applies them to the core
+     * directly (see ShadowListViewShadowNode::layout), so the core's own values are the
+     * latest measurements.
+     */
+    input.headerSize = containerManager->headerSize;
+    input.footerSize = containerManager->footerSize;
     /*
      * Section-header element indices (SectionList). Skip negatives defensively; the
      * core expects an ascending list of valid indices.
@@ -252,26 +254,10 @@ public:
       }
     }
     input.inverted = shadowlistViewProps.inverted;
+    input.followAppends = shadowlistViewProps.followAppends;
     input.horizontal = shadowlistViewProps.horizontal;
     input.columns = shadowlistViewProps.columns > 0 ? static_cast<std::size_t>(shadowlistViewProps.columns) : 1;
     input.overscan = shadowlistViewProps.overscan;
-    /*
-     * Splits retention from materialization: rows stay reconciled out to `overscan` so a
-     * fast scroll never waits on the JS round trip, while only this narrower band exists
-     * as native views. Negative (the default) keeps the two identical, i.e. exactly the
-     * behaviour before the band existed.
-     *
-     * The commit hook is what hides the rows outside the band. It is registered on the first
-     * list that opts in, and each opted-in list is tracked once per family so the hook visits
-     * only the lists of the surface being committed. A list that later opts out stays
-     * tracked, and the hook restores every row it hid.
-     */
-    input.materializationOverscan = shadowlistViewProps.nativeViewOverscan;
-    if (shadowlistViewProps.nativeViewOverscan >= 0.0 && geometryCache && commitHook_->ensureRegistered() &&
-        !geometryCache->commitHookTracked) {
-      geometryCache->commitHookTracked = true;
-      commitHook_->trackList(shadowNode.getFamilyShared());
-    }
     input.startReachedThreshold = shadowlistViewProps.startReachedThreshold;
     input.endReachedThreshold = shadowlistViewProps.endReachedThreshold;
     input.viewablePercentThreshold = shadowlistViewProps.viewablePercentThreshold;
@@ -340,7 +326,12 @@ public:
           geometryCache->stickyHeaderIndices != shadowlistViewStateData.stickyHeaderIndices_ ||
           geometryCache->stickyHeaderOffsets != shadowlistViewStateData.stickyHeaderOffsets_ ||
           geometryCache->stickyHeaderSizes != shadowlistViewStateData.stickyHeaderSizes_));
-      if (containerManager->containerOffsetCorrected || geometryStale) {
+      /*
+       * Concealed rows are revealed by the layout pass, and the commit that carries the host's
+       * ack is usually a bare scroll report, so dirty it while any row is concealed.
+       */
+      bool rowsConcealed = geometryCache && !geometryCache->concealedRows.empty();
+      if (containerManager->containerOffsetCorrected || geometryStale || rowsConcealed) {
         shadowlistViewShadowNode.dirtyLayout();
       }
       /*
@@ -466,12 +457,7 @@ private:
    */
   const std::shared_ptr<const TextLayoutManager> textLayoutManager_;
 
-  /*
-   * The materialization commit hook for this descriptor's UIManager. The UIManager owns the
-   * component descriptor registry, which owns this descriptor, so the hook outlives every
-   * commit it is registered for (see ShadowListCommitHook::ensureRegistered).
-   */
-  const std::shared_ptr<ShadowListCommitHook> commitHook_;
+  mutable std::atomic<bool> jsTraceInstalled_{false};
 };
 
 void ShadowListViewSpec_registerComponentDescriptorsFromCodegen(

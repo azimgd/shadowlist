@@ -8,10 +8,8 @@ namespace azimgd::shadowlist {
 
 constexpr std::size_t UNDEFINED_INDEX = static_cast<std::size_t>(-1);
 
-// First revision index, and the two states Container::revisionStatus can hold.
+// First revision index.
 constexpr std::size_t REVISION_COUNT_FIRST = 0;
-constexpr std::size_t REVISION_STATUS_IDLE = 0;
-constexpr std::size_t REVISION_STATUS_PENDING = 1;
 
 // Smallest offset change that counts as a real move.
 constexpr double OFFSET_MOVED_THRESHOLD = 0.5;
@@ -52,6 +50,15 @@ constexpr double SCROLL_TO_END_INDEX = -3.0;
 #else
 #define SHADOWLIST_DEBUG_LOG 1
 #endif
+#endif
+
+/*
+ * The device trace (iOS host [SLF] frames, [SLJ] JS lines), still switched on at runtime by
+ * SHADOWLIST_FRAME_TRACE=1. Compiled with the debug log by default; a Release build can
+ * define SHADOWLIST_FRAME_TRACE_COMPILED=1 alone to trace without the per-commit [SL] output.
+ */
+#ifndef SHADOWLIST_FRAME_TRACE_COMPILED
+#define SHADOWLIST_FRAME_TRACE_COMPILED SHADOWLIST_DEBUG_LOG
 #endif
 
 #if SHADOWLIST_DEBUG_LOG

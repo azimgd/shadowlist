@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
 import type { OnViewableIndicesChange } from 'shadowlist';
-import { slLog } from './helpers';
 import type { ViewToken } from '../types';
 
 interface UseViewabilityOptions<ElementT> {
   data: ReadonlyArray<ElementT>;
-  keyExtractor: (element: ElementT, index: number) => string;
+  keys: ReadonlyArray<string>;
   stickyHeaderIndices: ReadonlyArray<number> | undefined;
   onViewableItemsChanged:
     | ((info: {
@@ -17,10 +16,6 @@ interface UseViewabilityOptions<ElementT> {
 }
 
 interface UseViewabilityResult {
-  /*
-   * Flat index of the section header at the top of the viewport (drives the sticky
-   * overlay content); -1 when scrolled above the first section header.
-   */
   activeStickyIndex: number;
   handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
     OnViewableIndicesChange,
@@ -35,7 +30,7 @@ interface UseViewabilityResult {
  */
 export function useViewability<ElementT>({
   data,
-  keyExtractor,
+  keys,
   stickyHeaderIndices,
   onViewableItemsChanged,
 }: UseViewabilityOptions<ElementT>): UseViewabilityResult {
@@ -83,13 +78,13 @@ export function useViewability<ElementT>({
         viewableItems.push({
           item,
           index,
-          key: keyExtractor(item, index),
+          key: keys[index]!,
           isViewable: true,
         });
       }
       return viewableItems;
     },
-    [data, keyExtractor]
+    [data, keys]
   );
 
   /*
@@ -116,11 +111,6 @@ export function useViewability<ElementT>({
       prevViewableRef.current = viewableItems;
 
       if (changed.length > 0) {
-        slLog(
-          'js.onViewableItemsChange',
-          `viewable=${viewableItems.length}`,
-          `changed=${changed.length}`
-        );
         onViewableItemsChanged({ viewableItems, changed });
       }
     },

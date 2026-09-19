@@ -16,9 +16,7 @@ export interface MarkdownInline {
 }
 
 interface BlockBase {
-  // Position plus type, so a tail that turns from a paragraph into a list remounts.
   key: string;
-  // Source text of the block; the memo comparison for everything the block renders.
   raw: string;
 }
 

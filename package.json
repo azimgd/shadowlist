@@ -14,7 +14,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p packages/shadowlist-fabric-example/tsconfig.json && tsc -p packages/shadowlist-utils/tsconfig.json",
-    "test": "yarn workspace shadowlist run test",
+    "test": "yarn workspace shadowlist run test && yarn workspace shadowlist-utils run test",
     "build": "yarn workspace shadowlist run prepare",
     "clean": "yarn workspace shadowlist run clean",
     "format": "prettier --write .",

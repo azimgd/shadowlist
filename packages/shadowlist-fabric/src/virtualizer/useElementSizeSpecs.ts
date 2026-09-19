@@ -3,13 +3,11 @@ import type { ElementSizeSpec } from '../types';
 
 interface UseElementSizeSpecsOptions<ElementT> {
   data: ReadonlyArray<ElementT>;
-  keyExtractor: (element: ElementT, index: number) => string;
+  keys: ReadonlyArray<string>;
   getElementSizeSpec:
     | ((element: ElementT, index: number) => ElementSizeSpec | null | undefined)
     | undefined;
-  // Flat indices currently mounted; the window is built around these.
   mountedIndices: number[];
-  // Rows to describe beyond the mounted window on each side.
   lookaheadRows: number;
 }
 
@@ -48,7 +46,7 @@ const EDGE_MARGIN = 24;
  */
 export function useElementSizeSpecs<ElementT extends { id: string }>({
   data,
-  keyExtractor,
+  keys,
   getElementSizeSpec,
   mountedIndices,
   lookaheadRows,
@@ -108,9 +106,9 @@ export function useElementSizeSpecs<ElementT extends { id: string }>({
       const spec = getElementSizeSpec(element, index);
       if (!spec) continue;
 
-      specs.push({ ...spec, key: keyExtractor(element, index) });
+      specs.push({ ...spec, key: keys[index]! });
     }
 
     return specs.length > 0 ? JSON.stringify(specs) : '';
-  }, [data, keyExtractor, getElementSizeSpec, low, high]);
+  }, [data, keys, getElementSizeSpec, low, high]);
 }

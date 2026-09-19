@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
 import type { OnDragStart, OnDragEnd } from 'shadowlist';
-import { arrayMove, slLog } from './helpers';
+import { arrayMove } from './helpers';
 
 interface UseDragReorderOptions<ElementT> {
   data: ReadonlyArray<ElementT>;
-  keyExtractor: (element: ElementT, index: number) => string;
+  keyToIndex: ReadonlyMap<string, number>;
   mountedIndices: number[];
   dragEnabled: boolean;
   onReorder:
@@ -25,7 +25,7 @@ interface UseDragReorderResult {
  */
 export function useDragReorder<ElementT>({
   data,
-  keyExtractor,
+  keyToIndex,
   mountedIndices,
   dragEnabled,
   onReorder,
@@ -36,9 +36,8 @@ export function useDragReorder<ElementT>({
    * data change between the gesture and the drop reorders the right rows, not stale ones.
    */
   const indexOfKey = useCallback(
-    (key: string) =>
-      data.findIndex((element, i) => keyExtractor(element, i) === key),
-    [data, keyExtractor]
+    (key: string) => keyToIndex.get(key) ?? -1,
+    [keyToIndex]
   );
   /*
    * Key of the picked-up row (not its index): a data mutation mid-gesture (insert/remove
@@ -77,7 +76,6 @@ export function useDragReorder<ElementT>({
     useCallback((event) => {
       const { key } = event.nativeEvent;
       setDraggingKey(key);
-      slLog('js.onDragStart', `key=${key}`);
     }, []);
 
   // Drop: resolve the from/to keys to current indices and apply one array move.
@@ -88,11 +86,6 @@ export function useDragReorder<ElementT>({
         setDraggingKey(null);
         const fromIndex = indexOfKey(fromKey);
         const toIndex = indexOfKey(toKey);
-        slLog(
-          'js.onDragEnd',
-          `from=${fromKey}@${fromIndex}`,
-          `to=${toKey}@${toIndex}`
-        );
         if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
           onReorder?.({
             from: fromIndex,

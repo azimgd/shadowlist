@@ -1,0 +1,35 @@
+# Tree: expanding a node inserts rows in the MIDDLE of the list, below and above the
+# viewport, which is the insert case prepend scenarios never reach.
+route Tree
+latency 250,700
+wait 2.5
+mark expand-top
+press 200 200
+wait 1.5
+press 200 320
+wait 1.5
+mark scroll-mid
+repeat 2 pan 200 700 0 -450 300
+wait 1.5
+mark expand-mid
+press 200 300
+wait 1.5
+press 200 520
+wait 1.5
+mark collapse-mid
+press 200 300
+wait 1.5
+mark expand-then-scroll
+press 200 420
+pan 200 700 0 -400 300
+wait 2
+mark statusbar-top
+statusbar
+wait 2.5
+# Sticky header and toolbar footer over a list shorter than the viewport.
+mark collapse-all
+press 292 815
+wait 2
+mark expand-all
+press 110 815
+wait 2.5

@@ -1,130 +1,75 @@
-import { useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { type ShadowListCommands, type SectionListData } from 'shadowlist';
+import { useMemo, useRef } from 'react';
+import { View } from 'react-native';
+import { type ShadowListCommands } from 'shadowlist';
+import { groupIntoSections } from 'shadowlist-utils';
 import {
-  SectionList,
+  Contacts,
   ListHeader,
   ListFooter,
-  colors,
-} from 'shadowlist-utils/native';
-import {
-  generateContact,
-  useListController,
   type ContactItem,
-} from 'shadowlist-utils';
+} from 'shadowlist-utils/native';
+import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
+import { QueryStatus } from './QueryStatus';
+import { showContact } from './fixtures/contacts';
+import {
+  useAddContacts,
+  useContactsQuery,
+  useDeleteContact,
+} from './queries/contacts';
 
-type ContactSection = SectionListData<ContactItem, { title: string }>;
+const NO_CONTACTS: ContactItem[] = [];
 
-// Group contacts into A-Z sections by first-name initial, sorted within each.
-const buildSections = (contacts: ContactItem[]): ContactSection[] => {
-  const groups = new Map<string, ContactItem[]>();
+const initialOf = (contact: ContactItem) =>
+  (contact.name.charAt(0) || '#').toUpperCase();
 
-  for (const contact of contacts) {
-    const letter = (contact.firstName.charAt(0) || '#').toUpperCase();
-    const group = groups.get(letter);
-    if (group) group.push(contact);
-    else groups.set(letter, [contact]);
-  }
-
-  return Array.from(groups.keys())
-    .sort()
-    .map((letter) => ({
-      key: letter,
-      title: letter,
-      data: groups
-        .get(letter)!
-        .slice()
-        .sort((a, b) =>
-          `${a.firstName} ${a.lastName}`.localeCompare(
-            `${b.firstName} ${b.lastName}`
-          )
-        ),
-    }));
-};
+const byName = (a: ContactItem, b: ContactItem) => a.name.localeCompare(b.name);
 
 export const SectionListScreen = () => {
+  const styles = useScreenStyles();
   const sectionListRef = useRef<ShadowListCommands>(null);
-  const initialData = useMemo(
-    () => Array.from({ length: 300 }, (_, index) => generateContact(index)),
-    []
+
+  const contacts = useContactsQuery();
+  const { mutate: addContacts } = useAddContacts();
+  const { mutate: deleteContact } = useDeleteContact();
+
+  const sections = useMemo(
+    () =>
+      groupIntoSections(contacts.data ?? NO_CONTACTS, {
+        getSectionTitle: initialOf,
+        compareItems: byName,
+      }),
+    [contacts.data]
   );
-  const list = useListController<ContactItem>({ initialData });
-  const { removeItems } = list;
-
-  const sections = useMemo(() => buildSections(list.data), [list.data]);
-
-  const handlePrepend = () =>
-    list.prepend(
-      Array.from({ length: 10 }, (_, index) =>
-        generateContact(list.data.length + index)
-      )
-    );
-  const handleAppend = () =>
-    list.append(
-      Array.from({ length: 10 }, (_, index) =>
-        generateContact(list.data.length + index)
-      )
-    );
-  const handleScrollToRandom = () =>
-    sectionListRef.current?.scrollToIndex(
-      Math.floor(Math.random() * list.data.length)
-    );
 
   useHeaderActions({
-    onPrepend: handlePrepend,
-    onAppend: handleAppend,
-    onScrollToRandom: handleScrollToRandom,
+    onPrepend: () => addContacts({ count: 10, position: 'start' }),
+    onAppend: () => addContacts({ count: 10, position: 'end' }),
+    onScrollToRandom: () =>
+      sectionListRef.current?.scrollToIndex(
+        Math.floor(Math.random() * (contacts.data?.length ?? 0))
+      ),
   });
 
-  const handleDelete = useCallback(
-    (key: string) => removeItems([key]),
-    [removeItems]
-  );
-
-  const renderElement = useCallback(
-    ({ element }: { element: ContactItem }) => (
-      <SectionList.Row element={element} onDelete={handleDelete} />
-    ),
-    [handleDelete]
-  );
-
-  const renderSectionHeader = useCallback(
-    ({ section }: { section: ContactSection }) => (
-      <SectionList.SectionHeader
-        title={section.title}
-        count={section.data.length}
-      />
-    ),
-    []
-  );
+  if (contacts.data === undefined) {
+    return <QueryStatus error={contacts.error} onRetry={contacts.refetch} />;
+  }
 
   return (
     <View style={styles.container}>
-      <SectionList.List
+      <Contacts.SectionList
         ref={sectionListRef}
         sections={sections}
         style={styles.list}
-        renderElement={renderElement}
-        renderSectionHeader={renderSectionHeader}
+        onPressItem={showContact}
+        onDelete={deleteContact}
         ListHeaderComponent={
-          <ListHeader title="Contacts" subtitle="Grouped, sticky sections" />
+          <ListHeader title="Directory" subtitle="Skyfy travellers, A to Z" />
         }
         ListFooterComponent={
-          <ListFooter text={`${list.data.length} contacts`} />
+          <ListFooter text={`${contacts.data.length} travellers`} />
         }
       />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});

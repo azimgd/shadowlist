@@ -1,108 +1,128 @@
 import { memo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { colors, typography, spacing, radius, fontWeight } from '../theme';
-import { Sparkle } from '../icons';
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import { SparkleIcon } from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
+import type { AssistantSuggestion } from './types';
 
 export interface AssistantEmptyProps {
-  title?: string;
-  subtitle?: string;
-  suggestions: { title: string; prompt: string }[];
-  // Called with the suggestion's prompt; send it as if it were typed.
-  onSelect: (prompt: string) => void;
+  suggestions?: readonly AssistantSuggestion[];
+  onSelectSuggestion?: (suggestion: AssistantSuggestion) => void;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
-// New-conversation state: the assistant mark, a greeting and a grid of starter prompts.
+/*
+ * Render it over the list rather than as ListEmptyComponent: the list's content size never
+ * includes the empty template, so with no rows Android clips it out of view.
+ */
 export const AssistantEmpty = memo(
-  ({
-    title = 'How can I help?',
-    subtitle = 'Replies stream in token by token.',
-    suggestions,
-    onSelect,
-  }: AssistantEmptyProps) => {
-    return (
-      <View style={styles.container}>
-        <View style={styles.mark}>
-          <Sparkle size={28} color={colors.label} />
-        </View>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+  ({ suggestions, onSelectSuggestion, labels, style }: AssistantEmptyProps) => {
+    const theme = useTheme();
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
 
-        <View style={styles.grid}>
-          {suggestions.map((suggestion) => (
-            <Pressable
-              key={suggestion.prompt}
-              onPress={() => onSelect(suggestion.prompt)}
-              accessibilityRole="button"
-              accessibilityHint={suggestion.prompt}
-              style={({ pressed }) => [
-                styles.card,
-                pressed && styles.cardPressed,
-              ]}
-            >
-              <Text style={styles.cardTitle}>{suggestion.title}</Text>
-              <Text style={styles.cardPrompt} numberOfLines={2}>
-                {suggestion.prompt}
-              </Text>
-            </Pressable>
-          ))}
+    return (
+      <View style={[styles.container, style]}>
+        <View style={styles.mark}>
+          <SparkleIcon size={28} color={theme.colors.label} />
         </View>
+        <Text style={styles.title} accessibilityRole="header">
+          {l.emptyTitle}
+        </Text>
+        {l.emptySubtitle ? (
+          <Text style={styles.subtitle}>{l.emptySubtitle}</Text>
+        ) : null}
+
+        {suggestions && suggestions.length > 0 ? (
+          <View style={styles.grid}>
+            {suggestions.map((suggestion) => (
+              <Pressable
+                key={suggestion.prompt}
+                onPress={() => onSelectSuggestion?.(suggestion)}
+                accessibilityRole="button"
+                accessibilityLabel={suggestion.title}
+                accessibilityHint={suggestion.prompt}
+                style={({ pressed }) => [
+                  styles.card,
+                  pressed && styles.cardPressed,
+                ]}
+              >
+                <Text style={styles.cardTitle}>{suggestion.title}</Text>
+                <Text style={styles.cardPrompt} numberOfLines={2}>
+                  {suggestion.prompt}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
     );
   }
 );
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.lg,
-    paddingTop: 48,
-    paddingBottom: spacing.xxl,
-  },
-  mark: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.pill,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  title: {
-    color: colors.label,
-    ...typography.title2,
-    textAlign: 'center',
-  },
-  subtitle: {
-    color: colors.secondaryLabel,
-    ...typography.subhead,
-    textAlign: 'center',
-    marginTop: spacing.xs,
-  },
-  grid: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-    marginTop: spacing.xxl,
-  },
-  card: {
-    flexGrow: 1,
-    flexBasis: '46%',
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.elevated,
-  },
-  cardPressed: {
-    backgroundColor: colors.elevated2,
-  },
-  cardTitle: {
-    color: colors.label,
-    ...typography.subhead,
-    fontWeight: fontWeight.semibold,
-  },
-  cardPrompt: {
-    color: colors.secondaryLabel,
-    ...typography.footnote,
-    marginTop: spacing.xxs,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: 48,
+      paddingBottom: theme.spacing.xxl,
+    },
+    mark: {
+      width: 56,
+      height: 56,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: theme.spacing.lg,
+    },
+    title: {
+      color: theme.colors.label,
+      ...theme.typography.title2,
+      textAlign: 'center',
+    },
+    subtitle: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.subhead,
+      textAlign: 'center',
+      marginTop: theme.spacing.xs,
+    },
+    grid: {
+      alignSelf: 'stretch',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xxl,
+    },
+    card: {
+      flexGrow: 1,
+      flexBasis: '46%',
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.elevated,
+    },
+    cardPressed: {
+      backgroundColor: theme.colors.elevated2,
+    },
+    cardTitle: {
+      color: theme.colors.label,
+      ...theme.typography.subhead,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    cardPrompt: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.footnote,
+      marginTop: theme.spacing.xxs,
+    },
+  })
+);

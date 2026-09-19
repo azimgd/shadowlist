@@ -1,57 +1,67 @@
-import { forwardRef } from 'react';
+import { forwardRef, useCallback } from 'react';
 import {
   TreeList as ShadowListTreeList,
-  type TreeListProps,
   type TreeListCommands,
+  type TreeListProps as ShadowListTreeListProps,
+  type TreeListRenderElementInfo,
 } from 'shadowlist';
-import type { TreeFileNode } from 'shadowlist-utils';
+import { useLabels } from '../labels';
+import { defaultTreeLabels, type TreeLabels } from './labels';
 import { TreeRow } from './TreeRow';
+import type { TreeNode } from './types';
 
-export type TreeListProps_ = Omit<
-  TreeListProps<TreeFileNode>,
+type BaseProps = ShadowListTreeListProps<TreeNode>;
+
+export type TreeListProps = Omit<
+  BaseProps,
   'getChildren' | 'keyExtractor' | 'renderElement'
 > & {
-  getChildren?: TreeListProps<TreeFileNode>['getChildren'];
-  keyExtractor?: TreeListProps<TreeFileNode>['keyExtractor'];
-  renderElement?: TreeListProps<TreeFileNode>['renderElement'];
+  getChildren?: BaseProps['getChildren'];
+  keyExtractor?: BaseProps['keyExtractor'];
+  renderElement?: BaseProps['renderElement'];
+  // Called for rows without children; rows with children toggle instead.
+  onPressItem?: (item: TreeNode) => void;
+  labels?: Partial<TreeLabels>;
 };
 
-const defaultGetChildren: TreeListProps<TreeFileNode>['getChildren'] = (node) =>
-  node.children;
-const defaultKeyExtractor: TreeListProps<TreeFileNode>['keyExtractor'] = (
-  node
-) => node.id;
-const defaultRenderElement: TreeListProps<TreeFileNode>['renderElement'] = ({
-  element,
-  depth,
-  indent,
-  isExpanded,
-  hasChildren,
-  toggle,
-}) => (
-  <TreeRow
-    element={element}
-    depth={depth}
-    indent={indent}
-    isExpanded={isExpanded}
-    hasChildren={hasChildren}
-    onToggle={toggle}
-  />
-);
+const getNodeChildren = (node: TreeNode) => node.children;
+const getNodeKey = (node: TreeNode) => node.id;
 
-/*
- * A virtualized, expandable directory tree over `TreeFileNode` data. Defaults
- * connect `getChildren`/`keyExtractor`/`renderElement` for the file-tree shape; drive
- * expansion with `expandedIds` + `onExpandedChange` (or `initialExpandedIds`).
- */
-export const TreeList = forwardRef<TreeListCommands, TreeListProps_>(
-  ({ getChildren, keyExtractor, renderElement, ...props }, ref) => (
-    <ShadowListTreeList<TreeFileNode>
-      ref={ref}
-      getChildren={getChildren ?? defaultGetChildren}
-      keyExtractor={keyExtractor ?? defaultKeyExtractor}
-      renderElement={renderElement ?? defaultRenderElement}
-      {...props}
-    />
-  )
+export const TreeList = forwardRef<TreeListCommands, TreeListProps>(
+  (
+    { getChildren, keyExtractor, renderElement, onPressItem, labels, ...props },
+    ref
+  ) => {
+    const rowLabels = useLabels(defaultTreeLabels, labels);
+    const renderTreeRow = useCallback(
+      ({
+        element,
+        indent,
+        isExpanded,
+        hasChildren,
+        toggle,
+      }: TreeListRenderElementInfo<TreeNode>) => (
+        <TreeRow
+          item={element}
+          indent={indent}
+          isExpanded={isExpanded}
+          hasChildren={hasChildren}
+          onToggle={toggle}
+          onPress={onPressItem}
+          labels={rowLabels}
+        />
+      ),
+      [onPressItem, rowLabels]
+    );
+
+    return (
+      <ShadowListTreeList<TreeNode>
+        ref={ref}
+        getChildren={getChildren ?? getNodeChildren}
+        keyExtractor={keyExtractor ?? getNodeKey}
+        renderElement={renderElement ?? renderTreeRow}
+        {...props}
+      />
+    );
+  }
 );

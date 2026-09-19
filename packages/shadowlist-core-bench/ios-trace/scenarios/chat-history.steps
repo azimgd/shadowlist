@@ -1,0 +1,25 @@
+# Inverted list: history loads at the top (header spinner), incoming bursts, scroll-to-top.
+route Chat
+latency 250,700
+wait 2
+mark incoming-at-bottom
+press 333 80
+wait 2
+mark scroll-into-history
+repeat 4 pan 200 250 0 450 250
+wait 3
+mark load-earlier-burst
+repeat 3 press 296 80
+wait 3
+mark incoming-while-up
+press 333 80
+wait 2
+mark stt
+statusbar
+wait 4
+mark back-to-bottom
+repeat 8 pan 200 700 0 -600 100
+wait 2
+mark incoming-burst-at-bottom
+repeat 3 press 333 80
+wait 3

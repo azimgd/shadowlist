@@ -16,15 +16,6 @@
 namespace azimgd::shadowlist {
 
 /*
- * The pinned sticky section header and how far to shift it from its resting position.
- * index is UNDEFINED_INDEX when none is pinned.
- */
-struct StickyHeader {
-  std::size_t index = UNDEFINED_INDEX;
-  double translation = 0.0;
-};
-
-/*
  * Resolved values to publish to the scroll view for one frame.
  */
 struct ContainerStateUpdate {
@@ -76,10 +67,9 @@ public:
   bool endReachedEnabled = true;
   bool startReachedEnabled = true;
 
-  // Current measurement revision and its index/status.
+  // Current measurement revision and its index.
   Revision revision = {};
   std::size_t revisionCount = REVISION_COUNT_FIRST;
-  std::size_t revisionStatus = REVISION_STATUS_IDLE;
 
   // List order: normal (top to bottom) or inverted (bottom to top).
   bool inverted = false;
@@ -96,27 +86,6 @@ public:
    * and one below; 0 measures only the visible window.
    */
   double overscan = 1.0;
-
-  /*
-   * Overscan for materialization, in viewport units, measured the same way as `overscan`.
-   *
-   * `overscan` is a retention band: how far out rows stay reconciled into the shadow tree,
-   * which is what keeps a fast scroll off the JS round trip (native scroll -> event ->
-   * setState -> render -> commit) that produces blank rows. Widening it prevents blanks,
-   * but on its own it also widens what is natively mounted, so it costs live views on the
-   * UI thread, which is the resource that is never reclaimed.
-   *
-   * This band separates the two. Rows inside `overscan` but outside this narrower band stay
-   * reconciled and keep their measured geometry, while their contents are pruned from the
-   * shadow tree before layout (see the Fabric commit hook). Only rows that have been
-   * measured natively are pruned; a row with a prediction or an estimate stays materialized
-   * until it has laid out once. Revealing a pruned row is then a native-driven commit with
-   * no JS involvement.
-   *
-   * Negative disables pruning entirely, which is the default: retention and materialization
-   * coincide, so an integration that does not opt in is unaffected.
-   */
-  double materializationOverscan = -1.0;
 
   /*
    * Snap the resting scroll position to an element edge. snapAlignment selects the
@@ -150,16 +119,8 @@ public:
   double footerSize = 0.0;
 
   /*
-   * Pin the header/footer template to the viewport edge instead of scrolling it
-   * with content. Reserved space is unchanged, so it settles back at the extremes.
-   * See getStickyHeaderOffset / getStickyFooterOffset.
-   */
-  bool stickyHeader = false;
-  bool stickyFooter = false;
-
-  /*
-   * Element indices that are sticky section headers (ascending), set each frame.
-   * Drives resolveStickyHeader; empty for a plain list.
+   * Element indices that are sticky section headers (ascending), set each frame. The
+   * integration publishes their geometry for the host to pin; empty for a plain list.
    */
   std::vector<std::size_t> stickyIndices;
 
@@ -280,8 +241,7 @@ public:
   /*
    * The scroll position in content space (key + sub-offset): the single source of
    * truth for the element at the viewport edge this frame and how far we are scrolled
-   * into it. Set each frame by captureAnchor (or overridden by FrameInput::suppliedAnchor)
-   * and read by resolveScroll / updateElementAtIndex to keep visible content fixed while
+   * into it. Set each frame by captureAnchor and read by resolveScroll / updateElementAtIndex to keep visible content fixed while
    * off-screen elements are measured.
    */
   Anchor anchor = {};
@@ -339,17 +299,9 @@ public:
    * unread dividers, reaction strips, padding) whose identity churns independently of
    * content. captureAnchor skips them and anchors to the nearest stable content row, so a
    * key change on decoration cannot perturb the maintained scroll position. Set each frame
-   * from FrameInput::nonAnchorableKeys; empty means every row is anchorable. An explicit
-   * FrameInput::suppliedAnchor is honoured even if its key is in here (the host chose it).
+   * from FrameInput::nonAnchorableKeys; empty means every row is anchorable.
    */
   std::unordered_set<std::string> nonAnchorableKeys;
-
-  /*
-   * Header reserved size when the anchor was captured. A header-size change between
-   * capture and reflow is not a content scroll, so MVCP subtracts
-   * (headerSize - anchorHeaderSize); without it the list opens scrolled past the header.
-   */
-  double anchorHeaderSize = 0.0;
 
   /*
    * Layout inputs as of the last offset recompute, so layoutElements can skip that
@@ -479,7 +431,10 @@ public:
    */
   std::recursive_mutex coreMutex;
 
-  void startRevision();
+  /*
+   * Close the frame: advance revisionCount, fire the reached callbacks and dispatch the
+   * observers.
+   */
   void endRevision();
 
   const Element& getElementAtIndex(std::size_t index) const;
@@ -490,18 +445,10 @@ public:
    */
   double getElementOffset(std::size_t index) const;
   double getElementSize(std::size_t index) const;
-  void setElementOffset(std::size_t index, double offset);
   double getContainerOffset() const;
   double getWindowContainerSize() const;
 
   std::size_t getElementsSize() const;
-
-  void setWindowContainerHeight(double height);
-  void setWindowContainerWidth(double width);
-  void setContainerOffsetY(double offsetY);
-  void setContainerOffsetX(double offsetX);
-
-  std::string getDebugRepresentation() const;
 
   /*
    * Visible index range, or (UNDEFINED_INDEX, UNDEFINED_INDEX) if uninitialized.
@@ -516,36 +463,11 @@ public:
   std::pair<std::size_t, std::size_t> getViewableIndices() const;
 
   /*
-   * The index range whose contents must exist natively: the viewport widened by
-   * materializationOverscan viewports on each side. Orientation aware in the same
-   * convention as getVisibleIndices (inverted returns start > end).
-   *
-   * Returns (UNDEFINED_INDEX, UNDEFINED_INDEX) when pruning is disabled
-   * (materializationOverscan < 0), when nothing has been measured yet, or when no row
-   * intersects the band. Callers must read that as "materialize everything" rather than
-   * "materialize nothing": prefer shouldMaterialize(), which encodes that fail-open rule.
-   */
-  std::pair<std::size_t, std::size_t> getMaterializedIndices() const;
-
-  /*
    * Whether the row at `index` carries geometry the core can trust without having laid it
    * out natively: either a real native measurement, or a host-supplied prediction.
    *
-   * Not enough on its own to dematerialize a row: the Fabric commit hook hides only rows
-   * that have been measured natively (Element::measured). The band is evaluated before
-   * layout, so a row that arrives with a prediction could be hidden before it ever lays out,
-   * and a hidden row lays out to zero and can never be measured.
    */
   bool hasTrustedSize(std::size_t index) const;
-
-  /*
-   * Whether the row at `index` falls inside the materialization band this frame. Fails
-   * open: any state in which the band cannot be trusted (pruning disabled, nothing
-   * measured, degenerate window, index out of range) returns true, so a bug here costs
-   * performance rather than blanking content. The commit hook additionally keeps every
-   * row that has not been measured natively, whatever this returns.
-   */
-  bool shouldMaterialize(std::size_t index) const;
 
   void setEndReachedEnabled(bool enabled);
   void setStartReachedEnabled(bool enabled);
@@ -586,14 +508,6 @@ public:
   double getFooterOffset(double footerSize) const;
 
   /*
-   * Viewport-pinned ("sticky") offsets: the header at the viewport start, the
-   * footer at the viewport end. Each falls back to its resting offset when its
-   * sticky flag is unset.
-   */
-  double getStickyHeaderOffset() const;
-  double getStickyFooterOffset(double footerSize) const;
-
-  /*
    * Resting scroll offsets (ascending, along the scroll axis) that align an element
    * to the viewport edge selected by snapAlignment, each clamped to [0, maxOffset]
    * and deduplicated. Empty when snapToItem is unset. The integration snaps to the
@@ -608,15 +522,6 @@ public:
   const std::vector<double>& getSnapOffsets() const;
 
   /*
-   * Resolve which sticky section header (from stickyIndices) is pinned at the
-   * current scroll offset and how far to translate it. The active header is the
-   * last whose resting offset is at/above the viewport start; it pins there and is
-   * pushed up by the next sticky header. Returns {UNDEFINED_INDEX, 0} when nothing
-   * is pinned. Not pinned for inverted lists.
-   */
-  StickyHeader resolveStickyHeader() const;
-
-  /*
    * Find the index of the element with the given key, or UNDEFINED_INDEX if absent
    */
   std::size_t findElementIndexByKey(const std::string& key) const;
@@ -626,6 +531,14 @@ public:
    * (decoration rows). Empty key is never anchorable. See captureAnchor / nonAnchorableKeys.
    */
   bool isAnchorable(const std::string& key) const;
+
+  /*
+   * The anchor that measurement compensation holds still: the in-flight correction's target
+   * when it anchors to a row, the captured anchor when no correction is in flight, and null
+   * while a fixed-offset correction (bottom pin, scrollToEnd, shrink clamp) owns the offset.
+   * The key may be empty.
+   */
+  const Anchor* compensationAnchor() const;
 
   /*
    * Fire the visible-indices-change and scroll callbacks if their values changed

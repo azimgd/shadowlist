@@ -1,6 +1,5 @@
 import {
   forwardRef,
-  useCallback,
   useImperativeHandle,
   useRef,
   useState,
@@ -13,47 +12,60 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, typography, spacing, radius, fontWeight } from '../theme';
-import { ArrowUp, Chevron, Close, Pencil, Plus, Stop } from '../icons';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import {
+  ArrowUpIcon,
+  ChevronIcon,
+  CloseIcon,
+  PencilIcon,
+  PlusIcon,
+  StopIcon,
+} from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
+import { keyboardAppearanceFor } from '../internal/keyboardAppearance';
 import { AssistantActionButton } from './AssistantActionButton';
 import { AssistantAttachmentChip } from './AssistantAttachmentChip';
-import { buildAttachment, type AssistantAttachment } from './data';
+import type { AssistantAttachment } from './types';
 
 export interface AssistantComposerHandle {
-  // Replace the draft and focus the input, e.g. to edit and resend a message.
-  setDraft: (text: string, attachments?: AssistantAttachment[]) => void;
-  /*
-   * Empty the draft WITHOUT focusing. Cancelling an edit is the caller putting the composer
-   * back as it was; focusing there raises the keyboard over the conversation the reader
-   * just chose to go back to.
-   */
+  // Replaces the text and focuses the input, e.g. to edit an earlier prompt.
+  setDraft: (text: string) => void;
+  // Clears the text without focusing, so the keyboard doesn't rise.
   clearDraft: () => void;
   focus: () => void;
 }
 
 export interface AssistantComposerProps {
-  onSend: (text: string, attachments: AssistantAttachment[]) => void;
-  onStop: () => void;
-  // A reply is streaming: the send button turns into stop.
+  // The composer clears its text; the caller owns `attachments` and clears those.
+  onSend: (text: string, attachments: readonly AssistantAttachment[]) => void;
+  // A reply is streaming: Send becomes Stop.
   streaming: boolean;
-  model: string;
-  onCycleModel: () => void;
-  // Extended thinking: replies reason before answering.
-  thinking: boolean;
-  onToggleThinking: () => void;
-  // Set while an edited message is in the draft; shows a banner with a cancel.
+  onStop?: () => void;
+  attachments?: readonly AssistantAttachment[];
+  // Shows the add-attachment button when given.
+  onPressAttach?: () => void;
+  onRemoveAttachment?: (attachmentId: string) => void;
+  // Shows the model pill when given; pressing it calls onPressModel (open a picker).
+  model?: string;
+  onPressModel?: () => void;
+  // Shows the thinking toggle when onThinkingChange is given.
+  thinking?: boolean;
+  onThinkingChange?: (enabled: boolean) => void;
+  // Shows the editing banner.
   editing?: boolean;
   onCancelEdit?: () => void;
-  placeholder?: string;
+  maxLength?: number;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
-/*
- * Composer: attachment tray, growing multiline field, and a toolbar with attach, model
- * picker, thinking toggle and a send button that becomes stop while a reply streams. The
- * draft stays local, so typing re-renders only the composer, never the list.
- */
+const NO_ATTACHMENTS: readonly AssistantAttachment[] = [];
+
 export const AssistantComposer = forwardRef<
   AssistantComposerHandle,
   AssistantComposerProps
@@ -61,37 +73,39 @@ export const AssistantComposer = forwardRef<
   (
     {
       onSend,
-      onStop,
       streaming,
+      onStop,
+      attachments = NO_ATTACHMENTS,
+      onPressAttach,
+      onRemoveAttachment,
       model,
-      onCycleModel,
-      thinking,
-      onToggleThinking,
+      onPressModel,
+      thinking = false,
+      onThinkingChange,
       editing = false,
       onCancelEdit,
-      placeholder = 'Ask anything',
+      maxLength = 4000,
+      labels,
+      style,
     },
     ref
   ) => {
+    const theme = useTheme();
+    const { colors } = theme;
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
     const insets = useSafeAreaInsets();
     const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
     const [text, setText] = useState('');
-    const [attachments, setAttachments] = useState<AssistantAttachment[]>([]);
-    // Cycles the demo attachment seeds on each tap of the attach button.
-    const attachCount = useRef(0);
 
     useImperativeHandle(
       ref,
       () => ({
-        setDraft: (nextText, nextAttachments = []) => {
+        setDraft: (nextText) => {
           setText(nextText);
-          setAttachments(nextAttachments);
           inputRef.current?.focus();
         },
-        clearDraft: () => {
-          setText('');
-          setAttachments([]);
-        },
+        clearDraft: () => setText(''),
         focus: () => inputRef.current?.focus(),
       }),
       []
@@ -100,51 +114,31 @@ export const AssistantComposer = forwardRef<
     const canSend =
       !streaming && (text.trim().length > 0 || attachments.length > 0);
 
-    /*
-     * Stable identities, because `handleRemove` is a prop of every memoized attachment chip
-     * and the draft changes on every keystroke: a fresh closure per character would
-     * re-render the whole tray while typing.
-     */
-    const handleSend = useCallback(() => {
+    const handleSend = () => {
       if (!canSend) return;
       onSend(text.trim(), attachments);
       setText('');
-      setAttachments([]);
-    }, [canSend, onSend, text, attachments]);
-
-    const handleAttach = useCallback(() => {
-      setAttachments((prev) => [
-        ...prev,
-        buildAttachment(attachCount.current++),
-      ]);
-    }, []);
-
-    const handleRemove = useCallback(
-      (attachmentId: string) =>
-        setAttachments((prev) =>
-          prev.filter((attachment) => attachment.id !== attachmentId)
-        ),
-      []
-    );
+    };
 
     return (
       <View
         style={[
           styles.container,
-          { paddingBottom: insets.bottom || spacing.sm },
+          { paddingBottom: insets.bottom || theme.spacing.sm },
+          style,
         ]}
       >
         {editing ? (
           <View style={styles.editBanner}>
-            <Pencil size={14} color={colors.accent} strokeWidth={1.3} />
-            <Text style={styles.editText}>Editing message</Text>
+            <PencilIcon size={14} color={colors.accent} strokeWidth={1.3} />
+            <Text style={styles.editText}>{l.editingMessage}</Text>
             <Pressable
               onPress={onCancelEdit}
               hitSlop={12}
               accessibilityRole="button"
-              accessibilityLabel="Cancel editing"
+              accessibilityLabel={l.cancelEditing}
             >
-              <Close
+              <CloseIcon
                 size={16}
                 color={colors.secondaryLabel}
                 strokeWidth={1.8}
@@ -165,7 +159,8 @@ export const AssistantComposer = forwardRef<
                 <AssistantAttachmentChip
                   key={attachment.id}
                   attachment={attachment}
-                  onRemove={handleRemove}
+                  onRemove={onRemoveAttachment}
+                  labels={l}
                 />
               ))}
             </ScrollView>
@@ -176,72 +171,86 @@ export const AssistantComposer = forwardRef<
             style={styles.input}
             value={text}
             onChangeText={setText}
-            placeholder={placeholder}
+            placeholder={l.placeholder}
             placeholderTextColor={colors.secondaryLabel}
+            accessibilityLabel={l.placeholder}
             multiline
-            maxLength={4000}
-            // The composer is dark; the default light keyboard flashes white against it.
-            keyboardAppearance="dark"
+            maxLength={maxLength}
+            keyboardAppearance={keyboardAppearanceFor(theme)}
           />
 
           <View style={styles.toolbar}>
-            <AssistantActionButton
-              label="Add attachment"
-              onPress={handleAttach}
-            >
-              <Plus size={18} color={colors.label} />
-            </AssistantActionButton>
-
-            <Pressable
-              onPress={onCycleModel}
-              hitSlop={6}
-              accessibilityRole="button"
-              accessibilityLabel={`Model: ${model}`}
-              style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
-            >
-              <Text style={styles.pillText}>{model}</Text>
-              <Chevron
-                direction="down"
-                size={10}
-                color={colors.secondaryLabel}
-                strokeWidth={1.8}
-              />
-            </Pressable>
-
-            <Pressable
-              onPress={onToggleThinking}
-              hitSlop={6}
-              accessibilityRole="switch"
-              accessibilityLabel="Extended thinking"
-              accessibilityState={{ checked: thinking }}
-              style={({ pressed }) => [
-                styles.pill,
-                thinking && styles.pillActive,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text
-                style={[styles.pillText, thinking && styles.pillTextActive]}
+            {onPressAttach ? (
+              <AssistantActionButton
+                label={l.addAttachment}
+                onPress={onPressAttach}
               >
-                Think
-              </Text>
-            </Pressable>
+                <PlusIcon size={18} color={colors.label} />
+              </AssistantActionButton>
+            ) : null}
+
+            {model !== undefined ? (
+              <Pressable
+                onPress={onPressModel}
+                disabled={!onPressModel}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={l.model(model)}
+                accessibilityState={{ disabled: !onPressModel }}
+                style={({ pressed }) => [
+                  styles.pill,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.pillText}>{model}</Text>
+                {onPressModel ? (
+                  <ChevronIcon
+                    direction="down"
+                    size={10}
+                    color={colors.secondaryLabel}
+                    strokeWidth={1.8}
+                  />
+                ) : null}
+              </Pressable>
+            ) : null}
+
+            {onThinkingChange ? (
+              <Pressable
+                onPress={() => onThinkingChange(!thinking)}
+                hitSlop={6}
+                accessibilityRole="switch"
+                accessibilityLabel={l.thinkingToggleDescription}
+                accessibilityState={{ checked: thinking }}
+                style={({ pressed }) => [
+                  styles.pill,
+                  thinking && styles.pillActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[styles.pillText, thinking && styles.pillTextActive]}
+                >
+                  {l.thinkingToggle}
+                </Text>
+              </Pressable>
+            ) : null}
 
             <View style={styles.spacer} />
 
             {streaming ? (
               <Pressable
                 onPress={onStop}
+                disabled={!onStop}
                 hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel="Stop generating"
+                accessibilityLabel={l.stop}
                 style={({ pressed }) => [
                   styles.sendButton,
                   styles.stopButton,
                   pressed && styles.pressed,
                 ]}
               >
-                <Stop size={22} color={colors.background} />
+                <StopIcon size={22} color={colors.background} />
               </Pressable>
             ) : (
               <Pressable
@@ -249,7 +258,7 @@ export const AssistantComposer = forwardRef<
                 disabled={!canSend}
                 hitSlop={6}
                 accessibilityRole="button"
-                accessibilityLabel="Send"
+                accessibilityLabel={l.send}
                 accessibilityState={{ disabled: !canSend }}
                 style={({ pressed }) => [
                   styles.sendButton,
@@ -257,7 +266,7 @@ export const AssistantComposer = forwardRef<
                   pressed && styles.pressed,
                 ]}
               >
-                <ArrowUp
+                <ArrowUpIcon
                   size={18}
                   color={canSend ? colors.label : colors.secondaryLabel}
                   strokeWidth={2.4}
@@ -271,94 +280,96 @@ export const AssistantComposer = forwardRef<
   }
 );
 
-const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.background,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.separator,
-  },
-  editBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.sm,
-  },
-  editText: {
-    flex: 1,
-    color: colors.accent,
-    ...typography.footnote,
-    fontWeight: fontWeight.semibold,
-  },
-  field: {
-    backgroundColor: colors.elevated,
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.separator,
-    paddingTop: spacing.sm,
-  },
-  tray: {
-    gap: spacing.sm,
-    paddingHorizontal: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  input: {
-    color: colors.label,
-    ...typography.body,
-    minHeight: 36,
-    maxHeight: 140,
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.xs,
-    paddingBottom: spacing.xs,
-    margin: 0,
-  },
-  toolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingHorizontal: spacing.xs + 2,
-    paddingBottom: spacing.xs + 2,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    height: 30,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.fill,
-  },
-  pillActive: {
-    backgroundColor: colors.accentSoft,
-  },
-  pillText: {
-    color: colors.label,
-    ...typography.footnote,
-    fontWeight: fontWeight.semibold,
-  },
-  pillTextActive: {
-    color: colors.accent,
-  },
-  spacer: {
-    flex: 1,
-  },
-  sendButton: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.lg,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: colors.fill,
-  },
-  stopButton: {
-    backgroundColor: colors.label,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingTop: theme.spacing.sm,
+      backgroundColor: theme.colors.background,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.separator,
+    },
+    editBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      paddingBottom: theme.spacing.sm,
+    },
+    editText: {
+      flex: 1,
+      color: theme.colors.accent,
+      ...theme.typography.footnote,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    field: {
+      backgroundColor: theme.colors.elevated,
+      borderRadius: theme.radius.xl,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.separator,
+      paddingTop: theme.spacing.sm,
+    },
+    tray: {
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.sm,
+      paddingBottom: theme.spacing.sm,
+    },
+    input: {
+      color: theme.colors.label,
+      ...theme.typography.body,
+      minHeight: 36,
+      maxHeight: 140,
+      paddingHorizontal: theme.spacing.md,
+      paddingTop: theme.spacing.xs,
+      paddingBottom: theme.spacing.xs,
+      margin: 0,
+    },
+    toolbar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.xs + 2,
+      paddingBottom: theme.spacing.xs + 2,
+    },
+    pill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      height: 30,
+      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.fill,
+    },
+    pillActive: {
+      backgroundColor: theme.colors.accentSoft,
+    },
+    pillText: {
+      color: theme.colors.label,
+      ...theme.typography.footnote,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    pillTextActive: {
+      color: theme.colors.accent,
+    },
+    spacer: {
+      flex: 1,
+    },
+    sendButton: {
+      width: 32,
+      height: 32,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sendButtonDisabled: {
+      backgroundColor: theme.colors.fill,
+    },
+    stopButton: {
+      backgroundColor: theme.colors.label,
+    },
+    pressed: {
+      opacity: 0.6,
+    },
+  })
+);

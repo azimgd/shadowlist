@@ -91,9 +91,16 @@ public:
     stickyHeaderSizes_(previousState.stickyHeaderSizes_),
     snapOffsets_(previousState.snapOffsets_),
     commitToken_(data.count("commitToken") ? (Float)data["commitToken"].getDouble() : previousState.commitToken_),
-    // A host-built state carries no correction of its own, so its correction delta is zero.
-    containerOffsetBaseX_(containerOffsetX_),
-    containerOffsetBaseY_(containerOffsetY_) {
+    /*
+     * Carried from the mounted state, as the iOS host's state copy does: a report echoing a
+     * correction's token keeps the base its first write started from, so a republish of that
+     * correction stays one cumulative delta the host has partly applied already.
+     */
+    containerOffsetBaseX_(previousState.containerOffsetBaseX_),
+    containerOffsetBaseY_(previousState.containerOffsetBaseY_),
+    // Row concealment is not enabled on Android (see ShadowListViewShadowNode::layout); carry it.
+    concealGeneration_(previousState.concealGeneration_),
+    concealGenerationAck_(previousState.concealGenerationAck_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
       auto stickyHeaderIndices = std::make_shared<std::vector<int>>();
       auto stickyHeaderOffsets = std::make_shared<std::vector<Float>>();
@@ -237,7 +244,7 @@ public:
    * Sticky section-header geometry along the scroll axis, produced by the core's
    * layout pass (one entry per sticky section header, ascending by index). The
    * integrations pin the active header on the UI thread per scroll frame from this,
-   * mirroring Container::resolveStickyHeader, so the per-frame pin never reads a
+   * so the per-frame pin never reads a
    * (possibly transformed) view frame. Empty for a plain list. Declared after
    * scrollPhase_ so the Android constructor's member-init order matches.
    *
@@ -282,16 +289,28 @@ public:
    * correction as a delta. A commit can mount frames after the report it was built on,
    * and a view still moving on its own has travelled on by then; writing the absolute
    * offset throws that travel away and the content jumps. Both hosts apply the delta to
-   * the live offset instead while the view is moving (iOS: scroll-to-top animation, a
-   * finger dragging, deceleration; Android: a token-0 correction while a finger drags or a
-   * fling settles).
-   * Meaningful only on a state whose containerOffsetEnabled_ the layout pass set. The
-   * Android partial-update constructor sets it to the state's own offset, since a
-   * host-built state carries no correction. Declared after commitToken_ so the Android
-   * constructor's member-init order matches.
+   * the live offset instead while the view is moving (a finger dragging, momentum, the iOS
+   * scroll-to-top animation) and for an operation correction computed from a gesture report.
+   * Meaningful only on a state whose containerOffsetEnabled_ the layout pass set. Host
+   * reports carry the mounted state's value (the Android partial-update constructor copies
+   * it). Declared after commitToken_ so the Android constructor's member-init order matches.
    */
   double containerOffsetBaseX_{0.0};
   double containerOffsetBaseY_{0.0};
+
+  /*
+   * Row concealment handshake (see ShadowListViewGeometryCache::concealedRows).
+   *
+   * concealGeneration_ flows core -> view: the generation of the newest concealment the layout
+   * pass published, 0 when no row is concealed. concealGenerationAck_ flows view -> core: the
+   * concealGeneration_ of the mounted state a host report was built on. A report acking a
+   * generation proves the host mounted that state, and with it the offset correction the
+   * concealment waits for. The layout pass copies the ack through untouched, so it never claims
+   * more than the host has mounted. Declared after containerOffsetBaseY_ so the Android
+   * constructor's member-init order matches.
+   */
+  double concealGeneration_{0.0};
+  double concealGenerationAck_{0.0};
 };
 
 }

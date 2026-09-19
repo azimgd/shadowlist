@@ -41,6 +41,217 @@ std::pair<double, double> effectiveFallbackSize(const Container* container) {
   };
 }
 
+// The scroll offset along the scroll axis, for writing.
+double& scrollAxisOffset(Container* container) {
+  return container->horizontal ? container->revision.containerOffsetX : container->revision.containerOffsetY;
+}
+
+// Move the scroll offset and flag the frame for the host to apply it.
+void correctOffset(Container* container, double offset) {
+  scrollAxisOffset(container) = offset;
+  container->containerOffsetCorrected = true;
+}
+
+/*
+ * correctOffset(offset), only when `probe` is a real move away from the current offset. The
+ * probe is the target before any clamp, which is `offset` itself unless the caller clamps.
+ */
+bool correctOffsetIfMoved(Container* container, double offset, double probe) {
+  if (std::fabs(probe - scrollAxisOffset(container)) < OFFSET_MOVED_THRESHOLD) {
+    return false;
+  }
+  correctOffset(container, offset);
+  return true;
+}
+
+// Move the in-flight Element correction and the captured anchor by `delta` together.
+void shiftAnchors(Container* container, double delta) {
+  if (container->operation && container->operation->target.mode == AnchorMode::Element) {
+    container->operation->target.subOffset += delta;
+  }
+  if (!container->anchor.key.empty() && container->anchor.mode == AnchorMode::Element) {
+    container->anchor.subOffset += delta;
+  }
+}
+
+/*
+ * Whether an inverted list at `offset` counts as resting at its bottom (within
+ * INVERTED_FOLLOW_BAND of it), for content of size `total` in a window of size `window`.
+ */
+bool atInvertedBottom(double offset, double total, double window) {
+  return offset >= std::max(0.0, total - window) - INVERTED_FOLLOW_BAND;
+}
+
+/*
+ * Whether the row at `index` is anchorable and no anchorable row follows it: the newest
+ * content row, ignoring trailing decoration. Walks only the rows after it.
+ */
+bool isLastAnchorable(const Container* container, std::size_t index) {
+  const std::vector<Element>& elements = container->revision.elements;
+  if (index >= elements.size() || !container->isAnchorable(elements[index].key)) {
+    return false;
+  }
+  for (std::size_t nextElementIndex = index + 1; nextElementIndex < elements.size(); ++nextElementIndex) {
+    if (container->isAnchorable(elements[nextElementIndex].key)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/*
+ * The furthest trailing edges of the content (width: right, height: bottom), from the last
+ * `columns` rows. Per-track scroll-axis offsets only grow with index, so that tail holds every
+ * track's furthest scroll-axis edge. Cross-axis extents are not monotone by index; callers fold
+ * in Container::maxCrossAxisExtent for that axis.
+ */
+Size tailExtent(const Container* container) {
+  const std::vector<Element>& elements = container->revision.elements;
+  std::size_t scanColumns = container->columns > 0 ? container->columns : 1;
+  std::size_t scanFrom = elements.size() > scanColumns ? elements.size() - scanColumns : 0;
+  Size extent{0.0, 0.0};
+  for (std::size_t nextElementIndex = scanFrom; nextElementIndex < elements.size(); ++nextElementIndex) {
+    const Element& nextElement = elements[nextElementIndex];
+    extent.width = std::max(extent.width, nextElement.offsetX + nextElement.width);
+    extent.height = std::max(extent.height, nextElement.offsetY + nextElement.height);
+  }
+  return extent;
+}
+
+/*
+ * Visit one candidate row of a measure pass: give it the fallback size if it has none, and
+ * widen the measured range to include it. Returns false when the row had to be skipped because
+ * no estimate is configured.
+ */
+bool visitMeasuredElement(
+  Container* container,
+  std::size_t nextElementIndex,
+  std::size_t& measuredMinIndex,
+  std::size_t& measuredMaxIndex) {
+  Element& nextElement = container->revision.elements[nextElementIndex];
+
+  if (!nextElement.estimated) {
+    auto [width, height] = effectiveFallbackSize(container);
+
+    // No estimate configured: leave this element unsized.
+    if (width == 0.0 && height == 0.0) {
+      return false;
+    }
+
+    /*
+     * layoutElements has already given every unmeasured row exactly this fallback size,
+     * so a row crossing into the window normally changes only its state, not its size.
+     * Marking geometry dirty regardless would force a full O(rows) offset reflow on every
+     * frame that reveals a row nobody has visited yet.
+     *
+     * A fling would barely notice: it reveals a couple of rows and then spends the gesture
+     * inside territory it has already been through. Dragging the scroll indicator sweeps
+     * the whole list, so every frame lands in fresh rows and would pay that reflow for the
+     * entire drag.
+     */
+    if (nextElement.width != width || nextElement.height != height) {
+      nextElement.width = width;
+      nextElement.height = height;
+      // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
+      container->markElementSizeDirty(nextElementIndex);
+    }
+    nextElement.estimated = true;
+  }
+
+  if (measuredMinIndex == UNDEFINED_INDEX || nextElementIndex < measuredMinIndex) {
+    measuredMinIndex = nextElementIndex;
+  }
+  if (measuredMaxIndex == UNDEFINED_INDEX || nextElementIndex > measuredMaxIndex) {
+    measuredMaxIndex = nextElementIndex;
+  }
+  return true;
+}
+
+/*
+ * The single-column reflow walk along one orientation, instantiated per axis so the
+ * orientation test stays out of the hot loop. See recomputeElementOffsets.
+ */
+template <double Element::*offset, double Element::*size, double Element::*crossOffset, double Element::*crossSize>
+void reflowSingleTrack(
+  Element* elements,
+  std::size_t fromIndex,
+  std::size_t elementsSize,
+  std::size_t changedThroughIndex,
+  bool canStopEarly,
+  double nextOffset,
+  double& crossMax,
+  bool& anyOffsetChanged) {
+  for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
+    Element& nextElement = elements[nextElementIndex];
+    if (nextElement.index != nextElementIndex) {
+      nextElement.index = nextElementIndex;
+    } else if (canStopEarly && nextElementIndex > changedThroughIndex &&
+               nextElement.*offset == nextOffset) {
+      break;
+    }
+
+    anyOffsetChanged = anyOffsetChanged || nextElement.*offset != nextOffset;
+    nextElement.*offset = nextOffset;
+    nextOffset += nextElement.*size;
+
+    double crossExtent = nextElement.*crossOffset + nextElement.*crossSize;
+    if (crossExtent > crossMax) {
+      crossMax = crossExtent;
+    }
+  }
+}
+
+/*
+ * The multi-column reflow walk along one orientation: rows are dealt to tracks round-robin,
+ * and each row's cross-axis size is forced to the track size. See recomputeElementOffsets.
+ */
+template <double Element::*offset, double Element::*size, double Element::*crossOffset, double Element::*crossSize>
+void reflowTracks(
+  Container* container,
+  std::size_t fromIndex,
+  double trackSize,
+  double& crossMax,
+  bool& anyOffsetChanged) {
+  std::vector<Element>& elements = container->revision.elements;
+  std::size_t columns = container->columns;
+
+  // Tracks start after the header along the scroll axis.
+  std::vector<double> trackSizes(columns, container->headerSize);
+
+  /*
+   * Seed each track with the running edge of its last element before fromIndex.
+   * The last element of every track lives within the columns elements preceding
+   * fromIndex, so this only needs to look back columns positions.
+   */
+  for (std::size_t seedIndex = fromIndex; seedIndex-- > 0 && seedIndex + columns >= fromIndex;) {
+    const Element& seedElement = elements[seedIndex];
+    trackSizes[seedIndex % columns] = seedElement.*offset + seedElement.*size;
+  }
+
+  for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elements.size(); ++nextElementIndex) {
+    Element& nextElement = elements[nextElementIndex];
+    nextElement.index = nextElementIndex;
+
+    std::size_t trackIndex = nextElementIndex % columns;
+
+    /*
+     * Force the cross-axis size to the track size here too, so a reflow with a
+     * freshly known window size corrects the cross extent, not just the position.
+     */
+    anyOffsetChanged = anyOffsetChanged || nextElement.*offset != trackSizes[trackIndex] ||
+      nextElement.*crossOffset != trackIndex * trackSize;
+    nextElement.*crossOffset = trackIndex * trackSize;
+    nextElement.*crossSize = trackSize;
+    nextElement.*offset = trackSizes[trackIndex];
+    trackSizes[trackIndex] += nextElement.*size;
+
+    double crossExtent = nextElement.*crossOffset + nextElement.*crossSize;
+    if (crossExtent > crossMax) {
+      crossMax = crossExtent;
+    }
+  }
+}
+
 /*
  * Map an in-flight operation's target anchor to its desired (unclamped) pixel offset
  * for the current revision. An EndEdge anchor (ScrollToEnd / BottomPin / ShrinkClamp)
@@ -48,9 +259,8 @@ std::pair<double, double> effectiveFallbackSize(const Container* container) {
  * captured sub-offset, rederived each frame so it tracks the element as nearby rows
  * are measured. Returns false when an Element anchor's key is no longer present.
  *
- * Header-size compensation is not applied here: it only matters on the
- * frame a header size changes, where resolveScroll/updateElementAtIndex apply it inline
- * to the immediate write. The cross-frame drive uses the raw element offset.
+ * A header size change is settled by applyHeaderSizeChange, which moves the offset or the
+ * anchor, so the raw element offset is all this needs.
  */
 bool resolveAnchorOffset(Container* container, const Operation& operation, double maxOffset, double& outOffset) {
   if (operation.target.mode != AnchorMode::Element) {
@@ -76,17 +286,17 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   const std::vector<std::string>& inputKeys = input.keyList();
   const std::vector<std::string>& inputNonAnchorableKeys = input.nonAnchorableKeyList();
 
-  SL_LOG("update: keys=%zu prevElements=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d",
+  SL_LOG("update: keys=%zu prevElements=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d total=%.1f dirtyFrom=%zd enabled=%d corrected=%d coreOff=%.1f",
     inputKeys.size(), container->revision.elements.size(),
     input.containerOffsetX, input.containerOffsetY,
     input.windowContainerWidth, input.windowContainerHeight,
     input.inverted ? 1 : 0, input.columns, input.headerSize, input.footerSize,
-    container->invertedInitialized ? 1 : 0);
+    container->invertedInitialized ? 1 : 0,
+    container->horizontal ? container->revision.totalContainerWidth : container->revision.totalContainerHeight,
+    static_cast<std::ptrdiff_t>(container->elementsSizeDirtyFromIndex), input.containerOffsetEnabled ? 1 : 0,
+    container->containerOffsetCorrected ? 1 : 0, container->getContainerOffset());
 
-  /*
-   * Previous header size, so MVCP can tell a header-size change apart from a content
-   * scroll and not absorb it.
-   */
+  // Previous header size, so a change is settled after the rows reflow for it.
   double prevHeaderSize = container->headerSize;
 
   /*
@@ -104,11 +314,8 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   container->horizontal = input.horizontal;
   container->columns = input.columns;
   container->overscan = input.overscan;
-  container->materializationOverscan = input.materializationOverscan;
   container->headerSize = input.headerSize;
   container->footerSize = input.footerSize;
-  container->stickyHeader = input.stickyHeader;
-  container->stickyFooter = input.stickyFooter;
   container->stickyIndices = input.stickyIndices;
   container->startReachedThreshold = input.startReachedThreshold;
   container->endReachedThreshold = input.endReachedThreshold;
@@ -257,7 +464,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
                                                : container->revision.totalContainerHeight;
     double bottomWindow = container->horizontal ? container->revision.windowContainerWidth
                                                 : container->revision.windowContainerHeight;
-    double bottomOffset = bottomTotal - bottomWindow > 0.0 ? bottomTotal - bottomWindow : 0.0;
+    bool atBottom = atInvertedBottom(inputOffset, bottomTotal, bottomWindow);
     /*
      * Nothing to scroll: the content fits the window, so bottomOffset is clamped to 0 and
      * every rubber-band overscroll reads as "far above the bottom". Releasing there would
@@ -265,10 +472,9 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
      */
     bool scrollable = bottomTotal > bottomWindow;
 
-    if (gestureTakeover && scrollable && inputOffset < bottomOffset - INVERTED_FOLLOW_BAND) {
+    if (gestureTakeover && scrollable && !atBottom) {
       container->invertedBottomReleased = true;
-    } else if (container->invertedBottomReleased &&
-        inputOffset >= bottomOffset - INVERTED_FOLLOW_BAND &&
+    } else if (container->invertedBottomReleased && atBottom &&
         inputOffset >= previousOffset + OFFSET_MOVED_THRESHOLD &&
         (input.userScrolled || container->pendingScrollToEnd ||
          (container->operation && (container->operation->type == OperationType::ScrollToEnd ||
@@ -278,7 +484,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
 
     restingAtBottom = !gestureTakeover && !container->invertedBottomReleased &&
       container->invertedInitialized && !container->revision.elements.empty() &&
-      bottomWindow > 0.0 && inputOffset >= bottomOffset - INVERTED_FOLLOW_BAND;
+      bottomWindow > 0.0 && atBottom;
   }
   // Read by resolveScroll to hold the opening bottom (see Container::invertedOpeningPin).
   container->restingAtInvertedBottom = restingAtBottom;
@@ -289,16 +495,10 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
 
   /*
    * Capture the anchor element so the same content stays in view across a reconcile.
-   * An anchor authored upstream (e.g. by JS on a data commit) overrides the captured
-   * one and is the source of truth for what content must stay in view this frame.
-   * Either way container->anchor is authoritative from here on.
+   * container->anchor is authoritative from here on.
    */
   bool hadElementsBefore = !container->revision.elements.empty();
   captureAnchor(container, inputOffset);
-  if (!input.suppliedAnchor.key.empty()) {
-    container->anchor = input.suppliedAnchor;
-  }
-  container->anchorHeaderSize = prevHeaderSize;
 
   std::string anchorKey = container->anchor.key;
   double anchorDelta = container->anchor.subOffset;
@@ -354,13 +554,16 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
     // New keys end the opening settle; an append below the newest row is followed below.
     container->invertedOpeningPin = false;
     /*
-     * A chat resting at the bottom of an inverted list follows messages appended below the
-     * newest one. Plain anchoring would hold the row at the viewport top, so the new rows
-     * would land below the fold. Following runs as a scrollToEnd, which keeps retargeting
-     * the bottom while the new rows are measured and yields to a drag. Growth in place (a
-     * streaming reply) is not an append and still needs the nonAnchorKeys policy to follow.
+     * With followAppends, a list resting at the bottom of an inverted list follows rows
+     * appended below the newest one. Plain anchoring holds the row at the viewport top, so
+     * without it the new rows land below the fold, which is the default. Following runs as a
+     * scrollToEnd, which keeps retargeting the bottom while the new rows are measured and
+     * yields to a drag. Growth in place (a streaming reply) is not an append and still needs
+     * the nonAnchorKeys policy to follow.
      */
-    std::string previousLastKey = restingAtBottom ? container->revision.elements.back().key : std::string();
+    std::string previousLastKey = restingAtBottom && input.followAppends
+      ? container->revision.elements.back().key
+      : std::string();
     reconcileElements(container, inputKeys);
     if (!previousLastKey.empty()) {
       std::size_t previousLastIndex = container->findElementIndexByKey(previousLastKey);
@@ -381,28 +584,33 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   /*
    * Measure the revision
    */
-  container->startRevision();
+  container->revision.containerOffsetX = input.containerOffsetX;
+  container->revision.containerOffsetY = input.containerOffsetY;
+  double previousWindowSize = container->getWindowContainerSize();
+  container->revision.windowContainerWidth = input.windowContainerWidth;
+  container->revision.windowContainerHeight = input.windowContainerHeight;
+  applyWindowSizeChange(container, previousWindowSize);
+  anchorDelta = container->anchor.subOffset;
+  measure(container);
 
   /*
-   * Reset a half-applied revision on any exception between start and end (e.g. measure
-   * throwing), so the next frame can start cleanly instead of throwing "previous revision
-   * in progress" forever and wedging the instance. On the success path endRevision() has
-   * already returned the status to idle, so this guard is a no-op.
+   * Settle a header size change against the rows measure() just reflowed for it, exactly as
+   * the Fabric layout pass does (see applyHeaderSizeChange). It either moves the offset with
+   * the rows or moves the anchor, so MVCP below does not read the change as a scroll. An
+   * offset it moves is the core's own write rather than a host report, so it cannot confirm
+   * an in-flight correction, and it is published even when nothing below corrects again.
    */
-  struct RevisionStatusGuard {
-    Container* container;
-    ~RevisionStatusGuard() {
-      if (container->revisionStatus == REVISION_STATUS_PENDING) {
-        container->revisionStatus = REVISION_STATUS_IDLE;
-      }
+  bool headerMovedOffset = false;
+  if (hadElementsBefore && container->headerSize != prevHeaderSize) {
+    double offsetBeforeHeader = container->getContainerOffset();
+    container->containerOffsetCorrected = false;
+    applyHeaderSizeChange(container, prevHeaderSize);
+    anchorDelta = container->anchor.subOffset;
+    headerMovedOffset = container->containerOffsetCorrected && container->getContainerOffset() != offsetBeforeHeader;
+    if (headerMovedOffset) {
+      measure(container, true);
     }
-  } revisionStatusGuard{container};
-
-  container->setContainerOffsetX(input.containerOffsetX);
-  container->setContainerOffsetY(input.containerOffsetY);
-  container->setWindowContainerWidth(input.windowContainerWidth);
-  container->setWindowContainerHeight(input.windowContainerHeight);
-  measure(container);
+  }
 
   SL_LOG("  measured: total=(%.1f,%.1f) offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] anchorKey=%s anchor@newIdx=%zd",
     container->revision.totalContainerWidth, container->revision.totalContainerHeight,
@@ -418,7 +626,12 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
    * Resolve scroll corrections. If the offset moved, remeasure to select the
    * visible window matching the new offset.
    */
-  if (resolveScroll(container, anchorKey, anchorDelta, hadElementsBefore, !input.containerOffsetEnabled)) {
+  bool offsetConfirmed = !input.containerOffsetEnabled && !headerMovedOffset;
+  bool scrollCorrected = resolveScroll(container, anchorKey, anchorDelta, hadElementsBefore, offsetConfirmed);
+  if (headerMovedOffset) {
+    container->containerOffsetCorrected = true;
+  }
+  if (scrollCorrected) {
     measure(container, true);
     SL_LOG("  remeasured: offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] invInit=%d",
       container->revision.containerOffsetX, container->revision.containerOffsetY,
@@ -449,19 +662,9 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
 void Virtualizer::measure(Container* container, bool windowFromOffset) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
-  if (container->revisionStatus != REVISION_STATUS_PENDING) {
-    throw InvalidOperationError("Cannot use measure outside of a revision");
-  }
-
-  /*
-   * Reset the per-revision measurement accumulators so they reflect only the
-   * elements measured in this revision (otherwise they grow unbounded)
-   */
+  // Reset the measured range so it reflects only this pass.
   container->revision.measurementElementStartIndex = UNDEFINED_INDEX;
   container->revision.measurementElementEndIndex = UNDEFINED_INDEX;
-  container->revision.measurementElementCount = 0;
-  container->revision.measurementElementTotalHeight = 0;
-  container->revision.measurementElementTotalWidth = 0;
 
   /*
    * An insert/remove/reorder leaves every element carrying its pre-mutation offset, and
@@ -506,42 +709,11 @@ void Virtualizer::measureFirstRevision(Container* container) {
    */
   for (std::size_t iteration = 0; iteration < elementsSize; ++iteration) {
     std::size_t nextElementIndex = container->inverted ? (elementsSize - 1 - iteration) : iteration;
-    Element& nextElement = container->revision.elements[nextElementIndex];
-
-    /*
-     * Only assign an estimate to elements that don't already have a size.
-     */
-    if (!nextElement.estimated) {
-      auto [width, height] = effectiveFallbackSize(container);
-
-      /*
-       * No estimate configured: leave this element unsized.
-       */
-      if (width == 0.0 && height == 0.0) {
-        continue;
-      }
-
-      // Same reasoning as measureNextRevision: only a real size change dirties geometry.
-      if (nextElement.width != width || nextElement.height != height) {
-        nextElement.width = width;
-        nextElement.height = height;
-        // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
-        container->markElementSizeDirty(nextElementIndex);
-      }
-      nextElement.estimated = true;
+    if (!visitMeasuredElement(container, nextElementIndex, measuredMinIndex, measuredMaxIndex)) {
+      continue;
     }
 
-    if (measuredMinIndex == UNDEFINED_INDEX || nextElementIndex < measuredMinIndex) {
-      measuredMinIndex = nextElementIndex;
-    }
-    if (measuredMaxIndex == UNDEFINED_INDEX || nextElementIndex > measuredMaxIndex) {
-      measuredMaxIndex = nextElementIndex;
-    }
-
-    container->revision.measurementElementTotalHeight += nextElement.height;
-    container->revision.measurementElementTotalWidth += nextElement.width;
-    container->revision.measurementElementCount++;
-
+    const Element& nextElement = container->revision.elements[nextElementIndex];
     accumulated += container->horizontal ? nextElement.width : nextElement.height;
 
     /*
@@ -590,51 +762,8 @@ void Virtualizer::measureNextRevision(Container* container) {
     return container->horizontal ? element.width : element.height;
   };
 
-  /*
-   * Visit one candidate row: apply a size estimate if it has none and fold it into this
-   * revision's measurement accumulators. Returns false when the row had to be skipped
-   * because no estimate is configured.
-   */
   auto visit = [&](std::size_t nextElementIndex) {
-    Element& nextElement = container->revision.elements[nextElementIndex];
-
-    if (!nextElement.estimated) {
-      auto [width, height] = effectiveFallbackSize(container);
-
-      if (width == 0.0 && height == 0.0) {
-        return;
-      }
-
-      /*
-       * layoutElements has already given every unmeasured row exactly this fallback size,
-       * so a row crossing into the window normally changes only its state, not its size.
-       * Marking geometry dirty regardless would force a full O(rows) offset reflow on every
-       * frame that reveals a row nobody has visited yet.
-       *
-       * A fling would barely notice: it reveals a couple of rows and then spends the gesture
-       * inside territory it has already been through. Dragging the scroll indicator sweeps
-       * the whole list, so every frame lands in fresh rows and would pay that reflow for the
-       * entire drag.
-       */
-      if (nextElement.width != width || nextElement.height != height) {
-        nextElement.width = width;
-        nextElement.height = height;
-        // Sizes changed outside layoutElements' own loop; make sure it reflows offsets.
-        container->markElementSizeDirty(nextElementIndex);
-      }
-      nextElement.estimated = true;
-    }
-
-    if (measuredMinIndex == UNDEFINED_INDEX || nextElementIndex < measuredMinIndex) {
-      measuredMinIndex = nextElementIndex;
-    }
-    if (measuredMaxIndex == UNDEFINED_INDEX || nextElementIndex > measuredMaxIndex) {
-      measuredMaxIndex = nextElementIndex;
-    }
-
-    container->revision.measurementElementTotalHeight += nextElement.height;
-    container->revision.measurementElementTotalWidth += nextElement.width;
-    container->revision.measurementElementCount++;
+    visitMeasuredElement(container, nextElementIndex, measuredMinIndex, measuredMaxIndex);
   };
 
   /*
@@ -770,34 +899,30 @@ void Virtualizer::layoutElements(Container* container) {
   bool anyNewlyEstimated = false;
 
   if (fallbackDimensionsChanged || layoutParamsChanged || container->elementsStructureDirty) {
-    for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
-      Element& nextElement = container->revision.elements[nextElementIndex];
-
-      if (container->columns > 1) {
-        if (container->horizontal) {
-          if (!nextElement.estimated && nextElement.width != fallbackWidth) {
-            nextElement.width = fallbackWidth;
-            anyNewlyEstimated = true;
-          }
-          if (nextElement.height != trackSize) {
-            nextElement.height = trackSize;
-            anyNewlyEstimated = true;
-          }
-        } else {
-          if (!nextElement.estimated && nextElement.height != fallbackHeight) {
-            nextElement.height = fallbackHeight;
-            anyNewlyEstimated = true;
-          }
-          if (nextElement.width != trackSize) {
-            nextElement.width = trackSize;
-            anyNewlyEstimated = true;
-          }
+    if (container->columns > 1) {
+      double Element::*size = container->horizontal ? &Element::width : &Element::height;
+      double Element::*crossSize = container->horizontal ? &Element::height : &Element::width;
+      double fallbackSize = container->horizontal ? fallbackWidth : fallbackHeight;
+      for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
+        Element& nextElement = container->revision.elements[nextElementIndex];
+        if (!nextElement.estimated && nextElement.*size != fallbackSize) {
+          nextElement.*size = fallbackSize;
+          anyNewlyEstimated = true;
         }
-      } else if (!nextElement.estimated &&
-                 (nextElement.width != fallbackWidth || nextElement.height != fallbackHeight)) {
-        nextElement.width = fallbackWidth;
-        nextElement.height = fallbackHeight;
-        anyNewlyEstimated = true;
+        if (nextElement.*crossSize != trackSize) {
+          nextElement.*crossSize = trackSize;
+          anyNewlyEstimated = true;
+        }
+      }
+    } else {
+      for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
+        Element& nextElement = container->revision.elements[nextElementIndex];
+        if (!nextElement.estimated &&
+            (nextElement.width != fallbackWidth || nextElement.height != fallbackHeight)) {
+          nextElement.width = fallbackWidth;
+          nextElement.height = fallbackHeight;
+          anyNewlyEstimated = true;
+        }
       }
     }
 
@@ -872,57 +997,12 @@ void Virtualizer::recomputeElementOffsets(Container* container, std::size_t from
     double trackSize = container->horizontal
       ? container->revision.windowContainerHeight / container->columns
       : container->revision.windowContainerWidth / container->columns;
-
-    /*
-     * Tracks start after the header along the scroll axis
-     */
-    std::vector<double> trackSizes(container->columns, container->headerSize);
-
-    /*
-     * Seed each track with the running edge of its last element before fromIndex.
-     * The last element of every track lives within the columns elements preceding
-     * fromIndex, so this only needs to look back columns positions.
-     */
-    for (std::size_t seedIndex = fromIndex; seedIndex-- > 0 && seedIndex + container->columns >= fromIndex;) {
-      const Element& seedElement = container->revision.elements[seedIndex];
-      std::size_t trackIndex = seedIndex % container->columns;
-      trackSizes[trackIndex] = container->horizontal
-        ? seedElement.offsetX + seedElement.width + seedElement.gapX
-        : seedElement.offsetY + seedElement.height + seedElement.gapY;
-    }
-
-    for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
-      Element& nextElement = container->revision.elements[nextElementIndex];
-      nextElement.index = nextElementIndex;
-
-      std::size_t trackIndex = nextElementIndex % container->columns;
-
-      /*
-       * Force the cross-axis size to the track size here too, so a reflow with a
-       * freshly known window size corrects the cross extent, not just the position.
-       */
-      if (container->horizontal) {
-        anyOffsetChanged = anyOffsetChanged || nextElement.offsetX != trackSizes[trackIndex] ||
-          nextElement.offsetY != trackIndex * trackSize;
-        nextElement.offsetY = trackIndex * trackSize;
-        nextElement.height = trackSize;
-        nextElement.offsetX = trackSizes[trackIndex];
-        trackSizes[trackIndex] += nextElement.width + nextElement.gapX;
-      } else {
-        anyOffsetChanged = anyOffsetChanged || nextElement.offsetY != trackSizes[trackIndex] ||
-          nextElement.offsetX != trackIndex * trackSize;
-        nextElement.offsetX = trackIndex * trackSize;
-        nextElement.width = trackSize;
-        nextElement.offsetY = trackSizes[trackIndex];
-        trackSizes[trackIndex] += nextElement.height + nextElement.gapY;
-      }
-
-      double crossExtent = container->horizontal
-        ? nextElement.offsetY + nextElement.height
-        : nextElement.offsetX + nextElement.width;
-      if (crossExtent > crossMax) {
-        crossMax = crossExtent;
-      }
+    if (container->horizontal) {
+      reflowTracks<&Element::offsetX, &Element::width, &Element::offsetY, &Element::height>(
+        container, fromIndex, trackSize, crossMax, anyOffsetChanged);
+    } else {
+      reflowTracks<&Element::offsetY, &Element::height, &Element::offsetX, &Element::width>(
+        container, fromIndex, trackSize, crossMax, anyOffsetChanged);
     }
   } else {
     /*
@@ -936,8 +1016,8 @@ void Virtualizer::recomputeElementOffsets(Container* container, std::size_t from
     if (fromIndex > 0) {
       const Element& prevElement = container->revision.elements[fromIndex - 1];
       nextOffset = container->horizontal
-        ? prevElement.offsetX + prevElement.width + prevElement.gapX
-        : prevElement.offsetY + prevElement.height + prevElement.gapY;
+        ? prevElement.offsetX + prevElement.width
+        : prevElement.offsetY + prevElement.height;
     }
 
     /*
@@ -970,43 +1050,11 @@ void Virtualizer::recomputeElementOffsets(Container* container, std::size_t from
     bool canStopEarly = fromIndex > 0 && changedThroughIndex != UNDEFINED_INDEX;
 
     if (container->horizontal) {
-      for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
-        Element& nextElement = elements[nextElementIndex];
-        if (nextElement.index != nextElementIndex) {
-          nextElement.index = nextElementIndex;
-        } else if (canStopEarly && nextElementIndex > changedThroughIndex &&
-                   nextElement.offsetX == nextOffset) {
-          break;
-        }
-
-        anyOffsetChanged = anyOffsetChanged || nextElement.offsetX != nextOffset;
-        nextElement.offsetX = nextOffset;
-        nextOffset += nextElement.width + nextElement.gapX;
-
-        double crossExtent = nextElement.offsetY + nextElement.height;
-        if (crossExtent > crossMax) {
-          crossMax = crossExtent;
-        }
-      }
+      reflowSingleTrack<&Element::offsetX, &Element::width, &Element::offsetY, &Element::height>(
+        elements, fromIndex, elementsSize, changedThroughIndex, canStopEarly, nextOffset, crossMax, anyOffsetChanged);
     } else {
-      for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
-        Element& nextElement = elements[nextElementIndex];
-        if (nextElement.index != nextElementIndex) {
-          nextElement.index = nextElementIndex;
-        } else if (canStopEarly && nextElementIndex > changedThroughIndex &&
-                   nextElement.offsetY == nextOffset) {
-          break;
-        }
-
-        anyOffsetChanged = anyOffsetChanged || nextElement.offsetY != nextOffset;
-        nextElement.offsetY = nextOffset;
-        nextOffset += nextElement.height + nextElement.gapY;
-
-        double crossExtent = nextElement.offsetX + nextElement.width;
-        if (crossExtent > crossMax) {
-          crossMax = crossExtent;
-        }
-      }
+      reflowSingleTrack<&Element::offsetY, &Element::height, &Element::offsetX, &Element::width>(
+        elements, fromIndex, elementsSize, changedThroughIndex, canStopEarly, nextOffset, crossMax, anyOffsetChanged);
     }
   }
 
@@ -1021,36 +1069,11 @@ void Virtualizer::recomputeTotalSize(Container* container) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
   /*
-   * Total container size is the maximum element extent. Using the element edge
-   * (offset + size) rather than the accumulated track size excludes the trailing
-   * gap after the last element, keeping single and multi-column layouts consistent.
-   * Element offsets already include the header along the scroll axis.
+   * Total container size is the maximum element extent (offset + size), which keeps single
+   * and multi-column layouts consistent. Element offsets already include the header along
+   * the scroll axis.
    */
-  double maxHeight = 0.0;
-  double maxWidth = 0.0;
-
-  /*
-   * Per-track scroll-axis offsets only grow with index, so the last `columns` elements
-   * always contain every track's furthest edge, and scanning just that tail finds the
-   * scroll-axis maximum. Cross-axis extents are not monotone by index, so the cross
-   * axis folds in Container::maxCrossAxisExtent below instead.
-   */
-  std::size_t elementsSize = container->revision.elements.size();
-  std::size_t scanColumns = container->columns > 0 ? container->columns : 1;
-  std::size_t scanFrom = elementsSize > scanColumns ? elementsSize - scanColumns : 0;
-
-  for (std::size_t nextElementIndex = scanFrom; nextElementIndex < elementsSize; ++nextElementIndex) {
-    const Element& nextElement = container->revision.elements[nextElementIndex];
-    double elementBottom = nextElement.offsetY + nextElement.height;
-    double elementRight = nextElement.offsetX + nextElement.width;
-
-    if (elementBottom > maxHeight) {
-      maxHeight = elementBottom;
-    }
-    if (elementRight > maxWidth) {
-      maxWidth = elementRight;
-    }
-  }
+  Size extent = tailExtent(container);
 
   /*
    * Scroll axis includes the header (a floor for empty lists) and trailing footer.
@@ -1060,13 +1083,13 @@ void Virtualizer::recomputeTotalSize(Container* container) {
    * is still covered by the published content size.
    */
   if (container->horizontal) {
-    container->revision.totalContainerWidth = std::max(maxWidth, container->headerSize) + container->footerSize;
+    container->revision.totalContainerWidth = std::max(extent.width, container->headerSize) + container->footerSize;
     container->revision.totalContainerHeight =
-      std::max({maxHeight, container->maxCrossAxisExtent, container->revision.windowContainerHeight});
+      std::max({extent.height, container->maxCrossAxisExtent, container->revision.windowContainerHeight});
   } else {
-    container->revision.totalContainerHeight = std::max(maxHeight, container->headerSize) + container->footerSize;
+    container->revision.totalContainerHeight = std::max(extent.height, container->headerSize) + container->footerSize;
     container->revision.totalContainerWidth =
-      std::max({maxWidth, container->maxCrossAxisExtent, container->revision.windowContainerWidth});
+      std::max({extent.width, container->maxCrossAxisExtent, container->revision.windowContainerWidth});
   }
 
   /*
@@ -1117,11 +1140,8 @@ bool Virtualizer::applyElementSize(Container* container, std::size_t index, Size
    * moved the row's trailing edge (see Container::anchorFirstMeasurementDelta).
    */
   if (!wasMeasured && dimensionsChanged && container->columns <= 1) {
-    const std::string& compensationKey =
-      (container->operation && container->operation->target.mode == AnchorMode::Element)
-        ? container->operation->target.key
-        : (!container->operation ? container->anchor.key : std::string());
-    if (!compensationKey.empty() && nextElement.key == compensationKey) {
+    const Anchor* compensationAnchor = container->compensationAnchor();
+    if (compensationAnchor != nullptr && !compensationAnchor->key.empty() && nextElement.key == compensationAnchor->key) {
       container->anchorFirstMeasurementDelta += container->horizontal
         ? size.width - prevWidth
         : size.height - prevHeight;
@@ -1145,11 +1165,6 @@ bool Virtualizer::applyElementSize(Container* container, std::size_t index, Size
    * second one in the layout pass (see Container::noteElementSizeSpan).
    */
   container->noteElementSizeSpan(index);
-
-  if (container->revision.averageElementHeight > 0) {
-    container->revision.measurementElementTotalHeight += size.height - prevHeight;
-    container->revision.measurementElementTotalWidth += size.width - prevWidth;
-  }
 
   /*
    * Accumulate real measured sizes for the frozen average. Count each element once:
@@ -1204,23 +1219,10 @@ std::size_t Virtualizer::applyPredictedElementSize(Container* container, const s
 
   bool dimensionsChanged = nextElement.width != size.width || nextElement.height != size.height;
 
-  double prevWidth = nextElement.width;
-  double prevHeight = nextElement.height;
-
   nextElement.width = size.width;
   nextElement.height = size.height;
   nextElement.estimated = true;
   nextElement.predicted = true;
-
-  /*
-   * Keep this revision's measured totals consistent with the sizes they were accumulated
-   * from, exactly as applyElementSize does: if this row is inside the measured window its
-   * contribution just changed.
-   */
-  if (container->revision.averageElementHeight > 0) {
-    container->revision.measurementElementTotalHeight += size.height - prevHeight;
-    container->revision.measurementElementTotalWidth += size.width - prevWidth;
-  }
 
   /*
    * Predictions do not feed Revision::measuredReal*: the frozen average is what sizes rows
@@ -1256,31 +1258,17 @@ void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex
    * During an anchor-driven correction (prepend) keep that sticky anchor; a
    * fixed-offset correction (bottom anchor / scrollToIndex) is left to itself.
    */
-  std::string compensationKey;
-  double compensationDelta = 0.0;
-  bool compensate = false;
-
-  if (container->operation && container->operation->target.mode == AnchorMode::Element) {
-    compensationKey = container->operation->target.key;
-    compensationDelta = container->operation->target.subOffset;
-    compensate = true;
-  } else if (!container->operation && !container->anchor.key.empty()) {
-    compensationKey = container->anchor.key;
-    compensationDelta = container->anchor.subOffset;
-    compensate = true;
-  }
-
-  if (compensate) {
-    std::size_t anchorIndex = container->findElementIndexByKey(compensationKey);
+  const Anchor* compensationAnchor = container->compensationAnchor();
+  if (compensationAnchor != nullptr) {
+    double compensationDelta = compensationAnchor->subOffset;
+    std::size_t anchorIndex = container->findElementIndexByKey(compensationAnchor->key);
     if (anchorIndex != UNDEFINED_INDEX) {
       /*
-       * Raw anchor target before the lower clamp. Subtract any header-size change so
-       * MVCP does not chase header growth as if it were a scroll. The shift test
-       * compares this raw target (not the clamped one) so a top overscroll, where the
-       * anchor has not moved, is left alone.
+       * Raw anchor target before the lower clamp. The shift test compares this raw target
+       * (not the clamped one) so a top overscroll, where the anchor has not moved, is left
+       * alone.
        */
-      double rawAnchoredOffset = container->getElementOffset(anchorIndex) + compensationDelta
-        - (container->headerSize - container->anchorHeaderSize);
+      double rawAnchoredOffset = container->getElementOffset(anchorIndex) + compensationDelta;
       /*
        * An anchor row whose leading edge is above the viewport start shows only its trailing
        * part; the rows below it are what the reader sees. On its first measurement, hold its
@@ -1295,16 +1283,7 @@ void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex
        * clamp would yank the anchor. resolveScroll enforces the upper bound next frame.
        */
       double anchoredOffset = rawAnchoredOffset < 0.0 ? 0.0 : rawAnchoredOffset;
-
-      double currentOffset = container->horizontal ? container->revision.containerOffsetX : container->revision.containerOffsetY;
-      if (std::fabs(rawAnchoredOffset - currentOffset) >= OFFSET_MOVED_THRESHOLD) {
-        if (container->horizontal) {
-          container->revision.containerOffsetX = anchoredOffset;
-        } else {
-          container->revision.containerOffsetY = anchoredOffset;
-        }
-        container->containerOffsetCorrected = true;
-      }
+      correctOffsetIfMoved(container, anchoredOffset, rawAnchoredOffset);
     }
   }
   container->anchorFirstMeasurementDelta = 0.0;
@@ -1327,56 +1306,123 @@ void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex
    * So does an inverted list still settling on the bottom it opened at and resting there
    * (see Container::invertedOpeningPin).
    */
-  std::size_t elementsSize = container->revision.elements.size();
   bool followBottom = container->pendingScrollToEnd ||
     (container->inverted && container->invertedOpeningPin && container->restingAtInvertedBottom &&
      !container->invertedBottomReleased && !container->gestureActive && !container->operation);
   if (!followBottom && container->inverted && !container->invertedBottomReleased && !container->gestureActive &&
-      !container->operation && !container->anchor.key.empty() &&
-      container->isAnchorable(container->anchor.key)) {
-    std::size_t anchorIndex = container->findElementIndexByKey(container->anchor.key);
-    followBottom = anchorIndex != UNDEFINED_INDEX;
-    for (std::size_t nextElementIndex = anchorIndex + 1; followBottom && nextElementIndex < elementsSize; ++nextElementIndex) {
-      if (container->isAnchorable(container->revision.elements[nextElementIndex].key)) {
-        followBottom = false;
-      }
-    }
+      !container->operation && !container->anchor.key.empty()) {
+    followBottom = isLastAnchorable(container, container->findElementIndexByKey(container->anchor.key));
   }
   if (followBottom) {
-    std::size_t scanColumns = container->columns > 0 ? container->columns : 1;
-    std::size_t scanFrom = elementsSize > scanColumns ? elementsSize - scanColumns : 0;
-    double contentEnd = 0.0;
-    for (std::size_t nextElementIndex = scanFrom; nextElementIndex < elementsSize; ++nextElementIndex) {
-      const Element& nextElement = container->revision.elements[nextElementIndex];
-      double elementEnd = container->horizontal
-        ? nextElement.offsetX + nextElement.width
-        : nextElement.offsetY + nextElement.height;
-      if (elementEnd > contentEnd) {
-        contentEnd = elementEnd;
-      }
-    }
+    Size extent = tailExtent(container);
+    double contentEnd = container->horizontal ? extent.width : extent.height;
     double total = std::max(contentEnd, container->headerSize) + container->footerSize;
-    double bottom = total - container->getWindowContainerSize();
-    if (bottom < 0.0) {
-      bottom = 0.0;
-    }
-    double currentOffset = container->horizontal ? container->revision.containerOffsetX : container->revision.containerOffsetY;
-    if (std::fabs(bottom - currentOffset) >= OFFSET_MOVED_THRESHOLD) {
-      if (container->horizontal) {
-        container->revision.containerOffsetX = bottom;
-      } else {
-        container->revision.containerOffsetY = bottom;
-      }
-      container->containerOffsetCorrected = true;
+    double bottom = std::max(0.0, total - container->getWindowContainerSize());
+    correctOffsetIfMoved(container, bottom, bottom);
+  }
+}
+
+void Virtualizer::applyHeaderSizeChange(Container* container, double previousHeaderSize) {
+  std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  double delta = container->headerSize - previousHeaderSize;
+  if (delta == 0.0 || container->revision.elements.empty()) {
+    return;
+  }
+
+  const double offset = scrollAxisOffset(container);
+
+  /*
+   * An anchor correction in flight already says where the rows on screen belong: resolve it
+   * against the reflowed rows. The offset it last wrote cannot tell whether the header was on
+   * screen, because it may be clamped: rows mounting earlier in this layout lay out to zero
+   * first and can pull the target below the content start.
+   */
+  if (container->operation && container->operation->target.mode == AnchorMode::Element) {
+    std::size_t anchorIndex = container->findElementIndexByKey(container->operation->target.key);
+    if (anchorIndex != UNDEFINED_INDEX) {
+      double target = container->getElementOffset(anchorIndex) + container->operation->target.subOffset;
+      target = target < 0.0 ? 0.0 : target;
+      SL_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f->%.1f resolved op=%llu",
+        previousHeaderSize, container->headerSize, offset, target,
+        static_cast<unsigned long long>(container->operation->id));
+      correctOffsetIfMoved(container, target, target);
+      return;
     }
   }
+
+  /*
+   * Nothing above the viewport was the header: it sat wholly before the offset, so every row
+   * on screen moved by the change. Move the offset with them.
+   */
+  SL_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f branch=%s anchorSub=%.1f",
+    previousHeaderSize, container->headerSize, offset,
+    (offset > 0.0 && offset >= previousHeaderSize) ? "hold" : "push", container->anchor.subOffset);
+  if (offset > 0.0 && offset >= previousHeaderSize) {
+    correctOffset(container, std::max(0.0, offset + delta));
+    return;
+  }
+
+  /*
+   * The header is on screen and pushes the rows below it, as on a list's first layout. The
+   * offset stays; the anchor takes the change into its sub-offset, so it keeps resolving to
+   * this offset against the reflowed rows.
+   */
+  shiftAnchors(container, -delta);
+}
+
+void Virtualizer::applyWindowSizeChange(Container* container, double previousWindowSize) {
+  std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
+
+  double windowSize = container->getWindowContainerSize();
+  if (!container->inverted || container->revision.elements.empty() ||
+      previousWindowSize <= 0.0 || windowSize <= 0.0 ||
+      std::fabs(windowSize - previousWindowSize) < OFFSET_MOVED_THRESHOLD ||
+      !container->invertedInitialized || container->invertedBottomReleased || container->gestureActive) {
+    return;
+  }
+
+  /*
+   * Resting is judged against the window the reader was looking at, like the release in
+   * update(): against the new one, a window shrinking by more than the follow band would
+   * read as the reader having scrolled away.
+   */
+  double total = container->horizontal ? container->revision.totalContainerWidth : container->revision.totalContainerHeight;
+  double offset = scrollAxisOffset(container);
+  if (!atInvertedBottom(offset, total, previousWindowSize)) {
+    return;
+  }
+
+  /*
+   * Move to the new bottom in this same pass, and keep following it as a scrollToEnd: rows
+   * mounting into a grown window are measured after this, and a correction in flight would
+   * otherwise hold the old anchor against the move.
+   */
+  container->pendingScrollToEnd = true;
+  double bottom = std::max(0.0, total - windowSize);
+  SL_LOG("  windowSizeChange: %.1f->%.1f offset=%.1f->%.1f", previousWindowSize, windowSize, offset, bottom);
+  if (!correctOffsetIfMoved(container, bottom, bottom)) {
+    return;
+  }
+
+  // The anchor captured at the old offset moves with it, or MVCP would pull the view back.
+  shiftAnchors(container, bottom - offset);
 }
 
 void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, Size size) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
+#if SHADOWLIST_DEBUG_LOG
+  double tracePrevTotal = container->horizontal ? container->revision.totalContainerWidth : container->revision.totalContainerHeight;
+  double tracePrevSize = index < container->revision.elements.size()
+    ? (container->horizontal ? container->revision.elements[index].width : container->revision.elements[index].height)
+    : 0.0;
+#endif
   if (applyElementSize(container, index, size)) {
     commitElementSizes(container, index);
+    SL_LOG("  replaceChild size: index=%zu %.1f->%.1f total=%.1f corrected=%d anchor=%s",
+      index, tracePrevSize, container->horizontal ? size.width : size.height, tracePrevTotal,
+      container->containerOffsetCorrected ? 1 : 0, container->anchor.key.c_str());
   }
 }
 
@@ -1396,6 +1442,7 @@ void Virtualizer::updateElementAtIndex(Container* container, std::size_t index, 
 void Virtualizer::invalidatePredictions(Container* container) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
+  SL_LOG("  invalidatePredictions: staged=%zu", container->predictedSizes.size());
   container->predictedSizes.clear();
 
   bool anyCleared = false;
@@ -1456,6 +1503,9 @@ void Virtualizer::consumePredictions(Container* container) {
      */
     if (!predictedElement.measured &&
         (predictedElement.width != entry->second.width || predictedElement.height != entry->second.height)) {
+      SL_LOG("  prediction: index=%zu %.1f->%.1f estimated=%d",
+        predictedIndex, container->horizontal ? predictedElement.width : predictedElement.height,
+        container->horizontal ? entry->second.width : entry->second.height, predictedElement.estimated ? 1 : 0);
       predictedElement.width = entry->second.width;
       predictedElement.height = entry->second.height;
       /*
@@ -1848,13 +1898,6 @@ bool Virtualizer::resolveScroll(
     }
     return offset;
   };
-  auto writeOffset = [&](double offset) {
-    if (container->horizontal) {
-      container->revision.containerOffsetX = offset;
-    } else {
-      container->revision.containerOffsetY = offset;
-    }
-  };
 
   /*
    * Create an operation id, but preserve the current one when this is the same correction
@@ -1976,12 +2019,23 @@ bool Virtualizer::resolveScroll(
       container->operation.reset();
     } else {
       double target = clampOffset(rawTarget);
-      if (offsetConfirmed && std::fabs(currentOffset - target) < OFFSET_ARRIVED_THRESHOLD) {
+      /*
+       * Arrived: a host report at the target settles the operation. So does a frame carrying
+       * the core's own write, but only when the last offset the HOST reported is already the
+       * target -- that is the list sitting where it wants to be with nothing left to apply.
+       * Without that second case an operation on a resting list can never settle: the only
+       * commits it sees are the echoes of its own writes, so it re-publishes itself on every
+       * commit (a state update, a commit and a host offset write per frame, measured at ~500
+       * for one streaming reply). The offset of THIS frame is not enough, since a core write
+       * frame carries the target by construction while the host may not have applied it yet.
+       */
+      bool reportedAtTarget = std::fabs(container->lastReportedOffset - target) < OFFSET_ARRIVED_THRESHOLD;
+      if ((offsetConfirmed || reportedAtTarget) &&
+          std::fabs(currentOffset - target) < OFFSET_ARRIVED_THRESHOLD) {
         container->operation.reset();
       } else {
         // Offset moved, so the caller must remeasure the window for the new offset.
-        container->containerOffsetCorrected = true;
-        writeOffset(target);
+        correctOffset(container, target);
         return true;
       }
     }
@@ -2026,28 +2080,20 @@ bool Virtualizer::resolveScroll(
       if (container->inverted && !container->invertedBottomReleased && !container->gestureActive) {
         if (container->invertedOpeningPin && container->restingAtInvertedBottom) {
           invertedBottomAnchor = true;
-        } else if (container->isAnchorable(container->revision.elements[anchorIndex].key)) {
-          invertedBottomAnchor = true;
-          for (std::size_t nextElementIndex = anchorIndex + 1; nextElementIndex < elementsSize; ++nextElementIndex) {
-            if (container->isAnchorable(container->revision.elements[nextElementIndex].key)) {
-              invertedBottomAnchor = false;
-              break;
-            }
-          }
+        } else {
+          invertedBottomAnchor = isLastAnchorable(container, anchorIndex);
         }
       }
       double rawAnchoredOffset = invertedBottomAnchor
         ? maxOffset
-        : container->getElementOffset(anchorIndex) + anchorDelta
-            - (container->headerSize - container->anchorHeaderSize);
+        : container->getElementOffset(anchorIndex) + anchorDelta;
       if (std::fabs(rawAnchoredOffset - currentOffset) >= OFFSET_MOVED_THRESHOLD) {
         if (invertedBottomAnchor) {
           requestFixed(OperationType::BottomPin);
         } else {
           requestAnchor(OperationType::MaintainAnchor, anchorKey, anchorDelta);
         }
-        container->containerOffsetCorrected = true;
-        writeOffset(clampOffset(rawAnchoredOffset));
+        correctOffset(container, clampOffset(rawAnchoredOffset));
         return true;
       }
     }

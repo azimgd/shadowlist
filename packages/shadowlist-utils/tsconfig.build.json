@@ -1,0 +1,25 @@
+{
+  "extends": "./tsconfig",
+  "compilerOptions": {
+    "rootDir": ".",
+    "types": [],
+    "paths": {
+      "shadowlist": ["../shadowlist-fabric/lib/typescript/src/index.d.ts"],
+      "react": ["../shadowlist-fabric-example/node_modules/@types/react"],
+      "react/*": ["../shadowlist-fabric-example/node_modules/@types/react/*"],
+      "react-native": [
+        "../shadowlist-fabric-example/node_modules/react-native/types_generated/index.d.ts"
+      ],
+      "react-native-gesture-handler": [
+        "../shadowlist-fabric-example/node_modules/react-native-gesture-handler"
+      ],
+      "react-native-reanimated": [
+        "../shadowlist-fabric-example/node_modules/react-native-reanimated"
+      ],
+      "react-native-safe-area-context": [
+        "../shadowlist-fabric-example/node_modules/react-native-safe-area-context"
+      ]
+    }
+  },
+  "exclude": ["lib", "**/__tests__"]
+}

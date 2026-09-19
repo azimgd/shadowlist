@@ -5,59 +5,57 @@ import {
   Pressable,
   ActivityIndicator,
   StyleSheet,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
-import {
-  colors,
-  typography,
-  spacing,
-  radius,
-  fontSize,
-  fontWeight,
-  MONO_FONT_FAMILY,
-} from '../theme';
-import { Check, Chevron, Close, Stop } from '../icons';
-import type { AssistantToolInvocation, AssistantToolStatus } from './data';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import { CheckIcon, ChevronIcon, CloseIcon, StopIcon } from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
+import type { AssistantToolCall, AssistantToolStatus } from './types';
 
 export interface AssistantToolCallCardProps {
-  call: AssistantToolInvocation;
+  call: AssistantToolCall;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
-const STATUS_LABEL: Record<AssistantToolStatus, string> = {
-  running: 'Running',
-  done: 'Done',
-  error: 'Failed',
-  stopped: 'Stopped',
-};
-
 const StatusIcon = ({ status }: { status: AssistantToolStatus }) => {
+  const { colors } = useTheme();
   switch (status) {
     case 'running':
       return <ActivityIndicator size="small" color={colors.secondaryLabel} />;
     case 'done':
-      return <Check size={16} color={colors.green} strokeWidth={2} />;
-    // The reader stopped it: neutral grey, not the red an actual failure gets.
+      return <CheckIcon size={16} color={colors.green} strokeWidth={2} />;
     case 'stopped':
-      return <Stop size={12} color={colors.tertiaryLabel} />;
+      return <StopIcon size={12} color={colors.tertiaryLabel} />;
     default:
-      return <Close size={16} color={colors.red} strokeWidth={2} />;
+      return <CloseIcon size={16} color={colors.red} strokeWidth={2} />;
   }
 };
 
+const outputOf = (call: AssistantToolCall) =>
+  call.status === 'done' || call.status === 'failed' ? call.output : undefined;
+
 /*
- * One tool invocation: status, name and a one-line result, expanding to the raw input
- * and output. Memoized on the call object -- the stream replaces only the call that
- * changed, so finished calls above a running one never re-render.
+ * Memoized on the call object: the stream replaces only the call that changed, so finished
+ * calls above a running one never re-render.
  */
 export const AssistantToolCallCard = memo(
-  ({ call }: AssistantToolCallCardProps) => {
+  ({ call, labels, style }: AssistantToolCallCardProps) => {
+    const theme = useTheme();
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
     const [expanded, setExpanded] = useState(false);
+    const output = outputOf(call);
+    const statusLabel = l.toolStatus(call.status);
 
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, style]}>
         <Pressable
           onPress={() => setExpanded((current) => !current)}
           accessibilityRole="button"
-          accessibilityLabel={`${call.name}, ${STATUS_LABEL[call.status]}`}
+          accessibilityLabel={`${call.name}, ${statusLabel}`}
           accessibilityState={{ expanded }}
           style={({ pressed }) => [styles.header, pressed && styles.pressed]}
         >
@@ -69,28 +67,28 @@ export const AssistantToolCallCard = memo(
               {call.name}
             </Text>
             <Text style={styles.summary} numberOfLines={1}>
-              {call.output || STATUS_LABEL[call.status]}
+              {output || statusLabel}
             </Text>
           </View>
-          <Chevron
+          <ChevronIcon
             direction={expanded ? 'down' : 'right'}
             size={14}
-            color={colors.tertiaryLabel}
+            color={theme.colors.tertiaryLabel}
             strokeWidth={1.8}
           />
         </Pressable>
 
         {expanded ? (
           <View style={styles.body}>
-            <Text style={styles.sectionLabel}>Input</Text>
+            <Text style={styles.sectionLabel}>{l.toolInput}</Text>
             <Text style={styles.mono} selectable>
               {call.input}
             </Text>
-            {call.output ? (
+            {output ? (
               <>
-                <Text style={styles.sectionLabel}>Output</Text>
+                <Text style={styles.sectionLabel}>{l.toolOutput}</Text>
                 <Text style={styles.mono} selectable>
-                  {call.output}
+                  {output}
                 </Text>
               </>
             ) : null}
@@ -101,58 +99,60 @@ export const AssistantToolCallCard = memo(
   }
 );
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.elevated,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-  },
-  statusIcon: {
-    width: 20,
-    alignItems: 'center',
-  },
-  titleColumn: {
-    flex: 1,
-  },
-  name: {
-    color: colors.label,
-    fontFamily: MONO_FONT_FAMILY,
-    fontSize: fontSize.footnote,
-    fontWeight: fontWeight.semibold,
-  },
-  summary: {
-    color: colors.secondaryLabel,
-    ...typography.caption,
-    marginTop: 1,
-  },
-  body: {
-    gap: spacing.xs,
-    paddingHorizontal: spacing.md,
-    paddingBottom: spacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.separator,
-    paddingTop: spacing.sm,
-  },
-  sectionLabel: {
-    color: colors.tertiaryLabel,
-    ...typography.caption,
-    fontWeight: fontWeight.semibold,
-    textTransform: 'uppercase',
-  },
-  mono: {
-    color: colors.label,
-    fontFamily: MONO_FONT_FAMILY,
-    fontSize: fontSize.caption,
-    lineHeight: 17,
-  },
-  pressed: {
-    opacity: 0.6,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: theme.colors.elevated,
+      borderRadius: theme.radius.md,
+      overflow: 'hidden',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 10,
+    },
+    statusIcon: {
+      width: 20,
+      alignItems: 'center',
+    },
+    titleColumn: {
+      flex: 1,
+    },
+    name: {
+      color: theme.colors.label,
+      fontFamily: theme.fonts.mono,
+      fontSize: theme.fontSize.footnote,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    summary: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.caption,
+      marginTop: 1,
+    },
+    body: {
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.md,
+      paddingBottom: theme.spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: theme.colors.separator,
+      paddingTop: theme.spacing.sm,
+    },
+    sectionLabel: {
+      color: theme.colors.tertiaryLabel,
+      ...theme.typography.caption,
+      fontWeight: theme.fontWeight.semibold,
+      textTransform: 'uppercase',
+    },
+    mono: {
+      color: theme.colors.label,
+      fontFamily: theme.fonts.mono,
+      fontSize: theme.fontSize.caption,
+      lineHeight: 17,
+    },
+    pressed: {
+      opacity: 0.6,
+    },
+  })
+);

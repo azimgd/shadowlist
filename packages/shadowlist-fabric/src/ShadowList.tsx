@@ -2,6 +2,7 @@ import {
   useRef,
   useMemo,
   useCallback,
+  useLayoutEffect,
   forwardRef,
   type ComponentRef,
   type Ref,
@@ -10,7 +11,6 @@ import {
 import { StyleSheet, type ViewStyle } from 'react-native';
 import { ShadowListView, ShadowListTemplateView } from 'shadowlist';
 import type { ShadowListProps, ShadowListCommands } from './types';
-import { useKeyboardInset } from './keyboard';
 import {
   ElementRenderer,
   SNAP_ALIGNMENT,
@@ -21,6 +21,13 @@ import {
   useViewability,
   useImperativeCommands,
   useElementSizeSpecs,
+  useStableElement,
+  slTrace,
+  slTraceEnabled,
+  slTraceNow,
+  takeRowRenderCount,
+  nativeTagOf,
+  describeDataChange,
 } from './virtualizer';
 
 export { initialMountedRange, type MountedRange } from './virtualizer';
@@ -37,10 +44,6 @@ function defaultKeyExtractor(element: { id: string }): string {
   return element.id;
 }
 
-/*
- * A slot may be a plain element or a function returning one; normalise to an
- * element or null.
- */
 function renderComponent(
   component: ReactElement | (() => ReactElement | null) | null | undefined
 ): ReactElement | null {
@@ -61,6 +64,7 @@ function ShadowListInner<ElementT extends { id: string }>(
     style,
     elementStyle,
     inverted = false,
+    followAppends = false,
     horizontal = false,
     stickyHeader = false,
     stickyFooter = false,
@@ -70,7 +74,6 @@ function ShadowListInner<ElementT extends { id: string }>(
     onReorder,
     columns = 1,
     overscan = 1,
-    nativeViewOverscan = -1,
     getElementSizeSpec,
     measureLookaheadRows = 48,
     persistentKeys,
@@ -78,8 +81,6 @@ function ShadowListInner<ElementT extends { id: string }>(
     stickyHeaderIndices,
     renderStickyHeaderOverlay,
     containerOffsetIndex = -2,
-    keyboardAvoidingEnabled = false,
-    keyboardAvoidingOffset = 0,
     refreshing = false,
     onRefresh,
     refreshColor,
@@ -109,19 +110,37 @@ function ShadowListInner<ElementT extends { id: string }>(
     null
   );
 
-  /*
-   * How far the keyboard overlaps the list, sent to native as a bottom inset so the
-   * keyboard never hides content. 0 when keyboard-avoiding is off.
-   */
-  const contentInsetBottom = useKeyboardInset(shadowlistViewRef, {
-    enabled: keyboardAvoidingEnabled,
-    offset: keyboardAvoidingOffset,
-  });
+  const traceRenderStartRef = useRef(0);
+  const traceDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
+  if (slTraceEnabled()) {
+    traceRenderStartRef.current = slTraceNow();
+  }
 
-  // Pull-to-refresh just forwards to the consumer; they own the spinner via `refreshing`.
   const handleRefresh = useCallback(() => {
+    if (slTraceEnabled()) {
+      slTrace(`refresh pull id=${nativeTagOf(shadowlistViewRef.current)}`);
+    }
     onRefresh?.();
   }, [onRefresh]);
+
+  /*
+   * Edge-reached handlers go through a stable wrapper so the trace sees every native fire
+   * without the handler identity following the caller's.
+   */
+  const edgeHandlersRef = useRef({ onStartReached, onEndReached });
+  edgeHandlersRef.current = { onStartReached, onEndReached };
+  const handleStartReached = useCallback(() => {
+    if (slTraceEnabled()) {
+      slTrace(`reached start id=${nativeTagOf(shadowlistViewRef.current)}`);
+    }
+    edgeHandlersRef.current.onStartReached?.();
+  }, []);
+  const handleEndReached = useCallback(() => {
+    if (slTraceEnabled()) {
+      slTrace(`reached end id=${nativeTagOf(shadowlistViewRef.current)}`);
+    }
+    edgeHandlersRef.current.onEndReached?.();
+  }, []);
 
   /*
    * While a refresh runs, hold back incoming data until the spinner finishes retracting
@@ -136,62 +155,59 @@ function ShadowListInner<ElementT extends { id: string }>(
   });
 
   /*
-   * The virtualization window: which row indices are currently mounted. Rows outside
-   * it are not rendered at all.
+   * Every row's key, extracted once per data change: handed to native so it can track row
+   * identity across data updates, and shared by the hooks below. keyToIndex resolves a key
+   * to its first index (first occurrence wins on a duplicate, matching the core's
+   * reconcile). A plain array gives no cheap diff signal, so both are rebuilt in full on
+   * every data change -- one O(N) pass, not one per row.
    */
+  const { elementsAllKeys, keyToIndex } = useMemo(() => {
+    const keys = new Array<string>(data.length);
+    const map = new Map<string, number>();
+    for (let index = 0; index < data.length; index++) {
+      const key = keyExtractor(data[index]!, index);
+      keys[index] = key;
+      if (!map.has(key)) map.set(key, index);
+    }
+    return { elementsAllKeys: keys, keyToIndex: map };
+  }, [data, keyExtractor]);
+
   const { mountedIndices, handleVisibleIndicesChange } = useMountedRange({
-    data,
-    keyExtractor,
+    keys: elementsAllKeys,
+    keyToIndex,
     initialElementsSize,
     inverted,
+    followAppends,
     containerOffsetIndex,
   });
 
-  /*
-   * Drag-to-reorder: keeps the picked-up row mounted while dragged and reports the new
-   * order on drop. draggedIndices = the mounted rows plus the picked-up one.
-   */
   const {
     renderIndices: draggedIndices,
     handleDragStart,
     handleDragEnd,
   } = useDragReorder({
     data,
-    keyExtractor,
+    keyToIndex,
     mountedIndices,
     dragEnabled,
     onReorder,
   });
 
-  /*
-   * Persistent rows: force-mount the keys in persistentKeys at their natural position,
-   * never virtualized away. renderIndices = the final mounted set we render below.
-   */
   const renderIndices = usePersistentKeys({
-    data,
-    keyExtractor,
+    keys: elementsAllKeys,
     persistentKeys,
     renderIndices: draggedIndices,
   });
 
-  /*
-   * Viewability: which rows count as "viewed" (onViewableItemsChanged) and which section
-   * header is currently pinned (drives the sticky overlay).
-   */
   const { activeStickyIndex, handleViewableIndicesChange } = useViewability({
     data,
-    keyExtractor,
+    keys: elementsAllKeys,
     stickyHeaderIndices,
     onViewableItemsChanged,
   });
 
-  // Connect the public imperative handle (scrollTo*, set*ReachedEnabled) onto `ref`.
   useImperativeCommands(ref, shadowlistViewRef);
 
-  /*
-   * Each row's size along the cross axis: a 1/columns fraction for multi-column grids,
-   * otherwise it fills the cross axis (full width vertically, full height horizontally).
-   */
   const elementDimensionStyle = useMemo<ViewStyle>(() => {
     if (horizontal) {
       return columns > 1
@@ -212,12 +228,6 @@ function ShadowListInner<ElementT extends { id: string }>(
     [elementDimensionStyle, elementStyle]
   );
 
-  // Every row's key, handed to native so it can track row identity across data updates.
-  const elementsAllKeys = useMemo(
-    () => data.map((element, index) => keyExtractor(element, index)),
-    [data, keyExtractor]
-  );
-
   /*
    * Ahead-of-time row sizes for the rows around the viewport, so native knows their real
    * heights before React renders them (see ShadowListProps.getElementSizeSpec). '' when the
@@ -225,13 +235,12 @@ function ShadowListInner<ElementT extends { id: string }>(
    */
   const elementsSizeSpecs = useElementSizeSpecs({
     data,
-    keyExtractor,
+    keys: elementsAllKeys,
     getElementSizeSpec,
     mountedIndices,
     lookaheadRows: measureLookaheadRows,
   });
 
-  // Fraction of a row (0..1) that must be on screen to count as viewable; native applies it.
   const viewablePercentThreshold =
     (viewabilityConfig?.itemVisiblePercentThreshold ?? 0) / 100;
 
@@ -250,15 +259,19 @@ function ShadowListInner<ElementT extends { id: string }>(
     [ListEmptyComponent]
   );
 
-  const separator = useMemo(
-    () => renderComponent(ItemSeparatorComponent),
-    [ItemSeparatorComponent]
+  /*
+   * The separator is part of every row's content, so a caller writing it inline
+   * (`ItemSeparatorComponent={<Separator />}`) would otherwise rebuild the whole mounted
+   * window on each of its own renders; useStableElement keeps the element while it describes
+   * the same thing.
+   */
+  const separator = useStableElement(
+    useMemo(
+      () => renderComponent(ItemSeparatorComponent),
+      [ItemSeparatorComponent]
+    )
   );
 
-  /*
-   * Sticky section-header overlay: a single template view whose content is swapped to
-   * the currently pinned section's header. Null while scrolled above the first header.
-   */
   const stickyEnabled = Boolean(
     stickyHeaderIndices &&
     stickyHeaderIndices.length > 0 &&
@@ -273,10 +286,36 @@ function ShadowListInner<ElementT extends { id: string }>(
     [stickyEnabled, activeStickyIndex, renderStickyHeaderOverlay]
   );
 
+  useLayoutEffect(() => {
+    if (!slTraceEnabled()) return;
+    const previousData = traceDataRef.current;
+    traceDataRef.current = data;
+    const first = renderIndices[0] ?? -1;
+    const last = renderIndices[renderIndices.length - 1] ?? -1;
+    const elapsed = slTraceNow() - traceRenderStartRef.current;
+    slTrace(
+      `render id=${nativeTagOf(shadowlistViewRef.current)} n=${data.length}` +
+        ` mounted=${first}..${last} rows=${takeRowRenderCount()}` +
+        ` jsms=${elapsed.toFixed(1)} refreshing=${refreshing ? 1 : 0}` +
+        (previousData !== data
+          ? ` data=${describeDataChange(previousData, data, keyExtractor)}`
+          : '')
+    );
+  });
+
   return (
     <ShadowListView
       ref={shadowlistViewRef}
-      style={[styles.container, style]}
+      /*
+       * Native reads each header/footer template's scroll-axis size from its Yoga frame. In a
+       * column the templates stretch across the width, so a horizontal list would measure the
+       * header as viewport-wide; a row sizes them by content along the scroll axis instead.
+       */
+      style={[
+        styles.container,
+        style,
+        horizontal && styles.containerHorizontal,
+      ]}
       accessible={accessible}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
@@ -304,6 +343,7 @@ function ShadowListInner<ElementT extends { id: string }>(
       elementsAnchorIgnoreKeys={(nonAnchorKeys ?? EMPTY_STRINGS) as string[]}
       elementsSizeSpecs={elementsSizeSpecs}
       inverted={inverted}
+      followAppends={followAppends}
       horizontal={horizontal}
       stickyHeader={stickyHeader}
       stickyFooter={stickyFooter}
@@ -312,9 +352,7 @@ function ShadowListInner<ElementT extends { id: string }>(
       stickyHeaderIndices={stickyHeaderIndices ?? EMPTY_NUMBERS}
       columns={columns}
       overscan={overscan}
-      nativeViewOverscan={nativeViewOverscan}
       containerOffsetIndex={containerOffsetIndex}
-      contentInsetBottom={contentInsetBottom}
       refreshEnabled={!!onRefresh}
       refreshing={refreshing}
       refreshColor={refreshColor}
@@ -324,8 +362,8 @@ function ShadowListInner<ElementT extends { id: string }>(
       snapToItem={snapToItem}
       snapToAlignment={SNAP_ALIGNMENT[snapToAlignment]}
       dragEnabled={dragEnabled}
-      onStartReached={onStartReached}
-      onEndReached={onEndReached}
+      onStartReached={onStartReached ? handleStartReached : undefined}
+      onEndReached={onEndReached ? handleEndReached : undefined}
       onScroll={onScroll}
       onRefresh={onRefresh ? handleRefresh : undefined}
       onRefreshSettle={onRefresh ? handleRefreshSettle : undefined}
@@ -347,8 +385,7 @@ function ShadowListInner<ElementT extends { id: string }>(
 
           if (!element) return null;
 
-          // Once per row, not twice: keyExtractor is caller-supplied and may be non-trivial.
-          const elementKey = keyExtractor(element, index);
+          const elementKey = elementsAllKeys[index]!;
 
           return (
             <ElementRenderer
@@ -356,6 +393,7 @@ function ShadowListInner<ElementT extends { id: string }>(
               element={element}
               index={index}
               elementKey={elementKey}
+              nativeIndex={dragEnabled ? index : 0}
               style={elementBaseStyle}
               renderElement={renderElement}
               separator={index < data.length - 1 ? separator : null}
@@ -380,6 +418,9 @@ function ShadowListInner<ElementT extends { id: string }>(
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  containerHorizontal: {
+    flexDirection: 'row',
   },
   element: {
     position: 'absolute',

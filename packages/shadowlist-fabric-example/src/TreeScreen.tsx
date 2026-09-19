@@ -1,37 +1,48 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { type TreeListCommands } from 'shadowlist';
+import { collectExpandableIds } from 'shadowlist-utils';
 import {
-  type TreeListCommands,
-  type TreeListRenderElementInfo,
-} from 'shadowlist';
-import { Tree, ListHeader, colors, typography } from 'shadowlist-utils/native';
-import { generateFileTree, type TreeFileNode } from 'shadowlist-utils';
+  Tree,
+  ListHeader,
+  createStyles,
+  type TreeNode,
+} from 'shadowlist-utils/native';
+import { QueryStatus } from './QueryStatus';
+import { useFileTreeQuery } from './queries/files';
 
-/* Collect every folder id in the tree; used by "Expand all". */
-const collectFolderIds = (nodes: TreeFileNode[]): string[] => {
-  const ids: string[] = [];
-  const stack = [...nodes];
-  while (stack.length > 0) {
-    const node = stack.pop() as TreeFileNode;
-    if (node.children && node.children.length > 0) {
-      ids.push(node.id);
-      stack.push(...node.children);
-    }
-  }
-  return ids;
-};
+const getChildren = (node: TreeNode) => node.children;
+const keyExtractor = (node: TreeNode) => node.id;
 
 export const TreeScreen = () => {
+  const files = useFileTreeQuery();
+
+  if (files.data === undefined) {
+    return <QueryStatus error={files.error} onRetry={files.refetch} />;
+  }
+  return <FileTree tree={files.data} />;
+};
+
+const HEADER = (
+  <ListHeader
+    title="Trip Files"
+    subtitle="Passes, bookings and photos; collapse all for a short list"
+  />
+);
+
+const FileTree = ({ tree }: { tree: TreeNode[] }) => {
   const treeRef = useRef<TreeListCommands>(null);
+  const styles = useStyles();
   const insets = useSafeAreaInsets();
 
-  const tree = useMemo(() => generateFileTree(), []);
-  const allFolderIds = useMemo(() => collectFolderIds(tree), [tree]);
+  const allFolderIds = useMemo(
+    () => collectExpandableIds(tree, { getChildren, keyExtractor }),
+    [tree]
+  );
 
-  /* Controlled expansion; starts with the root folders open. */
   const [expandedIds, setExpandedIds] = useState<Set<string>>(
-    () => new Set(tree.map((node) => node.id))
+    () => new Set(tree.map(keyExtractor))
   );
 
   const expandAll = useCallback(
@@ -40,25 +51,17 @@ export const TreeScreen = () => {
   );
   const collapseAll = useCallback(() => setExpandedIds(new Set()), []);
 
-  const renderElement = useCallback(
-    ({
-      element,
-      depth,
-      indent,
-      isExpanded,
-      hasChildren,
-      toggle,
-    }: TreeListRenderElementInfo<TreeFileNode>) => (
-      <Tree.Row
-        element={element}
-        depth={depth}
-        indent={indent}
-        isExpanded={isExpanded}
-        hasChildren={hasChildren}
-        onToggle={toggle}
-      />
+  const openCount = expandedIds.size;
+  const folderCount = allFolderIds.length;
+  const footer = useMemo(
+    () => (
+      <View style={styles.statusFooter}>
+        <Text style={styles.statusText}>
+          {`${openCount} of ${folderCount} folders open`}
+        </Text>
+      </View>
     ),
-    []
+    [styles, openCount, folderCount]
   );
 
   return (
@@ -68,22 +71,24 @@ export const TreeScreen = () => {
         data={tree}
         expandedIds={expandedIds}
         onExpandedChange={setExpandedIds}
-        renderElement={renderElement}
         style={styles.list}
-        ListHeaderComponent={
-          <ListHeader title="Files" subtitle="Virtualized directory tree" />
-        }
+        stickyHeader
+        stickyFooter
+        ListHeaderComponent={HEADER}
+        ListFooterComponent={footer}
       />
       <View
         style={[styles.toolbar, { paddingBottom: (insets.bottom || 8) + 8 }]}
       >
         <Pressable
+          accessibilityRole="button"
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}
           onPress={expandAll}
         >
           <Text style={styles.buttonText}>Expand All</Text>
         </Pressable>
         <Pressable
+          accessibilityRole="button"
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}
           onPress={collapseAll}
         >
@@ -94,34 +99,48 @@ export const TreeScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  toolbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingTop: 10,
-    paddingHorizontal: 16,
-    backgroundColor: colors.elevated,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.separator,
-  },
-  button: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-  },
-  pressed: {
-    opacity: 0.4,
-  },
-  buttonText: {
-    color: colors.accent,
-    ...typography.body,
-  },
-});
+const useStyles = createStyles(({ colors, typography }) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    list: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    statusFooter: {
+      width: '100%',
+      alignItems: 'center',
+      paddingVertical: 10,
+      backgroundColor: colors.background,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+    },
+    statusText: {
+      color: colors.secondaryLabel,
+      ...typography.footnote,
+    },
+    toolbar: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+      paddingTop: 10,
+      paddingHorizontal: 16,
+      backgroundColor: colors.elevated,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
+    },
+    button: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+    },
+    pressed: {
+      opacity: 0.4,
+    },
+    buttonText: {
+      color: colors.accent,
+      ...typography.body,
+    },
+  })
+);

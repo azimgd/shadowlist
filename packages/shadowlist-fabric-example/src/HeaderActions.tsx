@@ -1,10 +1,11 @@
 import { useLayoutEffect, useRef } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { View, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { ParamListBase } from '@react-navigation/native';
 import type { DrawerNavigationProp } from '@react-navigation/drawer';
-import { Chevron, Viewfinder, colors } from 'shadowlist-utils/native';
+import { ChevronIcon, useTheme } from 'shadowlist-utils/native';
+import { ViewfinderIcon } from './icons';
 
 export interface HeaderActionHandlers {
   onPrepend: () => void;
@@ -14,18 +15,62 @@ export interface HeaderActionHandlers {
 
 interface HeaderButtonProps {
   onPress: () => void;
+  // Icon-only buttons need a spoken name.
+  label: string;
   children: ReactNode;
 }
 
-const HeaderButton = ({ onPress, children }: HeaderButtonProps) => (
+const HeaderButton = ({ onPress, label, children }: HeaderButtonProps) => (
   <Pressable
     onPress={onPress}
+    accessibilityRole="button"
+    accessibilityLabel={label}
     hitSlop={8}
     style={({ pressed }) => [styles.button, pressed && styles.pressed]}
   >
     {children}
   </Pressable>
 );
+
+const HeaderActionsBar = ({
+  handlers,
+}: {
+  handlers: RefObject<HeaderActionHandlers>;
+}) => {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.container}>
+      <HeaderButton
+        label="Load earlier"
+        onPress={() => handlers.current.onPrepend()}
+      >
+        <ChevronIcon
+          direction="up"
+          color={colors.accent}
+          size={22}
+          strokeWidth={2.25}
+        />
+      </HeaderButton>
+      <HeaderButton
+        label="Add new items"
+        onPress={() => handlers.current.onAppend()}
+      >
+        <ChevronIcon
+          direction="down"
+          color={colors.accent}
+          size={22}
+          strokeWidth={2.25}
+        />
+      </HeaderButton>
+      <HeaderButton
+        label="Jump to a random item"
+        onPress={() => handlers.current.onScrollToRandom()}
+      >
+        <ViewfinderIcon color={colors.accent} size={22} strokeWidth={2} />
+      </HeaderButton>
+    </View>
+  );
+};
 
 /*
  * Renders the per-screen list controls (prepend / append / scroll-to-random) as
@@ -40,29 +85,7 @@ export function useHeaderActions(handlers: HeaderActionHandlers) {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerRight: () => (
-        <View style={styles.container}>
-          <HeaderButton onPress={() => ref.current.onPrepend()}>
-            <Chevron
-              direction="up"
-              color={colors.accent}
-              size={22}
-              strokeWidth={2.25}
-            />
-          </HeaderButton>
-          <HeaderButton onPress={() => ref.current.onAppend()}>
-            <Chevron
-              direction="down"
-              color={colors.accent}
-              size={22}
-              strokeWidth={2.25}
-            />
-          </HeaderButton>
-          <HeaderButton onPress={() => ref.current.onScrollToRandom()}>
-            <Viewfinder color={colors.accent} size={22} strokeWidth={2} />
-          </HeaderButton>
-        </View>
-      ),
+      headerRight: () => <HeaderActionsBar handlers={ref} />,
     });
   }, [navigation]);
 }

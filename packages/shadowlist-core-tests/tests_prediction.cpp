@@ -17,9 +17,8 @@
  *   * PURITY: predictions never enter the frozen average (Revision::measuredReal*). That
  *     average sizes rows nobody knows anything about and must stay a sample of real
  *     measurements, or estimates would start being derived from estimates.
- *   * TRUST: a predicted row has geometry good enough to dematerialize on, which a merely
- *     estimated row does not -- this is what lets the materialization band prune a row that
- *     has never been mounted.
+ *   * TRUST: a predicted row carries geometry the core can rely on, which a merely
+ *     estimated row does not.
  *
  * Geometry is cross-checked against a brute-force prefix sum, so a reflow that lands on the
  * wrong offsets shows up as a mismatch rather than as a plausible-looking number.
@@ -282,9 +281,7 @@ TEST(predictions_stay_out_of_the_frozen_average) {
 }
 
 /*
- * TRUST: a predicted row can be dematerialized, an estimated one cannot. This is the guard
- * the Fabric commit hook reads, and it is what lets the materialization band prune a row
- * that has never been mounted.
+ * TRUST: a predicted or measured row has trusted geometry, an estimated one does not.
  */
 TEST(only_predicted_or_measured_rows_carry_trusted_geometry) {
   std::vector<std::string> keys = keysFor(30);

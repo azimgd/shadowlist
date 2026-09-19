@@ -1,0 +1,28 @@
+# Default list resting at its top with the header: pull-to-refresh that finds new posts, a
+# pull whose response races a burst of prepends, and a scroll back up into a refresh.
+route Feed
+latency 400,900
+wait 2
+mark pull-at-top
+pan 200 200 0 420 600
+wait 4
+mark publish-then-pull
+press 296 80
+wait 0.2
+statusbar
+wait 1.5
+pan 200 200 0 420 600
+wait 4
+mark pull-with-burst
+statusbar
+wait 1.5
+pan 200 200 0 420 600
+repeat 3 press 296 80
+wait 5
+mark scroll-down-up-pull
+pan 200 700 0 -400 300
+wait 1
+pan 200 150 0 650 200
+wait 0.1
+pan 200 200 0 420 600
+wait 5

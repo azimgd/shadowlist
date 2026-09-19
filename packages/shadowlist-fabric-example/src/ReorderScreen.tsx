@@ -1,57 +1,37 @@
-import { useCallback, useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Reorder, ListHeader, colors } from 'shadowlist-utils/native';
-import {
-  generateContact,
-  useListController,
-  type ContactItem,
-} from 'shadowlist-utils';
+import { useCallback } from 'react';
+import { View } from 'react-native';
+import { Reorder, ListHeader, type ContactItem } from 'shadowlist-utils/native';
+import { useScreenStyles } from './screenStyles';
+import { QueryStatus } from './QueryStatus';
+import { useFavoritesQuery, useReorderFavorites } from './queries/contacts';
 
 export const ReorderScreen = () => {
-  const initialData = useMemo(
-    () => Array.from({ length: 80 }, (_, index) => generateContact(index)),
-    []
-  );
-  const list = useListController<ContactItem>({ initialData });
-  const { setData } = list;
+  const styles = useScreenStyles();
+  const favorites = useFavoritesQuery();
+  const { mutate: saveOrder } = useReorderFavorites();
 
   const handleReorder = useCallback(
-    ({ data: reordered }: { data: ContactItem[] }) => setData(reordered),
-    [setData]
+    ({ data: reordered }: { data: ContactItem[] }) => saveOrder(reordered),
+    [saveOrder]
   );
 
-  const renderElement = useCallback(
-    ({ element }: { element: ContactItem }) => (
-      <Reorder.Row element={element} />
-    ),
-    []
-  );
+  if (favorites.data === undefined) {
+    return <QueryStatus error={favorites.error} onRetry={favorites.refetch} />;
+  }
 
   return (
     <View style={styles.container}>
       <Reorder.List
-        data={list.data}
+        data={favorites.data}
         style={styles.list}
         onReorder={handleReorder}
-        renderElement={renderElement}
         ListHeaderComponent={
           <ListHeader
-            title="Reorder"
-            subtitle="Press and hold a row, then drag to reorder"
+            title="Boarding Order"
+            subtitle="Hold a traveller, then drag to reorder"
           />
         }
       />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});

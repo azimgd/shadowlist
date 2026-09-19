@@ -1,10 +1,7 @@
-import { MasonryList } from './MasonryList';
-import { MasonryCard } from './MasonryCard';
+export { Masonry } from './Masonry';
+export { defaultMasonryLabels } from './labels';
 
 export type { MasonryListProps } from './MasonryList';
 export type { MasonryCardProps } from './MasonryCard';
-
-export const Masonry = {
-  List: MasonryList,
-  Card: MasonryCard,
-};
+export type { MasonryLabels } from './labels';
+export type { MasonryItem, MasonryImage } from './types';

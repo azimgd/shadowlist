@@ -1,22 +1,29 @@
 import { memo } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { colors, ROW_INSET } from '../theme';
+import { View, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { createStyles } from '../theme';
 
-export const ItemSeparator = memo(() => {
+export interface ItemSeparatorProps {
+  style?: StyleProp<ViewStyle>;
+}
+
+export const ItemSeparator = memo(({ style }: ItemSeparatorProps) => {
+  const styles = useStyles();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, style]}>
       <View style={styles.line} />
     </View>
   );
 });
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.background,
-  },
-  line: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
-    marginLeft: ROW_INSET,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    container: {
+      backgroundColor: theme.colors.background,
+    },
+    line: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.separator,
+      marginLeft: theme.rowInset,
+    },
+  })
+);

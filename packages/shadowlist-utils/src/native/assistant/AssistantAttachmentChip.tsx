@@ -1,45 +1,74 @@
 import { memo } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { colors, typography, spacing, radius, fontWeight } from '../theme';
-import { Close, Doc } from '../icons';
-import type { AssistantAttachment } from './data';
+import {
+  View,
+  Text,
+  Image,
+  Pressable,
+  StyleSheet,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import { CloseIcon, DocIcon } from '../icons';
+import { defaultAssistantLabels, type AssistantLabels } from './labels';
+import type { AssistantAttachment } from './types';
 
 export interface AssistantAttachmentChipProps {
   attachment: AssistantAttachment;
-  // When provided, a remove button calls this with the attachment id (composer tray).
+  // Shows a remove button when given.
   onRemove?: (attachmentId: string) => void;
+  labels?: Partial<AssistantLabels>;
+  style?: StyleProp<ViewStyle>;
 }
 
-// Thumbnail + name + size. Images show as a tinted tile, files as a document glyph.
 export const AssistantAttachmentChip = memo(
-  ({ attachment, onRemove }: AssistantAttachmentChipProps) => {
+  ({ attachment, onRemove, labels, style }: AssistantAttachmentChipProps) => {
+    const theme = useTheme();
+    const styles = useStyles();
+    const l = useLabels(defaultAssistantLabels, labels);
     const isImage = attachment.kind === 'image';
+
     return (
-      <View style={styles.chip}>
+      <View style={[styles.chip, style]}>
         <View
           style={[
             styles.thumb,
-            isImage ? { backgroundColor: attachment.color } : styles.thumbFile,
+            isImage
+              ? {
+                  backgroundColor: attachment.color ?? theme.colors.elevated2,
+                }
+              : styles.thumbFile,
           ]}
         >
-          {isImage ? null : <Doc size={18} color={attachment.color} />}
+          {isImage ? (
+            attachment.uri ? (
+              <Image source={{ uri: attachment.uri }} style={styles.image} />
+            ) : null
+          ) : (
+            <DocIcon
+              size={18}
+              color={attachment.color ?? theme.colors.secondaryLabel}
+            />
+          )}
         </View>
         <View style={styles.meta}>
           <Text style={styles.name} numberOfLines={1}>
             {attachment.name}
           </Text>
-          <Text style={styles.detail}>{attachment.detail}</Text>
+          {attachment.detail ? (
+            <Text style={styles.detail}>{attachment.detail}</Text>
+          ) : null}
         </View>
         {onRemove ? (
           <Pressable
             onPress={() => onRemove(attachment.id)}
-            // A 12pt target inside a chip: the slop is what makes it reachable.
             hitSlop={12}
             accessibilityRole="button"
-            accessibilityLabel={`Remove ${attachment.name}`}
+            accessibilityLabel={l.removeAttachment(attachment.name)}
             style={({ pressed }) => [styles.remove, pressed && styles.pressed]}
           >
-            <Close size={12} color={colors.label} strokeWidth={1.8} />
+            <CloseIcon size={12} color={theme.colors.label} strokeWidth={1.8} />
           </Pressable>
         ) : null}
       </View>
@@ -47,49 +76,56 @@ export const AssistantAttachmentChip = memo(
   }
 );
 
-const styles = StyleSheet.create({
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    maxWidth: 220,
-    padding: spacing.xs + 2,
-    paddingRight: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.elevated,
-  },
-  thumb: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  thumbFile: {
-    backgroundColor: colors.elevated2,
-  },
-  meta: {
-    flexShrink: 1,
-  },
-  name: {
-    color: colors.label,
-    ...typography.footnote,
-    fontWeight: fontWeight.semibold,
-  },
-  detail: {
-    color: colors.secondaryLabel,
-    ...typography.caption,
-  },
-  remove: {
-    width: 20,
-    height: 20,
-    borderRadius: radius.pill,
-    backgroundColor: colors.fill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: spacing.xs,
-  },
-  pressed: {
-    opacity: 0.35,
-  },
-});
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+      maxWidth: 220,
+      padding: theme.spacing.xs + 2,
+      paddingRight: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.elevated,
+    },
+    thumb: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    thumbFile: {
+      backgroundColor: theme.colors.elevated2,
+    },
+    image: {
+      width: '100%',
+      height: '100%',
+    },
+    meta: {
+      flexShrink: 1,
+    },
+    name: {
+      color: theme.colors.label,
+      ...theme.typography.footnote,
+      fontWeight: theme.fontWeight.semibold,
+    },
+    detail: {
+      color: theme.colors.secondaryLabel,
+      ...theme.typography.caption,
+    },
+    remove: {
+      width: 20,
+      height: 20,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.fill,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: theme.spacing.xs,
+    },
+    pressed: {
+      opacity: 0.35,
+    },
+  })
+);

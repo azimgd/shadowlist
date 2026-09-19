@@ -1,81 +1,87 @@
-import { memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { type ContactItem } from 'shadowlist-utils';
+import { memo, useCallback, useMemo } from 'react';
 import {
-  colors,
-  typography,
-  ROW_INSET,
-  spacing,
-  radius,
-  fontSize,
-  fontWeight,
-} from '../theme';
-import { Grip } from '../icons';
+  StyleSheet,
+  View,
+  type AccessibilityActionEvent,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { ContactBody } from '../contacts/ContactBody';
+import { getContactAccessibilityLabel } from '../contacts/getContactAccessibilityLabel';
+import type { ContactItem } from '../contacts/types';
+import { GripIcon } from '../icons';
+import { useLabels } from '../labels';
+import { createStyles, useTheme } from '../theme';
+import { defaultReorderLabels, type ReorderLabels } from './labels';
 
 export interface ReorderRowProps {
-  element: ContactItem;
+  item: ContactItem;
+  // Screen readers cannot drag, so moves are also offered as accessibility actions.
+  onMove?: (id: string, offset: -1 | 1) => void;
+  labels?: Partial<ReorderLabels>;
+  style?: StyleProp<ViewStyle>;
+  avatarStyle?: StyleProp<ViewStyle>;
 }
 
-export const ReorderRow = memo(({ element }: ReorderRowProps) => {
-  const initials = `${element.firstName.charAt(0)}${element.lastName.charAt(0)}`;
+export const ReorderRow = memo(
+  ({ item, onMove, labels, style, avatarStyle }: ReorderRowProps) => {
+    const theme = useTheme();
+    const styles = useStyles();
+    const l = useLabels(defaultReorderLabels, labels);
 
-  return (
-    <View style={styles.row}>
-      <View style={[styles.avatar, { backgroundColor: element.avatarColor }]}>
-        <Text style={styles.initials}>{initials}</Text>
-      </View>
-      <View style={styles.rowText}>
-        <Text style={styles.name}>
-          {element.firstName} {element.lastName}
-        </Text>
-        <Text style={styles.phone}>{element.phoneNumber}</Text>
-      </View>
-      <Grip size={20} color={colors.tertiaryLabel} />
-      <View style={styles.separator} />
-    </View>
-  );
-});
+    const accessibilityActions = useMemo(
+      () =>
+        onMove !== undefined
+          ? [
+              { name: 'moveUp', label: l.moveUp },
+              { name: 'moveDown', label: l.moveDown },
+            ]
+          : undefined,
+      [onMove, l]
+    );
+    const handleAccessibilityAction = useCallback(
+      (event: AccessibilityActionEvent) => {
+        const { actionName } = event.nativeEvent;
+        if (actionName === 'moveUp' || actionName === 'moveDown') {
+          onMove?.(item.id, actionName === 'moveUp' ? -1 : 1);
+        }
+      },
+      [onMove, item.id]
+    );
 
-const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: spacing.lg,
-    paddingRight: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.background,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: spacing.md,
-  },
-  initials: {
-    color: colors.label,
-    fontSize: fontSize.body,
-    fontWeight: fontWeight.semibold,
-  },
-  rowText: {
-    flex: 1,
-  },
-  name: {
-    color: colors.label,
-    ...typography.body,
-  },
-  phone: {
-    color: colors.secondaryLabel,
-    ...typography.subhead,
-    marginTop: 1,
-  },
-  separator: {
-    position: 'absolute',
-    left: ROW_INSET,
-    right: 0,
-    bottom: 0,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.separator,
-  },
-});
+    return (
+      <View
+        style={[styles.row, style]}
+        accessible
+        accessibilityLabel={getContactAccessibilityLabel(item)}
+        accessibilityHint={l.dragHint}
+        accessibilityActions={accessibilityActions}
+        onAccessibilityAction={handleAccessibilityAction}
+      >
+        <ContactBody contact={item} avatarStyle={avatarStyle} />
+        <GripIcon size={20} color={theme.colors.tertiaryLabel} />
+        <View style={styles.separator} />
+      </View>
+    );
+  }
+);
+
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      backgroundColor: theme.colors.background,
+    },
+    separator: {
+      position: 'absolute',
+      left: theme.rowInset,
+      right: 0,
+      bottom: 0,
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: theme.colors.separator,
+    },
+  })
+);

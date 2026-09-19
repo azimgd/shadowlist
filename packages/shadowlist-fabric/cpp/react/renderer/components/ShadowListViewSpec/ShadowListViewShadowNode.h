@@ -102,27 +102,31 @@ struct ShadowListViewGeometryCache {
   std::vector<ShadowListElementSizeSpec> sizeSpecs;
 
   /*
-   * Set once this list is registered with the commit hook's per-surface registry (see
-   * ShadowListCommitHook::trackList), so adopt() registers each list family exactly once.
-   */
-  bool commitHookTracked = false;
-
-  /*
-   * The props a row carried before the commit hook hid it, and the display:none props it
-   * was given, keyed by row tag. Guarded by Container::coreMutex.
+   * Rows the layout pass concealed (opacity 0), keyed by row tag. Guarded by
+   * Container::coreMutex.
    *
-   * Holding both is what keeps pruning cheap and reversible. React's host instances keep
-   * the rows it last rendered, so a React commit that re-appends the list's children hands
-   * every pruned row back with its original props: a cache hit reuses the hidden props
-   * instead of parsing them again. Promotion restores the original props pointer rather
-   * than forcing `display: flex`, so a row's own `display` style survives. A row whose props
-   * match neither entry was not hidden by the hook and is left alone.
+   * A row above the anchor that is measured natively for the first time can move the anchor,
+   * and the layout pass publishes an offset correction for it. Until the host has mounted that
+   * correction the row sits where the estimate put it relative to the view, which shows as the
+   * content shifting for a few frames. The row is concealed in the commit that mounts and
+   * measures it, and revealed once a host report acks its generation (see
+   * ShadowListViewState::concealGenerationAck_) and no correction is in flight.
+   *
+   * sourceProps/concealedProps are both kept so a React commit that
+   * hands the original props back is concealed again from the cache, and a genuinely new props
+   * object is re-parsed.
    */
-  struct RowProps {
+  struct ConcealedRow {
     std::shared_ptr<const Props> sourceProps;
-    std::shared_ptr<const Props> hiddenProps;
+    std::shared_ptr<const Props> concealedProps;
+    std::uint64_t generation = 0;
+    // Layout passes the row has stayed concealed through; bounds the concealment.
+    std::size_t layoutPasses = 0;
   };
-  std::unordered_map<Tag, RowProps> rowProps;
+  std::unordered_map<Tag, ConcealedRow> concealedRows;
+
+  // Last generation handed out to a concealment; 0 = never concealed.
+  std::uint64_t concealGeneration = 0;
 };
 
 /*
@@ -137,7 +141,7 @@ public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
   /*
-   * Clone constructor. The core instances (container/header/footer/geometry cache)
+   * Clone constructor. The core instances (container/geometry cache)
    * live on the ShadowNode so they are freed when the node family is destroyed,
    * but inherited constructors default-initialize derived members, so the clone
    * must carry the shared instances forward from its source. This keeps a single
@@ -150,31 +154,19 @@ public:
 #pragma mark - LayoutableShadowNode
 
   void layout(LayoutContext layoutContext) override;
-  void appendChild(const std::shared_ptr<const ShadowNode>& nextElementShadowNode) override;
   void replaceChild(
     const ShadowNode& prevElementShadowNode,
     const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
     std::size_t suggestedIndex = SIZE_MAX) override;
 
   void setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager);
-  void setHeaderSize(std::shared_ptr<double> headerSize);
-  void setFooterSize(std::shared_ptr<double> footerSize);
   void setGeometryCache(std::shared_ptr<ShadowListViewGeometryCache> geometryCache);
 
   const std::shared_ptr<azimgd::shadowlist::Container>& getContainerManager() const { return containerManager_; }
-  const std::shared_ptr<double>& getHeaderSize() const { return headerSize_; }
-  const std::shared_ptr<double>& getFooterSize() const { return footerSize_; }
   const std::shared_ptr<ShadowListViewGeometryCache>& getGeometryCache() const { return geometryCache_; }
 
 private:
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
-
-  /*
-   * Header/footer sizes are measured during layout and fed back into the next
-   * frame's Virtualizer::update so the core can position elements after the header
-   */
-  std::shared_ptr<double> headerSize_;
-  std::shared_ptr<double> footerSize_;
 
   /*
    * Publishable geometry derived from the core, shared across this list's clones.
@@ -187,6 +179,14 @@ private:
    * local to one node's layout pass, which is single-threaded.
    */
   bool suppressElementSizeFeedback_ = false;
+
+  /*
+   * Rows natively measured for the first time during this node's layout cycle. Yoga's
+   * clone-in-place reports a new row through replaceChild before layout() runs, so the
+   * first measurement is recorded where it happens rather than inferred in layout(). Candidates
+   * for concealment; cleared at the end of layout().
+   */
+  std::vector<Tag> firstMeasuredTags_;
 
   /*
    * Children this layout pass swapped out of the tree, held alive until the next one.

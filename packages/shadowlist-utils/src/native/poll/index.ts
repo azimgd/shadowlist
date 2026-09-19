@@ -1,12 +1,8 @@
-import { PollList } from './PollList';
-import { PollOptionRow } from './PollOption';
+export { Poll } from './Poll';
+export { defaultPollLabels } from './labels';
 
 export type { PollListProps } from './PollList';
-export type { PollOptionProps } from './PollOption';
-export type { PollOption, IconComponent } from './data';
-export { OPTION_SEEDS, buildOption, buildPoll } from './data';
-
-export const Poll = {
-  List: PollList,
-  Option: PollOptionRow,
-};
+export type { PollRowProps } from './PollRow';
+export type { PollFooterProps } from './PollFooter';
+export type { PollLabels } from './labels';
+export type { PollOption, PollData } from './types';

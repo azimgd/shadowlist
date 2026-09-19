@@ -4,67 +4,98 @@ import {
   type ShadowListProps,
   type ShadowListCommands,
 } from 'shadowlist';
-import { PollOptionRow } from './PollOption';
-import type { PollOption } from './data';
+import { useLabels } from '../labels';
+import { ListHeader } from '../primitives/ListHeader';
+import { PollFooter } from './PollFooter';
+import { PollRow } from './PollRow';
+import { defaultPollLabels, type PollLabels } from './labels';
+import type { PollData, PollOption } from './types';
+
+type RenderPollOption = NonNullable<
+  ShadowListProps<PollOption>['renderElement']
+>;
 
 export type PollListProps = Omit<
   ShadowListProps<PollOption>,
-  'renderElement'
+  'data' | 'renderElement'
 > & {
-  renderElement?: ShadowListProps<PollOption>['renderElement'];
-  // Called with the option key when a row is tapped.
-  onVote?: (key: string) => void;
+  poll: PollData;
+  renderElement?: RenderPollOption;
+  onVote?: (optionId: string) => void;
+  labels?: Partial<PollLabels>;
 };
 
-/*
- * A short, interactive poll list with a sticky header + footer. Computes each
- * option's share and the live leader from `data`; tapping a row fires `onVote`.
- * Drive votes by updating your `data` state in the `onVote` handler.
- */
 export const PollList = forwardRef<ShadowListCommands, PollListProps>(
-  ({ renderElement, onVote, data, ...props }, ref) => {
-    const total = useMemo(
-      () => data.reduce((sum, option) => sum + option.votes, 0),
-      [data]
-    );
-    const leadingId = useMemo(
-      () =>
-        data.length === 0
-          ? undefined
-          : data.reduce(
-              (best, option) => (option.votes > best.votes ? option : best),
-              data[0]!
-            ).id,
-      [data]
-    );
+  (
+    {
+      poll,
+      renderElement,
+      onVote,
+      labels,
+      ListHeaderComponent,
+      ListFooterComponent,
+      ...props
+    },
+    ref
+  ) => {
+    const { question, options, selectedId } = poll;
+    const mergedLabels = useLabels(defaultPollLabels, labels);
 
-    /*
-     * Recreated only when total/leadingId/onVote change, so ElementRenderer's per-row
-     * memoization (keyed on renderElement identity) isn't defeated by every re-render of
-     * this wrapper (e.g. from an unrelated prop change).
-     */
-    const defaultRenderElement = useCallback<
-      NonNullable<ShadowListProps<PollOption>['renderElement']>
-    >(
+    const { totalVotes, leadingId } = useMemo(() => {
+      let total = 0;
+      let leader: PollOption | undefined;
+      for (const option of options) {
+        total += option.votes;
+        if (leader === undefined || option.votes > leader.votes) {
+          leader = option;
+        }
+      }
+      return { totalVotes: total, leadingId: leader?.id };
+    }, [options]);
+
+    // Rows re-render only when the totals, selection, labels or onVote change.
+    const renderOption = useCallback<RenderPollOption>(
       ({ element }) => (
-        <PollOptionRow
-          option={element}
-          total={total}
-          leading={element.id === leadingId}
+        <PollRow
+          item={element}
+          totalVotes={totalVotes}
+          isLeading={element.id === leadingId}
+          isSelected={element.id === selectedId}
           onVote={onVote}
+          labels={mergedLabels}
         />
       ),
-      [total, leadingId, onVote]
+      [totalVotes, leadingId, selectedId, onVote, mergedLabels]
+    );
+
+    const header = useMemo(
+      () =>
+        ListHeaderComponent === undefined ? (
+          <ListHeader title={question} />
+        ) : (
+          ListHeaderComponent
+        ),
+      [ListHeaderComponent, question]
+    );
+    const footer = useMemo(
+      () =>
+        ListFooterComponent === undefined ? (
+          <PollFooter totalVotes={totalVotes} labels={mergedLabels} />
+        ) : (
+          ListFooterComponent
+        ),
+      [ListFooterComponent, totalVotes, mergedLabels]
     );
 
     return (
       <ShadowList
         ref={ref}
-        data={data}
+        data={options}
         stickyHeader
         stickyFooter
-        keyExtractor={(option) => option.id}
-        renderElement={renderElement ?? defaultRenderElement}
+        ListHeaderComponent={header}
+        ListFooterComponent={footer}
+        renderElement={renderElement ?? renderOption}
         {...props}
       />
     );

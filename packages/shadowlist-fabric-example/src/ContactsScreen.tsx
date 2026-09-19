@@ -1,88 +1,53 @@
-import { useCallback, useMemo, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useRef } from 'react';
+import { View } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
-import {
-  Contacts,
-  ListHeader,
-  ListFooter,
-  colors,
-} from 'shadowlist-utils/native';
-import {
-  generateContact,
-  useListController,
-  type ContactItem,
-} from 'shadowlist-utils';
+import { Contacts, ListHeader, ListFooter } from 'shadowlist-utils/native';
+import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
+import { QueryStatus } from './QueryStatus';
+import { showContact } from './fixtures/contacts';
+import {
+  useAddContacts,
+  useContactsQuery,
+  useDeleteContact,
+} from './queries/contacts';
 
 export const ContactsScreen = () => {
+  const styles = useScreenStyles();
   const shadowlistRef = useRef<ShadowListCommands>(null);
-  const initialData = useMemo(
-    () => Array.from({ length: 100 }, (_, index) => generateContact(index)),
-    []
-  );
-  const list = useListController<ContactItem>({ initialData });
-  const { removeItems } = list;
 
-  const handlePrepend = () =>
-    list.prepend(
-      Array.from({ length: 10 }, (_, index) =>
-        generateContact(list.data.length + index)
-      )
-    );
-  const handleAppend = () =>
-    list.append(
-      Array.from({ length: 10 }, (_, index) =>
-        generateContact(list.data.length + index)
-      )
-    );
-  const handleScrollToRandom = () =>
-    shadowlistRef.current?.scrollToIndex(
-      Math.floor(Math.random() * list.data.length)
-    );
+  const contacts = useContactsQuery();
+  const { mutate: addContacts } = useAddContacts();
+  const { mutate: deleteContact } = useDeleteContact();
 
   useHeaderActions({
-    onPrepend: handlePrepend,
-    onAppend: handleAppend,
-    onScrollToRandom: handleScrollToRandom,
+    onPrepend: () => addContacts({ count: 10, position: 'start' }),
+    onAppend: () => addContacts({ count: 10, position: 'end' }),
+    onScrollToRandom: () =>
+      shadowlistRef.current?.scrollToIndex(
+        Math.floor(Math.random() * (contacts.data?.length ?? 0))
+      ),
   });
 
-  const handleDelete = useCallback(
-    (key: string) => removeItems([key]),
-    [removeItems]
-  );
-
-  const renderElement = useCallback(
-    ({ element }: { element: ContactItem }) => (
-      <Contacts.Row element={element} onDelete={handleDelete} />
-    ),
-    [handleDelete]
-  );
+  if (contacts.data === undefined) {
+    return <QueryStatus error={contacts.error} onRetry={contacts.refetch} />;
+  }
 
   return (
     <View style={styles.container}>
       <Contacts.List
-        data={list.data}
+        data={contacts.data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={renderElement}
+        onPressItem={showContact}
+        onDelete={deleteContact}
         ListHeaderComponent={
-          <ListHeader title="Contacts" subtitle="Swipe left to delete" />
+          <ListHeader title="Companions" subtitle="Swipe left to remove" />
         }
         ListFooterComponent={
-          <ListFooter text={`${list.data.length} contacts`} />
+          <ListFooter text={`${contacts.data.length} companions`} />
         }
       />
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  list: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-});

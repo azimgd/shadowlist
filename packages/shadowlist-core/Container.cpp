@@ -16,25 +16,12 @@ namespace {
 }
 }
 
-void Container::startRevision() {
-  if (this->revisionStatus != REVISION_STATUS_IDLE) {
-    throw InvalidOperationError("Cannot start the new revision while the previous is in progress");
-  }
-
-  this->revisionStatus = REVISION_STATUS_PENDING;
-}
-
 void Container::endRevision() {
-  if (this->revisionStatus != REVISION_STATUS_PENDING) {
-    throw InvalidOperationError("You cannot end the revision while the previous has not started");
-  }
-
   if (this->revision.elements.empty()) {
     this->revisionCount = REVISION_COUNT_FIRST;
   } else {
     this->revisionCount++;
   }
-  this->revisionStatus = REVISION_STATUS_IDLE;
 
   double containerOffset = this->getContainerOffset();
   double windowSize = this->getWindowContainerSize();
@@ -170,24 +157,6 @@ double Container::getFooterOffset(double footerSize) const {
   return totalSize - footerSize;
 }
 
-double Container::getStickyHeaderOffset() const {
-  // Pin the header to the viewport start; otherwise it rests at the content start.
-  if (this->stickyHeader) {
-    // Clamp to the content start so overscroll (negative offset) doesn't drag it up.
-    double offset = this->getContainerOffset();
-    return offset > 0.0 ? offset : 0.0;
-  }
-  return 0.0;
-}
-
-double Container::getStickyFooterOffset(double footerSize) const {
-  // Pin the footer to the viewport end; at the bottom it equals the resting position.
-  if (this->stickyFooter) {
-    return this->getContainerOffset() + this->getWindowContainerSize() - footerSize;
-  }
-  return this->getFooterOffset(footerSize);
-}
-
 const std::vector<double>& Container::getSnapOffsets() const {
   double windowSize = this->getWindowContainerSize();
   double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
@@ -265,74 +234,6 @@ const std::vector<double>& Container::getSnapOffsets() const {
   return snapOffsets;
 }
 
-StickyHeader Container::resolveStickyHeader() const {
-  StickyHeader result;
-
-  // Inverted sticky headers are unsupported; leave them resting.
-  if (this->stickyIndices.empty() || this->inverted) {
-    return result;
-  }
-
-  std::size_t elementsSize = this->revision.elements.size();
-
-  // Clamp to the content start so overscroll (negative offset) doesn't drag it up.
-  double offset = this->getContainerOffset();
-  if (offset < 0.0) {
-    offset = 0.0;
-  }
-
-  /*
-   * Walk the ascending stickyIndices: the last header at/above the viewport start is
-   * active (pinned), the first one past it is the "next" that pushes it up.
-   */
-  double activeOffset = 0.0;
-  double activeSize = 0.0;
-  bool hasActive = false;
-  double nextOffset = 0.0;
-  bool hasNext = false;
-
-  for (std::size_t stickyIndex : this->stickyIndices) {
-    if (stickyIndex >= elementsSize) {
-      continue;
-    }
-
-    double elementOffset = this->getElementOffset(stickyIndex);
-    if (elementOffset <= offset) {
-      result.index = stickyIndex;
-      activeOffset = elementOffset;
-      activeSize = this->getElementSize(stickyIndex);
-      hasActive = true;
-    } else {
-      nextOffset = elementOffset;
-      hasNext = true;
-      break;
-    }
-  }
-
-  if (!hasActive) {
-    return result;
-  }
-
-  /*
-   * The pinned header sits at the viewport start, unless the next header has scrolled
-   * up close enough to push it out (pinned to nextOffset - own size for a clean swap).
-   */
-  double displayedTop = offset;
-  if (hasNext) {
-    double pushedTop = nextOffset - activeSize;
-    if (pushedTop < displayedTop) {
-      displayedTop = pushedTop;
-    }
-  }
-
-  result.translation = displayedTop - activeOffset;
-  if (result.translation < 0.0) {
-    result.translation = 0.0;
-  }
-
-  return result;
-}
-
 std::size_t Container::findElementIndexByKey(const std::string& key) const {
   if (key.empty()) {
     return UNDEFINED_INDEX;
@@ -349,6 +250,13 @@ bool Container::isAnchorable(const std::string& key) const {
   // Fast path: no policy set means every row is anchorable.
   return this->nonAnchorableKeys.empty() ||
     this->nonAnchorableKeys.find(key) == this->nonAnchorableKeys.end();
+}
+
+const Anchor* Container::compensationAnchor() const {
+  if (!this->operation) {
+    return &this->anchor;
+  }
+  return this->operation->target.mode == AnchorMode::Element ? &this->operation->target : nullptr;
 }
 
 void Container::dispatchObservers() {
@@ -400,42 +308,6 @@ const Element& Container::getElementAtIndex(std::size_t index) const {
 
 std::size_t Container::getElementsSize() const {
   return this->revision.elements.size();
-}
-
-void Container::setWindowContainerHeight(double height) {
-  if (this->revisionStatus != REVISION_STATUS_PENDING) {
-    throw InvalidOperationError("Cannot use setWindowContainerHeight outside of a revision");
-  }
-
-  this->revision.setWindowContainerHeight(height);
-}
-
-void Container::setWindowContainerWidth(double width) {
-  if (this->revisionStatus != REVISION_STATUS_PENDING) {
-    throw InvalidOperationError("Cannot use setWindowContainerWidth outside of a revision");
-  }
-
-  this->revision.setWindowContainerWidth(width);
-}
-
-void Container::setContainerOffsetY(double offsetY) {
-  if (this->revisionStatus != REVISION_STATUS_PENDING) {
-    throw InvalidOperationError("Cannot use setContainerOffsetY outside of a revision");
-  }
-
-  this->revision.setContainerOffsetY(offsetY);
-}
-
-void Container::setContainerOffsetX(double offsetX) {
-  if (this->revisionStatus != REVISION_STATUS_PENDING) {
-    throw InvalidOperationError("Cannot use setContainerOffsetX outside of a revision");
-  }
-
-  this->revision.setContainerOffsetX(offsetX);
-}
-
-std::string Container::getDebugRepresentation() const {
-  return this->revision.getDebugRepresentation();
 }
 
 std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
@@ -505,92 +377,6 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
   return {firstViewable, lastViewable};
 }
 
-std::pair<std::size_t, std::size_t> Container::getMaterializedIndices() const {
-  if (this->materializationOverscan < 0.0) {
-    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
-  }
-
-  std::size_t measuredStartIndex = this->revision.measurementElementStartIndex;
-  std::size_t measuredEndIndex = this->revision.measurementElementEndIndex;
-
-  if (measuredStartIndex == UNDEFINED_INDEX || measuredEndIndex == UNDEFINED_INDEX) {
-    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
-  }
-
-  double windowSize = this->getWindowContainerSize();
-  if (windowSize <= 0.0) {
-    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
-  }
-
-  /*
-   * The retention band is already the measured window, so the materialization band is
-   * that window narrowed to the viewport plus materializationOverscan viewports. Scanning
-   * only the measured window keeps this O(retained rows) rather than O(all rows), and
-   * offsets outside it are not reflowed yet anyway.
-   */
-  double bandSize = windowSize * this->materializationOverscan;
-  double bandStart = this->getContainerOffset() - bandSize;
-  double bandEnd = this->getContainerOffset() + windowSize + bandSize;
-
-  // Inverted lists store the window start>end; normalise to an ascending walk.
-  std::size_t windowLow = this->inverted ? measuredEndIndex : measuredStartIndex;
-  std::size_t windowHigh = this->inverted ? measuredStartIndex : measuredEndIndex;
-
-  std::size_t firstIndex = UNDEFINED_INDEX;
-  std::size_t lastIndex = UNDEFINED_INDEX;
-
-  for (std::size_t nextElementIndex = windowLow; nextElementIndex <= windowHigh && nextElementIndex < this->revision.elements.size(); ++nextElementIndex) {
-    const Element& nextElement = this->revision.elements[nextElementIndex];
-    double elementStart = this->horizontal ? nextElement.offsetX : nextElement.offsetY;
-    double elementSize = this->horizontal ? nextElement.width : nextElement.height;
-    double elementEnd = elementStart + elementSize;
-
-    /*
-     * A zero-sized row is kept rather than skipped: unlike getViewableIndices, which
-     * reports what the user can see, this decides what may be destroyed. An unmeasured or
-     * collapsed row sitting inside the band must stay materialized so it can be measured.
-     */
-    if (elementEnd < bandStart || elementStart > bandEnd) {
-      continue;
-    }
-
-    if (firstIndex == UNDEFINED_INDEX) {
-      firstIndex = nextElementIndex;
-    }
-    lastIndex = nextElementIndex;
-  }
-
-  if (firstIndex == UNDEFINED_INDEX) {
-    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
-  }
-
-  // Match getVisibleIndices: inverted reports the higher index first.
-  if (this->inverted) {
-    return {lastIndex, firstIndex};
-  }
-  return {firstIndex, lastIndex};
-}
-
-bool Container::shouldMaterialize(std::size_t index) const {
-  if (this->materializationOverscan < 0.0) {
-    return true;
-  }
-
-  if (index >= this->revision.elements.size()) {
-    return true;
-  }
-
-  auto band = this->getMaterializedIndices();
-  if (band.first == UNDEFINED_INDEX || band.second == UNDEFINED_INDEX) {
-    return true;
-  }
-
-  std::size_t bandLow = this->inverted ? band.second : band.first;
-  std::size_t bandHigh = this->inverted ? band.first : band.second;
-
-  return index >= bandLow && index <= bandHigh;
-}
-
 void Container::setPredictedSize(const std::string& key, Size size) {
   if (key.empty()) {
     return;
@@ -623,23 +409,6 @@ double Container::getElementSize(std::size_t index) const {
 
   const Element& nextElement = this->revision.elements[index];
   return this->horizontal ? nextElement.width : nextElement.height;
-}
-
-void Container::setElementOffset(std::size_t index, double offset) {
-  if (this->revisionStatus != REVISION_STATUS_PENDING) {
-    throw InvalidOperationError("Cannot use setElementOffset outside of a revision");
-  }
-
-  if (index >= this->revision.elements.size()) {
-    throw InvalidOperationError("Index out of bounds");
-  }
-
-  Element& nextElement = this->revision.elements[index];
-  if (this->horizontal) {
-    nextElement.offsetX = offset;
-  } else {
-    nextElement.offsetY = offset;
-  }
 }
 
 double Container::getContainerOffset() const {

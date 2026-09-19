@@ -1,10 +1,7 @@
-import { FeedList } from './FeedList';
-import { FeedElement } from './FeedElement';
+export { Feed } from './Feed';
+export { defaultFeedLabels } from './labels';
 
 export type { FeedListProps } from './FeedList';
-export type { FeedElementProps } from './FeedElement';
-
-export const Feed = {
-  List: FeedList,
-  Element: FeedElement,
-};
+export type { FeedRowProps } from './FeedRow';
+export type { FeedLabels } from './labels';
+export type { FeedItem, FeedAuthor, FeedImage } from './types';

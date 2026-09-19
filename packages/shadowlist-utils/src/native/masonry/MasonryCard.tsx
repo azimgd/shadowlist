@@ -1,49 +1,99 @@
 import { memo } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
-import type { MasonryItem } from 'shadowlist-utils';
-import { colors, typography, radius, spacing } from '../theme';
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type ImageStyle,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
+import { useLabels } from '../labels';
+import { createStyles } from '../theme';
+import { defaultMasonryLabels, type MasonryLabels } from './labels';
+import type { MasonryItem } from './types';
 
 export interface MasonryCardProps {
-  element: MasonryItem;
+  item: MasonryItem;
+  onPress?: (item: MasonryItem) => void;
+  labels?: Partial<MasonryLabels>;
+  style?: StyleProp<ViewStyle>;
+  imageStyle?: StyleProp<ImageStyle>;
 }
 
-export const MasonryCard = memo(({ element }: MasonryCardProps) => {
-  return (
-    <View style={styles.masonryElement}>
-      <View style={[styles.imageContainer, { height: element.height }]}>
-        <Image
-          source={{ uri: element.imageUrl }}
-          style={styles.image}
-          resizeMode="cover"
-        />
-      </View>
-      <Text style={styles.title} numberOfLines={2}>
-        {element.title}
-      </Text>
-    </View>
-  );
-});
+export const MasonryCard = memo(
+  ({ item, onPress, labels, style, imageStyle }: MasonryCardProps) => {
+    const styles = useStyles();
+    const l = useLabels(defaultMasonryLabels, labels);
+    const { image, title } = item;
+    const aspectRatio = image.height > 0 ? image.width / image.height : 1;
+    const accessibilityLabel = image.alt ?? title ?? l.image;
 
-const styles = StyleSheet.create({
-  masonryElement: {
-    backgroundColor: colors.background,
-    marginBottom: spacing.md,
-    paddingHorizontal: 6,
-  },
-  imageContainer: {
-    width: '100%',
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    backgroundColor: colors.elevated2,
-    marginBottom: spacing.sm,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
-  title: {
-    color: colors.label,
-    ...typography.subhead,
-    paddingHorizontal: spacing.xs,
-  },
-});
+    const content = (
+      <>
+        <View style={[styles.imageFrame, { aspectRatio }]}>
+          <Image
+            source={{ uri: image.uri }}
+            style={[styles.image, imageStyle]}
+            resizeMode="cover"
+          />
+        </View>
+        {title !== undefined && (
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
+        )}
+      </>
+    );
+
+    if (onPress === undefined) {
+      return (
+        <View
+          style={[styles.card, style]}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={accessibilityLabel}
+        >
+          {content}
+        </View>
+      );
+    }
+    return (
+      <Pressable
+        style={[styles.card, style]}
+        accessibilityRole="imagebutton"
+        accessibilityLabel={accessibilityLabel}
+        onPress={() => onPress(item)}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+);
+
+const useStyles = createStyles((theme) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: theme.colors.background,
+      marginBottom: theme.spacing.md,
+      paddingHorizontal: 6,
+    },
+    imageFrame: {
+      width: '100%',
+      borderRadius: theme.radius.md,
+      overflow: 'hidden',
+      backgroundColor: theme.colors.elevated2,
+      marginBottom: theme.spacing.sm,
+    },
+    image: {
+      width: '100%',
+      height: '100%',
+    },
+    title: {
+      color: theme.colors.label,
+      ...theme.typography.subhead,
+      paddingHorizontal: theme.spacing.xs,
+    },
+  })
+);

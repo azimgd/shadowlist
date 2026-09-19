@@ -1,39 +1,58 @@
-import { forwardRef } from 'react';
+import { forwardRef, useCallback } from 'react';
 import {
   ShadowList,
   type ShadowListProps,
   type ShadowListCommands,
 } from 'shadowlist';
-import type { ActivityData } from 'shadowlist-utils';
-import { ActivityRow } from './ActivityRow';
+import { useLabels } from '../labels';
 import { ItemSeparator } from '../primitives/ItemSeparator';
+import { ActivityRow } from './ActivityRow';
+import { defaultActivityLabels, type ActivityLabels } from './labels';
+import type { ActivityItem } from './types';
+
+type RenderActivity = NonNullable<
+  ShadowListProps<ActivityItem>['renderElement']
+>;
 
 export type ActivityListProps = Omit<
-  ShadowListProps<ActivityData>,
+  ShadowListProps<ActivityItem>,
   'renderElement'
 > & {
-  renderElement?: ShadowListProps<ActivityData>['renderElement'];
+  renderElement?: RenderActivity;
+  onPressItem?: (item: ActivityItem) => void;
+  formatTime?: (createdAt: Date | number) => string;
+  labels?: Partial<ActivityLabels>;
 };
 
-const renderActivityRow: ShadowListProps<ActivityData>['renderElement'] = ({
-  element,
-}) => <ActivityRow element={element} />;
+// The separator is part of every row's content: a fresh element per render rebuilds every row.
+const ITEM_SEPARATOR = <ItemSeparator />;
+const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 60 };
 
-/*
- * Notification/activity feed with sticky header + footer, inset separators and
- * viewability tracking built in. Pass `data`; supply a header/footer and
- * `onViewableItemsChanged` to surface live state.
- */
 export const ActivityList = forwardRef<ShadowListCommands, ActivityListProps>(
-  ({ renderElement, ...props }, ref) => (
-    <ShadowList
-      ref={ref}
-      stickyHeader
-      stickyFooter
-      ItemSeparatorComponent={<ItemSeparator />}
-      viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-      renderElement={renderElement ?? renderActivityRow}
-      {...props}
-    />
-  )
+  ({ renderElement, onPressItem, formatTime, labels, ...props }, ref) => {
+    const mergedLabels = useLabels(defaultActivityLabels, labels);
+    const renderRow = useCallback<RenderActivity>(
+      ({ element }) => (
+        <ActivityRow
+          item={element}
+          onPress={onPressItem}
+          formatTime={formatTime}
+          labels={mergedLabels}
+        />
+      ),
+      [onPressItem, formatTime, mergedLabels]
+    );
+
+    return (
+      <ShadowList
+        ref={ref}
+        stickyHeader
+        stickyFooter
+        ItemSeparatorComponent={ITEM_SEPARATOR}
+        viewabilityConfig={VIEWABILITY_CONFIG}
+        renderElement={renderElement ?? renderRow}
+        {...props}
+      />
+    );
+  }
 );

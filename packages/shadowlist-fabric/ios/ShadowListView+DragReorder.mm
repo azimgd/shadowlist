@@ -326,6 +326,11 @@ using namespace facebook::react;
   data.dragToKey_ = toKey ? std::string(toKey.UTF8String) : std::string();
   // Disable scroll corrections during the drag; cleared on the end event (type 3).
   data.userScrolled_ = (type != 3);
+  /*
+   * Built on the mounted state, whose offset lags an auto-scroll that moves the view every
+   * frame: write the live offset, as every other host update does.
+   */
+  [self carryLiveOffsetInto:data];
   [self carryScrollCommandInto:data];
   _state->updateState(std::move(data));
 }
