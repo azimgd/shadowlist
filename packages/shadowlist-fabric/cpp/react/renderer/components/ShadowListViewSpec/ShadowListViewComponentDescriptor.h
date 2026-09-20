@@ -199,7 +199,8 @@ public:
     containerManager->requestScrollToIndex(
       shadowlistViewStateData.containerOffsetIndex_,
       shadowlistViewStateData.containerOffsetIndexSequence_,
-      shadowlistViewProps.containerOffsetIndex);
+      shadowlistViewProps.containerOffsetIndex,
+      shadowlistViewStateData.containerOffsetIndexViewPosition_);
 
     /*
      * Reconcile, measure and resolve scrolling in a single core call

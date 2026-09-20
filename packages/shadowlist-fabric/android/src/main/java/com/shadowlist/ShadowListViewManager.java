@@ -259,8 +259,8 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  public void scrollToIndex(ShadowListView view, int index) {
-    view.scrollToIndex(index);
+  public void scrollToIndex(ShadowListView view, int index, double viewPosition) {
+    view.scrollToIndex(index, viewPosition);
   }
 
   @Override

@@ -1,6 +1,7 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Error.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -73,15 +74,16 @@ void Container::endRevision() {
   this->dispatchObservers();
 }
 
-void Container::scrollToIndex(std::size_t index) {
+void Container::scrollToIndex(std::size_t index, double viewPosition) {
   this->scrollToIndexTarget = index;
+  this->scrollToIndexViewPosition = viewPosition;
 }
 
 void Container::scrollToEnd() {
   this->pendingScrollToEnd = true;
 }
 
-void Container::requestScrollToIndex(double commandIndex, double commandSequence, int propIndex) {
+void Container::requestScrollToIndex(double commandIndex, double commandSequence, int propIndex, double commandViewPosition) {
   /*
    * The imperative command takes priority over the prop. Each call bumps a counter, and
    * we act whenever that counter changes, so requesting the same index twice still
@@ -99,7 +101,12 @@ void Container::requestScrollToIndex(double commandIndex, double commandSequence
       fired = true;
     } else if (commandIndex >= 0.0 && std::isfinite(commandIndex) &&
                commandIndex < static_cast<double>(std::numeric_limits<std::size_t>::max())) {
-      this->scrollToIndex(static_cast<std::size_t>(commandIndex));
+      // A non-finite fraction carries no position at all and means the start edge;
+      // anything else is clamped into [0, 1], the range that keeps the row on screen.
+      double viewPosition = std::isfinite(commandViewPosition)
+        ? std::min(1.0, std::max(0.0, commandViewPosition))
+        : 0.0;
+      this->scrollToIndex(static_cast<std::size_t>(commandIndex), viewPosition);
       fired = true;
     }
   }

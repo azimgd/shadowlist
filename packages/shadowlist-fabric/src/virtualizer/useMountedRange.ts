@@ -1,15 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
 import type { OnVisibleIndicesChange } from 'shadowlist';
-import {
-  SHADOWLIST_OVERSCAN,
-  SHADOWLIST_OVERSCAN_LEADING,
-  slTrace,
-  slTraceEnabled,
-} from './helpers';
+import { slTrace, slTraceEnabled } from './helpers';
 import {
   initialMountedRange,
   rangeToIndices,
+  shouldReseedFromOffsetIndex,
   type MountedRange,
 } from './mountedRange';
 
@@ -20,6 +16,8 @@ interface UseMountedRangeOptions {
   inverted: boolean;
   followAppends: boolean;
   containerOffsetIndex: number;
+  overscanRows: number;
+  overscanRowsLeading: number;
 }
 
 interface UseMountedRangeResult {
@@ -28,6 +26,13 @@ interface UseMountedRangeResult {
     OnVisibleIndicesChange,
     never
   >;
+  seedAroundIndex: (index: number, viewPosition: number) => void;
+}
+
+// Where an imperative scrollToIndex is about to put the viewport.
+interface SeedTarget {
+  index: number;
+  viewPosition: number;
 }
 
 /*
@@ -54,12 +59,50 @@ export function useMountedRange({
   inverted,
   followAppends,
   containerOffsetIndex,
+  overscanRows,
+  overscanRowsLeading,
 }: UseMountedRangeOptions): UseMountedRangeResult {
   /*
    * null until the first native visible-window report; the initial range is derived
    * from the seed config (initialElementsSize / inverted / containerOffsetIndex).
    */
   const [mountedKeys, setMountedKeys] = useState<MountedKeys | null>(null);
+
+  /*
+   * containerOffsetIndex is the row the core scrolls to, and the row this window is seeded
+   * around. Seeding only at mount left the stored edge keys outranking any later change of
+   * the prop, so the core scrolled to a row React had never mounted and the list stayed
+   * blank until the next native report moved the window onto it -- the normal path for a
+   * list that resolves its opening row asynchronously, such as a chat jumping to its first
+   * unread message. So treat a change of the prop like a mount and drop the stored edges,
+   * rebuilding the window around the new target in the same commit that scrolls to it.
+   */
+  const [seededOffsetIndex, setSeededOffsetIndex] =
+    useState(containerOffsetIndex);
+  if (seededOffsetIndex !== containerOffsetIndex) {
+    const reseed = shouldReseedFromOffsetIndex(
+      seededOffsetIndex,
+      containerOffsetIndex
+    );
+    setSeededOffsetIndex(containerOffsetIndex);
+    if (reseed) {
+      setMountedKeys(null);
+    }
+  }
+
+  /*
+   * The target of an imperative scrollToIndex that has not landed yet. The prop always
+   * aligns to the start, so it cannot say which side of the target the reader will see, and
+   * the core gives a command precedence over the prop on a commit carrying both. So this
+   * outranks containerOffsetIndex below and survives a prop change, until native reports
+   * that the scroll landed.
+   */
+  const [commandSeed, setCommandSeed] = useState<SeedTarget | null>(null);
+
+  const seedAroundIndex = useCallback((index: number, viewPosition: number) => {
+    setCommandSeed({ index, viewPosition });
+    setMountedKeys(null);
+  }, []);
 
   /*
    * Resolve the stored edge keys to a [low, high] index range in the current data, or
@@ -97,9 +140,7 @@ export function useMountedRange({
             const tailLow = tailHigh - (high - low) - MAX_FOLLOWED_APPEND;
             return {
               low: Math.max(
-                edges.lowAtStart
-                  ? Math.max(0, low - SHADOWLIST_OVERSCAN_LEADING)
-                  : low,
+                edges.lowAtStart ? Math.max(0, low - overscanRowsLeading) : low,
                 tailLow
               ),
               high: tailHigh,
@@ -107,19 +148,30 @@ export function useMountedRange({
           }
           return {
             low: edges.lowAtStart
-              ? Math.max(0, low - SHADOWLIST_OVERSCAN_LEADING)
+              ? Math.max(0, low - overscanRowsLeading)
               : low,
             high: edges.highAtEnd
-              ? Math.min(keys.length - 1, high + SHADOWLIST_OVERSCAN_LEADING)
+              ? Math.min(keys.length - 1, high + overscanRowsLeading)
               : high,
           };
         }
+      }
+      if (commandSeed !== null) {
+        return initialMountedRange(
+          keys.length,
+          initialElementsSize,
+          inverted,
+          commandSeed.index,
+          overscanRows,
+          commandSeed.viewPosition
+        );
       }
       return initialMountedRange(
         keys.length,
         initialElementsSize,
         inverted,
-        containerOffsetIndex
+        containerOffsetIndex,
+        overscanRows
       );
     },
     [
@@ -129,6 +181,9 @@ export function useMountedRange({
       inverted,
       followAppends,
       containerOffsetIndex,
+      commandSeed,
+      overscanRows,
+      overscanRowsLeading,
     ]
   );
 
@@ -158,6 +213,8 @@ export function useMountedRange({
 
       const lastWindow = lastWindowRef.current;
       lastWindowRef.current = { low: windowLow, high: windowHigh };
+      // The scroll landed; returning the same value bails out of the re-render.
+      setCommandSeed((current) => (current === null ? current : null));
       if (slTraceEnabled()) {
         slTrace(`vis win=${windowLow}..${windowHigh} n=${keys.length}`);
       }
@@ -193,9 +250,9 @@ export function useMountedRange({
          */
         const movingForward = lastWindow ? windowLow > lastWindow.low : false;
         const movingBackward = lastWindow ? windowLow < lastWindow.low : false;
-        const leadingPad = SHADOWLIST_OVERSCAN_LEADING;
-        const lowPad = movingBackward ? leadingPad : SHADOWLIST_OVERSCAN;
-        const highPad = movingForward ? leadingPad : SHADOWLIST_OVERSCAN;
+        const leadingPad = overscanRowsLeading;
+        const lowPad = movingBackward ? leadingPad : overscanRows;
+        const highPad = movingForward ? leadingPad : overscanRows;
 
         const low = Math.max(0, windowLow - lowPad);
         const high = Math.min(keys.length - 1, windowHigh + highPad);
@@ -220,8 +277,8 @@ export function useMountedRange({
         return { lowKey, highKey, lowAtStart, highAtEnd };
       });
     },
-    [keys, resolveRange]
+    [keys, resolveRange, overscanRows, overscanRowsLeading]
   );
 
-  return { mountedIndices, handleVisibleIndicesChange };
+  return { mountedIndices, handleVisibleIndicesChange, seedAroundIndex };
 }

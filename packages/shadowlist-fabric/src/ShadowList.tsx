@@ -14,6 +14,8 @@ import type { ShadowListProps, ShadowListCommands } from './types';
 import {
   ElementRenderer,
   SNAP_ALIGNMENT,
+  SHADOWLIST_OVERSCAN,
+  SHADOWLIST_OVERSCAN_LEADING,
   useMountedRange,
   useRefreshDefer,
   useDragReorder,
@@ -74,6 +76,8 @@ function ShadowListInner<ElementT extends { id: string }>(
     onReorder,
     columns = 1,
     overscan = 1,
+    overscanRows = SHADOWLIST_OVERSCAN,
+    overscanRowsLeading = SHADOWLIST_OVERSCAN_LEADING,
     getElementSizeSpec,
     measureLookaheadRows = 48,
     persistentKeys,
@@ -81,6 +85,7 @@ function ShadowListInner<ElementT extends { id: string }>(
     stickyHeaderIndices,
     renderStickyHeaderOverlay,
     containerOffsetIndex = -2,
+    trackElementSizes = false,
     refreshing = false,
     onRefresh,
     refreshColor,
@@ -172,14 +177,19 @@ function ShadowListInner<ElementT extends { id: string }>(
     return { elementsAllKeys: keys, keyToIndex: map };
   }, [data, keyExtractor]);
 
-  const { mountedIndices, handleVisibleIndicesChange } = useMountedRange({
-    keys: elementsAllKeys,
-    keyToIndex,
-    initialElementsSize,
-    inverted,
-    followAppends,
-    containerOffsetIndex,
-  });
+  const { mountedIndices, handleVisibleIndicesChange, seedAroundIndex } =
+    useMountedRange({
+      keys: elementsAllKeys,
+      keyToIndex,
+      initialElementsSize,
+      inverted,
+      followAppends,
+      containerOffsetIndex,
+      overscanRows,
+      // A leading pad below the trailing one would mount fewer rows in the direction of
+      // travel than at rest, which is the one direction that cannot afford it.
+      overscanRowsLeading: Math.max(overscanRows, overscanRowsLeading),
+    });
 
   const {
     renderIndices: draggedIndices,
@@ -206,7 +216,38 @@ function ShadowListInner<ElementT extends { id: string }>(
     onViewableItemsChanged,
   });
 
-  useImperativeCommands(ref, shadowlistViewRef);
+  /*
+   * Laid-out row sizes by key, when trackElementSizes is on. A ref, not state: the only
+   * readers are imperative. Null while tracking is off.
+   */
+  const elementSizesRef = useRef<Map<string, number> | null>(null);
+  if (trackElementSizes) {
+    if (elementSizesRef.current === null) elementSizesRef.current = new Map();
+  } else if (elementSizesRef.current !== null) {
+    /*
+     * Turned off: drop the map rather than leave a frozen one behind. The layout callbacks
+     * go with it, so nothing would update or evict what is in there.
+     */
+    elementSizesRef.current = null;
+  }
+
+  const handleElementLayout = useCallback(
+    (key: string, width: number, height: number) => {
+      elementSizesRef.current?.set(key, horizontal ? width : height);
+    },
+    [horizontal]
+  );
+
+  const handleElementRelease = useCallback((key: string) => {
+    elementSizesRef.current?.delete(key);
+  }, []);
+
+  useImperativeCommands(
+    ref,
+    shadowlistViewRef,
+    elementSizesRef,
+    seedAroundIndex
+  );
 
   const elementDimensionStyle = useMemo<ViewStyle>(() => {
     if (horizontal) {
@@ -397,6 +438,12 @@ function ShadowListInner<ElementT extends { id: string }>(
               style={elementBaseStyle}
               renderElement={renderElement}
               separator={index < data.length - 1 ? separator : null}
+              onElementLayout={
+                trackElementSizes ? handleElementLayout : undefined
+              }
+              onElementRelease={
+                trackElementSizes ? handleElementRelease : undefined
+              }
             />
           );
         })
