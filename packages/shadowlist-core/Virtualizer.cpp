@@ -253,11 +253,26 @@ void reflowTracks(
 }
 
 /*
+ * How far past the viewport start an Element anchor wants its row. MVCP captured that in
+ * pixels, so it is used as-is. A ScrollToKey derives it from the free space around the row
+ * as it stands on THIS frame: a target still on its estimate would otherwise rest off by
+ * viewPosition of the estimate's error, and one resolved before the window size was known
+ * would lose its position entirely.
+ */
+double resolveAnchorSubOffset(Container* container, const Operation& operation, std::size_t anchorIndex) {
+  if (operation.type != OperationType::ScrollToKey) {
+    return operation.target.subOffset;
+  }
+  double freeSpace = container->getWindowContainerSize() - container->getElementSize(anchorIndex);
+  return freeSpace > 0.0 ? -operation.viewPosition * freeSpace : 0.0;
+}
+
+/*
  * Map an in-flight operation's target anchor to its desired (unclamped) pixel offset
  * for the current revision. An EndEdge anchor (ScrollToEnd / BottomPin / ShrinkClamp)
- * resolves to maxOffset; an Element anchor resolves to its element's offset plus the
- * captured sub-offset, rederived each frame so it tracks the element as nearby rows
- * are measured. Returns false when an Element anchor's key is no longer present.
+ * resolves to maxOffset; an Element anchor resolves to its element's offset plus its
+ * sub-offset, both rederived each frame so it tracks the element as nearby rows are
+ * measured. Returns false when an Element anchor's key is no longer present.
  *
  * A header size change is settled by applyHeaderSizeChange, which moves the offset or the
  * anchor, so the raw element offset is all this needs.
@@ -271,7 +286,7 @@ bool resolveAnchorOffset(Container* container, const Operation& operation, doubl
   if (anchorIndex == UNDEFINED_INDEX) {
     return false;
   }
-  outOffset = container->getElementOffset(anchorIndex) + operation.target.subOffset;
+  outOffset = container->getElementOffset(anchorIndex) + resolveAnchorSubOffset(container, operation, anchorIndex);
   return true;
 }
 }
@@ -1930,9 +1945,9 @@ bool Virtualizer::resolveScroll(
    * is an Element anchor, recomputed from its key each frame so it tracks the anchor
    * as nearby elements are measured/resized while the correction is in flight.
    */
-  auto requestAnchor = [&](OperationType type, const std::string& key, double delta) {
+  auto requestAnchor = [&](OperationType type, const std::string& key, double delta, double viewPosition = 0.0) {
     container->operation =
-      Operation{operationId(type, AnchorMode::Element, key), type, Anchor{key, delta, AnchorMode::Element}};
+      Operation{operationId(type, AnchorMode::Element, key), type, Anchor{key, delta, AnchorMode::Element}, viewPosition};
   };
 
   /*
@@ -1957,7 +1972,8 @@ bool Virtualizer::resolveScroll(
        * is estimate-built, so anchoring converges onto it as the region is measured.
        */
       const std::string targetKey = container->getElementAtIndex(container->scrollToIndexTarget).key;
-      requestAnchor(OperationType::ScrollToKey, targetKey, 0.0);
+      // viewPosition rides the operation, rederived per frame (see resolveAnchorSubOffset).
+      requestAnchor(OperationType::ScrollToKey, targetKey, 0.0, container->scrollToIndexViewPosition);
       /*
        * The explicit target takes over from the inverted bottom anchor, but only when
        * it actually applied (an out-of-range target must not disable the pin).

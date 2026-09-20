@@ -638,6 +638,45 @@ void benchPrependWhileScrolled(const std::vector<std::string>& keys, std::size_t
   record("prepend 30 rows while scrolled (chat)", rows, timing, "us/prepend");
 }
 
+/*
+ * scrollToIndex into unmeasured territory, centred in the viewport: the correction stays in
+ * flight for several frames while the region around the target is measured, rederiving its
+ * resting place on each of them (see resolveAnchorSubOffset).
+ */
+void benchScrollToIndexCentred(const std::vector<std::string>& keys, std::size_t rows) {
+  const std::size_t target = rows * 3 / 5;
+  Container container;
+  Virtualizer::update(&container, makeInput(keys, 0.0));
+  // Only the opening window is laid out; everything past it is still on its estimate.
+  feedWindowMeasurements(container, 0, MOUNTED_ROWS, [](std::size_t) {
+    return Size{WINDOW_WIDTH, ROW_HEIGHT};
+  });
+
+  std::uint64_t sequence = 0;
+  Timing timing = measure(
+    4, 7,
+    [] {},
+    [&](std::size_t) {
+      container.requestScrollToIndex(
+        static_cast<double>(target), static_cast<double>(++sequence), -2, 0.5);
+      // The settle: each frame mounts and measures the window the correction moved onto.
+      for (int frame = 0; frame < 6; ++frame) {
+        Virtualizer::update(&container, makeInput(keys, container.revision.containerOffsetY));
+        auto visible = container.getVisibleIndices();
+        if (visible.first != UNDEFINED_INDEX) {
+          std::size_t low = std::min(visible.first, visible.second);
+          std::size_t high = std::min(std::max(visible.first, visible.second), rows - 1);
+          feedWindowMeasurements(container, low, high, [](std::size_t index) {
+            // Rows nothing like the estimate, so the resting place actually has to move.
+            return Size{WINDOW_WIDTH, index % 3 == 0 ? ROW_HEIGHT * 3.0 : ROW_HEIGHT};
+          });
+        }
+      }
+      doNotOptimize(container.revision);
+    });
+  record("scrollToIndex centred, target unmeasured", rows, timing, "us/jump");
+}
+
 /* ------------------------------------------------------------------ *
  * Reporting
  * ------------------------------------------------------------------ */
@@ -713,6 +752,7 @@ int main(int argc, char** argv) {
     benchScrollbarDrag(shortKeys, rows, "DRAG scrollbar top to bottom");
     benchInvertedScrollToTop(shortKeys, rows);
     benchPrependWhileScrolled(shortKeys, rows);
+    benchScrollToIndexCentred(shortKeys, rows);
 
     std::printf("---------------------------------------------------------------------------------------\n");
   }

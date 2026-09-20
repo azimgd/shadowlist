@@ -55,7 +55,9 @@ interface NativeCommands {
   ) => void;
   scrollToIndex: (
     viewRef: React.ElementRef<ShadowListViewComponentType>,
-    index: CodegenTypes.Int32
+    index: CodegenTypes.Int32,
+    // Where the row comes to rest in the viewport: 0 start, 0.5 centre, 1 end.
+    viewPosition: CodegenTypes.Double
   ) => void;
   scrollToOffset: (
     viewRef: React.ElementRef<ShadowListViewComponentType>,

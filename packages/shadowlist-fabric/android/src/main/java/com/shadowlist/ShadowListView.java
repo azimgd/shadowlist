@@ -135,6 +135,8 @@ public class ShadowListView extends FrameLayout {
    */
   private double mCommandIndex = -2.0;
   private double mCommandSequence = 0.0;
+  // Carried with mCommandIndex: where scrollToIndex wants its row in the viewport.
+  private double mCommandViewPosition = 0.0;
 
   /*
    * Used only to detect the end of an animated programmatic scroll (snap); the core
@@ -619,6 +621,7 @@ public class ShadowListView extends FrameLayout {
     mEchoedToken = 0;
     mCommandIndex = -2.0;
     mCommandSequence = 0.0;
+    mCommandViewPosition = 0.0;
     mShiftedToken = 0;
     mShiftedTokenDelta = 0.0;
     mRefreshAwaitingSettle = false;
@@ -969,11 +972,13 @@ public class ShadowListView extends FrameLayout {
    * past the last one issued, so a mounted state still carrying an older sequence cannot make
    * a new command reuse it.
    */
-  private void issueScrollCommand(WritableMap map, double index, double nextSequence) {
+  private void issueScrollCommand(WritableMap map, double index, double nextSequence, double viewPosition) {
     mCommandSequence = Math.max(nextSequence, mCommandSequence + 1);
     mCommandIndex = index;
+    mCommandViewPosition = viewPosition;
     map.putDouble("containerOffsetIndex", mCommandIndex);
     map.putDouble("containerOffsetIndexSequence", mCommandSequence);
+    map.putDouble("containerOffsetIndexViewPosition", mCommandViewPosition);
   }
 
   // Package-private so the drag controller's state updates carry the command too.
@@ -981,10 +986,11 @@ public class ShadowListView extends FrameLayout {
     if (mCommandSequence > 0) {
       map.putDouble("containerOffsetIndex", mCommandIndex);
       map.putDouble("containerOffsetIndexSequence", mCommandSequence);
+      map.putDouble("containerOffsetIndexViewPosition", mCommandViewPosition);
     }
   }
 
-  public void scrollToIndex(int index) {
+  public void scrollToIndex(int index, double viewPosition) {
     if (mState == null) {
       return;
     }
@@ -998,10 +1004,11 @@ public class ShadowListView extends FrameLayout {
 
     WritableMap map = new WritableNativeMap();
     yieldMomentumInto(map);
-    issueScrollCommand(map, (double) index, nextSequence);
+    issueScrollCommand(map, (double) index, nextSequence, viewPosition);
     map.putBoolean("containerOffsetEnabled", true);
     if (DEBUG_LOG) {
-      slLog("java.cmd scrollToIndex: index=" + index + " sequence=" + (long) mCommandSequence);
+      slLog("java.cmd scrollToIndex: index=" + index + " viewPosition=" + viewPosition
+        + " sequence=" + (long) mCommandSequence);
     }
     mState.updateState(map);
   }
@@ -1040,7 +1047,7 @@ public class ShadowListView extends FrameLayout {
 
     WritableMap map = new WritableNativeMap();
     yieldMomentumInto(map);
-    issueScrollCommand(map, -3.0, nextSequence);
+    issueScrollCommand(map, -3.0, nextSequence, 0.0);
     map.putBoolean("containerOffsetEnabled", true);
     if (DEBUG_LOG) {
       slLog("java.cmd scrollToEnd: sequence=" + (long) mCommandSequence);

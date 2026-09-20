@@ -123,6 +123,8 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
    * see it. _commandSequence is 0 until the first command.
    */
   double _commandIndex;
+  // Carried with _commandIndex: where scrollToIndex wants its row in the viewport.
+  double _commandViewPosition;
   double _commandSequence;
 
   /*

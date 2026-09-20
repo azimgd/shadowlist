@@ -143,6 +143,13 @@ public:
   std::size_t scrollToIndexTarget = UNDEFINED_INDEX;
 
   /*
+   * Where scrollToIndexTarget comes to rest in the viewport, as a fraction of the free
+   * space around it: 0 start, 0.5 centre, 1 end. A row taller than the viewport has no
+   * free space, so it lands at the start either way.
+   */
+  double scrollToIndexViewPosition = 0.0;
+
+  /*
    * Active while a scrollToEnd is converging on the bottom: retargets maxOffset
    * every frame as off-screen rows are measured, so it lands on the true end of a
    * variable-height list. Cleared once the view reaches the bottom and the total
@@ -476,7 +483,7 @@ public:
    * Request scrolling so the element at the given index sits at the start of the
    * viewport. The request is resolved on the next measurement.
    */
-  void scrollToIndex(std::size_t index);
+  void scrollToIndex(std::size_t index, double viewPosition = 0.0);
 
   /*
    * Request scrolling to the very end, retargeting the bottom as off-screen rows
@@ -490,7 +497,7 @@ public:
    * sequence); the prop fires when its value changes. Negative index means inactive;
    * the command takes precedence.
    */
-  void requestScrollToIndex(double commandIndex, double commandSequence, int propIndex);
+  void requestScrollToIndex(double commandIndex, double commandSequence, int propIndex, double commandViewPosition = 0.0);
 
   /*
    * Resolve the current frame into values to publish to the scroll view. prev* are

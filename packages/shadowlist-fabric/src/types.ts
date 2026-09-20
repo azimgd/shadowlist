@@ -17,9 +17,20 @@ export interface ViewToken<ElementT> {
 export interface ShadowListCommands {
   setStartReachedEnabled: (enabled: boolean) => void;
   setEndReachedEnabled: (enabled: boolean) => void;
-  scrollToIndex: (index: number) => void;
+  /*
+   * Bring the row at `index` into view. `viewPosition` places it within the viewport:
+   * 0 (the default) aligns it to the start, 0.5 centres it, 1 aligns it to the end.
+   */
+  scrollToIndex: (index: number, viewPosition?: number) => void;
   scrollToOffset: (offset: number, animated?: boolean) => void;
   scrollToEnd: (animated?: boolean) => void;
+  /*
+   * Laid-out size of a mounted row along the scroll axis, or undefined when the row is
+   * not mounted, not yet laid out, or `trackElementSizes` is off.
+   */
+  getElementSize: (key: string) => number | undefined;
+  // Every size recorded so far. Live: the map is the store, not a copy of it.
+  getElementSizes: () => ReadonlyMap<string, number>;
 }
 
 export interface ViewabilityConfig {
@@ -68,7 +79,25 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   stickyHeaderIndices?: ReadonlyArray<number>;
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
   columns?: number;
+  /*
+   * How far beyond the visible window the core measures and lays out elements, in
+   * viewports. Native geometry work, not React. See overscanRows for the React side.
+   */
   overscan?: number;
+  /*
+   * How many rows React keeps mounted on each side of the visible window. The right
+   * number depends on row height: short rows (a chat, a contact list) can afford the
+   * default 4 behind and 10 ahead, while a feed of full-screen cards wants 1-2, since ten
+   * rows ahead is ten viewports of mounted React paid for on every fling. Set too low, a
+   * fling shows blank cells -- raise it until they stop, not past.
+   */
+  overscanRows?: number;
+  /*
+   * Rows mounted ahead of the visible window in the direction of travel, replacing
+   * overscanRows on that side while a fling is in progress. A resting list uses
+   * overscanRows on both sides.
+   */
+  overscanRowsLeading?: number;
   getElementSizeSpec?: (
     element: ElementT,
     index: number
@@ -77,6 +106,16 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   persistentKeys?: ReadonlyArray<string>;
   nonAnchorKeys?: ReadonlyArray<string>;
   containerOffsetIndex?: number;
+  /*
+   * Record each mounted row's laid-out size along the scroll axis, readable through
+   * `getElementSize` / `getElementSizes` on the ref. Off by default: it puts an onLayout
+   * on every mounted row. Turn it on to position something against a row, such as a
+   * context menu or a highlight overlay.
+   *
+   * Set it for the life of the list: rows already mounted when it is turned on report
+   * nothing until they are next laid out, and turning it off drops every size recorded.
+   */
+  trackElementSizes?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void;
   refreshColor?: ColorValue;
@@ -185,7 +224,7 @@ export interface TreeListRenderElementInfo<ElementT> {
 }
 
 export interface TreeListCommands extends ShadowListCommands {
-  scrollToNode: (id: string) => void;
+  scrollToNode: (id: string, viewPosition?: number) => void;
 }
 
 export interface TreeListProps<ElementT> extends ShadowListForwardedProps {

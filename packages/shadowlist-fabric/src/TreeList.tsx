@@ -53,6 +53,9 @@ function toSet(
   return ids instanceof Set ? new Set(ids) : new Set(ids as Iterable<string>);
 }
 
+// Handed back when the inner list is not mounted, so callers always get a map.
+const EMPTY_SIZES: ReadonlyMap<string, number> = new Map();
+
 function TreeListInner<ElementT>(
   {
     data,
@@ -154,15 +157,20 @@ function TreeListInner<ElementT>(
         innerRef.current?.setStartReachedEnabled(enabled),
       setEndReachedEnabled: (enabled: boolean) =>
         innerRef.current?.setEndReachedEnabled(enabled),
-      scrollToIndex: (index: number) => innerRef.current?.scrollToIndex(index),
+      scrollToIndex: (index: number, viewPosition?: number) =>
+        innerRef.current?.scrollToIndex(index, viewPosition),
       scrollToOffset: (offset: number, animated?: boolean) =>
         innerRef.current?.scrollToOffset(offset, animated),
       scrollToEnd: (animated?: boolean) =>
         innerRef.current?.scrollToEnd(animated),
-      scrollToNode: (id: string) => {
+      scrollToNode: (id: string, viewPosition?: number) => {
         const index = indexByKey.get(id);
-        if (index !== undefined) innerRef.current?.scrollToIndex(index);
+        if (index !== undefined) {
+          innerRef.current?.scrollToIndex(index, viewPosition);
+        }
       },
+      getElementSize: (key: string) => innerRef.current?.getElementSize(key),
+      getElementSizes: () => innerRef.current?.getElementSizes() ?? EMPTY_SIZES,
     }),
     [indexByKey]
   );

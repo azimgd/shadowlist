@@ -256,6 +256,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _shiftedTokenDelta = 0.0;
   _reportedDuringStateUpdate = NO;
   _commandIndex = 0.0;
+  _commandViewPosition = 0.0;
   _commandSequence = 0.0;
 #if !TARGET_OS_OSX
   [self cancelScrollToTop];
@@ -1243,6 +1244,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   if (_commandSequence > 0) {
     stateData.containerOffsetIndex_ = _commandIndex;
     stateData.containerOffsetIndexSequence_ = _commandSequence;
+    stateData.containerOffsetIndexViewPosition_ = _commandViewPosition;
   }
 }
 
@@ -1308,17 +1310,18 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   _state->updateState(std::move(nextStateData));
 }
 
-- (void)scrollToIndex:(NSInteger)index
+- (void)scrollToIndex:(NSInteger)index viewPosition:(double)viewPosition
 {
   if (!_state) {
     return;
   }
 
-  SLF_TRACE("ev=cmd-scroll-to-index index=%ld", (long)index);
+  SLF_TRACE("ev=cmd-scroll-to-index index=%ld viewPosition=%.2f", (long)index, viewPosition);
   // Bump the sequence so an unchanged index still triggers a fresh scroll.
   auto nextStateData = _state->getData();
   [self yieldMomentumInto:nextStateData];
   _commandIndex = index;
+  _commandViewPosition = viewPosition;
   _commandSequence = MAX(nextStateData.containerOffsetIndexSequence_, _commandSequence) + 1;
   [self carryLiveOffsetInto:nextStateData];
   [self carryScrollCommandInto:nextStateData];
@@ -1357,6 +1360,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   auto nextStateData = _state->getData();
   [self yieldMomentumInto:nextStateData];
   _commandIndex = -3.0;
+  _commandViewPosition = 0.0;
   _commandSequence = MAX(nextStateData.containerOffsetIndexSequence_, _commandSequence) + 1;
   [self carryLiveOffsetInto:nextStateData];
   [self carryScrollCommandInto:nextStateData];
