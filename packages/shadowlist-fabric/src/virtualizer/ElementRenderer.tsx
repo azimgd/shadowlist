@@ -1,5 +1,5 @@
-import { memo, useRef, type ReactElement } from 'react';
-import type { ViewStyle } from 'react-native';
+import { memo, useCallback, useEffect, useRef, type ReactElement } from 'react';
+import type { LayoutChangeEvent, ViewStyle } from 'react-native';
 import { ShadowListElementView } from 'shadowlist';
 import { countRowRender, slTrace, slTraceEnabled } from './helpers';
 
@@ -11,6 +11,13 @@ interface ElementRendererProps<ElementT> {
   renderElement: (info: { element: ElementT; index: number }) => ReactElement;
   separator: ReactElement | null;
   nativeIndex: number;
+  /*
+   * Set only when the list tracks row sizes (ShadowListProps.trackElementSizes). Left
+   * undefined the row renders without an onLayout at all, so an untracked list pays
+   * nothing.
+   */
+  onElementLayout?: (key: string, width: number, height: number) => void;
+  onElementRelease?: (key: string) => void;
 }
 
 interface RenderedChildren<ElementT> {
@@ -32,6 +39,8 @@ export const ElementRenderer = memo(function ElementRendererInner<
   renderElement,
   separator,
   nativeIndex,
+  onElementLayout,
+  onElementRelease,
 }: ElementRendererProps<ElementT>) {
   /*
    * The row's content is rebuilt only when something it used changed. `index` counts only if
@@ -94,11 +103,26 @@ export const ElementRenderer = memo(function ElementRendererInner<
     children = next.children;
   }
 
+  const handleLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const { width, height } = event.nativeEvent.layout;
+      onElementLayout?.(elementKey, width, height);
+    },
+    [onElementLayout, elementKey]
+  );
+
+  // Drop the row's recorded size on unmount; a key that comes back re-measures anyway.
+  useEffect(() => {
+    if (!onElementRelease) return;
+    return () => onElementRelease(elementKey);
+  }, [onElementRelease, elementKey]);
+
   return (
     <ShadowListElementView
       index={nativeIndex}
       elementKey={elementKey}
       style={style}
+      onLayout={onElementLayout ? handleLayout : undefined}
     >
       {children}
     </ShadowListElementView>

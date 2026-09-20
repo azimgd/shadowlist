@@ -60,6 +60,13 @@ struct Operation {
   std::uint64_t id = 0;
   OperationType type = OperationType::MaintainAnchor;
   Anchor target = {};
+
+  /*
+   * ScrollToKey only: where in the viewport the target row rests, as a fraction of the free
+   * space around it (0 start, 0.5 centre, 1 end). Kept here rather than as a pixel
+   * sub-offset so it can be rederived per frame (see resolveAnchorSubOffset).
+   */
+  double viewPosition = 0.0;
 };
 
 }

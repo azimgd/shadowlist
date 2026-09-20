@@ -1,13 +1,17 @@
-// Number of extra rows mounted on each side of the visible window
+/*
+ * Default number of extra rows mounted on each side of the visible window; overridden by
+ * ShadowListProps.overscanRows, which documents how to pick a number.
+ */
 export const SHADOWLIST_OVERSCAN = 4;
 
 /*
- * Extra rows mounted ahead of the visible window, in the direction the list is actually
- * travelling. A blank cell during a fling is a row the native side has already scrolled
- * to but React has not mounted yet, so what protects against it is runway in front of the
- * user -- not a bigger buffer behind them, which only costs render work. This is the
- * leading side's total, so a fling mounts SHADOWLIST_OVERSCAN_LEADING rows ahead and
- * SHADOWLIST_OVERSCAN behind; a resting list keeps SHADOWLIST_OVERSCAN on both sides.
+ * Default extra rows mounted ahead of the visible window, in the direction the list is
+ * actually travelling; overridden by ShadowListProps.overscanRowsLeading. A blank cell
+ * during a fling is a row the native side has already scrolled to but React has not
+ * mounted yet, so what protects against it is runway in front of the user -- not a bigger
+ * buffer behind them, which only costs render work. This is the leading side's total, so
+ * a fling mounts this many rows ahead and SHADOWLIST_OVERSCAN behind; a resting list
+ * keeps SHADOWLIST_OVERSCAN on both sides.
  */
 export const SHADOWLIST_OVERSCAN_LEADING = 10;
 

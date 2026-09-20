@@ -1,5 +1,6 @@
 export {
   SHADOWLIST_OVERSCAN,
+  SHADOWLIST_OVERSCAN_LEADING,
   SNAP_ALIGNMENT,
   arrayMove,
   slTrace,
@@ -12,6 +13,7 @@ export {
 export {
   initialMountedRange,
   rangeToIndices,
+  shouldReseedFromOffsetIndex,
   type MountedRange,
 } from './mountedRange';
 export { ElementRenderer } from './ElementRenderer';
