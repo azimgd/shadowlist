@@ -128,6 +128,13 @@ void install(jsi::Runtime& runtime) {
     return jsi::Value(moved);
   });
 
+  // scrollToIndex(listId, index, viewPosition); a negative index scrolls to the end
+  define(runtime, binding, "scrollToIndex", 3, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
+    auto engine = ShadowListNativeRegistry::obtain(stringArgument(runtime, arguments, count, 0));
+    engine->requestScroll(numberArgument(arguments, count, 1, -1), numberArgument(arguments, count, 2, 0));
+    return jsi::Value::undefined();
+  });
+
   // setTemplateStyle(listId, template, elementId, style | null)
   define(runtime, binding, "setTemplateStyle", 4, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
     auto engine = ShadowListNativeRegistry::obtain(stringArgument(runtime, arguments, count, 0));

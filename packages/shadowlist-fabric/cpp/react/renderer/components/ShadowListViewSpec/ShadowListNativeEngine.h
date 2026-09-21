@@ -99,6 +99,15 @@ public:
    */
   void requestCommit();
 
+  /*
+   * Scroll to a row (viewPosition 0 top .. 1 bottom), or to the end with index < 0, once every
+   * mutation made before this call is committed and laid out. A host view command would race
+   * the data: it can land in the commit before the rows change (or in the same one, before they
+   * are measured), and a command and a data nudge queued back to back coalesce into one state
+   * update. Here the core is told directly, in the commit after the rows it needs were measured.
+   */
+  void requestScroll(double index, double viewPosition);
+
 #pragma mark - Commit side
 
   struct KeysSnapshot {
@@ -134,6 +143,9 @@ public:
    * request another commit when the measured rows no longer cover the viewport.
    */
   void didLayout(const ShadowNode& listNode, azimgd::shadowlist::Container& core);
+
+  // From adopt, before the core's update: hand a due requestScroll to the core.
+  void applyPendingScroll(azimgd::shadowlist::Container& core);
 
 private:
   struct Row {
@@ -182,6 +194,7 @@ private:
     std::uint64_t usedAt = 0;
   };
 
+  void nudge();
   void rebuildIndexLocked();
   void structureChangedLocked();
 
@@ -240,6 +253,17 @@ private:
   std::size_t mountedCount_ = 0;
   // What the last coverage request was made for, so an unfixable gap does not loop.
   std::tuple<std::size_t, std::size_t, std::uint64_t, std::size_t> lastCoverageRequest_{0, 0, 0, 0};
+
+  // Bumped by every store mutation; what the last reconcile read, and what was laid out since.
+  std::uint64_t storeVersion_ = 0;
+  std::uint64_t reconciledVersion_ = 0;
+  std::uint64_t laidOutVersion_ = 0;
+  struct PendingScroll {
+    double index = -1.0;
+    double viewPosition = 0.0;
+    std::uint64_t afterVersion = 0;
+  };
+  std::optional<PendingScroll> pendingScroll_;
 
   std::size_t initialRows_ = 10;
   std::size_t padRows_ = 2;

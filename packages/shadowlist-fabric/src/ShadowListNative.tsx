@@ -303,21 +303,21 @@ function ShadowListNativeInner<ItemT>(
         if (viewRef.current)
           Commands.setEndReachedEnabled(viewRef.current, enabled);
       },
-      scrollToIndex: (index, viewPosition = 0) => {
-        if (!viewRef.current) return;
-        Commands.scrollToIndex(
-          viewRef.current,
-          index,
+      /*
+       * Through the store, not the view: the scroll then lands after every mutation made before
+       * it is laid out (append + scrollToEnd shows the new row). See SHADOWLIST_NATIVE.md.
+       */
+      scrollToIndex: (index, viewPosition = 0) =>
+        binding?.scrollToIndex(
+          listId,
+          Math.max(0, index),
           Math.min(1, Math.max(0, viewPosition))
-        );
-      },
+        ),
       scrollToOffset: (offset, animated = true) => {
         if (viewRef.current)
           Commands.scrollToOffset(viewRef.current, offset, animated);
       },
-      scrollToEnd: (animated = true) => {
-        if (viewRef.current) Commands.scrollToEnd(viewRef.current, animated);
-      },
+      scrollToEnd: () => binding?.scrollToIndex(listId, -1, 0),
     };
   }, [binding, listId]);
 

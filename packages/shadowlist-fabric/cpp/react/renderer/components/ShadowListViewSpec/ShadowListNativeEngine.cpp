@@ -427,6 +427,37 @@ std::optional<ShadowListNativeEngine::ResolvedTag> ShadowListNativeEngine::resol
 }
 
 void ShadowListNativeEngine::requestCommit() {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++storeVersion_;
+  }
+  nudge();
+}
+
+void ShadowListNativeEngine::requestScroll(double index, double viewPosition) {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    pendingScroll_ = PendingScroll{index, viewPosition, storeVersion_};
+  }
+  nudge();
+}
+
+void ShadowListNativeEngine::applyPendingScroll(azimgd::shadowlist::Container& core) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (!pendingScroll_ || laidOutVersion_ < pendingScroll_->afterVersion) {
+    return;
+  }
+  SL_LOG("native: scroll index=%.0f after=%llu", pendingScroll_->index, static_cast<unsigned long long>(pendingScroll_->afterVersion));
+  if (pendingScroll_->index < 0.0) {
+    core.scrollToEnd();
+  } else {
+    core.scrollToIndex(
+      static_cast<std::size_t>(pendingScroll_->index), std::min(1.0, std::max(0.0, pendingScroll_->viewPosition)));
+  }
+  pendingScroll_.reset();
+}
+
+void ShadowListNativeEngine::nudge() {
   std::shared_ptr<const ListState> state;
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -771,6 +802,7 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   PropsParserContext context{listNode.getSurfaceId(), *contextContainer};
 
   std::lock_guard<std::mutex> lock(mutex_);
+  reconciledVersion_ = storeVersion_;
 
   /*
    * Split the list's own children (templates, header, footer, empty) from the rows mounted last
@@ -953,6 +985,12 @@ void ShadowListNativeEngine::didLayout(const ShadowNode& listNode, azimgd::shado
   {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    // A scroll waiting on these rows can go in the next commit.
+    laidOutVersion_ = reconciledVersion_;
+    if (pendingScroll_ && laidOutVersion_ >= pendingScroll_->afterVersion) {
+      request = true;
+    }
+
     // The laid-out rows are what a row re-entering the window should come back as.
     for (const auto& child : listNode.getChildren()) {
       const auto elementProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(child->getProps());
@@ -970,32 +1008,37 @@ void ShadowListNativeEngine::didLayout(const ShadowNode& listNode, azimgd::shado
      * the mounted rows can fall short of the viewport (rows smaller than estimated). Nothing
      * else would commit until the user scrolls, so ask for the commit that remounts.
      */
-    double windowSize = core.getWindowContainerSize();
-    std::size_t count = core.getElementsSize();
-    if (mountedLowKey_.empty() || windowSize <= 0.0 || count == 0) {
-      return;
+    auto coverageShort = [&]() {
+      double windowSize = core.getWindowContainerSize();
+      std::size_t count = core.getElementsSize();
+      if (mountedLowKey_.empty() || windowSize <= 0.0 || count == 0) {
+        return false;
+      }
+      std::size_t low = core.findElementIndexByKey(mountedLowKey_);
+      std::size_t high = core.findElementIndexByKey(mountedHighKey_);
+      if (low >= count || high >= count) {
+        return false;
+      }
+      double offset = core.getContainerOffset();
+      double margin = windowSize * 0.5;
+      bool coveredLow = low == 0 || core.getElementOffset(low) <= offset - margin;
+      bool coveredHigh = high + 1 >= count || core.getElementOffset(high) + core.getElementSize(high) >= offset + windowSize + margin;
+      if (coveredLow && coveredHigh) {
+        return false;
+      }
+      std::tuple<std::size_t, std::size_t, std::uint64_t, std::size_t> signature{low, high, core.geometryVersion, count};
+      if (signature == lastCoverageRequest_) {
+        return false;
+      }
+      lastCoverageRequest_ = signature;
+      return true;
+    };
+    if (coverageShort()) {
+      request = true;
     }
-    std::size_t low = core.findElementIndexByKey(mountedLowKey_);
-    std::size_t high = core.findElementIndexByKey(mountedHighKey_);
-    if (low >= count || high >= count) {
-      return;
-    }
-    double offset = core.getContainerOffset();
-    double margin = windowSize * 0.5;
-    bool coveredLow = low == 0 || core.getElementOffset(low) <= offset - margin;
-    bool coveredHigh = high + 1 >= count || core.getElementOffset(high) + core.getElementSize(high) >= offset + windowSize + margin;
-    if (coveredLow && coveredHigh) {
-      return;
-    }
-    std::tuple<std::size_t, std::size_t, std::uint64_t, std::size_t> signature{low, high, core.geometryVersion, count};
-    if (signature == lastCoverageRequest_) {
-      return;
-    }
-    lastCoverageRequest_ = signature;
-    request = true;
   }
   if (request) {
-    requestCommit();
+    nudge();
   }
 }
 
