@@ -127,6 +127,8 @@ export const FeedNativeScreen = () => {
   const cursorRef = useRef<number | undefined>(undefined);
   const loadingRef = useRef(false);
   const heldPageRef = useRef<CursorPage<FeedItem> | null>(null);
+  // Bumped when a refresh replaces the rows; a page requested before that is dropped.
+  const generationRef = useRef(0);
   const editsRef = useRef<LocalEdits>({
     hidden: new Set(),
     patches: new Map(),
@@ -173,8 +175,11 @@ export const FeedNativeScreen = () => {
     const cursor = cursorRef.current;
     if (loadingRef.current || cursor === undefined) return;
     loadingRef.current = true;
+    const generation = generationRef.current;
     fetchFeedPage({ after: cursor })
       .then((page) => {
+        // It continues the rows a refresh has since replaced: appending it would skip posts.
+        if (generation !== generationRef.current) return;
         takePage(page);
         listRef.current?.appendItems(rowsOf(page.items));
       })
@@ -199,6 +204,7 @@ export const FeedNativeScreen = () => {
     const page = heldPageRef.current;
     heldPageRef.current = null;
     if (!page) return;
+    generationRef.current += 1;
     takePage(page);
     const { created, hidden } = editsRef.current;
     listRef.current?.setData([
