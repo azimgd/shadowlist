@@ -314,6 +314,10 @@ with an `action` becomes the responder and, on release, resolves the touch to a 
 `resolveTag(listId, changedTouches[0].target)`: each touch carries the hit view's own tag (the
 event's top-level `target` is the template's). The engine maps every synthesized tag to its row key.
 
+A release more than 10pt from where the touch began is dropped (`PRESS_SLOP`, like Pressability's
+slop): a quick flick the scroll view never claims, e.g. at a scroll edge, otherwise ends as a
+release on the template responder and fires the action (seen on Android in Chat (Native)).
+
 No pressed-state feedback: the template's React state is shared by all rows.
 
 ### Threading
@@ -382,7 +386,10 @@ Not supported:
    during commit/mount, but it is not formally synchronized.
 4. One transient text glitch (overlapping lines in one row) was seen once in a mid-scroll screenshot
    and could not be reproduced in 24 further mid-scroll captures.
-5. Android host behavior is untested (it compiles).
+5. Android: a template prop change that React sends in two commits the engine does not both see
+   (it compiles templates in each commit that clones the list, so this should not happen) would
+   leave the accumulated raw props with the older value of a prop only the skipped diff changed.
+   See "Android" below.
 
 Fixed since the first version: a template element whose fiber React replaces (same host shape)
 now rebuilds its rows, because the instance handle is part of the template's shape; before, rows
@@ -407,8 +414,8 @@ prebuilt while `.last_build_configuration` claims Debug (after a Release build p
 swap phase then restores Debug.
 
 ```sh
-# Android (compiles; host untested)
-cd packages/shadowlist-fabric-example/android && ./gradlew app:assembleDebug -PreactNativeArchitectures=arm64-v8a
+# Android (debug compiles the canonical packages/shadowlist-core directly)
+cd packages/shadowlist-fabric-example/android && ./gradlew app:installDebug -PreactNativeArchitectures=arm64-v8a
 # Unit tests
 cd packages/shadowlist-core-tests/build && cmake .. && make && ./shadowlist_core_tests
 cd packages/shadowlist-fabric && npx jest
@@ -417,44 +424,58 @@ cd packages/shadowlist-fabric && npx jest
 Device trace: `[SL] native: rows=[low..high] mounted=N built=B rebound=R` per reconcile that changed
 the rows (debug builds).
 
-## Porting notes for Android
+## Android
 
-There is no Android host work in the usual sense: ShadowListNative uses the existing
-`ShadowListView` / `ShadowListViewManager` / `ShadowListElementView`, and the engine, JSI binding
-and descriptor are shared C++ already compiled by `android/shadowlist/jni/CMakeLists.txt` (it globs
+Verified on the `Medium_Phone_API_35` emulator (debug, bridgeless), driven with `adb shell input`
+and screenshots, trace via `adb logcat -s SL`:
+
+- Feed (Native): styling matches Feed (avatars, rounded image frames, text attributes, separator,
+  gallery `ScrollView`), images load, fast flings down (paging 20 -> 80 rows) and back to the top
+  leave no blank rows after settling, `♡` rebinds only that row (`built=0 rebound=1`), `Hide`
+  removes the pressed row, Prepend / Remove top keep the visible rows in place, Update, Accent
+  names (`rebound=N`), presses on rows rebuilt after scrolling away and back, a theme switch
+  (rows built afterwards keep their full style, presses still route).
+- Chat (Native): opens at the newest message (inverted), press -> alert -> Delete removes that
+  message, send appends + `scrollToEnd` + status `updateItem` (`Sent`), incoming appends keep the
+  visible area, header "load earlier" prepends, flings through the history, repeat image grids.
+- Explore (Native): shelves with repeated cards in a horizontal `ScrollView`, `+ Card`
+  (`updateItem` of the array), card like (`repeatIndex`), `↑ Top` (`moveItem`, visible rows stay),
+  the horizontal deals list in the header (press toggles `Picked`), Grid mode (`columns: 2`),
+  `✕` removes and reflows, Shuffle.
+- No red box, no soft exceptions from the synthesized rows (the template element's
+  `setIsJSResponder` on a never-mounted tag logs nothing), no crash.
+
+There is no Android-specific host code: ShadowListNative uses the existing `ShadowListView` /
+`ShadowListViewManager` / `ShadowListElementView`, and the engine, JSI binding and descriptor are
+shared C++ compiled by `android/shadowlist/jni/CMakeLists.txt` (it globs
 `cpp/react/renderer/components/ShadowListViewSpec/*.cpp`). `ShadowListViewManager.setNativeListId`
-is a no-op setter. `./gradlew app:assembleDebug` builds. What needs verifying and likely fixing, in
-order:
+is a no-op setter. What differs, all in the shared engine under `#ifdef RN_SERIALIZABLE_STATE` /
+`__ANDROID__`:
 
-1. **Clone props on Android.** Android mounts views from `Props::rawProps` (`RN_SERIALIZABLE_STATE`),
-   not from the C++ props object. `cloneWithPatch` in `ShadowListNativeEngine.cpp` merges the base's
-   `rawProps` with the bound patch before parsing, but the base itself (a template prototype's props)
-   only holds React's _last update_ unless `enableAccumulatedUpdatesInRawPropsAndroid` is on. Check
-   that a new row's platform view receives the full style (background, padding, text attributes).
-   If not: accumulate the prototype's raw props yourself (keep a merged `folly::dynamic` per
-   template element across template updates, and pass it as the base), or enable the flag. Rows
-   look like unstyled text if this is wrong.
-2. **Hidden templates.** iOS skips mounting the `display: none` container (`Trait::Hidden`); on
-   Android that is gated by `ReactNativeFeatureFlags::useTraitHiddenOnAndroid()`. If it is off, the
-   templates mount as zero-size views; verify they are invisible and that `ShadowListView.java`'s
-   child handling does not treat the `templateType="native"` view as header/footer (it should ignore
-   unknown types, check `addView`/sticky code paths).
-3. **Tags.** Synthesized tags are even (`FIRST_NATIVE_TAG = 1 << 30`, step 2) because
-   `ViewUtil.getUIManagerType` routes odd tags to the legacy UIManager. Verify events and
-   `resolveTag` with real touches.
-4. **Presses and the JS responder.** React calls `setIsJSResponder` on the template element's tag,
-   which is never mounted (hidden). iOS ignores the missing view; Android's `SurfaceMountingManager`
-   may log a soft exception ("view not found"). Harmless if only logged; if it throws in debug,
-   guard it or make template action elements `pointerEvents` passthrough. Also check that
-   `nativeEvent.changedTouches[0].target` is the touched clone's tag on Android (it is on iOS).
-5. **State nudge.** `requestCommit` uses `ConcreteState::updateState(callback)`; on Android the
-   state then goes to Java through `getDynamic()`/the partial-update constructor. The nudge only
-   copies data, so no new fields are involved, but confirm the Java view does not re-apply an
-   offset from a nudged state (`containerOffsetEnabled` is false in it).
-6. **Row concealment** is disabled on Android already (`CONCEAL_UNSETTLED_ROWS`), nothing to do.
-7. **JSI install.** Uses `RuntimeScheduler` from the ContextContainer (as the trace does); the JS
-   side polls until `__shadowListNative` appears. Confirm it appears on Android bridgeless.
-8. **Test plan** (mirror of the iOS one): route `FeedNative`, fast and slow fling top/bottom, no blank
-   rows after settling; tap `♡` (only that row changes; `[SL] native: … built=0 rebound=1` in
-   `adb logcat -s SL`), `Hide` (that row goes), toolbar Prepend/Remove top (visible rows stay put),
-   Update, Accent names (all names recolor, `rebound=N`), taps after scrolling away and back.
+1. **Raw props.** Android mounts a view from `Props::rawProps`, not from the C++ props object, and
+   (with `enableAccumulatedUpdatesInRawPropsAndroid` off, the default) a props object's `rawProps`
+   is only what built it: all props for a node React created, only React's diff for a node React
+   updated. So:
+   - `cloneWithPatch` merges the base's `rawProps` with the bound patch before parsing, so a row
+     carries the base's props plus its bindings.
+   - The engine keeps each template element's full raw props (`prototypeRawProps_`, keyed by the
+     prototype's tag), merging every new props object's diff into it at compile time, and bases
+     the element's `baseProps` on that. Without it, rows built after a template update (a theme
+     switch) got only the diff: image frames lost `borderRadius`/`overflow`. Rebound rows were
+     fine either way (an update only needs the diff).
+2. **Colors.** Java reads color props with `getInt`, so bound colors are passed as signed 32-bit
+   ARGB (as `processColor` does on Android). An unsigned value above `INT_MAX` saturated to
+   `0x7FFFFFFF` (translucent white): bound avatar backgrounds rendered grey.
+3. **Hidden templates.** `useTraitHiddenOnAndroid` is off, so the `display: none` templates
+   container is mounted as a zero-size view. It is invisible, and the Java host never reads template
+   types (header/footer placement is decided in C++); nothing to do.
+4. **Tags.** Synthesized tags are even (`FIRST_NATIVE_TAG = 1 << 30`, step 2) because
+   `ViewUtil.getUIManagerType` routes odd tags to the legacy UIManager. Touches carry the clone's
+   tag in `changedTouches[0].target`, as on iOS; `resolveTag` finds the row.
+5. **State nudge / JSI.** Nudged states do not re-apply offsets (prepend/remove keep the visible
+   rows); `__shadowListNative` installs through the `RuntimeScheduler` on bridgeless.
+6. **Row concealment** is disabled on Android (`CONCEAL_UNSETTLED_ROWS`).
+
+Dev trap: the JS component and the native engine must come from the same tree. With a JS change
+to the binding protocol loaded by Metro over an older native build, presses silently stopped
+routing; rebuild the app after pulling engine or binding changes.
