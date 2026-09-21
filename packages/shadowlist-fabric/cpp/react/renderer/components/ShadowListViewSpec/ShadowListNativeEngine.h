@@ -146,8 +146,22 @@ public:
    */
   void didLayout(const ShadowNode& listNode, azimgd::shadowlist::Container& core);
 
-  // From adopt, before the core's update: hand a due requestScroll to the core.
-  void applyPendingScroll(azimgd::shadowlist::Container& core);
+  /*
+   * From adopt, before the core's update: hand a due requestScroll to the core. True when one
+   * was handed over; that frame then runs as a scroll command (see yieldMomentum).
+   */
+  bool applyPendingScroll(azimgd::shadowlist::Container& core);
+
+  /*
+   * A scroll command supersedes momentum, as the host's own commands do (they stop the fling
+   * on the UI thread before they update state). An engine scroll reaches the core in a commit,
+   * so the host learns of it when it mounts the correction: the layout pass stamps the
+   * correction's commit token as ShadowListViewState::momentumYieldToken_, and the host stops
+   * the fling and writes the offset instead of shifting it. Set from adopt once the core has
+   * an operation for the command; 0 = none.
+   */
+  void setMomentumYieldToken(std::uint64_t token);
+  std::uint64_t momentumYieldToken() const;
 
 private:
   struct Row {
@@ -279,6 +293,7 @@ private:
     std::uint64_t afterVersion = 0;
   };
   std::optional<PendingScroll> pendingScroll_;
+  std::uint64_t momentumYieldToken_ = 0;
 
   std::size_t initialRows_ = 10;
   std::size_t padRows_ = 2;

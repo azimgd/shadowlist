@@ -284,9 +284,8 @@ public:
       shadowlistViewStateData.containerOffsetIndexViewPosition_);
 
     // ShadowListNative's scroll commands, once the rows they follow are laid out.
-    if (shadowlistViewShadowNode.getNativeEngine()) {
+    bool nativeScrollCommand = shadowlistViewShadowNode.getNativeEngine() &&
       shadowlistViewShadowNode.getNativeEngine()->applyPendingScroll(*containerManager);
-    }
 
     /*
      * Reconcile, measure and resolve scrolling in a single core call
@@ -373,6 +372,17 @@ public:
         : azimgd::shadowlist::ScrollPhase::Idle;
 
     /*
+     * A ShadowListNative scroll command stops momentum (the host does it when it mounts the
+     * correction, see ShadowListNativeEngine::setMomentumYieldToken), so its frame runs idle as
+     * a host command's does. Otherwise the core would read the fling's settling phase as a
+     * gesture driving the correction, and the host would shift it onto the coasting offset.
+     */
+    if (nativeScrollCommand) {
+      input.userScrolled = false;
+      input.scrollPhase = azimgd::shadowlist::ScrollPhase::Idle;
+    }
+
+    /*
      * The commit token the host echoed back (the id of the correction whose offset
      * write produced this report, or 0). Lets the core match its own echo exactly.
      */
@@ -397,6 +407,10 @@ public:
      */
     try {
       azimgd::shadowlist::Virtualizer::update(containerManager, input);
+      if (nativeScrollCommand) {
+        shadowlistViewShadowNode.getNativeEngine()->setMomentumYieldToken(
+          containerManager->operation ? containerManager->operation->id : 0);
+      }
       /*
        * Only the layout pass publishes to the host, and a commit that carries nothing but new
        * state (a scroll report, a scroll command) leaves this node's layout clean, so layout()

@@ -442,10 +442,10 @@ void ShadowListNativeEngine::requestScroll(double index, double viewPosition) {
   nudge();
 }
 
-void ShadowListNativeEngine::applyPendingScroll(azimgd::shadowlist::Container& core) {
+bool ShadowListNativeEngine::applyPendingScroll(azimgd::shadowlist::Container& core) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!pendingScroll_ || laidOutVersion_ < pendingScroll_->afterVersion) {
-    return;
+    return false;
   }
   SL_LOG("native: scroll index=%.0f after=%llu", pendingScroll_->index, static_cast<unsigned long long>(pendingScroll_->afterVersion));
   if (pendingScroll_->index <= SCROLL_TO_START) {
@@ -457,6 +457,17 @@ void ShadowListNativeEngine::applyPendingScroll(azimgd::shadowlist::Container& c
       static_cast<std::size_t>(pendingScroll_->index), std::min(1.0, std::max(0.0, pendingScroll_->viewPosition)));
   }
   pendingScroll_.reset();
+  return true;
+}
+
+void ShadowListNativeEngine::setMomentumYieldToken(std::uint64_t token) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  momentumYieldToken_ = token;
+}
+
+std::uint64_t ShadowListNativeEngine::momentumYieldToken() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return momentumYieldToken_;
 }
 
 void ShadowListNativeEngine::nudge() {

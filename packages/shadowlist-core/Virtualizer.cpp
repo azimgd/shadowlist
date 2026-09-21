@@ -396,7 +396,8 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
     (input.userScrolled && userMovedOffset && input.scrollPhase != ScrollPhase::Settling);
   bool scrollCommandInFlight = container->operation &&
     (container->operation->type == OperationType::ScrollToEnd ||
-     container->operation->type == OperationType::ScrollToKey);
+     container->operation->type == OperationType::ScrollToKey ||
+     container->operation->type == OperationType::ScrollToStart);
   /*
    * An in-flight MVCP correction is not a scroll intent the user can overrule: it holds the
    * content the user is looking at while rows are inserted above it. A prepend that lands mid
@@ -1986,7 +1987,8 @@ bool Virtualizer::resolveScroll(
 
   /*
    * 1b. scrollToStart: offset 0, expressed as the leading row held at its own offset below
-   *     the viewport start (the header above it), so it tracks re-measurement like MVCP.
+   *     the viewport start (the header above it), so it tracks re-measurement like MVCP. A
+   *     command, not MVCP: momentum neither cancels it nor moves its target.
    */
   if (container->pendingScrollToStart) {
     container->pendingScrollToStart = false;
@@ -1996,7 +1998,7 @@ bool Virtualizer::resolveScroll(
         leading = elementsSize - 1;
       }
       requestAnchor(
-        OperationType::MaintainAnchor,
+        OperationType::ScrollToStart,
         container->getElementAtIndex(leading).key,
         -container->getElementOffset(leading));
       container->invertedInitialized = true;

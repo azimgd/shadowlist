@@ -101,6 +101,8 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
    */
   uint64_t _shiftedToken;
   CGFloat _shiftedTokenDelta;
+  // The last engine scroll command (momentumYieldToken_) this view stopped momentum for.
+  uint64_t _yieldedToken;
   /*
    * Set when a scroll report goes out while updateState: runs, so updateState: knows whether a
    * state that conceals rows has been acked already (see reportConcealedRowsMounted).

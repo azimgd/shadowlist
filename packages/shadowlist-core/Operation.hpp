@@ -43,6 +43,7 @@ enum class ScrollPhase {
 enum class OperationType {
   MaintainAnchor,  // MVCP: keep the captured anchor element fixed across a reconcile
   ScrollToKey,     // scrollToIndex, resolved to a key once at request time
+  ScrollToStart,   // scrollToStart: the leading row held at its offset below the viewport start
   ScrollToEnd,     // converge on the true bottom as off-screen rows are measured
   BottomPin,       // inverted list initial bottom pin (one-shot; dies on a user drag)
   ShrinkClamp,     // content shrank below the offset: pull back to the new max

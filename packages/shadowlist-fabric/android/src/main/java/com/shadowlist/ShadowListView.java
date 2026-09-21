@@ -125,6 +125,8 @@ public class ShadowListView extends FrameLayout {
    */
   private long mShiftedToken = 0;
   private double mShiftedTokenDelta = 0.0;
+  // The last engine scroll command (momentumYieldToken) this host stopped momentum for.
+  private long mYieldedToken = 0;
 
   /*
    * The last scroll command this host issued (scrollToIndex / scrollToEnd), carried on every
@@ -624,6 +626,7 @@ public class ShadowListView extends FrameLayout {
     mCommandViewPosition = 0.0;
     mShiftedToken = 0;
     mShiftedTokenDelta = 0.0;
+    mYieldedToken = 0;
     mRefreshAwaitingSettle = false;
     removeCallbacks(mRefreshSettleRunnable);
     stopSettling();
@@ -802,6 +805,18 @@ public class ShadowListView extends FrameLayout {
         int appliedX = (int) PixelUtil.toPixelFromDIP(containerOffsetX);
         int appliedY = (int) PixelUtil.toPixelFromDIP(containerOffsetY);
         long token = nextStateData.hasKey("commitToken") ? (long) nextStateData.getDouble("commitToken") : 0;
+        /*
+         * A ShadowListNative scroll command reaches the core in a commit, not through this view:
+         * stop momentum when its correction mounts, as scrollToIndex does when issued, and write
+         * the offset. A finger on the list keeps it; the core lets the drag cancel the command.
+         */
+        long yieldToken = nextStateData.hasKey("momentumYieldToken")
+          ? (long) nextStateData.getDouble("momentumYieldToken") : 0;
+        boolean scrollCommand = yieldToken != 0 && token == yieldToken && !mTouching;
+        if (scrollCommand && yieldToken != mYieldedToken) {
+          mYieldedToken = yieldToken;
+          stopMomentum();
+        }
         int beforeX = mScrollView.getScrollX();
         int beforeY = mScrollView.getScrollY();
         /*
@@ -825,7 +840,7 @@ public class ShadowListView extends FrameLayout {
         boolean computedDuringGesture = token != 0
           && ((nextStateData.hasKey("userScrolled") && nextStateData.getBoolean("userScrolled"))
             || (nextStateData.hasKey("scrollPhase") && nextStateData.getDouble("scrollPhase") != SCROLL_PHASE_IDLE));
-        boolean shiftLiveOffset = hasBase
+        boolean shiftLiveOffset = hasBase && !scrollCommand
           && (mTouching || mSettling || continuesShiftedCorrection || computedDuringGesture);
         if (shiftLiveOffset) {
           double deltaX = containerOffsetX - nextStateData.getDouble("containerOffsetBaseX");
@@ -850,7 +865,8 @@ public class ShadowListView extends FrameLayout {
          * animated scrollToOffset) also keeps the plain write. Read before
          * markProgrammaticScroll overwrites the flags.
          */
-        boolean preserveMomentum = (token != 0 || shiftLiveOffset) && !(mProgrammaticPending && mProgrammaticAnimated);
+        boolean preserveMomentum = !scrollCommand
+          && (token != 0 || shiftLiveOffset) && !(mProgrammaticPending && mProgrammaticAnimated);
         /*
          * Arm before the write: scrollTo invokes onScrollChanged synchronously when it
          * moves, and updateScrollState must see the armed token to echo it back.
@@ -953,6 +969,13 @@ public class ShadowListView extends FrameLayout {
     if (mTouching) {
       return;
     }
+    stopMomentum();
+    map.putBoolean("userScrolled", false);
+    map.putDouble("scrollPhase", SCROLL_PHASE_IDLE);
+  }
+
+  // Stops a fling and a snap glide, and forgets a programmatic write still waiting for its echo.
+  private void stopMomentum() {
     if (mScrollView instanceof ReactScrollView) {
       ((ReactScrollView) mScrollView).abortAnimation();
     } else if (mScrollView instanceof ReactHorizontalScrollView) {
@@ -963,8 +986,6 @@ public class ShadowListView extends FrameLayout {
     mProgrammaticPending = false;
     mProgrammaticAnimated = false;
     mArmedToken = 0;
-    map.putBoolean("userScrolled", false);
-    map.putDouble("scrollPhase", SCROLL_PHASE_IDLE);
   }
 
   /*
