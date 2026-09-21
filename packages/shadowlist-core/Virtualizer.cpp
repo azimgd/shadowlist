@@ -1985,6 +1985,26 @@ bool Virtualizer::resolveScroll(
   }
 
   /*
+   * 1b. scrollToStart: offset 0, expressed as the leading row held at its own offset below
+   *     the viewport start (the header above it), so it tracks re-measurement like MVCP.
+   */
+  if (container->pendingScrollToStart) {
+    container->pendingScrollToStart = false;
+    if (elementsSize > 0) {
+      std::size_t leading = 0;
+      if (container->getElementOffset(elementsSize - 1) < container->getElementOffset(0)) {
+        leading = elementsSize - 1;
+      }
+      requestAnchor(
+        OperationType::MaintainAnchor,
+        container->getElementAtIndex(leading).key,
+        -container->getElementOffset(leading));
+      container->invertedInitialized = true;
+      container->invertedOpeningPin = false;
+    }
+  }
+
+  /*
    * 2. Inverted lists stick to the bottom until the view reaches it, repinning as the
    *    total grows. Only pin once the window size is known, to avoid targeting total-0.
    */

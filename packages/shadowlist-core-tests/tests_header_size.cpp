@@ -240,3 +240,28 @@ TEST(header_growing_on_screen_pushes_the_rows_below_it) {
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "k0"), SPINNER_HEADER, 0.5);
 }
+
+/*
+ * scrollToStart after a prepend: MVCP first keeps the old first row where it was (the new rows
+ * above the viewport), then the request lands on offset 0 with the header in view, not on the
+ * first row's leading edge.
+ */
+TEST(scroll_to_start_after_a_prepend_lands_on_offset_zero_with_the_header) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+
+  std::vector<std::string> prepended = keysFor(10, "new");
+  prepended.insert(prepended.end(), keys.begin(), keys.end());
+  Virtualizer::update(&container, frame(prepended, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  double anchored = container.revision.containerOffsetY;
+  CHECK(anchored > PLAIN_HEADER);
+
+  container.scrollToStart();
+  Virtualizer::update(&container, frame(prepended, anchored, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
+}
