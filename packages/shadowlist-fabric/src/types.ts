@@ -311,15 +311,28 @@ export interface ShadowListNativeCommands<ItemT> {
   scrollToIndex: (index: number, viewPosition?: number) => void;
   scrollToOffset: (offset: number, animated?: boolean) => void;
   scrollToEnd: (animated?: boolean) => void;
+  // Offset 0 (header in view), after every mutation made before it is laid out.
+  scrollToStart: () => void;
 }
 
-export interface ShadowListNativeProps<ItemT> {
-  /*
-   * The rows. A new array replaces the native store (keyed: rows whose item is unchanged keep
-   * their views). Imperative commands change the store without touching this prop; they hold
-   * until the next new `data` array.
-   */
-  data: ReadonlyArray<ItemT>;
+/*
+ * Where the rows come from; exactly one of the two.
+ *
+ * - `initialData` (uncontrolled): seeds the native store once, when the list mounts. Later
+ *   arrays are ignored; the store is changed only through the ref's commands (appendItems,
+ *   updateItem, setData, ...). Use it when the list owns its rows: paging, local edits.
+ * - `data` (controlled): the store mirrors the array. Each new array replaces the store (keyed:
+ *   rows whose item is unchanged keep their views), so a command's change lasts only until the
+ *   next array; write edits into the source of `data` instead.
+ */
+export type ShadowListNativeDataProps<ItemT> =
+  | { data: ReadonlyArray<ItemT>; initialData?: never }
+  | { initialData: ReadonlyArray<ItemT>; data?: never };
+
+export type ShadowListNativeProps<ItemT> = ShadowListNativeDataProps<ItemT> &
+  ShadowListNativeListProps<ItemT>;
+
+export interface ShadowListNativeListProps<ItemT> {
   keyExtractor?: (item: ItemT, index: number) => string;
   // Template name -> element. Declared once; every row is a clone of one of them.
   templates: Readonly<Record<string, ReactElement>>;
@@ -353,6 +366,8 @@ export interface ShadowListNativeProps<ItemT> {
   snapToAlignment?: 'start' | 'center' | 'end';
   refreshing?: boolean;
   onRefresh?: () => void;
+  // Once per refresh, after `refreshing` turns false and the spinner is gone: apply new rows here.
+  onRefreshSettle?: () => void;
   refreshColor?: ColorValue;
   onStartReached?: () => void;
   onEndReached?: () => void;
