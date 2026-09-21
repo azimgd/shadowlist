@@ -74,3 +74,22 @@ TEST(nativeBindingRecognisesColorProps) {
   CHECK(!isShadowListNativeColorProp("Color"));
   CHECK(!isShadowListNativeColorProp("opacity"));
 }
+
+TEST(nativeBindingMissingValuesKeepTheTemplateValue) {
+  // Missing/null values keep the template's static prop (a static `color` survives an unset `k`).
+  CHECK(shadowListNativeBindingKeepsTemplate("color", true));
+  CHECK(shadowListNativeBindingKeepsTemplate("borderColor", true));
+  CHECK(shadowListNativeBindingKeepsTemplate("opacity", true));
+  CHECK(shadowListNativeBindingKeepsTemplate("uri", true));
+  // So do color strings that do not parse, including ''.
+  CHECK(shadowListNativeBindingKeepsTemplate("color", false, std::string_view("")));
+  CHECK(shadowListNativeBindingKeepsTemplate("backgroundColor", false, std::string_view("chartreuse")));
+  CHECK(!shadowListNativeBindingKeepsTemplate("color", false, std::string_view("#fff")));
+  // Values that are present apply, strings included for non-color props.
+  CHECK(!shadowListNativeBindingKeepsTemplate("opacity", false));
+  CHECK(!shadowListNativeBindingKeepsTemplate("uri", false, std::string_view("")));
+  CHECK(!shadowListNativeBindingKeepsTemplate("nativeID", false, std::string_view("x")));
+  // hidden/visible always apply: null is falsy.
+  CHECK(!shadowListNativeBindingKeepsTemplate("hidden", true));
+  CHECK(!shadowListNativeBindingKeepsTemplate("visible", true));
+}

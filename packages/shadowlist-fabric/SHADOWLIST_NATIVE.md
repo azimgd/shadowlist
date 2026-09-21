@@ -118,6 +118,15 @@ Bound props:
 - Anything else: the raw value is parsed as that prop (`opacity`, `width`, `aspectRatio`, ...).
   Values are the item's JSON values; they are not run through React Native's JS style processing.
 
+Missing values keep the template's value: when a bound value is missing or `null` (or a color
+string does not parse, `''` included), the element keeps the prop the template gives it, e.g.
+`style={{ color: '#fff' }} bind={{ color: 'tone' }}` renders `#fff` for rows without `tone`. A row
+that loses the value in `updateItem` goes back to the template value (rows are always bound from
+the template's props). With no template value the prop falls back to its default (on Android the
+engine writes an explicit `null`, since a view keeps a raw prop that is absent from an update).
+Exceptions: `hidden` / `visible` treat a missing value as falsy, and `text` renders it as `''`. To
+clear a static value from data, bind a real value (`'transparent'`, `0`).
+
 ### Commands (`ref`)
 
 | Command                                                                  | Notes                                                                                                                                                                                               |
@@ -163,8 +172,8 @@ JS  <ShadowListNative>                         C++
 
 - `cpp/.../ShadowListViewSpec/ShadowListNativeEngine.{h,cpp}`: store, template compiler, row
   synthesis/rebinding, window reconcile, layout coverage check, registry.
-- `cpp/.../ShadowListViewSpec/ShadowListNativeBinding.h`: expression and color parsing (folly-free,
-  unit-tested in `packages/shadowlist-core-tests/tests_native_binding.cpp`).
+- `cpp/.../ShadowListViewSpec/ShadowListNativeBinding.h`: expression and color parsing, the
+  missing-value rule (folly-free, unit-tested in `packages/shadowlist-core-tests/tests_native_binding.cpp`).
 - `cpp/.../ShadowListViewSpec/ShadowListNativeJSI.{h,cpp}`: `globalThis.__shadowListNative`.
 - `cpp/.../ShadowListViewSpec/ShadowListViewComponentDescriptor.h`: `adopt` (store keys to the core),
   `cloneShadowNode` and `appendChild` overrides (rows into the tree).
