@@ -172,7 +172,7 @@ void install(jsi::Runtime& runtime) {
     return jsi::Value(engine ? static_cast<double>(engine->size()) : 0.0);
   });
 
-  // resolveTag(listId, tag) -> { key, index } | null
+  // resolveTag(listId, tag) -> { key, index, repeatIndex } | null
   define(runtime, binding, "resolveTag", 2, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
     auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
     if (!engine) {
@@ -183,8 +183,9 @@ void install(jsi::Runtime& runtime) {
       return jsi::Value::null();
     }
     jsi::Object result(runtime);
-    result.setProperty(runtime, "key", jsi::String::createFromUtf8(runtime, hit->first));
-    result.setProperty(runtime, "index", static_cast<double>(hit->second));
+    result.setProperty(runtime, "key", jsi::String::createFromUtf8(runtime, hit->key));
+    result.setProperty(runtime, "index", static_cast<double>(hit->index));
+    result.setProperty(runtime, "repeatIndex", static_cast<double>(hit->repeatIndex));
     return jsi::Value(runtime, result);
   });
 

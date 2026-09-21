@@ -79,12 +79,19 @@ public:
 
   std::size_t size() const;
 
+  struct ResolvedTag {
+    std::string key;
+    std::size_t index = 0;
+    // Entry of the innermost repeated element the tag sits in; -1 outside any.
+    int repeatIndex = -1;
+  };
+
   /*
    * The row a native view tag belongs to: any node of a synthesized row resolves to that row's
    * key and current index. Touch events carry the hit view's tag, which is how a press on a
    * cloned element is routed to its row.
    */
-  std::optional<std::pair<std::string, std::size_t>> resolveTag(Tag tag) const;
+  std::optional<ResolvedTag> resolveTag(Tag tag) const;
 
   /*
    * Ask for a commit of the list, so the next adopt/reconcile picks up the store. Coalesced by
@@ -141,6 +148,12 @@ private:
     std::string elementId;
     std::vector<std::pair<std::string, ShadowListNativeExpression>> bindings;
     std::optional<ShadowListNativeExpression> text;
+    /*
+     * `repeat`: the children are one entry's template, built once per entry of the array at
+     * this path, with bindings inside resolved against the entry. Capped at repeatMax.
+     */
+    std::optional<std::vector<std::string>> repeat;
+    std::size_t repeatMax = SIZE_MAX;
     bool keepNativeId = false;
     bool isRawText = false;
     // Prototype props with the element marker stripped and the style override applied.
@@ -191,6 +204,7 @@ private:
     const std::shared_ptr<const ShadowNode>& existing,
     const Props::Shared* propsOverride,
     const std::optional<std::string>& rawText,
+    int repeatIndex,
     const PropsParserContext& context);
 
   void forgetTagsLocked(const ShadowNode& node, const std::string& key);
@@ -213,7 +227,11 @@ private:
   std::uint64_t nextTemplateVersion_ = 1;
 
   std::unordered_map<std::string, RowNode> rowNodes_;
-  std::unordered_map<Tag, std::string> tagKeys_;
+  struct TagEntry {
+    std::string key;
+    int repeatIndex = -1;
+  };
+  std::unordered_map<Tag, TagEntry> tagKeys_;
   std::uint64_t clock_ = 0;
 
   // Keys at the ends of the rows the last reconcile mounted.
