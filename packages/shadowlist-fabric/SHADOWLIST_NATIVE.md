@@ -377,9 +377,12 @@ and append of cards), `columns` (two-column grid, remove reflows), `moveItem` (v
 MVCP), `repeat` (a 2x2 image grid, cards in a horizontal ScrollView; growing the array rebinds in
 place), a theme switch rebinding every template (presses still route afterwards).
 
-Exercised in Explore (Native): grid mode has a `stickyHeader` whose readout is `onVisibleRangeChange`
-("3–24 of 200", the core window with overscan), Clear/Restore (`setData([])` shows
-`ListEmptyComponent`), and the deals list uses `snapToItem`. Feed (Native): `initialData` + paging
+Exercised in Explore (Native): the grid is the one controlled list (`data`). Its likes, `✕`
+removes, Shuffle and Clear / Undo clear each replace the array, and the store follows it. Clear
+passes `[]`, which shows `ListEmptyComponent`. Undo clear passes the grid's cards back as they
+were: likes kept, removed cards still gone. The grid has a `stickyHeader` whose readout
+combines `onVisibleRangeChange` (the core window with overscan) with the array's length:
+"21–42 of 197". The deals list uses `snapToItem`. Feed (Native): `initialData` + paging
 by `appendItems`, local edits that survive paging/refresh, refresh via `onRefreshSettle` + `setData`
 
 - `scrollToStart`, theme colors as template styles (a theme switch rebinds, data untouched).
@@ -436,7 +439,7 @@ Not supported:
 
 6. `ListEmptyComponent` (shared with `ShadowList`, pre-existing): the core's total size excludes the
    empty template, so on Android it is clipped (nothing shows) and on iOS it shows but is outside the
-   content bounds, so it is not hit-testable (no buttons in it; Explore puts Restore in its toolbar).
+   content bounds, so it is not hit-testable (no buttons in it; Explore puts Undo clear in its toolbar).
 7. Fast Refresh does not hot-swap the template element components (old code keeps rendering until a
    reload); presses keep working either way.
 
@@ -489,8 +492,9 @@ and screenshots, trace via `adb logcat -s SL`:
   visible area, header "load earlier" prepends, flings through the history, repeat image grids.
 - Explore (Native): shelves with repeated cards in a horizontal `ScrollView`, `+ Card`
   (`updateItem` of the array), card like (`repeatIndex`), `↑ Top` (`moveItem`, visible rows stay),
-  the horizontal deals list in the header (press toggles `Picked`), Grid mode (`columns: 2`),
-  `✕` removes and reflows, Shuffle.
+  the horizontal deals list in the header (press toggles `Picked`), Grid mode (`columns: 2`,
+  controlled `data`): `✕` removes and reflows, likes, Shuffle, and Clear / Undo clear
+  (`98->0->98`, likes kept), each a new array.
 - No red box, no soft exceptions from the synthesized rows (the template element's
   `setIsJSResponder` on a never-mounted tag logs nothing), no crash.
 

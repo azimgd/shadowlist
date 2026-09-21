@@ -26,6 +26,7 @@ const CARD_WIDTH = 180;
 const GRID_COLUMNS = 2;
 // U+FE0E: a text heart in the bound color; Android draws a bare U+2665 as a color emoji.
 const HEART = '\u2665\uFE0E';
+const NO_CARDS: CardRow[] = [];
 
 interface CardRow {
   id: string;
@@ -80,7 +81,8 @@ let addedCards = 0;
  *   are a `repeat` over the shelf's `cards` array, cloned natively per shelf;
  * - the deals: a horizontal ShadowListNative in the list header (not recycled, so it keeps its
  *   position), with prepend/append from the header arrows;
- * - the grid: every loaded card in a two-column ShadowListNative.
+ * - the grid: every loaded card in a two-column ShadowListNative with controlled `data`: likes,
+ *   removes, Shuffle and Clear replace the array, and the list replaces its store with it.
  */
 export const NestedNativeScreen = () => {
   const screenStyles = useScreenStyles();
@@ -186,36 +188,39 @@ export const NestedNativeScreen = () => {
     []
   );
 
+  // Grid mode shows every card of the shelves loaded so far, with their liked state.
+  const [gridCards, setGridCards] = useState<CardRow[]>([]);
   const handleGridPress = useCallback(
-    ({ key, action, item }: ShadowListNativeElementPressEvent<CardRow>) => {
-      if (!item) return;
+    ({ key, action }: ShadowListNativeElementPressEvent<CardRow>) => {
       if (action === 'like') {
-        gridRef.current?.updateItem(key, { liked: !item.liked });
+        setGridCards((cards) =>
+          cards.map((card) =>
+            card.id === key ? { ...card, liked: !card.liked } : card
+          )
+        );
       } else if (action === 'remove') {
-        gridRef.current?.removeItems([key]);
+        setGridCards((cards) => cards.filter((card) => card.id !== key));
       }
     },
     []
   );
 
-  // Grid mode shows every card of the shelves loaded so far, with their liked state.
-  const [gridCards, setGridCards] = useState<CardRow[]>([]);
   // The grid's core window (onVisibleRangeChange), shown in its sticky header.
-  const [gridRange, setGridRange] = useState<string>('');
-  const handleGridRange = useCallback(
-    ({ start, end }: { start: number; end: number }) => {
-      const count = gridRef.current?.getCount() ?? 0;
-      setGridRange(`${start + 1}–${end + 1} of ${count}`);
-    },
-    []
-  );
-  // Clear empties the grid (its ListEmptyComponent shows); Restore puts the cards back.
+  const [gridWindow, setGridWindow] = useState<{
+    start: number;
+    end: number;
+  } | null>(null);
+  // Clear shows no cards (the ListEmptyComponent); Undo clear shows the grid's cards again.
   const [gridCleared, setGridCleared] = useState(false);
+  const gridData = gridCleared ? NO_CARDS : gridCards;
+  const gridRange =
+    gridWindow && gridData.length > 0
+      ? `${gridWindow.start + 1}–${Math.min(gridWindow.end + 1, gridData.length)} of ${gridData.length}`
+      : '';
   const toggleGridCleared = useCallback(() => {
-    gridRef.current?.setData(gridCleared ? gridCards : []);
-    setGridCleared(!gridCleared);
-    setGridRange('');
-  }, [gridCleared, gridCards]);
+    setGridCleared((cleared) => !cleared);
+    setGridWindow(null);
+  }, []);
   const showGrid = useCallback(() => {
     const shelves = shelvesRef.current;
     if (!shelves) return;
@@ -224,17 +229,20 @@ export const NestedNativeScreen = () => {
       .flatMap((key) => shelves.getItem(key)?.cards ?? []);
     setGridCards(cards);
     setGridCleared(false);
+    setGridWindow(null);
     setMode('grid');
   }, []);
 
   const shuffleGrid = useCallback(() => {
-    const grid = gridRef.current;
-    const keys = grid?.getKeys() ?? [];
-    if (!grid || keys.length < 2) return;
-    // Moves a visible-ish card to the front: the rows between shift by one.
-    const key =
-      keys[1 + Math.floor(Math.random() * Math.min(9, keys.length - 1))]!;
-    grid.moveItem(key, 0);
+    setGridCards((cards) => {
+      if (cards.length < 2) return cards;
+      // Moves a visible-ish card to the front: the rows between shift by one.
+      const from =
+        1 + Math.floor(Math.random() * Math.min(9, cards.length - 1));
+      const next = cards.slice();
+      next.unshift(...next.splice(from, 1));
+      return next;
+    });
   }, []);
 
   const shelfTemplates = useMemo(
@@ -417,12 +425,12 @@ export const NestedNativeScreen = () => {
       {mode === 'grid' ? (
         <ShadowListNative
           ref={gridRef}
-          initialData={gridCards}
+          data={gridData}
           templates={gridTemplates}
           columns={GRID_COLUMNS}
           style={screenStyles.list}
           onElementPress={handleGridPress}
-          onVisibleRangeChange={handleGridRange}
+          onVisibleRangeChange={setGridWindow}
           stickyHeader
           ListHeaderComponent={
             <View style={styles.gridHeader}>
@@ -435,7 +443,7 @@ export const NestedNativeScreen = () => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>
-                No cards; Restore brings them back
+                No cards; Undo clear brings them back
               </Text>
             </View>
           }
@@ -450,7 +458,7 @@ export const NestedNativeScreen = () => {
           <>
             <ToolbarButton label="Shuffle" onPress={shuffleGrid} />
             <ToolbarButton
-              label={gridCleared ? 'Restore' : 'Clear'}
+              label={gridCleared ? 'Undo clear' : 'Clear'}
               onPress={toggleGridCleared}
             />
           </>
