@@ -83,6 +83,12 @@ void Container::scrollToEnd() {
   this->pendingScrollToEnd = true;
 }
 
+void Container::scrollToStart() {
+  this->pendingScrollToStart = true;
+  this->pendingScrollToEnd = false;
+  this->scrollToIndexTarget = UNDEFINED_INDEX;
+}
+
 void Container::requestScrollToIndex(double commandIndex, double commandSequence, int propIndex, double commandViewPosition) {
   /*
    * The imperative command takes priority over the prop. Each call bumps a counter, and
