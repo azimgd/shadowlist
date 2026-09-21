@@ -18,6 +18,7 @@ import { ChatNativeScreen } from './ChatNativeScreen';
 import { AssistantScreen } from './AssistantScreen';
 import { ActivityScreen } from './ActivityScreen';
 import { NestedScreen } from './NestedScreen';
+import { NestedNativeScreen } from './NestedNativeScreen';
 import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
 import { SectionListScreen } from './SectionListScreen';
@@ -179,6 +180,11 @@ export default function App() {
                 name="Nested"
                 component={NestedScreen}
                 options={{ title: 'Explore' }}
+              />
+              <Drawer.Screen
+                name="NestedNative"
+                component={NestedNativeScreen}
+                options={{ title: 'Explore (Native)' }}
               />
               <Drawer.Screen
                 name="Masonry"
