@@ -29,6 +29,8 @@ export interface ShadowListNativeBinding {
   ): boolean;
   removeItems(listId: string, keys: ReadonlyArray<string>): number;
   moveItem(listId: string, key: string, toIndex: number): boolean;
+  // After the mutations made so far are laid out; a negative index is the end.
+  scrollToIndex(listId: string, index: number, viewPosition: number): void;
   setTemplateStyle(
     listId: string,
     template: string,
