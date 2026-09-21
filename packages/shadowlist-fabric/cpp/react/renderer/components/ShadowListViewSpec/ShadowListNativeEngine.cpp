@@ -166,8 +166,8 @@ Props::Shared cloneWithPatch(
 #ifdef RN_SERIALIZABLE_STATE
   /*
    * Android mounts a view from the props' raw props, so a patch alone would reach the platform
-   * view as the whole prop set. Carry the base's raw props with it. (Unverified on device; see
-   * SHADOWLIST_NATIVE.md, porting notes.)
+   * view as the whole prop set. Carry the base's raw props with it (see SHADOWLIST_NATIVE.md,
+   * "Android").
    */
   patch = mergeDynamicProps(base->rawProps, patch, NullValueStrategy::Override);
 #endif
