@@ -107,6 +107,7 @@ function ShadowListNativeInner<ItemT>(
     elementStyle,
     testID,
     inverted = false,
+    followAppends = false,
     horizontal = false,
     columns = 1,
     overscan = 1,
@@ -410,6 +411,7 @@ function ShadowListNativeInner<ItemT>(
       elementsAllKeys={EMPTY_STRINGS}
       elementsAnchorIgnoreKeys={EMPTY_STRINGS}
       inverted={inverted}
+      followAppends={followAppends}
       horizontal={horizontal}
       stickyHeader={stickyHeader}
       stickyFooter={stickyFooter}
