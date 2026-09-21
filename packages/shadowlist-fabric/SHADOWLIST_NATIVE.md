@@ -387,6 +387,9 @@ by `appendItems`, local edits that survive paging/refresh, refresh via `onRefres
 
 - `scrollToStart`, theme colors as template styles (a theme switch rebinds, data untouched).
 
+Dev lifecycle, on iOS and Android: row presses route correctly after a Fast Refresh of
+`ShadowListNative.tsx`, and rows and presses are correct after three Metro reloads in a row.
+
 Wired but not exercised on device: sticky footer, `followAppends`.
 
 ### Nesting
