@@ -159,6 +159,8 @@ public:
    * resting at its bottom, so the list follows them.
    */
   bool pendingScrollToEnd = false;
+  // scrollToStart() requested; consumed by the next resolve.
+  bool pendingScrollToStart = false;
   double pendingScrollToEndLastTotal = -1.0;
 
   /*
@@ -490,6 +492,12 @@ public:
    * are measured so it converges on the true end of a variable-height list.
    */
   void scrollToEnd();
+
+  /*
+   * Request scrolling to offset 0 (the header, if any, in view), held on the first row's key
+   * so it converges while rows above the viewport are measured.
+   */
+  void scrollToStart();
 
   /*
    * Resolve a scrollToIndex request from an imperative command and a declarative
