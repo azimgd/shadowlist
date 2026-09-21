@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type ComponentRef,
+  type Context,
   type ReactElement,
   type Ref,
 } from 'react';
@@ -56,8 +57,16 @@ interface ShadowListNativeContextValue {
   ) => void;
 }
 
-const ShadowListNativeContext =
-  createContext<ShadowListNativeContextValue | null>(null);
+/*
+ * Kept on the global so it survives a Fast Refresh of this file: a re-evaluated module would
+ * otherwise create a second context, and template elements remounted with the new module's code
+ * would read it while the list still provides the old one (presses silently stop).
+ */
+const contextGlobal = globalThis as {
+  __shadowListNativeContext?: Context<ShadowListNativeContextValue | null>;
+};
+const ShadowListNativeContext = (contextGlobal.__shadowListNativeContext ??=
+  createContext<ShadowListNativeContextValue | null>(null));
 
 function defaultKeyExtractor(item: unknown, index: number): string {
   const id = (item as { id?: unknown } | null)?.id;
