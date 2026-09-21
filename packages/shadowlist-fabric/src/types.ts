@@ -332,6 +332,8 @@ export interface ShadowListNativeProps<ItemT> {
   elementStyle?: ViewStyle;
   testID?: string;
   inverted?: boolean;
+  // Scroll onto rows appended below the newest one while the list is at its end (see ShadowList).
+  followAppends?: boolean;
   horizontal?: boolean;
   columns?: number;
   // Viewports measured and mounted beyond the visible one, on each side.
