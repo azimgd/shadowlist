@@ -468,6 +468,13 @@ void ShadowListNativeEngine::compileElement(
   signature.push_back(props.get());
   signature.push_back(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(node->getChildren().size())));
   shape += node->getComponentName();
+  /*
+   * The instance handle is part of the shape: rows share their prototype's handle (it routes
+   * their events), so when React replaces a template element's fiber, rows rebound in place
+   * would keep the old, dead handle and drop their touches. A new handle rebuilds them.
+   */
+  shape += '@';
+  shape += std::to_string(reinterpret_cast<std::uintptr_t>(node->getFamily().getInstanceHandle().get()));
   shape += '(';
 
   element.isRawText = std::string_view(node->getComponentName()) == "RawText";
