@@ -55,18 +55,18 @@ const ref = useRef<ShadowListNativeCommands<Post>>(null);
 
 ### Props
 
-| Prop                                                                                                                                                                                                                                                                                                                           | Notes                                                                                                                                                                                                                             |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data`                                                                                                                                                                                                                                                                                                                         | The rows. A new array replaces the store, diffed by key and item: a row whose item is deep-equal keeps its native views. Imperative commands change the store without touching `data`; they hold until the next new `data` array. |
-| `keyExtractor`                                                                                                                                                                                                                                                                                                                 | `(item, index) => string`. Keys must be unique; later duplicates are dropped.                                                                                                                                                     |
-| `templates`                                                                                                                                                                                                                                                                                                                    | `Record<name, ReactElement>`. Rendered once, hidden (`display: none`).                                                                                                                                                            |
-| `templateKey` / `getTemplate`                                                                                                                                                                                                                                                                                                  | Picks a row's template. Default: the template named `default`, else the first. Unknown names fall back to the default.                                                                                                            |
-| `onElementPress`                                                                                                                                                                                                                                                                                                               | Presses on elements with an `action`.                                                                                                                                                                                             |
-| `onVisibleRangeChange`                                                                                                                                                                                                                                                                                                         | Core visible window (includes the core's overscan). Only dispatched when set.                                                                                                                                                     |
-| `inverted`, `horizontal`, `columns`, `overscan` (viewports), `initialScrollIndex`, `stickyHeader`, `stickyFooter`, `autoHideHeader`, `autoHideFooter`, `snapToItem`, `snapToAlignment`, `refreshing`, `onRefresh`, `refreshColor`, `onStartReached`, `onEndReached`, thresholds, `onScroll`, `style`, `elementStyle`, `testID` | Same meaning as on `ShadowList`; they are the same native props.                                                                                                                                                                  |
-| `initialNumToRender` (10)                                                                                                                                                                                                                                                                                                      | Rows mounted before the list knows its viewport.                                                                                                                                                                                  |
-| `padRows` (2)                                                                                                                                                                                                                                                                                                                  | Extra rows mounted past the core's window each time it moves, so small scrolls rebuild nothing.                                                                                                                                   |
-| `cacheRows` (64)                                                                                                                                                                                                                                                                                                               | Row nodes remembered after they leave the window (see "Row nodes" below).                                                                                                                                                         |
+| Prop                                                                                                                                                                                                                                                                                                                                            | Notes                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data`                                                                                                                                                                                                                                                                                                                                          | The rows. A new array replaces the store, diffed by key and item: a row whose item is deep-equal keeps its native views. Imperative commands change the store without touching `data`; they hold until the next new `data` array. |
+| `keyExtractor`                                                                                                                                                                                                                                                                                                                                  | `(item, index) => string`. Keys must be unique; later duplicates are dropped.                                                                                                                                                     |
+| `templates`                                                                                                                                                                                                                                                                                                                                     | `Record<name, ReactElement>`. Rendered once, hidden (`display: none`).                                                                                                                                                            |
+| `templateKey` / `getTemplate`                                                                                                                                                                                                                                                                                                                   | Picks a row's template. Default: the template named `default`, else the first. Unknown names fall back to the default.                                                                                                            |
+| `onElementPress`                                                                                                                                                                                                                                                                                                                                | Presses on elements with an `action`.                                                                                                                                                                                             |
+| `onVisibleRangeChange`                                                                                                                                                                                                                                                                                                                          | Core visible window (includes the core's overscan). Only dispatched when set.                                                                                                                                                     |
+| `inverted`, `followAppends`, `horizontal`, `columns`, `overscan` (viewports), `initialScrollIndex`, `stickyHeader`, `stickyFooter`, `autoHideHeader`, `autoHideFooter`, `snapToItem`, `snapToAlignment`, `refreshing`, `onRefresh`, `refreshColor`, `onStartReached`, `onEndReached`, thresholds, `onScroll`, `style`, `elementStyle`, `testID` | Same meaning as on `ShadowList`; they are the same native props.                                                                                                                                                                  |
+| `initialNumToRender` (10)                                                                                                                                                                                                                                                                                                                       | Rows mounted before the list knows its viewport.                                                                                                                                                                                  |
+| `padRows` (2)                                                                                                                                                                                                                                                                                                                                   | Extra rows mounted past the core's window each time it moves, so small scrolls rebuild nothing.                                                                                                                                   |
+| `cacheRows` (64)                                                                                                                                                                                                                                                                                                                                | Row nodes remembered after they leave the window (see "Row nodes" below).                                                                                                                                                         |
 
 ### Template elements
 
@@ -76,6 +76,25 @@ const ref = useRef<ShadowListNativeCommands<Post>>(null);
 - `id`: names the element for `setTemplateStyle`.
 - `action`: makes the element pressable; a press calls `onElementPress` with this action and the
   pressed row. Nested actions: the innermost wins.
+- `repeat` (`ShadowListNative.View` only): the path of an array in the row. The view's children
+  are one entry's template and are cloned once per entry (at most `repeatMax`); `bind` paths
+  inside resolve against the entry, and `'.'` is the entry itself (an array of strings). The
+  view's own `bind` still reads the row. A press inside reports the entry as `repeatIndex`.
+
+```tsx
+<ScrollView horizontal>
+  <ShadowListNative.View repeat="cards" style={{ flexDirection: 'row' }}>
+    <ShadowListNative.View action="card" style={styles.card}>
+      <ShadowListNative.Image
+        bind={{ uri: 'image.uri' }}
+        style={styles.image}
+      />
+      <ShadowListNative.Text bind={{ text: 'title' }} />
+    </ShadowListNative.View>
+  </ShadowListNative.View>
+</ScrollView>
+// onElementPress({ key: shelfKey, action: 'card', repeatIndex: 3, item: shelf })
+```
 
 Plain React Native components (`View`, `Text`, `Image`, `ScrollView`, ...) can be used anywhere in a
 template; they are cloned as they are. A horizontal `ScrollView` inside a template works (the Feed
@@ -100,16 +119,17 @@ Bound props:
 
 ### Commands (`ref`)
 
-| Command                                                                                            | Notes                                                                                                                                             |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `updateItem(key, patch)`                                                                           | Shallow merge. Only that row is rebuilt (its families are kept, so the platform sees an update, not a remount). Returns false for an unknown key. |
-| `replaceItem(key, item)`                                                                           | Replace the item.                                                                                                                                 |
-| `insertItems(index, items)`, `appendItems(items)`, `prependItems(items)`                           | Returns the new count. Keys already present are skipped. MVCP keeps the visible rows in place.                                                    |
-| `removeItems(keys)`, `moveItem(key, toIndex)`                                                      |                                                                                                                                                   |
-| `setData(items)`                                                                                   | Same as a new `data` array.                                                                                                                       |
-| `setTemplateStyle(template, elementId, style \| null)`                                             | Merges `style` over element `id` of `template` in every row, now and later. `null` clears it. Rebinds that template's rows in place.              |
-| `getItem(key)`, `getKeys()`, `getCount()`                                                          | Synchronous reads of the native store.                                                                                                            |
-| `scrollToIndex`, `scrollToOffset`, `scrollToEnd`, `setStartReachedEnabled`, `setEndReachedEnabled` | ShadowList's view commands.                                                                                                                       |
+| Command                                                                  | Notes                                                                                                                                             |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updateItem(key, patch)`                                                 | Shallow merge. Only that row is rebuilt (its families are kept, so the platform sees an update, not a remount). Returns false for an unknown key. |
+| `replaceItem(key, item)`                                                 | Replace the item.                                                                                                                                 |
+| `insertItems(index, items)`, `appendItems(items)`, `prependItems(items)` | Returns the new count. Keys already present are skipped. MVCP keeps the visible rows in place.                                                    |
+| `removeItems(keys)`, `moveItem(key, toIndex)`                            |                                                                                                                                                   |
+| `setData(items)`                                                         | Same as a new `data` array.                                                                                                                       |
+| `setTemplateStyle(template, elementId, style \| null)`                   | Merges `style` over element `id` of `template` in every row, now and later. `null` clears it. Rebinds that template's rows in place.              |
+| `getItem(key)`, `getKeys()`, `getCount()`                                | Synchronous reads of the native store.                                                                                                            |
+| `scrollToIndex(index, viewPosition)`, `scrollToEnd()`                    | Run after every mutation made before them is laid out, so `appendItems(...)` then `scrollToEnd()` lands on the new row (see "Scroll commands").   |
+| `scrollToOffset`, `setStartReachedEnabled`, `setEndReachedEnabled`       | ShadowList's view commands.                                                                                                                       |
 
 All mutations are synchronous in JS and request one coalesced commit; the rows change in that
 commit (typically the next frame).
@@ -150,7 +170,10 @@ JS  <ShadowListNative>                         C++
   `didLayout` after placement.
 - `src/ShadowListNative.tsx`, `src/native/binding.ts`, `src/types.ts` (`ShadowListNative*` types),
   `src/ShadowListViewNativeComponent.ts` (`nativeListId` prop).
-- Example: `packages/shadowlist-fabric-example/src/FeedNativeScreen.tsx` (drawer route `FeedNative`).
+- Examples (`packages/shadowlist-fabric-example/src`): `FeedNativeScreen.tsx` (route `FeedNative`),
+  `ChatNativeScreen.tsx` (route `ChatNative`: inverted, six bubble templates, send / status via
+  `updateItem` / retry / delete / load earlier), `NestedNativeScreen.tsx` (route `NestedNative`:
+  shelves with repeated cards, a horizontal deals list in the header, a two-column grid mode).
 
 ### Templates
 
@@ -159,7 +182,7 @@ Template metadata travels in `nativeID`, the one string prop every host componen
 compiles a template when the container's children change: it walks the subtree, parses each
 `shadowlist:{json}` marker (`i` = id, `b` = bindings, `a` = has action) and records a signature
 (props pointers + child counts). A layout clone of the container has the same signature and is not
-recompiled. A changed template bumps its version; if its shape (component names and child counts)
+recompiled. A changed template bumps its version; if its shape (component names, child counts and instance handles)
 is unchanged, existing rows are rebound in place, otherwise rebuilt.
 
 Base props per element are the prototype's props with the marker stripped (so clones can be
@@ -240,7 +263,7 @@ geometry so an unfixable gap cannot loop.
 
 `globalThis.__shadowListNative` (installed by the descriptor through the `RuntimeScheduler`, on
 first use of `ShadowListView`) has `setData`, `insertItems`, `updateItem`, `removeItems`,
-`moveItem`, `setTemplateStyle`, `configure`, `getItem`, `getKeys`, `getCount`, `resolveTag`,
+`moveItem`, `scrollToIndex`, `setTemplateStyle`, `configure`, `getItem`, `getKeys`, `getCount`, `resolveTag`,
 `retain`, `release`. Items cross as `folly::dynamic` (`jsi::dynamicFromValue`).
 
 Why JSI rather than view commands with JSON strings: a command reaches the host view on the UI
@@ -263,6 +286,25 @@ of the app.
 Lifetime: the registry holds an engine strongly while JS pins it (first data call / `retain` on
 mount, until `release` on unmount) and weakly otherwise; list nodes hold it strongly. StrictMode's
 unmount/remount re-pins the same engine.
+
+### Scroll commands
+
+`scrollToIndex` and `scrollToEnd` do not go to the host view. A view command reaches the host on
+the UI thread and becomes a state update of its own, which races the data: it can commit before
+the rows it targets exist, in the same commit before they are measured (a newest message that
+just grew its failed line stays under the composer), or, queued right after a data nudge for the
+same node, the event queue keeps only one of the two. Instead the engine records the command with
+the store version at the time of the call (`requestScroll`); `didLayout` requests a commit once
+that version is reconciled and laid out, and that commit's `adopt` hands it to the core directly
+(`Container::scrollToEnd` / `scrollToIndex`) before `Virtualizer::update`. The host's own command
+bookkeeping (`_commandSequence`, carried on every scroll report) is not touched, so a report can
+never replay an engine scroll. It does not stop momentum the way the host command does; the
+correction the core publishes takes over the offset. `[SL] native: scroll index=... after=...`
+traces each one.
+
+The nudge itself holds the list's state strongly: the layout pass replaces the node's state
+object (`setStateData`) after `adopt` attached it, so a weak reference expired on every commit that
+published geometry and all later nudges were dropped until something else committed the list.
 
 ### Presses
 
@@ -288,8 +330,37 @@ bindings (text, uri, colors, hidden, generic props), multiple templates per list
 rebound), insert/prepend/remove with the visible area kept, `setTemplateStyle` (rows rebound in place),
 presses routed to the right row including rows rebuilt after scrolling away.
 
-Wired but not exercised on device: `inverted`, `horizontal`, `columns`, `snapToItem`, sticky
-header/footer, `moveItem`, `ListEmptyComponent`, `onVisibleRangeChange`.
+Also verified (Chat (Native), Explore (Native)): `inverted` (opens at the newest message, prepend
+of a history page keeps the visible rows to the pixel, appends below keep the visible area,
+`scrollToEnd` after append/grow), `onStartReached`, `horizontal` (a list in a list header, prepend
+and append of cards), `columns` (two-column grid, remove reflows), `moveItem` (visible rows stay,
+MVCP), `repeat` (a 2x2 image grid, cards in a horizontal ScrollView; growing the array rebinds in
+place), a theme switch rebinding every template (presses still route afterwards).
+
+Wired but not exercised on device: `snapToItem`, sticky header/footer, `ListEmptyComponent`,
+`onVisibleRangeChange`, `followAppends`.
+
+### Nesting
+
+Rows are clones, so a nested list cannot be a React child of a row. Two ways work, both native:
+
+1. **Repeat inside a native scroller** (Explore shelves): the shelf template holds a horizontal
+   `ScrollView`, and its cards are a `repeat` over the shelf's `cards` array. The cards are cloned
+   with the shelf, in the same commit, from the shelf's own data; tapping a card reports the shelf
+   and `repeatIndex`; `updateItem(shelf, { cards })` rebinds the shelf in place. Not virtualized
+   horizontally, so keep the arrays bounded (`repeatMax`). Horizontal position: a rebind keeps the
+   `ScrollView` family, so it keeps its offset; a shelf that left the window is rebuilt (new
+   families, see "Row nodes"), and comes back at offset 0, like a regular `ShadowList` shelf that
+   is not in `persistentKeys`. Recycled platform scroll views do not carry offsets across shelves
+   (checked on iOS).
+2. **A ShadowListNative outside the rows** (Explore deals): a React-rendered list in the header,
+   footer or beside the list is an ordinary `ShadowListNative` with its own store and commands. It
+   is not recycled, so it keeps its position.
+
+A `ShadowListNative` cloned per row (one engine per row, bound to a row's array) is not
+supported: every clone would carry a copy of the nested templates, needs its own store keyed by
+row, and a rebuilt row would lose the nested core's offset and measurements. `repeat` covers the
+shelf case without any of that.
 
 Not supported:
 
@@ -303,14 +374,19 @@ Not supported:
 
 ## Known gaps / risks
 
-1. Template changes rebind rows with the old families when the shape is unchanged. If React replaced
-   a template element's fiber (different component type at the same position, same host shape), the
-   rebound rows keep the old instance handle and their events are dropped until they are rebuilt.
-2. `hasLiveEventTarget` reads the emitter's event target, which the mount path also writes; both run
+1. Repeat entries keep their nodes by position, not by key: inserting at the front of a repeated
+   array rebinds every entry after it (images re-load their new sources).
+2. `scrollToOffset` is still a host command, so it can coalesce with a data nudge queued in the
+   same frame (the offset is lost, the data is not).
+3. `hasLiveEventTarget` reads the emitter's event target, which the mount path also writes; both run
    during commit/mount, but it is not formally synchronized.
-3. One transient text glitch (overlapping lines in one row) was seen once in a mid-scroll screenshot
+4. One transient text glitch (overlapping lines in one row) was seen once in a mid-scroll screenshot
    and could not be reproduced in 24 further mid-scroll captures.
-4. Android host behavior is untested (it compiles).
+5. Android host behavior is untested (it compiles).
+
+Fixed since the first version: a template element whose fiber React replaces (same host shape)
+now rebuilds its rows, because the instance handle is part of the template's shape; before, rows
+rebound in place kept the dead handle and dropped their touches.
 
 ## Build and test
 

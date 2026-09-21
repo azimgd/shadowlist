@@ -37,6 +37,17 @@ describe('encodeElementMarker', () => {
   it('does not send the action name to native, only that there is one', () => {
     expect(decode(encodeElementMarker({ action: 'like' }))).toEqual({ a: 1 });
   });
+
+  it('marks a repeat with its path and cap', () => {
+    expect(decode(encodeElementMarker({ repeat: 'images' }))).toEqual({
+      r: 'images',
+    });
+    expect(
+      decode(encodeElementMarker({ repeat: 'cards', repeatMax: 4 }))
+    ).toEqual({ r: 'cards', m: 4 });
+    // A cap without a repeat means nothing.
+    expect(encodeElementMarker({ repeatMax: 4 })).toBeUndefined();
+  });
 });
 
 describe('encodeTemplateMarker', () => {
