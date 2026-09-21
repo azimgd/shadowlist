@@ -59,6 +59,8 @@ ShadowListViewShadowNode::ShadowListViewShadowNode(
   const auto& source = static_cast<const ShadowListViewShadowNode&>(sourceShadowNode);
   this->containerManager_ = source.containerManager_;
   this->geometryCache_ = source.geometryCache_;
+  this->nativeEngine_ = source.nativeEngine_;
+  this->nativeKeys_ = source.nativeKeys_;
 }
 
 void ShadowListViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager) {
@@ -683,6 +685,11 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   this->firstMeasuredTags_.clear();
+
+  // ShadowListNative: keep the laid-out rows, and remount if they fell short of the viewport.
+  if (this->nativeEngine_) {
+    this->nativeEngine_->didLayout(*this, *this->containerManager_);
+  }
 }
 
 void ShadowListViewShadowNode::replaceChild(

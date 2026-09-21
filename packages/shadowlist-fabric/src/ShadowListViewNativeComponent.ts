@@ -96,6 +96,11 @@ interface NativeProps extends ViewProps {
   snapToAlignment: CodegenTypes.Int32;
   scrollEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
   viewableEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
+  /*
+   * ShadowListNative only: the id of the native store whose rows this list synthesizes from its
+   * templates. Empty for a ShadowList.
+   */
+  nativeListId?: CodegenTypes.WithDefault<string, ''>;
   readonly onVisibleIndicesChange?: CodegenTypes.DirectEventHandler<OnVisibleIndicesChange>;
   readonly onViewableIndicesChange?: CodegenTypes.DirectEventHandler<OnViewableIndicesChange>;
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;

@@ -7,6 +7,7 @@
 #include <react/renderer/core/LayoutContext.h>
 
 #include "ShadowListElementSizeSpec.h"
+#include "ShadowListNativeEngine.h"
 #include "ShadowListViewState.h"
 
 #include <shadowlist-core/Container.hpp>
@@ -60,6 +61,9 @@ struct ShadowListViewGeometryCache {
    * the previous props cannot be freed and its address reused while we still own it.
    */
   std::shared_ptr<const Props> keysProps;
+
+  // ShadowListNative: the store keys version the core last consumed (0 = none).
+  std::uint64_t nativeKeysVersion = 0;
 
   /*
    * The props whose `elementsSizeSpecs` were last parsed and measured. Same pointer
@@ -165,8 +169,20 @@ public:
   const std::shared_ptr<azimgd::shadowlist::Container>& getContainerManager() const { return containerManager_; }
   const std::shared_ptr<ShadowListViewGeometryCache>& getGeometryCache() const { return geometryCache_; }
 
+  /*
+   * ShadowListNative: the engine that synthesizes this list's rows (null for a ShadowList), and
+   * the row keys the core reconciled on the commit that made this node.
+   */
+  void setNativeEngine(std::shared_ptr<ShadowListNativeEngine> nativeEngine) { nativeEngine_ = std::move(nativeEngine); }
+  const std::shared_ptr<ShadowListNativeEngine>& getNativeEngine() const { return nativeEngine_; }
+  void setNativeKeys(std::shared_ptr<const std::vector<std::string>> nativeKeys) { nativeKeys_ = std::move(nativeKeys); }
+  const std::shared_ptr<const std::vector<std::string>>& getNativeKeys() const { return nativeKeys_; }
+
 private:
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
+
+  std::shared_ptr<ShadowListNativeEngine> nativeEngine_;
+  std::shared_ptr<const std::vector<std::string>> nativeKeys_;
 
   /*
    * Publishable geometry derived from the core, shared across this list's clones.
