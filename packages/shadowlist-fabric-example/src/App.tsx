@@ -14,6 +14,7 @@ import {
 import { FeedScreen } from './FeedScreen';
 import { FeedNativeScreen } from './FeedNativeScreen';
 import { ChatScreen } from './ChatScreen';
+import { ChatNativeScreen } from './ChatNativeScreen';
 import { AssistantScreen } from './AssistantScreen';
 import { ActivityScreen } from './ActivityScreen';
 import { NestedScreen } from './NestedScreen';
@@ -158,6 +159,11 @@ export default function App() {
                 name="Chat"
                 component={ChatScreen}
                 options={{ title: 'Chat', headerTitle: 'Crew Chat' }}
+              />
+              <Drawer.Screen
+                name="ChatNative"
+                component={ChatNativeScreen}
+                options={{ title: 'Chat (Native)', headerTitle: 'Crew Chat' }}
               />
               <Drawer.Screen
                 name="Assistant"
