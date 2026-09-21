@@ -216,7 +216,8 @@ void ShadowListNativeEngine::structureChangedLocked() {
 std::size_t ShadowListNativeEngine::setData(
   const folly::dynamic& items,
   const std::vector<std::string>& keys,
-  const std::vector<std::string>& templates) {
+  const std::vector<std::string>& templates,
+  bool scrollToStart) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     std::unordered_map<std::string, Row> previous;
@@ -251,6 +252,9 @@ std::size_t ShadowListNativeEngine::setData(
       rebuildIndexLocked();
     } else {
       structureChangedLocked();
+    }
+    if (scrollToStart) {
+      pendingScroll_ = PendingScroll{SCROLL_TO_START, 0.0, storeVersion_, keysVersion_};
     }
   }
   requestCommit();
@@ -442,9 +446,15 @@ void ShadowListNativeEngine::requestScroll(double index, double viewPosition) {
   nudge();
 }
 
-bool ShadowListNativeEngine::applyPendingScroll(azimgd::shadowlist::Container& core) {
+bool ShadowListNativeEngine::applyPendingScroll(azimgd::shadowlist::Container& core, std::uint64_t keysVersion) {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (!pendingScroll_ || laidOutVersion_ < pendingScroll_->afterVersion) {
+  if (!pendingScroll_) {
+    return false;
+  }
+  bool due = pendingScroll_->withKeysVersion != 0
+    ? keysVersion >= pendingScroll_->withKeysVersion
+    : laidOutVersion_ >= pendingScroll_->afterVersion;
+  if (!due) {
     return false;
   }
   SL_LOG("native: scroll index=%.0f after=%llu", pendingScroll_->index, static_cast<unsigned long long>(pendingScroll_->afterVersion));

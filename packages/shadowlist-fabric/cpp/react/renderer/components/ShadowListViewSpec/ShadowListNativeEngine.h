@@ -47,8 +47,16 @@ public:
    * then every row uses the default template). A row whose key existed keeps its synthesized
    * nodes when its item is unchanged, so a refetch that returns the same data rebinds nothing.
    * Returns the new row count.
+   *
+   * `scrollToStart` goes to offset 0 in the commit that reconciles the new rows, as the same
+   * correction: a separate scrollToStart waits for them to be laid out, so the commit in
+   * between mounts MVCP holding the old first row, which shows when the list is moving.
    */
-  std::size_t setData(const folly::dynamic& items, const std::vector<std::string>& keys, const std::vector<std::string>& templates);
+  std::size_t setData(
+    const folly::dynamic& items,
+    const std::vector<std::string>& keys,
+    const std::vector<std::string>& templates,
+    bool scrollToStart = false);
 
   // Insert before `index` (clamped; past the end appends). Keys already present are skipped.
   std::size_t insertItems(
@@ -147,10 +155,11 @@ public:
   void didLayout(const ShadowNode& listNode, azimgd::shadowlist::Container& core);
 
   /*
-   * From adopt, before the core's update: hand a due requestScroll to the core. True when one
+   * From adopt, before the core's update: hand a due requestScroll to the core (or setData's
+   * scrollToStart, once `keysVersion` is this commit's snapshot of its rows). True when one
    * was handed over; that frame then runs as a scroll command (see yieldMomentum).
    */
-  bool applyPendingScroll(azimgd::shadowlist::Container& core);
+  bool applyPendingScroll(azimgd::shadowlist::Container& core, std::uint64_t keysVersion);
 
   /*
    * A scroll command supersedes momentum, as the host's own commands do (they stop the fling
@@ -291,6 +300,8 @@ private:
     double index = -1.0;
     double viewPosition = 0.0;
     std::uint64_t afterVersion = 0;
+    // Nonzero: due with the snapshot of these keys (setData's scrollToStart), not after layout.
+    std::uint64_t withKeysVersion = 0;
   };
   std::optional<PendingScroll> pendingScroll_;
   std::uint64_t momentumYieldToken_ = 0;

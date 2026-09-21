@@ -92,16 +92,18 @@ void install(jsi::Runtime& runtime) {
   }
   jsi::Object binding(runtime);
 
-  // setData(listId, items, keys, templates?) -> count
-  define(runtime, binding, "setData", 4, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
+  // setData(listId, items, keys, templates?, scrollToStart?) -> count
+  define(runtime, binding, "setData", 5, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
     auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
     if (!engine) {
       return jsi::Value(0);
     }
+    bool scrollToStart = count > 4 && arguments[4].isBool() && arguments[4].getBool();
     auto size = engine->setData(
       dynamicArgument(runtime, arguments, count, 1),
       stringsArgument(runtime, arguments, count, 2),
-      stringsArgument(runtime, arguments, count, 3));
+      stringsArgument(runtime, arguments, count, 3),
+      scrollToStart);
     return jsi::Value(static_cast<double>(size));
   });
 

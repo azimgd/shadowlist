@@ -323,3 +323,37 @@ TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
   layoutPass(container, PLAIN_HEADER);
   CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToEnd);
 }
+
+/*
+ * ShadowListNative's setData(items, { scrollTo: 'start' }): the new rows and scrollToStart reach
+ * the core in one update. The command takes precedence over MVCP, so the only correction is the
+ * one to offset 0; without it the same update holds the old anchor row.
+ */
+TEST(scroll_to_start_with_new_rows_is_one_correction) {
+  std::vector<std::string> keys = keysFor(40);
+  std::vector<std::string> replaced = keysFor(10, "new");
+  replaced.insert(replaced.end(), keys.begin(), keys.end());
+
+  auto deepContainer = [&](Container& container) {
+    Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+    layoutPass(container, PLAIN_HEADER);
+    Virtualizer::update(&container, frame(keys, 2000.0, PLAIN_HEADER));
+    layoutPass(container, PLAIN_HEADER);
+  };
+
+  Container held;
+  deepContainer(held);
+  Virtualizer::update(&held, frame(replaced, 2000.0, PLAIN_HEADER));
+  CHECK(held.operation.has_value() && held.operation->type == OperationType::MaintainAnchor);
+
+  Container container;
+  deepContainer(container);
+  container.scrollToStart();
+  FrameInput moving = frame(replaced, 2000.0, PLAIN_HEADER);
+  Virtualizer::update(&container, moving);
+  CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToStart);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
+}

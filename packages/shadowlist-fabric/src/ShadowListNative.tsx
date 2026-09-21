@@ -373,14 +373,20 @@ function ShadowListNativeInner<ItemT>(
       },
       moveItem: (key, toIndex) =>
         binding ? binding.moveItem(listId, key, toIndex) : false,
-      setData: (items) => {
+      setData: (items, options) => {
         if (!binding) return 0;
         const { keys, templates: rowTemplates } = describeItems(
           items,
           itemsRef.current.keyExtractor,
           itemsRef.current.templateOf
         );
-        const next = binding.setData(listId, items, keys, rowTemplates);
+        const next = binding.setData(
+          listId,
+          items,
+          keys,
+          rowTemplates,
+          options?.scrollTo === 'start'
+        );
         setStoreCount(next);
         return next;
       },

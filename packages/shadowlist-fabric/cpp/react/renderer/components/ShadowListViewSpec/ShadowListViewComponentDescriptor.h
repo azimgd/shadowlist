@@ -285,7 +285,7 @@ public:
 
     // ShadowListNative's scroll commands, once the rows they follow are laid out.
     bool nativeScrollCommand = shadowlistViewShadowNode.getNativeEngine() &&
-      shadowlistViewShadowNode.getNativeEngine()->applyPendingScroll(*containerManager);
+      shadowlistViewShadowNode.getNativeEngine()->applyPendingScroll(*containerManager, nativeKeys.version);
 
     /*
      * Reconcile, measure and resolve scrolling in a single core call

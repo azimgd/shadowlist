@@ -7,11 +7,13 @@ import type { ShadowListNativeBind } from '../types';
  * list's native store; mutations also schedule a commit of the list.
  */
 export interface ShadowListNativeBinding {
+  // scrollToStart: offset 0 in the commit that reconciles the new rows, as one correction.
   setData(
     listId: string,
     items: ReadonlyArray<unknown>,
     keys: string[],
-    templates: string[] | null
+    templates: string[] | null,
+    scrollToStart?: boolean
   ): number;
   insertItems(
     listId: string,
