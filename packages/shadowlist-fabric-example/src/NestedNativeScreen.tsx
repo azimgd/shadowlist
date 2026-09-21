@@ -24,6 +24,8 @@ const INITIAL_DEALS = 30;
 const PAGE_DEALS = 8;
 const CARD_WIDTH = 180;
 const GRID_COLUMNS = 2;
+// U+FE0E: a text heart in the bound color; Android draws a bare U+2665 as a color emoji.
+const HEART = '\u2665\uFE0E';
 
 interface CardRow {
   id: string;
@@ -198,6 +200,22 @@ export const NestedNativeScreen = () => {
 
   // Grid mode shows every card of the shelves loaded so far, with their liked state.
   const [gridCards, setGridCards] = useState<CardRow[]>([]);
+  // The grid's core window (onVisibleRangeChange), shown in its sticky header.
+  const [gridRange, setGridRange] = useState<string>('');
+  const handleGridRange = useCallback(
+    ({ start, end }: { start: number; end: number }) => {
+      const count = gridRef.current?.getCount() ?? 0;
+      setGridRange(`${start + 1}–${end + 1} of ${count}`);
+    },
+    []
+  );
+  // Clear empties the grid (its ListEmptyComponent shows); Restore puts the cards back.
+  const [gridCleared, setGridCleared] = useState(false);
+  const toggleGridCleared = useCallback(() => {
+    gridRef.current?.setData(gridCleared ? gridCards : []);
+    setGridCleared(!gridCleared);
+    setGridRange('');
+  }, [gridCleared, gridCards]);
   const showGrid = useCallback(() => {
     const shelves = shelvesRef.current;
     if (!shelves) return;
@@ -205,6 +223,7 @@ export const NestedNativeScreen = () => {
       .getKeys()
       .flatMap((key) => shelves.getItem(key)?.cards ?? []);
     setGridCards(cards);
+    setGridCleared(false);
     setMode('grid');
   }, []);
 
@@ -252,7 +271,7 @@ export const NestedNativeScreen = () => {
                     style={styles.badge}
                     bind={{ visible: 'liked' }}
                   >
-                    ♥
+                    {HEART}
                   </ShadowListNative.Text>
                 </View>
                 <ShadowListNative.Text
@@ -307,7 +326,7 @@ export const NestedNativeScreen = () => {
               style={styles.badge}
               bind={{ visible: 'liked' }}
             >
-              ♥
+              {HEART}
             </ShadowListNative.Text>
           </ShadowListNative.View>
           <View style={styles.gridMeta}>
@@ -350,9 +369,10 @@ export const NestedNativeScreen = () => {
         <View style={styles.deals}>
           <ShadowListNative
             ref={dealsRef}
-            data={initialDeals}
+            initialData={initialDeals}
             templates={dealTemplates}
             horizontal
+            snapToItem
             style={screenStyles.list}
             onElementPress={handleDealPress}
             ListHeaderComponent={dealsHeader}
@@ -385,7 +405,7 @@ export const NestedNativeScreen = () => {
       <View style={mode === 'shelves' ? styles.fill : styles.hidden}>
         <ShadowListNative
           ref={shelvesRef}
-          data={initialShelves}
+          initialData={initialShelves}
           templates={shelfTemplates}
           style={screenStyles.list}
           onEndReached={loadMore}
@@ -397,16 +417,27 @@ export const NestedNativeScreen = () => {
       {mode === 'grid' ? (
         <ShadowListNative
           ref={gridRef}
-          data={gridCards}
+          initialData={gridCards}
           templates={gridTemplates}
           columns={GRID_COLUMNS}
           style={screenStyles.list}
           onElementPress={handleGridPress}
+          onVisibleRangeChange={handleGridRange}
+          stickyHeader
           ListHeaderComponent={
-            <ListHeader
-              title="All cards"
-              subtitle="Two columns; tap to like, ✕ removes"
-            />
+            <View style={styles.gridHeader}>
+              <Text style={styles.gridHeaderTitle} accessibilityRole="header">
+                All cards
+              </Text>
+              <Text style={styles.gridHeaderRange}>{gridRange}</Text>
+            </View>
+          }
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>
+                No cards; Restore brings them back
+              </Text>
+            </View>
           }
         />
       ) : null}
@@ -416,7 +447,13 @@ export const NestedNativeScreen = () => {
           onPress={mode === 'grid' ? () => setMode('shelves') : showGrid}
         />
         {mode === 'grid' ? (
-          <ToolbarButton label="Shuffle" onPress={shuffleGrid} />
+          <>
+            <ToolbarButton label="Shuffle" onPress={shuffleGrid} />
+            <ToolbarButton
+              label={gridCleared ? 'Restore' : 'Clear'}
+              onPress={toggleGridCleared}
+            />
+          </>
         ) : null}
       </View>
     </View>
@@ -548,6 +585,31 @@ const useStyles = createStyles(
       dealPicked: {
         color: colors.onAccent,
         ...typography.caption,
+      },
+      gridHeader: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        justifyContent: 'space-between',
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.md,
+        backgroundColor: colors.background,
+      },
+      gridHeaderTitle: {
+        color: colors.label,
+        ...typography.title3,
+      },
+      gridHeaderRange: {
+        color: colors.secondaryLabel,
+        ...typography.footnote,
+        fontVariant: ['tabular-nums'],
+      },
+      empty: {
+        alignItems: 'center',
+        paddingVertical: spacing.xl,
+      },
+      emptyTitle: {
+        color: colors.secondaryLabel,
+        ...typography.subhead,
       },
       gridCell: {
         padding: spacing.sm,
