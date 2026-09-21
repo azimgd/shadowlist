@@ -12,6 +12,7 @@ import {
   type DrawerContentComponentProps,
 } from '@react-navigation/drawer';
 import { FeedScreen } from './FeedScreen';
+import { FeedNativeScreen } from './FeedNativeScreen';
 import { ChatScreen } from './ChatScreen';
 import { AssistantScreen } from './AssistantScreen';
 import { ActivityScreen } from './ActivityScreen';
@@ -147,6 +148,11 @@ export default function App() {
                 name="Feed"
                 component={FeedScreen}
                 options={{ title: 'Feed' }}
+              />
+              <Drawer.Screen
+                name="FeedNative"
+                component={FeedNativeScreen}
+                options={{ title: 'Feed (Native)' }}
               />
               <Drawer.Screen
                 name="Chat"
