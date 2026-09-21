@@ -180,4 +180,22 @@ inline bool isShadowListNativeColorProp(std::string_view prop) {
     (prop.size() > suffix.size() && prop.compare(prop.size() - suffix.size(), suffix.size(), suffix) == 0);
 }
 
+/*
+ * Whether a bound value leaves the element's template value in place instead of replacing it:
+ * a missing or null value, or a color string that does not parse. `hidden` / `visible` always
+ * apply (null is falsy). `string` is the value when it is a string.
+ */
+inline bool shadowListNativeBindingKeepsTemplate(
+  std::string_view prop,
+  bool isNull,
+  std::optional<std::string_view> string = std::nullopt) {
+  if (prop == "hidden" || prop == "visible") {
+    return false;
+  }
+  if (isNull) {
+    return true;
+  }
+  return string && isShadowListNativeColorProp(prop) && !parseShadowListNativeColor(*string).has_value();
+}
+
 }
