@@ -1,11 +1,17 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   ShadowListNative,
   type ShadowListNativeCommands,
   type ShadowListNativeElementPressEvent,
 } from 'shadowlist';
-import { useInfiniteListProps } from 'shadowlist-utils';
 import {
   ListFooter,
   ListHeader,
@@ -19,7 +25,8 @@ import {
 import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
-import { useFeedQuery, usePublishPosts, useRefreshFeed } from './queries/feed';
+import { fetchFeedPage, publishPosts } from './api/feed';
+import type { CursorPage } from './api/Collection';
 import { generateFeedElement } from './fixtures/feed';
 
 const PUBLISH_COUNT = 10;
@@ -29,7 +36,8 @@ const SINGLE_IMAGE_HEIGHT = 200;
 
 /*
  * A Feed row flattened into plain data for the native templates: everything the row shows is a
- * field, computed once here rather than in a render per row.
+ * field, computed once here rather than in a render per row. Only content: theme colors are
+ * template styles, so a theme switch restyles the rows without touching the data.
  */
 interface FeedNativeRow {
   id: string;
@@ -43,8 +51,15 @@ interface FeedNativeRow {
   images: string[];
   liked: boolean;
   likes: number;
-  likeLabel: string;
-  likeColor: string;
+}
+
+// The reader's own changes, which the fake server does not know: applied to every page that
+// arrives (paging, refresh), as a real app's local mutation cache would.
+interface LocalEdits {
+  hidden: Set<string>;
+  patches: Map<string, Partial<FeedNativeRow>>;
+  // Rows made on this screen ("Prepend"): kept at the top across a refresh.
+  created: FeedNativeRow[];
 }
 
 function getInitials(name: string): string {
@@ -62,28 +77,8 @@ function getAvatarColor(name: string, palette: ReadonlyArray<string>): string {
   return palette[hash % palette.length] ?? '#888888';
 }
 
-function likeFields(
-  liked: boolean,
-  likes: number,
-  accent: string,
-  muted: string
-) {
-  return {
-    liked,
-    likes,
-    likeLabel: `${liked ? '♥' : '♡'} ${likes}`,
-    likeColor: liked ? accent : muted,
-  };
-}
-
-function toRow(
-  item: FeedItem,
-  palette: ReadonlyArray<string>,
-  accent: string,
-  muted: string
-): FeedNativeRow {
+function toRow(item: FeedItem, palette: ReadonlyArray<string>): FeedNativeRow {
   const images = (item.images ?? []).map((image) => image.uri);
-  const likes = item.id.charCodeAt(item.id.length - 1) % 40;
   return {
     id: item.id,
     type:
@@ -99,10 +94,20 @@ function toRow(
     avatarColor:
       item.author.avatarColor ?? getAvatarColor(item.author.name, palette),
     images,
-    ...likeFields(false, likes, accent, muted),
+    liked: false,
+    likes: item.id.charCodeAt(item.id.length - 1) % 40,
   };
 }
 
+function toggleLike(row: FeedNativeRow): Partial<FeedNativeRow> {
+  return { liked: !row.liked, likes: row.likes + (row.liked ? -1 : 1) };
+}
+
+/*
+ * Feed on ShadowListNative. The list owns its rows (`initialData`): the first page seeds it,
+ * later pages are appended, likes/hides/prepends are commands, and a pull to refresh replaces
+ * the rows with setData once the spinner has retracted (so the new posts show at the top).
+ */
 export const FeedNativeScreen = () => {
   const screenStyles = useScreenStyles();
   const styles = useStyles();
@@ -111,22 +116,106 @@ export const FeedNativeScreen = () => {
   const [nameAccent, setNameAccent] = useState(false);
   const publishedRef = useRef(0);
 
-  const feed = useFeedQuery();
-  const refreshFeed = useRefreshFeed();
-  const list = useInfiniteListProps(feed, { refresh: refreshFeed });
-  const { mutate: publishPosts } = usePublishPosts();
+  // The avatar palette is content (the same in both themes); read it without a dependency.
+  const paletteRef = useRef(colors.avatarPalette);
+  paletteRef.current = colors.avatarPalette;
 
-  const rows = useMemo(
-    () =>
-      list.data.map((item) =>
-        toRow(item, colors.avatarPalette, colors.accent, colors.secondaryLabel)
-      ),
-    [list.data, colors]
-  );
+  const [initialRows, setInitialRows] = useState<FeedNativeRow[] | null>(null);
+  const [error, setError] = useState<Error | null>(null);
+  const [hasNextPage, setHasNextPage] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const cursorRef = useRef<number | undefined>(undefined);
+  const loadingRef = useRef(false);
+  const heldPageRef = useRef<CursorPage<FeedItem> | null>(null);
+  const editsRef = useRef<LocalEdits>({
+    hidden: new Set(),
+    patches: new Map(),
+    created: [],
+  });
+
+  const edit = useCallback((key: string, patch: Partial<FeedNativeRow>) => {
+    const { patches } = editsRef.current;
+    patches.set(key, { ...patches.get(key), ...patch });
+    listRef.current?.updateItem(key, patch);
+  }, []);
+
+  const hide = useCallback((keys: string[]) => {
+    for (const key of keys) editsRef.current.hidden.add(key);
+    listRef.current?.removeItems(keys);
+  }, []);
+
+  const rowsOf = useCallback((items: ReadonlyArray<FeedItem>) => {
+    const { hidden, patches } = editsRef.current;
+    return items
+      .filter((item) => !hidden.has(item.id))
+      .map((item) => ({
+        ...toRow(item, paletteRef.current),
+        ...patches.get(item.id),
+      }));
+  }, []);
+
+  const takePage = useCallback((page: CursorPage<FeedItem>) => {
+    cursorRef.current = page.nextCursor;
+    setHasNextPage(page.nextCursor !== undefined);
+  }, []);
+
+  const loadFirstPage = useCallback(() => {
+    setError(null);
+    fetchFeedPage(undefined).then((page) => {
+      takePage(page);
+      setInitialRows(rowsOf(page.items));
+    }, setError);
+  }, [rowsOf, takePage]);
+
+  useEffect(loadFirstPage, [loadFirstPage]);
+
+  const loadMore = useCallback(() => {
+    const cursor = cursorRef.current;
+    if (loadingRef.current || cursor === undefined) return;
+    loadingRef.current = true;
+    fetchFeedPage({ after: cursor })
+      .then((page) => {
+        takePage(page);
+        listRef.current?.appendItems(rowsOf(page.items));
+      })
+      .catch(() => {})
+      .finally(() => {
+        loadingRef.current = false;
+      });
+  }, [rowsOf, takePage]);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchFeedPage(undefined)
+      .then((page) => {
+        heldPageRef.current = page;
+      })
+      .catch(() => {})
+      .finally(() => setRefreshing(false));
+  }, []);
+
+  // The refreshed first page replaces the rows once the spinner is gone, at the top of the list.
+  const applyRefresh = useCallback(() => {
+    const page = heldPageRef.current;
+    heldPageRef.current = null;
+    if (!page) return;
+    takePage(page);
+    const { created, hidden } = editsRef.current;
+    listRef.current?.setData([
+      ...created.filter((row) => !hidden.has(row.id)),
+      ...rowsOf(page.items),
+    ]);
+    // MVCP keeps the old first post in place; the reader pulled for what is new, above it.
+    listRef.current?.scrollToStart();
+  }, [rowsOf, takePage]);
 
   useHeaderActions({
-    onPrepend: () => publishPosts(PUBLISH_COUNT),
-    onAppend: list.onEndReached,
+    onPrepend: () =>
+      publishPosts(PUBLISH_COUNT).then(
+        (created) => listRef.current?.prependItems(rowsOf(created)),
+        () => {}
+      ),
+    onAppend: loadMore,
     onScrollToRandom: () =>
       listRef.current?.scrollToIndex(
         Math.floor(Math.random() * (listRef.current?.getCount() ?? 1))
@@ -141,21 +230,12 @@ export const FeedNativeScreen = () => {
     }: ShadowListNativeElementPressEvent<FeedNativeRow>) => {
       if (!item) return;
       if (action === 'like') {
-        const liked = !item.liked;
-        listRef.current?.updateItem(
-          key,
-          likeFields(
-            liked,
-            item.likes + (liked ? 1 : -1),
-            colors.accent,
-            colors.secondaryLabel
-          )
-        );
+        edit(key, toggleLike(item));
       } else if (action === 'hide') {
-        listRef.current?.removeItems([key]);
+        hide([key]);
       }
     },
-    [colors]
+    [edit, hide]
   );
 
   const prependLocal = useCallback(() => {
@@ -163,18 +243,17 @@ export const FeedNativeScreen = () => {
       publishedRef.current += 1;
       return toRow(
         generateFeedElement(publishedRef.current),
-        colors.avatarPalette,
-        colors.accent,
-        colors.secondaryLabel
+        paletteRef.current
       );
     });
+    editsRef.current.created.unshift(...fresh);
     listRef.current?.prependItems(fresh);
-  }, [colors]);
+  }, []);
 
   const removeFirst = useCallback(() => {
     const first = listRef.current?.getKeys()[0];
-    if (first !== undefined) listRef.current?.removeItems([first]);
-  }, []);
+    if (first !== undefined) hide([first]);
+  }, [hide]);
 
   const toggleAccent = useCallback(() => {
     const next = !nameAccent;
@@ -190,17 +269,11 @@ export const FeedNativeScreen = () => {
     const key = keys[Math.floor(Math.random() * Math.min(keys.length, 6))];
     const item = key === undefined ? undefined : listRef.current?.getItem(key);
     if (key === undefined || !item) return;
-    const liked = !item.liked;
-    listRef.current?.updateItem(key, {
-      ...likeFields(
-        liked,
-        item.likes + (liked ? 1 : -1),
-        colors.accent,
-        colors.secondaryLabel
-      ),
+    edit(key, {
+      ...toggleLike(item),
       text: `${item.text.replace(/ \(edited\)$/, '')} (edited)`,
     });
-  }, [colors]);
+  }, [edit]);
 
   const templates = useMemo(() => {
     const avatar = (
@@ -234,12 +307,20 @@ export const FeedNativeScreen = () => {
         />
       </View>
     );
+    /*
+     * Liked and not liked are two elements styled by the template (theme colors), toggled by
+     * data. U+FE0E keeps the heart a text glyph; Android draws a bare U+2665 as a color emoji.
+     */
     const actions = (
       <View style={styles.actions}>
         <ShadowListNative.View action="like" style={styles.actionHit}>
           <ShadowListNative.Text
             style={styles.action}
-            bind={{ text: 'likeLabel', color: 'likeColor' }}
+            bind={{ text: '\u2661 {likes}', hidden: 'liked' }}
+          />
+          <ShadowListNative.Text
+            style={[styles.action, styles.actionLiked]}
+            bind={{ text: '\u2665\uFE0E {likes}', visible: 'liked' }}
           />
         </ShadowListNative.View>
         <ShadowListNative.View action="hide" style={styles.actionHit}>
@@ -308,7 +389,6 @@ export const FeedNativeScreen = () => {
     };
   }, [styles]);
 
-  const { hasNextPage } = feed;
   const footer = useMemo(
     () =>
       hasNextPage ? <Spinner /> : <ListFooter text="You're all caught up" />,
@@ -324,23 +404,24 @@ export const FeedNativeScreen = () => {
     []
   );
 
-  if (feed.data === undefined) {
-    return <QueryStatus error={feed.error} onRetry={feed.refetch} />;
+  if (initialRows === null) {
+    return <QueryStatus error={error} onRetry={loadFirstPage} />;
   }
 
   return (
     <View style={screenStyles.container}>
       <ShadowListNative
         ref={listRef}
-        data={rows}
+        initialData={initialRows}
         templates={templates}
         templateKey="type"
         style={screenStyles.list}
         autoHideHeader
-        refreshing={list.refreshing}
-        onRefresh={list.onRefresh}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        onRefreshSettle={applyRefresh}
         refreshColor={colors.secondaryLabel}
-        onEndReached={list.onEndReached}
+        onEndReached={loadMore}
         onElementPress={handleElementPress}
         ListHeaderComponent={listHeader}
         ListFooterComponent={footer}
@@ -465,6 +546,9 @@ const useStyles = createStyles((theme) =>
     action: {
       ...theme.typography.footnote,
       color: theme.colors.secondaryLabel,
+    },
+    actionLiked: {
+      color: theme.colors.accent,
     },
     separator: {
       position: 'absolute',

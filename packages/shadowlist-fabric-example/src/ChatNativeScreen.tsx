@@ -426,7 +426,7 @@ export const ChatNativeScreen = () => {
         <KeyboardView style={styles.list}>
           <ShadowListNative
             ref={listRef}
-            data={initialRows}
+            initialData={initialRows}
             templates={templates}
             templateKey="type"
             inverted
