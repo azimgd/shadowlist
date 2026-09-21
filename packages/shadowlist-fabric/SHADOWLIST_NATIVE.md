@@ -317,8 +317,8 @@ Like the host commands, an engine scroll stops momentum. The host commands stop 
 UI thread when they are issued. An engine scroll reaches the core in a commit, so the host stops
 the fling when it mounts the correction:
 
-- The engine runs that frame as idle. `adopt` clears `userScrolled`/`scrollPhase` for the frame,
-  so the core does not read the fling as a gesture driving the correction.
+- The engine runs that frame as idle. `adopt` clears `userScrolled` and a settling `scrollPhase`
+  for the frame, so the core does not read the fling as a gesture driving the correction.
 - It records the core operation's id (`setMomentumYieldToken`).
 - The layout pass stamps that token on the published state (`momentumYieldToken_`), along with
   every retarget of it.
@@ -326,7 +326,9 @@ the fling when it mounts the correction:
   scroll-to-top animation, the Android snap glide and settle poll. It then writes the offset
   instead of shifting it onto the coasting view.
 
-A finger on the list keeps its drag, and the core lets the drag cancel the command. Momentum
+A frame whose last host report is `Dragging` is left as it is and yields nothing: the core lets
+the drag cancel the command (a `scrollToEnd` is dropped), as it does for ShadowList. A finger
+resting on the list without moving is not a drag, so a command applies under it. Momentum
 reports that arrive before the mount do not cancel the command. `scrollToStart` is its own
 operation type (`ScrollToStart`), so momentum does not move its target the way it moves an MVCP
 anchor.
