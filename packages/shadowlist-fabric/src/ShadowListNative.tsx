@@ -42,6 +42,7 @@ import type {
   ShadowListNativeCommands,
   ShadowListNativeElementProps,
   ShadowListNativeProps,
+  ShadowListNativeViewProps,
 } from './types';
 
 const EMPTY_STRINGS: string[] = [];
@@ -200,6 +201,7 @@ function ShadowListNativeInner<ItemT>(
           action,
           elementId,
           item: binding.getItem(listId, hit.key) as ItemT | undefined,
+          repeatIndex: hit.repeatIndex >= 0 ? hit.repeatIndex : undefined,
         });
       },
     }),
@@ -482,7 +484,7 @@ function usePressResponder(action: string | undefined, id: string | undefined) {
   }, [action, id, context]);
 }
 
-type NativeViewProps = ViewProps & ShadowListNativeElementProps;
+type NativeViewProps = ViewProps & ShadowListNativeViewProps;
 type NativeTextProps = TextProps & ShadowListNativeElementProps;
 type NativeImageProps = Partial<ImageProps> & ShadowListNativeElementProps;
 
@@ -492,14 +494,20 @@ type NativeImageProps = Partial<ImageProps> & ShadowListNativeElementProps;
  * plain component.
  */
 const NativeView = forwardRef<ComponentRef<typeof View>, NativeViewProps>(
-  ({ id, bind, action, nativeID, ...props }, forwardedRef) => {
+  (
+    { id, bind, action, repeat, repeatMax, nativeID, ...props },
+    forwardedRef
+  ) => {
     const responder = usePressResponder(action, id);
     return (
       <View
         ref={forwardedRef}
         {...props}
         {...responder}
-        nativeID={encodeElementMarker({ id, bind, action }) ?? nativeID}
+        nativeID={
+          encodeElementMarker({ id, bind, action, repeat, repeatMax }) ??
+          nativeID
+        }
       />
     );
   }

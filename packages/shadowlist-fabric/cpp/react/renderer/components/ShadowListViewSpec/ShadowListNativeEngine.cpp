@@ -413,17 +413,17 @@ std::size_t ShadowListNativeEngine::size() const {
   return rows_.size();
 }
 
-std::optional<std::pair<std::string, std::size_t>> ShadowListNativeEngine::resolveTag(Tag tag) const {
+std::optional<ShadowListNativeEngine::ResolvedTag> ShadowListNativeEngine::resolveTag(Tag tag) const {
   std::lock_guard<std::mutex> lock(mutex_);
   auto found = tagKeys_.find(tag);
   if (found == tagKeys_.end()) {
     return std::nullopt;
   }
-  auto index = keyIndex_.find(found->second);
+  auto index = keyIndex_.find(found->second.key);
   if (index == keyIndex_.end()) {
     return std::nullopt;
   }
-  return std::make_pair(found->second, index->second);
+  return ResolvedTag{found->second.key, index->second, found->second.repeatIndex};
 }
 
 void ShadowListNativeEngine::requestCommit() {
@@ -487,6 +487,13 @@ void ShadowListNativeEngine::compileElement(
       }
       if (auto action = spec.find("a"); action != spec.items().end()) {
         element.keepNativeId = truthy(action->second);
+      }
+      if (auto repeat = spec.find("r"); repeat != spec.items().end() && repeat->second.isString()) {
+        element.repeat = parseShadowListNativePath(repeat->second.getString());
+        auto repeatMax = spec.find("m");
+        if (repeatMax != spec.items().end() && repeatMax->second.isNumber() && repeatMax->second.asDouble() >= 0) {
+          element.repeatMax = static_cast<std::size_t>(repeatMax->second.asDouble());
+        }
       }
       if (auto bindings = spec.find("b"); bindings != spec.items().end() && bindings->second.isObject()) {
         for (const auto& [prop, source] : bindings->second.items()) {
@@ -601,6 +608,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   const std::shared_ptr<const ShadowNode>& existing,
   const Props::Shared* propsOverride,
   const std::optional<std::string>& rawText,
+  int repeatIndex,
   const PropsParserContext& context) {
   Props::Shared props;
   if (propsOverride != nullptr) {
@@ -617,9 +625,13 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
     props = cloneWithPatch(*element.prototype, element.baseProps, std::move(patch), context);
   }
 
-  // Rebinding keeps the existing families only while the structure still lines up.
-  bool reuse = existing != nullptr && existing->getChildren().size() == element.children.size() &&
-    existing->getComponentHandle() == element.prototype->getComponentHandle();
+  /*
+   * Rebinding keeps the existing families only while the structure still lines up. A repeated
+   * element's child count follows its array, so there only the component must match; its
+   * children are matched by position (entry i keeps entry i's nodes).
+   */
+  bool reuse = existing != nullptr && existing->getComponentHandle() == element.prototype->getComponentHandle() &&
+    (element.repeat || existing->getChildren().size() == element.children.size());
 
   std::optional<std::string> text;
   if (element.text) {
@@ -627,27 +639,48 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   }
 
   ChildList children;
-  children.reserve(element.children.size());
   bool sameChildren = reuse;
-  for (std::size_t index = 0; index < element.children.size(); ++index) {
-    const auto& childElement = element.children[index];
-    std::optional<std::string> childText;
-    if (text && childElement.isRawText) {
-      childText = std::move(text);
-      text.reset();
+  auto existingChild = [&](std::size_t position) -> std::shared_ptr<const ShadowNode> {
+    return reuse && position < existing->getChildren().size() ? existing->getChildren()[position] : nullptr;
+  };
+  if (element.repeat) {
+    const auto& entries = lookupPath(item, *element.repeat);
+    std::size_t entryCount = entries.isArray() ? std::min(entries.size(), element.repeatMax) : 0;
+    children.reserve(entryCount * element.children.size());
+    for (std::size_t entry = 0; entry < entryCount; ++entry) {
+      for (const auto& childElement : element.children) {
+        auto previous = existingChild(children.size());
+        auto child = buildNode(
+          childElement, entries[entry], key, previous, nullptr, std::nullopt, static_cast<int>(entry), context);
+        if (child != previous) {
+          sameChildren = false;
+        }
+        children.push_back(std::move(child));
+      }
     }
-    auto child = buildNode(
-      childElement,
-      item,
-      key,
-      reuse ? existing->getChildren()[index] : nullptr,
-      nullptr,
-      childText,
-      context);
-    if (reuse && child != existing->getChildren()[index]) {
+    if (reuse && existing->getChildren().size() != children.size()) {
       sameChildren = false;
+      // Entries that went away take their tags with them.
+      for (std::size_t position = children.size(); position < existing->getChildren().size(); ++position) {
+        forgetTagsLocked(*existing->getChildren()[position], key);
+      }
     }
-    children.push_back(std::move(child));
+  } else {
+    children.reserve(element.children.size());
+    for (std::size_t index = 0; index < element.children.size(); ++index) {
+      const auto& childElement = element.children[index];
+      std::optional<std::string> childText;
+      if (text && childElement.isRawText) {
+        childText = std::move(text);
+        text.reset();
+      }
+      auto previous = existingChild(index);
+      auto child = buildNode(childElement, item, key, previous, nullptr, childText, repeatIndex, context);
+      if (reuse && child != previous) {
+        sameChildren = false;
+      }
+      children.push_back(std::move(child));
+    }
   }
 
   if (reuse) {
@@ -671,7 +704,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   auto state = descriptor.createInitialState(props, family);
   auto childList = std::make_shared<const ChildList>(std::move(children));
   auto node = descriptor.createShadowNode({.props = props, .children = childList, .state = state}, family);
-  tagKeys_[tag] = key;
+  tagKeys_[tag] = TagEntry{key, repeatIndex};
   return node;
 }
 
@@ -688,12 +721,12 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildRowLocked(
         compiled.root.baseProps,
         folly::dynamic::object("elementKey", row.key)("index", 0),
         context);
-  return buildNode(compiled.root, row.item, row.key, existing, &rootProps, std::nullopt, context);
+  return buildNode(compiled.root, row.item, row.key, existing, &rootProps, std::nullopt, -1, context);
 }
 
 void ShadowListNativeEngine::forgetTagsLocked(const ShadowNode& node, const std::string& key) {
   auto found = tagKeys_.find(node.getTag());
-  if (found != tagKeys_.end() && found->second == key) {
+  if (found != tagKeys_.end() && found->second.key == key) {
     tagKeys_.erase(found);
   }
   for (const auto& child : node.getChildren()) {

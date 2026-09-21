@@ -42,7 +42,7 @@ export interface ShadowListNativeBinding {
   resolveTag(
     listId: string,
     tag: number
-  ): { key: string; index: number } | null;
+  ): { key: string; index: number; repeatIndex: number } | null;
   retain(listId: string): void;
   release(listId: string): void;
 }
@@ -108,18 +108,37 @@ export interface ElementMarker {
   id?: string;
   bind?: ShadowListNativeBind;
   action?: string;
+  repeat?: string;
+  repeatMax?: number;
 }
 
 export function encodeElementMarker({
   id,
   bind,
   action,
+  repeat,
+  repeatMax,
 }: ElementMarker): string | undefined {
-  const spec: { i?: string; b?: ShadowListNativeBind; a?: 1 } = {};
+  const spec: {
+    i?: string;
+    b?: ShadowListNativeBind;
+    a?: 1;
+    r?: string;
+    m?: number;
+  } = {};
   if (id) spec.i = id;
   if (bind && Object.keys(bind).length > 0) spec.b = bind;
   if (action) spec.a = 1;
-  if (spec.i === undefined && spec.b === undefined && spec.a === undefined) {
+  if (repeat !== undefined) {
+    spec.r = repeat;
+    if (repeatMax !== undefined && repeatMax >= 0) spec.m = repeatMax;
+  }
+  if (
+    spec.i === undefined &&
+    spec.b === undefined &&
+    spec.a === undefined &&
+    spec.r === undefined
+  ) {
     return undefined;
   }
   return ELEMENT_MARKER + JSON.stringify(spec);
