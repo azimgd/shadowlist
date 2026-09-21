@@ -666,6 +666,16 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
        * it back and the core recognises its own write (0 when no offset was applied).
        */
       nextStateData.commitToken_ = static_cast<double>(stateUpdate.commitToken);
+      /*
+       * A ShadowListNative scroll command's correction (and each retarget of it) tells the host
+       * to stop momentum and write it; see ShadowListNativeEngine::setMomentumYieldToken.
+       */
+      if (this->nativeEngine_ && stateUpdate.applyContainerOffset && stateUpdate.commitToken != 0 &&
+          stateUpdate.commitToken == this->nativeEngine_->momentumYieldToken()) {
+        nextStateData.momentumYieldToken_ = static_cast<double>(stateUpdate.commitToken);
+        nextStateData.userScrolled_ = false;
+        nextStateData.scrollPhase_ = SCROLL_PHASE_IDLE;
+      }
     }
     /*
      * Copied, not moved: the cache outlives this state and is reused by the next layout.

@@ -265,3 +265,33 @@ TEST(scroll_to_start_after_a_prepend_lands_on_offset_zero_with_the_header) {
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
 }
+
+/*
+ * scrollToStart is a command: momentum reports that arrive before the host applies it (the host
+ * stops the fling when it mounts the correction) neither cancel it nor move its target.
+ */
+TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  FrameInput deep = frame(keys, 2000.0, PLAIN_HEADER);
+  deep.userScrolled = true;
+  deep.scrollPhase = ScrollPhase::Settling;
+  Virtualizer::update(&container, deep);
+  layoutPass(container, PLAIN_HEADER);
+
+  container.scrollToStart();
+  Virtualizer::update(&container, frame(keys, 2000.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  CHECK(container.operation.has_value());
+  std::uint64_t token = container.operation->id;
+
+  FrameInput coasting = frame(keys, 2100.0, PLAIN_HEADER);
+  coasting.userScrolled = true;
+  coasting.scrollPhase = ScrollPhase::Settling;
+  Virtualizer::update(&container, coasting);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK(container.operation.has_value() && container.operation->id == token);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+}

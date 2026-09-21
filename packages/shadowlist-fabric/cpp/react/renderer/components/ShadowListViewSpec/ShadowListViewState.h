@@ -101,7 +101,9 @@ public:
     containerOffsetBaseY_(previousState.containerOffsetBaseY_),
     // Row concealment is not enabled on Android (see ShadowListViewShadowNode::layout); carry it.
     concealGeneration_(previousState.concealGeneration_),
-    concealGenerationAck_(previousState.concealGenerationAck_) {
+    concealGenerationAck_(previousState.concealGenerationAck_),
+    // Core -> view only (see momentumYieldToken_); carried.
+    momentumYieldToken_(previousState.momentumYieldToken_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
       auto stickyHeaderIndices = std::make_shared<std::vector<int>>();
       auto stickyHeaderOffsets = std::make_shared<std::vector<Float>>();
@@ -188,6 +190,7 @@ public:
     result["commitToken"] = commitToken_;
     result["containerOffsetBaseX"] = containerOffsetBaseX_;
     result["containerOffsetBaseY"] = containerOffsetBaseY_;
+    result["momentumYieldToken"] = momentumYieldToken_;
     return result;
   };
 #endif
@@ -318,6 +321,15 @@ public:
    */
   double concealGeneration_{0.0};
   double concealGenerationAck_{0.0};
+
+  /*
+   * Core -> view: the commit token of a correction that is a scroll command issued in C++ (a
+   * ShadowListNative scrollToIndex/scrollToEnd/scrollToStart), 0 when none. A host mounting a
+   * correction with this token stops any momentum first and writes the offset, as it does for
+   * its own scroll commands (which stop momentum when issued). Declared after
+   * concealGenerationAck_ so the Android constructor's member-init order matches.
+   */
+  double momentumYieldToken_{0.0};
 };
 
 }

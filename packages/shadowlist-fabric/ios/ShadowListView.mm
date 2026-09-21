@@ -254,6 +254,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _publishedGesture = NO;
   _shiftedToken = 0;
   _shiftedTokenDelta = 0.0;
+  _yieldedToken = 0;
   _reportedDuringStateUpdate = NO;
   _commandIndex = 0.0;
   _commandViewPosition = 0.0;
@@ -536,6 +537,22 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 #endif
   } else if (nextStateData.containerOffsetEnabled_ && !_dragging && !_dragDropPending) {
     // We own the offset while dragging/settling; ignore core offset corrections then.
+#if !TARGET_OS_OSX
+    /*
+     * A ShadowListNative scroll command reaches the core in a commit, not through this view:
+     * stop momentum when its correction mounts, as scrollToIndex: does when issued, and write
+     * the offset. A finger on the list keeps it; the core lets the drag cancel the command.
+     */
+    uint64_t yieldToken = (uint64_t)nextStateData.momentumYieldToken_;
+    BOOL scrollCommand = yieldToken != 0 && (uint64_t)nextStateData.commitToken_ == yieldToken &&
+      !_scrollView.isTracking;
+    if (scrollCommand && yieldToken != _yieldedToken) {
+      _yieldedToken = yieldToken;
+      [self stopMomentum];
+    }
+#else
+    BOOL scrollCommand = NO;
+#endif
     CGPoint before = _scrollView.contentOffset;
     _appliedOffset = CGPointMake(
       nextStateData.containerOffsetX_,
@@ -559,8 +576,8 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     BOOL continuesShiftedCorrection = token != 0 && token == _shiftedToken;
     BOOL computedDuringGesture = token != 0 &&
       (nextStateData.userScrolled_ || nextStateData.scrollPhase_ != SCROLL_PHASE_IDLE);
-    if (_scrollingToTop || _scrollView.isDragging || _scrollView.isDecelerating || continuesShiftedCorrection ||
-        computedDuringGesture) {
+    if (!scrollCommand && (_scrollingToTop || _scrollView.isDragging || _scrollView.isDecelerating ||
+        continuesShiftedCorrection || computedDuringGesture)) {
       // Along the scroll axis: a horizontal list's correction is on x.
       BOOL horizontal = _horizontal;
       CGFloat top = horizontal ? -_scrollView.contentInset.left : -_scrollView.contentInset.top;
@@ -1221,6 +1238,19 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 - (void)yieldMomentumInto:(ShadowListViewShadowNode::ConcreteState::Data&)stateData
 {
 #if !TARGET_OS_OSX
+  if ([self stopMomentum]) {
+    stateData.userScrolled_ = false;
+    stateData.scrollPhase_ = SCROLL_PHASE_IDLE;
+  }
+#else
+  (void)stateData;
+#endif
+}
+
+#if !TARGET_OS_OSX
+// Stops a scroll-to-top animation or a deceleration; YES when one was running.
+- (BOOL)stopMomentum
+{
   BOOL yielded = [self cancelScrollToTop];
   // isDragging stays set while a released fling decelerates; only isTracking means a finger.
   if (_scrollView.isDecelerating && !_scrollView.isTracking) {
@@ -1229,14 +1259,11 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     yielded = YES;
   }
   if (yielded) {
-    stateData.userScrolled_ = false;
-    stateData.scrollPhase_ = SCROLL_PHASE_IDLE;
     _publishedGesture = NO;
   }
-#else
-  (void)stateData;
-#endif
+  return yielded;
 }
+#endif
 
 // Writes the last scroll command into a state update this view builds (see _commandSequence).
 - (void)carryScrollCommandInto:(ShadowListViewShadowNode::ConcreteState::Data&)stateData
