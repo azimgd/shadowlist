@@ -465,14 +465,37 @@ function ShadowListNativeInner<ItemT>(
 
 const returnTrue = () => true;
 
+// A touch that travels further than this is a drag, not a press (as Pressability's slop).
+const PRESS_SLOP = 10;
+
 function usePressResponder(action: string | undefined, id: string | undefined) {
   const context = useContext(ShadowListNativeContext);
   return useMemo(() => {
     if (!action || !context) return null;
+    /*
+     * Where the touch began. A quick drag the scroll view never claims (e.g. at a scroll edge,
+     * or a short flick on Android) still ends in a release here; it must not press.
+     */
+    let start: { x: number; y: number } | null = null;
     return {
       onStartShouldSetResponder: returnTrue,
       onResponderTerminationRequest: returnTrue,
+      onResponderGrant: (event: GestureResponderEvent) => {
+        start = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+      },
+      onResponderTerminate: () => {
+        start = null;
+      },
       onResponderRelease: (event: GestureResponderEvent) => {
+        const origin = start;
+        start = null;
+        if (
+          !origin ||
+          Math.abs(event.nativeEvent.pageX - origin.x) > PRESS_SLOP ||
+          Math.abs(event.nativeEvent.pageY - origin.y) > PRESS_SLOP
+        ) {
+          return;
+        }
         /*
          * The touched clone's own tag. The event's top-level target is the template element's
          * (clones share its instance handle), but each touch carries the hit view's tag.
