@@ -207,12 +207,12 @@ export const FeedNativeScreen = () => {
     generationRef.current += 1;
     takePage(page);
     const { created, hidden } = editsRef.current;
-    listRef.current?.setData([
-      ...created.filter((row) => !hidden.has(row.id)),
-      ...rowsOf(page.items),
-    ]);
-    // MVCP keeps the old first post in place; the reader pulled for what is new, above it.
-    listRef.current?.scrollToStart();
+    // At the top in the same commit: MVCP would keep the old first post in place, while the
+    // reader pulled for what is new, above it.
+    listRef.current?.setData(
+      [...created.filter((row) => !hidden.has(row.id)), ...rowsOf(page.items)],
+      { scrollTo: 'start' }
+    );
   }, [rowsOf, takePage]);
 
   useHeaderActions({

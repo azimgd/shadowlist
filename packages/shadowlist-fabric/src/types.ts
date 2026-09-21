@@ -287,6 +287,14 @@ export interface ShadowListNativeElementPressEvent<ItemT> {
   repeatIndex?: number;
 }
 
+export interface ShadowListNativeSetDataOptions {
+  /*
+   * 'start': offset 0 (header in view) in the same commit as the new rows. setData followed by
+   * scrollToStart() is two corrections: MVCP holds the old first row for the frames in between.
+   */
+  scrollTo?: 'start';
+}
+
 export interface ShadowListNativeCommands<ItemT> {
   // Shallow-merges `patch` into the row's item. Only that row is rebuilt. False if unknown.
   updateItem: (key: string, patch: Partial<ItemT>) => boolean;
@@ -296,7 +304,10 @@ export interface ShadowListNativeCommands<ItemT> {
   prependItems: (items: ReadonlyArray<ItemT>) => number;
   removeItems: (keys: ReadonlyArray<string>) => number;
   moveItem: (key: string, toIndex: number) => boolean;
-  setData: (items: ReadonlyArray<ItemT>) => number;
+  setData: (
+    items: ReadonlyArray<ItemT>,
+    options?: ShadowListNativeSetDataOptions
+  ) => number;
   // Style merged over one template element (by its `id`) in every row; null clears it.
   setTemplateStyle: (
     template: string,
