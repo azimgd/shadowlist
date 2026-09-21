@@ -496,6 +496,21 @@ void ShadowListNativeEngine::compileElement(
   std::string& shape) {
   element.prototype = node;
   const auto& props = node->getProps();
+#ifdef RN_SERIALIZABLE_STATE
+  {
+    auto previous = prototypeRawProps_.find(node->getTag());
+    PrototypeRawProps accumulated;
+    accumulated.props = props.get();
+    if (previous == prototypeRawProps_.end()) {
+      accumulated.raw = props->rawProps;
+    } else if (previous->second.props == props.get()) {
+      accumulated.raw = previous->second.raw;
+    } else {
+      accumulated.raw = mergeDynamicProps(previous->second.raw, props->rawProps, NullValueStrategy::Override);
+    }
+    nextPrototypeRawProps_.insert_or_assign(node->getTag(), std::move(accumulated));
+  }
+#endif
   signature.push_back(props.get());
   signature.push_back(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(node->getChildren().size())));
   shape += node->getComponentName();
@@ -556,6 +571,9 @@ void ShadowListNativeEngine::compileTemplatesLocked(const ShadowNode& container,
     return;
   }
 
+#ifdef RN_SERIALIZABLE_STATE
+  nextPrototypeRawProps_.clear();
+#endif
   std::unordered_set<std::string> seen;
   std::string firstName;
   for (const auto& templateRoot : container.getChildren()) {
@@ -592,6 +610,9 @@ void ShadowListNativeEngine::compileTemplatesLocked(const ShadowNode& container,
   }
   defaultTemplate_ = templates_.count("default") > 0 ? "default" : firstName;
   templatesContainer_ = &container;
+#ifdef RN_SERIALIZABLE_STATE
+  prototypeRawProps_.swap(nextPrototypeRawProps_);
+#endif
   (void)context;
 }
 
@@ -613,6 +634,14 @@ void ShadowListNativeEngine::refreshElementBaseProps(
       }
     }
   }
+#ifdef RN_SERIALIZABLE_STATE
+  // Rows are new views on Android: carry the prototype's accumulated raw props, not its last diff.
+  if (auto accumulated = prototypeRawProps_.find(element.prototype->getTag());
+      accumulated != prototypeRawProps_.end() && accumulated->second.props == prototypeProps.get() &&
+      accumulated->second.raw != prototypeProps->rawProps) {
+    patch = mergeDynamicProps(accumulated->second.raw, patch, NullValueStrategy::Override);
+  }
+#endif
   element.baseProps = patch.empty() ? prototypeProps : cloneWithPatch(*element.prototype, prototypeProps, std::move(patch), context);
   for (auto& child : element.children) {
     refreshElementBaseProps(child, templateName, context);

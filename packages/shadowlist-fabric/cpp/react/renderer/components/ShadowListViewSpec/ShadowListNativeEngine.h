@@ -238,6 +238,19 @@ private:
   std::shared_ptr<const ShadowNode> templatesContainerHold_;
   std::unordered_map<std::string, std::unordered_map<std::string, folly::dynamic>> templateStyles_;
   std::uint64_t nextTemplateVersion_ = 1;
+#ifdef RN_SERIALIZABLE_STATE
+  /*
+   * Android mounts a view from Props::rawProps, which after a template update holds only React's
+   * diff. Rows are new views, so they need every prop: the full raw props per prototype family,
+   * merged over each update the compile sees (keyed by tag; rebuilt per compile).
+   */
+  struct PrototypeRawProps {
+    const Props* props = nullptr;
+    folly::dynamic raw;
+  };
+  std::unordered_map<Tag, PrototypeRawProps> prototypeRawProps_;
+  std::unordered_map<Tag, PrototypeRawProps> nextPrototypeRawProps_;
+#endif
 
   std::unordered_map<std::string, RowNode> rowNodes_;
   struct TagEntry {
