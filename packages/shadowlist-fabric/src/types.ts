@@ -242,3 +242,110 @@ export interface TreeListProps<ElementT> extends ShadowListForwardedProps {
     depth: number
   ) => ElementSizeSpec | null | undefined;
 }
+
+/*
+ * ShadowListNative types. Rows are clones of a template, made natively; data lives in a native
+ * store and templates read it through `bind`. See SHADOWLIST_NATIVE.md.
+ */
+
+/*
+ * Prop name -> expression over the row's item:
+ *   'author.name'        the value at that path ('images.0.uri' indexes arrays)
+ *   '!isRead'            the negated truthiness of the value
+ *   '{name} · {date}'    a format string
+ * Special props: `text` (a Text's content), `uri` (an Image's source), `hidden` / `visible`
+ * (display). Color props accept CSS color strings. Anything else is passed through as the raw
+ * prop value.
+ */
+export type ShadowListNativeBind = Record<string, string>;
+
+export interface ShadowListNativeElementProps {
+  // Names the element for setTemplateStyle.
+  id?: string;
+  bind?: ShadowListNativeBind;
+  // Makes the element pressable; presses arrive as onElementPress with this action.
+  action?: string;
+}
+
+export interface ShadowListNativeElementPressEvent<ItemT> {
+  key: string;
+  index: number;
+  action: string;
+  elementId?: string;
+  item: ItemT | undefined;
+}
+
+export interface ShadowListNativeCommands<ItemT> {
+  // Shallow-merges `patch` into the row's item. Only that row is rebuilt. False if unknown.
+  updateItem: (key: string, patch: Partial<ItemT>) => boolean;
+  replaceItem: (key: string, item: ItemT) => boolean;
+  insertItems: (index: number, items: ReadonlyArray<ItemT>) => number;
+  appendItems: (items: ReadonlyArray<ItemT>) => number;
+  prependItems: (items: ReadonlyArray<ItemT>) => number;
+  removeItems: (keys: ReadonlyArray<string>) => number;
+  moveItem: (key: string, toIndex: number) => boolean;
+  setData: (items: ReadonlyArray<ItemT>) => number;
+  // Style merged over one template element (by its `id`) in every row; null clears it.
+  setTemplateStyle: (
+    template: string,
+    elementId: string,
+    style: ViewStyle | TextStyle | null
+  ) => void;
+  getItem: (key: string) => ItemT | undefined;
+  getKeys: () => string[];
+  getCount: () => number;
+  setStartReachedEnabled: (enabled: boolean) => void;
+  setEndReachedEnabled: (enabled: boolean) => void;
+  scrollToIndex: (index: number, viewPosition?: number) => void;
+  scrollToOffset: (offset: number, animated?: boolean) => void;
+  scrollToEnd: (animated?: boolean) => void;
+}
+
+export interface ShadowListNativeProps<ItemT> {
+  /*
+   * The rows. A new array replaces the native store (keyed: rows whose item is unchanged keep
+   * their views). Imperative commands change the store without touching this prop; they hold
+   * until the next new `data` array.
+   */
+  data: ReadonlyArray<ItemT>;
+  keyExtractor?: (item: ItemT, index: number) => string;
+  // Template name -> element. Declared once; every row is a clone of one of them.
+  templates: Readonly<Record<string, ReactElement>>;
+  // Item field naming a row's template, or a function returning it. Default: 'default' or the first.
+  templateKey?: string;
+  getTemplate?: (item: ItemT, index: number) => string;
+  onElementPress?: (event: ShadowListNativeElementPressEvent<ItemT>) => void;
+  onVisibleRangeChange?: (range: { start: number; end: number }) => void;
+  style?: ViewStyle;
+  elementStyle?: ViewStyle;
+  testID?: string;
+  inverted?: boolean;
+  horizontal?: boolean;
+  columns?: number;
+  // Viewports measured and mounted beyond the visible one, on each side.
+  overscan?: number;
+  // Rows mounted before the list knows its viewport.
+  initialNumToRender?: number;
+  // Extra rows mounted past the window whenever it moves, so small scrolls rebuild nothing.
+  padRows?: number;
+  // Rows kept (unmounted) for reuse when they scroll back in.
+  cacheRows?: number;
+  initialScrollIndex?: number;
+  stickyHeader?: boolean;
+  stickyFooter?: boolean;
+  autoHideHeader?: boolean;
+  autoHideFooter?: boolean;
+  snapToItem?: boolean;
+  snapToAlignment?: 'start' | 'center' | 'end';
+  refreshing?: boolean;
+  onRefresh?: () => void;
+  refreshColor?: ColorValue;
+  onStartReached?: () => void;
+  onEndReached?: () => void;
+  onStartReachedThreshold?: number;
+  onEndReachedThreshold?: number;
+  onScroll?: (event: { nativeEvent: OnScroll }) => void;
+  ListHeaderComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
+}
