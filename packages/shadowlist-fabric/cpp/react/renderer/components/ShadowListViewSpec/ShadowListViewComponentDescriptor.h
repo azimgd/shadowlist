@@ -3,6 +3,7 @@
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
+#include "ShadowListNativeJSI.h"
 #include "ShadowListTextMeasurer.h"
 #include "ShadowListTrace.h"
 #include "ShadowListViewShadowNode.h"
@@ -10,6 +11,7 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 
@@ -29,7 +31,65 @@ public:
      * lazily at measure time would always be too late. See getSharedTextLayoutManager.
      */
     textLayoutManager_(getSharedTextLayoutManager(this->contextContainer_)) {
+    // ShadowListNative's data API; installed early so JS rarely has to wait for it.
+    installShadowListNativeJSI(this->contextContainer_);
   };
+
+  /*
+   * ShadowListNative rows are children no React component renders. Every clone that brings new
+   * props, children or state (a React update, a scroll report, a data nudge) reconciles them
+   * against the window the core just chose in adopt(), and the result is committed as this
+   * node's children.
+   *
+   * A second construction, rather than editing the adopted node's children in place: a node
+   * built with a children fragment has not configured its Yoga subtree, so the layout pass
+   * configures the new rows (point scale factor, errata) like any React child. Rewriting the
+   * children of a node that inherited "configured" would leave fresh rows laid out with Yoga's
+   * defaults. Layout-only clones (empty fragment) are left alone.
+   */
+  std::shared_ptr<ShadowNode> cloneShadowNode(const ShadowNode& sourceShadowNode, const ShadowNodeFragment& fragment)
+    const override {
+    auto shadowNode = ConcreteComponentDescriptor::cloneShadowNode(sourceShadowNode, fragment);
+    if (!fragment.props && !fragment.children && !fragment.state) {
+      return shadowNode;
+    }
+    auto& listShadowNode = static_cast<ShadowListViewShadowNode&>(*shadowNode);
+    auto children = reconcileNativeRows(listShadowNode);
+    if (!children) {
+      return shadowNode;
+    }
+    auto nextShadowNode = std::make_shared<ShadowListViewShadowNode>(*shadowNode, ShadowNodeFragment{.children = children});
+    shadowNode->transferRuntimeShadowNodeReference(nextShadowNode, fragment);
+    return nextShadowNode;
+  }
+
+  /*
+   * React builds a list by appending its children one by one (a new node, or a clone with new
+   * children). The rows go in right after the ShadowListNative templates container, the way
+   * cloneShadowNode places them, so the header stays below them and the footer above.
+   */
+  void appendChild(
+    const std::shared_ptr<const ShadowNode>& parentShadowNode,
+    const std::shared_ptr<const ShadowNode>& childShadowNode) const override {
+    ConcreteComponentDescriptor::appendChild(parentShadowNode, childShadowNode);
+    const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(childShadowNode->getProps());
+    if (!templateProps || templateProps->templateType != "native") {
+      return;
+    }
+    auto& listShadowNode = const_cast<ShadowListViewShadowNode&>(static_cast<const ShadowListViewShadowNode&>(*parentShadowNode));
+    auto children = reconcileNativeRows(listShadowNode);
+    if (!children) {
+      return;
+    }
+    const auto& current = listShadowNode.getChildren();
+    // Only rows can follow: the container was just appended last.
+    if (children->size() < current.size() || !std::equal(current.begin(), current.end(), children->begin())) {
+      return;
+    }
+    for (std::size_t index = current.size(); index < children->size(); ++index) {
+      listShadowNode.appendChild((*children)[index]);
+    }
+  }
 
   void adopt(ShadowNode& shadowNode) const override {
     ConcreteComponentDescriptor::adopt(shadowNode);
@@ -37,6 +97,10 @@ public:
     // Debug device trace only; a no-op unless the app was launched with SHADOWLIST_FRAME_TRACE=1.
     if (!jsTraceInstalled_.exchange(true, std::memory_order_relaxed)) {
       shadowlist::detail::installJsTrace(this->contextContainer_);
+    }
+
+    if (!nativeJsiInstalled_.exchange(true, std::memory_order_relaxed)) {
+      installShadowListNativeJSI(this->contextContainer_);
     }
 
     auto& shadowlistViewShadowNode = static_cast<ShadowListViewShadowNode&>(shadowNode);
@@ -67,6 +131,23 @@ public:
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
     auto containerManager = shadowlistViewShadowNode.getContainerManager().get();
+
+    /*
+     * ShadowListNative: attach the list's native store and take this commit's key snapshot. The
+     * core reconciles against the snapshot, and the rows mounted for this commit come from the
+     * same snapshot, so a row is never mounted for a key the core does not know yet.
+     */
+    ShadowListNativeEngine::KeysSnapshot nativeKeys;
+    if (!shadowlistViewProps.nativeListId.empty()) {
+      if (!shadowlistViewShadowNode.getNativeEngine() ||
+          shadowlistViewShadowNode.getNativeEngine()->listId() != shadowlistViewProps.nativeListId) {
+        shadowlistViewShadowNode.setNativeEngine(ShadowListNativeRegistry::obtain(shadowlistViewProps.nativeListId));
+      }
+      const auto& nativeEngine = shadowlistViewShadowNode.getNativeEngine();
+      nativeEngine->attachState(std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteState>(shadowNode.getState()));
+      nativeKeys = nativeEngine->keysSnapshot();
+      shadowlistViewShadowNode.setNativeKeys(nativeKeys.keys);
+    }
 
     /*
      * Serialize all access to the shared core for this commit. adopt() can run
@@ -213,7 +294,7 @@ public:
      * buffer -- on the order of milliseconds per commit for a large chat list, on every
      * commit including pure scrolls.
      */
-    input.keysRef = &shadowlistViewProps.elementsAllKeys;
+    input.keysRef = nativeKeys.keys ? nativeKeys.keys.get() : &shadowlistViewProps.elementsAllKeys;
     /*
      * Decoration row keys the core must never auto-capture as the MVCP anchor (date pills,
      * unread dividers, reaction strips, padding). Keeps a key change on decoration from
@@ -231,7 +312,9 @@ public:
      */
     auto geometryCache = shadowlistViewShadowNode.getGeometryCache();
     const auto& currentProps = shadowNode.getProps();
-    input.keysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
+    input.keysUnchanged = nativeKeys.keys
+      ? geometryCache && geometryCache->nativeKeysVersion == nativeKeys.version
+      : geometryCache && geometryCache->keysProps == currentProps;
     input.containerOffsetX = shadowlistViewStateData.containerOffsetX_;
     input.containerOffsetY = shadowlistViewStateData.containerOffsetY_;
     input.containerOffsetEnabled = shadowlistViewStateData.containerOffsetEnabled_;
@@ -342,15 +425,52 @@ public:
        */
       if (geometryCache) {
         geometryCache->keysProps = currentProps;
+        geometryCache->nativeKeysVersion = nativeKeys.version;
       }
     } catch (...) {
       if (geometryCache) {
         geometryCache->keysProps = nullptr;
+        geometryCache->nativeKeysVersion = 0;
       }
     }
   };
 
 private:
+  /*
+   * The children a ShadowListNative node should commit with, or null when it already has them
+   * (or is not a ShadowListNative, or its templates are not mounted yet).
+   */
+  std::shared_ptr<const ShadowListNativeEngine::ChildList> reconcileNativeRows(ShadowListViewShadowNode& listShadowNode) const {
+    const auto& nativeEngine = listShadowNode.getNativeEngine();
+    const auto& nativeKeys = listShadowNode.getNativeKeys();
+    const auto& containerManager = listShadowNode.getContainerManager();
+    if (!nativeEngine || !nativeKeys || !containerManager) {
+      return nullptr;
+    }
+    bool hasTemplates = std::any_of(
+      listShadowNode.getChildren().begin(), listShadowNode.getChildren().end(), [](const auto& child) {
+        const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(child->getProps());
+        return templateProps && templateProps->templateType == "native";
+      });
+    if (!hasTemplates) {
+      return nullptr;
+    }
+    const auto& props = listShadowNode.getConcreteProps();
+    std::lock_guard<std::recursive_mutex> coreLock(containerManager->coreMutex);
+    try {
+      return nativeEngine->reconcileRows(
+        listShadowNode,
+        listShadowNode.getChildren(),
+        *nativeKeys,
+        *containerManager,
+        props.containerOffsetIndex,
+        props.inverted);
+    } catch (...) {
+      // A row that failed to build leaves the mounted rows in place for this commit.
+      return nullptr;
+    }
+  }
+
   /*
    * Turn this commit's `elementsSizeSpecs` into predictions the core can lay out with.
    *
@@ -459,6 +579,7 @@ private:
   const std::shared_ptr<const TextLayoutManager> textLayoutManager_;
 
   mutable std::atomic<bool> jsTraceInstalled_{false};
+  mutable std::atomic<bool> nativeJsiInstalled_{false};
 };
 
 void ShadowListViewSpec_registerComponentDescriptorsFromCodegen(
