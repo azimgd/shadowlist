@@ -821,6 +821,8 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
 
   ChildList rows;
   ++clock_;
+  std::size_t builtRows = 0;
+  std::size_t reboundRows = 0;
   if (haveTarget) {
     rows.reserve(targetHigh - targetLow + 1);
     for (std::size_t index = targetLow; index <= targetHigh; ++index) {
@@ -859,6 +861,7 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
         if (existing && !sameShape) {
           forgetTagsLocked(*existing, key);
         }
+        ++(sameShape ? reboundRows : builtRows);
         node = buildRowLocked(
           *compiled,
           row,
@@ -893,6 +896,8 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   if (next == children) {
     return nullptr;
   }
+  SL_LOG("native: rows=[%zu..%zu] mounted=%zu built=%zu rebound=%zu",
+    targetLow, targetHigh, rows.size(), builtRows, reboundRows);
   return std::make_shared<const ChildList>(std::move(next));
 }
 
