@@ -100,12 +100,14 @@ public:
   void requestCommit();
 
   /*
-   * Scroll to a row (viewPosition 0 top .. 1 bottom), or to the end with index < 0, once every
+   * Scroll to a row (viewPosition 0 top .. 1 bottom), to the end (-1) or the start
+   * (SCROLL_TO_START), once every
    * mutation made before this call is committed and laid out. A host view command would race
    * the data: it can land in the commit before the rows change (or in the same one, before they
    * are measured), and a command and a data nudge queued back to back coalesce into one state
    * update. Here the core is told directly, in the commit after the rows it needs were measured.
    */
+  static constexpr double SCROLL_TO_START = -2.0;
   void requestScroll(double index, double viewPosition);
 
 #pragma mark - Commit side
@@ -291,16 +293,16 @@ private:
 };
 
 /*
- * listId -> engine. A list node holds its engine strongly; the registry holds it strongly only
- * while JS has it pinned (from the first data call until the component unmounts), and weakly
- * otherwise, so an engine dies with the last list node that used it.
+ * listId -> engine, weakly. An engine lives while a list node or a JS handle (`open`, see
+ * ShadowListNativeJSI.cpp) holds it, so nothing outlives the runtime or the render that made it.
  */
 class ShadowListNativeRegistry final {
 public:
+  // The engine for listId, created if none is alive (the list node's path).
   static std::shared_ptr<ShadowListNativeEngine> obtain(const std::string& listId);
   static std::shared_ptr<ShadowListNativeEngine> find(const std::string& listId);
-  static void pin(const std::string& listId);
-  static void release(const std::string& listId);
+  // obtain() after dropping dead entries (the JS handle's path).
+  static std::shared_ptr<ShadowListNativeEngine> open(const std::string& listId);
 };
 
 }

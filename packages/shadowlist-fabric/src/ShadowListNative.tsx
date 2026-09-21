@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -15,6 +16,7 @@ import {
 } from 'react';
 import {
   Image,
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -37,6 +39,7 @@ import {
   toNativeStyle,
   useShadowListNativeBinding,
   type ShadowListNativeBinding,
+  type ShadowListNativeHandle,
 } from './native/binding';
 import { SNAP_ALIGNMENT } from './virtualizer/helpers';
 import type {
@@ -48,6 +51,9 @@ import type {
 
 const EMPTY_STRINGS: string[] = [];
 const EMPTY_NUMBERS: number[] = [];
+const EMPTY_ITEMS: ReadonlyArray<never> = [];
+// iOS reports the spinner's settle natively; this covers a refresh that never showed one.
+const REFRESH_SETTLE_FALLBACK_MS = 1200;
 
 interface ShadowListNativeContextValue {
   press: (
@@ -98,6 +104,28 @@ function describeItems<ItemT>(
   return { keys, templates };
 }
 
+interface ListSession<ItemT> {
+  id: string;
+  handle: ShadowListNativeHandle | null;
+  committed: boolean;
+  // The array last written to the store with setData, and the count it left.
+  synced: ReadonlyArray<ItemT> | null;
+  syncedCount: number;
+}
+
+function seedStore<ItemT>(
+  binding: ShadowListNativeBinding,
+  session: ListSession<ItemT>,
+  items: ReadonlyArray<ItemT>,
+  keyExtractor: (item: ItemT, index: number) => string,
+  templateOf: ((item: ItemT, index: number) => string) | null
+): number {
+  const { keys, templates } = describeItems(items, keyExtractor, templateOf);
+  session.synced = items;
+  session.syncedCount = binding.setData(session.id, items, keys, templates);
+  return session.syncedCount;
+}
+
 /*
  * A list whose rows are made natively: each template is rendered once, and the native side clones
  * it per row and binds the row's data into the clone synchronously, in the commit that needs it.
@@ -106,6 +134,7 @@ function describeItems<ItemT>(
 function ShadowListNativeInner<ItemT>(
   {
     data,
+    initialData,
     keyExtractor = defaultKeyExtractor,
     templates,
     templateKey,
@@ -132,6 +161,7 @@ function ShadowListNativeInner<ItemT>(
     snapToAlignment = 'start',
     refreshing = false,
     onRefresh,
+    onRefreshSettle,
     refreshColor,
     onStartReached,
     onEndReached,
@@ -145,8 +175,29 @@ function ShadowListNativeInner<ItemT>(
   ref: Ref<ShadowListNativeCommands<ItemT>>
 ) {
   const viewRef = useRef<ComponentRef<typeof ShadowListView> | null>(null);
-  const [listId] = useState(createShadowListNativeId);
   const binding = useShadowListNativeBinding();
+
+  /*
+   * This list's engine. `handle` holds it (a JSI host object): created lazily in render, so a
+   * render React discards leaves only garbage, never a pinned engine; closed on unmount.
+   * `committed`: a list node has used the engine, so the store is observable and may only be
+   * written from the commit phase. Before that nobody else sees it, so render seeds it directly
+   * and the node is created with its rows (no empty first frame).
+   */
+  const sessionRef = useRef<ListSession<ItemT> | null>(null);
+  if (sessionRef.current === null) {
+    sessionRef.current = {
+      id: createShadowListNativeId(),
+      handle: null,
+      committed: false,
+      synced: null,
+      syncedCount: 0,
+    };
+  }
+  const session = sessionRef.current;
+  const listId = session.id;
+  const controlled = initialData === undefined;
+  const source = (controlled ? data : initialData) ?? EMPTY_ITEMS;
 
   const templateOf = useMemo<((item: ItemT, index: number) => string) | null>(
     () =>
@@ -158,45 +209,86 @@ function ShadowListNativeInner<ItemT>(
     [getTemplate, templateKey]
   );
 
-  /*
-   * Push `data` into the native store during render, before the list node exists or commits, so
-   * the first frame already has its rows. Idempotent: the store diffs by key and item, and a
-   * repeat render with the same array does nothing.
-   */
-  const syncedRef = useRef<{
-    binding: ShadowListNativeBinding;
-    data: ReadonlyArray<ItemT>;
-  } | null>(null);
-  const [imperativeCount, setImperativeCount] = useState<number | null>(null);
-  let dataCount = data.length;
-  if (
-    binding &&
-    (syncedRef.current?.data !== data || syncedRef.current.binding !== binding)
-  ) {
+  const itemsRef = useRef({ keyExtractor, templateOf });
+  itemsRef.current = { keyExtractor, templateOf };
+
+  const [storeCount, setStoreCount] = useState<number | null>(null);
+
+  if (binding && !session.committed) {
+    if (session.handle === null) session.handle = binding.open(listId);
     binding.configure(listId, {
       initialRows: initialNumToRender,
       padRows,
       cacheRows,
     });
-    const { keys, templates: rowTemplates } = describeItems(
-      data,
-      keyExtractor,
-      templateOf
-    );
-    dataCount = binding.setData(listId, data, keys, rowTemplates);
-    syncedRef.current = { binding, data };
-    if (imperativeCount !== null) setImperativeCount(null);
+    if (session.synced !== source) {
+      seedStore(binding, session, source, keyExtractor, templateOf);
+    }
   }
-  const count = imperativeCount ?? dataCount;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!binding) return;
-    binding.retain(listId);
-    return () => binding.release(listId);
-  }, [binding, listId]);
+    // A StrictMode remount re-opens what the simulated unmount closed.
+    if (session.handle === null) session.handle = binding.open(listId);
+    session.committed = true;
+    return () => {
+      if (session.handle !== null) binding.close(session.handle);
+      session.handle = null;
+    };
+  }, [binding, listId, session]);
 
-  const handlersRef = useRef({ onElementPress, onVisibleRangeChange });
-  handlersRef.current = { onElementPress, onVisibleRangeChange };
+  useLayoutEffect(() => {
+    if (!binding) return;
+    binding.configure(listId, {
+      initialRows: initialNumToRender,
+      padRows,
+      cacheRows,
+    });
+  }, [binding, listId, initialNumToRender, padRows, cacheRows]);
+
+  // Controlled: a new `data` array replaces the store, in the commit that renders it.
+  useLayoutEffect(() => {
+    if (!binding || !controlled || session.synced === source) return;
+    const { keyExtractor: extract, templateOf: pick } = itemsRef.current;
+    setStoreCount(seedStore(binding, session, source, extract, pick));
+  }, [binding, controlled, source, session]);
+
+  const count = storeCount ?? session.syncedCount;
+
+  const handlersRef = useRef({
+    onElementPress,
+    onVisibleRangeChange,
+    onRefreshSettle,
+  });
+  handlersRef.current = {
+    onElementPress,
+    onVisibleRangeChange,
+    onRefreshSettle,
+  };
+
+  /*
+   * onRefreshSettle: once per refresh, after `refreshing` turns false and the spinner is gone.
+   * iOS reports the end of the retract spring (with a fallback in case it never comes); on
+   * Android the spinner floats over the rows, so the list is free as soon as it stops.
+   */
+  const settlePendingRef = useRef(false);
+  const handleRefreshSettle = useCallback(() => {
+    if (!settlePendingRef.current) return;
+    settlePendingRef.current = false;
+    handlersRef.current.onRefreshSettle?.();
+  }, []);
+  const wasRefreshingRef = useRef(refreshing);
+  useEffect(() => {
+    const wasRefreshing = wasRefreshingRef.current;
+    wasRefreshingRef.current = refreshing;
+    if (!wasRefreshing || refreshing) return;
+    settlePendingRef.current = true;
+    const timer = setTimeout(
+      handleRefreshSettle,
+      Platform.OS === 'ios' ? REFRESH_SETTLE_FALLBACK_MS : 0
+    );
+    return () => clearTimeout(timer);
+  }, [refreshing, handleRefreshSettle]);
 
   const context = useMemo<ShadowListNativeContextValue>(
     () => ({
@@ -232,9 +324,6 @@ function ShadowListNativeInner<ItemT>(
     []
   );
 
-  const itemsRef = useRef({ keyExtractor, templateOf });
-  itemsRef.current = { keyExtractor, templateOf };
-
   useImperativeHandle(ref, (): ShadowListNativeCommands<ItemT> => {
     const insert = (index: number, items: ReadonlyArray<ItemT>) => {
       if (!binding) return 0;
@@ -250,7 +339,7 @@ function ShadowListNativeInner<ItemT>(
         keys,
         rowTemplates
       );
-      setImperativeCount(next);
+      setStoreCount(next);
       return next;
     };
     const update = (key: string, patch: unknown, replace: boolean) => {
@@ -279,7 +368,7 @@ function ShadowListNativeInner<ItemT>(
       removeItems: (keys) => {
         if (!binding) return 0;
         const next = binding.removeItems(listId, keys);
-        setImperativeCount(next);
+        setStoreCount(next);
         return next;
       },
       moveItem: (key, toIndex) =>
@@ -292,7 +381,7 @@ function ShadowListNativeInner<ItemT>(
           itemsRef.current.templateOf
         );
         const next = binding.setData(listId, items, keys, rowTemplates);
-        setImperativeCount(next);
+        setStoreCount(next);
         return next;
       },
       setTemplateStyle: (template, elementId, nextStyle) =>
@@ -328,6 +417,7 @@ function ShadowListNativeInner<ItemT>(
           Commands.scrollToOffset(viewRef.current, offset, animated);
       },
       scrollToEnd: () => binding?.scrollToIndex(listId, -1, 0),
+      scrollToStart: () => binding?.scrollToIndex(listId, -2, 0),
     };
   }, [binding, listId]);
 
@@ -447,6 +537,7 @@ function ShadowListNativeInner<ItemT>(
       onEndReached={onEndReached}
       onScroll={onScroll}
       onRefresh={onRefresh}
+      onRefreshSettle={onRefreshSettle ? handleRefreshSettle : undefined}
     >
       {header && (
         <ShadowListTemplateView templateType="header">
