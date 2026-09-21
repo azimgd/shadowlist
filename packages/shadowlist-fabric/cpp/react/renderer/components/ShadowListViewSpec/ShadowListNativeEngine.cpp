@@ -5,7 +5,7 @@
 #include <react/renderer/core/ComponentDescriptor.h>
 #include <react/renderer/core/RawProps.h>
 #include <react/renderer/core/ShadowNodeFragment.h>
-#ifdef ANDROID
+#ifdef RN_SERIALIZABLE_STATE
 #include <react/renderer/core/DynamicPropsUtilities.h>
 #endif
 
@@ -156,10 +156,11 @@ Props::Shared cloneWithPatch(
   const Props::Shared& base,
   folly::dynamic patch,
   const PropsParserContext& context) {
-#ifdef ANDROID
+#ifdef RN_SERIALIZABLE_STATE
   /*
-   * Android mounts a view from the props' accumulated raw props, so a patch alone would reach
-   * the platform view as the whole prop set. Carry the base's raw props with it.
+   * Android mounts a view from the props' raw props, so a patch alone would reach the platform
+   * view as the whole prop set. Carry the base's raw props with it. (Unverified on device; see
+   * SHADOWLIST_NATIVE.md, porting notes.)
    */
   patch = mergeDynamicProps(base->rawProps, patch, NullValueStrategy::Override);
 #endif
