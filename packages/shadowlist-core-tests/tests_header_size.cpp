@@ -295,3 +295,31 @@ TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
   CHECK(container.operation.has_value() && container.operation->id == token);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
 }
+
+/*
+ * A ShadowListNative scroll command's frame runs idle when it lands over momentum, but keeps a
+ * finger's drag: the drag cancels a scrollToEnd, momentum does not.
+ */
+TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+
+  container.scrollToEnd();
+  FrameInput drag = frame(keys, 400.0, PLAIN_HEADER);
+  drag.userScrolled = true;
+  drag.scrollPhase = ScrollPhase::Dragging;
+  Virtualizer::update(&container, drag);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK(!container.pendingScrollToEnd);
+  CHECK(!container.operation.has_value() || container.operation->type != OperationType::ScrollToEnd);
+
+  container.scrollToEnd();
+  FrameInput coasting = frame(keys, 600.0, PLAIN_HEADER);
+  coasting.userScrolled = true;
+  coasting.scrollPhase = ScrollPhase::Settling;
+  Virtualizer::update(&container, coasting);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToEnd);
+}
