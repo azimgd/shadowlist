@@ -116,8 +116,30 @@ folly::dynamic evaluate(const ShadowListNativeExpression& expression, const foll
   return value;
 }
 
-// Writes one bound value into the raw props patch for its element.
-void applyBinding(folly::dynamic& patch, const std::string& prop, const folly::dynamic& value) {
+/*
+ * Writes one bound value into the raw props patch for its element. A missing/null value (or an
+ * unparsable color) keeps the template's value: props are always cloned from the element's base
+ * props, so skipping the entry also restores it when a rebound row loses the value.
+ */
+void applyBinding(
+  folly::dynamic& patch,
+  const std::string& prop,
+  const folly::dynamic& value,
+  [[maybe_unused]] const Props& base) {
+  if (shadowListNativeBindingKeepsTemplate(
+        prop,
+        value.isNull(),
+        value.isString() ? std::optional<std::string_view>(value.getString()) : std::nullopt)) {
+#ifdef RN_SERIALIZABLE_STATE
+    // Android updates a view from raw props, where an absent key keeps the view's previous value:
+    // with no template value, reset it explicitly.
+    const auto* key = prop == "uri" ? "source" : prop.c_str();
+    if (!base.rawProps.isObject() || base.rawProps.find(key) == base.rawProps.items().end()) {
+      patch[key] = nullptr;
+    }
+#endif
+    return;
+  }
   if (prop == "uri" || prop == "source") {
     if (value.isString()) {
       patch["source"] = folly::dynamic::array(folly::dynamic::object("uri", value));
@@ -147,7 +169,7 @@ void applyBinding(folly::dynamic& patch, const std::string& prop, const folly::d
 #else
     auto number = static_cast<std::int64_t>(color.value_or(0));
 #endif
-    patch[prop] = color ? folly::dynamic(number) : folly::dynamic(nullptr);
+    patch[prop] = number;
     return;
   }
   patch[prop] = value;
@@ -703,7 +725,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   } else {
     folly::dynamic patch = folly::dynamic::object;
     for (const auto& [prop, expression] : element.bindings) {
-      applyBinding(patch, prop, evaluate(expression, item));
+      applyBinding(patch, prop, evaluate(expression, item), *element.baseProps);
     }
     props = cloneWithPatch(*element.prototype, element.baseProps, std::move(patch), context);
   }
