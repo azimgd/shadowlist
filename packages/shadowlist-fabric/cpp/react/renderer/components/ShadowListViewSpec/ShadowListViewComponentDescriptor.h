@@ -376,8 +376,12 @@ public:
      * correction, see ShadowListNativeEngine::setMomentumYieldToken), so its frame runs idle as
      * a host command's does. Otherwise the core would read the fling's settling phase as a
      * gesture driving the correction, and the host would shift it onto the coasting offset.
+     * A finger on the list is not momentum: that frame keeps its drag, so the core lets the
+     * drag cancel the command as it does ShadowList's, and nothing is yielded.
      */
-    if (nativeScrollCommand) {
+    bool nativeScrollYieldsMomentum = nativeScrollCommand &&
+      input.scrollPhase != azimgd::shadowlist::ScrollPhase::Dragging;
+    if (nativeScrollYieldsMomentum) {
       input.userScrolled = false;
       input.scrollPhase = azimgd::shadowlist::ScrollPhase::Idle;
     }
@@ -407,7 +411,7 @@ public:
      */
     try {
       azimgd::shadowlist::Virtualizer::update(containerManager, input);
-      if (nativeScrollCommand) {
+      if (nativeScrollYieldsMomentum) {
         shadowlistViewShadowNode.getNativeEngine()->setMomentumYieldToken(
           containerManager->operation ? containerManager->operation->id : 0);
       }
