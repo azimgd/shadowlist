@@ -140,7 +140,14 @@ void applyBinding(folly::dynamic& patch, const std::string& prop, const folly::d
   }
   if (isShadowListNativeColorProp(prop) && value.isString()) {
     auto color = parseShadowListNativeColor(value.getString());
-    patch[prop] = color ? folly::dynamic(static_cast<std::int64_t>(*color)) : folly::dynamic(nullptr);
+#ifdef __ANDROID__
+    // Java reads colors with getInt: pass a signed 32-bit ARGB as processColor does on Android
+    // (an unsigned value above INT_MAX saturates to 0x7FFFFFFF, translucent white).
+    auto number = static_cast<std::int64_t>(static_cast<std::int32_t>(color.value_or(0)));
+#else
+    auto number = static_cast<std::int64_t>(color.value_or(0));
+#endif
+    patch[prop] = color ? folly::dynamic(number) : folly::dynamic(nullptr);
     return;
   }
   patch[prop] = value;
