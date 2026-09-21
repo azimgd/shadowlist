@@ -283,6 +283,11 @@ public:
       shadowlistViewProps.containerOffsetIndex,
       shadowlistViewStateData.containerOffsetIndexViewPosition_);
 
+    // ShadowListNative's scroll commands, once the rows they follow are laid out.
+    if (shadowlistViewShadowNode.getNativeEngine()) {
+      shadowlistViewShadowNode.getNativeEngine()->applyPendingScroll(*containerManager);
+    }
+
     /*
      * Reconcile, measure and resolve scrolling in a single core call
      */
