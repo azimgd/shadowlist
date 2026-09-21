@@ -267,12 +267,24 @@ export interface ShadowListNativeElementProps {
   action?: string;
 }
 
+export interface ShadowListNativeViewProps extends ShadowListNativeElementProps {
+  /*
+   * Path of an array in the item. The view's children are one entry's template, cloned once
+   * per entry (up to `repeatMax`); `bind` paths inside resolve against the entry ('.' is the
+   * entry itself). The view's own `bind` still reads the row.
+   */
+  repeat?: string;
+  repeatMax?: number;
+}
+
 export interface ShadowListNativeElementPressEvent<ItemT> {
   key: string;
   index: number;
   action: string;
   elementId?: string;
   item: ItemT | undefined;
+  // Entry of the innermost `repeat` the pressed element is in; undefined outside one.
+  repeatIndex?: number;
 }
 
 export interface ShadowListNativeCommands<ItemT> {
