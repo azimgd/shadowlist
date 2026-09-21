@@ -311,9 +311,25 @@ the store version at the time of the call (`requestScroll`); `didLayout` request
 that version is reconciled and laid out, and that commit's `adopt` hands it to the core directly
 (`Container::scrollToEnd` / `scrollToIndex`) before `Virtualizer::update`. The host's own command
 bookkeeping (`_commandSequence`, carried on every scroll report) is not touched, so a report can
-never replay an engine scroll. It does not stop momentum the way the host command does; the
-correction the core publishes takes over the offset. `[SL] native: scroll index=... after=...`
-traces each one.
+never replay an engine scroll. `[SL] native: scroll index=... after=...` traces each one.
+
+Like the host commands, an engine scroll stops momentum. The host commands stop the fling on the
+UI thread when they are issued. An engine scroll reaches the core in a commit, so the host stops
+the fling when it mounts the correction:
+
+- The engine runs that frame as idle. `adopt` clears `userScrolled`/`scrollPhase` for the frame,
+  so the core does not read the fling as a gesture driving the correction.
+- It records the core operation's id (`setMomentumYieldToken`).
+- The layout pass stamps that token on the published state (`momentumYieldToken_`), along with
+  every retarget of it.
+- A host mounting a correction whose `commitToken_` matches it stops the deceleration, the
+  scroll-to-top animation, the Android snap glide and settle poll. It then writes the offset
+  instead of shifting it onto the coasting view.
+
+A finger on the list keeps its drag, and the core lets the drag cancel the command. Momentum
+reports that arrive before the mount do not cancel the command. `scrollToStart` is its own
+operation type (`ScrollToStart`), so momentum does not move its target the way it moves an MVCP
+anchor.
 
 The nudge itself holds the list's state strongly: the layout pass replaces the node's state
 object (`setStateData`) after `adopt` attached it, so a weak reference expired on every commit that
