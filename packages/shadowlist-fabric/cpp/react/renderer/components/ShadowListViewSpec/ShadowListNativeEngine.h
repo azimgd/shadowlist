@@ -227,7 +227,12 @@ private:
   std::size_t padRows_ = 2;
   std::size_t cacheRows_ = 64;
 
-  std::weak_ptr<const ListState> state_;
+  /*
+   * Held strongly: only its family matters for updateState, and the layout pass replaces the
+   * node's state object (setStateData) after adopt attached it, so a weak reference to the adopted
+   * one expires whenever a commit publishes geometry, and every later nudge would be dropped.
+   */
+  std::shared_ptr<const ListState> state_;
 };
 
 /*

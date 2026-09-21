@@ -430,7 +430,7 @@ void ShadowListNativeEngine::requestCommit() {
   std::shared_ptr<const ListState> state;
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    state = state_.lock();
+    state = state_;
   }
   if (!state) {
     return;
