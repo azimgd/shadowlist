@@ -29,7 +29,7 @@ export interface ShadowListNativeBinding {
   ): boolean;
   removeItems(listId: string, keys: ReadonlyArray<string>): number;
   moveItem(listId: string, key: string, toIndex: number): boolean;
-  // After the mutations made so far are laid out; a negative index is the end.
+  // After the mutations made so far are laid out; -1 is the end, -2 the start (offset 0).
   scrollToIndex(listId: string, index: number, viewPosition: number): void;
   setTemplateStyle(
     listId: string,
@@ -45,9 +45,13 @@ export interface ShadowListNativeBinding {
     listId: string,
     tag: number
   ): { key: string; index: number; repeatIndex: number } | null;
-  retain(listId: string): void;
-  release(listId: string): void;
+  // Keeps the list's engine alive while the returned handle is held (or until close).
+  open(listId: string): ShadowListNativeHandle;
+  close(handle: ShadowListNativeHandle): void;
 }
+
+// Opaque; a JSI host object holding the engine.
+export type ShadowListNativeHandle = object;
 
 export interface ShadowListNativeConfig {
   initialRows?: number;
@@ -92,9 +96,15 @@ export function useShadowListNativeBinding():
 
 let nextListId = 0;
 
+/*
+ * Per runtime (and per evaluation of this module): the counter restarts after a JS reload or a
+ * Fast Refresh of this file, while engines from before can still be alive for a moment.
+ */
+const RUNTIME_NONCE = Math.floor(Math.random() * 0x7fffffff).toString(36);
+
 export function createShadowListNativeId(): string {
   nextListId += 1;
-  return `shadowlist-native-${nextListId}`;
+  return `shadowlist-native-${RUNTIME_NONCE}-${nextListId}`;
 }
 
 /*

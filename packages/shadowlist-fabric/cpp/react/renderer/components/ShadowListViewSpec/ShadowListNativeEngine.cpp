@@ -448,7 +448,9 @@ void ShadowListNativeEngine::applyPendingScroll(azimgd::shadowlist::Container& c
     return;
   }
   SL_LOG("native: scroll index=%.0f after=%llu", pendingScroll_->index, static_cast<unsigned long long>(pendingScroll_->afterVersion));
-  if (pendingScroll_->index < 0.0) {
+  if (pendingScroll_->index <= SCROLL_TO_START) {
+    core.scrollToStart();
+  } else if (pendingScroll_->index < 0.0) {
     core.scrollToEnd();
   } else {
     core.scrollToIndex(
@@ -1075,69 +1077,54 @@ void ShadowListNativeEngine::didLayout(const ShadowNode& listNode, azimgd::shado
 
 namespace {
 
-struct RegistryEntry {
-  std::weak_ptr<ShadowListNativeEngine> weak;
-  std::shared_ptr<ShadowListNativeEngine> pinned;
-};
-
 std::mutex& registryMutex() {
   static std::mutex mutex;
   return mutex;
 }
 
-std::unordered_map<std::string, RegistryEntry>& registryEntries() {
-  static std::unordered_map<std::string, RegistryEntry> entries;
+/*
+ * Weak only: an engine lives as long as a list node or a JS handle (`open`) holds it. Handles
+ * are JSI host objects, so they die with the runtime that made them (a JS reload) and with a
+ * render React discards.
+ */
+std::unordered_map<std::string, std::weak_ptr<ShadowListNativeEngine>>& registryEntries() {
+  static std::unordered_map<std::string, std::weak_ptr<ShadowListNativeEngine>> entries;
   return entries;
 }
 
-std::shared_ptr<ShadowListNativeEngine> obtainLocked(const std::string& listId) {
+void sweepLocked() {
   auto& entries = registryEntries();
-  auto& entry = entries[listId];
-  auto engine = entry.weak.lock();
-  if (!engine) {
-    engine = std::make_shared<ShadowListNativeEngine>(listId);
-    entry.weak = engine;
+  for (auto iterator = entries.begin(); iterator != entries.end();) {
+    iterator = iterator->second.expired() ? entries.erase(iterator) : std::next(iterator);
   }
-  return engine;
 }
 
 }
 
 std::shared_ptr<ShadowListNativeEngine> ShadowListNativeRegistry::obtain(const std::string& listId) {
   std::lock_guard<std::mutex> lock(registryMutex());
-  return obtainLocked(listId);
+  auto& entry = registryEntries()[listId];
+  auto engine = entry.lock();
+  if (!engine) {
+    engine = std::make_shared<ShadowListNativeEngine>(listId);
+    entry = engine;
+  }
+  return engine;
 }
 
 std::shared_ptr<ShadowListNativeEngine> ShadowListNativeRegistry::find(const std::string& listId) {
   std::lock_guard<std::mutex> lock(registryMutex());
   auto& entries = registryEntries();
   auto found = entries.find(listId);
-  return found == entries.end() ? nullptr : found->second.weak.lock();
+  return found == entries.end() ? nullptr : found->second.lock();
 }
 
-void ShadowListNativeRegistry::pin(const std::string& listId) {
-  std::lock_guard<std::mutex> lock(registryMutex());
-  auto engine = obtainLocked(listId);
-  registryEntries()[listId].pinned = std::move(engine);
-}
-
-void ShadowListNativeRegistry::release(const std::string& listId) {
-  std::shared_ptr<ShadowListNativeEngine> released;
+std::shared_ptr<ShadowListNativeEngine> ShadowListNativeRegistry::open(const std::string& listId) {
   {
     std::lock_guard<std::mutex> lock(registryMutex());
-    auto& entries = registryEntries();
-    auto found = entries.find(listId);
-    if (found == entries.end()) {
-      return;
-    }
-    released = std::move(found->second.pinned);
-    // Drop entries whose engine is gone, this one included once no list node holds it.
-    for (auto iterator = entries.begin(); iterator != entries.end();) {
-      bool dead = !iterator->second.pinned && iterator->second.weak.expired() && iterator->first != listId;
-      iterator = dead ? entries.erase(iterator) : std::next(iterator);
-    }
+    sweepLocked();
   }
-  // Destroyed outside the registry lock: an engine's rows release shadow nodes.
+  return obtain(listId);
 }
 
 }
