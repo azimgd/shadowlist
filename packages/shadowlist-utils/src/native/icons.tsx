@@ -5,8 +5,8 @@ import { View } from 'react-native';
 import { useTheme, type ThemeColors } from './theme';
 
 /*
- * Light-stroke, SF-Symbol-style icons drawn purely from <View> primitives: no
- * emoji, no font dependency, no SVG. `color` defaults to a theme color.
+ * Thin line icons drawn only with Views, so there is no font or SVG dependency.
+ * The color defaults to a theme color.
  */
 
 export interface IconProps {
@@ -37,9 +37,8 @@ const CHEVRON_ROTATION: Record<Direction, string> = {
 };
 
 /*
- * A chevron is two borders of a rotated square, so its ink sits ~0.35·side off
- * the box center toward the apex. Counter-translate along the pointing axis so
- * the glyph is optically centered in its frame.
+ * A chevron is two borders of a rotated square, so it sits off center toward its tip.
+ * Shift it back so it looks centered in its frame.
  */
 const CHEVRON_SHIFT: Record<Direction, { x: number; y: number }> = {
   up: { x: 0, y: 1 },
@@ -277,6 +276,74 @@ export const PlusIcon = ({
           height: bar,
           backgroundColor: color,
           borderRadius: strokeWidth,
+        }}
+      />
+    </View>
+  );
+};
+
+/*
+ * A microphone. An outlined capsule in a U shaped holder on a short stem and base.
+ */
+export const MicIcon = ({
+  size = 20,
+  color: colorProp,
+  strokeWidth = 1.6,
+}: IconProps) => {
+  const color = useIconColor(colorProp, 'label');
+  const capsuleWidth = size * 0.34;
+  const capsuleHeight = size * 0.5;
+  const holderWidth = size * 0.58;
+  const holderTop = size * 0.32;
+  const holderHeight = size * 0.36;
+  const baseWidth = size * 0.32;
+  return (
+    <View style={{ width: size, height: size }}>
+      <View
+        style={{
+          position: 'absolute',
+          top: size * 0.06,
+          left: (size - capsuleWidth) / 2,
+          width: capsuleWidth,
+          height: capsuleHeight,
+          borderRadius: capsuleWidth / 2,
+          borderWidth: strokeWidth,
+          borderColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: holderTop,
+          left: (size - holderWidth) / 2,
+          width: holderWidth,
+          height: holderHeight,
+          borderWidth: strokeWidth,
+          borderTopWidth: 0,
+          borderColor: color,
+          borderBottomLeftRadius: holderWidth / 2,
+          borderBottomRightRadius: holderWidth / 2,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: holderTop + holderHeight,
+          left: (size - strokeWidth) / 2,
+          width: strokeWidth,
+          height: size * 0.14,
+          backgroundColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: holderTop + holderHeight + size * 0.14 - strokeWidth / 2,
+          left: (size - baseWidth) / 2,
+          width: baseWidth,
+          height: strokeWidth,
+          borderRadius: strokeWidth,
+          backgroundColor: color,
         }}
       />
     </View>

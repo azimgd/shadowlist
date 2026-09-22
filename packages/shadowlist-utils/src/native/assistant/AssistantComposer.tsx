@@ -22,6 +22,7 @@ import {
   ArrowUpIcon,
   ChevronIcon,
   CloseIcon,
+  MicIcon,
   PencilIcon,
   PlusIcon,
   StopIcon,
@@ -33,29 +34,43 @@ import { AssistantAttachmentChip } from './AssistantAttachmentChip';
 import type { AssistantAttachment } from './types';
 
 export interface AssistantComposerHandle {
-  // Replaces the text and focuses the input, e.g. to edit an earlier prompt.
-  setDraft: (text: string) => void;
+  /*
+   * Replaces the text and focuses the input, like when editing an earlier prompt. Pass
+   * focus false to keep the keyboard down, like while dictating.
+   */
+  setDraft: (text: string, options?: { focus?: boolean }) => void;
+  getDraft: () => string;
   // Clears the text without focusing, so the keyboard doesn't rise.
   clearDraft: () => void;
   focus: () => void;
 }
 
 export interface AssistantComposerProps {
-  // The composer clears its text; the caller owns `attachments` and clears those.
+  // The composer clears its own text. The caller owns attachments and clears those.
   onSend: (text: string, attachments: readonly AssistantAttachment[]) => void;
-  // A reply is streaming: Send becomes Stop.
+  // While a reply streams, Send becomes Stop.
   streaming: boolean;
   onStop?: () => void;
+  /*
+   * While a reply streams and there is text in the box, show Send rather than Stop: the caller
+   * takes a message sent mid-reply as "stop that and do this instead". Without it, the only way
+   * to redirect a reply that was going the wrong way was Stop, then retype, then Send -- and the
+   * text typed while waiting sat in the box with nowhere to go.
+   */
+  sendWhileStreaming?: boolean;
   attachments?: readonly AssistantAttachment[];
-  // Shows the add-attachment button when given.
+  // Shows the add attachment button when given.
   onPressAttach?: () => void;
   onRemoveAttachment?: (attachmentId: string) => void;
-  // Shows the model pill when given; pressing it calls onPressModel (open a picker).
+  // Shows the model pill when given. Pressing it calls onPressModel to open a picker.
   model?: string;
   onPressModel?: () => void;
   // Shows the thinking toggle when onThinkingChange is given.
   thinking?: boolean;
   onThinkingChange?: (enabled: boolean) => void;
+  // Shows the microphone button when onPressDictate is given. dictating marks it active.
+  dictating?: boolean;
+  onPressDictate?: () => void;
   // Shows the editing banner.
   editing?: boolean;
   onCancelEdit?: () => void;
@@ -75,6 +90,7 @@ export const AssistantComposer = forwardRef<
       onSend,
       streaming,
       onStop,
+      sendWhileStreaming = false,
       attachments = NO_ATTACHMENTS,
       onPressAttach,
       onRemoveAttachment,
@@ -82,6 +98,8 @@ export const AssistantComposer = forwardRef<
       onPressModel,
       thinking = false,
       onThinkingChange,
+      dictating = false,
+      onPressDictate,
       editing = false,
       onCancelEdit,
       maxLength = 4000,
@@ -97,22 +115,27 @@ export const AssistantComposer = forwardRef<
     const insets = useSafeAreaInsets();
     const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
     const [text, setText] = useState('');
+    // Mirrors text so getDraft reads the latest value without a new handle.
+    const textRef = useRef(text);
+    textRef.current = text;
 
     useImperativeHandle(
       ref,
       () => ({
-        setDraft: (nextText) => {
+        setDraft: (nextText, options) => {
           setText(nextText);
-          inputRef.current?.focus();
+          if (options?.focus !== false) inputRef.current?.focus();
         },
+        getDraft: () => textRef.current,
         clearDraft: () => setText(''),
         focus: () => inputRef.current?.focus(),
       }),
       []
     );
 
-    const canSend =
-      !streaming && (text.trim().length > 0 || attachments.length > 0);
+    const hasDraft = text.trim().length > 0 || attachments.length > 0;
+    const showStop = streaming && !(sendWhileStreaming && hasDraft);
+    const canSend = hasDraft && (!streaming || sendWhileStreaming);
 
     const handleSend = () => {
       if (!canSend) return;
@@ -237,7 +260,28 @@ export const AssistantComposer = forwardRef<
 
             <View style={styles.spacer} />
 
-            {streaming ? (
+            {onPressDictate ? (
+              <Pressable
+                onPress={onPressDictate}
+                hitSlop={6}
+                accessibilityRole="button"
+                accessibilityLabel={dictating ? l.stopDictating : l.dictate}
+                accessibilityState={{ selected: dictating }}
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  styles.dictateButton,
+                  dictating && styles.dictateButtonActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <MicIcon
+                  size={20}
+                  color={dictating ? colors.accent : colors.label}
+                />
+              </Pressable>
+            ) : null}
+
+            {showStop ? (
               <Pressable
                 onPress={onStop}
                 disabled={!onStop}
@@ -364,6 +408,12 @@ const useStyles = createStyles((theme) =>
     },
     sendButtonDisabled: {
       backgroundColor: theme.colors.fill,
+    },
+    dictateButton: {
+      backgroundColor: 'transparent',
+    },
+    dictateButtonActive: {
+      backgroundColor: theme.colors.accentSoft,
     },
     stopButton: {
       backgroundColor: theme.colors.label,

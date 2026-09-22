@@ -31,6 +31,8 @@ export interface AssistantLabels {
   send: string;
   stop: string;
   addAttachment: string;
+  dictate: string;
+  stopDictating: string;
   removeAttachment: (name: string) => string;
   editingMessage: string;
   cancelEditing: string;
@@ -79,6 +81,8 @@ export const defaultAssistantLabels: AssistantLabels = {
   send: 'Send',
   stop: 'Stop generating',
   addAttachment: 'Add attachment',
+  dictate: 'Dictate',
+  stopDictating: 'Stop dictating',
   removeAttachment: (name) => `Remove ${name}`,
   editingMessage: 'Editing message',
   cancelEditing: 'Cancel editing',
