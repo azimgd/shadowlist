@@ -61,6 +61,7 @@ jobs:
       - name: Run core tests (ThreadSanitizer)
         run: |
           c++ -std=c++17 -fsanitize=thread -I.. -I. \
+            -I../shadowlist-fabric/cpp/react/renderer/components/ShadowListViewSpec \
             -DSHADOWLIST_DEBUG_LOG=0 \
             ../shadowlist-core/*.cpp tests_*.cpp main.cpp -o run_tests_tsan -pthread
           ./run_tests_tsan
