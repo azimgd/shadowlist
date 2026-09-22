@@ -6,16 +6,16 @@ mark scroll-mid
 repeat 3 pan 200 700 0 -450 300
 wait 1.5
 mark prepend-start
-press 296 80
+press 210 78
 wait 2.5
 mark prepend-burst
-repeat 3 press 296 80
+repeat 3 press 210 78
 wait 3.5
 mark append-end
-repeat 2 press 333 80
+repeat 2 press 262 78
 wait 3
 mark drag-during-prepend
-press 296 80
+press 210 78
 pan 200 600 0 -150 1500
 wait 2.5
 mark statusbar-top
@@ -24,6 +24,6 @@ wait 2.5
 mark scroll-then-append
 repeat 4 pan 200 750 0 -600 120
 wait 1.5
-repeat 2 press 333 80
+repeat 2 press 262 78
 wait 3
 # No rotation step. The app is portrait only on iPhone, so testing a width change needs an iPad simulator.

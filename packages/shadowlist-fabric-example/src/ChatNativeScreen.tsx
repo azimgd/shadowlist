@@ -6,7 +6,16 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Alert, Animated, StyleSheet, Text, View } from 'react-native';
+import {
+  ActionSheetIOS,
+  Alert,
+  Animated,
+  Clipboard,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {
   KeyboardView,
   ShadowListNative,
@@ -27,6 +36,8 @@ import {
 } from 'shadowlist-utils/native';
 import { formatOrdinalLabel } from './itemOrdinals';
 import { useHeaderActions } from './HeaderActions';
+import { haptics } from './haptics';
+import { DEBUG } from './launchSettings';
 import { QueryStatus } from './QueryStatus';
 import {
   createOutgoingMessage,
@@ -66,6 +77,7 @@ interface ChatNativeRow {
   caption: string;
   // The Sending or Sent suffix after the caption of a message sent from this screen.
   statusLabel: string;
+  showCaption: boolean;
   opacity: number;
   failed: boolean;
 }
@@ -85,17 +97,20 @@ function getAvatarColor(name: string, palette: ReadonlyArray<string>): string {
   return palette[hash % palette.length] ?? '#888888';
 }
 
+const STATUS_SEPARATOR = DEBUG ? ' · ' : '';
 const STATUS_LABELS: Partial<Record<ChatMessageStatus, string>> = {
-  sending: ' · Sending',
-  sent: ' · Sent',
+  sending: `${STATUS_SEPARATOR}Sending`,
+  sent: `${STATUS_SEPARATOR}Sent`,
 };
 
 /*
  * The fields a status change rewrites. The row is patched with just these.
  */
 function statusFields(status: ChatMessageStatus | undefined, tracked: boolean) {
+  const statusLabel = tracked && status ? (STATUS_LABELS[status] ?? '') : '';
   return {
-    statusLabel: tracked && status ? (STATUS_LABELS[status] ?? '') : '',
+    statusLabel,
+    showCaption: DEBUG || statusLabel !== '',
     opacity: status === 'sending' ? 0.6 : 1,
     failed: status === 'failed',
   };
@@ -134,8 +149,10 @@ function useOrdinals() {
   const counts = useRef({ forward: 0, prepended: 0 });
   return useMemo(
     () => ({
-      forward: () => formatOrdinalLabel(++counts.current.forward),
-      prepended: () => formatOrdinalLabel(++counts.current.prepended, true),
+      forward: () =>
+        DEBUG ? formatOrdinalLabel(++counts.current.forward) : '',
+      prepended: () =>
+        DEBUG ? formatOrdinalLabel(++counts.current.prepended, true) : '',
     }),
     []
   );
@@ -244,6 +261,7 @@ export const ChatNativeScreen = () => {
   const handleSend = useCallback(
     (text: string) => {
       const message = createOutgoingMessage(text);
+      haptics.send();
       outgoingRef.current.set(message.id, message);
       listRef.current?.appendItems([
         toRow(message, ordinals.forward(), palette, true),
@@ -256,28 +274,51 @@ export const ChatNativeScreen = () => {
   );
 
   const handleElementPress = useCallback(
+    ({ key, action }: ShadowListNativeElementPressEvent<ChatNativeRow>) => {
+      if (action !== 'retry') return;
+      const message = outgoingRef.current.get(key);
+      if (message) deliver(message);
+    },
+    [deliver]
+  );
+
+  const handleElementLongPress = useCallback(
     ({
       key,
       action,
       item,
     }: ShadowListNativeElementPressEvent<ChatNativeRow>) => {
-      if (action === 'retry') {
-        const message = outgoingRef.current.get(key);
-        if (message) deliver(message);
+      if (action !== 'message' || !item) return;
+      const remove = () => {
+        haptics.remove();
+        listRef.current?.removeItems([key]);
+      };
+      const copy = () => Clipboard.setString(item.text);
+      const hasText = item.text !== '';
+      if (Platform.OS === 'ios') {
+        const options = hasText
+          ? ['Copy', 'Delete', 'Cancel']
+          : ['Delete', 'Cancel'];
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options,
+            destructiveButtonIndex: options.indexOf('Delete'),
+            cancelButtonIndex: options.indexOf('Cancel'),
+          },
+          (index) => {
+            if (options[index] === 'Copy') copy();
+            if (options[index] === 'Delete') remove();
+          }
+        );
         return;
       }
-      if (action !== 'message') return;
-      const preview = item?.text ? `“${item.text.slice(0, 80)}”` : 'Image';
-      Alert.alert('Message', preview, [
+      Alert.alert(hasText ? 'Message' : 'Photo', undefined, [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => listRef.current?.removeItems([key]),
-        },
+        ...(hasText ? [{ text: 'Copy', onPress: copy }] : []),
+        { text: 'Delete', style: 'destructive' as const, onPress: remove },
       ]);
     },
-    [deliver]
+    []
   );
 
   useHeaderActions({
@@ -287,6 +328,8 @@ export const ChatNativeScreen = () => {
       listRef.current?.scrollToIndex(
         Math.floor(Math.random() * (listRef.current?.getCount() ?? 1))
       ),
+    prependLabel: 'Load Earlier Messages',
+    appendLabel: 'Simulate Incoming Messages',
   });
 
   const templates = useMemo(() => {
@@ -313,7 +356,7 @@ export const ChatNativeScreen = () => {
     const captionLine = (own: boolean) => (
       <ShadowListNative.Text
         style={[styles.captionLine, own ? styles.alignEnd : styles.alignStart]}
-        bind={{ text: '{caption}{statusLabel}' }}
+        bind={{ text: '{caption}{statusLabel}', visible: 'showCaption' }}
       />
     );
     const textBubble = (own: boolean) => (
@@ -336,7 +379,7 @@ export const ChatNativeScreen = () => {
           />
           <ShadowListNative.Text
             style={[styles.captionInline, own && styles.captionInlineOwn]}
-            bind={{ text: '{caption}{statusLabel}' }}
+            bind={{ text: '{caption}{statusLabel}', visible: 'showCaption' }}
           />
         </ShadowListNative.View>
         {own ? failedLine : null}
@@ -403,7 +446,7 @@ export const ChatNativeScreen = () => {
     () => (
       <View>
         <ListHeader
-          title="Lisbon Crew (Native)"
+          title="Lisbon Crew"
           subtitle="8 travellers · departs Oct 12"
         />
         {loadingEarlier ? <Spinner size={16} /> : null}
@@ -435,6 +478,7 @@ export const ChatNativeScreen = () => {
             style={styles.list}
             onStartReached={loadEarlier}
             onElementPress={handleElementPress}
+            onElementLongPress={handleElementLongPress}
             ListHeaderComponent={header}
             ListFooterComponent={footer}
           />

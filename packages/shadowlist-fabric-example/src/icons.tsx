@@ -84,3 +84,32 @@ export const ViewfinderIcon = ({
     </View>
   );
 };
+
+export const EllipsisIcon = ({ size = 22, color: colorProp }: IconProps) => {
+  const color = useIconColor(colorProp);
+  const dot = Math.round(size * 0.18);
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: size * 0.08,
+      }}
+    >
+      {[0, 1, 2].map((index) => (
+        <View
+          key={index}
+          style={{
+            width: dot,
+            height: dot,
+            borderRadius: dot / 2,
+            backgroundColor: color,
+          }}
+        />
+      ))}
+    </View>
+  );
+};

@@ -4,7 +4,6 @@ import { ShadowList, type ShadowListCommands } from 'shadowlist';
 import { useInfiniteListProps } from 'shadowlist-utils';
 import {
   Nested,
-  ListHeader,
   ListFooter,
   Spinner,
   type NestedItem,
@@ -29,13 +28,6 @@ const PAGE_CARDS = 8;
 // The carousel keeps its scroll position when far off screen. Other shelves remount at the first card.
 const PERSISTENT_KEYS = [CAROUSEL_SHELF_ID];
 
-const HEADER = (
-  <ListHeader
-    title="Explore"
-    subtitle="Destinations by mood; deals row stays pinned"
-  />
-);
-
 const renderRow = ({ element }: { element: ShelfRow }) =>
   element.id === CAROUSEL_SHELF_ID ? (
     <CarouselShelf item={element as CarouselShelfItem} />
@@ -50,9 +42,7 @@ export const NestedScreen = () => {
   const shelves = useShelvesQuery();
   const list = useInfiniteListProps(shelves);
 
-  const [cards, setCards] = useState(() =>
-    createCarouselCards(INITIAL_CARDS, 'Deal')
-  );
+  const [cards, setCards] = useState(() => createCarouselCards(INITIAL_CARDS));
   const carousel = useMemo<CarouselShelfItem>(
     () => ({ id: CAROUSEL_SHELF_ID, cards }),
     [cards]
@@ -64,12 +54,12 @@ export const NestedScreen = () => {
 
   useHeaderActions({
     onPrepend: () => {
-      request(() => createCarouselCards(PAGE_CARDS, 'New')).then((created) =>
+      request(() => createCarouselCards(PAGE_CARDS)).then((created) =>
         setCards((previous) => [...created, ...previous])
       );
     },
     onAppend: () => {
-      request(() => createCarouselCards(PAGE_CARDS, 'Fare')).then((created) =>
+      request(() => createCarouselCards(PAGE_CARDS)).then((created) =>
         setCards((previous) => [...previous, ...created])
       );
     },
@@ -77,6 +67,8 @@ export const NestedScreen = () => {
       shadowlistRef.current?.scrollToIndex(
         Math.floor(Math.random() * data.length)
       ),
+    prependLabel: 'Add Deals at Start',
+    appendLabel: 'Add Deals at End',
   });
 
   const { hasNextPage } = shelves;
@@ -99,7 +91,6 @@ export const NestedScreen = () => {
         renderElement={renderRow}
         persistentKeys={PERSISTENT_KEYS}
         onEndReached={list.onEndReached}
-        ListHeaderComponent={HEADER}
         ListFooterComponent={footer}
       />
     </View>

@@ -14,7 +14,7 @@ repeat 6 pan 200 780 0 -650 100
 wait 1.5
 mark stt-with-prepend
 statusbar
-press 296 80
+press 210 78
 wait 3
 mark stt-short
 pan 200 700 0 -500 300

@@ -1,11 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
-import {
-  getViewableRange,
-  useInfiniteListProps,
-  useScrollThreshold,
-} from 'shadowlist-utils';
+import { getViewableRange, useInfiniteListProps } from 'shadowlist-utils';
 import {
   Activity,
   Spinner,
@@ -16,8 +12,9 @@ import {
   START_REACHED_THRESHOLDS,
   END_REACHED_THRESHOLDS,
   nextInCycle,
-  HEADER_HIDE_THRESHOLD,
 } from './fixtures/activity';
+import { useHeaderMenu } from './HeaderActions';
+import { DEBUG } from './launchSettings';
 import { QueryStatus } from './QueryStatus';
 import {
   useActivityQuery,
@@ -39,10 +36,6 @@ export const ActivityScreen = () => {
   const [startThreshold, setStartThreshold] = useState(1);
   const [endThreshold, setEndThreshold] = useState(1.5);
 
-  const { isPastThreshold: headerHidden, onScroll } = useScrollThreshold(
-    HEADER_HIDE_THRESHOLD
-  );
-
   const handleViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: { index: number }[] }) => {
       const range = getViewableRange(viewableItems);
@@ -62,48 +55,56 @@ export const ActivityScreen = () => {
     deleteActivities(ids);
   }, [deleteActivities]);
 
-  const header = useMemo(
-    () => (
-      <Activity.Header
-        title="Activity"
-        subtitle="Boarding calls, likes and new followers, opens at index 30"
-        actions={[
-          {
-            label: 'Offset 2000',
-            onPress: () => shadowlistRef.current?.scrollToOffset(2000),
-          },
-          {
-            label: 'Scroll to end',
-            onPress: () => shadowlistRef.current?.scrollToEnd(),
-          },
-          {
-            label: `Start ×${startThreshold}`,
-            onPress: () =>
-              setStartThreshold((previous) =>
-                nextInCycle(START_REACHED_THRESHOLDS, previous)
-              ),
-          },
-          {
-            label: `End ×${endThreshold}`,
-            onPress: () =>
-              setEndThreshold((previous) =>
-                nextInCycle(END_REACHED_THRESHOLDS, previous)
-              ),
-          },
-          { label: 'Remove 20 & 50', onPress: handleRemoveItems },
-        ]}
-      />
-    ),
-    [startThreshold, endThreshold, handleRemoveItems]
-  );
+  useHeaderMenu([
+    [
+      {
+        label: 'Scroll Down 2,000 pt',
+        symbol: 'arrow.down',
+        onPress: () => shadowlistRef.current?.scrollToOffset(2000),
+      },
+      {
+        label: 'Scroll to End',
+        symbol: 'arrow.down.to.line',
+        onPress: () => shadowlistRef.current?.scrollToEnd(),
+      },
+    ],
+    [
+      {
+        label: `Start Threshold: ${startThreshold}×`,
+        symbol: 'arrow.up.and.down',
+        onPress: () =>
+          setStartThreshold((previous) =>
+            nextInCycle(START_REACHED_THRESHOLDS, previous)
+          ),
+      },
+      {
+        label: `End Threshold: ${endThreshold}×`,
+        symbol: 'arrow.up.and.down',
+        onPress: () =>
+          setEndThreshold((previous) =>
+            nextInCycle(END_REACHED_THRESHOLDS, previous)
+          ),
+      },
+    ],
+    [
+      {
+        label: 'Remove Items 20 and 50',
+        symbol: 'trash',
+        destructive: true,
+        onPress: handleRemoveItems,
+      },
+    ],
+  ]);
 
   const { isFetchingNextPage } = activity;
   const footer = useMemo(
     () => (
       <View style={styles.statusFooter}>
-        <Text style={styles.statusText}>
-          {`Viewable: ${viewableLabel} · Total: ${list.data.length}`}
-        </Text>
+        {DEBUG ? (
+          <Text style={styles.statusText}>
+            {`Viewable: ${viewableLabel} · Total: ${list.data.length}`}
+          </Text>
+        ) : null}
         {isFetchingNextPage && <Spinner size={16} />}
       </View>
     ),
@@ -122,17 +123,14 @@ export const ActivityScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         containerOffsetIndex={30}
-        stickyHeader={!headerHidden}
         refreshing={list.refreshing}
         onRefresh={list.onRefresh}
         refreshColor={colors.secondaryLabel}
-        ListHeaderComponent={header}
         ListFooterComponent={footer}
-        onScroll={onScroll}
         onEndReached={list.onEndReached}
         onStartReachedThreshold={startThreshold}
         onEndReachedThreshold={endThreshold}
-        onViewableItemsChanged={handleViewableItemsChanged}
+        onViewableItemsChanged={DEBUG ? handleViewableItemsChanged : undefined}
       />
     </View>
   );

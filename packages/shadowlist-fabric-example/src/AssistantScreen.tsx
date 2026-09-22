@@ -8,7 +8,6 @@ import {
 import { useListController } from 'shadowlist-utils';
 import {
   Assistant,
-  ListHeader,
   Spinner,
   ASSISTANT_END_ID,
   ASSISTANT_END_MARKER,
@@ -506,21 +505,14 @@ export const AssistantScreen = () => {
       shadowlistRef.current?.scrollToIndex(
         Math.floor(Math.random() * data.length)
       ),
+    prependLabel: 'Load Earlier Messages',
+    appendLabel: 'Send Next Suggestion',
   });
 
   const hasMessages = list.data.length > 0;
 
   const header = useMemo(
-    () =>
-      hasMessages ? (
-        <View>
-          <ListHeader
-            title="Skyfy Assistant"
-            subtitle="Your trip-planning copilot"
-          />
-          {list.loadingOlder ? <Spinner size={16} /> : null}
-        </View>
-      ) : null,
+    () => (hasMessages && list.loadingOlder ? <Spinner size={16} /> : null),
     [hasMessages, list.loadingOlder]
   );
 

@@ -8,6 +8,7 @@ export interface ContactRowOptions {
   onPressItem?: (item: ContactItem) => void;
   // Enables swipe-to-delete on every row.
   onDelete?: (id: string) => void;
+  disclosureIndicator?: boolean;
   labels?: Partial<ContactsLabels>;
 }
 
@@ -17,6 +18,7 @@ export interface ContactRowOptions {
 export function useContactRowRenderer({
   onPressItem,
   onDelete,
+  disclosureIndicator,
   labels,
 }: ContactRowOptions) {
   const rowLabels = useLabels(defaultContactsLabels, labels);
@@ -26,9 +28,10 @@ export function useContactRowRenderer({
         item={element}
         onPress={onPressItem}
         onDelete={onDelete}
+        disclosureIndicator={disclosureIndicator}
         labels={rowLabels}
       />
     ),
-    [onPressItem, onDelete, rowLabels]
+    [onPressItem, onDelete, disclosureIndicator, rowLabels]
   );
 }
