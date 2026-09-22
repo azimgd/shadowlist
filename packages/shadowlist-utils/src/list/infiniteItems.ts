@@ -1,16 +1,15 @@
 import type { InfiniteItem, InfinitePages, ItemsPage } from './InfinitePages';
 
 /*
- * Row-level edits for cached infinite data, shaped for optimistic updates:
+ * Row edits for cached infinite data, made for optimistic updates, for example
  *
  *   queryClient.setQueryData<FeedData>(['feed'], (data) =>
  *     removeInfiniteItems(data, (post) => post.id === deletedId)
  *   );
  *
- * Every helper keeps the identity of each page and each row it did not change, and returns
- * `data` itself when nothing changed. The list keys rows by id, so an untouched row keeps
- * its identity and its memoized cell skips the re-render. `undefined` (nothing cached yet)
- * passes through, which React Query treats as "leave the cache alone".
+ * Pages and rows that did not change keep their identity, and data comes back as is when
+ * nothing changed, so memoized rows skip the re-render. When nothing is cached yet undefined
+ * passes through, which React Query takes as leave the cache alone.
  */
 
 type AnyInfinitePages = InfinitePages<ItemsPage<unknown>>;
@@ -36,8 +35,8 @@ function mapPages<DataT extends AnyInfinitePages>(
 }
 
 /**
- * Every row of every loaded page, in display order: the `data` prop for the list. Returns
- * one shared empty array while nothing is cached, so it is safe as a memo dependency.
+ * Every row of every loaded page in display order, ready for the list's `data` prop.
+ * Returns one shared empty array while nothing is cached, so it is safe as a memo dependency.
  *
  * @see {@linkcode useInfiniteListProps}, which memoizes this for you.
  */
@@ -89,9 +88,9 @@ export function removeInfiniteItems<DataT extends AnyInfinitePages>(
 }
 
 /**
- * Inserts rows at the top of the first loaded page, e.g. posts that were just published.
- * Only correct while the first loaded page is the true start of the collection; after
- * loading earlier pages away from it, refetch instead.
+ * Inserts rows at the top of the first loaded page, like posts that were just published.
+ * Only correct while the first loaded page is the real start of the collection. Otherwise
+ * refetch instead.
  */
 export function prependInfiniteItems<DataT extends AnyInfinitePages>(
   data: DataT | undefined,
@@ -104,9 +103,9 @@ export function prependInfiniteItems<DataT extends AnyInfinitePages>(
 }
 
 /**
- * Inserts rows at the bottom of the last loaded page, e.g. a sent chat message. Only
- * correct while the last loaded page is the true end of the collection (no next page);
- * otherwise the rows would sit between that page and the next one once it loads.
+ * Inserts rows at the bottom of the last loaded page, like a sent chat message. Only
+ * correct while there is no next page. Otherwise the rows end up between that page and the
+ * next one once it loads.
  */
 export function appendInfiniteItems<DataT extends AnyInfinitePages>(
   data: DataT | undefined,
@@ -119,10 +118,10 @@ export function appendInfiniteItems<DataT extends AnyInfinitePages>(
 }
 
 /**
- * Replaces each row whose `id` is already cached, wherever it sits, and appends the others
- * to the last loaded page (with the same caveat as {@linkcode appendInfiniteItems}). Use it
- * to confirm or fail an optimistic send, or for a socket that may redeliver a message the
- * cache already holds: an existing id never becomes a duplicate key.
+ * Replaces each row whose `id` is already cached, wherever it sits, and appends the rest to
+ * the last loaded page, with the same catch as {@linkcode appendInfiniteItems}. Use it to
+ * confirm or fail an optimistic send, or for a socket that may send a message twice. An id
+ * that is already cached never turns into a duplicate key.
  *
  * @example
  * upsertInfiniteItems(data, [{ ...message, status: 'failed' }]);
@@ -150,10 +149,9 @@ export function upsertInfiniteItems<DataT extends AnyInfinitePages>(
 }
 
 /**
- * Keeps only the first `pageCount` loaded pages. Refetching an infinite query refetches
- * every loaded page one after another, so after a long scroll a pull-to-refresh can take
- * seconds; trimming to the first page first makes it a single request. Rows past the kept
- * pages leave the list, which is invisible to a reader who is pulling at the top.
+ * Keeps only the first `pageCount` loaded pages. A refetch loads every cached page one by
+ * one, so after a long scroll a pull to refresh can take seconds. Trimming to the first
+ * page makes it one request, and a reader pulling at the top never sees the dropped rows.
  */
 export function trimInfinitePages<DataT extends AnyInfinitePages>(
   data: DataT | undefined,

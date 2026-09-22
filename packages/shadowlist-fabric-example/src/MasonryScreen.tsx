@@ -2,12 +2,7 @@ import { useMemo, useRef } from 'react';
 import { View } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
 import { useInfiniteListProps } from 'shadowlist-utils';
-import {
-  Masonry,
-  ListHeader,
-  ListFooter,
-  Spinner,
-} from 'shadowlist-utils/native';
+import { Masonry, ListFooter, Spinner } from 'shadowlist-utils/native';
 import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
@@ -28,6 +23,8 @@ export const MasonryScreen = () => {
       shadowlistRef.current?.scrollToIndex(
         Math.floor(Math.random() * list.data.length)
       ),
+    prependLabel: 'Publish New Photos',
+    appendLabel: 'Load More Photos',
   });
 
   const { hasNextPage } = photos;
@@ -48,12 +45,6 @@ export const MasonryScreen = () => {
         ref={shadowlistRef}
         style={styles.list}
         onEndReached={list.onEndReached}
-        ListHeaderComponent={
-          <ListHeader
-            title="Gallery"
-            subtitle="Night skies shared by travellers"
-          />
-        }
         ListFooterComponent={footer}
       />
     </View>

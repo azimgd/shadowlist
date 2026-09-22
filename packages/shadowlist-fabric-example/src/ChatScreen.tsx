@@ -15,6 +15,8 @@ import {
 } from 'shadowlist-utils/native';
 import { useItemOrdinals } from './itemOrdinals';
 import { useHeaderActions } from './HeaderActions';
+import { haptics } from './haptics';
+import { DEBUG } from './launchSettings';
 import { QueryStatus } from './QueryStatus';
 import { createOutgoingMessage, simulateIncomingMessages } from './api/chat';
 import {
@@ -39,13 +41,14 @@ export const ChatScreen = () => {
   useIncomingChatMessages();
 
   /*
-   * Incoming messages keep the reader where they are (the list does not followAppends); the
-   * reader's own message is brought into view once it is in the list.
+   * Incoming messages keep the reader where they are, since the list does not followAppends.
+   * The reader's own message is scrolled into view once it is in the list.
    */
   const sentIdRef = useRef<string | null>(null);
   const handleSendMessage = useCallback(
     (text: string) => {
       const message = createOutgoingMessage(text);
+      haptics.send();
       sentIdRef.current = message.id;
       sendMessage(message);
     },
@@ -61,8 +64,8 @@ export const ChatScreen = () => {
   }, [lastId]);
 
   /*
-   * A failed send grows its row by the retry line. The list keeps the visible area where it
-   * is, so on the newest message that line would land under the composer, out of sight.
+   * A failed send grows its row by the retry line. The list keeps the visible area still, so on
+   * the newest message that line would end up hidden under the composer.
    */
   const lastFailed =
     lastMessage?.isOwn === true && lastMessage.status === 'failed';
@@ -71,15 +74,14 @@ export const ChatScreen = () => {
   }, [lastFailed, lastId]);
 
   /*
-   * The position of each message in the thread, under its bubble. Numbers are assigned once
-   * per message id (see useItemOrdinals), so loading older history labels only the new page
-   * and leaves every mounted bubble alone -- both the renderer and the size spec below stay
-   * referentially stable for the same reason.
+   * Each message's position in the thread, shown under its bubble. Numbers are given once per
+   * id, so loading older history labels only the new page and leaves mounted bubbles alone.
+   * That is also why the renderer and size spec below stay stable.
    */
   const ordinals = useItemOrdinals(list.data);
   const { labelOf } = ordinals;
 
-  // The same id goes out again; the bubble flips back to 'sending' in place.
+  // The same id goes out again, so the bubble flips back to sending in place.
   const handleRetry = useCallback(
     (message: ChatMessage) => sendMessage(message),
     [sendMessage]
@@ -89,18 +91,20 @@ export const ChatScreen = () => {
     ({ element }: { element: ChatMessage }) => (
       <Chat.Bubble
         message={element}
-        caption={labelOf(element.id)}
+        caption={DEBUG ? labelOf(element.id) : undefined}
         onRetry={handleRetry}
       />
     ),
     [labelOf, handleRetry]
   );
 
-  // The caption is a line of its own, so the predicted height has to include it (the spec
-  // adds a failed message's status line by itself).
+  /*
+   * The caption is its own line, so the predicted height includes it.
+   * The spec already adds the status line of a failed message.
+   */
   const getSizeSpec = useCallback(
     (message: ChatMessage) =>
-      getChatMessageSizeSpec(message, theme, { caption: true }),
+      getChatMessageSizeSpec(message, theme, { caption: DEBUG }),
     [theme]
   );
 
@@ -111,6 +115,8 @@ export const ChatScreen = () => {
       shadowlistRef.current?.scrollToIndex(
         Math.floor(Math.random() * list.data.length)
       ),
+    prependLabel: 'Load Earlier Messages',
+    appendLabel: 'Simulate Incoming Messages',
   });
 
   const { isFetchingPreviousPage, hasPreviousPage } = messages;

@@ -1,5 +1,5 @@
-# Tree: expanding a node inserts rows in the MIDDLE of the list, below and above the
-# viewport, which is the insert case prepend scenarios never reach.
+# Tree: expanding a node inserts rows in the middle of the list, above and below
+# the screen. Prepend scenarios never hit this case.
 route Tree
 latency 250,700
 wait 2.5
@@ -26,7 +26,7 @@ wait 2
 mark statusbar-top
 statusbar
 wait 2.5
-# Sticky header and toolbar footer over a list shorter than the viewport.
+# Collapse so the list is shorter than the screen, under the sticky header and footer.
 mark collapse-all
 press 292 815
 wait 2

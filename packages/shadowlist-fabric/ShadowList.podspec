@@ -2,10 +2,8 @@ require "json"
 
 package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 
-# Mirror the canonical core into a local copy before pod installation. The dest is
-# wiped first so it is always an exact mirror of the source: a per-file copy would
-# leave behind files that were since removed from the canonical core, and those
-# orphans would still be compiled in (s.source_files globs the whole dir).
+# Copy the core into this package before pod install. Wipe the copy first so files
+# removed from the core don't linger and still get compiled.
 core_source_dir = File.join(__dir__, "../shadowlist-core")
 core_dest_dir = File.join(__dir__, "shadowlist-core")
 if Dir.exist?(core_source_dir)

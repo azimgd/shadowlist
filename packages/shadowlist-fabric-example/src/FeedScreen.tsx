@@ -2,13 +2,7 @@ import { useRef, useMemo } from 'react';
 import { View } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
 import { useInfiniteListProps } from 'shadowlist-utils';
-import {
-  Feed,
-  ListHeader,
-  ListFooter,
-  Spinner,
-  useTheme,
-} from 'shadowlist-utils/native';
+import { Feed, ListFooter, Spinner, useTheme } from 'shadowlist-utils/native';
 import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
@@ -33,6 +27,8 @@ export const FeedScreen = () => {
       shadowlistRef.current?.scrollToIndex(
         Math.floor(Math.random() * list.data.length)
       ),
+    prependLabel: 'Publish New Posts',
+    appendLabel: 'Load More Posts',
   });
 
   const { hasNextPage } = feed;
@@ -56,9 +52,6 @@ export const FeedScreen = () => {
         onRefresh={list.onRefresh}
         refreshColor={colors.secondaryLabel}
         onEndReached={list.onEndReached}
-        ListHeaderComponent={
-          <ListHeader title="Skyfy" subtitle="Trips and skies from your crew" />
-        }
         ListFooterComponent={footer}
       />
     </View>

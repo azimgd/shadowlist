@@ -85,6 +85,6 @@ export interface Theme {
   spacing: ThemeSpacing;
   radius: ThemeRadius;
   fonts: ThemeFonts;
-  // Aligns separators and section content with the text column (avatar 40 + gutter 12 + padding 16).
+  // Lines separators and section content up with the text column. Avatar 40, gutter 12 and padding 16.
   rowInset: number;
 }

@@ -10,6 +10,7 @@ import {
 import { formatRelativeTime } from '../formatRelativeTime';
 import { useLabels } from '../labels';
 import { Avatar } from '../primitives/Avatar';
+import { useLargeText } from '../internal/useLargeText';
 import { createStyles } from '../theme';
 import { defaultActivityLabels, type ActivityLabels } from './labels';
 import type { ActivityItem } from './types';
@@ -35,6 +36,7 @@ export const ActivityRow = memo(
     avatarStyle,
   }: ActivityRowProps) => {
     const styles = useStyles();
+    const largeText = useLargeText();
     const l = useLabels(defaultActivityLabels, labels);
     const { actor } = item;
     const time = formatTime
@@ -72,12 +74,12 @@ export const ActivityRow = memo(
           style={[styles.avatar, avatarStyle]}
         />
         <View style={styles.content}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={largeText ? undefined : 1}>
             <Text style={styles.actor}>{actor.name}</Text>
             <Text style={styles.action}> {item.action}</Text>
           </Text>
           {item.text ? (
-            <Text style={styles.text} numberOfLines={2}>
+            <Text style={styles.text} numberOfLines={largeText ? 4 : 2}>
               {item.text}
             </Text>
           ) : null}

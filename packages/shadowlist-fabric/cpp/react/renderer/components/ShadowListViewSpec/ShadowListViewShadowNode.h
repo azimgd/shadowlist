@@ -7,6 +7,7 @@
 #include <react/renderer/core/LayoutContext.h>
 
 #include "ShadowListElementSizeSpec.h"
+#include "ShadowListNativeEngine.h"
 #include "ShadowListViewState.h"
 
 #include <shadowlist-core/Container.hpp>
@@ -21,18 +22,16 @@ namespace facebook::react {
 JSI_EXPORT extern const char ShadowListViewComponentName[];
 
 /*
- * Geometry the list publishes to the platform view so it can pin sticky section headers
- * and snap on the UI thread: only the core knows these offsets, and they move as
- * off-screen rows are measured, so they ride along on the state.
+ * Sticky header and snap positions the list sends to the platform view through state,
+ * so it can pin headers and snap on the UI thread. Only the core knows them, and they
+ * move as off screen rows get measured.
  *
- * Building them is O(rows) (one snap target per row) but they depend solely on element
- * geometry and a few scalars -- never on the scroll offset, which is what actually
- * changes on the frames that publish. So they are built once per geometry change and
- * reused, keyed by Container::geometryVersion. Shared by every committed clone of one
- * list, exactly like the Container itself.
+ * Building them walks every row, but they depend only on row geometry, never on the
+ * scroll offset. So they are built once per Container::geometryVersion and reused.
+ * Every committed clone of one list shares this cache, just like the Container.
  */
 struct ShadowListViewGeometryCache {
-  std::uint64_t geometryVersion = 0;  // 0 = nothing cached yet
+  std::uint64_t geometryVersion = 0;  // 0 means nothing cached yet
   bool snapToItem = false;
   int snapAlignment = -1;
   bool inverted = false;
@@ -42,12 +41,10 @@ struct ShadowListViewGeometryCache {
   std::vector<std::size_t> sourceStickyIndices;
 
   /*
-   * The published collections, shared with every state that carries them (see
-   * ShadowListViewState). Holding the same pointers the state holds is what makes the
-   * per-frame "did this change?" test a pointer comparison rather than an O(rows)
-   * element-wise one, and what keeps a rebuild that produces identical values from
-   * publishing a new state at all: adoptIfChanged below only swaps the pointer when the
-   * contents really moved. Null means empty.
+   * The published lists, shared with every state that carries them. Holding the same
+   * pointers makes the change check a pointer compare, and adoptIfChanged only swaps a
+   * pointer when the values really changed, so an identical rebuild publishes nothing.
+   * Null means empty.
    */
   std::shared_ptr<const std::vector<int>> stickyHeaderIndices;
   std::shared_ptr<const std::vector<Float>> stickyHeaderOffsets;
@@ -55,83 +52,63 @@ struct ShadowListViewGeometryCache {
   std::shared_ptr<const std::vector<Float>> snapOffsets;
 
   /*
-   * The props whose key collection the core last consumed successfully. Holding a strong
-   * reference is what makes pointer identity a sound "the keys did not change" proof:
-   * the previous props cannot be freed and its address reused while we still own it.
+   * The props whose keys the core last took in. Holding a strong reference keeps the
+   * address from being freed and reused, so a pointer match really means same keys.
    */
   std::shared_ptr<const Props> keysProps;
 
+  // For ShadowListNative, the store keys version the core last took in, or 0 for none.
+  std::uint64_t nativeKeysVersion = 0;
+
   /*
-   * The props whose `elementsSizeSpecs` were last parsed and measured. Same pointer
-   * trick, same reason: measuring a window of rows is real work (a text layout each), and
-   * the specs prop is unchanged on every scroll frame, every state publish and every
-   * unrelated prop change -- which is almost every commit. Holding a strong reference is
-   * what makes the identity test sound rather than an address-reuse hazard.
+   * The props whose elementsSizeSpecs were last parsed and measured. Same pointer trick:
+   * measuring costs a text layout per row, and the specs stay the same on almost every
+   * commit. The strong reference keeps the pointer check safe from address reuse.
    */
   std::shared_ptr<const Props> sizeSpecsProps;
 
   /*
-   * How far through the current specs prop the measurement pass has got.
-   *
-   * Measuring is capped per commit (see applyElementSizeSpecs). A republish brings in a
-   * handful of genuinely new rows plus a long tail of rows already in the text measure
-   * cache; the cached ones cost a hash and a lookup, but the new ones are real text layouts
-   * at roughly a tenth of a millisecond each. Doing them all in one commit puts a
-   * multi-millisecond spike on the commit thread every time the window advances.
-   *
-   * So the pass stops at the cap and records where it stopped; the next commit resumes.
-   * Partial application is already safe -- a row whose prediction has not landed yet simply
-   * uses the ordinary estimate until it does.
+   * How far the measuring pass got through the current specs.
+   * Measuring is capped per commit, see applyElementSizeSpecs. Cached rows are cheap but
+   * each new row is a real text layout of about a tenth of a millisecond, and doing them
+   * all at once spikes the commit thread. So the pass stops at the cap and the next commit
+   * picks up here. A row not measured yet just uses the normal estimate.
    */
   std::size_t sizeSpecsCursor = 0;
 
-  /*
-   * Set once the cursor has walked the whole of sizeSpecsProps, so the common
-   * already-finished commit costs a bool test rather than a JSON parse.
-   */
+  // Set once every spec is measured, so a finished commit skips the JSON parse.
   bool sizeSpecsDone = false;
 
   /*
-   * The parsed specs for sizeSpecsProps.
-   *
-   * Parsing has to be cached, not just the measuring. Because measurement is spread across
-   * several commits, a prop that is still being worked through is revisited on each of
-   * them, and re-parsing the whole JSON payload every time costs far more than the
-   * measurements it protects.
+   * The parsed specs. Measuring is spread over several commits, and parsing the whole
+   * JSON again on each one would cost more than the measuring, so the parse is cached too.
    */
   std::vector<ShadowListElementSizeSpec> sizeSpecs;
 
   /*
-   * Rows the layout pass concealed (opacity 0), keyed by row tag. Guarded by
-   * Container::coreMutex.
+   * Rows the layout pass hid with opacity 0, by row tag. Guarded by Container::coreMutex.
    *
-   * A row above the anchor that is measured natively for the first time can move the anchor,
-   * and the layout pass publishes an offset correction for it. Until the host has mounted that
-   * correction the row sits where the estimate put it relative to the view, which shows as the
-   * content shifting for a few frames. The row is concealed in the commit that mounts and
-   * measures it, and revealed once a host report acks its generation (see
-   * ShadowListViewState::concealGenerationAck_) and no correction is in flight.
+   * A row above the anchor measured for the first time can move the anchor, and the layout
+   * pass publishes an offset correction. Until the host mounts it, the content looks like it
+   * shifts for a few frames. So the row stays hidden from the commit that measures it until
+   * a host report echoes its generation and no correction is pending.
    *
-   * sourceProps/concealedProps are both kept so a React commit that
-   * hands the original props back is concealed again from the cache, and a genuinely new props
-   * object is re-parsed.
+   * Both props are kept so a React commit that hands back the original props gets hidden
+   * again from the cache, while truly new props get parsed again.
    */
   struct ConcealedRow {
     std::shared_ptr<const Props> sourceProps;
     std::shared_ptr<const Props> concealedProps;
     std::uint64_t generation = 0;
-    // Layout passes the row has stayed concealed through; bounds the concealment.
+    // How many layout passes the row stayed hidden, so it can't stay hidden forever.
     std::size_t layoutPasses = 0;
   };
   std::unordered_map<Tag, ConcealedRow> concealedRows;
 
-  // Last generation handed out to a concealment; 0 = never concealed.
+  // The last generation given to a hide, or 0 if nothing was ever hidden.
   std::uint64_t concealGeneration = 0;
 };
 
-/*
- * `ShadowNode` for <ShadowListView> component.
- */
 class ShadowListViewShadowNode final : public ConcreteViewShadowNode<
   ShadowListViewComponentName,
   ShadowListViewProps,
@@ -141,11 +118,9 @@ public:
   using ConcreteViewShadowNode::ConcreteViewShadowNode;
 
   /*
-   * Clone constructor. The core instances (container/geometry cache)
-   * live on the ShadowNode so they are freed when the node family is destroyed,
-   * but inherited constructors default-initialize derived members, so the clone
-   * must carry the shared instances forward from its source. This keeps a single
-   * core per list instance shared across all its committed clones.
+   * The core and geometry cache live on the node so they die with the node family.
+   * Inherited constructors leave derived members empty, so the clone copies them from
+   * its source. That keeps one core per list across all its clones.
    */
   ShadowListViewShadowNode(
     const ShadowNode& sourceShadowNode,
@@ -155,7 +130,7 @@ public:
 
   void layout(LayoutContext layoutContext) override;
   void replaceChild(
-    const ShadowNode& prevElementShadowNode,
+    const ShadowNode& previousElementShadowNode,
     const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
     std::size_t suggestedIndex = SIZE_MAX) override;
 
@@ -165,43 +140,43 @@ public:
   const std::shared_ptr<azimgd::shadowlist::Container>& getContainerManager() const { return containerManager_; }
   const std::shared_ptr<ShadowListViewGeometryCache>& getGeometryCache() const { return geometryCache_; }
 
+  /*
+   * For ShadowListNative, the engine that builds this list's rows, null for a ShadowList,
+   * and the row keys the core matched up on the commit that made this node.
+   */
+  void setNativeEngine(std::shared_ptr<ShadowListNativeEngine> nativeEngine) { nativeEngine_ = std::move(nativeEngine); }
+  const std::shared_ptr<ShadowListNativeEngine>& getNativeEngine() const { return nativeEngine_; }
+  void setNativeKeys(std::shared_ptr<const std::vector<std::string>> nativeKeys) { nativeKeys_ = std::move(nativeKeys); }
+  const std::shared_ptr<const std::vector<std::string>>& getNativeKeys() const { return nativeKeys_; }
+
 private:
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
 
-  /*
-   * Publishable geometry derived from the core, shared across this list's clones.
-   */
+  std::shared_ptr<ShadowListNativeEngine> nativeEngine_;
+  std::shared_ptr<const std::vector<std::string>> nativeKeys_;
+
+  // Geometry from the core to publish, shared across this list's clones.
   std::shared_ptr<ShadowListViewGeometryCache> geometryCache_;
 
   /*
-   * Set while layout() writes its own placement frames back into the tree, so the
-   * replaceChild override does not re-report those frames as fresh measurements. Purely
-   * local to one node's layout pass, which is single-threaded.
+   * Set while layout() writes its own frames into the tree, so replaceChild doesn't
+   * report them as new measurements. Only used inside one single threaded layout pass.
    */
   bool suppressElementSizeFeedback_ = false;
 
   /*
-   * Rows natively measured for the first time during this node's layout cycle. Yoga's
-   * clone-in-place reports a new row through replaceChild before layout() runs, so the
-   * first measurement is recorded where it happens rather than inferred in layout(). Candidates
-   * for concealment; cleared at the end of layout().
+   * Rows measured for the first time in this layout cycle, which may get hidden.
+   * Yoga reports a new row through replaceChild before layout() runs, so we record it there.
+   * Cleared at the end of layout().
    */
   std::vector<Tag> firstMeasuredTags_;
 
   /*
-   * Children this layout pass swapped out of the tree, held alive until the next one.
-   *
-   * Yoga's layout records every child it re-laid out in LayoutContext::affectedNodes as a
-   * RAW pointer, and ShadowTree::tryCommit dereferences that list AFTER layout finishes
-   * (emitLayoutEvents dynamic_casts each entry to look for an onLayout handler). This node
-   * then replaces those very children with repositioned clones. A child whose only owner
-   * was the slot we just overwrote is destroyed immediately, leaving a dangling pointer in
-   * a list the framework is still going to read: a use-after-free that shows up as a
-   * segfault inside emitLayoutEvents, and one that gets dramatically more likely the more
-   * rows are mounted per commit.
-   *
-   * Holding a strong reference until the next layout of this node keeps every such pointer
-   * valid for the rest of the commit that recorded it, which is all the framework needs.
+   * Children this layout pass swapped out, kept alive until the next pass.
+   * Warning: Yoga stores raw pointers to relaid children in LayoutContext::affectedNodes,
+   * and ShadowTree::tryCommit reads them after layout in emitLayoutEvents. We replace those
+   * children with moved clones, so without this a child could be freed while still listed.
+   * That crashes inside emitLayoutEvents, more often the more rows mount per commit.
    */
   std::vector<std::shared_ptr<const ShadowNode>> replacedChildren_;
 };

@@ -3,6 +3,7 @@
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
+#include "ShadowListNativeJSI.h"
 #include "ShadowListTextMeasurer.h"
 #include "ShadowListTrace.h"
 #include "ShadowListViewShadowNode.h"
@@ -10,43 +11,96 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
+#include <algorithm>
 #include <atomic>
 #include <mutex>
 
 namespace facebook::react {
 
-/*
- * Descriptor for <ShadowListView> component.
- */
 class ShadowListViewComponentDescriptor final : public ConcreteComponentDescriptor<ShadowListViewShadowNode> {
 public:
   ShadowListViewComponentDescriptor(const ComponentDescriptorParameters& parameters) :
     ConcreteComponentDescriptor<ShadowListViewShadowNode>(parameters),
     /*
-     * Resolved once per descriptor, and deliberately in the CONSTRUCTOR: it publishes the
-     * instance into the ContextContainer so that RN's own Paragraph descriptor, if it is
-     * built after us, shares our measure cache instead of creating a private one. Doing it
-     * lazily at measure time would always be too late. See getSharedTextLayoutManager.
+     * Done in the constructor on purpose. It puts the instance in the ContextContainer so
+     * React Native's Paragraph descriptor, if built after us, shares our measure cache.
+     * Doing it later at measure time would be too late. See getSharedTextLayoutManager.
      */
     textLayoutManager_(getSharedTextLayoutManager(this->contextContainer_)) {
+    // Install the ShadowListNative data API early so JS rarely waits for it.
+    installShadowListNativeJSI(this->contextContainer_);
   };
+
+  /*
+   * ShadowListNative rows are children that no React component renders. Any clone with new
+   * props, children or state matches them to the window the core just picked in adopt(),
+   * and commits the result as this node's children.
+   *
+   * Build a second node instead of editing children in place. A node built with new children
+   * gets its Yoga subtree set up by the layout pass like any React child. Editing a node
+   * already marked set up would lay the new rows out with Yoga defaults.
+   * Layout only clones are left alone.
+   */
+  std::shared_ptr<ShadowNode> cloneShadowNode(const ShadowNode& sourceShadowNode, const ShadowNodeFragment& fragment)
+    const override {
+    auto shadowNode = ConcreteComponentDescriptor::cloneShadowNode(sourceShadowNode, fragment);
+    if (!fragment.props && !fragment.children && !fragment.state) {
+      return shadowNode;
+    }
+    auto& listShadowNode = static_cast<ShadowListViewShadowNode&>(*shadowNode);
+    auto children = reconcileNativeRows(listShadowNode);
+    if (!children) {
+      return shadowNode;
+    }
+    auto nextShadowNode = std::make_shared<ShadowListViewShadowNode>(*shadowNode, ShadowNodeFragment{.children = children});
+    shadowNode->transferRuntimeShadowNodeReference(nextShadowNode, fragment);
+    return nextShadowNode;
+  }
+
+  /*
+   * React appends a list's children one by one. Put the rows right after the
+   * ShadowListNative templates container, same as cloneShadowNode does.
+   */
+  void appendChild(
+    const std::shared_ptr<const ShadowNode>& parentShadowNode,
+    const std::shared_ptr<const ShadowNode>& childShadowNode) const override {
+    ConcreteComponentDescriptor::appendChild(parentShadowNode, childShadowNode);
+    const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(childShadowNode->getProps());
+    if (!templateProps || templateProps->templateType != "native") {
+      return;
+    }
+    auto& listShadowNode = const_cast<ShadowListViewShadowNode&>(static_cast<const ShadowListViewShadowNode&>(*parentShadowNode));
+    auto children = reconcileNativeRows(listShadowNode);
+    if (!children) {
+      return;
+    }
+    const auto& current = listShadowNode.getChildren();
+    // The container was just appended last, so only rows can follow it.
+    if (children->size() < current.size() || !std::equal(current.begin(), current.end(), children->begin())) {
+      return;
+    }
+    for (std::size_t index = current.size(); index < children->size(); ++index) {
+      listShadowNode.appendChild((*children)[index]);
+    }
+  }
 
   void adopt(ShadowNode& shadowNode) const override {
     ConcreteComponentDescriptor::adopt(shadowNode);
 
-    // Debug device trace only; a no-op unless the app was launched with SHADOWLIST_FRAME_TRACE=1.
+    // Debug trace, does nothing unless the app was launched with SHADOWLIST_FRAME_TRACE=1.
     if (!jsTraceInstalled_.exchange(true, std::memory_order_relaxed)) {
       shadowlist::detail::installJsTrace(this->contextContainer_);
+    }
+
+    if (!nativeJsiInstalled_.exchange(true, std::memory_order_relaxed)) {
+      installShadowListNativeJSI(this->contextContainer_);
     }
 
     auto& shadowlistViewShadowNode = static_cast<ShadowListViewShadowNode&>(shadowNode);
 
     /*
-     * Lazily create the core for the initial node of a list. Clones carry these
-     * instances forward (see the ShadowNode clone constructor), so a single core
-     * is shared across a list's committed clones and freed when the node family
-     * is destroyed; no descriptor-level registry that would leak one entry per
-     * mounted list.
+     * Create the core for a list's first node. Clones carry it along, so one core is shared
+     * by all clones and freed with the node family. No registry here that could leak.
      */
     if (!shadowlistViewShadowNode.getContainerManager()) {
       shadowlistViewShadowNode.setContainerManager(std::make_shared<azimgd::shadowlist::Container>());
@@ -54,61 +108,71 @@ public:
     }
 
     auto& shadowlistViewProps = static_cast<const ShadowListViewShadowNode::ConcreteProps&>(*shadowNode.getProps());
-    auto& shadowlistViewState = static_cast<const ShadowListViewShadowNode::ConcreteState&>(*shadowNode.getState());
+    /*
+     * A React commit clones the list with the state React last saw, which can be several
+     * reports old, for example still holding the offset from before a correction. Fabric
+     * catches up later in the commit, but update() would already have anchored on the old
+     * offset and moved the content by the difference. So read the newest state instead.
+     */
+    const auto& adoptedState = shadowNode.getState();
+    const auto newerState = adoptedState->getMostRecentStateIfObsolete();
+    auto& shadowlistViewState = static_cast<const ShadowListViewShadowNode::ConcreteState&>(
+      newerState ? *newerState : *adoptedState);
     auto& shadowlistViewEventEmitter = static_cast<const ShadowListViewShadowNode::ConcreteEventEmitter&>(*shadowNode.getEventEmitter());
 
     /*
-     * A reference, not a copy. getData() returns `const Data&`, and ShadowListViewState
-     * holds two std::strings and four shared_ptrs -- so `auto` cost two heap allocations
-     * and four atomic refcount pairs on EVERY commit, including every scroll frame, to
-     * produce something this function only ever reads.
+     * Take a reference. A copy of the state costs allocations and refcount bumps on every
+     * commit, including every scroll frame, and we only read it.
      */
     const auto& shadowlistViewStateData = shadowlistViewState.getData();
+    if (newerState) {
+      SL_LOG("adopt: obsolete state rev=%zu -> newest rev=%zu off=(%.1f,%.1f)",
+        adoptedState->getRevision(), newerState->getRevision(),
+        shadowlistViewStateData.containerOffsetX_, shadowlistViewStateData.containerOffsetY_);
+    }
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
     auto containerManager = shadowlistViewShadowNode.getContainerManager().get();
 
     /*
-     * Serialize all access to the shared core for this commit. adopt() can run
-     * concurrently with layout()/replaceChild()/update() on another committed clone of
-     * the same list, so the recursive coreMutex (re-entered by update()) guards the
-     * callback assignments, the drag sequence, requestScrollToIndex and the header/footer
-     * reads below against those passes.
+     * For ShadowListNative, attach the native store and snapshot its keys. The core and the
+     * mounted rows both use this snapshot, so a row never mounts for a key the core doesn't know.
+     */
+    ShadowListNativeEngine::KeysSnapshot nativeKeys;
+    if (!shadowlistViewProps.nativeListId.empty()) {
+      if (!shadowlistViewShadowNode.getNativeEngine() ||
+          shadowlistViewShadowNode.getNativeEngine()->listId() != shadowlistViewProps.nativeListId) {
+        shadowlistViewShadowNode.setNativeEngine(ShadowListNativeRegistry::obtain(shadowlistViewProps.nativeListId));
+      }
+      const auto& nativeEngine = shadowlistViewShadowNode.getNativeEngine();
+      nativeEngine->attachState(std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteState>(shadowNode.getState()));
+      nativeKeys = nativeEngine->keysSnapshot();
+      shadowlistViewShadowNode.setNativeKeys(nativeKeys.keys);
+    }
+
+    /*
+     * Lock the shared core for this commit. adopt() can run at the same time as layout,
+     * replaceChild or update on another clone of the same list. The mutex is recursive
+     * because update() takes it again.
      */
     std::lock_guard<std::recursive_mutex> coreLock(containerManager->coreMutex);
 
     /*
-     * Forward core events to the event emitter. The core deduplicates so we
-     * only need to translate the payloads here.
+     * Pass core events to the event emitter. The core already drops repeats.
      *
-     * The three HIGH-FREQUENCY observers below deliberately bypass the codegen'd emitter
-     * methods and dispatch through EventEmitter::dispatchUniqueEvent instead. The generated
-     * methods call dispatchEvent(..., Category::Unspecified), which has two consequences on
-     * a per-scroll-frame event that this list cannot live with:
+     * The three per frame events below skip the generated emitter methods and use
+     * dispatchUniqueEvent, which marks them unique and continuous, like React Native's own
+     * ScrollView scroll event. The generated methods cause two problems:
+     * Events are not merged, so when JS falls behind, like while dragging the scroll
+     * indicator, the queue grows for the whole gesture. That backlog is the long freeze.
+     * Events are sent as discrete, so React renders each one synchronously. Dragging content
+     * is fine, but the scroll indicator, a macOS scroller and iOS momentum frames all turned
+     * into one blocking render per frame.
+     * Event names stay the same either way.
      *
-     *   * NOT COALESCED. EventQueue::enqueueEvent only collapses a repeat onto an existing
-     *     entry for events flagged unique, so every frame appends. When the JS thread cannot
-     *     keep up -- which is exactly what happens while the scroll indicator is dragged,
-     *     because each report lands in a completely different part of the list and forces a
-     *     full remount of the mounted window -- the queue grows for the length of the
-     *     gesture and then drains afterwards. That backlog is the multi-second freeze.
-     *
-     *   * DISPATCHED AS DISCRETE. EventQueueProcessor maps Unspecified to Discrete unless a
-     *     continuous gesture is in flight, and Discrete makes React flush the render
-     *     synchronously and uninterruptibly. Content dragging happens to be fine (the touch
-     *     sequence sets the continuous flag), but a scroll-indicator drag cancels that touch
-     *     -- and on macOS a scroller drag is not an RN touch at all -- so every frame of the
-     *     gesture became one blocking render. iOS momentum frames after the finger lifts
-     *     have the same problem.
-     *
-     * dispatchUniqueEvent fixes both at once: it marks the event unique AND tags it
-     * Category::Continuous. This is the same treatment RN gives its own ScrollView `scroll`
-     * event (ScrollViewEventEmitter::onScroll). Wire names are unchanged: both paths run the
-     * type through EventEmitter::normalizeEventType.
-     *
-     * Coalescing only reaches back to the last event queued for this target, so emitting
-     * three different high-frequency types per frame would defeat it. That is the other half
-     * of why scroll/viewable are gated on someone actually listening below.
+     * Merging only looks at the last event queued for this view, so sending several kinds of
+     * event per frame defeats it. That's another reason scroll and viewable only fire when
+     * someone listens.
      */
     containerManager->onStartReachedCallback = [shadowlistViewEventEmitter]() -> void {
       shadowlistViewEventEmitter.onStartReached({});
@@ -117,8 +181,8 @@ public:
       shadowlistViewEventEmitter.onEndReached({});
     };
     /*
-     * The imperative setStartReachedEnabled / setEndReachedEnabled commands write these flags
-     * into state; the core gates the reached callbacks on them when update() ends the frame.
+     * setStartReachedEnabled and setEndReachedEnabled write these flags into state, and the
+     * core checks them before firing the reached callbacks.
      */
     containerManager->setStartReachedEnabled(shadowlistViewStateData.startReachedEnabled_);
     containerManager->setEndReachedEnabled(shadowlistViewStateData.endReachedEnabled_);
@@ -135,9 +199,8 @@ public:
     };
 
     /*
-     * Only observe what JS is listening to. An unobserved viewable range still costs
-     * getViewableIndices' O(window) overlap scan on every frame, plus a queued event and a
-     * JS round trip that finds no handler.
+     * Only track what JS listens to. Otherwise every frame pays for a viewable scan and
+     * an event that nobody handles.
      */
     if (shadowlistViewProps.viewableEventEnabled) {
       containerManager->onViewableIndicesChangeCallback = [shadowlistViewEventEmitter](std::size_t startIndex, std::size_t endIndex) -> void {
@@ -170,10 +233,9 @@ public:
     }
 
     /*
-     * Relay a drag-to-reorder boundary to JS. The platform view bumps dragEventSequence_
-     * in state only at pickup and drop (the per-frame finger tracking and make-room
-     * shuffle stay native and never reach here); fire the matching event once per
-     * fresh sequence. type 1 = pickup, 3 = drop.
+     * Tell JS when a drag starts or ends. The platform view bumps the sequence only on pick
+     * up and drop, since finger tracking stays native. Fire once per new sequence.
+     * Type 1 is pick up and 3 is drop.
      */
     if (shadowlistViewStateData.dragEventSequence_ != containerManager->lastDragEventSequence) {
       containerManager->lastDragEventSequence = shadowlistViewStateData.dragEventSequence_;
@@ -192,9 +254,8 @@ public:
     }
 
     /*
-     * Resolve a pending scrollToIndex. The imperative command writes the target
-     * into state (containerOffsetIndex_); the declarative prop provides an initial
-     * index. The core resolves precedence and fires once per distinct target.
+     * Handle a pending scrollToIndex. The command writes its target into state and the
+     * prop gives the initial index. The core picks which wins and scrolls once per target.
      */
     containerManager->requestScrollToIndex(
       shadowlistViewStateData.containerOffsetIndex_,
@@ -202,52 +263,41 @@ public:
       shadowlistViewProps.containerOffsetIndex,
       shadowlistViewStateData.containerOffsetIndexViewPosition_);
 
-    /*
-     * Reconcile, measure and resolve scrolling in a single core call
-     */
+    // Run ShadowListNative scroll commands once the rows they wait for are laid out.
+    bool nativeScrollCommand = shadowlistViewShadowNode.getNativeEngine() &&
+      shadowlistViewShadowNode.getNativeEngine()->applyPendingScroll(*containerManager, nativeKeys.version);
+
     azimgd::shadowlist::FrameInput input;
     /*
-     * Lend the core the props' own key collection instead of copying it. Props are
-     * immutable and outlive this synchronous call, and the core only reads keys during
-     * it. Copying meant one allocation per row for any key longer than the small-string
-     * buffer -- on the order of milliseconds per commit for a large chat list, on every
-     * commit including pure scrolls.
+     * Point the core at the props' keys instead of copying them. Props never change and
+     * outlive this call. Copying cost milliseconds per commit on a large chat list.
      */
-    input.keysRef = &shadowlistViewProps.elementsAllKeys;
+    input.keysRef = nativeKeys.keys ? nativeKeys.keys.get() : &shadowlistViewProps.elementsAllKeys;
     /*
-     * Decoration row keys the core must never auto-capture as the MVCP anchor (date pills,
-     * unread dividers, reaction strips, padding). Keeps a key change on decoration from
-     * perturbing the maintained scroll position, so JS can stop encoding "ignore me" into
-     * the row's key. An empty list means every row is anchorable.
+     * Keys of decoration rows like date pills and dividers that the core must never use as
+     * the anchor for keeping content in place. An empty list means any row can be the anchor.
      */
     input.nonAnchorableKeysRef = &shadowlistViewProps.elementsAnchorIgnoreKeys;
 
     /*
-     * A scroll clones the shadow node with fresh state and the SAME immutable props, so
-     * the props pointer is a sound proof that the key collection did not change -- and the
-     * geometry cache holds a strong reference to the previous props, so its address cannot
-     * have been recycled underneath us. Let the core skip its per-commit O(rows) key
-     * comparison on those frames.
+     * A scroll keeps the same props, so the same props pointer means the same keys.
+     * The cache holds the old props so the address can't be reused. This lets the core
+     * skip comparing every key on scroll frames.
      */
     auto geometryCache = shadowlistViewShadowNode.getGeometryCache();
     const auto& currentProps = shadowNode.getProps();
-    input.keysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
+    input.keysUnchanged = nativeKeys.keys
+      ? geometryCache && geometryCache->nativeKeysVersion == nativeKeys.version
+      : geometryCache && geometryCache->keysProps == currentProps;
     input.containerOffsetX = shadowlistViewStateData.containerOffsetX_;
     input.containerOffsetY = shadowlistViewStateData.containerOffsetY_;
     input.containerOffsetEnabled = shadowlistViewStateData.containerOffsetEnabled_;
     input.windowContainerWidth = shadowlistViewLayoutMetrics.frame.size.width;
     input.windowContainerHeight = shadowlistViewLayoutMetrics.frame.size.height;
-    /*
-     * The layout pass measures the header/footer templates and applies them to the core
-     * directly (see ShadowListViewShadowNode::layout), so the core's own values are the
-     * latest measurements.
-     */
+    // The layout pass writes the header and footer sizes into the core, so these are current.
     input.headerSize = containerManager->headerSize;
     input.footerSize = containerManager->footerSize;
-    /*
-     * Section-header element indices (SectionList). Skip negatives defensively; the
-     * core expects an ascending list of valid indices.
-     */
+    // SectionList header indices. Skip negatives, the core wants valid ascending indices.
     input.stickyIndices.reserve(shadowlistViewProps.stickyHeaderIndices.size());
     for (auto stickyHeaderIndex : shadowlistViewProps.stickyHeaderIndices) {
       if (stickyHeaderIndex >= 0) {
@@ -266,17 +316,14 @@ public:
     input.snapAlignment = shadowlistViewProps.snapToAlignment;
 
     /*
-     * A genuine user scroll abandons any in-flight scroll correction so the user
-     * takes over instead of being snapped back. Without this the core's "yield to
-     * the user" path never fires and a transient correction can latch and freeze
-     * the visible window (blank list on deep scroll).
+     * A real user scroll drops any pending correction so the user isn't snapped back.
+     * Without it a correction can get stuck and freeze the window, leaving a blank list.
      */
     input.userScrolled = shadowlistViewStateData.userScrolled_;
 
     /*
-     * The gesture phase outlives a single report: a finger resting on the list makes
-     * every commit in between a gesture frame too, so the inverted bottom pin does not
-     * re-assert itself under the finger (see Container::gestureActive).
+     * The phase lasts across reports, so while a finger rests on the list the inverted
+     * bottom pin doesn't pull the content under it. See Container::gestureActive.
      */
     input.scrollPhase = shadowlistViewStateData.scrollPhase_ == SCROLL_PHASE_DRAGGING
       ? azimgd::shadowlist::ScrollPhase::Dragging
@@ -285,15 +332,23 @@ public:
         : azimgd::shadowlist::ScrollPhase::Idle;
 
     /*
-     * The commit token the host echoed back (the id of the correction whose offset
-     * write produced this report, or 0). Lets the core match its own echo exactly.
+     * A ShadowListNative scroll command stops momentum when the host mounts it, so treat its
+     * frame as idle. Otherwise the core would think the fling drives the correction.
+     * A finger on the list is different. The drag stays, and it cancels the command.
      */
+    bool nativeScrollYieldsMomentum = nativeScrollCommand &&
+      input.scrollPhase != azimgd::shadowlist::ScrollPhase::Dragging;
+    if (nativeScrollYieldsMomentum) {
+      input.userScrolled = false;
+      input.scrollPhase = azimgd::shadowlist::ScrollPhase::Idle;
+    }
+
+    // The token the host echoed back, so the core can spot its own write. 0 if none.
     input.commitToken = static_cast<std::uint64_t>(shadowlistViewStateData.commitToken_);
 
     /*
-     * Stage ahead-of-time sizes BEFORE update(): the core consumes them between its
-     * reconcile and its measure pass, so this frame's visible window is chosen from the
-     * real geometry rather than from estimates it is about to replace.
+     * Give the core predicted sizes before update(), so this frame picks its window from
+     * real sizes instead of estimates.
      */
     applyElementSizeSpecs(
       shadowlistViewShadowNode,
@@ -303,21 +358,18 @@ public:
       shadowlistViewLayoutMetrics.pointScaleFactor,
       shadowNode.getSurfaceId());
 
-    /*
-     * Contain core exceptions: skip the frame rather than abort the Fabric commit. The
-     * core resets its own revision status on throw, so the next frame recovers.
-     */
+    // If the core throws, skip the frame instead of failing the commit. The next frame recovers.
     try {
       azimgd::shadowlist::Virtualizer::update(containerManager, input);
+      if (nativeScrollYieldsMomentum) {
+        shadowlistViewShadowNode.getNativeEngine()->setMomentumYieldToken(
+          containerManager->operation ? containerManager->operation->id : 0);
+      }
       /*
-       * Only the layout pass publishes to the host, and a commit that carries nothing but new
-       * state (a scroll report, a scroll command) leaves this node's layout clean, so layout()
-       * would not run. Dirty it when there is something to publish: a correction, or core-owned
-       * geometry this state no longer carries. The Android host builds each scroll report on
-       * the state it last mounted, which can predate the latest published geometry, so the
-       * report writes the old content size (and snap/sticky tables) back; iOS copies the
-       * mounted state the same way. Left alone, the host keeps scrolling an outdated content
-       * size, and a fling can coast past the real end into blank space.
+       * Only the layout pass publishes to the host, and a state only commit won't run it.
+       * So mark layout dirty when there's a correction or the state has old geometry.
+       * Hosts build scroll reports on the state they mounted, which can carry an old content
+       * size. Left alone, a fling can coast past the real end into blank space.
        */
       bool geometryStale =
         shadowlistViewStateData.totalContainerWidth_ != containerManager->revision.totalContainerWidth ||
@@ -328,40 +380,70 @@ public:
           geometryCache->stickyHeaderOffsets != shadowlistViewStateData.stickyHeaderOffsets_ ||
           geometryCache->stickyHeaderSizes != shadowlistViewStateData.stickyHeaderSizes_));
       /*
-       * Concealed rows are revealed by the layout pass, and the commit that carries the host's
-       * ack is usually a bare scroll report, so dirty it while any row is concealed.
+       * The layout pass shows hidden rows again, and the host's echo usually comes in a plain
+       * scroll report, so keep layout dirty while any row is hidden.
        */
       bool rowsConcealed = geometryCache && !geometryCache->concealedRows.empty();
       if (containerManager->containerOffsetCorrected || geometryStale || rowsConcealed) {
         shadowlistViewShadowNode.dirtyLayout();
       }
       /*
-       * Only remember these props once the core has actually consumed their keys. A frame
-       * that threw part-way through left the element list in an unknown state, so the next
-       * one must re-validate the keys rather than trust this shortcut.
+       * Remember these props only after the core took their keys. If a frame throws, the
+       * next one has to check the keys again.
        */
       if (geometryCache) {
         geometryCache->keysProps = currentProps;
+        geometryCache->nativeKeysVersion = nativeKeys.version;
       }
     } catch (...) {
       if (geometryCache) {
         geometryCache->keysProps = nullptr;
+        geometryCache->nativeKeysVersion = 0;
       }
     }
   };
 
 private:
   /*
-   * Turn this commit's `elementsSizeSpecs` into predictions the core can lay out with.
-   *
-   * Skipped entirely unless the specs prop actually changed -- which it does not on a
-   * scroll frame, a state publish, or any unrelated prop change, i.e. on almost every
-   * commit. A list that never sets the prop pays one empty-string test per commit.
-   *
-   * Width matters: text wraps to the list's width, so a list that has not been laid out
-   * yet (or is mid-resize to zero) cannot produce a meaningful measurement, and a width
-   * change invalidates every measurement taken at the old one. Both cases re-measure
-   * rather than publish a wrong height.
+   * The children a ShadowListNative node should commit with. Null when it already has them,
+   * isn't a ShadowListNative, or its templates aren't mounted yet.
+   */
+  std::shared_ptr<const ShadowListNativeEngine::ChildList> reconcileNativeRows(ShadowListViewShadowNode& listShadowNode) const {
+    const auto& nativeEngine = listShadowNode.getNativeEngine();
+    const auto& nativeKeys = listShadowNode.getNativeKeys();
+    const auto& containerManager = listShadowNode.getContainerManager();
+    if (!nativeEngine || !nativeKeys || !containerManager) {
+      return nullptr;
+    }
+    bool hasTemplates = std::any_of(
+      listShadowNode.getChildren().begin(), listShadowNode.getChildren().end(), [](const auto& child) {
+        const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(child->getProps());
+        return templateProps && templateProps->templateType == "native";
+      });
+    if (!hasTemplates) {
+      return nullptr;
+    }
+    const auto& props = listShadowNode.getConcreteProps();
+    std::lock_guard<std::recursive_mutex> coreLock(containerManager->coreMutex);
+    try {
+      return nativeEngine->reconcileRows(
+        listShadowNode,
+        listShadowNode.getChildren(),
+        *nativeKeys,
+        *containerManager,
+        props.containerOffsetIndex,
+        props.inverted);
+    } catch (...) {
+      // If a row fails to build, keep the mounted rows for this commit.
+      return nullptr;
+    }
+  }
+
+  /*
+   * Turn elementsSizeSpecs into predicted sizes for the core. Skipped unless the specs
+   * changed, which is almost never.
+   * Text wraps to the list width, so do nothing at zero width, and measure again when
+   * the width changes.
    */
   void applyElementSizeSpecs(
     ShadowListViewShadowNode& shadowlistViewShadowNode,
@@ -382,34 +464,24 @@ private:
     const auto& currentProps = shadowlistViewShadowNode.getProps();
 
     /*
-     * A width change invalidates every prediction taken at the old width -- text wraps to
-     * the row width, so those heights are now wrong. Drop them all rather than let the list
-     * sit on confidently wrong geometry; the rows covered by this commit's specs are
-     * re-measured immediately below, and the rest fall back to the estimate and are
-     * measured natively, exactly as a list that never predicted anything would.
-     *
-     * The very first layout counts as a change (the core starts at width 0) but clears
-     * nothing, because nothing has been predicted yet.
+     * A new width makes every predicted height wrong, so drop them all. Rows in these specs
+     * are measured again below, and the rest use the estimate until measured natively.
+     * The first layout counts as a change too, but there is nothing to clear yet.
      */
     bool widthChanged = containerManager->revision.windowContainerWidth != availableWidth;
     if (widthChanged) {
       azimgd::shadowlist::Virtualizer::invalidatePredictions(containerManager);
     }
 
-    /*
-     * Nothing to do only when this exact specs prop has already been measured THROUGH --
-     * a partially measured one must be resumed, or the tail of the window would never get
-     * predictions at all.
-     */
+    // Stop only when these specs are fully measured. A partly measured set must continue.
     if (geometryCache && geometryCache->sizeSpecsProps == currentProps && !widthChanged &&
         geometryCache->sizeSpecsDone) {
       return;
     }
 
     /*
-     * Resume where the last commit stopped when this is the same specs prop, otherwise
-     * start over. See ShadowListViewGeometryCache::sizeSpecsCursor for why measuring is
-     * capped rather than done in one pass, and sizeSpecs for why the PARSE is kept too.
+     * Pick up where the last commit stopped for the same specs, or start over.
+     * See ShadowListViewGeometryCache::sizeSpecsCursor and sizeSpecs.
      */
     bool sameSpecs = geometryCache && geometryCache->sizeSpecsProps == currentProps && !widthChanged;
 
@@ -444,21 +516,20 @@ private:
   }
 
   /*
-   * Text layouts to perform in one commit. Sized so the worst case -- every spec a cache
-   * miss -- stays well inside a frame, while a window advance still completes within a
-   * couple of commits.
+   * Text layouts per commit. Small enough to stay inside a frame when nothing is cached,
+   * big enough to finish a window in a couple of commits.
    */
   static constexpr std::size_t MEASURE_BUDGET_PER_COMMIT = 24;
 
   /*
-   * Shared with RN's text rendering where we won the race to publish it (see
-   * getSharedTextLayoutManager); a private instance otherwise, which measures the same
-   * sizes and merely misses the cache. Null only when there is no ContextContainer, which
-   * disables prediction rather than failing.
+   * Shared with React Native's text rendering if we published it first, or a private one
+   * that just misses the shared cache. Null without a ContextContainer, which turns off
+   * prediction.
    */
   const std::shared_ptr<const TextLayoutManager> textLayoutManager_;
 
   mutable std::atomic<bool> jsTraceInstalled_{false};
+  mutable std::atomic<bool> nativeJsiInstalled_{false};
 };
 
 void ShadowListViewSpec_registerComponentDescriptorsFromCodegen(

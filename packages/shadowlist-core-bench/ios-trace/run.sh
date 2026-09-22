@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 #
-# Run one scripted scenario on an iOS simulator with the device trace on, then analyze it.
+# Run one scenario on an iOS simulator with tracing on, then analyze the log.
 #
 #   ./run.sh <scenario-file|name> [label]
 #
-# <scenario> is a step file (scenarios/<name>.steps, or a path). Lines:
+# The scenario is a step file, scenarios/<name>.steps or a path. Lines starting
+# with # are skipped. Steps:
 #
 #   route Chat              screen to open (launch argument -SLRoute); before any other step
 #   latency 250,700         fake network latency range in ms (-SLLatency)
 #   wait 1.5                sleep seconds
 #   mark some-label         write a [SCN] marker into the trace
-#   press X Y               tap a point (header buttons: prepend 296 80, append 333 80, random 372 80)
+#   press X Y               tap a point (debug header buttons: prepend 210 78, append 262 78, random 317 78)
 #   statusbar               tap the status bar (scroll to top)
 #   pan X Y DX DY MS        one-finger drag; negative DY scrolls a vertical list forward
 #   repeat N <step>         run a step N times back to back
 #   ad <args...>            any other agent-device command, run in the session
 #
-# Environment: UDID + DEVICE (simulator udid and its agent-device name, default sl-iosfix), SESSION, OUT_DIR, AD (agent-device).
-# Prints the analyzer summary; the raw log is $OUT_DIR/<label>.<scenario>.log.
+# Environment: UDID and DEVICE pick the simulator and its agent-device name, default sl-iosfix.
+# Also SESSION, OUT_DIR, and AD for the agent-device command.
+# Prints the analyzer summary. The raw log is $OUT_DIR/<label>.<scenario>.log.
 #
 set -euo pipefail
 
@@ -58,23 +60,22 @@ ad() { "$AD" "$@" --session "$SESSION" --platform ios --device "$DEVICE" > /dev/
 
 echo "launching $PKG route=$ROUTE latency=$LATENCY -> $LOG"
 SIMCTL_CHILD_SHADOWLIST_FRAME_TRACE=1 xcrun simctl launch --console-pty --terminate-running-process \
-  "$UDID" "$PKG" -SLRoute "$ROUTE" -SLLatency "$LATENCY" > "$LOG" 2>&1 &
+  "$UDID" "$PKG" -SLRoute "$ROUTE" -SLLatency "$LATENCY" -SLDebug 1 > "$LOG" 2>&1 &
 CONSOLE_PID=$!
 trap 'kill $CONSOLE_PID 2>/dev/null || true' EXIT
 
-# Ready once the list has committed from JS. A screen that opens on an empty state (the
-# assistant's suggestions) renders n=0, so the row count is deliberately not required here.
+# Wait until the list has rendered from JS. An empty screen like the assistant's
+# suggestions renders zero rows, so don't wait for a row count.
 for _ in $(seq 1 180); do
   if grep -qE '\[SLJ\] .*render id=[0-9]|\[SLF\] .*frame' "$LOG" 2>/dev/null; then break; fi
   sleep 0.5
 done
-# A screen that opens on an empty state (the assistant's suggestions) can commit before the
-# JS trace function is installed and then sit still, so an absent render line is a warning,
-# not a failure: the steps below produce the activity the trace needs.
+# An empty screen can render before JS tracing is ready and then sit still, so a missing
+# render line only warns. The steps below will produce trace activity.
 grep -qE '\[SLJ\] .*render id=|\[SLF\] .*frame' "$LOG" ||
   echo "warning: no list trace yet (Metro up? build has trace?); running the steps anyway" >&2
 sleep 1.5
-# A stale session left holding the device (a crashed run, another tool) is closed once.
+# If an old session still holds the device, close it once and retry.
 if ! OPEN_OUTPUT="$("$AD" open "$PKG" --session "$SESSION" --platform ios --device "$DEVICE" 2>&1)"; then
   STALE="$(printf '%s' "$OPEN_OUTPUT" | sed -n 's/.*in use by session "\([^"]*\)".*/\1/p' | head -1)"
   [[ -n "$STALE" ]] || { echo "$OPEN_OUTPUT" >&2; exit 1; }

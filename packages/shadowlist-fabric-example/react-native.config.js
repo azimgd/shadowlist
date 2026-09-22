@@ -11,8 +11,7 @@ module.exports = {
     [pkg.name]: {
       root: path.join(__dirname, '../shadowlist-fabric'),
       platforms: {
-        // Codegen script incorrectly fails without this
-        // So we explicitly specify the platforms with empty object
+        // Codegen fails without these, even when empty.
         ios: {},
         android: {},
       },

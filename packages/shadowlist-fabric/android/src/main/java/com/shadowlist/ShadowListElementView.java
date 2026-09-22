@@ -5,16 +5,10 @@ import android.util.AttributeSet;
 import android.view.ViewGroup;
 
 public class ShadowListElementView extends ViewGroup {
-  /*
-   * The element's flat index in the list, mirrored from the `index` prop. Kept as a
-   * debug/fallback handle; drag-to-reorder identifies rows by mElementKey instead.
-   */
+  // Copy of the index prop, kept for debugging. Drag to reorder uses the key instead.
   private int mElementIndex = -1;
 
-  /*
-   * The element's data key, mirrored from the `elementKey` prop. Drag-to-reorder
-   * emits this so JS reorders by identity.
-   */
+  // Copy of the elementKey prop. Drag to reorder sends it so JS can move the right item.
   private String mElementKey = "";
 
   public ShadowListElementView(Context context) {
@@ -47,6 +41,6 @@ public class ShadowListElementView extends ViewGroup {
 
   @Override
   protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-    // Children are positioned by the shadowlist core.
+    // The core positions the children.
   }
 }

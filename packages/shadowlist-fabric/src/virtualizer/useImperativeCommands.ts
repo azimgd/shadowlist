@@ -10,7 +10,7 @@ interface ElementSizesRef {
   current: Map<string, number> | null;
 }
 
-// Handed back for a list that does not track sizes, so every caller reads the same shape.
+// Returned when a list doesn't track sizes, so callers always get a map.
 const EMPTY_SIZES: ReadonlyMap<string, number> = new Map();
 
 export function useImperativeCommands(
@@ -30,12 +30,12 @@ export function useImperativeCommands(
     },
     scrollToIndex: (index: number, viewPosition: number = 0) => {
       if (!viewRef.current) return;
-      // Outside [0, 1] would place the row off screen, which no caller means by it.
+      // Clamp to 0 through 1, since anything else puts the row off screen.
       const position = Math.min(1, Math.max(0, viewPosition));
       /*
-       * Mount the window around the target first: the core scrolls there on the commit that
-       * carries the command, and at a non-zero viewPosition the rows that fill the viewport
-       * are the ones BEFORE it, which a resting window never covers.
+       * Mount the rows around the target first, since the core scrolls in the same commit.
+       * With a viewPosition above 0 the rows before the target fill the screen, and a list
+       * at rest has none of them mounted.
        */
       seedAroundIndex(index, position);
       Commands.scrollToIndex(viewRef.current, index, position);

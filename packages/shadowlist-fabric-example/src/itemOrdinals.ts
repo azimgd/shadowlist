@@ -1,22 +1,13 @@
 import { useCallback, useMemo, useRef } from 'react';
 
 /*
- * Stable position labels for list rows ("first item", "second item", ...).
- *
- * A row's number is assigned ONCE, when the row first appears, and kept in a registry keyed
- * by id. It deliberately does not follow the row's array index: history loaded into a chat
- * shifts every index by a page, and a label derived from the index would change on every
- * mounted row at once -- a full window of re-renders for text nobody expected to move, and
- * the numbers under the reader's eyes would renumber themselves as older messages arrive.
- *
- * Rows that arrive BEFORE the ones already numbered are counted separately, away from the
- * start, so the pages keep their own sequence:
- *
- *   loaded:            | 1, 2, 3, 4, 5
- *   after a prepend:    5, 4, 3, 2, 1 | 1, 2, 3, 4, 5
- *   after another:     10, 9, 8, 7, 6, 5, 4, 3, 2, 1 | 1, 2, 3, 4, 5
- *
- * Rows appended after the last numbered one continue the forward count (6, 7, 8, ...).
+ * Stable position labels for rows, like first item or second item.
+ * A row's number is given once, when it first appears, and kept by id rather than by index.
+ * Loading chat history shifts every index, and labels based on the index would renumber and
+ * re-render every mounted row at once.
+ * Rows that arrive before the numbered ones count separately, away from the start, so each
+ * prepended page keeps its own sequence. Rows appended after the last numbered one continue
+ * the forward count.
  */
 
 interface ItemNumber {
@@ -37,13 +28,8 @@ export interface ItemOrdinals {
 }
 
 /*
- * Positions are spelled out in full ("five hundred thirty ninth item").
- *
- * ECMA-402 cannot do this: `Intl.PluralRules` with `type: 'ordinal'` only classifies a number
- * into the categories behind the SUFFIXES (one -> "st", two -> "nd", few -> "rd", other ->
- * "th"), and `Intl.NumberFormat` has no spell-out mode -- ICU's `spellout-ordinal` ruleset is
- * not exposed to JavaScript. So the English rules live here: they are small, and they run
- * once per position, behind a cache.
+ * Positions are spelled out in full, like five hundred thirty ninth item. Intl can only pick
+ * the suffix category and has no spell-out mode, so the few English rules live here behind a cache.
  */
 const ONES = [
   'zero',
@@ -88,7 +74,9 @@ const SCALES: ReadonlyArray<readonly [number, string]> = [
   [100, 'hundred'],
 ];
 
-// The words for a cardinal number, e.g. 539 -> ['five', 'hundred', 'thirty', 'nine'].
+/*
+ * The words for a number, for example 539 gives five hundred thirty nine.
+ */
 function cardinalWords(value: number): string[] {
   if (value < 20) return [ONES[value] ?? String(value)];
 
@@ -105,7 +93,7 @@ function cardinalWords(value: number): string[] {
   return ones === 0 ? [tens] : [tens, ONES[ones]!];
 }
 
-// "twenty" -> "twentieth", "nine" -> "ninth", "hundred" -> "hundredth".
+// Turns twenty into twentieth, nine into ninth and hundred into hundredth.
 const ORDINAL_IRREGULARS: Record<string, string> = {
   one: 'first',
   two: 'second',
@@ -119,7 +107,6 @@ const ORDINAL_IRREGULARS: Record<string, string> = {
 function toOrdinalWord(word: string): string {
   const irregular = ORDINAL_IRREGULARS[word];
   if (irregular !== undefined) return irregular;
-  // twenty -> twentieth, forty -> fortieth, ...
   if (word.endsWith('y')) return `${word.slice(0, -1)}ieth`;
   return `${word}th`;
 }
@@ -127,9 +114,8 @@ function toOrdinalWord(word: string): string {
 const labelCache = new Map<string, string>();
 
 /**
- * The label for a position, spelled out: `first item`, `twenty first item`,
- * `five hundred thirty ninth item`. Rows numbered away from the start read
- * `prepended: first item`.
+ * The spelled out label for a position, like first item or five hundred thirty ninth item.
+ * Rows numbered away from the start read prepended: first item.
  */
 export function formatOrdinalLabel(value: number, prepended = false): string {
   const key = `${prepended ? 'p' : 'f'}${value}`;
@@ -147,9 +133,8 @@ export function formatOrdinalLabel(value: number, prepended = false): string {
 }
 
 /**
- * Numbers every row of `data` once, in the order the rows arrive, and returns a stable
- * `labelOf(id)`. Safe to call on every render: only rows that are not numbered yet are
- * touched, so a prepend costs one pass over the new page rather than over the list.
+ * Numbers each row of data once, in arrival order, and returns a stable labelOf. Safe to call
+ * on every render, since only new rows are numbered and a prepend costs one pass over its page.
  */
 export function useItemOrdinals<ItemT extends { id: string }>(
   data: ReadonlyArray<ItemT>
@@ -163,8 +148,8 @@ export function useItemOrdinals<ItemT extends { id: string }>(
   });
 
   /*
-   * Assigned during render, not in an effect: the rows of this very commit read their label
-   * while they render, and an effect would leave the first frame of a new page unlabelled.
+   * Numbered during render, not in an effect, because this commit's rows read their labels as
+   * they render. An effect would leave the first frame of a new page unlabelled.
    */
   useMemo(() => {
     const registry = registryRef.current;
@@ -176,7 +161,7 @@ export function useItemOrdinals<ItemT extends { id: string }>(
         : data.findIndex((item) => item.id === registry.headId);
 
     if (headIndex === -1) {
-      // Nothing numbered yet (or the numbered rows are gone): this is the baseline page.
+      // Nothing is numbered yet, or the numbered rows are gone, so this is the baseline page.
       registry.numbers.clear();
       registry.forwardCount = 0;
       registry.prependedCount = 0;
@@ -188,9 +173,8 @@ export function useItemOrdinals<ItemT extends { id: string }>(
       });
     } else {
       /*
-       * Rows before the old head are a prepended page. Number them from the row nearest the
-       * head outwards, so the page reads 1, 2, 3 ... as it climbs away from the baseline and
-       * an older page keeps counting where the previous one stopped.
+       * Rows before the old head are a prepended page. Number them from the row nearest the head
+       * outwards, so each older page keeps counting where the last one stopped.
        */
       for (let index = headIndex - 1; index >= 0; index--) {
         const item = data[index]!;
@@ -221,8 +205,8 @@ export function useItemOrdinals<ItemT extends { id: string }>(
   }, [data]);
 
   /*
-   * Stable for the lifetime of the screen: it is read by the row renderer, and a new identity
-   * there would rebuild every mounted row's content.
+   * Stable for the life of the screen. The row renderer reads it, and a new identity would
+   * rebuild every mounted row.
    */
   const labelOf = useCallback((id: string) => {
     const number = registryRef.current.numbers.get(id);

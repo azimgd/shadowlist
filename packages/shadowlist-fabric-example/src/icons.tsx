@@ -3,7 +3,7 @@
 import { View } from 'react-native';
 import { useTheme, type IconProps } from 'shadowlist-utils/native';
 
-// Demo-only header action glyph, drawn the same way as the package icons.
+// Header action glyph for the demo, drawn like the package icons.
 
 const useIconColor = (color: string | undefined): string => {
   const theme = useTheme();
@@ -81,6 +81,35 @@ export const ViewfinderIcon = ({
           backgroundColor: color,
         }}
       />
+    </View>
+  );
+};
+
+export const EllipsisIcon = ({ size = 22, color: colorProp }: IconProps) => {
+  const color = useIconColor(colorProp);
+  const dot = Math.round(size * 0.18);
+  return (
+    <View
+      style={{
+        width: size,
+        height: size,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: size * 0.08,
+      }}
+    >
+      {[0, 1, 2].map((index) => (
+        <View
+          key={index}
+          style={{
+            width: dot,
+            height: dot,
+            borderRadius: dot / 2,
+            backgroundColor: color,
+          }}
+        />
+      ))}
     </View>
   );
 };

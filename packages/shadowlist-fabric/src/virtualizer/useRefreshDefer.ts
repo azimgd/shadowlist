@@ -15,10 +15,9 @@ interface UseRefreshDeferResult<ElementT> {
 }
 
 /*
- * Refresh-prepend deferral: hold data changes that arrive mid-refresh until the
- * spinner has fully retracted (onRefreshSettle), then apply them as an ordinary
- * prepend so MVCP anchors them. Non-refresh changes pass through. Only active for
- * vertical, non-inverted lists with an onRefresh handler.
+ * Hold data that arrives during a refresh until the spinner is fully gone, then apply it as
+ * a normal prepend so the visible content stays in place. Other changes pass straight through.
+ * Only for vertical, non inverted lists with onRefresh.
  */
 export function useRefreshDefer<ElementT>({
   data: dataProp,
@@ -33,13 +32,13 @@ export function useRefreshDefer<ElementT>({
     useState<ReadonlyArray<ElementT>>(dataProp);
   const refreshHoldingRef = useRef(false);
   const refreshHeldDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
-  const prevRefreshingRef = useRef(refreshing);
+  const previousRefreshingRef = useRef(refreshing);
 
-  if (refreshDeferEnabled && !prevRefreshingRef.current && refreshing) {
-    // A refresh just started: hold subsequent data changes until it settles.
+  if (refreshDeferEnabled && !previousRefreshingRef.current && refreshing) {
+    // A refresh just started. Hold data changes until it settles.
     refreshHoldingRef.current = true;
   }
-  prevRefreshingRef.current = refreshing;
+  previousRefreshingRef.current = refreshing;
 
   if (dataProp !== committedData) {
     if (refreshHoldingRef.current) {
@@ -52,7 +51,7 @@ export function useRefreshDefer<ElementT>({
     }
   }
 
-  // Apply the held refresh-prepend once native reports the spinner has fully retracted.
+  // Apply the held data once native says the spinner is gone.
   const handleRefreshSettle = useCallback(() => {
     if (slTraceEnabled()) {
       slTrace(
@@ -67,14 +66,13 @@ export function useRefreshDefer<ElementT>({
   }, []);
 
   /*
-   * Safety net: release the held prepend shortly after refresh ends in case onRefreshSettle
-   * never arrives (e.g. a platform that doesn't emit it). On iOS it fires first, so this is
-   * a no-op there.
+   * Fallback in case onRefreshSettle never comes. Release the held data shortly after the
+   * refresh ends. On iOS the settle event fires first, so this does nothing there.
    */
-  const prevRefreshingForFallbackRef = useRef(refreshing);
+  const previousRefreshingForFallbackRef = useRef(refreshing);
   useEffect(() => {
-    const wasRefreshing = prevRefreshingForFallbackRef.current;
-    prevRefreshingForFallbackRef.current = refreshing;
+    const wasRefreshing = previousRefreshingForFallbackRef.current;
+    previousRefreshingForFallbackRef.current = refreshing;
     if (refreshDeferEnabled && wasRefreshing && !refreshing) {
       const timer = setTimeout(handleRefreshSettle, 1200);
       return () => clearTimeout(timer);

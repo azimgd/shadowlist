@@ -22,8 +22,8 @@ export interface AssistantTypingIndicatorProps {
 }
 
 /*
- * Opacity that breathes between 0.25 and 1 for as long as the caller is mounted. Runs on
- * the UI thread, so a streaming row that re-renders every flush never restarts it.
+ * Fades opacity between 0.25 and 1 while mounted. It runs on the UI thread, so a streaming
+ * row that re-renders on every flush never restarts it.
  */
 export function usePulseStyle(
   delay = 0
@@ -79,7 +79,7 @@ export const AssistantTypingIndicator = memo(
     return (
       <View
         style={[styles.typing, style]}
-        // Focusable with a role, or the label below belongs to nothing and is never read.
+        // Needs focus and a role, or screen readers never read the label below.
         accessible
         accessibilityRole="progressbar"
         accessibilityLabel={l.typing}

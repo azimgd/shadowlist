@@ -15,7 +15,7 @@ import { keyboardAppearanceFor } from '../internal/keyboardAppearance';
 import { defaultChatLabels, type ChatLabels } from './labels';
 
 export interface ChatInputProps {
-  // Receives the trimmed text. Uncontrolled inputs clear themselves; controlled ones clear via `value`.
+  // Gets the trimmed text. An uncontrolled input clears itself, a controlled one clears through value.
   onSend: (text: string) => void;
   value?: string;
   defaultValue?: string;

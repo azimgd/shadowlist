@@ -10,12 +10,13 @@
     "build:ios": "react-native build-ios --mode Debug"
   },
   "dependencies": {
-    "@react-navigation/drawer": "7.10.3",
-    "@react-navigation/native": "7.2.5",
+    "@react-navigation/native": "7.4.1",
+    "@react-navigation/native-stack": "7.19.2",
     "@tanstack/react-query": "^5.101.0",
     "react": "19.2.3",
     "react-native": "0.85.0",
     "react-native-gesture-handler": "3.0.0",
+    "react-native-haptic-feedback": "3.0.0",
     "react-native-reanimated": "4.4.1",
     "react-native-safe-area-context": "5.8.0",
     "react-native-screens": "4.25.2",

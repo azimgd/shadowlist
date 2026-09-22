@@ -1,12 +1,10 @@
 /*
- * Header size changes applied by a host's layout pass.
- *
- * Fabric measures the header template in its layout pass, after update() already ran for the
- * commit with the previous header size, and reflows the rows for it there. A loading spinner in
- * the header typically toggles in the very commit that prepends the page it was loading. The
- * rows on screen must not move in any frame of that sequence: not in the layout pass that
- * applies the new header, not in the commit that adopts the published offset, and not when the
- * host echoes it.
+ * Header size changes applied by the host's layout pass.
+ * Fabric measures the header after update() already ran with the old header size, and
+ * reflows the rows there. A loading spinner in the header often toggles in the same commit
+ * that prepends the page it was loading. The rows on screen must not move in any frame:
+ * not in that layout pass, not in the commit that applies the offset, and not when the
+ * host reports it back.
  */
 
 #include "TestFramework.hpp"
@@ -33,16 +31,18 @@ FrameInput frame(const std::vector<std::string>& keys, double offset, double hea
   return input;
 }
 
-// Rows prefixed "older" (a loaded history page) measure this tall once laid out.
+// Rows of a loaded history page, keyed older, measure this tall once laid out.
 const double OLDER_ROW_HEIGHT = 174.0;
 
-// How a layout pass treats the rows of a loaded page ("older" keys).
+/*
+ * How a layout pass treats the rows of a loaded page.
+ */
 enum class OlderRows {
-  // Laid out like every other row, at the estimate.
+  // Sized like every other row, at the estimate.
   AtEstimate,
-  // Not mounted yet: no measurement reaches the core.
+  // Not mounted yet, so the core gets no size for them.
   Unmounted,
-  // Mounting in this pass: laid out to zero first, then at their real size.
+  // Mounting in this pass, sized to zero first and then to their real size.
   Mounting,
 };
 
@@ -51,13 +51,12 @@ bool isOlder(const Element& element) {
 }
 
 /*
- * What the layout pass does after update(): apply the measured header, then feed back every
- * mounted row's size.
+ * Acts like the layout pass after update(): apply the header, then report every mounted row's size.
  */
 void layoutPass(Container& container, double headerSize, OlderRows olderRows = OlderRows::AtEstimate) {
   /*
-   * A row mounting in this layout first lays out to zero, and that frame is fed back while
-   * the children are laid out, before the header is read (Fabric's replaceChild).
+   * A mounting row first lays out at zero height, and Fabric reports that size before it
+   * reads the header.
    */
   if (olderRows == OlderRows::Mounting) {
     for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
@@ -89,7 +88,9 @@ void layoutPass(Container& container, double headerSize, OlderRows olderRows = O
   Virtualizer::recomputeTotalSize(&container);
 }
 
-// A user scroll to `offset`, then the idle report once it stopped, each followed by its layout.
+/*
+ * The user scrolls to offset and stops, with a layout pass after each report.
+ */
 void scrollTo(Container& container, const std::vector<std::string>& keys, double offset, double headerSize) {
   FrameInput drag = frame(keys, offset, headerSize);
   drag.userScrolled = true;
@@ -100,7 +101,9 @@ void scrollTo(Container& container, const std::vector<std::string>& keys, double
   layoutPass(container, headerSize);
 }
 
-// A list opened, laid out with the spinner header, and resting at `offset`.
+/*
+ * Open the list with the spinner in the header and rest at offset.
+ */
 void openWithSpinnerAt(Container& container, const std::vector<std::string>& keys, double offset) {
   Virtualizer::update(&container, frame(keys, 0.0, 0.0));
   layoutPass(container, SPINNER_HEADER);
@@ -130,19 +133,19 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
     openWithSpinnerAt(container, keys, restingOffset);
     double before = onScreen(container, "k5");
 
-    // The page lands with the spinner still in the header this update() knows about.
+    // The page lands while update() still sees the spinner in the header.
     std::vector<std::string> grown = prependedTo(keys, 6);
     Virtualizer::update(&container, frame(grown, restingOffset, SPINNER_HEADER));
     CHECK(container.operation.has_value());
     std::uint64_t token = container.operation ? container.operation->id : 0;
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
 
-    // Layout measures the header without the spinner: this is the frame that showed the jump.
+    // Layout measures the header without the spinner. This frame used to show the jump.
     layoutPass(container, PLAIN_HEADER);
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
     double published = container.revision.containerOffsetY;
 
-    // The commit adopting the published state must not correct again.
+    // The commit that applies the new offset must not correct it again.
     FrameInput adopt = frame(grown, published, PLAIN_HEADER);
     adopt.containerOffsetEnabled = true;
     adopt.commitToken = token;
@@ -151,7 +154,7 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
     CHECK_NEAR(container.revision.containerOffsetY, published, 0.5);
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
 
-    // Nor the host's echo of it.
+    // Neither does the host reporting it back.
     FrameInput echo = frame(grown, published, PLAIN_HEADER);
     echo.commitToken = token;
     Virtualizer::update(&container, echo);
@@ -162,9 +165,9 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
 }
 
 /*
- * The loading cycle repeated at the top: the page lands and removes the spinner, the start is
- * still within reach so the spinner comes straight back, and the landed page measures taller
- * than its estimate in that same layout pass, all while the page's correction is in flight.
+ * The loading cycle repeats at the top. The page lands and hides the spinner, the start is
+ * still close so the spinner comes right back, and the new page measures taller than its
+ * estimate in that same layout pass, all while the page's correction is still running.
  */
 TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
   std::vector<std::string> keys = keysFor(60);
@@ -175,7 +178,7 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
   std::vector<std::string> grown = prependedTo(keys, 6);
   Virtualizer::update(&container, frame(grown, 0.0, SPINNER_HEADER));
   std::uint64_t token = container.operation ? container.operation->id : 0;
-  // The page has not mounted yet: its rows keep their estimates in these passes.
+  // The page has not mounted yet, so its rows keep their estimates here.
   layoutPass(container, PLAIN_HEADER, OlderRows::Unmounted);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
@@ -187,7 +190,7 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
   layoutPass(container, PLAIN_HEADER, OlderRows::Unmounted);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
-  // The spinner returns in the pass that mounts the landed page.
+  // The spinner comes back in the pass that mounts the new page.
   layoutPass(container, SPINNER_HEADER, OlderRows::Mounting);
   CHECK(container.operation.has_value());
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
@@ -239,4 +242,149 @@ TEST(header_growing_on_screen_pushes_the_rows_below_it) {
   layoutPass(container, SPINNER_HEADER);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "k0"), SPINNER_HEADER, 0.5);
+}
+
+/*
+ * scrollToStart after a prepend. The old first row first stays in place with the new rows
+ * above the screen, then the command lands on offset 0 with the header showing.
+ */
+TEST(scroll_to_start_after_a_prepend_lands_on_offset_zero_with_the_header) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+
+  std::vector<std::string> prepended = keysFor(10, "new");
+  prepended.insert(prepended.end(), keys.begin(), keys.end());
+  Virtualizer::update(&container, frame(prepended, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  double anchored = container.revision.containerOffsetY;
+  CHECK(anchored > PLAIN_HEADER);
+
+  container.scrollToStart();
+  Virtualizer::update(&container, frame(prepended, anchored, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
+}
+
+/*
+ * Momentum reports that arrive before the host applies scrollToStart neither cancel it nor
+ * move its target. The host stops the fling when it applies the correction.
+ */
+TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  FrameInput deep = frame(keys, 2000.0, PLAIN_HEADER);
+  deep.userScrolled = true;
+  deep.scrollPhase = ScrollPhase::Settling;
+  Virtualizer::update(&container, deep);
+  layoutPass(container, PLAIN_HEADER);
+
+  container.scrollToStart();
+  Virtualizer::update(&container, frame(keys, 2000.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  CHECK(container.operation.has_value());
+  std::uint64_t token = container.operation->id;
+
+  FrameInput coasting = frame(keys, 2100.0, PLAIN_HEADER);
+  coasting.userScrolled = true;
+  coasting.scrollPhase = ScrollPhase::Settling;
+  Virtualizer::update(&container, coasting);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK(container.operation.has_value() && container.operation->id == token);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+}
+
+// A finger drag cancels a scrollToEnd, but momentum scrolling does not.
+TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+
+  container.scrollToEnd();
+  FrameInput drag = frame(keys, 400.0, PLAIN_HEADER);
+  drag.userScrolled = true;
+  drag.scrollPhase = ScrollPhase::Dragging;
+  Virtualizer::update(&container, drag);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK(!container.pendingScrollToEnd);
+  CHECK(!container.operation.has_value() || container.operation->type != OperationType::ScrollToEnd);
+
+  container.scrollToEnd();
+  FrameInput coasting = frame(keys, 600.0, PLAIN_HEADER);
+  coasting.userScrolled = true;
+  coasting.scrollPhase = ScrollPhase::Settling;
+  Virtualizer::update(&container, coasting);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToEnd);
+}
+
+/*
+ * ShadowListNative setData with scrollTo start sends the new rows and scrollToStart in one
+ * update. The command wins over keeping the visible row in place, so the only correction is
+ * to offset 0. Without the command the same update holds the old row.
+ */
+TEST(scroll_to_start_with_new_rows_is_one_correction) {
+  std::vector<std::string> keys = keysFor(40);
+  std::vector<std::string> replaced = keysFor(10, "new");
+  replaced.insert(replaced.end(), keys.begin(), keys.end());
+
+  auto deepContainer = [&](Container& container) {
+    Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+    layoutPass(container, PLAIN_HEADER);
+    Virtualizer::update(&container, frame(keys, 2000.0, PLAIN_HEADER));
+    layoutPass(container, PLAIN_HEADER);
+  };
+
+  Container held;
+  deepContainer(held);
+  Virtualizer::update(&held, frame(replaced, 2000.0, PLAIN_HEADER));
+  CHECK(held.operation.has_value() && held.operation->type == OperationType::MaintainAnchor);
+
+  Container container;
+  deepContainer(container);
+  container.scrollToStart();
+  FrameInput moving = frame(replaced, 2000.0, PLAIN_HEADER);
+  Virtualizer::update(&container, moving);
+  CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToStart);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
+}
+
+/*
+ * The same setData on a list resting at offset 0, where pull to refresh leaves it. The command
+ * is already at its target in the frame that asked for it, and must stop there. Otherwise the
+ * old first row would be held, and the command would only work if the host reported exactly 0.
+ */
+TEST(scroll_to_start_with_new_rows_at_offset_zero_stays_at_zero) {
+  std::vector<std::string> keys = keysFor(40);
+  std::vector<std::string> replaced = keysFor(10, "new");
+  replaced.insert(replaced.end(), keys.begin(), keys.end());
+
+  Container container;
+  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  layoutPass(container, PLAIN_HEADER);
+
+  container.scrollToStart();
+  Virtualizer::update(&container, frame(replaced, 0.0, PLAIN_HEADER));
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  layoutPass(container, PLAIN_HEADER);
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
+
+  // The next commits keep it at 0 and do not go back to the old first row.
+  for (int commit = 0; commit < 3; ++commit) {
+    Virtualizer::update(&container, frame(replaced, container.revision.containerOffsetY, PLAIN_HEADER));
+    layoutPass(container, PLAIN_HEADER);
+  }
+  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
 }

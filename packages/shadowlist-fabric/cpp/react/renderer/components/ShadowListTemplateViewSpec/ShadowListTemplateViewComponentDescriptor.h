@@ -7,9 +7,6 @@
 
 namespace facebook::react {
 
-/*
- * Descriptor for <ShadowListTemplateView> component.
- */
 class ShadowListTemplateViewComponentDescriptor final : public ConcreteComponentDescriptor<ShadowListTemplateViewShadowNode> {
 public:
   ShadowListTemplateViewComponentDescriptor(const ComponentDescriptorParameters& parameters) :

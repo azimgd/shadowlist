@@ -10,9 +10,8 @@ import {
 import { generateUniqueId } from './common';
 
 /*
- * There is no model behind the Assistant demo: a prompt picks a script by keyword and
- * playScript feeds it token by token into a turn writer, exercising the list the way a real
- * stream does.
+ * There is no model behind the Assistant demo. A prompt picks a script by keyword, and
+ * playScript feeds it token by token into a turn writer, just like a real stream.
  */
 
 export interface AssistantScript {
@@ -46,7 +45,7 @@ export const ASSISTANT_SUGGESTIONS: AssistantSuggestion[] = [
     prompt: 'Search Skyfy for flights to Reykjavik',
   },
   {
-    title: 'Simulate a failure',
+    title: 'Try a dropped connection',
     prompt: 'Simulate a dropped connection error',
   },
 ];
@@ -76,7 +75,9 @@ const ATTACHMENT_SEEDS: Pick<
   { kind: 'file', name: 'hotel-booking.pdf', detail: '64 KB' },
 ];
 
-// Stands in for a file picker: cycles the seed set, with a fresh id so repeated picks stay distinct.
+/*
+ * Stands in for a file picker. It cycles the seed set with a fresh id so repeated picks stay distinct.
+ */
 export function buildAttachment(index: number): AssistantAttachment {
   return {
     id: generateUniqueId(),
@@ -166,9 +167,8 @@ const RESEARCH_SCRIPT: AssistantScript = {
       output: '3 results · nonstop 5h 40m, one-stop via Oslo, red-eye',
     },
     /*
-     * Deliberately fails, so the tool error UI is reachable from a prompt. The answer is
-     * written from the search result above it either way, which is what a real assistant
-     * does when one fetch of several times out.
+     * Fails on purpose so the tool error UI can be reached from a prompt. The answer still uses the
+     * search result above, as a real assistant does when one of several fetches times out.
      */
     {
       name: 'get_weather',
@@ -331,7 +331,9 @@ const HISTORY_SEEDS: { prompt: string; answer: string }[] = [
   },
 ];
 
-// Stable small hash so the same free-form prompt always picks the same general script.
+/*
+ * A small stable hash, so the same free-form prompt always picks the same general script.
+ */
 const hashPrompt = (prompt: string) => {
   let hash = 0;
   for (let index = 0; index < prompt.length; index++) {
@@ -363,8 +365,8 @@ export function buildReply(model: string): AssistantReply {
 }
 
 /*
- * The script a prompt plays back, chosen by keyword. `variant` > 0 prefixes a rotating
- * opening line so each regeneration reads differently.
+ * The script a prompt plays back, chosen by keyword. A variant above 0 adds a rotating opening
+ * line so each regeneration reads differently.
  */
 export function pickScript(prompt: string, variant = 0): AssistantScript {
   const lower = prompt.toLowerCase();
@@ -388,8 +390,8 @@ export function pickScript(prompt: string, variant = 0): AssistantScript {
 }
 
 /*
- * Finished question/answer pairs for the "load earlier" affordance. `offset` continues
- * the seed cycle so successive pages don't repeat the same pair back to back.
+ * Finished question and answer pairs for loading earlier history. The offset continues the
+ * seed cycle so pages in a row do not repeat the same pair.
  */
 export function buildHistory(pairs: number, offset = 0): AssistantMessage[] {
   return Array.from({ length: pairs }, (_, index): AssistantMessage[] => {
@@ -404,13 +406,13 @@ export function buildHistory(pairs: number, offset = 0): AssistantMessage[] {
   }).flat();
 }
 
-// Per-event delays (ms) before jitter: a thinking token, a content token, a tool round trip.
+// Delays in ms before jitter for a thinking token, a content token and a tool round trip.
 const FIRST_EVENT_MS = 350;
 const THINKING_TOKEN_MS = 14;
 const CONTENT_TOKEN_MS = 22;
 const TOOL_START_MS = 160;
 const TOOL_CALL_MS = 900;
-// The writer's flush cadence: the last event gets one flush before the turn completes.
+// The writer's flush interval. The last event gets one flush before the turn completes.
 const FINISH_DELAY_MS = 50;
 
 type StreamEvent =
@@ -420,7 +422,9 @@ type StreamEvent =
   | { kind: 'content'; text: string }
   | { kind: 'fail'; error: string };
 
-// Word-sized chunks that keep their whitespace, so code indentation and newlines survive.
+/*
+ * Word-sized chunks that keep their whitespace, so code indentation and newlines survive.
+ */
 const tokenize = (text: string) => text.match(/\s+|\S+/g) ?? [];
 
 const buildEvents = (script: AssistantScript, thinking: boolean) => {
@@ -473,14 +477,18 @@ const delayBefore = (event: StreamEvent) => {
   }
 };
 
-// 0.5x..1.5x, so tokens arrive in the uneven bursts a network actually delivers.
+/*
+ * Between half and one and a half times, so tokens arrive in uneven bursts like a real network.
+ */
 const jitter = (ms: number) => Math.round(ms * (0.5 + Math.random()));
 
 export interface ScriptPlayback {
   stop: () => void;
 }
 
-// Plays a script into `writer` on timers, the way a network stream would feed it.
+/*
+ * Plays a script into writer on timers, the way a network stream would.
+ */
 export function playScript(
   script: AssistantScript,
   writer: AssistantTurnWriter,

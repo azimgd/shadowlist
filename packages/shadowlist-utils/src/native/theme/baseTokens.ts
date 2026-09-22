@@ -93,7 +93,7 @@ const radius = {
   pill: 999,
 } as const;
 
-// Menlo ships on every iOS version; `monospace` resolves to a system mono face on Android.
+// Menlo ships on every iOS version. On Android, monospace maps to a system mono font.
 const fonts = {
   mono: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
 } as const;

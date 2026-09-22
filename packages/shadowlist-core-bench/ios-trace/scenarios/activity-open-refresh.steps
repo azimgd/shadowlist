@@ -1,0 +1,20 @@
+# Activity opens deep in the list while the rows above are still estimates,
+# then pulls to refresh and prepends at the top and in the middle.
+route Activity
+latency 400,900
+wait 2.5
+mark pull-at-top
+pan 200 250 0 450 700
+wait 4
+mark pull-again
+pan 200 250 0 450 700
+wait 4
+mark prepend-top
+press 210 78
+wait 2.5
+mark scroll-mid
+repeat 3 pan 200 700 0 -450 300
+wait 1.5
+mark prepend-mid
+press 210 78
+wait 2.5

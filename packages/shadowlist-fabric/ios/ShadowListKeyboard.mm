@@ -3,18 +3,16 @@
 #import "ShadowListCompat.h"
 
 /*
- * The system keyboard is an iOS concept; there is no software keyboard on macOS, so the
- * keyboard observation below compiles only on iOS and setEnabled: is a no-op on macOS.
+ * macOS has no software keyboard, so the observers below are iOS only.
  */
 @implementation ShadowListKeyboard {
   /*
-   * Reference count of active useKeyboardAnimation() consumers. The observer/display link are
-   * attached only on the 0->1 transition and detached only on the ->0 transition, so one
-   * consumer's unmount never tears down another concurrent consumer's subscription.
+   * How many useKeyboardAnimation users are active. We attach on the first and detach
+   * after the last, so one user unmounting never cuts off another.
    */
   NSInteger _enabledCount;
-  CGFloat _current;       // last emitted height (dp)
-  CGFloat _targetHeight;  // full keyboard height for the in-flight transition (dp)
+  CGFloat _current;       // Last height we sent, in dp.
+  CGFloat _targetHeight;  // Full keyboard height for the running transition, in dp.
 #if !TARGET_OS_OSX
   CADisplayLink *_displayLink;
   CFTimeInterval _animationStart;
@@ -42,10 +40,7 @@ RCT_EXPORT_MODULE()
 #if !TARGET_OS_OSX
 - (void)setEnabled:(BOOL)enabled
 {
-  /*
-   * NSNotificationCenter add/removeObserver and CADisplayLink start/invalidate are only safe
-   * on the main thread; RN may invoke this TurboModule method from a background thread.
-   */
+  // Observers and the display link are main thread only, but RN may call this from another thread.
   if ([NSThread isMainThread]) {
     [self applyEnabled:enabled];
   } else {
@@ -56,9 +51,8 @@ RCT_EXPORT_MODULE()
 }
 
 /*
- * Reference-counted per the TS spec ("safe to call repeatedly"): only actually attach the
- * observer/display link on the 0->1 transition, only detach on the ->0 transition. Must be
- * called on the main thread.
+ * Counted, so calling it repeatedly is safe. Attach on the first enable and detach after
+ * the last disable. Main thread only.
  */
 - (void)applyEnabled:(BOOL)enabled
 {
@@ -93,10 +87,9 @@ RCT_EXPORT_MODULE()
 }
 
 /*
- * RCTInvalidating: CADisplayLink retains its target, so -dealloc isn't guaranteed to run
- * promptly around bridge teardown. Clean up on the main thread, but never via dispatch_sync:
- * during teardown the main thread waits on module invalidation (RCTTurboModuleManager), so a
- * sync hop deadlocks. The block retains self, keeping the module alive until cleanup runs.
+ * The display link retains us, so dealloc may run late on teardown. Clean up here instead.
+ * Never use dispatch_sync: the main thread is waiting on module invalidation and it deadlocks.
+ * The block keeps self alive until cleanup runs.
  */
 - (void)invalidate
 {
@@ -121,7 +114,7 @@ RCT_EXPORT_MODULE()
 #else
 - (void)setEnabled:(BOOL)enabled
 {
-  // No software keyboard on macOS; nothing to observe, but keep the reference count consistent.
+  // Nothing to observe on macOS, but keep the count in step.
   if (enabled) {
     _enabledCount++;
   } else if (_enabledCount > 0) {
@@ -154,21 +147,19 @@ RCT_EXPORT_MODULE()
   CGRect endFrame = [info[UIKeyboardFrameEndUserInfoKey] CGRectValue];
   NSTimeInterval duration = [info[UIKeyboardAnimationDurationUserInfoKey] doubleValue];
 
-  // Height of the keyboard overlapping the screen, in dp.
+  // How much of the screen the keyboard covers, in dp.
   CGFloat screenHeight = UIScreen.mainScreen.bounds.size.height;
   CGFloat height = hiding ? 0 : MAX(0, screenHeight - endFrame.origin.y);
   /*
-   * Keep _targetHeight at the last known full keyboard height throughout a hide transition so
-   * that emitHeight's progress (height / _targetHeight) ramps 1.0 -> 0.0 instead of reading 0.0
-   * for the whole animation. It's reset to 0 once the hide transition actually completes, or
-   * overwritten by the next genuine show above.
+   * Keep the full height during a hide so progress eases from 1 to 0 instead of reading 0
+   * the whole time. It resets once the hide finishes or the next show replaces it.
    */
   if (!hiding && height > 0) {
     _targetHeight = height;
   }
 
   if (duration <= 0) {
-    // No animation reported: jump straight to the value.
+    // No animation, so jump straight to the new height.
     [self stopDisplayLink];
     [self emitHeight:height];
     if (hiding) {
@@ -177,7 +168,7 @@ RCT_EXPORT_MODULE()
     return;
   }
 
-  // Interpolate from current to target over the reported duration.
+  // Animate from the current height to the new one over the reported duration.
   _animationFrom = _current;
   _animationTo = height;
   _animationDuration = duration;
@@ -206,17 +197,14 @@ RCT_EXPORT_MODULE()
 {
   CFTimeInterval elapsed = CACurrentMediaTime() - _animationStart;
   CGFloat time = _animationDuration > 0 ? MIN(1.0, elapsed / _animationDuration) : 1.0;
-  // Ease-out cubic.
+  // Cubic ease out.
   CGFloat eased = 1 - pow(1 - time, 3);
   CGFloat value = _animationFrom + (_animationTo - _animationFrom) * eased;
   [self emitHeight:value];
   if (time >= 1.0) {
     [self stopDisplayLink];
     if (_animationTo <= 0) {
-      /*
-       * Hide transition finished: reset so the next hide notification's progress ramps
-       * correctly instead of dividing against a stale target.
-       */
+      // The hide is done. Reset so the next hide does not divide by a stale height.
       _targetHeight = 0;
     }
   }

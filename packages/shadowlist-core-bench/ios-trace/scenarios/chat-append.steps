@@ -1,12 +1,12 @@
-# Inverted chat at its bottom: header append bursts, then sending from the composer.
+# Inverted chat at the bottom: bursts of appends, then sending from the composer.
 route Chat
 latency 250,700
 wait 3
 mark append-1
-press 333 80
+press 262 78
 wait 2.5
 mark append-2
-press 333 80
+press 262 78
 wait 2.5
 mark send-short
 ad press 180 822
@@ -16,7 +16,7 @@ wait 0.5
 ad press 377 511
 wait 2.5
 mark append-keyboard-open
-press 333 80
+press 262 78
 wait 2.5
 mark send-long
 ad type aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -24,5 +24,5 @@ wait 1
 ad press 377 511
 wait 2.5
 mark append-after-long
-press 333 80
+press 262 78
 wait 2.5

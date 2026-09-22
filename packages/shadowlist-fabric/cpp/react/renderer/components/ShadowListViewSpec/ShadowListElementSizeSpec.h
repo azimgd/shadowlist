@@ -6,10 +6,9 @@
 namespace facebook::react {
 
 /*
- * One row's text, as the host can describe it before rendering: the string, the attributes
- * that affect how it wraps, and the fixed chrome around it. Parsed from the
- * `elementsSizeSpecs` prop and measured by ShadowListTextMeasurer.h; kept in its own header
- * so the shadow node can cache parsed specs without pulling in the text layout stack.
+ * Describes a row's text before it renders, so its height can be predicted.
+ * Comes from the elementsSizeSpecs prop and is measured by ShadowListTextMeasurer.h.
+ * Lives in its own header so the shadow node can cache specs without the text layout code.
  */
 struct ShadowListElementSizeSpec {
   static constexpr double DEFAULT_FONT_SIZE = 14.0;
@@ -26,30 +25,20 @@ struct ShadowListElementSizeSpec {
   int numberOfLines = 0;
 
   /*
-   * Everything in the row that is NOT the text, in points: padding, borders, an avatar
-   * column, a timestamp row. The host knows these from its own styles; the core needs the
-   * whole row's size, not the paragraph's.
-   *
-   * `insetWidth` is subtracted from the width the text gets to wrap in, and `insetHeight`
-   * is added to the height it measures to. A row whose chrome does not reduce to two
-   * scalars is one the host should leave unpredicted.
+   * Space in the row around the text, in points, like padding or an avatar column.
+   * Width is taken off the wrap width and height is added to the measured text.
+   * Rows whose extra space can't be described by these two numbers should not be predicted.
    */
   double insetWidth = 0.0;
   double insetHeight = 0.0;
 
   /*
-   * Fraction of the list width the text may occupy before `insetWidth` is taken off it,
-   * for the very common case of a percentage-width row element -- a chat bubble capped at
-   * `maxWidth: '75%'`, say. A percentage cannot be expressed as a fixed inset, and rounding
-   * it to one would mis-wrap every row at a width the author never tested.
+   * Share of the list width the text may use before insetWidth, for rows with a percent width
+   * such as a chat bubble capped at 75 percent. A fixed inset can't express that without wrapping wrong.
    */
   double widthFraction = 1.0;
 
-  /*
-   * A height the host already knows exactly (a fixed-height row). When set, no text
-   * measurement happens at all and this is published verbatim -- the cheapest possible
-   * prediction, and the right one for rows that have no text to measure.
-   */
+  // A known row height. When set, the text is not measured and this height is used as is.
   double fixedHeight = std::numeric_limits<double>::quiet_NaN();
 };
 

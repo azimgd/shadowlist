@@ -27,8 +27,8 @@ export interface AssistantUserMessageProps {
 }
 
 /*
- * The spec below is a transcription of these numbers and the container/bubble styles; a spec
- * that disagrees with its row predicts a confidently wrong height.
+ * The size spec below copies these numbers and the bubble styles. Keep them in step or
+ * the predicted height is wrong.
  */
 const BUBBLE_WIDTH_FRACTION = 0.8;
 const BUBBLE_PADDING_HORIZONTAL = 14;
@@ -36,10 +36,9 @@ const BUBBLE_PADDING_VERTICAL = 10;
 const EMPTY_ATTACHMENTS: AssistantPrompt['attachments'] = [];
 
 /*
- * What a plain-text user message measures to. Native computes the real height from it
- * before the row renders, so sending a message never lands on an estimated height and
- * reflows the reply under it. Attachments add rows the spec can't describe; those
- * messages are measured natively.
+ * Describes a plain text user message so native can size it before it renders. A sent
+ * message then never starts at a guessed height and pushes the reply under it. Messages
+ * with attachments are measured natively instead.
  */
 export function getUserMessageSizeSpec(
   message: AssistantPrompt,
@@ -54,7 +53,7 @@ export function getUserMessageSizeSpec(
     lineHeight: body.lineHeight,
     letterSpacing: body.letterSpacing,
     widthFraction: BUBBLE_WIDTH_FRACTION,
-    // maxWidth is a fraction of the container's content box, then the bubble's own padding.
+    // A share of the container's inner width, minus the bubble's own padding.
     insetWidth:
       BUBBLE_WIDTH_FRACTION * theme.spacing.lg * 2 +
       BUBBLE_PADDING_HORIZONTAL * 2,
@@ -76,7 +75,7 @@ export const AssistantUserMessage = memo(
     const l = useLabels(defaultAssistantLabels, labels);
     const [actionsVisible, setActionsVisible] = useState(false);
     const toggleActions = useCallback(
-      () => setActionsVisible((current) => !current),
+      () => setActionsVisible((previous) => !previous),
       []
     );
     const accessibilityActions = useMemo(
@@ -106,9 +105,8 @@ export const AssistantUserMessage = memo(
             accessibilityRole="button"
             accessibilityHint={l.showActionsHint}
             /*
-             * A long press is not reachable by assistive technology, so the same toggle is
-             * exposed as a named custom action. Without it Copy and Edit simply do not
-             * exist for a screen reader.
+             * Screen readers can't long press, so offer the same toggle as a named action.
+             * Otherwise Copy and Edit are out of reach.
              */
             accessibilityActions={accessibilityActions}
             onAccessibilityAction={toggleActions}

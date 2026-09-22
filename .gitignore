@@ -14,7 +14,6 @@ node_modules/
 lib/
 dist/
 build/
-.turbo/
 
 # Test / tooling
 coverage/

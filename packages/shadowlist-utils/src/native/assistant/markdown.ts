@@ -1,12 +1,10 @@
 /*
- * A deliberately small Markdown reader for streamed replies. It covers the subset chat
- * models actually emit -- headings, paragraphs, lists, quotes, fenced code, tables, rules
- * and four inline styles -- and it tolerates text that stops mid-token, because during a
- * stream every render sees an unfinished document.
+ * A small Markdown reader for streamed replies. It covers what chat models write, like
+ * headings, lists, quotes, code, tables, rules and four inline styles. It copes with text
+ * that stops mid token, since during a stream every render sees an unfinished document.
  *
- * Output is a flat list of blocks. Every block but the last is final once a later block
- * exists, so the renderer memoizes each block on `raw` and only the tail re-renders per
- * flush: block memoization, applied to the parse output rather than to the parse.
+ * It returns a flat list of blocks. Every block but the last is final, so the renderer
+ * memoizes each block on raw and only the last one re-renders per flush.
  */
 
 export interface MarkdownInline {
@@ -34,7 +32,7 @@ export type MarkdownBlock =
       type: 'code';
       language: string;
       code: string;
-      // False while the closing fence has not streamed in yet.
+      // False until the closing fence streams in.
       closed: boolean;
     })
   | (BlockBase & {
@@ -48,31 +46,27 @@ const FENCE_OPEN = /^```(\S*)\s*$/;
 const FENCE_CLOSE = /^```\s*$/;
 const PARTIAL_FENCE = /^`{1,2}\s*$/;
 /*
- * The trailing text of a marker is optional throughout, so a line that is still only its
- * marker (`#`, `-`, `1.`) already settles on its final block type. Without that the line
- * is a paragraph for one flush and a heading or list item on the next, which remounts the
- * block and reflows everything under it -- once per marker, in a stream full of them.
+ * Text after a marker is optional, so a line that is only a marker like # or 1. already
+ * gets its final block type. Otherwise it would be a paragraph for one flush and a heading
+ * the next, remounting the block and moving everything under it.
  */
 const HEADING = /^(#{1,6})(?:\s+(.*))?$/;
 const RULE = /^(-{3,}|\*{3,})\s*$/;
 const QUOTE = /^>\s?(.*)$/;
 /*
- * Up to three spaces of indent, so a nested item is its own block rather than a
- * continuation line glued onto the paragraph above. Rendering stays flat; this is about
- * where blocks begin, not about nesting. Four or more spaces is indented code, left alone.
+ * Allow up to three spaces of indent, so a nested item starts its own block instead of
+ * joining the paragraph above. Four or more spaces is indented code, left alone.
  *
- * `**bold**` at the start of a line must not become a bullet: the optional tail requires
- * whitespace after the marker, so only `* ` (or a lone `*`) opens a list.
+ * Bold text at the start of a line must not become a bullet, so the marker needs a space
+ * after it or must stand alone.
  */
 const BULLET = /^\s{0,3}[-*](?:\s+(.*))?$/;
 const ORDERED = /^\s{0,3}(\d+)\.(?:\s+(.*))?$/;
 const TABLE_ROW = /^\|/;
 /*
- * A row carrying no cell content: the alignment row (`| --- | --- |`), any half of one a
- * stream has delivered so far (`| --- | ---`, before its final pipe), and the bare `|` that
- * every row starts life as. All of it is structure, never data. Matching only the complete
- * alignment row renders each of these as a data row that then vanishes a token later, so
- * the table visibly loses a row mid-stream.
+ * A row with no cell content. That is the alignment row, any part of it streamed so far,
+ * and the bare pipe every row starts as. Matching only the full alignment row would show
+ * these as data rows that vanish a token later, so the table would lose a row mid stream.
  */
 const TABLE_STRUCTURE_ROW = /^[\s:|-]*$/;
 
@@ -88,9 +82,8 @@ const isBlockStart = (line: string) =>
 const WORD_CHAR = /\w/;
 
 /*
- * Inline styles. An opener with no closer yet runs to the end of the text, so mid-stream
- * `**bol` renders bold straight away instead of flashing literal asterisks until the
- * closer arrives -- the same termination rule streaming Markdown renderers apply.
+ * Inline styles. An opener with no closer yet runs to the end of the text, so half streamed
+ * bold text shows bold right away instead of flashing raw asterisks.
  */
 function parseInline(text: string): MarkdownInline[] {
   const inlines: MarkdownInline[] = [];
@@ -132,8 +125,8 @@ function parseInline(text: string): MarkdownInline[] {
     }
 
     /*
-     * `2 * 3` and snake_case stay literal: italics need a non-space after the opener and,
-     * for underscores, a word boundary before it.
+     * Keep 2 * 3 and snake_case literal. Italics need a non space after the opener, and an
+     * underscore also needs a word boundary before it.
      */
     const opensItalic =
       (char === '*' || char === '_') &&
@@ -149,9 +142,8 @@ function parseInline(text: string): MarkdownInline[] {
     }
 
     /*
-     * The label's closing `]` has to be the one immediately before the `(`. Searching for
-     * the first `](` anywhere ahead instead lets a stray bracket in prose swallow every
-     * character up to the next real link, and makes a line full of brackets quadratic.
+     * The label must close right before the opening paren. Searching further ahead would let
+     * a stray bracket swallow text up to the next real link, and get slow on bracket heavy lines.
      */
     if (char === '[') {
       const labelEnd = text.indexOf(']', index + 1);
@@ -176,7 +168,9 @@ function parseInline(text: string): MarkdownInline[] {
   return inlines;
 }
 
-// Row cells without the outer pipes. A row still streaming in simply has fewer cells.
+/*
+ * Row cells without the outer pipes. A row still streaming in just has fewer cells.
+ */
 const splitTableRow = (line: string) =>
   line
     .trim()
@@ -186,13 +180,12 @@ const splitTableRow = (line: string) =>
     .map((cell) => parseInline(cell.trim()));
 
 export function parseMarkdown(source: string): MarkdownBlock[] {
-  // CRLF sources would otherwise leave a stray \r on every line and match no block pattern.
+  // Split on Windows line endings too, or every line keeps a stray carriage return and matches nothing.
   const lines = source.split(/\r?\n/);
   /*
-   * An OPENING fence still streaming in (` or ``) is not text. Left in place it is absorbed
-   * into the paragraph above for one flush and pulled back out when the third backtick
-   * lands, reflowing that paragraph and everything under it. The mirror of the closing
-   * fence pop below.
+   * Drop an opening fence that is still streaming in. Left in, it joins the paragraph above
+   * for one flush and leaves when the third backtick lands, moving everything under it.
+   * The closing fence gets the same treatment below.
    */
   if (PARTIAL_FENCE.test(lines[lines.length - 1] ?? '')) {
     lines.pop();
@@ -201,7 +194,9 @@ export function parseMarkdown(source: string): MarkdownBlock[] {
   const keyFor = (type: MarkdownBlock['type']) => `${blocks.length}:${type}`;
   let index = 0;
 
-  // Consume consecutive lines matching `pattern`, returning each line's first capture.
+  /*
+   * Take the next lines that match pattern and return each line's first capture.
+   */
   const collect = (pattern: RegExp) => {
     const start = index;
     const captures: RegExpExecArray[] = [];
@@ -234,12 +229,9 @@ export function parseMarkdown(source: string): MarkdownBlock[] {
       const closed = index < lines.length;
       if (closed) index += 1;
       /*
-       * While the block is still open, drop trailing blank lines and a closing fence still
-       * streaming in (` or ``). Neither is code: the newline before the fence arrives as an
-       * empty body line, and the backticks arrive as another, so the block grows by a line
-       * or two and shrinks again when the fence completes -- which moves everything below
-       * it and, at the bottom of a list, the scroll offset. Once closed, blank lines inside
-       * the fence are real content and are kept.
+       * While the block is open, drop trailing blank lines and a half streamed closing fence.
+       * Otherwise the block grows a line or two and shrinks when the fence completes, which
+       * moves everything below and the scroll offset. Once closed, blank lines are kept.
        */
       while (!closed && body.length > 0) {
         const tail = body[body.length - 1] ?? '';

@@ -1,28 +1,22 @@
-/*
- * Default number of extra rows mounted on each side of the visible window; overridden by
- * ShadowListProps.overscanRows, which documents how to pick a number.
- */
+// Default extra rows mounted on each side of the screen. See overscanRows for how to pick one.
 export const SHADOWLIST_OVERSCAN = 4;
 
 /*
- * Default extra rows mounted ahead of the visible window, in the direction the list is
- * actually travelling; overridden by ShadowListProps.overscanRowsLeading. A blank cell
- * during a fling is a row the native side has already scrolled to but React has not
- * mounted yet, so what protects against it is runway in front of the user -- not a bigger
- * buffer behind them, which only costs render work. This is the leading side's total, so
- * a fling mounts this many rows ahead and SHADOWLIST_OVERSCAN behind; a resting list
- * keeps SHADOWLIST_OVERSCAN on both sides.
+ * Default extra rows mounted ahead in the scroll direction, overridden by overscanRowsLeading.
+ * A blank cell in a fling is a row native reached before React mounted it, so rows ahead are
+ * what help. Rows behind only cost render work. A fling mounts this many ahead and
+ * SHADOWLIST_OVERSCAN behind, and a list at rest keeps SHADOWLIST_OVERSCAN on both sides.
  */
 export const SHADOWLIST_OVERSCAN_LEADING = 10;
 
-// Maps the public snapToAlignment prop to the native enum value
+// Maps snapToAlignment to the native enum value.
 export const SNAP_ALIGNMENT = { start: 0, center: 1, end: 2 } as const;
 
 /*
- * Device trace. Debug Apple builds launched with SHADOWLIST_FRAME_TRACE=1 install
- * `__shadowlistTrace` natively (see ShadowListTrace.h); it prints `[SLJ]` lines on the
- * same clock as the host's `[SLF]` frame trace. Absent everywhere else, so each call costs
- * one global property read; build messages only behind slTraceEnabled().
+ * Device trace. Debug Apple builds started with SHADOWLIST_FRAME_TRACE=1 install
+ * __shadowlistTrace, see ShadowListTrace.h. It prints [SLJ] lines on the same clock as the
+ * native [SLF] frame trace. Elsewhere it's missing and a call costs one global read, so
+ * only build messages behind slTraceEnabled().
  */
 interface TraceGlobal {
   __shadowlistTrace?: (message: string) => void;
@@ -36,7 +30,9 @@ export function slTrace(message: string): void {
   (globalThis as TraceGlobal).__shadowlistTrace?.(message);
 }
 
-// Milliseconds on a monotonic clock, for trace durations.
+/*
+ * Milliseconds on a steady clock, for trace durations.
+ */
 export function slTraceNow(): number {
   return (
     (globalThis as { performance?: { now(): number } }).performance?.now() ??
@@ -44,7 +40,7 @@ export function slTraceNow(): number {
   );
 }
 
-// Rows rendered since the last list commit trace line (all lists share the counter).
+// Rows rendered since the last commit trace line. All lists share this counter.
 let rowRenderCount = 0;
 
 export function countRowRender(): void {
@@ -57,15 +53,17 @@ export function takeRowRenderCount(): number {
   return count;
 }
 
-// The host view's react tag, the `id=` of its [SLF] lines; -1 before it mounts.
+/*
+ * The native view's tag, which is the id= in its [SLF] lines, or -1 before it mounts.
+ */
 export function nativeTagOf(instance: unknown): number {
   return (instance as { __nativeTag?: number } | null)?.__nativeTag ?? -1;
 }
 
 /*
- * How `next` differs from `previous` at the edges: rows added before the old first row
- * (pre), after the old last row (app), and in between (mid, negative for removals).
- * `replace` when either edge row is gone.
+ * How next differs from previous at the edges. pre counts rows added before the old first
+ * row, app after the old last row, and mid in between, negative for removals. replace means
+ * an edge row is gone.
  */
 export function describeDataChange<ElementT>(
   previous: ReadonlyArray<ElementT> | null,
@@ -95,7 +93,9 @@ export function describeDataChange<ElementT>(
   return `pre:${firstIndex} app:${next.length - 1 - lastIndex}${middle !== 0 ? ` mid:${middle}` : ''}`;
 }
 
-// Move the element at `from` to `to`, returning a new array.
+/*
+ * Move one element, returning a new array.
+ */
 export function arrayMove<ElementT>(
   input: ReadonlyArray<ElementT>,
   from: number,

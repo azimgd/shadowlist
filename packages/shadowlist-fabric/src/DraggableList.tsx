@@ -4,11 +4,9 @@ import ShadowList from './ShadowList';
 import type { ShadowListProps, ShadowListCommands } from './types';
 
 /*
- * A drag-to-reorder list: ShadowList with `dragEnabled` turned on by default.
- * Long-press a row to pick it up and drag; the final move is reported through
- * `onReorder` with `data` already reordered; persist it to your state, or the
- * row snaps back on drop. Pass `dragEnabled={false}` to suspend dragging
- * without swapping the component out.
+ * A ShadowList with dragEnabled on by default. Long press a row to pick it up and
+ * drag it. onReorder gets the reordered data when you drop. Save it to your state,
+ * or the row snaps back. Pass dragEnabled={false} to pause dragging.
  */
 function DraggableListInner<ElementT extends { id: string }>(
   { dragEnabled = true, ...props }: ShadowListProps<ElementT>,

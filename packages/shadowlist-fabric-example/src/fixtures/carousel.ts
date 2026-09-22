@@ -1,4 +1,5 @@
 import type { ViewStyle } from 'react-native';
+import { DEBUG } from '../launchSettings';
 
 export interface CarouselCard {
   id: string;
@@ -15,18 +16,35 @@ const CARD_COLORS = [
   '#CF222E',
 ];
 
+const CITIES = [
+  'Lisbon',
+  'Reykjavik',
+  'Kyoto',
+  'Marrakesh',
+  'Tromsø',
+  'Oaxaca',
+  'Tbilisi',
+  'Hobart',
+  'Porto',
+  'Seoul',
+  'Cusco',
+  'Valletta',
+];
+
 let createdCards = 0;
 
-// Widths vary per card; the style object is built once so rows never allocate one.
-export function createCarouselCards(
-  count: number,
-  prefix: string
-): CarouselCard[] {
+/*
+ * Widths vary per card. The style object is built once so rows never allocate one.
+ */
+export function createCarouselCards(count: number): CarouselCard[] {
   return Array.from({ length: count }, () => {
     const number = createdCards++;
+    const city = CITIES[number % CITIES.length]!;
+    const fare = 89 + ((number * 53) % 400);
+    const prefix = DEBUG ? `#${number} ` : '';
     return {
       id: `card-${number}`,
-      label: `${prefix} ${number}`,
+      label: `${prefix}${city}\nfrom $${fare}`,
       style: {
         width: 110 + ((number * 37) % 150),
         backgroundColor: CARD_COLORS[number % CARD_COLORS.length]!,

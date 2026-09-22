@@ -1,4 +1,4 @@
-# Horizontal lists nested in a vertical one: carousel drags and vertical flings.
+# Horizontal lists inside a vertical one: carousel drags and vertical flings.
 route Nested
 latency 250,700
 wait 2

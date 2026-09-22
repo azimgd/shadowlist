@@ -12,33 +12,28 @@ struct Size {
 
 class Element {
 public:
-  // User-provided key, used to match elements across data updates.
+  // The user's key, used to match rows across data updates.
   std::string key = "";
 
-  // Position of this element in the list.
   std::size_t index = 0;
 
   double width = 0.0;
   double height = 0.0;
 
-  // Top-left position within the container.
+  // Top left corner inside the container.
   double offsetX = 0.0;
   double offsetY = 0.0;
 
-  // Set once a size estimate has been applied.
+  // Set once the row has an estimated size.
   bool estimated = false;
 
-  // Set once the element has been natively measured.
+  // Set once the row has been measured natively.
   bool measured = false;
 
   /*
-   * Set when this element's size came from an ahead-of-time host measurement
-   * (see Container::predictedSizes) rather than from the generic fallback estimate.
-   *
-   * A predicted row carries `estimated = true` so the fallback passes leave it alone, but
-   * `measured` stays false because nothing has laid it out natively yet. The distinction
-   * matters because a predicted size must not feed the frozen average (which describes real
-   * measurements only).
+   * Set when the size came from a host measurement made ahead of layout, not from the fallback estimate.
+   * Such a row is also estimated but not measured, and its size must never feed the average,
+   * which only counts real measurements.
    */
   bool predicted = false;
 };

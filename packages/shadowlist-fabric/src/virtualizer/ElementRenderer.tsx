@@ -12,9 +12,8 @@ interface ElementRendererProps<ElementT> {
   separator: ReactElement | null;
   nativeIndex: number;
   /*
-   * Set only when the list tracks row sizes (ShadowListProps.trackElementSizes). Left
-   * undefined the row renders without an onLayout at all, so an untracked list pays
-   * nothing.
+   * Set only when trackElementSizes is on. Otherwise the row has no onLayout at all, so
+   * lists that don't track sizes pay nothing.
    */
   onElementLayout?: (key: string, width: number, height: number) => void;
   onElementRelease?: (key: string) => void;
@@ -43,18 +42,16 @@ export const ElementRenderer = memo(function ElementRendererInner<
   onElementRelease,
 }: ElementRendererProps<ElementT>) {
   /*
-   * The row's content is rebuilt only when something it used changed. `index` counts only if
-   * the last renderElement call read it: a prepend or insert moves every mounted row's index
-   * while its element stays the same object, and a row whose content never looked at the
-   * index renders the same output at the new one. Keeping the children's identity lets React
-   * skip the whole subtree. A renderer that reads index (numbering, index-derived styling)
-   * still re-renders when it moves.
+   * Rebuild the row only when something it used changed. The index only counts if the last
+   * renderElement call read it. A prepend shifts every row's index but not its element, so a
+   * row that never read the index can keep its children and React skips the subtree.
+   * A renderer that does read the index, say for numbering, still re-renders when it moves.
    */
   const renderedRef = useRef<RenderedChildren<ElementT> | null>(null);
   /*
-   * The getter reads the row's CURRENT index and marks the cache whenever it is read, including
-   * after render (a press handler holding on to the info object): such a row re-renders on its
-   * next move, and until then the late read still returns the right index.
+   * The getter returns the row's current index and marks it as read, even after render, like
+   * from a press handler. Such a row re-renders on its next move, and a late read still gets
+   * the right index.
    */
   const indexRef = useRef(index);
   indexRef.current = index;
@@ -111,7 +108,7 @@ export const ElementRenderer = memo(function ElementRendererInner<
     [onElementLayout, elementKey]
   );
 
-  // Drop the row's recorded size on unmount; a key that comes back re-measures anyway.
+  // Forget the row's size on unmount. If the key comes back it gets measured again.
   useEffect(() => {
     if (!onElementRelease) return;
     return () => onElementRelease(elementKey);

@@ -24,17 +24,16 @@ export const useChatMessagesQuery = () =>
   });
 
 /*
- * Upsert, not append: a send's confirmation, its failure and a retry all rewrite the same
- * id in place, and a socket redelivering a message never adds a duplicate key.
+ * Upsert, not append. A send's confirmation, failure and retry all rewrite the same id in
+ * place, and a message the socket delivers twice never adds a duplicate key.
  */
 async function writeToThread(
   queryClient: QueryClient,
   messages: ChatMessage[]
 ) {
   /*
-   * A history page still loading was built from the pages as they were when it started and
-   * would overwrite this write when it lands. Cancel it first; the next start-reached
-   * loads it again.
+   * A history page still loading was built from the old pages and would overwrite this write
+   * when it lands. Cancel it first, and the next start reached event loads it again.
    */
   await queryClient.cancelQueries({ queryKey: messagesKey });
   queryClient.setQueryData<CursorData<ChatMessage>>(messagesKey, (data) =>
@@ -47,9 +46,8 @@ export function useSendChatMessage() {
   return useMutation({
     mutationFn: sendChatMessage,
     /*
-     * The bubble shows at once as 'sending'; the response confirms it in place (same id, no
-     * remount). A failure keeps the bubble, marked 'failed', so the text is never lost and
-     * the reader can retry it.
+     * The bubble shows at once as sending, and the response confirms it in place with the same id.
+     * A failure keeps the bubble marked failed, so the text is never lost and can be retried.
      */
     onMutate: (message) =>
       writeToThread(queryClient, [{ ...message, status: 'sending' }]),
@@ -59,7 +57,9 @@ export function useSendChatMessage() {
   });
 }
 
-// Writes pushed messages straight into the cache, as a socket handler would.
+/*
+ * Writes pushed messages straight into the cache, as a socket handler would.
+ */
 export function useIncomingChatMessages() {
   const queryClient = useQueryClient();
   useEffect(

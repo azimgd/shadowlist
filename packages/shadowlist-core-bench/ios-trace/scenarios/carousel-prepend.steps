@@ -1,34 +1,34 @@
-# Nested's pinned carousel row (horizontal, leading header): prepends at the start and
-# mid-list, overlapping responses, prepends landing under a drag and a fling, and appends at the end.
+# The pinned horizontal carousel in Nested: prepends at the start and in the middle,
+# overlapping responses, prepends during a drag and a fling, then appends at the end.
 route Nested
 latency 250,700
 wait 2
 mark start-prepend
-press 296 80
+press 210 78
 wait 2
 mark start-burst
-repeat 3 press 296 80
+repeat 3 press 210 78
 wait 3
 mark scroll-mid
 repeat 3 pan 330 270 -260 0 300
 wait 1.5
 mark mid-prepend
-press 296 80
+press 210 78
 wait 2
 mark mid-burst
-repeat 3 press 296 80
+repeat 3 press 210 78
 wait 3
 mark drag-during-prepend
-press 296 80
+press 210 78
 pan 300 270 -120 0 1500
 wait 2
 mark fling-during-prepend
-press 296 80
+press 210 78
 pan 340 270 -300 0 120
 wait 3
 mark go-to-end
 repeat 8 pan 370 270 -330 0 100
 wait 1.5
 mark append-at-end
-repeat 2 press 333 80
+repeat 2 press 262 78
 wait 3

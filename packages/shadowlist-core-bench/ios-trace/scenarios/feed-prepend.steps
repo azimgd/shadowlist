@@ -1,27 +1,27 @@
-# Default list: prepends at the top and mid-list, single and in a burst of overlapping requests.
+# Default list: single prepends at the top and in the middle, then overlapping bursts.
 route Feed
 latency 250,700
 wait 2
 mark top-prepend
-press 296 80
+press 210 78
 wait 2.5
 mark top-burst
-repeat 3 press 296 80
+repeat 3 press 210 78
 wait 3
 mark scroll-mid
 repeat 3 pan 200 700 0 -450 300
 wait 1.5
 mark mid-prepend
-press 296 80
+press 210 78
 wait 2.5
 mark mid-burst
-repeat 3 press 296 80
+repeat 3 press 210 78
 wait 3
 mark drag-during-prepend
-press 296 80
+press 210 78
 pan 200 600 0 -150 1500
 wait 2.5
 mark fling-during-prepend
-press 296 80
+press 210 78
 pan 200 750 0 -500 120
 wait 3

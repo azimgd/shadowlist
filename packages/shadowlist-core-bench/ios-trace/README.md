@@ -28,7 +28,7 @@ route Chat            screen to open (launch arg -SLRoute), first
 latency 250,700       fake network latency range in ms (-SLLatency)
 wait 1.5              seconds
 mark load-burst       writes a [SCN] marker into the trace
-press X Y             tap (prepend 296 80, append 333 80, scroll-to-random 372 80)
+press X Y             tap (debug header buttons, shown by -SLDebug 1: prepend 210 78, append 262 78, scroll-to-random 317 78)
 statusbar             tap the status bar: scroll to top
 pan X Y DX DY MS      one-finger drag; negative DY scrolls a vertical list forward
 repeat N <step>       run a step N times
@@ -63,7 +63,14 @@ rejects the gesture.
 | `discontinuity` | consecutive frames share no rows                                                          |
 
 Expected cases are tagged `(explained)`: a fast fling, an inverted list pinned to its bottom
-as messages arrive, the scroll-to-top jump, an overscroll settling, the refresh inset.
+as messages arrive, the scroll-to-top jump, a host scroll command (`scrollToIndex` /
+`scrollToEnd`), an overscroll settling, the refresh inset. A ShadowListNative engine scroll
+(`[SL] native: scroll index=...`) has no host event, so its jump still shows as `!!`.
+
+Debug builds also log the core's corrections: `[SL]   op arrived: type= key= index=` when a
+correction reaches its target (type 0 MVCP, 1 scrollToIndex, 2 scrollToStart, 3 scrollToEnd,
+4 bottom pin, 5 shrink clamp), `op replaced:` when one correction takes over from another, and
+`anchor fallback:` when a data change removed the anchored row and MVCP holds the next visible one.
 
 Per list it also reports `host:` corrections (how often the core moved the view), `js:` render
 count, `jsms` (JS commit time) and `mountms` (render to the frame that showed it).

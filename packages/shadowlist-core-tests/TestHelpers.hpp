@@ -8,15 +8,12 @@
 #include <string>
 #include <vector>
 
-/*
- * Fixture helpers shared by the core test files. They live in namespace slt, so a test
- * file picks them up through the `using namespace slt;` it already has.
- */
+// Fixture helpers shared by the core test files. Tests already use namespace slt.
 namespace slt {
 
 inline constexpr double WINDOW_WIDTH = 390.0;
 inline constexpr double WINDOW_HEIGHT = 840.0;
-// Estimated main-axis size of a row nobody has measured or predicted.
+// Size used for a row nobody has measured or predicted yet.
 inline constexpr double ESTIMATED_ROW_HEIGHT = 120.0;
 
 inline std::vector<std::string> keysFor(std::size_t count, const std::string& prefix = "k") {
@@ -28,7 +25,9 @@ inline std::vector<std::string> keysFor(std::size_t count, const std::string& pr
   return keys;
 }
 
-// A single-column vertical frame scrolled to `offset`, estimating rows at ESTIMATED_ROW_HEIGHT.
+/*
+ * A one column vertical frame scrolled to offset, with every row estimated.
+ */
 inline azimgd::shadowlist::FrameInput inputFor(const std::vector<std::string>& keys, double offset) {
   azimgd::shadowlist::FrameInput input;
   input.keys = keys;
@@ -41,21 +40,25 @@ inline azimgd::shadowlist::FrameInput inputFor(const std::vector<std::string>& k
   return input;
 }
 
-// Element offset along the scroll axis.
+/*
+ * Position of a row along the scroll direction.
+ */
 inline double offsetOf(const azimgd::shadowlist::Container& container, std::size_t index) {
   const azimgd::shadowlist::Element& element = container.revision.elements[index];
   return container.horizontal ? element.offsetX : element.offsetY;
 }
 
-// Element size along the scroll axis.
+/*
+ * Size of a row along the scroll direction.
+ */
 inline double sizeOf(const azimgd::shadowlist::Container& container, std::size_t index) {
   const azimgd::shadowlist::Element& element = container.revision.elements[index];
   return container.horizontal ? element.width : element.height;
 }
 
 /*
- * Every index that overlaps the viewport widened by `overscanUnits` viewports on each side,
- * decided the slow, obvious way. This is the oracle window and band assertions check against.
+ * Every row that overlaps the screen plus overscanUnits screens on each side.
+ * Done the slow and obvious way so window checks have something to compare against.
  */
 inline std::set<std::size_t> overlappingIndices(const azimgd::shadowlist::Container& container, double overscanUnits) {
   double windowSize = container.horizontal
@@ -73,9 +76,8 @@ inline std::set<std::size_t> overlappingIndices(const azimgd::shadowlist::Contai
     double elementOffset = offsetOf(container, index);
     double elementSize = sizeOf(container, index);
     /*
-     * Genuine overlap only. A row whose leading edge sits exactly on the far bound covers
-     * zero pixels of the region, so whether a given pass includes it is a tie-break, not a
-     * lost row; the core is free to report a superset.
+     * Count real overlap only. A row starting exactly on the far edge covers no pixels,
+     * so the core may include it or not.
      */
     if (elementOffset >= upperBound) {
       continue;

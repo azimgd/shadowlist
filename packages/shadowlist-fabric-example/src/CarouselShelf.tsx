@@ -12,8 +12,8 @@ export interface CarouselShelfItem {
 }
 
 /*
- * A horizontal list with a leading header and cards of different widths. Cards added before
- * the visible ones (prepends, overlapping responses) must leave the cards on screen in place.
+ * A horizontal list with a header and cards of different widths.
+ * Cards added before the visible ones must leave the cards on screen in place.
  */
 export const CarouselShelf = memo(({ item }: { item: CarouselShelfItem }) => {
   const styles = useStyles();
@@ -33,9 +33,7 @@ export const CarouselShelf = memo(({ item }: { item: CarouselShelfItem }) => {
         <Text style={styles.headerTitle} accessibilityRole="header">
           Deals
         </Text>
-        <Text style={styles.headerSubtitle}>
-          Live fares; header arrows add more
-        </Text>
+        <Text style={styles.headerSubtitle}>Fares this week</Text>
       </View>
     ),
     [styles]

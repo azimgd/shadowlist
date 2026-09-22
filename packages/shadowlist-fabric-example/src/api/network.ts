@@ -1,12 +1,11 @@
 /*
- * The fake network every endpoint in src/api goes through. A response is computed when it
- * "arrives", not when it is requested, so a slow read observes a write that landed while it
- * was in flight, just as it would against a real server.
+ * The fake network every endpoint in src/api goes through. A response is built when it arrives,
+ * not when it is requested, so a slow read sees a write that landed meanwhile, like a real server.
  */
 export const network = {
   // Round-trip time, drawn uniformly from this range. Set both to 0 for benchmark runs.
   latencyMs: { min: 250, max: 700 },
-  // Share of chat sends that fail, 0..1. Zero by default so scripted traces stay deterministic.
+  // Share of chat sends that fail, from 0 to 1. Zero by default so scripted traces stay deterministic.
   sendFailureRate: 0,
 };
 

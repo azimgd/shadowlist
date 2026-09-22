@@ -1,9 +1,6 @@
 #include <TargetConditionals.h>
 
-/*
- * Drag-to-reorder relies on UILongPressGestureRecognizer, CADisplayLink and UIView spring
- * animations, none of which have a clean AppKit equivalent, so the whole feature is iOS only.
- */
+// Drag to reorder needs UIKit gestures, display links and animations, so it is iOS only.
 #if !TARGET_OS_OSX
 
 #import "ShadowListView.h"
@@ -14,12 +11,16 @@
 
 using namespace facebook::react;
 
-// Long-press drag-to-reorder.
+/*
+ * Long press and drag to reorder rows.
+ */
 @implementation ShadowListView (DragReorder)
 
 #pragma mark - Drag gesture
 
-// The view's resting frame, ignoring any active drag translation.
+/*
+ * Where the view sits without any drag offset applied.
+ */
 - (CGRect)restingFrameForView:(UIView *)view
 {
   CGSize size = view.bounds.size;
@@ -27,7 +28,9 @@ using namespace facebook::react;
   return CGRectMake(center.x - size.width / 2.0, center.y - size.height / 2.0, size.width, size.height);
 }
 
-// Topmost element view whose resting frame contains the content-space point.
+/*
+ * The topmost row under a point in the content.
+ */
 - (UIView *)elementViewAtContentPoint:(CGPoint)point
 {
   UIView *result = nil;
@@ -71,7 +74,7 @@ using namespace facebook::react;
     return;
   }
 
-  // Drop any leftover transforms from a previous drag.
+  // Clear anything left over from the last drag.
   _dragDropPending = NO;
   _droppedView = nil;
   [self clearDragTransforms];
@@ -90,17 +93,17 @@ using namespace facebook::react;
   _dragGrabOffset = touchAxis - restingLeading;
   _dragTouchInViewport = [gesture locationInView:self];
 
-  // Auto-scroll drives the offset; disable the scroll view's own finger tracking.
+  // We scroll ourselves near the edges, so stop the scroll view from following the finger.
   _scrollView.scrollEnabled = NO;
 
-  // Lift feedback: raise the row and give it a shadow.
+  // Lift the row with a shadow so it looks picked up.
   [_contentView bringSubviewToFront:view];
   view.layer.shadowColor = [UIColor blackColor].CGColor;
   view.layer.shadowOpacity = 0.25;
   view.layer.shadowRadius = 8.0;
   view.layer.shadowOffset = CGSizeMake(0.0, 4.0);
 
-  // Drag start: keeps this row mounted while auto-scroll carries it off-screen.
+  // Tell the core a drag started so this row stays mounted when it scrolls off screen.
   [self dispatchDragEventType:1 fromKey:_dragOriginKey toKey:_dragOriginKey];
 
   _dragDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
@@ -109,7 +112,9 @@ using namespace facebook::react;
   [self updateDrag];
 }
 
-// Per-frame: auto-scroll at the edges, then re-place the row and shuffle siblings.
+/*
+ * Every frame, scroll near the edges, then move the row and shift the others.
+ */
 - (void)dragTick
 {
   if (!_dragging) {
@@ -148,13 +153,15 @@ using namespace facebook::react;
     ? CGPointMake(newOffset, _scrollView.contentOffset.y)
     : CGPointMake(_scrollView.contentOffset.x, newOffset);
   /*
-   * Must report as a user scroll so the core virtualizes at this exact offset;
-   * echo-suppressing here blanks rows mid-drag.
+   * This must count as a user scroll so the core renders rows at this offset.
+   * Treating it as our own move leaves blank rows during the drag.
    */
   _scrollView.contentOffset = next;
 }
 
-// Place the row under the finger, recompute the insertion point, shuffle siblings.
+/*
+ * Put the row under the finger, find where it would drop, and shift the others.
+ */
 - (void)updateDrag
 {
   UIView *view = _draggedView;
@@ -163,11 +170,8 @@ using namespace facebook::react;
   }
 
   /*
-   * Re-derive the pivot's current index/key every time drag state is recomputed: an unrelated
-   * data mutation mid-drag (e.g. updateState: firing while _dragging == YES from another
-   * commit) can shift the already-mounted dragged view's live index/key without a re-pickup,
-   * and insertionIndexForCenter:/this view's geometry must key off that current value rather
-   * than the one cached once at pickup in beginDrag.
+   * Read the dragged row's index and key again each time. A data change during the drag
+   * can move them, and the drop math must use the current values, not the ones from pickup.
    */
   NSInteger currentIndex = [self indexOfElementView:view];
   if (currentIndex != NSNotFound) {
@@ -201,15 +205,15 @@ using namespace facebook::react;
 }
 
 /*
- * Insertion index for the dragged row's centre: the farthest neighbour whose midpoint
- * the centre has crossed, measured against the fixed pickup index.
+ * Where the row would drop. It is the farthest row whose midpoint the dragged row's
+ * center has passed, counted from where it was picked up.
  */
 - (NSInteger)insertionIndexForCenter:(CGFloat)center
 {
   NSInteger insertion = _dragOriginIndex;
   /*
-   * Track the key of the row at the chosen insertion slot so the drop event carries a
-   * stable identity, not just an index. Defaults to the origin (no crossing => no move).
+   * Remember the key at the drop spot so the drop event names a row, not just an index.
+   * If nothing was passed, it stays at the start and nothing moves.
    */
   NSString *insertionKey = _dragOriginKey;
   for (UIView *subview in _contentView.subviews) {
@@ -237,8 +241,7 @@ using namespace facebook::react;
 }
 
 /*
- * Open a one-row gap at the insertion point by shifting the siblings between pickup
- * and insertion by the picked-up row's extent, onto their post-reorder positions.
+ * Open a gap at the drop spot by shifting the rows in between by the dragged row's size.
  */
 - (void)applyDragShuffle
 {
@@ -264,8 +267,8 @@ using namespace facebook::react;
 }
 
 /*
- * After the reorder lands: clear the siblings instantly and animate the dropped row
- * from its release point (_dropReleaseLeading, content space) into its slot.
+ * Once the reorder lands, reset the other rows right away and animate the dropped row
+ * from where it was released into its place.
  */
 - (void)settleDroppedView:(UIView *)view
 {
@@ -300,14 +303,16 @@ using namespace facebook::react;
                    }];
 }
 
-// Reset every element view's drag transform and lift shadow.
+/*
+ * Remove the drag offset and shadow from every row.
+ */
 - (void)clearDragTransforms
 {
   for (UIView *subview in _contentView.subviews) {
     if (![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
     }
-    // Cancel any in-flight drop-settle animation before a fresh pickup.
+    // Stop any drop animation still running before a new pickup.
     [subview.layer removeAllAnimations];
     subview.transform = CGAffineTransformIdentity;
     subview.layer.shadowOpacity = 0.0;
@@ -324,12 +329,9 @@ using namespace facebook::react;
   data.dragEventType_ = (double)type;
   data.dragFromKey_ = fromKey ? std::string(fromKey.UTF8String) : std::string();
   data.dragToKey_ = toKey ? std::string(toKey.UTF8String) : std::string();
-  // Disable scroll corrections during the drag; cleared on the end event (type 3).
+  // Turn off scroll corrections while dragging. The end event, type 3, turns them back on.
   data.userScrolled_ = (type != 3);
-  /*
-   * Built on the mounted state, whose offset lags an auto-scroll that moves the view every
-   * frame: write the live offset, as every other host update does.
-   */
+  // The mounted offset lags behind the auto scroll, so write the live one like every other update.
   [self carryLiveOffsetInto:data];
   [self carryScrollCommandInto:data];
   _state->updateState(std::move(data));
@@ -353,13 +355,13 @@ using namespace facebook::react;
   _draggedView = nil;
 
   /*
-   * Emit the reorder by key; hold the shuffle transforms until the commit lands.
-   * (from/to indices below still drive the visual settle on the live mounted views.)
+   * Send the reorder by key and keep the rows shifted until the commit lands.
+   * The indexes below still drive the settle animation.
    */
   [self dispatchDragEventType:3 fromKey:_dragOriginKey toKey:_dragInsertionKey];
 
   if (from == to || !view) {
-    // Dropped where it started: settle immediately, no commit will move the index.
+    // Dropped where it started, so no commit will come. Settle now.
     [self clearDragTransforms];
     _dragDropPending = NO;
     _droppedView = nil;
@@ -369,17 +371,16 @@ using namespace facebook::react;
     _dropInsertionIndex = to;
 
     /*
-     * Poll for the landing: a same-size reorder may publish no new state, so detect
-     * the dropped row's index reaching its slot directly.
+     * Check each frame for the landing. A reorder of same size rows may not publish
+     * new state, so watch for the row's index to reach its new spot.
      */
     [_dropSettleLink invalidate];
     _dropSettleLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
     [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
     /*
-     * Safety net: clear the held transforms if the reorder never lands. The token
-     * invalidates this block if a newer drop supersedes it, so a stale timer can't tear
-     * down a fresh drag's settle.
+     * Fallback if the reorder never lands. The token stops an old timer from
+     * clearing a newer drop.
      */
     NSInteger settleToken = ++_dropSettleToken;
     __weak ShadowListView *weakSelf = self;
@@ -398,8 +399,8 @@ using namespace facebook::react;
 }
 
 /*
- * Per-frame after a drop: wait for the dropped row's index to reach its slot, then
- * animate it into place. Self-stops once handled.
+ * After a drop, wait each frame for the row to reach its new index, then animate it
+ * into place and stop.
  */
 - (void)dropSettleTick
 {
@@ -409,7 +410,7 @@ using namespace facebook::react;
     return;
   }
   if (_droppedView == nil) {
-    // Dropped row unmounted off-screen: nothing to settle visually.
+    // The dropped row went off screen and unmounted, so there is nothing to animate.
     [self clearDragTransforms];
     _dragDropPending = NO;
     [_dropSettleLink invalidate];
@@ -426,7 +427,9 @@ using namespace facebook::react;
   }
 }
 
-// Immediate teardown with no reorder (view recycle / drag disabled).
+/*
+ * Stop everything without a reorder, when the view is recycled or drag is turned off.
+ */
 - (void)teardownDrag
 {
   [_dragDisplayLink invalidate];
@@ -445,11 +448,8 @@ using namespace facebook::react;
 #pragma mark - Accessibility
 
 /*
- * VoiceOver alternative to the long-press gesture: while dragEnabled, every row gets
- * "Move up"/"Move down" custom actions; removed again when disabled. The action handlers
- * are looked up live (indexOfElementView:/keyOfElementView:) at invocation time rather than
- * capturing the row's index/key here, so a data change between mount and activation can't
- * make the action stale.
+ * For VoiceOver, give each row Move up and Move down actions while drag is on.
+ * The handlers read the row's index and key when used, so data changes never leave them stale.
  */
 - (void)applyDragAccessibilityActionsToView:(UIView *)view
 {
@@ -476,9 +476,8 @@ using namespace facebook::react;
 }
 
 /*
- * Commit a one-step reorder with the adjacent mounted row (closest lower index for "up",
- * closest higher index for "down"), via the same dispatchDragEventType:3 commit path a real
- * drag drop uses, so JS's existing onDragEnd/useDragReorder handling applies unchanged.
+ * Swap the row with the nearest mounted row above or below. It goes through the same
+ * path as a real drop, so onDragEnd and useDragReorder handle it as usual.
  */
 - (BOOL)performAccessibilityMove:(UIView *)view up:(BOOL)up
 {

@@ -21,8 +21,8 @@ export interface AssistantEmptyProps {
 }
 
 /*
- * Render it over the list rather than as ListEmptyComponent: the list's content size never
- * includes the empty template, so with no rows Android clips it out of view.
+ * Drawn over the list instead of as ListEmptyComponent. The list's content size never
+ * counts the empty template, so with no rows Android clips it out of view.
  */
 export const AssistantEmpty = memo(
   ({ suggestions, onSelectSuggestion, labels, style }: AssistantEmptyProps) => {
@@ -33,7 +33,8 @@ export const AssistantEmpty = memo(
     return (
       <View style={[styles.container, style]}>
         <View style={styles.mark}>
-          <SparkleIcon size={28} color={theme.colors.label} />
+          {/* The accent's own foreground on the accent disc, as in the reply header: label was black on blue. */}
+          <SparkleIcon size={28} color={theme.colors.onAccent} />
         </View>
         <Text style={styles.title} accessibilityRole="header">
           {l.emptyTitle}

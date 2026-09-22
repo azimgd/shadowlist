@@ -32,9 +32,8 @@ export type OnDragStart = {
 
 export type OnDragEnd = {
   /*
-   * Keys of the moved row and its drop-target neighbour. JS resolves each to
-   * a current index against `data` before applying the move, so a data change between
-   * gesture and drop can't reorder the wrong rows.
+   * Keys of the moved row and the row it was dropped next to. JS looks up their current
+   * index before moving, so a data change during the drag can't move the wrong rows.
    */
   fromKey: string;
   toKey: string;
@@ -56,7 +55,7 @@ interface NativeCommands {
   scrollToIndex: (
     viewRef: React.ElementRef<ShadowListViewComponentType>,
     index: CodegenTypes.Int32,
-    // Where the row comes to rest in the viewport: 0 start, 0.5 centre, 1 end.
+    // Where the row ends up on screen. 0 is the start, 0.5 the middle, 1 the end.
     viewPosition: CodegenTypes.Double
   ) => void;
   scrollToOffset: (
@@ -96,6 +95,8 @@ interface NativeProps extends ViewProps {
   snapToAlignment: CodegenTypes.Int32;
   scrollEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
   viewableEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
+  // ShadowListNative only. The native store this list builds its rows from. Empty for a ShadowList.
+  nativeListId?: CodegenTypes.WithDefault<string, ''>;
   readonly onVisibleIndicesChange?: CodegenTypes.DirectEventHandler<OnVisibleIndicesChange>;
   readonly onViewableIndicesChange?: CodegenTypes.DirectEventHandler<OnViewableIndicesChange>;
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;

@@ -15,17 +15,13 @@
 namespace facebook::react {
 
 /*
- * Values of ShadowListViewState::scrollPhase_, mirrored by the Android host's
- * ShadowListView.SCROLL_PHASE_* constants and mapped to ScrollPhase by the component
- * descriptor.
+ * Values of scrollPhase_. Android's ShadowListView.SCROLL_PHASE_* constants must match.
+ * The component descriptor maps them to ScrollPhase.
  */
 constexpr double SCROLL_PHASE_IDLE = 0.0;
 constexpr double SCROLL_PHASE_DRAGGING = 1.0;
 constexpr double SCROLL_PHASE_SETTLING = 2.0;
 
-/*
- * State for <ShadowListView> component.
- */
 class ShadowListViewState final {
 public:
   ShadowListViewState() = default;
@@ -83,9 +79,8 @@ public:
     userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_),
     scrollPhase_(data.count("scrollPhase") ? data["scrollPhase"].getDouble() : previousState.scrollPhase_),
     /*
-     * Sticky section-header geometry is produced by the C++ core (layout pass) and
-     * only ever flows core -> view, so a partial update from the Android view
-     * (e.g. a scroll commit) carries it forward unchanged.
+     * Sticky header geometry only comes from the core, so a partial update from
+     * the Android view, like a scroll commit, carries it over unchanged.
      */
     stickyHeaderIndices_(previousState.stickyHeaderIndices_),
     stickyHeaderOffsets_(previousState.stickyHeaderOffsets_),
@@ -93,15 +88,17 @@ public:
     snapOffsets_(previousState.snapOffsets_),
     commitToken_(data.count("commitToken") ? (Float)data["commitToken"].getDouble() : previousState.commitToken_),
     /*
-     * Carried from the mounted state, as the iOS host's state copy does: a report echoing a
-     * correction's token keeps the base its first write started from, so a republish of that
-     * correction stays one cumulative delta the host has partly applied already.
+     * Carry the base over from the mounted state, like iOS does. A report that echoes a
+     * correction keeps the base its first write started from, so a republished correction
+     * stays one running delta the host has partly applied.
      */
     containerOffsetBaseX_(previousState.containerOffsetBaseX_),
     containerOffsetBaseY_(previousState.containerOffsetBaseY_),
-    // Row concealment is not enabled on Android (see ShadowListViewShadowNode::layout); carry it.
+    // Android never conceals rows, so just carry these over.
     concealGeneration_(previousState.concealGeneration_),
-    concealGenerationAck_(previousState.concealGenerationAck_) {
+    concealGenerationAck_(previousState.concealGenerationAck_),
+    // Only the core writes this, so carry it over.
+    momentumYieldToken_(previousState.momentumYieldToken_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
       auto stickyHeaderIndices = std::make_shared<std::vector<int>>();
       auto stickyHeaderOffsets = std::make_shared<std::vector<Float>>();
@@ -116,9 +113,8 @@ public:
         stickyHeaderSizes->push_back((Float)value.getDouble());
       }
       /*
-       * Normalise empty back to null, the same way the layout pass publishes it, so a
-       * round trip through the Android renderer cannot hand the shadow node a non-null
-       * empty collection that its pointer comparison would read as a change.
+       * Turn empty back into null like the layout pass does. Otherwise a round trip
+       * through Android hands back an empty list that the pointer check reads as a change.
        */
       stickyHeaderIndices_ = stickyHeaderIndices->empty() ? nullptr : std::move(stickyHeaderIndices);
       stickyHeaderOffsets_ = stickyHeaderOffsets->empty() ? nullptr : std::move(stickyHeaderOffsets);
@@ -133,7 +129,9 @@ public:
     }
   };
 
-  // Serializes the state into folly::dynamic for the Android renderer.
+  /*
+   * Serializes the state into folly::dynamic for the Android renderer.
+   */
   folly::dynamic getDynamic() const {
     folly::dynamic result = folly::dynamic::object;
     result["windowContainerHeight"] = windowContainerHeight_;
@@ -155,7 +153,7 @@ public:
     result["dragFromKey"] = dragFromKey_;
     result["dragToKey"] = dragToKey_;
 
-    // A null pointer means empty; see the member declarations.
+    // A null pointer means empty.
     folly::dynamic stickyHeaderIndices = folly::dynamic::array;
     if (stickyHeaderIndices_) {
       for (auto stickyHeaderIndex : *stickyHeaderIndices_) {
@@ -188,6 +186,7 @@ public:
     result["commitToken"] = commitToken_;
     result["containerOffsetBaseX"] = containerOffsetBaseX_;
     result["containerOffsetBaseY"] = containerOffsetBaseY_;
+    result["momentumYieldToken"] = momentumYieldToken_;
     return result;
   };
 #endif
@@ -199,8 +198,8 @@ public:
   double containerOffsetIndex_{-2.0};
   double containerOffsetIndexSequence_{0.0};
   /*
-   * Where the scrollToIndex command rests its row in the viewport (0 start, 0.5 centre,
-   * 1 end). Carried with containerOffsetIndex_ by the platform views.
+   * Where scrollToIndex places its row in the viewport: 0 start, 0.5 center, 1 end.
+   * The platform views carry it along with containerOffsetIndex_.
    */
   double containerOffsetIndexViewPosition_{0.0};
   double totalContainerHeight_{0.0};
@@ -210,16 +209,13 @@ public:
   bool containerOffsetEnabled_{false};
 
   /*
-   * Drag-to-reorder signalling, written by the platform view as the native gesture
-   * progresses and consumed by the component descriptor to emit the JS onDrag*
-   * events exactly once per change. dragEventSequence_ is bumped on every drag event so
-   * the descriptor can tell a fresh event from a carried-forward one (a plain scroll
-   * commit leaves it unchanged). dragEventType_ is 1=start, 3=end (0=none); there is
-   * no mid-drag event, the finger tracking and shuffle stay native and never reach
-   * JS. dragFromKey_/dragToKey_ carry the keys for that event (the moved row
-   * and its drop-target neighbour): JS resolves them against the current data
-   * so an edit between gesture and drop can't reorder the wrong rows. Declared before
-   * userScrolled_ so the Android constructor's member-init order matches.
+   * Drag to reorder. The platform view writes these as the gesture goes, and the
+   * component descriptor fires each JS drag event once. The sequence goes up on every
+   * drag event so a fresh event looks different from a carried one. The type is 1 for
+   * start, 3 for end and 0 for none. Finger tracking stays native, so there is no
+   * event in between. The keys name the moved row and its drop neighbor, and JS looks
+   * them up in the current data so an edit mid drag can't move the wrong rows.
+   * Keep these before userScrolled_ to match the Android constructor's init order.
    */
   double dragEventSequence_{0.0};
   double dragEventType_{0.0};
@@ -227,97 +223,83 @@ public:
   std::string dragToKey_{};
 
   /*
-   * True when the offset in this state came from a genuine user scroll gesture,
-   * false when it is the view's resting position or an offset the core itself
-   * applied. The core uses it to abandon an in-flight scroll correction the moment
-   * the user takes over (see Virtualizer::update / FrameInput::userScrolled), so a
-   * transient maintain-visible-content-position nudge cannot latch and freeze the
-   * virtualization window. The integrations set it from the platform drag state.
+   * True when this offset came from the user scrolling, false when it is the resting
+   * position or an offset the core wrote. The core drops a pending correction as soon
+   * as the user takes over, so a short keep in place nudge can't get stuck and freeze
+   * the window. The platforms set it from their drag state.
    */
   bool userScrolled_{false};
 
   /*
-   * The live gesture phase the host last reported: SCROLL_PHASE_IDLE,
-   * SCROLL_PHASE_DRAGGING (a finger is down) or SCROLL_PHASE_SETTLING (momentum is
-   * running). Unlike userScrolled_, which describes where THIS offset came from, the
-   * phase persists across the commits that land between touch frames, so the core can
-   * tell "a finger is still on the list" on a frame whose offset did not move (see
-   * FrameInput::scrollPhase). A double like the other scalar fields. Declared after
-   * userScrolled_ so the Android constructor's member-init order matches.
+   * The gesture phase the host last reported: idle, dragging with a finger down, or
+   * settling with momentum. Unlike userScrolled_ it lasts across commits between touch
+   * frames, so the core can tell a finger is still down even when the offset didn't move.
+   * Keep it after userScrolled_ to match the Android constructor's init order.
    */
   double scrollPhase_{0.0};
 
   /*
-   * Sticky section-header geometry along the scroll axis, produced by the core's
-   * layout pass (one entry per sticky section header, ascending by index). The
-   * integrations pin the active header on the UI thread per scroll frame from this,
-   * so the per-frame pin never reads a
-   * (possibly transformed) view frame. Empty for a plain list. Declared after
-   * scrollPhase_ so the Android constructor's member-init order matches.
+   * Sticky header positions along the scroll axis from the layout pass, one entry per
+   * sticky header in index order, empty for a plain list. The platforms pin the active
+   * header from these each scroll frame, so they never read a view frame that may be
+   * transformed. Keep them after scrollPhase_ to match the Android constructor's init order.
    *
-   * HELD BY POINTER, NOT BY VALUE. State is copied constantly -- adopt() copies it once
-   * per commit, layout() again, and the iOS scroll delegate once per scroll frame on the
-   * main thread -- while these collections change only when the element geometry moves.
-   * By value, snapOffsets_ alone (one entry per row, see Container::getSnapOffsets) meant
-   * copying a 100k-element vector several times per frame for a large snapping list.
-   * Shared, immutable and refcounted, a state copy is a few atomic increments, and the
-   * "did this change?" test the layout pass runs every frame becomes a pointer comparison
-   * instead of an O(rows) element-wise one.
+   * These lists are held by pointer on purpose. State gets copied every commit, every
+   * layout and every iOS scroll frame, but the lists change only when rows move. Copying
+   * snap offsets by value meant copying a 100k entry vector several times a frame.
+   * A shared pointer makes a copy cheap and makes the change check a pointer compare.
    *
-   * A NULL pointer means empty; readers must treat the two as identical. Nothing mutates
-   * a pointee after it is published, so sharing one across state copies (and across
-   * threads) is safe.
+   * A null pointer means empty, and readers must treat both the same. Nothing changes a
+   * list after it is published, so sharing it across copies and threads is safe.
    */
   std::shared_ptr<const std::vector<int>> stickyHeaderIndices_{};
   std::shared_ptr<const std::vector<Float>> stickyHeaderOffsets_{};
   std::shared_ptr<const std::vector<Float>> stickyHeaderSizes_{};
 
   /*
-   * Resting snap offsets along the scroll axis (DIP), produced by the core's layout
-   * pass. Empty unless snapToItem is set. The integrations snap the native scroll
-   * view's landing position to the nearest of these. Held by pointer for the reason
-   * above -- this is the collection that made it necessary.
+   * Snap points along the scroll axis from the layout pass, empty unless snapToItem is
+   * set. The platforms land the scroll on the nearest one. Held by pointer, see above.
    */
   std::shared_ptr<const std::vector<Float>> snapOffsets_{};
 
   /*
-   * Commit token: the id of the in-flight offset correction. Core -> view it rides on
-   * the applied offset; view -> core it is echoed back so the core recognises its own
-   * write exactly (by id), instead of by a pixel-distance heuristic. 0 = no correction
-   * / a host-originated report. Carried as a double to match the other scalar state
-   * fields; the integer id never approaches double's exact-integer range in practice.
-   * Declared after snapOffsets_ so the Android constructor's member-init order matches.
+   * The id of the pending offset correction. The core sends it with the offset and the
+   * view echoes it back, so the core knows its own write by id instead of guessing by
+   * distance. Zero means no correction or a report from the host. Stored as a double like
+   * the other fields. Keep it after snapOffsets_ to match the Android constructor's init order.
    */
   double commitToken_{0.0};
 
   /*
-   * The offset the core started from when the layout pass published a correction: the
-   * reported offset in the state it read. containerOffsetX_/Y_ minus this is the
-   * correction as a delta. A commit can mount frames after the report it was built on,
-   * and a view still moving on its own has travelled on by then; writing the absolute
-   * offset throws that travel away and the content jumps. Both hosts apply the delta to
-   * the live offset instead while the view is moving (a finger dragging, momentum, the iOS
-   * scroll-to-top animation) and for an operation correction computed from a gesture report.
-   * Meaningful only on a state whose containerOffsetEnabled_ the layout pass set. Host
-   * reports carry the mounted state's value (the Android partial-update constructor copies
-   * it). Declared after commitToken_ so the Android constructor's member-init order matches.
+   * The offset the core started from when it published a correction. The container
+   * offset minus this is the correction as a delta. A commit can mount frames after the
+   * report it was built on, and a moving view has gone further by then, so writing the
+   * absolute offset would make the content jump. While the view moves, both hosts add the
+   * delta to the live offset instead, and also for an operation correction made from a
+   * gesture report. Only meaningful when containerOffsetEnabled_ is set. Host reports
+   * carry the mounted value. Keep it after commitToken_ to match the Android init order.
    */
   double containerOffsetBaseX_{0.0};
   double containerOffsetBaseY_{0.0};
 
   /*
-   * Row concealment handshake (see ShadowListViewGeometryCache::concealedRows).
-   *
-   * concealGeneration_ flows core -> view: the generation of the newest concealment the layout
-   * pass published, 0 when no row is concealed. concealGenerationAck_ flows view -> core: the
-   * concealGeneration_ of the mounted state a host report was built on. A report acking a
-   * generation proves the host mounted that state, and with it the offset correction the
-   * concealment waits for. The layout pass copies the ack through untouched, so it never claims
-   * more than the host has mounted. Declared after containerOffsetBaseY_ so the Android
-   * constructor's member-init order matches.
+   * Handshake for hiding rows, see ShadowListViewGeometryCache::concealedRows.
+   * The core sets the generation of the newest hide it published, or 0 when nothing is
+   * hidden. The host echoes back the generation of the state it mounted, which proves the
+   * offset correction the hide waits for is on screen. The layout pass copies the echo
+   * through untouched so it never claims more than the host mounted.
+   * Keep these after containerOffsetBaseY_ to match the Android constructor's init order.
    */
   double concealGeneration_{0.0};
   double concealGenerationAck_{0.0};
+
+  /*
+   * The commit token of a scroll command issued in C++, like a ShadowListNative
+   * scrollToIndex, or 0 when none. A host mounting that correction stops momentum first
+   * and then writes the offset, just like its own scroll commands do.
+   * Keep it after concealGenerationAck_ to match the Android constructor's init order.
+   */
+  double momentumYieldToken_{0.0};
 };
 
 }

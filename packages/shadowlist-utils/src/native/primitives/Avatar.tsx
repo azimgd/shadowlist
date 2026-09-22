@@ -13,7 +13,7 @@ import { getAvatarColor, getInitials } from './avatarAppearance';
 export interface AvatarProps {
   name: string;
   uri?: string;
-  // Defaults to a color derived from `name` (theme.colors.avatarPalette).
+  // Defaults to a color from theme.colors.avatarPalette picked by name.
   color?: string;
   size?: number;
   style?: StyleProp<ViewStyle>;
@@ -40,7 +40,11 @@ export const Avatar = memo(
         importantForAccessibility="no-hide-descendants"
       >
         {/* Initials stay underneath, so they show while the image loads or when it fails. */}
-        <Text style={[styles.initials, { fontSize: Math.floor(size * 0.43) }]}>
+        <Text
+          style={[styles.initials, { fontSize: Math.floor(size * 0.43) }]}
+          allowFontScaling={false}
+          numberOfLines={1}
+        >
           {getInitials(name)}
         </Text>
         {uri ? (

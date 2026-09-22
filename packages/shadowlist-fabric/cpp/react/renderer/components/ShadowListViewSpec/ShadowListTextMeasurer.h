@@ -24,60 +24,21 @@
 namespace facebook::react {
 
 /*
- * AHEAD-OF-TIME ROW MEASUREMENT
- *
- * A row's height is normally discovered the expensive way: JS renders it, Fabric commits
- * it, Yoga lays it out, and only then does the core learn that its estimate was wrong and
- * reflow every row after it -- possibly moving the scroll offset to keep the anchor pinned.
- * On a variable-height list that correction runs continuously for the whole scroll.
- *
- * The height was knowable all along. `TextLayoutManager::measure` is a pure function of
- * (AttributedString, ParagraphAttributes, LayoutConstraints): it takes no shadow node, no
- * view, and no JS, so the same number can be computed for a row that does not exist yet.
- * Feeding it to the core as a prediction (Container::predictedSizes) means geometry is
- * correct from the first frame instead of converging over the scroll.
- *
- * WHY THIS IS NOT A SECOND MEASUREMENT
- *
- * TextLayoutManager caches results, and -- this is the part that makes the whole scheme pay
- * for itself -- the cache key deliberately ignores node identity. TextMeasureCacheKey's
- * equality and hash go through `areAttributedStringsEquivalentLayoutWise` /
- * `attributedStringHashLayoutWise`, which look only at each fragment's string and its
- * layout-affecting text attributes. `parentShadowView.tag` is not part of the key.
- *
- * So an AttributedString built here from scratch, with no shadow node behind it, hits the
- * very same cache entry that the real ParagraphShadowNode will ask for when the row is
- * finally rendered. The measurement happens once; we simply move it off the commit critical
- * path and onto the frame that had the information first.
- *
- * That only holds while we and RN share one TextLayoutManager instance -- see
- * getSharedTextLayoutManager below for why that is best-effort rather than guaranteed, and
- * why a miss costs performance rather than correctness.
- *
- * WHAT CANNOT BE PREDICTED
- *
- * Inline attachments (an image or view embedded in text) are the documented exception: their
- * fragments compare on `parentShadowView.layoutMetrics`, which does not exist before layout.
- * A spec is skipped rather than guessed at when the row cannot be described by text alone,
- * and the core falls back to its ordinary estimate for that row -- predicted and unpredicted
- * rows coexist by design.
+ * Measures row text before the row renders, so its height is right from the first frame
+ * instead of being fixed up while the user scrolls.
+ * TextLayoutManager caches by text and text style only, not by node. So the real paragraph
+ * hits the same cache entry later and the text is still measured once.
+ * That only works while we share RN's TextLayoutManager. If we don't, the size is still
+ * right and the row just measures twice.
+ * Text with inline images or views can't be predicted. Skip those rows and the core uses
+ * its usual estimate.
  */
 
 /*
- * Resolve the TextLayoutManager to measure through, preferring the one RN's own Paragraph
- * descriptor uses so our measurements and its share a cache.
- *
- * RN looks its instance up with `getManagerByName<TextLayoutManager>(contextContainer,
- * TextLayoutManagerKey)`, which returns whatever is stored under that key and otherwise
- * CONSTRUCTS A FRESH ONE -- and nothing in React Native ever stores it. So by default every
- * descriptor that asks ends up with a private instance and a private cache.
- *
- * Publishing ours under the same key fixes that for every descriptor constructed after this
- * point, which is why this runs from a descriptor constructor rather than lazily at measure
- * time. Whether we win the race against ParagraphComponentDescriptor's own construction is
- * not guaranteed and deliberately not depended on: if we lose, our prediction is still the
- * correct size and the row's real measurement simply misses the cache and computes it a
- * second time. The cost of losing is one text layout, not a wrong row.
+ * Finds a TextLayoutManager to share with RN's paragraph descriptor so both use one cache.
+ * RN never stores its own and builds a new one on each lookup, so we store ours under RN's key.
+ * This runs from a descriptor constructor so later descriptors pick it up. If RN's paragraph
+ * descriptor was built first, text is measured twice but the size is still right.
  */
 inline std::shared_ptr<const TextLayoutManager> getSharedTextLayoutManager(
   const std::shared_ptr<const ContextContainer>& contextContainer) {
@@ -147,17 +108,9 @@ inline std::string optionalString(const folly::dynamic& object, const char* name
 }
 
 /*
- * Parse the `elementsSizeSpecs` prop.
- *
- * The prop is a JSON string rather than a codegen'd array of objects for one reason: the
- * whole point of the feature is to describe rows the host has NOT rendered, so the shape is
- * open-ended and host-specific, and a schema baked into the native spec would have to be
- * revised every time somebody's row layout gained a field. Parsing is guarded by a props
- * pointer comparison at the call site, so an unchanged window costs nothing.
- *
- * Malformed input yields fewer specs, never an exception: a prediction is an optimization,
- * and a host that ships a bad spec should get an unpredicted (estimated) row, not a list
- * that fails to commit.
+ * Parses the elementsSizeSpecs prop. It is a JSON string so its shape can grow without
+ * changing the native spec. Bad input just gives fewer specs and those rows fall back to
+ * estimates, never a thrown error.
  */
 inline std::vector<ShadowListElementSizeSpec> parseElementSizeSpecs(const std::string& json) {
   std::vector<ShadowListElementSizeSpec> specs;
@@ -191,7 +144,7 @@ inline std::vector<ShadowListElementSizeSpec> parseElementSizeSpecs(const std::s
     spec.text = shadowlist::detail::optionalString(entry, "text");
     spec.fontFamily = shadowlist::detail::optionalString(entry, "fontFamily");
     spec.fontWeight = shadowlist::detail::optionalString(entry, "fontWeight");
-    // TextStyle['fontWeight'] also admits numbers (700); normalize them to the string form.
+    // fontWeight can also be a number like 700, so turn it into a string.
     if (auto* fontWeight = entry.get_ptr("fontWeight"); fontWeight != nullptr && fontWeight->isNumber()) {
       spec.fontWeight = std::to_string(static_cast<int>(fontWeight->asDouble()));
     }
@@ -216,11 +169,8 @@ inline std::vector<ShadowListElementSizeSpec> parseElementSizeSpecs(const std::s
 }
 
 /*
- * Measure one spec into the size the core should carry for that row.
- *
- * `availableWidth` is the list's own width: rows fill it, so that is the constraint the
- * text wraps under, minus whatever chrome the spec declares. The height is unconstrained --
- * measuring is exactly the question "how tall does this become".
+ * Measures one spec into the row size the core should use.
+ * Text wraps in the list width minus the spec's insets, with no height limit.
  */
 inline azimgd::shadowlist::Size measureElementSizeSpec(
   const TextLayoutManager& textLayoutManager,
@@ -265,10 +215,8 @@ inline azimgd::shadowlist::Size measureElementSizeSpec(
   fragment.string = spec.text;
   fragment.textAttributes = textAttributes;
   /*
-   * `parentShadowView` is left default-constructed on purpose. It exists so the mounting
-   * layer can find the node a fragment came from, and it is excluded from the measure
-   * cache key for non-attachment fragments -- which is precisely what lets this
-   * node-less AttributedString share a cache entry with the real one.
+   * Leave parentShadowView empty on purpose. The cache key ignores it, which lets this
+   * string share a cache entry with the real paragraph.
    */
   attributedString.appendFragment(std::move(fragment));
 

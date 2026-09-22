@@ -3,6 +3,7 @@ import {
   initialMountedRange,
   rangeToIndices,
   shouldReseedFromOffsetIndex,
+  unionRangeIndices,
 } from '../virtualizer/mountedRange';
 import { SHADOWLIST_OVERSCAN } from '../virtualizer/helpers';
 
@@ -42,7 +43,7 @@ describe('initialMountedRange', () => {
   });
 
   it("seeds the window from the caller's overscanRows, not a fixed constant", () => {
-    // A feed of full-screen cards mounts one row of runway, not ten.
+    // A feed of full screen cards mounts one row ahead, not ten.
     expect(initialMountedRange(1000, 2, false, 400, 1)).toEqual({
       low: 399,
       high: 402,
@@ -50,8 +51,8 @@ describe('initialMountedRange', () => {
   });
 
   /*
-   * A centred or end-aligned jump fills the viewport with the rows BEFORE the target, so
-   * seeding forwards only leaves that half blank until native reports the new window.
+   * A jump centered or aligned to the end shows the rows before the target, so mounting only
+   * forward would leave that half blank until native reports.
    */
   it('seeds behind the target in proportion to viewPosition', () => {
     const centred = initialMountedRange(1000, 20, false, 400, 4, 0.5);
@@ -68,8 +69,8 @@ describe('initialMountedRange', () => {
   });
 
   /*
-   * initialMountedRange is exported from the package root, so a caller written against the
-   * four-argument form must not get a NaN range (which mounts nothing at all).
+   * initialMountedRange is public, so old callers passing four arguments must not get a NaN
+   * range, which mounts nothing.
    */
   it('falls back to the default overscan when the caller omits it', () => {
     expect(initialMountedRange(1000, 20, false, 400)).toEqual(
@@ -88,8 +89,10 @@ describe('initialMountedRange', () => {
 });
 
 describe('shouldReseedFromOffsetIndex', () => {
-  // The case that rendered a chat blank: the target arrives one render after mount, and
-  // without a reseed the viewport sits on rows React never rendered.
+  /*
+   * This left a chat blank. The target arrives one render after mount, and without a
+   * rebuild the screen sits on rows React never rendered.
+   */
   it('reseeds when a target arrives after mount', () => {
     expect(shouldReseedFromOffsetIndex(-2, 340)).toBe(true);
     expect(shouldReseedFromOffsetIndex(-1, 340)).toBe(true);
@@ -107,5 +110,37 @@ describe('shouldReseedFromOffsetIndex', () => {
   // Turning the target off must not drag a reader who has scrolled away back to it.
   it('does not reseed when the target is cleared', () => {
     expect(shouldReseedFromOffsetIndex(340, -2)).toBe(false);
+  });
+});
+
+describe('unionRangeIndices', () => {
+  it('keeps the rows on screen mounted next to a far scroll target', () => {
+    expect(
+      unionRangeIndices({ low: 2, high: 5 }, { low: 40, high: 42 })
+    ).toEqual([2, 3, 4, 5, 40, 41, 42]);
+    expect(
+      unionRangeIndices({ low: 40, high: 42 }, { low: 2, high: 5 })
+    ).toEqual([2, 3, 4, 5, 40, 41, 42]);
+  });
+
+  it('merges ranges that overlap or touch into one run', () => {
+    expect(unionRangeIndices({ low: 2, high: 6 }, { low: 5, high: 8 })).toEqual(
+      [2, 3, 4, 5, 6, 7, 8]
+    );
+    expect(unionRangeIndices({ low: 2, high: 4 }, { low: 5, high: 6 })).toEqual(
+      [2, 3, 4, 5, 6]
+    );
+    expect(unionRangeIndices({ low: 0, high: 9 }, { low: 3, high: 4 })).toEqual(
+      rangeToIndices({ low: 0, high: 9 })
+    );
+  });
+
+  it('ignores an empty range', () => {
+    expect(
+      unionRangeIndices({ low: -1, high: -1 }, { low: 3, high: 4 })
+    ).toEqual([3, 4]);
+    expect(
+      unionRangeIndices({ low: 3, high: 4 }, { low: -1, high: -1 })
+    ).toEqual([3, 4]);
   });
 });

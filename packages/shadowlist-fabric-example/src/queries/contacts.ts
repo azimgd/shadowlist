@@ -10,8 +10,8 @@ import {
 } from '../api/contacts';
 
 /*
- * Contacts and Section List read this one cached query, so a contact deleted on either
- * screen is already gone on the other, without a refetch.
+ * Contacts and Section List share this cached query, so a contact deleted on one screen is
+ * already gone on the other, without a refetch.
  */
 const contactsKey = ['contacts'] as const;
 
@@ -20,8 +20,8 @@ export const useContactsQuery = () =>
     queryKey: contactsKey,
     queryFn: ({ signal }) => fetchContacts(signal),
     /*
-     * Rows keep their identity when contacts are added or removed around them, so only the
-     * rows that changed re-render; the default sharing matches rows by position.
+     * Rows keep their identity when contacts are added or removed around them, so only changed
+     * rows re-render. The default sharing matches rows by position.
      */
     structuralSharing: shareItemsById,
   });
@@ -82,8 +82,8 @@ export function useReorderFavorites() {
     onError: (_error, _ordered, context) =>
       queryClient.setQueryData(favoritesKey, context?.previous),
     /*
-     * Resync once the last drag of a burst has settled. Refetching after an earlier one
-     * could return an order that a later, still-saving drag has already replaced.
+     * Resync once the last drag in a burst has settled. Refetching after an earlier drag could
+     * return an order that a later drag, still saving, has already replaced.
      */
     onSettled: () => {
       if (queryClient.isMutating({ mutationKey: reorderFavoritesKey }) === 1) {

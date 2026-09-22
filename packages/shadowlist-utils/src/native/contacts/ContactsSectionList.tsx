@@ -25,7 +25,7 @@ export type ContactsSectionListProps = SectionListProps<
 > &
   ContactRowOptions;
 
-// Module scope: the separator is part of every row's content, so a new element per render would rebuild every mounted row.
+// Kept at module scope. Every row includes the separator, so a new element each render would rebuild every mounted row.
 const ITEM_SEPARATOR = <ItemSeparator />;
 
 const renderContactSectionHeader = ({
@@ -37,19 +37,32 @@ const renderContactSectionHeader = ({
 export const ContactsSectionList = forwardRef<
   ShadowListCommands,
   ContactsSectionListProps
->(({ renderElement, onPressItem, onDelete, labels, ...props }, ref) => {
-  const renderContactRow = useContactRowRenderer({
-    onPressItem,
-    onDelete,
-    labels,
-  });
-  return (
-    <SectionList
-      ref={ref}
-      renderElement={renderElement ?? renderContactRow}
-      renderSectionHeader={renderContactSectionHeader}
-      ItemSeparatorComponent={ITEM_SEPARATOR}
-      {...props}
-    />
-  );
-});
+>(
+  (
+    {
+      renderElement,
+      onPressItem,
+      onDelete,
+      disclosureIndicator,
+      labels,
+      ...props
+    },
+    ref
+  ) => {
+    const renderContactRow = useContactRowRenderer({
+      onPressItem,
+      onDelete,
+      disclosureIndicator,
+      labels,
+    });
+    return (
+      <SectionList
+        ref={ref}
+        renderElement={renderElement ?? renderContactRow}
+        renderSectionHeader={renderContactSectionHeader}
+        ItemSeparatorComponent={ITEM_SEPARATOR}
+        {...props}
+      />
+    );
+  }
+);

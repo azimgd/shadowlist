@@ -20,8 +20,8 @@ interface UseDragReorderResult {
 }
 
 /*
- * Drag-to-reorder: force-mounts the picked-up row while it is off-screen and applies a
- * single array move on drop, handing the result to onReorder.
+ * Drag to reorder. Keeps the dragged row mounted while it's off screen, and on drop moves
+ * it in the array and passes the result to onReorder.
  */
 export function useDragReorder<ElementT>({
   data,
@@ -31,32 +31,29 @@ export function useDragReorder<ElementT>({
   onReorder,
 }: UseDragReorderOptions<ElementT>): UseDragReorderResult {
   /*
-   * Resolve a data key to its current index in `data` (-1 if gone). Native
-   * identifies drag rows by key; we map back to an index against the live data here so a
-   * data change between the gesture and the drop reorders the right rows, not stale ones.
+   * Find a key's current index in data, or -1 if it's gone. Native sends keys, so a data
+   * change during the drag still moves the right rows.
    */
   const indexOfKey = useCallback(
     (key: string) => keyToIndex.get(key) ?? -1,
     [keyToIndex]
   );
   /*
-   * Key of the picked-up row (not its index): a data mutation mid-gesture (insert/remove
-   * before the dragged row) must not leave the force-mount pointed at a stale index, so we
-   * track identity and re-resolve the index below on every render, the same way
-   * handleDragEnd re-resolves from/to keys on drop.
+   * Key of the dragged row, not its index. An insert or remove during the drag would make an
+   * index stale, so look the index up again on every render, like handleDragEnd does on drop.
    */
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
 
   /*
-   * Current index of the picked-up row, re-resolved against live `data` whenever it
-   * changes identity (-1 if the key is no longer present, e.g. it was removed mid-drag).
+   * Current index of the dragged row, looked up again whenever data changes. -1 if the row
+   * was removed during the drag.
    */
   const draggingIndex = useMemo(
     () => (draggingKey === null ? -1 : indexOfKey(draggingKey)),
     [draggingKey, indexOfKey]
   );
 
-  // Union the picked-up row's index into the rendered set so it stays mounted.
+  // Add the dragged row to the rendered set so it stays mounted.
   const renderIndices = useMemo(() => {
     if (
       draggingIndex < 0 ||
@@ -68,17 +65,14 @@ export function useDragReorder<ElementT>({
     return [...mountedIndices, draggingIndex].sort((a, b) => a - b);
   }, [mountedIndices, draggingIndex, data.length]);
 
-  /*
-   * Pickup: keep the picked-up row mounted; data order is unchanged. Resolve the key to
-   * its current index for the force-mount union.
-   */
+  // On pickup, keep the row mounted. The data order doesn't change yet.
   const handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never> =
     useCallback((event) => {
       const { key } = event.nativeEvent;
       setDraggingKey(key);
     }, []);
 
-  // Drop: resolve the from/to keys to current indices and apply one array move.
+  // On drop, look up both keys and move the row once.
   const handleDragEnd: CodegenTypes.DirectEventHandler<OnDragEnd, never> =
     useCallback(
       (event) => {
@@ -97,10 +91,10 @@ export function useDragReorder<ElementT>({
       [data, onReorder, indexOfKey]
     );
 
-  // Release draggingKey if dragging is disabled mid-gesture (drop event may be lost).
+  // Clear draggingKey if dragging is turned off mid drag, since the drop event may never come.
   useEffect(() => {
     if (!dragEnabled) {
-      setDraggingKey((prev) => (prev === null ? prev : null));
+      setDraggingKey((previous) => (previous === null ? previous : null));
     }
   }, [dragEnabled]);
 

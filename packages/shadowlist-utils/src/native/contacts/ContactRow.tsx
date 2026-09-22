@@ -27,6 +27,8 @@ export interface ContactRowProps {
   onPress?: (item: ContactItem) => void;
   // Enables swipe-to-delete and the matching accessibility action.
   onDelete?: (id: string) => void;
+  // Chevron on pressable rows. Turn it off next to a section index.
+  disclosureIndicator?: boolean;
   labels?: Partial<ContactsLabels>;
   style?: StyleProp<ViewStyle>;
   avatarStyle?: StyleProp<ViewStyle>;
@@ -41,6 +43,7 @@ interface RowContentProps {
   item: ContactItem;
   onPress?: () => void;
   isPressable: boolean;
+  disclosureIndicator: boolean;
   onDelete?: () => void;
   deleteLabel?: string;
   style?: StyleProp<ViewStyle>;
@@ -51,6 +54,7 @@ const RowContent = ({
   item,
   onPress,
   isPressable,
+  disclosureIndicator,
   onDelete,
   deleteLabel,
   style,
@@ -86,7 +90,7 @@ const RowContent = ({
       onAccessibilityAction={handleAccessibilityAction}
     >
       <ContactBody contact={item} avatarStyle={avatarStyle} />
-      {isPressable ? (
+      {isPressable && disclosureIndicator ? (
         <ChevronIcon
           direction="right"
           color={theme.colors.tertiaryLabel}
@@ -102,6 +106,7 @@ const RowContent = ({
 const StaticContactRow = ({
   item,
   onPress,
+  disclosureIndicator = true,
   style,
   avatarStyle,
 }: Omit<ContactRowProps, 'onDelete' | 'labels'>) => {
@@ -111,6 +116,7 @@ const StaticContactRow = ({
       item={item}
       onPress={onPress !== undefined ? handlePress : undefined}
       isPressable={onPress !== undefined}
+      disclosureIndicator={disclosureIndicator}
       style={style}
       avatarStyle={avatarStyle}
     />
@@ -121,6 +127,7 @@ const SwipeableContactRow = ({
   item,
   onPress,
   onDelete,
+  disclosureIndicator = true,
   labels,
   style,
   avatarStyle,
@@ -194,6 +201,7 @@ const SwipeableContactRow = ({
             item={item}
             onPress={handlePress}
             isPressable={onPress !== undefined}
+            disclosureIndicator={disclosureIndicator}
             onDelete={handleDelete}
             deleteLabel={deleteLabel}
             style={style}
@@ -212,6 +220,7 @@ export const ContactRow = memo((props: ContactRowProps) =>
     <StaticContactRow
       item={props.item}
       onPress={props.onPress}
+      disclosureIndicator={props.disclosureIndicator}
       style={props.style}
       avatarStyle={props.avatarStyle}
     />

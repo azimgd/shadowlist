@@ -8,7 +8,9 @@ ShadowList is a monorepo with one shared list-virtualization engine and the Reac
   Shared C++ virtualization engine used by every integration.
 
 - `shadowlist`
-  React Native Fabric list component.
+  React Native Fabric list components: `ShadowList`, `SectionList`, `TreeList`, `DraggableList`
+  and `ShadowListNative` (rows built natively from templates, see
+  [SHADOWLIST_NATIVE.md](packages/shadowlist-fabric/SHADOWLIST_NATIVE.md)).
 
 ## Repo Layout
 

@@ -1,12 +1,13 @@
 /*
- * An in-memory table standing in for a server-side collection. Rows are kept in display
- * order, each with a numeric cursor that grows toward the end and shrinks toward the start.
- * A cursor stays valid while rows are inserted or deleted around it, so paging never skips
- * or repeats a row and the list never receives a duplicate key -- which offset pagination
- * would do the moment someone publishes above the page a reader has loaded.
+ * An in-memory table standing in for a server collection. Rows are kept in display order, each
+ * with a number cursor that grows toward the end and shrinks toward the start. Cursors stay
+ * valid while rows are added or removed around them, so paging never skips or repeats a row.
+ * Offset paging would, the moment someone posts above the page a reader has loaded.
  */
 
-// Where a page starts: right after a row's cursor, or right before it.
+/*
+ * Where a page starts, right after a row's cursor or right before it.
+ */
 export type PageCursor = { after: number } | { before: number };
 
 export interface CursorPage<ItemT> {
@@ -15,7 +16,9 @@ export interface CursorPage<ItemT> {
   previousCursor?: number;
 }
 
-// getNextPageParam / getPreviousPageParam for any CursorPage endpoint.
+/*
+ * getNextPageParam / getPreviousPageParam for any CursorPage endpoint.
+ */
 export function nextPageCursor(
   page: CursorPage<unknown>
 ): PageCursor | undefined {
@@ -57,7 +60,9 @@ export class Collection<ItemT extends { id: string }> {
     return this.rows;
   }
 
-  // First index whose row matches, or the row count when none does.
+  /*
+   * The first index whose row matches, or the row count if none does.
+   */
   private indexWhere(match: (row: Row<ItemT>) => boolean): number {
     const index = this.table().findIndex(match);
     return index === -1 ? this.table().length : index;
@@ -68,8 +73,8 @@ export class Collection<ItemT extends { id: string }> {
   }
 
   /*
-   * One page. Without a cursor it is the first `limit` rows (`from: 'start'`, a feed) or the
-   * last `limit` rows (`from: 'end'`, a chat opening on its newest messages).
+   * One page. Without a cursor it is the first limit rows when from is start, as for a feed, or
+   * the last limit rows when from is end, as for a chat opening on its newest messages.
    */
   page(
     cursor: PageCursor | undefined,
@@ -130,7 +135,9 @@ export class Collection<ItemT extends { id: string }> {
     this.rows = this.table().filter((row) => !removed.has(row.item.id));
   }
 
-  // The updated row, or undefined when `id` is gone.
+  /*
+   * The updated row, or undefined when id is gone.
+   */
   update(id: string, update: (item: ItemT) => ItemT): ItemT | undefined {
     const row = this.table().find((candidate) => candidate.item.id === id);
     if (!row) return undefined;
@@ -138,7 +145,9 @@ export class Collection<ItemT extends { id: string }> {
     return row.item;
   }
 
-  // Rewrites the order to `ids`, which lists every row.
+  /*
+   * Reorders the rows to match ids, which lists every row.
+   */
   reorder(ids: ReadonlyArray<string>): void {
     const byId = new Map(this.table().map((row) => [row.item.id, row.item]));
     this.rows = ids.flatMap((id, index) => {

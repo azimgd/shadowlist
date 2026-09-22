@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { ChevronIcon, DocIcon, FolderIcon } from '../icons';
 import { useLabels } from '../labels';
+import { useLargeText } from '../internal/useLargeText';
 import { createStyles, useTheme } from '../theme';
 import { defaultTreeLabels, type TreeLabels } from './labels';
 import type { TreeNode } from './types';
@@ -21,7 +22,7 @@ export interface TreeRowProps {
   onToggle: () => void;
   // Called for rows without children; rows with children toggle instead.
   onPress?: (item: TreeNode) => void;
-  // Replaces the folder/file glyph.
+  // Replaces the folder or file icon.
   icon?: ReactNode;
   labels?: Partial<TreeLabels>;
   style?: StyleProp<ViewStyle>;
@@ -41,6 +42,7 @@ export const TreeRow = memo(
   }: TreeRowProps) => {
     const theme = useTheme();
     const styles = useStyles();
+    const largeText = useLargeText();
     const l = useLabels(defaultTreeLabels, labels);
     const isFolder =
       (item.kind ?? (item.children ? 'folder' : 'file')) === 'folder';
@@ -82,7 +84,7 @@ export const TreeRow = memo(
           {icon ??
             (isFolder ? <FolderIcon size={20} /> : <DocIcon size={18} />)}
         </View>
-        <Text style={styles.name} numberOfLines={1}>
+        <Text style={styles.name} numberOfLines={largeText ? undefined : 1}>
           {item.name}
         </Text>
         {isFolder && item.children ? (
@@ -98,7 +100,8 @@ const useStyles = createStyles((theme) =>
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      height: 44,
+      minHeight: 44,
+      paddingVertical: theme.spacing.xs,
       paddingRight: theme.spacing.lg,
       backgroundColor: theme.colors.background,
     },

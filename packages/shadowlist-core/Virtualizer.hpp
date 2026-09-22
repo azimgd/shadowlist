@@ -14,17 +14,12 @@
 namespace azimgd::shadowlist {
 
 /*
- * Description of a single frame: inputs are read, resulting layout is written
- * back to the container.
+ * Everything the host sends for one frame. The resulting layout goes back into the container.
  */
 struct FrameInput {
   /*
-   * The frame's ordered row keys. An integration that already owns an immutable key
-   * vector for the commit (Fabric's Props) should point `keysRef` at it instead of
-   * filling `keys`: the core only reads the keys during the synchronous update() call,
-   * so copying the whole collection into every frame costs one allocation per row for
-   * keys long enough to spill the small-string buffer, for nothing. `keys` remains the
-   * owning path for standalone drivers and tests. Use keyList() to read either.
+   * Row keys in order. If the host already holds them, like Fabric props, point keysRef at them
+   * instead of copying, since keys are only read during update. Tests fill keys. Read with keyList.
    */
   std::vector<std::string> keys;
   const std::vector<std::string>* keysRef = nullptr;
@@ -34,17 +29,10 @@ struct FrameInput {
   }
 
   /*
-   * Set only by an integration that can prove these are the very same keys the previous
-   * completed update() consumed: not "probably the same", but the same immutable
-   * collection, kept alive across both calls so its address cannot have been reused.
-   * Fabric can: a scroll clones the shadow node with a new state and the same props
-   * object, and props are immutable.
-   *
-   * The core otherwise compares every key against every element on every commit to
-   * decide whether to reconcile. That comparison is correct but dataset-sized, and it is
-   * the last O(N) step left on an ordinary scroll frame. When this flag is set the core
-   * trusts it and skips straight past reconciliation. A false positive would leave the
-   * core's element list out of step with the data, so leave it false when in any doubt.
+   * Set only when these are provably the same key list the last update used, the very same
+   * object kept alive in between. Fabric can tell because a scroll reuses the same props.
+   * It lets us skip comparing every key on a scroll frame. Getting it wrong puts the rows out
+   * of step with the data, so leave it false if in doubt.
    */
   bool keysUnchanged = false;
 
@@ -56,21 +44,17 @@ struct FrameInput {
   double footerSize = 0.0;
   bool inverted = false;
   /*
-   * Whether an inverted list resting at its bottom scrolls onto rows appended below the
-   * newest one (an assistant conversation). Off, an append keeps the rows on screen where
-   * they are, like any other insert (a chat receiving messages while the reader reads).
+   * Whether an inverted list at the bottom scrolls to show appended rows, like an assistant chat.
+   * When off, appends keep the visible rows in place like any other insert.
    */
   bool followAppends = false;
   bool horizontal = false;
   std::size_t columns = 1;
 
-  // Overscan in viewport units (see Container::overscan). 1.0 = one viewport on each side.
+  // Extra rows past the viewport, in viewport sizes. 1 means one screen on each side.
   double overscan = 1.0;
 
-  /*
-   * Element indices that pin to the viewport start once scrolled past (ascending).
-   * Empty for a plain list.
-   */
+  // Sorted indexes of rows that stick to the top once scrolled past. Empty for a plain list.
   std::vector<std::size_t> stickyIndices;
 
   double startReachedThreshold = 1.0;
@@ -79,48 +63,34 @@ struct FrameInput {
   std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
 
   /*
-   * Snap the resting scroll position to an element edge. snapAlignment selects which
-   * edge aligns to the viewport: 0 = start, 1 = center, 2 = end. The core only
-   * computes the snap offsets (getSnapOffsets); the scroll view applies them.
+   * Snap the resting position to a row edge. snapAlignment picks it: 0 start, 1 center, 2 end.
+   * The core only works out the offsets, the scroll view does the snapping.
    */
   bool snapToItem = false;
   int snapAlignment = 0;
 
-  /*
-   * Set for a user scroll gesture; abandons any in-flight scroll correction so the
-   * user is not snapped back.
-   */
+  // Set when the user scrolls. Drops any running correction so the user is not pulled back.
   bool userScrolled = false;
 
   /*
-   * True when containerOffsetX/Y came from a core-requested state update that the
-   * host scroll view has not confirmed yet. The core may use the offset for
-   * measurement, but must not treat it as proof that a pending correction arrived.
+   * True when the offset is one we asked for that the scroll view hasn't confirmed yet.
+   * Fine for measuring, but it doesn't prove the correction landed.
    */
   bool containerOffsetEnabled = false;
 
-  /*
-   * The commit token the host echoes back with this scroll report: the id of the
-   * operation whose offset write produced it, or 0 for a report the core did not
-   * cause. Lets the core recognise its own echo exactly instead of by pixel proximity.
-   */
+  // The operation id the host sends back when this report came from our offset write, or 0.
   std::uint64_t commitToken = 0;
 
-  /*
-   * The live gesture phase reported by the host. Dragging/Settling mean a human is
-   * driving (a real takeover); Idle covers programmatic moves and their echoes.
-   */
+  // The current gesture. Dragging and Settling mean the user is scrolling, Idle covers our own moves.
   ScrollPhase scrollPhase = ScrollPhase::Idle;
 
   /*
-   * Keys that must never be auto-captured as the MVCP anchor: decoration rows (date pills,
-   * unread dividers, reaction strips, padding) whose identity churns independently of
-   * content. The core anchors to the nearest stable content row instead, so a key change
-   * on decoration cannot perturb the maintained scroll position.
+   * Keys never used as the anchor, like date pills or unread dividers whose keys come and go.
+   * The nearest real content row is used instead.
    */
   std::vector<std::string> nonAnchorableKeys;
 
-  // Borrowed alternative to nonAnchorableKeys, with the same lifetime rules as keysRef.
+  // Points at the host's list instead of copying it, same rules as keysRef.
   const std::vector<std::string>* nonAnchorableKeysRef = nullptr;
 
   const std::vector<std::string>& nonAnchorableKeyList() const {
@@ -129,114 +99,85 @@ struct FrameInput {
 };
 
 /*
- * Threading contract: a Container may be shared across threads (see Container::coreMutex).
- * Every public method below acquires container->coreMutex on entry, so each is safe to
- * call concurrently on a shared Container and need not be externally locked. The mutex is
- * recursive, so these methods may also be invoked while an integration holds an outer lock
- * across a whole frame, and may call one another, without deadlock. The private helpers
- * assume coreMutex is already held by the public method that called them.
+ * A Container can be shared across threads. Every public method here locks coreMutex, so
+ * they are safe to call from any thread, even while the caller already holds the lock.
+ * Private helpers expect the lock to be held already.
  */
 class Virtualizer {
 public:
   /*
-   * Per-frame entry point: reconcile elements to the incoming keys, measure,
-   * resolve scroll corrections and dispatch observer callbacks.
+   * Runs once per frame. Match rows to the new keys, measure, fix up the scroll offset and fire callbacks.
    */
   static void update(Container* container, const FrameInput& input);
 
   /*
-   * Measure elements for the current revision (orientation/columns aware).
-   * windowFromOffset selects the visible window from the current scroll offset
-   * instead of filling from the edge.
+   * Measure rows for the current revision. With windowFromOffset the window starts at the
+   * current scroll offset instead of the edge of the list.
    */
   static void measure(Container* container, bool windowFromOffset = false);
 
   /*
-   * Recompute total container size from the maximum element extent.
+   * Work out the total content size from the farthest row.
    */
   static void recomputeTotalSize(Container* container);
 
   /*
-   * Reconcile the element list to a new ordered set of keys, preserving the
-   * measured state of surviving elements and creating fresh ones for new keys
+   * Match the rows to a new key list. Existing rows keep their sizes, new keys get new rows.
    */
   static void reconcileElements(Container* container, const std::vector<std::string>& nextKeys);
 
   /*
-   * Update measurements for existing element at specific index, then propagate the
-   * resulting geometry. Equivalent to applyElementSize() followed by commitElementSizes()
-   * when the size actually changed; a size identical to the one already recorded costs
-   * nothing.
+   * Set a row's measured size and move the rows after it. Same as applyElementSize then
+   * commitElementSizes. An unchanged size costs nothing.
    */
   static void updateElementAtIndex(Container* container, std::size_t index, Size size);
 
   /*
-   * Record a natively measured size without reflowing offsets or re-pinning the anchor.
-   * Returns true when the recorded geometry actually changed, i.e. when the suffix from
-   * `index` onward needs to be reflowed.
-   *
-   * A host that feeds back a whole batch of mounted rows in one pass (Fabric's layout)
-   * should call this for each row, track the lowest index that returned true, and then
-   * call commitElementSizes() once. Reflowing per row instead makes a layout with M
-   * mounted rows cost O(M x N) near the start of an N-row list, even when every size is
-   * unchanged.
+   * Save a measured size without moving other rows or the anchor. Returns true if the size changed.
+   * For a batch, call this per row, keep the lowest index that returned true, then call
+   * commitElementSizes once. Reflowing per row gets very slow on long lists.
    */
   static bool applyElementSize(Container* container, std::size_t index, Size size);
 
   /*
-   * Record a host-supplied ahead-of-time size for the row with this key: what it will
-   * measure to once laid out, computed before it was ever rendered.
-   *
-   * Returns the index that needs reflowing, or UNDEFINED_INDEX when nothing moved: the
-   * row does not exist yet (the size is staged for the next reconcile), it has already been
-   * natively measured (a real measurement always wins), or the prediction matched the size
-   * it already carried. As with applyElementSize, a host applying a batch should track the
-   * lowest index returned and call commitElementSizes() once for the whole batch.
-   *
-   * A predicted row is `estimated` (the fallback passes leave it alone) but not `measured`:
-   * it still gets laid out natively when it is revealed, and that measurement supersedes
-   * the prediction.
+   * Save a size the host measured before the row was rendered.
+   * Returns the index to reflow, or UNDEFINED_INDEX when nothing moved. That happens when the row
+   * doesn't exist yet and the size waits for it, when it was already measured and the real size wins,
+   * or when the size is the same. For a batch, keep the lowest index and commit once.
+   * The row still gets measured natively when it shows up, and that replaces the prediction.
    */
   static std::size_t applyPredictedElementSize(Container* container, const std::string& key, Size size);
 
   /*
-   * Drop every prediction, staged and already applied, so predicted rows fall back to
-   * the ordinary estimate and are measured natively again. For when the host's measurements
-   * stop being valid, above all a width change: text wraps to the row width, so every
-   * height measured at the old one is wrong. Natively measured rows are left alone.
+   * Throw away every predicted size, so those rows go back to the estimate until measured.
+   * Use it when predictions go stale, like after a width change rewraps the text.
+   * Rows measured natively keep their sizes.
    */
   static void invalidatePredictions(Container* container);
 
   /*
-   * Propagate geometry after a batch of applyElementSize() calls: reflow offsets from
-   * `fromIndex` and keep the anchored row fixed on screen. Safe to skip entirely when no
-   * applyElementSize() call reported a change.
+   * After a batch of applyElementSize calls, move rows from fromIndex on and keep the anchor
+   * row in place. Skip it if nothing changed.
    */
   static void commitElementSizes(Container* container, std::size_t fromIndex);
 
   /*
-   * Settle a header size change after the offsets were reflowed for it. Call with the header
-   * size the reflow replaced. update() calls it for a header size change in its input; Fabric
-   * measures the header in its layout pass, outside update(), and calls it there. A header wholly scrolled out of view moves the offset with it, so the
-   * rows on screen stay put in this same frame; a header on screen pushes the rows, and the
-   * anchor is moved so no later pass or frame holds them back. Without this, an in-flight
-   * anchor correction re-resolves against the reflowed rows one commit later and the content
-   * jumps by the header change for a frame.
+   * Handle a header size change after rows moved for it. Pass the old header size.
+   * update calls it, and Fabric calls it from its layout pass too. An off screen header moves the
+   * offset with it so the visible rows stay put. A visible header pushes the rows and the anchor
+   * follows. Without this the content jumps for one frame.
    */
   static void applyHeaderSizeChange(Container* container, double previousHeaderSize);
 
   /*
-   * Settle a window (viewport) size change. Call after the new size is set, with the size it
-   * replaced; Fabric applies the window in its layout pass, outside update(). An inverted list
-   * resting at its bottom keeps it: a chat composer growing a line at a time shrinks the
-   * window from the bottom, and plain anchoring holds the row at the viewport top, so the
-   * newest rows would slide under the composer and, a few lines later, the reader would sit
-   * outside the follow band and stop following the messages they send.
+   * Handle a viewport size change. Call after setting the new size, passing the old one.
+   * An inverted list at the bottom stays at the bottom. Otherwise a growing chat composer would
+   * hide the newest messages and the list would stop following new ones.
    */
   static void applyWindowSizeChange(Container* container, double previousWindowSize);
 
   /*
-   * Recompute element offsets starting from a given index (orientation/columns aware).
+   * Recompute row positions starting at fromIndex.
    */
   static void recomputeElementOffsets(
     Container* container,
@@ -245,41 +186,44 @@ public:
 
 private:
   /*
-   * Stamp staged ahead-of-time sizes (Container::predictedSizes) onto the rows that now
-   * exist, consuming each entry. Runs once per frame between reconcile and measure.
+   * Move waiting predicted sizes onto rows that now exist. Runs each frame between reconcile and measure.
    */
   static void consumePredictions(Container* container);
 
   /*
-   * Measure a window of elements from the edge of the list (first revision)
+   * First revision. Measure a window of rows from the edge of the list.
    */
   static void measureFirstRevision(Container* container);
 
   /*
-   * Measure the elements within the visible window plus buffer (subsequent revisions)
+   * Later revisions. Measure the visible rows plus the overscan.
    */
   static void measureNextRevision(Container* container);
 
   /*
-   * Store the measured index range (orientation aware)
+   * Save which rows were measured.
    */
   static void finalizeMeasurement(Container* container, std::size_t measuredMinIndex, std::size_t measuredMaxIndex);
 
   /*
-   * Size unmeasured elements with average dimensions and recompute all offsets
+   * Give unmeasured rows the average size and recompute positions.
    */
   static void layoutElements(Container* container);
 
   /*
-   * Record which element currently sits at the top/left of the viewport and how
-   * far we are scrolled into it, so the position can be restored after a reconcile
+   * Remember the row at the top of the viewport and how far into it we are, to restore after a data change.
    */
   static void captureAnchor(Container* container, double inputOffset);
 
   /*
-   * Apply scroll corrections after measuring: a pending scrollToIndex, the inverted
-   * bottom anchor, otherwise keep the captured anchor element at the same viewport
-   * position. Returns true when the scroll offset was moved.
+   * Backup anchors for the other rows that start inside the viewport. If a data change removes
+   * the anchor row, the next visible row is held in place instead.
+   */
+  static std::vector<Anchor> captureFallbackAnchors(Container* container, double inputOffset);
+
+  /*
+   * Fix up the scroll offset after measuring. Handles scrollToIndex, the inverted bottom pin,
+   * or else keeps the anchor row where it was. Returns true if the offset moved.
    */
   static bool resolveScroll(
     Container* container,

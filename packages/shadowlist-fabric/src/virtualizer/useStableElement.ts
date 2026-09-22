@@ -23,15 +23,11 @@ function shallowEqualProps(a: unknown, b: unknown): boolean {
 }
 
 /*
- * Keeps the previous element while the new one describes the same thing (same component,
- * same key, shallow-equal props).
+ * Keeps the old element while the new one is the same component, key and props.
  *
- * Slot props are written inline at the call site -- `ItemSeparatorComponent={<Separator />}`
- * is the obvious way to pass one -- which hands the list a new element on every render of
- * the caller. That element is part of every row's content, so a new identity rebuilds the
- * whole mounted window even though nothing about the separator changed; on a grouped list
- * this measured as the single largest source of row re-renders. Callers should not have to
- * know that, so the list absorbs it here.
+ * Callers pass elements like the separator inline, which makes a new one every render. It
+ * sits inside every row, so each new one rebuilds all mounted rows. On a grouped list this
+ * was the biggest source of row re-renders, so the list handles it here.
  */
 export function useStableElement(
   element: ReactElement | null

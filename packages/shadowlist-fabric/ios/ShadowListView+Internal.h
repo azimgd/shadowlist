@@ -6,9 +6,8 @@
 #include <vector>
 
 /*
- * Raise a subview above its siblings. UIKit reorders the subview array via
- * bringSubviewToFront:; AppKit has no equivalent, so on macOS the (layer-backed) view's
- * z-position is used instead. Larger zPosition wins; default subviews sit at 0.
+ * Raise a subview above its siblings. UIKit reorders the subviews. AppKit cannot,
+ * so on macOS we set the layer's z position instead. Higher wins and the default is 0.
  */
 static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat zPosition)
 {
@@ -21,30 +20,26 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 }
 
 /*
- * Shared ivars and cross-category methods for ShadowListView. Obj-C++ only.
- *
- * Cross-platform via react-native-macos's RCTUIKit shims (RCTUIView / RCTUIScrollView /
- * RCTUIColor). Features without a clean AppKit equivalent (pull-to-refresh via
- * UIRefreshControl, drag-to-reorder via UILongPressGestureRecognizer + CADisplayLink, and
- * snap-to-item, which needs scroll-end delegate callbacks the macOS shim does not expose)
- * are compiled out on macOS; their scalar state is kept on both platforms so the shared hot
- * paths need no inline guards.
+ * State and methods shared by the ShadowListView categories. Objective-C++ only.
+ * Pull to refresh, drag to reorder and snap to item have no clean macOS version and are
+ * left out there. Their plain state stays on both platforms so shared code needs no guards.
  */
 @interface ShadowListView () <RCTShadowListViewViewProtocol, RCTUIScrollViewDelegate> {
 @package
   facebook::react::ShadowListViewShadowNode::ConcreteState::Shared _state;
   RCTUIScrollView *_scrollView;
+#if !TARGET_OS_OSX
+  // Pan gestures of the scroll views around the list. Their drags also end a row press.
+  NSHashTable<UIPanGestureRecognizer *> *_ancestorPans;
+#endif
   RCTUIView *_contentView;
 
-  /*
-   * Pull-to-refresh: the controlled state and tint kept on both platforms; the control
-   * itself is iOS-only (no AppKit equivalent).
-   */
+  // Pull to refresh state lives on both platforms, but the control itself is iOS only.
   BOOL _refreshEnabled;
   BOOL _refreshing;
   /*
-   * Set when refreshing ends; cleared once the retract spring quiesces, when onRefreshSettle
-   * fires. The token invalidates superseded settle debounces.
+   * Set when refreshing ends and cleared once the spinner has fully retracted and
+   * onRefreshSettle fires. The token cancels older settle timers.
    */
   BOOL _refreshAwaitingSettle;
   NSInteger _refreshSettleToken;
@@ -53,16 +48,16 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   UIColor *_refreshColor;
 #endif
 
-  // Sticky header/footer pinned to the viewport each scroll frame.
+  // Sticky header and footer, pinned again on every scroll.
   BOOL _stickyHeader;
   BOOL _stickyFooter;
   BOOL _horizontal;
-  // View snapping: enabled flag and the core's resting snap offsets along the scroll axis.
+  // Snap to item, and the offsets from the core where scrolling can come to rest.
   BOOL _snapToItem;
   std::vector<double> _snapOffsets;
   /*
-   * Auto-hide header/footer: how far each is currently slid away, and the previous
-   * offset used to derive the scroll delta.
+   * Auto hide header and footer. How far each has slid away, and the last offset
+   * so we can tell how far the user scrolled.
    */
   BOOL _autoHideHeader;
   BOOL _autoHideFooter;
@@ -72,69 +67,67 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   __weak RCTUIView *_stickyHeaderView;
   __weak RCTUIView *_stickyFooterView;
 
-  // Active section-header overlay and the in-flow section-header geometry it pins to.
+  // The pinned section header overlay and where each section header sits in the list.
   std::vector<int> _stickyHeaderIndices;
   std::vector<double> _stickyHeaderOffsets;
   std::vector<double> _stickyHeaderSizes;
   __weak RCTUIView *_sectionHeaderOverlay;
 
   /*
-   * An echo is expected from a core offset we applied (and it actually moved the view),
-   * so the next scroll report is that echo rather than a user scroll. _armedToken is the
-   * commit token of that correction, echoed back to the core so it matches its own write.
-   * Classification is by causality (we caused the move), not pixel proximity.
+   * Set when we applied an offset from the core and it moved the view, so the next
+   * scroll report is our own move and not the user. _armedToken goes back to the core
+   * so it can match the report to its correction. We decide by who moved it, not by distance.
    */
   CGPoint _appliedOffset;
   BOOL _hasAppliedOffset;
   uint64_t _armedToken;
-  // The token of the last correction whose echo was reported, carried on later reports.
+  // Token of the last correction we reported back. Later reports carry it too.
   uint64_t _echoedToken;
   /*
-   * Whether the last state update this view published described a gesture (a user scroll or a
-   * dragging/settling phase). The mounted state lags behind the published one, so it cannot
-   * tell whether the rest report still has to go out (see clearUserScrolled).
+   * Whether our last published state was a gesture, like a user scroll, drag or settle.
+   * The mounted state lags behind, so it cannot tell us if the rest report is still due.
+   * See clearUserScrolled.
    */
   BOOL _publishedGesture;
   /*
-   * The last operation correction shifted onto the moving view: its commit token and the
-   * correction already applied for it. A retarget of the same token shifts only the rest.
+   * The last correction we shifted onto a moving view and how much of it we applied.
+   * If the same token comes back with a new target, shift only the difference.
    */
   uint64_t _shiftedToken;
   CGFloat _shiftedTokenDelta;
   /*
-   * Set when a scroll report goes out while updateState: runs, so updateState: knows whether a
-   * state that conceals rows has been acked already (see reportConcealedRowsMounted).
+   * The last scroll command from the engine that we stopped momentum for.
+   * Matches momentumYieldToken_.
+   */
+  uint64_t _yieldedToken;
+  /*
+   * Set when a scroll report goes out during updateState:, so it knows a state that hides
+   * rows was already acknowledged. See reportConcealedRowsMounted.
    */
   BOOL _reportedDuringStateUpdate;
 
   /*
-   * Set while updateState writes the core's content size. A smaller content size clamps the
-   * offset, and UIKit reports the clamp through scrollViewDidScroll synchronously; nobody
-   * scrolled, so that report must not reach the core as a user scroll (which would end the
-   * inverted list's opening pin and cancel in-flight corrections).
+   * Set while updateState writes the content size. A smaller size clamps the offset and
+   * UIKit reports that as a scroll right away. Nobody scrolled, so it must not reach the
+   * core as a user scroll, or it would unpin an inverted list and cancel corrections.
    */
   BOOL _applyingContentSize;
 
   /*
-   * The last scroll command (scrollToIndex / scrollToEnd) this view issued, carried on every
-   * state update it writes (carryScrollCommandInto:). Each update copies the mounted state,
-   * which can predate a command still on its way to the core: a scroll report copied in that
-   * window would write the previous sequence back over the command, and the core would never
-   * see it. _commandSequence is 0 until the first command.
+   * The last scrollToIndex or scrollToEnd we issued, copied into every state update.
+   * Updates start from the mounted state, which may not have the command yet, and would
+   * otherwise overwrite it before the core sees it. The sequence is 0 until the first command.
    */
   double _commandIndex;
-  // Carried with _commandIndex: where scrollToIndex wants its row in the viewport.
+  // Where scrollToIndex wants its row on screen. Sent along with _commandIndex.
   double _commandViewPosition;
   double _commandSequence;
 
   /*
-   * Status-bar scroll-to-top (iOS only), animated here rather than by UIKit. UIKit's
-   * animation writes absolute offsets every frame, so each correction the core makes in
-   * flight (rows above measured, the header resizing) is wiped out on the next frame and
-   * the content jumps. This animation reads the live offset and scales the remaining
-   * distance instead, and while it runs a core correction is applied as a delta on the
-   * live offset (see ShadowListViewState::containerOffsetBaseX_). _scrollToTopProgress is
-   * the eased progress already travelled.
+   * Status bar tap to scroll to top, iOS only. We animate it ourselves because UIKit
+   * writes fixed offsets each frame and wipes out core corrections, so content jumps.
+   * Ours works from the live offset, and corrections are added on top of it.
+   * See ShadowListViewState::containerOffsetBaseX_. Progress is how far it has eased so far.
    */
 #if !TARGET_OS_OSX
   CADisplayLink *_scrollToTopLink;
@@ -143,20 +136,18 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   CFTimeInterval _scrollToTopStartTime;
   CGFloat _scrollToTopProgress;
   /*
-   * A long scroll-to-top first jumps to one viewport below the top and animates only the
-   * rest. The jump waits until the rows at its target are mounted (see
-   * landScrollToTopJumpIfReady), so it never shows a blank viewport. _scrollToTopJumpY is
-   * the target, retargeted by core corrections computed against it; _scrollToTopJumpToken
-   * is the latest such correction's commit token, echoed back when the jump lands.
+   * A long scroll to top first jumps to one screen below the top and animates the rest.
+   * The jump waits for the rows there to mount so we never show a blank screen.
+   * See landScrollToTopJumpIfReady. Core corrections can move the target, and the latest
+   * correction token goes back to the core when the jump lands.
    */
   BOOL _scrollToTopJumpPending;
   CGFloat _scrollToTopJumpY;
   uint64_t _scrollToTopJumpToken;
 
   /*
-   * Drag-to-reorder (iOS only): the gesture, per-frame driver, picked-up/dropped views and
-   * settle poller are UIKit-specific; the scalar drag state below is shared so the mount and
-   * state hot paths compile unchanged on macOS (where a drag never begins).
+   * Drag to reorder is iOS only. The gesture and animation parts are UIKit, but the plain
+   * drag state is shared so mount and state code compile on macOS, where a drag never starts.
    */
   BOOL _dragEnabled;
 #if !TARGET_OS_OSX
@@ -168,70 +159,71 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 #endif
   BOOL _dragging;
   /*
-   * Where the row was picked up and where its centre currently sits; the siblings
-   * between them are shuffled to open a gap. The indices drive the visual shuffle on the
-   * live mounted views; the KEYS below are the identity emitted to JS on drop.
+   * Where the row was picked up and where its center is now. Rows in between shift to
+   * open a gap. The indexes move the views, and the keys below are what JS gets on drop.
    */
   NSInteger _dragOriginIndex;
   NSInteger _dragInsertionIndex;
   /*
-   * Keys for the picked-up row and the current drop-target neighbour, emitted
-   * in the drag events so JS reorders by identity.
+   * Keys of the picked up row and its current drop neighbor, sent in drag events
+   * so JS reorders by key.
    */
   NSString *_dragOriginKey;
   NSString *_dragInsertionKey;
-  // Size of the picked-up row along the scroll axis (the shuffle offset).
+  // Size of the picked up row along the scroll axis. Other rows shift by this much.
   CGFloat _draggedExtent;
-  // Distance from the row's leading edge to the touch point.
+  // Distance from the row's leading edge to the finger.
   CGFloat _dragGrabOffset;
-  // Latest touch location in viewport coordinates.
+  // Latest touch point on screen.
   CGPoint _dragTouchInViewport;
   // After a drop, hold the shuffle until the reorder commit lands, then clear it.
   BOOL _dragDropPending;
   NSInteger _dropInsertionIndex;
   /*
-   * Content-space leading of the dragged row at release, so it animates into its
-   * resting slot rather than snapping.
+   * Where the dragged row starts in the content when released, so it can animate
+   * into place instead of snapping.
    */
   CGFloat _dragLeading;
   CGFloat _dropReleaseLeading;
-  // Invalidates a superseded drop safety-net timer so a stale drop can't tear down a newer one.
+  // Cancels an older drop fallback timer so it cannot tear down a newer drop.
   NSInteger _dropSettleToken;
 }
 
-// Index from an element view's props, or NSNotFound for a non-element view.
+// The row index from a row view's props, or NSNotFound for other views.
 - (NSInteger)indexOfElementView:(RCTUIView *)view;
 
-// Data key from an element view's props, or nil for a non-element view.
+/*
+ * The data key from a row view's props, or nil for other views.
+ */
 - (NSString *)keyOfElementView:(RCTUIView *)view;
 
-// Re-pin sticky/auto-hide views; accumulate is YES only on genuine user scrolls.
+// Pin the sticky and auto hide views again. Pass YES only for real user scrolls.
 - (void)applyStickyTransforms:(BOOL)accumulate;
 
-// Writes the live offset (and the last echoed token) into a state update built from the mounted state.
+// Copy the live offset and the last reported token into a state update.
 - (void)carryLiveOffsetInto:(facebook::react::ShadowListViewShadowNode::ConcreteState::Data&)stateData;
 
-// Writes the last scroll command into a state update built from the mounted state.
+// Copy the last scroll command into a state update.
 - (void)carryScrollCommandInto:(facebook::react::ShadowListViewShadowNode::ConcreteState::Data&)stateData;
 
 #if !TARGET_OS_OSX
-// Drag-to-reorder, driven from mount/state/recycle.
+// Drag to reorder, called from mount, state updates and recycling.
 - (void)handleDragGesture:(UILongPressGestureRecognizer *)gesture;
 - (void)updateDrag;
 - (void)applyDragShuffle;
 - (void)clearDragTransforms;
 - (void)teardownDrag;
-// Animate the just-dropped row from its release point into its resting slot.
+// Animate the dropped row from where it was released into its place.
 - (void)settleDroppedView:(UIView *)view;
 
 /*
- * VoiceOver alternative to the long-press gesture: installs/removes "Move up"/"Move down"
- * custom actions on a row view depending on dragEnabled.
+ * For VoiceOver users, add or remove Move up and Move down actions on a row,
+ * depending on dragEnabled.
  */
 - (void)applyDragAccessibilityActionsToView:(UIView *)view;
 /*
- * Commits a one-step reorder with the adjacent mounted row via the same path a drag drop
- * uses (dispatchDragEventType:3); returns NO if there is no such neighbour.
+ * Swap the row with its neighbor the same way a drop does. Returns NO if there is
+ * no neighbor.
  */
 - (BOOL)performAccessibilityMove:(UIView *)view up:(BOOL)up;
 #endif

@@ -2,10 +2,9 @@ import { useCallback, useSyncExternalStore } from 'react';
 import type { AssistantTurn } from './types';
 
 /*
- * The store holds turns while they stream. The list's `data` is committed once when a reply
- * starts and once when it ends; in between, only the streaming row reads from here
- * (useStreamingTurn). A token therefore costs one row render and no list work at all: no
- * new data identity, no key re-extraction, no measure-spec rebuild.
+ * Holds turns while they stream. The list data changes once when a reply starts and once
+ * when it ends. In between only the streaming row reads from here, so a token costs one
+ * row render and no list work.
  */
 export interface AssistantStreamStore {
   subscribe: (listener: () => void) => () => void;
@@ -38,8 +37,8 @@ export function createStreamStore(): AssistantStreamStore {
 }
 
 /*
- * Every mounted reply subscribes, but useSyncExternalStore re-renders only a row whose own
- * snapshot changed, so a flush wakes exactly one row.
+ * Every mounted reply subscribes, but only the row whose snapshot changed re-renders,
+ * so a flush wakes one row.
  */
 export function useStreamingTurn(
   store: AssistantStreamStore,
