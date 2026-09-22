@@ -14,8 +14,10 @@ const compat = new FlatCompat({
   allConfig: js.configs.all,
 });
 
-// Single repo-wide flat config: React Native preset + Prettier, applied across
-// every workspace.
+/*
+ * Single repo-wide flat config: React Native preset + Prettier, applied across
+ * every workspace.
+ */
 export default defineConfig([
   {
     extends: fixupConfigRules(compat.extends('@react-native', 'prettier')),
@@ -42,6 +44,7 @@ export default defineConfig([
       '**/metro.config.js',
       '**/react-native.config.js',
       '**/jest.config.js',
+      'scripts/**/*.mjs',
       'eslint.config.mjs',
       'packages/shadowlist-fabric-example/index.js',
       'packages/shadowlist-fabric/scripts/',
