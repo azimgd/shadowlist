@@ -26,7 +26,7 @@ type ShelfRow = NestedItem | CarouselShelfItem;
 const INITIAL_CARDS = 30;
 const PAGE_CARDS = 8;
 
-// The carousel keeps its horizontal position when scrolled far away; other shelves remount at card 0.
+// The carousel keeps its scroll position when far off screen. Other shelves remount at the first card.
 const PERSISTENT_KEYS = [CAROUSEL_SHELF_ID];
 
 const HEADER = (
@@ -65,12 +65,12 @@ export const NestedScreen = () => {
   useHeaderActions({
     onPrepend: () => {
       request(() => createCarouselCards(PAGE_CARDS, 'New')).then((created) =>
-        setCards((prev) => [...created, ...prev])
+        setCards((previous) => [...created, ...previous])
       );
     },
     onAppend: () => {
       request(() => createCarouselCards(PAGE_CARDS, 'Fare')).then((created) =>
-        setCards((prev) => [...prev, ...created])
+        setCards((previous) => [...previous, ...created])
       );
     },
     onScrollToRandom: () =>

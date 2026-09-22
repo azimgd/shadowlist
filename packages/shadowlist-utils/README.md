@@ -295,8 +295,8 @@ export function AssistantScreen() {
         onFinish: (turn) => {
           setStreaming(false);
           // Commit the final turn to data once. Remove it from the store after that render.
-          list.setData((prev) =>
-            prev.map((m) =>
+          list.setData((previous) =>
+            previous.map((m) =>
               m.id === reply.id && m.role === 'assistant'
                 ? { ...m, variants: [turn] }
                 : m

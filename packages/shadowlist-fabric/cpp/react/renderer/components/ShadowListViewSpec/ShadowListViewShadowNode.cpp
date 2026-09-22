@@ -14,9 +14,8 @@ namespace facebook::react {
 namespace {
 
 /*
- * Rows are concealed only on hosts that ack the generation of the state they mounted (see
- * ShadowListViewState::concealGenerationAck_). The Android host merges its reports onto the
- * newest state rather than the mounted one, so it cannot make that claim and never conceals.
+ * Only hide rows on hosts that echo back the generation of the state they mounted.
+ * Android merges its reports onto the newest state instead, so it never hides rows.
  */
 #ifdef __APPLE__
 constexpr bool CONCEAL_UNSETTLED_ROWS = true;
@@ -24,15 +23,12 @@ constexpr bool CONCEAL_UNSETTLED_ROWS = true;
 constexpr bool CONCEAL_UNSETTLED_ROWS = false;
 #endif
 
-/*
- * Layout passes a row may stay concealed through before it is revealed regardless. Every pass
- * is a commit, so this only matters when corrections keep landing without settling.
- */
+// Show a hidden row anyway after this many layout passes, in case corrections never settle.
 constexpr std::size_t MAX_CONCEALED_LAYOUT_PASSES = 8;
 
 /*
- * Parse `opacity: 0` onto a row's props, through the parse-from-raw path (props are not
- * copy-constructible). Null without a ContextContainer.
+ * Build the row's props with opacity 0. Props can't be copied, so parse them from raw.
+ * Returns null without a ContextContainer.
  */
 std::shared_ptr<const Props> concealedPropsForRow(const ShadowNode& rowShadowNode) {
   const auto contextContainer = rowShadowNode.getContextContainer();
@@ -52,10 +48,7 @@ ShadowListViewShadowNode::ShadowListViewShadowNode(
   const ShadowNode& sourceShadowNode,
   const ShadowNodeFragment& fragment) :
   ConcreteViewShadowNode(sourceShadowNode, fragment) {
-  /*
-   * Carry the shared core instances forward from the source so every clone of a
-   * list shares one Container, freed when the node family dies.
-   */
+  // Share the source's core so every clone of a list uses one Container.
   const auto& source = static_cast<const ShadowListViewShadowNode&>(sourceShadowNode);
   this->containerManager_ = source.containerManager_;
   this->geometryCache_ = source.geometryCache_;
@@ -79,42 +72,29 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   }
   std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
-  /*
-   * Release the children retained by the previous layout: the commit that recorded their
-   * raw pointers in affectedNodes completed long ago (see replacedChildren_).
-   */
+  // The commit that held raw pointers to these children is long done, so let them go.
   this->replacedChildren_.clear();
 
   /*
-   * Identify and measure template views (header/footer/empty)
+   * Find and measure the header, footer and empty templates.
    *
-   * affectedNodes is NOT this node's scratch space: ShadowTree::commit() allocates it
-   * once per commit for the WHOLE surface and passes it down through the entire
-   * recursive Yoga layout, then fires onLayout afterward for every node it collects
-   * (see YogaLayoutableShadowNode::layout, which appends here rather than clearing).
-   * Clearing it wipes every sibling/ancestor's entry recorded earlier in this same
-   * commit, silently dropping their onLayout. It is also documented as nullable
-   * (LayoutContext.h) and every other call site in the framework guards it before use
-   * -- do the same below instead of dereferencing unconditionally.
+   * Warning: affectedNodes belongs to the whole surface for this commit, and onLayout fires
+   * for everything in it afterward. Never clear it, or other nodes lose their onLayout.
+   * It can also be null, so check it before use like the rest of the framework does.
    */
 
   std::shared_ptr<const ShadowNode> headerNode = nullptr;
   std::shared_ptr<const ShadowNode> footerNode = nullptr;
   /*
-   * The sticky section-header overlay (SectionList): an always-mounted template
-   * whose content is the active section's header. Unlike a normal header it reserves
-   * NO list space (it floats over the content), so it never contributes to
-   * headerSize / total size or shifts element offsets; it is positioned at the
-   * origin and pinned to the viewport entirely natively (see the integrations),
-   * exactly like the regular sticky header. This is what keeps section headers
-   * smooth: the pinned view is never virtualized, so it has no commit-cycle remount
-   * latency.
+   * The SectionList sticky header overlay, an always mounted template showing the
+   * current section's header. It floats over the content and takes no list space, so it
+   * never changes sizes or row offsets. It sits at the origin and the platform pins it.
+   * Since it is never virtualized, it never waits on a remount, which keeps it smooth.
    */
   std::shared_ptr<const ShadowNode> sectionHeaderNode = nullptr;
   /*
-   * Kept separate from headerNode: ShadowList mounts `header` and `empty` at the same
-   * time when data is empty, so folding empty into the header would overwrite the real
-   * header's node and size.
+   * Separate from headerNode because an empty list mounts both the header and the
+   * empty template, and sharing one slot would overwrite the real header.
    */
   std::shared_ptr<const ShadowNode> emptyNode = nullptr;
   double headerSize = 0.0;
@@ -122,9 +102,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   bool horizontal = getConcreteProps().horizontal;
 
   /*
-   * One classification pass over the children. Element rows are collected here with the
-   * core index their key currently resolves to, so the two passes below (measurement
-   * intake, then placement) never repeat the dynamic_pointer_cast or the key lookup.
+   * Sort the children once. Rows are stored with their current core index so the two
+   * passes below don't repeat the cast or the key lookup.
    */
   struct MountedElement {
     std::size_t childIndex;
@@ -136,10 +115,9 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   for (std::size_t childIndex = 0; childIndex < getChildren().size(); ++childIndex) {
     if (const auto elementViewProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(getChildren()[childIndex]->getProps())) {
       /*
-       * Resolve the mounted view to its CURRENT core element by key: a child committed
-       * before a prepend/insert/reorder carries a stale index. findElementIndexByKey
-       * returns the row's live position, or UNDEFINED_INDEX if the key is gone (drop the
-       * frame for it). Fall back to the index only when no key is supplied.
+       * Look the row up by key, since a child committed before a prepend, insert or
+       * reorder has an old index. Skip it if the key is gone. Use the index only when
+       * there is no key.
        */
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
@@ -176,16 +154,11 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
-   * Apply the freshly measured header/footer AND the actual window (viewport) size to
-   * the core now and reflow the element offsets in this same pass. update() runs from
-   * adopt in the commit phase, before this node has been laid out, so it sees a zero
-   * frame on the first render: a multi-column list then sizes every column to
-   * windowWidth/columns == 0 (collapsed masonry), and a static, non-sticky header
-   * overlaps the first rows. The corrected frame only reaches update() on a LATER
-   * commit (e.g. a scroll), and the high-water visible band suppresses the re-render
-   * that might trigger one, so a static list stays broken until the user scrolls.
-   * Applying the real values here makes the first layout correct on its own. The next
-   * Virtualizer::update reads the header/footer back from the core, so they carry over.
+   * Give the core the measured header, footer and window size now and reflow the rows.
+   * update() runs before this node is laid out, so on the first render it sees a zero
+   * frame. Masonry columns then collapse to zero width and a plain header covers the
+   * first rows, and nothing fixes it until the user scrolls. Doing it here makes the
+   * first layout right. The next update() reads these values back from the core.
    */
   const auto& windowFrameSize = getLayoutMetrics().frame.size;
   bool layoutInputsChanged =
@@ -203,39 +176,27 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     this->containerManager_->revision.windowContainerHeight = windowFrameSize.height;
     azimgd::shadowlist::Virtualizer::recomputeElementOffsets(this->containerManager_.get(), 0);
     /*
-     * update() for this commit ran with the previous header size, so its anchor correction
-     * does not know the rows just moved. Settle the header change now: publishing the offset
-     * it computed would show the rows shifted by the change until the next commit resolved
-     * the correction again (a one-frame jump when a loading spinner in the header toggles
-     * with a prepend).
+     * update() ran with the old header size and doesn't know the rows moved. Settle the
+     * header change now, or the rows jump for one frame, like when a header spinner
+     * toggles during a prepend.
      */
     azimgd::shadowlist::Virtualizer::applyHeaderSizeChange(this->containerManager_.get(), previousHeaderSize);
     // A chat resting at its bottom keeps it as the composer resizes the list.
     azimgd::shadowlist::Virtualizer::applyWindowSizeChange(this->containerManager_.get(), previousWindowSize);
 
     /*
-     * The header/footer/window just changed, which reflowed every element offset (e.g.
-     * the header measured one commit late shifts all rows down by its size). The
-     * reflow alone does not move the scroll view, so without reasserting the offset
-     * the host leaves contentOffset stale and the list appears scrolled past the header
-     * (or, with a sticky header pinned at the top, the first rows sit under it). Mark
-     * the offset corrected so this commit publishes applyContainerOffset and the host
-     * reasserts the core's resting offset (0 on first open). The MVCP header-size
-     * compensation keeps that resting offset correct, so this reassert is a no-op while
-     * the user is scrolled (it reapplies the current offset) and only matters on the
-     * header-measurement/resize commits.
+     * Every row just moved, but the scroll view didn't. Without writing the offset again
+     * the list looks scrolled past the header, or the first rows sit under a sticky one.
+     * Mark it corrected so the host writes the core's offset, 0 on first open. While the
+     * user is scrolled this just writes the current offset again.
      */
     this->containerManager_->containerOffsetCorrected = true;
   }
 
   /*
-   * Pass 1: intake. Hand the core every mounted row's freshly measured size BEFORE any
-   * position is read, and reflow the affected suffix exactly once.
-   *
-   * applyElementSize only records a size and reports whether the geometry moved; one
-   * commitElementSizes from the lowest changed row then reflows the suffix, so a layout
-   * with M mounted rows costs one reflow rather than M. Every row is positioned from
-   * geometry that already accounts for all of this pass's measurements.
+   * First pass: give the core every mounted row's new size before reading any position.
+   * applyElementSize only records the size, then one commitElementSizes reflows from the
+   * lowest changed row, so there is one reflow per layout instead of one per row.
    */
   std::size_t lowestChangedIndex = azimgd::shadowlist::UNDEFINED_INDEX;
   for (const auto& mounted : mountedElements) {
@@ -250,10 +211,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
     if (this->containerManager_->columns > 1) {
       /*
-       * A multi-column row's cross-axis extent is owned by the track layout
-       * (recomputeElementOffsets forces it to the track size), not by measurement. Keep
-       * the core's value for that axis and take only the scroll-axis measurement,
-       * otherwise every frame reports a cross size the very next reflow overwrites.
+       * In a multi column list the column sets the row's cross size, not the measurement.
+       * Keep the core's value for that axis and only take the scroll axis size.
        */
       const auto& element = this->containerManager_->getElementAtIndex(mounted.elementIndex);
       if (horizontal) {
@@ -278,28 +237,23 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     azimgd::shadowlist::Virtualizer::commitElementSizes(this->containerManager_.get(), lowestChangedIndex);
   }
 
-  /*
-   * Refresh the total once now that the measured sizes for this batch of children
-   * have been fed back, instead of rescanning the whole list per measured child.
-   * The footer position below and the published content size depend on it.
-   */
+  // Update the total size once for the whole batch. The footer and content size need it.
   azimgd::shadowlist::Virtualizer::recomputeTotalSize(this->containerManager_.get());
 
   auto& geometry = *this->geometryCache_;
 
   /*
-   * Row concealment (see ShadowListViewGeometryCache::concealedRows). The correction this pass
-   * publishes is final by now: resolveStateUpdate below only reads it.
+   * Row hiding, see ShadowListViewGeometryCache::concealedRows. The correction this pass
+   * publishes is final here, resolveStateUpdate below only reads it.
    */
   const auto& inputStateData = getStateData();
   bool correcting = this->containerManager_->containerOffsetCorrected;
   auto concealAck = static_cast<std::uint64_t>(inputStateData.concealGenerationAck_);
 
   /*
-   * A correction anchored to a row keeps that row still only once the host mounts it. Rows
-   * before the anchor measured for the first time in this cycle are what moved it; conceal
-   * them. A fixed-offset correction (bottom pin, scroll to end) has no anchor row and conceals
-   * nothing. The anchor is the one commitElementSizes compensates for.
+   * A correction keeps its anchor row still only once the host mounts it. Hide the newly
+   * measured rows above the anchor, since they are what moved it. A fixed offset
+   * correction, like pinning to the bottom, has no anchor and hides nothing.
    */
   std::size_t concealBeforeIndex = 0;
   if (CONCEAL_UNSETTLED_ROWS && correcting && !this->firstMeasuredTags_.empty()) {
@@ -315,71 +269,64 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   std::vector<Tag> stillConcealedTags;
 
   /*
-   * Pass 2: placement. Apply the virtualizer's positions (offsets already include the
-   * header).
-   *
-   * Cloning a child is how a new frame is written into the tree, but Yoga only overwrites
-   * a child's layout metrics when it actually re-laid it out, so a row whose position has
-   * not moved since the last commit still holds the frame we want. Cloning it anyway
-   * meant a clone, a shadow-node replacement, a Yoga child replacement and a spurious
-   * affectedNodes entry per mounted row on every single scroll frame, for no change.
-   * Compare first and only rewrite the rows that actually move.
+   * Second pass: place each row where the core says. Offsets already include the header.
+   * A row that didn't move still has the right frame, so only clone the rows that moved.
+   * Cloning every row each scroll frame was a lot of wasted work.
    */
   for (const auto& mounted : mountedElements) {
-    const auto& prevChild = getChildren()[mounted.childIndex];
-    const auto prevLayoutableChild = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(prevChild);
-    if (!prevLayoutableChild) {
+    const auto& previousChild = getChildren()[mounted.childIndex];
+    const auto previousLayoutableChild = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(previousChild);
+    if (!previousLayoutableChild) {
       continue;
     }
 
     /*
-     * The props this row should carry, or null to keep its own. A concealed row is revealed once
-     * the host acked its generation with no correction in flight, or after too many passes.
-     * While it stays concealed, a React commit that handed its original props back is concealed
-     * again, and new props from a re-render are concealed too.
+     * The props this row should get, or null to keep its own. A hidden row shows again
+     * once the host echoes its generation with no correction pending, or after too many
+     * passes. Until then, new props or original props from React get hidden again too.
      */
-    const Tag tag = prevChild->getTag();
+    const Tag tag = previousChild->getTag();
     std::shared_ptr<const facebook::react::Props> nextProps = nullptr;
     auto concealedRow = geometry.concealedRows.find(tag);
     if (concealedRow != geometry.concealedRows.end()) {
       auto& row = concealedRow->second;
       ++row.layoutPasses;
       bool settled = (concealAck >= row.generation && !correcting) || row.layoutPasses > MAX_CONCEALED_LAYOUT_PASSES;
-      if (!settled && prevChild->getProps() != row.sourceProps && prevChild->getProps() != row.concealedProps) {
-        row.sourceProps = prevChild->getProps();
-        row.concealedProps = concealedPropsForRow(*prevChild);
+      if (!settled && previousChild->getProps() != row.sourceProps && previousChild->getProps() != row.concealedProps) {
+        row.sourceProps = previousChild->getProps();
+        row.concealedProps = concealedPropsForRow(*previousChild);
         settled = row.concealedProps == nullptr;
       }
       if (settled) {
         SL_LOG("  reveal: tag=%d gen=%llu ack=%llu passes=%zu correcting=%d",
           tag, static_cast<unsigned long long>(row.generation), static_cast<unsigned long long>(concealAck),
           row.layoutPasses, correcting ? 1 : 0);
-        if (row.concealedProps != nullptr && prevChild->getProps() == row.concealedProps) {
+        if (row.concealedProps != nullptr && previousChild->getProps() == row.concealedProps) {
           nextProps = row.sourceProps;
         }
         geometry.concealedRows.erase(concealedRow);
       } else {
         stillConcealedTags.push_back(tag);
-        if (prevChild->getProps() != row.concealedProps) {
+        if (previousChild->getProps() != row.concealedProps) {
           nextProps = row.concealedProps;
         }
       }
     } else if (mounted.elementIndex < concealBeforeIndex &&
                std::find(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end(), tag) != this->firstMeasuredTags_.end()) {
-      auto concealedProps = concealedPropsForRow(*prevChild);
+      auto concealedProps = concealedPropsForRow(*previousChild);
       if (concealedProps != nullptr) {
         SL_LOG("  conceal: tag=%d index=%zu anchorIndex=%zu gen=%llu",
           tag, mounted.elementIndex, concealBeforeIndex, static_cast<unsigned long long>(nextConcealGeneration));
         geometry.concealGeneration = nextConcealGeneration;
         geometry.concealedRows.insert_or_assign(
-          tag, ShadowListViewGeometryCache::ConcealedRow{prevChild->getProps(), concealedProps, nextConcealGeneration, 0});
+          tag, ShadowListViewGeometryCache::ConcealedRow{previousChild->getProps(), concealedProps, nextConcealGeneration, 0});
         stillConcealedTags.push_back(tag);
         nextProps = std::move(concealedProps);
       }
     }
 
-    LayoutMetrics layoutMetrics = prevLayoutableChild->getLayoutMetrics();
-    const LayoutMetrics prevLayoutMetrics = layoutMetrics;
+    LayoutMetrics layoutMetrics = previousLayoutableChild->getLayoutMetrics();
+    const LayoutMetrics previousLayoutMetrics = layoutMetrics;
     const auto& element = this->containerManager_->getElementAtIndex(mounted.elementIndex);
 
     if (this->containerManager_->columns > 1) {
@@ -394,44 +341,34 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       layoutMetrics.frame.origin.x = 0;
     }
 
-    if (layoutMetrics == prevLayoutMetrics && nextProps == nullptr) {
+    if (layoutMetrics == previousLayoutMetrics && nextProps == nullptr) {
       continue;
     }
 
     /*
-     * Opacity is not a Yoga style, so a props clone leaves the row's Yoga node clean and its
-     * laid-out frame intact.
-     */
-    /*
-     * A clone that only moves the row hands React's reference over, so React's node keeps a
-     * laid-out frame. One that conceals the row does not: on a JS-thread commit React's
-     * reference would move to it, and React's next update of the row would build on the
-     * concealed props.
+     * Opacity isn't a Yoga style, so changing it keeps the row's layout intact.
+     * A clone that only moves the row passes React's reference along. A hiding clone must
+     * not, or React's next update of the row would start from the hidden props.
      */
     auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(
-      prevChild->clone({.props = nextProps, .runtimeShadowNodeReference = nextProps == nullptr}));
+      previousChild->clone({.props = nextProps, .runtimeShadowNodeReference = nextProps == nullptr}));
     elementViewNode->setLayoutMetrics(layoutMetrics);
     /*
-     * The child's own position is known here, and both ShadowNode::replaceChild and
-     * YogaLayoutableShadowNode::replaceChild fall back to a linear search without it --
-     * two scans of the child vector per replaced row, i.e. quadratic across the loop.
-     *
-     * Pass 1 above is the authority on this batch's measurements, so the size-feedback
-     * side of the replaceChild override is suppressed here: re-reporting the frame we
-     * just wrote (whose cross-axis size the track layout owns, not the measurement)
-     * would fight the layout for a multi-column list on every frame.
+     * Pass the child index, or replaceChild searches the children for every row.
+     * The first pass already took the sizes, so don't report the frame we just wrote.
+     * That would fight the column layout in a multi column list.
+     * Keep the old child alive past this commit, see replacedChildren_.
      */
-    // Keep the outgoing child alive past this commit; see replacedChildren_.
-    this->replacedChildren_.push_back(prevChild);
+    this->replacedChildren_.push_back(previousChild);
     this->suppressElementSizeFeedback_ = true;
-    replaceChild(*prevChild, elementViewNode, mounted.childIndex);
+    replaceChild(*previousChild, elementViewNode, mounted.childIndex);
     this->suppressElementSizeFeedback_ = false;
     if (layoutContext.affectedNodes != nullptr) {
       layoutContext.affectedNodes->push_back(elementViewNode.get());
     }
   }
 
-  // Forget concealed rows that are no longer mounted: unmounted, or their key left the list.
+  // Forget hidden rows that are no longer mounted.
   if (geometry.concealedRows.size() > stillConcealedTags.size()) {
     for (auto iterator = geometry.concealedRows.begin(); iterator != geometry.concealedRows.end();) {
       bool stillConcealed =
@@ -440,20 +377,14 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     }
   }
 
-  /*
-   * Move a template view to `origin`, cloning it into the tree only if it is not already
-   * there. Same reasoning as the row placement above: a template that has not moved since
-   * the last commit still carries the frame we want, so re-cloning it every scroll frame
-   * buys nothing and costs a clone, a shadow-node replacement, a Yoga child replacement
-   * and a spurious onLayout entry.
-   */
+  // Move a template to origin, cloning it only if it actually moved, same as the rows.
   auto placeTemplate = [&](const std::shared_ptr<const ShadowNode>& templateNode, Point origin) {
-    const auto prevTemplateNode = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(templateNode);
-    if (!prevTemplateNode) {
+    const auto previousTemplateNode = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(templateNode);
+    if (!previousTemplateNode) {
       return;
     }
 
-    LayoutMetrics templateMetrics = prevTemplateNode->getLayoutMetrics();
+    LayoutMetrics templateMetrics = previousTemplateNode->getLayoutMetrics();
     if (templateMetrics.frame.origin == origin) {
       return;
     }
@@ -461,7 +392,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     templateMetrics.frame.origin = origin;
     auto templateViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(templateNode->clone({}));
     templateViewNode->setLayoutMetrics(templateMetrics);
-    // Keep the outgoing template alive past this commit; see replacedChildren_.
+    // Keep the old template alive past this commit, see replacedChildren_.
     this->replacedChildren_.push_back(templateNode);
     replaceChild(*templateNode, templateViewNode);
     if (layoutContext.affectedNodes != nullptr) {
@@ -470,23 +401,18 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   };
 
   /*
-   * The header rests at the content start. A sticky header is pinned to the
-   * viewport natively in the scroll callback (see the integrations), not here,
-   * because the commit cycle is too slow to track scrolling smoothly.
+   * The header sits at the start. A sticky header is pinned natively while scrolling,
+   * because commits are too slow to follow the scroll smoothly.
    */
   if (headerNode) {
     placeTemplate(headerNode, {0, 0});
   }
 
-  /*
-   * The empty template rests where content would start: just after the header
-   * (at the origin when there is none). It contributes nothing to headerSize.
-   */
+  // The empty template sits right after the header, where the rows would start.
   if (emptyNode) {
     /*
-     * Point holds Float, which is `float` on Android and `double` on 64-bit Apple targets,
-     * so these casts are what keep the narrowing explicit rather than a -Wc++11-narrowing
-     * error that only one of the two platforms reports.
+     * Float is float on Android and double on Apple, so cast to avoid a narrowing
+     * error that only one platform reports.
      */
     auto emptyOffset = static_cast<Float>(headerSize);
     placeTemplate(emptyNode, horizontal ? Point{emptyOffset, 0} : Point{0, emptyOffset});
@@ -498,19 +424,17 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   /*
-   * The sticky section-header overlay rests at the content origin; the integration
-   * pins it to the viewport on the UI thread per scroll frame. It floats over the
-   * content (no reserved space), so its position never feeds back into element
-   * offsets or the total size.
+   * The section header overlay sits at the origin and the platform pins it while
+   * scrolling. It floats over the content, so it never changes row offsets or sizes.
    */
   if (sectionHeaderNode) {
     placeTemplate(sectionHeaderNode, {0, 0});
   }
 
   /*
-   * Resolve the frame into the values to publish. The core decides whether the
-   * content size changed and whether it wants to move the scroll view (only then
-   * is the offset applied, so we never fight the user's own scrolling).
+   * Work out what to publish. The core decides if the content size changed and if it
+   * wants to move the scroll view. The offset is only written then, so we never fight
+   * the user's own scrolling.
    */
   auto nextStateData = getStateData();
   auto stateUpdate = this->containerManager_->resolveStateUpdate(
@@ -520,16 +444,11 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.totalContainerHeight_);
 
   /*
-   * Gather the resting geometry (offset + size along the scroll axis) of each
-   * sticky section header so the integration can pin the active one on the UI
-   * thread per scroll frame (see ShadowListViewState / the native pin). Only the core knows these offsets, and they
-   * change as off-screen rows are measured, so they ride along on the state.
+   * Collect each sticky header's offset and size so the platform can pin the current
+   * one while scrolling. Only the core knows them, so they go out on the state.
    *
-   * Rebuild the publishable geometry only when the element geometry it derives from has
-   * actually moved. This runs on every layout, i.e. on every scroll frame, and both the
-   * snap targets (one per row) and the sticky header table are O(rows) to build and
-   * allocate. None of it depends on the scroll offset, which is the thing that changed
-   * on almost all of those frames.
+   * This runs every scroll frame and walks every row, so only rebuild when the row
+   * geometry actually moved. None of it depends on the scroll offset.
    */
   double windowSize = this->containerManager_->getWindowContainerSize();
   double totalSize = this->containerManager_->horizontal
@@ -557,12 +476,9 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     geometry.sourceStickyIndices = this->containerManager_->stickyIndices;
 
     /*
-     * Build into plain vectors, then hand each to adoptIfChanged, which keeps the EXISTING
-     * shared pointer when the contents are identical. Geometry is versioned by any offset
-     * reflow, so a scroll that measures fresh rows invalidates this cache every frame even
-     * though the sticky table (and, for most lists, the snap targets) usually come out
-     * exactly the same. Reusing the pointer in that case is what stops those frames from
-     * publishing a state update nobody needs.
+     * Build plain vectors, then adoptIfChanged keeps the old pointer when nothing changed.
+     * Measuring new rows while scrolling bumps the version every frame, but the results are
+     * usually the same, and reusing the pointer avoids a pointless state update.
      */
     std::vector<int> stickyHeaderIndices;
     std::vector<Float> stickyHeaderOffsets;
@@ -571,7 +487,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     auto adoptIfChanged = [](auto& cached, auto&& next) {
       using ValueT = typename std::decay_t<decltype(next)>::value_type;
       if (next.empty()) {
-        // Null and empty mean the same thing; prefer null so nothing is allocated.
+        // Null means empty, and needs no allocation.
         cached = nullptr;
         return;
       }
@@ -583,10 +499,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
     std::size_t elementsSize = this->containerManager_->getElementsSize();
     /*
-     * Inverted sticky section headers (pin to the viewport end) are an exotic
-     * combination left resting, so publish no geometry for them; otherwise the native
-     * pins, which have no inverted case, would pin the overlay to the wrong edge with
-     * ascending (non-inverted) math. Empty geometry hides the overlay everywhere.
+     * Sticky headers in an inverted list aren't supported. The native pinning has no
+     * inverted case and would pin to the wrong edge, so publish nothing, which hides the overlay.
      */
     if (!this->containerManager_->inverted) {
       for (std::size_t stickyIndex : this->containerManager_->stickyIndices) {
@@ -604,9 +518,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     adoptIfChanged(geometry.stickyHeaderSizes, std::move(stickyHeaderSizes));
 
     /*
-     * Resting snap offsets along the scroll axis (empty unless snapToItem is set).
-     * Only the core knows element boundaries and they shift as off-screen rows are
-     * measured, so they ride along on the state for the UI-thread snap.
+     * Snap points, empty unless snapToItem is set. Only the core knows where rows start,
+     * so they go out on the state for the platform to snap to.
      */
     const auto& coreSnapOffsets = this->containerManager_->getSnapOffsets();
     std::vector<Float> snapOffsets;
@@ -617,11 +530,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     adoptIfChanged(geometry.snapOffsets, std::move(snapOffsets));
   }
 
-  /*
-   * Pointer comparisons: both sides hold the same shared collections, and the cache only
-   * takes a new pointer when the values actually moved (see adoptIfChanged), so the
-   * per-layout change test stays O(1) for a snapping list.
-   */
+  // Compare pointers. The cache only takes a new one when the values changed, so this stays cheap.
   bool stickyChanged =
     geometry.stickyHeaderIndices != nextStateData.stickyHeaderIndices_ ||
     geometry.stickyHeaderOffsets != nextStateData.stickyHeaderOffsets_ ||
@@ -629,7 +538,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
   bool snapChanged = geometry.snapOffsets != nextStateData.snapOffsets_;
 
-  // The newest concealment while any row stays concealed; 0 tells the host nothing waits on it.
+  // The newest hide while any row is hidden, or 0 when nothing waits on the host.
   double concealGeneration = geometry.concealedRows.empty() ? 0.0 : static_cast<double>(geometry.concealGeneration);
   bool concealChanged = nextStateData.concealGeneration_ != concealGeneration;
 
@@ -643,12 +552,9 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged) {
     if (stateUpdate.changed) {
       /*
-       * What the correction was computed from; see ShadowListViewState::containerOffsetBaseX_.
-       * A state carrying the operation's own token is either the core's own write, not a place
-       * the host has been, or a host report echoing it, whose offset already holds the part of
-       * the correction the host applied. A republish of that operation keeps the base its first
-       * write started from, so the correction stays one cumulative delta per commit token and
-       * the host never subtracts the part it applied twice.
+       * Record where the correction started, see ShadowListViewState::containerOffsetBaseX_.
+       * If the state already carries this correction's token, keep the first base, so the
+       * host never applies the same part of the correction twice.
        */
       bool continuesCorrection = stateUpdate.commitToken != 0 &&
         static_cast<std::uint64_t>(nextStateData.commitToken_) == stateUpdate.commitToken;
@@ -662,13 +568,13 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       nextStateData.totalContainerHeight_ = stateUpdate.totalContainerHeight;
       nextStateData.containerOffsetEnabled_ = stateUpdate.applyContainerOffset;
       /*
-       * Publish the correction's commit token alongside the offset so the host can echo
-       * it back and the core recognises its own write (0 when no offset was applied).
+       * Send the token with the offset so the host can echo it back and the core knows its
+       * own write. 0 when no offset was written.
        */
       nextStateData.commitToken_ = static_cast<double>(stateUpdate.commitToken);
       /*
-       * A ShadowListNative scroll command's correction (and each retarget of it) tells the host
-       * to stop momentum and write it; see ShadowListNativeEngine::setMomentumYieldToken.
+       * A ShadowListNative scroll command tells the host to stop momentum and write the offset.
+       * See ShadowListNativeEngine::setMomentumYieldToken.
        */
       if (this->nativeEngine_ && stateUpdate.applyContainerOffset && stateUpdate.commitToken != 0 &&
           stateUpdate.commitToken == this->nativeEngine_->momentumYieldToken()) {
@@ -678,9 +584,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       }
     }
     /*
-     * Copied, not moved: the cache outlives this state and is reused by the next layout.
-     * The copy is a refcount bump now that these are shared pointers, and the collection
-     * itself is immutable once published, so state and cache can share it safely.
+     * Copy, don't move, since the next layout reuses the cache. It's just a shared pointer
+     * and the list never changes once published, so sharing it is safe.
      */
     if (stickyChanged) {
       nextStateData.stickyHeaderIndices_ = geometry.stickyHeaderIndices;
@@ -696,35 +601,29 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
   this->firstMeasuredTags_.clear();
 
-  // ShadowListNative: keep the laid-out rows, and remount if they fell short of the viewport.
+  // For ShadowListNative, keep the laid out rows and mount more if they don't fill the viewport.
   if (this->nativeEngine_) {
     this->nativeEngine_->didLayout(*this, *this->containerManager_);
   }
 }
 
 void ShadowListViewShadowNode::replaceChild(
-  const ShadowNode& prevElementShadowNode,
+  const ShadowNode& previousElementShadowNode,
   const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
   std::size_t suggestedIndex) {
 
   /*
-   * Feed natively measured element sizes back into the virtualizer. Resolve the view to
-   * its CURRENT core element by key: a child running behind a prepend/insert/reorder would
-   * otherwise write its size onto whatever row now occupies its old index. findElementIndexByKey
-   * gives the live position or UNDEFINED_INDEX (skip) when the key is gone; the index is a
-   * fallback when no key is supplied. Take the core lock since this can run concurrently
-   * with the commit phase.
+   * Send measured row sizes to the core. Look rows up by key, or a child behind a prepend
+   * would write its size onto whatever row now has its old index. Take the core lock,
+   * since this can run at the same time as the commit phase.
    */
   if (this->suppressElementSizeFeedback_) {
-    /*
-     * Our own placement pass already fed this batch's measurements to the core (see
-     * layout()); reporting the frame it just wrote back would be redundant at best.
-     */
+    // layout() already gave the core these sizes, so skip the frame it just wrote.
   } else if (const auto elementViewProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(nextElementShadowNode->getProps())) {
     if (this->containerManager_) {
       std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
-      // Resolve key -> live index under the lock; a stale child can outrun the reconcile.
+      // Look up the index under the lock, since a stale child can arrive before the data catches up.
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
         : this->containerManager_->findElementIndexByKey(elementViewProps->elementKey);
@@ -733,12 +632,9 @@ void ShadowListViewShadowNode::replaceChild(
         ? elementViewNode->getLayoutMetrics().frame.size
         : Size{};
       /*
-       * A child with no extent along the scroll axis has not been laid out: React's own node
-       * for a row the layout pass last cloned, or a row mounting in this
-       * commit, carries an empty frame until Yoga runs. Recording 0 would collapse the row
-       * outside any anchor capture (the next update() re-anchors on the collapsed geometry,
-       * so the content under the reader jumps by the row's size). The layout pass measures
-       * the row from its real frame.
+       * A zero size means Yoga hasn't laid the row out yet. Recording 0 would collapse the
+       * row and the content under the reader would jump by its size. Let the layout pass
+       * measure it from the real frame instead.
        */
       bool laidOut = (this->containerManager_->horizontal ? elementViewNodeSize.width : elementViewNodeSize.height) > 0.0;
       if (elementIndex < this->containerManager_->getElementsSize() && elementViewNode && laidOut) {
@@ -756,7 +652,7 @@ void ShadowListViewShadowNode::replaceChild(
     }
   }
 
-  YogaLayoutableShadowNode::replaceChild(prevElementShadowNode, nextElementShadowNode, suggestedIndex);
+  YogaLayoutableShadowNode::replaceChild(previousElementShadowNode, nextElementShadowNode, suggestedIndex);
 }
 
 }

@@ -79,15 +79,15 @@ export const ActivityScreen = () => {
           {
             label: `Start ×${startThreshold}`,
             onPress: () =>
-              setStartThreshold((current) =>
-                nextInCycle(START_REACHED_THRESHOLDS, current)
+              setStartThreshold((previous) =>
+                nextInCycle(START_REACHED_THRESHOLDS, previous)
               ),
           },
           {
             label: `End ×${endThreshold}`,
             onPress: () =>
-              setEndThreshold((current) =>
-                nextInCycle(END_REACHED_THRESHOLDS, current)
+              setEndThreshold((previous) =>
+                nextInCycle(END_REACHED_THRESHOLDS, previous)
               ),
           },
           { label: 'Remove 20 & 50', onPress: handleRemoveItems },
@@ -110,7 +110,7 @@ export const ActivityScreen = () => {
     [styles, isFetchingNextPage, viewableLabel, list.data.length]
   );
 
-  // The list mounts with its first page, so containerOffsetIndex has rows to land on.
+  // Mount the list with its first page so containerOffsetIndex has rows to land on.
   if (activity.data === undefined) {
     return <QueryStatus error={activity.error} onRetry={activity.refetch} />;
   }

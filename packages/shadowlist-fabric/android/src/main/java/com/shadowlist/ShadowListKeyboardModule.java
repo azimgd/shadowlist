@@ -21,8 +21,8 @@ import java.lang.ref.WeakReference;
 import java.util.List;
 
 /*
- * Streams the per-frame keyboard (IME) height to JS as onKeyboardMove events.
- * Requires the host Activity to use SOFT_INPUT_ADJUST_RESIZE for events to fire.
+ * Sends the keyboard height to JS on every frame as onKeyboardMove events.
+ * Events only fire when the Activity uses SOFT_INPUT_ADJUST_RESIZE.
  */
 @ReactModule(name = ShadowListKeyboardModule.NAME)
 public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
@@ -30,16 +30,16 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
   public static final String NAME = "ShadowListKeyboard";
 
   /*
-   * Reference-counted per the TS spec so concurrent consumers can't desync each other's
-   * attach/detach. volatile: written under synchronized, read on the UI thread.
+   * Counts enable calls so several users can't undo each other's attach or detach.
+   * Volatile because it is written under the lock and read on the UI thread.
    */
   private volatile int mEnabledCount = 0;
-  private float mTargetDip = 0f;
+  private float mTargetDp = 0f;
   @Nullable private View mObservedView = null;
   @Nullable private KeyboardInsetsCallback mCallback = null;
   /*
-   * Set synchronously by invalidate() before its async detach is posted, so a callback
-   * firing in that race window becomes a safe no-op instead of touching torn-down state.
+   * Set by invalidate before the detach runs, so a late callback does nothing
+   * instead of touching torn down state.
    */
   private volatile boolean mInvalidated = false;
 
@@ -74,7 +74,7 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
   private void attach() {
     Activity activity = getReactApplicationContext().getCurrentActivity();
     if (activity == null) {
-      // No Activity yet: mObservedView stays null and onHostResume retries.
+      // No Activity yet. onHostResume will try again.
       return;
     }
     mObservedView = activity.getWindow().getDecorView();
@@ -96,9 +96,8 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
       return;
     }
     /*
-     * Attach whenever enabled but not observing the CURRENT Activity's decorView: the
-     * first enable may predate any Activity, and an Activity recreation swaps the
-     * decorView, which would otherwise leave the callback bound to a destroyed window.
+     * Attach if we aren't watching the current Activity's window. The first enable can come
+     * before any Activity exists, and a recreated Activity gets a new window.
      */
     Activity activity = getReactApplicationContext().getCurrentActivity();
     View decorView = activity != null ? activity.getWindow().getDecorView() : null;
@@ -109,12 +108,12 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
 
   @Override
   public void onHostPause() {
-    // No-op: the animation callback stays attached across a pause.
+    // The callback stays attached across a pause.
   }
 
   @Override
   public void onHostDestroy() {
-    // No-op: onHostResume re-attaches to the replacement Activity's decorView.
+    // onHostResume attaches to the new Activity's window.
   }
 
   private static final class KeyboardInsetsCallback extends WindowInsetsAnimationCompat.Callback {
@@ -135,14 +134,14 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
         return bounds;
       }
       /*
-       * Same IME-only filter as onProgress: an unrelated concurrent animation (e.g. a
-       * system-bar visibility change) must not overwrite mTargetDip with its own bound.
+       * Only keyboard animations count here, like in onProgress. A system bar animation
+       * must not overwrite the target height.
        */
       if ((animation.getTypeMask() & WindowInsetsCompat.Type.ime()) == 0) {
         return bounds;
       }
       int targetPx = bounds.getUpperBound().bottom;
-      module.mTargetDip = PixelUtil.toDIPFromPixel(targetPx);
+      module.mTargetDp = PixelUtil.toDIPFromPixel(targetPx);
       return bounds;
     }
 
@@ -171,10 +170,10 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
     }
   }
 
-  private void emitHeight(float heightDip) {
-    float progress = mTargetDip > 0 ? Math.min(1f, Math.max(0f, heightDip / mTargetDip)) : 0f;
+  private void emitHeight(float heightDp) {
+    float progress = mTargetDp > 0 ? Math.min(1f, Math.max(0f, heightDp / mTargetDp)) : 0f;
     WritableMap payload = Arguments.createMap();
-    payload.putDouble("height", heightDip);
+    payload.putDouble("height", heightDp);
     payload.putDouble("progress", progress);
     emitOnKeyboardMove(payload);
   }
@@ -182,9 +181,8 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
   @Override
   public void invalidate() {
     /*
-     * Set synchronously, before the async detach is even posted, so a callback firing
-     * in the window between this call and detach() actually running on the UI thread
-     * sees the flag and no-ops instead of touching state super.invalidate() tears down.
+     * Set this before posting the detach, so a callback that fires before the detach runs
+     * on the UI thread does nothing instead of touching torn down state.
      */
     mInvalidated = true;
     getReactApplicationContext().removeLifecycleEventListener(this);

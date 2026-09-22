@@ -24,9 +24,8 @@ interface UseViewabilityResult {
 }
 
 /*
- * Tracks which items are viewable (emitting onViewableItemsChanged tokens) and which
- * section header is currently pinned (activeStickyIndex), both driven by the native
- * viewable-window event.
+ * Tracks which items are visible for onViewableItemsChanged, and which section header is
+ * pinned. Both come from the native visible range event.
  */
 export function useViewability<ElementT>({
   data,
@@ -39,7 +38,7 @@ export function useViewability<ElementT>({
   const updateActiveStickyIndex = useCallback(
     (windowLow: number) => {
       if (!stickyHeaderIndices || stickyHeaderIndices.length === 0) {
-        setActiveStickyIndex((prev) => (prev === -1 ? prev : -1));
+        setActiveStickyIndex((previous) => (previous === -1 ? previous : -1));
         return;
       }
       let active = -1;
@@ -47,17 +46,18 @@ export function useViewability<ElementT>({
         if (stickyIndex <= windowLow) active = stickyIndex;
         else break;
       }
-      setActiveStickyIndex((prev) => (prev === active ? prev : active));
+      setActiveStickyIndex((previous) =>
+        previous === active ? previous : active
+      );
     },
     [stickyHeaderIndices]
   );
 
-  const prevViewableRef = useRef<ViewToken<ElementT>[]>([]);
+  const previousViewableRef = useRef<ViewToken<ElementT>[]>([]);
   /*
-   * Last reported index window (ascending, inclusive) and the data length it was
-   * reported against; null when no rows are viewable. Lets the effect below recompute
-   * viewability for the same window on a data change, with dataLength telling a pure
-   * reorder apart from an insert/remove that shifted indices under the window.
+   * The last reported visible range and the data length at that time, or null when nothing
+   * is visible. The effect below reuses it on a data change, and the length tells a plain
+   * reorder apart from an insert or remove.
    */
   const activeWindowRef = useRef<{
     low: number;
@@ -65,10 +65,7 @@ export function useViewability<ElementT>({
     dataLength: number;
   } | null>(null);
 
-  /*
-   * Builds the viewable ViewTokens for an index window. Shared by the native callback
-   * and the data-identity effect so the token shape cannot diverge.
-   */
+  // Builds the tokens for a range. The native callback and the data effect both use it.
   const buildViewableItems = useCallback(
     (windowLow: number, windowHigh: number) => {
       const viewableItems: ViewToken<ElementT>[] = [];
@@ -88,27 +85,26 @@ export function useViewability<ElementT>({
   );
 
   /*
-   * Diffs `viewableItems` against the previous emission by key and, if anything
-   * changed, updates prevViewableRef and fires onViewableItemsChanged. Shared by both
-   * the native callback and the data-identity effect below so the two stay in sync.
+   * Compares the visible items with the last ones by key, and if anything changed, saves them
+   * and calls onViewableItemsChanged. Used by the native callback and the data effect below.
    */
   const diffAndEmit = useCallback(
     (viewableItems: ViewToken<ElementT>[]) => {
       if (!onViewableItemsChanged) return;
 
       const currentKeys = new Set(viewableItems.map((token) => token.key));
-      const prevKeys = new Set(
-        prevViewableRef.current.map((token) => token.key)
+      const previousKeys = new Set(
+        previousViewableRef.current.map((token) => token.key)
       );
 
       const changed: ViewToken<ElementT>[] = [
-        ...viewableItems.filter((token) => !prevKeys.has(token.key)),
-        ...prevViewableRef.current
+        ...viewableItems.filter((token) => !previousKeys.has(token.key)),
+        ...previousViewableRef.current
           .filter((token) => !currentKeys.has(token.key))
           .map((token) => ({ ...token, isViewable: false })),
       ];
 
-      prevViewableRef.current = viewableItems;
+      previousViewableRef.current = viewableItems;
 
       if (changed.length > 0) {
         onViewableItemsChanged({ viewableItems, changed });
@@ -124,11 +120,11 @@ export function useViewability<ElementT>({
     (event) => {
       const { viewableStartIndex, viewableEndIndex } = event.nativeEvent;
       const isActive = viewableStartIndex !== -1 && viewableEndIndex !== -1;
-      // Normalise to an ascending window (inverted lists report start > end).
+      // Inverted lists report start after end, so sort them.
       const windowLow = Math.min(viewableStartIndex, viewableEndIndex);
       const windowHigh = Math.max(viewableStartIndex, viewableEndIndex);
 
-      // Drive sticky-overlay content from the viewable top index to match the pin.
+      // The sticky overlay shows the section of the top visible row.
       if (isActive) {
         updateActiveStickyIndex(windowLow);
       }
@@ -137,10 +133,7 @@ export function useViewability<ElementT>({
         ? { low: windowLow, high: windowHigh, dataLength: data.length }
         : null;
 
-      /*
-       * Tokens exist only for the onViewableItemsChanged consumer; skip the work when
-       * nobody listens (sticky tracking and the window cache above are already done).
-       */
+      // Tokens are only for onViewableItemsChanged, so skip them when nobody listens.
       if (!onViewableItemsChanged) return;
 
       diffAndEmit(isActive ? buildViewableItems(windowLow, windowHigh) : []);
@@ -155,9 +148,8 @@ export function useViewability<ElementT>({
   );
 
   /*
-   * A reorder can change which items occupy an already-reported index window without
-   * native re-firing the viewable-index event (the window itself hasn't moved), so
-   * recompute viewability whenever `data` changes identity.
+   * A reorder can change which items sit in the visible range without native sending a new
+   * event, so check again whenever data changes.
    */
   useEffect(() => {
     if (!onViewableItemsChanged) return;
@@ -165,9 +157,8 @@ export function useViewability<ElementT>({
     if (!window) return;
 
     /*
-     * Only a same-length change can be a pure reorder. An insert/remove shifts indices,
-     * so replaying the cached window would report the wrong rows (e.g. a prepend's new
-     * rows as viewable); native's own corrected event covers those cases.
+     * Only a change with the same length can be a plain reorder. An insert or remove shifts
+     * indices and the old range would report the wrong rows. Native sends a fixed event then.
      */
     if (window.dataLength !== data.length) {
       window.dataLength = data.length;
