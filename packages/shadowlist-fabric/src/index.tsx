@@ -3,6 +3,7 @@ export { default as SectionList } from './SectionList';
 export { default as TreeList } from './TreeList';
 export { default as DraggableList } from './DraggableList';
 export { default as ShadowListNative } from './ShadowListNative';
+export { shadowListNativeProps } from './native/binding';
 
 export { useKeyboardAnimation, KeyboardView } from './keyboard';
 export type {

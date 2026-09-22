@@ -3,17 +3,34 @@ import { StyleSheet, processColor } from 'react-native';
 import type { ShadowListNativeBind } from '../types';
 
 /*
- * The JSI object ShadowListNativeJSI.cpp installs. Every call is synchronous and mutates the
- * list's native store; mutations also schedule a commit of the list.
+ * The object ShadowListNativeJSI.cpp installs. Every call runs synchronously on the list's
+ * native store, and changes also schedule a commit of the list.
  */
 export interface ShadowListNativeBinding {
-  // scrollToStart: offset 0 in the commit that reconciles the new rows, as one correction.
+  /*
+   * scrollToStart scrolls to the top in the same commit as the new rows.
+   */
   setData(
     listId: string,
     items: ReadonlyArray<unknown>,
     keys: string[],
     templates: string[] | null,
     scrollToStart?: boolean
+  ): number;
+  /*
+   * Rows by position. See ShadowListNativeIndexedData.
+   */
+  setIndexed(
+    listId: string,
+    count: number,
+    order: Int32Array | undefined,
+    indexField: string,
+    valueField: string,
+    extraIndices: number[],
+    extraItems: ReadonlyArray<unknown>,
+    extraTemplates: string[] | null,
+    scrollToStart?: boolean,
+    ids?: Int32Array
   ): number;
   insertItems(
     listId: string,
@@ -31,7 +48,7 @@ export interface ShadowListNativeBinding {
   ): boolean;
   removeItems(listId: string, keys: ReadonlyArray<string>): number;
   moveItem(listId: string, key: string, toIndex: number): boolean;
-  // After the mutations made so far are laid out; -1 is the end, -2 the start (offset 0).
+  // Runs after earlier changes are laid out. Index -1 means the end and -2 the top.
   scrollToIndex(listId: string, index: number, viewPosition: number): void;
   setTemplateStyle(
     listId: string,
@@ -47,12 +64,14 @@ export interface ShadowListNativeBinding {
     listId: string,
     tag: number
   ): { key: string; index: number; repeatIndex: number } | null;
-  // Keeps the list's engine alive while the returned handle is held (or until close).
+  // Keeps the engine alive while the returned handle is held, or until close.
   open(listId: string): ShadowListNativeHandle;
   close(handle: ShadowListNativeHandle): void;
 }
 
-// Opaque; a JSI host object holding the engine.
+/*
+ * Opaque native object holding the engine.
+ */
 export type ShadowListNativeHandle = object;
 
 export interface ShadowListNativeConfig {
@@ -72,8 +91,8 @@ export function getShadowListNativeBinding():
 }
 
 /*
- * The binding is installed on the JS thread shortly after the renderer starts. A list rendered
- * before that waits a frame or two rather than mounting without its data.
+ * The binding shows up on the JS thread shortly after the renderer starts. A list rendered
+ * before that waits a frame or two instead of mounting without data.
  */
 export function useShadowListNativeBinding():
   | ShadowListNativeBinding
@@ -99,8 +118,8 @@ export function useShadowListNativeBinding():
 let nextListId = 0;
 
 /*
- * Per runtime (and per evaluation of this module): the counter restarts after a JS reload or a
- * Fast Refresh of this file, while engines from before can still be alive for a moment.
+ * The counter restarts after a JS reload or a Fast Refresh of this file, while old engines
+ * can still be alive for a moment.
  */
 const RUNTIME_NONCE = Math.floor(Math.random() * 0x7fffffff).toString(36);
 
@@ -110,10 +129,10 @@ export function createShadowListNativeId(): string {
 }
 
 /*
- * Template element metadata rides on `nativeID`, the one string prop every host component
- * forwards to native. The engine reads it when it compiles the template and strips it from the
- * rows it builds (keeping it only on elements with an action, which must not be flattened away
- * or their touches would land on an ancestor).
+ * Template metadata travels in nativeID, the one string prop every host component sends to
+ * native. The engine reads it when it compiles the template and removes it from built rows.
+ * Elements with an action keep it, so they aren't flattened away and their touches don't
+ * land on a parent.
  */
 export const ELEMENT_MARKER = 'shadowlist:';
 export const TEMPLATE_MARKER = 'shadowlist-template:';
@@ -158,6 +177,23 @@ export function encodeElementMarker({
   return ELEMENT_MARKER + JSON.stringify(spec);
 }
 
+/*
+ * Template metadata for any host component, like your own native view in a template:
+ * <MyNativeView {...shadowListNativeProps({ bind: { row: 'row' } })} />
+ * The component parses bound props itself, like a style prop on a View. For presses, wrap
+ * it in a ShadowListNative.View with an action, since this adds no touch handling.
+ */
+export function shadowListNativeProps({
+  id,
+  bind,
+}: {
+  id?: string;
+  bind?: ShadowListNativeBind;
+}): { nativeID?: string } {
+  const nativeID = encodeElementMarker({ id, bind });
+  return nativeID === undefined ? {} : { nativeID };
+}
+
 export function encodeTemplateMarker(name: string): string {
   return TEMPLATE_MARKER + name;
 }
@@ -167,8 +203,8 @@ function isColorProp(prop: string): boolean {
 }
 
 /*
- * A style for setTemplateStyle, in the form Fabric parses raw props: flattened, with colors
- * processed to numbers the way React Native's own prop diffing sends them.
+ * A style for setTemplateStyle in the shape Fabric expects. It's flattened, and colors are
+ * turned into numbers the way React Native sends them.
  */
 export function toNativeStyle(style: unknown): Record<string, unknown> | null {
   const flat = StyleSheet.flatten(style as never) as

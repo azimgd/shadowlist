@@ -61,13 +61,82 @@ const ref = useRef<ShadowListNativeCommands<Post>>(null);
 | `keyExtractor`                                                                                                                                                                                                                                                                                                                                  | `(item, index) => string`. Keys must be unique; later duplicates are dropped.                                                                                                                                                                                                                                                                                                                                                                                 |
 | `templates`                                                                                                                                                                                                                                                                                                                                     | `Record<name, ReactElement>`. Rendered once, hidden (`display: none`).                                                                                                                                                                                                                                                                                                                                                                                        |
 | `templateKey` / `getTemplate`                                                                                                                                                                                                                                                                                                                   | Picks a row's template. Default: the template named `default`, else the first. Unknown names fall back to the default.                                                                                                                                                                                                                                                                                                                                        |
-| `onElementPress`                                                                                                                                                                                                                                                                                                                                | Presses on elements with an `action`.                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `onRefreshSettle`                                                                                                                                                                                                                                                                                                                               | Once per refresh, after `refreshing` turns false and the spinner has retracted (iOS: the host's settle event, 1.2 s fallback; Android: at once, the spinner floats over the rows). Apply refreshed rows here (`setData(items, { scrollTo: 'start' })`).                                                                                                                                                                                                       |
+| `onElementPress`                                                                                                                                                                                                                                                                                                                                | Presses on elements with an `action`. The event carries `pageX` / `pageY` (where the touch ended), so one action can cover a row and the app resolves the spot (a grid column).                                                                                                                                                                                                                                                                               |
+| `onElementLongPress`, `longPressDelay` (500)                                                                                                                                                                                                                                                                                                    | A touch resting on an element with an `action` for `longPressDelay` ms (moving past the press slop cancels it). The release after a long press does not also press. `pageX` / `pageY` are where the touch rested.                                                                                                                                                                                                                                             |
+| `onRefreshSettle`                                                                                                                                                                                                                                                                                                                               | Once per refresh, after `refreshing` turns false and the spinner has retracted (iOS: the host's settle event, 1.2 s fallback; Android: at once, the spinner floats over the rows). Apply refreshed rows here with `setData(items)`: MVCP keeps the row the reader is looking at, and new rows land above it.                                                                                                                                                  |
 | `onVisibleRangeChange`                                                                                                                                                                                                                                                                                                                          | Core visible window (includes the core's overscan). Only dispatched when set.                                                                                                                                                                                                                                                                                                                                                                                 |
 | `inverted`, `followAppends`, `horizontal`, `columns`, `overscan` (viewports), `initialScrollIndex`, `stickyHeader`, `stickyFooter`, `autoHideHeader`, `autoHideFooter`, `snapToItem`, `snapToAlignment`, `refreshing`, `onRefresh`, `refreshColor`, `onStartReached`, `onEndReached`, thresholds, `onScroll`, `style`, `elementStyle`, `testID` | Same meaning as on `ShadowList`; they are the same native props.                                                                                                                                                                                                                                                                                                                                                                                              |
 | `initialNumToRender` (10)                                                                                                                                                                                                                                                                                                                       | Rows mounted before the list knows its viewport.                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `padRows` (2)                                                                                                                                                                                                                                                                                                                                   | Extra rows mounted past the core's window each time it moves, so small scrolls rebuild nothing.                                                                                                                                                                                                                                                                                                                                                               |
 | `cacheRows` (64)                                                                                                                                                                                                                                                                                                                                | Row nodes remembered after they leave the window (see "Row nodes" below).                                                                                                                                                                                                                                                                                                                                                                                     |
+
+### Indexed rows (`indexed`)
+
+For very long lists whose rows are mostly a number (a grid's row order), pass `indexed` instead
+of `data` / `initialData`:
+
+```tsx
+<ShadowListNative
+  indexed={{
+    count: 1_000_000,
+    order, // Int32Array: row i's value; omit for 0..count-1
+    valueField: 'r', // row i's item is { r: order[i] } (indexField '' leaves the index out)
+    indexField: '',
+    extras: [{ index: 0, item: { t: 'group', label: 'Group A' } }], // sparse
+  }}
+  templates={templates}
+  templateKey="t"
+/>
+```
+
+No row is stored. Keys are positions (`"0"`, `"1"`, ...), generated natively once per count.
+Row i's item is made when the row is built: the two fields, merged over its extra. `order` crosses
+JSI as one copy of the typed array's buffer. A new `indexed` object replaces the rows (like `data`).
+With the same count the core's keys are untouched, so the core does no work and only the mounted
+rows whose item changed rebind (a new order changes every row's version, so each mounted row
+rebinds once). `updateItem(String(i), patch)` merges into row i's extra, and a `null` field drops
+it. `insertItems` / `removeItems` / `moveItem` do nothing in this mode, and `setData` leaves it.
+
+Measured (shadowgrid's DataGrid, 1M remote rows, iOS simulator): `setIndexed` 66 ms in a debug
+build. Before, `setData` with 1M small items took ~10 s and ~2 GB.
+
+#### Rows near the window (`getExtra`)
+
+Indexed rows often need more than their value, but only where they can be seen (a selection
+highlight, text read from somewhere else). `getExtra(index)` returns those fields; the list calls
+it for the rows around its window (`extraPadding` windows each side, at least 20 rows) and merges
+them over the row's static extra. Rows that move further away (two paddings) go back to their
+static extra. A new `getExtra` function re-derives every materialized row (memoize it), and
+`ref.refreshExtras(indices?)` does it for state the function reads without changing identity.
+Patches carry only the changed fields (arrays compared by content). A row brought in by a long
+fling or a jump can show these fields a frame late.
+
+```tsx
+const getExtra = useCallback(
+  (index: number) => (index === selected ? { selected: 1 } : null),
+  [selected]
+);
+<ShadowListNative
+  indexed={indexed}
+  getExtra={getExtra}
+  templates={templates}
+/>;
+```
+
+#### Stable ids (`indexed.ids`)
+
+Without ids, keys are positions: cheapest, and right for rows replaced in place (a sort). With
+`ids` (an Int32Array, one per row) a row's key is its id, so an insert, remove or move is just a
+new `order` and `ids`: the core reconciles by key and keeps the visible rows in place, as with
+`data`. Keys and an id -> position map are rebuilt when the ids change (O(rows) in C++).
+
+### Sticky rows (`stickyHeaderIndices`)
+
+Rows at these indices pin to the top while their section scrolls by, and the next one pushes the
+pinned row off (the host's section-header pin, shared with ShadowList). The pinned row is a native
+copy of the row, built by the engine in the commit that makes it active, into the list's
+`sectionHeader` overlay; presses on it route to that row. Works in keyed and indexed mode; not with
+`inverted` (the host has no inverted pin).
 
 ### Template elements
 
@@ -97,6 +166,12 @@ const ref = useRef<ShadowListNativeCommands<Post>>(null);
 // onElementPress({ key: shelfKey, action: 'card', repeatIndex: 3, item: shelf })
 ```
 
+An app's own native component can take bindings too: spread `shadowListNativeProps({ id, bind })`
+into it (it sets the marker on `nativeID`). Bound values are parsed by that component's props
+parser, so ints, floats, strings and arrays reach its codegen props (shadowgrid binds its row
+view's `row` and its cells view's `texts` / `colors` this way). Presses still need a
+`ShadowListNative.View` with an `action` around it.
+
 Plain React Native components (`View`, `Text`, `Image`, `ScrollView`, ...) can be used anywhere in a
 template; they are cloned as they are. A horizontal `ScrollView` inside a template works (the Feed
 gallery uses one).
@@ -106,6 +181,9 @@ Expressions (parsed once per template, `ShadowListNativeBinding.h`):
 - `'author.name'`: the value at a dotted path; numeric segments index arrays (`'images.0.uri'`).
 - `'!isRead'`: negated truthiness (null, false, 0, `''`, `[]` are falsy).
 - `'{name} · {date}'`: a format string; missing values render as `''`.
+- `'row+1'`, `'{row+1}'`: a numeric offset, added when the value is a number (whole results stay
+  integers, so `{row+1}` renders `12`, not `12.0`). A path ending in `+` or `-` and digits is
+  always read this way, so a field literally named `step-2` can't be bound by name.
 
 Bound props:
 
@@ -325,7 +403,9 @@ never replay an engine scroll. `[SL] native: scroll index=... after=...` traces 
 `setData(items, { scrollTo: 'start' })` is the exception: its scroll is due in the commit whose
 key snapshot holds the new rows (`PendingScroll::withKeysVersion`), not after they are laid out.
 The core then reconciles the rows and resolves `scrollToStart` in the same `update`, and the
-command takes precedence over MVCP, so one correction mounts. `setData` followed by
+command takes precedence over MVCP, so one correction mounts. It also holds on a list that
+already rests at offset 0 (where a pull to refresh leaves it): the command arrives in the frame
+that requested it, and that frame ends there instead of falling through to MVCP. `setData` followed by
 `scrollToStart()` mounts two: the first commit's MVCP correction holds the old first row, and
 the scroll to 0 follows a commit later. On a resting list the MVCP frame looks like the frame
 before it, but on a moving list (a fling, a finger) the old row shows for a few frames, up to
@@ -405,7 +485,7 @@ were: likes kept, removed cards still gone. The grid has a `stickyHeader` whose 
 combines `onVisibleRangeChange` (the core window with overscan) with the array's length:
 "21–42 of 197". The deals list uses `snapToItem`. Feed (Native): `initialData` + paging
 by `appendItems`, local edits that survive paging/refresh, refresh via `onRefreshSettle` +
-`setData(items, { scrollTo: 'start' })`, theme colors as template styles (a theme switch rebinds, data untouched).
+`setData(items)` (MVCP holds the visible post), theme colors as template styles (a theme switch rebinds, data untouched).
 
 Dev lifecycle, on iOS and Android: row presses route correctly after a Fast Refresh of
 `ShadowListNative.tsx`, and rows and presses are correct after three Metro reloads in a row.
@@ -439,7 +519,7 @@ Not supported:
 - Per-row React state, hooks, effects or callbacks inside templates (a template renders once).
 - Pressed-state feedback, `Pressable`/`onPress` inside templates (use `action`).
 - Binding inside nested text spans; conditional structure (use `hidden`, or another template).
-- Sticky section headers (`stickyHeaderIndices` + overlay), drag to reorder, viewability callbacks,
+- Drag to reorder, viewability callbacks,
   `getElementSizeSpec` predictions, `trackElementSizes`. Refresh deferral is explicit: hold the new rows
   until `onRefreshSettle` (Feed (Native) does).
 - Style values that need React Native's JS processing beyond colors (e.g. `transform` strings) in

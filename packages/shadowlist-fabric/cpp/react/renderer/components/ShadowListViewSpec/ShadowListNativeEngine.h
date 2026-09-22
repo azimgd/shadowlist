@@ -21,15 +21,12 @@
 namespace facebook::react {
 
 /*
- * The native side of one <ShadowListNative>: its data, its compiled templates, and the rows it
- * synthesized from them. No React component renders a row. A row is a clone of a template's
- * shadow subtree with the row's data bound into its props, built synchronously on the commit
- * that needs it (see ShadowListViewComponentDescriptor::cloneShadowNode).
- *
- * Shared by every committed clone of the list node (like the Container), and registered under
- * the list's `nativeListId` so the JSI binding can mutate the data from JS
- * (see ShadowListNativeJSI.h). Guarded by one mutex: JS mutates on the JS thread, commits read
- * on whichever thread commits. Lock order is core (Container::coreMutex) then engine.
+ * Native side of one ShadowListNative: its data, its templates and the rows built from them.
+ * React never renders a row. Each row is a copy of a template with the item's data filled in,
+ * built during the commit that needs it.
+ * Every clone of the list node shares one engine, found by nativeListId so JS can change the data.
+ * One mutex guards it, since JS writes on the JS thread and commits read on any thread.
+ * Lock order is the core's mutex first, then the engine's.
  */
 class ShadowListNativeEngine final {
 public:
@@ -43,14 +40,11 @@ public:
 #pragma mark - Data (JS thread)
 
   /*
-   * Replace the rows. `keys` and `templates` run parallel to `items` (templates may be empty,
-   * then every row uses the default template). A row whose key existed keeps its synthesized
-   * nodes when its item is unchanged, so a refetch that returns the same data rebinds nothing.
-   * Returns the new row count.
-   *
-   * `scrollToStart` goes to offset 0 in the commit that reconciles the new rows, as the same
-   * correction: a separate scrollToStart waits for them to be laid out, so the commit in
-   * between mounts MVCP holding the old first row, which shows when the list is moving.
+   * Replaces all rows and returns the new count. Keys and templates line up with items, and
+   * empty templates means every row uses the default one. Rows with an unchanged item keep
+   * their nodes, so refetching the same data rebuilds nothing.
+   * scrollToStart jumps to the top in the same commit as the new rows. Waiting a commit would
+   * let the list briefly hold the old first row in place, which shows while it is moving.
    */
   std::size_t setData(
     const folly::dynamic& items,
@@ -58,14 +52,40 @@ public:
     const std::vector<std::string>& templates,
     bool scrollToStart = false);
 
-  // Insert before `index` (clamped; past the end appends). Keys already present are skipped.
+  /*
+   * Indexed rows are keyed by position and never stored. Each row's item is built on demand
+   * from its index and order value, plus any extra data given for that row.
+   * A million rows only cost the order array. Keys are made once per count, so a new order
+   * with the same count only rebinds the mounted rows that changed.
+   * updateItem, getItem and resolveTag take the position as the key, and updateItem merges into
+   * the row's extra data, dropping null fields. Insert, remove and move don't work here, and
+   * setData leaves indexed mode.
+   * With ids, each row is keyed by its id instead, so inserts and moves keep the visible rows
+   * in place. Keys and the id lookup are rebuilt when the ids change.
+   */
+  std::size_t setIndexed(
+    std::size_t count,
+    std::vector<std::int32_t> order,
+    const std::string& indexField,
+    const std::string& valueField,
+    const std::vector<std::size_t>& extraIndices,
+    const folly::dynamic& extraItems,
+    const std::vector<std::string>& extraTemplates,
+    bool scrollToStart = false,
+    std::vector<std::int32_t> ids = {});
+
+  /*
+   * Inserts before index, or appends past the end. Keys that already exist are skipped.
+   */
   std::size_t insertItems(
     std::size_t index,
     const folly::dynamic& items,
     const std::vector<std::string>& keys,
     const std::vector<std::string>& templates);
 
-  // Shallow-merge `patch` into the row's item (or replace it). False when the key is unknown.
+  /*
+   * Merges patch into the row's item, or replaces it. Returns false for an unknown key.
+   */
   bool updateItem(const std::string& key, const folly::dynamic& patch, const std::string& templateName, bool replace);
 
   std::size_t removeItems(const std::vector<std::string>& keys);
@@ -73,12 +93,11 @@ public:
   bool moveItem(const std::string& key, std::size_t toIndex);
 
   /*
-   * Style props merged over one element of a template (by its `id`) for every row, current and
-   * future. A null style clears the override.
+   * Overrides the style of one template element, found by id, in every row now and later.
+   * A null style clears it.
    */
   void setTemplateStyle(const std::string& templateName, const std::string& elementId, const folly::dynamic& style);
 
-  // { initialRows, padRows, cacheRows }
   void configure(const folly::dynamic& config);
 
   folly::dynamic getItem(const std::string& key) const;
@@ -90,30 +109,25 @@ public:
   struct ResolvedTag {
     std::string key;
     std::size_t index = 0;
-    // Entry of the innermost repeated element the tag sits in; -1 outside any.
+    // Entry of the innermost repeated element holding the tag, or -1 when there is none.
     int repeatIndex = -1;
   };
 
   /*
-   * The row a native view tag belongs to: any node of a synthesized row resolves to that row's
-   * key and current index. Touch events carry the hit view's tag, which is how a press on a
-   * cloned element is routed to its row.
+   * Finds the row a view tag belongs to. Touches carry the tag, so this is how a press on a
+   * row's element reaches that row.
    */
   std::optional<ResolvedTag> resolveTag(Tag tag) const;
 
   /*
-   * Ask for a commit of the list, so the next adopt/reconcile picks up the store. Coalesced by
-   * the event queue: many mutations in one JS task make one commit.
+   * Asks for a commit so the list picks up the new data. Many changes in one JS task make one commit.
    */
   void requestCommit();
 
   /*
-   * Scroll to a row (viewPosition 0 top .. 1 bottom), to the end (-1) or the start
-   * (SCROLL_TO_START), once every
-   * mutation made before this call is committed and laid out. A host view command would race
-   * the data: it can land in the commit before the rows change (or in the same one, before they
-   * are measured), and a command and a data nudge queued back to back coalesce into one state
-   * update. Here the core is told directly, in the commit after the rows it needs were measured.
+   * Scrolls to a row, to the end with -1, or to the start, once earlier changes are laid out.
+   * A view command could land before the rows change or before they are measured, and it can
+   * merge with a data nudge. So the core is told directly once the rows it needs are measured.
    */
   static constexpr double SCROLL_TO_START = -2.0;
   void requestScroll(double index, double viewPosition);
@@ -125,20 +139,21 @@ public:
     std::uint64_t version = 0;
   };
 
-  // The row keys the core reconciles against this commit.
+  /*
+   * The row keys the core reconciles against this commit.
+   */
   KeysSnapshot keysSnapshot() const;
 
-  // The newest state of the list node, used to request commits.
+  /*
+   * The list node's newest state, used to ask for commits.
+   */
   void attachState(const std::shared_ptr<const ListState>& state);
 
   /*
-   * The children the list node should carry: its own non-row children (templates, header,
-   * footer) in order, with the synthesized rows for the window the core wants mounted placed
-   * right after the templates container. Null when `children` already are exactly that.
-   *
-   * `keys` is the snapshot the core reconciled this commit, so every mounted row is one the core
-   * knows. Before the core has a viewport the window is seeded from `initialIndex` (or the end
-   * of an inverted list).
+   * Builds the list node's children: its own children like the header, with the mounted rows
+   * right after the templates. Returns null when the children are already right.
+   * Keys are the ones the core saw this commit, so the core knows every mounted row.
+   * Before the list has a size, the rows start at initialIndex or at the end when inverted.
    */
   std::shared_ptr<const ChildList> reconcileRows(
     const ShadowNode& listNode,
@@ -149,25 +164,20 @@ public:
     bool inverted);
 
   /*
-   * After the list laid out: remember the laid-out rows (reused as-is when they re-enter), and
-   * request another commit when the measured rows no longer cover the viewport.
+   * Keeps the laid out rows for reuse and asks for another commit if they no longer fill the screen.
    */
   void didLayout(const ShadowNode& listNode, azimgd::shadowlist::Container& core);
 
   /*
-   * From adopt, before the core's update: hand a due requestScroll to the core (or setData's
-   * scrollToStart, once `keysVersion` is this commit's snapshot of its rows). True when one
-   * was handed over; that frame then runs as a scroll command (see yieldMomentum).
+   * Passes a pending scroll to the core before it updates. A scrollToStart from setData waits
+   * for the commit that has its rows. Returns true when a scroll was passed on.
    */
   bool applyPendingScroll(azimgd::shadowlist::Container& core, std::uint64_t keysVersion);
 
   /*
-   * A scroll command supersedes momentum, as the host's own commands do (they stop the fling
-   * on the UI thread before they update state). An engine scroll reaches the core in a commit,
-   * so the host learns of it when it mounts the correction: the layout pass stamps the
-   * correction's commit token as ShadowListViewState::momentumYieldToken_, and the host stops
-   * the fling and writes the offset instead of shifting it. Set from adopt once the core has
-   * an operation for the command; 0 = none.
+   * A scroll command stops a fling, like the host's own commands do. The host only sees an engine
+   * scroll when the commit mounts, so the commit carries this token and the host then stops the
+   * fling and sets the offset. Zero means none.
    */
   void setMomentumYieldToken(std::uint64_t token);
   std::uint64_t momentumYieldToken() const;
@@ -186,14 +196,14 @@ private:
     std::vector<std::pair<std::string, ShadowListNativeExpression>> bindings;
     std::optional<ShadowListNativeExpression> text;
     /*
-     * `repeat`: the children are one entry's template, built once per entry of the array at
-     * this path, with bindings inside resolved against the entry. Capped at repeatMax.
+     * Repeats the children once per entry of the array at this path, up to repeatMax.
+     * Bindings inside read from that entry.
      */
     std::optional<std::vector<std::string>> repeat;
     std::size_t repeatMax = SIZE_MAX;
     bool keepNativeId = false;
     bool isRawText = false;
-    // Prototype props with the element marker stripped and the style override applied.
+    // Template props without the element marker and with the style override applied.
     Props::Shared baseProps;
     std::vector<Element> children;
   };
@@ -201,9 +211,9 @@ private:
   struct Template {
     std::string name;
     Element root;
-    // Props pointers and child counts of the subtree, in walk order; a change recompiles.
+    // Props and child counts of the subtree. A change recompiles the template.
     std::vector<const void*> signature;
-    // Component names and child counts; a change means new rows cannot reuse old nodes.
+    // Component names and child counts. A change means rows can't reuse their old nodes.
     std::string shape;
     std::uint64_t version = 0;
     std::uint64_t shapeVersion = 0;
@@ -218,6 +228,15 @@ private:
     std::uint64_t shapeVersion = 0;
     std::uint64_t usedAt = 0;
   };
+
+  struct IndexedExtra {
+    folly::dynamic item = folly::dynamic::object();
+    std::string templateName;
+    std::uint64_t version = 0;
+  };
+
+  std::optional<std::size_t> indexOfKeyLocked(const std::string& key) const;
+  folly::dynamic indexedItemLocked(std::size_t index) const;
 
   void nudge();
   void rebuildIndexLocked();
@@ -234,7 +253,19 @@ private:
     const Row& row,
     const std::shared_ptr<const ShadowNode>& existing,
     bool rootPropsCurrent,
+    const PropsParserContext& context,
+    bool inFlow = false);
+
+  /*
+   * A pinned copy of the current sticky row for the section header overlay, or null.
+   * It is kept while the same row stays pinned, and presses on it reach that row.
+   */
+  std::shared_ptr<const ShadowNode> stickyRowLocked(
+    const std::vector<std::string>& keys,
+    azimgd::shadowlist::Container& core,
+    bool inverted,
     const PropsParserContext& context);
+  void dropStickyLocked();
   std::shared_ptr<const ShadowNode> buildNode(
     const Element& element,
     const folly::dynamic& item,
@@ -253,6 +284,19 @@ private:
 
   std::vector<Row> rows_;
   std::unordered_map<std::string, std::size_t> keyIndex_;
+
+  // In indexed mode rows_ and keyIndex_ stay empty.
+  bool indexed_ = false;
+  std::size_t indexedCount_ = 0;
+  std::vector<std::int32_t> indexedOrder_;
+  // Row ids used as keys, empty when rows are keyed by position.
+  std::vector<std::int32_t> indexedIds_;
+  std::unordered_map<std::int32_t, std::size_t> idIndex_;
+  std::string indexField_;
+  std::string valueField_;
+  std::unordered_map<std::size_t, IndexedExtra> indexedExtras_;
+  // Version of every row without extra data. A new order bumps it.
+  std::uint64_t indexedEpoch_ = 0;
   std::shared_ptr<const std::vector<std::string>> keys_;
   std::uint64_t keysVersion_ = 1;
   std::uint64_t nextRowVersion_ = 1;
@@ -265,9 +309,8 @@ private:
   std::uint64_t nextTemplateVersion_ = 1;
 #ifdef RN_SERIALIZABLE_STATE
   /*
-   * Android mounts a view from Props::rawProps, which after a template update holds only React's
-   * diff. Rows are new views, so they need every prop: the full raw props per prototype family,
-   * merged over each update the compile sees (keyed by tag; rebuilt per compile).
+   * Android builds views from raw props, which after a template update only hold what changed.
+   * Rows are new views and need every prop, so keep the full raw props for each template element.
    */
   struct PrototypeRawProps {
     const Props* props = nullptr;
@@ -278,6 +321,8 @@ private:
 #endif
 
   std::unordered_map<std::string, RowNode> rowNodes_;
+  RowNode stickyNode_;
+  std::string stickyKey_;
   struct TagEntry {
     std::string key;
     int repeatIndex = -1;
@@ -285,14 +330,14 @@ private:
   std::unordered_map<Tag, TagEntry> tagKeys_;
   std::uint64_t clock_ = 0;
 
-  // Keys at the ends of the rows the last reconcile mounted.
+  // First and last keys the last pass mounted.
   std::string mountedLowKey_;
   std::string mountedHighKey_;
   std::size_t mountedCount_ = 0;
-  // What the last coverage request was made for, so an unfixable gap does not loop.
+  // Remembers the last request to fill the screen, so a gap that can't be fixed doesn't loop.
   std::tuple<std::size_t, std::size_t, std::uint64_t, std::size_t> lastCoverageRequest_{0, 0, 0, 0};
 
-  // Bumped by every store mutation; what the last reconcile read, and what was laid out since.
+  // Bumped on every data change, then what the last pass read and what has been laid out.
   std::uint64_t storeVersion_ = 0;
   std::uint64_t reconciledVersion_ = 0;
   std::uint64_t laidOutVersion_ = 0;
@@ -300,7 +345,7 @@ private:
     double index = -1.0;
     double viewPosition = 0.0;
     std::uint64_t afterVersion = 0;
-    // Nonzero: due with the snapshot of these keys (setData's scrollToStart), not after layout.
+    // When set, the scroll runs with these keys instead of after layout. Used by setData's scrollToStart.
     std::uint64_t withKeysVersion = 0;
   };
   std::optional<PendingScroll> pendingScroll_;
@@ -311,23 +356,26 @@ private:
   std::size_t cacheRows_ = 64;
 
   /*
-   * Held strongly: only its family matters for updateState, and the layout pass replaces the
-   * node's state object (setStateData) after adopt attached it, so a weak reference to the adopted
-   * one expires whenever a commit publishes geometry, and every later nudge would be dropped.
+   * Held strongly on purpose. The layout pass swaps the node's state object, so a weak
+   * reference would expire and every later commit request would be dropped.
    */
   std::shared_ptr<const ListState> state_;
 };
 
 /*
- * listId -> engine, weakly. An engine lives while a list node or a JS handle (`open`, see
- * ShadowListNativeJSI.cpp) holds it, so nothing outlives the runtime or the render that made it.
+ * Maps list ids to engines without owning them. An engine lives while a list node or a JS
+ * handle holds it, so none outlives the runtime or the render that made it.
  */
 class ShadowListNativeRegistry final {
 public:
-  // The engine for listId, created if none is alive (the list node's path).
+  /*
+   * Returns the engine for the list, making one if none is alive. Used by the list node.
+   */
   static std::shared_ptr<ShadowListNativeEngine> obtain(const std::string& listId);
   static std::shared_ptr<ShadowListNativeEngine> find(const std::string& listId);
-  // obtain() after dropping dead entries (the JS handle's path).
+  /*
+   * Same as obtain after clearing dead entries. Used by the JS handle.
+   */
   static std::shared_ptr<ShadowListNativeEngine> open(const std::string& listId);
 };
 
