@@ -7,6 +7,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Avatar } from '../primitives/Avatar';
+import { useLargeText } from '../internal/useLargeText';
 import { createStyles } from '../theme';
 import type { ContactItem } from './types';
 
@@ -18,6 +19,7 @@ export interface ContactBodyProps {
 export const ContactBody = memo(
   ({ contact, avatarStyle }: ContactBodyProps) => {
     const styles = useStyles();
+    const lines = useLargeText() ? undefined : 1;
     return (
       <>
         <Avatar
@@ -27,11 +29,11 @@ export const ContactBody = memo(
           style={[styles.avatar, avatarStyle]}
         />
         <View style={styles.text}>
-          <Text style={styles.name} numberOfLines={1}>
+          <Text style={styles.name} numberOfLines={lines}>
             {contact.name}
           </Text>
           {contact.subtitle ? (
-            <Text style={styles.subtitle} numberOfLines={1}>
+            <Text style={styles.subtitle} numberOfLines={lines}>
               {contact.subtitle}
             </Text>
           ) : null}

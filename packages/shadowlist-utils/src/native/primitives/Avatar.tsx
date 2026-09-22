@@ -40,7 +40,11 @@ export const Avatar = memo(
         importantForAccessibility="no-hide-descendants"
       >
         {/* Initials stay underneath, so they show while the image loads or when it fails. */}
-        <Text style={[styles.initials, { fontSize: Math.floor(size * 0.43) }]}>
+        <Text
+          style={[styles.initials, { fontSize: Math.floor(size * 0.43) }]}
+          allowFontScaling={false}
+          numberOfLines={1}
+        >
           {getInitials(name)}
         </Text>
         {uri ? (

@@ -4,29 +4,29 @@ route ChatNative
 latency 250,700
 wait 3
 mark append-at-bottom
-press 333 80
+press 262 78
 wait 2
 mark fling-up-during-append
-press 333 80
+press 262 78
 pan 200 250 0 500 120
 wait 2.5
 mark append-scrolled-up
-press 333 80
+press 262 78
 wait 2
 mark prepend-mid
-press 296 80
+press 210 78
 wait 2
 mark fling-up-during-prepend
-press 296 80
+press 210 78
 pan 200 250 0 500 120
 wait 3
 mark fling-down-during-append
-press 333 80
+press 262 78
 pan 200 750 0 -500 120
 wait 3
 mark back-to-bottom
 repeat 8 pan 200 750 0 -600 100
 wait 2
 mark append-burst-bottom
-repeat 3 press 333 80
+repeat 3 press 262 78
 wait 3

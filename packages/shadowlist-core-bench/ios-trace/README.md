@@ -28,7 +28,7 @@ route Chat            screen to open (launch arg -SLRoute), first
 latency 250,700       fake network latency range in ms (-SLLatency)
 wait 1.5              seconds
 mark load-burst       writes a [SCN] marker into the trace
-press X Y             tap (prepend 296 80, append 333 80, scroll-to-random 372 80)
+press X Y             tap (debug header buttons, shown by -SLDebug 1: prepend 210 78, append 262 78, scroll-to-random 317 78)
 statusbar             tap the status bar: scroll to top
 pan X Y DX DY MS      one-finger drag; negative DY scrolls a vertical list forward
 repeat N <step>       run a step N times

@@ -1,16 +1,12 @@
 import { useRef } from 'react';
 import { View } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
-import { Contacts, ListHeader, ListFooter } from 'shadowlist-utils/native';
+import { Contacts, ListFooter } from 'shadowlist-utils/native';
 import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
-import { showContact } from './fixtures/contacts';
-import {
-  useAddContacts,
-  useContactsQuery,
-  useDeleteContact,
-} from './queries/contacts';
+import { useContactActions } from './contactActions';
+import { useAddContacts, useContactsQuery } from './queries/contacts';
 
 export const ContactsScreen = () => {
   const styles = useScreenStyles();
@@ -18,7 +14,7 @@ export const ContactsScreen = () => {
 
   const contacts = useContactsQuery();
   const { mutate: addContacts } = useAddContacts();
-  const { mutate: deleteContact } = useDeleteContact();
+  const { openContact, removeContact } = useContactActions();
 
   useHeaderActions({
     onPrepend: () => addContacts({ count: 10, position: 'start' }),
@@ -27,6 +23,8 @@ export const ContactsScreen = () => {
       shadowlistRef.current?.scrollToIndex(
         Math.floor(Math.random() * (contacts.data?.length ?? 0))
       ),
+    prependLabel: 'Add Companions to Top',
+    appendLabel: 'Add Companions to Bottom',
   });
 
   if (contacts.data === undefined) {
@@ -39,11 +37,8 @@ export const ContactsScreen = () => {
         data={contacts.data}
         ref={shadowlistRef}
         style={styles.list}
-        onPressItem={showContact}
-        onDelete={deleteContact}
-        ListHeaderComponent={
-          <ListHeader title="Companions" subtitle="Swipe left to remove" />
-        }
+        onPressItem={openContact}
+        onDelete={removeContact}
         ListFooterComponent={
           <ListFooter text={`${contacts.data.length} companions`} />
         }

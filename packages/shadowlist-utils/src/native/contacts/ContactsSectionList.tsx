@@ -37,19 +37,32 @@ const renderContactSectionHeader = ({
 export const ContactsSectionList = forwardRef<
   ShadowListCommands,
   ContactsSectionListProps
->(({ renderElement, onPressItem, onDelete, labels, ...props }, ref) => {
-  const renderContactRow = useContactRowRenderer({
-    onPressItem,
-    onDelete,
-    labels,
-  });
-  return (
-    <SectionList
-      ref={ref}
-      renderElement={renderElement ?? renderContactRow}
-      renderSectionHeader={renderContactSectionHeader}
-      ItemSeparatorComponent={ITEM_SEPARATOR}
-      {...props}
-    />
-  );
-});
+>(
+  (
+    {
+      renderElement,
+      onPressItem,
+      onDelete,
+      disclosureIndicator,
+      labels,
+      ...props
+    },
+    ref
+  ) => {
+    const renderContactRow = useContactRowRenderer({
+      onPressItem,
+      onDelete,
+      disclosureIndicator,
+      labels,
+    });
+    return (
+      <SectionList
+        ref={ref}
+        renderElement={renderElement ?? renderContactRow}
+        renderSectionHeader={renderContactSectionHeader}
+        ItemSeparatorComponent={ITEM_SEPARATOR}
+        {...props}
+      />
+    );
+  }
+);

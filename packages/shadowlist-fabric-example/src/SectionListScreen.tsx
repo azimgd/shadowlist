@@ -1,22 +1,18 @@
-import { useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { View } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
 import { groupIntoSections } from 'shadowlist-utils';
 import {
   Contacts,
-  ListHeader,
   ListFooter,
   type ContactItem,
 } from 'shadowlist-utils/native';
 import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
-import { showContact } from './fixtures/contacts';
-import {
-  useAddContacts,
-  useContactsQuery,
-  useDeleteContact,
-} from './queries/contacts';
+import { SectionIndex } from './SectionIndex';
+import { useContactActions } from './contactActions';
+import { useAddContacts, useContactsQuery } from './queries/contacts';
 
 const NO_CONTACTS: ContactItem[] = [];
 
@@ -31,7 +27,7 @@ export const SectionListScreen = () => {
 
   const contacts = useContactsQuery();
   const { mutate: addContacts } = useAddContacts();
-  const { mutate: deleteContact } = useDeleteContact();
+  const { openContact, removeContact } = useContactActions();
 
   const sections = useMemo(
     () =>
@@ -42,6 +38,29 @@ export const SectionListScreen = () => {
     [contacts.data]
   );
 
+  const { titles, headerIndices } = useMemo(() => {
+    let index = 0;
+    const starts: number[] = [];
+    for (const section of sections) {
+      starts.push(index);
+      index += 1 + section.data.length;
+    }
+    return {
+      titles: sections.map((section) => section.title),
+      headerIndices: starts,
+    };
+  }, [sections]);
+
+  const jumpToSection = useCallback(
+    (sectionIndex: number) => {
+      const index = headerIndices[sectionIndex];
+      if (index !== undefined) {
+        sectionListRef.current?.scrollToIndex(index, 0);
+      }
+    },
+    [headerIndices]
+  );
+
   useHeaderActions({
     onPrepend: () => addContacts({ count: 10, position: 'start' }),
     onAppend: () => addContacts({ count: 10, position: 'end' }),
@@ -49,6 +68,8 @@ export const SectionListScreen = () => {
       sectionListRef.current?.scrollToIndex(
         Math.floor(Math.random() * (contacts.data?.length ?? 0))
       ),
+    prependLabel: 'Add Travellers',
+    appendLabel: 'Add More Travellers',
   });
 
   if (contacts.data === undefined) {
@@ -61,15 +82,14 @@ export const SectionListScreen = () => {
         ref={sectionListRef}
         sections={sections}
         style={styles.list}
-        onPressItem={showContact}
-        onDelete={deleteContact}
-        ListHeaderComponent={
-          <ListHeader title="Directory" subtitle="Skyfy travellers, A to Z" />
-        }
+        onPressItem={openContact}
+        onDelete={removeContact}
+        disclosureIndicator={false}
         ListFooterComponent={
           <ListFooter text={`${contacts.data.length} travellers`} />
         }
       />
+      <SectionIndex titles={titles} onSelect={jumpToSection} />
     </View>
   );
 };

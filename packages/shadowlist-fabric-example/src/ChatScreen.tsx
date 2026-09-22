@@ -15,6 +15,8 @@ import {
 } from 'shadowlist-utils/native';
 import { useItemOrdinals } from './itemOrdinals';
 import { useHeaderActions } from './HeaderActions';
+import { haptics } from './haptics';
+import { DEBUG } from './launchSettings';
 import { QueryStatus } from './QueryStatus';
 import { createOutgoingMessage, simulateIncomingMessages } from './api/chat';
 import {
@@ -46,6 +48,7 @@ export const ChatScreen = () => {
   const handleSendMessage = useCallback(
     (text: string) => {
       const message = createOutgoingMessage(text);
+      haptics.send();
       sentIdRef.current = message.id;
       sendMessage(message);
     },
@@ -88,7 +91,7 @@ export const ChatScreen = () => {
     ({ element }: { element: ChatMessage }) => (
       <Chat.Bubble
         message={element}
-        caption={labelOf(element.id)}
+        caption={DEBUG ? labelOf(element.id) : undefined}
         onRetry={handleRetry}
       />
     ),
@@ -101,7 +104,7 @@ export const ChatScreen = () => {
    */
   const getSizeSpec = useCallback(
     (message: ChatMessage) =>
-      getChatMessageSizeSpec(message, theme, { caption: true }),
+      getChatMessageSizeSpec(message, theme, { caption: DEBUG }),
     [theme]
   );
 
@@ -112,6 +115,8 @@ export const ChatScreen = () => {
       shadowlistRef.current?.scrollToIndex(
         Math.floor(Math.random() * list.data.length)
       ),
+    prependLabel: 'Load Earlier Messages',
+    appendLabel: 'Simulate Incoming Messages',
   });
 
   const { isFetchingPreviousPage, hasPreviousPage } = messages;

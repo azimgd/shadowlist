@@ -4,8 +4,8 @@
 #
 #   ./device-metrics.sh <label> <screen> [flings] [swipe_ms]
 #
-# The screen is its drawer label in the example app, like Chat or Feed. The script opens
-# it, flings the list and reports:
+# The screen is its route name in the example app, like Chat, Feed or FeedNative. The
+# script opens it from the home list, flings the list and reports:
 #
 #   Frames: timing and jank from dumpsys gfxinfo framestats.
 #   Blank cells: the tallest empty band in the list while flinging, meaning rows that
@@ -70,24 +70,23 @@ find_bounds() {
     | grep -oE '[0-9]+' | tr '\n' ' ' || true
 }
 
-# Open the drawer and tap the entry labelled $SCREEN.
+# Restart the app on its home list and tap the row for $SCREEN.
 navigate() {
-  # Bring the app to the front first, or the drawer tap lands on the launcher.
+  # BACKGROUND assumes the dark theme.
+  $ADB shell cmd uimode night yes >/dev/null 2>&1 || true
+  $ADB shell am force-stop "$PKG" >/dev/null 2>&1 || true
   $ADB shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
   sleep 4
-  # Tap the menu button instead of swiping from the edge. With gesture navigation
-  # the edge swipe goes back and leaves the app.
-  local menu
-  menu=$(find_bounds 'content-desc="Show navigation menu"')
-  if [[ -n "$menu" ]]; then
-    read -r mx1 my1 mx2 my2 <<<"$menu"
-    $ADB shell input tap $(((mx1 + mx2) / 2)) $(((my1 + my2) / 2)) >/dev/null
-  fi
-  sleep 1.5
-  local bounds
-  bounds=$(find_bounds "text=\"$SCREEN\"")
+  # Home rows use the route name as testID.
+  local bounds=""
+  for _ in 1 2 3; do
+    bounds=$(find_bounds "resource-id=\"$SCREEN\"")
+    [[ -n "$bounds" ]] && break
+    $ADB shell input swipe "$CX" "$Y_LOW" "$CX" "$Y_HIGH" 300 >/dev/null
+    sleep 1
+  done
   if [[ -z "$bounds" ]]; then
-    echo "!! could not find '$SCREEN' in the drawer" >&2
+    echo "!! could not find '$SCREEN' on the home list" >&2
     exit 1
   fi
   read -r x1 y1 x2 y2 <<<"$bounds"

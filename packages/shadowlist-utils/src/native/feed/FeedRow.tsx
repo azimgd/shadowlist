@@ -13,6 +13,7 @@ import {
 import { formatRelativeTime } from '../formatRelativeTime';
 import { useLabels } from '../labels';
 import { Avatar } from '../primitives/Avatar';
+import { useLargeText } from '../internal/useLargeText';
 import { createStyles } from '../theme';
 import { defaultFeedLabels, type FeedLabels } from './labels';
 import type { FeedImage, FeedItem } from './types';
@@ -57,6 +58,8 @@ export const FeedRow = memo(
     textStyle,
   }: FeedRowProps) => {
     const styles = useStyles();
+    const largeText = useLargeText();
+    const lines = largeText ? undefined : 1;
     const l = useLabels(defaultFeedLabels, labels);
     const { author, text, images, createdAt } = item;
     const hasImages = images !== undefined && images.length > 0;
@@ -112,17 +115,17 @@ export const FeedRow = memo(
           style={[styles.avatar, avatarStyle]}
         />
         <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.name} numberOfLines={1}>
+          <View style={[styles.header, largeText && styles.headerWrapped]}>
+            <Text style={styles.name} numberOfLines={lines}>
               {author.name}
             </Text>
             {author.handle !== undefined && (
-              <Text style={styles.secondary} numberOfLines={1}>
+              <Text style={styles.secondary} numberOfLines={lines}>
                 {author.handle}
               </Text>
             )}
             {date !== undefined && (
-              <Text style={styles.date} numberOfLines={1}>
+              <Text style={styles.date} numberOfLines={lines}>
                 · {date}
               </Text>
             )}
@@ -198,6 +201,9 @@ const useStyles = createStyles((theme) =>
       alignItems: 'center',
       gap: theme.spacing.xs,
       marginBottom: theme.spacing.xxs,
+    },
+    headerWrapped: {
+      flexWrap: 'wrap',
     },
     name: {
       color: theme.colors.label,

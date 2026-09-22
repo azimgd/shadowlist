@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useLabels } from '../labels';
+import { useLargeText } from '../internal/useLargeText';
 import { createStyles } from '../theme';
 import { defaultMasonryLabels, type MasonryLabels } from './labels';
 import type { MasonryItem } from './types';
@@ -25,6 +26,7 @@ export interface MasonryCardProps {
 export const MasonryCard = memo(
   ({ item, onPress, labels, style, imageStyle }: MasonryCardProps) => {
     const styles = useStyles();
+    const largeText = useLargeText();
     const l = useLabels(defaultMasonryLabels, labels);
     const { image, title } = item;
     const aspectRatio = image.height > 0 ? image.width / image.height : 1;
@@ -40,7 +42,7 @@ export const MasonryCard = memo(
           />
         </View>
         {title !== undefined && (
-          <Text style={styles.title} numberOfLines={2}>
+          <Text style={styles.title} numberOfLines={largeText ? 4 : 2}>
             {title}
           </Text>
         )}

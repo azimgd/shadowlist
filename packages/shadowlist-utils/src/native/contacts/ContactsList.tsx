@@ -19,10 +19,21 @@ export type ContactsListProps = Omit<
   };
 
 export const ContactsList = forwardRef<ShadowListCommands, ContactsListProps>(
-  ({ renderElement, onPressItem, onDelete, labels, ...props }, ref) => {
+  (
+    {
+      renderElement,
+      onPressItem,
+      onDelete,
+      disclosureIndicator,
+      labels,
+      ...props
+    },
+    ref
+  ) => {
     const renderContactRow = useContactRowRenderer({
       onPressItem,
       onDelete,
+      disclosureIndicator,
       labels,
     });
     return (

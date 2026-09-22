@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   ShadowListNative,
   type ShadowListNativeCommands,
@@ -14,7 +14,6 @@ import {
 } from 'shadowlist';
 import {
   ListFooter,
-  ListHeader,
   Spinner,
   createStyles,
   defaultFeedLabels,
@@ -60,7 +59,7 @@ interface FeedNativeRow {
 interface LocalEdits {
   hidden: Set<string>;
   patches: Map<string, Partial<FeedNativeRow>>;
-  // Rows made on this screen with Prepend stay at the top across a refresh.
+  // Rows made on this screen with Add Local Posts stay at the top across a refresh.
   created: FeedNativeRow[];
 }
 
@@ -218,19 +217,6 @@ export const FeedNativeScreen = () => {
     ]);
   }, [rowsOf, takePage]);
 
-  useHeaderActions({
-    onPrepend: () =>
-      publishPosts(PUBLISH_COUNT).then(
-        (created) => listRef.current?.prependItems(rowsOf(created)),
-        () => {}
-      ),
-    onAppend: loadMore,
-    onScrollToRandom: () =>
-      listRef.current?.scrollToIndex(
-        Math.floor(Math.random() * (listRef.current?.getCount() ?? 1))
-      ),
-  });
-
   const handleElementPress = useCallback(
     ({
       key,
@@ -283,6 +269,41 @@ export const FeedNativeScreen = () => {
       text: `${item.text.replace(/ \(edited\)$/, '')} (edited)`,
     });
   }, [edit]);
+
+  useHeaderActions(
+    {
+      onPrepend: () =>
+        publishPosts(PUBLISH_COUNT).then(
+          (created) => listRef.current?.prependItems(rowsOf(created)),
+          () => {}
+        ),
+      onAppend: loadMore,
+      onScrollToRandom: () =>
+        listRef.current?.scrollToIndex(
+          Math.floor(Math.random() * (listRef.current?.getCount() ?? 1))
+        ),
+      prependLabel: 'Publish New Posts',
+      appendLabel: 'Load More Posts',
+    },
+    [
+      [
+        { label: 'Add Local Posts', symbol: 'plus', onPress: prependLocal },
+        { label: 'Edit a Post', symbol: 'pencil', onPress: likeRandom },
+        {
+          label: 'Accent Names',
+          symbol: 'paintbrush',
+          checked: nameAccent,
+          onPress: toggleAccent,
+        },
+        {
+          label: 'Hide Top Post',
+          symbol: 'eye.slash',
+          destructive: true,
+          onPress: removeFirst,
+        },
+      ],
+    ]
+  );
 
   const templates = useMemo(() => {
     const avatar = (
@@ -403,15 +424,6 @@ export const FeedNativeScreen = () => {
       hasNextPage ? <Spinner /> : <ListFooter text="You're all caught up" />,
     [hasNextPage]
   );
-  const listHeader = useMemo(
-    () => (
-      <ListHeader
-        title="Skyfy (Native)"
-        subtitle="Rows cloned natively from templates"
-      />
-    ),
-    []
-  );
 
   if (initialRows === null) {
     return <QueryStatus error={error} onRetry={loadFirstPage} />;
@@ -425,46 +437,15 @@ export const FeedNativeScreen = () => {
         templates={templates}
         templateKey="type"
         style={screenStyles.list}
-        autoHideHeader
         refreshing={refreshing}
         onRefresh={handleRefresh}
         onRefreshSettle={applyRefresh}
         refreshColor={colors.secondaryLabel}
         onEndReached={loadMore}
         onElementPress={handleElementPress}
-        ListHeaderComponent={listHeader}
         ListFooterComponent={footer}
       />
-      <View style={styles.toolbar}>
-        <ToolbarButton label="Prepend" onPress={prependLocal} />
-        <ToolbarButton label="Remove top" onPress={removeFirst} />
-        <ToolbarButton label="Update" onPress={likeRandom} />
-        <ToolbarButton
-          label={nameAccent ? 'Plain names' : 'Accent names'}
-          onPress={toggleAccent}
-        />
-      </View>
     </View>
-  );
-};
-
-const ToolbarButton = ({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) => {
-  const styles = useStyles();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-    >
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
   );
 };
 
@@ -566,32 +547,6 @@ const useStyles = createStyles((theme) =>
       bottom: 0,
       height: StyleSheet.hairlineWidth,
       backgroundColor: theme.colors.separator,
-    },
-    toolbar: {
-      position: 'absolute',
-      left: theme.spacing.lg,
-      right: theme.spacing.lg,
-      bottom: theme.spacing.xl,
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      gap: theme.spacing.xs,
-      padding: theme.spacing.xs,
-      borderRadius: theme.radius.lg,
-      backgroundColor: theme.colors.elevated2,
-    },
-    button: {
-      flex: 1,
-      paddingVertical: theme.spacing.sm,
-      borderRadius: theme.radius.md,
-      alignItems: 'center',
-    },
-    pressed: {
-      opacity: 0.4,
-    },
-    buttonText: {
-      ...theme.typography.footnote,
-      color: theme.colors.accent,
-      fontWeight: theme.fontWeight.semibold,
     },
   })
 );

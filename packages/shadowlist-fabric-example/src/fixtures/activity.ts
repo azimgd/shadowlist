@@ -33,9 +33,3 @@ export const END_REACHED_THRESHOLDS = [0.5, 1.5, 3];
 export function nextInCycle(steps: number[], current: number): number {
   return steps[(steps.indexOf(current) + 1) % steps.length]!;
 }
-
-/*
- * Scroll distance in px after which the Activity sticky header hides.
- * It pins again once the user scrolls back above it.
- */
-export const HEADER_HIDE_THRESHOLD = 220;

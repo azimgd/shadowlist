@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   ShadowListNative,
   type ShadowListNativeCommands,
@@ -7,12 +7,11 @@ import {
 } from 'shadowlist';
 import {
   ListFooter,
-  ListHeader,
   Spinner,
   createStyles,
   type NestedItem,
 } from 'shadowlist-utils/native';
-import { useHeaderActions } from './HeaderActions';
+import { useHeaderActions, type HeaderAction } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
 import { fetchShelvesPage } from './api/gallery';
 import { request } from './api/network';
@@ -97,7 +96,7 @@ export const NestedNativeScreen = () => {
   const cursorRef = useRef<number | undefined>(undefined);
   const loadingRef = useRef(false);
   const [initialDeals] = useState(() =>
-    createCarouselCards(INITIAL_DEALS, 'Deal').map(toDeal)
+    createCarouselCards(INITIAL_DEALS).map(toDeal)
   );
 
   const loadFirstPage = useCallback(() => {
@@ -126,23 +125,6 @@ export const NestedNativeScreen = () => {
         loadingRef.current = false;
       });
   }, []);
-
-  useHeaderActions({
-    onPrepend: () => {
-      request(() => createCarouselCards(PAGE_DEALS, 'New')).then((created) =>
-        dealsRef.current?.prependItems(created.map(toDeal))
-      );
-    },
-    onAppend: () => {
-      request(() => createCarouselCards(PAGE_DEALS, 'Fare')).then((created) =>
-        dealsRef.current?.appendItems(created.map(toDeal))
-      );
-    },
-    onScrollToRandom: () => {
-      const list = mode === 'grid' ? gridRef.current : shelvesRef.current;
-      list?.scrollToIndex(Math.floor(Math.random() * (list.getCount() || 1)));
-    },
-  });
 
   const handleShelfPress = useCallback(
     ({
@@ -244,6 +226,62 @@ export const NestedNativeScreen = () => {
     });
   }, []);
 
+  useHeaderActions(
+    {
+      onPrepend: () => {
+        request(() => createCarouselCards(PAGE_DEALS)).then((created) =>
+          dealsRef.current?.prependItems(created.map(toDeal))
+        );
+      },
+      onAppend: () => {
+        request(() => createCarouselCards(PAGE_DEALS)).then((created) =>
+          dealsRef.current?.appendItems(created.map(toDeal))
+        );
+      },
+      onScrollToRandom: () => {
+        const list = mode === 'grid' ? gridRef.current : shelvesRef.current;
+        list?.scrollToIndex(Math.floor(Math.random() * (list.getCount() || 1)));
+      },
+      prependLabel: 'Add Deals at Start',
+      appendLabel: 'Add Deals at End',
+    },
+    [
+      [
+        {
+          label: 'Shelves',
+          symbol: 'rectangle.grid.1x2',
+          checked: mode === 'shelves',
+          onPress: () => setMode('shelves'),
+        },
+        {
+          label: 'Grid',
+          symbol: 'square.grid.2x2',
+          checked: mode === 'grid',
+          onPress: showGrid,
+        },
+      ],
+      ...(mode === 'grid'
+        ? [
+            [
+              { label: 'Shuffle', symbol: 'shuffle', onPress: shuffleGrid },
+              gridCleared
+                ? {
+                    label: 'Undo Clear',
+                    symbol: 'arrow.uturn.backward',
+                    onPress: toggleGridCleared,
+                  }
+                : {
+                    label: 'Clear',
+                    symbol: 'trash',
+                    destructive: true,
+                    onPress: toggleGridCleared,
+                  },
+            ] satisfies HeaderAction[],
+          ]
+        : []),
+    ]
+  );
+
   const shelfTemplates = useMemo(
     () => ({
       shelf: (
@@ -255,10 +293,10 @@ export const NestedNativeScreen = () => {
               bind={{ text: 'title' }}
             />
             <ShadowListNative.View action="add" style={styles.shelfAction}>
-              <Text style={styles.shelfActionText}>＋ Card</Text>
+              <Text style={styles.shelfActionText}>Add</Text>
             </ShadowListNative.View>
             <ShadowListNative.View action="top" style={styles.shelfAction}>
-              <Text style={styles.shelfActionText}>↑ Top</Text>
+              <Text style={styles.shelfActionText}>Move to Top</Text>
             </ShadowListNative.View>
           </View>
           <ScrollView
@@ -358,9 +396,7 @@ export const NestedNativeScreen = () => {
         <Text style={styles.dealsTitle} accessibilityRole="header">
           Deals
         </Text>
-        <Text style={styles.dealsSubtitle}>
-          Live fares; header arrows add more
-        </Text>
+        <Text style={styles.dealsSubtitle}>Fares this week</Text>
       </View>
     ),
     [styles]
@@ -369,10 +405,6 @@ export const NestedNativeScreen = () => {
   const listHeader = useMemo(
     () => (
       <View>
-        <ListHeader
-          title="Explore (Native)"
-          subtitle="Shelves cloned natively; cards repeat per shelf"
-        />
         <View style={styles.deals}>
           <ShadowListNative
             ref={dealsRef}
@@ -442,48 +474,13 @@ export const NestedNativeScreen = () => {
           ListEmptyComponent={
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>
-                No cards; Undo clear brings them back
+                No cards. Choose Undo Clear from the More menu.
               </Text>
             </View>
           }
         />
       ) : null}
-      <View style={styles.toolbar}>
-        <ToolbarButton
-          label={mode === 'grid' ? 'Shelves' : 'Grid'}
-          onPress={mode === 'grid' ? () => setMode('shelves') : showGrid}
-        />
-        {mode === 'grid' ? (
-          <>
-            <ToolbarButton label="Shuffle" onPress={shuffleGrid} />
-            <ToolbarButton
-              label={gridCleared ? 'Undo clear' : 'Clear'}
-              onPress={toggleGridCleared}
-            />
-          </>
-        ) : null}
-      </View>
     </View>
-  );
-};
-
-const ToolbarButton = ({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) => {
-  const styles = useStyles();
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-    >
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
   );
 };
 
@@ -640,31 +637,6 @@ const useStyles = createStyles(
       gridRemove: {
         paddingHorizontal: spacing.sm,
         paddingVertical: spacing.xxs,
-      },
-      toolbar: {
-        position: 'absolute',
-        left: spacing.lg,
-        right: spacing.lg,
-        bottom: spacing.xl,
-        flexDirection: 'row',
-        gap: spacing.xs,
-        padding: spacing.xs,
-        borderRadius: radius.lg,
-        backgroundColor: colors.elevated2,
-      },
-      button: {
-        flex: 1,
-        paddingVertical: spacing.sm,
-        borderRadius: radius.md,
-        alignItems: 'center',
-      },
-      pressed: {
-        opacity: 0.4,
-      },
-      buttonText: {
-        ...typography.footnote,
-        color: colors.accent,
-        fontWeight: fontWeight.semibold,
       },
     })
 );

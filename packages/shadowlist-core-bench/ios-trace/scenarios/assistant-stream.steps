@@ -13,13 +13,13 @@ mark drag-back-mid-stream
 repeat 3 pan 200 700 0 -500 200
 wait 10
 mark send-next
-press 333 80
+press 262 78
 wait 12
 mark drag-away-again
 pan 200 300 0 450 600
 wait 8
 mark load-earlier
-press 296 80
+press 210 78
 wait 4
 mark statusbar-top
 statusbar

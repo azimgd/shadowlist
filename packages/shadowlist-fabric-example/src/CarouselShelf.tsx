@@ -33,9 +33,7 @@ export const CarouselShelf = memo(({ item }: { item: CarouselShelfItem }) => {
         <Text style={styles.headerTitle} accessibilityRole="header">
           Deals
         </Text>
-        <Text style={styles.headerSubtitle}>
-          Live fares; header arrows add more
-        </Text>
+        <Text style={styles.headerSubtitle}>Fares this week</Text>
       </View>
     ),
     [styles]

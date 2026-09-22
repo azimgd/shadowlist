@@ -3,13 +3,13 @@ route Feed
 latency 250,700
 wait 2
 mark publish-then-pull
-press 296 80
+press 210 78
 wait 1.5
 pan 200 250 0 450 700
 wait 4
 mark pull-then-publish-burst
 pan 200 250 0 450 700
-repeat 3 press 296 80
+repeat 3 press 210 78
 wait 5
 mark scrolled-pull
 pan 200 700 0 -300 400

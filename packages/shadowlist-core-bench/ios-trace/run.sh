@@ -11,7 +11,7 @@
 #   latency 250,700         fake network latency range in ms (-SLLatency)
 #   wait 1.5                sleep seconds
 #   mark some-label         write a [SCN] marker into the trace
-#   press X Y               tap a point (header buttons: prepend 296 80, append 333 80, random 372 80)
+#   press X Y               tap a point (debug header buttons: prepend 210 78, append 262 78, random 317 78)
 #   statusbar               tap the status bar (scroll to top)
 #   pan X Y DX DY MS        one-finger drag; negative DY scrolls a vertical list forward
 #   repeat N <step>         run a step N times back to back
@@ -60,7 +60,7 @@ ad() { "$AD" "$@" --session "$SESSION" --platform ios --device "$DEVICE" > /dev/
 
 echo "launching $PKG route=$ROUTE latency=$LATENCY -> $LOG"
 SIMCTL_CHILD_SHADOWLIST_FRAME_TRACE=1 xcrun simctl launch --console-pty --terminate-running-process \
-  "$UDID" "$PKG" -SLRoute "$ROUTE" -SLLatency "$LATENCY" > "$LOG" 2>&1 &
+  "$UDID" "$PKG" -SLRoute "$ROUTE" -SLLatency "$LATENCY" -SLDebug 1 > "$LOG" 2>&1 &
 CONSOLE_PID=$!
 trap 'kill $CONSOLE_PID 2>/dev/null || true' EXIT
 

@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { View } from 'react-native';
-import { Reorder, ListHeader, type ContactItem } from 'shadowlist-utils/native';
+import { Reorder, ListFooter, type ContactItem } from 'shadowlist-utils/native';
+import { haptics } from './haptics';
 import { useScreenStyles } from './screenStyles';
 import { QueryStatus } from './QueryStatus';
 import { useFavoritesQuery, useReorderFavorites } from './queries/contacts';
@@ -11,7 +12,10 @@ export const ReorderScreen = () => {
   const { mutate: saveOrder } = useReorderFavorites();
 
   const handleReorder = useCallback(
-    ({ data: reordered }: { data: ContactItem[] }) => saveOrder(reordered),
+    ({ data: reordered }: { data: ContactItem[] }) => {
+      haptics.drop();
+      saveOrder(reordered);
+    },
     [saveOrder]
   );
 
@@ -26,10 +30,7 @@ export const ReorderScreen = () => {
         style={styles.list}
         onReorder={handleReorder}
         ListHeaderComponent={
-          <ListHeader
-            title="Boarding Order"
-            subtitle="Hold a traveller, then drag to reorder"
-          />
+          <ListFooter text="Touch and hold a traveller, then drag to change the order." />
         }
       />
     </View>

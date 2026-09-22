@@ -7,7 +7,7 @@ mark pull-at-top
 pan 200 200 0 420 600
 wait 4
 mark publish-then-pull
-press 296 80
+press 210 78
 wait 0.2
 statusbar
 wait 1.5
@@ -17,7 +17,7 @@ mark pull-with-burst
 statusbar
 wait 1.5
 pan 200 200 0 420 600
-repeat 3 press 296 80
+repeat 3 press 210 78
 wait 5
 mark scroll-down-up-pull
 pan 200 700 0 -400 300

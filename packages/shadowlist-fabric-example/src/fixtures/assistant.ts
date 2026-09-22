@@ -45,7 +45,7 @@ export const ASSISTANT_SUGGESTIONS: AssistantSuggestion[] = [
     prompt: 'Search Skyfy for flights to Reykjavik',
   },
   {
-    title: 'Simulate a failure',
+    title: 'Try a dropped connection',
     prompt: 'Simulate a dropped connection error',
   },
 ];
