@@ -44,47 +44,38 @@ import {
 } from './queries/assistant';
 
 /*
- * A streaming AI chat built on the Assistant template: token-by-token Markdown replies
- * with reasoning, tool calls, sources, code copy, stop, regenerate with a version pager,
- * retry after a dropped stream, edit-and-resend, feedback, share, attachments, a model
- * picker, follow-up suggestions, earlier-history loading and a jump-to-latest button.
+ * A streaming AI chat built on the Assistant template, with Markdown replies, reasoning, tool calls,
+ * sources, stop, regenerate, retry, edit and resend, attachments, suggestions, earlier history and
+ * a jump to latest button.
  *
- * The streaming technique is the point of the screen:
- *
- *   - The list `data` changes twice per reply, when it starts and when it ends. Tokens go
- *     to a store that only the streaming row subscribes to, so the list does no per-token
- *     work -- no data identity change, no key pass, no size-spec rebuild.
- *   - Tokens are coalesced into one flush every STREAM_FLUSH_MS.
- *   - getElementSizeSpec describes prompts exactly and returns null for replies; the row that
- *     streams is always mounted, where a real measurement outranks any prediction.
- *   - Following the stream is native. While the reader is at the bottom, the rows near the
- *     viewport other than the newest are marked non-anchorable, so the core's inverted
- *     bottom pin tracks the newest row as it grows, with no scroll command per flush.
- *   - Leaving the bottom releases following. The core stands its bottom pin down the moment
- *     a user scroll leaves the bottom, so a drag is never fought; the screen then drops the
- *     anchor marking once the end marker has stayed off screen, the text under the reader
- *     holds still while the reply keeps growing below, and the jump button appears.
- *     Returning to the very bottom, or the jump button, resumes following.
+ * How streaming stays cheap:
+ * The list data changes only when a reply starts and ends. Tokens go to a store that only the
+ * streaming row reads, so the list does no work per token. Tokens are batched into one flush
+ * every STREAM_FLUSH_MS.
+ * getElementSizeSpec sizes prompts exactly and returns null for replies. The streaming row is
+ * always mounted, so its real size wins over any guess.
+ * Following the stream is native. At the bottom, the rows near the newest one are marked as not
+ * anchorable, so the core keeps the newest row pinned as it grows, with no scroll per flush.
+ * A user scroll away from the bottom stops the pin at once, so a drag is never fought. Once the
+ * end marker stays off screen, the anchor marks are dropped, the text holds still while the reply
+ * grows below, and the jump button shows. Coming back to the bottom resumes following.
  */
 
 const KEYBOARD_GAP = 8;
 /*
- * Rows before the newest one marked non-anchorable while following. Only a row that can be
- * on screen can become the anchor, so a bounded tail is enough, and it keeps the list the
- * core compares on every update short however long the conversation grows.
+ * How many rows before the newest get marked as not anchorable while following. Only rows that
+ * can be on screen matter, so a short tail is enough and keeps the list the core checks small.
  */
 const FOLLOW_ANCHOR_WINDOW = 30;
 /*
- * How long the end marker must stay off screen before following is released. Growth
- * outruns the core's pin by about a flush, so a brief absence is not the reader leaving; a
- * drag keeps it off screen far longer. Scroll deltas are deliberately not used: content
- * shrinking at the bottom clamps the offset down exactly like a small upward drag.
+ * How long the end marker must stay off screen before following stops. Growth runs about a
+ * flush ahead of the pin, so a short gap is not the reader leaving. Scroll deltas are not used,
+ * because content shrinking at the bottom moves the offset just like a small upward drag.
  */
 const DISENGAGE_MS = 400;
 /*
- * Not following: every row is anchorable, including the end marker. As the last anchorable
- * row it keeps the core from treating a tall reply under the viewport top as "resting at
- * the bottom", so plain anchoring holds the visible text still.
+ * Not following: every row can anchor, the end marker too. As the last one it stops the core
+ * from treating a tall reply as resting at the bottom, so the visible text holds still.
  */
 const NOTHING_IGNORED: ReadonlyArray<string> = [];
 
@@ -106,8 +97,8 @@ function updateReply(
   messageId: string,
   update: (reply: AssistantReply) => AssistantReply
 ) {
-  return (prev: AssistantMessage[]) =>
-    prev.map((message) =>
+  return (previous: AssistantMessage[]) =>
+    previous.map((message) =>
       message.id === messageId && message.role === 'assistant'
         ? update(message)
         : message
@@ -121,7 +112,9 @@ function findReply(messages: AssistantMessage[], messageId: string) {
   );
 }
 
-// The prompt a reply answers: the user message right before it.
+/*
+ * The prompt a reply answers is the user message right before it.
+ */
 function findPromptFor(messages: AssistantMessage[], replyId: string) {
   const index = messages.findIndex((message) => message.id === replyId);
   const prompt = messages[index - 1];
@@ -143,9 +136,8 @@ export const AssistantScreen = () => {
   const store = useMemo(() => createStreamStore(), []);
   const streamRef = useRef<ScriptPlayback | null>(null);
   /*
-   * Finished turns stay in the store until their data commit has rendered. A store change
-   * renders synchronously and a timer's setData does not, so removing the entry at once
-   * would flash the reply's empty committed turn for a frame between the two.
+   * Keep finished turns in the store until their data commit renders. A store change renders at
+   * once but a timer's setData does not, so removing early would flash an empty reply for a frame.
    */
   const settledIdsRef = useRef<string[]>([]);
 
@@ -161,10 +153,9 @@ export const AssistantScreen = () => {
   const atEndRef = useRef(true);
   const disengageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /*
-   * A regenerate or retry is streaming into a reply that is not the newest. Emptying that
-   * reply can bring the bottom up to the reader, which puts the end marker on screen without
-   * the reader going anywhere; resuming following then would chase the bottom and scroll the
-   * rewritten text off the top as it arrives. Cleared when that stream finishes.
+   * Set while a regenerate or retry streams into a reply that is not the newest. Emptying that
+   * reply can bring the end marker on screen by itself, and following then would scroll the new
+   * text off the top. Cleared when that stream finishes.
    */
   const rewritingOlderRef = useRef(false);
 
@@ -214,9 +205,9 @@ export const AssistantScreen = () => {
   );
 
   /*
-   * The anchor policy that makes following native. Following: every row in the tail except
-   * the newest is non-anchorable, so the newest is the only anchor candidate and the core
-   * pins the true bottom as it grows. Not following: plain anchoring holds the view still.
+   * The anchor policy that makes following native. While following, only the newest row in the
+   * tail can anchor, so the core pins the bottom as it grows. Otherwise plain anchoring holds the
+   * view still.
    */
   const nonAnchorKeys = useMemo(() => {
     if (!following || list.data.length === 0) return NOTHING_IGNORED;
@@ -238,9 +229,9 @@ export const AssistantScreen = () => {
   }, []);
 
   /*
-   * Streams a script into the reply `messageId`. The caller has already committed the
-   * reply's empty turn; from here every token only touches the store, and onFinish commits
-   * the final turn to `data` once. Nothing here scrolls: the anchor policy does.
+   * Streams a script into the reply messageId. The caller has already committed the empty turn.
+   * Each token only touches the store, and onFinish commits the final turn once. Nothing here
+   * scrolls, the anchor policy does that.
    */
   const startReply = useCallback(
     (messageId: string, prompt: string, attempt: number) => {
@@ -267,10 +258,9 @@ export const AssistantScreen = () => {
   );
 
   /*
-   * `replaceFromId` is the ONLY way to rewind the conversation, and the composer is the
-   * only caller that passes it. Reading the edit banner's id in here instead made every
-   * other sender (a follow-up chip, a suggestion, the header's next starter) delete
-   * everything after whatever prompt the reader happened to be editing at the time.
+   * Only replaceFromId rewinds the conversation, and only the composer passes it. Reading the edit
+   * banner's id in here made every other sender, like a follow-up chip, delete everything after
+   * the prompt being edited.
    */
   const sendPrompt = useCallback(
     (
@@ -285,11 +275,11 @@ export const AssistantScreen = () => {
       const reply = buildReply(modelRef.current);
 
       if (replaceFromId) {
-        setData((prev) => {
-          const index = prev.findIndex(
+        setData((previous) => {
+          const index = previous.findIndex(
             (message) => message.id === replaceFromId
           );
-          const kept = index === -1 ? prev : prev.slice(0, index);
+          const kept = index === -1 ? previous : previous.slice(0, index);
           return [...kept, userMessage, reply];
         });
         setEditingId(null);
@@ -314,8 +304,8 @@ export const AssistantScreen = () => {
 
   const handleAttachPress = useCallback(
     () =>
-      setAttachments((prev) => [
-        ...prev,
+      setAttachments((previous) => [
+        ...previous,
         buildAttachment(attachCountRef.current++),
       ]),
     []
@@ -323,8 +313,8 @@ export const AssistantScreen = () => {
 
   const handleRemoveAttachment = useCallback(
     (attachmentId: string) =>
-      setAttachments((prev) =>
-        prev.filter((attachment) => attachment.id !== attachmentId)
+      setAttachments((previous) =>
+        previous.filter((attachment) => attachment.id !== attachmentId)
       ),
     []
   );
@@ -332,10 +322,8 @@ export const AssistantScreen = () => {
   const handleStop = useCallback(() => streamRef.current?.stop(), []);
 
   /*
-   * Regenerating or retrying anything but the NEWEST reply must stop following first.
-   * The pin chases the bottom of the conversation, which is somewhere below the reply
-   * being rewritten, so the text the reader asked for would scroll off the top as it
-   * arrives.
+   * Regenerating or retrying any reply but the newest must stop following first. The pin chases
+   * the bottom, so the rewritten text would scroll off the top as it arrives.
    */
   const releaseFollowingUnlessNewest = useCallback(
     (messageId: string) => {
@@ -443,14 +431,14 @@ export const AssistantScreen = () => {
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);
-    // clearDraft, not setDraft(''): cancelling must not raise the keyboard over the thread.
+    // Use clearDraft rather than an empty setDraft so cancelling does not raise the keyboard.
     composerRef.current?.clearDraft();
     setAttachments([]);
   }, []);
 
   /*
-   * A suggestion or a follow-up chip is a new question, not the edit in the banner. Drop
-   * the pending edit first so the banner and its stale draft do not outlive it.
+   * A suggestion or follow-up chip is a new question, not the edit in the banner.
+   * Drop the pending edit first so the banner and its old draft go away.
    */
   const handleSelectPrompt = useCallback(
     (prompt: string) => {
@@ -471,11 +459,10 @@ export const AssistantScreen = () => {
   );
 
   /*
-   * The end marker is 1pt at the very end of the content, so it is on screen only at the true
-   * bottom. Arriving there resumes following at once. Leaving releases following only if it
-   * stays away for DISENGAGE_MS: growth outruns the pin for a flush, and content shrinking at
-   * the bottom (a code fence closing, a preview line collapsing) clamps the view to the new
-   * bottom without the marker ever leaving, so neither is mistaken for the reader.
+   * The end marker is 1pt at the very end, so it is on screen only at the true bottom. Reaching
+   * it resumes following at once. Leaving stops following only after DISENGAGE_MS, since growth
+   * runs a flush ahead of the pin, and neither that nor content shrinking at the bottom should
+   * count as the reader leaving.
    */
   const handleViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken<AssistantMessage>[] }) => {
@@ -486,7 +473,7 @@ export const AssistantScreen = () => {
       atEndRef.current = endOnScreen;
 
       if (endOnScreen) {
-        // Not while an older reply is being rewritten; see rewritingOlderRef.
+        // Not while an older reply is being rewritten, see rewritingOlderRef.
         if (!rewritingOlderRef.current) setFollowingNow(true);
         return;
       }
@@ -500,7 +487,7 @@ export const AssistantScreen = () => {
   );
 
   const handleScrollToLatest = useCallback(() => {
-    // An explicit jump overrides the rewrite hold: the reader asked for the bottom.
+    // A jump overrides the rewrite hold because the reader asked for the bottom.
     rewritingOlderRef.current = false;
     setFollowingNow(true);
     shadowlistRef.current?.scrollToEnd();
@@ -538,9 +525,8 @@ export const AssistantScreen = () => {
   );
 
   /*
-   * Rendered over the list rather than as ListEmptyComponent: the core's total size is
-   * header + rows + footer and never includes the empty template, so with no messages the
-   * content container is 0pt tall and Android clips the template out of view.
+   * Drawn over the list instead of as ListEmptyComponent. The core's total size never includes
+   * the empty template, so with no messages the content is 0pt tall and Android clips it.
    */
   const empty = useMemo(
     () => (
@@ -584,9 +570,8 @@ export const AssistantScreen = () => {
           )}
           <Assistant.ScrollButton
             /*
-             * Following is already the "is the reader at the bottom" answer -- arriving at
-             * the end marker sets it, leaving for DISENGAGE_MS clears it. A second atEnd
-             * state alongside it only adds a render and a window where the two disagree.
+             * Following already says whether the reader is at the bottom. A second atEnd state would
+             * only add a render and a moment where the two disagree.
              */
             visible={hasMessages && !following}
             onPress={handleScrollToLatest}

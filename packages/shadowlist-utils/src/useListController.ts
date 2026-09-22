@@ -1,19 +1,17 @@
 import { useReducer, useRef, useCallback, useMemo, useEffect } from 'react';
 
-/* This package's tsconfig targets ESNext with no DOM or Node lib, so the timer
- * globals aren't typed. Read them off globalThis with a minimal shape, kept on the
- * object (not destructured) so the calls stay bound to the global. */
+/* The tsconfig has no DOM or Node lib, so timer globals have no types. Read them off
+ * globalThis without destructuring, so the calls stay bound to the global. */
 const timers = globalThis as unknown as {
   setTimeout: (handler: () => void, timeout: number) => number;
   clearTimeout: (handle: number) => void;
 };
 
 /*
- * Centralises the common UI state every list screen ends up re-implementing:
- * the refreshing / loadingMore / loadingOlder flags, the re-entrancy guards
- * around them, and the data array itself (prepend / append / remove). Connect its
- * `handle*` callbacks straight into the list; each one flips its flag
- * automatically while your async work runs, and never double-fires.
+ * Holds the list state every screen ends up writing again. The refreshing, loading more
+ * and loading older flags, the guards around them, and the data with prepend, append and
+ * remove. Pass the handle callbacks straight to the list. Each one sets its flag while your
+ * async work runs and never fires twice.
  */
 
 export interface UseListControllerOptions<
@@ -28,8 +26,8 @@ export interface UseListControllerOptions<
   onScroll?: (event: ScrollEventT) => void;
   onViewableItemsChanged?: (info: ViewableInfoT) => void;
   /*
-   * Receives a throw or rejection from onRefresh / onEndReached / onStartReached. Without
-   * it the rejection is left unhandled; the loading flag resets either way.
+   * Gets any error from onRefresh, onEndReached or onStartReached. Without it the rejection
+   * goes unhandled. The loading flag resets either way.
    */
   onError?: (error: unknown) => void;
   scrollIdleMs?: number;
@@ -43,7 +41,6 @@ interface ListState<ElementT> {
   scrolling: boolean;
 }
 
-/* The reducer actions, named as the start/end markers the state moves between. */
 type ListAction<ElementT> =
   | { type: 'refreshStarted' }
   | { type: 'refreshEnded' }
@@ -55,7 +52,7 @@ type ListAction<ElementT> =
   | { type: 'scrollEnded' }
   | {
       type: 'itemsSet';
-      update: ElementT[] | ((prev: ElementT[]) => ElementT[]);
+      update: ElementT[] | ((previous: ElementT[]) => ElementT[]);
     }
   | { type: 'itemsPrepended'; items: readonly ElementT[] }
   | { type: 'itemsAppended'; items: readonly ElementT[] }
@@ -65,8 +62,8 @@ type ListAction<ElementT> =
       match: (element: ElementT, index: number) => boolean;
     };
 
-/* Flag actions return the same state object when nothing changes, so an already-true
- * `scrollStarted` on every scroll event doesn't trigger a re-render. */
+/* Flag actions return the same state when nothing changes, so scrollStarted on every
+ * scroll event doesn't re-render. */
 function listReducer<ElementT extends { id: string }>(
   state: ListState<ElementT>,
   action: ListAction<ElementT>
@@ -93,7 +90,7 @@ function listReducer<ElementT extends { id: string }>(
         typeof action.update === 'function'
           ? action.update(state.data)
           : action.update;
-      // An updater that changed nothing returns `prev`; skip the re-render.
+      // The updater changed nothing, so skip the re-render.
       return data === state.data ? state : { ...state, data };
     }
     case 'itemsPrepended':
@@ -151,12 +148,14 @@ export interface ListController<
   handleScroll: (event: ScrollEventT) => void;
   handleViewableItemsChanged: (info: ViewableInfoT) => void;
 
-  setData: (update: ElementT[] | ((prev: ElementT[]) => ElementT[])) => void;
+  setData: (
+    update: ElementT[] | ((previous: ElementT[]) => ElementT[])
+  ) => void;
   prepend: (items: readonly ElementT[]) => void;
   append: (items: readonly ElementT[]) => void;
-  // Replaces the rows whose id exists in place and appends the rest.
+  // Replaces rows whose id already exists and appends the rest.
   upsertItems: (items: readonly ElementT[]) => void;
-  // Replaces one row by id; a missing id is a no-op.
+  // Replaces one row by id. Does nothing if the id is missing.
   updateItem: (id: string, update: (element: ElementT) => ElementT) => void;
   removeItems: (
     ids: readonly string[] | ((element: ElementT, index: number) => boolean)
@@ -184,22 +183,21 @@ export function useListController<
     })
   );
 
-  // Latest options in a ref so the returned handlers can stay referentially stable.
+  // Keep the latest options in a ref so the handlers stay stable.
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
   /*
-   * Synchronous busy guards. dispatch only flips a flag on the next render, so a
-   * second call in the same tick would slip past a state-based check.
+   * Busy guards that flip right away. State only changes on the next render, so a second
+   * call in the same tick would slip past it.
    */
   const busyRef = useRef({ refresh: false, end: false, start: false });
 
   const scrollIdleTimer = useRef<number | null>(null);
 
   /*
-   * Runs one consumer callback and then `settle`. The callback is invoked inside the `.then`,
-   * not eagerly, so a *synchronous* throw still becomes a rejection this chain observes --
-   * otherwise `settle` would never run and the busy flag / loading UI would stay stuck true.
+   * Runs the callback, then settle. The callback runs inside then, so a synchronous throw
+   * still becomes a rejection here. Otherwise settle never runs and the loading flag stays stuck.
    */
   const run = useCallback(
     (callback: () => void | Promise<void>, settle: () => void) => {
@@ -263,7 +261,7 @@ export function useListController<
   }, []);
 
   const setData = useCallback(
-    (update: ElementT[] | ((prev: ElementT[]) => ElementT[])) =>
+    (update: ElementT[] | ((previous: ElementT[]) => ElementT[])) =>
       dispatch({ type: 'itemsSet', update }),
     []
   );
@@ -287,11 +285,11 @@ export function useListController<
     (id: string, update: (element: ElementT) => ElementT) =>
       dispatch({
         type: 'itemsSet',
-        update: (prev) => {
-          const index = prev.findIndex((element) => element.id === id);
-          if (index === -1) return prev;
-          const next = [...prev];
-          next[index] = update(prev[index]!);
+        update: (previous) => {
+          const index = previous.findIndex((element) => element.id === id);
+          if (index === -1) return previous;
+          const next = [...previous];
+          next[index] = update(previous[index]!);
           return next;
         },
       }),
@@ -328,7 +326,6 @@ export function useListController<
     []
   );
 
-  // Clear any pending scroll-idle timer on unmount.
   useEffect(
     () => () => {
       if (scrollIdleTimer.current) timers.clearTimeout(scrollIdleTimer.current);
