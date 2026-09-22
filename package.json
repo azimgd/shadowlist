@@ -19,7 +19,6 @@
     "clean": "yarn workspace shadowlist run clean",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "extract:variables": "node scripts/extract-variable-names.mjs",
     "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish"
   },
   "devDependencies": {
