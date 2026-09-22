@@ -1,12 +1,9 @@
 /*
- * Edge-callback tests: when onStartReached / onEndReached fire while the reader keeps
- * travelling toward that edge and the data keeps growing under them.
- *
- * The case these pin down is chat history. The reader flings up through a conversation,
- * each fire loads a page of older messages, and the page lands a few frames later (a
- * network round trip). The contract is that the list keeps asking for as long as the
- * reader keeps travelling into the band -- a page that arrives while the consumer was
- * busy must not cost the reader the rest of their history.
+ * Edge callback tests: when onStartReached and onEndReached fire while the reader keeps
+ * scrolling toward that edge and the data keeps growing.
+ * The case here is chat history. The reader flings up, each call loads a page of older
+ * messages, and the page lands a few frames later. The list must keep asking as long as
+ * the reader keeps scrolling toward the edge, even if a page lands while the app is busy.
  */
 
 #include "TestFramework.hpp"
@@ -50,10 +47,9 @@ FrameInput chatInput(const std::vector<std::string>& keys, double offset) {
 }
 
 /*
- * Drive `frames` of a steady upward fling over a list that pages in older rows at its
- * start, and report how many pages the list asked for. `pageLatency` models a consumer
- * that cannot answer a second request while the first is in flight -- which is every
- * real paging hook.
+ * Fling up for a number of frames over a list that loads older rows at its start,
+ * and return how many pages arrived. busyConsumer drops a request made while a fetch
+ * is still running, like every real paging hook does.
  */
 int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
   std::vector<std::string> keys = keysFor(PAGE_ROWS, "m");
@@ -74,7 +70,7 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
   Virtualizer::update(&container, chatInput(keys, 0.0));
   measureAll(container, keys.size());
 
-  // Open resting on the newest message, the way the chat does.
+  // Start at the newest message, like the chat does.
   double bottom = container.revision.totalContainerHeight - WINDOW_HEIGHT;
   FrameInput settle = chatInput(keys, bottom);
   Virtualizer::update(&container, settle);
@@ -87,7 +83,7 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
       keys = older;
       pagesDelivered++;
       fetchInFlight = false;
-      // The page commit itself, at whatever offset the core last settled on.
+      // Commit the new page at the offset the core last settled on.
       FrameInput commit = chatInput(keys, container.revision.containerOffsetY);
       Virtualizer::update(&container, commit);
       measureAll(container, keys.size());
@@ -101,7 +97,7 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
     Virtualizer::update(&container, input);
   }
 
-  // Every request the list made was answered: nothing was asked for twice, nothing lost.
+  // Every request was answered, none twice and none lost.
   CHECK_EQ(requested, pagesDelivered);
   return pagesDelivered;
 }
@@ -109,31 +105,29 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
 }
 
 /*
- * The control: a consumer that answers every request. The reader travels a fixed
- * distance and the list pages in enough history to cover it.
+ * The baseline: the app answers every request, and the list loads enough history
+ * to cover the distance scrolled.
  */
 TEST(upward_fling_pages_history_while_the_consumer_keeps_up) {
   int pages = flingUpCountingPages(400, 600.0, false);
-  // 240,000px of travel over rows PAGE_ROWS x ROW_HEIGHT tall: the list covers it.
+  // 240000 pixels of scrolling at 6000 pixels per page needs at least 30 pages.
   CHECK(pages >= 30);
 }
 
 /*
- * The real one. A paging hook cannot start a second fetch while the first is running, so
- * a fire that lands mid-fetch is dropped. The list must ask again once the reader is
- * still travelling into the band, or the history simply stops arriving.
+ * The real case. A paging hook drops a request that lands during a fetch, so the list
+ * must ask again while the reader keeps scrolling, or the history stops arriving.
  */
 TEST(upward_fling_keeps_paging_when_a_request_lands_mid_fetch) {
   int busyPages = flingUpCountingPages(400, 600.0, true);
   int freePages = flingUpCountingPages(400, 600.0, false);
-  // A consumer that can only answer one request at a time loses no history to it.
+  // Answering one request at a time loses no history.
   CHECK_EQ(busyPages, freePages);
 }
 
 /*
- * scrollToIndex places the row within the viewport, not only at its leading edge: a chat
- * jumping to the message a reply quotes wants it centred, with the conversation that
- * gives it context around it rather than off screen above.
+ * scrollToIndex can place the row anywhere on screen, not only at the top. A chat jumping
+ * to a quoted message wants it centered with its context around it.
  */
 TEST(scroll_to_index_places_the_row_at_the_requested_view_position) {
   std::vector<std::string> keys = keysFor(120, "m");
@@ -151,27 +145,26 @@ TEST(scroll_to_index_places_the_row_at_the_requested_view_position) {
     return container.revision.containerOffsetY;
   };
 
-  // 0 (the default) keeps the historical behaviour: the row's top edge at the viewport top.
+  // 0 is the default and puts the row's top at the top of the screen.
   container.requestScrollToIndex(static_cast<double>(target), 1.0, -2, 0.0);
   double atStart = settle();
   CHECK_NEAR(atStart, container.getElementOffset(target), 1.0);
 
-  // 0.5 centres it: half of the space the row leaves free sits above it.
+  // 0.5 centers it, with half the free space above it.
   container.requestScrollToIndex(static_cast<double>(target), 2.0, -2, 0.5);
   double centred = settle();
   double freeSpace = WINDOW_HEIGHT - ROW_HEIGHT;
   CHECK_NEAR(centred, container.getElementOffset(target) - freeSpace * 0.5, 1.0);
 
-  // 1 aligns it to the end: the row's bottom edge at the viewport bottom.
+  // 1 puts the row's bottom at the bottom of the screen.
   container.requestScrollToIndex(static_cast<double>(target), 3.0, -2, 1.0);
   double atEnd = settle();
   CHECK_NEAR(atEnd, container.getElementOffset(target) - freeSpace, 1.0);
 }
 
 /*
- * A fraction outside [0, 1] would put the row off screen, so it is clamped to the nearer
- * edge rather than honoured: a caller passing rubbish gets the row on screen, not a blank
- * viewport.
+ * A position below 0 or above 1 would put the row off screen, so it is clamped to the
+ * nearer edge and the row stays visible.
  */
 TEST(scroll_to_index_clamps_a_view_position_outside_the_viewport) {
   std::vector<std::string> keys = keysFor(120, "m");
@@ -199,10 +192,9 @@ TEST(scroll_to_index_clamps_a_view_position_outside_the_viewport) {
 }
 
 /*
- * A jump into unmeasured territory targets the row's ESTIMATE, and the row is measured only
- * once the layout pass mounts it. Freezing the free space derived from that estimate leaves
- * the row off-position by viewPosition of its error; rederiving it per frame lands the row
- * where its true size implies.
+ * A jump to an unmeasured row aims at its estimated size, and the real size only arrives
+ * once the row mounts. The free space is worked out again every frame, so the row still
+ * ends up where its real size puts it.
  */
 TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
   constexpr double TALL_ROW = 400.0;
@@ -211,7 +203,7 @@ TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
   Container container;
 
   Virtualizer::update(&container, chatInput(keys, 0.0));
-  // Only the opening rows have been laid out; the target is still on its estimate.
+  // Only the first rows are measured, so the target still uses its estimate.
   measureAll(container, 10);
   Virtualizer::update(&container, chatInput(keys, 0.0));
 
@@ -219,7 +211,7 @@ TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
 
   for (int frame = 0; frame < 8; ++frame) {
     Virtualizer::update(&container, chatInput(keys, container.revision.containerOffsetY));
-    // The layout pass that mounts the target reports a size nothing like the estimate.
+    // Once mounted, the target reports a size far from the estimate.
     Virtualizer::updateElementAtIndex(&container, target, {WINDOW_WIDTH, TALL_ROW});
   }
 
@@ -229,8 +221,8 @@ TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
 }
 
 /*
- * A command can resolve on a commit taken before the window is measured, where there is no
- * free space to distribute. The position must be reapplied once a real window size arrives.
+ * A scroll command can run before the window has a size, when there is no free space to
+ * share out. The position must be applied again once the real window size arrives.
  */
 TEST(scroll_to_index_view_position_survives_a_commit_before_the_window_is_measured) {
   const std::size_t target = 60;

@@ -44,12 +44,9 @@ public class ShadowListElementViewManager extends ViewGroupManager<ShadowListEle
   }
 
   /*
-   * Recycled row views are pooled per surface and handed to ANY ShadowList in that surface,
-   * so with a single-surface navigator that means a list on a different screen. The base
-   * implementation clears translationX/Y, elevation and alpha, but not translationZ or
-   * visibility -- both of which drag-to-reorder writes (ShadowListDragController lifts the
-   * picked-up row in Z and shifts its siblings). A row unmounted mid-drag would otherwise
-   * return to the pool displaced in Z and reappear floating above another list's content.
+   * Recycled rows can end up in any list on the surface, even one on another screen.
+   * The base class does not reset translationZ or visibility, and drag to reorder sets both.
+   * Reset them so a row unmounted mid drag doesn't float above another list.
    */
   @Nullable
   @Override
@@ -63,14 +60,13 @@ public class ShadowListElementViewManager extends ViewGroupManager<ShadowListEle
   @Override
   @ReactProp(name = "index")
   public void setIndex(ShadowListElementView view, int index) {
-    // Mirrored onto the view as a debug/fallback handle.
     view.setElementIndex(index);
   }
 
   @Override
   @ReactProp(name = "elementKey")
   public void setElementKey(ShadowListElementView view, @Nullable String value) {
-    // Mirrored onto the view so drag-to-reorder can map a touched child to its key.
+    // Drag to reorder reads this to find the key of the touched row.
     view.setElementKey(value);
   }
 }

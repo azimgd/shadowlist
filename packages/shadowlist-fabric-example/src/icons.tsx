@@ -3,7 +3,7 @@
 import { View } from 'react-native';
 import { useTheme, type IconProps } from 'shadowlist-utils/native';
 
-// Demo-only header action glyph, drawn the same way as the package icons.
+// Header action glyph for the demo, drawn like the package icons.
 
 const useIconColor = (color: string | undefined): string => {
   const theme = useTheme();

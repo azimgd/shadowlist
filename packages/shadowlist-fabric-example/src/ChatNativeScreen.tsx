@@ -51,8 +51,8 @@ type ChatTemplate =
   | 'receivedGrid';
 
 /*
- * A ChatMessage flattened into what the bubble templates bind: one template per side and
- * content kind (text, one image, an image grid), and every visible string precomputed.
+ * A ChatMessage flattened into what the bubble templates bind. There is one template per side
+ * and content kind, and every visible string is computed up front.
  */
 interface ChatNativeRow {
   id: string;
@@ -64,7 +64,7 @@ interface ChatNativeRow {
   image: string;
   images: string[];
   caption: string;
-  // ' · Sending' / ' · Sent' after the caption of a message sent from this screen.
+  // The Sending or Sent suffix after the caption of a message sent from this screen.
   statusLabel: string;
   opacity: number;
   failed: boolean;
@@ -90,7 +90,9 @@ const STATUS_LABELS: Partial<Record<ChatMessageStatus, string>> = {
   sent: ' · Sent',
 };
 
-// The fields a status change rewrites; the row is patched with exactly these.
+/*
+ * The fields a status change rewrites. The row is patched with just these.
+ */
 function statusFields(status: ChatMessageStatus | undefined, tracked: boolean) {
   return {
     statusLabel: tracked && status ? (STATUS_LABELS[status] ?? '') : '',
@@ -125,7 +127,7 @@ function toRow(
 }
 
 /*
- * Position labels under each bubble, as on the Chat screen: the first page counts forward,
+ * Position labels under each bubble, as on the Chat screen. The first page counts forward,
  * appended messages continue it, and each page of history counts away from it.
  */
 function useOrdinals() {
@@ -140,9 +142,9 @@ function useOrdinals() {
 }
 
 /*
- * Chat on ShadowListNative: an inverted list whose bubbles are cloned natively from six
- * templates. The thread lives in the list's native store; every change after the first page is
- * an imperative row command (append, prepend, updateItem, removeItems), no re-render.
+ * Chat on ShadowListNative, an inverted list whose bubbles are cloned natively from six templates.
+ * The thread lives in the list's native store. Every change after the first page is a row
+ * command, with no re-render.
  */
 export const ChatNativeScreen = () => {
   const listRef = useRef<ShadowListNativeCommands<ChatNativeRow>>(null);
@@ -158,7 +160,7 @@ export const ChatNativeScreen = () => {
   const [hasEarlier, setHasEarlier] = useState(true);
   const cursorRef = useRef<number | undefined>(undefined);
   const loadingRef = useRef(false);
-  // The messages sent from this screen, for retries.
+  // Messages sent from this screen, kept for retries.
   const outgoingRef = useRef(new Map<string, ChatMessage>());
 
   const palette = colors.avatarPalette;
@@ -181,7 +183,7 @@ export const ChatNativeScreen = () => {
 
   useEffect(() => {
     loadFirstPage();
-    // The first page only; colors do not refetch.
+    // Load the first page once. Color changes do not refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -194,7 +196,7 @@ export const ChatNativeScreen = () => {
       .then((page) => {
         cursorRef.current = page.previousCursor;
         setHasEarlier(page.previousCursor !== undefined);
-        // Numbered from the newest of the page outwards, away from the loaded thread.
+        // Numbered from the newest in the page outwards, away from the loaded thread.
         const captions = page.items.map(() => '');
         for (let index = page.items.length - 1; index >= 0; index--) {
           captions[index] = ordinals.prepended();
@@ -212,7 +214,7 @@ export const ChatNativeScreen = () => {
       });
   }, [initialRows, ordinals, palette]);
 
-  // Incoming messages keep the reader where they are (no followAppends), as on Chat.
+  // Incoming messages keep the reader in place, as on Chat.
   useEffect(
     () =>
       subscribeToIncomingMessages((messages) => {
@@ -230,7 +232,7 @@ export const ChatNativeScreen = () => {
       () => listRef.current?.updateItem(message.id, statusFields('sent', true)),
       () => {
         listRef.current?.updateItem(message.id, statusFields('failed', true));
-        // The retry line grows the newest bubble; keep it above the composer.
+        // The retry line grows the newest bubble, so keep it above the composer.
         const keys = listRef.current?.getKeys() ?? [];
         if (keys[keys.length - 1] === message.id) {
           listRef.current?.scrollToEnd();
@@ -246,7 +248,7 @@ export const ChatNativeScreen = () => {
       listRef.current?.appendItems([
         toRow(message, ordinals.forward(), palette, true),
       ]);
-      // The reader's own message is brought into view; the row is in the store already.
+      // Bring the reader's own message into view. Its row is already in the store.
       listRef.current?.scrollToEnd();
       deliver(message);
     },

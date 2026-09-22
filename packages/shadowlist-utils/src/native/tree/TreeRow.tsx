@@ -21,7 +21,7 @@ export interface TreeRowProps {
   onToggle: () => void;
   // Called for rows without children; rows with children toggle instead.
   onPress?: (item: TreeNode) => void;
-  // Replaces the folder/file glyph.
+  // Replaces the folder or file icon.
   icon?: ReactNode;
   labels?: Partial<TreeLabels>;
   style?: StyleProp<ViewStyle>;

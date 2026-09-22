@@ -35,17 +35,9 @@ using namespace facebook::react;
 }
 
 /*
- * Fabric's recycle pool is keyed only by component handle, so a row view returned here can
- * be dequeued by ANY ShadowList in the app -- including one on a different screen. The base
- * RCTViewComponentView::prepareForRecycle resets props, layers and layout metrics but NOT
- * `transform` or `hidden`, and this list writes both from native: drag-to-reorder shifts
- * sibling rows to open a gap (ShadowListView+DragReorder) and lifts the picked-up row with a
- * shadow. A row unmounted mid-drag -- its data deleted, or simply scrolled out of the
- * mounted window -- goes back to the pool still carrying that displacement, and the next
- * list to dequeue it renders a row visibly offset from where it was laid out.
- *
- * Undo everything this component sets outside the props system, so a recycled view starts
- * in the same state a freshly created one would.
+ * Fabric shares recycled row views across every list in the app, even on other screens.
+ * The base reset skips transform and hidden, and a drag sets both, so a row recycled mid drag
+ * would show up shifted in the next list. Reset everything we set from native here.
  */
 - (void)prepareForRecycle
 {
@@ -54,7 +46,7 @@ using namespace facebook::react;
   self.hidden = NO;
   self.layer.shadowOpacity = 0.0;
 #if TARGET_OS_OSX
-  // Raised by SLRaiseSubview for sticky pinning; UIKit reorders subviews instead.
+  // SLRaiseSubview raises this for sticky pinning. UIKit reorders subviews instead.
   self.layer.zPosition = 0.0;
 #endif
   [super prepareForRecycle];

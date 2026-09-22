@@ -5,10 +5,12 @@ import type {
 import { buildHistory } from '../fixtures/assistant';
 import { request, type RequestSignal } from './network';
 
-// Earlier question/answer pairs per history page.
+// Earlier question and answer pairs per history page.
 const HISTORY_PAGE_PAIRS = 3;
 
-// Page 0 is the most recent earlier exchange; higher pages go further back.
+/*
+ * Page 0 is the most recent earlier exchange; higher pages go further back.
+ */
 export function fetchAssistantHistory(
   page: number,
   signal?: RequestSignal

@@ -15,7 +15,7 @@ export interface HeaderActionHandlers {
 
 interface HeaderButtonProps {
   onPress: () => void;
-  // Icon-only buttons need a spoken name.
+  // Icon buttons need a spoken name for screen readers.
   label: string;
   children: ReactNode;
 }
@@ -73,10 +73,9 @@ const HeaderActionsBar = ({
 };
 
 /*
- * Renders the per-screen list controls (prepend / append / scroll-to-random) as
- * tinted nav-bar trailing buttons, the standard iOS location for screen actions,
- * so they never float over content. Handlers are read through a ref so the
- * buttons always call the latest closures without re-setting nav options.
+ * Puts the screen's list actions, like prepend, append and scroll to a random row, in the nav bar
+ * so they never float over content. Handlers are read through a ref, so the buttons always call
+ * the latest ones without resetting the nav options.
  */
 export function useHeaderActions(handlers: HeaderActionHandlers) {
   const navigation = useNavigation<DrawerNavigationProp<ParamListBase>>();

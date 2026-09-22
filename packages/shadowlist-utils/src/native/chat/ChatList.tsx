@@ -60,7 +60,7 @@ export const ChatList = forwardRef<ShadowListCommands, ChatListProps>(
         ref={ref}
         inverted
         renderElement={renderElement ?? renderBubble}
-        // The default spec describes the default bubble only; a custom renderer brings its own.
+        // The default spec only fits the default bubble. A custom renderer brings its own.
         getElementSizeSpec={
           getElementSizeSpec ??
           (renderElement === undefined ? getDefaultSizeSpec : undefined)

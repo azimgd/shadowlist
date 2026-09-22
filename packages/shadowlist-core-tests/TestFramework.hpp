@@ -33,7 +33,9 @@ struct AssertionError {
   throw AssertionError{message};
 }
 
-// Best-effort stringify for assertion messages.
+/*
+ * Turn a value into text for a failed check message.
+ */
 template <typename T>
 std::string toStr(const T& value) {
   if constexpr (std::is_same_v<T, std::string>) {

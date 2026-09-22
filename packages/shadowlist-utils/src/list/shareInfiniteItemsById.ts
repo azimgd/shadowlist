@@ -17,7 +17,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return prototype === Object.prototype || prototype === null;
 }
 
-// Value equality for JSON-like data: primitives, arrays and plain objects.
+/*
+ * Compares JSON like values, meaning primitives, arrays and plain objects.
+ */
 function deepEqual(a: unknown, b: unknown): boolean {
   if (Object.is(a, b)) return true;
   if (Array.isArray(a)) {
@@ -45,7 +47,9 @@ function idOf(item: unknown): unknown {
     : undefined;
 }
 
-// Whether two pages carry the same fields, with `items` compared by identity per row.
+/*
+ * True when two pages have the same fields and the same row objects.
+ */
 function samePage(
   previous: ItemsPage<unknown>,
   next: ItemsPage<unknown>,
@@ -72,7 +76,9 @@ function samePage(
   return true;
 }
 
-// Rows of a plain (non-paginated) query, shared by id the same way.
+/*
+ * Shares rows of a plain query that has no pages, by id the same way.
+ */
 function shareArrayById(
   previous: ReadonlyArray<unknown>,
   next: ReadonlyArray<unknown>
@@ -100,15 +106,14 @@ function shareArrayById(
 }
 
 /**
- * Structural sharing keyed by `id`, for a plain list query or an infinite one. Pass it as a
- * React Query `structuralSharing` option:
+ * Structural sharing by `id` for a plain list query or an infinite one. Pass it as the
+ * React Query `structuralSharing` option.
  *
  *   useQuery({ ..., structuralSharing: shareItemsById });
  *
- * The default compares arrays by position, so inserting or removing a row hands every row
- * after it a new object and re-renders the whole mounted window even though nothing in those
- * rows changed. Here a row equal to the previous row with the same id keeps its identity
- * wherever it moved.
+ * The default matches arrays by position, so one insert or removal gives every later row a
+ * new object and re-renders all mounted rows. Here a row equal to the previous row with the
+ * same id keeps its identity wherever it moved.
  *
  * @see {@linkcode shareInfiniteItemsById} for the infinite-data-only version.
  */
@@ -120,19 +125,16 @@ export function shareItemsById<DataT>(previous: unknown, next: DataT): DataT {
 }
 
 /**
- * Structural sharing for infinite data that matches rows by `id` rather than by position.
- * Pass it as a React Query `structuralSharing` option:
+ * Structural sharing for infinite data that matches rows by `id` instead of position.
+ * Pass it as the React Query `structuralSharing` option.
  *
  *   useInfiniteQuery({ ..., structuralSharing: shareInfiniteItemsById });
  *
- * The default (`replaceEqualDeep`) compares arrays index by index. Rows prepended to a page,
- * or a page of history loaded in front of the others, move every following row to a new
- * index, so each of those rows comes back as a fresh object although nothing in it changed:
- * every mounted row and every memoized cell re-renders, and the list pays for a full window
- * of renders on each prepend. Here a row that is value-equal to the previous row with the
- * same id keeps the previous object wherever it moved, a page whose rows and fields are all
- * unchanged keeps the previous page object, and data that did not change at all returns the
- * previous value itself, so observers do not re-render.
+ * The default, replaceEqualDeep, compares arrays index by index. A prepend shifts every
+ * later row, so each comes back as a new object and every mounted row re-renders. Here a
+ * row equal to the previous row with the same id keeps the old object, an unchanged page
+ * keeps the old page, and unchanged data comes back as the previous value, so nothing
+ * re-renders.
  *
  * Rows without an `id` and values that are not infinite data pass through unshared.
  */

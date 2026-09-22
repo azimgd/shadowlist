@@ -25,7 +25,7 @@ export type ContactsSectionListProps = SectionListProps<
 > &
   ContactRowOptions;
 
-// Module scope: the separator is part of every row's content, so a new element per render would rebuild every mounted row.
+// Kept at module scope. Every row includes the separator, so a new element each render would rebuild every mounted row.
 const ITEM_SEPARATOR = <ItemSeparator />;
 
 const renderContactSectionHeader = ({

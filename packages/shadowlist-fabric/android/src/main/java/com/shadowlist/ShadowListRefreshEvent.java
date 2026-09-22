@@ -7,8 +7,8 @@ import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.uimanager.events.Event;
 
 /*
- * Pull-to-refresh events, no payload. "topRefresh" maps to the JS onRefresh handler,
- * "topRefreshSettle" (the spinner retracted after a refresh ended) to onRefreshSettle.
+ * Pull to refresh events with no payload. topRefresh fires onRefresh in JS.
+ * topRefreshSettle fires onRefreshSettle once the spinner has gone away.
  */
 public class ShadowListRefreshEvent extends Event<ShadowListRefreshEvent> {
   public static final String EVENT_NAME = "topRefresh";

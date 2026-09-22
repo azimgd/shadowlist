@@ -18,9 +18,9 @@ import type { ChatMessage } from './types';
 
 export interface ChatBubbleProps {
   message: ChatMessage;
-  // A line under the message. Pass `{ caption: true }` to getChatMessageSizeSpec when set.
+  // A line under the message. When set, pass caption: true to getChatMessageSizeSpec too.
   caption?: string;
-  // Makes a failed message's status line a retry button. Keep it stable: rows are memoized.
+  // Turns a failed message's status line into a retry button. Keep it stable, rows are memoized.
   onRetry?: (message: ChatMessage) => void;
   onLongPress?: (message: ChatMessage) => void;
   labels?: Partial<ChatLabels>;
@@ -48,7 +48,7 @@ export const ChatBubble = memo(
     const { isOwn, text, images = [], status } = message;
     const sending = status === 'sending';
 
-    // A plain View unless there is a long-press: Pressable costs more per mounted row.
+    // Use a plain View unless there is a long press, since Pressable costs more per row.
     const BubbleView = onLongPress ? Pressable : View;
     const bubble = text ? (
       <BubbleView
@@ -75,7 +75,7 @@ export const ChatBubble = memo(
       </BubbleView>
     ) : null;
 
-    // Its height is part of getChatMessageSizeSpec; keep the two in step.
+    // getChatMessageSizeSpec counts this height, so keep the two in step.
     const failedLine =
       status === 'failed' ? (
         <Pressable

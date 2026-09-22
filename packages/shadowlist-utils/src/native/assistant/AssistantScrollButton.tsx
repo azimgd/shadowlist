@@ -48,7 +48,7 @@ export const AssistantScrollButton = memo(
           style,
           animatedStyle,
         ]}
-        // Faded out it is still in the tree; hide it so a screen reader doesn't offer it.
+        // Still mounted when faded out, so hide it from screen readers.
         accessibilityElementsHidden={!visible}
         importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
       >

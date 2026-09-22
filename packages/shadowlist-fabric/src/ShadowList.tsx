@@ -35,9 +35,8 @@ import {
 export { initialMountedRange, type MountedRange } from './virtualizer';
 
 /*
- * Stable empty arrays. An inline `[]` is a new identity on every render, which makes the
- * props object differ, which costs a deep prop diff and defeats the core's props-identity
- * shortcut for the key collection.
+ * Shared empty arrays. An inline [] is a new object on every render, which forces a deep
+ * props diff and skips the core's fast path for unchanged keys.
  */
 const EMPTY_STRINGS: ReadonlyArray<string> = [];
 const EMPTY_NUMBERS: ReadonlyArray<number> = [];
@@ -54,9 +53,8 @@ function renderComponent(
 }
 
 /*
- * The JS layer over the native <ShadowListView>. It narrows the full `data` prop down
- * to the rows visible in the viewport, and routes the native scroll/drag/refresh events
- * into the hooks below.
+ * The JS side of the native ShadowListView. It mounts only the rows near the screen and
+ * passes native scroll, drag and refresh events to the hooks below.
  */
 function ShadowListInner<ElementT extends { id: string }>(
   {
@@ -129,8 +127,8 @@ function ShadowListInner<ElementT extends { id: string }>(
   }, [onRefresh]);
 
   /*
-   * Edge-reached handlers go through a stable wrapper so the trace sees every native fire
-   * without the handler identity following the caller's.
+   * Wrap the edge reached handlers once, so the trace sees every native call and the
+   * handler doesn't change whenever the caller's does.
    */
   const edgeHandlersRef = useRef({ onStartReached, onEndReached });
   edgeHandlersRef.current = { onStartReached, onEndReached };
@@ -148,8 +146,8 @@ function ShadowListInner<ElementT extends { id: string }>(
   }, []);
 
   /*
-   * While a refresh runs, hold back incoming data until the spinner finishes retracting
-   * so rows don't jump under the user. `data` is the list we actually render.
+   * During a refresh, hold new data until the spinner is gone so rows don't jump under
+   * the user. data is what we actually render.
    */
   const { data, handleRefreshSettle } = useRefreshDefer({
     data: dataProp,
@@ -160,11 +158,10 @@ function ShadowListInner<ElementT extends { id: string }>(
   });
 
   /*
-   * Every row's key, extracted once per data change: handed to native so it can track row
-   * identity across data updates, and shared by the hooks below. keyToIndex resolves a key
-   * to its first index (first occurrence wins on a duplicate, matching the core's
-   * reconcile). A plain array gives no cheap diff signal, so both are rebuilt in full on
-   * every data change -- one O(N) pass, not one per row.
+   * Every row's key, built once per data change. Native uses them to follow rows across
+   * updates, and the hooks below share them. keyToIndex gives a key's first index, so the
+   * first copy of a duplicate wins, same as the core. A plain array can't be diffed
+   * cheaply, so both are rebuilt in one pass over the data on every change.
    */
   const { elementsAllKeys, keyToIndex } = useMemo(() => {
     const keys = new Array<string>(data.length);
@@ -186,8 +183,7 @@ function ShadowListInner<ElementT extends { id: string }>(
       followAppends,
       containerOffsetIndex,
       overscanRows,
-      // A leading pad below the trailing one would mount fewer rows in the direction of
-      // travel than at rest, which is the one direction that cannot afford it.
+      // Never mount fewer rows ahead during a fling than at rest, that's where rows are needed most.
       overscanRowsLeading: Math.max(overscanRows, overscanRowsLeading),
     });
 
@@ -217,16 +213,16 @@ function ShadowListInner<ElementT extends { id: string }>(
   });
 
   /*
-   * Laid-out row sizes by key, when trackElementSizes is on. A ref, not state: the only
-   * readers are imperative. Null while tracking is off.
+   * Row sizes by key when trackElementSizes is on, null when off. A ref, since only
+   * imperative calls read it.
    */
   const elementSizesRef = useRef<Map<string, number> | null>(null);
   if (trackElementSizes) {
     if (elementSizesRef.current === null) elementSizesRef.current = new Map();
   } else if (elementSizesRef.current !== null) {
     /*
-     * Turned off: drop the map rather than leave a frozen one behind. The layout callbacks
-     * go with it, so nothing would update or evict what is in there.
+     * Tracking was turned off, so drop the map. The layout callbacks are gone too, and
+     * nothing would keep it up to date.
      */
     elementSizesRef.current = null;
   }
@@ -270,9 +266,9 @@ function ShadowListInner<ElementT extends { id: string }>(
   );
 
   /*
-   * Ahead-of-time row sizes for the rows around the viewport, so native knows their real
-   * heights before React renders them (see ShadowListProps.getElementSizeSpec). '' when the
-   * caller supplied no getElementSizeSpec, which disables the feature on both sides.
+   * Precomputed sizes for rows near the screen, so native knows their real heights before
+   * React renders them. Empty string when there is no getElementSizeSpec, which turns the
+   * feature off on both sides.
    */
   const elementsSizeSpecs = useElementSizeSpecs({
     data,
@@ -301,10 +297,8 @@ function ShadowListInner<ElementT extends { id: string }>(
   );
 
   /*
-   * The separator is part of every row's content, so a caller writing it inline
-   * (`ItemSeparatorComponent={<Separator />}`) would otherwise rebuild the whole mounted
-   * window on each of its own renders; useStableElement keeps the element while it describes
-   * the same thing.
+   * The separator is inside every row, so an inline element would rebuild every mounted
+   * row on each caller render. useStableElement keeps the old one while it looks the same.
    */
   const separator = useStableElement(
     useMemo(
@@ -348,9 +342,9 @@ function ShadowListInner<ElementT extends { id: string }>(
     <ShadowListView
       ref={shadowlistViewRef}
       /*
-       * Native reads each header/footer template's scroll-axis size from its Yoga frame. In a
-       * column the templates stretch across the width, so a horizontal list would measure the
-       * header as viewport-wide; a row sizes them by content along the scroll axis instead.
+       * Native reads the header and footer size from their layout frame. In a column they
+       * stretch across, so a horizontal list would see a screen wide header. A row sizes them
+       * by their content instead.
        */
       style={[
         styles.container,
@@ -369,18 +363,14 @@ function ShadowListInner<ElementT extends { id: string }>(
           : undefined
       }
       /*
-       * Passing `undefined` for a handler removes the JS listener but not the native work:
-       * the core still computes and dispatches the event every frame. These tell it not to
-       * bother, and keep the per-frame event stream down to the one event that always has
-       * a listener, which is what lets Fabric coalesce it (see the native component spec).
+       * An undefined handler drops the JS listener, but the core would still send the event
+       * every frame. These flags turn that work off, leaving one event per frame that Fabric
+       * can coalesce.
        */
       scrollEventEnabled={onScroll != null}
       viewableEventEnabled={onViewableItemsChanged != null || stickyEnabled}
       elementsAllKeys={elementsAllKeys}
-      /*
-       * The codegen spec types this `string[]`; native only reads it, so the public prop can
-       * stay a ReadonlyArray.
-       */
+      // Codegen wants a string array. Native only reads it, so a ReadonlyArray is fine.
       elementsAnchorIgnoreKeys={(nonAnchorKeys ?? EMPTY_STRINGS) as string[]}
       elementsSizeSpecs={elementsSizeSpecs}
       inverted={inverted}

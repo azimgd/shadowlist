@@ -1,6 +1,6 @@
 /*
- * Placeholder so the test binary builds and runs while the suite is reimplemented
- * from scratch. Replace with real tests; the CMake glob picks up every tests_*.cpp.
+ * Keeps the test binary building while the suite is rewritten.
+ * CMake picks up every tests_ file, so real tests can replace this one.
  */
 
 #include "TestFramework.hpp"

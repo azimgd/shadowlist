@@ -5,7 +5,7 @@ import android.util.AttributeSet;
 import android.view.ViewGroup;
 
 public class ShadowListTemplateView extends ViewGroup {
-  // "header", "footer" or "empty"; used by the parent to pin sticky templates.
+  // Header, footer or empty. The list reads it to pin sticky templates.
   private String mTemplateType = "";
 
   public ShadowListTemplateView(Context context) {
@@ -22,7 +22,7 @@ public class ShadowListTemplateView extends ViewGroup {
 
   @Override
   protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-    // Children are positioned by the shadowlist core, not by Android layout.
+    // The core positions the children, not Android layout.
   }
 
   public void setTemplateType(String templateType) {

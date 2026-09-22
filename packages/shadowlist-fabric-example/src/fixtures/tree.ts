@@ -27,7 +27,9 @@ export const FILE_EXTENSIONS = [
   'heic',
 ];
 
-/* Build a deep, wide Skyfy trip-files tree for the Tree list template. */
+/*
+ * Builds a deep, wide Skyfy trip files tree for the Tree list template.
+ */
 export function generateFileTree(
   rootCount = 4,
   maxDepth = 3,

@@ -13,9 +13,8 @@ export interface GroupIntoSectionsOptions<ItemT> {
 const byLocale = (a: string, b: string) => a.localeCompare(b);
 
 /**
- * Groups a flat, server-ordered array into the `sections` a SectionList takes. Memoize the
- * result on the input array: a new `sections` value makes the list rebuild its section
- * index.
+ * Groups a flat array, already in server order, into the `sections` a SectionList takes.
+ * Memoize the result on the input array, since new sections make the list rebuild its index.
  *
  * @example
  * const sections = useMemo(

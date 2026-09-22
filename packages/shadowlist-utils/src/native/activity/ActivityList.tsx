@@ -24,7 +24,7 @@ export type ActivityListProps = Omit<
   labels?: Partial<ActivityLabels>;
 };
 
-// The separator is part of every row's content: a fresh element per render rebuilds every row.
+// Every row includes the separator, so a new element each render would rebuild every row.
 const ITEM_SEPARATOR = <ItemSeparator />;
 const VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 60 };
 

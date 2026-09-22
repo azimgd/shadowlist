@@ -3,7 +3,7 @@ import { buildActivity } from '../fixtures/activity';
 import { Collection, type CursorPage, type PageCursor } from './Collection';
 import { request, type RequestSignal } from './network';
 
-// Large enough that the screen's containerOffsetIndex (30) lands inside the first page.
+// Large enough that the screen's containerOffsetIndex of 30 lands inside the first page.
 const PAGE_SIZE = 50;
 const NEW_ACTIVITY_PER_REFRESH = 10;
 

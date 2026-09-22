@@ -16,9 +16,9 @@ export interface InfiniteListQuery<DataT> {
 export interface UseInfiniteListPropsOptions {
   refresh?: () => Promise<unknown>;
   /*
-   * Receives a throw or rejection from a page fetch or the refresh. React Query's own
-   * fetchers resolve on failure (the error lands on the query), so this matters for custom
-   * fetchers; without it the rejection is left unhandled.
+   * Gets any error thrown by a page fetch or the refresh. React Query's own fetchers never
+   * reject, the error lands on the query, so this is for custom fetchers. Without it the
+   * rejection goes unhandled.
    */
   onError?: (error: unknown) => void;
 }
@@ -34,12 +34,12 @@ export interface InfiniteListProps<ItemT> {
 /**
  * Connects an infinite query to a shadowlist list.
  *
- * - `data` is the flattened rows, memoized on the cache value, so the list only sees a new
- *   array when a page actually changed.
- * - `onEndReached` / `onStartReached` are stable and safe to fire repeatedly: they do
- *   nothing without a page to load, while any fetch is running (a page fetch racing a
- *   refetch would build on stale pages), or while their own fetch is still pending.
- * - `refreshing` reflects pull-to-refresh only, never background refetches.
+ * - `data` is the flattened rows, memoized on the cache value, so the list only gets a new
+ *   array when a page really changed.
+ * - `onEndReached` and `onStartReached` are stable and safe to call again and again. They do
+ *   nothing when there is no page to load, while any fetch runs, since a page fetch racing
+ *   a refetch would build on old pages, or while their own fetch is still pending.
+ * - `refreshing` is true only for pull to refresh, never for background refetches.
  *
  * @example
  * const feed = useInfiniteQuery(feedQuery);
@@ -76,10 +76,10 @@ export function useInfiniteListProps<
     { onError: options.onError }
   );
 
-  // Synchronous guards: `isFetching` only flips on the next render.
+  // Guards that flip right away, since isFetching only changes on the next render.
   const pendingRef = useRef({ next: false, previous: false });
 
-  // Called inside `.then` so a synchronous throw still clears the guard instead of wedging it.
+  // Run inside then, so a synchronous throw still clears the guard instead of leaving it stuck.
   const settle = useCallback(
     (fetchPage: () => Promise<unknown>, clearGuard: () => void) => {
       const pending = Promise.resolve().then(fetchPage).finally(clearGuard);

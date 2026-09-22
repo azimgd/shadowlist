@@ -3,8 +3,8 @@ import type { Theme } from '../theme';
 import type { ChatMessage } from './types';
 
 /*
- * A transcription of ChatBubble's styles; a spec that disagrees with its row predicts a
- * confidently wrong height, so edit both together.
+ * Copies ChatBubble's styles. If the two disagree the predicted height is wrong, so edit
+ * both together.
  *
  *   container     paddingHorizontal spacing.md, paddingVertical spacing.xxs
  *   avatar        beside the column, not inside it, so it narrows nothing
@@ -15,17 +15,19 @@ import type { ChatMessage } from './types';
  *   caption       typography.caption line + spacing.xs margin, inside the bubble
  *   failedStatus  typography.caption line + spacing.xs margin, under a failed bubble
  *
- * 'sending' only dims the bubble, so a send settling to 'sent' never changes the height.
+ * Sending only dims the bubble, so a send that turns into sent never changes the height.
  */
 export const BUBBLE_WIDTH_FRACTION = 0.75;
 export const BUBBLE_PADDING_HORIZONTAL = 14;
 
 export interface ChatMessageSizeSpecOptions {
-  // Set when the bubble renders a `caption`.
+  // Set when the bubble shows a caption.
   caption?: boolean;
 }
 
-// Image messages get their height from the images, so they are measured natively.
+/*
+ * Image messages get their height from the images, so they are measured natively.
+ */
 export function getChatMessageSizeSpec(
   message: ChatMessage,
   theme: Theme,
@@ -48,7 +50,7 @@ export function getChatMessageSizeSpec(
     lineHeight: typography.body.lineHeight,
     letterSpacing: typography.body.letterSpacing,
     widthFraction: BUBBLE_WIDTH_FRACTION,
-    // 0.75 x (W - 2 x container padding) - 2 x bubble padding
+    // 75% of the width minus container padding, then minus bubble padding
     insetWidth:
       BUBBLE_WIDTH_FRACTION * 2 * spacing.md + 2 * BUBBLE_PADDING_HORIZONTAL,
     insetHeight:

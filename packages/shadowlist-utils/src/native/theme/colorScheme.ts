@@ -1,6 +1,6 @@
 import { Appearance, type ColorSchemeName } from 'react-native';
 
-// One Appearance listener shared by every provider-less useTheme, instead of one per component.
+// One Appearance listener shared by every useTheme without a provider, instead of one per component.
 const listeners = new Set<() => void>();
 let subscription: { remove: () => void } | undefined;
 

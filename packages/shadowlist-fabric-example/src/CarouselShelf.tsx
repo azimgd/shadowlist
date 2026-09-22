@@ -12,8 +12,8 @@ export interface CarouselShelfItem {
 }
 
 /*
- * A horizontal list with a leading header and cards of different widths. Cards added before
- * the visible ones (prepends, overlapping responses) must leave the cards on screen in place.
+ * A horizontal list with a header and cards of different widths.
+ * Cards added before the visible ones must leave the cards on screen in place.
  */
 export const CarouselShelf = memo(({ item }: { item: CarouselShelfItem }) => {
   const styles = useStyles();

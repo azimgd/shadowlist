@@ -4,8 +4,8 @@ export interface ViewableRange {
 }
 
 /**
- * The index span covered by an `onViewableItemsChanged` payload, or `undefined` when
- * nothing is viewable. Does not assume the tokens arrive sorted.
+ * The index range in an `onViewableItemsChanged` payload, or `undefined` when nothing is
+ * viewable. The tokens don't need to be sorted.
  *
  * @example
  * onViewableItemsChanged={({ viewableItems }) => {
