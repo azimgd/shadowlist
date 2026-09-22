@@ -34,7 +34,7 @@ describe('createTurnWriter', () => {
     expect(writes).toHaveLength(2);
     expect(turn()?.content).toBe('Hello');
 
-    // Nothing new: no write.
+    // Nothing new, so nothing is written.
     jest.advanceTimersByTime(200);
     expect(writes).toHaveLength(2);
     writer.stop();
@@ -76,5 +76,35 @@ describe('createTurnWriter', () => {
     const calls = failed.turn()?.toolCalls ?? [];
     expect(calls.map((call) => call.status)).toEqual(['done', 'failed']);
     expect(failed.turn()?.status).toBe('failed');
+  });
+
+  it('records where each call was made and starts a paragraph after one', () => {
+    const { store, turn } = fakeStore();
+    const writer = createTurnWriter({ store, messageId: 'm1' });
+    writer.appendContent("I'll add the table.");
+    const first = writer.startToolCall({ name: 'fill', input: '{}' });
+    writer.completeToolCall(first, '40 cells');
+    const second = writer.startToolCall({ name: 'read', input: '{}' });
+    writer.appendContent(' Now the dates.');
+    writer.stop();
+
+    expect(turn()?.content).toBe("I'll add the table.\n\nNow the dates.");
+    const calls = turn()?.toolCalls ?? [];
+    expect(calls.map((call) => call.at)).toEqual([19, 19]);
+    // Settling a running call keeps its place in the text.
+    expect(calls.find((call) => call.id === second)?.status).toBe('stopped');
+    expect(calls.find((call) => call.id === second)?.at).toBe(19);
+  });
+
+  it('rewinds the text a failed attempt streamed', () => {
+    const { store, turn } = fakeStore();
+    const writer = createTurnWriter({ store, messageId: 'm1' });
+    writer.appendContent('Adding the column.');
+    const start = writer.contentLength;
+    writer.appendContent(' Now freezing the val');
+    writer.rewindContent(start);
+    writer.appendContent(' Now freezing the values.');
+    writer.stop();
+    expect(turn()?.content).toBe('Adding the column. Now freezing the values.');
   });
 });

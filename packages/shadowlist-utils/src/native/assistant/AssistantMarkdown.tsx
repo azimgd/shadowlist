@@ -25,7 +25,7 @@ export interface AssistantMarkdownProps {
   // Shows a trailing pulse after the text.
   streaming?: boolean;
   onCopyCode?: (code: string) => void;
-  // Defaults to Linking.openURL for http(s) and mailto links only.
+  // By default only web and mailto links open.
   onOpenLink?: (url: string) => void;
   labels?: Partial<AssistantLabels>;
   style?: StyleProp<ViewStyle>;
@@ -96,10 +96,9 @@ const CodeBlock = ({
   const styles = useStyles();
   const [copied, setCopied] = useState(false);
   /*
-   * One <Text> per line rather than one <Text> for the block. A fence that is still
-   * streaming appends to its LAST line, and with a single text run that re-lays-out and
-   * re-paints every line above it on each flush; split, only the last line is dirty.
-   * Empty lines carry a non-breaking space so they keep their line box.
+   * One Text per line instead of one for the block. Streaming code only grows its last
+   * line, so only that line redraws on each flush. Empty lines hold a non breaking space
+   * so they keep their height.
    */
   const codeLines = useMemo(() => code.split('\n'), [code]);
 
@@ -115,7 +114,7 @@ const CodeBlock = ({
         <Text style={styles.codeLanguage}>
           {language || labels.codeLanguageFallback}
         </Text>
-        {/* Copying half a block is never what anyone wants; wait for the closing fence. */}
+        {/* Nobody wants half a block, so wait for the closing fence. */}
         {closed ? (
           <Pressable
             onPress={() => {
@@ -211,8 +210,8 @@ const TableBlock = ({
 };
 
 /*
- * One block. Memoized on its source text: once a later block exists this one is final,
- * so during a stream only the tail block re-renders per flush.
+ * One block, memoized on its source text. Once a later block exists this one is final,
+ * so only the last block re-renders per flush.
  */
 const MarkdownBlockView = memo(
   ({
@@ -294,12 +293,12 @@ const MarkdownBlockView = memo(
         );
     }
   },
-  (prev, next) =>
-    prev.block.key === next.block.key &&
-    prev.block.raw === next.block.raw &&
-    prev.onCopyCode === next.onCopyCode &&
-    prev.onOpenLink === next.onOpenLink &&
-    prev.labels === next.labels
+  (previous, next) =>
+    previous.block.key === next.block.key &&
+    previous.block.raw === next.block.raw &&
+    previous.onCopyCode === next.onCopyCode &&
+    previous.onOpenLink === next.onOpenLink &&
+    previous.labels === next.labels
 );
 
 export const AssistantMarkdown = memo(

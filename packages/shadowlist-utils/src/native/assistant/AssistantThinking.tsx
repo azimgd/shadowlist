@@ -23,10 +23,8 @@ export interface AssistantThinkingProps {
 }
 
 /*
- * Characters of reasoning kept for the collapsed one-line preview. The line is truncated to
- * one line anyway, but layout measures the WHOLE string first, so handing it a chain of
- * thought thousands of characters long costs a full text measure per flush to render ~40
- * visible characters. The tail is what the preview shows, so the tail is all it gets.
+ * How much reasoning the one line preview keeps. Layout measures the whole string before
+ * cutting it to one line, so pass only the tail it shows.
  */
 const PREVIEW_TAIL_CHARS = 160;
 
@@ -54,7 +52,7 @@ export const AssistantThinking = memo(
     return (
       <View style={[styles.container, style]}>
         <Pressable
-          onPress={() => setExpanded((current) => !current)}
+          onPress={() => setExpanded((previous) => !previous)}
           hitSlop={10}
           accessibilityRole="button"
           accessibilityLabel={label}
@@ -82,10 +80,9 @@ export const AssistantThinking = memo(
           </View>
         ) : thinking ? (
           /*
-           * Mounted for as long as there is reasoning to preview, not only while it is
-           * still arriving: dropping the line the moment the first content token lands
-           * shrinks the row by a line mid-stream, which moves every row under it.
-           * Head-ellipsized, so it always shows the newest words, not the first ones.
+           * Stays while there is reasoning to preview, not only while it arrives. Dropping
+           * it on the first reply token would shrink the row and move every row below.
+           * Cut from the front, so it shows the newest words.
            */
           <Text style={styles.preview} numberOfLines={1} ellipsizeMode="head">
             {thinking.slice(-PREVIEW_TAIL_CHARS)}
