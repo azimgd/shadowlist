@@ -23,8 +23,8 @@ function mergeLabels<T extends object>(defaults: T, overrides?: Partial<T>): T {
 }
 
 /*
- * Returns the same object while the merged values are unchanged, so an inline `labels={{...}}`
- * prop does not invalidate memoized rows on every parent render.
+ * Returns the same object while the merged values stay the same, so an inline labels prop
+ * does not re-render memoized rows on every parent render.
  */
 export function useLabels<T extends object>(
   defaults: T,

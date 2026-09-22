@@ -16,7 +16,7 @@ import type { SnapItem } from './types';
 
 export interface SnapCardProps {
   item: SnapItem;
-  // Replaces the default image/title content inside the card frame.
+  // Replaces the default image and title inside the card frame.
   children?: ReactNode;
   // Defaults to a quarter of the window height.
   height?: number;

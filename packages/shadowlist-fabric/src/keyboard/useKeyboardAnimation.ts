@@ -10,8 +10,8 @@ export interface KeyboardAnimation {
 }
 
 /*
- * The native module is one global switch. Count the mounted hooks so a screen unmounting
- * (or a drawer screen detaching) does not stop keyboard events for another one still mounted.
+ * The native module is one global switch. Count mounted hooks so one screen going away
+ * doesn't stop keyboard events for another that is still mounted.
  */
 let enabledCount = 0;
 

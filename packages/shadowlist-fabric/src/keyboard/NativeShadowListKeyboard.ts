@@ -2,8 +2,7 @@ import type { TurboModule, CodegenTypes } from 'react-native';
 import { TurboModuleRegistry } from 'react-native';
 
 /*
- * A single frame of a keyboard transition, reported continuously by the native observer.
- * All values are in dp.
+ * One frame of a keyboard animation, sent by native as it runs. All values are in dp.
  */
 export type KeyboardMoveEvent = {
   height: number;

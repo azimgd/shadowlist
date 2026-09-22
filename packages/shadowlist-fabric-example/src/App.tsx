@@ -41,10 +41,10 @@ import { network } from './api/network';
 enableScreens();
 
 /*
- * Launch-argument overrides for scripted device runs (iOS reads them from NSUserDefaults):
- * `-SLRoute Chat` opens that screen, `-SLLatency 0,0` sets the fake network's latency
- * range in ms, `-SLSendFailureRate 0.5` fails that share of chat sends, `-SLTheme light` picks
- * the appearance (dark by default).
+ * Launch arguments for scripted device runs. iOS reads them from NSUserDefaults.
+ * -SLRoute Chat opens that screen, -SLLatency 0,0 sets the fake network latency in ms,
+ * -SLSendFailureRate 0.5 fails that share of chat sends, and -SLTheme light picks light mode.
+ * Dark is the default.
  */
 function launchSetting(key: string): string | undefined {
   if (Platform.OS !== 'ios') return undefined;
@@ -65,7 +65,9 @@ const launchTheme = launchSetting('SLTheme');
 const LAUNCH_THEME: ThemePreference =
   launchTheme === 'light' || launchTheme === 'system' ? launchTheme : 'dark';
 
-// Native chrome (keyboard, scroll indicators, refresh control) follows the chosen appearance.
+/*
+ * The keyboard, scroll indicators and refresh control follow the chosen theme.
+ */
 function applyColorScheme(preference: ThemePreference) {
   Appearance.setColorScheme(
     preference === 'system' ? 'unspecified' : preference

@@ -24,7 +24,7 @@ export type {
   CreateTurnWriterOptions,
 } from './turnWriter';
 export { emptyTurn } from './turn';
-// The default onOpenLink: opens http(s) and mailto only. Call it from a custom handler to keep that check.
+// The default onOpenLink opens only web and mailto links. Call it from a custom handler to keep that check.
 export { openUrl } from './openUrl';
 export { ASSISTANT_END_ID, ASSISTANT_END_MARKER } from './endMarker';
 export type {

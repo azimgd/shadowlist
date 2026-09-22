@@ -1,27 +1,12 @@
 /*
- * Ahead-of-time size predictions.
- *
- * A row's height is normally discovered the expensive way: JS renders it, Fabric commits
- * it, Yoga lays it out, and only then does the core learn it guessed wrong and reflow
- * everything after it. On a variable-height list that correction runs continuously during
- * a scroll, and every one of them can move the scroll offset via MVCP.
- *
- * A prediction is the same number arriving before the row is rendered, measured by the host
- * off the critical path. The properties that make that worth having:
- *
- *   * EXACTNESS: a correct prediction means the later native measurement reports "nothing
- *     changed" and reflows nothing. This is the whole point -- geometry is stable from the
- *     first frame instead of converging over the scroll.
- *   * DEFERENCE: a real native measurement always outranks a prediction, whenever it
- *     arrives and in whatever order. A prediction can never overwrite measured truth.
- *   * PURITY: predictions never enter the frozen average (Revision::measuredReal*). That
- *     average sizes rows nobody knows anything about and must stay a sample of real
- *     measurements, or estimates would start being derived from estimates.
- *   * TRUST: a predicted row carries geometry the core can rely on, which a merely
- *     estimated row does not.
- *
- * Geometry is cross-checked against a brute-force prefix sum, so a reflow that lands on the
- * wrong offsets shows up as a mismatch rather than as a plausible-looking number.
+ * Size predictions. Normally the core learns a row's real height only after it renders,
+ * and then reflows every row after it. A prediction gives the same number before the row
+ * renders. These tests check that:
+ * a correct prediction makes the later real size a no-op,
+ * a real size always wins over a prediction, in any order,
+ * predictions never feed the average used for unknown rows,
+ * and a predicted row counts as a trusted size while an estimated one does not.
+ * Positions are checked against a simple running sum of heights.
  */
 
 #include "TestFramework.hpp"
@@ -39,8 +24,7 @@ using namespace azimgd::shadowlist;
 namespace {
 
 /*
- * Deliberately nothing like the estimate, so a row still carrying the fallback is
- * distinguishable from one carrying its true size.
+ * Heights far from the estimate, so an estimated row is easy to tell from a real one.
  */
 std::vector<double> trueHeightsFor(std::size_t count) {
   std::vector<double> heights;
@@ -51,7 +35,9 @@ std::vector<double> trueHeightsFor(std::size_t count) {
   return heights;
 }
 
-// Stage a prediction for every row; the next update consumes them.
+/*
+ * Queue a prediction for every row. The next update applies them.
+ */
 void predictAll(Container& container, const std::vector<std::string>& keys, const std::vector<double>& heights) {
   for (std::size_t index = 0; index < keys.size(); ++index) {
     container.setPredictedSize(keys[index], {WINDOW_WIDTH, heights[index]});
@@ -59,8 +45,8 @@ void predictAll(Container& container, const std::vector<std::string>& keys, cons
 }
 
 /*
- * Feed real native measurements the way a Fabric layout pass does -- batched, with a single
- * reflow -- and report how many rows actually moved geometry. Zero is the win condition.
+ * Report real sizes in one batch like a Fabric layout pass, and return how many rows
+ * changed. Zero is the goal.
  */
 std::size_t measureBatch(
   Container& container,
@@ -98,9 +84,8 @@ void checkOffsetsAreExactPrefixSums(const Container& container, const std::vecto
 }
 
 /*
- * The headline property. With exact predictions in hand the native measurements that
- * eventually arrive are all no-ops, so the scroll never pays a reflow -- while the same
- * list without predictions reflows on essentially every row it reveals.
+ * The main point. With exact predictions every later real size is a no-op, while the same
+ * list without predictions reflows on almost every row.
  */
 TEST(exact_predictions_eliminate_measurement_reflow) {
   std::vector<std::string> keys = keysFor(400);
@@ -119,10 +104,7 @@ TEST(exact_predictions_eliminate_measurement_reflow) {
   CHECK(blindChanges > 300);
 }
 
-/*
- * A prediction is only useful if it produces the same geometry the real measurement would
- * have. Anything less just trades one wrong answer for another.
- */
+// Predictions must give the same layout the real sizes would.
 TEST(predicted_geometry_matches_fully_measured_geometry) {
   std::vector<std::string> keys = keysFor(300);
   std::vector<double> heights = trueHeightsFor(keys.size());
@@ -143,8 +125,8 @@ TEST(predicted_geometry_matches_fully_measured_geometry) {
 }
 
 /*
- * The total is right before a single row has been laid out, which is what makes the
- * scrollbar honest and stops scrollToEnd converging over many frames.
+ * The total size is right before any row is laid out, so the scroll bar is accurate and
+ * scrollToEnd lands in one go.
  */
 TEST(total_size_is_exact_before_anything_is_measured) {
   std::vector<std::string> keys = keysFor(1000);
@@ -166,9 +148,7 @@ TEST(total_size_is_exact_before_anything_is_measured) {
   CHECK_NEAR(container.revision.totalContainerHeight, expectedTotal, 0.001);
 }
 
-/*
- * A prediction staged before its row exists waits, rather than being dropped.
- */
+// A prediction queued before its row exists waits for it instead of being dropped.
 TEST(a_prediction_staged_early_lands_when_its_row_arrives) {
   std::vector<std::string> keys = keysFor(10);
   Container container;
@@ -181,13 +161,11 @@ TEST(a_prediction_staged_early_lands_when_its_row_arrives) {
   std::size_t index = container.findElementIndexByKey("k7");
   CHECK_NEAR(container.revision.elements[index].height, 777.0, 0.001);
   CHECK(container.revision.elements[index].predicted);
-  // Consumed, not retained: the size now lives on the element.
+  // The queue is emptied once the size is on the row.
   CHECK_EQ(container.predictedSizes.size(), static_cast<std::size_t>(0));
 }
 
-/*
- * A prediction for a row that already exists applies immediately and reflows behind it.
- */
+// A prediction for an existing row applies right away and moves the rows after it.
 TEST(a_prediction_for_a_live_row_reflows_the_rows_after_it) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
@@ -204,8 +182,8 @@ TEST(a_prediction_for_a_live_row_reflows_the_rows_after_it) {
 }
 
 /*
- * A prediction that matches what the row already carries moves nothing, so a host that
- * re-publishes its whole measurement window every frame costs a lookup, not a reflow.
+ * A prediction equal to the row's current size moves nothing, so resending the same
+ * predictions every frame is cheap.
  */
 TEST(a_redundant_prediction_reflows_nothing) {
   std::vector<std::string> keys = keysFor(50);
@@ -219,8 +197,8 @@ TEST(a_redundant_prediction_reflows_nothing) {
 }
 
 /*
- * DEFERENCE, both orderings: a measurement lands on a predicted row and wins; a prediction
- * lands on a measured row and is discarded.
+ * A real size always wins. It replaces a prediction, and a prediction arriving after a
+ * real size is dropped.
  */
 TEST(a_real_measurement_supersedes_a_prediction) {
   std::vector<std::string> keys = keysFor(50);
@@ -247,18 +225,14 @@ TEST(a_late_prediction_never_overwrites_a_measurement) {
     UNDEFINED_INDEX);
   CHECK_NEAR(container.revision.elements[5].height, 333.0, 0.001);
 
-  /*
-   * And it must not have been quietly staged either -- a staged entry would resurface on
-   * the next reconcile and overwrite the measurement then.
-   */
+  // It must not be queued either, or it would overwrite the real size on the next update.
   Virtualizer::update(&container, inputFor(keys, 0.0));
   CHECK_NEAR(container.revision.elements[5].height, 333.0, 0.001);
 }
 
 /*
- * PURITY: the frozen average is a sample of real measurements. A fully predicted list has
- * taken no such sample, so rows outside the prediction window must still fall back to the
- * configured estimate rather than to an average of guesses.
+ * The average only uses real sizes. A fully predicted list has none, so a row nobody
+ * predicted still uses the configured estimate.
  */
 TEST(predictions_stay_out_of_the_frozen_average) {
   std::vector<std::string> keys = keysFor(200);
@@ -270,7 +244,7 @@ TEST(predictions_stay_out_of_the_frozen_average) {
   CHECK_EQ(container.revision.measuredRealCount, static_cast<std::size_t>(0));
   CHECK_NEAR(container.revision.averageElementHeight, 0.0, 0.001);
 
-  // A row nobody predicted still gets the configured estimate, not 500.
+  // A new unpredicted row gets the estimate, not 500.
   std::vector<std::string> grown = keys;
   grown.push_back("fresh");
   Virtualizer::update(&container, inputFor(grown, 0.0));
@@ -280,9 +254,7 @@ TEST(predictions_stay_out_of_the_frozen_average) {
   CHECK(!container.revision.elements[freshIndex].predicted);
 }
 
-/*
- * TRUST: a predicted or measured row has trusted geometry, an estimated one does not.
- */
+// A predicted or measured row has a trusted size, an estimated one does not.
 TEST(only_predicted_or_measured_rows_carry_trusted_geometry) {
   std::vector<std::string> keys = keysFor(30);
   Container container;
@@ -297,8 +269,8 @@ TEST(only_predicted_or_measured_rows_carry_trusted_geometry) {
 }
 
 /*
- * scrollToIndex on a cold list: with predictions the target offset is known on the first
- * frame, so it lands immediately instead of converging as rows are revealed.
+ * scrollToIndex on a fresh list. With predictions the target offset is known in the first
+ * frame, so it lands at once.
  */
 TEST(scroll_to_index_lands_immediately_on_a_cold_predicted_list) {
   std::vector<std::string> keys = keysFor(500);
@@ -319,9 +291,8 @@ TEST(scroll_to_index_lands_immediately_on_a_cold_predicted_list) {
 }
 
 /*
- * Predictions must survive the reconciles a live list actually performs. A prepend shifts
- * every index; predicted rows have to keep their sizes across it exactly as measured rows
- * do, or a paginating list would lose its geometry every page.
+ * Predicted rows keep their sizes through a prepend, just like measured rows, or a list
+ * loading pages would lose its layout every page.
  */
 TEST(predictions_survive_a_prepend) {
   std::vector<std::string> keys = keysFor(100);
@@ -350,9 +321,8 @@ TEST(predictions_survive_a_prepend) {
 }
 
 /*
- * A partially predicted list is the realistic case: the host predicts what it can (text)
- * and leaves the rest to measurement. The two must coexist without the unpredicted rows
- * dragging the predicted ones off their exact offsets.
+ * The usual case: the host predicts what it can, like text, and measures the rest.
+ * Unpredicted rows must not push predicted ones off their exact positions.
  */
 TEST(predicted_and_unpredicted_rows_coexist) {
   std::vector<std::string> keys = keysFor(200);
@@ -371,7 +341,7 @@ TEST(predicted_and_unpredicted_rows_coexist) {
   }
   checkOffsetsAreExactPrefixSums(container, expected, "mixed list");
 
-  // Measuring the odd rows only reports changes for the odd rows.
+  // Only the odd, unpredicted rows report a change when measured.
   std::size_t changed = 0;
   for (std::size_t index = 0; index < keys.size(); ++index) {
     if (Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, heights[index]})) {
@@ -383,9 +353,8 @@ TEST(predicted_and_unpredicted_rows_coexist) {
 }
 
 /*
- * Predictions arrive whenever the host finishes measuring, which is almost never a frame
- * that changed keys. Draining only on reconcile would leave them stranded on a settled
- * list -- where the next data commit may never come -- so the drain runs per frame.
+ * Predictions arrive whenever the host finishes measuring, rarely in a frame that changes
+ * keys. So they apply on every frame, not only when the data changes.
  */
 TEST(a_prediction_staged_on_a_settled_list_lands_on_the_next_frame) {
   std::vector<std::string> keys = keysFor(60);
@@ -394,7 +363,7 @@ TEST(a_prediction_staged_on_a_settled_list_lands_on_the_next_frame) {
 
   double offsetBefore = container.revision.elements[40].offsetY;
 
-  // Same keys, so this frame performs no reconcile at all.
+  // Same keys, so the data is not reconciled in this frame.
   container.setPredictedSize("k3", {WINDOW_WIDTH, 400.0});
   Virtualizer::update(&container, inputFor(keys, 0.0));
 
@@ -404,10 +373,7 @@ TEST(a_prediction_staged_on_a_settled_list_lands_on_the_next_frame) {
   CHECK_NEAR(container.revision.elements[40].offsetY, offsetBefore + (400.0 - ESTIMATED_ROW_HEIGHT), 0.001);
 }
 
-/*
- * Same, with the props-identity shortcut engaged -- the path a real scroll frame takes,
- * where the core is explicitly told not to revalidate the key collection.
- */
+// Same, when a scroll frame tells the core the keys did not change.
 TEST(a_prediction_lands_even_when_the_keys_shortcut_is_engaged) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
@@ -423,9 +389,8 @@ TEST(a_prediction_lands_even_when_the_keys_shortcut_is_engaged) {
 }
 
 /*
- * Text wraps to the row width, so every height measured at the old width is wrong after a
- * resize. Predicted rows must return to the estimate rather than sit on confidently wrong
- * geometry -- while natively measured rows, whose sizes are real, are left alone.
+ * Text wraps to the row width, so predicted heights are wrong after a resize. Predicted rows
+ * go back to the estimate, while natively measured rows keep their real sizes.
  */
 TEST(invalidating_predictions_returns_rows_to_the_estimate) {
   std::vector<std::string> keys = keysFor(60);
@@ -443,16 +408,15 @@ TEST(invalidating_predictions_returns_rows_to_the_estimate) {
   CHECK(!container.revision.elements[0].predicted);
   CHECK(!container.hasTrustedSize(0));
 
-  // The natively measured row keeps its real size.
+  // The measured row keeps its real size.
   CHECK_NEAR(container.revision.elements[2].height, 333.0, 0.001);
   CHECK(container.hasTrustedSize(2));
 }
 
 /*
- * Appending is the most common data change a list sees (every chat message, every page of
- * pagination), so it takes an in-place path instead of rebuilding the element vector and
- * key->index map. These pin that path against the general one: same geometry, same map,
- * same surviving state, including the duplicate-key rule.
+ * Appending is the most common change, like a chat message or a new page, so it updates
+ * the rows in place instead of rebuilding them. These check it matches a full rebuild,
+ * including how duplicate keys resolve.
  */
 TEST(appending_preserves_every_surviving_row) {
   std::vector<std::string> keys = keysFor(500);
@@ -492,11 +456,8 @@ TEST(appending_preserves_every_surviving_row) {
 }
 
 /*
- * The in-place path must land on exactly the geometry a from-scratch build produces.
- *
- * The control is built directly with the final key set and given the same measurements, so
- * both containers hold the same frozen average -- otherwise the unmeasured tail is sized
- * from different data and the comparison tests the average, not the append.
+ * An append in place must match a list built from scratch. Both get the same sizes so they
+ * share the same average, otherwise the test would compare averages instead.
  */
 TEST(in_place_append_matches_a_full_rebuild) {
   std::vector<std::string> keys = keysFor(200);
@@ -507,14 +468,14 @@ TEST(in_place_append_matches_a_full_rebuild) {
     grown.push_back("x" + std::to_string(index));
   }
 
-  // Appended incrementally: takes the in-place fast path.
+  // Appended later, which takes the in place path.
   Container appended;
   Virtualizer::update(&appended, inputFor(keys, 0.0));
   measureBatch(appended, heights, 0, keys.size() - 1);
   Virtualizer::update(&appended, inputFor(grown, 0.0));
   Virtualizer::recomputeTotalSize(&appended);
 
-  // Built with the final key set from the start: never sees an append at all.
+  // Built with all the keys from the start, with no append.
   Container wholesale;
   Virtualizer::update(&wholesale, inputFor(grown, 0.0));
   measureBatch(wholesale, heights, 0, keys.size() - 1);
@@ -537,10 +498,7 @@ TEST(in_place_append_matches_a_full_rebuild) {
   CHECK_EQ(appended.revision.measuredRealCount, wholesale.revision.measuredRealCount);
 }
 
-/*
- * A duplicate key appended to a list that already contains it must resolve to the FIRST
- * occurrence, exactly as the rebuild path's emplace does.
- */
+// An appended duplicate key resolves to its first occurrence, same as a full rebuild.
 TEST(appending_a_duplicate_key_keeps_the_first_occurrence) {
   std::vector<std::string> keys = keysFor(20);
   Container container;
@@ -555,15 +513,13 @@ TEST(appending_a_duplicate_key_keeps_the_first_occurrence) {
   CHECK_EQ(container.revision.elements[20].key, std::string("k3"));
 }
 
-/*
- * A shorter or reordered key set must NOT be mistaken for an append.
- */
+// A shorter or reordered key list must not be taken for an append.
 TEST(append_fast_path_declines_non_append_shapes) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
   Virtualizer::update(&container, inputFor(keys, 0.0));
 
-  // Prepend: longer, but the prefix does not match.
+  // A prepend is longer, but the start does not match.
   std::vector<std::string> prepended = {"new0", "new1"};
   prepended.insert(prepended.end(), keys.begin(), keys.end());
   Virtualizer::update(&container, inputFor(prepended, 0.0));
@@ -573,7 +529,9 @@ TEST(append_fast_path_declines_non_append_shapes) {
     CHECK_EQ(container.revision.elements[index].index, index);
   }
 
-  // Removal: shorter.
+  /*
+   * A removal is shorter.
+   */
   std::vector<std::string> shrunk(keys.begin(), keys.begin() + 10);
   Virtualizer::update(&container, inputFor(shrunk, 0.0));
   CHECK_EQ(container.revision.elements.size(), static_cast<std::size_t>(10));
@@ -582,9 +540,8 @@ TEST(append_fast_path_declines_non_append_shapes) {
 }
 
 /*
- * Prepending is how a chat paginates older messages in, and the whole existing list
- * survives it. These pin the in-place prepend path: surviving rows keep their sizes and
- * measured state, every index is renumbered, and the key->index map still resolves.
+ * Prepending is how a chat loads older messages. In the in place path the existing rows
+ * keep their sizes, every index is renumbered, and keys still find their rows.
  */
 TEST(prepending_preserves_every_surviving_row) {
   std::vector<std::string> keys = keysFor(300);
@@ -617,13 +574,9 @@ TEST(prepending_preserves_every_surviving_row) {
 }
 
 /*
- * The in-place prepend must leave the surviving list geometrically intact: every measured
- * row keeps its exact height, and the whole block simply shifts down by the height of what
- * was prepended.
- *
- * Checked as invariants rather than against a second container: a container built wholesale
- * freezes its average from a different sample, so its unmeasured rows are legitimately sized
- * differently and the comparison would test the average rather than the prepend.
+ * After a prepend in place every measured row keeps its height, and the old rows move down
+ * by exactly the height of the new ones. This is not compared with a rebuilt list, since
+ * that one would fix its average from different rows.
  */
 TEST(in_place_prepend_shifts_survivors_by_exactly_the_prepended_height) {
   std::vector<std::string> keys = keysFor(150);
@@ -650,7 +603,7 @@ TEST(in_place_prepend_shifts_survivors_by_exactly_the_prepended_height) {
   Virtualizer::update(&container, inputFor(prepended, 0.0));
   Virtualizer::recomputeTotalSize(&container);
 
-  // Every prepended row is unmeasured, so they all carry one and the same fallback size.
+  // The prepended rows are unmeasured, so they all share the same fallback size.
   double fallback = container.revision.elements[0].height;
   double prependedTotal = 0.0;
   for (std::size_t index = 0; index < prependCount; ++index) {
@@ -661,7 +614,7 @@ TEST(in_place_prepend_shifts_survivors_by_exactly_the_prepended_height) {
     prependedTotal += element.height;
   }
 
-  // Survivors keep their measured heights and shift by exactly the prepended block.
+  // The old rows keep their heights and move down by exactly the new rows' height.
   for (std::size_t index = 0; index < keys.size(); ++index) {
     const Element& element = container.revision.elements[index + prependCount];
     CHECK_EQ(element.key, keys[index]);
@@ -674,8 +627,8 @@ TEST(in_place_prepend_shifts_survivors_by_exactly_the_prepended_height) {
 }
 
 /*
- * A prepended key that already exists further down must resolve to the FIRST occurrence,
- * which is the prepended one. The fast path declines this shape rather than get it wrong.
+ * A prepended key that already exists further down resolves to its first occurrence, the
+ * new one. The in place path skips this case instead of getting it wrong.
  */
 TEST(prepending_an_existing_key_still_resolves_to_the_first_occurrence) {
   std::vector<std::string> keys = keysFor(30);
@@ -694,9 +647,7 @@ TEST(prepending_an_existing_key_still_resolves_to_the_first_occurrence) {
   }
 }
 
-/*
- * Chained prepends: the map must stay correct across several in-place shifts, not just one.
- */
+// Keys still find their rows after several prepends in a row.
 TEST(chained_prepends_keep_the_key_map_correct) {
   std::vector<std::string> keys = keysFor(60);
   Container container;

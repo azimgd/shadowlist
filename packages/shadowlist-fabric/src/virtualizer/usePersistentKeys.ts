@@ -7,19 +7,15 @@ interface UsePersistentKeysOptions {
 }
 
 /*
- * Persistent (always-mounted) rows: force-mounts the rows whose key is in
- * `persistentKeys` so they are never virtualized away, while leaving them at their
- * natural flow position (unlike sticky headers, which are pinned to the viewport).
+ * Keeps the rows in persistentKeys always mounted, in their normal place in the list.
+ * Unlike sticky headers, they are not pinned to the screen.
  */
 export function usePersistentKeys({
   keys,
   persistentKeys,
   renderIndices,
 }: UsePersistentKeysOptions): number[] {
-  /*
-   * Resolve the requested keys to their current indices. Walks the keys only when keys are
-   * given; keys not present in data are dropped (e.g. a pinned row that was removed).
-   */
+  // Find the current index of each key, dropping keys that are no longer in data.
   const persistentIndices = useMemo(() => {
     if (!persistentKeys || persistentKeys.length === 0) return [];
     const keySet = new Set(persistentKeys);
@@ -30,7 +26,7 @@ export function usePersistentKeys({
     return indices;
   }, [keys, persistentKeys]);
 
-  // Union the persistent rows into the rendered set, kept sorted and deduplicated.
+  // Add these rows to the rendered set, sorted and without duplicates.
   return useMemo(() => {
     if (persistentIndices.length === 0) return renderIndices;
     const merged = new Set(renderIndices);

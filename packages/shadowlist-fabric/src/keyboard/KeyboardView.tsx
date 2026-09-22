@@ -7,9 +7,8 @@ export interface KeyboardViewProps extends ViewProps {
 }
 
 /*
- * Wrapper that dismisses the keyboard when an inert area is tapped. It only claims a
- * touch while the keyboard is open, so when closed it is fully transparent to gestures.
- * Interactive descendants that claim their own touches first do not trigger a dismiss.
+ * Dismisses the keyboard when you tap an empty area. It only takes touches while the
+ * keyboard is open, and children that handle their own touches don't dismiss it.
  */
 export function KeyboardView({
   enabled = true,

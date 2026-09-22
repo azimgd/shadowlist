@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 export interface UsePullToRefreshOptions {
-  // Receives a throw or rejection from `refresh`. Without it the rejection is left unhandled.
+  // Gets any error from refresh. Without it the rejection goes unhandled.
   onError?: (error: unknown) => void;
 }
 
@@ -11,11 +11,10 @@ export interface PullToRefresh {
 }
 
 /**
- * Drives a pull-to-refresh control from any async refresh, such as a query's `refetch`.
+ * Drives a pull to refresh control from any async refresh, such as a query's `refetch`.
  *
- * Use this rather than binding `refreshing` to a query's `isRefetching`: that flag is also
- * true for background refetches (app foregrounded, cache invalidated), which would pull
- * the spinner down over the list without the reader asking for it.
+ * Use this instead of a query's `isRefetching`. That flag is also true for background
+ * refetches, which would show the spinner when the reader never pulled.
  *
  * `refresh` and `onError` are read at call time, so they do not need to be stable.
  *
@@ -33,7 +32,7 @@ export function usePullToRefresh(
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  // Synchronous guard: state only flips on the next render, a second pull could slip past it.
+  // A guard that flips right away. State changes on the next render, so a second pull could slip past.
   const inFlightRef = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -41,7 +40,7 @@ export function usePullToRefresh(
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setRefreshing(true);
-    // Called inside `.then` so a synchronous throw still reaches `.finally`.
+    // Run inside then, so a synchronous throw still reaches finally.
     const pending = Promise.resolve()
       .then(() => refreshRef.current())
       .finally(() => {

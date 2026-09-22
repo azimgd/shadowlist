@@ -53,12 +53,14 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
 
   @Override
   public void onDropViewInstance(@NonNull ShadowListView view) {
-    // Tear down any in-flight drag before the host is recycled.
+    // Stop any drag before the view is recycled.
     view.onDropInstance();
     super.onDropViewInstance(view);
   }
 
-  // Route child mounting into the content container inside the inner scroll view.
+  /*
+   * Children mount into the content view inside the scroll view.
+   */
   @Override
   public void addView(ShadowListView parent, View child, int index) {
     parent.addContentView(child, index);
@@ -82,33 +84,33 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "elementsAllKeys")
   public void setElementsAllKeys(ShadowListView view, @Nullable ReadableArray elementsAllKeys) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "elementsAnchorIgnoreKeys")
   public void setElementsAnchorIgnoreKeys(
       ShadowListView view, @Nullable ReadableArray elementsAnchorIgnoreKeys) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "elementsSizeSpecs")
   public void setElementsSizeSpecs(
       ShadowListView view, @Nullable String elementsSizeSpecs) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "inverted")
   public void setInverted(ShadowListView view, boolean inverted) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "followAppends")
   public void setFollowAppends(ShadowListView view, boolean followAppends) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
@@ -150,7 +152,7 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "stickyHeaderIndices")
   public void setStickyHeaderIndices(ShadowListView view, @Nullable ReadableArray stickyHeaderIndices) {
-    // Consumed by the core via props; the pin reads section-header geometry back from state.
+    // Only the core reads this prop. Pinning reads the header positions back from state.
   }
 
   @Override
@@ -166,13 +168,13 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "columns")
   public void setColumns(ShadowListView view, int columns) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "containerOffsetIndex")
   public void setContainerOffsetIndex(ShadowListView view, int containerOffsetIndex) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
@@ -196,7 +198,7 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Nullable
   @Override
   public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
-    // Map the dispatched refresh events to the JS `onRefresh` / `onRefreshSettle` handlers.
+    // Hook the refresh events up to onRefresh and onRefreshSettle in JS.
     return MapBuilder.<String, Object>builder()
       .put(
         ShadowListRefreshEvent.EVENT_NAME,
@@ -210,40 +212,37 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "startReachedThreshold")
   public void setStartReachedThreshold(ShadowListView view, double startReachedThreshold) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "endReachedThreshold")
   public void setEndReachedThreshold(ShadowListView view, double endReachedThreshold) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "viewablePercentThreshold")
   public void setViewablePercentThreshold(ShadowListView view, double viewablePercentThreshold) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "overscan")
   public void setOverscan(ShadowListView view, double overscan) {
-    // Consumed by the C++ core via props; no Android view state needed.
+    // Only the core reads this prop.
   }
 
   @Override
   @ReactProp(name = "scrollEventEnabled")
   public void setScrollEventEnabled(ShadowListView view, boolean scrollEventEnabled) {
-    /*
-     * Read by the component descriptor to decide whether to install the core's scroll
-     * observer at all; no Android view state needed.
-     */
+    // The component descriptor reads this to decide whether to watch scrolls at all.
   }
 
   @Override
   @ReactProp(name = "viewableEventEnabled")
   public void setViewableEventEnabled(ShadowListView view, boolean viewableEventEnabled) {
-    // As above, for the viewable-range observer.
+    // Same, for watching which rows are visible.
   }
 
   @Override
@@ -255,13 +254,13 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "snapToAlignment")
   public void setSnapToAlignment(ShadowListView view, int snapToAlignment) {
-    // Alignment is applied by the C++ core; the view only needs the snap offsets.
+    // The core applies the alignment. The view only needs the snap offsets.
   }
 
   @Override
   @ReactProp(name = "nativeListId")
   public void setNativeListId(ShadowListView view, @Nullable String nativeListId) {
-    // ShadowListNative: read by the C++ shadow node, which synthesizes the rows.
+    // For ShadowListNative. The shadow node reads it to build the rows.
   }
 
   @Override

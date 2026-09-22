@@ -10,13 +10,13 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.uimanager.PixelUtil;
 
 /*
- * Native sticky pinning for the header, footer and section-header overlay. Runs on the
- * UI thread every scroll tick off the core-published state cached here.
+ * Pins the header, footer and section header overlay. Runs on the UI thread on every
+ * scroll tick, using the core state cached here.
  */
 class ShadowListStickyController {
   /*
-   * Z lift (draw order) for pinned views; never use bringToFront(), which reorders
-   * the content child array and desyncs index-based child mounting.
+   * Pinned views are lifted with Z. Never use bringToFront, it reorders the children and
+   * breaks index based mounting.
    */
   private static final int STICKY_LIFT_DP = 4;
   private static final int SECTION_OVERLAY_LIFT_DP = 6;
@@ -27,8 +27,8 @@ class ShadowListStickyController {
   private boolean mStickyFooter = false;
 
   /*
-   * Direction-based auto-hide. mHeaderHidden/mFooterHidden = how far each is slid away
-   * (px); mLastAutoHideOffset = previous offset, for the scroll delta.
+   * Hide on scroll. The hidden values are how far each bar has slid away in pixels.
+   * The last offset gives the scroll distance since the previous tick.
    */
   private boolean mAutoHideHeader = false;
   private boolean mAutoHideFooter = false;
@@ -37,8 +37,8 @@ class ShadowListStickyController {
   private float mLastAutoHideOffset = 0f;
 
   /*
-   * Sticky section headers: core-published resting geometry (offset + size in DIP along
-   * the scroll axis) of the in-flow section headers, cached for the per-tick pin.
+   * Where each section header sits in the list and how big it is, in dp along the scroll
+   * axis. Comes from the core and is read on every scroll tick.
    */
   private int[] mStickyHeaderIndices = new int[0];
   private double[] mStickyHeaderOffsets = new double[0];
@@ -68,14 +68,18 @@ class ShadowListStickyController {
     applyStickyTransforms();
   }
 
-  // Clear the auto-hide accumulators so a recycled host has no stale state.
+  /*
+   * Reset hide on scroll so a recycled view starts clean.
+   */
   void reset() {
     mHeaderHidden = 0f;
     mFooterHidden = 0f;
     mLastAutoHideOffset = 0f;
   }
 
-  // Cache the core-published sticky section-header geometry for the per-tick pin.
+  /*
+   * Save the section header positions sent by the core.
+   */
   void cacheStickyGeometry(ReadableMap nextStateData) {
     if (nextStateData.hasKey("stickyHeaderIndices")
         && nextStateData.hasKey("stickyHeaderOffsets")
@@ -95,14 +99,16 @@ class ShadowListStickyController {
     }
   }
 
-  // Pin the sticky header/footer by translating them relative to their resting position.
+  /*
+   * Pin the header and footer by moving them from where they normally sit.
+   */
   void applyStickyTransforms() {
     applyStickyTransforms(false);
   }
 
   /*
-   * `accumulate` is true only for genuine user-scroll ticks; programmatic offset
-   * corrections must not advance the auto-hide amount.
+   * Pass accumulate only for real user scrolls. Programmatic offset fixes must not
+   * hide or show the bars.
    */
   void applyStickyTransforms(boolean accumulate) {
     ViewGroup contentView = mView.getContentView();
@@ -121,7 +127,7 @@ class ShadowListStickyController {
 
     float stickyLift = PixelUtil.toPixelFromDIP(STICKY_LIFT_DP);
 
-    // Prescan header/footer sizes so each can be pushed off by the other on collision.
+    // Measure the header and footer first so one can push the other away when they meet.
     float headerSize = 0f;
     float footerSize = 0f;
     for (int i = 0; i < contentView.getChildCount(); i++) {
@@ -135,17 +141,14 @@ class ShadowListStickyController {
       } else if ("header".equals(type)) {
         headerSize = horizontal ? child.getWidth() : child.getHeight();
       }
-      /*
-       * Any other template type (e.g. "empty", "sectionHeader") is neither the sticky
-       * header nor footer and must not be folded into either size.
-       */
+      // Other templates like empty or sectionHeader don't count toward either size.
     }
 
     float axisOffset = horizontal ? offsetX : offsetY;
     float windowSize = horizontal ? windowWidth : windowHeight;
     float contentSize = horizontal ? contentWidth : contentHeight;
 
-    // Auto-hide scroll delta; only advances on genuine user scrolls.
+    // How far the user scrolled since the last tick. Zero for programmatic scrolls.
     float autoHideDelta = accumulate ? (axisOffset - mLastAutoHideOffset) : 0f;
     mLastAutoHideOffset = axisOffset;
 
@@ -158,9 +161,8 @@ class ShadowListStickyController {
       boolean isFooter = "footer".equals(type);
       boolean isHeader = "header".equals(type);
       /*
-       * The section-header overlay is pinned (and Z-lifted) separately below, and any
-       * other template type (e.g. "empty", mounted alongside "header" when data is
-       * empty) is neither the sticky header nor footer and must not be pinned as one.
+       * The section header overlay is pinned below. Other templates, like empty which mounts
+       * next to the header when there is no data, must not be pinned.
        */
       if (!isFooter && !isHeader) {
         continue;
@@ -174,7 +176,7 @@ class ShadowListStickyController {
         float footerStart = horizontal ? child.getLeft() : child.getTop();
         float restingTranslation = (axisOffset + windowSize - footerSize) - footerStart;
         if (mAutoHideFooter) {
-          // Pin to the viewport end, slid down by mFooterHidden; shown near the bottom.
+          // Pin to the bottom, slid down by the hidden amount. Always shown near the end.
           float maxOffset = Math.max(0f, contentSize - windowSize);
           if (axisOffset >= maxOffset - footerSize) {
             mFooterHidden = 0f;
@@ -187,7 +189,7 @@ class ShadowListStickyController {
         }
       } else {
         if (mAutoHideHeader) {
-          // Pin to the viewport start, slid up by mHeaderHidden; shown near the top.
+          // Pin to the top, slid up by the hidden amount. Always shown near the start.
           if (axisOffset <= headerSize) {
             mHeaderHidden = 0f;
           } else {
@@ -195,7 +197,7 @@ class ShadowListStickyController {
           }
           translation = axisOffset - mHeaderHidden;
         } else if (mStickyHeader) {
-          // Pin to the viewport start, pushed off by the content end on collision.
+          // Pin to the top, and let the end of the content push it away.
           translation = axisOffset;
           float collisionTop = contentSize - footerSize - headerSize;
           if (collisionTop < translation) {
@@ -211,7 +213,7 @@ class ShadowListStickyController {
         child.setTranslationY(translation);
         child.setTranslationX(0f);
       }
-      // Lift a pinned/auto-hiding header/footer above the rows; rest at 0.
+      // Lift a pinned or hiding bar above the rows.
       child.setTranslationZ((sticky || autoHide) ? stickyLift : 0f);
     }
 
@@ -219,8 +221,8 @@ class ShadowListStickyController {
   }
 
   /*
-   * Pin the section-header overlay to the viewport start, pushing it up as the next
-   * in-flow header arrives. Hidden when no section is active.
+   * Pin the section header overlay to the top and let the next header push it up.
+   * Hide it when no section is active.
    */
   private void applyStickySectionHeaders() {
     ViewGroup contentView = mView.getContentView();
@@ -246,7 +248,10 @@ class ShadowListStickyController {
     }
     double axisOffset = PixelUtil.toDIPFromPixel((float) axisOffsetPx);
 
-    // Headers ascend by offset: active = last at/above the viewport start; next = first past it.
+    /*
+     * Headers are sorted by offset. The active one is the last at or above the top,
+     * the next one is the first below it.
+     */
     boolean hasActive = false;
     double activeSize = 0.0;
     boolean hasNext = false;
@@ -268,7 +273,7 @@ class ShadowListStickyController {
       return;
     }
 
-    // Displayed top: viewport start, pushed up to nextOffset - activeSize on arrival.
+    // Sit at the top unless the next header is pushing it up.
     double translation = axisOffset;
     if (hasNext) {
       double pushedTop = nextOffset - activeSize;
@@ -286,7 +291,7 @@ class ShadowListStickyController {
       overlay.setTranslationY(translationPx);
       overlay.setTranslationX(0f);
     }
-    // Keep the overlay above the rows and a plain sticky header via Z order.
+    // Keep the overlay above the rows and above a sticky header.
     overlay.setTranslationZ(PixelUtil.toPixelFromDIP(SECTION_OVERLAY_LIFT_DP));
   }
 

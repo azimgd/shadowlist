@@ -1,17 +1,10 @@
 /*
- * Mirror the canonical shared core (packages/shadowlist-core) into this package
- * so the published npm tarball is self-contained: the package.json `files`
- * field ships `shadowlist-core/`, and a consumer's pod install / gradle build
- * compiles it from inside node_modules/shadowlist where `../shadowlist-core` is
- * not reachable.
+ * Copy packages/shadowlist-core into this package so the npm tarball builds on
+ * its own. Inside a user's node_modules the sibling core folder isn't there.
  *
- * Runs from the `prepare` lifecycle (local install + publish). It is a no-op
- * when the canonical source is absent (e.g. already inside a consumer install),
- * leaving any existing vendored copy untouched. The destination is wiped first
- * so it is always an exact mirror: a per-file copy would leave behind sources
- * that were since removed from the canonical core.
- *
- * The vendored copy is gitignored; it is a generated artifact, not source.
+ * Runs on prepare. Does nothing when the core folder is missing, which keeps any
+ * existing copy. Wipes the copy first so removed files don't linger.
+ * The copy is gitignored.
  */
 const fs = require('fs');
 const path = require('path');

@@ -1,23 +1,8 @@
 /*
- * Virtualization contract tests.
- *
- * These pin the properties a list must never lose, independently of how the core
- * arrives at them:
- *
- *   * the reported window covers EVERY row that overlaps the viewport plus overscan
- *     (nothing is virtualized away while it is on screen),
- *   * element geometry stays contiguous and ordered after any mutation,
- *   * measured sizes survive reconciliation and the key->index map stays truthful,
- *   * maintain-visible-content-position holds content still across a prepend,
- *   * inverted, horizontal and multi-column layouts obey all of the above.
- *
- * The window assertions are written as an exhaustive cross-check: an independent brute
- * force pass over every element decides which rows overlap, and the core's answer must
- * contain exactly those. That is what makes the fast index seek safe to change --
- * a search that skips a row shows up here as a lost row, not as a subtle visual bug.
- *
- * They are implementation-agnostic (public core API only), so they hold regardless of
- * which search or reflow strategy the core uses internally.
+ * Virtualization tests. Every row on screen stays mounted, rows stay back to back after any
+ * change, measured sizes survive data changes, and a prepend keeps the visible content in place,
+ * in every layout. Mounted rows are checked against a slow scan of every row, so a search that
+ * skips a row fails here. Only the public core API is used.
  */
 
 #include "TestFramework.hpp"
@@ -68,8 +53,8 @@ FrameInput inputFor(const std::vector<std::string>& keys, double offset, const F
 }
 
 /*
- * The core reports its window as a single [start, end] index span (inverted lists report
- * it reversed). Normalise it to the inclusive ascending range the host would mount.
+ * The core reports its window as a first and last index, reversed for inverted lists.
+ * Turn it into the ascending range the host would mount.
  */
 std::pair<std::size_t, std::size_t> reportedWindow(const Container& container) {
   auto visible = container.getVisibleIndices();
@@ -80,8 +65,7 @@ std::pair<std::size_t, std::size_t> reportedWindow(const Container& container) {
 }
 
 /*
- * The whole point of the window: no row that is on screen (or within the overscan the
- * list promised) may fall outside what the host is told to mount.
+ * No row on screen or in the overscan may fall outside the range the host mounts.
  */
 void checkNoRowLost(const Container& container, const std::string& context) {
   std::set<std::size_t> overlapping = overlappingIndices(container, container.overscan);
@@ -105,8 +89,8 @@ void checkNoRowLost(const Container& container, const std::string& context) {
 }
 
 /*
- * Positions must stay contiguous along the scroll axis: within one track, each row starts
- * exactly where the previous one ended. A reflow that skipped a row shows up here.
+ * Within each column, every row must start exactly where the one before it ended.
+ * A reflow that skipped a row fails here.
  */
 void checkGeometryContiguous(const Container& container, const std::string& context) {
   std::size_t columns = container.columns > 0 ? container.columns : 1;
@@ -126,8 +110,7 @@ void checkGeometryContiguous(const Container& container, const std::string& cont
 }
 
 /*
- * Drive one measured row per index so the list has real, uneven geometry rather than a
- * uniform estimate -- uniform rows hide almost every window-selection bug.
+ * Give every row a real, uneven size. Equal rows hide most window bugs.
  */
 void measureRows(Container& container, const std::vector<double>& heights) {
   for (std::size_t index = 0; index < heights.size(); ++index) {
@@ -139,7 +122,7 @@ std::vector<double> unevenHeights(std::size_t count) {
   std::vector<double> heights;
   heights.reserve(count);
   for (std::size_t index = 0; index < count; ++index) {
-    // A deliberately lumpy profile: tall rows, short rows and a few zero-height rows.
+    // Mix tall rows, short rows and a few with zero height.
     if (index % 17 == 0) {
       heights.push_back(0.0);
     } else if (index % 5 == 0) {
@@ -155,9 +138,7 @@ std::vector<double> unevenHeights(std::size_t count) {
 
 }
 
-/* ------------------------------------------------------------------ *
- * Window selection
- * ------------------------------------------------------------------ */
+// Window selection
 
 TEST(window_covers_every_overlapping_row_single_column) {
   Fixture fixture;
@@ -211,8 +192,8 @@ TEST(window_covers_every_overlapping_row_inverted) {
 }
 
 /*
- * The hard case for any ordered search: round-robin tracks whose cumulative heights drift
- * far apart, so nearby screen positions belong to distant indices.
+ * The hard case for a search: grid columns that grow at very different rates, so rows
+ * near each other on screen have indices far apart.
  */
 TEST(window_covers_every_overlapping_row_skewed_columns) {
   Fixture fixture;
@@ -223,7 +204,7 @@ TEST(window_covers_every_overlapping_row_skewed_columns) {
   Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
 
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    // Track 0 grows fast, track 1 slowly, track 2 in between: maximally skewed.
+    // Column 0 grows fast, column 1 slowly, column 2 in between.
     double height = (index % 3 == 0) ? 400.0 : (index % 3 == 1 ? 40.0 : 150.0);
     Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH / 3.0, height});
   }
@@ -236,8 +217,8 @@ TEST(window_covers_every_overlapping_row_skewed_columns) {
 }
 
 /*
- * A row whose leading edge is above the window but whose body still covers it must stay
- * in the window. This is the row a leading-edge-only test drops, leaving a visible gap.
+ * A row that starts above the window but still covers it must stay mounted. Checking only
+ * where rows start would drop it and leave a gap.
  */
 TEST(window_keeps_row_straddling_the_lower_bound) {
   Fixture fixture;
@@ -248,7 +229,7 @@ TEST(window_keeps_row_straddling_the_lower_bound) {
   Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
 
   std::vector<double> heights(keys.size(), 100.0);
-  heights[10] = 5000.0;  // one row far taller than the viewport
+  heights[10] = 5000.0;  // one row far taller than the screen
   measureRows(container, heights);
 
   // Scroll into the middle of the very tall row.
@@ -271,8 +252,8 @@ TEST(window_is_correct_on_the_frame_a_reorder_lands) {
   Virtualizer::update(&container, inputFor(keys, 4000.0, fixture));
 
   /*
-   * Move a row from deep in the list to the very front: its stale offset would break any
-   * ordered walk that trusted the pre-reflow geometry.
+   * Move a row from deep in the list to the front. Its old position would break a search
+   * that trusted the layout from before the reflow.
    */
   std::vector<std::string> reordered = keys;
   std::string moved = reordered[250];
@@ -284,9 +265,7 @@ TEST(window_is_correct_on_the_frame_a_reorder_lands) {
   checkGeometryContiguous(container, "reorder frame");
 }
 
-/* ------------------------------------------------------------------ *
- * Geometry integrity
- * ------------------------------------------------------------------ */
+// Geometry integrity
 
 TEST(geometry_stays_contiguous_across_scrolling_and_measurement) {
   Fixture fixture;
@@ -309,9 +288,8 @@ TEST(geometry_stays_contiguous_across_scrolling_and_measurement) {
 }
 
 /*
- * Re-reporting a size a row already has must not move anything. The measurement feedback
- * path runs for every mounted row on every layout, so an unchanged report is the common
- * case, not the exception.
+ * Reporting a size a row already has must not move anything. Every layout reports every
+ * mounted row, so unchanged sizes are the common case.
  */
 TEST(repeated_identical_measurements_do_not_move_geometry) {
   Fixture fixture;
@@ -385,9 +363,7 @@ TEST(header_size_shifts_every_row_and_the_total) {
   checkGeometryContiguous(container, "with header");
 }
 
-/* ------------------------------------------------------------------ *
- * Reconciliation
- * ------------------------------------------------------------------ */
+// Reconciliation
 
 TEST(reconcile_preserves_measured_sizes_of_surviving_rows) {
   Fixture fixture;
@@ -398,7 +374,7 @@ TEST(reconcile_preserves_measured_sizes_of_surviving_rows) {
   std::vector<double> heights = unevenHeights(keys.size());
   measureRows(container, heights);
 
-  // Prepend a page, drop a couple from the middle, append one.
+  // Prepend a page, drop two from the middle, append one.
   std::vector<std::string> next = keysFor(20, "older");
   for (std::size_t index = 0; index < keys.size(); ++index) {
     if (index == 30 || index == 31) {
@@ -433,7 +409,7 @@ TEST(key_index_map_matches_the_element_list_after_every_mutation) {
     for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
       const std::string& key = container.revision.elements[index].key;
       std::size_t found = container.findElementIndexByKey(key);
-      // First occurrence wins on a duplicate key, so only assert that direction.
+      // A duplicate key resolves to its first occurrence, so only check that direction.
       if (found > index) {
         fail(context + ": key '" + key + "' at " + std::to_string(index) +
           " resolves to " + std::to_string(found));
@@ -461,8 +437,8 @@ TEST(key_index_map_matches_the_element_list_after_every_mutation) {
 }
 
 /*
- * A duplicate key must not let two rows share one measured element: the first occurrence
- * keeps the measured state, the second starts fresh.
+ * Two rows with the same key must not share one measured row. The first keeps its size
+ * and the second starts fresh.
  */
 TEST(duplicate_keys_do_not_share_one_element) {
   Fixture fixture;
@@ -479,7 +455,7 @@ TEST(duplicate_keys_do_not_share_one_element) {
   CHECK_EQ(container.revision.elements[1].key, std::string("b"));
   CHECK_EQ(container.revision.elements[2].key, std::string("b"));
   CHECK_EQ(container.revision.elements[3].key, std::string("c"));
-  // The survivor keeps its measurement; the newcomer must not claim it.
+  // The old row keeps its size and the new one does not take it.
   CHECK(container.revision.elements[1].measured);
   CHECK(!container.revision.elements[2].measured);
   CHECK_EQ(container.findElementIndexByKey("b"), static_cast<std::size_t>(1));
@@ -501,9 +477,7 @@ TEST(full_replacement_resets_the_frozen_average) {
   CHECK_NEAR(container.revision.averageElementHeight, 0.0, 0.001);
 }
 
-/* ------------------------------------------------------------------ *
- * Scroll position
- * ------------------------------------------------------------------ */
+// Scroll position
 
 TEST(prepend_keeps_the_visible_row_in_place) {
   Fixture fixture;
@@ -512,7 +486,7 @@ TEST(prepend_keeps_the_visible_row_in_place) {
   Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
-  // Sit on row 80.
+  // Rest on row 80.
   double offset = offsetOf(container, 80);
   Virtualizer::update(&container, inputFor(keys, offset, fixture));
   CHECK_NEAR(offsetOf(container, 80), container.revision.containerOffsetY, 1.0);
@@ -524,17 +498,16 @@ TEST(prepend_keeps_the_visible_row_in_place) {
   std::size_t movedIndex = container.findElementIndexByKey("k80");
   CHECK(movedIndex != UNDEFINED_INDEX);
   CHECK_EQ(movedIndex, static_cast<std::size_t>(110));
-  // The same row must still sit at the top of the viewport.
+  // The same row must still be at the top of the screen.
   CHECK_NEAR(offsetOf(container, movedIndex), container.revision.containerOffsetY, 1.0);
 }
 
 namespace {
 
 /*
- * Prepend while resting at the very top (offset 0) with a list header, the Feed screen's
- * shape. The anchor there is the first row, which sits below the viewport top by the header
- * size, so its captured sub-offset is negative. MVCP must hold it exactly as it does
- * mid-list: the new rows land above the viewport and the offset grows by their height.
+ * Prepend while resting at offset 0 with a header, like the Feed screen. The first row sits
+ * below the top by the header size, but it must hold just like it does mid list: the new
+ * rows land above the screen and the offset grows by their height.
  */
 void checkPrependHoldsFirstVisibleRow(const Fixture& fixture, double headerSize, std::size_t restIndex) {
   std::vector<std::string> keys = keysFor(200);
@@ -570,11 +543,11 @@ void checkPrependHoldsFirstVisibleRow(const Fixture& fixture, double headerSize,
 
   std::size_t movedIndex = container.findElementIndexByKey("k" + std::to_string(restIndex));
   CHECK_EQ(movedIndex, restIndex + 10);
-  // The row keeps its on-screen position: the offset absorbed the inserted rows.
+  // The row stays where it was on screen, and the offset grew by the new rows.
   CHECK_NEAR(offsetOf(container, movedIndex) - currentOffset(), restKeyScreenPosition, 1.0);
   CHECK(container.containerOffsetCorrected);
 
-  // The host confirms the corrected offset; the prepended rows get measured; nothing moves.
+  // The host applies the new offset and measures the new rows, and nothing moves.
   double corrected = currentOffset();
   FrameInput confirm = inputFor(prepended, corrected, fixture);
   confirm.headerSize = headerSize;
@@ -615,7 +588,7 @@ TEST(inverted_list_opens_pinned_to_the_bottom) {
   Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
-  // Let the pin converge the way the host does: report the offset back each frame.
+  // Report the offset back each frame, like the host does, until it settles at the bottom.
   double offset = 0.0;
   for (int frame = 0; frame < 6; ++frame) {
     FrameInput input = inputFor(keys, offset, fixture);
@@ -630,8 +603,8 @@ TEST(inverted_list_opens_pinned_to_the_bottom) {
 }
 
 /*
- * "Tap the status bar" on an inverted list: a single jump from the resting bottom to 0.
- * The window must follow the offset, not stay where the content used to be.
+ * Tapping the status bar on an inverted list jumps from the bottom to 0 in one step.
+ * The mounted rows must follow the new offset.
  */
 TEST(inverted_list_jump_to_top_reports_the_first_rows) {
   Fixture fixture;
@@ -658,7 +631,7 @@ TEST(inverted_list_jump_to_top_reports_the_first_rows) {
   CHECK_EQ(window.first, static_cast<std::size_t>(0));
   checkNoRowLost(container, "inverted after jump to top");
 
-  // And the jump must stick: the core must not drag the view back to the bottom.
+  // The jump must stick and not be pulled back to the bottom.
   FrameInput settle = inputFor(keys, 0.0, fixture);
   Virtualizer::update(&container, settle);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 1.0);
@@ -667,8 +640,8 @@ TEST(inverted_list_jump_to_top_reports_the_first_rows) {
 namespace {
 
 /*
- * Settle an inverted list at its bottom the way the host does: report the offset back each
- * frame until the pin converges. Returns the resting offset.
+ * Settle an inverted list at its bottom by reporting the offset back each frame, like the
+ * host does. Returns the resting offset.
  */
 double settleAtBottom(
   Container& container,
@@ -688,9 +661,9 @@ double settleAtBottom(
 }
 
 /*
- * A streaming reply taller than the viewport at the bottom of an inverted list. The user
- * drags up into it: the bottom pin must stand down on that frame and stay down while the row
- * keeps growing below, or the drag fights the pin and the view snaps back to the bottom.
+ * A streaming reply taller than the screen sits at the bottom of an inverted list. When the
+ * user drags up into it, the list must stop sticking to the bottom and stay that way while
+ * the row grows, or the view snaps back to the bottom.
  */
 TEST(inverted_bottom_pin_releases_when_the_user_scrolls_up_a_tall_last_row) {
   Fixture fixture;
@@ -706,14 +679,14 @@ TEST(inverted_bottom_pin_releases_when_the_user_scrolls_up_a_tall_last_row) {
   double bottom = settleAtBottom(container, keys, fixture);
   CHECK_NEAR(bottom, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
 
-  // The finger drags 400pt up, still inside the tall last row.
+  // The finger drags 400 points up, still inside the tall last row.
   double dragged = bottom - 400.0;
   FrameInput drag = inputFor(keys, dragged, fixture);
   drag.userScrolled = true;
   Virtualizer::update(&container, drag);
   CHECK_NEAR(container.revision.containerOffsetY, dragged, 1.0);
 
-  // The reply keeps streaming while the finger rests: the view must not move.
+  // The reply keeps streaming while the finger rests, and the view must not move.
   for (int flush = 1; flush <= 5; ++flush) {
     Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 3000.0 + flush * 60.0});
     Virtualizer::update(&container, inputFor(keys, container.revision.containerOffsetY, fixture));
@@ -722,9 +695,8 @@ TEST(inverted_bottom_pin_releases_when_the_user_scrolls_up_a_tall_last_row) {
 }
 
 /*
- * The chat template's following policy: every row but the newest is non-anchorable, so the
- * pin tracks the newest row. A user drag must still release the pin even though the newest
- * row is the only anchor candidate on screen.
+ * The chat setup where only the newest row can be an anchor. A user drag must still stop
+ * the list sticking to the bottom, even though that row is the only anchor on screen.
  */
 TEST(inverted_bottom_pin_releases_when_only_the_last_row_is_anchorable) {
   Fixture fixture;
@@ -755,8 +727,8 @@ TEST(inverted_bottom_pin_releases_when_only_the_last_row_is_anchorable) {
 }
 
 /*
- * Releasing must not be permanent: once the user scrolls back down to the bottom, growth of
- * the last row is followed again.
+ * Letting go of the bottom is not permanent. Once the user scrolls back down, growth of the
+ * last row is followed again.
  */
 TEST(inverted_bottom_pin_reengages_once_the_user_returns_to_the_bottom) {
   Fixture fixture;
@@ -774,7 +746,7 @@ TEST(inverted_bottom_pin_reengages_once_the_user_returns_to_the_bottom) {
   FrameInput away = inputFor(keys, bottom - 400.0, fixture);
   away.userScrolled = true;
   Virtualizer::update(&container, away);
-  // Without this the test passes whether or not the pin was ever released.
+  // Without this check the test would pass even if the bottom was never let go.
   CHECK(container.invertedBottomReleased);
 
   FrameInput back = inputFor(keys, bottom, fixture);
@@ -792,9 +764,8 @@ TEST(inverted_bottom_pin_reengages_once_the_user_returns_to_the_bottom) {
 }
 
 /*
- * The release must survive noise. A 3pt nudge -- a stray touch while reading, the scroll
- * view settling after a bounce -- is not the reader leaving the stream, and treating it as
- * one strands them off the bottom for the rest of the reply.
+ * A 3 point nudge, like a stray touch or the scroll view settling after a bounce, does not
+ * mean the reader left the bottom. Treating it that way would strand them for the whole reply.
  */
 TEST(inverted_bottom_pin_ignores_a_nudge_off_the_bottom) {
   Fixture fixture;
@@ -814,7 +785,7 @@ TEST(inverted_bottom_pin_ignores_a_nudge_off_the_bottom) {
   Virtualizer::update(&container, nudge);
   CHECK(!container.invertedBottomReleased);
 
-  // Still following: the last row growing still carries the view with it.
+  // Still following, so the view moves with the growing last row.
   for (int flush = 1; flush <= 4; ++flush) {
     Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 100.0 + flush * 120.0});
     FrameInput rest = inputFor(keys, container.revision.containerOffsetY, fixture);
@@ -825,9 +796,8 @@ TEST(inverted_bottom_pin_ignores_a_nudge_off_the_bottom) {
 }
 
 /*
- * A conversation that does not fill the viewport has no bottom to leave: the bottom offset
- * is clamped to 0, so an overscroll bounce reports an offset "far above" it. Releasing
- * there would latch following off before the reply has even grown past the window.
+ * A conversation shorter than the screen has its bottom at offset 0, so an overscroll bounce
+ * looks far above it. Letting go there would stop following before the reply even fills the screen.
  */
 TEST(inverted_bottom_pin_survives_a_bounce_on_a_list_shorter_than_the_viewport) {
   Fixture fixture;
@@ -846,7 +816,7 @@ TEST(inverted_bottom_pin_survives_a_bounce_on_a_list_shorter_than_the_viewport) 
   Virtualizer::update(&container, bounce);
   CHECK(!container.invertedBottomReleased);
 
-  // The reply then grows past the viewport; the newly created bottom must be followed.
+  // The reply then grows past the screen, and its new bottom must be followed.
   for (int flush = 1; flush <= 6; ++flush) {
     Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 100.0 + flush * 300.0});
     FrameInput rest = inputFor(keys, container.revision.containerOffsetY, fixture);
@@ -857,10 +827,9 @@ TEST(inverted_bottom_pin_survives_a_bounce_on_a_list_shorter_than_the_viewport) 
 }
 
 /*
- * A released reader parked mid-reply, under which the reply SHRINKS (a fence closing, a
- * preview line collapsing) until the bottom is level with them. The bottom came to the
- * reader, the reader did not go to the bottom, so the pin must stay down -- otherwise the
- * next token yanks them to the end of a reply they were still reading.
+ * A reader scrolled up into a reply, which then shrinks until its bottom reaches them, like a
+ * code block closing. The reader did not go back to the bottom, so the list must keep not
+ * following, or the next token pulls them to the end of the reply they were reading.
  */
 TEST(inverted_bottom_pin_stays_released_when_the_reply_shrinks_onto_the_reader) {
   Fixture fixture;
@@ -872,7 +841,7 @@ TEST(inverted_bottom_pin_stays_released_when_the_reply_shrinks_onto_the_reader) 
   std::vector<double> heights(keys.size(), 100.0);
   heights.back() = 3000.0;
   measureRows(container, heights);
-  // Everything above the streaming reply, so the shrink can be aimed at the reader exactly.
+  // Height of everything above the reply, so the shrink can stop exactly at the reader.
   double headRows = 100.0 * static_cast<double>(keys.size() - 1);
 
   double bottom = settleAtBottom(container, keys, fixture);
@@ -882,7 +851,7 @@ TEST(inverted_bottom_pin_stays_released_when_the_reply_shrinks_onto_the_reader) 
   Virtualizer::update(&container, drag);
   CHECK(container.invertedBottomReleased);
 
-  // Shrink the last row until maxOffset lands exactly on the parked offset.
+  // Shrink the last row until the bottom lands exactly on the reader's offset.
   double shrunk = parked + WINDOW_HEIGHT - headRows;
   Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, shrunk});
   Virtualizer::update(&container, inputFor(keys, container.revision.containerOffsetY, fixture));
@@ -896,11 +865,10 @@ TEST(inverted_bottom_pin_stays_released_when_the_reply_shrinks_onto_the_reader) 
 }
 
 /*
- * Regenerate on a reply the reader has scrolled past: the reply empties, the bottom rises
- * above the reader, the host clamps the offset down to it (a report the host flags as a user
- * scroll), and the core's correction then moves the view a few points back toward the
- * bottom. That last move is the echo of the core's own write, not the reader returning, so
- * the pin must stay released -- or the reply is chased to the bottom as it streams back in.
+ * Regenerating a reply the reader scrolled past. The reply empties, the bottom rises above the
+ * reader, the host clamps the offset to it as a user scroll, then the core's correction moves
+ * a few points toward the bottom. That move is the core's own write coming back, not the reader
+ * returning, so the list must keep not following while the reply streams back in.
  */
 TEST(inverted_bottom_pin_stays_released_when_a_correction_echo_nears_the_bottom) {
   Fixture fixture;
@@ -921,15 +889,15 @@ TEST(inverted_bottom_pin_stays_released_when_a_correction_echo_nears_the_bottom)
   CHECK(container.invertedBottomReleased);
 
   /*
-   * The reply empties by 1400pt: the new bottom lands 1000pt above the reader. Derived rather
-   * than read back, because the stored total only refreshes on the next update.
+   * The reply loses 1400 points, so the new bottom is 1000 points above the reader. Computed
+   * here because the stored total only updates on the next frame.
    */
   const double emptied = 1600.0;
   Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, emptied});
   double shrunkBottom = bottom - (3000.0 - emptied);
   CHECK(shrunkBottom < parked);
 
-  // The host clamps short of the new bottom, then echoes the core's nudge onto it.
+  // The host clamps just short of the new bottom, then reports the core's nudge onto it.
   FrameInput clamp = inputFor(keys, shrunkBottom - 20.0, fixture);
   clamp.userScrolled = true;
   Virtualizer::update(&container, clamp);
@@ -937,7 +905,7 @@ TEST(inverted_bottom_pin_stays_released_when_a_correction_echo_nears_the_bottom)
   Virtualizer::update(&container, echo);
   CHECK(container.invertedBottomReleased);
 
-  // The reply streams back in: the reader stays where the clamp left them.
+  // The reply streams back in and the reader stays where the clamp left them.
   double rested = container.revision.containerOffsetY;
   for (int flush = 1; flush <= 4; ++flush) {
     Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, emptied + flush * 150.0});
@@ -947,11 +915,9 @@ TEST(inverted_bottom_pin_stays_released_when_a_correction_echo_nears_the_bottom)
 }
 
 /*
- * The edge callbacks follow the data order in every orientation: `inverted` pins the
- * resting position to the end but does not flip which edge is which. An inverted chat
- * resting at its bottom is at the END of the data; onStartReached must not fire there,
- * or the "load earlier" it triggers prepends rows, the new element count re-arms the
- * edge, and the callback fires again every frame for as long as the reader stays put.
+ * Edge callbacks follow the data order in every layout. Inverted rests at the end but does not
+ * swap the edges. An inverted chat at its bottom is at the end of the data, so onStartReached
+ * must not fire there, or each load of older rows would fire it again every frame.
  */
 TEST(inverted_list_reports_end_at_the_bottom_and_start_at_the_top) {
   Fixture fixture;
@@ -972,7 +938,7 @@ TEST(inverted_list_reports_end_at_the_bottom_and_start_at_the_top) {
   int startAtBottom = startReached;
   CHECK(endReached >= 1);
 
-  // Resting at the bottom while rows are prepended keeps the start edge quiet.
+  // Rows prepended while resting at the bottom do not fire the start edge.
   for (int round = 0; round < 3; ++round) {
     std::vector<std::string> grown = keysFor(6, "older" + std::to_string(round) + "_");
     grown.insert(grown.end(), keys.begin(), keys.end());
@@ -983,7 +949,7 @@ TEST(inverted_list_reports_end_at_the_bottom_and_start_at_the_top) {
   }
   CHECK_EQ(startReached, startAtBottom);
 
-  // Scrolling to the top reaches the start.
+  // Scrolling to the top fires the start edge.
   FrameInput top = inputFor(keys, 0.0, fixture);
   top.userScrolled = true;
   Virtualizer::update(&container, top);
@@ -991,17 +957,15 @@ TEST(inverted_list_reports_end_at_the_bottom_and_start_at_the_top) {
 }
 
 /*
- * A slow drag away from the bottom starts inside INVERTED_FOLLOW_BAND, where the pin is
- * not yet released. The host reports the finger as Dragging on those frames, and on the
- * commits that land between touch frames (a stream flush): the pin must yield to all of
- * them, or every frame snaps the content back and the finger fights the pin across the
- * whole band. Lifting inside the band hands the view back to the pin.
+ * A slow drag away from the bottom starts inside INVERTED_FOLLOW_BAND, where the list still
+ * follows the bottom. While the finger is down, including commits between touch frames, the
+ * list must not pull the view back. Lifting inside the band hands the view back to the bottom.
  */
 TEST(inverted_bottom_pin_yields_while_a_finger_is_down_inside_the_band) {
   Fixture fixture;
   fixture.inverted = true;
 
-  // The chat's following policy: only the newest row may anchor, so the pin tracks it.
+  // Like the chat, only the newest row can be an anchor.
   std::vector<std::string> keys = keysFor(20);
   std::vector<std::string> allButLast(keys.begin(), keys.end() - 1);
   Container container;
@@ -1019,7 +983,7 @@ TEST(inverted_bottom_pin_yields_while_a_finger_is_down_inside_the_band) {
     Virtualizer::update(&container, drag);
     CHECK_NEAR(container.revision.containerOffsetY, offset, 0.01);
 
-    // A commit between two touch frames reports the same offset, finger still down.
+    // A commit between two touch frames reports the same offset with the finger still down.
     FrameInput commit = inputFor(keys, offset, fixture);
     commit.nonAnchorableKeys = allButLast;
     commit.userScrolled = true;
@@ -1029,7 +993,7 @@ TEST(inverted_bottom_pin_yields_while_a_finger_is_down_inside_the_band) {
   }
   CHECK(!container.invertedBottomReleased);
 
-  // The finger lifts 16pt above the bottom, inside the band: the pin takes the view back.
+  // The finger lifts 16 points above the bottom, inside the band, so the view goes back to the bottom.
   FrameInput lift = inputFor(keys, offset, fixture);
   lift.nonAnchorableKeys = allButLast;
   Virtualizer::update(&container, lift);
@@ -1042,10 +1006,9 @@ TEST(inverted_bottom_pin_yields_while_a_finger_is_down_inside_the_band) {
 }
 
 /*
- * Growth measured between frames is followed at once. The reply's footer mounts when the
- * stream ends and is measured after the final commit; with no further frame, the pin in
- * resolveScroll never runs, so the measurement path itself must move the view to the new
- * bottom rather than leave the reader looking at a cut-off row.
+ * Growth measured between frames is followed right away. The reply's footer mounts when the
+ * stream ends and is measured after the last commit. With no frame after that, the measuring
+ * step itself must move the view to the new bottom, or the last row stays cut off.
  */
 TEST(inverted_bottom_pin_follows_growth_measured_between_frames) {
   Fixture fixture;
@@ -1059,12 +1022,12 @@ TEST(inverted_bottom_pin_follows_growth_measured_between_frames) {
   double bottom = settleAtBottom(container, keys, fixture, allButLast);
   CHECK_NEAR(bottom, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
 
-  // The newest row grows by 40pt with no frame in between: the view is already at the new bottom.
+  // The newest row grows by 40 points with no frame, and the view is already at the new bottom.
   Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 140.0});
   CHECK_NEAR(container.revision.containerOffsetY, bottom + 40.0, 0.01);
   CHECK(container.containerOffsetCorrected);
 
-  // Released readers are left alone by the same path.
+  // A reader who scrolled away is left alone.
   FrameInput away = inputFor(keys, bottom - 300.0, fixture);
   away.nonAnchorableKeys = allButLast;
   away.userScrolled = true;
@@ -1117,9 +1080,7 @@ TEST(content_shrinking_below_the_offset_pulls_the_view_back) {
   checkNoRowLost(container, "after collapse");
 }
 
-/* ------------------------------------------------------------------ *
- * Derived geometry
- * ------------------------------------------------------------------ */
+// Derived geometry
 
 TEST(snap_offsets_track_geometry_changes) {
   Fixture fixture;
@@ -1133,24 +1094,24 @@ TEST(snap_offsets_track_geometry_changes) {
 
   std::vector<double> first = container.getSnapOffsets();
   CHECK(!first.empty());
-  // Ascending and starting at the first row's resting position.
+  // Snap points go up and start at the first row.
   for (std::size_t index = 1; index < first.size(); ++index) {
     CHECK(first[index] > first[index - 1]);
   }
   CHECK_NEAR(first.front(), 0.0, 0.001);
 
-  // Repeating an identical frame must not change the answer.
+  // The same frame again gives the same snap points.
   Virtualizer::update(&container, input);
   CHECK(container.getSnapOffsets() == first);
 
-  // A real resize must.
+  // A real resize changes them.
   Virtualizer::updateElementAtIndex(&container, 3, {WINDOW_WIDTH, 700.0});
   Virtualizer::recomputeTotalSize(&container);
   std::vector<double> afterResize = container.getSnapOffsets();
   CHECK(afterResize != first);
   CHECK_NEAR(afterResize[4], offsetOf(container, 4), 0.001);
 
-  // So must turning snapping off.
+  // So does turning snapping off.
   FrameInput noSnap = inputFor(keys, 0.0, fixture);
   Virtualizer::update(&container, noSnap);
   CHECK(container.getSnapOffsets().empty());
@@ -1201,14 +1162,11 @@ TEST(viewable_indices_stay_inside_the_viewport) {
   }
 }
 
-/* ------------------------------------------------------------------ *
- * Estimation
- * ------------------------------------------------------------------ */
+// Estimation
 
 /*
- * Rows nobody has measured yet must keep carrying the current fallback size, and must
- * pick up a new one when the frozen average or the estimate changes. This is the property
- * that lets the sizing pass be skipped when nothing changed.
+ * Unmeasured rows use the current fallback size and pick up a new one when the average or
+ * the estimate changes. This is what lets the sizing step be skipped when nothing changed.
  */
 TEST(unmeasured_rows_track_the_current_fallback_size) {
   Fixture fixture;
@@ -1218,20 +1176,18 @@ TEST(unmeasured_rows_track_the_current_fallback_size) {
   Container container;
   Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
 
-  // Nothing measured yet: every far-away row carries the estimate.
+  // Nothing is measured yet, so every far row uses the estimate.
   for (std::size_t index = 200; index < 500; ++index) {
     CHECK_NEAR(sizeOf(container, index), 120.0, 0.001);
   }
 
-  // Measure the first screenful much taller; the frozen average takes over as fallback.
+  // Measure the first screen of rows much taller, and the average becomes the fallback.
   for (std::size_t index = 0; index < 20; ++index) {
     Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, 400.0});
   }
   /*
-   * Two frames, deliberately: within one measure pass the sizing runs BEFORE
-   * recomputeTotalSize freezes the average, so the frame that first sees real
-   * measurements still sizes unmeasured rows from the estimate and the new average only
-   * reaches them on the next one.
+   * Two frames on purpose. Sizing runs before recomputeTotalSize fixes the average, so the
+   * new average only reaches unmeasured rows on the second frame.
    */
   Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
   CHECK_NEAR(container.revision.averageElementHeight, 400.0, 0.001);
@@ -1243,7 +1199,7 @@ TEST(unmeasured_rows_track_the_current_fallback_size) {
   }
   checkGeometryContiguous(container, "after average froze");
 
-  // Repeating the settled frame must leave everything exactly where it is.
+  // Repeating the settled frame leaves everything exactly where it is.
   double totalBefore = container.revision.totalContainerHeight;
   double lastOffsetBefore = offsetOf(container, 499);
   for (int repeat = 0; repeat < 3; ++repeat) {
@@ -1290,7 +1246,7 @@ TEST(multi_column_rows_span_their_track) {
   }
   checkGeometryContiguous(container, "4 columns");
 
-  // The published content width must cover the tracks, never collapse.
+  // The content width must cover all columns and never collapse.
   CHECK(container.revision.totalContainerWidth >= WINDOW_WIDTH - 0.001);
 }
 
@@ -1313,9 +1269,8 @@ TEST(empty_then_refilled_list_recovers) {
 }
 
 /*
- * A long randomized session: scroll, measure, insert, remove and reorder in a fixed
- * pseudorandom order, asserting the whole contract after every single step. This is the
- * net that catches interactions the individual cases above do not think of.
+ * A long random session of scrolls, measures, inserts, removes and moves, in a fixed order
+ * from a seed, checking everything after each step. It catches mixes the tests above miss.
  */
 TEST(randomized_session_never_loses_a_row) {
   Fixture fixture;
@@ -1332,11 +1287,9 @@ TEST(randomized_session_never_loses_a_row) {
   double offset = 0.0;
   std::size_t freshCounter = 0;
   /*
-   * Whether the reported window still describes the current geometry. Measurement
-   * feedback arrives during layout, AFTER the commit that produced the window, so between
-   * a resize and the next commit the window is expected to be one frame behind -- exactly
-   * as it is in the real pipeline. Only assert the window where the host would have a
-   * fresh one.
+   * Whether the mounted range matches the current layout. Sizes arrive after the commit
+   * that made the range, so after a resize it is one frame behind, just like on device.
+   * Only check the range when the host would have a fresh one.
    */
   bool windowFresh = true;
 
@@ -1409,17 +1362,12 @@ TEST(randomized_session_never_loses_a_row) {
 }
 
 /*
- * A prepend that lands while a fling is still settling (the list has just been flung to the
- * top and is bouncing, or is coasting mid-list) must still hold the visible content in place.
- * Every commit runs update() twice on the same, not-yet-refreshed scroll report. If the
- * second pass read the Settling phase as a fresh gesture takeover, it would drop the MVCP
- * correction the first pass had just started and re-capture the anchor against the
- * already-prepended rows, so the view would stay where it was and the new rows would push
- * the content down.
- *
- * The correction must survive the unmoved re-run, ride along with momentum frames reported
- * before the host applied it, and hand the offset back to the gesture once the host echoes
- * its commit token.
+ * A prepend that lands while a fling is still settling must keep the visible content in place.
+ * Every commit runs update() twice on the same old scroll report. If the second run took the
+ * settling phase for a new gesture, it would drop the correction the first run started and the
+ * new rows would push the content down.
+ * The correction must survive the second run, move along with momentum frames reported before
+ * the host applied it, and give the offset back to the gesture once the host reports its token.
  */
 TEST(prepend_while_settling_keeps_visible_content_in_place) {
   Fixture fixture;
@@ -1431,17 +1379,17 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
     Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
   }
 
-  // The fling arrives near the top and is still decelerating.
+  // The fling reaches the top area and is still slowing down.
   FrameInput coasting = inputFor(keys, 37.0, fixture);
   coasting.userScrolled = true;
   coasting.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(&container, coasting);
   CHECK_NEAR(container.revision.containerOffsetY, 37.0, 0.5);
 
-  // Ten unmeasured rows are prepended; both passes of the commit see the stale report.
+  // Ten unmeasured rows are prepended, and both runs of the commit see the old report.
   std::vector<std::string> grown = keysFor(10, "fresh");
   grown.insert(grown.end(), keys.begin(), keys.end());
-  // Unmeasured rows take the measured fallback size (see unmeasured_rows_track_the_current_fallback_size).
+  // Unmeasured rows use the fallback size from the measured rows.
   double inserted = 10 * 100.0;
 
   FrameInput prepend = inputFor(grown, 37.0, fixture);
@@ -1455,7 +1403,7 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   CHECK_NEAR(container.revision.containerOffsetY, 37.0 + inserted, 1.0);
   CHECK(container.operation.has_value());
 
-  // A momentum frame reported before the host applied the correction moves the target with it.
+  // A momentum frame reported before the host applied the correction moves the target along.
   FrameInput momentum = inputFor(grown, 21.0, fixture);
   momentum.userScrolled = true;
   momentum.scrollPhase = ScrollPhase::Settling;
@@ -1464,7 +1412,7 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   CHECK_NEAR(container.revision.containerOffsetY, 21.0 + inserted, 1.0);
   CHECK(container.operation.has_value());
 
-  // The host applies it and echoes the token: the gesture owns the offset again.
+  // The host applies it and reports the token back, so the gesture owns the offset again.
   std::uint64_t token = container.operation ? container.operation->id : 0;
   FrameInput echo = inputFor(grown, 21.0 + inserted, fixture);
   echo.scrollPhase = ScrollPhase::Settling;
@@ -1474,7 +1422,7 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   CHECK(!container.operation.has_value());
   CHECK_NEAR(container.revision.containerOffsetY, 21.0 + inserted, 1.0);
 
-  // Momentum carries on from there without being pulled back.
+  // Momentum carries on from there and is not pulled back.
   FrameInput carryOn = inputFor(grown, 5.0 + inserted, fixture);
   carryOn.userScrolled = true;
   carryOn.scrollPhase = ScrollPhase::Settling;
@@ -1483,8 +1431,8 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   CHECK_NEAR(container.revision.containerOffsetY, 5.0 + inserted, 1.0);
 
   /*
-   * The old first row sat 37 px past the viewport start; the two momentum frames carried the
-   * view 16 px up each, so it now sits 5 px past it -- the prepended rows moved nothing.
+   * The old first row was 37 pixels past the top, and two momentum frames moved the view up
+   * 16 pixels each, so it is now 5 pixels past it. The prepend moved nothing.
    */
   std::size_t firstOld = container.findElementIndexByKey("k0");
   CHECK_NEAR(container.revision.containerOffsetY - offsetOf(container, firstOld), 5.0, 1.0);
@@ -1492,10 +1440,8 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
 }
 
 /*
- * With followAppends, an inverted list resting at its bottom follows the rows appended below
- * the newest one, with no anchor policy: the new rows are measured taller than the estimate
- * after they land, and the view still ends on the true bottom rather than leaving them
- * below the fold.
+ * With followAppends, an inverted list resting at its bottom follows appended rows. The new
+ * rows measure taller than the estimate after they land, and the view still ends at the real bottom.
  */
 TEST(inverted_list_at_the_bottom_follows_appended_rows) {
   Fixture fixture;
@@ -1532,8 +1478,8 @@ TEST(inverted_list_at_the_bottom_follows_appended_rows) {
 }
 
 /*
- * By default an append keeps what the reader at the bottom is looking at, like any other
- * insert: the new rows land below the fold, measured or not, and nothing on screen moves.
+ * By default an append keeps what the reader at the bottom is looking at, like any insert.
+ * The new rows land below the screen and nothing on screen moves.
  */
 TEST(inverted_list_at_the_bottom_holds_appended_rows_by_default) {
   Fixture fixture;
@@ -1565,8 +1511,8 @@ TEST(inverted_list_at_the_bottom_holds_appended_rows_by_default) {
 }
 
 /*
- * The same append while the reader has scrolled up the conversation leaves them where they
- * are: the rows land below, off screen, and nothing on screen moves.
+ * The same append while the reader has scrolled up leaves them where they are. The rows
+ * land off screen below.
  */
 TEST(inverted_list_scrolled_up_holds_when_rows_are_appended) {
   Fixture fixture;
@@ -1596,11 +1542,10 @@ TEST(inverted_list_scrolled_up_holds_when_rows_are_appended) {
 }
 
 /*
- * A chat's composer grows a line at a time as the message wraps, shrinking the list's
- * viewport from the bottom. A reader resting at the bottom keeps it: without that the offset
- * stays put, the newest rows slide under the composer, and after a few lines the reader sits
- * outside the follow band, so the message they send next lands below the fold. The composer
- * shrinking back after the send keeps the bottom too.
+ * A chat composer grows a line at a time as the message wraps, shrinking the list from the
+ * bottom. A reader at the bottom stays at the bottom. Otherwise the newest rows slide under the
+ * composer and the next sent message lands off screen. The composer shrinking back after the
+ * send keeps the bottom too.
  */
 TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
   Fixture fixture;
@@ -1619,7 +1564,7 @@ TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
     offset = container.revision.containerOffsetY;
   };
 
-  // A page of history ends the opening settle, as it does on a device.
+  // A page of history lands at the end of the opening settle, as it does on device.
   keys.insert(keys.begin(), "earlier");
   for (int settle = 0; settle < 6; ++settle) {
     frame(keys, WINDOW_HEIGHT);
@@ -1657,9 +1602,7 @@ TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
   CHECK(!container.pendingScrollToEnd);
 }
 
-/*
- * The same resize under a reader who scrolled up the conversation moves nothing on screen.
- */
+// The same resize for a reader who scrolled up moves nothing on screen.
 TEST(inverted_list_scrolled_up_holds_when_the_viewport_resizes) {
   Fixture fixture;
   fixture.inverted = true;
@@ -1687,9 +1630,8 @@ TEST(inverted_list_scrolled_up_holds_when_the_viewport_resizes) {
 }
 
 /*
- * A scrollToEnd issued while a fling is still coasting must run. Momentum is not a reader
- * taking over: the command's own frame still carries the settling phase, and momentum frames
- * the host reported before it applied the command move the offset, yet the view lands on the
+ * A scrollToEnd sent while a fling is still coasting must still run. Momentum is not the
+ * reader taking over, so even with momentum frames moving the offset the view lands on the
  * bottom. Only a finger cancels it.
  */
 TEST(scroll_to_end_requested_during_momentum_lands_on_the_bottom) {
@@ -1706,7 +1648,7 @@ TEST(scroll_to_end_requested_during_momentum_lands_on_the_bottom) {
   coasting.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(&container, coasting);
 
-  // The command arrives through state on top of the last momentum report.
+  // The command arrives on top of the last momentum report.
   container.requestScrollToIndex(SCROLL_TO_END_INDEX, 1.0, -2);
   FrameInput command = inputFor(keys, 300.0, fixture);
   command.userScrolled = true;
@@ -1770,8 +1712,8 @@ TEST(a_drag_cancels_a_scroll_command_but_momentum_does_not) {
 namespace {
 
 /*
- * Report the core's offset back the way the host does, clamped to the scrollable range the
- * host's content size allows, until it stops moving. Returns the resting offset.
+ * Report the core's offset back like the host does, clamped to the scrollable range, until
+ * it stops moving. Returns the resting offset.
  */
 double settleReportingClamped(
   Container& container,
@@ -1789,10 +1731,9 @@ double settleReportingClamped(
 }
 
 /*
- * Stage the sizes the host predicts for rows that were still on the estimate when the list
- * settled: rows above the viewport-top row shrink and one below it grows. The core consumes
- * them inside the next update, after it has captured that frame's anchor, which is how
- * size specs arrive on a list that has just opened.
+ * Queue predicted sizes for rows that were still estimated when the list settled. Rows above
+ * the top row shrink and one below it grows. The core applies them in the next update after
+ * picking that frame's anchor, which is how size specs arrive on a list that just opened.
  */
 void predictOpeningRemeasure(Container& container, const std::vector<std::string>& keys) {
   for (std::size_t index = 20; index < 30; ++index) {
@@ -1802,9 +1743,9 @@ void predictOpeningRemeasure(Container& container, const std::vector<std::string
 }
 
 /*
- * An inverted list keeps its true bottom through the remeasure that follows opening. Holding
- * the row at the viewport top instead parks the view short of the bottom, and a list that
- * is not resting at its bottom stops following appended messages.
+ * An inverted list stays at its real bottom while rows are measured again after opening.
+ * Holding the top row instead would leave it short of the bottom, and then it stops following
+ * new messages.
  */
 TEST(inverted_list_stays_on_the_bottom_while_opening_rows_are_remeasured) {
   Fixture fixture;
@@ -1821,9 +1762,8 @@ TEST(inverted_list_stays_on_the_bottom_while_opening_rows_are_remeasured) {
 }
 
 /*
- * Once the reader has touched the list, the same remeasure is plain anchoring again: the row
- * at the viewport top holds still. A screen that stops following on purpose (an assistant
- * rewriting an older reply) relies on that.
+ * Once the reader has touched the list, the same remeasure holds the top row still instead.
+ * A screen that stops following on purpose, like an assistant rewriting an older reply, relies on it.
  */
 TEST(inverted_list_after_a_gesture_holds_the_viewport_top_row_through_a_remeasure) {
   Fixture fixture;
@@ -1849,10 +1789,9 @@ TEST(inverted_list_after_a_gesture_holds_the_viewport_top_row_through_a_remeasur
 }
 
 /*
- * The row at the viewport top often straddles it: only its trailing part is on screen.
- * When that row is measured for the first time, the rows below it are what the reader is
- * looking at, so they hold still and the correction is absorbed above the viewport. Holding
- * the row's leading edge instead would move every visible row by the estimate's error.
+ * The top row is often cut by the top of the screen, with only its lower part showing. When it
+ * is first measured, the rows below it hold still and the change is absorbed above the screen.
+ * Holding its top edge instead would move every visible row by the estimate's error.
  */
 TEST(first_measurement_of_a_straddling_anchor_row_keeps_the_rows_below_in_place) {
   Fixture fixture;
@@ -1874,20 +1813,20 @@ TEST(first_measurement_of_a_straddling_anchor_row_keeps_the_rows_below_in_place)
   CHECK_NEAR(offsetOf(container, 6) - container.revision.containerOffsetY, belowOnScreen, 0.5);
 }
 
-/* ------------------------------------------------------------------ *
- * Prepend while a fling settles at the top edge
- * ------------------------------------------------------------------ */
+// Prepend while a fling settles at the top edge
 
 namespace {
 
 /*
- * A header like the Feed screen's. Below the content start, it is what puts the viewport top
- * inside the last prepended row once the correction lands.
+ * A header like the Feed screen's. It is what puts the top of the screen inside the last
+ * prepended row once the correction lands.
  */
 constexpr double TOP_EDGE_HEADER = 79.0;
 constexpr double TOP_EDGE_ROW_HEIGHT = 100.0;
 
-// A host scroll report: where the host is, the gesture phase, and the last token it echoed.
+/*
+ * A host scroll report with its offset, gesture phase and the last token it reported back.
+ */
 FrameInput topEdgeReport(
   const std::vector<std::string>& keys,
   double offset,
@@ -1903,8 +1842,8 @@ FrameInput topEdgeReport(
 }
 
 /*
- * The state the layout pass publishes for a correction, as the next commit adopts it: the core's
- * own offset write and commit token, with the gesture fields of the report it was built from.
+ * The next commit after a correction: the core's own offset and token, plus the gesture
+ * fields of the report it came from.
  */
 FrameInput publishedCorrection(const Container& container, const FrameInput& report) {
   FrameInput input = report;
@@ -1914,7 +1853,9 @@ FrameInput publishedCorrection(const Container& container, const FrameInput& rep
   return input;
 }
 
-// A list resting at its top with every row measured.
+/*
+ * A list resting at its top with every row measured.
+ */
 void openAtTheTop(Container& container, const std::vector<std::string>& keys, const Fixture& fixture) {
   Virtualizer::update(&container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Idle, 0));
   measureRows(container, std::vector<double>(keys.size(), TOP_EDGE_ROW_HEIGHT));
@@ -1929,15 +1870,16 @@ std::vector<std::string> prependedTo(const std::vector<std::string>& keys, const
   return grown;
 }
 
-// How far below the viewport top the row with this key starts.
+/*
+ * How far below the top of the screen the row with this key starts.
+ */
 double belowViewportTop(const Container& container, const std::string& key) {
   return offsetOf(container, container.findElementIndexByKey(key)) - container.revision.containerOffsetY;
 }
 
 /*
- * Mount rows the way Fabric does after a prepend: each mounting child first reports the zero
- * frame it has before its content lays out, then the layout pass feeds back the real sizes in
- * one batch.
+ * Mount rows like Fabric does after a prepend. Each row first reports zero height before its
+ * content lays out, then the layout pass reports the real sizes in one batch.
  */
 void mountRows(Container& container, const std::vector<std::string>& keys, double height) {
   for (const std::string& key : keys) {
@@ -1963,12 +1905,10 @@ std::vector<std::string> keyRange(const std::vector<std::string>& keys, std::siz
 }
 
 /*
- * A prepend committed while a fling is still settling against the top edge, against a report at
- * or above the content start. The layout pass publishes the correction, and the commit that
- * adopts that state runs update() on it before the host has applied anything: it carries the
- * operation's own token and the settling phase of the report. Taking it for the host's echo
- * would release the correction before the view moved, and the spring-back the host reports next
- * would no longer carry the target along.
+ * A prepend while a fling is still bouncing at the top edge. The commit that applies the
+ * correction runs update() before the host has moved anything, and it carries the correction's
+ * own token. Taking that for the host's report back would end the correction too early, and
+ * the bounce back would no longer move the target along.
  */
 TEST(prepend_while_bouncing_at_the_top_edge_survives_its_own_offset_write) {
   Fixture fixture;
@@ -1995,7 +1935,7 @@ TEST(prepend_while_bouncing_at_the_top_edge_survives_its_own_offset_write) {
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
 
-  // The spring carries the view 12 px down to the edge before the host applies the write.
+  // The bounce moves the view 12 pixels down to the edge before the host applies the offset.
   FrameInput spring = topEdgeReport(grown, 0.0, fixture, ScrollPhase::Settling, 0);
   Virtualizer::update(&container, spring);
   CHECK(container.operation.has_value());
@@ -2013,10 +1953,10 @@ TEST(prepend_while_bouncing_at_the_top_edge_survives_its_own_offset_write) {
 }
 
 /*
- * The prepended rows mount while the list still settles, and measure unlike their estimate: some
- * before the host applies the correction, the rest after its echo released it. Each mounting row
- * first lays out to zero. The row the reader was looking at holds its place through all of it,
- * including once nothing is in flight and the viewport top still sits inside an unmeasured new row.
+ * The prepended rows mount while the list still settles and measure far from their estimate,
+ * some before the host applies the correction and the rest after. Each first lays out at zero.
+ * The row the reader was looking at holds its place through all of it, even once nothing is
+ * running and the top of the screen is inside an unmeasured new row.
  */
 TEST(prepend_while_bouncing_holds_while_the_new_rows_measure_unlike_their_estimate) {
   Fixture fixture;
@@ -2059,9 +1999,8 @@ TEST(prepend_while_bouncing_holds_while_the_new_rows_measure_unlike_their_estima
 }
 
 /*
- * Two batches prepended in quick succession while the list settles at the top edge: the second
- * is committed before the host applied the first correction. Both land on one operation, and the
- * row the reader was looking at holds through both batches mounting.
+ * Two quick prepends while the list bounces at the top edge, the second before the host applied
+ * the first correction. Both share one correction, and the reader's row holds as both batches mount.
  */
 TEST(two_prepends_in_quick_succession_while_bouncing_hold_the_first_row) {
   Fixture fixture;
@@ -2106,12 +2045,10 @@ TEST(two_prepends_in_quick_succession_while_bouncing_hold_the_first_row) {
 }
 
 /*
- * The bounce ends between the report a prepend was committed against and the moment the host
- * applies the correction, and the report of that last bit of travel is superseded by the echo.
- * The host shifted its live offset by the correction, so the echo lands short of the core's
- * target by that travel and arrives with the motion already stopped; a retarget computed before
- * the echo, from the new rows measuring, is applied the same way. The echo confirms the
- * correction: driving the view on to the absolute target would put the travel back.
+ * The bounce ends after the prepend but before the host applies the correction, and the host
+ * never reports that last bit of movement. The host shifts its current offset by the correction,
+ * so its report back lands short of the core's target by that movement. That report confirms the
+ * correction. Pushing on to the exact target would undo the movement.
  */
 TEST(prepend_whose_bounce_ends_before_the_correction_lands_is_confirmed_by_its_echo) {
   Fixture fixture;
@@ -2135,13 +2072,13 @@ TEST(prepend_whose_bounce_ends_before_the_correction_lands_is_confirmed_by_its_e
   Virtualizer::update(&container, publishedCorrection(container, prepend));
   double retarget = container.revision.containerOffsetY;
 
-  // The host had come to rest at the edge, 16 px past the report, and shifted by the correction.
+  // The host came to rest at the edge, 16 pixels past the report, and shifted by the correction.
   double echoed = 0.0 + (firstTarget - 16.0);
   Virtualizer::update(&container, topEdgeReport(grown, echoed, fixture, ScrollPhase::Idle, token));
   CHECK(!container.operation.has_value());
   CHECK(!container.containerOffsetCorrected);
 
-  // The retarget mounts next and moves the view by what it changed.
+  // The updated target applies next and moves the view by the difference.
   double rest = echoed + (retarget - firstTarget);
   Virtualizer::update(&container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
   Virtualizer::update(&container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
@@ -2151,10 +2088,9 @@ TEST(prepend_whose_bounce_ends_before_the_correction_lands_is_confirmed_by_its_e
 }
 
 /*
- * The bounce ends after the core computed the correction but before the host applies it, and
- * this time the core does see the host's report of it: an idle report of the live offset at
- * the edge. That travel moves the correction's target just like a momentum frame, so the
- * correction the host applies holds the row where the reader saw it come to rest.
+ * The bounce ends after the core worked out the correction but before the host applies it, and
+ * this time the host reports it as an idle report at the edge. That moves the target like a
+ * momentum frame, so the row holds where the reader saw it stop.
  */
 TEST(prepend_while_bouncing_follows_the_idle_report_of_the_bounce_ending) {
   Fixture fixture;
@@ -2189,11 +2125,10 @@ TEST(prepend_while_bouncing_follows_the_idle_report_of_the_bounce_ending) {
 }
 
 /*
- * A pull-to-refresh batch lands on a report whose gesture flag is still set while the view rests
- * at the top, and the new rows then measure unlike their estimate. The host echoes the first
- * correction from where that write put it, after the retarget was computed. The echo is neither
- * travel nor a confirmation of a target the core has moved on from: the retarget stands, and the
- * report of the view reaching it releases the correction with the reader's row in place.
+ * A pull to refresh batch lands while the gesture flag is still set and the view rests at the
+ * top, then the new rows measure far from their estimate. The host reports back the first offset
+ * after the core already moved the target. That report is not movement, and it does not confirm
+ * the old target, so the new target stands. Reaching it ends the correction with the reader's row in place.
  */
 TEST(prepend_after_a_pull_to_refresh_keeps_its_retarget_through_the_echo_of_the_first_write) {
   Fixture fixture;

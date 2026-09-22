@@ -44,15 +44,9 @@ public class ShadowListTemplateViewManager extends ViewGroupManager<ShadowListTe
   }
 
   /*
-   * Recycled template views are pooled per surface and handed to ANY ShadowList in that
-   * surface, so with a single-surface navigator that means a list on a different screen. The
-   * base implementation clears translationX/Y, elevation and alpha, but not translationZ or
-   * visibility -- and ShadowListStickyController sets both, hiding the section-header
-   * overlay outright (View.GONE) whenever no section is active and lifting pinned views in Z.
-   *
-   * A GONE overlay recycled as another list's header stays invisible while the shadow node
-   * keeps reserving its measured size, which reads as a freshly opened list laid out around
-   * a header that is not there.
+   * Recycled templates can end up in any list on the surface, even one on another screen.
+   * The base class does not reset translationZ or visibility, and the sticky controller sets
+   * both. A hidden overlay reused as another list's header would leave an empty gap.
    */
   @Nullable
   @Override

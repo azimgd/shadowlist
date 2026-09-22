@@ -13,31 +13,22 @@ public:
   std::vector<Element> elements;
 
   /*
-   * key -> index into `elements`, maintained by Virtualizer::reconcileElements. Lets
-   * findElementIndexByKey resolve an anchor in O(1) instead of scanning. On a duplicate key
-   * the first occurrence wins.
-   *
-   * Values are stored biased: what a node holds is `trueIndex + indexBias`, not the index
-   * itself. Always go through indexForKey / setIndexForKey. A raw read of `second` yields
-   * a wrong index silently, which surfaces as rows writing their measured sizes onto other
-   * rows.
+   * Maps each key to its row index so anchors resolve without a scan. The first duplicate wins.
+   * Stored values include indexBias, so always use indexForKey and setIndexForKey. Reading
+   * a value directly gives a wrong index, and rows end up taking other rows' sizes.
    */
   std::unordered_map<std::string, std::size_t> elementIndexByKey;
 
   /*
-   * Offset folded into every stored value, so a prepend does not have to rewrite them.
-   *
-   * Prepending K rows raises every surviving row's index by K. Walking the map to add K to
-   * each value is an O(rows) chase through scattered nodes; subtracting K from this single
-   * number has the identical effect in O(1), because every stored value is read back
-   * through it. Unsigned wraparound is well defined and self-consistent: the bias and the
-   * stored values wrap together, so the difference is always right.
-   *
-   * A full rebuild resets it to zero and stores true indices.
+   * Added to every stored index, so a prepend only changes this number instead of every entry.
+   * Unsigned wraparound is fine because the bias and the values wrap together.
+   * A full rebuild sets it back to zero.
    */
   std::size_t indexBias = 0;
 
-  // Resolve a key to its element index, or UNDEFINED_INDEX when absent.
+  /*
+   * Look up a key's row index, or UNDEFINED_INDEX when the key is missing.
+   */
   std::size_t indexForKey(const std::string& key) const {
     auto entry = this->elementIndexByKey.find(key);
     if (entry == this->elementIndexByKey.end()) {
@@ -47,38 +38,33 @@ public:
   }
 
   /*
-   * Record `key` at `index`, keeping the first occurrence of a duplicate (matching the
-   * rebuild path's emplace). Returns whether this was the first occurrence.
+   * Store the key's index unless the key is already there. Returns true if it was new.
    */
   bool setIndexForKey(const std::string& key, std::size_t index) {
     return this->elementIndexByKey.emplace(key, index + this->indexBias).second;
   }
 
-  // Current scroll offset.
   double containerOffsetX = 0.0;
   double containerOffsetY = 0.0;
 
-  // Range of indices measured in this revision (UNDEFINED_INDEX until measured).
+  // Rows measured in this revision, UNDEFINED_INDEX until something is measured.
   std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
   std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
 
-  // Average element size, frozen once from real measurements (see recomputeTotalSize).
+  // Average row size, frozen once from real measurements.
   double averageElementWidth = 0.0;
   double averageElementHeight = 0.0;
 
-  /*
-   * Running count and total size of natively measured elements. The frozen average is
-   * computed from this real sample, so unmeasured elements are sized from real data.
-   */
+  // Count and total size of the rows measured so far, used to compute the average.
   std::size_t measuredRealCount = 0;
   double measuredRealTotalWidth = 0.0;
   double measuredRealTotalHeight = 0.0;
 
-  // Size of the visible window (the scroll viewport).
+  // Size of the visible viewport.
   double windowContainerHeight = 0.0;
   double windowContainerWidth = 0.0;
 
-  // Total scrollable size of the container.
+  // Full scrollable content size.
   double totalContainerHeight = 0.0;
   double totalContainerWidth = 0.0;
 };

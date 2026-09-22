@@ -4,7 +4,7 @@ import { generateNestedElement } from '../fixtures/nested';
 import { Collection, type CursorPage, type PageCursor } from './Collection';
 import { request, type RequestSignal } from './network';
 
-// Photos: the Masonry grid.
+// Photos for the Masonry grid.
 const PHOTO_PAGE_SIZE = 30;
 
 let photoCount = 0;
@@ -34,7 +34,7 @@ export function publishPhotos(count: number): Promise<MasonryItem[]> {
   });
 }
 
-// Shelves: the Nested screen's rows, each a horizontal carousel.
+// Shelves for the Nested screen, each a horizontal carousel.
 const SHELF_PAGE_SIZE = 10;
 
 let shelfCount = 0;

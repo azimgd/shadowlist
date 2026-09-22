@@ -19,7 +19,9 @@ import {
 } from '../api/Collection';
 import type { RequestSignal } from '../api/network';
 
-// The cached value of every cursor-paginated list in the app.
+/*
+ * The cached value of every cursor-paginated list in the app.
+ */
 export type CursorData<ItemT> = InfiniteData<
   CursorPage<ItemT>,
   PageCursor | undefined
@@ -34,7 +36,9 @@ interface CursorInfiniteQueryOptions<ItemT> {
   staleTime?: number;
 }
 
-// An infinite query over a CursorPage endpoint, pageable in both directions.
+/*
+ * An infinite query over a CursorPage endpoint, pageable in both directions.
+ */
 export function useCursorInfiniteQuery<ItemT>({
   queryKey,
   fetchPage,
@@ -47,19 +51,19 @@ export function useCursorInfiniteQuery<ItemT>({
     getNextPageParam: nextPageCursor,
     getPreviousPageParam: previousPageCursor,
     /*
-     * Rows keep their object identity when a prepend or a page of history moves them, so
-     * only the new rows render; the default sharing matches rows by position.
+     * Rows keep their object identity when a prepend or a history page moves them, so only new
+     * rows render. The default sharing matches rows by position.
      */
     structuralSharing: shareInfiniteItemsById,
-    // Only when given: an explicit undefined would override the client default.
+    // Set only when given, since an explicit undefined would override the client default.
     ...(staleTime === undefined ? {} : { staleTime }),
   });
 }
 
 /*
- * Pull-to-refresh for a long infinite list. Refetching refetches every loaded page in turn,
- * so after a deep scroll it would take one round trip per page; keeping only the first page
- * makes it one request, and the reader pulling at the top never sees the rows that drop.
+ * Pull to refresh for a long infinite list. A refetch reloads every loaded page one by one, so
+ * keep only the first page and make it one request. The reader at the top never sees the
+ * dropped rows.
  */
 export function useRefreshFirstPage(queryKey: QueryKey) {
   const queryClient = useQueryClient();
@@ -72,8 +76,8 @@ export function useRefreshFirstPage(queryKey: QueryKey) {
 }
 
 /*
- * A create call whose rows belong at the top of a feed: merged into the first page from the
- * response, without refetching. The list keeps the reader's position as they land.
+ * A create call whose rows belong at the top of a feed. They are merged into the first page
+ * from the response without a refetch, and the list keeps the reader's position as they land.
  */
 export function usePrependMutation<ItemT, VariablesT>(
   queryKey: QueryKey,

@@ -80,6 +80,6 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-  // Pull-to-refresh host for the vertical list (also a transitive dep of react-android).
+  // Pull to refresh for the vertical list. react-android already pulls it in too.
   implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
 }

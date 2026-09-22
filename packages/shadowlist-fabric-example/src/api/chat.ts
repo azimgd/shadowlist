@@ -20,7 +20,9 @@ const messages = new Collection<ChatMessage>({
   seed: () => generateMessages(HISTORY_SIZE),
 });
 
-// Opens on the newest messages; `{ before }` cursors walk back through history.
+/*
+ * Opens on the newest messages. A before cursor walks back through history.
+ */
 export function fetchChatPage(
   cursor: PageCursor | undefined,
   signal?: RequestSignal
@@ -32,8 +34,8 @@ export function fetchChatPage(
 }
 
 /*
- * The client picks the id and the server keeps it. The optimistic bubble and the stored
- * message then share one list key, so confirming the send never remounts the row.
+ * The client picks the id and the server keeps it. The optimistic bubble and the stored message
+ * then share one list key, so confirming a send never remounts the row.
  */
 export function createOutgoingMessage(text: string): ChatMessage {
   return {

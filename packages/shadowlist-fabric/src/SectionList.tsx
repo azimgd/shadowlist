@@ -9,9 +9,8 @@ import type {
 } from './types';
 
 /*
- * ShadowList renders single list, so this flattens `sections` into a single stream of
- * tagged rows: a header, the elements, then a footer for each section. The flat positions
- * of the header rows are collected into `stickyHeaderIndices` so native can pin them.
+ * ShadowList renders one flat list, so each section becomes a header row, its elements,
+ * then a footer row. The header positions go into stickyHeaderIndices so native can pin them.
  */
 
 type FlatRowType = 'sectionHeader' | 'element' | 'sectionFooter';
@@ -36,8 +35,8 @@ function renderComponent(
 }
 
 /*
- * Whether the row built for this position is the one already mounted. Everything a row
- * renders from has to be compared, or a reused row would show stale content.
+ * Whether the row built for this position matches the mounted one. Compare everything the
+ * row renders from, or a reused row would show old content.
  */
 function sameRow<ElementT, SectionT>(
   previous: FlatRow<ElementT, SectionT> | undefined,
@@ -95,17 +94,13 @@ function SectionListInner<ElementT, SectionT = object>(
   }: SectionListProps<ElementT, SectionT>,
   ref: Ref<ShadowListCommands>
 ) {
-  /*
-   * The current sections, read by the renderers below at render time so element rows do not
-   * have to carry the section object (see FlatRow.section).
-   */
+  // The current sections, read by the renderers below so element rows don't carry the section.
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
   /*
-   * The rows built by the previous flatten, by id, so an unchanged row keeps the object it
-   * already had. The list mounts rows by identity: without this, a change anywhere in
-   * `sections` hands every mounted row a new object and the whole window re-renders.
+   * Rows from the last flatten, by id, so an unchanged row keeps its old object. The list
+   * mounts rows by identity, so without this any change to sections re-renders every row.
    */
   const previousRowsRef = useRef<Map<string, FlatRow<ElementT, SectionT>>>(
     new Map()
@@ -176,8 +171,8 @@ function SectionListInner<ElementT, SectionT = object>(
     previousRowsRef.current = nextRows;
 
     /*
-     * Header positions rarely move, and a fresh array would change the prop's identity,
-     * which costs a full native props clone (the row keys are copied with it).
+     * Header positions rarely move. A new array would force native to copy all props,
+     * row keys included.
      */
     const indices = sameIndices(previousIndicesRef.current, stickyIndices)
       ? previousIndicesRef.current
@@ -231,8 +226,8 @@ function SectionListInner<ElementT, SectionT = object>(
   );
 
   /*
-   * Both separators end up inside every row the renderer builds, so an inline element at the
-   * call site would rebuild every mounted row on each of the caller's renders.
+   * Both separators go inside every row, so an inline element would rebuild every mounted
+   * row on each caller render.
    */
   const elementSeparator = useStableElement(
     useMemo(
@@ -303,9 +298,9 @@ function SectionListInner<ElementT, SectionT = object>(
   );
 
   /*
-   * Device trace only: which input changed the row renderer's identity. A renderer that
-   * changes every commit rebuilds every mounted row's content, so this is the first thing to
-   * check when a list re-renders more than the rows that actually changed.
+   * Device trace only. Logs which input gave the row renderer a new identity. A renderer that
+   * changes every commit rebuilds every mounted row, so check this first when a list
+   * re-renders more rows than changed.
    */
   const traceDepsRef = useRef<ReadonlyArray<unknown>>([]);
   if (slTraceEnabled()) {

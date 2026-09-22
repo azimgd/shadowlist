@@ -6,8 +6,8 @@
 namespace azimgd::shadowlist {
 
 /*
- * What an anchor pins to. Element pins to a specific row by key; EndEdge pins to the content
- * end (the inverted bottom pin and scrollToEnd) and ignores Anchor::key.
+ * What an anchor holds on to. Element holds a row by key. EndEdge holds the end of the
+ * content for the inverted bottom pin and scrollToEnd, and ignores the key.
  */
 enum class AnchorMode {
   Element,
@@ -15,9 +15,9 @@ enum class AnchorMode {
 };
 
 /*
- * Scroll position in content space: row `key`'s leading edge sits `subOffset` px past the
- * viewport start. Unlike a pixel offset it survives key-set changes (prepend, insert,
- * remove), so holding it steady across a reconcile keeps the same content on screen.
+ * A scroll position given as a row and how far its top sits past the top of the viewport.
+ * Unlike a pixel offset it survives prepends, inserts and removes, so holding it keeps
+ * the same content on screen.
  */
 struct Anchor {
   std::string key = "";
@@ -26,9 +26,8 @@ struct Anchor {
 };
 
 /*
- * Live scroll-gesture phase, reported by the host so we don't have to guess user-vs-
- * programmatic from pixel proximity. Idle covers programmatic moves and their echoes;
- * Dragging and Settling mean a human is driving.
+ * The current scroll gesture as reported by the host, so we know whether the user is scrolling.
+ * Idle covers our own moves. Dragging and Settling mean the user is in control.
  */
 enum class ScrollPhase {
   Idle,
@@ -37,25 +36,21 @@ enum class ScrollPhase {
 };
 
 /*
- * Why the core wants to move the scroll offset. At most one is in flight at a time,
- * carried by the active Operation.
+ * Why the core wants to move the scroll offset. Only one runs at a time.
  */
 enum class OperationType {
-  MaintainAnchor,  // MVCP: keep the captured anchor element fixed across a reconcile
-  ScrollToKey,     // scrollToIndex, resolved to a key once at request time
-  ScrollToStart,   // scrollToStart: the leading row held at its offset below the viewport start
-  ScrollToEnd,     // converge on the true bottom as off-screen rows are measured
-  BottomPin,       // inverted list initial bottom pin (one-shot; dies on a user drag)
-  ShrinkClamp,     // content shrank below the offset: pull back to the new max
+  MaintainAnchor,  // Keep the visible content in place across a data update
+  ScrollToKey,     // scrollToIndex, turned into a key when requested
+  ScrollToStart,   // Hold the first row at its offset from the top
+  ScrollToEnd,     // Keep closing in on the real bottom as rows get measured
+  BottomPin,       // First bottom pin of an inverted list, dropped once the user drags
+  ShrinkClamp,     // Content got shorter than the offset, so pull back to the new end
 };
 
 /*
- * One in-flight offset correction. `id` doubles as the commit token: assigned when the
- * correction starts, kept while it stays in flight across the multi-frame settle (even as
- * the anchor retargets), and stamped on every offset write it produces. The host echoes
- * the token back on its next scroll report, so we recognise our own writes exactly instead
- * of guessing by pixel distance. A new intent (different type, or different anchored key)
- * gets a fresh id.
+ * One running offset correction. The id is stamped on every offset write it makes and stays
+ * the same while it settles over several frames. The host sends it back with the next scroll
+ * report, so we can tell our own writes apart. A new type or anchor key gets a new id.
  */
 struct Operation {
   std::uint64_t id = 0;
@@ -63,9 +58,8 @@ struct Operation {
   Anchor target = {};
 
   /*
-   * ScrollToKey only: where in the viewport the target row rests, as a fraction of the free
-   * space around it (0 start, 0.5 centre, 1 end). Kept here rather than as a pixel
-   * sub-offset so it can be rederived per frame (see resolveAnchorSubOffset).
+   * For ScrollToKey, where the row should rest in the viewport, from 0 at the top to 1 at the bottom.
+   * Kept as a fraction so the pixel offset can be worked out again each frame.
    */
   double viewPosition = 0.0;
 };

@@ -15,9 +15,6 @@ namespace facebook::react {
 
 JSI_EXPORT extern const char ShadowListTemplateViewComponentName[];
 
-/*
- * `ShadowNode` for <ShadowListTemplateView> component.
- */
 using ShadowListTemplateViewShadowNode = ConcreteViewShadowNode<
   ShadowListTemplateViewComponentName,
   ShadowListTemplateViewProps,

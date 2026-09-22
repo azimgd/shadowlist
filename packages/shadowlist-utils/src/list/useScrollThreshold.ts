@@ -12,9 +12,9 @@ export interface ScrollThreshold {
 }
 
 /**
- * Tracks whether a list has scrolled past `thresholdDp`, re-rendering only when the answer
- * flips rather than on every scroll event. Use it to hide a sticky header, show a
- * "back to top" button, or collapse a toolbar.
+ * Tracks whether a list has scrolled past `thresholdDp`. Re-renders only when that flips,
+ * not on every scroll event. Use it to hide a sticky header, show a back to top button, or
+ * collapse a toolbar.
  *
  * @example
  * const { isPastThreshold, onScroll } = useScrollThreshold(220);

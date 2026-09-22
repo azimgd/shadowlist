@@ -13,10 +13,9 @@
 #include <memory>
 
 /*
- * JS side of the device trace (debug Apple builds launched with SHADOWLIST_FRAME_TRACE=1, the
- * same switch as the host's [SLF] frame trace). Installs `globalThis.__shadowlistTrace(message)`,
- * which prints `[SLJ] t=<seconds>` to stdout. The clock is mach_absolute_time, the one
- * CACurrentMediaTime reads, so JS renders line up with the host's committed frames in one log.
+ * JS side of the device trace, on in debug Apple builds run with SHADOWLIST_FRAME_TRACE=1.
+ * Installs globalThis.__shadowlistTrace, which prints an [SLJ] line with a timestamp.
+ * It uses the same clock as CACurrentMediaTime, so JS renders line up with native frames in the log.
  */
 namespace facebook::react::shadowlist::detail {
 

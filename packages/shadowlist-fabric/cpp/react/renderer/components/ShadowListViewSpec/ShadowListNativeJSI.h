@@ -7,19 +7,13 @@
 namespace facebook::react {
 
 /*
- * Installs `globalThis.__shadowListNative`, the JS side of ShadowListNative's data API. Every
- * call is synchronous on the JS thread: it mutates the list's native store directly and asks for
- * a commit, so a row update never round-trips through React props or a view command.
- *
- * Why JSI rather than view commands: a command reaches the host view on the UI thread, which on
- * Android is Java with no path back to the C++ store except a state update, and state updates
- * for one node coalesce (EventQueue keeps only the last), which would drop all but the last of
- * several mutations in one frame. Here JS writes the store itself; the state update that follows
- * is only a nudge, so coalescing it is harmless. It also gives synchronous reads (getItem,
- * resolveTag) and needs no host code at all on either platform.
- *
- * Scheduled onto the JS thread through the RuntimeScheduler in the ContextContainer; idempotent
- * per runtime. JS waits for the global to appear before rendering a list (see ShadowListNative.tsx).
+ * Installs globalThis.__shadowListNative, the data API ShadowListNative calls from JS.
+ * Each call runs on the JS thread, writes the native store directly and asks for a commit,
+ * so row updates skip React props and view commands.
+ * View commands would not work here. On Android they can only reach the store through state
+ * updates, and those merge so only the last one in a frame survives. Here the state update
+ * after a write is just a nudge, so merging is harmless.
+ * Safe to call more than once per runtime. JS waits for the global before rendering a list.
  */
 void installShadowListNativeJSI(const std::shared_ptr<const ContextContainer>& contextContainer);
 

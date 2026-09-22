@@ -1,10 +1,8 @@
 #pragma once
 
 /*
- * react-native-macos ships <React/RCTUIKit.h>, which defines the cross-platform "special
- * classes" (RCTUIView / RCTUIScrollView / RCTUIColor / RCTPlatformView and, on macOS, the
- * RCTUIScrollViewDelegate protocol). Upstream (plain) react-native has no such header, so on
- * iOS-only react-native we fall back to UIKit and alias the same names to their UIKit types.
+ * react-native-macos has RCTUIKit.h with the shared RCTUI view and color names.
+ * Plain react-native does not, so map those names to their UIKit types here.
  */
 #if __has_include(<React/RCTUIKit.h>)
 #import <React/RCTUIKit.h>

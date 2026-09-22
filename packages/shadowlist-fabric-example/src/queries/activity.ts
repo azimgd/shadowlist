@@ -18,7 +18,9 @@ export const useActivityQuery = () =>
 
 export const useRefreshActivity = () => useRefreshFirstPage(activityKey);
 
-// Rows leave the list at once and come back if the server refuses.
+/*
+ * Rows leave the list at once and come back if the server refuses.
+ */
 export function useDeleteActivities() {
   const queryClient = useQueryClient();
   return useMutation({

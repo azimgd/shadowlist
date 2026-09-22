@@ -5,10 +5,8 @@ set(LIB_JNI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../build/generated/source/codegen
 set(LIB_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 set(LIB_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../cpp)
 
-# Shared core sources. In the monorepo the canonical copy lives at
-# packages/shadowlist-core, so compile it directly - Android needs no copy phase.
-# In a published package that path does not exist, so fall back to the vendored
-# mirror shipped inside the package (see scripts/vendor-core.js / the podspec).
+# In the monorepo, compile the core straight from packages/shadowlist-core.
+# A published package has no such path, so use the copy shipped inside it.
 get_filename_component(LIB_CORE_CANONICAL "${CMAKE_CURRENT_SOURCE_DIR}/../../../../shadowlist-core" ABSOLUTE)
 get_filename_component(LIB_CORE_VENDORED "${CMAKE_CURRENT_SOURCE_DIR}/../../../shadowlist-core" ABSOLUTE)
 if(EXISTS "${LIB_CORE_CANONICAL}/Container.cpp")
@@ -57,8 +55,7 @@ target_link_libraries(
   react_codegen_ShadowListViewSpec
   fbjni
   jsi
-  # We need to link different libraries based on whether we are building rncore or not, that's necessary
-  # because we want to break a circular dependency between react_codegen_rncore and reactnative
+  # Link reactnative here, not rncore, to avoid a circular dependency.
   reactnative
   ${logger}
 )

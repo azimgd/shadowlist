@@ -1,6 +1,8 @@
 import type { Theme } from '../theme';
 
-// Matches the keyboard to the theme; the default light keyboard flashes white against a dark composer.
+/*
+ * Match the keyboard to the theme, or the light keyboard flashes white under a dark composer.
+ */
 export function keyboardAppearanceFor(
   theme: Theme
 ): 'default' | 'light' | 'dark' {

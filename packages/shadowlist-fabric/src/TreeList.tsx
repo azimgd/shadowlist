@@ -15,10 +15,9 @@ import type {
 } from './types';
 
 /*
- * TreeList is a data layer over ShadowList, the tree analogue of SectionList. It
- * flattens the visible subtree (nodes whose ancestors are all expanded) into one
- * element stream; collapsed subtrees are never descended into. Each row keeps a
- * stable node-id key so surviving rows reconcile across an expand/collapse toggle.
+ * TreeList sits on top of ShadowList, like SectionList does for sections. It flattens the
+ * nodes whose parents are all expanded into one list and skips collapsed branches. Rows
+ * are keyed by node id so they survive an expand or collapse.
  */
 
 interface TreeFlatRow<ElementT> {
@@ -30,8 +29,8 @@ interface TreeFlatRow<ElementT> {
 }
 
 /*
- * Whether the row built for this position is the one already mounted: everything renderRow
- * reads from it has to match, or a reused row would show stale content.
+ * Whether the row built for this position matches the mounted one. Everything renderRow
+ * reads has to match, or a reused row would show old content.
  */
 function sameRow<ElementT>(
   previous: TreeFlatRow<ElementT> | undefined,
@@ -53,7 +52,7 @@ function toSet(
   return ids instanceof Set ? new Set(ids) : new Set(ids as Iterable<string>);
 }
 
-// Handed back when the inner list is not mounted, so callers always get a map.
+// Returned when the inner list isn't mounted, so callers always get a map.
 const EMPTY_SIZES: ReadonlyMap<string, number> = new Map();
 
 function TreeListInner<ElementT>(
@@ -82,15 +81,13 @@ function TreeListInner<ElementT>(
     [isControlled, expandedIds, internalExpanded]
   );
 
-  /* Mirror the expanded set into a ref so two toggles in the same tick build on each
-   * other instead of overwriting one another. */
+  // Mirror the expanded set in a ref so two toggles in the same tick don't overwrite each other.
   const expandedRef = useRef(expandedSet);
   expandedRef.current = expandedSet;
 
   /*
-   * The rows built by the previous flatten, by id, so an unchanged row keeps the object it
-   * already had. The list mounts rows by identity: without this, an expand or collapse hands
-   * every mounted row a new object and the whole window re-renders.
+   * Rows from the last flatten, by id, so an unchanged row keeps its old object. The list
+   * mounts rows by identity, so without this an expand or collapse re-renders every row.
    */
   const previousRowsRef = useRef<Map<string, TreeFlatRow<ElementT>>>(new Map());
 
@@ -176,10 +173,9 @@ function TreeListInner<ElementT>(
   );
 
   /*
-   * Hand one flattened row to renderElement, adding tree info (depth, indent, whether it
-   * has children and is expanded) and a toggle to expand/collapse that node. `index` is
-   * forwarded as a getter: the list re-renders a row that moved only if its renderer read
-   * the index, so reading it eagerly here would re-render every row below an expand.
+   * Pass one row to renderElement with its depth, indent, expanded state and a toggle.
+   * index is a getter because the list only re-renders a moved row if it read the index.
+   * Reading it here would re-render every row below an expand.
    */
   const renderRow = useCallback(
     (info: { element: TreeFlatRow<ElementT>; index: number }) => {

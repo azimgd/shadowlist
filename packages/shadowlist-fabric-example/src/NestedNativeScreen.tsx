@@ -24,7 +24,7 @@ const INITIAL_DEALS = 30;
 const PAGE_DEALS = 8;
 const CARD_WIDTH = 180;
 const GRID_COLUMNS = 2;
-// U+FE0E: a text heart in the bound color; Android draws a bare U+2665 as a color emoji.
+// U+FE0E keeps the heart a text glyph in the bound color. Android draws a bare U+2665 as a color emoji.
 const HEART = '\u2665\uFE0E';
 const NO_CARDS: CardRow[] = [];
 
@@ -75,14 +75,13 @@ function toDeal(card: CarouselCard): DealRow {
 let addedCards = 0;
 
 /*
- * Explore on ShadowListNative. Three lists, all native rows:
- *
- * - the shelves: a vertical list whose template holds a horizontal ScrollView; the cards inside
- *   are a `repeat` over the shelf's `cards` array, cloned natively per shelf;
- * - the deals: a horizontal ShadowListNative in the list header (not recycled, so it keeps its
- *   position), with prepend/append from the header arrows;
- * - the grid: every loaded card in a two-column ShadowListNative with controlled `data`: likes,
- *   removes, Shuffle and Clear replace the array, and the list replaces its store with it.
+ * Explore on ShadowListNative, with three lists of native rows.
+ * The shelves are a vertical list whose template holds a horizontal ScrollView. The cards inside
+ * repeat over each shelf's cards array and are cloned natively.
+ * The deals are a horizontal ShadowListNative in the list header. It is not recycled, so it keeps
+ * its position, and the header arrows prepend and append.
+ * The grid shows every loaded card in two columns with controlled data. Likes, removes, Shuffle
+ * and Clear replace the array, and the list replaces its store with it.
  */
 export const NestedNativeScreen = () => {
   const screenStyles = useScreenStyles();
@@ -188,7 +187,7 @@ export const NestedNativeScreen = () => {
     []
   );
 
-  // Grid mode shows every card of the shelves loaded so far, with their liked state.
+  // Grid mode shows every card loaded so far, with its liked state.
   const [gridCards, setGridCards] = useState<CardRow[]>([]);
   const handleGridPress = useCallback(
     ({ key, action }: ShadowListNativeElementPressEvent<CardRow>) => {
@@ -205,12 +204,12 @@ export const NestedNativeScreen = () => {
     []
   );
 
-  // The grid's core window (onVisibleRangeChange), shown in its sticky header.
+  // The grid's visible range from onVisibleRangeChange, shown in its sticky header.
   const [gridWindow, setGridWindow] = useState<{
     start: number;
     end: number;
   } | null>(null);
-  // Clear shows no cards (the ListEmptyComponent); Undo clear shows the grid's cards again.
+  // Clear shows the empty component, and Undo clear brings the cards back.
   const [gridCleared, setGridCleared] = useState(false);
   const gridData = gridCleared ? NO_CARDS : gridCards;
   const gridRange =
@@ -236,7 +235,7 @@ export const NestedNativeScreen = () => {
   const shuffleGrid = useCallback(() => {
     setGridCards((cards) => {
       if (cards.length < 2) return cards;
-      // Moves a visible-ish card to the front: the rows between shift by one.
+      // Move one of the first few cards to the front. The rows between shift by one.
       const from =
         1 + Math.floor(Math.random() * Math.min(9, cards.length - 1));
       const next = cards.slice();

@@ -1,16 +1,9 @@
 /*
- * Batched measurement intake.
- *
- * Fabric hands the core every mounted row's measured size during one layout pass. The
- * batched API (applyElementSize + a single commitElementSizes) exists so that pass costs
- * one reflow instead of one per row. These tests pin the two things that makes that safe:
- *
- *   * the batched path lands on exactly the geometry the per-row path would have, and
- *   * a size a row already has is reported as "nothing changed", so a layout that
- *     re-reports unchanged sizes -- the overwhelmingly common case -- moves nothing.
- *
- * They also cover the props-identity shortcut (FrameInput::keysUnchanged), which lets a
- * scroll commit skip revalidating the whole key collection.
+ * Batched measurement. One layout pass hands the core every mounted row's size, and
+ * applyElementSize plus one commitElementSizes turns that into a single reflow.
+ * These tests check the batch lands on the same layout as sizing rows one by one,
+ * and that re-reporting a size a row already has moves nothing.
+ * They also cover keysUnchanged, which lets a scroll commit skip checking every key.
  */
 
 #include "TestFramework.hpp"
@@ -47,9 +40,7 @@ std::vector<double> offsetsOf(const Container& container) {
 
 }
 
-/*
- * The batched path is only a performance change if it is also an exact one.
- */
+// The batch must give exactly the same layout as sizing rows one by one.
 TEST(batched_measurement_matches_the_per_row_path) {
   std::vector<std::string> keys = keysFor(300);
   std::vector<double> heights = heightsFor(keys.size());
@@ -99,7 +90,7 @@ TEST(batched_measurement_matches_the_per_row_path_while_scrolled) {
   Container batched;
   prime(batched);
 
-  // A mounted band in the middle resizes, exactly as async content would.
+  // Rows in the middle resize, like content that loads late.
   const std::size_t low = 120;
   const std::size_t high = 150;
 
@@ -121,7 +112,7 @@ TEST(batched_measurement_matches_the_per_row_path_while_scrolled) {
   Virtualizer::recomputeTotalSize(&batched);
 
   CHECK(offsetsOf(perRow) == offsetsOf(batched));
-  // Anchor compensation must land in the same place, not just the geometry.
+  // The scroll correction must match too, not just the row positions.
   CHECK_NEAR(perRow.revision.containerOffsetY, batched.revision.containerOffsetY, 0.001);
   CHECK_NEAR(perRow.revision.totalContainerHeight, batched.revision.totalContainerHeight, 0.001);
 }
@@ -131,21 +122,21 @@ TEST(reporting_an_unchanged_size_reports_no_change) {
   Container container;
   Virtualizer::update(&container, inputFor(keys, 0.0));
 
-  // First report of a row always counts, even when it matches the estimate exactly.
+  // The first size for a row always counts, even if it equals the estimate.
   CHECK(Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH, 200.0}));
   CHECK(container.revision.elements[0].measured);
 
-  // Repeating it must not.
+  // Reporting the same size again does not.
   CHECK(!Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH, 200.0}));
   CHECK(!Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH, 200.0}));
 
-  // A real change must be reported again.
+  // A real change counts again.
   CHECK(Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH, 201.0}));
 }
 
 /*
- * A first measurement that happens to equal the estimate still has to be counted: it
- * feeds the frozen average that sizes every row nobody has measured yet.
+ * A first size equal to the estimate still counts. It feeds the average used
+ * for every row nobody has measured yet.
  */
 TEST(a_first_measurement_equal_to_the_estimate_is_still_counted) {
   std::vector<std::string> keys = keysFor(50);
@@ -173,19 +164,16 @@ TEST(measurement_out_of_bounds_is_rejected) {
   }
   CHECK(threw);
 
-  // Committing past the end is a no-op, not a crash: a batch can race a shrink.
+  // Committing past the end does nothing, since a batch can race the list shrinking.
   Virtualizer::commitElementSizes(&container, 999);
   CHECK_EQ(container.getElementsSize(), static_cast<std::size_t>(10));
 }
 
-/* ------------------------------------------------------------------ *
- * Props-identity shortcut
- * ------------------------------------------------------------------ */
+// Skipping the key check.
 
 /*
- * A scroll commit carries the same immutable props, so the host can tell the core the
- * keys did not change and skip revalidating all of them. The result must be identical to
- * letting the core work it out for itself.
+ * A scroll commit carries the same props, so the host can tell the core the keys did not
+ * change. The result must match letting the core check the keys itself.
  */
 TEST(declaring_keys_unchanged_matches_revalidating_them) {
   std::vector<std::string> keys = keysFor(250);
@@ -209,9 +197,7 @@ TEST(declaring_keys_unchanged_matches_revalidating_them) {
   CHECK(run(true) == run(false));
 }
 
-/*
- * Borrowing the caller's key collection must behave exactly like handing the core a copy.
- */
+// Borrowing the caller's keys must behave exactly like handing the core a copy.
 TEST(borrowed_keys_behave_like_owned_keys) {
   std::vector<std::string> keys = keysFor(120);
 

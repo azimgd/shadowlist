@@ -17,7 +17,9 @@ const CARD_COLORS = [
 
 let createdCards = 0;
 
-// Widths vary per card; the style object is built once so rows never allocate one.
+/*
+ * Widths vary per card. The style object is built once so rows never allocate one.
+ */
 export function createCarouselCards(
   count: number,
   prefix: string

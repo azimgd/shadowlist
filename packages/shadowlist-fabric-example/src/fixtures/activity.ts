@@ -26,7 +26,7 @@ export function buildActivity(index: number): ActivityItem {
   };
 }
 
-// Threshold presets the Activity header cycles through (fraction of visible length).
+// Threshold presets the Activity header cycles through, as a fraction of the visible length.
 export const START_REACHED_THRESHOLDS = [0.5, 1, 2];
 export const END_REACHED_THRESHOLDS = [0.5, 1.5, 3];
 
@@ -35,7 +35,7 @@ export function nextInCycle(steps: number[], current: number): number {
 }
 
 /*
- * Scroll distance (px) past which the Activity sticky header hides; it repins
- * once the user scrolls back above it.
+ * Scroll distance in px after which the Activity sticky header hides.
+ * It pins again once the user scrolls back above it.
  */
 export const HEADER_HIDE_THRESHOLD = 220;

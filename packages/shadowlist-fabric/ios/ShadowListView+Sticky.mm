@@ -1,13 +1,14 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Internal.h"
 
-// Sticky pinning for the header, footer and section-header overlay.
+/*
+ * Sticky pinning for the header, footer and section-header overlay.
+ */
 @implementation ShadowListView (Sticky)
 
 /*
- * Pin the sticky header/footer to the viewport. The header tracks the scroll offset;
- * the footer tracks offset + window - content so it lands on its resting position at
- * the scroll extreme.
+ * Pin the sticky header and footer to the visible area. The footer lands back in its
+ * normal spot when the list is scrolled all the way to the end.
  */
 - (void)applyStickyTransforms:(BOOL)accumulate
 {
@@ -26,9 +27,8 @@
     : 0.0;
 
   /*
-   * Direction-based auto-hide: accumulate the scroll delta into how far the bar is
-   * slid away. Only advance on genuine user scrolls; programmatic jumps just reseat
-   * the reference.
+   * Auto hide follows scroll direction. Only user scrolls slide the bar away,
+   * a jump from code just resets the starting point.
    */
   CGFloat autoHideDelta = accumulate ? (axisOffset - _lastAutoHideOffset) : 0.0;
   _lastAutoHideOffset = axisOffset;
@@ -36,10 +36,7 @@
   if (_stickyHeaderView) {
     CGFloat translation = 0.0;
     if (_autoHideHeader) {
-      /*
-       * Pin to the viewport start, slid up by _headerHidden once scrolled past its
-       * own height.
-       */
+      // Pin to the top, and slide it away once the list scrolls past its height.
       if (axisOffset <= headerSize) {
         _headerHidden = 0.0;
       } else {
@@ -47,10 +44,7 @@
       }
       translation = axisOffset - _headerHidden;
     } else if (_stickyHeader) {
-      /*
-       * Pin to the viewport start, but let the content end (or the footer's resting
-       * top) push the header back off as it scrolls up to meet it.
-       */
+      // Pin to the top, but let the end of the content or the footer push it off.
       translation = axisOffset;
       CGFloat collisionTop = contentSize - footerSize - headerSize;
       if (collisionTop < translation) {
@@ -65,7 +59,7 @@
   if (_stickyFooterView) {
     CGFloat translation = 0.0;
     if (_autoHideFooter) {
-      // Pin to the viewport end, slid down by _footerHidden except near the bottom.
+      // Pin to the bottom, and slide it away unless we are near the end.
       CGFloat maxOffset = MAX(0.0, contentSize - windowSize);
       if (axisOffset >= maxOffset - footerSize) {
         _footerHidden = 0.0;
@@ -75,9 +69,8 @@
       translation = (axisOffset + windowSize - contentSize) + _footerHidden;
     } else if (_stickyFooter) {
       /*
-       * The footer always sticks to the viewport end (plain bottom pin), but in a short
-       * viewport it must not push up past the header's reserved region as it scrolls.
-       * Mirrors the sticky-header branch's collisionTop clamp above.
+       * Pin to the bottom, but in a short list never ride up into the header's space.
+       * Same clamp as the sticky header above.
        */
       translation = axisOffset + windowSize - contentSize;
       CGFloat collisionBottom = headerSize - contentSize + footerSize;
@@ -90,17 +83,14 @@
       : CGAffineTransformMakeTranslation(0.0, translation);
   }
 
-  /*
-   * Raise the sticky header/footer first, then the section-header overlay, so the
-   * active section header stays on top.
-   */
+  // Raise the header and footer first so the section header ends up on top.
   [self bringStickyViewsToFront];
   [self applyStickySectionHeaders];
 }
 
 /*
- * Pin the section-header overlay to the viewport start, pushing it up as the next
- * in-flow header scrolls in. Hidden when no section is active.
+ * Pin the current section header to the top and let the next one push it up.
+ * Hide it when no section is active.
  */
 - (void)applyStickySectionHeaders
 {
@@ -119,8 +109,8 @@
   }
 
   /*
-   * Headers ascend by offset: active is the last at/above the viewport start; the
-   * first one past it is the "next" that pushes it up.
+   * Headers are sorted by offset. The active one is the last at or above the top,
+   * and the one after it is the next header that pushes it up.
    */
   bool hasActive = false;
   double activeSize = 0.0;
@@ -143,10 +133,7 @@
     return;
   }
 
-  /*
-   * Translation is the overlay's displayed top: viewport start, pushed up to
-   * nextOffset - activeSize as the next header arrives.
-   */
+  // Sit at the top, or higher when the next header pushes into it.
   double translation = axisOffset;
   if (hasNext) {
     double pushedTop = nextOffset - activeSize;
@@ -159,11 +146,13 @@
   _sectionHeaderOverlay.transform = _horizontal
     ? CGAffineTransformMakeTranslation(translation, 0.0)
     : CGAffineTransformMakeTranslation(0.0, translation);
-  // Above the sticky header/footer (z 1) so the active section header stays on top.
+  // Sit above the sticky header and footer, which use z 1.
   SLRaiseSubview(_contentView, _sectionHeaderOverlay, 2.0);
 }
 
-// Keep a pinned header/footer above the scrolling elements (z 1; elements sit at 0).
+/*
+ * Keep a pinned header or footer above the rows. Rows sit at z 0, these at z 1.
+ */
 - (void)bringStickyViewsToFront
 {
   if ((_stickyHeader || _autoHideHeader) && _stickyHeaderView) {
