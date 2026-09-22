@@ -1,0 +1,22 @@
+# scrollToIndex at rest and during a fling. Rows on screen must stay mounted
+# until the jump lands, with no blank frame.
+route Feed
+latency 250,700
+wait 3
+mark random-1
+press 372 80
+wait 2
+mark random-2
+press 372 80
+wait 2
+mark random-3
+press 372 80
+wait 2
+mark fling-then-random
+pan 200 750 0 -500 120
+wait 0.15
+press 372 80
+wait 2.5
+mark random-4
+press 372 80
+wait 2

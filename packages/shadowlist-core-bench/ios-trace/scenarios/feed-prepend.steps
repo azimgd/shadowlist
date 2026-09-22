@@ -1,4 +1,4 @@
-# Default list: prepends at the top and mid-list, single and in a burst of overlapping requests.
+# Default list: single prepends at the top and in the middle, then overlapping bursts.
 route Feed
 latency 250,700
 wait 2

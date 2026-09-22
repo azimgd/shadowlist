@@ -1,4 +1,4 @@
-# Inverted chat at its bottom: header append bursts, then sending from the composer.
+# Inverted chat at the bottom: bursts of appends, then sending from the composer.
 route Chat
 latency 250,700
 wait 3

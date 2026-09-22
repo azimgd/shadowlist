@@ -1,5 +1,5 @@
-# Default list resting at its top with the header: pull-to-refresh that finds new posts, a
-# pull whose response races a burst of prepends, and a scroll back up into a refresh.
+# Default list resting at the top: a refresh that finds new posts, a refresh racing
+# a burst of prepends, and a scroll back up into a refresh.
 route Feed
 latency 400,900
 wait 2

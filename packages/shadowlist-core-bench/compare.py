@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-Print a before/after table from two benchmark result files.
+Print a before and after table for two benchmark result files.
 
     ./compare.py results/baseline.device.txt results/optimized.device.txt
 
-Reads the machine-readable TSV block each run emits and pairs rows by
-(scenario, rows). Prints Markdown so the output can go straight into a report.
+Matches rows by scenario and row count and prints a Markdown table.
 """
 import sys
 
