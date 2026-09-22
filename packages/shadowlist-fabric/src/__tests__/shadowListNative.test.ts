@@ -4,6 +4,7 @@ import {
   TEMPLATE_MARKER,
   encodeElementMarker,
   encodeTemplateMarker,
+  shadowListNativeProps,
   toNativeStyle,
 } from '../native/binding';
 
@@ -76,5 +77,16 @@ describe('toNativeStyle', () => {
     expect(toNativeStyle({ opacity: undefined, color: null })).toEqual({
       color: null,
     });
+  });
+});
+
+describe('shadowListNativeProps', () => {
+  it('puts the marker on nativeID for any host component', () => {
+    const { nativeID } = shadowListNativeProps({ bind: { row: 'row' } });
+    expect(decode(nativeID)).toEqual({ b: { row: 'row' } });
+  });
+
+  it('adds nothing for an unbound element', () => {
+    expect(shadowListNativeProps({})).toEqual({});
   });
 });

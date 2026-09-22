@@ -42,7 +42,9 @@ import {
   type ShadowListNativeHandle,
 } from './native/binding';
 import { SNAP_ALIGNMENT } from './virtualizer/helpers';
+import { ExtraWindow, type ExtraItem } from './native/extras';
 import type {
+  ShadowListNativeIndexedData,
   ShadowListNativeCommands,
   ShadowListNativeElementProps,
   ShadowListNativeProps,
@@ -52,21 +54,28 @@ import type {
 const EMPTY_STRINGS: string[] = [];
 const EMPTY_NUMBERS: number[] = [];
 const EMPTY_ITEMS: ReadonlyArray<never> = [];
-// iOS reports the spinner's settle natively; this covers a refresh that never showed one.
+const EMPTY_EXTRAS: ReadonlyArray<never> = [];
+// iOS reports when the spinner settles. This covers a refresh that never showed one.
 const REFRESH_SETTLE_FALLBACK_MS = 1200;
+const LONG_PRESS_DELAY_MS = 500;
 
 interface ShadowListNativeContextValue {
   press: (
     action: string,
     elementId: string | undefined,
-    target: number
+    target: number,
+    pageX: number,
+    pageY: number,
+    long: boolean
   ) => void;
+  // How long a touch must rest to long press, or -1 with no onElementLongPress.
+  longPressDelay: () => number;
 }
 
 /*
- * Kept on the global so it survives a Fast Refresh of this file: a re-evaluated module would
- * otherwise create a second context, and template elements remounted with the new module's code
- * would read it while the list still provides the old one (presses silently stop).
+ * Kept on the global so it survives a Fast Refresh. Otherwise the reloaded module makes a
+ * second context, remounted templates read that one while the list still provides the old
+ * one, and presses silently stop working.
  */
 const contextGlobal = globalThis as {
   __shadowListNativeContext?: Context<ShadowListNativeContextValue | null>;
@@ -87,7 +96,7 @@ function renderComponent(
 }
 
 /*
- * Keys and template names for a batch of items, in the parallel-array form the binding takes.
+ * Keys and template names for a batch of items, as two arrays the binding takes.
  */
 function describeItems<ItemT>(
   items: ReadonlyArray<ItemT>,
@@ -108,9 +117,61 @@ interface ListSession<ItemT> {
   id: string;
   handle: ShadowListNativeHandle | null;
   committed: boolean;
-  // The array last written to the store with setData, and the count it left.
-  synced: ReadonlyArray<ItemT> | null;
+  // The array or indexed data last written to the store, and the row count after it.
+  synced: ReadonlyArray<ItemT> | ShadowListNativeIndexedData<ItemT> | null;
   syncedCount: number;
+}
+
+/*
+ * A usable row count. NaN, infinity and negatives mean no rows.
+ */
+function indexedCount(count: number): number {
+  return Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
+}
+
+function seedIndexed<ItemT>(
+  binding: ShadowListNativeBinding,
+  session: ListSession<ItemT>,
+  indexed: ShadowListNativeIndexedData<ItemT>,
+  templateOf: ((item: ItemT, index: number) => string) | null,
+  extraWindow: ExtraWindow,
+  getExtra: ((index: number) => Partial<ItemT> | null | undefined) | null,
+  scrollToStart = false
+): number {
+  const count = indexedCount(indexed.count);
+  // Static extras everywhere, plus getExtra fields near the screen. See native/extras.ts.
+  const extras = extraWindow.reset(
+    count,
+    (indexed.extras ?? EMPTY_EXTRAS) as ReadonlyArray<{
+      index: number;
+      item: ExtraItem;
+    }>,
+    getExtra as ((index: number) => ExtraItem | null | undefined) | null
+  );
+  const indices = new Array<number>(extras.length);
+  const items = new Array<unknown>(extras.length);
+  const templates = templateOf ? new Array<string>(extras.length) : null;
+  for (let entry = 0; entry < extras.length; entry++) {
+    const { index, item } = extras[entry]!;
+    indices[entry] = index;
+    items[entry] = item;
+    if (templates && templateOf)
+      templates[entry] = templateOf(item as ItemT, index);
+  }
+  session.synced = indexed;
+  session.syncedCount = binding.setIndexed(
+    session.id,
+    count,
+    indexed.order,
+    indexed.indexField ?? 'index',
+    indexed.valueField ?? 'value',
+    indices,
+    items,
+    templates,
+    scrollToStart,
+    indexed.ids
+  );
+  return session.syncedCount;
 }
 
 function seedStore<ItemT>(
@@ -127,19 +188,25 @@ function seedStore<ItemT>(
 }
 
 /*
- * A list whose rows are made natively: each template is rendered once, and the native side clones
- * it per row and binds the row's data into the clone synchronously, in the commit that needs it.
- * No React render per row, no JS on scroll. See SHADOWLIST_NATIVE.md.
+ * A list whose rows are built natively. Each template renders once, then native copies it per
+ * row and fills in the row's data in the same commit. No React render per row and no JS on
+ * scroll. See SHADOWLIST_NATIVE.md.
  */
 function ShadowListNativeInner<ItemT>(
   {
     data,
     initialData,
+    indexed,
+    getExtra,
+    extraPadding = 1,
+    stickyHeaderIndices,
     keyExtractor = defaultKeyExtractor,
     templates,
     templateKey,
     getTemplate,
     onElementPress,
+    onElementLongPress,
+    longPressDelay = LONG_PRESS_DELAY_MS,
     onVisibleRangeChange,
     style,
     elementStyle,
@@ -178,11 +245,11 @@ function ShadowListNativeInner<ItemT>(
   const binding = useShadowListNativeBinding();
 
   /*
-   * This list's engine. `handle` holds it (a JSI host object): created lazily in render, so a
-   * render React discards leaves only garbage, never a pinned engine; closed on unmount.
-   * `committed`: a list node has used the engine, so the store is observable and may only be
-   * written from the commit phase. Before that nobody else sees it, so render seeds it directly
-   * and the node is created with its rows (no empty first frame).
+   * This list's native engine, created lazily in render and closed on unmount. If React
+   * throws a render away, the engine is just garbage collected.
+   * committed means a list node has used the engine. From then on the store may only be
+   * written in the commit phase. Before that, render fills it directly so the first frame
+   * already has rows.
    */
   const sessionRef = useRef<ListSession<ItemT> | null>(null);
   if (sessionRef.current === null) {
@@ -197,7 +264,7 @@ function ShadowListNativeInner<ItemT>(
   const session = sessionRef.current;
   const listId = session.id;
   const controlled = initialData === undefined;
-  const source = (controlled ? data : initialData) ?? EMPTY_ITEMS;
+  const source = indexed ?? (controlled ? data : initialData) ?? EMPTY_ITEMS;
 
   const templateOf = useMemo<((item: ItemT, index: number) => string) | null>(
     () =>
@@ -214,6 +281,52 @@ function ShadowListNativeInner<ItemT>(
 
   const [storeCount, setStoreCount] = useState<number | null>(null);
 
+  /*
+   * Indexed lists. Rows near the screen get the getExtra fields. Patches go through
+   * updateItem, so a field that picks a new template switches the row to it.
+   */
+  const getExtraRef = useRef(getExtra ?? null);
+  const bindingRef = useRef(binding);
+  bindingRef.current = binding;
+  const extraWindowRef = useRef<ExtraWindow | null>(null);
+  if (extraWindowRef.current === null) {
+    const start = initialScrollIndex >= 0 ? initialScrollIndex : 0;
+    extraWindowRef.current = new ExtraWindow(
+      {
+        update: (index, patch) => {
+          const store = bindingRef.current;
+          if (!store) return;
+          const synced = sessionRef.current?.synced;
+          const indexedData =
+            synced && !Array.isArray(synced)
+              ? (synced as ShadowListNativeIndexedData<ItemT>)
+              : undefined;
+          // Native ignores ids whose length doesn't match the count and keys rows by position.
+          const ids =
+            indexedData?.ids &&
+            indexedData.ids.length === indexedCount(indexedData.count)
+              ? indexedData.ids
+              : undefined;
+          const key = String(ids ? ids[index] : index);
+          const { templateOf: pick } = itemsRef.current;
+          let template: string | null = null;
+          if (pick) {
+            const previous = store.getItem(listId, key);
+            if (previous === undefined) return;
+            template = pick(
+              { ...(previous as object), ...patch } as ItemT,
+              index
+            );
+          }
+          store.updateItem(listId, key, patch, template, false);
+        },
+        padding: extraPadding,
+      },
+      { start, end: start + Math.max(1, initialNumToRender) - 1 }
+    );
+  }
+  const extraWindow = extraWindowRef.current;
+
   if (binding && !session.committed) {
     if (session.handle === null) session.handle = binding.open(listId);
     binding.configure(listId, {
@@ -222,13 +335,30 @@ function ShadowListNativeInner<ItemT>(
       cacheRows,
     });
     if (session.synced !== source) {
-      seedStore(binding, session, source, keyExtractor, templateOf);
+      if (indexed) {
+        getExtraRef.current = getExtra ?? null;
+        seedIndexed(
+          binding,
+          session,
+          indexed,
+          templateOf,
+          extraWindow,
+          getExtraRef.current
+        );
+      } else
+        seedStore(
+          binding,
+          session,
+          data ?? initialData ?? EMPTY_ITEMS,
+          keyExtractor,
+          templateOf
+        );
     }
   }
 
   useLayoutEffect(() => {
     if (!binding) return;
-    // A StrictMode remount re-opens what the simulated unmount closed.
+    // Reopen what StrictMode's fake unmount closed.
     if (session.handle === null) session.handle = binding.open(listId);
     session.committed = true;
     return () => {
@@ -246,30 +376,66 @@ function ShadowListNativeInner<ItemT>(
     });
   }, [binding, listId, initialNumToRender, padRows, cacheRows]);
 
-  // Controlled: a new `data` array replaces the store, in the commit that renders it.
+  // Controlled mode. A new data array replaces the store in the commit that renders it.
   useLayoutEffect(() => {
     if (!binding || !controlled || session.synced === source) return;
     const { keyExtractor: extract, templateOf: pick } = itemsRef.current;
-    setStoreCount(seedStore(binding, session, source, extract, pick));
-  }, [binding, controlled, source, session]);
+    if (indexed) getExtraRef.current = getExtra ?? null;
+    setStoreCount(
+      indexed
+        ? seedIndexed(
+            binding,
+            session,
+            indexed,
+            pick,
+            extraWindow,
+            getExtraRef.current
+          )
+        : seedStore(binding, session, data ?? EMPTY_ITEMS, extract, pick)
+    );
+  }, [
+    binding,
+    controlled,
+    source,
+    session,
+    indexed,
+    data,
+    getExtra,
+    extraWindow,
+  ]);
+
+  // A new getExtra reruns it for the built rows, after the effect above.
+  useLayoutEffect(() => {
+    if (!binding || !indexed || session.synced !== indexed) return;
+    getExtraRef.current = getExtra ?? null;
+    extraWindow.setGetExtra(
+      (getExtra ?? null) as
+        | ((index: number) => ExtraItem | null | undefined)
+        | null
+    );
+  }, [binding, indexed, session, getExtra, extraWindow]);
 
   const count = storeCount ?? session.syncedCount;
 
   const handlersRef = useRef({
     onElementPress,
+    onElementLongPress,
+    longPressDelay,
     onVisibleRangeChange,
     onRefreshSettle,
   });
   handlersRef.current = {
     onElementPress,
+    onElementLongPress,
+    longPressDelay,
     onVisibleRangeChange,
     onRefreshSettle,
   };
 
   /*
-   * onRefreshSettle: once per refresh, after `refreshing` turns false and the spinner is gone.
-   * iOS reports the end of the retract spring (with a fallback in case it never comes); on
-   * Android the spinner floats over the rows, so the list is free as soon as it stops.
+   * Call onRefreshSettle once per refresh, after refreshing turns false and the spinner is
+   * gone. iOS reports when the spinner finishes hiding, with a fallback if it never does.
+   * On Android the spinner floats over the rows, so the list is free once it stops.
    */
   const settlePendingRef = useRef(false);
   const handleRefreshSettle = useCallback(() => {
@@ -292,8 +458,10 @@ function ShadowListNativeInner<ItemT>(
 
   const context = useMemo<ShadowListNativeContextValue>(
     () => ({
-      press: (action, elementId, target) => {
-        const handler = handlersRef.current.onElementPress;
+      press: (action, elementId, target, pageX, pageY, long) => {
+        const handler = long
+          ? handlersRef.current.onElementLongPress
+          : handlersRef.current.onElementPress;
         if (!handler || !binding) return;
         const hit = binding.resolveTag(listId, target);
         if (!hit) return;
@@ -304,8 +472,14 @@ function ShadowListNativeInner<ItemT>(
           elementId,
           item: binding.getItem(listId, hit.key) as ItemT | undefined,
           repeatIndex: hit.repeatIndex >= 0 ? hit.repeatIndex : undefined,
+          pageX,
+          pageY,
         });
       },
+      longPressDelay: () =>
+        handlersRef.current.onElementLongPress
+          ? handlersRef.current.longPressDelay
+          : -1,
     }),
     [binding, listId]
   );
@@ -313,15 +487,19 @@ function ShadowListNativeInner<ItemT>(
   const handleVisibleIndicesChange = useCallback(
     (event: { nativeEvent: OnVisibleIndicesChange }) => {
       const handler = handlersRef.current.onVisibleRangeChange;
-      if (!handler) return;
       const { visibleStartIndex, visibleEndIndex } = event.nativeEvent;
       if (visibleStartIndex < 0 || visibleEndIndex < 0) return;
-      handler({
+      const range = {
         start: Math.min(visibleStartIndex, visibleEndIndex),
         end: Math.max(visibleStartIndex, visibleEndIndex),
-      });
+      };
+      // Indexed rows are built only near the screen.
+      if (session.synced !== null && !Array.isArray(session.synced)) {
+        extraWindow.setWindow(range);
+      }
+      handler?.(range);
     },
-    []
+    [session, extraWindow]
   );
 
   useImperativeHandle(ref, (): ShadowListNativeCommands<ItemT> => {
@@ -409,8 +587,8 @@ function ShadowListNativeInner<ItemT>(
           Commands.setEndReachedEnabled(viewRef.current, enabled);
       },
       /*
-       * Through the store, not the view: the scroll then lands after every mutation made before
-       * it is laid out (append + scrollToEnd shows the new row). See SHADOWLIST_NATIVE.md.
+       * Go through the store, not the view, so the scroll lands after every earlier change is
+       * laid out. An append then scrollToEnd shows the new row. See SHADOWLIST_NATIVE.md.
        */
       scrollToIndex: (index, viewPosition = 0) =>
         binding?.scrollToIndex(
@@ -424,8 +602,20 @@ function ShadowListNativeInner<ItemT>(
       },
       scrollToEnd: () => binding?.scrollToIndex(listId, -1, 0),
       scrollToStart: () => binding?.scrollToIndex(listId, -2, 0),
+      refreshExtras: (indices) => extraWindow.refresh(indices),
     };
-  }, [binding, listId]);
+  }, [binding, listId, extraWindow]);
+
+  // Sorted with no duplicates, since the host pins them in offset order.
+  const stickyIndices = useMemo(
+    () =>
+      stickyHeaderIndices && stickyHeaderIndices.length > 0
+        ? [...new Set(stickyHeaderIndices)]
+            .filter((index) => index >= 0)
+            .sort((a, b) => a - b)
+        : EMPTY_NUMBERS,
+    [stickyHeaderIndices]
+  );
 
   const elementBaseStyle = useMemo<ViewStyle[]>(() => {
     const dimension: ViewStyle = horizontal
@@ -470,9 +660,9 @@ function ShadowListNativeInner<ItemT>(
   );
 
   /*
-   * Fabric builds a component descriptor the first time the component is used, and the list's
-   * descriptor is what installs the binding. So until it exists, mount an empty list: that
-   * installs it, and the poll above re-renders with the data a frame later.
+   * Fabric creates the list's component descriptor on first use, and that is what installs
+   * the binding. Until then, mount an empty list to install it. The poll above renders the
+   * data a frame later.
    */
   if (!binding) {
     return (
@@ -523,7 +713,7 @@ function ShadowListNativeInner<ItemT>(
       autoHideHeader={autoHideHeader}
       autoHideFooter={autoHideFooter}
       dragEnabled={false}
-      stickyHeaderIndices={EMPTY_NUMBERS}
+      stickyHeaderIndices={stickyIndices}
       columns={columns}
       overscan={overscan}
       containerOffsetIndex={initialScrollIndex}
@@ -537,7 +727,9 @@ function ShadowListNativeInner<ItemT>(
       snapToAlignment={SNAP_ALIGNMENT[snapToAlignment]}
       scrollEventEnabled={onScroll != null}
       onVisibleIndicesChange={
-        onVisibleRangeChange ? handleVisibleIndicesChange : undefined
+        onVisibleRangeChange || getExtra
+          ? handleVisibleIndicesChange
+          : undefined
       }
       onStartReached={onStartReached}
       onEndReached={onEndReached}
@@ -565,54 +757,98 @@ function ShadowListNativeInner<ItemT>(
           {footer}
         </ShadowListTemplateView>
       )}
+      {stickyIndices.length > 0 && (
+        // Native fills this with a copy of the current sticky row and pins it.
+        <ShadowListTemplateView templateType="sectionHeader" />
+      )}
     </ShadowListView>
   );
 }
 
 const returnTrue = () => true;
 
-// A touch that travels further than this is a drag, not a press (as Pressability's slop).
+/*
+ * Tag of the row copy that was touched. The event's target is the template, since copies
+ * share its handle, but each touch carries the tag of the view it hit.
+ */
+function touchTarget(event: GestureResponderEvent): number {
+  const touch = event.nativeEvent.changedTouches?.[0];
+  return (touch?.target ?? event.nativeEvent.target) as unknown as number;
+}
+
+// A touch that moves further than this is a drag, not a press, same as Pressability.
 const PRESS_SLOP = 10;
 
 function usePressResponder(action: string | undefined, id: string | undefined) {
   const context = useContext(ShadowListNativeContext);
-  return useMemo(() => {
+  const pressResponder = useMemo(() => {
     if (!action || !context) return null;
     /*
-     * Where the touch began. A quick drag the scroll view never claims (e.g. at a scroll edge,
-     * or a short flick on Android) still ends in a release here; it must not press.
+     * Where the touch began. A quick drag the scroll view never takes over, like at a scroll
+     * edge or a short flick on Android, still ends in a release here and must not press.
      */
-    let start: { x: number; y: number } | null = null;
-    return {
+    let start: { x: number; y: number; target: number } | null = null;
+    // Set while a long press is pending. A release, a move past the slop, or firing clears it.
+    let longTimer: ReturnType<typeof setTimeout> | null = null;
+    const cancelLong = () => {
+      if (longTimer !== null) clearTimeout(longTimer);
+      longTimer = null;
+    };
+    const handlers = {
       onStartShouldSetResponder: returnTrue,
       onResponderTerminationRequest: returnTrue,
       onResponderGrant: (event: GestureResponderEvent) => {
-        start = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+        const origin = {
+          x: event.nativeEvent.pageX,
+          y: event.nativeEvent.pageY,
+          target: touchTarget(event),
+        };
+        start = origin;
+        cancelLong();
+        const delay = context.longPressDelay();
+        if (delay < 0) return;
+        longTimer = setTimeout(() => {
+          longTimer = null;
+          if (start !== origin) return;
+          // Don't also press on the release that follows.
+          start = null;
+          context.press(action, id, origin.target, origin.x, origin.y, true);
+        }, delay);
+      },
+      onResponderMove: (event: GestureResponderEvent) => {
+        const origin = start;
+        if (
+          origin &&
+          (Math.abs(event.nativeEvent.pageX - origin.x) > PRESS_SLOP ||
+            Math.abs(event.nativeEvent.pageY - origin.y) > PRESS_SLOP)
+        ) {
+          cancelLong();
+        }
       },
       onResponderTerminate: () => {
         start = null;
+        cancelLong();
       },
       onResponderRelease: (event: GestureResponderEvent) => {
         const origin = start;
         start = null;
+        cancelLong();
+        const { pageX, pageY } = event.nativeEvent;
         if (
           !origin ||
-          Math.abs(event.nativeEvent.pageX - origin.x) > PRESS_SLOP ||
-          Math.abs(event.nativeEvent.pageY - origin.y) > PRESS_SLOP
+          Math.abs(pageX - origin.x) > PRESS_SLOP ||
+          Math.abs(pageY - origin.y) > PRESS_SLOP
         ) {
           return;
         }
-        /*
-         * The touched clone's own tag. The event's top-level target is the template element's
-         * (clones share its instance handle), but each touch carries the hit view's tag.
-         */
-        const touch = event.nativeEvent.changedTouches?.[0];
-        const target = (touch?.target ??
-          event.nativeEvent.target) as unknown as number;
-        context.press(action, id, target);
+        context.press(action, id, touchTarget(event), pageX, pageY, false);
       },
     };
+    return { handlers, cancelLong };
   }, [action, id, context]);
+  // A pending long press must not fire after the element unmounts or its responder is replaced.
+  useEffect(() => pressResponder?.cancelLong, [pressResponder]);
+  return pressResponder?.handlers ?? null;
 }
 
 type NativeViewProps = ViewProps & ShadowListNativeViewProps;
@@ -620,9 +856,8 @@ type NativeTextProps = TextProps & ShadowListNativeElementProps;
 type NativeImageProps = Partial<ImageProps> & ShadowListNativeElementProps;
 
 /*
- * Template elements. Plain View/Text/Image plus `bind` (data paths -> props), `id` (for
- * setTemplateStyle) and `action` (press routing). Outside a template they render like the
- * plain component.
+ * Template elements. Plain View, Text and Image with bind to map data to props, id for
+ * setTemplateStyle, and action for presses. Outside a template they render like the plain ones.
  */
 const NativeView = forwardRef<ComponentRef<typeof View>, NativeViewProps>(
   (

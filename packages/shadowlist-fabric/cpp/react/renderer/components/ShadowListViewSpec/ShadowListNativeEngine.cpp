@@ -10,6 +10,7 @@
 #endif
 
 #include <algorithm>
+#include <cmath>
 #include <climits>
 #include <unordered_set>
 
@@ -22,9 +23,8 @@ constexpr std::string_view TEMPLATE_MARKER = "shadowlist-template:";
 constexpr const char* TEMPLATES_CONTAINER_TYPE = "native";
 
 /*
- * Tags for synthesized nodes. React allocates even tags counting up from 2 and root tags end in 1,
- * so start far above anything React reaches and stay even (Android routes odd tags to the legacy
- * renderer).
+ * Tags for the nodes we build. Start far above React's tags and stay even, since Android
+ * sends odd tags to the old renderer.
  */
 constexpr Tag FIRST_NATIVE_TAG = 1 << 30;
 std::atomic<Tag> nextNativeTag{FIRST_NATIVE_TAG};
@@ -98,18 +98,35 @@ std::string toText(const folly::dynamic& value) {
   }
 }
 
+/*
+ * Reads the value at the part's path and adds its offset when it is a number.
+ * A whole number result stays an int.
+ */
+folly::dynamic partValue(const ShadowListNativeFormatPart& part, const folly::dynamic& item) {
+  const auto& value = lookupPath(item, part.path);
+  if (part.offset == 0 || !value.isNumber()) {
+    return value;
+  }
+  double sum = value.asDouble() + part.offset;
+  double whole = std::floor(sum);
+  if (whole == sum && std::abs(sum) < 9e15) {
+    return static_cast<std::int64_t>(whole);
+  }
+  return sum;
+}
+
 folly::dynamic evaluate(const ShadowListNativeExpression& expression, const folly::dynamic& item) {
   if (expression.format) {
     std::string text;
     for (const auto& part : expression.parts) {
-      text += part.path.empty() ? part.text : toText(lookupPath(item, part.path));
+      text += part.path.empty() ? part.text : toText(partValue(part, item));
     }
     return text;
   }
   if (expression.parts.empty()) {
     return nullptr;
   }
-  const auto& value = lookupPath(item, expression.parts.front().path);
+  auto value = partValue(expression.parts.front(), item);
   if (expression.negate) {
     return !truthy(value);
   }
@@ -117,9 +134,8 @@ folly::dynamic evaluate(const ShadowListNativeExpression& expression, const foll
 }
 
 /*
- * Writes one bound value into the raw props patch for its element. A missing/null value (or an
- * unparsable color) keeps the template's value: props are always cloned from the element's base
- * props, so skipping the entry also restores it when a rebound row loses the value.
+ * Writes one bound value into the element's props patch. A missing value or a bad color is
+ * skipped, so the element keeps its template value, even when a reused row loses the value.
  */
 void applyBinding(
   folly::dynamic& patch,
@@ -131,8 +147,7 @@ void applyBinding(
         value.isNull(),
         value.isString() ? std::optional<std::string_view>(value.getString()) : std::nullopt)) {
 #ifdef RN_SERIALIZABLE_STATE
-    // Android updates a view from raw props, where an absent key keeps the view's previous value:
-    // with no template value, reset it explicitly.
+    // On Android a missing key keeps the view's old value, so reset it when the template has none.
     const auto* key = prop == "uri" ? "source" : prop.c_str();
     if (!base.rawProps.isObject() || base.rawProps.find(key) == base.rawProps.items().end()) {
       patch[key] = nullptr;
@@ -163,8 +178,10 @@ void applyBinding(
   if (isShadowListNativeColorProp(prop) && value.isString()) {
     auto color = parseShadowListNativeColor(value.getString());
 #ifdef __ANDROID__
-    // Java reads colors with getInt: pass a signed 32-bit ARGB as processColor does on Android
-    // (an unsigned value above INT_MAX saturates to 0x7FFFFFFF, translucent white).
+    /*
+     * Java reads colors as a signed int, so pass it signed like processColor does.
+     * An unsigned value that big would turn into translucent white.
+     */
     auto number = static_cast<std::int64_t>(static_cast<std::int32_t>(color.value_or(0)));
 #else
     auto number = static_cast<std::int64_t>(color.value_or(0));
@@ -187,9 +204,8 @@ Props::Shared cloneWithPatch(
   const PropsParserContext& context) {
 #ifdef RN_SERIALIZABLE_STATE
   /*
-   * Android mounts a view from the props' raw props, so a patch alone would reach the platform
-   * view as the whole prop set. Carry the base's raw props with it (see SHADOWLIST_NATIVE.md,
-   * "Android").
+   * Android builds the view from raw props, so a bare patch would be all it sees.
+   * Merge the patch over the base raw props. See the Android part of SHADOWLIST_NATIVE.md.
    */
   patch = mergeDynamicProps(base->rawProps, patch, NullValueStrategy::Override);
 #endif
@@ -222,7 +238,7 @@ void ShadowListNativeEngine::structureChangedLocked() {
   keys_ = std::move(keys);
   ++keysVersion_;
 
-  // Rows whose key left the list will not come back as the same nodes.
+  // Drop nodes for rows whose key left the list. They won't come back as the same nodes.
   for (auto iterator = rowNodes_.begin(); iterator != rowNodes_.end();) {
     if (keyIndex_.find(iterator->first) == keyIndex_.end()) {
       if (iterator->second.node) {
@@ -242,6 +258,14 @@ std::size_t ShadowListNativeEngine::setData(
   bool scrollToStart) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (indexed_) {
+      indexed_ = false;
+      indexedCount_ = 0;
+      indexedOrder_.clear();
+      indexedIds_.clear();
+      idIndex_.clear();
+      indexedExtras_.clear();
+    }
     std::unordered_map<std::string, Row> previous;
     previous.reserve(rows_.size());
     for (auto& row : rows_) {
@@ -283,6 +307,163 @@ std::size_t ShadowListNativeEngine::setData(
   return size();
 }
 
+std::size_t ShadowListNativeEngine::setIndexed(
+  std::size_t count,
+  std::vector<std::int32_t> order,
+  const std::string& indexField,
+  const std::string& valueField,
+  const std::vector<std::size_t>& extraIndices,
+  const folly::dynamic& extraItems,
+  const std::vector<std::string>& extraTemplates,
+  bool scrollToStart,
+  std::vector<std::int32_t> ids) {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    bool wasIndexed = indexed_;
+    if (!ids.empty() && ids.size() != count) {
+      ids.clear();
+    }
+    if (!wasIndexed) {
+      rows_.clear();
+      keyIndex_.clear();
+      indexed_ = true;
+    }
+    if (!order.empty() && order.size() != count) {
+      order.clear();
+    }
+    bool idsChanged = !wasIndexed || ids != indexedIds_;
+    bool orderChanged = idsChanged || indexField != indexField_ || valueField != valueField_ ||
+      order != indexedOrder_;
+    indexField_ = indexField;
+    valueField_ = valueField;
+    indexedOrder_ = std::move(order);
+    if (orderChanged) {
+      indexedEpoch_ = nextRowVersion_++;
+    }
+
+    // Extra data that didn't change, with the same order, keeps its version so the row isn't rebound.
+    std::unordered_map<std::size_t, IndexedExtra> extras;
+    std::size_t extraCount = extraItems.isArray() ? std::min(extraItems.size(), extraIndices.size()) : 0;
+    extras.reserve(extraCount);
+    for (std::size_t entry = 0; entry < extraCount; ++entry) {
+      std::size_t index = extraIndices[entry];
+      if (index >= count) {
+        continue;
+      }
+      IndexedExtra extra;
+      extra.item = extraItems[entry].isObject() ? extraItems[entry] : folly::dynamic::object();
+      extra.templateName = entry < extraTemplates.size() ? extraTemplates[entry] : std::string{};
+      auto previous = indexedExtras_.find(index);
+      extra.version = !orderChanged && previous != indexedExtras_.end() && previous->second.item == extra.item &&
+          previous->second.templateName == extra.templateName
+        ? previous->second.version
+        : nextRowVersion_++;
+      extras[index] = std::move(extra);
+    }
+    // A row that lost its extra data gets a new shared version so it doesn't match its old one.
+    if (!orderChanged) {
+      for (const auto& [index, previous] : indexedExtras_) {
+        if (extras.find(index) == extras.end()) {
+          indexedEpoch_ = std::max(indexedEpoch_, nextRowVersion_++);
+          break;
+        }
+      }
+    }
+    indexedExtras_ = std::move(extras);
+
+    bool positional = ids.empty();
+    bool wasPositional = indexedIds_.empty();
+    if (!wasIndexed || idsChanged || count != indexedCount_) {
+      auto keys = std::make_shared<std::vector<std::string>>();
+      keys->reserve(count);
+      if (positional) {
+        // Position keys only change at the end, so keep the ones still valid.
+        std::size_t reuse = wasIndexed && wasPositional ? std::min(count, keys_->size()) : 0;
+        keys->insert(keys->end(), keys_->begin(), keys_->begin() + static_cast<std::ptrdiff_t>(reuse));
+        for (std::size_t index = reuse; index < count; ++index) {
+          keys->push_back(std::to_string(index));
+        }
+        idIndex_.clear();
+      } else {
+        idIndex_.clear();
+        idIndex_.reserve(count);
+        for (std::size_t index = 0; index < count; ++index) {
+          // A repeated id keeps its first row. Later ones get a key the core won't find.
+          if (idIndex_.emplace(ids[index], index).second) {
+            keys->push_back(std::to_string(ids[index]));
+          } else {
+            keys->push_back("#dup" + std::to_string(index));
+          }
+        }
+      }
+      indexedIds_ = std::move(ids);
+      keys_ = std::move(keys);
+      indexedCount_ = count;
+      ++keysVersion_;
+      for (auto iterator = rowNodes_.begin(); iterator != rowNodes_.end();) {
+        auto index = indexOfKeyLocked(iterator->first);
+        if (!index) {
+          if (iterator->second.node) {
+            forgetTagsLocked(*iterator->second.node, iterator->first);
+          }
+          iterator = rowNodes_.erase(iterator);
+        } else {
+          ++iterator;
+        }
+      }
+    }
+    if (scrollToStart) {
+      pendingScroll_ = PendingScroll{SCROLL_TO_START, 0.0, storeVersion_, keysVersion_};
+    }
+  }
+  requestCommit();
+  return size();
+}
+
+std::optional<std::size_t> ShadowListNativeEngine::indexOfKeyLocked(const std::string& key) const {
+  if (!indexed_) {
+    auto found = keyIndex_.find(key);
+    return found == keyIndex_.end() ? std::nullopt : std::optional<std::size_t>(found->second);
+  }
+  if (!indexedIds_.empty()) {
+    char* end = nullptr;
+    long id = std::strtol(key.c_str(), &end, 10);
+    if (key.empty() || *end != '\0' || id < INT32_MIN || id > INT32_MAX) {
+      return std::nullopt;
+    }
+    auto found = idIndex_.find(static_cast<std::int32_t>(id));
+    return found == idIndex_.end() ? std::nullopt : std::optional<std::size_t>(found->second);
+  }
+  if (key.empty() || key.size() > 18) {
+    return std::nullopt;
+  }
+  std::size_t index = 0;
+  for (char character : key) {
+    if (character < '0' || character > '9') {
+      return std::nullopt;
+    }
+    index = index * 10 + static_cast<std::size_t>(character - '0');
+  }
+  // A key with a leading zero is not a row.
+  if (key.size() > 1 && key.front() == '0') {
+    return std::nullopt;
+  }
+  return index < indexedCount_ ? std::optional<std::size_t>(index) : std::nullopt;
+}
+
+folly::dynamic ShadowListNativeEngine::indexedItemLocked(std::size_t index) const {
+  auto extra = indexedExtras_.find(index);
+  folly::dynamic item = extra != indexedExtras_.end() ? extra->second.item : folly::dynamic::object();
+  if (!indexField_.empty()) {
+    item[indexField_] = static_cast<std::int64_t>(index);
+  }
+  if (!valueField_.empty()) {
+    item[valueField_] = indexedOrder_.empty() ? static_cast<std::int64_t>(index)
+                                              : static_cast<std::int64_t>(indexedOrder_[index]);
+  }
+  return item;
+}
+
 std::size_t ShadowListNativeEngine::insertItems(
   std::size_t index,
   const folly::dynamic& items,
@@ -290,6 +471,9 @@ std::size_t ShadowListNativeEngine::insertItems(
   const std::vector<std::string>& templates) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (indexed_) {
+      return indexedCount_;
+    }
     std::size_t count = items.isArray() ? std::min(items.size(), keys.size()) : 0;
     std::vector<Row> inserted;
     inserted.reserve(count);
@@ -323,6 +507,32 @@ bool ShadowListNativeEngine::updateItem(
   bool replace) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (indexed_) {
+      auto index = indexOfKeyLocked(key);
+      if (!index) {
+        return false;
+      }
+      auto& extra = indexedExtras_[*index];
+      if (replace) {
+        extra.item = patch.isObject() ? patch : folly::dynamic::object();
+      } else if (patch.isObject()) {
+        for (const auto& [field, value] : patch.items()) {
+          if (value.isNull()) {
+            extra.item.erase(field);
+          } else {
+            extra.item[field] = value;
+          }
+        }
+      }
+      if (!templateName.empty()) {
+        extra.templateName = templateName;
+      }
+      extra.version = nextRowVersion_++;
+      if (extra.item.empty() && extra.templateName.empty()) {
+        // Back to a plain row. The shared version is older, so it still rebinds.
+        indexedExtras_.erase(*index);
+      }
+    } else {
     auto found = keyIndex_.find(key);
     if (found == keyIndex_.end()) {
       return false;
@@ -339,6 +549,7 @@ bool ShadowListNativeEngine::updateItem(
       row.templateName = templateName;
     }
     row.version = nextRowVersion_++;
+    }
   }
   requestCommit();
   return true;
@@ -348,6 +559,9 @@ std::size_t ShadowListNativeEngine::removeItems(const std::vector<std::string>& 
   bool changed = false;
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (indexed_) {
+      return indexedCount_;
+    }
     std::unordered_set<std::string> doomed(keys.begin(), keys.end());
     auto end = std::remove_if(rows_.begin(), rows_.end(), [&](const Row& row) { return doomed.count(row.key) > 0; });
     if (end != rows_.end()) {
@@ -365,6 +579,9 @@ std::size_t ShadowListNativeEngine::removeItems(const std::vector<std::string>& 
 bool ShadowListNativeEngine::moveItem(const std::string& key, std::size_t toIndex) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
+    if (indexed_) {
+      return false;
+    }
     auto found = keyIndex_.find(key);
     if (found == keyIndex_.end()) {
       return false;
@@ -411,8 +628,9 @@ void ShadowListNativeEngine::configure(const folly::dynamic& config) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto readCount = [&](const char* name, std::size_t& target) {
     auto found = config.find(name);
+    // Capped so a huge value can't overflow the row window math or the cast.
     if (found != config.items().end() && found->second.isNumber() && found->second.asDouble() >= 0) {
-      target = static_cast<std::size_t>(found->second.asDouble());
+      target = static_cast<std::size_t>(std::min(found->second.asDouble(), 1e6));
     }
   };
   readCount("initialRows", initialRows_);
@@ -425,8 +643,11 @@ void ShadowListNativeEngine::configure(const folly::dynamic& config) {
 
 folly::dynamic ShadowListNativeEngine::getItem(const std::string& key) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto found = keyIndex_.find(key);
-  return found == keyIndex_.end() ? folly::dynamic(nullptr) : rows_[found->second].item;
+  auto index = indexOfKeyLocked(key);
+  if (!index) {
+    return nullptr;
+  }
+  return indexed_ ? indexedItemLocked(*index) : rows_[*index].item;
 }
 
 std::vector<std::string> ShadowListNativeEngine::getKeys() const {
@@ -436,7 +657,7 @@ std::vector<std::string> ShadowListNativeEngine::getKeys() const {
 
 std::size_t ShadowListNativeEngine::size() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return rows_.size();
+  return indexed_ ? indexedCount_ : rows_.size();
 }
 
 std::optional<ShadowListNativeEngine::ResolvedTag> ShadowListNativeEngine::resolveTag(Tag tag) const {
@@ -445,11 +666,11 @@ std::optional<ShadowListNativeEngine::ResolvedTag> ShadowListNativeEngine::resol
   if (found == tagKeys_.end()) {
     return std::nullopt;
   }
-  auto index = keyIndex_.find(found->second.key);
-  if (index == keyIndex_.end()) {
+  auto index = indexOfKeyLocked(found->second.key);
+  if (!index) {
     return std::nullopt;
   }
-  return ResolvedTag{found->second.key, index->second, found->second.repeatIndex};
+  return ResolvedTag{found->second.key, *index, found->second.repeatIndex};
 }
 
 void ShadowListNativeEngine::requestCommit() {
@@ -512,8 +733,8 @@ void ShadowListNativeEngine::nudge() {
     return;
   }
   /*
-   * A copy of whatever state is committed when the update applies. It must not re-apply an
-   * offset correction that state may still carry: the host already applied it on mount.
+   * Copy the latest committed state, but don't apply its scroll correction again.
+   * The host already applied it when it mounted.
    */
   state->updateState([](const ShadowListViewState& previous) -> StateData::Shared {
     auto next = std::make_shared<ShadowListViewState>(previous);
@@ -560,9 +781,8 @@ void ShadowListNativeEngine::compileElement(
   signature.push_back(reinterpret_cast<const void*>(static_cast<std::uintptr_t>(node->getChildren().size())));
   shape += node->getComponentName();
   /*
-   * The instance handle is part of the shape: rows share their prototype's handle (it routes
-   * their events), so when React replaces a template element's fiber, rows rebound in place
-   * would keep the old, dead handle and drop their touches. A new handle rebuilds them.
+   * Include the instance handle. Rows share the template's handle for events, so when React
+   * replaces the template element, rows must be rebuilt or their touches get lost.
    */
   shape += '@';
   shape += std::to_string(reinterpret_cast<std::uintptr_t>(node->getFamily().getInstanceHandle().get()));
@@ -583,7 +803,7 @@ void ShadowListNativeEngine::compileElement(
         element.repeat = parseShadowListNativePath(repeat->second.getString());
         auto repeatMax = spec.find("m");
         if (repeatMax != spec.items().end() && repeatMax->second.isNumber() && repeatMax->second.asDouble() >= 0) {
-          element.repeatMax = static_cast<std::size_t>(repeatMax->second.asDouble());
+          element.repeatMax = static_cast<std::size_t>(std::min(repeatMax->second.asDouble(), 1e9));
         }
       }
       if (auto bindings = spec.find("b"); bindings != spec.items().end() && bindings->second.isObject()) {
@@ -600,7 +820,7 @@ void ShadowListNativeEngine::compileElement(
         }
       }
     } catch (...) {
-      // A malformed marker leaves the element static.
+      // A bad marker leaves the element without bindings.
     }
   }
 
@@ -638,7 +858,7 @@ void ShadowListNativeEngine::compileTemplatesLocked(const ShadowNode& container,
 
     auto existing = templates_.find(name);
     if (existing != templates_.end() && existing->second.signature == compiled.signature) {
-      // Same props, same structure: a layout clone of the container, nothing to redo.
+      // Nothing changed but layout, so there is nothing to recompile.
       existing->second.root.prototype = templateRoot;
       continue;
     }
@@ -680,7 +900,7 @@ void ShadowListNativeEngine::refreshElementBaseProps(
     }
   }
 #ifdef RN_SERIALIZABLE_STATE
-  // Rows are new views on Android: carry the prototype's accumulated raw props, not its last diff.
+  // Rows are new views on Android, so use the template's full raw props, not just the last change.
   if (auto accumulated = prototypeRawProps_.find(element.prototype->getTag());
       accumulated != prototypeRawProps_.end() && accumulated->second.props == prototypeProps.get() &&
       accumulated->second.raw != prototypeProps->rawProps) {
@@ -731,9 +951,8 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   }
 
   /*
-   * Rebinding keeps the existing families only while the structure still lines up. A repeated
-   * element's child count follows its array, so there only the component must match; its
-   * children are matched by position (entry i keeps entry i's nodes).
+   * Reuse the existing nodes only while the structure still matches. A repeated element's
+   * child count follows its array, so only the component must match and children pair up by position.
    */
   bool reuse = existing != nullptr && existing->getComponentHandle() == element.prototype->getComponentHandle() &&
     (element.repeat || existing->getChildren().size() == element.children.size());
@@ -797,10 +1016,8 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   }
 
   /*
-   * A new family per synthesized node: every mounted view needs its own tag. The instance
-   * handle is the prototype's; a clone with none crashes on its first event, and events from a
-   * clone reaching the template's fiber is what lets a template element handle touches (its
-   * handlers resolve the row from the touched view's tag).
+   * Every built node needs its own tag. It borrows the template's instance handle, since a node
+   * without one crashes on its first event, and this is how template handlers get row touches.
    */
   const auto& descriptor = element.prototype->getComponentDescriptor();
   Tag tag = allocateNativeTag();
@@ -818,15 +1035,110 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildRowLocked(
   const Row& row,
   const std::shared_ptr<const ShadowNode>& existing,
   bool rootPropsCurrent,
-  const PropsParserContext& context) {
+  const PropsParserContext& context,
+  bool inFlow) {
+  folly::dynamic rootPatch = folly::dynamic::object("elementKey", row.key)("index", 0);
+  if (inFlow) {
+    // In the overlay the row sizes its container instead of being placed by the list.
+    rootPatch["position"] = "relative";
+  }
   Props::Shared rootProps = rootPropsCurrent && existing
     ? existing->getProps()
-    : cloneWithPatch(
-        *compiled.root.prototype,
-        compiled.root.baseProps,
-        folly::dynamic::object("elementKey", row.key)("index", 0),
-        context);
+    : cloneWithPatch(*compiled.root.prototype, compiled.root.baseProps, std::move(rootPatch), context);
   return buildNode(compiled.root, row.item, row.key, existing, &rootProps, std::nullopt, -1, context);
+}
+
+void ShadowListNativeEngine::dropStickyLocked() {
+  if (stickyNode_.node) {
+    forgetTagsLocked(*stickyNode_.node, stickyKey_);
+  }
+  stickyNode_ = RowNode{};
+  stickyKey_.clear();
+}
+
+std::shared_ptr<const ShadowNode> ShadowListNativeEngine::stickyRowLocked(
+  const std::vector<std::string>& keys,
+  azimgd::shadowlist::Container& core,
+  bool inverted,
+  const PropsParserContext& context) {
+  // A kept copy that was unmounted has lost its event targets for good, so rebuild it.
+  if (stickyNode_.node && !hasLiveEventTarget(*stickyNode_.node)) {
+    dropStickyLocked();
+  }
+  // Inverted lists have no sticky headers.
+  if (inverted || core.stickyIndices.empty()) {
+    dropStickyLocked();
+    return nullptr;
+  }
+  double offset = std::max(0.0, core.getContainerOffset());
+  std::size_t elements = std::min(core.getElementsSize(), keys.size());
+  std::size_t active = SIZE_MAX;
+  double activeOffset = -1.0;
+  for (std::size_t index : core.stickyIndices) {
+    if (index >= elements) {
+      continue;
+    }
+    double elementOffset = core.getElementOffset(index);
+    if (elementOffset <= offset && elementOffset >= activeOffset) {
+      active = index;
+      activeOffset = elementOffset;
+    }
+  }
+  if (active == SIZE_MAX) {
+    dropStickyLocked();
+    return nullptr;
+  }
+
+  const std::string& key = keys[active];
+  Row row;
+  if (indexed_) {
+    auto position = indexOfKeyLocked(key);
+    if (!position) {
+      dropStickyLocked();
+      return nullptr;
+    }
+    auto extra = indexedExtras_.find(*position);
+    row.key = key;
+    row.templateName = extra != indexedExtras_.end() ? extra->second.templateName : std::string{};
+    row.version = extra != indexedExtras_.end() ? extra->second.version : indexedEpoch_;
+    row.item = indexedItemLocked(*position);
+  } else {
+    auto found = keyIndex_.find(key);
+    if (found == keyIndex_.end()) {
+      dropStickyLocked();
+      return nullptr;
+    }
+    row = rows_[found->second];
+  }
+  Template* compiled = templateForLocked(row.templateName);
+  if (compiled == nullptr) {
+    dropStickyLocked();
+    return nullptr;
+  }
+
+  // A different pinned row gets new nodes, so a press on it reaches the row it shows.
+  bool sameShape = stickyNode_.node != nullptr && stickyKey_ == key && stickyNode_.templateName == compiled->name &&
+    stickyNode_.shapeVersion == compiled->shapeVersion;
+  if (sameShape && stickyNode_.rowVersion == row.version && stickyNode_.templateVersion == compiled->version) {
+    return stickyNode_.node;
+  }
+  if (!sameShape) {
+    dropStickyLocked();
+  }
+  auto node = buildRowLocked(
+    *compiled,
+    row,
+    sameShape ? stickyNode_.node : nullptr,
+    sameShape && stickyNode_.templateVersion == compiled->version,
+    context,
+    true);
+  stickyNode_.node = node;
+  stickyNode_.rowVersion = row.version;
+  stickyNode_.templateVersion = compiled->version;
+  stickyNode_.shapeVersion = compiled->shapeVersion;
+  stickyNode_.templateName = compiled->name;
+  stickyKey_ = key;
+  return node;
 }
 
 void ShadowListNativeEngine::forgetTagsLocked(const ShadowNode& node, const std::string& key) {
@@ -879,9 +1191,8 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   reconciledVersion_ = storeVersion_;
 
   /*
-   * Split the list's own children (templates, header, footer, empty) from the rows mounted last
-   * time. Rows go back right after the templates container, where ShadowList renders its rows,
-   * so the header stays below them and the footer/sticky overlay above in z-order.
+   * Separate the list's own children, like the header and footer, from last time's rows.
+   * Rows go back right after the templates so the header draws below them and the footer above.
    */
   ChildList others;
   others.reserve(children.size());
@@ -911,8 +1222,8 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   }
 
   /*
-   * The window: what the core measured this commit (the viewport plus its overscan), or a seed
-   * from the edge the list opens at while the core has no viewport yet.
+   * Pick which rows to mount. Use what the core measured, or start from the list's opening
+   * edge while it has no size yet.
    */
   std::size_t count = keys.size();
   std::size_t targetLow = 0;
@@ -945,9 +1256,8 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
     }
 
     /*
-     * Keep the mounted rows while they still cover the window: a scroll frame inside it then
-     * rebuilds nothing. Once the window runs past an end, remount around it with a pad, so the
-     * next few rows of travel are free again.
+     * Keep the mounted rows while they still cover what's needed, so small scrolls build nothing.
+     * Past either end, remount with some padding so the next few rows are free again.
      */
     std::size_t mountedLow = azimgd::shadowlist::UNDEFINED_INDEX;
     std::size_t mountedHigh = 0;
@@ -980,11 +1290,31 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
     rows.reserve(targetHigh - targetLow + 1);
     for (std::size_t index = targetLow; index <= targetHigh; ++index) {
       const auto& key = keys[index];
-      auto rowIndex = keyIndex_.find(key);
-      if (rowIndex == keyIndex_.end()) {
-        continue;
+      /*
+       * Indexed rows get their version and template from their extra data, and their item is
+       * only built below when the row is built or rebound.
+       */
+      const Row* stored = nullptr;
+      Row indexedRow;
+      std::size_t rowPosition = 0;
+      if (indexed_) {
+        auto position = indexOfKeyLocked(key);
+        if (!position) {
+          continue;
+        }
+        rowPosition = *position;
+        auto extra = indexedExtras_.find(rowPosition);
+        indexedRow.key = key;
+        indexedRow.templateName = extra != indexedExtras_.end() ? extra->second.templateName : std::string{};
+        indexedRow.version = extra != indexedExtras_.end() ? extra->second.version : indexedEpoch_;
+      } else {
+        auto rowIndex = keyIndex_.find(key);
+        if (rowIndex == keyIndex_.end()) {
+          continue;
+        }
+        stored = &rows_[rowIndex->second];
       }
-      const Row& row = rows_[rowIndex->second];
+      const Row& row = stored != nullptr ? *stored : indexedRow;
       Template* compiled = templateForLocked(row.templateName);
       if (compiled == nullptr) {
         continue;
@@ -994,10 +1324,8 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
       auto mounted = current.find(key);
       std::shared_ptr<const ShadowNode> existing = mounted != current.end() ? mounted->second : entry.node;
       /*
-       * A row that was unmounted cannot come back as the same nodes: unmounting released its
-       * families' event targets for good, so its touches and image events would be dropped.
-       * Rebuild it. A cached row that is still mounted (React re-rendered the list and handed its
-       * children back without the rows) keeps its target and is reused.
+       * Rebuild a row that was unmounted. Unmounting drops its event targets for good, so its
+       * touches and image events would be lost. A cached row that is still mounted is reused.
        */
       if (mounted == current.end() && existing && !hasLiveEventTarget(*existing)) {
         forgetTagsLocked(*existing, key);
@@ -1015,6 +1343,9 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
           forgetTagsLocked(*existing, key);
         }
         ++(sameShape ? reboundRows : builtRows);
+        if (stored == nullptr) {
+          indexedRow.item = indexedItemLocked(rowPosition);
+        }
         node = buildRowLocked(
           *compiled,
           row,
@@ -1041,6 +1372,29 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   mountedCount_ = rows.size();
   evictLocked(cacheRows_);
 
+  // Put a copy of the current sticky row in the section header overlay.
+  bool hasStickyOverlay = false;
+  for (auto& child : others) {
+    const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(child->getProps());
+    if (!templateProps || templateProps->templateType != "sectionHeader") {
+      continue;
+    }
+    hasStickyOverlay = true;
+    auto sticky = stickyRowLocked(keys, core, inverted, context);
+    ChildList overlay;
+    if (sticky) {
+      overlay.push_back(std::move(sticky));
+    }
+    if (child->getChildren() != overlay) {
+      child = child->clone(ShadowNodeFragment{.children = std::make_shared<const ChildList>(std::move(overlay))});
+    }
+    break;
+  }
+  if (!hasStickyOverlay) {
+    // The overlay went away with the sticky indices. Let go of its row and tags.
+    dropStickyLocked();
+  }
+
   ChildList next;
   next.reserve(others.size() + rows.size());
   next.insert(next.end(), others.begin(), others.begin() + static_cast<std::ptrdiff_t>(rowsAt));
@@ -1059,13 +1413,13 @@ void ShadowListNativeEngine::didLayout(const ShadowNode& listNode, azimgd::shado
   {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // A scroll waiting on these rows can go in the next commit.
+    // A scroll waiting for these rows can run in the next commit.
     laidOutVersion_ = reconciledVersion_;
     if (pendingScroll_ && laidOutVersion_ >= pendingScroll_->afterVersion) {
       request = true;
     }
 
-    // The laid-out rows are what a row re-entering the window should come back as.
+    // Keep the laid out rows so a row coming back into view reuses them.
     for (const auto& child : listNode.getChildren()) {
       const auto elementProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(child->getProps());
       if (!elementProps) {
@@ -1078,9 +1432,8 @@ void ShadowListNativeEngine::didLayout(const ShadowNode& listNode, azimgd::shado
     }
 
     /*
-     * The window was chosen from estimates for rows that had not been measured. Once they are,
-     * the mounted rows can fall short of the viewport (rows smaller than estimated). Nothing
-     * else would commit until the user scrolls, so ask for the commit that remounts.
+     * Rows were picked using estimates. If they turn out smaller, they may not fill the screen,
+     * and nothing would commit until the user scrolls, so ask for a commit now.
      */
     auto coverageShort = [&]() {
       double windowSize = core.getWindowContainerSize();
@@ -1126,9 +1479,8 @@ std::mutex& registryMutex() {
 }
 
 /*
- * Weak only: an engine lives as long as a list node or a JS handle (`open`) holds it. Handles
- * are JSI host objects, so they die with the runtime that made them (a JS reload) and with a
- * render React discards.
+ * Weak on purpose. An engine lives while a list node or a JS handle holds it, and handles
+ * go away with a JS reload or a discarded render.
  */
 std::unordered_map<std::string, std::weak_ptr<ShadowListNativeEngine>>& registryEntries() {
   static std::unordered_map<std::string, std::weak_ptr<ShadowListNativeEngine>> entries;

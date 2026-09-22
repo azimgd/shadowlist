@@ -7,14 +7,12 @@
 #include <vector>
 
 /*
- * Parsing for ShadowListNative bindings. Kept free of folly and React so the core test
- * harness can exercise it directly (packages/shadowlist-core-tests).
- *
- * A binding maps a prop of a template element to an expression over the row's item:
- *
- *   "author.name"          the value at that path ("images.0.uri" indexes arrays)
- *   "!isRead"              the negated truthiness of the value (for hidden/visible)
- *   "{name} · {date}"      a format string; each {path} is replaced by its value
+ * Parses ShadowListNative bindings. No folly or React here, so the core tests can use it.
+ * A binding fills a template prop from the row's item. For example:
+ *   author.name reads that path, and images.0.uri reads into an array
+ *   !isRead flips the value, for hidden and visible
+ *   {name} {date} is a format string where each path in braces is filled in
+ *   row+1 adds a number to the value when it is a number
  */
 namespace facebook::react {
 
@@ -22,7 +20,31 @@ struct ShadowListNativeFormatPart {
   // Literal text when path is empty, otherwise the value at path.
   std::string text;
   std::vector<std::string> path;
+  // Added to the value when it is a number, as in row+1.
+  double offset = 0;
 };
+
+/*
+ * Splits a trailing number off a path, so row+1 becomes row and 1.
+ * It only counts when a sign follows the path and a whole number follows the sign.
+ */
+inline double splitShadowListNativeOffset(std::string_view& path) {
+  std::size_t sign = path.find_last_of("+-");
+  if (sign == std::string_view::npos || sign == 0 || sign + 1 >= path.size()) {
+    return 0;
+  }
+  double value = 0;
+  for (std::size_t index = sign + 1; index < path.size(); ++index) {
+    char character = path[index];
+    if (character < '0' || character > '9') {
+      return 0;
+    }
+    value = value * 10 + (character - '0');
+  }
+  bool negative = path[sign] == '-';
+  path = path.substr(0, sign);
+  return negative ? -value : value;
+}
 
 struct ShadowListNativeExpression {
   bool negate = false;
@@ -65,9 +87,11 @@ inline ShadowListNativeExpression parseShadowListNativeExpression(std::string_vi
           expression.parts.push_back({std::move(literal), {}});
           literal.clear();
         }
-        auto path = parseShadowListNativePath(source.substr(index + 1, close - index - 1));
+        auto inner = source.substr(index + 1, close - index - 1);
+        double offset = splitShadowListNativeOffset(inner);
+        auto path = parseShadowListNativePath(inner);
         if (!path.empty()) {
-          expression.parts.push_back({{}, std::move(path)});
+          expression.parts.push_back({{}, std::move(path), offset});
         }
         index = close + 1;
         continue;
@@ -85,13 +109,14 @@ inline ShadowListNativeExpression parseShadowListNativeExpression(std::string_vi
     expression.negate = true;
     source.remove_prefix(1);
   }
-  expression.parts.push_back({{}, parseShadowListNativePath(source)});
+  double offset = splitShadowListNativeOffset(source);
+  expression.parts.push_back({{}, parseShadowListNativePath(source), offset});
   return expression;
 }
 
 /*
- * A bound color arrives as data, so it is usually a string. Parse the common CSS forms into
- * the 0xAARRGGBB integer Fabric's color parser takes; nullopt when the string is not one.
+ * Bound colors usually arrive as strings. Turn the common CSS forms into the integer Fabric
+ * expects, or return nothing when the string is not a color.
  */
 inline std::optional<std::uint32_t> parseShadowListNativeColor(std::string_view source) {
   auto hexValue = [](char character) -> int {
@@ -173,7 +198,9 @@ inline std::optional<std::uint32_t> parseShadowListNativeColor(std::string_view 
   return std::nullopt;
 }
 
-// Whether a bound prop takes a color, so a string value must be parsed first.
+/*
+ * Whether a bound prop takes a color, so a string value must be parsed first.
+ */
 inline bool isShadowListNativeColorProp(std::string_view prop) {
   constexpr std::string_view suffix = "Color";
   return prop == "color" ||
@@ -181,9 +208,8 @@ inline bool isShadowListNativeColorProp(std::string_view prop) {
 }
 
 /*
- * Whether a bound value leaves the element's template value in place instead of replacing it:
- * a missing or null value, or a color string that does not parse. `hidden` / `visible` always
- * apply (null is falsy). `string` is the value when it is a string.
+ * A missing or null value, or a color that does not parse, keeps the template's own value.
+ * Hidden and visible always apply, since null counts as false.
  */
 inline bool shadowListNativeBindingKeepsTemplate(
   std::string_view prop,

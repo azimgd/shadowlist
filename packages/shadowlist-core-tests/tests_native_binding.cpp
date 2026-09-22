@@ -1,6 +1,6 @@
 /*
- * ShadowListNative binding parsing (ShadowListNativeBinding.h): the expressions a template's
- * `bind` maps props to, and the color strings bound data may carry.
+ * Tests for ShadowListNative binding parsing: the expressions a template binds props to,
+ * and the color strings the bound data can carry.
  */
 
 #include "TestFramework.hpp"
@@ -19,7 +19,7 @@ TEST(nativeBindingParsesDottedPaths) {
   CHECK_EQ(path[0], std::string("author"));
   CHECK_EQ(path[2], std::string("0"));
   CHECK_EQ(path[3], std::string("uri"));
-  // Empty segments are dropped rather than looked up.
+  // Empty path segments are skipped.
   CHECK_EQ(parseShadowListNativePath(".a..b.").size(), std::size_t{2});
   CHECK(parseShadowListNativePath("").empty());
 }
@@ -37,6 +37,27 @@ TEST(nativeBindingParsesPlainAndNegatedExpressions) {
   CHECK_EQ(negated.parts[0].path[1], std::string("1"));
 }
 
+TEST(nativeBindingParsesNumericOffsets) {
+  auto plain = parseShadowListNativeExpression("row+1");
+  CHECK_EQ(plain.parts[0].path.size(), std::size_t{1});
+  CHECK_EQ(plain.parts[0].path[0], std::string("row"));
+  CHECK_EQ(plain.parts[0].offset, 1.0);
+
+  auto negative = parseShadowListNativeExpression("a.b-12");
+  CHECK_EQ(negative.parts[0].path[1], std::string("b"));
+  CHECK_EQ(negative.parts[0].offset, -12.0);
+
+  auto format = parseShadowListNativeExpression("Row {row+1} of {count}");
+  CHECK_EQ(format.parts[1].path[0], std::string("row"));
+  CHECK_EQ(format.parts[1].offset, 1.0);
+  CHECK_EQ(format.parts[3].offset, 0.0);
+
+  // A sign at the start of the path or before a non number is not an offset.
+  CHECK_EQ(parseShadowListNativeExpression("+1").parts[0].offset, 0.0);
+  CHECK_EQ(parseShadowListNativeExpression("a+b").parts[0].path[0], std::string("a+b"));
+  CHECK_EQ(parseShadowListNativeExpression("a+").parts[0].path[0], std::string("a+"));
+}
+
 TEST(nativeBindingParsesFormatStrings) {
   auto expression = parseShadowListNativeExpression("{name} · {stats.likes} likes");
   CHECK(expression.format);
@@ -47,7 +68,7 @@ TEST(nativeBindingParsesFormatStrings) {
   CHECK_EQ(expression.parts[2].path.size(), std::size_t{2});
   CHECK_EQ(expression.parts[3].text, std::string(" likes"));
 
-  // An unclosed brace stays literal text.
+  // An unclosed brace stays as plain text.
   auto unclosed = parseShadowListNativeExpression("a {b");
   CHECK_EQ(unclosed.parts.size(), std::size_t{1});
   CHECK_EQ(unclosed.parts[0].text, std::string("a {b"));
@@ -76,20 +97,20 @@ TEST(nativeBindingRecognisesColorProps) {
 }
 
 TEST(nativeBindingMissingValuesKeepTheTemplateValue) {
-  // Missing/null values keep the template's static prop (a static `color` survives an unset `k`).
+  // A missing or null value keeps the template's own prop, like its color.
   CHECK(shadowListNativeBindingKeepsTemplate("color", true));
   CHECK(shadowListNativeBindingKeepsTemplate("borderColor", true));
   CHECK(shadowListNativeBindingKeepsTemplate("opacity", true));
   CHECK(shadowListNativeBindingKeepsTemplate("uri", true));
-  // So do color strings that do not parse, including ''.
+  // So does a color string that does not parse, even an empty one.
   CHECK(shadowListNativeBindingKeepsTemplate("color", false, std::string_view("")));
   CHECK(shadowListNativeBindingKeepsTemplate("backgroundColor", false, std::string_view("chartreuse")));
   CHECK(!shadowListNativeBindingKeepsTemplate("color", false, std::string_view("#fff")));
-  // Values that are present apply, strings included for non-color props.
+  // Present values apply, including strings for props that are not colors.
   CHECK(!shadowListNativeBindingKeepsTemplate("opacity", false));
   CHECK(!shadowListNativeBindingKeepsTemplate("uri", false, std::string_view("")));
   CHECK(!shadowListNativeBindingKeepsTemplate("nativeID", false, std::string_view("x")));
-  // hidden/visible always apply: null is falsy.
+  // Hidden and visible always apply, and null counts as false.
   CHECK(!shadowListNativeBindingKeepsTemplate("hidden", true));
   CHECK(!shadowListNativeBindingKeepsTemplate("visible", true));
 }
