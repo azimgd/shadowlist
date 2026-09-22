@@ -1,0 +1,21 @@
+# Native feed: prepends and removes while the refresh spinner shows, then
+# refreshes that keep the visible post in place.
+route FeedNative
+latency 1500,2000
+wait 3
+mark pull-then-local-prepend
+pan 200 250 0 450 700
+wait 0.6
+press 64 824
+wait 5
+mark scroll-a-bit-pull-prepend
+pan 200 600 0 -200 400
+wait 1
+statusbar
+wait 1.5
+pan 200 250 0 450 700
+wait 0.3
+press 64 824
+wait 0.3
+press 155 824
+wait 5

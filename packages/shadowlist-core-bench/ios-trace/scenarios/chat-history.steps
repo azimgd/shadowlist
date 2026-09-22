@@ -1,4 +1,4 @@
-# Inverted list: history loads at the top (header spinner), incoming bursts, scroll-to-top.
+# Inverted chat: history loads at the top, incoming bursts, then scroll to top.
 route Chat
 latency 250,700
 wait 2

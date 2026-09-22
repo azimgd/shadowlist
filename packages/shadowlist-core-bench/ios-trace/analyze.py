@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Reduce an iOS device trace (run.sh) to MVCP / scroll-quality findings and JS cost.
+Turn an iOS trace log from run.sh into scroll findings and JS cost.
 
-Input lines (one stdout log from `simctl launch --console-pty` with SHADOWLIST_FRAME_TRACE=1):
+Input is the console log of simctl launch --console-pty with SHADOWLIST_FRAME_TRACE=1:
 
   [SLF] t=<s> id=<tag> frame ax=v inv=0 off= cs= vp= ins= ph= ref= hdr=pos+size stt= jump= rows=[ key@pos+size~ ]
   [SLF] t=<s> id=<tag> ev=<name> k=v ...        host events (state, drag-begin, stt-tick, refresh-*, ...)
@@ -11,21 +11,18 @@ Input lines (one stdout log from `simctl launch --console-pty` with SHADOWLIST_F
   [SCN] t=<s> <label>                            scenario markers (run.sh writes <log>.marks)
   [SL] ...                                        core trace, no timestamp (kept for --window)
 
-All timestamps are mach_absolute_time seconds. Row positions are screen positions along the
-scroll axis (content position minus offset), so a row that keeps its screen position between
-two frames did not move for the reader.
+Timestamps are mach_absolute_time seconds. Row positions are on screen positions along the
+scroll axis, so a row that keeps its position between two frames did not move for the reader.
 
 Findings:
-  idle-shift     visible rows moved while no finger, momentum or scroll-to-top was active:
-                 the MVCP failure a reader sees as a jump. `explained` when rows were added at
-                 the viewport's leading edge in the same frame of an inverted list resting at
-                 its bottom (the pin) or the refresh inset changed.
-  reversal       content motion flipped direction for one frame and went back (a jitter), or
-                 moved backwards during a scroll-to-top.
-  reflow         rows moved relative to each other with no row before them resizing or
-                 appearing: rows below an anchor shifted by an unrelated change.
-  blank          uncovered viewport span (no row, no header) of at least --blank-pt.
-  discontinuity  consecutive frames share no row while both show rows (a jump landed).
+  idle-shift     visible rows moved with no finger, fling or scroll to top going on.
+                 The reader sees a jump. Marked explained when there's a known reason,
+                 like an inverted list pinned to its bottom or a refresh inset change.
+  reversal       motion flipped for one frame and went back, a jitter, or went backwards
+                 during a scroll to top.
+  reflow         rows moved against each other with no row above them resizing or appearing.
+  blank          an empty stretch of the screen, no row or header, of at least --blank-pt.
+  discontinuity  two frames that both show rows share none, meaning a jump landed.
 """
 import argparse
 import bisect
@@ -83,7 +80,7 @@ class Frame:
         counts = defaultdict(int)
         for row in self.rows:
             counts[row[0]] += 1
-        # Truncated keys can collide; a duplicated key is useless for matching.
+        # Short keys can collide, so skip any key that appears twice.
         self.pos = {row[0]: row[1] for row in self.rows if counts[row[0]] == 1}
         self.size = {row[0]: row[2] for row in self.rows if counts[row[0]] == 1}
 
@@ -151,7 +148,7 @@ def analyze_list(list_frames, list_events, blank_pt):
     motions = []
     discontinuities = 0
     gesture_times = [t for t, _, name, _, _ in list_events if name in ("drag-begin", "drag-end")]
-    # An imperative scroll (scrollToIndex / scrollToEnd) moves the list on purpose.
+    # scrollToIndex and scrollToEnd move the list on purpose.
     command_times = [t for t, _, name, _, _ in list_events
                      if name in ("cmd-scroll-to-index", "cmd-scroll-to-end")]
     stats = defaultdict(float)
@@ -170,24 +167,23 @@ def analyze_list(list_frames, list_events, blank_pt):
                     reason.append("fast-fling")
                 elif cur.inv and abs((cur.cs - cur.off) - cur.vp) < 2.0 and cur.off > prev.off:
                     reason.append("inverted-bottom-pin")
+                elif any(cur.t - 1.0 <= command <= cur.t for command in command_times):
+                    reason.append("scroll-command")
                 findings.append({"t": cur.t, "kind": "discontinuity", "explained": ",".join(reason),
                                  "detail": f"off {prev.off:.1f}->{cur.off:.1f} ph={cur.ph} stt={int(cur.stt)}"})
             continue
         deltas = {key: cur.pos[key] - prev.pos[key] for key in shared}
-        # The list's motion is what the row nearest the viewport start did, not the median of
-        # every row: rows inserted inside the viewport move only what follows them, and a
-        # median then lands between the held rows and the shifted ones, blaming both.
+        # Take the list's motion from the first visible row, not the median. An insert on
+        # screen only moves the rows after it, and a median would blame both groups.
         shift = deltas[min(shared, key=lambda key: cur.pos[key])]
         motions.append((cur.t, shift, cur.ph, cur.stt or prev.stt))
 
-        # Rows added inside the viewport push everything after them down, which is exactly what
-        # the anchor promises: the rows before the first new one keep their place. Scored once
-        # here, so neither the reflow scan nor the idle-shift test reads it as a jump (the rows
-        # above an insert otherwise show up as moving against a median made of the rows below).
+        # Rows added on screen push the rows after them down while the rows above hold.
+        # That's expected, so note it here and don't count it as a reflow or idle shift.
         new_keys = [row[0] for row in cur.rows if row[0] not in prev.pos and row[0] in cur.pos]
         gone_keys = [key for key in prev.pos if key not in cur.pos]
         def structure_holds(boundary, position_of):
-            """Rows before `boundary` moved with the list, rows after it by one constant."""
+            """Check rows above the boundary moved with the list and rows below all moved together."""
             above = [deltas[key] for key in shared if position_of(key) < boundary]
             below = [deltas[key] for key in shared if position_of(key) > boundary]
             if not below or any(abs(delta - shift) > 0.5 for delta in above):
@@ -200,20 +196,19 @@ def analyze_list(list_frames, list_events, blank_pt):
             insert_in_viewport = structure_holds(
                 min(cur.pos[key] for key in new_keys), lambda key: cur.pos[key])
         if gone_keys and not insert_in_viewport:
-            # The mirror of an insert: rows removed inside the viewport (a tree node collapsing)
-            # pull everything after them up, while the rows before the first removed one hold.
+            # Same for removes, like a tree node collapsing: rows below move up, rows above hold.
             remove_in_viewport = structure_holds(
                 min(prev.pos[key] for key in gone_keys), lambda key: prev.pos[key])
         structure_change = insert_in_viewport or remove_in_viewport
 
-        # Rows moving relative to the median, not explained by a resize/insert before them.
+        # Find rows that moved against the list with no resize or insert above them.
         ordered = sorted(cur.rows, key=lambda row: row[1])
         explained = False
         unexplained = []
         for key, position, size, _ in ordered:
             if key not in deltas:
                 if key not in prev.pos:
-                    explained = True  # a new row appeared before the rows that follow
+                    explained = True  # a new row pushes the rows after it
                 continue
             if abs(prev.size.get(key, size) - size) > 0.5:
                 explained = True
@@ -234,20 +229,18 @@ def analyze_list(list_frames, list_events, blank_pt):
                 reason.append("remove-in-viewport")
             if any(cur.t - 1.0 <= command <= cur.t for command in command_times):
                 reason.append("scroll-command")
-            # Resting against the content start: growth above the viewport (a header gaining a
-            # spinner) can only push the rows down, there is no offset left to absorb it.
+            # At the very top, growth above like a header spinner can only push rows down.
             if cur.off <= 0.5 and cur.cs > prev.cs + 0.5 and shift > 0.0:
                 reason.append("grew-at-content-start")
-            # Content that does not fill the viewport has no scroll range to absorb an insert,
-            # so rows added above the reader can only push the others down.
+            # Content shorter than the screen can't scroll to absorb an insert above.
             if cur.cs <= cur.vp + 0.5 or prev.cs <= prev.vp + 0.5:
                 reason.append("content-shorter-than-viewport")
             if abs(cur.ins - prev.ins) > 0.5 or cur.ref or prev.ref:
                 reason.append("refresh-inset")
-            # Offset past either edge: a bounce or the refresh control retracting.
+            # Past either edge, from a bounce or the refresh control closing.
             if min(prev.off, cur.off) < -0.5 or max(prev.off, cur.off) > max(0.0, cur.cs - cur.vp) + 0.5:
                 reason.append("overscroll-settle")
-            # Content grown at the bottom of an inverted list that stays pinned there.
+            # An inverted list pinned to its bottom while content grows there.
             if cur.inv and abs((cur.cs - cur.off) - cur.vp) < 2.0 and shift < 0 and \
                (new_keys or cur.cs > prev.cs or cur.off > prev.off):
                 reason.append("inverted-bottom-pin")
@@ -256,7 +249,7 @@ def analyze_list(list_frames, list_events, blank_pt):
                              "detail": f"rows {shift:+.1f}pt off {prev.off:.1f}->{cur.off:.1f} cs {prev.cs:.1f}->{cur.cs:.1f}"
                                        f" hdr {prev.hdr_size:.0f}->{cur.hdr_size:.0f} new={len(new_keys)}"})
 
-        # Blank viewport spans.
+        # Look for empty stretches on screen.
         start = max(0.0, -cur.off)
         end = min(cur.vp, cur.cs - cur.off)
         spans = sorted([(row[1], row[1] + row[2]) for row in cur.rows] +
@@ -274,9 +267,8 @@ def analyze_list(list_frames, list_events, blank_pt):
             findings.append({"t": cur.t, "kind": "blank", "magnitude": largest,
                              "detail": f"{largest:.0f}pt at {where} ph={cur.ph} off={cur.off:.0f}"})
 
-    # One-frame reversals and scroll-to-top backwards steps.
-    # Frames where the view sits past an edge: the rubber band pulls it back, which reverses
-    # the content's direction without anything having gone wrong.
+    # Find one frame reversals and backward steps during scroll to top.
+    # Skip frames past an edge, where the bounce back reverses direction on its own.
     overscrolled = {
         frame.t for frame in list_frames
         if frame.off < -0.5 or frame.off > max(0.0, frame.cs - frame.vp) + 0.5
@@ -322,9 +314,8 @@ def summarize(path, blank_pt, min_shift):
         findings = [f for f in findings if f["kind"] != "idle-shift" or f["magnitude"] >= min_shift]
         renders = [j for j in js if j[1] == "render" and j[2].get("id") == list_id]
         jsms = [num(j[2].get("jsms")) for j in renders]
-        # How long a JS commit that rendered rows took to reach the screen: from the render
-        # line to this list's next committed frame. A fling that outruns JS shows up here
-        # before it shows up as a blank.
+        # Time from a JS render with rows to the list's next frame. A fling that outruns
+        # JS shows up here before it shows up as a blank.
         frame_times = [frame.t for frame in list_frames]
         mount_delays = []
         for render in renders:
@@ -333,9 +324,8 @@ def summarize(path, blank_pt, min_shift):
             frame_index = bisect.bisect_right(frame_times, render[0])
             if frame_index < len(frame_times):
                 delay = (frame_times[frame_index] - render[0]) * 1000.0
-                # A frame only prints when the committed picture changes, so a render whose
-                # next frame is seconds away did not change what is on screen (an optimistic
-                # update that redraws identically, say) rather than taking seconds to mount.
+                # Frames only print when the picture changes. A long gap means the render
+                # changed nothing on screen, not that it took seconds to mount.
                 if delay <= 250.0:
                     mount_delays.append(delay)
         report["lists"][list_id] = {
@@ -345,7 +335,7 @@ def summarize(path, blank_pt, min_shift):
             "mount_p50": percentile(mount_delays, 0.5), "mount_p95": percentile(mount_delays, 0.95),
             "mount_max": max(mount_delays) if mount_delays else 0.0,
         }
-    # Rows the native-view band left hidden inside the viewport (debug builds log these).
+    # Rows left hidden on screen by the native view band. Only debug builds log these.
     report["hook_on_screen_hidden"] = sum(1 for _, line in raw if "hook: on-screen hidden row" in line)
     report["js"] = {
         "vis": sum(1 for j in js if j[1] == "vis"),

@@ -1,5 +1,5 @@
-# Streaming assistant: the reply grows in place while the reader follows the bottom, then
-# drags away (following is released) and comes back; history is prepended at the top.
+# The assistant reply grows while the reader follows the bottom, then the reader
+# drags away and comes back. Older history loads at the top.
 route Assistant
 latency 250,700
 wait 3

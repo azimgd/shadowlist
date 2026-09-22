@@ -2,15 +2,12 @@
 """
 Reduce one device-metrics.sh run to a comparable report.
 
-The blank-cell measure is the interesting part. A raw screencap is RGBA_8888 behind a
-16-byte header, so the framebuffer can be read with nothing but the standard library.
-For each sampled frame the list viewport is scanned for the tallest full-width band of
-background colour (see blank_band). A band far taller than row padding is a row the
-pipeline has not produced yet, which is what a user sees as a blank cell.
+A raw screenshot is RGBA pixels after a 16 byte header, so plain Python can read it.
+In each one we find the tallest full width band of background in the list. A band much
+taller than row padding is a missing row, which the user sees as a blank cell.
 
-The background colour is normally pinned with --background so every build under
-comparison is scored against the same reference; without it, it is calibrated from the
-settled frame cal.raw.
+The background color is usually fixed with --background. Without it, it is read from
+the settled frame cal.raw.
 """
 import argparse
 import math
@@ -21,7 +18,7 @@ import struct
 
 HEADER = 16
 
-# A background band taller than this cannot be row padding; it is a row that is not there.
+# A background band taller than this is a missing row, not padding.
 BLANK_BAND_PX = 200
 
 
@@ -37,7 +34,7 @@ def read_raw(path):
 
 
 def dominant_colour(width, pixels, y0, y1, step=7):
-    """Most common pixel in the viewport of a settled frame: the list background."""
+    """Return the most common color in a settled frame, which is the list background."""
     counts = {}
     for y in range(y0, y1, step):
         row = y * width * 4
@@ -52,17 +49,11 @@ def dominant_colour(width, pixels, y0, y1, step=7):
 
 def blank_band(width, pixels, y0, y1, background, step=4, tolerance=6, purity=0.98):
     """
-    Height of the tallest FULL-WIDTH band of background inside the list viewport.
+    Return the height of the tallest full width band of background in the list.
 
-    Counting background pixels outright does not measure blank cells: a chat bubble is
-    capped at 75% width, so the gutter beside every message is background and a healthy
-    list reads as ~40% "blank". A missing row looks different: a horizontal band where
-    background spans the entire width, far taller than the few pixels of padding between
-    two bubbles.
-
-    So a scanline counts only when it is background nearly all the way across, and the
-    result is the tallest run of consecutive such scanlines. Padding between rows yields
-    a band of a few pixels; a row the pipeline has not produced yields hundreds.
+    Counting background pixels alone doesn't work, since chat bubbles leave empty space
+    beside them. So a line counts only when it is background nearly all the way across.
+    Padding between rows gives a few pixels. A missing row gives hundreds.
     """
     red, green, blue = background[0], background[1], background[2]
     longest = current = 0
@@ -86,12 +77,10 @@ def blank_band(width, pixels, y0, y1, background, step=4, tolerance=6, purity=0.
 
 def frame_signature(width, pixels, y0, y1, step=11):
     """
-    Cheap content fingerprint of the list viewport.
+    Return a cheap fingerprint of what the list shows.
 
-    Comparing successive fingerprints answers the question every scroll benchmark has to
-    answer before any of its other numbers mean anything: did the list actually move? A
-    run whose frames are all identical measured a stationary list, however good its frame
-    times look.
+    We compare these to check the list actually moved. If every frame is the same,
+    the run measured a list standing still.
     """
     accumulator = 0
     for y in range(y0, y1, step):
@@ -104,7 +93,7 @@ def frame_signature(width, pixels, y0, y1, step=11):
 
 
 def parse_frames(path):
-    """Return (total frames, janky frames, sorted frame durations in ms) from framestats."""
+    """Return total frames, janky frames and sorted frame times in ms from framestats."""
     with open(path, errors="replace") as handle:
         text = handle.read()
 
@@ -117,9 +106,8 @@ def parse_frames(path):
         lines = [line for line in block.strip().splitlines() if line.strip()]
         if not lines:
             continue
-        # Resolve columns by NAME. The framestats schema has gained columns over Android
-        # releases (FrameTimelineVsyncId, DisplayPresentTime, ...), so fixed indices read
-        # the wrong field and silently yield zero usable frames.
+        # Look up columns by name. Android keeps adding framestats columns, so fixed
+        # positions would read the wrong field and quietly find no frames.
         header = [cell.strip() for cell in lines[0].rstrip(",").split(",")]
         try:
             flags_column = header.index("Flags")
@@ -175,14 +163,12 @@ def parse_args():
     parser.add_argument("--elapsed-ns", type=int, required=True)
     parser.add_argument("--height", type=int, required=True)
     parser.add_argument("--width", type=int, required=True)
-    # Auto-calibration picks the modal colour of one frame, which on a chat list flips
-    # between the background and a bubble fill depending on where the list is parked, and a
-    # run calibrated to a bubble colour measures something else entirely. Pin it so both
-    # builds under comparison are scored against the same reference.
+    # Reading the color from one frame can pick a chat bubble color instead of the
+    # background. Pass it in so both builds are scored the same way.
     parser.add_argument("--background", default=None,
                         help="hex background, e.g. 000000; empty calibrates from cal.raw")
-    # List viewport as fractions of screen height: inside the list, clear of header chrome
-    # and any composer. The defaults fit the example app's Chat screen.
+    # Where the list sits, as fractions of screen height, clear of the header and composer.
+    # The defaults fit the Chat screen.
     parser.add_argument("--viewport-top", type=float, default=0.16)
     parser.add_argument("--viewport-bottom", type=float, default=0.76)
     return parser.parse_args()

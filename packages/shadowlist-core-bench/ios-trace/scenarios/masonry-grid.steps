@@ -1,5 +1,5 @@
-# Three-column grid: prepends land in track order, so a correction has to account for a
-# whole row of tracks rather than one element.
+# Three column grid: prepends land in track order, so a correction has to cover
+# a whole row of tracks, not one element.
 route Masonry
 latency 250,700
 wait 2.5

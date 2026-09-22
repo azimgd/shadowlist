@@ -1,4 +1,4 @@
-# Default list with header: pull-to-refresh that finds new posts, and prepends racing a refresh.
+# Default list with a header: a refresh that finds new posts, and prepends racing a refresh.
 route Feed
 latency 250,700
 wait 2

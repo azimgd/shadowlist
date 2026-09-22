@@ -1,5 +1,4 @@
-# Sticky section headers: rows added before the visible ones, at the end, and a rotation
-# (width change invalidates every predicted row height).
+# Sticky section headers: rows added above the visible ones and at the end.
 route SectionList
 latency 250,700
 wait 2.5
@@ -27,5 +26,4 @@ repeat 4 pan 200 750 0 -600 120
 wait 1.5
 repeat 2 press 333 80
 wait 3
-# No rotation step: the example app is locked to portrait on iPhone (Info.plist), so
-# `ad orientation landscape-left` is a no-op there. Width-change coverage needs an iPad sim.
+# No rotation step. The app is portrait only on iPhone, so testing a width change needs an iPad simulator.

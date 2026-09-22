@@ -1,32 +1,28 @@
 #!/usr/bin/env bash
 #
-# Full-stack device metrics for the example app under fast scrolling.
+# Measure the example app on an Android device while it scrolls fast.
 #
 #   ./device-metrics.sh <label> <screen> [flings] [swipe_ms]
 #
-# <screen> is the drawer label of the example app screen to measure (e.g. Chat, Feed).
-# The script opens it on the connected Android device, flings the list and reports what
-# a user notices or pays for:
+# The screen is its drawer label in the example app, like Chat or Feed. The script opens
+# it, flings the list and reports:
 #
-#   * FRAMES. Frame timing and jank straight from `dumpsys gfxinfo framestats`.
-#   * BLANK CELLS. Sampled from the framebuffer during the fling: the tallest full-width
-#     band of bare background inside the list viewport, i.e. rows the pipeline has not
-#     produced yet. See analyze-metrics.py.
-#   * MEMORY. PSS and native heap, plus the live View count, which is what the native
-#     view band is supposed to move.
-#   * CPU. utime+stime straight from /proc, as a share of one core over the run.
+#   Frames: timing and jank from dumpsys gfxinfo framestats.
+#   Blank cells: the tallest empty band in the list while flinging, meaning rows that
+#     weren't drawn yet. See analyze-metrics.py.
+#   Memory: PSS, native heap and the live view count, which the native view band should move.
+#   CPU: process time from /proc, as a share of one core over the run.
 #
-# Unlike the core microbenchmark (run.sh) this includes React, Yoga, mounting, JNI and
-# GPU work, so it is noisier: run it more than once.
+# This covers React, Yoga, mounting, JNI and the GPU too, unlike run.sh, so it's noisier.
+# Run it more than once.
 #
 # Environment:
 #   ADB=adb            adb command; may carry a serial, e.g. "adb -s emulator-5554"
 #   BACKGROUND=000000  list background as hex; set it empty to calibrate from a settled frame
 #   MODE=sweep         sweep or local, see below
-#   SHOT_COUNT=90      framebuffer samples; 0 skips blank-cell sampling and its screencap
-#                      load, for a frame-timing-only run
+#   SHOT_COUNT=90      screenshots to take; 0 skips blank cell sampling and only times frames
 #   VIEWPORT_TOP=0.16 VIEWPORT_BOTTOM=0.76
-#                      list viewport as fractions of screen height (defaults fit Chat)
+#                      where the list sits, as fractions of screen height. Defaults fit Chat.
 #
 set -euo pipefail
 
@@ -34,22 +30,18 @@ LABEL="${1:?usage: device-metrics.sh <label> <screen> [flings] [swipe_ms]}"
 SCREEN="${2:?usage: device-metrics.sh <label> <screen> [flings] [swipe_ms]}"
 FLINGS="${3:-14}"
 SWIPE_MS="${4:-60}"
-# App background (shadowlist-utils theme colors.background). Pinned rather than sampled
-# by default so every build is scored against the same reference.
+# The theme background color. Fixed by default so every build is scored the same way.
 BACKGROUND="${BACKGROUND-000000}"
-# sweep = every fling in the same direction, so the run travels deep into the dataset
-# instead of oscillating around one spot. A list only reveals its scaling behaviour when
-# the scroll actually leaves the region it started in: offsets stop being cached, the
-# measured window keeps moving into fresh rows, and any per-frame O(N) work shows up.
-# local = alternating, which measures steady-state scrolling in one neighbourhood.
+# sweep flings the same way every time, so the run goes deep into fresh rows where
+# slow per frame work shows up. local alternates and stays in one area.
 MODE="${MODE:-sweep}"
-# Framebuffer samples. ~170ms each on-device, so this should span the whole run.
+# Each screenshot takes about 170ms on device, so this should cover the whole run.
 SHOT_COUNT="${SHOT_COUNT:-90}"
 VIEWPORT_TOP="${VIEWPORT_TOP:-0.16}"
 VIEWPORT_BOTTOM="${VIEWPORT_BOTTOM:-0.76}"
 
 PKG=shadowlist.example
-# Intentionally expanded unquoted below: ADB may carry arguments such as "-s SERIAL".
+# Left unquoted on purpose below, since ADB may carry arguments like "-s SERIAL".
 ADB="${ADB:-adb}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESULTS="$HERE/results"
@@ -63,14 +55,13 @@ CX=$((WIDTH / 2))
 Y_LOW=$((HEIGHT * 78 / 100))
 Y_HIGH=$((HEIGHT * 25 / 100))
 
-# Wall clock in nanoseconds. `date +%s%N` is not portable (older macOS prints a literal N).
+# Wall clock in nanoseconds. date +%s%N doesn't work on older macOS.
 now_ns() {
   python3 -c 'import time; print(time.time_ns())'
 }
 
-# ------------------------------------------------------------------ navigation
-# Dump the view tree and return "x1 y1 x2 y2" for the first node matching an attribute
-# pattern, or nothing. Tolerant by design: a miss is a caller decision, not a hard exit.
+# Print the bounds of the first view matching the pattern, or nothing.
+# The caller decides what a miss means.
 find_bounds() {
   $ADB shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
   $ADB shell cat /sdcard/ui.xml | tr '>' '\n' \
@@ -81,12 +72,11 @@ find_bounds() {
 
 # Open the drawer and tap the entry labelled $SCREEN.
 navigate() {
-  # Bring the app to the front first: a drawer gesture on the launcher silently does nothing.
+  # Bring the app to the front first, or the drawer tap lands on the launcher.
   $ADB shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
   sleep 4
-  # Tap the header's drawer button rather than swiping from the edge: on a device using
-  # gesture navigation the system back gesture owns the screen edge and swallows the swipe,
-  # which navigates out of the app instead of opening the drawer.
+  # Tap the menu button instead of swiping from the edge. With gesture navigation
+  # the edge swipe goes back and leaves the app.
   local menu
   menu=$(find_bounds 'content-desc="Show navigation menu"')
   if [[ -n "$menu" ]]; then
@@ -111,20 +101,20 @@ navigate
 PID=$($ADB shell pidof "$PKG" | tr -d '\r')
 [[ -n "$PID" ]] || { echo "!! app not running" >&2; exit 1; }
 
-# Warm the list so we measure steady-state scrolling, not first-render.
+# Warm up the list so we measure normal scrolling, not the first render.
 for _ in 1 2 3; do
   $ADB shell input swipe "$CX" "$Y_LOW" "$CX" "$Y_HIGH" 200 >/dev/null
 done
 sleep 2
 
-# ------------------------------------------------------- calibration + counters
+# Take a reference screenshot and reset the counters.
 $ADB shell "rm -rf $SHOTS; mkdir -p $SHOTS"
 $ADB shell "screencap $SHOTS/cal.raw"
 $ADB shell dumpsys gfxinfo "$PKG" reset >/dev/null
 CPU_BEFORE=$($ADB shell "cat /proc/$PID/stat" | tr -d '\r' | awk '{print $14+$15}')
 T_BEFORE=$(now_ns)
 
-# Sample the framebuffer continuously on-device (~170ms/frame) for the whole run.
+# Keep taking screenshots on the device for the whole run.
 CAPTURE_PID=""
 if ((SHOT_COUNT > 0)); then
   $ADB shell "for i in \$(seq 1 $SHOT_COUNT); do screencap $SHOTS/f\$i.raw; done" >/dev/null 2>&1 &
@@ -137,9 +127,8 @@ for ((i = 0; i < FLINGS; i++)); do
   else
     $ADB shell input swipe "$CX" "$Y_HIGH" "$CX" "$Y_LOW" "$SWIPE_MS" >/dev/null
   fi
-  # `input swipe` returns as soon as the events are injected, but the fling it starts
-  # animates for the best part of a second. Without this the whole run is over before
-  # the list has moved, and the samples describe a settled list.
+  # The swipe command returns right away but the fling runs for most of a second.
+  # Wait, or the run ends before the list has moved.
   sleep 0.35
 done
 
