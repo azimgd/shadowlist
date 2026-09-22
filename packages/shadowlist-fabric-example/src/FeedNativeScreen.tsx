@@ -35,9 +35,9 @@ const GALLERY_SLOTS = 4;
 const SINGLE_IMAGE_HEIGHT = 200;
 
 /*
- * A Feed row flattened into plain data for the native templates: everything the row shows is a
- * field, computed once here rather than in a render per row. Only content: theme colors are
- * template styles, so a theme switch restyles the rows without touching the data.
+ * A Feed row flattened into plain data for the native templates. Everything the row shows is
+ * a field computed once here. Theme colors live in the template styles, so a theme switch
+ * restyles the rows without touching the data.
  */
 interface FeedNativeRow {
   id: string;
@@ -53,12 +53,14 @@ interface FeedNativeRow {
   likes: number;
 }
 
-// The reader's own changes, which the fake server does not know: applied to every page that
-// arrives (paging, refresh), as a real app's local mutation cache would.
+/*
+ * The reader's own edits, which the fake server does not know about. They are applied to every
+ * page that arrives, like a real app's local mutation cache.
+ */
 interface LocalEdits {
   hidden: Set<string>;
   patches: Map<string, Partial<FeedNativeRow>>;
-  // Rows made on this screen ("Prepend"): kept at the top across a refresh.
+  // Rows made on this screen with Prepend stay at the top across a refresh.
   created: FeedNativeRow[];
 }
 
@@ -104,9 +106,9 @@ function toggleLike(row: FeedNativeRow): Partial<FeedNativeRow> {
 }
 
 /*
- * Feed on ShadowListNative. The list owns its rows (`initialData`): the first page seeds it,
- * later pages are appended, likes/hides/prepends are commands, and a pull to refresh replaces
- * the rows with setData once the spinner has retracted (so the new posts show at the top).
+ * Feed on ShadowListNative. The list owns its rows through initialData. The first page seeds it,
+ * later pages append, and likes, hides and prepends are commands. A pull to refresh swaps the
+ * rows with setData once the spinner is gone, and the visible post stays in place.
  */
 export const FeedNativeScreen = () => {
   const screenStyles = useScreenStyles();
@@ -116,7 +118,7 @@ export const FeedNativeScreen = () => {
   const [nameAccent, setNameAccent] = useState(false);
   const publishedRef = useRef(0);
 
-  // The avatar palette is content (the same in both themes); read it without a dependency.
+  // The avatar palette is the same in both themes, so read it without a dependency.
   const paletteRef = useRef(colors.avatarPalette);
   paletteRef.current = colors.avatarPalette;
 
@@ -127,7 +129,7 @@ export const FeedNativeScreen = () => {
   const cursorRef = useRef<number | undefined>(undefined);
   const loadingRef = useRef(false);
   const heldPageRef = useRef<CursorPage<FeedItem> | null>(null);
-  // Bumped when a refresh replaces the rows; a page requested before that is dropped.
+  // Bumped when a refresh replaces the rows, so a page requested before that is dropped.
   const generationRef = useRef(0);
   const editsRef = useRef<LocalEdits>({
     hidden: new Set(),
@@ -178,7 +180,7 @@ export const FeedNativeScreen = () => {
     const generation = generationRef.current;
     fetchFeedPage({ after: cursor })
       .then((page) => {
-        // It continues the rows a refresh has since replaced: appending it would skip posts.
+        // This page continues rows a refresh has since replaced, so appending it would skip posts.
         if (generation !== generationRef.current) return;
         takePage(page);
         listRef.current?.appendItems(rowsOf(page.items));
@@ -199,7 +201,10 @@ export const FeedNativeScreen = () => {
       .finally(() => setRefreshing(false));
   }, []);
 
-  // The refreshed first page replaces the rows once the spinner is gone, at the top of the list.
+  /*
+   * Swap in the refreshed first page once the spinner is gone. The post the reader was looking at
+   * is in that page, so it stays put and the new posts land above it, like a prepend on Feed.
+   */
   const applyRefresh = useCallback(() => {
     const page = heldPageRef.current;
     heldPageRef.current = null;
@@ -207,12 +212,10 @@ export const FeedNativeScreen = () => {
     generationRef.current += 1;
     takePage(page);
     const { created, hidden } = editsRef.current;
-    // At the top in the same commit: MVCP would keep the old first post in place, while the
-    // reader pulled for what is new, above it.
-    listRef.current?.setData(
-      [...created.filter((row) => !hidden.has(row.id)), ...rowsOf(page.items)],
-      { scrollTo: 'start' }
-    );
+    listRef.current?.setData([
+      ...created.filter((row) => !hidden.has(row.id)),
+      ...rowsOf(page.items),
+    ]);
   }, [rowsOf, takePage]);
 
   useHeaderActions({
@@ -314,8 +317,8 @@ export const FeedNativeScreen = () => {
       </View>
     );
     /*
-     * Liked and not liked are two elements styled by the template (theme colors), toggled by
-     * data. U+FE0E keeps the heart a text glyph; Android draws a bare U+2665 as a color emoji.
+     * Liked and not liked are two template elements toggled by data. U+FE0E keeps the heart a text
+     * glyph, since Android draws a bare U+2665 as a color emoji.
      */
     const actions = (
       <View style={styles.actions}>
