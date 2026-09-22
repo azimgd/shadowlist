@@ -21,6 +21,8 @@
     "shadowlist-core",
     "*.podspec",
     "react-native.config.js",
+    "CHANGELOG.md",
+    "SHADOWLIST_NATIVE.md",
     "!ios/build",
     "!android/build",
     "!android/gradle",
