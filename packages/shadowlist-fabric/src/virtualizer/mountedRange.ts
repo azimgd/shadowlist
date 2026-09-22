@@ -1,8 +1,8 @@
 import { SHADOWLIST_OVERSCAN } from './helpers';
 
 /*
- * Mounted range [low, high]. Mounts `overscanRows` extra rows on each side of the visible
- * window and only re-renders when the window leaves the mounted range.
+ * The mounted range, low to high. Mounts overscanRows extra rows on each side of the screen
+ * and only re-renders when the screen leaves that range.
  */
 export interface MountedRange {
   low: number;
@@ -19,12 +19,11 @@ export function initialMountedRange(
 ): MountedRange {
   if (size <= 0) return { low: -1, high: -1 };
   /*
-   * With an explicit initial target, seed the range around it (avoids a blank flash
-   * at the target). An explicit target overrides the inverted bottom anchor.
-   *
-   * viewPosition decides which side of the target the reader ends up looking at: a
-   * start-aligned jump fills the screen with the rows after it, a centred or end-aligned
-   * one with the rows before it. Split the band by the same fraction.
+   * With a starting target, mount around it so it doesn't flash blank. It wins over the
+   * inverted list's bottom start.
+   * viewPosition decides which side of the target is on screen. Aligned to the start the
+   * rows after it fill the screen, centered or at the end the rows before it. Split the
+   * mounted rows the same way.
    */
   if (offsetIndex >= 0) {
     const target = Math.min(offsetIndex, size - 1);
@@ -40,6 +39,30 @@ export function initialMountedRange(
   return { low: 0, high: Math.min(initial, size - 1) };
 }
 
+/*
+ * Indices of both ranges, sorted and without duplicates. While a scroll command is on its
+ * way, mount the rows around its target and keep the rows still on screen. Native jumps a
+ * frame or more later, and unmounting the visible rows early would show a blank screen.
+ */
+export function unionRangeIndices(
+  first: MountedRange,
+  second: MountedRange
+): number[] {
+  const firstIndices = rangeToIndices(first);
+  const secondIndices = rangeToIndices(second);
+  if (firstIndices.length === 0) return secondIndices;
+  if (secondIndices.length === 0) return firstIndices;
+  const [lower, upper] =
+    first.low <= second.low ? [first, second] : [second, first];
+  if (upper.low <= lower.high + 1) {
+    return rangeToIndices({
+      low: lower.low,
+      high: Math.max(lower.high, upper.high),
+    });
+  }
+  return [...rangeToIndices(lower), ...rangeToIndices(upper)];
+}
+
 export function rangeToIndices(range: MountedRange): number[] {
   if (range.low < 0 || range.high < 0 || range.low > range.high) return [];
   const indices: number[] = [];
@@ -48,10 +71,9 @@ export function rangeToIndices(range: MountedRange): number[] {
 }
 
 /*
- * Whether a change of containerOffsetIndex should rebuild the mounted window around the
- * new target, rather than leave it where the last native report put it. A negative value
- * is "no target" (see initialMountedRange) and must not drag a reader who has scrolled
- * away back to the seed.
+ * Whether a new containerOffsetIndex should rebuild the mounted rows around it, instead of
+ * where native last reported. A negative value means no target, and must not pull a reader
+ * who scrolled away back to the start.
  */
 export function shouldReseedFromOffsetIndex(
   previousOffsetIndex: number,
