@@ -6,6 +6,7 @@ import {
   initialMountedRange,
   rangeToIndices,
   shouldReseedFromOffsetIndex,
+  unionRangeIndices,
   type MountedRange,
 } from './mountedRange';
 
@@ -29,15 +30,17 @@ interface UseMountedRangeResult {
   seedAroundIndex: (index: number, viewPosition: number) => void;
 }
 
-// Where an imperative scrollToIndex is about to put the viewport.
+/*
+ * Where a scrollToIndex call is about to scroll to.
+ */
 interface SeedTarget {
   index: number;
   viewPosition: number;
 }
 
 /*
- * Rows an inverted list at its end mounts past its range in one append before the range
- * slides onto the tail instead (a reconnect syncing hundreds of messages).
+ * How many appended rows an inverted list at its end mounts on top of its range. A bigger
+ * burst, like a reconnect syncing hundreds of messages, moves the range to the tail instead.
  */
 const MAX_FOLLOWED_APPEND = 50;
 
@@ -49,8 +52,8 @@ interface MountedKeys {
 }
 
 /*
- * Owns the virtualization window: which flat indices are mounted and how the range
- * follows the native visible window (+overscan).
+ * Decides which rows are mounted and moves that range along with what native reports as
+ * visible, plus overscan.
  */
 export function useMountedRange({
   keys,
@@ -63,19 +66,17 @@ export function useMountedRange({
   overscanRowsLeading,
 }: UseMountedRangeOptions): UseMountedRangeResult {
   /*
-   * null until the first native visible-window report; the initial range is derived
-   * from the seed config (initialElementsSize / inverted / containerOffsetIndex).
+   * Null until native first reports what's visible. Until then the range comes from
+   * initialElementsSize, inverted and containerOffsetIndex.
    */
   const [mountedKeys, setMountedKeys] = useState<MountedKeys | null>(null);
 
   /*
-   * containerOffsetIndex is the row the core scrolls to, and the row this window is seeded
-   * around. Seeding only at mount left the stored edge keys outranking any later change of
-   * the prop, so the core scrolled to a row React had never mounted and the list stayed
-   * blank until the next native report moved the window onto it -- the normal path for a
-   * list that resolves its opening row asynchronously, such as a chat jumping to its first
-   * unread message. So treat a change of the prop like a mount and drop the stored edges,
-   * rebuilding the window around the new target in the same commit that scrolls to it.
+   * containerOffsetIndex is the row the core scrolls to, and we mount around it. If we did
+   * that only on mount, a later change would scroll to rows React never mounted and the list
+   * stayed blank until native reported again. That's common, for example a chat that finds
+   * its first unread message after loading. So treat a change like a mount and rebuild the
+   * range around the new target in the same commit that scrolls there.
    */
   const [seededOffsetIndex, setSeededOffsetIndex] =
     useState(containerOffsetIndex);
@@ -91,23 +92,23 @@ export function useMountedRange({
   }
 
   /*
-   * The target of an imperative scrollToIndex that has not landed yet. The prop always
-   * aligns to the start, so it cannot say which side of the target the reader will see, and
-   * the core gives a command precedence over the prop on a commit carrying both. So this
-   * outranks containerOffsetIndex below and survives a prop change, until native reports
-   * that the scroll landed.
+   * Target of a scrollToIndex call that hasn't landed yet. The prop always aligns to the
+   * start, and the core prefers a command over the prop when a commit has both. So this wins
+   * over containerOffsetIndex and survives a prop change until native says the scroll landed.
    */
   const [commandSeed, setCommandSeed] = useState<SeedTarget | null>(null);
 
+  /*
+   * Keep the stored range. The rows on screen stay mounted next to the target's until the
+   * jump lands, then the next report replaces the range.
+   */
   const seedAroundIndex = useCallback((index: number, viewPosition: number) => {
     setCommandSeed({ index, viewPosition });
-    setMountedKeys(null);
   }, []);
 
   /*
-   * Resolve the stored edge keys to a [low, high] index range in the current data, or
-   * fall back to the seeded initial range before the first report / if an edge key was
-   * removed (e.g. the anchored rows were deleted).
+   * Turn the stored edge keys into an index range in the current data. Use the initial range
+   * before the first report, or when an edge row was deleted.
    */
   const resolveRange = useCallback(
     (edges: MountedKeys | null): MountedRange => {
@@ -116,24 +117,20 @@ export function useMountedRange({
         const highIndex = keyToIndex.get(edges.highKey);
         if (lowIndex !== undefined && highIndex !== undefined) {
           /*
-           * A range that reached an edge of the data follows rows added past that edge, up
-           * to the leading pad: an incoming message under a chat resting at its newest
-           * message, a page appended as the reader reaches the end, history prepended above
-           * the top. Those rows mount in the same render as the data change; otherwise they
-           * would wait for native to report them visible, a whole JS round trip later, while
-           * the viewport is already moving onto them.
+           * A range that touches an edge of the data grows to take rows added past it, up to
+           * the leading pad. Think a new chat message, a page appended at the end, or history
+           * added on top. Mount them in the same render as the data change, instead of waiting
+           * a full round trip for native to report them while the screen already shows them.
            */
           const low = Math.min(lowIndex, highIndex);
           const high = Math.max(lowIndex, highIndex);
           /*
-           * An inverted list at its end that follows appends (followAppends): the core scrolls onto the NEWEST
-           * rows in the same commit, so those are the ones that must mount, however many
-           * arrived. Padding from the stored edge instead leaves the last rows out whenever a
-           * burst outgrows the pad, or a second append lands before native reports the first
-           * (the stored edge is still the old last row): a blank frame, then a shift as they
-           * mount at their real size. Only a burst past MAX_FOLLOWED_APPEND slides the range
-           * onto the tail (unmounting rows from its start) rather than growing it without
-           * bound: a reader just above the follow band still has those rows on screen.
+           * An inverted list at its end with followAppends. The core scrolls to the newest rows
+           * in the same commit, so those must mount, however many came in. Padding from the old
+           * edge misses rows when a burst is bigger than the pad, or a second append lands before
+           * native reports the first. That shows a blank frame and then a jump.
+           * Only a burst over MAX_FOLLOWED_APPEND moves the range to the tail instead of growing
+           * it, since a reader just above may still see those rows.
            */
           if (inverted && followAppends && edges.highAtEnd) {
             const tailHigh = keys.length - 1;
@@ -187,15 +184,33 @@ export function useMountedRange({
     ]
   );
 
-  const mountedIndices = useMemo(
-    () => rangeToIndices(resolveRange(mountedKeys)),
-    [resolveRange, mountedKeys]
-  );
+  const mountedIndices = useMemo(() => {
+    const current = resolveRange(mountedKeys);
+    if (commandSeed === null || mountedKeys === null) {
+      return rangeToIndices(current);
+    }
+    const target = initialMountedRange(
+      keys.length,
+      initialElementsSize,
+      inverted,
+      commandSeed.index,
+      overscanRows,
+      commandSeed.viewPosition
+    );
+    return unionRangeIndices(current, target);
+  }, [
+    resolveRange,
+    mountedKeys,
+    commandSeed,
+    keys.length,
+    initialElementsSize,
+    inverted,
+    overscanRows,
+  ]);
 
   /*
-   * The last window the native side reported, so the direction of travel is known when
-   * the range next has to be rebuilt. A ref, not state: it must never itself cause a
-   * render, and it is only read inside the updater below.
+   * The last visible range native reported, so we know the scroll direction next time. A
+   * ref, since it must never cause a render and only the updater below reads it.
    */
   const lastWindowRef = useRef<{ low: number; high: number } | null>(null);
 
@@ -206,33 +221,32 @@ export function useMountedRange({
     (event) => {
       const { visibleStartIndex, visibleEndIndex } = event.nativeEvent;
       if (visibleStartIndex === -1 || visibleEndIndex === -1) return;
-      // Normalise to an ascending window (inverted lists report start > end).
+      // Inverted lists report start after end, so sort them.
       const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
       const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
       if (windowLow < 0 || windowHigh >= keys.length) return;
 
       const lastWindow = lastWindowRef.current;
       lastWindowRef.current = { low: windowLow, high: windowHigh };
-      // The scroll landed; returning the same value bails out of the re-render.
-      setCommandSeed((current) => (current === null ? current : null));
+      // The scroll landed. Returning the same value skips the re-render.
+      setCommandSeed((previous) => (previous === null ? previous : null));
       if (slTraceEnabled()) {
         slTrace(`vis win=${windowLow}..${windowHigh} n=${keys.length}`);
       }
 
-      setMountedKeys((prev) => {
-        const current = resolveRange(prev);
-        // Already mounted (window within range + overscan): skip the re-render.
+      setMountedKeys((previous) => {
+        const current = resolveRange(previous);
+        // Already mounted, so skip the re-render.
         if (
           current.low >= 0 &&
           windowLow >= current.low &&
           windowHigh <= current.high
         ) {
-          if (prev !== null) return prev;
+          if (previous !== null) return previous;
           /*
-           * The seeded range is still resolved by index. Pin it to the keys at its edges, or
-           * a later prepend shifts the mounted rows out of it: they unmount and remount one
-           * report later, losing their state (a nested list's scroll position). The rows
-           * mounted now are unchanged, so this commit re-renders nothing.
+           * The initial range still uses indices. Pin it to its edge keys, or a later prepend
+           * shifts rows out of it and they remount, losing state like a nested list's scroll
+           * position. The mounted rows stay the same, so nothing re-renders.
            */
           return {
             lowKey: keys[current.low]!,
@@ -243,10 +257,9 @@ export function useMountedRange({
         }
 
         /*
-         * Put the extra runway in front of the user. Direction comes from the window's
-         * own movement (which is what the native side reports), so it works the same for
-         * normal, inverted and horizontal lists without any of them being special-cased.
-         * A first report, or one that did not move, pads both sides evenly.
+         * Mount more rows ahead of where the user is going. The direction comes from how the
+         * visible range moved, so normal, inverted and horizontal lists all work the same.
+         * A first report, or one that didn't move, pads both sides evenly.
          */
         const movingForward = lastWindow ? windowLow > lastWindow.low : false;
         const movingBackward = lastWindow ? windowLow < lastWindow.low : false;
@@ -261,13 +274,13 @@ export function useMountedRange({
         const lowAtStart = low === 0;
         const highAtEnd = high === keys.length - 1;
         if (
-          prev &&
-          prev.lowKey === lowKey &&
-          prev.highKey === highKey &&
-          prev.lowAtStart === lowAtStart &&
-          prev.highAtEnd === highAtEnd
+          previous &&
+          previous.lowKey === lowKey &&
+          previous.highKey === highKey &&
+          previous.lowAtStart === lowAtStart &&
+          previous.highAtEnd === highAtEnd
         ) {
-          return prev;
+          return previous;
         }
         if (slTraceEnabled()) {
           slTrace(
