@@ -936,11 +936,21 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   const std::optional<std::string>& rawText,
   int repeatIndex,
   const PropsParserContext& context) {
+  /*
+   * Reuse the existing nodes only while the structure still matches. A repeated element's
+   * child count follows its array, so only the component must match and children pair up by position.
+   */
+  bool reuse = existing != nullptr && existing->getComponentHandle() == element.prototype->getComponentHandle() &&
+    (element.repeat || existing->getChildren().size() == element.children.size());
+
   Props::Shared props;
+  // The patch these props are made from, when they come from bound values or text.
+  std::optional<folly::dynamic> boundPatch;
+  bool boundPropsReused = false;
   if (propsOverride != nullptr) {
     props = *propsOverride;
   } else if (rawText) {
-    props = cloneWithPatch(*element.prototype, element.baseProps, folly::dynamic::object("text", *rawText), context);
+    boundPatch = folly::dynamic::object("text", *rawText);
   } else if (element.bindings.empty()) {
     props = element.baseProps;
   } else {
@@ -948,15 +958,32 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
     for (const auto& [prop, expression] : element.bindings) {
       applyBinding(patch, prop, evaluate(expression, item), *element.baseProps);
     }
-    props = cloneWithPatch(*element.prototype, element.baseProps, std::move(patch), context);
+    boundPatch = std::move(patch);
   }
-
-  /*
-   * Reuse the existing nodes only while the structure still matches. A repeated element's
-   * child count follows its array, so only the component must match and children pair up by position.
-   */
-  bool reuse = existing != nullptr && existing->getComponentHandle() == element.prototype->getComponentHandle() &&
-    (element.repeat || existing->getChildren().size() == element.children.size());
+  if (boundPatch) {
+    /*
+     * A rebind usually leaves most elements' values alone. Parsing props is the costly part,
+     * and new props also make the node look changed, so keep the existing props when they
+     * came from the same base and the same patch. See boundProps_.
+     */
+    if (reuse) {
+      auto previous = boundProps_.find(existing->getTag());
+      if (previous != boundProps_.end() && previous->second.base == element.baseProps &&
+          previous->second.patch == *boundPatch) {
+        props = existing->getProps();
+        boundPropsReused = true;
+      }
+    }
+    if (!boundPropsReused) {
+      props = cloneWithPatch(*element.prototype, element.baseProps, *boundPatch, context);
+    }
+  }
+  // Records the patch for the node that ends up with these props.
+  auto rememberBoundProps = [&](Tag tag) {
+    if (boundPatch && !boundPropsReused) {
+      boundProps_.insert_or_assign(tag, BoundProps{element.baseProps, std::move(*boundPatch)});
+    }
+  };
 
   std::optional<std::string> text;
   if (element.text) {
@@ -1012,6 +1039,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
     if (sameChildren && props == existing->getProps()) {
       return existing;
     }
+    rememberBoundProps(existing->getTag());
     auto childList = std::make_shared<const ChildList>(std::move(children));
     return existing->clone({.props = props, .children = childList});
   }
@@ -1028,6 +1056,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   auto childList = std::make_shared<const ChildList>(std::move(children));
   auto node = descriptor.createShadowNode({.props = props, .children = childList, .state = state}, family);
   tagKeys_[tag] = TagEntry{key, repeatIndex};
+  rememberBoundProps(tag);
   return node;
 }
 
@@ -1150,6 +1179,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::stickyRowLocked(
 }
 
 void ShadowListNativeEngine::forgetTagsLocked(const ShadowNode& node, const std::string& key) {
+  boundProps_.erase(node.getTag());
   auto found = tagKeys_.find(node.getTag());
   if (found != tagKeys_.end() && found->second.key == key) {
     tagKeys_.erase(found);

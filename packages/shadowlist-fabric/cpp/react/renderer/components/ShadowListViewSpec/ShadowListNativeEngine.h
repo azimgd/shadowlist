@@ -368,6 +368,16 @@ private:
     int repeatIndex = -1;
   };
   std::unordered_map<Tag, TagEntry> tagKeys_;
+  /*
+   * For each built node whose props came from bound values or text, the base props and the
+   * patch they were made from. The base is held strongly, so its address can't be reused.
+   * Dropped with the node's tag.
+   */
+  struct BoundProps {
+    Props::Shared base;
+    folly::dynamic patch;
+  };
+  std::unordered_map<Tag, BoundProps> boundProps_;
   std::uint64_t clock_ = 0;
 
   // First and last keys the last pass mounted.
