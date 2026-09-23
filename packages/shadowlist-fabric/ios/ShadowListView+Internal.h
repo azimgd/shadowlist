@@ -99,6 +99,20 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   BOOL _inMountObserver;
 
   /*
+   * Set when a subview may now sit above the sticky views, for example after a mount or a
+   * drag pickup. The next pin raises them once instead of on every scroll frame.
+   * The overlay has its own flag because it is only raised while it is shown.
+   */
+  BOOL _stickyOrderDirty;
+  BOOL _overlayOrderDirty;
+  /*
+   * Rows mounted in the current transaction. Pinning and the drag shuffle run once when
+   * the transaction finishes instead of once per row. See mountingTransactionDidMount.
+   */
+  BOOL _mountNeedsSticky;
+  BOOL _mountNeedsDragShuffle;
+
+  /*
    * Set when we applied an offset from the core and it moved the view, so the next
    * scroll report is our own move and not the user. _armedToken goes back to the core
    * so it can match the report to its correction. We decide by who moved it, not by distance.

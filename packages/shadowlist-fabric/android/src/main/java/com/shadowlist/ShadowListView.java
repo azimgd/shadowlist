@@ -112,6 +112,8 @@ public class ShadowListView extends FrameLayout {
    * its real position when the list size changes.
    */
   private final View.OnLayoutChangeListener mTemplateLayoutListener;
+  // A mounted template changed type, so the sticky views must be found again.
+  private final Runnable mTemplateTypeListener;
 
   // The scroll axis. Changing it rebuilds the inner scroll view.
   private boolean mHorizontal = false;
@@ -305,6 +307,7 @@ public class ShadowListView extends FrameLayout {
           mStickyController.applyStickyTransforms();
         }
       };
+    mTemplateTypeListener = () -> mStickyController.invalidateTemplates();
     installScrollView(false);
   }
 
@@ -461,7 +464,8 @@ public class ShadowListView extends FrameLayout {
     }
     if (child instanceof ShadowListTemplateView) {
       mContentView.addView(child, index);
-      child.addOnLayoutChangeListener(mTemplateLayoutListener);
+      ((ShadowListTemplateView) child).setListListeners(mTemplateLayoutListener, mTemplateTypeListener);
+      mStickyController.invalidateTemplates();
     }
   }
 
@@ -476,7 +480,8 @@ public class ShadowListView extends FrameLayout {
   public void removeContentViewAt(int index) {
     View child = mContentView.getChildAt(index);
     if (child instanceof ShadowListTemplateView) {
-      child.removeOnLayoutChangeListener(mTemplateLayoutListener);
+      ((ShadowListTemplateView) child).setListListeners(null, null);
+      mStickyController.invalidateTemplates();
     }
     /*
      * The dragged row is going away, for example its data was deleted. Cancel the drag
