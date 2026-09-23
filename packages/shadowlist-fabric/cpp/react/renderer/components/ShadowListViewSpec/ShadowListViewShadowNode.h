@@ -61,6 +61,19 @@ struct ShadowListViewGeometryCache {
   std::uint64_t nativeKeysVersion = 0;
 
   /*
+   * The event emitter the core's callbacks dispatch through, and which optional ones were
+   * set. The emitter belongs to the node family, so the callbacks are only built again
+   * when it or the listened events change, not on every commit.
+   */
+  std::shared_ptr<const EventEmitter> callbacksEmitter;
+  bool callbacksViewable = false;
+  bool callbacksScroll = false;
+
+  // stickyHeaderIndices from these props, cleaned up for the core. Same pointer trick.
+  std::shared_ptr<const Props> stickyIndicesProps;
+  std::vector<std::size_t> stickyIndices;
+
+  /*
    * The props whose elementsSizeSpecs were last parsed and measured. Same pointer trick:
    * measuring costs a text layout per row, and the specs stay the same on almost every
    * commit. The strong reference keeps the pointer check safe from address reuse.

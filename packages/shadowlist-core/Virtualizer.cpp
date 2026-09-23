@@ -299,7 +299,11 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   container->overscan = input.overscan;
   container->headerSize = input.headerSize;
   container->footerSize = input.footerSize;
-  container->stickyIndices = input.stickyIndices;
+  // Compare first, so an unchanged list costs no copy.
+  const std::vector<std::size_t>& inputStickyIndices = input.stickyIndexList();
+  if (container->stickyIndices != inputStickyIndices) {
+    container->stickyIndices = inputStickyIndices;
+  }
   container->startReachedThreshold = input.startReachedThreshold;
   container->endReachedThreshold = input.endReachedThreshold;
   container->viewablePercentThreshold = input.viewablePercentThreshold;
@@ -311,9 +315,10 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
    * Decoration rows must never become the anchor. This runs before captureAnchor reads it,
    * and is rebuilt every frame so a row switching roles takes effect right away.
    */
-  if (container->nonAnchorableKeys.size() != inputNonAnchorableKeys.size() ||
-      !std::all_of(inputNonAnchorableKeys.begin(), inputNonAnchorableKeys.end(),
-        [&](const std::string& ignoredKey) { return container->nonAnchorableKeys.count(ignoredKey) != 0; })) {
+  if (!input.nonAnchorableKeysUnchanged &&
+      (container->nonAnchorableKeys.size() != inputNonAnchorableKeys.size() ||
+       !std::all_of(inputNonAnchorableKeys.begin(), inputNonAnchorableKeys.end(),
+         [&](const std::string& ignoredKey) { return container->nonAnchorableKeys.count(ignoredKey) != 0; }))) {
     container->nonAnchorableKeys.clear();
     for (const std::string& ignoredKey : inputNonAnchorableKeys) {
       container->nonAnchorableKeys.insert(ignoredKey);

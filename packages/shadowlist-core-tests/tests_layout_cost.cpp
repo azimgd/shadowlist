@@ -156,3 +156,55 @@ TEST(a_horizontal_list_treats_height_as_the_cross_axis) {
     CHECK_NEAR(element.offsetY, (index % 2) * 200.0, 0.0001);
   }
 }
+
+TEST(borrowed_sticky_indices_match_copied_ones) {
+  std::vector<std::string> keys = keysFor(50);
+  std::vector<std::size_t> sticky = {0, 10, 20};
+
+  Container copied;
+  FrameInput copiedInput = inputFor(keys, 0.0);
+  copiedInput.stickyIndices = sticky;
+  Virtualizer::update(&copied, copiedInput);
+
+  Container borrowed;
+  FrameInput borrowedInput = inputFor(keys, 0.0);
+  borrowedInput.stickyIndicesRef = &sticky;
+  Virtualizer::update(&borrowed, borrowedInput);
+  CHECK(copied.stickyIndices == borrowed.stickyIndices);
+
+  // A new list replaces the old one, and an empty one clears it.
+  std::vector<std::size_t> next = {5};
+  borrowedInput.stickyIndicesRef = &next;
+  Virtualizer::update(&borrowed, borrowedInput);
+  CHECK(borrowed.stickyIndices == next);
+  std::vector<std::size_t> none;
+  borrowedInput.stickyIndicesRef = &none;
+  Virtualizer::update(&borrowed, borrowedInput);
+  CHECK(borrowed.stickyIndices.empty());
+}
+
+TEST(unchanged_anchor_ignore_keys_keep_the_set_the_core_already_has) {
+  std::vector<std::string> keys = keysFor(30);
+  std::vector<std::string> ignored = {"k0", "k1"};
+  Container container;
+  FrameInput input = inputFor(keys, 0.0);
+  input.nonAnchorableKeysRef = &ignored;
+  Virtualizer::update(&container, input);
+  CHECK(!container.isAnchorable("k0"));
+  CHECK(!container.isAnchorable("k1"));
+  CHECK(container.isAnchorable("k2"));
+
+  // The host vouches the keys are the ones it sent before, so the set stays as it is.
+  input.nonAnchorableKeysUnchanged = true;
+  Virtualizer::update(&container, input);
+  CHECK(!container.isAnchorable("k0"));
+  CHECK_EQ(container.nonAnchorableKeys.size(), static_cast<std::size_t>(2));
+
+  // New keys without that promise replace the set.
+  std::vector<std::string> nextIgnored = {"k2"};
+  input.nonAnchorableKeysRef = &nextIgnored;
+  input.nonAnchorableKeysUnchanged = false;
+  Virtualizer::update(&container, input);
+  CHECK(container.isAnchorable("k0"));
+  CHECK(!container.isAnchorable("k2"));
+}
