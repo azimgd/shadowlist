@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.facebook.react.module.annotations.ReactModule;
+import com.facebook.react.uimanager.BackgroundStyleApplicator;
 import com.facebook.react.uimanager.ViewGroupManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.ViewManagerDelegate;
@@ -23,6 +24,8 @@ public class ShadowListElementViewManager extends ViewGroupManager<ShadowListEle
 
   public ShadowListElementViewManager() {
     mDelegate = new ShadowListElementViewManagerDelegate(this);
+    // Only takes effect when the enableViewRecycling feature flag is on.
+    setupViewRecycling();
   }
 
   @Nullable
@@ -45,16 +48,26 @@ public class ShadowListElementViewManager extends ViewGroupManager<ShadowListEle
 
   /*
    * Recycled rows can end up in any list on the surface, even one on another screen.
-   * The base class does not reset translationZ or visibility, and drag to reorder sets both.
-   * Reset them so a row unmounted mid drag doesn't float above another list.
+   * The base class resets transforms, alpha and elevation but not translationZ, visibility,
+   * running animations, children or background. Drag to reorder sets translationZ and runs
+   * a drop animation. Reset all of it so a reused row starts like a new one.
    */
   @Nullable
   @Override
   protected ShadowListElementView prepareToRecycleView(
       @NonNull ThemedReactContext reactContext, @NonNull ShadowListElementView view) {
+    // Stop a drop animation first, or it keeps writing translation after the reset.
+    view.animate().cancel();
+    view.clearAnimation();
     view.setTranslationZ(0f);
     view.setVisibility(View.VISIBLE);
-    return super.prepareToRecycleView(reactContext, view);
+    ShadowListElementView prepared = super.prepareToRecycleView(reactContext, view);
+    if (prepared == null) {
+      return null;
+    }
+    prepared.resetForRecycle();
+    BackgroundStyleApplicator.reset(prepared);
+    return prepared;
   }
 
   @Override
