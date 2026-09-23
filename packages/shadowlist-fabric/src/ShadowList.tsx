@@ -30,6 +30,8 @@ import {
   takeRowRenderCount,
   nativeTagOf,
   describeDataChange,
+  createRowIndexStore,
+  type RowIndexStore,
 } from './virtualizer';
 
 export { initialMountedRange, type MountedRange } from './virtualizer';
@@ -160,19 +162,44 @@ function ShadowListInner<ElementT extends { id: string }>(
   /*
    * Every row's key, built once per data change. Native uses them to follow rows across
    * updates, and the hooks below share them. keyToIndex gives a key's first index, so the
-   * first copy of a duplicate wins, same as the core. A plain array can't be diffed
-   * cheaply, so both are rebuilt in one pass over the data on every change.
+   * first copy of a duplicate wins, same as the core.
+   * When the keys come out the same as last time, like an item edited in place, the previous
+   * array and map are returned. Then React sends no new elementsAllKeys prop to native (no
+   * deep compare, no conversion of every key) and the hooks below keyed on them don't rerun.
    */
+  const keysCacheRef = useRef<{
+    elementsAllKeys: string[];
+    keyToIndex: Map<string, number>;
+  } | null>(null);
   const { elementsAllKeys, keyToIndex } = useMemo(() => {
+    const previous = keysCacheRef.current;
     const keys = new Array<string>(data.length);
-    const map = new Map<string, number>();
+    let same =
+      previous !== null && previous.elementsAllKeys.length === data.length;
     for (let index = 0; index < data.length; index++) {
       const key = keyExtractor(data[index]!, index);
       keys[index] = key;
+      if (same && previous!.elementsAllKeys[index] !== key) same = false;
+    }
+    if (same) return previous!;
+    const map = new Map<string, number>();
+    for (let index = 0; index < keys.length; index++) {
+      const key = keys[index]!;
       if (!map.has(key)) map.set(key, index);
     }
-    return { elementsAllKeys: keys, keyToIndex: map };
+    const next = { elementsAllKeys: keys, keyToIndex: map };
+    keysCacheRef.current = next;
+    return next;
   }, [data, keyExtractor]);
+
+  /*
+   * Shared with every row, so a row that skipped a move still answers a late index read.
+   * Written in render, before the rows render, like each row's own index.
+   */
+  const rowIndexRef = useRef<RowIndexStore | null>(null);
+  if (rowIndexRef.current === null) rowIndexRef.current = createRowIndexStore();
+  const rowIndex = rowIndexRef.current;
+  rowIndex.keyToIndex = keyToIndex;
 
   const { mountedIndices, handleVisibleIndicesChange, seedAroundIndex } =
     useMountedRange({
@@ -423,6 +450,7 @@ function ShadowListInner<ElementT extends { id: string }>(
               key={elementKey}
               element={element}
               index={index}
+              rowIndex={rowIndex}
               elementKey={elementKey}
               nativeIndex={dragEnabled ? index : 0}
               style={elementBaseStyle}
