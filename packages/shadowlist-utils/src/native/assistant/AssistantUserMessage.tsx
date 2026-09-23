@@ -14,6 +14,7 @@ import { CopyIcon, PencilIcon } from '../icons';
 import { defaultAssistantLabels, type AssistantLabels } from './labels';
 import { AssistantActionButton } from './AssistantActionButton';
 import { AssistantAttachmentChip } from './AssistantAttachmentChip';
+import { AssistantBusy } from './rowState';
 import type { AssistantPrompt } from './types';
 
 export interface AssistantUserMessageProps {
@@ -132,21 +133,25 @@ export const AssistantUserMessage = memo(
                 strokeWidth={1.3}
               />
             </AssistantActionButton>
-            <AssistantActionButton
-              label={l.edit}
-              showLabel
-              disabled={busy}
-              onPress={() => {
-                onEdit?.(message.id);
-                setActionsVisible(false);
-              }}
-            >
-              <PencilIcon
-                size={14}
-                color={theme.colors.label}
-                strokeWidth={1.3}
-              />
-            </AssistantActionButton>
+            <AssistantBusy busy={busy}>
+              {(disabled) => (
+                <AssistantActionButton
+                  label={l.edit}
+                  showLabel
+                  disabled={disabled}
+                  onPress={() => {
+                    onEdit?.(message.id);
+                    setActionsVisible(false);
+                  }}
+                >
+                  <PencilIcon
+                    size={14}
+                    color={theme.colors.label}
+                    strokeWidth={1.3}
+                  />
+                </AssistantActionButton>
+              )}
+            </AssistantBusy>
           </View>
         ) : null}
       </View>

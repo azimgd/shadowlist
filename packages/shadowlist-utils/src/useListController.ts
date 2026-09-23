@@ -194,6 +194,14 @@ export function useListController<
   const busyRef = useRef({ refresh: false, end: false, start: false });
 
   const scrollIdleTimer = useRef<number | null>(null);
+  /*
+   * Whether scrollStarted went out without a scrollEnded after it, and when the last scroll
+   * event came. A scroll event then costs no dispatch and no timer call while scrolling
+   * goes on. Dispatching per event scheduled a render each time, and clearing and setting
+   * the idle timer per event is two native calls.
+   */
+  const scrollingRef = useRef(false);
+  const lastScrollAtRef = useRef(0);
 
   /*
    * Runs the callback, then settle. The callback runs inside then, so a synchronous throw
@@ -247,14 +255,38 @@ export function useListController<
     );
   }, [run]);
 
-  const handleScroll = useCallback((event: ScrollEventT) => {
-    dispatch({ type: 'scrollStarted' });
-    optionsRef.current.onScroll?.(event);
-    if (scrollIdleTimer.current) timers.clearTimeout(scrollIdleTimer.current);
+  /*
+   * Ends scrolling once no event came for scrollIdleMs. One timer per scroll: when it fires
+   * early because events kept coming, it waits out the rest.
+   */
+  const armScrollIdle = useCallback((delay: number) => {
     scrollIdleTimer.current = timers.setTimeout(() => {
+      scrollIdleTimer.current = null;
+      const idleMs = optionsRef.current.scrollIdleMs ?? 150;
+      const remaining = lastScrollAtRef.current + idleMs - Date.now();
+      if (remaining > 0) {
+        armScrollIdle(remaining);
+        return;
+      }
+      scrollingRef.current = false;
       dispatch({ type: 'scrollEnded' });
-    }, optionsRef.current.scrollIdleMs ?? 150);
+    }, delay);
   }, []);
+
+  const handleScroll = useCallback(
+    (event: ScrollEventT) => {
+      lastScrollAtRef.current = Date.now();
+      if (!scrollingRef.current) {
+        scrollingRef.current = true;
+        dispatch({ type: 'scrollStarted' });
+      }
+      optionsRef.current.onScroll?.(event);
+      if (scrollIdleTimer.current === null) {
+        armScrollIdle(optionsRef.current.scrollIdleMs ?? 150);
+      }
+    },
+    [armScrollIdle]
+  );
 
   const handleViewableItemsChanged = useCallback((info: ViewableInfoT) => {
     optionsRef.current.onViewableItemsChanged?.(info);
@@ -320,15 +352,24 @@ export function useListController<
       endReachEnded: () => dispatch({ type: 'endReachEnded' }),
       startReachStarted: () => dispatch({ type: 'startReachStarted' }),
       startReachEnded: () => dispatch({ type: 'startReachEnded' }),
-      scrollStarted: () => dispatch({ type: 'scrollStarted' }),
-      scrollEnded: () => dispatch({ type: 'scrollEnded' }),
+      scrollStarted: () => {
+        scrollingRef.current = true;
+        dispatch({ type: 'scrollStarted' });
+      },
+      scrollEnded: () => {
+        scrollingRef.current = false;
+        dispatch({ type: 'scrollEnded' });
+      },
     }),
     []
   );
 
   useEffect(
     () => () => {
-      if (scrollIdleTimer.current) timers.clearTimeout(scrollIdleTimer.current);
+      if (scrollIdleTimer.current !== null) {
+        timers.clearTimeout(scrollIdleTimer.current);
+        scrollIdleTimer.current = null;
+      }
     },
     []
   );
