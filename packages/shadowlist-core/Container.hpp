@@ -34,6 +34,26 @@ struct ContainerStateUpdate {
   std::uint64_t commitToken = 0;
 };
 
+/*
+ * A range of scroll offsets, along the scroll axis, the host can move through without
+ * sending the core a new frame. Inside it the core would pick the same window, fire no
+ * edge or visible rows callback, and start no correction.
+ * Empty when the core needs every frame, like while a correction runs. The empty default
+ * has low above high, so a host that never got a band sends every frame.
+ */
+struct OffsetBand {
+  double low = 1.0;
+  double high = 0.0;
+
+  bool isEmpty() const {
+    return !(this->low <= this->high);
+  }
+
+  bool contains(double offset) const {
+    return this->low <= offset && offset <= this->high;
+  }
+};
+
 class Container {
 public:
   // Width and height used for rows not measured yet.
@@ -403,6 +423,18 @@ public:
    * Fire the visible rows and scroll callbacks, but only when their values changed.
    */
   void dispatchObservers();
+
+  /*
+   * The offsets around the current one where a new frame would change nothing, see
+   * OffsetBand. Call it after a frame, with the lock held. It is empty whenever the core
+   * still has work that needs frames: a running or pending correction, a scroll command,
+   * rows or sizes not laid out yet, the inverted opening pin, and scroll, viewable or
+   * sticky listeners, which need every offset. Otherwise the band ends where a row enters
+   * or leaves the window, where an edge callback or the inverted bottom pin would flip,
+   * and at both ends of the scroll range. Each of those ends is pulled in by a margin, so
+   * a host rounding its offset still sends the frame that crosses it.
+   */
+  OffsetBand computeOffsetBand() const;
 
 private:
   // Cached snap offsets and the inputs they came from. A version of 0 means nothing cached.
