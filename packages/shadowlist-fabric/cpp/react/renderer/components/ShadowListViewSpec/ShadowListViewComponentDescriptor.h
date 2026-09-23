@@ -47,6 +47,7 @@ public:
     if (!fragment.props && !fragment.children && !fragment.state) {
       return shadowNode;
     }
+    SL_TRACE_COMMIT(shadowNode->getTag());
     auto& listShadowNode = static_cast<ShadowListViewShadowNode&>(*shadowNode);
     auto children = reconcileNativeRows(listShadowNode);
     if (!children) {

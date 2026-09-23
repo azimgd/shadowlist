@@ -62,3 +62,38 @@ inline void installJsTrace(const std::shared_ptr<const ContextContainer>&) {}
 #endif
 
 }
+
+/*
+ * Commit counter for the perf suite (shadowlist-core-bench/perf-suite.sh): one [SLC] line per
+ * non-layout clone of a list, which is one per Fabric commit that touched it (a React render
+ * or a state update). Apple: on with SHADOWLIST_FRAME_TRACE=1, stdout, CLOCK_UPTIME_RAW like
+ * [SLJ]. Android: on with adb shell setprop log.tag.SLC D (apps can read log.tag.*), logcat tag SLC.
+ */
+#if SHADOWLIST_FRAME_TRACE_COMPILED && (defined(__APPLE__) || defined(__ANDROID__))
+#if defined(__ANDROID__)
+#include <android/log.h>
+#include <sys/system_properties.h>
+#endif
+namespace facebook::react::shadowlist::detail {
+inline void traceCommit(int tag) {
+#if defined(__APPLE__)
+  if (jsTraceEnabled()) {
+    printf("[SLC] t=%.4f commit list=%d\n", static_cast<double>(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9, tag);
+  }
+#else
+  static const bool enabled = [] {
+    char value[PROP_VALUE_MAX] = {0};
+    return __system_property_get("log.tag.SLC", value) > 0 && (value[0] == 'D' || value[0] == 'V');
+  }();
+  if (enabled) {
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    __android_log_print(ANDROID_LOG_INFO, "SLC", "[SLC] t=%.4f commit list=%d", now.tv_sec + now.tv_nsec / 1e9, tag);
+  }
+#endif
+}
+}
+#define SL_TRACE_COMMIT(tag) ::facebook::react::shadowlist::detail::traceCommit(static_cast<int>(tag))
+#else
+#define SL_TRACE_COMMIT(tag) ((void)0)
+#endif
