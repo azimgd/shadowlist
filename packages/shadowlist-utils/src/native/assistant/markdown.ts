@@ -179,9 +179,79 @@ const splitTableRow = (line: string) =>
     .split('|')
     .map((cell) => parseInline(cell.trim()));
 
+/*
+ * A parse that the next, longer text of the same stream can continue from. ends[i] is the
+ * line right after block i, where the parser looked last to end it, and endOffsets[i] is
+ * where that line starts in source.
+ */
+export interface MarkdownParse {
+  source: string;
+  blocks: MarkdownBlock[];
+  ends: number[];
+  endOffsets: number[];
+  // Index of the last line of source.
+  lastLine: number;
+}
+
+/*
+ * The lines of source from offset from, and where each starts. Splits on Windows line
+ * endings too, or every line keeps a stray carriage return and matches nothing.
+ */
+function splitLines(
+  source: string,
+  from: number
+): { lines: string[]; starts: number[] } {
+  const lines: string[] = [];
+  const starts: number[] = [];
+  let start = from;
+  for (;;) {
+    const newline = source.indexOf('\n', start);
+    starts.push(start);
+    if (newline === -1) {
+      lines.push(source.slice(start));
+      return { lines, starts };
+    }
+    const end =
+      newline > start && source.charCodeAt(newline - 1) === 13
+        ? newline - 1
+        : newline;
+    lines.push(source.slice(start, end));
+    start = newline + 1;
+  }
+}
+
 export function parseMarkdown(source: string): MarkdownBlock[] {
-  // Split on Windows line endings too, or every line keeps a stray carriage return and matches nothing.
-  const lines = source.split(/\r?\n/);
+  return parseMarkdownFrom(null, source).blocks;
+}
+
+/*
+ * Parses source, reusing previous when source only grew from it, like a streamed reply.
+ * A block is kept when every line it was decided on is complete in previous, which is all
+ * lines but the last. Parsing resumes after the kept blocks, so a flush costs the tail of
+ * the reply instead of all of it, and gives the same blocks as a full parse.
+ */
+export function parseMarkdownFrom(
+  previous: MarkdownParse | null,
+  source: string
+): MarkdownParse {
+  let kept = 0;
+  if (previous !== null && source.startsWith(previous.source)) {
+    if (source.length === previous.source.length) return previous;
+    while (
+      kept < previous.blocks.length &&
+      previous.ends[kept]! < previous.lastLine
+    ) {
+      kept++;
+    }
+  }
+  const lineBase = kept > 0 ? previous!.ends[kept - 1]! : 0;
+  const from = kept > 0 ? previous!.endOffsets[kept - 1]! : 0;
+  const blocks = kept > 0 ? previous!.blocks.slice(0, kept) : [];
+  const ends = kept > 0 ? previous!.ends.slice(0, kept) : [];
+  const endOffsets = kept > 0 ? previous!.endOffsets.slice(0, kept) : [];
+
+  const { lines, starts } = splitLines(source, from);
+  const lastLine = lineBase + lines.length - 1;
   /*
    * Drop an opening fence that is still streaming in. Left in, it joins the paragraph above
    * for one flush and leaves when the third backtick lands, moving everything under it.
@@ -190,9 +260,15 @@ export function parseMarkdown(source: string): MarkdownBlock[] {
   if (PARTIAL_FENCE.test(lines[lines.length - 1] ?? '')) {
     lines.pop();
   }
-  const blocks: MarkdownBlock[] = [];
   const keyFor = (type: MarkdownBlock['type']) => `${blocks.length}:${type}`;
   let index = 0;
+  // Each pass adds at most one block, so where the next pass starts is where it ended.
+  const recordEnd = () => {
+    if (blocks.length > ends.length) {
+      ends.push(lineBase + index);
+      endOffsets.push(index < starts.length ? starts[index]! : source.length);
+    }
+  };
 
   /*
    * Take the next lines that match pattern and return each line's first capture.
@@ -210,6 +286,7 @@ export function parseMarkdown(source: string): MarkdownBlock[] {
   };
 
   while (index < lines.length) {
+    recordEnd();
     const line = lines[index] ?? '';
 
     if (!line.trim()) {
@@ -331,6 +408,7 @@ export function parseMarkdown(source: string): MarkdownBlock[] {
       inlines: parseInline(raw),
     });
   }
+  recordEnd();
 
-  return blocks;
+  return { source, blocks, ends, endOffsets, lastLine };
 }
