@@ -216,13 +216,15 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 {
   if ([childComponentView conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
     [_contentView insertSubview:childComponentView atIndex:index];
-    // Pin again so sticky views stay above the new row.
-    [self applyStickyTransforms:NO];
+    /*
+     * The new row may sit above the sticky views, and during a drag above the dragged row
+     * and unshifted. Fix both once when the transaction finishes, before the frame renders.
+     */
+    _stickyOrderDirty = YES;
+    _mountNeedsSticky = YES;
 #if !TARGET_OS_OSX
-    // A row mounted during a drag goes below the dragged row and gets shifted like the rest.
     if (_dragging && _draggedView) {
-      [_contentView bringSubviewToFront:_draggedView];
-      [self applyDragShuffle];
+      _mountNeedsDragShuffle = YES;
     }
     // Add the VoiceOver move actions. Does nothing unless dragEnabled.
     [self applyDragAccessibilityActionsToView:childComponentView];
@@ -244,6 +246,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
       _stickyHeaderView = childComponentView;
     }
     [_contentView addSubview:childComponentView];
+    _stickyOrderDirty = YES;
     [self applyStickyTransforms:NO];
     return;
   }
@@ -298,6 +301,10 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   }
 #endif
   _sectionHeaderOverlay = nil;
+  _stickyOrderDirty = YES;
+  _overlayOrderDirty = YES;
+  _mountNeedsSticky = NO;
+  _mountNeedsDragShuffle = NO;
   _stickyHeaderIndices.clear();
   _stickyHeaderOffsets.clear();
   _stickyHeaderSizes.clear();
@@ -344,6 +351,11 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   const auto& nextProps = *std::static_pointer_cast<const ShadowListViewProps>(props);
   // _props still has the old props until super updateProps swaps them.
   const auto& previousProps = *std::static_pointer_cast<const ShadowListViewProps>(_props);
+  // Turning pinning on must raise the sticky views on the next pin.
+  if (_stickyHeader != nextProps.stickyHeader || _stickyFooter != nextProps.stickyFooter ||
+      _autoHideHeader != nextProps.autoHideHeader || _autoHideFooter != nextProps.autoHideFooter) {
+    _stickyOrderDirty = YES;
+  }
   _stickyHeader = nextProps.stickyHeader;
   _stickyFooter = nextProps.stickyFooter;
   _autoHideHeader = nextProps.autoHideHeader;
@@ -1084,6 +1096,22 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 - (void)mountingTransactionDidMount:(const MountingTransaction&)transaction
                withSurfaceTelemetry:(const SurfaceTelemetry&)surfaceTelemetry
 {
+  // Rows mounted in this transaction. Pin and shuffle once for all of them.
+  if (_mountNeedsSticky) {
+    _mountNeedsSticky = NO;
+    [self applyStickyTransforms:NO];
+  }
+#if !TARGET_OS_OSX
+  if (_mountNeedsDragShuffle) {
+    _mountNeedsDragShuffle = NO;
+    // New rows go below the dragged row and get shifted like the rest.
+    if (_dragging && _draggedView) {
+      [_contentView bringSubviewToFront:_draggedView];
+      _stickyOrderDirty = YES;
+      [self applyDragShuffle];
+    }
+  }
+#endif
   if (_scrollToTopJumpPending) {
     [self landScrollToTopJumpIfReady];
   }

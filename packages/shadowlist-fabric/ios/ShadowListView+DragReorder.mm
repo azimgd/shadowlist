@@ -98,6 +98,8 @@ using namespace facebook::react;
 
   // Lift the row with a shadow so it looks picked up.
   [_contentView bringSubviewToFront:view];
+  // The row now sits above the sticky views. The next pin raises them again.
+  _stickyOrderDirty = YES;
   view.layer.shadowColor = [UIColor blackColor].CGColor;
   view.layer.shadowOpacity = 0.25;
   view.layer.shadowRadius = 8.0;
