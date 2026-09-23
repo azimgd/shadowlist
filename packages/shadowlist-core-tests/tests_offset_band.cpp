@@ -271,6 +271,21 @@ TEST(offset_band_is_empty_while_a_measured_size_waits_for_layout) {
   CHECK(container->computeOffsetBand().isEmpty());
 }
 
+/*
+ * A composer or keyboard resizing a chat changes only the window height. That does not
+ * move rows, so the band must come back on the next frame instead of staying empty.
+ */
+TEST(offset_band_survives_a_scroll_axis_window_resize) {
+  BandScenario scenario;
+  auto container = settledContainer(scenario);
+  std::vector<std::string> keys = keysFor(scenario.rows);
+  FrameInput resized = bandInput(scenario, keys, scenario.offset);
+  resized.windowContainerHeight = WINDOW_HEIGHT - 300.0;
+  Virtualizer::update(container.get(), resized);
+  Virtualizer::update(container.get(), resized);
+  CHECK(!container->computeOffsetBand().isEmpty());
+}
+
 TEST(offset_band_of_an_inverted_list_stops_before_the_bottom_pin) {
   BandScenario scenario;
   scenario.inverted = true;

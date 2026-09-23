@@ -307,10 +307,15 @@ OffsetBand Container::computeOffsetBand() const {
   auto [estimatedWidth, estimatedHeight] = this->estimatedElementSize;
   double fallbackWidth = this->revision.averageElementWidth > 0.0 ? this->revision.averageElementWidth : estimatedWidth;
   double fallbackHeight = this->revision.averageElementHeight > 0.0 ? this->revision.averageElementHeight : estimatedHeight;
+  /*
+   * Same inputs as the row reflow in layoutElements. The footer and the window size along the
+   * scroll axis never move rows, and the band is recomputed on the frame that changes them.
+   */
+  bool crossWindowChanged = this->horizontal
+    ? this->revision.windowContainerHeight != this->lastLayoutWindowHeight
+    : this->revision.windowContainerWidth != this->lastLayoutWindowWidth;
   if (fallbackWidth != this->lastFallbackWidth || fallbackHeight != this->lastFallbackHeight ||
-      this->headerSize != this->lastLayoutHeaderSize || this->footerSize != this->lastLayoutFooterSize ||
-      this->revision.windowContainerWidth != this->lastLayoutWindowWidth ||
-      this->revision.windowContainerHeight != this->lastLayoutWindowHeight ||
+      this->headerSize != this->lastLayoutHeaderSize || crossWindowChanged ||
       this->columns != this->lastLayoutColumns || this->horizontal != this->lastLayoutHorizontal) {
     return empty;
   }
