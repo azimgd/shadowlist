@@ -657,7 +657,7 @@ void ShadowListViewShadowNode::replaceChild(
    */
   if (this->suppressElementSizeFeedback_) {
     // layout() already gave the core these sizes, so skip the frame it just wrote.
-  } else if (const auto elementViewProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(nextElementShadowNode->getProps())) {
+  } else if (const auto elementViewProps = dynamic_cast<const ShadowListElementViewProps*>(nextElementShadowNode->getProps().get())) {
     if (this->containerManager_) {
       std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
@@ -665,7 +665,7 @@ void ShadowListViewShadowNode::replaceChild(
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
         : this->containerManager_->findElementIndexByKey(elementViewProps->elementKey);
-      const auto elementViewNode = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(nextElementShadowNode);
+      const auto elementViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(nextElementShadowNode.get());
       const auto elementViewNodeSize = elementViewNode
         ? elementViewNode->getLayoutMetrics().frame.size
         : Size{};
