@@ -14,6 +14,21 @@ using namespace facebook::react;
 /*
  * Long press and drag to reorder rows.
  */
+/*
+ * Give the lifted row's shadow an explicit shape. Without one, Core Animation renders the
+ * row offscreen every frame to find its outline. Only rebuilt when the size changes.
+ */
+static void SLUpdateDragShadowPath(UIView *view)
+{
+  CGRect bounds = view.bounds;
+  CGPathRef current = view.layer.shadowPath;
+  if (current && CGRectEqualToRect(CGPathGetBoundingBox(current), bounds)) {
+    return;
+  }
+  view.layer.shadowPath =
+    [UIBezierPath bezierPathWithRoundedRect:bounds cornerRadius:view.layer.cornerRadius].CGPath;
+}
+
 @implementation ShadowListView (DragReorder)
 
 #pragma mark - Drag gesture
@@ -104,6 +119,7 @@ using namespace facebook::react;
   view.layer.shadowOpacity = 0.25;
   view.layer.shadowRadius = 8.0;
   view.layer.shadowOffset = CGSizeMake(0.0, 4.0);
+  SLUpdateDragShadowPath(view);
 
   // Tell the core a drag started so this row stays mounted when it scrolls off screen.
   [self dispatchDragEventType:1 fromKey:_dragOriginKey toKey:_dragOriginKey];
@@ -197,6 +213,9 @@ using namespace facebook::react;
   desiredLeading = MAX(0.0, MIN(desiredLeading, MAX(0.0, contentExtent - extent)));
   _dragLeading = desiredLeading;
 
+  // The row can change size while held.
+  SLUpdateDragShadowPath(view);
+
   CGFloat translation = desiredLeading - restingLeading;
   view.transform = _horizontal
     ? CGAffineTransformMakeTranslation(translation, 0.0)
@@ -285,6 +304,7 @@ using namespace facebook::react;
     }
     subview.transform = CGAffineTransformIdentity;
     subview.layer.shadowOpacity = 0.0;
+    subview.layer.shadowPath = nil;
   }
 
   CGRect resting = [self restingFrameForView:view];
@@ -302,6 +322,7 @@ using namespace facebook::react;
                    }
                    completion:^(BOOL finished) {
                      view.layer.shadowOpacity = 0.0;
+                     view.layer.shadowPath = nil;
                    }];
 }
 
@@ -318,6 +339,7 @@ using namespace facebook::react;
     [subview.layer removeAllAnimations];
     subview.transform = CGAffineTransformIdentity;
     subview.layer.shadowOpacity = 0.0;
+    subview.layer.shadowPath = nil;
   }
 }
 
