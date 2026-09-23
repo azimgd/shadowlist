@@ -150,6 +150,25 @@ public:
   const std::shared_ptr<const std::vector<std::string>>& getNativeKeys() const { return nativeKeys_; }
 
 private:
+  /*
+   * Whether this node's Yoga node owns the child. Only a child cloned or adopted for this
+   * very node is owned, so it belongs to this commit alone and no other tree shares it.
+   * Yoga writes layout metrics into owned children in place, and so can we.
+   */
+  bool ownsLayoutableChild(const YogaLayoutableShadowNode& child) const;
+
+  /*
+   * Moves a child to layoutMetrics, and gives it nextProps when set. An owned child with
+   * no new props is updated in place. Anything else is cloned and swapped in.
+   */
+  void placeChild(
+    const std::shared_ptr<const ShadowNode>& child,
+    const YogaLayoutableShadowNode& layoutableChild,
+    const LayoutMetrics& layoutMetrics,
+    const std::shared_ptr<const facebook::react::Props>& nextProps,
+    std::size_t childIndex,
+    LayoutContext& layoutContext);
+
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
 
   std::shared_ptr<ShadowListNativeEngine> nativeEngine_;

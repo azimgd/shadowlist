@@ -755,11 +755,16 @@ void Virtualizer::layoutElements(Container* container) {
   // Unmeasured rows get the average size, or the estimate until there is an average.
   auto [fallbackWidth, fallbackHeight] = effectiveFallbackSize(container);
 
+  /*
+   * Only inputs that move rows count. The footer and the window size along the scroll axis
+   * never do, so a chat composer resizing the list doesn't walk every row. Columns take
+   * their width from the window's cross size, so that one counts.
+   */
   bool layoutParamsChanged =
     container->headerSize != container->lastLayoutHeaderSize ||
-    container->footerSize != container->lastLayoutFooterSize ||
-    container->revision.windowContainerWidth != container->lastLayoutWindowWidth ||
-    container->revision.windowContainerHeight != container->lastLayoutWindowHeight ||
+    (container->horizontal
+      ? container->revision.windowContainerHeight != container->lastLayoutWindowHeight
+      : container->revision.windowContainerWidth != container->lastLayoutWindowWidth) ||
     container->columns != container->lastLayoutColumns ||
     container->horizontal != container->lastLayoutHorizontal;
 
@@ -821,7 +826,6 @@ void Virtualizer::layoutElements(Container* container) {
 
     recomputeElementOffsets(container, reflowFrom, container->elementsSizeDirtyToIndex);
     container->lastLayoutHeaderSize = container->headerSize;
-    container->lastLayoutFooterSize = container->footerSize;
     container->lastLayoutWindowWidth = container->revision.windowContainerWidth;
     container->lastLayoutWindowHeight = container->revision.windowContainerHeight;
     container->lastLayoutColumns = container->columns;
