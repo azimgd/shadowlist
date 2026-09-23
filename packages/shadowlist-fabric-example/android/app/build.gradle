@@ -92,6 +92,16 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        /*
+         * React Native engine flags that make list commits cheaper, see MainApplication.kt.
+         * Build with -PshadowlistEngineFlags=false for an A/B run with React Native's own flags,
+         * and -PshadowlistCommitBranching=true to also try the experimental commit flags.
+         */
+        buildConfigField "boolean", "SHADOWLIST_ENGINE_FLAGS", (findProperty("shadowlistEngineFlags") ?: "true").toString()
+        buildConfigField "boolean", "SHADOWLIST_COMMIT_BRANCHING", (findProperty("shadowlistCommitBranching") ?: "false").toString()
+    }
+    buildFeatures {
+        buildConfig true
     }
     signingConfigs {
         debug {

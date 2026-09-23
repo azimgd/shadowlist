@@ -16,6 +16,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   ) -> Bool {
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
+    // Engine flags that make list commits cheaper, see ShadowListEngineFlags.h.
+    ShadowListApplyEngineFlags()
     delegate.dependencyProvider = RCTAppDependencyProvider()
 
     reactNativeDelegate = delegate
