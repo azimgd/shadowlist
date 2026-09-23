@@ -1,4 +1,5 @@
 #include "ShadowListViewShadowNode.h"
+#include "ShadowListOffsetBand.h"
 
 #include <folly/dynamic.h>
 #include <react/renderer/core/ComponentDescriptor.h>
@@ -542,6 +543,10 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   double concealGeneration = geometry.concealedRows.empty() ? 0.0 : static_cast<double>(geometry.concealGeneration);
   bool concealChanged = nextStateData.concealGeneration_ != concealGeneration;
 
+  // The offsets the host can scroll through without a state update, see ShadowListOffsetBand.h.
+  auto offsetBand = shadowListOffsetBand(*this);
+  bool bandChanged = !shadowListOffsetBandPublished(nextStateData, offsetBand);
+
   SL_LOG("layout: elementChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
     getChildren().size(), headerSize, footerSize,
     nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
@@ -549,7 +554,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
     stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
-  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged) {
+  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged || bandChanged) {
     if (stateUpdate.changed) {
       /*
        * Record where the correction started, see ShadowListViewState::containerOffsetBaseX_.
@@ -596,6 +601,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       nextStateData.snapOffsets_ = geometry.snapOffsets;
     }
     nextStateData.concealGeneration_ = concealGeneration;
+    nextStateData.offsetBandLow_ = offsetBand.low;
+    nextStateData.offsetBandHigh_ = offsetBand.high;
     setStateData(std::move(nextStateData));
   }
 

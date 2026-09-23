@@ -4,6 +4,7 @@
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
 #include "ShadowListNativeJSI.h"
+#include "ShadowListOffsetBand.h"
 #include "ShadowListTextMeasurer.h"
 #include "ShadowListTrace.h"
 #include "ShadowListViewShadowNode.h"
@@ -122,10 +123,21 @@ public:
     auto& shadowlistViewEventEmitter = static_cast<const ShadowListViewShadowNode::ConcreteEventEmitter&>(*shadowNode.getEventEmitter());
 
     /*
+     * The host only sends a state update when its offset leaves the published band, but it
+     * writes every frame into the live report. If that report is newer than this state, this
+     * commit runs on it, so the core sees where the screen really is, see ShadowListLiveScroll.
+     * The report goes into this node's state too, so the layout pass starts a correction from
+     * the same offset the core used. A state with an offset of our own to apply, like a scroll
+     * command, is left alone.
+     */
+    bool tookLiveReport = adoptLiveScrollReport(shadowlistViewShadowNode, shadowlistViewState.getData());
+
+    /*
      * Take a reference. A copy of the state costs allocations and refcount bumps on every
      * commit, including every scroll frame, and we only read it.
      */
-    const auto& shadowlistViewStateData = shadowlistViewState.getData();
+    const auto& shadowlistViewStateData =
+      tookLiveReport ? shadowlistViewShadowNode.getStateData() : shadowlistViewState.getData();
     if (newerState) {
       SL_LOG("adopt: obsolete state rev=%zu -> newest rev=%zu off=(%.1f,%.1f)",
         adoptedState->getRevision(), newerState->getRevision(),
@@ -385,7 +397,13 @@ public:
        * scroll report, so keep layout dirty while any row is hidden.
        */
       bool rowsConcealed = geometryCache && !geometryCache->concealedRows.empty();
-      if (containerManager->containerOffsetCorrected || geometryStale || rowsConcealed) {
+      /*
+       * The band is also only published by the layout pass. If this frame moved it, like a
+       * new window, an edge crossed or rows reconciled, lay out again so the host gets the
+       * new one. Otherwise the host would keep sending every frame, or skip frames it needs.
+       */
+      bool bandStale = !shadowListOffsetBandPublished(shadowlistViewStateData, shadowListOffsetBand(shadowlistViewShadowNode));
+      if (containerManager->containerOffsetCorrected || geometryStale || rowsConcealed || bandStale) {
         shadowlistViewShadowNode.dirtyLayout();
       }
       /*
@@ -405,6 +423,38 @@ public:
   };
 
 private:
+  /*
+   * Write the host's live scroll report into the node's state when it is newer than
+   * stateData, the state this commit would otherwise run on. Returns whether it did.
+   * Only the host owned fields change: offset, echoed token, conceal ack, user scroll flag
+   * and gesture phase. The rest of stateData is kept, including the newer state Fabric found.
+   */
+  static bool adoptLiveScrollReport(ShadowListViewShadowNode& listShadowNode, const ShadowListViewState& stateData) {
+    const auto& liveScroll = stateData.liveScroll_;
+    if (!liveScroll || stateData.containerOffsetEnabled_) {
+      return false;
+    }
+    auto report = liveScroll->read();
+    if (report.sequence == 0 || static_cast<double>(report.sequence) <= stateData.hostSequence_) {
+      return false;
+    }
+    SL_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%.0f phase=%.0f",
+      static_cast<unsigned long long>(report.sequence), stateData.hostSequence_,
+      stateData.containerOffsetX_, stateData.containerOffsetY_, report.offsetX, report.offsetY,
+      report.commitToken, report.scrollPhase);
+    ShadowListViewState nextStateData = stateData;
+    nextStateData.containerOffsetX_ = report.offsetX;
+    nextStateData.containerOffsetY_ = report.offsetY;
+    nextStateData.containerOffsetEnabled_ = false;
+    nextStateData.commitToken_ = report.commitToken;
+    nextStateData.concealGenerationAck_ = report.concealGenerationAck;
+    nextStateData.userScrolled_ = report.userScrolled;
+    nextStateData.scrollPhase_ = report.scrollPhase;
+    nextStateData.hostSequence_ = static_cast<double>(report.sequence);
+    listShadowNode.setStateData(std::move(nextStateData));
+    return true;
+  }
+
   /*
    * The children a ShadowListNative node should commit with. Null when it already has them,
    * isn't a ShadowListNative, or its templates aren't mounted yet.
