@@ -92,6 +92,17 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        /*
+         * -PshadowlistFrameTrace compiles the list trace into a release build, for the
+         * [SLC] commit counter of shadowlist-core-bench/perf-suite.sh. Debug builds always have it.
+         */
+        if (project.hasProperty("shadowlistFrameTrace")) {
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-DSHADOWLIST_FRAME_TRACE_COMPILED=1"
+                }
+            }
+        }
     }
     signingConfigs {
         debug {

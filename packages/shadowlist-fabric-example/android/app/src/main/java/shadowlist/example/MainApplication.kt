@@ -15,6 +15,7 @@ class MainApplication : Application(), ReactApplication {
       packageList =
         PackageList(this).packages.apply {
           // Add packages here that autolinking can't find.
+          add(LaunchSettingsPackage())
         },
     )
   }
