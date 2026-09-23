@@ -244,7 +244,6 @@ public:
    * Window sizes are here because column widths depend on them.
    */
   double lastLayoutHeaderSize = -1.0;
-  double lastLayoutFooterSize = -1.0;
   double lastLayoutWindowWidth = -1.0;
   double lastLayoutWindowHeight = -1.0;
   std::size_t lastLayoutColumns = 0;

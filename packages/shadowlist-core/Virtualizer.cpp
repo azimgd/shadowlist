@@ -299,7 +299,11 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   container->overscan = input.overscan;
   container->headerSize = input.headerSize;
   container->footerSize = input.footerSize;
-  container->stickyIndices = input.stickyIndices;
+  // Compare first, so an unchanged list costs no copy.
+  const std::vector<std::size_t>& inputStickyIndices = input.stickyIndexList();
+  if (container->stickyIndices != inputStickyIndices) {
+    container->stickyIndices = inputStickyIndices;
+  }
   container->startReachedThreshold = input.startReachedThreshold;
   container->endReachedThreshold = input.endReachedThreshold;
   container->viewablePercentThreshold = input.viewablePercentThreshold;
@@ -311,9 +315,10 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
    * Decoration rows must never become the anchor. This runs before captureAnchor reads it,
    * and is rebuilt every frame so a row switching roles takes effect right away.
    */
-  if (container->nonAnchorableKeys.size() != inputNonAnchorableKeys.size() ||
-      !std::all_of(inputNonAnchorableKeys.begin(), inputNonAnchorableKeys.end(),
-        [&](const std::string& ignoredKey) { return container->nonAnchorableKeys.count(ignoredKey) != 0; })) {
+  if (!input.nonAnchorableKeysUnchanged &&
+      (container->nonAnchorableKeys.size() != inputNonAnchorableKeys.size() ||
+       !std::all_of(inputNonAnchorableKeys.begin(), inputNonAnchorableKeys.end(),
+         [&](const std::string& ignoredKey) { return container->nonAnchorableKeys.count(ignoredKey) != 0; }))) {
     container->nonAnchorableKeys.clear();
     for (const std::string& ignoredKey : inputNonAnchorableKeys) {
       container->nonAnchorableKeys.insert(ignoredKey);
@@ -755,11 +760,16 @@ void Virtualizer::layoutElements(Container* container) {
   // Unmeasured rows get the average size, or the estimate until there is an average.
   auto [fallbackWidth, fallbackHeight] = effectiveFallbackSize(container);
 
+  /*
+   * Only inputs that move rows count. The footer and the window size along the scroll axis
+   * never do, so a chat composer resizing the list doesn't walk every row. Columns take
+   * their width from the window's cross size, so that one counts.
+   */
   bool layoutParamsChanged =
     container->headerSize != container->lastLayoutHeaderSize ||
-    container->footerSize != container->lastLayoutFooterSize ||
-    container->revision.windowContainerWidth != container->lastLayoutWindowWidth ||
-    container->revision.windowContainerHeight != container->lastLayoutWindowHeight ||
+    (container->horizontal
+      ? container->revision.windowContainerHeight != container->lastLayoutWindowHeight
+      : container->revision.windowContainerWidth != container->lastLayoutWindowWidth) ||
     container->columns != container->lastLayoutColumns ||
     container->horizontal != container->lastLayoutHorizontal;
 
@@ -821,7 +831,6 @@ void Virtualizer::layoutElements(Container* container) {
 
     recomputeElementOffsets(container, reflowFrom, container->elementsSizeDirtyToIndex);
     container->lastLayoutHeaderSize = container->headerSize;
-    container->lastLayoutFooterSize = container->footerSize;
     container->lastLayoutWindowWidth = container->revision.windowContainerWidth;
     container->lastLayoutWindowHeight = container->revision.windowContainerHeight;
     container->lastLayoutColumns = container->columns;

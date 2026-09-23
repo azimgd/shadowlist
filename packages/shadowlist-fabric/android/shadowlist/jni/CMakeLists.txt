@@ -61,3 +61,6 @@ target_link_libraries(
 )
 
 target_compile_reactnative_options(react_codegen_ShadowListViewSpec PRIVATE)
+
+# The list's C++ runs on every commit, so optimized builds use -O3. Debug keeps its flags.
+target_compile_options(react_codegen_ShadowListViewSpec PRIVATE $<$<NOT:$<CONFIG:Debug>>:-O3>)
