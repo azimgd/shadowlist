@@ -417,7 +417,7 @@ private:
     }
     bool hasTemplates = std::any_of(
       listShadowNode.getChildren().begin(), listShadowNode.getChildren().end(), [](const auto& child) {
-        const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(child->getProps());
+        const auto templateProps = dynamic_cast<const ShadowListTemplateViewProps*>(child->getProps().get());
         return templateProps && templateProps->templateType == "native";
       });
     if (!hasTemplates) {
@@ -429,7 +429,7 @@ private:
       return nativeEngine->reconcileRows(
         listShadowNode,
         listShadowNode.getChildren(),
-        *nativeKeys,
+        nativeKeys,
         *containerManager,
         props.containerOffsetIndex,
         props.inverted);
