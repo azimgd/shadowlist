@@ -2,8 +2,14 @@
 
 #include <react/renderer/graphics/Float.h>
 
+#include <atomic>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef ANDROID
@@ -21,6 +27,197 @@ namespace facebook::react {
 constexpr double SCROLL_PHASE_IDLE = 0.0;
 constexpr double SCROLL_PHASE_DRAGGING = 1.0;
 constexpr double SCROLL_PHASE_SETTLING = 2.0;
+
+/*
+ * Build switches for the scroll state path. Both can be A/B tested on one build with the
+ * environment variables below, read once at launch.
+ *
+ * SHADOWLIST_SCROLL_BAND: hosts write every scroll frame into ShadowListLiveScroll and only
+ * send a state update, which is a full commit, when the offset leaves the band the layout
+ * pass published or something else the core needs changed. With the switch off the layout
+ * pass publishes an empty band, so both hosts send every frame like before. Set the
+ * environment variable SHADOWLIST_SCROLL_BAND=0 to turn it off. Android apps get no launch
+ * environment, so there only the define counts.
+ *
+ * SHADOWLIST_IMMEDIATE_STATE: the iOS host and ShadowListNative data changes commit their
+ * state update right away on the calling thread instead of on the next event beat. Off by
+ * default. Set SHADOWLIST_IMMEDIATE_STATE=1 to try it.
+ */
+#ifndef SHADOWLIST_SCROLL_BAND
+#define SHADOWLIST_SCROLL_BAND 1
+#endif
+
+#ifndef SHADOWLIST_IMMEDIATE_STATE
+#define SHADOWLIST_IMMEDIATE_STATE 0
+#endif
+
+namespace shadowlist_detail {
+/*
+ * A compiled default that an environment variable set to 0 or 1 can flip.
+ */
+inline bool switchFromEnvironment(const char* name, bool compiledDefault) {
+  const char* value = std::getenv(name);
+  if (value == nullptr) {
+    return compiledDefault;
+  }
+  if (std::strcmp(value, "0") == 0) {
+    return false;
+  }
+  if (std::strcmp(value, "1") == 0) {
+    return true;
+  }
+  return compiledDefault;
+}
+}
+
+inline bool shadowListScrollBandEnabled() {
+  static const bool enabled =
+    shadowlist_detail::switchFromEnvironment("SHADOWLIST_SCROLL_BAND", SHADOWLIST_SCROLL_BAND != 0);
+  return enabled;
+}
+
+inline bool shadowListImmediateStateEnabled() {
+  static const bool enabled =
+    shadowlist_detail::switchFromEnvironment("SHADOWLIST_IMMEDIATE_STATE", SHADOWLIST_IMMEDIATE_STATE != 0);
+  return enabled;
+}
+
+/*
+ * The host's newest scroll report, shared by every state of one list.
+ *
+ * The host writes it on every scroll frame without a commit. A commit that runs for any
+ * other reason, like a React render or a ShadowListNative data change, reads it in adopt(),
+ * so the core never works from an offset older than the screen. That matters for keeping
+ * content in place: an update run on an old offset anchors there and moves the content by
+ * the difference.
+ *
+ * The report is written and read whole under a lock, so the offset always goes with the
+ * token and phase of the same frame. The sequence goes up with every write. A state update
+ * carries the sequence of the report it was built from, see hostSequence_, so adopt() only
+ * takes a report that is newer than its state.
+ */
+class ShadowListLiveScroll final {
+public:
+  struct Report {
+    double offsetX{0.0};
+    double offsetY{0.0};
+    bool userScrolled{false};
+    double scrollPhase{0.0};
+    double commitToken{0.0};
+    double concealGenerationAck{0.0};
+    // 0 until the host writes its first report.
+    std::uint64_t sequence{0};
+  };
+
+  ShadowListLiveScroll() : handle_(nextHandle().fetch_add(1, std::memory_order_relaxed)) {}
+
+  ShadowListLiveScroll(const ShadowListLiveScroll&) = delete;
+  ShadowListLiveScroll& operator=(const ShadowListLiveScroll&) = delete;
+
+  /*
+   * Store a report and return its sequence.
+   */
+  std::uint64_t write(Report report) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    report.sequence = ++sequence_;
+    report_ = report;
+    return report.sequence;
+  }
+
+  Report read() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return report_;
+  }
+
+  /*
+   * A process wide id for this list, so Android's Java host can find it through JNI.
+   */
+  std::int64_t handle() const {
+    return handle_;
+  }
+
+  /*
+   * Android reads state through a MapBuffer, which can't carry the big sticky and snap
+   * lists cheaply. It gets a version for each instead, and fetches the lists only when the
+   * version moved. A version goes up whenever the published pointer differs from the last
+   * one seen here. The weak pointers keep the old control blocks alive, so a new list can't
+   * reuse an old address and look unchanged.
+   */
+  std::pair<std::uint64_t, std::uint64_t> geometryVersions(
+    const std::shared_ptr<const void>& stickyIndices,
+    const std::shared_ptr<const void>& stickyOffsets,
+    const std::shared_ptr<const void>& stickySizes,
+    const std::shared_ptr<const void>& snapOffsets) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!sameOwner(seenStickyIndices_, stickyIndices) || !sameOwner(seenStickyOffsets_, stickyOffsets) ||
+        !sameOwner(seenStickySizes_, stickySizes)) {
+      seenStickyIndices_ = stickyIndices;
+      seenStickyOffsets_ = stickyOffsets;
+      seenStickySizes_ = stickySizes;
+      ++stickyVersion_;
+    }
+    if (!sameOwner(seenSnapOffsets_, snapOffsets)) {
+      seenSnapOffsets_ = snapOffsets;
+      ++snapVersion_;
+    }
+    return {stickyVersion_, snapVersion_};
+  }
+
+private:
+  static std::atomic<std::int64_t>& nextHandle() {
+    static std::atomic<std::int64_t> next{1};
+    return next;
+  }
+
+  static bool sameOwner(const std::weak_ptr<const void>& seen, const std::shared_ptr<const void>& published) {
+    return !seen.owner_before(published) && !published.owner_before(seen);
+  }
+
+  mutable std::mutex mutex_;
+  Report report_{};
+  std::uint64_t sequence_{0};
+  const std::int64_t handle_;
+  std::weak_ptr<const void> seenStickyIndices_;
+  std::weak_ptr<const void> seenStickyOffsets_;
+  std::weak_ptr<const void> seenStickySizes_;
+  std::weak_ptr<const void> seenSnapOffsets_;
+  std::uint64_t stickyVersion_{1};
+  std::uint64_t snapVersion_{1};
+};
+
+#ifdef ANDROID
+/*
+ * Lets Android's Java host reach a list's ShadowListLiveScroll by handle through JNI.
+ * getMapBuffer registers the list, and an entry goes away with its list.
+ */
+void registerShadowListLiveScroll(const std::shared_ptr<ShadowListLiveScroll>& liveScroll);
+std::shared_ptr<ShadowListLiveScroll> findShadowListLiveScroll(std::int64_t handle);
+
+/*
+ * Keys of the MapBuffer the Android host reads on every mount. ShadowListView.java uses
+ * the same numbers.
+ */
+namespace ShadowListStateKey {
+constexpr MapBuffer::Key TOTAL_WIDTH = 0;
+constexpr MapBuffer::Key TOTAL_HEIGHT = 1;
+constexpr MapBuffer::Key OFFSET_ENABLED = 2;
+constexpr MapBuffer::Key OFFSET_X = 3;
+constexpr MapBuffer::Key OFFSET_Y = 4;
+constexpr MapBuffer::Key COMMIT_TOKEN = 5;
+constexpr MapBuffer::Key MOMENTUM_YIELD_TOKEN = 6;
+constexpr MapBuffer::Key OFFSET_BASE_X = 7;
+constexpr MapBuffer::Key OFFSET_BASE_Y = 8;
+constexpr MapBuffer::Key USER_SCROLLED = 9;
+constexpr MapBuffer::Key SCROLL_PHASE = 10;
+constexpr MapBuffer::Key COMMAND_SEQUENCE = 11;
+constexpr MapBuffer::Key STICKY_VERSION = 12;
+constexpr MapBuffer::Key SNAP_VERSION = 13;
+constexpr MapBuffer::Key BAND_LOW = 14;
+constexpr MapBuffer::Key BAND_HIGH = 15;
+constexpr MapBuffer::Key LIVE_HANDLE = 16;
+constexpr MapBuffer::Key CONCEAL_GENERATION = 17;
+}
+#endif
 
 class ShadowListViewState final {
 public:
@@ -98,7 +295,12 @@ public:
     concealGeneration_(previousState.concealGeneration_),
     concealGenerationAck_(previousState.concealGenerationAck_),
     // Only the core writes this, so carry it over.
-    momentumYieldToken_(previousState.momentumYieldToken_) {
+    momentumYieldToken_(previousState.momentumYieldToken_),
+    // The band comes from the layout pass and the live report is shared, so carry both over.
+    offsetBandLow_(previousState.offsetBandLow_),
+    offsetBandHigh_(previousState.offsetBandHigh_),
+    hostSequence_(data.count("hostSequence") ? data["hostSequence"].asDouble() : previousState.hostSequence_),
+    liveScroll_(previousState.liveScroll_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
       auto stickyHeaderIndices = std::make_shared<std::vector<int>>();
       auto stickyHeaderOffsets = std::make_shared<std::vector<Float>>();
@@ -189,6 +391,39 @@ public:
     result["momentumYieldToken"] = momentumYieldToken_;
     return result;
   };
+
+  /*
+   * The scalars the Android host reads on every mount. Much cheaper than getDynamic, which
+   * copies the sticky and snap lists each time. Those lists get a version instead, see
+   * ShadowListLiveScroll::geometryVersions, and the host reads getDynamic only when one moved.
+   */
+  MapBuffer getMapBuffer() const {
+    MapBufferBuilder builder;
+    builder.putDouble(ShadowListStateKey::TOTAL_WIDTH, totalContainerWidth_);
+    builder.putDouble(ShadowListStateKey::TOTAL_HEIGHT, totalContainerHeight_);
+    builder.putBool(ShadowListStateKey::OFFSET_ENABLED, containerOffsetEnabled_);
+    builder.putDouble(ShadowListStateKey::OFFSET_X, containerOffsetX_);
+    builder.putDouble(ShadowListStateKey::OFFSET_Y, containerOffsetY_);
+    builder.putDouble(ShadowListStateKey::COMMIT_TOKEN, commitToken_);
+    builder.putDouble(ShadowListStateKey::MOMENTUM_YIELD_TOKEN, momentumYieldToken_);
+    builder.putDouble(ShadowListStateKey::OFFSET_BASE_X, containerOffsetBaseX_);
+    builder.putDouble(ShadowListStateKey::OFFSET_BASE_Y, containerOffsetBaseY_);
+    builder.putBool(ShadowListStateKey::USER_SCROLLED, userScrolled_);
+    builder.putDouble(ShadowListStateKey::SCROLL_PHASE, scrollPhase_);
+    builder.putDouble(ShadowListStateKey::COMMAND_SEQUENCE, containerOffsetIndexSequence_);
+    std::pair<std::uint64_t, std::uint64_t> versions{0, 0};
+    if (liveScroll_) {
+      registerShadowListLiveScroll(liveScroll_);
+      versions = liveScroll_->geometryVersions(stickyHeaderIndices_, stickyHeaderOffsets_, stickyHeaderSizes_, snapOffsets_);
+    }
+    builder.putLong(ShadowListStateKey::STICKY_VERSION, static_cast<std::int64_t>(versions.first));
+    builder.putLong(ShadowListStateKey::SNAP_VERSION, static_cast<std::int64_t>(versions.second));
+    builder.putDouble(ShadowListStateKey::BAND_LOW, offsetBandLow_);
+    builder.putDouble(ShadowListStateKey::BAND_HIGH, offsetBandHigh_);
+    builder.putLong(ShadowListStateKey::LIVE_HANDLE, liveScroll_ ? liveScroll_->handle() : 0);
+    builder.putDouble(ShadowListStateKey::CONCEAL_GENERATION, concealGeneration_);
+    return builder.build();
+  }
 #endif
 
   double windowContainerHeight_{0.0};
@@ -300,6 +535,27 @@ public:
    * Keep it after concealGenerationAck_ to match the Android constructor's init order.
    */
   double momentumYieldToken_{0.0};
+
+  /*
+   * The scroll offsets the host can move through without sending a state update, from the
+   * layout pass, see azimgd::shadowlist::OffsetBand. Low above high means send every frame,
+   * which is also the start value. Keep these after momentumYieldToken_ to match the Android
+   * constructor's init order.
+   */
+  double offsetBandLow_{1.0};
+  double offsetBandHigh_{0.0};
+
+  /*
+   * The sequence of the host report this state was built from, see ShadowListLiveScroll.
+   * adopt() uses the live report instead when it is newer. Stored as a double like the rest.
+   */
+  double hostSequence_{0.0};
+
+  /*
+   * The host's newest scroll report. Made once with the list's first state and shared by
+   * every copy after that, like the sticky and snap lists.
+   */
+  std::shared_ptr<ShadowListLiveScroll> liveScroll_{std::make_shared<ShadowListLiveScroll>()};
 };
 
 }
