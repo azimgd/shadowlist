@@ -1,6 +1,8 @@
 package com.shadowlist;
 
 import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -56,6 +58,9 @@ public class ShadowListElementViewManager extends ViewGroupManager<ShadowListEle
   @Override
   protected ShadowListElementView prepareToRecycleView(
       @NonNull ThemedReactContext reactContext, @NonNull ShadowListElementView view) {
+    if (!detachForRecycle(view)) {
+      return null;
+    }
     // Stop a drop animation first, or it keeps writing translation after the reset.
     view.animate().cancel();
     view.clearAnimation();
@@ -68,6 +73,21 @@ public class ShadowListElementViewManager extends ViewGroupManager<ShadowListEle
     prepared.resetForRecycle();
     BackgroundStyleApplicator.reset(prepared);
     return prepared;
+  }
+
+  /*
+   * Take a dropped view out of its parent before it goes into the pool, and report whether
+   * it left. A view deleted with a screen that animates out is still drawn by its old parent
+   * until the animation ends: the screen container started a view transition on it, so
+   * removeView only marks it disappearing and getParent() stays set. Reusing it would fail
+   * in addView with "the specified child already has a parent", so it is not recycled.
+   */
+  static boolean detachForRecycle(View view) {
+    ViewParent parent = view.getParent();
+    if (parent instanceof ViewGroup) {
+      ((ViewGroup) parent).removeView(view);
+    }
+    return view.getParent() == null;
   }
 
   @Override
