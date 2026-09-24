@@ -23,6 +23,8 @@
 #   SCREENS="Feed FeedNative Chat ChatNative SectionList Masonry"   COUNTS="50 200 1000"   RUNS=3
 #   FLING_PT=2500      average travel of one fling in pt; fling count = count x row height / this
 #   FLINGS=<n>         force a fling count instead
+#   EXTRA_LAUNCH_ARGS  more iOS launch arguments, e.g. "-SLEngineFlags NO"; SIMCTL_CHILD_<NAME>
+#                      in the environment sets an app env var, e.g. SIMCTL_CHILD_SHADOWLIST_SCROLL_BAND=0
 #   iOS:     UDID, DEVICE (agent-device name), default sl-bench. Build must have the trace
 #            (Debug, or Release with SHADOWLIST_FRAME_TRACE_COMPILED=1); Debug needs Metro.
 #   Android: ADB="adb -s emulator-5554" (or ANDROID_SERIAL), SHOT_COUNT=60, BACKGROUND=000000.
@@ -92,7 +94,7 @@ run_ios() {
 
   local status=0
   UDID="$UDID" DEVICE="$DEVICE" LOG="$base.log" FLINGS="$flings" \
-    LAUNCH_ARGS="-SLCount $count" \
+    LAUNCH_ARGS="-SLCount $count ${EXTRA_LAUNCH_ARGS:-}" \
     "$HERE/ios-trace/run.sh" "$steps" "$LABEL" > "$base.analyze.txt" 2>&1 || status=$?
   touch "$stop"
   wait "$sampler" 2>/dev/null || true
