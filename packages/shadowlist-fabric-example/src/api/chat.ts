@@ -8,19 +8,19 @@ import {
   RequestFailedError,
   type RequestSignal,
 } from './network';
-import { benchCount } from '../launchSettings';
+import { listCount } from '../launchSettings';
 
 const PAGE_SIZE = 50;
 const HISTORY_SIZE = 1000;
 // With SLCount the thread opens on exactly that many messages, with history still above.
-const FIRST_PAGE_SIZE = benchCount ?? PAGE_SIZE;
+const FIRST_PAGE_SIZE = listCount;
 
 let generatedCount = 0;
 const generateMessages = (count: number) =>
   Array.from({ length: count }, () => buildChatMessage(generatedCount++));
 
 const messages = new Collection<ChatMessage>({
-  seed: () => generateMessages(HISTORY_SIZE + (benchCount ?? 0)),
+  seed: () => generateMessages(HISTORY_SIZE + listCount),
 });
 
 /*

@@ -3,12 +3,12 @@ import { generateMasonryElement } from '../fixtures/masonry';
 import { generateNestedElement } from '../fixtures/nested';
 import { Collection, type CursorPage, type PageCursor } from './Collection';
 import { request, type RequestSignal } from './network';
-import { benchCount } from '../launchSettings';
+import { listCount } from '../launchSettings';
 
 // Photos for the Masonry grid.
 const PHOTO_PAGE_SIZE = 30;
 // With SLCount the first page holds exactly that many photos.
-const FIRST_PHOTO_PAGE_SIZE = benchCount ?? PHOTO_PAGE_SIZE;
+const FIRST_PHOTO_PAGE_SIZE = listCount;
 
 let photoCount = 0;
 const generatePhotos = (count: number) =>

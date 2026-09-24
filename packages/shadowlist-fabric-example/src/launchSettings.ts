@@ -3,7 +3,7 @@ import { NativeModules, Platform, Settings } from 'react-native';
 /*
  * Launch settings for scripted runs: SLRoute Chat, SLLatency 0,0, SLSendFailureRate 0.5,
  * SLTheme light|dark, SLDebug 1 for debug buttons, captions and status lines, and SLCount N
- * for benchmark screens that open holding exactly N rows (see benchCount).
+ * for benchmark screens that open holding exactly N rows (see listCount).
  * iOS reads launch arguments (-SLRoute Chat). Android reads intent extras
  * (adb shell am start -n shadowlist.example/.MainActivity --es SLRoute Chat), which
  * MainActivity hands over through the SLLaunchSettings native module.
@@ -27,10 +27,13 @@ export function launchSetting(key: string): string | undefined {
 export const DEBUG = launchSetting('SLDebug') === '1';
 
 /*
- * SLCount: the Feed, FeedNative, Chat, ChatNative, SectionList and Masonry data sources
- * seed and serve their first page with exactly this many rows. Undefined keeps the defaults.
+ * How many rows the Feed, FeedNative, Chat, ChatNative, SectionList, Masonry and Activity
+ * screens open with: their data sources seed and serve the first page with this many rows.
+ * 1000 by default; SLCount N overrides it for benchmark runs.
  */
-export const benchCount: number | undefined = (() => {
+export const DEFAULT_LIST_COUNT = 1000;
+
+export const listCount: number = (() => {
   const count = Number(launchSetting('SLCount'));
-  return Number.isInteger(count) && count > 0 ? count : undefined;
+  return Number.isInteger(count) && count > 0 ? count : DEFAULT_LIST_COUNT;
 })();

@@ -2,11 +2,11 @@ import type { FeedItem } from 'shadowlist-utils/native';
 import { generateFeedElement } from '../fixtures/feed';
 import { Collection, type CursorPage, type PageCursor } from './Collection';
 import { request, type RequestSignal } from './network';
-import { benchCount } from '../launchSettings';
+import { listCount } from '../launchSettings';
 
 const PAGE_SIZE = 20;
 // With SLCount the first page holds exactly that many posts.
-const FIRST_PAGE_SIZE = benchCount ?? PAGE_SIZE;
+const FIRST_PAGE_SIZE = listCount;
 // Posts other people publish between two pulls to refresh.
 const NEW_POSTS_PER_REFRESH = 10;
 
