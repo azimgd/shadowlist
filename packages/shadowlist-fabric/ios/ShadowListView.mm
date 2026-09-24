@@ -662,6 +662,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   CGRect contentFrame = CGRectMake(0, 0, nextStateData.totalContainerWidth_, nextStateData.totalContainerHeight_);
   BOOL contentSizeChanged = !CGSizeEqualToSize(_scrollView.contentSize, contentSize) ||
     !CGRectEqualToRect(_contentView.frame, contentFrame);
+  CGPoint offsetBeforeSizeWrite = _scrollView.contentOffset;
   if (contentSizeChanged) {
     // If these writes clamp the offset, it is not reported as a user scroll. See _applyingContentSize.
     _applyingContentSize = YES;
@@ -752,9 +753,15 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
         _shiftedTokenDelta = shift;
         shift = unapplied;
       }
+      /*
+       * A bounce past an edge sits outside the scroll range, and the content size write above
+       * pulls it back to the edge. The core measured the correction from the bounced offset,
+       * so shift from there, or a history page landing mid bounce jumps by the bounce distance.
+       */
+      CGPoint shiftFrom = contentSizeChanged ? offsetBeforeSizeWrite : before;
       _appliedOffset = horizontal
-        ? CGPointMake(MIN(MAX(before.x + shift, top), maxY), before.y)
-        : CGPointMake(before.x, MIN(MAX(before.y + shift, top), maxY));
+        ? CGPointMake(MIN(MAX(shiftFrom.x + shift, top), maxY), before.y)
+        : CGPointMake(before.x, MIN(MAX(shiftFrom.y + shift, top), maxY));
     }
 #endif
     /*
