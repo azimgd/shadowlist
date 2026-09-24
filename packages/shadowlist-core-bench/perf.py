@@ -137,6 +137,25 @@ def mvcp_check(before, after, top, bottom, tolerance_px):
             "pass": abs(median) <= tolerance_px}
 
 
+def gfx_summary(path):
+    """Whole-run frame percentiles and janky share from the gfxinfo histogram. The framestats
+    percentiles in .metrics.txt only cover the last ~120 frames, the end of the run."""
+    record = {}
+    try:
+        with open(path, errors="replace") as handle:
+            text = handle.read()
+    except OSError:
+        return record
+    for key in ("50", "90", "99"):
+        match = re.search(rf"^{key}th percentile: (\d+)ms", text, re.MULTILINE)
+        if match:
+            record[f"gfx_p{key}_ms"] = float(match.group(1))
+    match = re.search(r"^Janky frames: \d+ \(([\d.]+)%\)", text, re.MULTILINE)
+    if match:
+        record["gfx_janky_pct"] = float(match.group(1))
+    return record
+
+
 def android_run(prefix, out, top, bottom, tolerance_px):
     metrics = read_tsv(prefix + ".metrics.txt") if os.path.exists(prefix + ".metrics.txt") else {}
     record = {"platform": "android", "prefix": prefix}
@@ -153,6 +172,7 @@ def android_run(prefix, out, top, bottom, tolerance_px):
     record["cpu_pct"] = to_number(metrics.get("cpu_pct"))
     pss = to_number(metrics.get("pss_kb"))
     record["pss_mb"] = pss / 1024.0 if pss else None
+    record.update(gfx_summary(prefix + ".gfx"))
     commits = 0
     if os.path.exists(prefix + ".slc.txt"):
         with open(prefix + ".slc.txt", errors="replace") as handle:
@@ -192,7 +212,8 @@ def ios_metrics():
 
 def android_metrics():
     metrics = []
-    for key in ("frame_p50_ms", "frame_p90_ms", "frame_p99_ms", "janky_pct", "blank_band_mean_px",
+    for key in ("gfx_p50_ms", "gfx_p90_ms", "gfx_p99_ms", "gfx_janky_pct",
+                "frame_p50_ms", "frame_p90_ms", "frame_p99_ms", "janky_pct", "blank_band_mean_px",
                 "blank_band_worst_px", "blank_frames_over200", "cpu_pct", "pss_mb", "commits_per_s"):
         metrics.append((key, lambda r, k=key: r.get(k), True))
     for action in ("prepend", "append"):
@@ -219,7 +240,11 @@ def load_runs(directory):
             continue
         screen, count = match.group(1), int(match.group(2))
         with open(path) as handle:
-            groups.setdefault((screen, count), []).append(json.load(handle))
+            record = json.load(handle)
+        # Runs recorded before the gfx fields existed read them from the .gfx next to them.
+        if record.get("platform") == "android" and "gfx_p50_ms" not in record:
+            record.update(gfx_summary(path[:-len(".run.json")] + ".gfx"))
+        groups.setdefault((screen, count), []).append(record)
     return groups
 
 
