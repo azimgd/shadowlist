@@ -37,3 +37,15 @@ export const listCount: number = (() => {
   const count = Number(launchSetting('SLCount'));
   return Number.isInteger(count) && count > 0 ? count : DEFAULT_LIST_COUNT;
 })();
+
+/*
+ * SLOverscan N sets overscanRows and overscanRowsLeading on Feed and Chat for benchmark runs.
+ * Unset keeps the library default.
+ */
+const overscanSetting = Number(launchSetting('SLOverscan'));
+export const benchOverscan: number | undefined =
+  launchSetting('SLOverscan') !== undefined &&
+  Number.isInteger(overscanSetting) &&
+  overscanSetting >= 0
+    ? overscanSetting
+    : undefined;

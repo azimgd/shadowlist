@@ -18,6 +18,7 @@ import { queryClient } from './queries/queryClient';
 import { Appearance, Platform, StatusBar, StyleSheet } from 'react-native';
 import { network } from './api/network';
 import { launchSetting } from './launchSettings';
+import './jsFrameMonitor';
 import { groupedColors, useAppTheme } from './appTheme';
 import { HomeScreen } from './HomeScreen';
 import { ContactDetailScreen } from './ContactDetailScreen';
