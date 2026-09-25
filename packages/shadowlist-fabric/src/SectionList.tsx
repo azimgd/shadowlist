@@ -2,57 +2,23 @@ import type { Ref, ReactElement } from 'react';
 import { useMemo, useCallback, useRef, forwardRef } from 'react';
 import ShadowList from './ShadowList';
 import { slTrace, slTraceEnabled, useStableElement } from './virtualizer';
-import type {
-  ShadowListCommands,
-  SectionListProps,
-  SectionListData,
-} from './types';
+import {
+  flattenSections,
+  type FlatRow,
+  type SectionRows,
+} from './virtualizer/sectionRows';
+import type { ShadowListCommands, SectionListProps } from './types';
 
 /*
  * ShadowList renders one flat list, so each section becomes a header row, its elements,
  * then a footer row. The header positions go into stickyHeaderIndices so native can pin them.
  */
 
-type FlatRowType = 'sectionHeader' | 'element' | 'sectionFooter';
-
-interface FlatRow<ElementT, SectionT> {
-  id: string;
-  type: FlatRowType;
-  sectionIndex: number;
-  section?: SectionListData<ElementT, SectionT>;
-  element?: ElementT;
-  elementIndex?: number;
-  elementKey?: string;
-  isLastInSection?: boolean;
-  isSectionBoundary?: boolean;
-}
-
 function renderComponent(
   component: ReactElement | (() => ReactElement | null) | null | undefined
 ): ReactElement | null {
   if (!component) return null;
   return typeof component === 'function' ? component() : component;
-}
-
-/*
- * Whether the row built for this position matches the mounted one. Compare everything the
- * row renders from, or a reused row would show old content.
- */
-function sameRow<ElementT, SectionT>(
-  previous: FlatRow<ElementT, SectionT> | undefined,
-  next: FlatRow<ElementT, SectionT>
-): previous is FlatRow<ElementT, SectionT> {
-  return (
-    previous !== undefined &&
-    previous.type === next.type &&
-    previous.sectionIndex === next.sectionIndex &&
-    previous.section === next.section &&
-    previous.element === next.element &&
-    previous.elementIndex === next.elementIndex &&
-    previous.elementKey === next.elementKey &&
-    previous.isLastInSection === next.isLastInSection &&
-    previous.isSectionBoundary === next.isSectionBoundary
-  );
 }
 
 function sameIndices(
@@ -68,13 +34,26 @@ function sameIndices(
 
 function toRowIds<ElementT, SectionT>(
   rows: ReadonlyArray<FlatRow<ElementT, SectionT>>,
-  elementKeys: ReadonlyArray<string> | undefined
+  elementKeys: ReadonlyArray<string> | undefined,
+  previous: string[] | undefined
 ): string[] | undefined {
   if (!elementKeys || elementKeys.length === 0) return undefined;
   const keys = new Set(elementKeys);
-  return rows
-    .filter((row) => row.elementKey !== undefined && keys.has(row.elementKey))
-    .map((row) => row.id);
+  const ids: string[] = [];
+  for (const row of rows) {
+    if (row.elementKey !== undefined && keys.has(row.elementKey)) {
+      ids.push(row.id);
+    }
+  }
+  // The same ids keep the old array, so native gets no new prop.
+  if (
+    previous !== undefined &&
+    previous.length === ids.length &&
+    previous.every((id, index) => id === ids[index])
+  ) {
+    return previous;
+  }
+  return ids;
 }
 
 function SectionListInner<ElementT, SectionT = object>(
@@ -99,76 +78,25 @@ function SectionListInner<ElementT, SectionT = object>(
   sectionsRef.current = sections;
 
   /*
-   * Rows from the last flatten, by id, so an unchanged row keeps its old object. The list
-   * mounts rows by identity, so without this any change to sections re-renders every row.
+   * Rows from the last flatten, per section key, so an unchanged row keeps its old object.
+   * The list mounts rows by identity, so without this any change to sections re-renders
+   * every row. An unchanged section is reused whole.
    */
-  const previousRowsRef = useRef<Map<string, FlatRow<ElementT, SectionT>>>(
-    new Map()
-  );
+  const previousSectionsRef = useRef<
+    Map<string, SectionRows<ElementT, SectionT>>
+  >(new Map());
   const previousIndicesRef = useRef<number[] | undefined>(undefined);
 
   const { data, stickyHeaderIndices } = useMemo(() => {
-    const rows: FlatRow<ElementT, SectionT>[] = [];
-    const stickyIndices: number[] = [];
-    const previousRows = previousRowsRef.current;
-    const nextRows = new Map<string, FlatRow<ElementT, SectionT>>();
-
-    const push = (row: FlatRow<ElementT, SectionT>) => {
-      const previousRow = previousRows.get(row.id);
-      const finalRow = sameRow(previousRow, row) ? previousRow : row;
-      nextRows.set(finalRow.id, finalRow);
-      rows.push(finalRow);
-    };
-
-    sections.forEach((section, sectionIndex) => {
-      const sectionKey = section.key ?? `section-${sectionIndex}`;
-      const sectionKeyExtractor = section.keyExtractor ?? keyExtractor;
-
-      if (renderSectionHeader) {
-        if (stickySectionHeadersEnabled) {
-          stickyIndices.push(rows.length);
-        }
-        push({
-          id: `sh:${sectionKey}`,
-          type: 'sectionHeader',
-          section,
-          sectionIndex,
-        });
-      }
-
-      const lastElementIndex = section.data.length - 1;
-      section.data.forEach((element, elementIndex) => {
-        const elementKey = sectionKeyExtractor
-          ? sectionKeyExtractor(element, elementIndex)
-          : ((element as { id?: string })?.id ?? `${elementIndex}`);
-        const isLastInSection = elementIndex === lastElementIndex;
-        push({
-          id: `si:${sectionKey}:${elementKey}`,
-          type: 'element',
-          sectionIndex,
-          element,
-          elementIndex,
-          elementKey,
-          isLastInSection,
-          isSectionBoundary:
-            isLastInSection &&
-            !renderSectionFooter &&
-            sectionIndex < sections.length - 1,
-        });
-      });
-
-      if (renderSectionFooter) {
-        push({
-          id: `sf:${sectionKey}`,
-          type: 'sectionFooter',
-          section,
-          sectionIndex,
-          isSectionBoundary: sectionIndex < sections.length - 1,
-        });
-      }
-    });
-
-    previousRowsRef.current = nextRows;
+    const { rows, stickyIndices, nextSections } = flattenSections(
+      sections,
+      keyExtractor,
+      !!renderSectionHeader,
+      !!renderSectionFooter,
+      stickySectionHeadersEnabled,
+      previousSectionsRef.current
+    );
+    previousSectionsRef.current = nextSections;
 
     /*
      * Header positions rarely move. A new array would force native to copy all props,
@@ -216,14 +144,18 @@ function SectionListInner<ElementT, SectionT = object>(
     [getElementSizeSpec]
   );
 
-  const rowNonAnchorKeys = useMemo(
-    () => toRowIds(data, nonAnchorKeys),
-    [data, nonAnchorKeys]
-  );
-  const rowPersistentKeys = useMemo(
-    () => toRowIds(data, persistentKeys),
-    [data, persistentKeys]
-  );
+  const previousNonAnchorRef = useRef<string[] | undefined>(undefined);
+  const previousPersistentRef = useRef<string[] | undefined>(undefined);
+  const rowNonAnchorKeys = useMemo(() => {
+    const ids = toRowIds(data, nonAnchorKeys, previousNonAnchorRef.current);
+    previousNonAnchorRef.current = ids;
+    return ids;
+  }, [data, nonAnchorKeys]);
+  const rowPersistentKeys = useMemo(() => {
+    const ids = toRowIds(data, persistentKeys, previousPersistentRef.current);
+    previousPersistentRef.current = ids;
+    return ids;
+  }, [data, persistentKeys]);
 
   /*
    * Both separators go inside every row, so an inline element would rebuild every mounted

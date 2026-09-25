@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.facebook.react.module.annotations.ReactModule;
+import com.facebook.react.uimanager.BackgroundStyleApplicator;
 import com.facebook.react.uimanager.ViewGroupManager;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.ViewManagerDelegate;
@@ -23,6 +24,8 @@ public class ShadowListTemplateViewManager extends ViewGroupManager<ShadowListTe
 
   public ShadowListTemplateViewManager() {
     mDelegate = new ShadowListTemplateViewManagerDelegate(this);
+    // Only takes effect when the enableViewRecycling feature flag is on.
+    setupViewRecycling();
   }
 
   @Nullable
@@ -45,16 +48,29 @@ public class ShadowListTemplateViewManager extends ViewGroupManager<ShadowListTe
 
   /*
    * Recycled templates can end up in any list on the surface, even one on another screen.
-   * The base class does not reset translationZ or visibility, and the sticky controller sets
-   * both. A hidden overlay reused as another list's header would leave an empty gap.
+   * The base class resets transforms and alpha but not translationZ, visibility, children,
+   * background or the list's listeners, and the sticky controller sets them. A hidden
+   * overlay reused as another list's header would leave an empty gap.
    */
   @Nullable
   @Override
   protected ShadowListTemplateView prepareToRecycleView(
       @NonNull ThemedReactContext reactContext, @NonNull ShadowListTemplateView view) {
+    // A template still animating out with its screen keeps its parent, see detachForRecycle.
+    if (!ShadowListElementViewManager.detachForRecycle(view)) {
+      return null;
+    }
+    view.animate().cancel();
+    view.clearAnimation();
     view.setTranslationZ(0f);
     view.setVisibility(View.VISIBLE);
-    return super.prepareToRecycleView(reactContext, view);
+    ShadowListTemplateView prepared = super.prepareToRecycleView(reactContext, view);
+    if (prepared == null) {
+      return null;
+    }
+    prepared.resetForRecycle();
+    BackgroundStyleApplicator.reset(prepared);
+    return prepared;
   }
 
   @Override

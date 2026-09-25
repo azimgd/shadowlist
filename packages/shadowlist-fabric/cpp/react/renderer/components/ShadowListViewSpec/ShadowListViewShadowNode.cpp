@@ -1,4 +1,5 @@
 #include "ShadowListViewShadowNode.h"
+#include "ShadowListOffsetBand.h"
 
 #include <folly/dynamic.h>
 #include <react/renderer/core/ComponentDescriptor.h>
@@ -64,6 +65,59 @@ void ShadowListViewShadowNode::setGeometryCache(std::shared_ptr<ShadowListViewGe
   this->geometryCache_ = geometryCache;
 }
 
+bool ShadowListViewShadowNode::ownsLayoutableChild(const YogaLayoutableShadowNode& child) const {
+  /*
+   * yogaNode_ is protected, so it can't be read on another node directly. A member pointer
+   * named through this class can, which is the plain C++ way to reach it.
+   */
+  constexpr auto yogaNodeMember = &ShadowListViewShadowNode::yogaNode_;
+  return (child.*yogaNodeMember).getOwner() == &this->yogaNode_;
+}
+
+void ShadowListViewShadowNode::placeChild(
+  const std::shared_ptr<const ShadowNode>& child,
+  const YogaLayoutableShadowNode& layoutableChild,
+  const LayoutMetrics& layoutMetrics,
+  const std::shared_ptr<const facebook::react::Props>& nextProps,
+  std::size_t childIndex,
+  LayoutContext& layoutContext) {
+  /*
+   * The base layout pass cloned every row it laid out for this commit and wrote its frame
+   * in place. Such a row is ours alone, so write the core's origin the same way instead of
+   * cloning it a second time. React's reference already moved to it with Yoga's clone.
+   * Listing it in affectedNodes again is harmless, onLayout drops repeated frames.
+   */
+  if (nextProps == nullptr && ownsLayoutableChild(layoutableChild)) {
+    const_cast<YogaLayoutableShadowNode&>(layoutableChild).setLayoutMetrics(layoutMetrics);
+    if (layoutContext.affectedNodes != nullptr) {
+      layoutContext.affectedNodes->push_back(&layoutableChild);
+    }
+    return;
+  }
+
+  /*
+   * Opacity isn't a Yoga style, so changing it keeps the row's layout intact.
+   * A clone that only moves the row passes React's reference along. A hiding clone must
+   * not, or React's next update of the row would start from the hidden props.
+   */
+  auto nextChild = std::static_pointer_cast<YogaLayoutableShadowNode>(
+    child->clone({.props = nextProps, .runtimeShadowNodeReference = nextProps == nullptr}));
+  nextChild->setLayoutMetrics(layoutMetrics);
+  /*
+   * Pass the child index, or replaceChild searches the children for every row.
+   * The first pass already took the sizes, so don't report the frame we just wrote.
+   * That would fight the column layout in a multi column list.
+   * Keep the old child alive past this commit, see replacedChildren_.
+   */
+  this->replacedChildren_.push_back(child);
+  this->suppressElementSizeFeedback_ = true;
+  replaceChild(*child, nextChild, childIndex);
+  this->suppressElementSizeFeedback_ = false;
+  if (layoutContext.affectedNodes != nullptr) {
+    layoutContext.affectedNodes->push_back(nextChild.get());
+  }
+}
+
 void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
 
@@ -83,37 +137,48 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    * It can also be null, so check it before use like the rest of the framework does.
    */
 
-  std::shared_ptr<const ShadowNode> headerNode = nullptr;
-  std::shared_ptr<const ShadowNode> footerNode = nullptr;
+  /*
+   * A template child and where it sits in the children, or no node when it isn't mounted.
+   * Raw pointers are fine, the children keep them alive for the whole pass.
+   */
+  struct TemplateSlot {
+    const YogaLayoutableShadowNode* node = nullptr;
+    std::size_t childIndex = 0;
+  };
+  TemplateSlot headerSlot;
+  TemplateSlot footerSlot;
   /*
    * The SectionList sticky header overlay, an always mounted template showing the
    * current section's header. It floats over the content and takes no list space, so it
    * never changes sizes or row offsets. It sits at the origin and the platform pins it.
    * Since it is never virtualized, it never waits on a remount, which keeps it smooth.
    */
-  std::shared_ptr<const ShadowNode> sectionHeaderNode = nullptr;
+  TemplateSlot sectionHeaderSlot;
   /*
-   * Separate from headerNode because an empty list mounts both the header and the
+   * Separate from headerSlot because an empty list mounts both the header and the
    * empty template, and sharing one slot would overwrite the real header.
    */
-  std::shared_ptr<const ShadowNode> emptyNode = nullptr;
+  TemplateSlot emptySlot;
   double headerSize = 0.0;
   double footerSize = 0.0;
   bool horizontal = getConcreteProps().horizontal;
 
   /*
-   * Sort the children once. Rows are stored with their current core index so the two
-   * passes below don't repeat the cast or the key lookup.
+   * Sort the children once. Rows are stored with their current core index and their
+   * layoutable node so the two passes below don't repeat the casts or the key lookup.
    */
   struct MountedElement {
     std::size_t childIndex;
     std::size_t elementIndex;
+    const YogaLayoutableShadowNode* node;
   };
   std::vector<MountedElement> mountedElements;
   mountedElements.reserve(getChildren().size());
 
   for (std::size_t childIndex = 0; childIndex < getChildren().size(); ++childIndex) {
-    if (const auto elementViewProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(getChildren()[childIndex]->getProps())) {
+    const auto& child = getChildren()[childIndex];
+    const facebook::react::Props* childProps = child->getProps().get();
+    if (const auto elementViewProps = dynamic_cast<const ShadowListElementViewProps*>(childProps)) {
       /*
        * Look the row up by key, since a child committed before a prepend, insert or
        * reorder has an old index. Skip it if the key is gone. Use the index only when
@@ -122,32 +187,33 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
         : this->containerManager_->findElementIndexByKey(elementViewProps->elementKey);
-      if (elementIndex < this->containerManager_->getElementsSize()) {
-        mountedElements.push_back({childIndex, elementIndex});
+      const auto elementViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(child.get());
+      if (elementViewNode != nullptr && elementIndex < this->containerManager_->getElementsSize()) {
+        mountedElements.push_back({childIndex, elementIndex, elementViewNode});
       }
       continue;
     }
 
-    if (const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(getChildren()[childIndex]->getProps())) {
-      const auto templateViewNode = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(getChildren()[childIndex]);
-      if (!templateViewNode) {
+    if (const auto templateProps = dynamic_cast<const ShadowListTemplateViewProps*>(childProps)) {
+      const auto templateViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(child.get());
+      if (templateViewNode == nullptr) {
         continue;
       }
 
-      const auto templateViewNodeLayoutMetrics = templateViewNode->getLayoutMetrics();
+      const auto& templateViewNodeLayoutMetrics = templateViewNode->getLayoutMetrics();
       const auto templateViewNodeSize = horizontal
         ? templateViewNodeLayoutMetrics.frame.size.width
         : templateViewNodeLayoutMetrics.frame.size.height;
 
       if (templateProps->templateType == "sectionHeader") {
-        sectionHeaderNode = getChildren()[childIndex];
+        sectionHeaderSlot = {templateViewNode, childIndex};
       } else if (templateProps->templateType == "header") {
-        headerNode = getChildren()[childIndex];
+        headerSlot = {templateViewNode, childIndex};
         headerSize = templateViewNodeSize;
       } else if (templateProps->templateType == "empty") {
-        emptyNode = getChildren()[childIndex];
+        emptySlot = {templateViewNode, childIndex};
       } else if (templateProps->templateType == "footer") {
-        footerNode = getChildren()[childIndex];
+        footerSlot = {templateViewNode, childIndex};
         footerSize = templateViewNodeSize;
       }
     }
@@ -170,11 +236,22 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   if (layoutInputsChanged) {
     double previousHeaderSize = this->containerManager_->headerSize;
     double previousWindowSize = this->containerManager_->getWindowContainerSize();
+    /*
+     * Row offsets only depend on the header and, for columns, on the window's cross size.
+     * A window growing or shrinking along the scroll axis, like a chat composer resizing
+     * the list, or a footer change moves no row, so skip walking every row for those.
+     */
+    bool rowsMove = previousHeaderSize != headerSize ||
+      (this->containerManager_->horizontal
+        ? this->containerManager_->revision.windowContainerHeight != windowFrameSize.height
+        : this->containerManager_->revision.windowContainerWidth != windowFrameSize.width);
     this->containerManager_->headerSize = headerSize;
     this->containerManager_->footerSize = footerSize;
     this->containerManager_->revision.windowContainerWidth = windowFrameSize.width;
     this->containerManager_->revision.windowContainerHeight = windowFrameSize.height;
-    azimgd::shadowlist::Virtualizer::recomputeElementOffsets(this->containerManager_.get(), 0);
+    if (rowsMove) {
+      azimgd::shadowlist::Virtualizer::recomputeElementOffsets(this->containerManager_.get(), 0);
+    }
     /*
      * update() ran with the old header size and doesn't know the rows moved. Settle the
      * header change now, or the rows jump for one frame, like when a header spinner
@@ -200,13 +277,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    */
   std::size_t lowestChangedIndex = azimgd::shadowlist::UNDEFINED_INDEX;
   for (const auto& mounted : mountedElements) {
-    const auto elementViewNode =
-      std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(getChildren()[mounted.childIndex]);
-    if (!elementViewNode) {
-      continue;
-    }
-
-    const auto& measuredSize = elementViewNode->getLayoutMetrics().frame.size;
+    const auto& measuredSize = mounted.node->getLayoutMetrics().frame.size;
     azimgd::shadowlist::Size feedSize{measuredSize.width, measuredSize.height};
 
     if (this->containerManager_->columns > 1) {
@@ -226,7 +297,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     bool changed = azimgd::shadowlist::Virtualizer::applyElementSize(
       this->containerManager_.get(), mounted.elementIndex, feedSize);
     if (firstMeasurement) {
-      this->firstMeasuredTags_.push_back(getChildren()[mounted.childIndex]->getTag());
+      this->firstMeasuredTags_.push_back(mounted.node->getTag());
     }
 
     if (changed && mounted.elementIndex < lowestChangedIndex) {
@@ -265,20 +336,21 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       }
     }
   }
+  // Sorted, so each row below checks it with a binary search instead of a scan.
+  if (concealBeforeIndex > 0) {
+    std::sort(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end());
+  }
   std::uint64_t nextConcealGeneration = geometry.concealGeneration + 1;
   std::vector<Tag> stillConcealedTags;
 
   /*
    * Second pass: place each row where the core says. Offsets already include the header.
-   * A row that didn't move still has the right frame, so only clone the rows that moved.
-   * Cloning every row each scroll frame was a lot of wasted work.
+   * A row that didn't move still has the right frame, so only touch the rows that moved.
+   * Cloning every row each scroll frame was a lot of wasted work, see placeChild.
    */
   for (const auto& mounted : mountedElements) {
     const auto& previousChild = getChildren()[mounted.childIndex];
-    const auto previousLayoutableChild = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(previousChild);
-    if (!previousLayoutableChild) {
-      continue;
-    }
+    const auto& previousLayoutableChild = *mounted.node;
 
     /*
      * The props this row should get, or null to keep its own. A hidden row shows again
@@ -312,7 +384,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
         }
       }
     } else if (mounted.elementIndex < concealBeforeIndex &&
-               std::find(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end(), tag) != this->firstMeasuredTags_.end()) {
+               std::binary_search(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end(), tag)) {
       auto concealedProps = concealedPropsForRow(*previousChild);
       if (concealedProps != nullptr) {
         SL_LOG("  conceal: tag=%d index=%zu anchorIndex=%zu gen=%llu",
@@ -325,7 +397,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       }
     }
 
-    LayoutMetrics layoutMetrics = previousLayoutableChild->getLayoutMetrics();
+    LayoutMetrics layoutMetrics = previousLayoutableChild.getLayoutMetrics();
     const LayoutMetrics previousLayoutMetrics = layoutMetrics;
     const auto& element = this->containerManager_->getElementAtIndex(mounted.elementIndex);
 
@@ -345,90 +417,57 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       continue;
     }
 
-    /*
-     * Opacity isn't a Yoga style, so changing it keeps the row's layout intact.
-     * A clone that only moves the row passes React's reference along. A hiding clone must
-     * not, or React's next update of the row would start from the hidden props.
-     */
-    auto elementViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(
-      previousChild->clone({.props = nextProps, .runtimeShadowNodeReference = nextProps == nullptr}));
-    elementViewNode->setLayoutMetrics(layoutMetrics);
-    /*
-     * Pass the child index, or replaceChild searches the children for every row.
-     * The first pass already took the sizes, so don't report the frame we just wrote.
-     * That would fight the column layout in a multi column list.
-     * Keep the old child alive past this commit, see replacedChildren_.
-     */
-    this->replacedChildren_.push_back(previousChild);
-    this->suppressElementSizeFeedback_ = true;
-    replaceChild(*previousChild, elementViewNode, mounted.childIndex);
-    this->suppressElementSizeFeedback_ = false;
-    if (layoutContext.affectedNodes != nullptr) {
-      layoutContext.affectedNodes->push_back(elementViewNode.get());
-    }
+    placeChild(previousChild, previousLayoutableChild, layoutMetrics, nextProps, mounted.childIndex, layoutContext);
   }
 
   // Forget hidden rows that are no longer mounted.
   if (geometry.concealedRows.size() > stillConcealedTags.size()) {
+    std::sort(stillConcealedTags.begin(), stillConcealedTags.end());
     for (auto iterator = geometry.concealedRows.begin(); iterator != geometry.concealedRows.end();) {
-      bool stillConcealed =
-        std::find(stillConcealedTags.begin(), stillConcealedTags.end(), iterator->first) != stillConcealedTags.end();
+      bool stillConcealed = std::binary_search(stillConcealedTags.begin(), stillConcealedTags.end(), iterator->first);
       iterator = stillConcealed ? std::next(iterator) : geometry.concealedRows.erase(iterator);
     }
   }
 
-  // Move a template to origin, cloning it only if it actually moved, same as the rows.
-  auto placeTemplate = [&](const std::shared_ptr<const ShadowNode>& templateNode, Point origin) {
-    const auto previousTemplateNode = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(templateNode);
-    if (!previousTemplateNode) {
-      return;
-    }
-
-    LayoutMetrics templateMetrics = previousTemplateNode->getLayoutMetrics();
+  // Move a template to origin, only if it actually moved, same as the rows.
+  auto placeTemplate = [&](const TemplateSlot& slot, Point origin) {
+    LayoutMetrics templateMetrics = slot.node->getLayoutMetrics();
     if (templateMetrics.frame.origin == origin) {
       return;
     }
-
     templateMetrics.frame.origin = origin;
-    auto templateViewNode = std::dynamic_pointer_cast<YogaLayoutableShadowNode>(templateNode->clone({}));
-    templateViewNode->setLayoutMetrics(templateMetrics);
-    // Keep the old template alive past this commit, see replacedChildren_.
-    this->replacedChildren_.push_back(templateNode);
-    replaceChild(*templateNode, templateViewNode);
-    if (layoutContext.affectedNodes != nullptr) {
-      layoutContext.affectedNodes->push_back(templateViewNode.get());
-    }
+    placeChild(getChildren()[slot.childIndex], *slot.node, templateMetrics, nullptr, slot.childIndex, layoutContext);
   };
 
   /*
    * The header sits at the start. A sticky header is pinned natively while scrolling,
    * because commits are too slow to follow the scroll smoothly.
    */
-  if (headerNode) {
-    placeTemplate(headerNode, {0, 0});
+  if (headerSlot.node != nullptr) {
+    placeTemplate(headerSlot, {0, 0});
   }
 
   // The empty template sits right after the header, where the rows would start.
-  if (emptyNode) {
+  if (emptySlot.node != nullptr) {
     /*
      * Float is float on Android and double on Apple, so cast to avoid a narrowing
      * error that only one platform reports.
      */
     auto emptyOffset = static_cast<Float>(headerSize);
-    placeTemplate(emptyNode, horizontal ? Point{emptyOffset, 0} : Point{0, emptyOffset});
+    placeTemplate(emptySlot, horizontal ? Point{emptyOffset, 0} : Point{0, emptyOffset});
   }
 
-  if (footerNode) {
+  if (footerSlot.node != nullptr) {
     auto footerOffset = static_cast<Float>(this->containerManager_->getFooterOffset(footerSize));
-    placeTemplate(footerNode, horizontal ? Point{footerOffset, 0} : Point{0, footerOffset});
+    placeTemplate(footerSlot, horizontal ? Point{footerOffset, 0} : Point{0, footerOffset});
   }
 
   /*
    * The section header overlay sits at the origin and the platform pins it while
    * scrolling. It floats over the content, so it never changes row offsets or sizes.
    */
-  if (sectionHeaderNode) {
-    placeTemplate(sectionHeaderNode, {0, 0});
+  if (sectionHeaderSlot.node != nullptr) {
+    placeTemplate(sectionHeaderSlot, {0, 0});
   }
 
   /*
@@ -542,6 +581,10 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   double concealGeneration = geometry.concealedRows.empty() ? 0.0 : static_cast<double>(geometry.concealGeneration);
   bool concealChanged = nextStateData.concealGeneration_ != concealGeneration;
 
+  // The offsets the host can scroll through without a state update, see ShadowListOffsetBand.h.
+  auto offsetBand = shadowListOffsetBand(*this);
+  bool bandChanged = !shadowListOffsetBandPublished(nextStateData, offsetBand);
+
   SL_LOG("layout: elementChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
     getChildren().size(), headerSize, footerSize,
     nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
@@ -549,7 +592,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
     stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
-  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged) {
+  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged || bandChanged) {
     if (stateUpdate.changed) {
       /*
        * Record where the correction started, see ShadowListViewState::containerOffsetBaseX_.
@@ -596,6 +639,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       nextStateData.snapOffsets_ = geometry.snapOffsets;
     }
     nextStateData.concealGeneration_ = concealGeneration;
+    nextStateData.offsetBandLow_ = offsetBand.low;
+    nextStateData.offsetBandHigh_ = offsetBand.high;
     setStateData(std::move(nextStateData));
   }
 
@@ -619,7 +664,7 @@ void ShadowListViewShadowNode::replaceChild(
    */
   if (this->suppressElementSizeFeedback_) {
     // layout() already gave the core these sizes, so skip the frame it just wrote.
-  } else if (const auto elementViewProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(nextElementShadowNode->getProps())) {
+  } else if (const auto elementViewProps = dynamic_cast<const ShadowListElementViewProps*>(nextElementShadowNode->getProps().get())) {
     if (this->containerManager_) {
       std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
 
@@ -627,7 +672,7 @@ void ShadowListViewShadowNode::replaceChild(
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
         : this->containerManager_->findElementIndexByKey(elementViewProps->elementKey);
-      const auto elementViewNode = std::dynamic_pointer_cast<const YogaLayoutableShadowNode>(nextElementShadowNode);
+      const auto elementViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(nextElementShadowNode.get());
       const auto elementViewNodeSize = elementViewNode
         ? elementViewNode->getLayoutMetrics().frame.size
         : Size{};

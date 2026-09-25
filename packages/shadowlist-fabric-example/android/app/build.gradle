@@ -92,6 +92,39 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        /*
+         * -PshadowlistFrameTrace compiles the list trace into a release build, for the
+         * [SLC] commit counter of shadowlist-core-bench/perf-suite.sh. Debug builds always have it.
+         */
+        if (project.hasProperty("shadowlistFrameTrace")) {
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-DSHADOWLIST_FRAME_TRACE_COMPILED=1"
+                }
+            }
+        }
+        /*
+         * -PshadowlistScrollBand=false turns off the offset band, so the list sends a state
+         * update every scroll frame like before. Android apps get no launch environment, so
+         * the SHADOWLIST_SCROLL_BAND define is the only switch there (ShadowListViewState.h).
+         */
+        if ((findProperty("shadowlistScrollBand") ?: "true").toString() == "false") {
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-DSHADOWLIST_SCROLL_BAND=0"
+                }
+            }
+        }
+        /*
+         * React Native engine flags that make list commits cheaper, see MainApplication.kt.
+         * Build with -PshadowlistEngineFlags=false for an A/B run with React Native's own flags,
+         * and -PshadowlistCommitBranching=true to also try the experimental commit flags.
+         */
+        buildConfigField "boolean", "SHADOWLIST_ENGINE_FLAGS", (findProperty("shadowlistEngineFlags") ?: "true").toString()
+        buildConfigField "boolean", "SHADOWLIST_COMMIT_BRANCHING", (findProperty("shadowlistCommitBranching") ?: "false").toString()
+    }
+    buildFeatures {
+        buildConfig true
     }
     signingConfigs {
         debug {

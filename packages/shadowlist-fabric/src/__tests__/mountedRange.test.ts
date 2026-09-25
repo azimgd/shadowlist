@@ -3,6 +3,7 @@ import {
   initialMountedRange,
   rangeToIndices,
   shouldReseedFromOffsetIndex,
+  stepMountedRange,
   unionRangeIndices,
 } from '../virtualizer/mountedRange';
 import { SHADOWLIST_OVERSCAN } from '../virtualizer/helpers';
@@ -142,5 +143,62 @@ describe('unionRangeIndices', () => {
     expect(
       unionRangeIndices({ low: 3, high: 4 }, { low: -1, high: -1 })
     ).toEqual([3, 4]);
+  });
+});
+
+describe('stepMountedRange', () => {
+  it('grows the leading pad a few rows at a time', () => {
+    expect(
+      stepMountedRange(
+        { low: 10, high: 20 },
+        { low: 14, high: 32 },
+        { low: 18, high: 21 },
+        2
+      )
+    ).toEqual({ low: 14, high: 22 });
+  });
+
+  it('always mounts the rows on screen in the same step', () => {
+    expect(
+      stepMountedRange(
+        { low: 10, high: 20 },
+        { low: 16, high: 36 },
+        { low: 22, high: 26 },
+        2
+      )
+    ).toEqual({ low: 16, high: 26 });
+  });
+
+  it('shrinks right away and grows toward the start the same way', () => {
+    expect(
+      stepMountedRange(
+        { low: 10, high: 20 },
+        { low: 0, high: 16 },
+        { low: 10, high: 12 },
+        2
+      )
+    ).toEqual({ low: 8, high: 16 });
+  });
+
+  it('grows from the screen after a jump', () => {
+    expect(
+      stepMountedRange(
+        { low: 0, high: 20 },
+        { low: 496, high: 513 },
+        { low: 500, high: 503 },
+        2
+      )
+    ).toEqual({ low: 498, high: 505 });
+  });
+
+  it('lands on the target', () => {
+    expect(
+      stepMountedRange(
+        { low: 14, high: 30 },
+        { low: 14, high: 32 },
+        { low: 18, high: 21 },
+        2
+      )
+    ).toEqual({ low: 14, high: 32 });
   });
 });

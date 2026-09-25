@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
 import type { OnVisibleIndicesChange } from 'shadowlist';
 import { slTrace, slTraceEnabled } from './helpers';
@@ -6,6 +6,7 @@ import {
   initialMountedRange,
   rangeToIndices,
   shouldReseedFromOffsetIndex,
+  stepMountedRange,
   unionRangeIndices,
   type MountedRange,
 } from './mountedRange';
@@ -43,6 +44,23 @@ interface SeedTarget {
  * burst, like a reconnect syncing hundreds of messages, moves the range to the tail instead.
  */
 const MAX_FOLLOWED_APPEND = 50;
+
+/*
+ * New overscan rows mounted per end per frame, see stepMountedRange. Rows on screen always
+ * mount in the same commit.
+ */
+const MOUNT_STEP_ROWS = 2;
+
+/*
+ * Where the last report wants the range to end up, and what was on screen then, by key so a
+ * data change between steps keeps pointing at the same rows.
+ */
+interface MountTarget {
+  lowKey: string;
+  highKey: string;
+  windowLowKey: string;
+  windowHighKey: string;
+}
 
 interface MountedKeys {
   lowKey: string;
@@ -209,6 +227,79 @@ export function useMountedRange({
   ]);
 
   /*
+   * Mounted keys for an index range, with the edge flags the data change logic above reads.
+   */
+  const keysOfRange = useCallback(
+    (low: number, high: number): MountedKeys => ({
+      lowKey: keys[low]!,
+      highKey: keys[high]!,
+      lowAtStart: low === 0,
+      highAtEnd: high === keys.length - 1,
+    }),
+    [keys]
+  );
+
+  /*
+   * The range the last report asked for. Reports only come when the visible rows change, so
+   * the steps between them are driven from here, one per frame, until the range gets there.
+   */
+  const mountTargetRef = useRef<MountTarget | null>(null);
+  const stepFrameRef = useRef<number | null>(null);
+  const latestRef = useRef({ keyToIndex, resolveRange, keysOfRange });
+  latestRef.current = { keyToIndex, resolveRange, keysOfRange };
+
+  const stepTowardTarget = useCallback(() => {
+    stepFrameRef.current = null;
+    setMountedKeys((previous) => {
+      const target = mountTargetRef.current;
+      const latest = latestRef.current;
+      if (target === null || previous === null) return previous;
+      const low = latest.keyToIndex.get(target.lowKey);
+      const high = latest.keyToIndex.get(target.highKey);
+      const windowLow = latest.keyToIndex.get(target.windowLowKey);
+      const windowHigh = latest.keyToIndex.get(target.windowHighKey);
+      if (
+        low === undefined ||
+        high === undefined ||
+        windowLow === undefined ||
+        windowHigh === undefined
+      ) {
+        mountTargetRef.current = null;
+        return previous;
+      }
+      const current = latest.resolveRange(previous);
+      const next = stepMountedRange(
+        current,
+        { low, high },
+        {
+          low: Math.min(windowLow, windowHigh),
+          high: Math.max(windowLow, windowHigh),
+        },
+        MOUNT_STEP_ROWS
+      );
+      if (next.low === low && next.high === high) mountTargetRef.current = null;
+      if (next.low === current.low && next.high === current.high)
+        return previous;
+      return latest.keysOfRange(next.low, next.high);
+    });
+  }, []);
+
+  // After each commit, take the next step if the range isn't there yet.
+  useEffect(() => {
+    if (mountTargetRef.current === null || stepFrameRef.current !== null)
+      return;
+    stepFrameRef.current = requestAnimationFrame(stepTowardTarget);
+  });
+
+  useEffect(
+    () => () => {
+      if (stepFrameRef.current !== null)
+        cancelAnimationFrame(stepFrameRef.current);
+    },
+    []
+  );
+
+  /*
    * The last visible range native reported, so we know the scroll direction next time. A
    * ref, since it must never cause a render and only the updater below reads it.
    */
@@ -267,12 +358,27 @@ export function useMountedRange({
         const lowPad = movingBackward ? leadingPad : overscanRows;
         const highPad = movingForward ? leadingPad : overscanRows;
 
-        const low = Math.max(0, windowLow - lowPad);
-        const high = Math.min(keys.length - 1, windowHigh + highPad);
-        const lowKey = keys[low]!;
-        const highKey = keys[high]!;
-        const lowAtStart = low === 0;
-        const highAtEnd = high === keys.length - 1;
+        const targetLow = Math.max(0, windowLow - lowPad);
+        const targetHigh = Math.min(keys.length - 1, windowHigh + highPad);
+        const { low, high } = stepMountedRange(
+          current,
+          { low: targetLow, high: targetHigh },
+          { low: windowLow, high: windowHigh },
+          MOUNT_STEP_ROWS
+        );
+        mountTargetRef.current =
+          low === targetLow && high === targetHigh
+            ? null
+            : {
+                lowKey: keys[targetLow]!,
+                highKey: keys[targetHigh]!,
+                windowLowKey: keys[windowLow]!,
+                windowHighKey: keys[windowHigh]!,
+              };
+        const { lowKey, highKey, lowAtStart, highAtEnd } = keysOfRange(
+          low,
+          high
+        );
         if (
           previous &&
           previous.lowKey === lowKey &&
@@ -290,7 +396,7 @@ export function useMountedRange({
         return { lowKey, highKey, lowAtStart, highAtEnd };
       });
     },
-    [keys, resolveRange, overscanRows, overscanRowsLeading]
+    [keys, resolveRange, keysOfRange, overscanRows, overscanRowsLeading]
   );
 
   return { mountedIndices, handleVisibleIndicesChange, seedAroundIndex };

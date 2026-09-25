@@ -2,6 +2,7 @@ import type { ContactItem } from 'shadowlist-utils/native';
 import { generateContact } from '../fixtures/contacts';
 import { Collection } from './Collection';
 import { request, type RequestSignal } from './network';
+import { listCount } from '../launchSettings';
 
 export type InsertPosition = 'start' | 'end';
 
@@ -9,9 +10,9 @@ let generatedCount = 0;
 const generateContacts = (count: number) =>
   Array.from({ length: count }, () => generateContact(generatedCount++));
 
-// The address book: small enough to fetch whole, as most contact APIs do.
+// The address book: small enough to fetch whole, as most contact APIs do. SLCount sets its size.
 const contacts = new Collection<ContactItem>({
-  seed: () => generateContacts(300),
+  seed: () => generateContacts(listCount),
 });
 
 export function fetchContacts(signal?: RequestSignal): Promise<ContactItem[]> {

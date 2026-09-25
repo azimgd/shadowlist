@@ -4,6 +4,7 @@
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
 #include "ShadowListNativeJSI.h"
+#include "ShadowListOffsetBand.h"
 #include "ShadowListTextMeasurer.h"
 #include "ShadowListTrace.h"
 #include "ShadowListViewShadowNode.h"
@@ -47,6 +48,7 @@ public:
     if (!fragment.props && !fragment.children && !fragment.state) {
       return shadowNode;
     }
+    SL_TRACE_COMMIT(shadowNode->getTag());
     auto& listShadowNode = static_cast<ShadowListViewShadowNode&>(*shadowNode);
     auto children = reconcileNativeRows(listShadowNode);
     if (!children) {
@@ -121,10 +123,21 @@ public:
     auto& shadowlistViewEventEmitter = static_cast<const ShadowListViewShadowNode::ConcreteEventEmitter&>(*shadowNode.getEventEmitter());
 
     /*
+     * The host only sends a state update when its offset leaves the published band, but it
+     * writes every frame into the live report. If that report is newer than this state, this
+     * commit runs on it, so the core sees where the screen really is, see ShadowListLiveScroll.
+     * The report goes into this node's state too, so the layout pass starts a correction from
+     * the same offset the core used. A state with an offset of our own to apply, like a scroll
+     * command, is left alone.
+     */
+    bool tookLiveReport = adoptLiveScrollReport(shadowlistViewShadowNode, shadowlistViewState.getData());
+
+    /*
      * Take a reference. A copy of the state costs allocations and refcount bumps on every
      * commit, including every scroll frame, and we only read it.
      */
-    const auto& shadowlistViewStateData = shadowlistViewState.getData();
+    const auto& shadowlistViewStateData =
+      tookLiveReport ? shadowlistViewShadowNode.getStateData() : shadowlistViewState.getData();
     if (newerState) {
       SL_LOG("adopt: obsolete state rev=%zu -> newest rev=%zu off=(%.1f,%.1f)",
         adoptedState->getRevision(), newerState->getRevision(),
@@ -174,63 +187,82 @@ public:
      * event per frame defeats it. That's another reason scroll and viewable only fire when
      * someone listens.
      */
-    containerManager->onStartReachedCallback = [shadowlistViewEventEmitter]() -> void {
-      shadowlistViewEventEmitter.onStartReached({});
-    };
-    containerManager->onEndReachedCallback = [shadowlistViewEventEmitter]() -> void {
-      shadowlistViewEventEmitter.onEndReached({});
-    };
+    /*
+     * The callbacks hold the family's event emitter, so they only need building again when
+     * the emitter or the listened events change. Rebuilding five std::function objects on
+     * every commit, scroll frames included, was pure allocation.
+     */
+    const auto& callbacksCache = shadowlistViewShadowNode.getGeometryCache();
+    const auto& eventEmitter = shadowNode.getEventEmitter();
+    bool callbacksCurrent = callbacksCache && callbacksCache->callbacksEmitter == eventEmitter &&
+      callbacksCache->callbacksViewable == shadowlistViewProps.viewableEventEnabled &&
+      callbacksCache->callbacksScroll == shadowlistViewProps.scrollEventEnabled;
+    if (!callbacksCurrent) {
+      auto emitter = std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteEventEmitter>(eventEmitter);
+      containerManager->onStartReachedCallback = [emitter]() -> void {
+        emitter->onStartReached({});
+      };
+      containerManager->onEndReachedCallback = [emitter]() -> void {
+        emitter->onEndReached({});
+      };
+      containerManager->onVisibleIndicesChangeCallback = [emitter](std::size_t startIndex, std::size_t endIndex) -> void {
+        int visibleStartIndex = static_cast<int>(startIndex);
+        int visibleEndIndex = static_cast<int>(endIndex);
+        emitter->dispatchUniqueEvent("visibleIndicesChange",
+          [visibleStartIndex, visibleEndIndex](jsi::Runtime& runtime) {
+            auto payload = jsi::Object(runtime);
+            payload.setProperty(runtime, "visibleStartIndex", visibleStartIndex);
+            payload.setProperty(runtime, "visibleEndIndex", visibleEndIndex);
+            return payload;
+          });
+      };
+
+      /*
+       * Only track what JS listens to. Otherwise every frame pays for a viewable scan and
+       * an event that nobody handles.
+       */
+      if (shadowlistViewProps.viewableEventEnabled) {
+        containerManager->onViewableIndicesChangeCallback = [emitter](std::size_t startIndex, std::size_t endIndex) -> void {
+          int viewableStartIndex = static_cast<int>(startIndex);
+          int viewableEndIndex = static_cast<int>(endIndex);
+          emitter->dispatchUniqueEvent("viewableIndicesChange",
+            [viewableStartIndex, viewableEndIndex](jsi::Runtime& runtime) {
+              auto payload = jsi::Object(runtime);
+              payload.setProperty(runtime, "viewableStartIndex", viewableStartIndex);
+              payload.setProperty(runtime, "viewableEndIndex", viewableEndIndex);
+              return payload;
+            });
+        };
+      } else {
+        containerManager->onViewableIndicesChangeCallback = nullptr;
+      }
+
+      if (shadowlistViewProps.scrollEventEnabled) {
+        containerManager->onScrollCallback = [emitter](double containerOffsetX, double containerOffsetY) -> void {
+          emitter->dispatchUniqueEvent("scroll",
+            [containerOffsetX, containerOffsetY](jsi::Runtime& runtime) {
+              auto payload = jsi::Object(runtime);
+              payload.setProperty(runtime, "contentOffsetX", containerOffsetX);
+              payload.setProperty(runtime, "contentOffsetY", containerOffsetY);
+              return payload;
+            });
+        };
+      } else {
+        containerManager->onScrollCallback = nullptr;
+      }
+
+      if (callbacksCache) {
+        callbacksCache->callbacksEmitter = eventEmitter;
+        callbacksCache->callbacksViewable = shadowlistViewProps.viewableEventEnabled;
+        callbacksCache->callbacksScroll = shadowlistViewProps.scrollEventEnabled;
+      }
+    }
     /*
      * setStartReachedEnabled and setEndReachedEnabled write these flags into state, and the
      * core checks them before firing the reached callbacks.
      */
     containerManager->setStartReachedEnabled(shadowlistViewStateData.startReachedEnabled_);
     containerManager->setEndReachedEnabled(shadowlistViewStateData.endReachedEnabled_);
-    containerManager->onVisibleIndicesChangeCallback = [shadowlistViewEventEmitter](std::size_t startIndex, std::size_t endIndex) -> void {
-      int visibleStartIndex = static_cast<int>(startIndex);
-      int visibleEndIndex = static_cast<int>(endIndex);
-      shadowlistViewEventEmitter.dispatchUniqueEvent("visibleIndicesChange",
-        [visibleStartIndex, visibleEndIndex](jsi::Runtime& runtime) {
-          auto payload = jsi::Object(runtime);
-          payload.setProperty(runtime, "visibleStartIndex", visibleStartIndex);
-          payload.setProperty(runtime, "visibleEndIndex", visibleEndIndex);
-          return payload;
-        });
-    };
-
-    /*
-     * Only track what JS listens to. Otherwise every frame pays for a viewable scan and
-     * an event that nobody handles.
-     */
-    if (shadowlistViewProps.viewableEventEnabled) {
-      containerManager->onViewableIndicesChangeCallback = [shadowlistViewEventEmitter](std::size_t startIndex, std::size_t endIndex) -> void {
-        int viewableStartIndex = static_cast<int>(startIndex);
-        int viewableEndIndex = static_cast<int>(endIndex);
-        shadowlistViewEventEmitter.dispatchUniqueEvent("viewableIndicesChange",
-          [viewableStartIndex, viewableEndIndex](jsi::Runtime& runtime) {
-            auto payload = jsi::Object(runtime);
-            payload.setProperty(runtime, "viewableStartIndex", viewableStartIndex);
-            payload.setProperty(runtime, "viewableEndIndex", viewableEndIndex);
-            return payload;
-          });
-      };
-    } else {
-      containerManager->onViewableIndicesChangeCallback = nullptr;
-    }
-
-    if (shadowlistViewProps.scrollEventEnabled) {
-      containerManager->onScrollCallback = [shadowlistViewEventEmitter](double containerOffsetX, double containerOffsetY) -> void {
-        shadowlistViewEventEmitter.dispatchUniqueEvent("scroll",
-          [containerOffsetX, containerOffsetY](jsi::Runtime& runtime) {
-            auto payload = jsi::Object(runtime);
-            payload.setProperty(runtime, "contentOffsetX", containerOffsetX);
-            payload.setProperty(runtime, "contentOffsetY", containerOffsetY);
-            return payload;
-          });
-      };
-    } else {
-      containerManager->onScrollCallback = nullptr;
-    }
 
     /*
      * Tell JS when a drag starts or ends. The platform view bumps the sequence only on pick
@@ -289,6 +321,8 @@ public:
     input.keysUnchanged = nativeKeys.keys
       ? geometryCache && geometryCache->nativeKeysVersion == nativeKeys.version
       : geometryCache && geometryCache->keysProps == currentProps;
+    // The same props also mean the same anchor ignore keys.
+    input.nonAnchorableKeysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
     input.containerOffsetX = shadowlistViewStateData.containerOffsetX_;
     input.containerOffsetY = shadowlistViewStateData.containerOffsetY_;
     input.containerOffsetEnabled = shadowlistViewStateData.containerOffsetEnabled_;
@@ -297,11 +331,26 @@ public:
     // The layout pass writes the header and footer sizes into the core, so these are current.
     input.headerSize = containerManager->headerSize;
     input.footerSize = containerManager->footerSize;
-    // SectionList header indices. Skip negatives, the core wants valid ascending indices.
-    input.stickyIndices.reserve(shadowlistViewProps.stickyHeaderIndices.size());
-    for (auto stickyHeaderIndex : shadowlistViewProps.stickyHeaderIndices) {
-      if (stickyHeaderIndex >= 0) {
-        input.stickyIndices.push_back(static_cast<std::size_t>(stickyHeaderIndex));
+    /*
+     * SectionList header indices. Skip negatives, the core wants valid ascending indices.
+     * Converted once per props and lent to the core, since they only change with the props.
+     */
+    if (geometryCache) {
+      if (geometryCache->stickyIndicesProps != currentProps) {
+        geometryCache->stickyIndices.clear();
+        for (auto stickyHeaderIndex : shadowlistViewProps.stickyHeaderIndices) {
+          if (stickyHeaderIndex >= 0) {
+            geometryCache->stickyIndices.push_back(static_cast<std::size_t>(stickyHeaderIndex));
+          }
+        }
+        geometryCache->stickyIndicesProps = currentProps;
+      }
+      input.stickyIndicesRef = &geometryCache->stickyIndices;
+    } else {
+      for (auto stickyHeaderIndex : shadowlistViewProps.stickyHeaderIndices) {
+        if (stickyHeaderIndex >= 0) {
+          input.stickyIndices.push_back(static_cast<std::size_t>(stickyHeaderIndex));
+        }
       }
     }
     input.inverted = shadowlistViewProps.inverted;
@@ -384,7 +433,13 @@ public:
        * scroll report, so keep layout dirty while any row is hidden.
        */
       bool rowsConcealed = geometryCache && !geometryCache->concealedRows.empty();
-      if (containerManager->containerOffsetCorrected || geometryStale || rowsConcealed) {
+      /*
+       * The band is also only published by the layout pass. If this frame moved it, like a
+       * new window, an edge crossed or rows reconciled, lay out again so the host gets the
+       * new one. Otherwise the host would keep sending every frame, or skip frames it needs.
+       */
+      bool bandStale = !shadowListOffsetBandPublished(shadowlistViewStateData, shadowListOffsetBand(shadowlistViewShadowNode));
+      if (containerManager->containerOffsetCorrected || geometryStale || rowsConcealed || bandStale) {
         shadowlistViewShadowNode.dirtyLayout();
       }
       /*
@@ -405,6 +460,38 @@ public:
 
 private:
   /*
+   * Write the host's live scroll report into the node's state when it is newer than
+   * stateData, the state this commit would otherwise run on. Returns whether it did.
+   * Only the host owned fields change: offset, echoed token, conceal ack, user scroll flag
+   * and gesture phase. The rest of stateData is kept, including the newer state Fabric found.
+   */
+  static bool adoptLiveScrollReport(ShadowListViewShadowNode& listShadowNode, const ShadowListViewState& stateData) {
+    const auto& liveScroll = stateData.liveScroll_;
+    if (!liveScroll || stateData.containerOffsetEnabled_) {
+      return false;
+    }
+    auto report = liveScroll->read();
+    if (report.sequence == 0 || static_cast<double>(report.sequence) <= stateData.hostSequence_) {
+      return false;
+    }
+    SL_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%.0f phase=%.0f",
+      static_cast<unsigned long long>(report.sequence), stateData.hostSequence_,
+      stateData.containerOffsetX_, stateData.containerOffsetY_, report.offsetX, report.offsetY,
+      report.commitToken, report.scrollPhase);
+    ShadowListViewState nextStateData = stateData;
+    nextStateData.containerOffsetX_ = report.offsetX;
+    nextStateData.containerOffsetY_ = report.offsetY;
+    nextStateData.containerOffsetEnabled_ = false;
+    nextStateData.commitToken_ = report.commitToken;
+    nextStateData.concealGenerationAck_ = report.concealGenerationAck;
+    nextStateData.userScrolled_ = report.userScrolled;
+    nextStateData.scrollPhase_ = report.scrollPhase;
+    nextStateData.hostSequence_ = static_cast<double>(report.sequence);
+    listShadowNode.setStateData(std::move(nextStateData));
+    return true;
+  }
+
+  /*
    * The children a ShadowListNative node should commit with. Null when it already has them,
    * isn't a ShadowListNative, or its templates aren't mounted yet.
    */
@@ -417,7 +504,7 @@ private:
     }
     bool hasTemplates = std::any_of(
       listShadowNode.getChildren().begin(), listShadowNode.getChildren().end(), [](const auto& child) {
-        const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(child->getProps());
+        const auto templateProps = dynamic_cast<const ShadowListTemplateViewProps*>(child->getProps().get());
         return templateProps && templateProps->templateType == "native";
       });
     if (!hasTemplates) {
@@ -429,7 +516,7 @@ private:
       return nativeEngine->reconcileRows(
         listShadowNode,
         listShadowNode.getChildren(),
-        *nativeKeys,
+        nativeKeys,
         *containerManager,
         props.containerOffsetIndex,
         props.inverted);

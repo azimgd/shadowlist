@@ -24,6 +24,12 @@ constexpr double OFFSET_ARRIVED_THRESHOLD = 1.0;
  */
 constexpr double INVERTED_FOLLOW_BAND = 24.0;
 
+/*
+ * How far each end of an OffsetBand is pulled in from the offset where something flips.
+ * A host offset right on that edge then counts as outside and still sends its frame.
+ */
+constexpr double OFFSET_BAND_MARGIN = 0.5;
+
 // Width and height we assume for a row until it is measured.
 constexpr std::pair<double, double> DEFAULT_ESTIMATED_ELEMENT_SIZE = {120.0, 120.0};
 
