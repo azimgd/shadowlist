@@ -1,6 +1,7 @@
 package com.shadowlist;
 
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -193,13 +194,54 @@ public class ShadowListView extends FrameLayout {
    */
   private static final int PROGRAMMATIC_SCROLL_TOLERANCE_PX = 2;
 
+  /*
+   * Draws only the children that reach into the scroll viewport. Overscan rows stay mounted
+   * so a fling finds them ready, but drawing them anyway made the render thread sync and draw
+   * every mounted row each frame (about 2.5 ms a frame on a feed with the default overscan).
+   * The host invalidates this on every scroll, which only re-records this list of children.
+   */
   private static class ContentContainer extends ViewGroup {
+    private int mDrawLow = Integer.MIN_VALUE;
+    private int mDrawHigh = Integer.MAX_VALUE;
+    private boolean mCullHorizontal = false;
+
     public ContentContainer(Context context) {
       super(context);
     }
 
+    void setCullAxis(boolean horizontal) {
+      mCullHorizontal = horizontal;
+    }
+
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    }
+
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+      View scroller = getParent() instanceof View ? (View) getParent() : null;
+      if (scroller != null) {
+        int start = mCullHorizontal ? scroller.getScrollX() : scroller.getScrollY();
+        int extent = mCullHorizontal ? scroller.getWidth() : scroller.getHeight();
+        // A quarter screen of slack covers overscroll stretch and a frame of scroll.
+        int slack = extent / 4;
+        mDrawLow = start - slack;
+        mDrawHigh = start + extent + slack;
+      } else {
+        mDrawLow = Integer.MIN_VALUE;
+        mDrawHigh = Integer.MAX_VALUE;
+      }
+      super.dispatchDraw(canvas);
+    }
+
+    @Override
+    protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+      float low = mCullHorizontal ? child.getLeft() + child.getTranslationX() : child.getTop() + child.getTranslationY();
+      float size = mCullHorizontal ? child.getWidth() : child.getHeight();
+      if (low > mDrawHigh || low + size < mDrawLow) {
+        return false;
+      }
+      return super.drawChild(canvas, child, drawingTime);
     }
   }
 
@@ -315,6 +357,7 @@ public class ShadowListView extends FrameLayout {
    * Build the inner scroll view for the axis and move the content into it.
    */
   private void installScrollView(boolean horizontal) {
+    mContentView.setCullAxis(horizontal);
     if (mScrollView != null) {
       mScrollView.removeView(mContentView);
       if (mRefreshLayout != null) {
@@ -494,6 +537,8 @@ public class ShadowListView extends FrameLayout {
   }
 
   private void handleInnerScroll(int scrollX, int scrollY) {
+    // Rows move in and out of the drawn window, see ContentContainer.
+    mContentView.invalidate();
     // Only real user scrolls move the hiding header and footer.
     boolean userScrolled = updateScrollState(scrollX, scrollY);
     mStickyController.applyStickyTransforms(userScrolled);
