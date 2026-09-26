@@ -639,6 +639,7 @@ void ShadowListNativeEngine::configure(const folly::dynamic& config) {
   if (initialRows_ == 0) {
     initialRows_ = 1;
   }
+  ++configVersion_;
 }
 
 folly::dynamic ShadowListNativeEngine::getItem(const std::string& key) const {
@@ -935,11 +936,21 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   const std::optional<std::string>& rawText,
   int repeatIndex,
   const PropsParserContext& context) {
+  /*
+   * Reuse the existing nodes only while the structure still matches. A repeated element's
+   * child count follows its array, so only the component must match and children pair up by position.
+   */
+  bool reuse = existing != nullptr && existing->getComponentHandle() == element.prototype->getComponentHandle() &&
+    (element.repeat || existing->getChildren().size() == element.children.size());
+
   Props::Shared props;
+  // The patch these props are made from, when they come from bound values or text.
+  std::optional<folly::dynamic> boundPatch;
+  bool boundPropsReused = false;
   if (propsOverride != nullptr) {
     props = *propsOverride;
   } else if (rawText) {
-    props = cloneWithPatch(*element.prototype, element.baseProps, folly::dynamic::object("text", *rawText), context);
+    boundPatch = folly::dynamic::object("text", *rawText);
   } else if (element.bindings.empty()) {
     props = element.baseProps;
   } else {
@@ -947,15 +958,32 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
     for (const auto& [prop, expression] : element.bindings) {
       applyBinding(patch, prop, evaluate(expression, item), *element.baseProps);
     }
-    props = cloneWithPatch(*element.prototype, element.baseProps, std::move(patch), context);
+    boundPatch = std::move(patch);
   }
-
-  /*
-   * Reuse the existing nodes only while the structure still matches. A repeated element's
-   * child count follows its array, so only the component must match and children pair up by position.
-   */
-  bool reuse = existing != nullptr && existing->getComponentHandle() == element.prototype->getComponentHandle() &&
-    (element.repeat || existing->getChildren().size() == element.children.size());
+  if (boundPatch) {
+    /*
+     * A rebind usually leaves most elements' values alone. Parsing props is the costly part,
+     * and new props also make the node look changed, so keep the existing props when they
+     * came from the same base and the same patch. See boundProps_.
+     */
+    if (reuse) {
+      auto previous = boundProps_.find(existing->getTag());
+      if (previous != boundProps_.end() && previous->second.base == element.baseProps &&
+          previous->second.patch == *boundPatch) {
+        props = existing->getProps();
+        boundPropsReused = true;
+      }
+    }
+    if (!boundPropsReused) {
+      props = cloneWithPatch(*element.prototype, element.baseProps, *boundPatch, context);
+    }
+  }
+  // Records the patch for the node that ends up with these props.
+  auto rememberBoundProps = [&](Tag tag) {
+    if (boundPatch && !boundPropsReused) {
+      boundProps_.insert_or_assign(tag, BoundProps{element.baseProps, std::move(*boundPatch)});
+    }
+  };
 
   std::optional<std::string> text;
   if (element.text) {
@@ -1011,6 +1039,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
     if (sameChildren && props == existing->getProps()) {
       return existing;
     }
+    rememberBoundProps(existing->getTag());
     auto childList = std::make_shared<const ChildList>(std::move(children));
     return existing->clone({.props = props, .children = childList});
   }
@@ -1027,6 +1056,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   auto childList = std::make_shared<const ChildList>(std::move(children));
   auto node = descriptor.createShadowNode({.props = props, .children = childList, .state = state}, family);
   tagKeys_[tag] = TagEntry{key, repeatIndex};
+  rememberBoundProps(tag);
   return node;
 }
 
@@ -1048,6 +1078,31 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildRowLocked(
   return buildNode(compiled.root, row.item, row.key, existing, &rootProps, std::nullopt, -1, context);
 }
 
+std::size_t ShadowListNativeEngine::activeStickyIndexLocked(
+  const std::vector<std::string>& keys,
+  const azimgd::shadowlist::Container& core,
+  bool inverted) const {
+  // Inverted lists have no sticky headers.
+  if (inverted || core.stickyIndices.empty()) {
+    return SIZE_MAX;
+  }
+  double offset = std::max(0.0, core.getContainerOffset());
+  std::size_t elements = std::min(core.getElementsSize(), keys.size());
+  std::size_t active = SIZE_MAX;
+  double activeOffset = -1.0;
+  for (std::size_t index : core.stickyIndices) {
+    if (index >= elements) {
+      continue;
+    }
+    double elementOffset = core.getElementOffset(index);
+    if (elementOffset <= offset && elementOffset >= activeOffset) {
+      active = index;
+      activeOffset = elementOffset;
+    }
+  }
+  return active;
+}
+
 void ShadowListNativeEngine::dropStickyLocked() {
   if (stickyNode_.node) {
     forgetTagsLocked(*stickyNode_.node, stickyKey_);
@@ -1065,25 +1120,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::stickyRowLocked(
   if (stickyNode_.node && !hasLiveEventTarget(*stickyNode_.node)) {
     dropStickyLocked();
   }
-  // Inverted lists have no sticky headers.
-  if (inverted || core.stickyIndices.empty()) {
-    dropStickyLocked();
-    return nullptr;
-  }
-  double offset = std::max(0.0, core.getContainerOffset());
-  std::size_t elements = std::min(core.getElementsSize(), keys.size());
-  std::size_t active = SIZE_MAX;
-  double activeOffset = -1.0;
-  for (std::size_t index : core.stickyIndices) {
-    if (index >= elements) {
-      continue;
-    }
-    double elementOffset = core.getElementOffset(index);
-    if (elementOffset <= offset && elementOffset >= activeOffset) {
-      active = index;
-      activeOffset = elementOffset;
-    }
-  }
+  std::size_t active = activeStickyIndexLocked(keys, core, inverted);
   if (active == SIZE_MAX) {
     dropStickyLocked();
     return nullptr;
@@ -1142,6 +1179,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::stickyRowLocked(
 }
 
 void ShadowListNativeEngine::forgetTagsLocked(const ShadowNode& node, const std::string& key) {
+  boundProps_.erase(node.getTag());
   auto found = tagKeys_.find(node.getTag());
   if (found != tagKeys_.end() && found->second.key == key) {
     tagKeys_.erase(found);
@@ -1152,18 +1190,33 @@ void ShadowListNativeEngine::forgetTagsLocked(const ShadowNode& node, const std:
 }
 
 void ShadowListNativeEngine::evictLocked(std::size_t keep) {
-  std::vector<std::pair<std::uint64_t, std::string>> idle;
+  // Idle rows are a part of all rows, so a cache under the cap has nothing to drop.
+  if (rowNodes_.size() <= keep) {
+    return;
+  }
+  std::vector<std::pair<std::uint64_t, const std::string*>> idle;
   for (const auto& [key, rowNode] : rowNodes_) {
     if (rowNode.usedAt != clock_) {
-      idle.emplace_back(rowNode.usedAt, key);
+      idle.emplace_back(rowNode.usedAt, &key);
     }
   }
   if (idle.size() <= keep) {
     return;
   }
-  std::sort(idle.begin(), idle.end(), [](const auto& left, const auto& right) { return left.first > right.first; });
+  // Only which rows are the newest matters, not their order, so partition instead of sorting.
+  std::nth_element(
+    idle.begin(),
+    idle.begin() + static_cast<std::ptrdiff_t>(keep),
+    idle.end(),
+    [](const auto& left, const auto& right) { return left.first > right.first; });
+  // Copy the keys out first, since erasing an entry frees the key a pointer refers to.
+  std::vector<std::string> doomed;
+  doomed.reserve(idle.size() - keep);
   for (std::size_t index = keep; index < idle.size(); ++index) {
-    auto found = rowNodes_.find(idle[index].second);
+    doomed.push_back(*idle[index].second);
+  }
+  for (const auto& doomedKey : doomed) {
+    auto found = rowNodes_.find(doomedKey);
     if (found == rowNodes_.end()) {
       continue;
     }
@@ -1174,21 +1227,102 @@ void ShadowListNativeEngine::evictLocked(std::size_t keep) {
   }
 }
 
+bool ShadowListNativeEngine::reconcileUnchangedLocked(
+  const ChildList& children,
+  const std::shared_ptr<const std::vector<std::string>>& keys,
+  const azimgd::shadowlist::Container& core,
+  int initialIndex,
+  bool inverted) const {
+  const auto& cache = reconcileCache_;
+  if (!cache.valid || cache.keys != keys || cache.storeVersion != storeVersion_ ||
+      cache.configVersion != configVersion_ || cache.initialIndex != initialIndex || cache.inverted != inverted ||
+      children.size() != cache.childTags.size()) {
+    return false;
+  }
+  for (std::size_t index = 0; index < children.size(); ++index) {
+    if (children[index]->getTag() != cache.childTags[index]) {
+      return false;
+    }
+  }
+  // Templates recompile when their container node changes, and restyled ones rebuild.
+  bool templatesSame = false;
+  for (const auto& child : children) {
+    if (child.get() == cache.templatesContainer) {
+      templatesSame = true;
+      break;
+    }
+  }
+  if (!templatesSame || templatesContainer_ != cache.templatesContainer) {
+    return false;
+  }
+  for (const auto& [name, compiled] : templates_) {
+    if (compiled.basePropsStale) {
+      return false;
+    }
+  }
+
+  /*
+   * The full pass keeps the mounted rows while the core's window sits inside them, and
+   * the rows mounted then are these same rows. Check the core indexes the keys the same way.
+   */
+  const auto& keyList = *keys;
+  if (core.getWindowContainerSize() <= 0.0 || core.getElementsSize() != keyList.size() ||
+      cache.targetHigh >= keyList.size() ||
+      core.findElementIndexByKey(keyList[cache.targetLow]) != cache.targetLow ||
+      core.findElementIndexByKey(keyList[cache.targetHigh]) != cache.targetHigh) {
+    return false;
+  }
+  auto [start, end] = core.getVisibleIndices();
+  if (start == azimgd::shadowlist::UNDEFINED_INDEX || end == azimgd::shadowlist::UNDEFINED_INDEX) {
+    return false;
+  }
+  std::size_t count = keyList.size();
+  std::size_t low = std::min(std::min(start, end), count - 1);
+  std::size_t high = std::min(std::max(start, end), count - 1);
+  if (cache.targetLow > low || cache.targetHigh < high) {
+    return false;
+  }
+
+  // The section header overlay must still show the row the full pass would pin.
+  if (cache.overlayChildIndex != SIZE_MAX) {
+    if (activeStickyIndexLocked(keyList, core, inverted) != cache.stickyActive) {
+      return false;
+    }
+    const auto& overlayChildren = children[cache.overlayChildIndex]->getChildren();
+    if (stickyNode_.node) {
+      if (overlayChildren.size() != 1 || overlayChildren.front() != stickyNode_.node ||
+          !hasLiveEventTarget(*stickyNode_.node)) {
+        return false;
+      }
+    } else if (!overlayChildren.empty()) {
+      return false;
+    }
+  }
+  return true;
+}
+
 std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine::reconcileRows(
   const ShadowNode& listNode,
   const ChildList& children,
-  const std::vector<std::string>& keys,
+  const std::shared_ptr<const std::vector<std::string>>& keysSnapshot,
   azimgd::shadowlist::Container& core,
   int initialIndex,
   bool inverted) {
   const auto contextContainer = listNode.getContextContainer();
-  if (!contextContainer) {
+  if (!contextContainer || !keysSnapshot) {
     return nullptr;
   }
   PropsParserContext context{listNode.getSurfaceId(), *contextContainer};
+  const std::vector<std::string>& keys = *keysSnapshot;
 
   std::lock_guard<std::mutex> lock(mutex_);
   reconciledVersion_ = storeVersion_;
+
+  // Most commits, like every scroll frame, change nothing here. See ReconcileCache.
+  if (reconcileUnchangedLocked(children, keysSnapshot, core, initialIndex, inverted)) {
+    return nullptr;
+  }
+  reconcileCache_.valid = false;
 
   /*
    * Separate the list's own children, like the header and footer, from last time's rows.
@@ -1199,12 +1333,12 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   std::unordered_map<std::string, std::shared_ptr<const ShadowNode>> current;
   std::size_t rowsAt = std::string::npos;
   for (const auto& child : children) {
-    if (const auto elementProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(child->getProps())) {
+    if (const auto elementProps = dynamic_cast<const ShadowListElementViewProps*>(child->getProps().get())) {
       current.emplace(elementProps->elementKey, child);
       continue;
     }
     others.push_back(child);
-    if (const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(child->getProps())) {
+    if (const auto templateProps = dynamic_cast<const ShadowListTemplateViewProps*>(child->getProps().get())) {
       if (templateProps->templateType == TEMPLATES_CONTAINER_TYPE) {
         compileTemplatesLocked(*child, context);
         templatesContainerHold_ = child;
@@ -1229,6 +1363,7 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   std::size_t targetLow = 0;
   std::size_t targetHigh = 0;
   bool haveTarget = false;
+  bool measuredTarget = false;
   if (count > 0 && !templates_.empty()) {
     std::size_t low = 0;
     std::size_t high = 0;
@@ -1280,6 +1415,7 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
       targetHigh = std::min(count - 1, high + padRows_);
     }
     haveTarget = true;
+    measuredTarget = measured;
   }
 
   ChildList rows;
@@ -1364,7 +1500,7 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   }
 
   auto rowKey = [](const std::shared_ptr<const ShadowNode>& row) -> std::string {
-    const auto elementProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(row->getProps());
+    const auto elementProps = dynamic_cast<const ShadowListElementViewProps*>(row->getProps().get());
     return elementProps ? elementProps->elementKey : std::string{};
   };
   mountedLowKey_ = rows.empty() ? std::string{} : rowKey(rows.front());
@@ -1374,12 +1510,14 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
 
   // Put a copy of the current sticky row in the section header overlay.
   bool hasStickyOverlay = false;
+  std::size_t overlayOthersIndex = SIZE_MAX;
   for (auto& child : others) {
-    const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(child->getProps());
+    const auto templateProps = dynamic_cast<const ShadowListTemplateViewProps*>(child->getProps().get());
     if (!templateProps || templateProps->templateType != "sectionHeader") {
       continue;
     }
     hasStickyOverlay = true;
+    overlayOthersIndex = static_cast<std::size_t>(&child - others.data());
     auto sticky = stickyRowLocked(keys, core, inverted, context);
     ChildList overlay;
     if (sticky) {
@@ -1400,6 +1538,32 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
   next.insert(next.end(), others.begin(), others.begin() + static_cast<std::ptrdiff_t>(rowsAt));
   next.insert(next.end(), rows.begin(), rows.end());
   next.insert(next.end(), others.begin() + static_cast<std::ptrdiff_t>(rowsAt), others.end());
+
+  /*
+   * Remember this pass for the fast path, but only when it kept a full measured window. A
+   * gap in the rows or a window picked before the list had a size makes the next pass differ.
+   */
+  if (haveTarget && measuredTarget && rows.size() == targetHigh - targetLow + 1) {
+    reconcileCache_.valid = true;
+    reconcileCache_.childTags.clear();
+    reconcileCache_.childTags.reserve(next.size());
+    for (const auto& child : next) {
+      reconcileCache_.childTags.push_back(child->getTag());
+    }
+    reconcileCache_.keys = keysSnapshot;
+    reconcileCache_.storeVersion = storeVersion_;
+    reconcileCache_.configVersion = configVersion_;
+    reconcileCache_.templatesContainer = templatesContainer_;
+    reconcileCache_.initialIndex = initialIndex;
+    reconcileCache_.inverted = inverted;
+    reconcileCache_.targetLow = targetLow;
+    reconcileCache_.targetHigh = targetHigh;
+    reconcileCache_.overlayChildIndex = overlayOthersIndex == SIZE_MAX
+      ? SIZE_MAX
+      : overlayOthersIndex + (overlayOthersIndex >= rowsAt ? rows.size() : 0);
+    reconcileCache_.stickyActive = hasStickyOverlay ? activeStickyIndexLocked(keys, core, inverted) : SIZE_MAX;
+  }
+
   if (next == children) {
     return nullptr;
   }
@@ -1421,8 +1585,17 @@ void ShadowListNativeEngine::didLayout(const ShadowNode& listNode, azimgd::shado
 
     // Keep the laid out rows so a row coming back into view reuses them.
     for (const auto& child : listNode.getChildren()) {
-      const auto elementProps = std::dynamic_pointer_cast<const ShadowListElementViewProps>(child->getProps());
+      const auto elementProps = dynamic_cast<const ShadowListElementViewProps*>(child->getProps().get());
       if (!elementProps) {
+        /*
+         * Same for the pinned copy in the section header overlay. Keeping the laid out copy
+         * lets the next pass see the overlay as unchanged instead of swapping it back in.
+         */
+        const auto templateProps = dynamic_cast<const ShadowListTemplateViewProps*>(child->getProps().get());
+        if (templateProps && templateProps->templateType == "sectionHeader" && stickyNode_.node &&
+            child->getChildren().size() == 1 && child->getChildren().front()->getTag() == stickyNode_.node->getTag()) {
+          stickyNode_.node = child->getChildren().front();
+        }
         continue;
       }
       auto found = rowNodes_.find(elementProps->elementKey);

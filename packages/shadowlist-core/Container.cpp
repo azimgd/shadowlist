@@ -284,6 +284,124 @@ void Container::dispatchObservers() {
   this->previousContainerOffsetValid = true;
 }
 
+OffsetBand Container::computeOffsetBand() const {
+  const OffsetBand empty;
+  const std::vector<Element>& elements = this->revision.elements;
+  std::size_t elementsSize = elements.size();
+
+  // Before the first real frame the window fills from the edge, not from the offset.
+  if (elementsSize == 0 || this->revisionCount == REVISION_COUNT_FIRST) {
+    return empty;
+  }
+
+  // Corrections and scroll commands settle over several frames.
+  if (this->operation || this->containerOffsetCorrected || this->pendingScrollToEnd ||
+      this->pendingScrollToStart || this->scrollToIndexTarget != UNDEFINED_INDEX) {
+    return empty;
+  }
+
+  // Rows or sizes the next frame would still lay out, so positions are about to move.
+  if (this->elementsStructureDirty || this->elementsSizeDirtyFromIndex != UNDEFINED_INDEX) {
+    return empty;
+  }
+  auto [estimatedWidth, estimatedHeight] = this->estimatedElementSize;
+  double fallbackWidth = this->revision.averageElementWidth > 0.0 ? this->revision.averageElementWidth : estimatedWidth;
+  double fallbackHeight = this->revision.averageElementHeight > 0.0 ? this->revision.averageElementHeight : estimatedHeight;
+  /*
+   * Same inputs as the row reflow in layoutElements. The footer and the window size along the
+   * scroll axis never move rows, and the band is recomputed on the frame that changes them.
+   */
+  bool crossWindowChanged = this->horizontal
+    ? this->revision.windowContainerHeight != this->lastLayoutWindowHeight
+    : this->revision.windowContainerWidth != this->lastLayoutWindowWidth;
+  if (fallbackWidth != this->lastFallbackWidth || fallbackHeight != this->lastFallbackHeight ||
+      this->headerSize != this->lastLayoutHeaderSize || crossWindowChanged ||
+      this->columns != this->lastLayoutColumns || this->horizontal != this->lastLayoutHorizontal) {
+    return empty;
+  }
+
+  // These listeners need every offset, not just the window.
+  if (this->onScrollCallback || this->onViewableIndicesChangeCallback || !this->stickyIndices.empty()) {
+    return empty;
+  }
+
+  // An inverted list still settling on the bottom it opened at follows every frame.
+  if (this->inverted && (!this->invertedInitialized || this->invertedOpeningPin)) {
+    return empty;
+  }
+
+  double offset = this->getContainerOffset();
+  double windowSize = this->getWindowContainerSize();
+  double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
+  double maxOffset = std::max(0.0, totalSize - windowSize);
+  std::size_t measuredStart = this->revision.measurementElementStartIndex;
+  std::size_t measuredEnd = this->revision.measurementElementEndIndex;
+  if (!(windowSize > 0.0) || !std::isfinite(offset) || measuredStart == UNDEFINED_INDEX ||
+      measuredEnd == UNDEFINED_INDEX) {
+    return empty;
+  }
+
+  // Past either end of the scroll range, like a bounce or a pull to refresh, send every frame.
+  if (offset < 0.0 || offset > maxOffset) {
+    return empty;
+  }
+
+  /*
+   * Start from the whole scroll range, whose ends are real offsets the host can rest on,
+   * then pull each side in to the nearest offset where something flips.
+   */
+  double low = 0.0;
+  double high = maxOffset;
+  auto addFlip = [&](double flip) {
+    if (!std::isfinite(flip)) {
+      return;
+    }
+    if (flip <= offset) {
+      low = std::max(low, flip + OFFSET_BAND_MARGIN);
+    } else {
+      high = std::min(high, flip - OFFSET_BAND_MARGIN);
+    }
+  };
+
+  /*
+   * A row is in the window while it ends past offset minus the overscan and starts before
+   * the far edge plus the overscan. So it enters and leaves at these two offsets. Only rows
+   * near the window matter. Each column is in order, so the nearest flips come from rows
+   * at most a couple of columns outside the measured range.
+   */
+  double overscanSize = windowSize * this->overscan;
+  std::size_t columnCount = this->columns > 0 ? this->columns : 1;
+  std::size_t reach = 2 * columnCount + 2;
+  std::size_t lowIndex = std::min(measuredStart, measuredEnd);
+  std::size_t highIndex = std::max(measuredStart, measuredEnd);
+  std::size_t fromIndex = lowIndex > reach ? lowIndex - reach : 0;
+  std::size_t toIndex = std::min(elementsSize - 1, highIndex + reach);
+  for (std::size_t index = fromIndex; index <= toIndex; ++index) {
+    const Element& element = elements[index];
+    double elementStart = this->horizontal ? element.offsetX : element.offsetY;
+    double elementSize = this->horizontal ? element.width : element.height;
+    addFlip(elementStart - windowSize - overscanSize);
+    addFlip(elementStart + elementSize + overscanSize);
+  }
+
+  // The edge callbacks flip where they start and stop counting as reached.
+  addFlip(windowSize * this->startReachedThreshold);
+  addFlip(totalSize - windowSize - windowSize * this->endReachedThreshold);
+
+  // The inverted bottom pin flips where it starts counting as at the bottom.
+  if (this->inverted) {
+    addFlip(maxOffset - INVERTED_FOLLOW_BAND);
+  }
+
+  OffsetBand band;
+  band.low = low;
+  band.high = high;
+  if (!band.contains(offset)) {
+    return empty;
+  }
+  return band;
+}
+
 const Element& Container::getElementAtIndex(std::size_t index) const {
   if (index >= this->revision.elements.size()) {
     throw InvalidOperationError("Index out of bounds");

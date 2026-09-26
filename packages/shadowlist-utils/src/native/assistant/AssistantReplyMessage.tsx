@@ -26,6 +26,7 @@ import { AssistantTypingIndicator } from './AssistantTypingIndicator';
 import { AssistantThinking } from './AssistantThinking';
 import { AssistantToolCallCard } from './AssistantToolCallCard';
 import { useStreamingTurn, type AssistantStreamStore } from './stream';
+import { AssistantBusy, AssistantLatest } from './rowState';
 import type {
   AssistantToolCall,
   AssistantFeedback,
@@ -245,20 +246,24 @@ export const AssistantReplyMessage = memo(
             <Text style={styles.errorText}>
               {turn.error || l.responseFailed}
             </Text>
-            <Pressable
-              onPress={() => onRetry?.(message.id)}
-              disabled={busy}
-              accessibilityRole="button"
-              accessibilityLabel={l.retry}
-              accessibilityState={{ disabled: busy }}
-              style={({ pressed }) => [
-                styles.retryButton,
-                (pressed || busy) && styles.pressed,
-              ]}
-            >
-              <RetryIcon size={16} color={colors.label} strokeWidth={1.6} />
-              <Text style={styles.retryText}>{l.retry}</Text>
-            </Pressable>
+            <AssistantBusy busy={busy}>
+              {(disabled) => (
+                <Pressable
+                  onPress={() => onRetry?.(message.id)}
+                  disabled={disabled}
+                  accessibilityRole="button"
+                  accessibilityLabel={l.retry}
+                  accessibilityState={{ disabled }}
+                  style={({ pressed }) => [
+                    styles.retryButton,
+                    (pressed || disabled) && styles.pressed,
+                  ]}
+                >
+                  <RetryIcon size={16} color={colors.label} strokeWidth={1.6} />
+                  <Text style={styles.retryText}>{l.retry}</Text>
+                </Pressable>
+              )}
+            </AssistantBusy>
           </View>
         ) : null}
 
@@ -302,13 +307,17 @@ export const AssistantReplyMessage = memo(
               )}
             </AssistantActionButton>
           ) : null}
-          <AssistantActionButton
-            label={l.regenerate}
-            disabled={busy}
-            onPress={() => onRegenerate?.(message.id)}
-          >
-            <RetryIcon size={18} color={colors.secondaryLabel} />
-          </AssistantActionButton>
+          <AssistantBusy busy={busy}>
+            {(disabled) => (
+              <AssistantActionButton
+                label={l.regenerate}
+                disabled={disabled}
+                onPress={() => onRegenerate?.(message.id)}
+              >
+                <RetryIcon size={18} color={colors.secondaryLabel} />
+              </AssistantActionButton>
+            )}
+          </AssistantBusy>
           <AssistantActionButton
             label={l.goodResponse}
             selected={message.feedback === 'good'}
@@ -399,23 +408,29 @@ export const AssistantReplyMessage = memo(
          * Follow ups only exist once the turn is done, after scrolling has settled. Reserving
          * space for them would leave a gap under every reply.
          */}
-        {isLatest && followUps.length > 0 ? (
-          <View style={styles.followUps}>
-            {followUps.map((prompt) => (
-              <Pressable
-                key={prompt}
-                onPress={() => onFollowUp?.(prompt)}
-                accessibilityRole="button"
-                accessibilityLabel={prompt}
-                style={({ pressed }) => [
-                  styles.followUp,
-                  pressed && styles.followUpPressed,
-                ]}
-              >
-                <Text style={styles.followUpText}>{prompt}</Text>
-              </Pressable>
-            ))}
-          </View>
+        {followUps.length > 0 ? (
+          <AssistantLatest messageId={message.id} isLatest={isLatest}>
+            {(latest) =>
+              latest ? (
+                <View style={styles.followUps}>
+                  {followUps.map((prompt) => (
+                    <Pressable
+                      key={prompt}
+                      onPress={() => onFollowUp?.(prompt)}
+                      accessibilityRole="button"
+                      accessibilityLabel={prompt}
+                      style={({ pressed }) => [
+                        styles.followUp,
+                        pressed && styles.followUpPressed,
+                      ]}
+                    >
+                      <Text style={styles.followUpText}>{prompt}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null
+            }
+          </AssistantLatest>
         ) : null}
       </View>
     );

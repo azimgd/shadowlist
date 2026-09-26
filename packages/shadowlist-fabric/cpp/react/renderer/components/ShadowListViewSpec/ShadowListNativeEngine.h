@@ -158,7 +158,7 @@ public:
   std::shared_ptr<const ChildList> reconcileRows(
     const ShadowNode& listNode,
     const ChildList& children,
-    const std::vector<std::string>& keys,
+    const std::shared_ptr<const std::vector<std::string>>& keys,
     azimgd::shadowlist::Container& core,
     int initialIndex,
     bool inverted);
@@ -279,6 +279,46 @@ private:
   void forgetTagsLocked(const ShadowNode& node, const std::string& key);
   void evictLocked(std::size_t keep);
 
+  /*
+   * The sticky row the section header overlay shows at the core's offset, or SIZE_MAX.
+   */
+  std::size_t activeStickyIndexLocked(
+    const std::vector<std::string>& keys,
+    const azimgd::shadowlist::Container& core,
+    bool inverted) const;
+
+  /*
+   * What the last full reconcile saw and gave back. When the next commit brings the same
+   * children, keys, data and templates, and the core's window still sits inside the rows
+   * mounted then, the full pass would hand back the very same children. So it returns
+   * null right away instead of hashing every mounted row again.
+   */
+  struct ReconcileCache {
+    bool valid = false;
+    // Tags of the children the pass returned or kept, in order. Clones keep their tags.
+    std::vector<Tag> childTags;
+    std::shared_ptr<const std::vector<std::string>> keys;
+    std::uint64_t storeVersion = 0;
+    std::uint64_t configVersion = 0;
+    const ShadowNode* templatesContainer = nullptr;
+    int initialIndex = 0;
+    bool inverted = false;
+    std::size_t targetLow = 0;
+    std::size_t targetHigh = 0;
+    // Position of the section header overlay in the children, or SIZE_MAX without one.
+    std::size_t overlayChildIndex = SIZE_MAX;
+    std::size_t stickyActive = SIZE_MAX;
+  };
+  bool reconcileUnchangedLocked(
+    const ChildList& children,
+    const std::shared_ptr<const std::vector<std::string>>& keys,
+    const azimgd::shadowlist::Container& core,
+    int initialIndex,
+    bool inverted) const;
+  ReconcileCache reconcileCache_;
+  // Bumped by configure, since row counts change which rows a pass picks.
+  std::uint64_t configVersion_ = 0;
+
   const std::string listId_;
   mutable std::mutex mutex_;
 
@@ -328,6 +368,16 @@ private:
     int repeatIndex = -1;
   };
   std::unordered_map<Tag, TagEntry> tagKeys_;
+  /*
+   * For each built node whose props came from bound values or text, the base props and the
+   * patch they were made from. The base is held strongly, so its address can't be reused.
+   * Dropped with the node's tag.
+   */
+  struct BoundProps {
+    Props::Shared base;
+    folly::dynamic patch;
+  };
+  std::unordered_map<Tag, BoundProps> boundProps_;
   std::uint64_t clock_ = 0;
 
   // First and last keys the last pass mounted.

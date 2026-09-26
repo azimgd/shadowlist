@@ -1,6 +1,7 @@
 package com.shadowlist;
 
 import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -19,6 +20,7 @@ import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
+import com.facebook.react.common.mapbuffer.ReadableMapBuffer;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
 import com.facebook.react.uimanager.UIManagerHelper;
@@ -50,7 +52,57 @@ public class ShadowListView extends FrameLayout {
   private static final double SCROLL_PHASE_DRAGGING = 1.0;
   private static final double SCROLL_PHASE_SETTLING = 2.0;
 
+  /*
+   * Keys of the state MapBuffer, matching ShadowListStateKey in ShadowListViewState.h.
+   */
+  private static final int STATE_TOTAL_WIDTH = 0;
+  private static final int STATE_TOTAL_HEIGHT = 1;
+  private static final int STATE_OFFSET_ENABLED = 2;
+  private static final int STATE_OFFSET_X = 3;
+  private static final int STATE_OFFSET_Y = 4;
+  private static final int STATE_COMMIT_TOKEN = 5;
+  private static final int STATE_MOMENTUM_YIELD_TOKEN = 6;
+  private static final int STATE_OFFSET_BASE_X = 7;
+  private static final int STATE_OFFSET_BASE_Y = 8;
+  private static final int STATE_USER_SCROLLED = 9;
+  private static final int STATE_SCROLL_PHASE = 10;
+  private static final int STATE_COMMAND_SEQUENCE = 11;
+  private static final int STATE_STICKY_VERSION = 12;
+  private static final int STATE_SNAP_VERSION = 13;
+  private static final int STATE_BAND_LOW = 14;
+  private static final int STATE_BAND_HIGH = 15;
+  private static final int STATE_LIVE_HANDLE = 16;
+  private static final int STATE_CONCEAL_GENERATION = 17;
+
   private @Nullable StateWrapper mState = null;
+
+  /*
+   * What the mounted state says, read once per mount from its MapBuffer.
+   * The band is the offset range, in dp, the view can scroll through without a state update.
+   * Low above high means send every frame. The versions tell when the sticky and snap lists
+   * changed, so they are only copied then. The handle finds the list's live report.
+   */
+  private double mBandLow = 1.0;
+  private double mBandHigh = 0.0;
+  private boolean mMountedOffsetEnabled = false;
+  private double mMountedConcealGeneration = 0.0;
+  private double mMountedCommandSequence = 0.0;
+  private long mLiveHandle = 0;
+  private long mStickyVersion = -1;
+  private long mSnapVersion = -1;
+  private long mGeometryHandle = 0;
+
+  /*
+   * The newest live report and the one the last state update carried. A change in the
+   * gesture or the echoed token is always sent.
+   */
+  private boolean mLastLiveUserScrolled = false;
+  private double mLastLivePhase = SCROLL_PHASE_IDLE;
+  private boolean mHasPushedReport = false;
+  private boolean mLastPushedUserScrolled = false;
+  private double mLastPushedPhase = SCROLL_PHASE_IDLE;
+  private long mLastPushedToken = 0;
+  private double mLastPushedAck = 0.0;
   private ContentContainer mContentView;
   private ViewGroup mScrollView;
   private final ShadowListStickyController mStickyController;
@@ -61,6 +113,8 @@ public class ShadowListView extends FrameLayout {
    * its real position when the list size changes.
    */
   private final View.OnLayoutChangeListener mTemplateLayoutListener;
+  // A mounted template changed type, so the sticky views must be found again.
+  private final Runnable mTemplateTypeListener;
 
   // The scroll axis. Changing it rebuilds the inner scroll view.
   private boolean mHorizontal = false;
@@ -140,13 +194,54 @@ public class ShadowListView extends FrameLayout {
    */
   private static final int PROGRAMMATIC_SCROLL_TOLERANCE_PX = 2;
 
+  /*
+   * Draws only the children that reach into the scroll viewport. Overscan rows stay mounted
+   * so a fling finds them ready, but drawing them anyway made the render thread sync and draw
+   * every mounted row each frame (about 2.5 ms a frame on a feed with the default overscan).
+   * The host invalidates this on every scroll, which only re-records this list of children.
+   */
   private static class ContentContainer extends ViewGroup {
+    private int mDrawLow = Integer.MIN_VALUE;
+    private int mDrawHigh = Integer.MAX_VALUE;
+    private boolean mCullHorizontal = false;
+
     public ContentContainer(Context context) {
       super(context);
     }
 
+    void setCullAxis(boolean horizontal) {
+      mCullHorizontal = horizontal;
+    }
+
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    }
+
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+      View scroller = getParent() instanceof View ? (View) getParent() : null;
+      if (scroller != null) {
+        int start = mCullHorizontal ? scroller.getScrollX() : scroller.getScrollY();
+        int extent = mCullHorizontal ? scroller.getWidth() : scroller.getHeight();
+        // A quarter screen of slack covers overscroll stretch and a frame of scroll.
+        int slack = extent / 4;
+        mDrawLow = start - slack;
+        mDrawHigh = start + extent + slack;
+      } else {
+        mDrawLow = Integer.MIN_VALUE;
+        mDrawHigh = Integer.MAX_VALUE;
+      }
+      super.dispatchDraw(canvas);
+    }
+
+    @Override
+    protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+      float low = mCullHorizontal ? child.getLeft() + child.getTranslationX() : child.getTop() + child.getTranslationY();
+      float size = mCullHorizontal ? child.getWidth() : child.getHeight();
+      if (low > mDrawHigh || low + size < mDrawLow) {
+        return false;
+      }
+      return super.drawChild(canvas, child, drawingTime);
     }
   }
 
@@ -254,6 +349,7 @@ public class ShadowListView extends FrameLayout {
           mStickyController.applyStickyTransforms();
         }
       };
+    mTemplateTypeListener = () -> mStickyController.invalidateTemplates();
     installScrollView(false);
   }
 
@@ -261,6 +357,7 @@ public class ShadowListView extends FrameLayout {
    * Build the inner scroll view for the axis and move the content into it.
    */
   private void installScrollView(boolean horizontal) {
+    mContentView.setCullAxis(horizontal);
     if (mScrollView != null) {
       mScrollView.removeView(mContentView);
       if (mRefreshLayout != null) {
@@ -285,6 +382,19 @@ public class ShadowListView extends FrameLayout {
       ((ReactScrollView) mScrollView).setFillViewport(false);
     }
     mScrollView.setClipToPadding(false);
+
+    /*
+     * The inner scroll view has no React tag, so every ScrollEvent it sends goes to tag -1
+     * and logs an error, once per frame. The list reports scrolling itself, so throttle
+     * them away. The last dispatch time in the future keeps even the first one back.
+     */
+    if (mScrollView instanceof ReactScrollView) {
+      ((ReactScrollView) mScrollView).setScrollEventThrottle(Integer.MAX_VALUE);
+      ((ReactScrollView) mScrollView).setLastScrollDispatchTime(Long.MAX_VALUE);
+    } else if (mScrollView instanceof ReactHorizontalScrollView) {
+      ((ReactHorizontalScrollView) mScrollView).setScrollEventThrottle(Integer.MAX_VALUE);
+      ((ReactHorizontalScrollView) mScrollView).setLastScrollDispatchTime(Long.MAX_VALUE);
+    }
 
     GradientDrawable scrollbarDrawable = new GradientDrawable();
     scrollbarDrawable.setShape(GradientDrawable.RECTANGLE);
@@ -397,7 +507,8 @@ public class ShadowListView extends FrameLayout {
     }
     if (child instanceof ShadowListTemplateView) {
       mContentView.addView(child, index);
-      child.addOnLayoutChangeListener(mTemplateLayoutListener);
+      ((ShadowListTemplateView) child).setListListeners(mTemplateLayoutListener, mTemplateTypeListener);
+      mStickyController.invalidateTemplates();
     }
   }
 
@@ -412,7 +523,8 @@ public class ShadowListView extends FrameLayout {
   public void removeContentViewAt(int index) {
     View child = mContentView.getChildAt(index);
     if (child instanceof ShadowListTemplateView) {
-      child.removeOnLayoutChangeListener(mTemplateLayoutListener);
+      ((ShadowListTemplateView) child).setListListeners(null, null);
+      mStickyController.invalidateTemplates();
     }
     /*
      * The dragged row is going away, for example its data was deleted. Cancel the drag
@@ -425,6 +537,8 @@ public class ShadowListView extends FrameLayout {
   }
 
   private void handleInnerScroll(int scrollX, int scrollY) {
+    // Rows move in and out of the drawn window, see ContentContainer.
+    mContentView.invalidate();
     // Only real user scrolls move the hiding header and footer.
     boolean userScrolled = updateScrollState(scrollX, scrollY);
     mStickyController.applyStickyTransforms(userScrolled);
@@ -474,10 +588,12 @@ public class ShadowListView extends FrameLayout {
      * the last state, so otherwise the old userScrolled flag sticks around and the core
      * mistakes its own correction for the user moving the list and drops it.
      */
+    boolean userScrolled = mLastLiveUserScrolled;
     if (scrollPhase == SCROLL_PHASE_IDLE) {
       map.putBoolean("userScrolled", false);
+      userScrolled = false;
     }
-    carryLiveOffset(map);
+    carryLiveOffset(map, userScrolled, scrollPhase);
     carryScrollCommand(map);
     mState.updateState(map);
   }
@@ -627,6 +743,23 @@ public class ShadowListView extends FrameLayout {
     mShiftedToken = 0;
     mShiftedTokenDelta = 0.0;
     mYieldedToken = 0;
+    // The band, live report and list versions belong to the old list.
+    mBandLow = 1.0;
+    mBandHigh = 0.0;
+    mMountedOffsetEnabled = false;
+    mMountedConcealGeneration = 0.0;
+    mMountedCommandSequence = 0.0;
+    mLiveHandle = 0;
+    mStickyVersion = -1;
+    mSnapVersion = -1;
+    mGeometryHandle = 0;
+    mLastLiveUserScrolled = false;
+    mLastLivePhase = SCROLL_PHASE_IDLE;
+    mHasPushedReport = false;
+    mLastPushedUserScrolled = false;
+    mLastPushedPhase = SCROLL_PHASE_IDLE;
+    mLastPushedToken = 0;
+    mLastPushedAck = 0.0;
     mRefreshAwaitingSettle = false;
     removeCallbacks(mRefreshSettleRunnable);
     stopSettling();
@@ -694,6 +827,8 @@ public class ShadowListView extends FrameLayout {
      * scroll makes the core drop its correction and freezes the visible rows.
      */
     boolean userScrolled = true;
+    // Any frame of a scroll we started is sent, including the one that echoes a correction.
+    boolean ourMove = mProgrammaticPending;
     if (mProgrammaticPending) {
       if (mProgrammaticAnimated) {
         // A frame of our own animation, never the user.
@@ -721,12 +856,6 @@ public class ShadowListView extends FrameLayout {
      */
     long echoToken = mEchoedToken;
 
-    WritableMap map = new WritableNativeMap();
-
-    map.putDouble("containerOffsetX", PixelUtil.toDIPFromPixel(scrollX));
-    map.putDouble("containerOffsetY", PixelUtil.toDIPFromPixel(scrollY));
-    map.putBoolean("containerOffsetEnabled", false);
-    map.putBoolean("userScrolled", userScrolled);
     /*
      * Finger down, momentum or idle. The core keeps an inverted list from pinning to the
      * bottom until this is idle, see Container::gestureActive.
@@ -734,16 +863,86 @@ public class ShadowListView extends FrameLayout {
     double scrollPhase = mTouching
       ? SCROLL_PHASE_DRAGGING
       : (mSettling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE);
-    map.putDouble("scrollPhase", scrollPhase);
-    map.putDouble("commitToken", (double) echoToken);
-    carryScrollCommand(map);
+    double offsetX = PixelUtil.toDIPFromPixel(scrollX);
+    double offsetY = PixelUtil.toDIPFromPixel(scrollY);
+
+    /*
+     * Every frame goes into the live report. Only frames the core needs become a state
+     * update, which is a full commit. See liveReportNeedsCommit.
+     */
+    long sequence = writeLiveReport(offsetX, offsetY, userScrolled, scrollPhase, echoToken);
+    boolean needsCommit = ourMove || liveReportNeedsCommit(sequence, mHorizontal ? offsetX : offsetY);
 
     if (DEBUG_LOG) {
-      slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f) userScrolled=%b phase=%.0f",
-        PixelUtil.toDIPFromPixel(scrollX), PixelUtil.toDIPFromPixel(scrollY), userScrolled, scrollPhase));
+      slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f) userScrolled=%b phase=%.0f seq=%d commit=%b",
+        offsetX, offsetY, userScrolled, scrollPhase, sequence, needsCommit));
     }
+    if (!needsCommit) {
+      return userScrolled;
+    }
+
+    WritableMap map = new WritableNativeMap();
+
+    map.putDouble("containerOffsetX", offsetX);
+    map.putDouble("containerOffsetY", offsetY);
+    map.putBoolean("containerOffsetEnabled", false);
+    map.putBoolean("userScrolled", userScrolled);
+    map.putDouble("scrollPhase", scrollPhase);
+    map.putDouble("commitToken", (double) echoToken);
+    map.putDouble("hostSequence", (double) sequence);
+    carryScrollCommand(map);
+    notePushedReport(userScrolled, scrollPhase, echoToken);
+
     mState.updateState(map);
     return userScrolled;
+  }
+
+  /*
+   * Store a report in the list's live report and return its sequence, or 0 when there is no
+   * live report, which makes every frame a state update. Android never hides rows, so the ack
+   * is just the mounted generation, like iOS.
+   */
+  private long writeLiveReport(double offsetX, double offsetY, boolean userScrolled, double scrollPhase, long token) {
+    mLastLiveUserScrolled = userScrolled;
+    mLastLivePhase = scrollPhase;
+    return ShadowListLiveScroll.write(
+      mLiveHandle, offsetX, offsetY, userScrolled, scrollPhase, (double) token, mMountedConcealGeneration);
+  }
+
+  private void notePushedReport(boolean userScrolled, double scrollPhase, long token) {
+    mHasPushedReport = true;
+    mLastPushedUserScrolled = userScrolled;
+    mLastPushedPhase = scrollPhase;
+    mLastPushedToken = token;
+    mLastPushedAck = mMountedConcealGeneration;
+  }
+
+  /*
+   * Whether a scroll frame must become a state update. Conservative on purpose: anything the
+   * core reacts to other than the offset moving inside the band sends it.
+   */
+  private boolean liveReportNeedsCommit(long sequence, double axisOffset) {
+    if (sequence == 0 || !mHasPushedReport) {
+      return true;
+    }
+    // A correction just mounted, or rows hidden until a report acknowledges them.
+    if (mMountedOffsetEnabled || mMountedConcealGeneration != 0.0) {
+      return true;
+    }
+    // The gesture changed, a correction was echoed, or a hide was acknowledged.
+    if (mLastLiveUserScrolled != mLastPushedUserScrolled || mLastLivePhase != mLastPushedPhase
+        || mEchoedToken != mLastPushedToken || mMountedConcealGeneration != mLastPushedAck) {
+      return true;
+    }
+    // Pull to refresh and drag to reorder lean on every frame.
+    if (mRefreshing || mRefreshAwaitingSettle || (mRefreshLayout != null && mRefreshLayout.isRefreshing())) {
+      return true;
+    }
+    if (mDragController.isDragging() || mDragController.ownsScrollOffset()) {
+      return true;
+    }
+    // The offset left the band the mounted layout pass published. An empty band never holds it.
+    return !(mBandLow <= axisOffset && axisOffset <= mBandHigh);
   }
 
   public void updateState(@Nullable StateWrapper stateWrapper) {
@@ -753,137 +952,160 @@ public class ShadowListView extends FrameLayout {
       return;
     }
 
-    ReadableMap nextStateData = mState.getStateData();
-    if (nextStateData == null) {
+    /*
+     * Read the scalars from the state's MapBuffer. getStateData copies the whole state,
+     * including the sticky and snap lists, into a map on every mount. The lists are only
+     * read from it when their version moved.
+     */
+    ReadableMapBuffer mapBuffer = mState.getStateDataMapBuffer();
+    if (mapBuffer == null) {
       return;
     }
 
-    mStickyController.cacheStickyGeometry(nextStateData);
+    mBandLow = mapBuffer.getDouble(STATE_BAND_LOW);
+    mBandHigh = mapBuffer.getDouble(STATE_BAND_HIGH);
+    mMountedOffsetEnabled = mapBuffer.getBoolean(STATE_OFFSET_ENABLED);
+    mMountedConcealGeneration = mapBuffer.getDouble(STATE_CONCEAL_GENERATION);
+    mMountedCommandSequence = mapBuffer.getDouble(STATE_COMMAND_SEQUENCE);
+    mLiveHandle = mapBuffer.getLong(STATE_LIVE_HANDLE);
 
-    if (nextStateData.hasKey("snapOffsets")) {
-      ReadableArray snapOffsets = nextStateData.getArray("snapOffsets");
-      if (snapOffsets != null) {
-        float[] offsetsPx = new float[snapOffsets.size()];
-        for (int i = 0; i < snapOffsets.size(); i++) {
-          offsetsPx[i] = PixelUtil.toPixelFromDIP((float) snapOffsets.getDouble(i));
+    long stickyVersion = mapBuffer.getLong(STATE_STICKY_VERSION);
+    long snapVersion = mapBuffer.getLong(STATE_SNAP_VERSION);
+    // Versions count per list, so a different list always reads its lists again.
+    boolean sameList = mGeometryHandle == mLiveHandle && mLiveHandle != 0;
+    boolean stickyStale = !sameList || stickyVersion != mStickyVersion;
+    boolean snapStale = !sameList || snapVersion != mSnapVersion;
+    if (stickyStale || snapStale) {
+      ReadableMap nextStateData = mState.getStateData();
+      if (nextStateData != null) {
+        if (stickyStale) {
+          mStickyController.cacheStickyGeometry(nextStateData);
         }
-        mSnapOffsetsPx = offsetsPx;
+        if (snapStale && nextStateData.hasKey("snapOffsets")) {
+          ReadableArray snapOffsets = nextStateData.getArray("snapOffsets");
+          if (snapOffsets != null) {
+            float[] offsetsPx = new float[snapOffsets.size()];
+            for (int i = 0; i < snapOffsets.size(); i++) {
+              offsetsPx[i] = PixelUtil.toPixelFromDIP((float) snapOffsets.getDouble(i));
+            }
+            mSnapOffsetsPx = offsetsPx;
+          }
+        }
+        mGeometryHandle = mLiveHandle;
+        mStickyVersion = stickyVersion;
+        mSnapVersion = snapVersion;
       }
     }
 
     if (DEBUG_LOG) {
-      slLog(String.format("java.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
-        nextStateData.hasKey("totalContainerWidth") ? nextStateData.getDouble("totalContainerWidth") : 0.0,
-        nextStateData.hasKey("totalContainerHeight") ? nextStateData.getDouble("totalContainerHeight") : 0.0,
-        (nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) ? 1 : 0,
-        nextStateData.hasKey("containerOffsetX") ? nextStateData.getDouble("containerOffsetX") : 0.0,
-        nextStateData.hasKey("containerOffsetY") ? nextStateData.getDouble("containerOffsetY") : 0.0,
-        PixelUtil.toDIPFromPixel(mScrollView.getScrollX()), PixelUtil.toDIPFromPixel(mScrollView.getScrollY())));
+      slLog(String.format("java.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f) band=(%.1f,%.1f)",
+        mapBuffer.getDouble(STATE_TOTAL_WIDTH), mapBuffer.getDouble(STATE_TOTAL_HEIGHT),
+        mMountedOffsetEnabled ? 1 : 0,
+        mapBuffer.getDouble(STATE_OFFSET_X), mapBuffer.getDouble(STATE_OFFSET_Y),
+        PixelUtil.toDIPFromPixel(mScrollView.getScrollX()), PixelUtil.toDIPFromPixel(mScrollView.getScrollY()),
+        mBandLow, mBandHigh));
     }
 
-    if (nextStateData.hasKey("totalContainerWidth") && nextStateData.hasKey("totalContainerHeight")) {
-      float totalContainerWidth = (float) nextStateData.getDouble("totalContainerWidth");
-      float totalContainerHeight = (float) nextStateData.getDouble("totalContainerHeight");
+    float totalContainerWidth = (float) mapBuffer.getDouble(STATE_TOTAL_WIDTH);
+    float totalContainerHeight = (float) mapBuffer.getDouble(STATE_TOTAL_HEIGHT);
 
-      int newContentWidth = (int) PixelUtil.toPixelFromDIP(totalContainerWidth);
-      int newContentHeight = (int) PixelUtil.toPixelFromDIP(totalContainerHeight);
+    int newContentWidth = (int) PixelUtil.toPixelFromDIP(totalContainerWidth);
+    int newContentHeight = (int) PixelUtil.toPixelFromDIP(totalContainerHeight);
 
+    // Skip the layout call when the size is the same, which it is on most mounts.
+    if (mContentView.getLeft() != 0 || mContentView.getTop() != 0
+        || mContentView.getWidth() != newContentWidth || mContentView.getHeight() != newContentHeight) {
       mContentView.layout(0, 0, newContentWidth, newContentHeight);
     }
 
     // While dragging a row, core corrections must not move the content.
-    if (!mDragController.ownsScrollOffset()
-        && nextStateData.hasKey("containerOffsetEnabled") && nextStateData.getBoolean("containerOffsetEnabled")) {
-      if (nextStateData.hasKey("containerOffsetX") && nextStateData.hasKey("containerOffsetY")) {
-        float containerOffsetX = (float) nextStateData.getDouble("containerOffsetX");
-        float containerOffsetY = (float) nextStateData.getDouble("containerOffsetY");
+    if (!mDragController.ownsScrollOffset() && mMountedOffsetEnabled) {
+      float containerOffsetX = (float) mapBuffer.getDouble(STATE_OFFSET_X);
+      float containerOffsetY = (float) mapBuffer.getDouble(STATE_OFFSET_Y);
 
-        int appliedX = (int) PixelUtil.toPixelFromDIP(containerOffsetX);
-        int appliedY = (int) PixelUtil.toPixelFromDIP(containerOffsetY);
-        long token = nextStateData.hasKey("commitToken") ? (long) nextStateData.getDouble("commitToken") : 0;
-        /*
-         * ShadowListNative scroll commands reach the core in a commit, not through this view.
-         * Stop momentum when the correction mounts, like scrollToIndex does, and write the offset.
-         * If a finger is down it keeps control, and the core lets the drag cancel the command.
-         */
-        long yieldToken = nextStateData.hasKey("momentumYieldToken")
-          ? (long) nextStateData.getDouble("momentumYieldToken") : 0;
-        boolean scrollCommand = yieldToken != 0 && token == yieldToken && !mTouching;
-        if (scrollCommand && yieldToken != mYieldedToken) {
-          mYieldedToken = yieldToken;
-          stopMomentum();
+      int appliedX = (int) PixelUtil.toPixelFromDIP(containerOffsetX);
+      int appliedY = (int) PixelUtil.toPixelFromDIP(containerOffsetY);
+      long token = (long) mapBuffer.getDouble(STATE_COMMIT_TOKEN);
+      /*
+       * ShadowListNative scroll commands reach the core in a commit, not through this view.
+       * Stop momentum when the correction mounts, like scrollToIndex does, and write the offset.
+       * If a finger is down it keeps control, and the core lets the drag cancel the command.
+       */
+      long yieldToken = (long) mapBuffer.getDouble(STATE_MOMENTUM_YIELD_TOKEN);
+      boolean scrollCommand = yieldToken != 0 && token == yieldToken && !mTouching;
+      if (scrollCommand && yieldToken != mYieldedToken) {
+        mYieldedToken = yieldToken;
+        stopMomentum();
+      }
+      int beforeX = mScrollView.getScrollX();
+      int beforeY = mScrollView.getScrollY();
+      /*
+       * The finger or fling keeps moving while this correction is on its way, and it mounts
+       * frames later. Writing the exact offset would throw that movement away and jump the
+       * view back. So add the correction to the live offset instead, like iOS. The base is
+       * the offset the core started from.
+       * This includes corrections that keep the visible content in place. The core accepts
+       * those by their echo during a gesture and never moves the view to an exact target,
+       * see Container::gestureOperationId, so lost movement would never come back.
+       * A correction that started during a gesture stays a shift after the motion stops,
+       * and so do its retargets. Each retarget resends the full correction from the same
+       * base, so only add the part not applied yet.
+       */
+      boolean continuesShiftedCorrection = token != 0 && token == mShiftedToken;
+      boolean computedDuringGesture = token != 0
+        && (mapBuffer.getBoolean(STATE_USER_SCROLLED)
+          || mapBuffer.getDouble(STATE_SCROLL_PHASE) != SCROLL_PHASE_IDLE);
+      boolean shiftLiveOffset = !scrollCommand
+        && (mTouching || mSettling || continuesShiftedCorrection || computedDuringGesture);
+      if (shiftLiveOffset) {
+        double deltaX = containerOffsetX - mapBuffer.getDouble(STATE_OFFSET_BASE_X);
+        double deltaY = containerOffsetY - mapBuffer.getDouble(STATE_OFFSET_BASE_Y);
+        if (token != 0) {
+          double shift = mHorizontal ? deltaX : deltaY;
+          double unapplied = token == mShiftedToken ? shift - mShiftedTokenDelta : shift;
+          mShiftedToken = token;
+          mShiftedTokenDelta = shift;
+          deltaX = mHorizontal ? unapplied : 0.0;
+          deltaY = mHorizontal ? 0.0 : unapplied;
         }
-        int beforeX = mScrollView.getScrollX();
-        int beforeY = mScrollView.getScrollY();
-        /*
-         * The finger or fling keeps moving while this correction is on its way, and it mounts
-         * frames later. Writing the exact offset would throw that movement away and jump the
-         * view back. So add the correction to the live offset instead, like iOS. The base is
-         * the offset the core started from.
-         * This includes corrections that keep the visible content in place. The core accepts
-         * those by their echo during a gesture and never moves the view to an exact target,
-         * see Container::gestureOperationId, so lost movement would never come back.
-         * A correction that started during a gesture stays a shift after the motion stops,
-         * and so do its retargets. Each retarget resends the full correction from the same
-         * base, so only add the part not applied yet.
-         */
-        boolean hasBase = nextStateData.hasKey("containerOffsetBaseX") && nextStateData.hasKey("containerOffsetBaseY");
-        boolean continuesShiftedCorrection = token != 0 && token == mShiftedToken;
-        boolean computedDuringGesture = token != 0
-          && ((nextStateData.hasKey("userScrolled") && nextStateData.getBoolean("userScrolled"))
-            || (nextStateData.hasKey("scrollPhase") && nextStateData.getDouble("scrollPhase") != SCROLL_PHASE_IDLE));
-        boolean shiftLiveOffset = hasBase && !scrollCommand
-          && (mTouching || mSettling || continuesShiftedCorrection || computedDuringGesture);
-        if (shiftLiveOffset) {
-          double deltaX = containerOffsetX - nextStateData.getDouble("containerOffsetBaseX");
-          double deltaY = containerOffsetY - nextStateData.getDouble("containerOffsetBaseY");
-          if (token != 0) {
-            double shift = mHorizontal ? deltaX : deltaY;
-            double unapplied = token == mShiftedToken ? shift - mShiftedTokenDelta : shift;
-            mShiftedToken = token;
-            mShiftedTokenDelta = shift;
-            deltaX = mHorizontal ? unapplied : 0.0;
-            deltaY = mHorizontal ? 0.0 : unapplied;
-          }
-          appliedX = beforeX + Math.round(PixelUtil.toPixelFromDIP((float) deltaX));
-          appliedY = beforeY + Math.round(PixelUtil.toPixelFromDIP((float) deltaY));
-        }
-        /*
-         * Corrections with a token and shifted corrections keep the fling going below.
-         * A write with no token may carry an offset a frame old, and rebuilding the fling
-         * from it would restart momentum from the past on every frame. Our own animated
-         * scrolls also use the plain write. Read this before markProgrammaticScroll
-         * overwrites the flags.
-         */
-        boolean preserveMomentum = !scrollCommand
-          && (token != 0 || shiftLiveOffset) && !(mProgrammaticPending && mProgrammaticAnimated);
-        /*
-         * Mark the scroll before writing. scrollTo calls onScrollChanged right away, and
-         * updateScrollState needs the token to send it back.
-         */
-        markProgrammaticScroll(appliedX, appliedY, false, token);
-        /*
-         * A plain scrollTo leaves the fling running, and its next tick writes its own
-         * position over ours. A prepend during a fling at the top lost its correction that
-         * way, as the bounce pulled the view back to 0. Rebuild the fling from the corrected
-         * offset instead, like React Native's maintainVisibleContentPosition does.
-         */
-        if (preserveMomentum && mScrollView instanceof ReactScrollView) {
-          ((ReactScrollView) mScrollView).scrollToPreservingMomentum(appliedX, appliedY);
-        } else if (preserveMomentum && mScrollView instanceof ReactHorizontalScrollView) {
-          ((ReactHorizontalScrollView) mScrollView).scrollToPreservingMomentum(appliedX, appliedY);
-        } else {
-          mScrollView.scrollTo(appliedX, appliedY);
-        }
-        /*
-         * If the write moved nothing, no callback fires and the mark would never clear,
-         * eating the next real scroll. Clear it now.
-         */
-        if (Math.abs(mScrollView.getScrollX() - beforeX) <= 1
-            && Math.abs(mScrollView.getScrollY() - beforeY) <= 1) {
-          mProgrammaticPending = false;
-          mArmedToken = 0;
-        }
+        appliedX = beforeX + Math.round(PixelUtil.toPixelFromDIP((float) deltaX));
+        appliedY = beforeY + Math.round(PixelUtil.toPixelFromDIP((float) deltaY));
+      }
+      /*
+       * Corrections with a token and shifted corrections keep the fling going below.
+       * A write with no token may carry an offset a frame old, and rebuilding the fling
+       * from it would restart momentum from the past on every frame. Our own animated
+       * scrolls also use the plain write. Read this before markProgrammaticScroll
+       * overwrites the flags.
+       */
+      boolean preserveMomentum = !scrollCommand
+        && (token != 0 || shiftLiveOffset) && !(mProgrammaticPending && mProgrammaticAnimated);
+      /*
+       * Mark the scroll before writing. scrollTo calls onScrollChanged right away, and
+       * updateScrollState needs the token to send it back.
+       */
+      markProgrammaticScroll(appliedX, appliedY, false, token);
+      /*
+       * A plain scrollTo leaves the fling running, and its next tick writes its own
+       * position over ours. A prepend during a fling at the top lost its correction that
+       * way, as the bounce pulled the view back to 0. Rebuild the fling from the corrected
+       * offset instead, like React Native's maintainVisibleContentPosition does.
+       */
+      if (preserveMomentum && mScrollView instanceof ReactScrollView) {
+        ((ReactScrollView) mScrollView).scrollToPreservingMomentum(appliedX, appliedY);
+      } else if (preserveMomentum && mScrollView instanceof ReactHorizontalScrollView) {
+        ((ReactHorizontalScrollView) mScrollView).scrollToPreservingMomentum(appliedX, appliedY);
+      } else {
+        mScrollView.scrollTo(appliedX, appliedY);
+      }
+      /*
+       * If the write moved nothing, no callback fires and the mark would never clear,
+       * eating the next real scroll. Clear it now.
+       */
+      if (Math.abs(mScrollView.getScrollX() - beforeX) <= 1
+          && Math.abs(mScrollView.getScrollY() - beforeY) <= 1) {
+        mProgrammaticPending = false;
+        mArmedToken = 0;
       }
     }
 
@@ -901,10 +1123,23 @@ public class ShadowListView extends FrameLayout {
    * carries the last echoed token like a scroll report. The drag controller uses it too.
    */
   void carryLiveOffset(WritableMap map) {
-    map.putDouble("containerOffsetX", PixelUtil.toDIPFromPixel(mScrollView.getScrollX()));
-    map.putDouble("containerOffsetY", PixelUtil.toDIPFromPixel(mScrollView.getScrollY()));
+    carryLiveOffset(map, mLastLiveUserScrolled, mLastLivePhase);
+  }
+
+  /*
+   * The update also becomes the newest live report, with the gesture state it sends, and
+   * carries that report's sequence so adopt() knows the two match. See ShadowListLiveScroll.
+   */
+  void carryLiveOffset(WritableMap map, boolean userScrolled, double scrollPhase) {
+    double offsetX = PixelUtil.toDIPFromPixel(mScrollView.getScrollX());
+    double offsetY = PixelUtil.toDIPFromPixel(mScrollView.getScrollY());
+    map.putDouble("containerOffsetX", offsetX);
+    map.putDouble("containerOffsetY", offsetY);
     map.putBoolean("containerOffsetEnabled", false);
     map.putDouble("commitToken", (double) mEchoedToken);
+    long sequence = writeLiveReport(offsetX, offsetY, userScrolled, scrollPhase, mEchoedToken);
+    map.putDouble("hostSequence", (double) sequence);
+    notePushedReport(userScrolled, scrollPhase, mEchoedToken);
   }
 
   public void setStartReachedEnabled(boolean enabled) {
@@ -1002,10 +1237,8 @@ public class ShadowListView extends FrameLayout {
 
     // A new sequence makes the core scroll again even for the same index.
     double nextSequence = 0;
-    ReadableMap currentStateData = mState.getStateData();
-    if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexSequence")) {
-      nextSequence = currentStateData.getDouble("containerOffsetIndexSequence") + 1;
-    }
+    // The mounted state's command sequence, read from its MapBuffer on mount.
+    nextSequence = mMountedCommandSequence + 1;
 
     WritableMap map = new WritableNativeMap();
     yieldMomentumInto(map);
@@ -1045,10 +1278,8 @@ public class ShadowListView extends FrameLayout {
      * jumping to an estimated bottom.
      */
     double nextSequence = 0;
-    ReadableMap currentStateData = mState.getStateData();
-    if (currentStateData != null && currentStateData.hasKey("containerOffsetIndexSequence")) {
-      nextSequence = currentStateData.getDouble("containerOffsetIndexSequence") + 1;
-    }
+    // The mounted state's command sequence, read from its MapBuffer on mount.
+    nextSequence = mMountedCommandSequence + 1;
 
     WritableMap map = new WritableNativeMap();
     yieldMomentumInto(map);

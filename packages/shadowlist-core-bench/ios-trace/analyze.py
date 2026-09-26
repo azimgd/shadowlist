@@ -9,6 +9,7 @@ Input is the console log of simctl launch --console-pty with SHADOWLIST_FRAME_TR
   [SLJ] t=<s> render id= n= mounted=a..b rows= jsms= refreshing= data=...   JS commit of a list
   [SLJ] t=<s> vis win=a..b n= / vis apply range= / reached start|end / refresh pull|hold|settle
   [SCN] t=<s> <label>                            scenario markers (run.sh writes <log>.marks)
+  [SLC] t=<s> commit list=<tag>                  one Fabric commit (layout pass) of a list
   [SL] ...                                        core trace, no timestamp (kept for --window)
 
 Timestamps are mach_absolute_time seconds. Row positions are on screen positions along the
@@ -32,7 +33,7 @@ import statistics
 import sys
 from collections import defaultdict
 
-LINE = re.compile(r"^\[(SLF|SLJ|SCN)\] t=([0-9.]+) (.*)$")
+LINE = re.compile(r"^\[(SLF|SLJ|SCN|SLC)\] t=([0-9.]+) (.*)$")
 ROW = re.compile(r"(\S+)@(-?[0-9.]+)\+(-?[0-9.]+)(~?)")
 PAIR = re.compile(r"(-?[0-9.]+)->(-?[0-9.]+)")
 
@@ -103,6 +104,7 @@ def parse(path):
     js = []              # (t, kind, fields, raw)
     marks = []           # (t, label)
     raw = []             # (t, line) with core [SL] lines stamped by the previous timestamp
+    commits = defaultdict(list)  # list id -> [t] from [SLC]
     last_t = 0.0
     with open(path, errors="replace") as handle:
         for line in handle:
@@ -117,6 +119,9 @@ def parse(path):
             raw.append((t, line))
             if tag == "SCN":
                 marks.append((t, body))
+                continue
+            if tag == "SLC":
+                commits[kv(body).get("list", "?")].append(t)
                 continue
             if tag == "SLJ":
                 kind = " ".join(body.split()[:2]) if body.startswith(("vis apply", "reached", "refresh")) else body.split()[0]
@@ -140,7 +145,19 @@ def parse(path):
     except OSError:
         pass
     raw.sort(key=lambda item: item[0])
-    return frames, events, js, sorted(marks), raw
+    return frames, events, js, sorted(marks), raw, commits
+
+
+def scroll_intervals(list_frames, gap=0.25):
+    """Spans where the list scrolled (finger, momentum, scroll to top), merged across short gaps."""
+    spans = []
+    for prev, cur in zip(list_frames, list_frames[1:]):
+        if (cur.moving or prev.moving) and cur.t - prev.t <= gap:
+            if spans and prev.t - spans[-1][1] <= gap:
+                spans[-1][1] = cur.t
+            else:
+                spans.append([prev.t, cur.t])
+    return spans
 
 
 def analyze_list(list_frames, list_events, blank_pt):
@@ -300,7 +317,7 @@ def analyze_list(list_frames, list_events, blank_pt):
 
 
 def summarize(path, blank_pt, min_shift):
-    frames, events, js, marks, raw = parse(path)
+    frames, events, js, marks, raw, commits = parse(path)
     all_t = [f.t for fs in frames.values() for f in fs] + [e[0] for e in events] + [j[0] for j in js]
     t0 = min(all_t) if all_t else 0.0
     t1 = max(all_t) if all_t else 0.0
@@ -335,6 +352,15 @@ def summarize(path, blank_pt, min_shift):
             "mount_p50": percentile(mount_delays, 0.5), "mount_p95": percentile(mount_delays, 0.95),
             "mount_max": max(mount_delays) if mount_delays else 0.0,
         }
+        # Fabric commits of this list, overall and per second of scrolling.
+        spans = scroll_intervals(list_frames)
+        scroll_s = sum(high - low for low, high in spans)
+        list_commits = commits.get(list_id, [])
+        in_scroll = sum(1 for t in list_commits if any(low <= t <= high for low, high in spans))
+        report["lists"][list_id].update({
+            "commits": len(list_commits), "scroll_s": scroll_s, "commits_in_scroll": in_scroll,
+            "commits_per_scroll_s": in_scroll / scroll_s if scroll_s > 0 else 0.0,
+        })
     # Rows left hidden on screen by the native view band. Only debug builds log these.
     report["hook_on_screen_hidden"] = sum(1 for _, line in raw if "hook: on-screen hidden row" in line)
     report["js"] = {
@@ -365,6 +391,8 @@ def print_report(report, frames, events, js, marks, timeline_limit):
         print(f"  js:   renders={info['renders']} jsms p50={info['jsms_p50']:.1f} p95={info['jsms_p95']:.1f} "
               f"max={info['jsms_max']:.1f} rows={int(info['rows_rendered'])} "
               f"mountms p50={info['mount_p50']:.1f} p95={info['mount_p95']:.1f} max={info['mount_max']:.1f}")
+        print(f"  fabric: commits={info['commits']} scrolling={info['scroll_s']:.1f}s "
+              f"commits/scroll-s={info['commits_per_scroll_s']:.1f}")
     print(f"js: vis={report['js']['vis']} vis_apply={report['js']['vis_apply']} renders={report['js']['renders']}"
           f"  hook-on-screen-hidden={report['hook_on_screen_hidden']}")
 

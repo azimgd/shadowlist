@@ -57,6 +57,13 @@ struct FrameInput {
   // Sorted indexes of rows that stick to the top once scrolled past. Empty for a plain list.
   std::vector<std::size_t> stickyIndices;
 
+  // Points at the host's list instead of copying it, same rules as keysRef.
+  const std::vector<std::size_t>* stickyIndicesRef = nullptr;
+
+  const std::vector<std::size_t>& stickyIndexList() const {
+    return this->stickyIndicesRef != nullptr ? *this->stickyIndicesRef : this->stickyIndices;
+  }
+
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
   double viewablePercentThreshold = 0.0;
@@ -96,6 +103,12 @@ struct FrameInput {
   const std::vector<std::string>& nonAnchorableKeyList() const {
     return this->nonAnchorableKeysRef != nullptr ? *this->nonAnchorableKeysRef : this->nonAnchorableKeys;
   }
+
+  /*
+   * Set only when these are provably the same keys the last update took in, like keysUnchanged.
+   * It skips checking every key against the core's set on each frame.
+   */
+  bool nonAnchorableKeysUnchanged = false;
 };
 
 /*

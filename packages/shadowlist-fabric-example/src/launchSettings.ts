@@ -1,13 +1,51 @@
-import { Platform, Settings } from 'react-native';
+import { NativeModules, Platform, Settings } from 'react-native';
 
 /*
- * iOS launch arguments for scripted runs: -SLRoute Chat, -SLLatency 0,0, -SLSendFailureRate 0.5,
- * -SLTheme light|dark, and -SLDebug 1 for debug buttons, captions and status lines.
+ * Launch settings for scripted runs: SLRoute Chat, SLLatency 0,0, SLSendFailureRate 0.5,
+ * SLTheme light|dark, SLDebug 1 for debug buttons, captions and status lines, and SLCount N
+ * for benchmark screens that open holding exactly N rows (see listCount).
+ * iOS reads launch arguments (-SLRoute Chat). Android reads intent extras
+ * (adb shell am start -n shadowlist.example/.MainActivity --es SLRoute Chat), which
+ * MainActivity hands over through the SLLaunchSettings native module.
  */
+const androidSettings: Record<string, string> = (() => {
+  if (Platform.OS !== 'android') return {};
+  try {
+    return NativeModules.SLLaunchSettings?.getAll?.() ?? {};
+  } catch {
+    return {};
+  }
+})();
+
 export function launchSetting(key: string): string | undefined {
+  if (Platform.OS === 'android') return androidSettings[key];
   if (Platform.OS !== 'ios') return undefined;
   const value: unknown = Settings.get(key);
   return value == null ? undefined : String(value);
 }
 
 export const DEBUG = launchSetting('SLDebug') === '1';
+
+/*
+ * How many rows the Feed, FeedNative, Chat, ChatNative, SectionList, Masonry and Activity
+ * screens open with: their data sources seed and serve the first page with this many rows.
+ * 1000 by default; SLCount N overrides it for benchmark runs.
+ */
+export const DEFAULT_LIST_COUNT = 1000;
+
+export const listCount: number = (() => {
+  const count = Number(launchSetting('SLCount'));
+  return Number.isInteger(count) && count > 0 ? count : DEFAULT_LIST_COUNT;
+})();
+
+/*
+ * SLOverscan N sets overscanRows and overscanRowsLeading on Feed and Chat for benchmark runs.
+ * Unset keeps the library default.
+ */
+const overscanSetting = Number(launchSetting('SLOverscan'));
+export const benchOverscan: number | undefined =
+  launchSetting('SLOverscan') !== undefined &&
+  Number.isInteger(overscanSetting) &&
+  overscanSetting >= 0
+    ? overscanSetting
+    : undefined;

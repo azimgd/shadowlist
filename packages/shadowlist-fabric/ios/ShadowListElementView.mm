@@ -45,6 +45,7 @@ using namespace facebook::react;
   self.transform = CGAffineTransformIdentity;
   self.hidden = NO;
   self.layer.shadowOpacity = 0.0;
+  self.layer.shadowPath = nil;
 #if TARGET_OS_OSX
   // SLRaiseSubview raises this for sticky pinning. UIKit reorders subviews instead.
   self.layer.zPosition = 0.0;

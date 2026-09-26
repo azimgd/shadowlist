@@ -41,7 +41,8 @@ import {
   type ShadowListNativeBinding,
   type ShadowListNativeHandle,
 } from './native/binding';
-import { SNAP_ALIGNMENT } from './virtualizer/helpers';
+import { SNAP_ALIGNMENT, slTrace, slTraceEnabled } from './virtualizer/helpers';
+import { describeRows, planDataSync, type SyncedRows } from './native/dataSync';
 import { ExtraWindow, type ExtraItem } from './native/extras';
 import type {
   ShadowListNativeIndexedData,
@@ -58,6 +59,11 @@ const EMPTY_EXTRAS: ReadonlyArray<never> = [];
 // iOS reports when the spinner settles. This covers a refresh that never showed one.
 const REFRESH_SETTLE_FALLBACK_MS = 1200;
 const LONG_PRESS_DELAY_MS = 500;
+/*
+ * Most in place edits a new data array may carry before it's cheaper to replace the store.
+ * Each edit is its own store call. See native/dataSync.ts.
+ */
+const MAX_SYNC_UPDATES = 8;
 
 interface ShadowListNativeContextValue {
   press: (
@@ -120,6 +126,13 @@ interface ListSession<ItemT> {
   // The array or indexed data last written to the store, and the row count after it.
   synced: ReadonlyArray<ItemT> | ShadowListNativeIndexedData<ItemT> | null;
   syncedCount: number;
+  // Keys and templates of the synced array, so the next array can be diffed against it.
+  rows: SyncedRows<ItemT> | null;
+  /*
+   * A command changed the rows since the last array. The store no longer matches rows, so
+   * the next array replaces it like before.
+   */
+  diverged: boolean;
 }
 
 /*
@@ -159,6 +172,7 @@ function seedIndexed<ItemT>(
       templates[entry] = templateOf(item as ItemT, index);
   }
   session.synced = indexed;
+  session.rows = null;
   session.syncedCount = binding.setIndexed(
     session.id,
     count,
@@ -177,14 +191,82 @@ function seedIndexed<ItemT>(
 function seedStore<ItemT>(
   binding: ShadowListNativeBinding,
   session: ListSession<ItemT>,
-  items: ReadonlyArray<ItemT>,
-  keyExtractor: (item: ItemT, index: number) => string,
-  templateOf: ((item: ItemT, index: number) => string) | null
+  rows: SyncedRows<ItemT>
 ): number {
-  const { keys, templates } = describeItems(items, keyExtractor, templateOf);
-  session.synced = items;
-  session.syncedCount = binding.setData(session.id, items, keys, templates);
+  session.synced = rows.items;
+  session.rows = rows;
+  session.diverged = false;
+  session.syncedCount = binding.setData(
+    session.id,
+    rows.items,
+    rows.keys,
+    rows.templates
+  );
   return session.syncedCount;
+}
+
+/*
+ * Write a new controlled array into the store. When it differs from the synced one by a few
+ * edits, one inserted block or some removed rows, only that change is sent. Otherwise, or if
+ * a store call doesn't land as planned, the whole store is replaced like before.
+ */
+function syncStore<ItemT>(
+  binding: ShadowListNativeBinding,
+  session: ListSession<ItemT>,
+  rows: SyncedRows<ItemT>
+): number {
+  const previous = session.rows;
+  const plan =
+    previous !== null && !session.diverged && session.synced === previous.items
+      ? planDataSync(previous, rows, MAX_SYNC_UPDATES)
+      : ({ kind: 'reset' } as const);
+  if (slTraceEnabled()) {
+    slTrace(`native data sync op=${plan.kind} n=${rows.items.length}`);
+  }
+  const listId = session.id;
+  const expected = rows.items.length;
+  let count = -1;
+  switch (plan.kind) {
+    case 'none':
+      count = session.syncedCount;
+      break;
+    case 'update': {
+      let updated = true;
+      for (const index of plan.indices) {
+        updated =
+          binding.updateItem(
+            listId,
+            rows.keys[index]!,
+            rows.items[index],
+            rows.templates ? rows.templates[index]! : null,
+            true
+          ) && updated;
+      }
+      if (updated) count = session.syncedCount;
+      break;
+    }
+    case 'insert': {
+      const end = plan.at + plan.count;
+      count = binding.insertItems(
+        listId,
+        plan.at,
+        rows.items.slice(plan.at, end),
+        rows.keys.slice(plan.at, end),
+        rows.templates ? rows.templates.slice(plan.at, end) : null
+      );
+      break;
+    }
+    case 'remove':
+      count = binding.removeItems(listId, plan.keys);
+      break;
+    case 'reset':
+      break;
+  }
+  if (count !== expected) return seedStore(binding, session, rows);
+  session.synced = rows.items;
+  session.rows = rows;
+  session.syncedCount = count;
+  return count;
 }
 
 /*
@@ -259,6 +341,8 @@ function ShadowListNativeInner<ItemT>(
       committed: false,
       synced: null,
       syncedCount: 0,
+      rows: null,
+      diverged: false,
     };
   }
   const session = sessionRef.current;
@@ -349,9 +433,11 @@ function ShadowListNativeInner<ItemT>(
         seedStore(
           binding,
           session,
-          data ?? initialData ?? EMPTY_ITEMS,
-          keyExtractor,
-          templateOf
+          describeRows(
+            data ?? initialData ?? EMPTY_ITEMS,
+            keyExtractor,
+            templateOf
+          )
         );
     }
   }
@@ -391,7 +477,11 @@ function ShadowListNativeInner<ItemT>(
             extraWindow,
             getExtraRef.current
           )
-        : seedStore(binding, session, data ?? EMPTY_ITEMS, extract, pick)
+        : syncStore(
+            binding,
+            session,
+            describeRows(data ?? EMPTY_ITEMS, extract, pick)
+          )
     );
   }, [
     binding,
@@ -505,6 +595,7 @@ function ShadowListNativeInner<ItemT>(
   useImperativeHandle(ref, (): ShadowListNativeCommands<ItemT> => {
     const insert = (index: number, items: ReadonlyArray<ItemT>) => {
       if (!binding) return 0;
+      session.diverged = true;
       const { keys, templates: rowTemplates } = describeItems(
         items,
         itemsRef.current.keyExtractor,
@@ -522,6 +613,7 @@ function ShadowListNativeInner<ItemT>(
     };
     const update = (key: string, patch: unknown, replace: boolean) => {
       if (!binding) return false;
+      session.diverged = true;
       const { templateOf: currentTemplateOf } = itemsRef.current;
       let template: string | null = null;
       if (currentTemplateOf) {
@@ -545,14 +637,19 @@ function ShadowListNativeInner<ItemT>(
       prependItems: (items) => insert(0, items),
       removeItems: (keys) => {
         if (!binding) return 0;
+        session.diverged = true;
         const next = binding.removeItems(listId, keys);
         setStoreCount(next);
         return next;
       },
-      moveItem: (key, toIndex) =>
-        binding ? binding.moveItem(listId, key, toIndex) : false,
+      moveItem: (key, toIndex) => {
+        if (!binding) return false;
+        session.diverged = true;
+        return binding.moveItem(listId, key, toIndex);
+      },
       setData: (items, options) => {
         if (!binding) return 0;
+        session.diverged = true;
         const { keys, templates: rowTemplates } = describeItems(
           items,
           itemsRef.current.keyExtractor,
@@ -604,7 +701,7 @@ function ShadowListNativeInner<ItemT>(
       scrollToStart: () => binding?.scrollToIndex(listId, -2, 0),
       refreshExtras: (indices) => extraWindow.refresh(indices),
     };
-  }, [binding, listId, extraWindow]);
+  }, [binding, listId, session, extraWindow]);
 
   // Sorted with no duplicates, since the host pins them in offset order.
   const stickyIndices = useMemo(

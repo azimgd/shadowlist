@@ -8,16 +8,19 @@ import {
   RequestFailedError,
   type RequestSignal,
 } from './network';
+import { listCount } from '../launchSettings';
 
 const PAGE_SIZE = 50;
 const HISTORY_SIZE = 1000;
+// With SLCount the thread opens on exactly that many messages, with history still above.
+const FIRST_PAGE_SIZE = listCount;
 
 let generatedCount = 0;
 const generateMessages = (count: number) =>
   Array.from({ length: count }, () => buildChatMessage(generatedCount++));
 
 const messages = new Collection<ChatMessage>({
-  seed: () => generateMessages(HISTORY_SIZE),
+  seed: () => generateMessages(HISTORY_SIZE + listCount),
 });
 
 /*
@@ -28,7 +31,11 @@ export function fetchChatPage(
   signal?: RequestSignal
 ): Promise<CursorPage<ChatMessage>> {
   return request(
-    () => messages.page(cursor, { limit: PAGE_SIZE, from: 'end' }),
+    () =>
+      messages.page(cursor, {
+        limit: cursor === undefined ? FIRST_PAGE_SIZE : PAGE_SIZE,
+        from: 'end',
+      }),
     signal
   );
 }

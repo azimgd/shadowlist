@@ -17,8 +17,12 @@
 #   repeat N <step>         run a step N times back to back
 #   ad <args...>            any other agent-device command, run in the session
 #
+# {FLINGS}, {BACK} and {HALF} in a step are replaced by $FLINGS (default 12), $BACK
+# (default 3/4 of it) and half of it, so perf-suite.sh can size fling runs to the list.
+#
 # Environment: UDID and DEVICE pick the simulator and its agent-device name, default sl-iosfix.
-# Also SESSION, OUT_DIR, and AD for the agent-device command.
+# Also SESSION, OUT_DIR, AD for the agent-device command, LOG for the log path, and
+# LAUNCH_ARGS for extra launch arguments, e.g. "-SLCount 1000".
 # Prints the analyzer summary. The raw log is $OUT_DIR/<label>.<scenario>.log.
 #
 set -euo pipefail
@@ -41,7 +45,13 @@ fi
 [[ -f "$STEPS" ]] || { echo "no scenario: $SCENARIO" >&2; exit 2; }
 NAME="$(basename "$STEPS" .steps)"
 mkdir -p "$OUT_DIR"
-LOG="$OUT_DIR/$LABEL.$NAME.log"
+LOG="${LOG:-$OUT_DIR/$LABEL.$NAME.log}"
+mkdir -p "$(dirname "$LOG")"
+FLINGS="${FLINGS:-12}"
+BACK="${BACK:-$(( FLINGS * 3 / 4 > 0 ? FLINGS * 3 / 4 : 1 ))}"
+HALF=$(( FLINGS / 2 > 0 ? FLINGS / 2 : 1 ))
+# shellcheck disable=SC2206
+EXTRA_ARGS=(${LAUNCH_ARGS:-})
 MARKS="$LOG.marks"
 : > "$MARKS"
 
@@ -58,9 +68,9 @@ now() { python3 -c 'import time; print("%.4f" % (time.clock_gettime_ns(time.CLOC
 mark() { echo "[SCN] t=$(now) $*" >> "$MARKS"; }
 ad() { "$AD" "$@" --session "$SESSION" --platform ios --device "$DEVICE" > /dev/null; }
 
-echo "launching $PKG route=$ROUTE latency=$LATENCY -> $LOG"
+echo "launching $PKG route=$ROUTE latency=$LATENCY ${EXTRA_ARGS[*]:-} -> $LOG"
 SIMCTL_CHILD_SHADOWLIST_FRAME_TRACE=1 xcrun simctl launch --console-pty --terminate-running-process \
-  "$UDID" "$PKG" -SLRoute "$ROUTE" -SLLatency "$LATENCY" -SLDebug 1 > "$LOG" 2>&1 &
+  "$UDID" "$PKG" -SLRoute "$ROUTE" -SLLatency "$LATENCY" -SLDebug 1 ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} > "$LOG" 2>&1 &
 CONSOLE_PID=$!
 trap 'kill $CONSOLE_PID 2>/dev/null || true' EXIT
 
@@ -106,6 +116,9 @@ run_step() {
 
 while read -r line; do
   [[ -z "$line" || "$line" == \#* ]] && continue
+  line="${line//\{FLINGS\}/$FLINGS}"
+  line="${line//\{BACK\}/$BACK}"
+  line="${line//\{HALF\}/$HALF}"
   # shellcheck disable=SC2086
   run_step $line
 done < "$STEPS"

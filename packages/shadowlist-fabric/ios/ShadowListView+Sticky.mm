@@ -4,6 +4,30 @@
 /*
  * Sticky pinning for the header, footer and section-header overlay.
  */
+/*
+ * Move a pinned view along the scroll axis. Skips the write when nothing changed, since
+ * pinning runs several times per frame.
+ */
+static inline void SLSetTranslation(RCTUIView *view, BOOL horizontal, CGFloat translation)
+{
+  CGAffineTransform transform = horizontal
+    ? CGAffineTransformMakeTranslation(translation, 0.0)
+    : CGAffineTransformMakeTranslation(0.0, translation);
+  if (!CGAffineTransformEqualToTransform(view.transform, transform)) {
+    view.transform = transform;
+  }
+}
+
+/*
+ * Show or hide a pinned view, skipping the write when nothing changed.
+ */
+static inline void SLSetHidden(RCTUIView *view, BOOL hidden)
+{
+  if (view.hidden != hidden) {
+    view.hidden = hidden;
+  }
+}
+
 @implementation ShadowListView (Sticky)
 
 /*
@@ -51,9 +75,7 @@
         translation = collisionTop;
       }
     }
-    _stickyHeaderView.transform = _horizontal
-      ? CGAffineTransformMakeTranslation(translation, 0.0)
-      : CGAffineTransformMakeTranslation(0.0, translation);
+    SLSetTranslation(_stickyHeaderView, _horizontal, translation);
   }
 
   if (_stickyFooterView) {
@@ -78,13 +100,18 @@
         translation = collisionBottom;
       }
     }
-    _stickyFooterView.transform = _horizontal
-      ? CGAffineTransformMakeTranslation(translation, 0.0)
-      : CGAffineTransformMakeTranslation(0.0, translation);
+    SLSetTranslation(_stickyFooterView, _horizontal, translation);
   }
 
-  // Raise the header and footer first so the section header ends up on top.
-  [self bringStickyViewsToFront];
+  /*
+   * Raise the header and footer first so the section header ends up on top. Only needed
+   * after something changed the subview order, not on every scroll frame.
+   */
+  if (_stickyOrderDirty) {
+    _stickyOrderDirty = NO;
+    [self bringStickyViewsToFront];
+    _overlayOrderDirty = YES;
+  }
   [self applyStickySectionHeaders];
 }
 
@@ -99,7 +126,7 @@
   }
 
   if (_stickyHeaderIndices.empty()) {
-    _sectionHeaderOverlay.hidden = YES;
+    SLSetHidden(_sectionHeaderOverlay, YES);
     return;
   }
 
@@ -129,7 +156,7 @@
   }
 
   if (!hasActive) {
-    _sectionHeaderOverlay.hidden = YES;
+    SLSetHidden(_sectionHeaderOverlay, YES);
     return;
   }
 
@@ -142,12 +169,13 @@
     }
   }
 
-  _sectionHeaderOverlay.hidden = NO;
-  _sectionHeaderOverlay.transform = _horizontal
-    ? CGAffineTransformMakeTranslation(translation, 0.0)
-    : CGAffineTransformMakeTranslation(0.0, translation);
+  SLSetHidden(_sectionHeaderOverlay, NO);
+  SLSetTranslation(_sectionHeaderOverlay, _horizontal, translation);
   // Sit above the sticky header and footer, which use z 1.
-  SLRaiseSubview(_contentView, _sectionHeaderOverlay, 2.0);
+  if (_overlayOrderDirty) {
+    _overlayOrderDirty = NO;
+    SLRaiseSubview(_contentView, _sectionHeaderOverlay, 2.0);
+  }
 }
 
 /*

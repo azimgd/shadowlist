@@ -72,6 +72,45 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   std::vector<double> _stickyHeaderOffsets;
   std::vector<double> _stickyHeaderSizes;
   __weak RCTUIView *_sectionHeaderOverlay;
+  /*
+   * The published lists the vectors above and _snapOffsets were copied from. The core only
+   * publishes a new pointer when the values change, so a mount with the same pointers skips
+   * the copy.
+   */
+  std::shared_ptr<const std::vector<int>> _copiedStickyHeaderIndices;
+  std::shared_ptr<const std::vector<facebook::react::Float>> _copiedStickyHeaderOffsets;
+  std::shared_ptr<const std::vector<facebook::react::Float>> _copiedStickyHeaderSizes;
+  std::shared_ptr<const std::vector<facebook::react::Float>> _copiedSnapOffsets;
+
+  /*
+   * Where every scroll frame goes, see ShadowListLiveScroll. Only frames the core needs
+   * become state updates. _lastLiveReport is the newest report written, and _lastPushedReport
+   * the one the last state update carried, so a change in phase, token or ack is sent.
+   */
+  std::shared_ptr<facebook::react::ShadowListLiveScroll> _liveScroll;
+  facebook::react::ShadowListLiveScroll::Report _lastLiveReport;
+  facebook::react::ShadowListLiveScroll::Report _lastPushedReport;
+  BOOL _hasPushedReport;
+  /*
+   * Set while a mount runs our code, so a state update sent from there waits for the next
+   * event beat instead of committing inside the mount. See SHADOWLIST_IMMEDIATE_STATE.
+   */
+  BOOL _inStateUpdate;
+  BOOL _inMountObserver;
+
+  /*
+   * Set when a subview may now sit above the sticky views, for example after a mount or a
+   * drag pickup. The next pin raises them once instead of on every scroll frame.
+   * The overlay has its own flag because it is only raised while it is shown.
+   */
+  BOOL _stickyOrderDirty;
+  BOOL _overlayOrderDirty;
+  /*
+   * Rows mounted in the current transaction. Pinning and the drag shuffle run once when
+   * the transaction finishes instead of once per row. See mountingTransactionDidMount.
+   */
+  BOOL _mountNeedsSticky;
+  BOOL _mountNeedsDragShuffle;
 
   /*
    * Set when we applied an offset from the core and it moved the view, so the next

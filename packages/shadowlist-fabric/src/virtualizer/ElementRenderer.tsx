@@ -3,9 +3,26 @@ import type { LayoutChangeEvent, ViewStyle } from 'react-native';
 import { ShadowListElementView } from 'shadowlist';
 import { countRowRender, slTrace, slTraceEnabled } from './helpers';
 
+/*
+ * Per list row index state shared by every row. Rows keep their children across moves, and
+ * the memo check below skips a row whose only change is its index, unless the row read it.
+ * keyToIndex answers index reads made after render, like from a press handler, for rows
+ * that skipped a move and still hold an old index.
+ */
+export interface RowIndexStore {
+  keyToIndex: ReadonlyMap<string, number>;
+  // Keys of mounted rows whose renderElement read the index.
+  readers: Set<string>;
+}
+
+export function createRowIndexStore(): RowIndexStore {
+  return { keyToIndex: new Map(), readers: new Set() };
+}
+
 interface ElementRendererProps<ElementT> {
   element: ElementT;
   index: number;
+  rowIndex: RowIndexStore;
   elementKey: string;
   style: ViewStyle | ViewStyle[];
   renderElement: (info: { element: ElementT; index: number }) => ReactElement;
@@ -28,11 +45,36 @@ interface RenderedChildren<ElementT> {
   children: ReactElement;
 }
 
+/*
+ * Props equal except maybe index, and the index only counts for a row that read it. A prepend
+ * shifts every mounted row's index, and without this every row ran again just to hand the
+ * same children back. Keep this in sync with ElementRendererProps.
+ */
+function sameRowProps<ElementT>(
+  previous: ElementRendererProps<ElementT>,
+  next: ElementRendererProps<ElementT>
+): boolean {
+  return (
+    previous.element === next.element &&
+    previous.elementKey === next.elementKey &&
+    previous.style === next.style &&
+    previous.renderElement === next.renderElement &&
+    previous.separator === next.separator &&
+    previous.nativeIndex === next.nativeIndex &&
+    previous.onElementLayout === next.onElementLayout &&
+    previous.onElementRelease === next.onElementRelease &&
+    previous.rowIndex === next.rowIndex &&
+    (previous.index === next.index ||
+      !next.rowIndex.readers.has(next.elementKey))
+  );
+}
+
 export const ElementRenderer = memo(function ElementRendererInner<
   ElementT extends { id: string },
 >({
   element,
   index,
+  rowIndex,
   elementKey,
   style,
   renderElement,
@@ -50,8 +92,8 @@ export const ElementRenderer = memo(function ElementRendererInner<
   const renderedRef = useRef<RenderedChildren<ElementT> | null>(null);
   /*
    * The getter returns the row's current index and marks it as read, even after render, like
-   * from a press handler. Such a row re-renders on its next move, and a late read still gets
-   * the right index.
+   * from a press handler. Such a row re-renders on its next move. A late read looks the key
+   * up, since a row that never read the index skips moves and its own index gets old.
    */
   const indexRef = useRef(index);
   indexRef.current = index;
@@ -83,13 +125,17 @@ export const ElementRenderer = memo(function ElementRendererInner<
       readIndex: false,
       children: null as unknown as ReactElement,
     };
+    let rendering = true;
     const content = renderElement({
       element,
       get index() {
         next.readIndex = true;
-        return indexRef.current;
+        rowIndex.readers.add(elementKey);
+        if (rendering) return indexRef.current;
+        return rowIndex.keyToIndex.get(elementKey) ?? indexRef.current;
       },
     });
+    rendering = false;
     next.children = (
       <>
         {content}
@@ -108,6 +154,18 @@ export const ElementRenderer = memo(function ElementRendererInner<
     [onElementLayout, elementKey]
   );
 
+  /*
+   * Reader marks are only added during render, since a thrown away render could otherwise
+   * clear the mark of the committed one. Unmount clears it, and a remount, like StrictMode's,
+   * adds it back.
+   */
+  useEffect(() => {
+    if (renderedRef.current?.readIndex) rowIndex.readers.add(elementKey);
+    return () => {
+      rowIndex.readers.delete(elementKey);
+    };
+  }, [rowIndex, elementKey]);
+
   // Forget the row's size on unmount. If the key comes back it gets measured again.
   useEffect(() => {
     if (!onElementRelease) return;
@@ -124,6 +182,6 @@ export const ElementRenderer = memo(function ElementRendererInner<
       {children}
     </ShadowListElementView>
   );
-}) as <ElementT extends { id: string }>(
+}, sameRowProps) as <ElementT extends { id: string }>(
   props: ElementRendererProps<ElementT>
 ) => ReactElement;

@@ -44,6 +44,15 @@ class ShadowListStickyController {
   private double[] mStickyHeaderOffsets = new double[0];
   private double[] mStickyHeaderSizes = new double[0];
 
+  /*
+   * The header, footer and section header overlay, found once per mount change instead
+   * of scanning every child on every scroll tick. Null when the list has none.
+   */
+  private @Nullable View mHeaderView = null;
+  private @Nullable View mFooterView = null;
+  private @Nullable View mOverlayView = null;
+  private boolean mTemplatesDirty = true;
+
   ShadowListStickyController(ShadowListView view) {
     mView = view;
   }
@@ -75,6 +84,50 @@ class ShadowListStickyController {
     mHeaderHidden = 0f;
     mFooterHidden = 0f;
     mLastAutoHideOffset = 0f;
+    invalidateTemplates();
+  }
+
+  /*
+   * A template mounted, unmounted or changed type. Find the sticky views again on the
+   * next tick.
+   */
+  void invalidateTemplates() {
+    mTemplatesDirty = true;
+    mHeaderView = null;
+    mFooterView = null;
+    mOverlayView = null;
+  }
+
+  /*
+   * Rescan when marked dirty or when a cached view left the content view without a
+   * remove call, for example when it was recycled with its list.
+   */
+  private void resolveTemplates(ViewGroup contentView) {
+    if (!mTemplatesDirty
+        && (mHeaderView == null || mHeaderView.getParent() == contentView)
+        && (mFooterView == null || mFooterView.getParent() == contentView)
+        && (mOverlayView == null || mOverlayView.getParent() == contentView)) {
+      return;
+    }
+    mTemplatesDirty = false;
+    mHeaderView = null;
+    mFooterView = null;
+    mOverlayView = null;
+    for (int i = 0; i < contentView.getChildCount(); i++) {
+      View child = contentView.getChildAt(i);
+      if (!(child instanceof ShadowListTemplateView)) {
+        continue;
+      }
+      String type = ((ShadowListTemplateView) child).getTemplateType();
+      if ("footer".equals(type)) {
+        mFooterView = child;
+      } else if ("header".equals(type)) {
+        mHeaderView = child;
+      } else if ("sectionHeader".equals(type) && mOverlayView == null) {
+        mOverlayView = child;
+      }
+      // Other templates like empty are never pinned.
+    }
   }
 
   /*
@@ -127,22 +180,13 @@ class ShadowListStickyController {
 
     float stickyLift = PixelUtil.toPixelFromDIP(STICKY_LIFT_DP);
 
+    resolveTemplates(contentView);
+
     // Measure the header and footer first so one can push the other away when they meet.
-    float headerSize = 0f;
-    float footerSize = 0f;
-    for (int i = 0; i < contentView.getChildCount(); i++) {
-      View child = contentView.getChildAt(i);
-      if (!(child instanceof ShadowListTemplateView)) {
-        continue;
-      }
-      String type = ((ShadowListTemplateView) child).getTemplateType();
-      if ("footer".equals(type)) {
-        footerSize = horizontal ? child.getWidth() : child.getHeight();
-      } else if ("header".equals(type)) {
-        headerSize = horizontal ? child.getWidth() : child.getHeight();
-      }
-      // Other templates like empty or sectionHeader don't count toward either size.
-    }
+    View header = mHeaderView;
+    View footer = mFooterView;
+    float headerSize = header == null ? 0f : (horizontal ? header.getWidth() : header.getHeight());
+    float footerSize = footer == null ? 0f : (horizontal ? footer.getWidth() : footer.getHeight());
 
     float axisOffset = horizontal ? offsetX : offsetY;
     float windowSize = horizontal ? windowWidth : windowHeight;
@@ -152,19 +196,11 @@ class ShadowListStickyController {
     float autoHideDelta = accumulate ? (axisOffset - mLastAutoHideOffset) : 0f;
     mLastAutoHideOffset = axisOffset;
 
-    for (int i = 0; i < contentView.getChildCount(); i++) {
-      View child = contentView.getChildAt(i);
-      if (!(child instanceof ShadowListTemplateView)) {
-        continue;
-      }
-      String type = ((ShadowListTemplateView) child).getTemplateType();
-      boolean isFooter = "footer".equals(type);
-      boolean isHeader = "header".equals(type);
-      /*
-       * The section header overlay is pinned below. Other templates, like empty which mounts
-       * next to the header when there is no data, must not be pinned.
-       */
-      if (!isFooter && !isHeader) {
+    // The two bars don't read each other's result, so the order doesn't matter.
+    for (int pass = 0; pass < 2; pass++) {
+      boolean isFooter = pass == 1;
+      View child = isFooter ? footer : header;
+      if (child == null) {
         continue;
       }
 
@@ -231,7 +267,8 @@ class ShadowListStickyController {
       return;
     }
 
-    View overlay = findSectionHeaderOverlay();
+    resolveTemplates(contentView);
+    View overlay = mOverlayView;
     if (overlay == null) {
       return;
     }
@@ -293,20 +330,5 @@ class ShadowListStickyController {
     }
     // Keep the overlay above the rows and above a sticky header.
     overlay.setTranslationZ(PixelUtil.toPixelFromDIP(SECTION_OVERLAY_LIFT_DP));
-  }
-
-  private @Nullable View findSectionHeaderOverlay() {
-    ViewGroup contentView = mView.getContentView();
-    if (contentView == null) {
-      return null;
-    }
-    for (int i = 0; i < contentView.getChildCount(); i++) {
-      View child = contentView.getChildAt(i);
-      if (child instanceof ShadowListTemplateView
-          && "sectionHeader".equals(((ShadowListTemplateView) child).getTemplateType())) {
-        return child;
-      }
-    }
-    return null;
   }
 }

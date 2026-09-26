@@ -1,4 +1,4 @@
-import { forwardRef, useCallback } from 'react';
+import { forwardRef, useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import {
   ShadowList,
@@ -20,6 +20,7 @@ import {
 import { ASSISTANT_END_MARKER_HEIGHT } from './endMarker';
 import type { AssistantMessage } from './types';
 import type { AssistantStreamStore } from './stream';
+import { AssistantRowStateContext, type AssistantRowState } from './rowState';
 
 type ReplyHandlers = Pick<
   AssistantReplyMessageProps,
@@ -98,7 +99,17 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
      */
     const latestId = data[data.length - 2]?.id;
 
-    // Changes only when a message is added or removed, never per token.
+    /*
+     * Rows read busy and the newest reply from context, down in the buttons and follow ups
+     * that use them. In renderElement they gave it a new identity when a reply started and
+     * again when it ended, which rebuilt every mounted row both times.
+     */
+    const rowState = useMemo<AssistantRowState>(
+      () => ({ busy: streaming, latestId }),
+      [streaming, latestId]
+    );
+
+    // Changes only when a handler or the labels change, never per reply or token.
     const defaultRenderElement = useCallback<
       NonNullable<ShadowListProps<AssistantMessage>['renderElement']>
     >(
@@ -108,7 +119,6 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
             return (
               <AssistantUserMessage
                 message={element}
-                busy={streaming}
                 onCopy={onCopy}
                 onEdit={onEdit}
                 labels={l}
@@ -119,8 +129,6 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
               <AssistantReplyMessage
                 message={element}
                 store={store}
-                isLatest={element.id === latestId}
-                busy={streaming}
                 onCopy={onCopy}
                 onCopyCode={onCopyCode}
                 onShare={onShare}
@@ -139,8 +147,6 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
       },
       [
         store,
-        latestId,
-        streaming,
         onCopy,
         onCopyCode,
         onShare,
@@ -156,15 +162,17 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
     );
 
     return (
-      <ShadowList
-        ref={ref}
-        data={data}
-        inverted
-        followAppends
-        getElementSizeSpec={getElementSizeSpec}
-        renderElement={renderElement ?? defaultRenderElement}
-        {...props}
-      />
+      <AssistantRowStateContext.Provider value={rowState}>
+        <ShadowList
+          ref={ref}
+          data={data}
+          inverted
+          followAppends
+          getElementSizeSpec={getElementSizeSpec}
+          renderElement={renderElement ?? defaultRenderElement}
+          {...props}
+        />
+      </AssistantRowStateContext.Provider>
     );
   }
 );

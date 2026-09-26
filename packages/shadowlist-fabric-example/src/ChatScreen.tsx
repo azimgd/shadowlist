@@ -16,7 +16,7 @@ import {
 import { useItemOrdinals } from './itemOrdinals';
 import { useHeaderActions } from './HeaderActions';
 import { haptics } from './haptics';
-import { DEBUG } from './launchSettings';
+import { benchOverscan, DEBUG } from './launchSettings';
 import { QueryStatus } from './QueryStatus';
 import { createOutgoingMessage, simulateIncomingMessages } from './api/chat';
 import {
@@ -157,6 +157,8 @@ export const ChatScreen = () => {
             onStartReached={list.onStartReached}
             ListHeaderComponent={header}
             ListFooterComponent={footer}
+            overscanRows={benchOverscan}
+            overscanRowsLeading={benchOverscan}
           />
         </KeyboardView>
         <Chat.Input onSend={handleSendMessage} labels={INPUT_LABELS} />

@@ -135,6 +135,13 @@ function TreeListInner<ElementT>(
     return { data: flat, indexByKey: byKey };
   }, [data, getChildren, keyExtractor, expandedSet]);
 
+  /*
+   * Read through a ref, so an inline onExpandedChange doesn't give renderRow a new identity
+   * and rebuild every mounted row on each caller render.
+   */
+  const onExpandedChangeRef = useRef(onExpandedChange);
+  onExpandedChangeRef.current = onExpandedChange;
+
   const toggleId = useCallback(
     (id: string) => {
       const next = new Set(expandedRef.current);
@@ -142,9 +149,9 @@ function TreeListInner<ElementT>(
       else next.add(id);
       expandedRef.current = next;
       if (!isControlled) setInternalExpanded(next);
-      onExpandedChange?.(next);
+      onExpandedChangeRef.current?.(next);
     },
-    [isControlled, onExpandedChange]
+    [isControlled]
   );
 
   useImperativeHandle(

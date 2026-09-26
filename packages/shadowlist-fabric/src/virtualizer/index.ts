@@ -16,7 +16,11 @@ export {
   shouldReseedFromOffsetIndex,
   type MountedRange,
 } from './mountedRange';
-export { ElementRenderer } from './ElementRenderer';
+export {
+  ElementRenderer,
+  createRowIndexStore,
+  type RowIndexStore,
+} from './ElementRenderer';
 export { useStableElement } from './useStableElement';
 export { useMountedRange } from './useMountedRange';
 export { useRefreshDefer } from './useRefreshDefer';

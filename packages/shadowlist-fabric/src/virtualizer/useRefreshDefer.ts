@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useReducer,
+  useRef,
+} from 'react';
 import { slTrace, slTraceEnabled } from './helpers';
 
 interface UseRefreshDeferOptions<ElementT> {
@@ -28,11 +34,15 @@ export function useRefreshDefer<ElementT>({
 }: UseRefreshDeferOptions<ElementT>): UseRefreshDeferResult<ElementT> {
   const refreshDeferEnabled = !!onRefresh && !inverted && !horizontal;
 
-  const [committedData, setCommittedData] =
-    useState<ReadonlyArray<ElementT>>(dataProp);
   const refreshHoldingRef = useRef(false);
   const refreshHeldDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
   const previousRefreshingRef = useRef(refreshing);
+  /*
+   * The data the last commit showed. Kept in a ref, not state, so a normal data change
+   * renders once. Setting state here during render made React run the whole list twice.
+   */
+  const shownDataRef = useRef(dataProp);
+  const [, forceRender] = useReducer((count: number) => count + 1, 0);
 
   if (refreshDeferEnabled && !previousRefreshingRef.current && refreshing) {
     // A refresh just started. Hold data changes until it settles.
@@ -40,16 +50,18 @@ export function useRefreshDefer<ElementT>({
   }
   previousRefreshingRef.current = refreshing;
 
-  if (dataProp !== committedData) {
-    if (refreshHoldingRef.current) {
-      if (slTraceEnabled() && refreshHeldDataRef.current !== dataProp) {
-        slTrace(`refresh hold n=${dataProp.length}`);
-      }
-      refreshHeldDataRef.current = dataProp;
-    } else {
-      setCommittedData(dataProp);
+  let data = dataProp;
+  if (refreshHoldingRef.current && dataProp !== shownDataRef.current) {
+    if (slTraceEnabled() && refreshHeldDataRef.current !== dataProp) {
+      slTrace(`refresh hold n=${dataProp.length}`);
     }
+    refreshHeldDataRef.current = dataProp;
+    data = shownDataRef.current;
   }
+
+  useLayoutEffect(() => {
+    shownDataRef.current = data;
+  });
 
   // Apply the held data once native says the spinner is gone.
   const handleRefreshSettle = useCallback(() => {
@@ -60,8 +72,12 @@ export function useRefreshDefer<ElementT>({
     }
     refreshHoldingRef.current = false;
     if (refreshHeldDataRef.current !== null) {
-      setCommittedData(refreshHeldDataRef.current);
+      /*
+       * Render again with holding off, which shows the newest data prop. That is the held
+       * data, or something newer the caller passed since.
+       */
       refreshHeldDataRef.current = null;
+      forceRender();
     }
   }, []);
 
@@ -80,5 +96,5 @@ export function useRefreshDefer<ElementT>({
     return undefined;
   }, [refreshing, refreshDeferEnabled, handleRefreshSettle]);
 
-  return { data: committedData, handleRefreshSettle };
+  return { data, handleRefreshSettle };
 }

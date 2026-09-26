@@ -1,0 +1,50 @@
+# Perf suite: aggressive flings on Feed to the far end and back, then MVCP inserts at rest
+# and mid-fling, each followed by a still pause so the analyzer can see idle shifts.
+# {FLINGS}/{BACK}/{HALF} come from perf-suite.sh (sized to SLCount), or run.sh defaults.
+# Header buttons need -SLDebug 1 (run.sh sets it): prepend 210 78, append 262 78.
+route Feed
+latency 0,0
+wait 3
+mark fling-to-end
+repeat {FLINGS} pan 200 780 0 -650 100
+wait 2
+mark rest-at-end
+wait 1.5
+# Fewer flings back, then the status bar, so a fling never overshoots into pull to refresh.
+mark fling-back
+repeat {BACK} pan 200 130 0 650 100
+wait 2
+mark rest-after-back
+wait 1.5
+mark stt-from-deep
+statusbar
+wait 3
+mark scroll-mid
+repeat {HALF} pan 200 780 0 -650 100
+wait 2.5
+mark prepend-at-rest
+press 210 78
+wait 2.5
+mark append-at-rest
+press 262 78
+wait 2.5
+mark prepend-mid-fling
+pan 200 780 0 -650 100
+press 210 78
+wait 3
+mark append-mid-fling
+pan 200 780 0 -650 100
+press 262 78
+wait 3
+mark prepend-mid-fling-back
+pan 200 130 0 650 100
+press 210 78
+wait 3
+mark burst-between-flings
+pan 200 780 0 -650 100
+repeat 3 press 210 78
+pan 200 780 0 -650 100
+wait 3
+mark stt-end
+statusbar
+wait 3

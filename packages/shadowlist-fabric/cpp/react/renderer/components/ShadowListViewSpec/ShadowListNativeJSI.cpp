@@ -150,19 +150,52 @@ void define(jsi::Runtime& runtime, jsi::Object& target, const char* name, unsign
 }
 
 /*
- * Returned by open. It keeps the engine alive while JS holds it and goes away with a discarded
- * render or a reload, so engines don't leak. close lets go at unmount without waiting for GC.
+ * The native state of the handle open returns. It keeps the engine alive while JS holds it
+ * and goes away with a discarded render or a reload, so engines don't leak. close lets go at
+ * unmount without waiting for GC.
+ * Every call also takes the handle in place of the list id. It then reaches the engine
+ * directly, skipping the string copy, the registry lock and the lookup.
  */
-class EngineHandle final : public jsi::HostObject {
+class EngineHandle final : public jsi::NativeState {
 public:
-  explicit EngineHandle(std::shared_ptr<ShadowListNativeEngine> engine) : engine_(std::move(engine)) {}
+  EngineHandle(std::string listId, std::shared_ptr<ShadowListNativeEngine> engine) :
+    listId_(std::move(listId)),
+    engine_(std::move(engine)) {}
+
   void close() {
     engine_.reset();
   }
 
+  /*
+   * The engine the list id finds. While the handle is open that is the engine it holds,
+   * since holding it keeps the registry entry alive. After close, look it up like an id.
+   */
+  std::shared_ptr<ShadowListNativeEngine> engine() const {
+    return engine_ ? engine_ : ShadowListNativeRegistry::find(listId_);
+  }
+
 private:
+  const std::string listId_;
   std::shared_ptr<ShadowListNativeEngine> engine_;
 };
+
+std::shared_ptr<EngineHandle> handleArgument(jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count, std::size_t index) {
+  if (index >= count || !arguments[index].isObject()) {
+    return nullptr;
+  }
+  auto object = arguments[index].getObject(runtime);
+  return object.hasNativeState<EngineHandle>(runtime) ? object.getNativeState<EngineHandle>(runtime) : nullptr;
+}
+
+/*
+ * The engine for the first argument, which is a list id or a handle from open.
+ */
+std::shared_ptr<ShadowListNativeEngine> engineArgument(jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
+  if (auto handle = handleArgument(runtime, arguments, count, 0)) {
+    return handle->engine();
+  }
+  return ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+}
 
 void install(jsi::Runtime& runtime) {
   auto global = runtime.global();
@@ -173,7 +206,7 @@ void install(jsi::Runtime& runtime) {
 
   // setData(listId, items, keys, templates, scrollToStart) returns the row count.
   define(runtime, binding, "setData", 5, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value(0);
     }
@@ -191,7 +224,7 @@ void install(jsi::Runtime& runtime) {
    * extraTemplates, scrollToStart, ids) returns the row count. Order and ids are Int32Arrays.
    */
   define(runtime, binding, "setIndexed", 10, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value(0);
     }
@@ -215,7 +248,7 @@ void install(jsi::Runtime& runtime) {
    * An index past the end appends.
    */
   define(runtime, binding, "insertItems", 5, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value(0);
     }
@@ -230,7 +263,7 @@ void install(jsi::Runtime& runtime) {
 
   // updateItem(listId, key, patch, template, replace) returns whether the row was found.
   define(runtime, binding, "updateItem", 5, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value(false);
     }
@@ -245,7 +278,7 @@ void install(jsi::Runtime& runtime) {
 
   // removeItems(listId, keys) returns the row count.
   define(runtime, binding, "removeItems", 2, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value(0);
     }
@@ -255,7 +288,7 @@ void install(jsi::Runtime& runtime) {
 
   // moveItem(listId, key, toIndex) returns whether the row moved.
   define(runtime, binding, "moveItem", 3, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value(false);
     }
@@ -267,7 +300,7 @@ void install(jsi::Runtime& runtime) {
 
   // scrollToIndex(listId, index, viewPosition). Pass -1 for the end or -2 for the start.
   define(runtime, binding, "scrollToIndex", 3, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value::undefined();
     }
@@ -285,7 +318,7 @@ void install(jsi::Runtime& runtime) {
 
   // setTemplateStyle(listId, template, elementId, style). A null style clears it.
   define(runtime, binding, "setTemplateStyle", 4, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value::undefined();
     }
@@ -298,7 +331,7 @@ void install(jsi::Runtime& runtime) {
 
   // configure(listId, options) takes initialRows, padRows and cacheRows.
   define(runtime, binding, "configure", 2, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value::undefined();
     }
@@ -308,7 +341,7 @@ void install(jsi::Runtime& runtime) {
 
   // getItem(listId, key) returns the item or undefined.
   define(runtime, binding, "getItem", 2, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value::undefined();
     }
@@ -318,7 +351,7 @@ void install(jsi::Runtime& runtime) {
 
   // getKeys(listId) returns every row key.
   define(runtime, binding, "getKeys", 1, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     auto keys = engine ? engine->getKeys() : std::vector<std::string>{};
     auto array = jsi::Array(runtime, keys.size());
     for (std::size_t index = 0; index < keys.size(); ++index) {
@@ -329,13 +362,13 @@ void install(jsi::Runtime& runtime) {
 
   // getCount(listId) returns the row count.
   define(runtime, binding, "getCount", 1, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     return jsi::Value(engine ? static_cast<double>(engine->size()) : 0.0);
   });
 
   // resolveTag(listId, tag) returns the row's key, index and repeatIndex, or null.
   define(runtime, binding, "resolveTag", 2, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::find(stringArgument(runtime, arguments, count, 0));
+    auto engine = engineArgument(runtime, arguments, count);
     if (!engine) {
       return jsi::Value::null();
     }
@@ -354,19 +387,21 @@ void install(jsi::Runtime& runtime) {
     return jsi::Value(runtime, result);
   });
 
-  // open(listId) returns a handle that keeps the list's engine alive while held.
+  /*
+   * open(listId) returns a handle that keeps the list's engine alive while held. Any call
+   * takes it in place of the list id.
+   */
   define(runtime, binding, "open", 1, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    auto engine = ShadowListNativeRegistry::open(stringArgument(runtime, arguments, count, 0));
-    return jsi::Value(
-      runtime, jsi::Object::createFromHostObject(runtime, std::make_shared<EngineHandle>(std::move(engine))));
+    auto listId = stringArgument(runtime, arguments, count, 0);
+    auto engine = ShadowListNativeRegistry::open(listId);
+    jsi::Object handle(runtime);
+    handle.setNativeState(runtime, std::make_shared<EngineHandle>(std::move(listId), std::move(engine)));
+    return jsi::Value(runtime, handle);
   });
   // close(handle) lets go of the engine right away, on unmount.
   define(runtime, binding, "close", 1, [](jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count) {
-    if (count > 0 && arguments[0].isObject()) {
-      auto object = arguments[0].getObject(runtime);
-      if (object.isHostObject<EngineHandle>(runtime)) {
-        object.getHostObject<EngineHandle>(runtime)->close();
-      }
+    if (auto handle = handleArgument(runtime, arguments, count, 0)) {
+      handle->close();
     }
     return jsi::Value::undefined();
   });

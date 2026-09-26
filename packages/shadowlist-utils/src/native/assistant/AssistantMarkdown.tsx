@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,10 @@ import { defaultAssistantLabels, type AssistantLabels } from './labels';
 import { openUrl } from './openUrl';
 import { PulsingDot } from './AssistantTypingIndicator';
 import {
-  parseMarkdown,
+  parseMarkdownFrom,
   type MarkdownBlock,
   type MarkdownInline,
+  type MarkdownParse,
 } from './markdown';
 
 export interface AssistantMarkdownProps {
@@ -312,7 +313,16 @@ export const AssistantMarkdown = memo(
   }: AssistantMarkdownProps) => {
     const styles = useStyles();
     const l = useLabels(defaultAssistantLabels, labels);
-    const blocks = useMemo(() => parseMarkdown(text), [text]);
+    /*
+     * While a reply streams the text only grows, so each flush continues the last parse
+     * instead of reading the whole reply again.
+     */
+    const parseRef = useRef<MarkdownParse | null>(null);
+    const blocks = useMemo(() => {
+      const parse = parseMarkdownFrom(parseRef.current, text);
+      parseRef.current = parse;
+      return parse.blocks;
+    }, [text]);
 
     return (
       <View style={[styles.container, style]}>

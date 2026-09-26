@@ -1,0 +1,45 @@
+# Perf suite: aggressive flings on inverted Chat, into history (finger down) and back to the
+# newest message, then MVCP: incoming messages (append 262 78) and history loads (prepend
+# 210 78) at rest and mid-fling while scrolled up, each followed by a still pause.
+# {FLINGS}/{HALF} come from perf-suite.sh (sized to SLCount), or run.sh defaults.
+route Chat
+latency 0,0
+wait 3
+mark fling-into-history
+repeat {FLINGS} pan 200 150 0 580 100
+wait 2
+mark rest-in-history
+wait 1.5
+mark fling-to-bottom
+repeat {FLINGS} pan 200 730 0 -580 100
+wait 2
+mark rest-at-bottom
+wait 1.5
+mark append-at-bottom
+press 262 78
+wait 2.5
+mark scroll-mid
+repeat {HALF} pan 200 150 0 580 100
+wait 2.5
+mark append-at-rest
+press 262 78
+wait 2.5
+mark prepend-at-rest
+press 210 78
+wait 2.5
+mark append-mid-fling
+pan 200 150 0 580 100
+press 262 78
+wait 3
+mark prepend-mid-fling
+pan 200 730 0 -580 100
+press 210 78
+wait 3
+mark burst-between-flings
+pan 200 150 0 580 100
+repeat 3 press 262 78
+pan 200 150 0 580 100
+wait 3
+mark back-to-bottom
+repeat {FLINGS} pan 200 730 0 -580 100
+wait 3

@@ -6,6 +6,7 @@ import { Feed, ListFooter, Spinner, useTheme } from 'shadowlist-utils/native';
 import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
+import { benchOverscan } from './launchSettings';
 import { useFeedQuery, usePublishPosts, useRefreshFeed } from './queries/feed';
 
 const PUBLISH_COUNT = 10;
@@ -53,6 +54,8 @@ export const FeedScreen = () => {
         refreshColor={colors.secondaryLabel}
         onEndReached={list.onEndReached}
         ListFooterComponent={footer}
+        overscanRows={benchOverscan}
+        overscanRowsLeading={benchOverscan}
       />
     </View>
   );
