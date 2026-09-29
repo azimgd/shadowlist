@@ -287,7 +287,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
                std::binary_search(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end(), tag)) {
       auto concealedProps = concealedPropsForRow(*previousChild);
       if (concealedProps != nullptr) {
-        auto generation = concealed.hide(static_cast<std::uint64_t>(tag), {previousChild->getProps(), concealedProps});
+        [[maybe_unused]] auto generation = concealed.hide(static_cast<std::uint64_t>(tag), {previousChild->getProps(), concealedProps});
         SL_LOG("  conceal: tag=%d index=%zu anchorIndex=%zu gen=%llu",
           tag, mounted.elementIndex, concealBeforeIndex, static_cast<unsigned long long>(generation));
         stillConcealedTags.push_back(static_cast<std::uint64_t>(tag));
