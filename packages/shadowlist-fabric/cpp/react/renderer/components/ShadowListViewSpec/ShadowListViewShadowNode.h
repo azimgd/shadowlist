@@ -6,12 +6,13 @@
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutContext.h>
 
-#include "ShadowListElementSizeSpec.h"
 #include "ShadowListNativeEngine.h"
 #include "ShadowListViewState.h"
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/ElementSizeSpec.hpp>
+#include <shadowlist-core/host/ListLayout.hpp>
 
 #include <memory>
 #include <unordered_map>
@@ -22,34 +23,14 @@ namespace facebook::react {
 JSI_EXPORT extern const char ShadowListViewComponentName[];
 
 /*
- * Sticky header and snap positions the list sends to the platform view through state,
- * so it can pin headers and snap on the UI thread. Only the core knows them, and they
- * move as off screen rows get measured.
- *
- * Building them walks every row, but they depend only on row geometry, never on the
- * scroll offset. So they are built once per Container::geometryVersion and reused.
- * Every committed clone of one list shares this cache, just like the Container.
+ * What one list caches across commits, shared by every committed clone like the Container.
  */
 struct ShadowListViewGeometryCache {
-  std::uint64_t geometryVersion = 0;  // 0 means nothing cached yet
-  bool snapToItem = false;
-  int snapAlignment = -1;
-  bool inverted = false;
-  bool horizontal = false;
-  double windowSize = -1.0;
-  double totalSize = -1.0;
-  std::vector<std::size_t> sourceStickyIndices;
-
   /*
-   * The published lists, shared with every state that carries them. Holding the same
-   * pointers makes the change check a pointer compare, and adoptIfChanged only swaps a
-   * pointer when the values really changed, so an identical rebuild publishes nothing.
-   * Null means empty.
+   * Sticky header and snap positions sent to the platform view through state, so it can pin
+   * headers and snap on the UI thread. See azimgd::shadowlist::PublishedGeometry.
    */
-  std::shared_ptr<const std::vector<int>> stickyHeaderIndices;
-  std::shared_ptr<const std::vector<Float>> stickyHeaderOffsets;
-  std::shared_ptr<const std::vector<Float>> stickyHeaderSizes;
-  std::shared_ptr<const std::vector<Float>> snapOffsets;
+  azimgd::shadowlist::PublishedGeometry published;
 
   /*
    * The props whose keys the core last took in. Holding a strong reference keeps the
@@ -74,52 +55,21 @@ struct ShadowListViewGeometryCache {
   std::vector<std::size_t> stickyIndices;
 
   /*
-   * The props whose elementsSizeSpecs were last parsed and measured. Same pointer trick:
-   * measuring costs a text layout per row, and the specs stay the same on almost every
-   * commit. The strong reference keeps the pointer check safe from address reuse.
+   * elementsSizeSpecs measured a few rows per commit, keyed by the props they came from.
+   * See azimgd::shadowlist::SizeSpecQueue.
    */
-  std::shared_ptr<const Props> sizeSpecsProps;
+  azimgd::shadowlist::SizeSpecQueue sizeSpecs;
 
   /*
-   * How far the measuring pass got through the current specs.
-   * Measuring is capped per commit, see applyElementSizeSpecs. Cached rows are cheap but
-   * each new row is a real text layout of about a tenth of a millisecond, and doing them
-   * all at once spikes the commit thread. So the pass stops at the cap and the next commit
-   * picks up here. A row not measured yet just uses the normal estimate.
+   * Rows the layout pass hid with opacity 0, by row tag, see azimgd::shadowlist::ConcealTracker.
+   * Guarded by Container::coreMutex. Both props are kept so a React commit that hands back the
+   * original props gets hidden again, while truly new props get parsed again.
    */
-  std::size_t sizeSpecsCursor = 0;
-
-  // Set once every spec is measured, so a finished commit skips the JSON parse.
-  bool sizeSpecsDone = false;
-
-  /*
-   * The parsed specs. Measuring is spread over several commits, and parsing the whole
-   * JSON again on each one would cost more than the measuring, so the parse is cached too.
-   */
-  std::vector<ShadowListElementSizeSpec> sizeSpecs;
-
-  /*
-   * Rows the layout pass hid with opacity 0, by row tag. Guarded by Container::coreMutex.
-   *
-   * A row above the anchor measured for the first time can move the anchor, and the layout
-   * pass publishes an offset correction. Until the host mounts it, the content looks like it
-   * shifts for a few frames. So the row stays hidden from the commit that measures it until
-   * a host report echoes its generation and no correction is pending.
-   *
-   * Both props are kept so a React commit that hands back the original props gets hidden
-   * again from the cache, while truly new props get parsed again.
-   */
-  struct ConcealedRow {
+  struct ConcealedProps {
     std::shared_ptr<const Props> sourceProps;
     std::shared_ptr<const Props> concealedProps;
-    std::uint64_t generation = 0;
-    // How many layout passes the row stayed hidden, so it can't stay hidden forever.
-    std::size_t layoutPasses = 0;
   };
-  std::unordered_map<Tag, ConcealedRow> concealedRows;
-
-  // The last generation given to a hide, or 0 if nothing was ever hidden.
-  std::uint64_t concealGeneration = 0;
+  azimgd::shadowlist::ConcealTracker<ConcealedProps> concealedRows;
 };
 
 class ShadowListViewShadowNode final : public ConcreteViewShadowNode<

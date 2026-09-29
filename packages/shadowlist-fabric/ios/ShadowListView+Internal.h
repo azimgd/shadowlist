@@ -3,6 +3,10 @@
 #import "ShadowListViewComponentDescriptor.h"
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
 
+#include <shadowlist-core/host/DragReorder.hpp>
+#include <shadowlist-core/host/ScrollSync.hpp>
+#include <shadowlist-core/host/StickyLayout.hpp>
+
 #include <vector>
 
 /*
@@ -55,15 +59,10 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   // Snap to item, and the offsets from the core where scrolling can come to rest.
   BOOL _snapToItem;
   std::vector<double> _snapOffsets;
-  /*
-   * Auto hide header and footer. How far each has slid away, and the last offset
-   * so we can tell how far the user scrolled.
-   */
+  // Auto hide header and footer, and how far each has slid away.
   BOOL _autoHideHeader;
   BOOL _autoHideFooter;
-  CGFloat _headerHidden;
-  CGFloat _footerHidden;
-  CGFloat _lastAutoHideOffset;
+  azimgd::shadowlist::StickyState _stickyState;
   __weak RCTUIView *_stickyHeaderView;
   __weak RCTUIView *_stickyFooterView;
 
@@ -83,14 +82,10 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   std::shared_ptr<const std::vector<facebook::react::Float>> _copiedSnapOffsets;
 
   /*
-   * Where every scroll frame goes, see ShadowListLiveScroll. Only frames the core needs
-   * become state updates. _lastLiveReport is the newest report written, and _lastPushedReport
-   * the one the last state update carried, so a change in phase, token or ack is sent.
+   * Keeps the scroll view and the core in step: live reports, which frames commit, the echo
+   * of core corrections and scroll commands. See azimgd::shadowlist::ScrollSync.
    */
-  std::shared_ptr<facebook::react::ShadowListLiveScroll> _liveScroll;
-  facebook::react::ShadowListLiveScroll::Report _lastLiveReport;
-  facebook::react::ShadowListLiveScroll::Report _lastPushedReport;
-  BOOL _hasPushedReport;
+  azimgd::shadowlist::ScrollSync _scrollSync;
   /*
    * Set while a mount runs our code, so a state update sent from there waits for the next
    * event beat instead of committing inside the mount. See SHADOWLIST_IMMEDIATE_STATE.
@@ -111,56 +106,6 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
    */
   BOOL _mountNeedsSticky;
   BOOL _mountNeedsDragShuffle;
-
-  /*
-   * Set when we applied an offset from the core and it moved the view, so the next
-   * scroll report is our own move and not the user. _armedToken goes back to the core
-   * so it can match the report to its correction. We decide by who moved it, not by distance.
-   */
-  CGPoint _appliedOffset;
-  BOOL _hasAppliedOffset;
-  uint64_t _armedToken;
-  // Token of the last correction we reported back. Later reports carry it too.
-  uint64_t _echoedToken;
-  /*
-   * Whether our last published state was a gesture, like a user scroll, drag or settle.
-   * The mounted state lags behind, so it cannot tell us if the rest report is still due.
-   * See clearUserScrolled.
-   */
-  BOOL _publishedGesture;
-  /*
-   * The last correction we shifted onto a moving view and how much of it we applied.
-   * If the same token comes back with a new target, shift only the difference.
-   */
-  uint64_t _shiftedToken;
-  CGFloat _shiftedTokenDelta;
-  /*
-   * The last scroll command from the engine that we stopped momentum for.
-   * Matches momentumYieldToken_.
-   */
-  uint64_t _yieldedToken;
-  /*
-   * Set when a scroll report goes out during updateState:, so it knows a state that hides
-   * rows was already acknowledged. See reportConcealedRowsMounted.
-   */
-  BOOL _reportedDuringStateUpdate;
-
-  /*
-   * Set while updateState writes the content size. A smaller size clamps the offset and
-   * UIKit reports that as a scroll right away. Nobody scrolled, so it must not reach the
-   * core as a user scroll, or it would unpin an inverted list and cancel corrections.
-   */
-  BOOL _applyingContentSize;
-
-  /*
-   * The last scrollToIndex or scrollToEnd we issued, copied into every state update.
-   * Updates start from the mounted state, which may not have the command yet, and would
-   * otherwise overwrite it before the core sees it. The sequence is 0 until the first command.
-   */
-  double _commandIndex;
-  // Where scrollToIndex wants its row on screen. Sent along with _commandIndex.
-  double _commandViewPosition;
-  double _commandSequence;
 
   /*
    * Status bar tap to scroll to top, iOS only. We animate it ourselves because UIKit
@@ -198,31 +143,16 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 #endif
   BOOL _dragging;
   /*
-   * Where the row was picked up and where its center is now. Rows in between shift to
-   * open a gap. The indexes move the views, and the keys below are what JS gets on drop.
+   * The held row, where it was picked up and where it would drop. The indexes move the
+   * views, and the keys are what JS gets on drop.
    */
-  NSInteger _dragOriginIndex;
-  NSInteger _dragInsertionIndex;
-  /*
-   * Keys of the picked up row and its current drop neighbor, sent in drag events
-   * so JS reorders by key.
-   */
-  NSString *_dragOriginKey;
-  NSString *_dragInsertionKey;
-  // Size of the picked up row along the scroll axis. Other rows shift by this much.
-  CGFloat _draggedExtent;
-  // Distance from the row's leading edge to the finger.
-  CGFloat _dragGrabOffset;
+  azimgd::shadowlist::DragReorder _drag;
   // Latest touch point on screen.
   CGPoint _dragTouchInViewport;
   // After a drop, hold the shuffle until the reorder commit lands, then clear it.
   BOOL _dragDropPending;
   NSInteger _dropInsertionIndex;
-  /*
-   * Where the dragged row starts in the content when released, so it can animate
-   * into place instead of snapping.
-   */
-  CGFloat _dragLeading;
+  // Where the dragged row was let go, so it can animate into place instead of snapping.
   CGFloat _dropReleaseLeading;
   // Cancels an older drop fallback timer so it cannot tear down a newer drop.
   NSInteger _dropSettleToken;
@@ -239,11 +169,11 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 // Pin the sticky and auto hide views again. Pass YES only for real user scrolls.
 - (void)applyStickyTransforms:(BOOL)accumulate;
 
-// Copy the live offset and the last reported token into a state update.
-- (void)carryLiveOffsetInto:(facebook::react::ShadowListViewShadowNode::ConcreteState::Data&)stateData;
-
-// Copy the last scroll command into a state update.
-- (void)carryScrollCommandInto:(facebook::react::ShadowListViewShadowNode::ConcreteState::Data&)stateData;
+/*
+ * Send a drag event with the live offset, like every host update. Type 1 is pick up and
+ * 3 is drop. Core corrections stay off from pick up until the drop.
+ */
+- (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey;
 
 #if !TARGET_OS_OSX
 // Drag to reorder, called from mount, state updates and recycling.

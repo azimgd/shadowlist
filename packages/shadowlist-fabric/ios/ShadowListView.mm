@@ -12,6 +12,8 @@
 #import <React/RCTMountingTransactionObserving.h>
 #endif
 
+#include <shadowlist-core/host/Snap.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -92,67 +94,6 @@ using namespace facebook::react;
 namespace {
 
 using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
-
-/*
- * The host owned fields one state update changes. The update patches them onto the newest
- * committed state instead of copying the mounted one, so a core change that is committed
- * but not mounted yet, like new geometry or a drag event, is never undone by a scroll report.
- * Every update carries a full live report: offset, token, ack, user scroll flag and phase.
- * The rest is only set by the updates that own it.
- */
-struct ShadowListStatePatch {
-  ShadowListLiveScroll::Report report;
-  bool containerOffsetEnabled = false;
-  bool hasCommand = false;
-  double commandIndex = 0.0;
-  double commandSequence = 0.0;
-  double commandViewPosition = 0.0;
-  bool hasStartReachedEnabled = false;
-  bool startReachedEnabled = true;
-  bool hasEndReachedEnabled = false;
-  bool endReachedEnabled = true;
-
-  void applyTo(ShadowListStateData& data) const {
-    data.containerOffsetX_ = report.offsetX;
-    data.containerOffsetY_ = report.offsetY;
-    data.containerOffsetEnabled_ = containerOffsetEnabled;
-    data.commitToken_ = report.commitToken;
-    data.concealGenerationAck_ = report.concealGenerationAck;
-    data.userScrolled_ = report.userScrolled;
-    data.scrollPhase_ = report.scrollPhase;
-    data.hostSequence_ = static_cast<double>(report.sequence);
-    if (hasCommand) {
-      data.containerOffsetIndex_ = commandIndex;
-      data.containerOffsetIndexSequence_ = commandSequence;
-      data.containerOffsetIndexViewPosition_ = commandViewPosition;
-    }
-    if (hasStartReachedEnabled) {
-      data.startReachedEnabled_ = startReachedEnabled;
-    }
-    if (hasEndReachedEnabled) {
-      data.endReachedEnabled_ = endReachedEnabled;
-    }
-  }
-
-  /*
-   * Whether the committed data already holds all of this, so the update can be dropped.
-   * Only when nothing waits on the host: a state with an offset to apply or hidden rows
-   * needs its report even if it repeats, since each commit moves those along.
-   */
-  bool isNoOpOn(const ShadowListStateData& data) const {
-    if (data.containerOffsetEnabled_ || containerOffsetEnabled || data.concealGeneration_ != 0.0) {
-      return false;
-    }
-    return data.containerOffsetX_ == report.offsetX && data.containerOffsetY_ == report.offsetY &&
-      data.commitToken_ == report.commitToken && data.concealGenerationAck_ == report.concealGenerationAck &&
-      data.userScrolled_ == report.userScrolled && data.scrollPhase_ == report.scrollPhase &&
-      (!hasCommand ||
-       (data.containerOffsetIndex_ == commandIndex && data.containerOffsetIndexSequence_ == commandSequence &&
-        data.containerOffsetIndexViewPosition_ == commandViewPosition)) &&
-      (!hasStartReachedEnabled || data.startReachedEnabled_ == startReachedEnabled) &&
-      (!hasEndReachedEnabled || data.endReachedEnabled_ == endReachedEnabled);
-  }
-};
 
 }
 
@@ -350,9 +291,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _stickyFooter = NO;
   _autoHideHeader = NO;
   _autoHideFooter = NO;
-  _headerHidden = 0.0;
-  _footerHidden = 0.0;
-  _lastAutoHideOffset = 0.0;
+  _stickyState = {};
   _horizontal = NO;
   _snapToItem = NO;
   _snapOffsets.clear();
@@ -389,27 +328,12 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
    * Reset _state before moving the offset. setContentOffset reports a scroll right away,
    * which would otherwise reach the old list as a fake user scroll to the top.
    */
-  _appliedOffset = CGPointZero;
-  _hasAppliedOffset = NO;
-  _armedToken = 0;
-  _echoedToken = 0;
-  _publishedGesture = NO;
-  _shiftedToken = 0;
-  _shiftedTokenDelta = 0.0;
-  _yieldedToken = 0;
-  _reportedDuringStateUpdate = NO;
-  _commandIndex = 0.0;
-  _commandViewPosition = 0.0;
-  _commandSequence = 0.0;
 #if !TARGET_OS_OSX
   [self cancelScrollToTop];
 #endif
   _state.reset();
-  // The live report belongs to the old list, so let it go with the state.
-  _liveScroll.reset();
-  _lastLiveReport = {};
-  _lastPushedReport = {};
-  _hasPushedReport = NO;
+  // The live report and the echo state belong to the old list.
+  _scrollSync.reset();
   [_scrollView setContentOffset:CGPointZero animated:NO];
   /*
    * Clear the old content size too. Sticky pinning runs on mount, before the new list's
@@ -437,6 +361,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _autoHideHeader = nextProps.autoHideHeader;
   _autoHideFooter = nextProps.autoHideFooter;
   _horizontal = nextProps.horizontal;
+  _scrollSync.setHorizontal(_horizontal);
   _dragEnabled = nextProps.dragEnabled;
   _snapToItem = nextProps.snapToItem;
 #if !TARGET_OS_OSX
@@ -619,12 +544,11 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 - (void)updateState:(const State::Shared&)state oldState:(const State::Shared&)oldState
 {
   _state = std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteState>(state);
-  _reportedDuringStateUpdate = NO;
   // A state update sent from inside this mount waits for the next beat, see stateUpdateMode.
   _inStateUpdate = YES;
 
   const auto& nextStateData = _state->getData();
-  _liveScroll = nextStateData.liveScroll_;
+  _scrollSync.beginMount(nextStateData.mountedScroll(), nextStateData.liveScroll_);
 
   /*
    * Copy the section header positions for pinning on each scroll. A null pointer means
@@ -664,11 +588,11 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     !CGRectEqualToRect(_contentView.frame, contentFrame);
   CGPoint offsetBeforeSizeWrite = _scrollView.contentOffset;
   if (contentSizeChanged) {
-    // If these writes clamp the offset, it is not reported as a user scroll. See _applyingContentSize.
-    _applyingContentSize = YES;
+    // If these writes clamp the offset, UIKit reports it right away, and that is not the user.
+    _scrollSync.setApplyingContentSize(true);
     _scrollView.contentSize = contentSize;
     _contentView.frame = contentFrame;
-    _applyingContentSize = NO;
+    _scrollSync.setApplyingContentSize(false);
   }
   CGPoint offsetBeforeCorrection = _scrollView.contentOffset;
 
@@ -679,114 +603,64 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     _scrollView.contentOffset.x, _scrollView.contentOffset.y);
 
   /*
-   * A correction made against a waiting scroll to top jump moves the jump target instead
-   * of the view. The view follows when the jump lands.
+   * Decide what the mounted correction does, see azimgd::shadowlist::ScrollSync::correction.
+   * A bounce past an edge sits outside the scroll range, and the content size write above
+   * pulls it back to the edge. The core measured the correction from the bounced offset, so a
+   * shift starts from there, or a history page landing mid bounce jumps by the bounce distance.
    */
-  BOOL retargetsScrollToTopJump = _scrollToTopJumpPending && nextStateData.containerOffsetEnabled_ &&
-    fabs(nextStateData.containerOffsetBaseY_ - _scrollToTopJumpY) < 0.5;
-  if (retargetsScrollToTopJump) {
-    _scrollToTopJumpY = nextStateData.containerOffsetY_;
-    _scrollToTopJumpToken = (uint64_t)nextStateData.commitToken_;
+  azimgd::shadowlist::ViewMotion motion;
+  CGPoint before = _scrollView.contentOffset;
+  CGPoint shiftFrom = contentSizeChanged ? offsetBeforeSizeWrite : before;
+  motion.offsetX = before.x;
+  motion.offsetY = before.y;
+  motion.shiftFromX = shiftFrom.x;
+  motion.shiftFromY = shiftFrom.y;
 #if !TARGET_OS_OSX
-    /*
-     * The jump applies this whole correction when it lands. The core may send the same
-     * token again with the full amount, so remember what we applied and only add the rest.
-     */
-    if (_scrollToTopJumpToken != 0) {
-      _shiftedToken = _scrollToTopJumpToken;
-      _shiftedTokenDelta = nextStateData.containerOffsetY_ - nextStateData.containerOffsetBaseY_;
-    }
+  motion.minOffset = _horizontal ? -_scrollView.contentInset.left : -_scrollView.contentInset.top;
+  motion.maxOffset = _horizontal
+    ? _scrollView.contentSize.width - _scrollView.bounds.size.width + _scrollView.contentInset.right
+    : _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom;
+  motion.touching = _scrollView.isTracking;
+  motion.moving = _scrollingToTop || _scrollView.isDragging || _scrollView.isDecelerating;
+#else
+  // macOS writes the core's offset as is.
+  motion.minOffset = -INFINITY;
+  motion.maxOffset = INFINITY;
 #endif
-  } else if (nextStateData.containerOffsetEnabled_ && !_dragging && !_dragDropPending) {
-    // While a row is dragged or dropping we own the offset and skip core corrections.
+  motion.ownsOffset = _dragging || _dragDropPending;
+  motion.jumpPending = _scrollToTopJumpPending;
+  motion.jumpOffset = _scrollToTopJumpY;
+  auto action = _scrollSync.correction(motion);
+  BOOL retargetsScrollToTopJump = action.kind == azimgd::shadowlist::MountAction::Kind::RetargetJump;
+  if (retargetsScrollToTopJump) {
+    // The view follows when the jump lands.
+    _scrollToTopJumpY = action.offsetY;
+    _scrollToTopJumpToken = action.token;
+  } else if (action.kind == azimgd::shadowlist::MountAction::Kind::Write) {
 #if !TARGET_OS_OSX
-    /*
-     * A ShadowListNative scroll command reaches the core in a commit, not through this view.
-     * Stop momentum when it mounts, like scrollToIndex does, and write the offset.
-     * A finger on the list wins, and the core lets the drag cancel the command.
-     */
-    uint64_t yieldToken = (uint64_t)nextStateData.momentumYieldToken_;
-    BOOL scrollCommand = yieldToken != 0 && (uint64_t)nextStateData.commitToken_ == yieldToken &&
-      !_scrollView.isTracking;
-    if (scrollCommand && yieldToken != _yieldedToken) {
-      _yieldedToken = yieldToken;
-      [self stopMomentum];
+    // A ShadowListNative scroll command stops momentum when it mounts, like scrollToIndex.
+    if (action.stopMomentum && [self stopMomentum]) {
+      _scrollSync.momentumStopped();
     }
 #else
-    BOOL scrollCommand = NO;
-#endif
-    CGPoint before = _scrollView.contentOffset;
-    _appliedOffset = CGPointMake(
-      nextStateData.containerOffsetX_,
-      nextStateData.containerOffsetY_);
-#if !TARGET_OS_OSX
-    /*
-     * While the view is moving, by scroll to top, a finger or a fling, it has moved on by the
-     * time a correction mounts. Writing the fixed offset would undo that, so shift the live
-     * offset by the correction instead, clamped to the scroll range.
-     * Keep shifting for corrections made during a gesture, or ones we already shifted, even
-     * after the motion stops. Scroll commands carry the live offset, so shifting is the same.
-     */
-    uint64_t token = (uint64_t)nextStateData.commitToken_;
-    BOOL continuesShiftedCorrection = token != 0 && token == _shiftedToken;
-    BOOL computedDuringGesture = token != 0 &&
-      (nextStateData.userScrolled_ || nextStateData.scrollPhase_ != SCROLL_PHASE_IDLE);
-    if (!scrollCommand && (_scrollingToTop || _scrollView.isDragging || _scrollView.isDecelerating ||
-        continuesShiftedCorrection || computedDuringGesture)) {
-      // Work along the scroll axis. A horizontal list corrects x.
-      BOOL horizontal = _horizontal;
-      CGFloat top = horizontal ? -_scrollView.contentInset.left : -_scrollView.contentInset.top;
-      CGFloat maxY = horizontal
-        ? MAX(top, _scrollView.contentSize.width - _scrollView.bounds.size.width + _scrollView.contentInset.right)
-        : MAX(top, _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom);
-      CGFloat shift = horizontal
-        ? nextStateData.containerOffsetX_ - nextStateData.containerOffsetBaseX_
-        : nextStateData.containerOffsetY_ - nextStateData.containerOffsetBaseY_;
-      /*
-       * The core resends the full correction with each new report until we echo its token.
-       * Shift only by what this token has not moved yet, or a prepend during a fling
-       * would shift the view again each time.
-       */
-      if (token != 0) {
-        CGFloat unapplied = token == _shiftedToken ? shift - _shiftedTokenDelta : shift;
-        _shiftedToken = token;
-        _shiftedTokenDelta = shift;
-        shift = unapplied;
-      }
-      /*
-       * A bounce past an edge sits outside the scroll range, and the content size write above
-       * pulls it back to the edge. The core measured the correction from the bounced offset,
-       * so shift from there, or a history page landing mid bounce jumps by the bounce distance.
-       */
-      CGPoint shiftFrom = contentSizeChanged ? offsetBeforeSizeWrite : before;
-      _appliedOffset = horizontal
-        ? CGPointMake(MIN(MAX(shiftFrom.x + shift, top), maxY), before.y)
-        : CGPointMake(before.x, MIN(MAX(shiftFrom.y + shift, top), maxY));
+    // A plain write never keeps a fling on macOS, so shifting would not help.
+    if (action.shifted) {
+      action.offsetX = nextStateData.containerOffsetX_;
+      action.offsetY = nextStateData.containerOffsetY_;
     }
 #endif
-    /*
-     * Arm this before writing. A real move calls scrollViewDidScroll right away, and it
-     * needs the flag to know the move was ours and send the token back.
-     */
-    _hasAppliedOffset = YES;
-    _armedToken = (uint64_t)nextStateData.commitToken_;
-    _scrollView.contentOffset = _appliedOffset;
-    /*
-     * If the write did not move the view, no scroll report fires and the flag would stay
-     * set, swallowing the next real user scroll. Clear it.
-     */
+    // A real move calls scrollViewDidScroll right away, which echoes the token.
+    _scrollSync.willWrite(action);
+    _scrollView.contentOffset = CGPointMake(action.offsetX, action.offsetY);
     CGPoint after = _scrollView.contentOffset;
-    if (fabs(after.x - before.x) < 0.01 && fabs(after.y - before.y) < 0.01) {
-      _hasAppliedOffset = NO;
-      _armedToken = 0;
-    }
+    _scrollSync.didWrite(fabs(after.x - before.x) >= 0.01 || fabs(after.y - before.y) >= 0.01);
   }
 
   /*
    * A state that hides rows waits for a report built on it. The write above usually sends
    * one. If it did not, send it here.
    */
-  if (nextStateData.concealGeneration_ != 0.0 && nextStateData.containerOffsetEnabled_ && !_reportedDuringStateUpdate) {
+  if (_scrollSync.concealAckDue(_scrollToTopJumpPending)) {
     [self reportConcealedRowsMounted];
   }
 
@@ -820,6 +694,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     [self updateDrag];
   }
 #endif
+  _scrollSync.endMount();
   _inStateUpdate = NO;
 }
 
@@ -854,144 +729,43 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
    */
 
   /*
-   * Tell a user scroll from our own move by who caused it. If we just applied a core
-   * offset, this report is ours wherever it landed, and we send the token back so the core
-   * can match its correction. Otherwise the user is scrolling and the core can drop it.
-   */
-  BOOL userScrolled = !_applyingContentSize;
-  BOOL ourMove = NO;
-  if (_hasAppliedOffset) {
-    userScrolled = NO;
-    ourMove = YES;
-    _echoedToken = _armedToken;
-    _hasAppliedOffset = NO;
-    _armedToken = 0;
-  }
-  /*
-   * Keep sending the last token on later reports too. Updates merge, so the next frame
-   * can replace our report before the core sees it, and the core would apply the
-   * correction again. Tokens are never reused, so an old one matches nothing.
-   */
-  uint64_t echoToken = _echoedToken;
-
-  /*
    * The gesture phase, finger down, momentum or idle. It stays set between frames so the
    * core keeps the inverted bottom pin off while a finger rests on the list.
-   * See Container::gestureActive. macOS has no drag state, so it keeps the mounted one.
+   * See Container::gestureActive. macOS has no drag state, so it keeps the current one.
    */
+  azimgd::shadowlist::ScrollFrame frame;
+  frame.offsetX = scrollView.contentOffset.x;
+  frame.offsetY = scrollView.contentOffset.y;
 #if !TARGET_OS_OSX
-  double scrollPhase = [self currentScrollPhase];
+  frame.scrollPhase = [self currentScrollPhase];
+  // Pull to refresh, scroll to top and drag to reorder all lean on every frame.
+  frame.commitEveryFrame = _refreshing || _refreshAwaitingSettle ||
+    (_refreshControl != nil && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
+    _dragging || _dragDropPending;
 #else
-  double scrollPhase = _state->getData().scrollPhase_;
+  frame.scrollPhase = _scrollSync.mounted().scrollPhase;
+  frame.commitEveryFrame = _dragging || _dragDropPending;
 #endif
-  _publishedGesture = userScrolled || scrollPhase != SCROLL_PHASE_IDLE;
-
   /*
-   * Every frame goes into the live report. The report is built on the mounted state, so it
-   * acknowledges the rows that state hides.
+   * Every frame goes into the live report, and only frames the core needs become a state
+   * update. See azimgd::shadowlist::ScrollSync::onScroll.
    */
-  ShadowListStatePatch patch;
-  patch.report = [self writeLiveReportAt:scrollView.contentOffset
-                            userScrolled:userScrolled
-                             scrollPhase:scrollPhase
-                             commitToken:echoToken
-                    concealGenerationAck:_state->getData().concealGeneration_];
-  BOOL needsCommit = ourMove || [self liveReportNeedsCommit:patch.report];
+  auto report = _scrollSync.onScroll(frame);
+  BOOL userScrolled = report.userScrolled;
 
   SL_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f) userScrolled=%d token=%llu seq=%llu commit=%d",
     scrollView.contentOffset.x, scrollView.contentOffset.y, userScrolled ? 1 : 0,
-    (unsigned long long)echoToken, (unsigned long long)patch.report.sequence, needsCommit ? 1 : 0);
-  if (needsCommit) {
-    _reportedDuringStateUpdate = YES;
-    [self carryScrollCommandIntoPatch:patch];
-    [self commitStatePatch:patch];
+    (unsigned long long)_scrollSync.echoedToken(), (unsigned long long)report.patch.report.sequence,
+    report.needsCommit ? 1 : 0);
+  if (report.needsCommit) {
+    [self commitStatePatch:report.patch];
   }
 
   // Only real user scrolls move the auto hide bars.
   [self applyStickyTransforms:userScrolled];
 }
 
-#pragma mark - Live reports
-
-/*
- * Store where the view is in the live report and return it with its sequence. Every state
- * update also writes one first, so its sequence tells adopt() which of the two is newer.
- */
-- (ShadowListLiveScroll::Report)writeLiveReportAt:(CGPoint)offset
-                                     userScrolled:(BOOL)userScrolled
-                                      scrollPhase:(double)scrollPhase
-                                      commitToken:(uint64_t)commitToken
-                             concealGenerationAck:(double)concealGenerationAck
-{
-  ShadowListLiveScroll::Report report;
-  report.offsetX = offset.x;
-  report.offsetY = offset.y;
-  report.userScrolled = userScrolled;
-  report.scrollPhase = scrollPhase;
-  report.commitToken = (double)commitToken;
-  report.concealGenerationAck = concealGenerationAck;
-  report.sequence = _liveScroll ? _liveScroll->write(report) : 0;
-  _lastLiveReport = report;
-  return report;
-}
-
-/*
- * The user scroll flag and phase that later updates carry, which are the newest report's.
- * Before the first report they are the mounted state's.
- */
-- (BOOL)currentUserScrolled
-{
-  if (_lastLiveReport.sequence > 0 || !_state) {
-    return _lastLiveReport.userScrolled;
-  }
-  return _state->getData().userScrolled_;
-}
-
-- (double)currentReportedScrollPhase
-{
-  if (_lastLiveReport.sequence > 0 || !_state) {
-    return _lastLiveReport.scrollPhase;
-  }
-  return _state->getData().scrollPhase_;
-}
-
-/*
- * Whether a scroll frame must become a state update. Conservative on purpose: anything the
- * core reacts to other than the offset moving inside the band sends it.
- */
-- (BOOL)liveReportNeedsCommit:(const ShadowListLiveScroll::Report&)report
-{
-  if (!_state || !_liveScroll || report.sequence == 0 || !_hasPushedReport) {
-    return YES;
-  }
-  const auto& mounted = _state->getData();
-  // A correction just mounted, or rows hidden until a report acknowledges them.
-  if (mounted.containerOffsetEnabled_ || mounted.concealGeneration_ != 0.0) {
-    return YES;
-  }
-  // The gesture changed, a correction was echoed, or a hide was acknowledged.
-  if (report.userScrolled != _lastPushedReport.userScrolled || report.scrollPhase != _lastPushedReport.scrollPhase ||
-      report.commitToken != _lastPushedReport.commitToken ||
-      report.concealGenerationAck != _lastPushedReport.concealGenerationAck) {
-    return YES;
-  }
-  // UIKit clamped the offset, or a mount moved it.
-  if (_applyingContentSize || _inStateUpdate) {
-    return YES;
-  }
-  // Pull to refresh, scroll to top and drag to reorder all lean on every frame.
-#if !TARGET_OS_OSX
-  if (_refreshing || _refreshAwaitingSettle || (_refreshControl != nil && _refreshControl.isRefreshing)) {
-    return YES;
-  }
-#endif
-  if (_scrollingToTop || _scrollToTopJumpPending || _dragging || _dragDropPending) {
-    return YES;
-  }
-  // The offset left the band the mounted layout pass published. An empty band never holds it.
-  double offset = _horizontal ? report.offsetX : report.offsetY;
-  return !(mounted.offsetBandLow_ <= offset && offset <= mounted.offsetBandHigh_);
-}
+#pragma mark - State updates
 
 /*
  * Immediate commits run the whole commit and mount on this thread right away, so a frame
@@ -1007,85 +781,43 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 }
 
 /*
- * Send a state update that patches the newest committed state, see ShadowListStatePatch.
+ * Send a state update that patches the newest committed state, see azimgd::shadowlist::ScrollPatch.
  */
-- (void)commitStatePatch:(const ShadowListStatePatch&)patch
+- (void)commitStatePatch:(const azimgd::shadowlist::ScrollPatch&)patch
 {
   if (!_state) {
     return;
   }
-  _lastPushedReport = patch.report;
-  _hasPushedReport = YES;
   auto updateMode = [self stateUpdateMode];
   _state->updateState(
     [patch](const ShadowListStateData& oldData) -> StateData::Shared {
-      if (patch.isNoOpOn(oldData)) {
+      if (oldData.holdsPatch(patch)) {
         return nullptr;
       }
       auto nextData = std::make_shared<ShadowListStateData>(oldData);
-      patch.applyTo(*nextData);
+      nextData->applyPatch(patch);
       return nextData;
     },
     updateMode);
 }
 
-/*
- * A patch with the live offset and the last echoed token, like a scroll report, and the
- * given gesture state. Built on the mounted state, so it acknowledges the rows that hides.
- */
-- (ShadowListStatePatch)livePatchWithUserScrolled:(BOOL)userScrolled scrollPhase:(double)scrollPhase
+- (azimgd::shadowlist::ScrollPatch)livePatch
 {
-  ShadowListStatePatch patch;
-  patch.report = [self writeLiveReportAt:_scrollView.contentOffset
-                            userScrolled:userScrolled
-                             scrollPhase:scrollPhase
-                             commitToken:_echoedToken
-                    concealGenerationAck:_state ? _state->getData().concealGeneration_ : 0.0];
-  [self carryScrollCommandIntoPatch:patch];
-  return patch;
-}
-
-- (ShadowListStatePatch)livePatch
-{
-  return [self livePatchWithUserScrolled:[self currentUserScrolled] scrollPhase:[self currentReportedScrollPhase]];
+  return _scrollSync.livePatch(_scrollView.contentOffset.x, _scrollView.contentOffset.y);
 }
 
 /*
- * Copy the last scroll command into a patch. See _commandSequence.
- */
-- (void)carryScrollCommandIntoPatch:(ShadowListStatePatch&)patch
-{
-  if (_commandSequence > 0) {
-    patch.hasCommand = true;
-    patch.commandIndex = _commandIndex;
-    patch.commandSequence = _commandSequence;
-    patch.commandViewPosition = _commandViewPosition;
-  }
-}
-
-/*
- * Clear the user scroll flag once the gesture and momentum end, so a later commit is
- * not taken for a user scroll and does not cancel a real correction.
+ * Clear the user scroll flag once the gesture and momentum end, so a later commit is not
+ * taken for a user scroll and does not cancel a real correction.
  */
 - (void)clearUserScrolled
 {
   if (!_state) {
     return;
   }
-
-  const auto& mountedStateData = _state->getData();
-  /*
-   * Skip only if neither the mounted state nor our last update was a gesture. The mounted
-   * state alone is not enough. After a pull past the top, the bounce back sends one report
-   * that may not have mounted yet. Skipping then leaves it as the last state, and later
-   * corrections that keep the visible content in place would be dropped as if a gesture took over.
-   * _publishedGesture also covers frames that only went into the live report.
-   */
-  if (!_publishedGesture && !mountedStateData.userScrolled_ && mountedStateData.scrollPhase_ == SCROLL_PHASE_IDLE) {
-    return;
+  if (auto patch = _scrollSync.clearUserScrolled(_scrollView.contentOffset.x, _scrollView.contentOffset.y)) {
+    [self commitStatePatch:*patch];
   }
-  _publishedGesture = NO;
-  [self commitStatePatch:[self livePatchWithUserScrolled:NO scrollPhase:SCROLL_PHASE_IDLE]];
 }
 
 #if !TARGET_OS_OSX
@@ -1148,8 +880,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   CancelReactTouches(self);
   // The user grabbed the list. Clear our pending move so the drag counts as a user scroll.
   SLF_TRACE("ev=drag-begin off=%.1f,%.1f", scrollView.contentOffset.x, scrollView.contentOffset.y);
-  _hasAppliedOffset = NO;
-  _armedToken = 0;
+  _scrollSync.disarm();
   // A finger takes over from scroll to top. The drag reports its own phase.
   [self cancelScrollToTop];
 }
@@ -1181,15 +912,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   }
 
   CGFloat projected = _horizontal ? targetContentOffset->x : targetContentOffset->y;
-  CGFloat best = (CGFloat)_snapOffsets.front();
-  CGFloat bestDistance = fabs(best - projected);
-  for (double snapOffset : _snapOffsets) {
-    CGFloat distance = fabs((CGFloat)snapOffset - projected);
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = (CGFloat)snapOffset;
-    }
-  }
+  CGFloat best = (CGFloat)azimgd::shadowlist::nearestSnapOffset(_snapOffsets, projected);
 
   if (_horizontal) {
     targetContentOffset->x = best;
@@ -1270,15 +993,13 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
      * The live report says the view is at the target too, so a commit for another reason
      * renders the same rows. It keeps the mounted ack, since the jump reports when it lands.
      */
-    ShadowListStatePatch patch;
-    patch.report = [self writeLiveReportAt:CGPointMake(_scrollView.contentOffset.x, jumpY)
-                              userScrolled:YES
-                               scrollPhase:SCROLL_PHASE_SETTLING
-                               commitToken:0
-                      concealGenerationAck:_state->getData().concealGenerationAck_];
-    _publishedGesture = YES;
-    [self carryScrollCommandIntoPatch:patch];
-    [self commitStatePatch:patch];
+    ShadowListLiveScroll::Report report;
+    report.offsetX = _scrollView.contentOffset.x;
+    report.offsetY = jumpY;
+    report.userScrolled = true;
+    report.scrollPhase = SCROLL_PHASE_SETTLING;
+    report.concealGenerationAck = _state->getData().concealGenerationAck_;
+    [self commitStatePatch:_scrollSync.reportPatch(report)];
   }
 }
 
@@ -1344,14 +1065,12 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
    * core knows its correction arrived and does not shift again.
    */
   if (_scrollToTopJumpToken != 0) {
-    _hasAppliedOffset = YES;
-    _armedToken = _scrollToTopJumpToken;
+    _scrollSync.arm(target.x, target.y, false, _scrollToTopJumpToken);
   }
   SLF_TRACE("ev=stt-land %.1f->%.1f waitedTooLong=%d", before.y, target.y, waitedTooLong ? 1 : 0);
   _scrollView.contentOffset = target;
   if (fabs(_scrollView.contentOffset.y - before.y) < 0.01) {
-    _hasAppliedOffset = NO;
-    _armedToken = 0;
+    _scrollSync.disarm();
   }
   _scrollToTopJumpToken = 0;
   _scrollToTopProgress = 0.0;
@@ -1463,15 +1182,11 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   if (!_state) {
     return;
   }
-  ShadowListStatePatch patch;
-  patch.report = [self writeLiveReportAt:_scrollView.contentOffset
-                            userScrolled:NO
-                             scrollPhase:SCROLL_PHASE_IDLE
-                             commitToken:0
-                    concealGenerationAck:_state->getData().concealGenerationAck_];
-  _publishedGesture = NO;
-  [self carryScrollCommandIntoPatch:patch];
-  [self commitStatePatch:patch];
+  ShadowListLiveScroll::Report report;
+  report.offsetX = _scrollView.contentOffset.x;
+  report.offsetY = _scrollView.contentOffset.y;
+  report.concealGenerationAck = _state->getData().concealGenerationAck_;
+  [self commitStatePatch:_scrollSync.reportPatch(report)];
 }
 #endif // !TARGET_OS_OSX
 
@@ -1611,47 +1326,32 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     [_scrollView setContentOffset:_scrollView.contentOffset animated:NO];
     yielded = YES;
   }
-  if (yielded) {
-    _publishedGesture = NO;
-  }
   return yielded;
 }
 #endif
 
-/*
- * Copy the last scroll command into a state update. See _commandSequence.
- */
-- (void)carryScrollCommandInto:(ShadowListViewShadowNode::ConcreteState::Data&)stateData
+- (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey
 {
-  if (_commandSequence > 0) {
-    stateData.containerOffsetIndex_ = _commandIndex;
-    stateData.containerOffsetIndexSequence_ = _commandSequence;
-    stateData.containerOffsetIndexViewPosition_ = _commandViewPosition;
+  if (!_state) {
+    return;
   }
-}
-
-/*
- * The mounted state's offset can be many frames old during a fling. Write the live offset,
- * or the core renders rows for a place we already left. No correction is applied, and the
- * last token rides along like in scrollViewDidScroll.
- * For updates that copy the mounted state, like drag events. The update also becomes the
- * newest live report, with the user scroll flag and phase already set on stateData.
- */
-- (void)carryLiveOffsetInto:(ShadowListViewShadowNode::ConcreteState::Data&)stateData
-{
-  stateData.containerOffsetX_ = _scrollView.contentOffset.x;
-  stateData.containerOffsetY_ = _scrollView.contentOffset.y;
-  stateData.containerOffsetEnabled_ = false;
-  stateData.commitToken_ = (double)_echoedToken;
-  stateData.concealGenerationAck_ = stateData.concealGeneration_;
-  auto report = [self writeLiveReportAt:_scrollView.contentOffset
-                           userScrolled:stateData.userScrolled_
-                            scrollPhase:stateData.scrollPhase_
-                            commitToken:_echoedToken
-                   concealGenerationAck:stateData.concealGenerationAck_];
-  stateData.hostSequence_ = (double)report.sequence;
-  _lastPushedReport = report;
-  _hasPushedReport = YES;
+  // Turn off scroll corrections while dragging. The end event, type 3, turns them back on.
+  auto patch = _scrollSync.livePatch(
+    _scrollView.contentOffset.x, _scrollView.contentOffset.y, type != 3, _scrollSync.currentScrollPhase());
+  std::string dragFromKey = fromKey ? std::string(fromKey.UTF8String) : std::string();
+  std::string dragToKey = toKey ? std::string(toKey.UTF8String) : std::string();
+  // The sequence goes past the newest state's, so each event fires once.
+  _state->updateState(
+    [patch, type, dragFromKey, dragToKey](const ShadowListStateData& oldData) -> StateData::Shared {
+      auto nextData = std::make_shared<ShadowListStateData>(oldData);
+      nextData->applyPatch(patch);
+      nextData->dragEventSequence_ = oldData.dragEventSequence_ + 1;
+      nextData->dragEventType_ = (double)type;
+      nextData->dragFromKey_ = dragFromKey;
+      nextData->dragToKey_ = dragToKey;
+      return nextData;
+    },
+    [self stateUpdateMode]);
 }
 
 /*
@@ -1673,7 +1373,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     return;
   }
 
-  ShadowListStatePatch patch = [self livePatch];
+  auto patch = [self livePatch];
   patch.hasStartReachedEnabled = true;
   patch.startReachedEnabled = enabled;
   [self commitStatePatch:patch];
@@ -1685,7 +1385,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     return;
   }
 
-  ShadowListStatePatch patch = [self livePatch];
+  auto patch = [self livePatch];
   patch.hasEndReachedEnabled = true;
   patch.endReachedEnabled = enabled;
   [self commitStatePatch:patch];
@@ -1698,14 +1398,11 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 - (void)commitScrollCommandIndex:(double)index viewPosition:(double)viewPosition
 {
   BOOL yielded = [self yieldMomentum];
-  _commandIndex = index;
-  _commandViewPosition = viewPosition;
-  _commandSequence = MAX(_state->getData().containerOffsetIndexSequence_, _commandSequence) + 1;
-  ShadowListStatePatch patch = yielded
-    ? [self livePatchWithUserScrolled:NO scrollPhase:SCROLL_PHASE_IDLE]
-    : [self livePatch];
-  patch.containerOffsetEnabled = true;
-  [self commitStatePatch:patch];
+  if (yielded) {
+    _scrollSync.momentumStopped();
+  }
+  [self commitStatePatch:_scrollSync.issueCommand(
+    index, viewPosition, _scrollView.contentOffset.x, _scrollView.contentOffset.y, yielded)];
 }
 
 - (void)scrollToIndex:(NSInteger)index viewPosition:(double)viewPosition

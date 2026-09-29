@@ -1,6 +1,8 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Internal.h"
 
+#include <algorithm>
+
 /*
  * Sticky pinning for the header, footer and section-header overlay.
  */
@@ -40,67 +42,32 @@ static inline void SLSetHidden(RCTUIView *view, BOOL hidden)
   CGSize window = _scrollView.bounds.size;
   CGSize content = _scrollView.contentSize;
 
-  CGFloat axisOffset = _horizontal ? offset.x : offset.y;
-  CGFloat windowSize = _horizontal ? window.width : window.height;
-  CGFloat contentSize = _horizontal ? content.width : content.height;
-  CGFloat headerSize = _stickyHeaderView
+  azimgd::shadowlist::StickyInput input;
+  input.offset = _horizontal ? offset.x : offset.y;
+  input.windowSize = _horizontal ? window.width : window.height;
+  input.contentSize = _horizontal ? content.width : content.height;
+  input.hasHeader = _stickyHeaderView != nil;
+  input.headerSize = _stickyHeaderView
     ? (_horizontal ? _stickyHeaderView.bounds.size.width : _stickyHeaderView.bounds.size.height)
     : 0.0;
-  CGFloat footerSize = _stickyFooterView
+  input.stickyHeader = _stickyHeader;
+  input.autoHideHeader = _autoHideHeader;
+  input.hasFooter = _stickyFooterView != nil;
+  input.footerSize = _stickyFooterView
     ? (_horizontal ? _stickyFooterView.bounds.size.width : _stickyFooterView.bounds.size.height)
     : 0.0;
+  // The footer rests at the end of the content.
+  input.footerStart = input.contentSize - input.footerSize;
+  input.stickyFooter = _stickyFooter;
+  input.autoHideFooter = _autoHideFooter;
+  input.accumulate = accumulate;
 
-  /*
-   * Auto hide follows scroll direction. Only user scrolls slide the bar away,
-   * a jump from code just resets the starting point.
-   */
-  CGFloat autoHideDelta = accumulate ? (axisOffset - _lastAutoHideOffset) : 0.0;
-  _lastAutoHideOffset = axisOffset;
-
+  auto translations = azimgd::shadowlist::stickyTranslations(input, _stickyState);
   if (_stickyHeaderView) {
-    CGFloat translation = 0.0;
-    if (_autoHideHeader) {
-      // Pin to the top, and slide it away once the list scrolls past its height.
-      if (axisOffset <= headerSize) {
-        _headerHidden = 0.0;
-      } else {
-        _headerHidden = MAX(0.0, MIN(_headerHidden + autoHideDelta, headerSize));
-      }
-      translation = axisOffset - _headerHidden;
-    } else if (_stickyHeader) {
-      // Pin to the top, but let the end of the content or the footer push it off.
-      translation = axisOffset;
-      CGFloat collisionTop = contentSize - footerSize - headerSize;
-      if (collisionTop < translation) {
-        translation = collisionTop;
-      }
-    }
-    SLSetTranslation(_stickyHeaderView, _horizontal, translation);
+    SLSetTranslation(_stickyHeaderView, _horizontal, translations.header);
   }
-
   if (_stickyFooterView) {
-    CGFloat translation = 0.0;
-    if (_autoHideFooter) {
-      // Pin to the bottom, and slide it away unless we are near the end.
-      CGFloat maxOffset = MAX(0.0, contentSize - windowSize);
-      if (axisOffset >= maxOffset - footerSize) {
-        _footerHidden = 0.0;
-      } else {
-        _footerHidden = MAX(0.0, MIN(_footerHidden + autoHideDelta, footerSize));
-      }
-      translation = (axisOffset + windowSize - contentSize) + _footerHidden;
-    } else if (_stickyFooter) {
-      /*
-       * Pin to the bottom, but in a short list never ride up into the header's space.
-       * Same clamp as the sticky header above.
-       */
-      translation = axisOffset + windowSize - contentSize;
-      CGFloat collisionBottom = headerSize - contentSize + footerSize;
-      if (translation < collisionBottom) {
-        translation = collisionBottom;
-      }
-    }
-    SLSetTranslation(_stickyFooterView, _horizontal, translation);
+    SLSetTranslation(_stickyFooterView, _horizontal, translations.footer);
   }
 
   /*
@@ -125,52 +92,17 @@ static inline void SLSetHidden(RCTUIView *view, BOOL hidden)
     return;
   }
 
-  if (_stickyHeaderIndices.empty()) {
-    SLSetHidden(_sectionHeaderOverlay, YES);
-    return;
-  }
-
   CGFloat axisOffset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
-  if (axisOffset < 0.0) {
-    axisOffset = 0.0;
-  }
-
-  /*
-   * Headers are sorted by offset. The active one is the last at or above the top,
-   * and the one after it is the next header that pushes it up.
-   */
-  bool hasActive = false;
-  double activeSize = 0.0;
-  bool hasNext = false;
-  double nextOffset = 0.0;
-  for (std::size_t headerIndex = 0; headerIndex < _stickyHeaderOffsets.size(); ++headerIndex) {
-    double headerOffset = _stickyHeaderOffsets[headerIndex];
-    if (headerOffset <= axisOffset) {
-      hasActive = true;
-      activeSize = _stickyHeaderSizes[headerIndex];
-    } else {
-      nextOffset = headerOffset;
-      hasNext = true;
-      break;
-    }
-  }
-
-  if (!hasActive) {
+  std::size_t count = std::min(_stickyHeaderOffsets.size(), _stickyHeaderSizes.size());
+  auto position = azimgd::shadowlist::sectionOverlayPosition(
+    _stickyHeaderOffsets.data(), _stickyHeaderSizes.data(), _stickyHeaderIndices.empty() ? 0 : count, axisOffset);
+  if (!position.visible) {
     SLSetHidden(_sectionHeaderOverlay, YES);
     return;
-  }
-
-  // Sit at the top, or higher when the next header pushes into it.
-  double translation = axisOffset;
-  if (hasNext) {
-    double pushedTop = nextOffset - activeSize;
-    if (pushedTop < translation) {
-      translation = pushedTop;
-    }
   }
 
   SLSetHidden(_sectionHeaderOverlay, NO);
-  SLSetTranslation(_sectionHeaderOverlay, _horizontal, translation);
+  SLSetTranslation(_sectionHeaderOverlay, _horizontal, position.translation);
   // Sit above the sticky header and footer, which use z 1.
   if (_overlayOrderDirty) {
     _overlayOrderDirty = NO;

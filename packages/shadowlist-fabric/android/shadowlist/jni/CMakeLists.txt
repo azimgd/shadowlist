@@ -26,8 +26,9 @@ file(GLOB LIB_INCLUDES_SRCS CONFIGURE_DEPENDS
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListViewSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListElementViewSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListTemplateViewSpec/*.cpp
-  
+
   ${LIB_CORE_DIR}/*.cpp
+  ${LIB_CORE_DIR}/host/*.cpp
 )
 
 add_library(

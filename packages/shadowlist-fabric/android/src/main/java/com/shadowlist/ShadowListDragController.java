@@ -10,8 +10,6 @@ import android.view.ViewGroup;
 import androidx.annotation.Nullable;
 
 import com.facebook.react.bridge.ReadableMap;
-import com.facebook.react.bridge.WritableMap;
-import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
 
@@ -55,6 +53,17 @@ class ShadowListDragController {
   private float mDragLeading = 0f;
   private float mDropReleaseLeading = 0f;
   private static final long DROP_SETTLE_MS = 180;
+
+  /*
+   * The other mounted rows for the drag math, refilled each frame. The arrays only grow, so
+   * frames allocate nothing. mRowViews holds the view at each position.
+   */
+  private int mRowCount = 0;
+  private int[] mRowIndices = new int[0];
+  private double[] mRowLeadings = new double[0];
+  private double[] mRowExtents = new double[0];
+  private double[] mRowShifts = new double[0];
+  private ShadowListElementView[] mRowViews = new ShadowListElementView[0];
 
   ShadowListDragController(ShadowListView view, Context context) {
     mView = view;
@@ -330,19 +339,8 @@ class ShadowListDragController {
     float offset = horizontal ? scrollView.getScrollX() : scrollView.getScrollY();
     float touch = mDragTouchInViewport;
 
-    float edge = PixelUtil.toPixelFromDIP(60);
-    float maxSpeed = PixelUtil.toPixelFromDIP(12);
-    float delta = 0f;
-    if (touch < edge) {
-      delta = -maxSpeed * (1f - touch / edge);
-    } else if (touch > window - edge) {
-      delta = maxSpeed * (1f - (window - touch) / edge);
-    }
-    if (delta == 0f) {
-      return;
-    }
-
-    float newOffset = Math.min(Math.max(offset + delta, 0f), maxOffset);
+    float newOffset = (float) ShadowListGeometry.dragAutoScrollOffset(
+      touch, window, offset, maxOffset, PixelUtil.toPixelFromDIP(1f));
     if (newOffset == offset) {
       return;
     }
@@ -374,8 +372,7 @@ class ShadowListDragController {
     float extent = horizontal ? mDraggedView.getWidth() : mDraggedView.getHeight();
     float contentExtent = horizontal ? contentView.getWidth() : contentView.getHeight();
 
-    float desiredLeading = touchContent - mDragGrabOffset;
-    desiredLeading = Math.max(0f, Math.min(desiredLeading, Math.max(0f, contentExtent - extent)));
+    float desiredLeading = (float) ShadowListGeometry.dragHeldLeading(touchContent, mDragGrabOffset, extent, contentExtent);
     mDragLeading = desiredLeading;
 
     float translation = desiredLeading - restingLeading;
@@ -387,8 +384,22 @@ class ShadowListDragController {
       mDraggedView.setTranslationX(0f);
     }
 
-    mDragInsertionIndex = insertionIndexForCenter(desiredLeading + extent / 2f);
-    applyDragShuffle();
+    // The held row's key can change with the data too, and the drop names it by key.
+    String liveKey = mDraggedView.getElementKey();
+    if (liveKey != null && !liveKey.isEmpty()) {
+      mDragOriginKey = liveKey;
+    }
+    collectRows();
+    int position = ShadowListGeometry.dragInsertionPosition(
+      mRowIndices, mRowLeadings, mRowExtents, mRowCount, currentDragOriginIndex(), desiredLeading + extent / 2f);
+    if (position < 0) {
+      mDragInsertionIndex = currentDragOriginIndex();
+      mDragInsertionKey = mDragOriginKey;
+    } else {
+      mDragInsertionIndex = mRowIndices[position];
+      mDragInsertionKey = mRowViews[position].getElementKey();
+    }
+    shuffleCollectedRows();
   }
 
   /*
@@ -406,20 +417,21 @@ class ShadowListDragController {
   }
 
   /*
-   * The row lands past the farthest neighbour whose midpoint its centre has crossed.
-   * Using midpoints leaves half a row of slack, so small jitters don't flip the result.
+   * Fill the row arrays with every mounted row but the held one, at its resting place.
    */
-  private int insertionIndexForCenter(float center) {
+  private void collectRows() {
     ViewGroup contentView = mView.getContentView();
     boolean horizontal = mView.isHorizontal();
-    int originIndex = currentDragOriginIndex();
-    int insertion = originIndex;
-    /*
-     * Remember the key at the landing slot so the drop event names a row, not just an index.
-     * If nothing was crossed, the row stays where it started.
-     */
-    String insertionKey = mDragOriginKey;
-    for (int i = 0; i < contentView.getChildCount(); i++) {
+    int childCount = contentView.getChildCount();
+    if (mRowIndices.length < childCount) {
+      mRowIndices = new int[childCount];
+      mRowLeadings = new double[childCount];
+      mRowExtents = new double[childCount];
+      mRowShifts = new double[childCount];
+      mRowViews = new ShadowListElementView[childCount];
+    }
+    int count = 0;
+    for (int i = 0; i < childCount; i++) {
       View child = contentView.getChildAt(i);
       if (!(child instanceof ShadowListElementView) || child == mDraggedView) {
         continue;
@@ -429,19 +441,17 @@ class ShadowListDragController {
       if (elementIndex < 0) {
         continue;
       }
-      float lead = horizontal ? child.getLeft() : child.getTop();
-      float extent = horizontal ? child.getWidth() : child.getHeight();
-      float midpoint = lead + extent / 2f;
-      if (elementIndex > originIndex && center > midpoint && elementIndex > insertion) {
-        insertion = elementIndex;
-        insertionKey = elementChild.getElementKey();
-      } else if (elementIndex < originIndex && center < midpoint && elementIndex < insertion) {
-        insertion = elementIndex;
-        insertionKey = elementChild.getElementKey();
-      }
+      mRowIndices[count] = elementIndex;
+      mRowLeadings[count] = horizontal ? child.getLeft() : child.getTop();
+      mRowExtents[count] = horizontal ? child.getWidth() : child.getHeight();
+      mRowViews[count] = elementChild;
+      count++;
     }
-    mDragInsertionKey = insertionKey;
-    return insertion;
+    // Drop views left from a longer frame so they can be freed.
+    for (int i = count; i < mRowCount; i++) {
+      mRowViews[i] = null;
+    }
+    mRowCount = count;
   }
 
   /*
@@ -449,24 +459,20 @@ class ShadowListDragController {
    * Each moves by the held row's size, which is exactly where it ends up after the reorder.
    */
   void applyDragShuffle() {
-    ViewGroup contentView = mView.getContentView();
+    collectRows();
+    shuffleCollectedRows();
+  }
+
+  private void shuffleCollectedRows() {
+    if (mRowCount == 0) {
+      return;
+    }
     boolean horizontal = mView.isHorizontal();
-    int originIndex = currentDragOriginIndex();
-    for (int i = 0; i < contentView.getChildCount(); i++) {
-      View child = contentView.getChildAt(i);
-      if (!(child instanceof ShadowListElementView) || child == mDraggedView) {
-        continue;
-      }
-      int elementIndex = ((ShadowListElementView) child).getElementIndex();
-      if (elementIndex < 0) {
-        continue;
-      }
-      float shift = 0f;
-      if (originIndex < mDragInsertionIndex && elementIndex > originIndex && elementIndex <= mDragInsertionIndex) {
-        shift = -mDraggedExtent;
-      } else if (mDragInsertionIndex < originIndex && elementIndex >= mDragInsertionIndex && elementIndex < originIndex) {
-        shift = mDraggedExtent;
-      }
+    ShadowListGeometry.dragShifts(
+      mRowIndices, mRowCount, currentDragOriginIndex(), mDragInsertionIndex, mDraggedExtent, mRowShifts);
+    for (int i = 0; i < mRowCount; i++) {
+      View child = mRowViews[i];
+      float shift = (float) mRowShifts[i];
       if (horizontal) {
         child.setTranslationX(shift);
         child.setTranslationY(0f);
@@ -503,21 +509,8 @@ class ShadowListDragController {
     if (currentStateData != null && currentStateData.hasKey("dragEventSequence")) {
       sequence = currentStateData.getDouble("dragEventSequence") + 1;
     }
-
-    WritableMap map = new WritableNativeMap();
-    map.putDouble("dragEventSequence", sequence);
-    map.putDouble("dragEventType", type);
-    map.putString("dragFromKey", fromKey != null ? fromKey : "");
-    map.putString("dragToKey", toKey != null ? toKey : "");
-    // Keep core scroll corrections off during the drag. The end event turns them back on.
-    map.putBoolean("userScrolled", type != 3);
-    // Like every host update, carry over the live offset and the last scroll command.
-    mView.carryLiveOffset(map);
-    mView.carryScrollCommand(map);
-    if (ShadowListView.DEBUG_LOG) {
-      ShadowListView.slLog("java.drag dispatch type=" + type + " from=" + fromKey + " to=" + toKey);
-    }
-    state.updateState(map);
+    // Like every host update, the event carries the live offset and the last scroll command.
+    mView.dispatchDragEvent(type, fromKey, toKey, sequence);
   }
 
   private void finishDrag() {

@@ -29,6 +29,11 @@ static void SLUpdateDragShadowPath(UIView *view)
     [UIBezierPath bezierPathWithRoundedRect:bounds cornerRadius:view.layer.cornerRadius].CGPath;
 }
 
+static NSString *SLDragKey(const std::string& key)
+{
+  return [NSString stringWithUTF8String:key.c_str()] ?: @"";
+}
+
 @implementation ShadowListView (DragReorder)
 
 #pragma mark - Drag gesture
@@ -96,16 +101,14 @@ static void SLUpdateDragShadowPath(UIView *view)
 
   _dragging = YES;
   _draggedView = view;
-  _dragOriginIndex = index;
-  _dragInsertionIndex = index;
-  _dragOriginKey = [self keyOfElementView:view] ?: @"";
-  _dragInsertionKey = _dragOriginKey;
-
+  NSString *key = [self keyOfElementView:view] ?: @"";
   CGRect resting = [self restingFrameForView:view];
-  CGFloat restingLeading = _horizontal ? resting.origin.x : resting.origin.y;
-  _draggedExtent = _horizontal ? resting.size.width : resting.size.height;
-  CGFloat touchAxis = _horizontal ? contentPoint.x : contentPoint.y;
-  _dragGrabOffset = touchAxis - restingLeading;
+  _drag.begin(
+    (long)index,
+    std::string(key.UTF8String),
+    _horizontal ? resting.origin.x : resting.origin.y,
+    _horizontal ? resting.size.width : resting.size.height,
+    _horizontal ? contentPoint.x : contentPoint.y);
   _dragTouchInViewport = [gesture locationInView:self];
 
   // We scroll ourselves near the edges, so stop the scroll view from following the finger.
@@ -122,7 +125,8 @@ static void SLUpdateDragShadowPath(UIView *view)
   SLUpdateDragShadowPath(view);
 
   // Tell the core a drag started so this row stays mounted when it scrolls off screen.
-  [self dispatchDragEventType:1 fromKey:_dragOriginKey toKey:_dragOriginKey];
+  NSString *originKey = SLDragKey(_drag.originKey());
+  [self dispatchDragEventType:1 fromKey:originKey toKey:originKey];
 
   _dragDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
@@ -149,20 +153,8 @@ static void SLUpdateDragShadowPath(UIView *view)
   CGFloat maxOffset = MAX(0.0, content - window);
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   CGFloat touch = _horizontal ? _dragTouchInViewport.x : _dragTouchInViewport.y;
-
-  static const CGFloat AUTO_SCROLL_EDGE = 90.0;
-  static const CGFloat AUTO_SCROLL_MAX_SPEED = 16.0;
-  CGFloat delta = 0.0;
-  if (touch < AUTO_SCROLL_EDGE) {
-    delta = -AUTO_SCROLL_MAX_SPEED * (1.0 - touch / AUTO_SCROLL_EDGE);
-  } else if (touch > window - AUTO_SCROLL_EDGE) {
-    delta = AUTO_SCROLL_MAX_SPEED * (1.0 - (window - touch) / AUTO_SCROLL_EDGE);
-  }
-  if (delta == 0.0) {
-    return;
-  }
-
-  CGFloat newOffset = MIN(MAX(offset + delta, 0.0), maxOffset);
+  CGFloat newOffset = azimgd::shadowlist::dragAutoScrollOffset(
+    azimgd::shadowlist::DRAG_AUTO_SCROLL_IOS, touch, window, offset, maxOffset);
   if (newOffset == offset) {
     return;
   }
@@ -192,51 +184,28 @@ static void SLUpdateDragShadowPath(UIView *view)
    * can move them, and the drop math must use the current values, not the ones from pickup.
    */
   NSInteger currentIndex = [self indexOfElementView:view];
-  if (currentIndex != NSNotFound) {
-    _dragOriginIndex = currentIndex;
-  }
   NSString *currentKey = [self keyOfElementView:view];
-  if (currentKey) {
-    _dragOriginKey = currentKey;
-  }
+  _drag.updateOrigin(currentIndex == NSNotFound ? -1 : (long)currentIndex, currentKey ? std::string(currentKey.UTF8String) : std::string());
 
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   CGFloat touchViewport = _horizontal ? _dragTouchInViewport.x : _dragTouchInViewport.y;
-  CGFloat touchContent = touchViewport + offset;
-
   CGRect resting = [self restingFrameForView:view];
-  CGFloat restingLeading = _horizontal ? resting.origin.x : resting.origin.y;
-  CGFloat extent = _horizontal ? resting.size.width : resting.size.height;
-  CGFloat contentExtent = _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height;
-
-  CGFloat desiredLeading = touchContent - _dragGrabOffset;
-  desiredLeading = MAX(0.0, MIN(desiredLeading, MAX(0.0, contentExtent - extent)));
-  _dragLeading = desiredLeading;
+  CGFloat translation = _drag.place(
+    touchViewport + offset,
+    _horizontal ? resting.origin.x : resting.origin.y,
+    _horizontal ? resting.size.width : resting.size.height,
+    _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height);
 
   // The row can change size while held.
   SLUpdateDragShadowPath(view);
 
-  CGFloat translation = desiredLeading - restingLeading;
   view.transform = _horizontal
     ? CGAffineTransformMakeTranslation(translation, 0.0)
     : CGAffineTransformMakeTranslation(0.0, translation);
 
-  _dragInsertionIndex = [self insertionIndexForCenter:(desiredLeading + extent / 2.0)];
-  [self applyDragShuffle];
-}
-
-/*
- * Where the row would drop. It is the farthest row whose midpoint the dragged row's
- * center has passed, counted from where it was picked up.
- */
-- (NSInteger)insertionIndexForCenter:(CGFloat)center
-{
-  NSInteger insertion = _dragOriginIndex;
-  /*
-   * Remember the key at the drop spot so the drop event names a row, not just an index.
-   * If nothing was passed, it stays at the start and nothing moves.
-   */
-  NSString *insertionKey = _dragOriginKey;
+  // Find where it would drop among the other mounted rows.
+  std::vector<azimgd::shadowlist::DragRow> rows;
+  rows.reserve(_contentView.subviews.count);
   for (UIView *subview in _contentView.subviews) {
     if (subview == _draggedView) {
       continue;
@@ -246,19 +215,15 @@ static void SLUpdateDragShadowPath(UIView *view)
       continue;
     }
     CGRect restingFrame = [self restingFrameForView:subview];
-    CGFloat leading = _horizontal ? restingFrame.origin.x : restingFrame.origin.y;
-    CGFloat extent = _horizontal ? restingFrame.size.width : restingFrame.size.height;
-    CGFloat midpoint = leading + extent / 2.0;
-    if (elementIndex > _dragOriginIndex && center > midpoint && elementIndex > insertion) {
-      insertion = elementIndex;
-      insertionKey = [self keyOfElementView:subview] ?: insertionKey;
-    } else if (elementIndex < _dragOriginIndex && center < midpoint && elementIndex < insertion) {
-      insertion = elementIndex;
-      insertionKey = [self keyOfElementView:subview] ?: insertionKey;
-    }
+    NSString *key = [self keyOfElementView:subview];
+    rows.push_back({
+      (long)elementIndex,
+      key ? std::string(key.UTF8String) : std::string(),
+      _horizontal ? restingFrame.origin.x : restingFrame.origin.y,
+      _horizontal ? restingFrame.size.width : restingFrame.size.height});
   }
-  _dragInsertionKey = insertionKey;
-  return insertion;
+  _drag.updateInsertion(rows);
+  [self applyDragShuffle];
 }
 
 /*
@@ -275,12 +240,7 @@ static void SLUpdateDragShadowPath(UIView *view)
     if (elementIndex == NSNotFound) {
       continue;
     }
-    CGFloat shift = 0.0;
-    if (_dragOriginIndex < _dragInsertionIndex && elementIndex > _dragOriginIndex && elementIndex <= _dragInsertionIndex) {
-      shift = -_draggedExtent;
-    } else if (_dragInsertionIndex < _dragOriginIndex && elementIndex >= _dragInsertionIndex && elementIndex < _dragOriginIndex) {
-      shift = _draggedExtent;
-    }
+    CGFloat shift = _drag.shiftFor((long)elementIndex);
     subview.transform = _horizontal
       ? CGAffineTransformMakeTranslation(shift, 0.0)
       : CGAffineTransformMakeTranslation(0.0, shift);
@@ -345,20 +305,7 @@ static void SLUpdateDragShadowPath(UIView *view)
 
 - (void)dispatchDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey
 {
-  if (!_state) {
-    return;
-  }
-  auto data = _state->getData();
-  data.dragEventSequence_ = data.dragEventSequence_ + 1;
-  data.dragEventType_ = (double)type;
-  data.dragFromKey_ = fromKey ? std::string(fromKey.UTF8String) : std::string();
-  data.dragToKey_ = toKey ? std::string(toKey.UTF8String) : std::string();
-  // Turn off scroll corrections while dragging. The end event, type 3, turns them back on.
-  data.userScrolled_ = (type != 3);
-  // The mounted offset lags behind the auto scroll, so write the live one like every other update.
-  [self carryLiveOffsetInto:data];
-  [self carryScrollCommandInto:data];
-  _state->updateState(std::move(data));
+  [self commitDragEventType:type fromKey:fromKey toKey:toKey];
 }
 
 - (void)finishDrag
@@ -371,10 +318,10 @@ static void SLUpdateDragShadowPath(UIView *view)
   _dragDisplayLink = nil;
   _scrollView.scrollEnabled = YES;
 
-  NSInteger from = _dragOriginIndex;
-  NSInteger to = _dragInsertionIndex;
+  NSInteger from = _drag.originIndex();
+  NSInteger to = _drag.insertionIndex();
   UIView *view = _draggedView;
-  _dropReleaseLeading = _dragLeading;
+  _dropReleaseLeading = _drag.leading();
   _dragging = NO;
   _draggedView = nil;
 
@@ -382,7 +329,7 @@ static void SLUpdateDragShadowPath(UIView *view)
    * Send the reorder by key and keep the rows shifted until the commit lands.
    * The indexes below still drive the settle animation.
    */
-  [self dispatchDragEventType:3 fromKey:_dragOriginKey toKey:_dragInsertionKey];
+  [self dispatchDragEventType:3 fromKey:SLDragKey(_drag.originKey()) toKey:SLDragKey(_drag.insertionKey())];
 
   if (from == to || !view) {
     // Dropped where it started, so no commit will come. Settle now.

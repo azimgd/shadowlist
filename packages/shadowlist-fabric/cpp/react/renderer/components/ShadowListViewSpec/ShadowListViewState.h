@@ -2,6 +2,10 @@
 
 #include <react/renderer/graphics/Float.h>
 
+#include <shadowlist-core/host/ListCommit.hpp>
+#include <shadowlist-core/host/LiveScroll.hpp>
+#include <shadowlist-core/host/ScrollSync.hpp>
+
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>
@@ -20,13 +24,12 @@
 
 namespace facebook::react {
 
-/*
- * Values of scrollPhase_. Android's ShadowListView.SCROLL_PHASE_* constants must match.
- * The component descriptor maps them to ScrollPhase.
- */
-constexpr double SCROLL_PHASE_IDLE = 0.0;
-constexpr double SCROLL_PHASE_DRAGGING = 1.0;
-constexpr double SCROLL_PHASE_SETTLING = 2.0;
+// Values of scrollPhase_, see azimgd::shadowlist::LiveScroll.
+using azimgd::shadowlist::SCROLL_PHASE_DRAGGING;
+using azimgd::shadowlist::SCROLL_PHASE_IDLE;
+using azimgd::shadowlist::SCROLL_PHASE_SETTLING;
+
+using ShadowListLiveScroll = azimgd::shadowlist::LiveScroll;
 
 /*
  * Build switches for the scroll state path. Both can be A/B tested on one build with the
@@ -82,117 +85,7 @@ inline bool shadowListImmediateStateEnabled() {
   return enabled;
 }
 
-/*
- * The host's newest scroll report, shared by every state of one list.
- *
- * The host writes it on every scroll frame without a commit. A commit that runs for any
- * other reason, like a React render or a ShadowListNative data change, reads it in adopt(),
- * so the core never works from an offset older than the screen. That matters for keeping
- * content in place: an update run on an old offset anchors there and moves the content by
- * the difference.
- *
- * The report is written and read whole under a lock, so the offset always goes with the
- * token and phase of the same frame. The sequence goes up with every write. A state update
- * carries the sequence of the report it was built from, see hostSequence_, so adopt() only
- * takes a report that is newer than its state.
- */
-class ShadowListLiveScroll final {
-public:
-  struct Report {
-    double offsetX{0.0};
-    double offsetY{0.0};
-    bool userScrolled{false};
-    double scrollPhase{0.0};
-    double commitToken{0.0};
-    double concealGenerationAck{0.0};
-    // 0 until the host writes its first report.
-    std::uint64_t sequence{0};
-  };
-
-  ShadowListLiveScroll() : handle_(nextHandle().fetch_add(1, std::memory_order_relaxed)) {}
-
-  ShadowListLiveScroll(const ShadowListLiveScroll&) = delete;
-  ShadowListLiveScroll& operator=(const ShadowListLiveScroll&) = delete;
-
-  /*
-   * Store a report and return its sequence.
-   */
-  std::uint64_t write(Report report) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    report.sequence = ++sequence_;
-    report_ = report;
-    return report.sequence;
-  }
-
-  Report read() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return report_;
-  }
-
-  /*
-   * A process wide id for this list, so Android's Java host can find it through JNI.
-   */
-  std::int64_t handle() const {
-    return handle_;
-  }
-
-  /*
-   * Android reads state through a MapBuffer, which can't carry the big sticky and snap
-   * lists cheaply. It gets a version for each instead, and fetches the lists only when the
-   * version moved. A version goes up whenever the published pointer differs from the last
-   * one seen here. The weak pointers keep the old control blocks alive, so a new list can't
-   * reuse an old address and look unchanged.
-   */
-  std::pair<std::uint64_t, std::uint64_t> geometryVersions(
-    const std::shared_ptr<const void>& stickyIndices,
-    const std::shared_ptr<const void>& stickyOffsets,
-    const std::shared_ptr<const void>& stickySizes,
-    const std::shared_ptr<const void>& snapOffsets) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!sameOwner(seenStickyIndices_, stickyIndices) || !sameOwner(seenStickyOffsets_, stickyOffsets) ||
-        !sameOwner(seenStickySizes_, stickySizes)) {
-      seenStickyIndices_ = stickyIndices;
-      seenStickyOffsets_ = stickyOffsets;
-      seenStickySizes_ = stickySizes;
-      ++stickyVersion_;
-    }
-    if (!sameOwner(seenSnapOffsets_, snapOffsets)) {
-      seenSnapOffsets_ = snapOffsets;
-      ++snapVersion_;
-    }
-    return {stickyVersion_, snapVersion_};
-  }
-
-private:
-  static std::atomic<std::int64_t>& nextHandle() {
-    static std::atomic<std::int64_t> next{1};
-    return next;
-  }
-
-  static bool sameOwner(const std::weak_ptr<const void>& seen, const std::shared_ptr<const void>& published) {
-    return !seen.owner_before(published) && !published.owner_before(seen);
-  }
-
-  mutable std::mutex mutex_;
-  Report report_{};
-  std::uint64_t sequence_{0};
-  const std::int64_t handle_;
-  std::weak_ptr<const void> seenStickyIndices_;
-  std::weak_ptr<const void> seenStickyOffsets_;
-  std::weak_ptr<const void> seenStickySizes_;
-  std::weak_ptr<const void> seenSnapOffsets_;
-  std::uint64_t stickyVersion_{1};
-  std::uint64_t snapVersion_{1};
-};
-
 #ifdef ANDROID
-/*
- * Lets Android's Java host reach a list's ShadowListLiveScroll by handle through JNI.
- * getMapBuffer registers the list, and an entry goes away with its list.
- */
-void registerShadowListLiveScroll(const std::shared_ptr<ShadowListLiveScroll>& liveScroll);
-std::shared_ptr<ShadowListLiveScroll> findShadowListLiveScroll(std::int64_t handle);
-
 /*
  * Keys of the MapBuffer the Android host reads on every mount. ShadowListView.java uses
  * the same numbers.
@@ -303,16 +196,16 @@ public:
     liveScroll_(previousState.liveScroll_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
       auto stickyHeaderIndices = std::make_shared<std::vector<int>>();
-      auto stickyHeaderOffsets = std::make_shared<std::vector<Float>>();
-      auto stickyHeaderSizes = std::make_shared<std::vector<Float>>();
+      auto stickyHeaderOffsets = std::make_shared<std::vector<double>>();
+      auto stickyHeaderSizes = std::make_shared<std::vector<double>>();
       for (const auto& value : data["stickyHeaderIndices"]) {
         stickyHeaderIndices->push_back((int)value.getInt());
       }
       for (const auto& value : data["stickyHeaderOffsets"]) {
-        stickyHeaderOffsets->push_back((Float)value.getDouble());
+        stickyHeaderOffsets->push_back(value.getDouble());
       }
       for (const auto& value : data["stickyHeaderSizes"]) {
-        stickyHeaderSizes->push_back((Float)value.getDouble());
+        stickyHeaderSizes->push_back(value.getDouble());
       }
       /*
        * Turn empty back into null like the layout pass does. Otherwise a round trip
@@ -323,9 +216,9 @@ public:
       stickyHeaderSizes_ = stickyHeaderSizes->empty() ? nullptr : std::move(stickyHeaderSizes);
     }
     if (data.count("snapOffsets")) {
-      auto snapOffsets = std::make_shared<std::vector<Float>>();
+      auto snapOffsets = std::make_shared<std::vector<double>>();
       for (const auto& value : data["snapOffsets"]) {
-        snapOffsets->push_back((Float)value.getDouble());
+        snapOffsets->push_back(value.getDouble());
       }
       snapOffsets_ = snapOffsets->empty() ? nullptr : std::move(snapOffsets);
     }
@@ -413,7 +306,7 @@ public:
     builder.putDouble(ShadowListStateKey::COMMAND_SEQUENCE, containerOffsetIndexSequence_);
     std::pair<std::uint64_t, std::uint64_t> versions{0, 0};
     if (liveScroll_) {
-      registerShadowListLiveScroll(liveScroll_);
+      ShadowListLiveScroll::registerHandle(liveScroll_);
       versions = liveScroll_->geometryVersions(stickyHeaderIndices_, stickyHeaderOffsets_, stickyHeaderSizes_, snapOffsets_);
     }
     builder.putLong(ShadowListStateKey::STICKY_VERSION, static_cast<std::int64_t>(versions.first));
@@ -425,6 +318,114 @@ public:
     return builder.build();
   }
 #endif
+
+  /*
+   * The scroll fields as the host layer's plain struct, and back.
+   */
+  azimgd::shadowlist::ListScrollState scrollState() const {
+    azimgd::shadowlist::ListScrollState state;
+    state.offsetX = containerOffsetX_;
+    state.offsetY = containerOffsetY_;
+    state.offsetEnabled = containerOffsetEnabled_;
+    state.baseX = containerOffsetBaseX_;
+    state.baseY = containerOffsetBaseY_;
+    state.commitToken = commitToken_;
+    state.momentumYieldToken = momentumYieldToken_;
+    state.userScrolled = userScrolled_;
+    state.scrollPhase = scrollPhase_;
+    state.totalWidth = totalContainerWidth_;
+    state.totalHeight = totalContainerHeight_;
+    return state;
+  }
+
+  void setScrollState(const azimgd::shadowlist::ListScrollState& state) {
+    containerOffsetX_ = state.offsetX;
+    containerOffsetY_ = state.offsetY;
+    containerOffsetEnabled_ = state.offsetEnabled;
+    containerOffsetBaseX_ = state.baseX;
+    containerOffsetBaseY_ = state.baseY;
+    commitToken_ = state.commitToken;
+    momentumYieldToken_ = state.momentumYieldToken;
+    userScrolled_ = state.userScrolled;
+    scrollPhase_ = state.scrollPhase;
+    totalContainerWidth_ = state.totalWidth;
+    totalContainerHeight_ = state.totalHeight;
+  }
+
+  /*
+   * Take a live report over the host owned fields.
+   */
+  void applyLiveReport(const ShadowListLiveScroll::Report& report) {
+    containerOffsetX_ = report.offsetX;
+    containerOffsetY_ = report.offsetY;
+    containerOffsetEnabled_ = false;
+    commitToken_ = report.commitToken;
+    concealGenerationAck_ = report.concealGenerationAck;
+    userScrolled_ = report.userScrolled;
+    scrollPhase_ = report.scrollPhase;
+    hostSequence_ = static_cast<double>(report.sequence);
+  }
+
+  /*
+   * Patch a host update onto this state, see azimgd::shadowlist::ScrollPatch.
+   */
+  void applyPatch(const azimgd::shadowlist::ScrollPatch& patch) {
+    applyLiveReport(patch.report);
+    containerOffsetEnabled_ = patch.offsetEnabled;
+    if (patch.hasCommand) {
+      containerOffsetIndex_ = patch.commandIndex;
+      containerOffsetIndexSequence_ = patch.commandSequence;
+      containerOffsetIndexViewPosition_ = patch.commandViewPosition;
+    }
+    if (patch.hasStartReachedEnabled) {
+      startReachedEnabled_ = patch.startReachedEnabled;
+    }
+    if (patch.hasEndReachedEnabled) {
+      endReachedEnabled_ = patch.endReachedEnabled;
+    }
+  }
+
+  /*
+   * Whether this state already holds all of a patch, so the update can be dropped. Only when
+   * nothing waits on the host: a state with an offset to apply or hidden rows needs its report
+   * even if it repeats, since each commit moves those along.
+   */
+  bool holdsPatch(const azimgd::shadowlist::ScrollPatch& patch) const {
+    const auto& report = patch.report;
+    if (containerOffsetEnabled_ || patch.offsetEnabled || concealGeneration_ != 0.0) {
+      return false;
+    }
+    return containerOffsetX_ == report.offsetX && containerOffsetY_ == report.offsetY &&
+      commitToken_ == report.commitToken && concealGenerationAck_ == report.concealGenerationAck &&
+      userScrolled_ == report.userScrolled && scrollPhase_ == report.scrollPhase &&
+      (!patch.hasCommand ||
+       (containerOffsetIndex_ == patch.commandIndex && containerOffsetIndexSequence_ == patch.commandSequence &&
+        containerOffsetIndexViewPosition_ == patch.commandViewPosition)) &&
+      (!patch.hasStartReachedEnabled || startReachedEnabled_ == patch.startReachedEnabled) &&
+      (!patch.hasEndReachedEnabled || endReachedEnabled_ == patch.endReachedEnabled);
+  }
+
+  /*
+   * What a host mounting this state needs, see azimgd::shadowlist::ScrollSync.
+   */
+  azimgd::shadowlist::MountedScroll mountedScroll() const {
+    azimgd::shadowlist::MountedScroll mounted;
+    mounted.offsetEnabled = containerOffsetEnabled_;
+    mounted.offsetX = containerOffsetX_;
+    mounted.offsetY = containerOffsetY_;
+    mounted.baseX = containerOffsetBaseX_;
+    mounted.baseY = containerOffsetBaseY_;
+    mounted.commitToken = static_cast<std::uint64_t>(commitToken_);
+    mounted.momentumYieldToken = static_cast<std::uint64_t>(momentumYieldToken_);
+    mounted.userScrolled = userScrolled_;
+    mounted.scrollPhase = scrollPhase_;
+    mounted.concealGeneration = concealGeneration_;
+    mounted.concealGenerationAck = concealGenerationAck_;
+    mounted.commandSequence = containerOffsetIndexSequence_;
+    mounted.band.low = offsetBandLow_;
+    mounted.band.high = offsetBandHigh_;
+    return mounted;
+  }
 
   double windowContainerHeight_{0.0};
   double windowContainerWidth_{0.0};
@@ -488,14 +489,14 @@ public:
    * list after it is published, so sharing it across copies and threads is safe.
    */
   std::shared_ptr<const std::vector<int>> stickyHeaderIndices_{};
-  std::shared_ptr<const std::vector<Float>> stickyHeaderOffsets_{};
-  std::shared_ptr<const std::vector<Float>> stickyHeaderSizes_{};
+  std::shared_ptr<const std::vector<double>> stickyHeaderOffsets_{};
+  std::shared_ptr<const std::vector<double>> stickyHeaderSizes_{};
 
   /*
    * Snap points along the scroll axis from the layout pass, empty unless snapToItem is
    * set. The platforms land the scroll on the nearest one. Held by pointer, see above.
    */
-  std::shared_ptr<const std::vector<Float>> snapOffsets_{};
+  std::shared_ptr<const std::vector<double>> snapOffsets_{};
 
   /*
    * The id of the pending offset correction. The core sends it with the offset and the

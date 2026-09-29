@@ -176,7 +176,7 @@ Plain React Native components (`View`, `Text`, `Image`, `ScrollView`, ...) can b
 template; they are cloned as they are. A horizontal `ScrollView` inside a template works (the Feed
 gallery uses one).
 
-Expressions (parsed once per template, `ShadowListNativeBinding.h`):
+Expressions (parsed once per template, `shadowlist-core/host/NativeBinding.hpp`):
 
 - `'author.name'`: the value at a dotted path; numeric segments index arrays (`'images.0.uri'`).
 - `'!isRead'`: negated truthiness (null, false, 0, `''`, `[]` are falsy).
@@ -235,7 +235,7 @@ with the same code.
 ```
 JS  <ShadowListNative>                         C++
     ├─ open + first setData (render, pre-commit) ──▶  ShadowListNativeEngine (per listId, registry)
-    │                                             rows_ (key, folly::dynamic item, template, version)
+    │                                             store_ (key, JsonValue item, template, version)
     ├─ <ShadowListView nativeListId=…>            keys_ snapshot (for the core)
     │   ├─ header template                        compiled templates, row nodes, tag -> key
     │   ├─ <ShadowListTemplateView templateType="native" display:none>
@@ -248,10 +248,14 @@ JS  <ShadowListNative>                         C++
 
 ### Files
 
-- `cpp/.../ShadowListViewSpec/ShadowListNativeEngine.{h,cpp}`: store, template compiler, row
+- `cpp/.../ShadowListViewSpec/ShadowListNativeEngine.{h,cpp}`: template compiler, row
   synthesis/rebinding, window reconcile, layout coverage check, registry.
-- `cpp/.../ShadowListViewSpec/ShadowListNativeBinding.h`: expression and color parsing, the
-  missing-value rule (folly-free, unit-tested in `packages/shadowlist-core-tests/tests_native_binding.cpp`).
+- `packages/shadowlist-core/host/NativeStore.{hpp,cpp}`: the data store (stored and indexed rows,
+  keys and versions) and the row cache eviction policy.
+- `packages/shadowlist-core/host/NativeBinding.{hpp,cpp}`: expression and color parsing, path
+  lookup, evaluation, the missing-value rule. `host/JsonValue.{hpp,cpp}` is the item type. All
+  folly-free and unit-tested in `packages/shadowlist-core-tests` (`tests_native_binding.cpp`,
+  `tests_native_store.cpp`).
 - `cpp/.../ShadowListViewSpec/ShadowListNativeJSI.{h,cpp}`: `globalThis.__shadowListNative`.
 - `cpp/.../ShadowListViewSpec/ShadowListViewComponentDescriptor.h`: `adopt` (store keys to the core),
   `cloneShadowNode` and `appendChild` overrides (rows into the tree).
@@ -355,7 +359,7 @@ geometry so an unfixable gap cannot loop.
 `globalThis.__shadowListNative` (installed by the descriptor through the `RuntimeScheduler`, on
 first use of `ShadowListView`) has `setData`, `insertItems`, `updateItem`, `removeItems`,
 `moveItem`, `scrollToIndex`, `setTemplateStyle`, `configure`, `getItem`, `getKeys`, `getCount`, `resolveTag`,
-`open`, `close`. Items cross as `folly::dynamic` (`jsi::dynamicFromValue`). Mutations on a list with no
+`open`, `close`. Items cross as the host `JsonValue`, converted straight from JSI. Mutations on a list with no
 live engine are no-ops.
 
 Why JSI rather than view commands with JSON strings: a command reaches the host view on the UI

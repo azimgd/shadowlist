@@ -1,6 +1,6 @@
 #include "ShadowListNativeEngine.h"
 
-#include <folly/json.h>
+#include <folly/dynamic.h>
 #include <react/renderer/components/ShadowListViewSpec/Props.h>
 #include <react/renderer/core/ComponentDescriptor.h>
 #include <react/renderer/core/RawProps.h>
@@ -42,95 +42,39 @@ bool startsWith(std::string_view value, std::string_view prefix) {
   return value.size() >= prefix.size() && value.compare(0, prefix.size(), prefix) == 0;
 }
 
-const folly::dynamic& lookupPath(const folly::dynamic& item, const std::vector<std::string>& path) {
-  static const folly::dynamic nullValue = nullptr;
-  const folly::dynamic* current = &item;
-  for (const auto& segment : path) {
-    if (current->isObject()) {
-      auto found = current->find(segment);
-      if (found == current->items().end()) {
-        return nullValue;
-      }
-      current = &found->second;
-    } else if (current->isArray()) {
-      char* end = nullptr;
-      long index = std::strtol(segment.c_str(), &end, 10);
-      if (end == segment.c_str() || *end != '\0' || index < 0 || static_cast<std::size_t>(index) >= current->size()) {
-        return nullValue;
-      }
-      current = &(*current)[static_cast<std::size_t>(index)];
-    } else {
-      return nullValue;
-    }
-  }
-  return *current;
-}
-
-bool truthy(const folly::dynamic& value) {
-  switch (value.type()) {
-    case folly::dynamic::NULLT:
-      return false;
-    case folly::dynamic::BOOL:
-      return value.getBool();
-    case folly::dynamic::INT64:
-      return value.getInt() != 0;
-    case folly::dynamic::DOUBLE:
-      return value.getDouble() != 0.0;
-    case folly::dynamic::STRING:
-      return !value.getString().empty();
-    case folly::dynamic::ARRAY:
-      return !value.empty();
-    default:
-      return true;
-  }
-}
-
-std::string toText(const folly::dynamic& value) {
-  switch (value.type()) {
-    case folly::dynamic::NULLT:
-    case folly::dynamic::OBJECT:
-    case folly::dynamic::ARRAY:
-      return {};
-    case folly::dynamic::STRING:
-      return value.getString();
-    default:
-      return value.asString();
-  }
-}
+using azimgd::shadowlist::JsonValue;
 
 /*
- * Reads the value at the part's path and adds its offset when it is a number.
- * A whole number result stays an int.
+ * A host JSON value as folly::dynamic, for props. Bound values are mostly scalars, so this is cheap.
  */
-folly::dynamic partValue(const ShadowListNativeFormatPart& part, const folly::dynamic& item) {
-  const auto& value = lookupPath(item, part.path);
-  if (part.offset == 0 || !value.isNumber()) {
-    return value;
-  }
-  double sum = value.asDouble() + part.offset;
-  double whole = std::floor(sum);
-  if (whole == sum && std::abs(sum) < 9e15) {
-    return static_cast<std::int64_t>(whole);
-  }
-  return sum;
-}
-
-folly::dynamic evaluate(const ShadowListNativeExpression& expression, const folly::dynamic& item) {
-  if (expression.format) {
-    std::string text;
-    for (const auto& part : expression.parts) {
-      text += part.path.empty() ? part.text : toText(partValue(part, item));
+folly::dynamic toDynamic(const JsonValue& value) {
+  switch (value.type()) {
+    case JsonValue::Type::Null:
+      return nullptr;
+    case JsonValue::Type::Bool:
+      return value.getBool();
+    case JsonValue::Type::Int:
+      return value.getInt();
+    case JsonValue::Type::Double:
+      return value.getDouble();
+    case JsonValue::Type::String:
+      return value.getString();
+    case JsonValue::Type::Array: {
+      folly::dynamic array = folly::dynamic::array();
+      for (const auto& entry : value.getArray()) {
+        array.push_back(toDynamic(entry));
+      }
+      return array;
     }
-    return text;
+    case JsonValue::Type::Object: {
+      folly::dynamic object = folly::dynamic::object();
+      for (const auto& [field, entry] : value.items()) {
+        object[field] = toDynamic(entry);
+      }
+      return object;
+    }
   }
-  if (expression.parts.empty()) {
-    return nullptr;
-  }
-  auto value = partValue(expression.parts.front(), item);
-  if (expression.negate) {
-    return !truthy(value);
-  }
-  return value;
+  return nullptr;
 }
 
 /*
@@ -140,9 +84,9 @@ folly::dynamic evaluate(const ShadowListNativeExpression& expression, const foll
 void applyBinding(
   folly::dynamic& patch,
   const std::string& prop,
-  const folly::dynamic& value,
+  const JsonValue& value,
   [[maybe_unused]] const Props& base) {
-  if (shadowListNativeBindingKeepsTemplate(
+  if (azimgd::shadowlist::nativeBindingKeepsTemplate(
         prop,
         value.isNull(),
         value.isString() ? std::optional<std::string_view>(value.getString()) : std::nullopt)) {
@@ -157,26 +101,26 @@ void applyBinding(
   }
   if (prop == "uri" || prop == "source") {
     if (value.isString()) {
-      patch["source"] = folly::dynamic::array(folly::dynamic::object("uri", value));
+      patch["source"] = folly::dynamic::array(folly::dynamic::object("uri", value.getString()));
     } else if (value.isObject()) {
-      patch["source"] = folly::dynamic::array(value);
+      patch["source"] = folly::dynamic::array(toDynamic(value));
     } else if (value.isArray()) {
-      patch["source"] = value;
+      patch["source"] = toDynamic(value);
     } else {
       patch["source"] = folly::dynamic::array();
     }
     return;
   }
   if (prop == "hidden") {
-    patch["display"] = truthy(value) ? "none" : "flex";
+    patch["display"] = azimgd::shadowlist::nativeTruthy(value) ? "none" : "flex";
     return;
   }
   if (prop == "visible") {
-    patch["display"] = truthy(value) ? "flex" : "none";
+    patch["display"] = azimgd::shadowlist::nativeTruthy(value) ? "flex" : "none";
     return;
   }
-  if (isShadowListNativeColorProp(prop) && value.isString()) {
-    auto color = parseShadowListNativeColor(value.getString());
+  if (azimgd::shadowlist::isNativeColorProp(prop) && value.isString()) {
+    auto color = azimgd::shadowlist::parseNativeColor(value.getString());
 #ifdef __ANDROID__
     /*
      * Java reads colors as a signed int, so pass it signed like processColor does.
@@ -189,7 +133,7 @@ void applyBinding(
     patch[prop] = number;
     return;
   }
-  patch[prop] = value;
+  patch[prop] = toDynamic(value);
 }
 
 bool hasLiveEventTarget(const ShadowNode& node) {
@@ -214,33 +158,13 @@ Props::Shared cloneWithPatch(
 
 }
 
-ShadowListNativeEngine::ShadowListNativeEngine(std::string listId) :
-  listId_(std::move(listId)),
-  keys_(std::make_shared<const std::vector<std::string>>()) {}
+ShadowListNativeEngine::ShadowListNativeEngine(std::string listId) : listId_(std::move(listId)) {}
 
 #pragma mark - Data
 
-void ShadowListNativeEngine::rebuildIndexLocked() {
-  keyIndex_.clear();
-  keyIndex_.reserve(rows_.size());
-  for (std::size_t index = 0; index < rows_.size(); ++index) {
-    keyIndex_.emplace(rows_[index].key, index);
-  }
-}
-
-void ShadowListNativeEngine::structureChangedLocked() {
-  rebuildIndexLocked();
-  auto keys = std::make_shared<std::vector<std::string>>();
-  keys->reserve(rows_.size());
-  for (const auto& row : rows_) {
-    keys->push_back(row.key);
-  }
-  keys_ = std::move(keys);
-  ++keysVersion_;
-
-  // Drop nodes for rows whose key left the list. They won't come back as the same nodes.
+void ShadowListNativeEngine::dropRemovedRowNodesLocked() {
   for (auto iterator = rowNodes_.begin(); iterator != rowNodes_.end();) {
-    if (keyIndex_.find(iterator->first) == keyIndex_.end()) {
+    if (!store_.indexOf(iterator->first)) {
       if (iterator->second.node) {
         forgetTagsLocked(*iterator->second.node, iterator->first);
       }
@@ -252,55 +176,17 @@ void ShadowListNativeEngine::structureChangedLocked() {
 }
 
 std::size_t ShadowListNativeEngine::setData(
-  const folly::dynamic& items,
+  const JsonValue& items,
   const std::vector<std::string>& keys,
   const std::vector<std::string>& templates,
   bool scrollToStart) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (indexed_) {
-      indexed_ = false;
-      indexedCount_ = 0;
-      indexedOrder_.clear();
-      indexedIds_.clear();
-      idIndex_.clear();
-      indexedExtras_.clear();
-    }
-    std::unordered_map<std::string, Row> previous;
-    previous.reserve(rows_.size());
-    for (auto& row : rows_) {
-      previous.emplace(row.key, std::move(row));
-    }
-
-    std::vector<Row> next;
-    std::size_t count = items.isArray() ? std::min(items.size(), keys.size()) : 0;
-    next.reserve(count);
-    std::unordered_set<std::string> seen;
-    seen.reserve(count);
-    for (std::size_t index = 0; index < count; ++index) {
-      const auto& key = keys[index];
-      if (!seen.insert(key).second) {
-        continue;
-      }
-      const std::string& templateName = index < templates.size() ? templates[index] : std::string{};
-      auto found = previous.find(key);
-      if (found != previous.end() && found->second.templateName == templateName && found->second.item == items[index]) {
-        next.push_back(std::move(found->second));
-        continue;
-      }
-      next.push_back(Row{key, items[index], templateName, nextRowVersion_++});
-    }
-
-    bool sameKeys = next.size() == rows_.size() &&
-      std::equal(next.begin(), next.end(), keys_->begin(), [](const Row& row, const std::string& key) { return row.key == key; });
-    rows_ = std::move(next);
-    if (sameKeys) {
-      rebuildIndexLocked();
-    } else {
-      structureChangedLocked();
+    if (store_.setData(items, keys, templates)) {
+      dropRemovedRowNodesLocked();
     }
     if (scrollToStart) {
-      pendingScroll_ = PendingScroll{SCROLL_TO_START, 0.0, storeVersion_, keysVersion_};
+      pendingScroll_ = PendingScroll{SCROLL_TO_START, 0.0, storeVersion_, store_.keysVersion()};
     }
   }
   requestCommit();
@@ -313,188 +199,39 @@ std::size_t ShadowListNativeEngine::setIndexed(
   const std::string& indexField,
   const std::string& valueField,
   const std::vector<std::size_t>& extraIndices,
-  const folly::dynamic& extraItems,
+  const JsonValue& extraItems,
   const std::vector<std::string>& extraTemplates,
   bool scrollToStart,
   std::vector<std::int32_t> ids) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    bool wasIndexed = indexed_;
-    if (!ids.empty() && ids.size() != count) {
-      ids.clear();
-    }
-    if (!wasIndexed) {
-      rows_.clear();
-      keyIndex_.clear();
-      indexed_ = true;
-    }
-    if (!order.empty() && order.size() != count) {
-      order.clear();
-    }
-    bool idsChanged = !wasIndexed || ids != indexedIds_;
-    bool orderChanged = idsChanged || indexField != indexField_ || valueField != valueField_ ||
-      order != indexedOrder_;
-    indexField_ = indexField;
-    valueField_ = valueField;
-    indexedOrder_ = std::move(order);
-    if (orderChanged) {
-      indexedEpoch_ = nextRowVersion_++;
-    }
-
-    // Extra data that didn't change, with the same order, keeps its version so the row isn't rebound.
-    std::unordered_map<std::size_t, IndexedExtra> extras;
-    std::size_t extraCount = extraItems.isArray() ? std::min(extraItems.size(), extraIndices.size()) : 0;
-    extras.reserve(extraCount);
-    for (std::size_t entry = 0; entry < extraCount; ++entry) {
-      std::size_t index = extraIndices[entry];
-      if (index >= count) {
-        continue;
-      }
-      IndexedExtra extra;
-      extra.item = extraItems[entry].isObject() ? extraItems[entry] : folly::dynamic::object();
-      extra.templateName = entry < extraTemplates.size() ? extraTemplates[entry] : std::string{};
-      auto previous = indexedExtras_.find(index);
-      extra.version = !orderChanged && previous != indexedExtras_.end() && previous->second.item == extra.item &&
-          previous->second.templateName == extra.templateName
-        ? previous->second.version
-        : nextRowVersion_++;
-      extras[index] = std::move(extra);
-    }
-    // A row that lost its extra data gets a new shared version so it doesn't match its old one.
-    if (!orderChanged) {
-      for (const auto& [index, previous] : indexedExtras_) {
-        if (extras.find(index) == extras.end()) {
-          indexedEpoch_ = std::max(indexedEpoch_, nextRowVersion_++);
-          break;
-        }
-      }
-    }
-    indexedExtras_ = std::move(extras);
-
-    bool positional = ids.empty();
-    bool wasPositional = indexedIds_.empty();
-    if (!wasIndexed || idsChanged || count != indexedCount_) {
-      auto keys = std::make_shared<std::vector<std::string>>();
-      keys->reserve(count);
-      if (positional) {
-        // Position keys only change at the end, so keep the ones still valid.
-        std::size_t reuse = wasIndexed && wasPositional ? std::min(count, keys_->size()) : 0;
-        keys->insert(keys->end(), keys_->begin(), keys_->begin() + static_cast<std::ptrdiff_t>(reuse));
-        for (std::size_t index = reuse; index < count; ++index) {
-          keys->push_back(std::to_string(index));
-        }
-        idIndex_.clear();
-      } else {
-        idIndex_.clear();
-        idIndex_.reserve(count);
-        for (std::size_t index = 0; index < count; ++index) {
-          // A repeated id keeps its first row. Later ones get a key the core won't find.
-          if (idIndex_.emplace(ids[index], index).second) {
-            keys->push_back(std::to_string(ids[index]));
-          } else {
-            keys->push_back("#dup" + std::to_string(index));
-          }
-        }
-      }
-      indexedIds_ = std::move(ids);
-      keys_ = std::move(keys);
-      indexedCount_ = count;
-      ++keysVersion_;
-      for (auto iterator = rowNodes_.begin(); iterator != rowNodes_.end();) {
-        auto index = indexOfKeyLocked(iterator->first);
-        if (!index) {
-          if (iterator->second.node) {
-            forgetTagsLocked(*iterator->second.node, iterator->first);
-          }
-          iterator = rowNodes_.erase(iterator);
-        } else {
-          ++iterator;
-        }
-      }
+    bool keysChanged = store_.setIndexed(
+      count, std::move(order), indexField, valueField, extraIndices, extraItems, extraTemplates, std::move(ids));
+    if (keysChanged) {
+      dropRemovedRowNodesLocked();
     }
     if (scrollToStart) {
-      pendingScroll_ = PendingScroll{SCROLL_TO_START, 0.0, storeVersion_, keysVersion_};
+      pendingScroll_ = PendingScroll{SCROLL_TO_START, 0.0, storeVersion_, store_.keysVersion()};
     }
   }
   requestCommit();
   return size();
 }
 
-std::optional<std::size_t> ShadowListNativeEngine::indexOfKeyLocked(const std::string& key) const {
-  if (!indexed_) {
-    auto found = keyIndex_.find(key);
-    return found == keyIndex_.end() ? std::nullopt : std::optional<std::size_t>(found->second);
-  }
-  if (!indexedIds_.empty()) {
-    char* end = nullptr;
-    long id = std::strtol(key.c_str(), &end, 10);
-    if (key.empty() || *end != '\0' || id < INT32_MIN || id > INT32_MAX) {
-      return std::nullopt;
-    }
-    auto found = idIndex_.find(static_cast<std::int32_t>(id));
-    return found == idIndex_.end() ? std::nullopt : std::optional<std::size_t>(found->second);
-  }
-  if (key.empty() || key.size() > 18) {
-    return std::nullopt;
-  }
-  std::size_t index = 0;
-  for (char character : key) {
-    if (character < '0' || character > '9') {
-      return std::nullopt;
-    }
-    index = index * 10 + static_cast<std::size_t>(character - '0');
-  }
-  // A key with a leading zero is not a row.
-  if (key.size() > 1 && key.front() == '0') {
-    return std::nullopt;
-  }
-  return index < indexedCount_ ? std::optional<std::size_t>(index) : std::nullopt;
-}
-
-folly::dynamic ShadowListNativeEngine::indexedItemLocked(std::size_t index) const {
-  auto extra = indexedExtras_.find(index);
-  folly::dynamic item = extra != indexedExtras_.end() ? extra->second.item : folly::dynamic::object();
-  if (!indexField_.empty()) {
-    item[indexField_] = static_cast<std::int64_t>(index);
-  }
-  if (!valueField_.empty()) {
-    item[valueField_] = indexedOrder_.empty() ? static_cast<std::int64_t>(index)
-                                              : static_cast<std::int64_t>(indexedOrder_[index]);
-  }
-  return item;
-}
-
 std::size_t ShadowListNativeEngine::insertItems(
   std::size_t index,
-  const folly::dynamic& items,
+  const JsonValue& items,
   const std::vector<std::string>& keys,
   const std::vector<std::string>& templates) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (indexed_) {
-      return indexedCount_;
+    if (store_.indexed()) {
+      return store_.size();
     }
-    std::size_t count = items.isArray() ? std::min(items.size(), keys.size()) : 0;
-    std::vector<Row> inserted;
-    inserted.reserve(count);
-    std::unordered_set<std::string> seen;
-    for (std::size_t itemIndex = 0; itemIndex < count; ++itemIndex) {
-      const auto& key = keys[itemIndex];
-      if (keyIndex_.find(key) != keyIndex_.end() || !seen.insert(key).second) {
-        continue;
-      }
-      const std::string& templateName = itemIndex < templates.size() ? templates[itemIndex] : std::string{};
-      inserted.push_back(Row{key, items[itemIndex], templateName, nextRowVersion_++});
+    if (!store_.insertItems(index, items, keys, templates)) {
+      return store_.size();
     }
-    if (inserted.empty()) {
-      return rows_.size();
-    }
-    std::size_t at = std::min(index, rows_.size());
-    rows_.insert(
-      rows_.begin() + static_cast<std::ptrdiff_t>(at),
-      std::make_move_iterator(inserted.begin()),
-      std::make_move_iterator(inserted.end()));
-    structureChangedLocked();
+    dropRemovedRowNodesLocked();
   }
   requestCommit();
   return size();
@@ -502,53 +239,13 @@ std::size_t ShadowListNativeEngine::insertItems(
 
 bool ShadowListNativeEngine::updateItem(
   const std::string& key,
-  const folly::dynamic& patch,
+  const JsonValue& patch,
   const std::string& templateName,
   bool replace) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (indexed_) {
-      auto index = indexOfKeyLocked(key);
-      if (!index) {
-        return false;
-      }
-      auto& extra = indexedExtras_[*index];
-      if (replace) {
-        extra.item = patch.isObject() ? patch : folly::dynamic::object();
-      } else if (patch.isObject()) {
-        for (const auto& [field, value] : patch.items()) {
-          if (value.isNull()) {
-            extra.item.erase(field);
-          } else {
-            extra.item[field] = value;
-          }
-        }
-      }
-      if (!templateName.empty()) {
-        extra.templateName = templateName;
-      }
-      extra.version = nextRowVersion_++;
-      if (extra.item.empty() && extra.templateName.empty()) {
-        // Back to a plain row. The shared version is older, so it still rebinds.
-        indexedExtras_.erase(*index);
-      }
-    } else {
-    auto found = keyIndex_.find(key);
-    if (found == keyIndex_.end()) {
+    if (!store_.updateItem(key, patch, templateName, replace)) {
       return false;
-    }
-    Row& row = rows_[found->second];
-    if (replace || !row.item.isObject() || !patch.isObject()) {
-      row.item = patch;
-    } else {
-      for (const auto& [field, value] : patch.items()) {
-        row.item[field] = value;
-      }
-    }
-    if (!templateName.empty()) {
-      row.templateName = templateName;
-    }
-    row.version = nextRowVersion_++;
     }
   }
   requestCommit();
@@ -559,15 +256,12 @@ std::size_t ShadowListNativeEngine::removeItems(const std::vector<std::string>& 
   bool changed = false;
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (indexed_) {
-      return indexedCount_;
+    if (store_.indexed()) {
+      return store_.size();
     }
-    std::unordered_set<std::string> doomed(keys.begin(), keys.end());
-    auto end = std::remove_if(rows_.begin(), rows_.end(), [&](const Row& row) { return doomed.count(row.key) > 0; });
-    if (end != rows_.end()) {
-      rows_.erase(end, rows_.end());
-      structureChangedLocked();
-      changed = true;
+    changed = store_.removeItems(keys);
+    if (changed) {
+      dropRemovedRowNodesLocked();
     }
   }
   if (changed) {
@@ -579,22 +273,14 @@ std::size_t ShadowListNativeEngine::removeItems(const std::vector<std::string>& 
 bool ShadowListNativeEngine::moveItem(const std::string& key, std::size_t toIndex) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (indexed_) {
+    auto result = store_.moveItem(key, toIndex);
+    if (result == azimgd::shadowlist::NativeStore::MoveResult::Missing) {
       return false;
     }
-    auto found = keyIndex_.find(key);
-    if (found == keyIndex_.end()) {
-      return false;
-    }
-    std::size_t from = found->second;
-    std::size_t to = std::min(toIndex, rows_.size() - 1);
-    if (from == to) {
+    if (result == azimgd::shadowlist::NativeStore::MoveResult::Unchanged) {
       return true;
     }
-    Row row = std::move(rows_[from]);
-    rows_.erase(rows_.begin() + static_cast<std::ptrdiff_t>(from));
-    rows_.insert(rows_.begin() + static_cast<std::ptrdiff_t>(to), std::move(row));
-    structureChangedLocked();
+    dropRemovedRowNodesLocked();
   }
   requestCommit();
   return true;
@@ -603,12 +289,12 @@ bool ShadowListNativeEngine::moveItem(const std::string& key, std::size_t toInde
 void ShadowListNativeEngine::setTemplateStyle(
   const std::string& templateName,
   const std::string& elementId,
-  const folly::dynamic& style) {
+  const JsonValue& style) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     auto& styles = templateStyles_[templateName];
     if (style.isObject() && !style.empty()) {
-      styles[elementId] = style;
+      styles[elementId] = toDynamic(style);
     } else {
       styles.erase(elementId);
     }
@@ -621,16 +307,16 @@ void ShadowListNativeEngine::setTemplateStyle(
   requestCommit();
 }
 
-void ShadowListNativeEngine::configure(const folly::dynamic& config) {
+void ShadowListNativeEngine::configure(const JsonValue& config) {
   if (!config.isObject()) {
     return;
   }
   std::lock_guard<std::mutex> lock(mutex_);
   auto readCount = [&](const char* name, std::size_t& target) {
-    auto found = config.find(name);
+    const JsonValue* found = config.find(name);
     // Capped so a huge value can't overflow the row window math or the cast.
-    if (found != config.items().end() && found->second.isNumber() && found->second.asDouble() >= 0) {
-      target = static_cast<std::size_t>(std::min(found->second.asDouble(), 1e6));
+    if (found != nullptr && found->isNumber() && found->asDouble() >= 0) {
+      target = static_cast<std::size_t>(std::min(found->asDouble(), 1e6));
     }
   };
   readCount("initialRows", initialRows_);
@@ -642,23 +328,19 @@ void ShadowListNativeEngine::configure(const folly::dynamic& config) {
   ++configVersion_;
 }
 
-folly::dynamic ShadowListNativeEngine::getItem(const std::string& key) const {
+JsonValue ShadowListNativeEngine::getItem(const std::string& key) const {
   std::lock_guard<std::mutex> lock(mutex_);
-  auto index = indexOfKeyLocked(key);
-  if (!index) {
-    return nullptr;
-  }
-  return indexed_ ? indexedItemLocked(*index) : rows_[*index].item;
+  return store_.item(key);
 }
 
 std::vector<std::string> ShadowListNativeEngine::getKeys() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return *keys_;
+  return *store_.keys();
 }
 
 std::size_t ShadowListNativeEngine::size() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return indexed_ ? indexedCount_ : rows_.size();
+  return store_.size();
 }
 
 std::optional<ShadowListNativeEngine::ResolvedTag> ShadowListNativeEngine::resolveTag(Tag tag) const {
@@ -667,7 +349,7 @@ std::optional<ShadowListNativeEngine::ResolvedTag> ShadowListNativeEngine::resol
   if (found == tagKeys_.end()) {
     return std::nullopt;
   }
-  auto index = indexOfKeyLocked(found->second.key);
+  auto index = store_.indexOf(found->second.key);
   if (!index) {
     return std::nullopt;
   }
@@ -748,7 +430,7 @@ void ShadowListNativeEngine::nudge() {
 
 ShadowListNativeEngine::KeysSnapshot ShadowListNativeEngine::keysSnapshot() const {
   std::lock_guard<std::mutex> lock(mutex_);
-  return {keys_, keysVersion_};
+  return {store_.keys(), store_.keysVersion()};
 }
 
 void ShadowListNativeEngine::attachState(const std::shared_ptr<const ListState>& state) {
@@ -791,37 +473,36 @@ void ShadowListNativeEngine::compileElement(
 
   element.isRawText = std::string_view(node->getComponentName()) == "RawText";
   const auto& nativeId = props->nativeId;
-  if (startsWith(nativeId, ELEMENT_MARKER)) {
-    try {
-      auto spec = folly::parseJson(std::string_view(nativeId).substr(ELEMENT_MARKER.size()));
-      if (auto id = spec.find("i"); id != spec.items().end() && id->second.isString()) {
-        element.elementId = id->second.getString();
+  // A bad marker leaves the element without bindings.
+  auto spec = startsWith(nativeId, ELEMENT_MARKER)
+    ? JsonValue::parse(std::string_view(nativeId).substr(ELEMENT_MARKER.size()))
+    : std::nullopt;
+  if (spec && spec->isObject()) {
+    if (const JsonValue* id = spec->find("i"); id != nullptr && id->isString()) {
+      element.elementId = id->getString();
+    }
+    if (const JsonValue* action = spec->find("a"); action != nullptr) {
+      element.keepNativeId = azimgd::shadowlist::nativeTruthy(*action);
+    }
+    if (const JsonValue* repeat = spec->find("r"); repeat != nullptr && repeat->isString()) {
+      element.repeat = azimgd::shadowlist::parseNativePath(repeat->getString());
+      const JsonValue* repeatMax = spec->find("m");
+      if (repeatMax != nullptr && repeatMax->isNumber() && repeatMax->asDouble() >= 0) {
+        element.repeatMax = static_cast<std::size_t>(std::min(repeatMax->asDouble(), 1e9));
       }
-      if (auto action = spec.find("a"); action != spec.items().end()) {
-        element.keepNativeId = truthy(action->second);
-      }
-      if (auto repeat = spec.find("r"); repeat != spec.items().end() && repeat->second.isString()) {
-        element.repeat = parseShadowListNativePath(repeat->second.getString());
-        auto repeatMax = spec.find("m");
-        if (repeatMax != spec.items().end() && repeatMax->second.isNumber() && repeatMax->second.asDouble() >= 0) {
-          element.repeatMax = static_cast<std::size_t>(std::min(repeatMax->second.asDouble(), 1e9));
+    }
+    if (const JsonValue* bindings = spec->find("b"); bindings != nullptr && bindings->isObject()) {
+      for (const auto& [prop, source] : bindings->items()) {
+        if (!source.isString()) {
+          continue;
+        }
+        auto expression = azimgd::shadowlist::parseNativeExpression(source.getString());
+        if (prop == "text") {
+          element.text = std::move(expression);
+        } else {
+          element.bindings.emplace_back(prop, std::move(expression));
         }
       }
-      if (auto bindings = spec.find("b"); bindings != spec.items().end() && bindings->second.isObject()) {
-        for (const auto& [prop, source] : bindings->second.items()) {
-          if (!prop.isString() || !source.isString()) {
-            continue;
-          }
-          auto expression = parseShadowListNativeExpression(source.getString());
-          if (prop.getString() == "text") {
-            element.text = std::move(expression);
-          } else {
-            element.bindings.emplace_back(prop.getString(), std::move(expression));
-          }
-        }
-      }
-    } catch (...) {
-      // A bad marker leaves the element without bindings.
     }
   }
 
@@ -929,7 +610,7 @@ ShadowListNativeEngine::Template* ShadowListNativeEngine::templateForLocked(cons
 
 std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   const Element& element,
-  const folly::dynamic& item,
+  const JsonValue& item,
   const std::string& key,
   const std::shared_ptr<const ShadowNode>& existing,
   const Props::Shared* propsOverride,
@@ -956,7 +637,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
   } else {
     folly::dynamic patch = folly::dynamic::object;
     for (const auto& [prop, expression] : element.bindings) {
-      applyBinding(patch, prop, evaluate(expression, item), *element.baseProps);
+      applyBinding(patch, prop, azimgd::shadowlist::evaluateNative(expression, item), *element.baseProps);
     }
     boundPatch = std::move(patch);
   }
@@ -987,7 +668,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
 
   std::optional<std::string> text;
   if (element.text) {
-    text = toText(evaluate(*element.text, item));
+    text = azimgd::shadowlist::nativeText(azimgd::shadowlist::evaluateNative(*element.text, item));
   }
 
   ChildList children;
@@ -996,7 +677,7 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::buildNode(
     return reuse && position < existing->getChildren().size() ? existing->getChildren()[position] : nullptr;
   };
   if (element.repeat) {
-    const auto& entries = lookupPath(item, *element.repeat);
+    const auto& entries = azimgd::shadowlist::lookupNativePath(item, *element.repeat);
     std::size_t entryCount = entries.isArray() ? std::min(entries.size(), element.repeatMax) : 0;
     children.reserve(entryCount * element.children.size());
     for (std::size_t entry = 0; entry < entryCount; ++entry) {
@@ -1127,25 +808,16 @@ std::shared_ptr<const ShadowNode> ShadowListNativeEngine::stickyRowLocked(
   }
 
   const std::string& key = keys[active];
-  Row row;
-  if (indexed_) {
-    auto position = indexOfKeyLocked(key);
-    if (!position) {
-      dropStickyLocked();
-      return nullptr;
-    }
-    auto extra = indexedExtras_.find(*position);
-    row.key = key;
-    row.templateName = extra != indexedExtras_.end() ? extra->second.templateName : std::string{};
-    row.version = extra != indexedExtras_.end() ? extra->second.version : indexedEpoch_;
-    row.item = indexedItemLocked(*position);
-  } else {
-    auto found = keyIndex_.find(key);
-    if (found == keyIndex_.end()) {
-      dropStickyLocked();
-      return nullptr;
-    }
-    row = rows_[found->second];
+  Row scratch;
+  std::size_t position = 0;
+  const Row* found = store_.find(key, scratch, position);
+  if (found == nullptr) {
+    dropStickyLocked();
+    return nullptr;
+  }
+  Row row = *found;
+  if (found == &scratch) {
+    row.item = store_.indexedItem(position);
   }
   Template* compiled = templateForLocked(row.templateName);
   if (compiled == nullptr) {
@@ -1190,31 +862,8 @@ void ShadowListNativeEngine::forgetTagsLocked(const ShadowNode& node, const std:
 }
 
 void ShadowListNativeEngine::evictLocked(std::size_t keep) {
-  // Idle rows are a part of all rows, so a cache under the cap has nothing to drop.
-  if (rowNodes_.size() <= keep) {
-    return;
-  }
-  std::vector<std::pair<std::uint64_t, const std::string*>> idle;
-  for (const auto& [key, rowNode] : rowNodes_) {
-    if (rowNode.usedAt != clock_) {
-      idle.emplace_back(rowNode.usedAt, &key);
-    }
-  }
-  if (idle.size() <= keep) {
-    return;
-  }
-  // Only which rows are the newest matters, not their order, so partition instead of sorting.
-  std::nth_element(
-    idle.begin(),
-    idle.begin() + static_cast<std::ptrdiff_t>(keep),
-    idle.end(),
-    [](const auto& left, const auto& right) { return left.first > right.first; });
-  // Copy the keys out first, since erasing an entry frees the key a pointer refers to.
-  std::vector<std::string> doomed;
-  doomed.reserve(idle.size() - keep);
-  for (std::size_t index = keep; index < idle.size(); ++index) {
-    doomed.push_back(*idle[index].second);
-  }
+  auto doomed = azimgd::shadowlist::staleNativeRows(
+    rowNodes_, clock_, keep, [](const RowNode& rowNode) { return rowNode.usedAt; });
   for (const auto& doomedKey : doomed) {
     auto found = rowNodes_.find(doomedKey);
     if (found == rowNodes_.end()) {
@@ -1430,27 +1079,14 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
        * Indexed rows get their version and template from their extra data, and their item is
        * only built below when the row is built or rebound.
        */
-      const Row* stored = nullptr;
       Row indexedRow;
       std::size_t rowPosition = 0;
-      if (indexed_) {
-        auto position = indexOfKeyLocked(key);
-        if (!position) {
-          continue;
-        }
-        rowPosition = *position;
-        auto extra = indexedExtras_.find(rowPosition);
-        indexedRow.key = key;
-        indexedRow.templateName = extra != indexedExtras_.end() ? extra->second.templateName : std::string{};
-        indexedRow.version = extra != indexedExtras_.end() ? extra->second.version : indexedEpoch_;
-      } else {
-        auto rowIndex = keyIndex_.find(key);
-        if (rowIndex == keyIndex_.end()) {
-          continue;
-        }
-        stored = &rows_[rowIndex->second];
+      const Row* found = store_.find(key, indexedRow, rowPosition);
+      if (found == nullptr) {
+        continue;
       }
-      const Row& row = stored != nullptr ? *stored : indexedRow;
+      bool stored = found != &indexedRow;
+      const Row& row = *found;
       Template* compiled = templateForLocked(row.templateName);
       if (compiled == nullptr) {
         continue;
@@ -1479,8 +1115,8 @@ std::shared_ptr<const ShadowListNativeEngine::ChildList> ShadowListNativeEngine:
           forgetTagsLocked(*existing, key);
         }
         ++(sameShape ? reboundRows : builtRows);
-        if (stored == nullptr) {
-          indexedRow.item = indexedItemLocked(rowPosition);
+        if (!stored) {
+          indexedRow.item = store_.indexedItem(rowPosition);
         }
         node = buildRowLocked(
           *compiled,

@@ -5,10 +5,12 @@
 #include <react/renderer/core/PropsParserContext.h>
 #include <react/renderer/core/ShadowNode.h>
 
-#include "ShadowListNativeBinding.h"
 #include "ShadowListViewState.h"
 
 #include <shadowlist-core/Container.hpp>
+#include <shadowlist-core/host/JsonValue.hpp>
+#include <shadowlist-core/host/NativeBinding.hpp>
+#include <shadowlist-core/host/NativeStore.hpp>
 
 #include <atomic>
 #include <memory>
@@ -25,6 +27,7 @@ namespace facebook::react {
  * React never renders a row. Each row is a copy of a template with the item's data filled in,
  * built during the commit that needs it.
  * Every clone of the list node shares one engine, found by nativeListId so JS can change the data.
+ * The rows themselves live in a NativeStore, see shadowlist-core/host.
  * One mutex guards it, since JS writes on the JS thread and commits read on any thread.
  * Lock order is the core's mutex first, then the engine's.
  */
@@ -47,7 +50,7 @@ public:
    * let the list briefly hold the old first row in place, which shows while it is moving.
    */
   std::size_t setData(
-    const folly::dynamic& items,
+    const azimgd::shadowlist::JsonValue& items,
     const std::vector<std::string>& keys,
     const std::vector<std::string>& templates,
     bool scrollToStart = false);
@@ -69,7 +72,7 @@ public:
     const std::string& indexField,
     const std::string& valueField,
     const std::vector<std::size_t>& extraIndices,
-    const folly::dynamic& extraItems,
+    const azimgd::shadowlist::JsonValue& extraItems,
     const std::vector<std::string>& extraTemplates,
     bool scrollToStart = false,
     std::vector<std::int32_t> ids = {});
@@ -79,14 +82,14 @@ public:
    */
   std::size_t insertItems(
     std::size_t index,
-    const folly::dynamic& items,
+    const azimgd::shadowlist::JsonValue& items,
     const std::vector<std::string>& keys,
     const std::vector<std::string>& templates);
 
   /*
    * Merges patch into the row's item, or replaces it. Returns false for an unknown key.
    */
-  bool updateItem(const std::string& key, const folly::dynamic& patch, const std::string& templateName, bool replace);
+  bool updateItem(const std::string& key, const azimgd::shadowlist::JsonValue& patch, const std::string& templateName, bool replace);
 
   std::size_t removeItems(const std::vector<std::string>& keys);
 
@@ -96,11 +99,11 @@ public:
    * Overrides the style of one template element, found by id, in every row now and later.
    * A null style clears it.
    */
-  void setTemplateStyle(const std::string& templateName, const std::string& elementId, const folly::dynamic& style);
+  void setTemplateStyle(const std::string& templateName, const std::string& elementId, const azimgd::shadowlist::JsonValue& style);
 
-  void configure(const folly::dynamic& config);
+  void configure(const azimgd::shadowlist::JsonValue& config);
 
-  folly::dynamic getItem(const std::string& key) const;
+  azimgd::shadowlist::JsonValue getItem(const std::string& key) const;
 
   std::vector<std::string> getKeys() const;
 
@@ -183,18 +186,13 @@ public:
   std::uint64_t momentumYieldToken() const;
 
 private:
-  struct Row {
-    std::string key;
-    folly::dynamic item;
-    std::string templateName;
-    std::uint64_t version = 0;
-  };
+  using Row = azimgd::shadowlist::NativeRow;
 
   struct Element {
     std::shared_ptr<const ShadowNode> prototype;
     std::string elementId;
-    std::vector<std::pair<std::string, ShadowListNativeExpression>> bindings;
-    std::optional<ShadowListNativeExpression> text;
+    std::vector<std::pair<std::string, azimgd::shadowlist::NativeExpression>> bindings;
+    std::optional<azimgd::shadowlist::NativeExpression> text;
     /*
      * Repeats the children once per entry of the array at this path, up to repeatMax.
      * Bindings inside read from that entry.
@@ -229,18 +227,9 @@ private:
     std::uint64_t usedAt = 0;
   };
 
-  struct IndexedExtra {
-    folly::dynamic item = folly::dynamic::object();
-    std::string templateName;
-    std::uint64_t version = 0;
-  };
-
-  std::optional<std::size_t> indexOfKeyLocked(const std::string& key) const;
-  folly::dynamic indexedItemLocked(std::size_t index) const;
-
   void nudge();
-  void rebuildIndexLocked();
-  void structureChangedLocked();
+  // Drops the nodes of rows whose key left the store. They won't come back as the same nodes.
+  void dropRemovedRowNodesLocked();
 
   void compileTemplatesLocked(const ShadowNode& container, const PropsParserContext& context);
   void compileElement(Element& element, const std::shared_ptr<const ShadowNode>& node, std::vector<const void*>& signature, std::string& shape);
@@ -268,7 +257,7 @@ private:
   void dropStickyLocked();
   std::shared_ptr<const ShadowNode> buildNode(
     const Element& element,
-    const folly::dynamic& item,
+    const azimgd::shadowlist::JsonValue& item,
     const std::string& key,
     const std::shared_ptr<const ShadowNode>& existing,
     const Props::Shared* propsOverride,
@@ -322,24 +311,7 @@ private:
   const std::string listId_;
   mutable std::mutex mutex_;
 
-  std::vector<Row> rows_;
-  std::unordered_map<std::string, std::size_t> keyIndex_;
-
-  // In indexed mode rows_ and keyIndex_ stay empty.
-  bool indexed_ = false;
-  std::size_t indexedCount_ = 0;
-  std::vector<std::int32_t> indexedOrder_;
-  // Row ids used as keys, empty when rows are keyed by position.
-  std::vector<std::int32_t> indexedIds_;
-  std::unordered_map<std::int32_t, std::size_t> idIndex_;
-  std::string indexField_;
-  std::string valueField_;
-  std::unordered_map<std::size_t, IndexedExtra> indexedExtras_;
-  // Version of every row without extra data. A new order bumps it.
-  std::uint64_t indexedEpoch_ = 0;
-  std::shared_ptr<const std::vector<std::string>> keys_;
-  std::uint64_t keysVersion_ = 1;
-  std::uint64_t nextRowVersion_ = 1;
+  azimgd::shadowlist::NativeStore store_;
 
   std::unordered_map<std::string, Template> templates_;
   std::string defaultTemplate_;

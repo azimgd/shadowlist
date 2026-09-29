@@ -11,6 +11,7 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/ListCommit.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -323,35 +324,23 @@ public:
       : geometryCache && geometryCache->keysProps == currentProps;
     // The same props also mean the same anchor ignore keys.
     input.nonAnchorableKeysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
-    input.containerOffsetX = shadowlistViewStateData.containerOffsetX_;
-    input.containerOffsetY = shadowlistViewStateData.containerOffsetY_;
-    input.containerOffsetEnabled = shadowlistViewStateData.containerOffsetEnabled_;
     input.windowContainerWidth = shadowlistViewLayoutMetrics.frame.size.width;
     input.windowContainerHeight = shadowlistViewLayoutMetrics.frame.size.height;
     // The layout pass writes the header and footer sizes into the core, so these are current.
     input.headerSize = containerManager->headerSize;
     input.footerSize = containerManager->footerSize;
     /*
-     * SectionList header indices. Skip negatives, the core wants valid ascending indices.
-     * Converted once per props and lent to the core, since they only change with the props.
+     * SectionList header indices, converted once per props and lent to the core, since they
+     * only change with the props.
      */
     if (geometryCache) {
       if (geometryCache->stickyIndicesProps != currentProps) {
-        geometryCache->stickyIndices.clear();
-        for (auto stickyHeaderIndex : shadowlistViewProps.stickyHeaderIndices) {
-          if (stickyHeaderIndex >= 0) {
-            geometryCache->stickyIndices.push_back(static_cast<std::size_t>(stickyHeaderIndex));
-          }
-        }
+        azimgd::shadowlist::stickyIndicesFromProps(shadowlistViewProps.stickyHeaderIndices, geometryCache->stickyIndices);
         geometryCache->stickyIndicesProps = currentProps;
       }
       input.stickyIndicesRef = &geometryCache->stickyIndices;
     } else {
-      for (auto stickyHeaderIndex : shadowlistViewProps.stickyHeaderIndices) {
-        if (stickyHeaderIndex >= 0) {
-          input.stickyIndices.push_back(static_cast<std::size_t>(stickyHeaderIndex));
-        }
-      }
+      azimgd::shadowlist::stickyIndicesFromProps(shadowlistViewProps.stickyHeaderIndices, input.stickyIndices);
     }
     input.inverted = shadowlistViewProps.inverted;
     input.followAppends = shadowlistViewProps.followAppends;
@@ -364,36 +353,9 @@ public:
     input.snapToItem = shadowlistViewProps.snapToItem;
     input.snapAlignment = shadowlistViewProps.snapToAlignment;
 
-    /*
-     * A real user scroll drops any pending correction so the user isn't snapped back.
-     * Without it a correction can get stuck and freeze the window, leaving a blank list.
-     */
-    input.userScrolled = shadowlistViewStateData.userScrolled_;
-
-    /*
-     * The phase lasts across reports, so while a finger rests on the list the inverted
-     * bottom pin doesn't pull the content under it. See Container::gestureActive.
-     */
-    input.scrollPhase = shadowlistViewStateData.scrollPhase_ == SCROLL_PHASE_DRAGGING
-      ? azimgd::shadowlist::ScrollPhase::Dragging
-      : shadowlistViewStateData.scrollPhase_ == SCROLL_PHASE_SETTLING
-        ? azimgd::shadowlist::ScrollPhase::Settling
-        : azimgd::shadowlist::ScrollPhase::Idle;
-
-    /*
-     * A ShadowListNative scroll command stops momentum when the host mounts it, so treat its
-     * frame as idle. Otherwise the core would think the fling drives the correction.
-     * A finger on the list is different. The drag stays, and it cancels the command.
-     */
-    bool nativeScrollYieldsMomentum = nativeScrollCommand &&
-      input.scrollPhase != azimgd::shadowlist::ScrollPhase::Dragging;
-    if (nativeScrollYieldsMomentum) {
-      input.userScrolled = false;
-      input.scrollPhase = azimgd::shadowlist::ScrollPhase::Idle;
-    }
-
-    // The token the host echoed back, so the core can spot its own write. 0 if none.
-    input.commitToken = static_cast<std::uint64_t>(shadowlistViewStateData.commitToken_);
+    // Offset, echoed token, user scroll flag and gesture phase, see applyHostScroll.
+    bool nativeScrollYieldsMomentum =
+      azimgd::shadowlist::applyHostScroll(input, shadowlistViewStateData.scrollState(), nativeScrollCommand);
 
     /*
      * Give the core predicted sizes before update(), so this frame picks its window from
@@ -424,10 +386,10 @@ public:
         shadowlistViewStateData.totalContainerWidth_ != containerManager->revision.totalContainerWidth ||
         shadowlistViewStateData.totalContainerHeight_ != containerManager->revision.totalContainerHeight ||
         (geometryCache &&
-         (geometryCache->snapOffsets != shadowlistViewStateData.snapOffsets_ ||
-          geometryCache->stickyHeaderIndices != shadowlistViewStateData.stickyHeaderIndices_ ||
-          geometryCache->stickyHeaderOffsets != shadowlistViewStateData.stickyHeaderOffsets_ ||
-          geometryCache->stickyHeaderSizes != shadowlistViewStateData.stickyHeaderSizes_));
+         (geometryCache->published.snapOffsets != shadowlistViewStateData.snapOffsets_ ||
+          geometryCache->published.stickyHeaderIndices != shadowlistViewStateData.stickyHeaderIndices_ ||
+          geometryCache->published.stickyHeaderOffsets != shadowlistViewStateData.stickyHeaderOffsets_ ||
+          geometryCache->published.stickyHeaderSizes != shadowlistViewStateData.stickyHeaderSizes_));
       /*
        * The layout pass shows hidden rows again, and the host's echo usually comes in a plain
        * scroll report, so keep layout dirty while any row is hidden.
@@ -467,11 +429,8 @@ private:
    */
   static bool adoptLiveScrollReport(ShadowListViewShadowNode& listShadowNode, const ShadowListViewState& stateData) {
     const auto& liveScroll = stateData.liveScroll_;
-    if (!liveScroll || stateData.containerOffsetEnabled_) {
-      return false;
-    }
-    auto report = liveScroll->read();
-    if (report.sequence == 0 || static_cast<double>(report.sequence) <= stateData.hostSequence_) {
+    ShadowListLiveScroll::Report report;
+    if (!liveScroll || !liveScroll->newerReport(stateData.hostSequence_, stateData.containerOffsetEnabled_, report)) {
       return false;
     }
     SL_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%.0f phase=%.0f",
@@ -479,14 +438,7 @@ private:
       stateData.containerOffsetX_, stateData.containerOffsetY_, report.offsetX, report.offsetY,
       report.commitToken, report.scrollPhase);
     ShadowListViewState nextStateData = stateData;
-    nextStateData.containerOffsetX_ = report.offsetX;
-    nextStateData.containerOffsetY_ = report.offsetY;
-    nextStateData.containerOffsetEnabled_ = false;
-    nextStateData.commitToken_ = report.commitToken;
-    nextStateData.concealGenerationAck_ = report.concealGenerationAck;
-    nextStateData.userScrolled_ = report.userScrolled;
-    nextStateData.scrollPhase_ = report.scrollPhase;
-    nextStateData.hostSequence_ = static_cast<double>(report.sequence);
+    nextStateData.applyLiveReport(report);
     listShadowNode.setStateData(std::move(nextStateData));
     return true;
   }
@@ -527,10 +479,8 @@ private:
   }
 
   /*
-   * Turn elementsSizeSpecs into predicted sizes for the core. Skipped unless the specs
-   * changed, which is almost never.
-   * Text wraps to the list width, so do nothing at zero width, and measure again when
-   * the width changes.
+   * Turn elementsSizeSpecs into predicted sizes for the core, a few rows per commit.
+   * See azimgd::shadowlist::SizeSpecQueue.
    */
   void applyElementSizeSpecs(
     ShadowListViewShadowNode& shadowlistViewShadowNode,
@@ -539,74 +489,20 @@ private:
     Float availableWidth,
     Float pointScaleFactor,
     SurfaceId surfaceId) const {
-    if (!textLayoutManager_ || shadowlistViewProps.elementsSizeSpecs.empty()) {
+    const auto& geometryCache = shadowlistViewShadowNode.getGeometryCache();
+    if (!textLayoutManager_ || !geometryCache || shadowlistViewProps.elementsSizeSpecs.empty()) {
       return;
     }
-
-    if (!(availableWidth > 0.0f)) {
-      return;
-    }
-
-    auto geometryCache = shadowlistViewShadowNode.getGeometryCache();
-    const auto& currentProps = shadowlistViewShadowNode.getProps();
-
-    /*
-     * A new width makes every predicted height wrong, so drop them all. Rows in these specs
-     * are measured again below, and the rest use the estimate until measured natively.
-     * The first layout counts as a change too, but there is nothing to clear yet.
-     */
-    bool widthChanged = containerManager->revision.windowContainerWidth != availableWidth;
-    if (widthChanged) {
-      azimgd::shadowlist::Virtualizer::invalidatePredictions(containerManager);
-    }
-
-    // Stop only when these specs are fully measured. A partly measured set must continue.
-    if (geometryCache && geometryCache->sizeSpecsProps == currentProps && !widthChanged &&
-        geometryCache->sizeSpecsDone) {
-      return;
-    }
-
-    /*
-     * Pick up where the last commit stopped for the same specs, or start over.
-     * See ShadowListViewGeometryCache::sizeSpecsCursor and sizeSpecs.
-     */
-    bool sameSpecs = geometryCache && geometryCache->sizeSpecsProps == currentProps && !widthChanged;
-
-    std::vector<ShadowListElementSizeSpec> parsedSpecs;
-    if (!sameSpecs) {
-      parsedSpecs = parseElementSizeSpecs(shadowlistViewProps.elementsSizeSpecs);
-    }
-    const std::vector<ShadowListElementSizeSpec>& specs =
-      (sameSpecs && geometryCache) ? geometryCache->sizeSpecs : parsedSpecs;
-
-    std::size_t cursor = sameSpecs ? geometryCache->sizeSpecsCursor : 0;
-    std::size_t measured = 0;
-
-    while (cursor < specs.size() && measured < MEASURE_BUDGET_PER_COMMIT) {
-      const auto& spec = specs[cursor];
-      containerManager->setPredictedSize(
-        spec.key,
-        measureElementSizeSpec(*textLayoutManager_, spec, availableWidth, pointScaleFactor, surfaceId));
-      ++cursor;
-      ++measured;
-    }
-
-    if (geometryCache) {
-      std::size_t specCount = specs.size();
-      if (!sameSpecs) {
-        geometryCache->sizeSpecs = std::move(parsedSpecs);
-      }
-      geometryCache->sizeSpecsProps = currentProps;
-      geometryCache->sizeSpecsCursor = cursor;
-      geometryCache->sizeSpecsDone = cursor >= specCount;
-    }
+    const auto& textLayoutManager = *textLayoutManager_;
+    geometryCache->sizeSpecs.run(
+      *containerManager,
+      shadowlistViewShadowNode.getProps(),
+      shadowlistViewProps.elementsSizeSpecs,
+      availableWidth,
+      [&](const azimgd::shadowlist::ElementSizeSpec& spec, double width) {
+        return measureElementSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
+      });
   }
-
-  /*
-   * Text layouts per commit. Small enough to stay inside a frame when nothing is cached,
-   * big enough to finish a window in a couple of commits.
-   */
-  static constexpr std::size_t MEASURE_BUDGET_PER_COMMIT = 24;
 
   /*
    * Shared with React Native's text rendering if we published it first, or a private one

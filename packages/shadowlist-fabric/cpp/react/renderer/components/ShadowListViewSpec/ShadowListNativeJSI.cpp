@@ -2,7 +2,6 @@
 
 #include "ShadowListNativeEngine.h"
 
-#include <jsi/JSIDynamic.h>
 #include <jsi/jsi.h>
 #include <react/renderer/runtimescheduler/RuntimeScheduler.h>
 
@@ -48,11 +47,90 @@ std::vector<std::string> stringsArgument(jsi::Runtime& runtime, const jsi::Value
   return strings;
 }
 
-folly::dynamic dynamicArgument(jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count, std::size_t index) {
+using azimgd::shadowlist::JsonValue;
+
+/*
+ * A JS value as host JSON, like jsi::dynamicFromValue: numbers become doubles, undefined and
+ * functions become null, and object fields holding undefined are left out.
+ */
+JsonValue jsonFromValue(jsi::Runtime& runtime, const jsi::Value& value) {
+  if (value.isBool()) {
+    return value.getBool();
+  }
+  if (value.isNumber()) {
+    return value.getNumber();
+  }
+  if (value.isString()) {
+    return value.getString(runtime).utf8(runtime);
+  }
+  if (!value.isObject()) {
+    return nullptr;
+  }
+  auto object = value.getObject(runtime);
+  if (object.isArray(runtime)) {
+    auto array = object.getArray(runtime);
+    std::size_t size = array.size(runtime);
+    JsonValue::Array entries;
+    entries.reserve(size);
+    for (std::size_t index = 0; index < size; ++index) {
+      entries.push_back(jsonFromValue(runtime, array.getValueAtIndex(runtime, index)));
+    }
+    return JsonValue(std::move(entries));
+  }
+  if (object.isFunction(runtime)) {
+    return nullptr;
+  }
+  auto names = object.getPropertyNames(runtime);
+  std::size_t size = names.size(runtime);
+  JsonValue::Object fields;
+  fields.reserve(size);
+  for (std::size_t index = 0; index < size; ++index) {
+    auto name = names.getValueAtIndex(runtime, index).getString(runtime);
+    auto property = object.getProperty(runtime, name);
+    if (property.isUndefined()) {
+      continue;
+    }
+    fields.emplace_back(name.utf8(runtime), jsonFromValue(runtime, property));
+  }
+  return JsonValue(std::move(fields));
+}
+
+jsi::Value valueFromJson(jsi::Runtime& runtime, const JsonValue& value) {
+  switch (value.type()) {
+    case JsonValue::Type::Null:
+      return jsi::Value::null();
+    case JsonValue::Type::Bool:
+      return jsi::Value(value.getBool());
+    case JsonValue::Type::Int:
+      return jsi::Value(static_cast<double>(value.getInt()));
+    case JsonValue::Type::Double:
+      return jsi::Value(value.getDouble());
+    case JsonValue::Type::String:
+      return jsi::String::createFromUtf8(runtime, value.getString());
+    case JsonValue::Type::Array: {
+      const auto& entries = value.getArray();
+      jsi::Array array(runtime, entries.size());
+      for (std::size_t index = 0; index < entries.size(); ++index) {
+        array.setValueAtIndex(runtime, index, valueFromJson(runtime, entries[index]));
+      }
+      return jsi::Value(runtime, array);
+    }
+    case JsonValue::Type::Object: {
+      jsi::Object object(runtime);
+      for (const auto& [field, entry] : value.items()) {
+        object.setProperty(runtime, jsi::PropNameID::forUtf8(runtime, field), valueFromJson(runtime, entry));
+      }
+      return jsi::Value(runtime, object);
+    }
+  }
+  return jsi::Value::null();
+}
+
+JsonValue jsonArgument(jsi::Runtime& runtime, const jsi::Value* arguments, std::size_t count, std::size_t index) {
   if (index >= count || arguments[index].isUndefined()) {
     return nullptr;
   }
-  return jsi::dynamicFromValue(runtime, arguments[index]);
+  return jsonFromValue(runtime, arguments[index]);
 }
 
 /*
@@ -212,7 +290,7 @@ void install(jsi::Runtime& runtime) {
     }
     bool scrollToStart = count > 4 && arguments[4].isBool() && arguments[4].getBool();
     auto size = engine->setData(
-      dynamicArgument(runtime, arguments, count, 1),
+      jsonArgument(runtime, arguments, count, 1),
       stringsArgument(runtime, arguments, count, 2),
       stringsArgument(runtime, arguments, count, 3),
       scrollToStart);
@@ -236,7 +314,7 @@ void install(jsi::Runtime& runtime) {
       stringArgument(runtime, arguments, count, 3),
       stringArgument(runtime, arguments, count, 4),
       indicesArgument(runtime, arguments, count, 5),
-      dynamicArgument(runtime, arguments, count, 6),
+      jsonArgument(runtime, arguments, count, 6),
       stringsArgument(runtime, arguments, count, 7),
       scrollToStart,
       int32ArrayArgument(runtime, arguments, count, 9));
@@ -255,7 +333,7 @@ void install(jsi::Runtime& runtime) {
     double index = numberArgument(arguments, count, 1, -1);
     auto size = engine->insertItems(
       sizeArgument(index, SIZE_MAX, SIZE_MAX),
-      dynamicArgument(runtime, arguments, count, 2),
+      jsonArgument(runtime, arguments, count, 2),
       stringsArgument(runtime, arguments, count, 3),
       stringsArgument(runtime, arguments, count, 4));
     return jsi::Value(static_cast<double>(size));
@@ -270,7 +348,7 @@ void install(jsi::Runtime& runtime) {
     bool replace = count > 4 && arguments[4].isBool() && arguments[4].getBool();
     bool updated = engine->updateItem(
       stringArgument(runtime, arguments, count, 1),
-      dynamicArgument(runtime, arguments, count, 2),
+      jsonArgument(runtime, arguments, count, 2),
       stringArgument(runtime, arguments, count, 3),
       replace);
     return jsi::Value(updated);
@@ -325,7 +403,7 @@ void install(jsi::Runtime& runtime) {
     engine->setTemplateStyle(
       stringArgument(runtime, arguments, count, 1),
       stringArgument(runtime, arguments, count, 2),
-      dynamicArgument(runtime, arguments, count, 3));
+      jsonArgument(runtime, arguments, count, 3));
     return jsi::Value::undefined();
   });
 
@@ -335,7 +413,7 @@ void install(jsi::Runtime& runtime) {
     if (!engine) {
       return jsi::Value::undefined();
     }
-    engine->configure(dynamicArgument(runtime, arguments, count, 1));
+    engine->configure(jsonArgument(runtime, arguments, count, 1));
     return jsi::Value::undefined();
   });
 
@@ -346,7 +424,7 @@ void install(jsi::Runtime& runtime) {
       return jsi::Value::undefined();
     }
     auto item = engine->getItem(stringArgument(runtime, arguments, count, 1));
-    return item.isNull() ? jsi::Value::undefined() : jsi::valueFromDynamic(runtime, item);
+    return item.isNull() ? jsi::Value::undefined() : valueFromJson(runtime, item);
   });
 
   // getKeys(listId) returns every row key.

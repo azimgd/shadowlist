@@ -26,15 +26,15 @@ class ShadowListStickyController {
   private boolean mStickyHeader = false;
   private boolean mStickyFooter = false;
 
-  /*
-   * Hide on scroll. The hidden values are how far each bar has slid away in pixels.
-   * The last offset gives the scroll distance since the previous tick.
-   */
+  // Hide on scroll.
   private boolean mAutoHideHeader = false;
   private boolean mAutoHideFooter = false;
-  private float mHeaderHidden = 0f;
-  private float mFooterHidden = 0f;
-  private float mLastAutoHideOffset = 0f;
+
+  /*
+   * Inputs and results of the pinning math, see ShadowListGeometry.STICKY_*. Its state slots
+   * keep how far each auto hide bar has slid away, in pixels, across ticks.
+   */
+  private final double[] mStickySlots = new double[ShadowListGeometry.STICKY_SLOTS];
 
   /*
    * Where each section header sits in the list and how big it is, in dp along the scroll
@@ -81,9 +81,9 @@ class ShadowListStickyController {
    * Reset hide on scroll so a recycled view starts clean.
    */
   void reset() {
-    mHeaderHidden = 0f;
-    mFooterHidden = 0f;
-    mLastAutoHideOffset = 0f;
+    mStickySlots[ShadowListGeometry.STICKY_HEADER_HIDDEN] = 0.0;
+    mStickySlots[ShadowListGeometry.STICKY_FOOTER_HIDDEN] = 0.0;
+    mStickySlots[ShadowListGeometry.STICKY_LAST_OFFSET] = 0.0;
     invalidateTemplates();
   }
 
@@ -182,78 +182,51 @@ class ShadowListStickyController {
 
     resolveTemplates(contentView);
 
-    // Measure the header and footer first so one can push the other away when they meet.
     View header = mHeaderView;
     View footer = mFooterView;
-    float headerSize = header == null ? 0f : (horizontal ? header.getWidth() : header.getHeight());
-    float footerSize = footer == null ? 0f : (horizontal ? footer.getWidth() : footer.getHeight());
+    double[] slots = mStickySlots;
+    slots[ShadowListGeometry.STICKY_OFFSET] = horizontal ? offsetX : offsetY;
+    slots[ShadowListGeometry.STICKY_WINDOW_SIZE] = horizontal ? windowWidth : windowHeight;
+    slots[ShadowListGeometry.STICKY_CONTENT_SIZE] = horizontal ? contentWidth : contentHeight;
+    slots[ShadowListGeometry.STICKY_HAS_HEADER] = header != null ? 1.0 : 0.0;
+    slots[ShadowListGeometry.STICKY_HEADER_SIZE] =
+      header == null ? 0.0 : (horizontal ? header.getWidth() : header.getHeight());
+    slots[ShadowListGeometry.STICKY_STICKY_HEADER] = mStickyHeader ? 1.0 : 0.0;
+    slots[ShadowListGeometry.STICKY_AUTO_HIDE_HEADER] = mAutoHideHeader ? 1.0 : 0.0;
+    slots[ShadowListGeometry.STICKY_HAS_FOOTER] = footer != null ? 1.0 : 0.0;
+    slots[ShadowListGeometry.STICKY_FOOTER_SIZE] =
+      footer == null ? 0.0 : (horizontal ? footer.getWidth() : footer.getHeight());
+    // The footer's real place in the content, without any translation.
+    slots[ShadowListGeometry.STICKY_FOOTER_START] =
+      footer == null ? 0.0 : (horizontal ? footer.getLeft() : footer.getTop());
+    slots[ShadowListGeometry.STICKY_STICKY_FOOTER] = mStickyFooter ? 1.0 : 0.0;
+    slots[ShadowListGeometry.STICKY_AUTO_HIDE_FOOTER] = mAutoHideFooter ? 1.0 : 0.0;
+    // Only real user scrolls slide the auto hide bars.
+    slots[ShadowListGeometry.STICKY_ACCUMULATE] = accumulate ? 1.0 : 0.0;
+    ShadowListGeometry.stickyTranslations(slots);
 
-    float axisOffset = horizontal ? offsetX : offsetY;
-    float windowSize = horizontal ? windowWidth : windowHeight;
-    float contentSize = horizontal ? contentWidth : contentHeight;
-
-    // How far the user scrolled since the last tick. Zero for programmatic scrolls.
-    float autoHideDelta = accumulate ? (axisOffset - mLastAutoHideOffset) : 0f;
-    mLastAutoHideOffset = axisOffset;
-
-    // The two bars don't read each other's result, so the order doesn't matter.
-    for (int pass = 0; pass < 2; pass++) {
-      boolean isFooter = pass == 1;
-      View child = isFooter ? footer : header;
-      if (child == null) {
-        continue;
-      }
-
-      boolean autoHide = isFooter ? mAutoHideFooter : mAutoHideHeader;
-      boolean sticky = isFooter ? mStickyFooter : mStickyHeader;
-
-      float translation = 0f;
-      if (isFooter) {
-        float footerStart = horizontal ? child.getLeft() : child.getTop();
-        float restingTranslation = (axisOffset + windowSize - footerSize) - footerStart;
-        if (mAutoHideFooter) {
-          // Pin to the bottom, slid down by the hidden amount. Always shown near the end.
-          float maxOffset = Math.max(0f, contentSize - windowSize);
-          if (axisOffset >= maxOffset - footerSize) {
-            mFooterHidden = 0f;
-          } else {
-            mFooterHidden = Math.max(0f, Math.min(mFooterHidden + autoHideDelta, footerSize));
-          }
-          translation = restingTranslation + mFooterHidden;
-        } else if (mStickyFooter) {
-          translation = restingTranslation;
-        }
-      } else {
-        if (mAutoHideHeader) {
-          // Pin to the top, slid up by the hidden amount. Always shown near the start.
-          if (axisOffset <= headerSize) {
-            mHeaderHidden = 0f;
-          } else {
-            mHeaderHidden = Math.max(0f, Math.min(mHeaderHidden + autoHideDelta, headerSize));
-          }
-          translation = axisOffset - mHeaderHidden;
-        } else if (mStickyHeader) {
-          // Pin to the top, and let the end of the content push it away.
-          translation = axisOffset;
-          float collisionTop = contentSize - footerSize - headerSize;
-          if (collisionTop < translation) {
-            translation = collisionTop;
-          }
-        }
-      }
-
-      if (horizontal) {
-        child.setTranslationX(translation);
-        child.setTranslationY(0f);
-      } else {
-        child.setTranslationY(translation);
-        child.setTranslationX(0f);
-      }
-      // Lift a pinned or hiding bar above the rows.
-      child.setTranslationZ((sticky || autoHide) ? stickyLift : 0f);
+    if (header != null) {
+      placeBar(header, horizontal, (float) slots[ShadowListGeometry.STICKY_HEADER_TRANSLATION],
+        mStickyHeader || mAutoHideHeader, stickyLift);
+    }
+    if (footer != null) {
+      placeBar(footer, horizontal, (float) slots[ShadowListGeometry.STICKY_FOOTER_TRANSLATION],
+        mStickyFooter || mAutoHideFooter, stickyLift);
     }
 
     applyStickySectionHeaders();
+  }
+
+  private static void placeBar(View child, boolean horizontal, float translation, boolean lifted, float lift) {
+    if (horizontal) {
+      child.setTranslationX(translation);
+      child.setTranslationY(0f);
+    } else {
+      child.setTranslationY(translation);
+      child.setTranslationX(0f);
+    }
+    // Lift a pinned or hiding bar above the rows.
+    child.setTranslationZ(lifted ? lift : 0f);
   }
 
   /*
@@ -279,44 +252,12 @@ class ShadowListStickyController {
     }
 
     boolean horizontal = mView.isHorizontal();
-    double axisOffsetPx = horizontal ? scrollView.getScrollX() : scrollView.getScrollY();
-    if (axisOffsetPx < 0.0) {
-      axisOffsetPx = 0.0;
-    }
-    double axisOffset = PixelUtil.toDIPFromPixel((float) axisOffsetPx);
-
-    /*
-     * Headers are sorted by offset. The active one is the last at or above the top,
-     * the next one is the first below it.
-     */
-    boolean hasActive = false;
-    double activeSize = 0.0;
-    boolean hasNext = false;
-    double nextOffset = 0.0;
-    for (int i = 0; i < mStickyHeaderOffsets.length; i++) {
-      double headerOffset = mStickyHeaderOffsets[i];
-      if (headerOffset <= axisOffset) {
-        hasActive = true;
-        activeSize = mStickyHeaderSizes[i];
-      } else {
-        nextOffset = headerOffset;
-        hasNext = true;
-        break;
-      }
-    }
-
-    if (!hasActive) {
+    double axisOffset = PixelUtil.toDIPFromPixel(horizontal ? scrollView.getScrollX() : scrollView.getScrollY());
+    double translation = ShadowListGeometry.sectionOverlayTranslation(
+      mStickyHeaderOffsets, mStickyHeaderSizes, mStickyHeaderOffsets.length, axisOffset);
+    if (Double.isNaN(translation)) {
       overlay.setVisibility(View.GONE);
       return;
-    }
-
-    // Sit at the top unless the next header is pushing it up.
-    double translation = axisOffset;
-    if (hasNext) {
-      double pushedTop = nextOffset - activeSize;
-      if (pushedTop < translation) {
-        translation = pushedTop;
-      }
     }
     float translationPx = PixelUtil.toPixelFromDIP((float) translation);
 
