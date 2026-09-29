@@ -34,6 +34,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     if let plan = UserDefaults.standard.string(forKey: "SLAutoFling") {
       AutoFlingDriver.shared.start(plan: plan)
     }
+    if let plan = UserDefaults.standard.string(forKey: "SLAutoDrag") {
+      AutoDragDriver.shared.start(plan: plan)
+    }
     if UserDefaults.standard.string(forKey: "SLJsFps") == "1" {
       UIFrameMonitor.shared.start()
       RCTSetLogThreshold(.info)
@@ -187,6 +190,147 @@ final class AutoFlingDriver: NSObject {
     if abs(velocity) < 60 || offset.y == minY || offset.y == maxY {
       velocity = 0
       pauseUntil = now + 0.1
+    }
+  }
+
+  private func log(_ line: String) {
+    FileHandle.standardError.write((line + "\n").data(using: .utf8)!)
+  }
+}
+
+/*
+ * TEST-ONLY. -SLAutoDrag "delay;x,y,x2,y2,move,hold[,x3,y3,move,hold...];..." drags list rows the
+ * way a long press does, since XCTest and agent-device cannot hold and drag. After delay seconds
+ * each step picks up the row at x,y (window points), then for each waypoint moves there over
+ * move seconds and holds for hold seconds (near an edge the list auto scrolls), and drops at the
+ * last one. It calls the list's debugDragPhase hook, which runs the same code as the gesture.
+ * Writes [SLDRAG] lines to stderr.
+ */
+final class AutoDragDriver: NSObject {
+  static let shared = AutoDragDriver()
+  private var link: CADisplayLink?
+  private var steps: [[Double]] = []
+  private var step: [Double] = []
+  private var stepStart: CFTimeInterval = 0
+  private var dropped = false
+  private weak var list: UIView?
+
+  // Held still after pickup, like a long press, and after each drop.
+  private let pickupPause = 0.3
+  private let dropPause = 1.5
+
+  func start(plan: String) {
+    let parts = plan.split(separator: ";").map(String.init)
+    guard let delay = parts.first.flatMap(Double.init) else { return }
+    steps = []
+    for part in parts.dropFirst() {
+      let numbers: [Double] = part.split(separator: ",").compactMap { Double($0) }
+      if numbers.count >= 6 && (numbers.count - 2) % 4 == 0 {
+        steps.append(numbers)
+      }
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + delay) { self.begin() }
+  }
+
+  private func begin() {
+    let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
+    link.add(to: .main, forMode: .common)
+    self.link = link
+  }
+
+  private var window: UIWindow? {
+    UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+  }
+
+  /*
+   * The innermost list under a window point.
+   */
+  private func listView(at point: CGPoint, in view: UIView) -> UIView? {
+    guard let listClass = NSClassFromString("ShadowListView") else { return nil }
+    var found: UIView?
+    func visit(_ view: UIView) {
+      if view.isKind(of: listClass), view.convert(view.bounds, to: nil).contains(point) {
+        found = view
+      }
+      view.subviews.forEach(visit)
+    }
+    visit(view)
+    return found
+  }
+
+  private func send(_ phase: Int, _ point: CGPoint) {
+    guard let list else { return }
+    let local = list.convert(point, from: nil)
+    _ = list.perform(
+      NSSelectorFromString("debugDragPhase:point:"), with: NSNumber(value: phase),
+      with: NSValue(cgPoint: local))
+  }
+
+  /*
+   * Where the finger is at elapsed seconds into the step, or nil once every waypoint is done.
+   */
+  private func position(at elapsed: Double) -> CGPoint? {
+    var from = CGPoint(x: step[0], y: step[1])
+    var time = elapsed - pickupPause
+    var index = 2
+    while index + 3 < step.count {
+      let to = CGPoint(x: step[index], y: step[index + 1])
+      let move = step[index + 2]
+      let hold = step[index + 3]
+      if time < move {
+        let progress = move > 0 ? time / move : 1
+        return CGPoint(x: from.x + (to.x - from.x) * progress, y: from.y + (to.y - from.y) * progress)
+      }
+      if time < move + hold {
+        return to
+      }
+      time -= move + hold
+      from = to
+      index += 4
+    }
+    return nil
+  }
+
+  @objc private func tick(_ link: CADisplayLink) {
+    let now = link.timestamp
+    if step.isEmpty {
+      if steps.isEmpty {
+        link.invalidate()
+        log("[SLDRAG] end")
+        return
+      }
+      step = steps.removeFirst()
+      stepStart = now
+      dropped = false
+      let from = CGPoint(x: step[0], y: step[1])
+      guard let window, let target = listView(at: from, in: window) else {
+        log("[SLDRAG] no list at \(from)")
+        step = []
+        return
+      }
+      list = target
+      log("[SLDRAG] pickup \(from)")
+      send(1, from)
+      return
+    }
+    let elapsed = now - stepStart
+    if elapsed < pickupPause {
+      return
+    }
+    if !dropped, let point = position(at: elapsed) {
+      send(2, point)
+      return
+    }
+    if !dropped {
+      let last = CGPoint(x: step[step.count - 4], y: step[step.count - 3])
+      send(3, last)
+      log("[SLDRAG] drop \(last)")
+      dropped = true
+      stepStart = now
+      return
+    }
+    if elapsed >= dropPause {
+      step = []
     }
   }
 

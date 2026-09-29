@@ -154,6 +154,9 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   NSInteger _dropInsertionIndex;
   // Where the dragged row was let go, so it can animate into place instead of snapping.
   CGFloat _dropReleaseLeading;
+  CGFloat _dropReleaseCross;
+  // Grid columns from props. Above 1 the held cell also moves across the scroll axis.
+  NSInteger _columns;
   // Cancels an older drop fallback timer so it cannot tear down a newer drop.
   NSInteger _dropSettleToken;
 }

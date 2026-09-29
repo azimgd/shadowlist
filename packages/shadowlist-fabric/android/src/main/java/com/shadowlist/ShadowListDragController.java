@@ -52,6 +52,15 @@ class ShadowListDragController {
    */
   private float mDragLeading = 0f;
   private float mDropReleaseLeading = 0f;
+  /*
+   * Grid drags with more than one column also move the held cell across the scroll axis.
+   * These are the cross axis values of the ones above.
+   */
+  private int mColumns = 1;
+  private float mDragCrossGrabOffset = 0f;
+  private float mDragCrossTouchInViewport = 0f;
+  private float mDragCrossLeading = 0f;
+  private float mDropReleaseCrossLeading = 0f;
   private static final long DROP_SETTLE_MS = 180;
 
   /*
@@ -63,6 +72,9 @@ class ShadowListDragController {
   private double[] mRowLeadings = new double[0];
   private double[] mRowExtents = new double[0];
   private double[] mRowShifts = new double[0];
+  private double[] mRowCrossLeadings = new double[0];
+  private double[] mRowCrossExtents = new double[0];
+  private double[] mRowCrossShifts = new double[0];
   private ShadowListElementView[] mRowViews = new ShadowListElementView[0];
 
   ShadowListDragController(ShadowListView view, Context context) {
@@ -126,6 +138,7 @@ class ShadowListDragController {
       switch (event.getActionMasked()) {
         case MotionEvent.ACTION_MOVE:
           mDragTouchInViewport = mView.isHorizontal() ? event.getX() : event.getY();
+          mDragCrossTouchInViewport = mView.isHorizontal() ? event.getY() : event.getX();
           updateDrag();
           return true;
         case MotionEvent.ACTION_UP:
@@ -210,19 +223,16 @@ class ShadowListDragController {
 
     float newResting = horizontal ? view.getLeft() : view.getTop();
     float startTranslation = mDropReleaseLeading - newResting;
+    float startCross = 0f;
+    if (mColumns > 1) {
+      startCross = mDropReleaseCrossLeading - (horizontal ? view.getTop() : view.getLeft());
+    }
 
     view.animate().cancel();
-    if (horizontal) {
-      view.setTranslationX(startTranslation);
-      view.setTranslationY(0f);
-      view.animate().translationX(0f).setDuration(DROP_SETTLE_MS)
-        .withEndAction(() -> view.setTranslationZ(0f)).start();
-    } else {
-      view.setTranslationY(startTranslation);
-      view.setTranslationX(0f);
-      view.animate().translationY(0f).setDuration(DROP_SETTLE_MS)
-        .withEndAction(() -> view.setTranslationZ(0f)).start();
-    }
+    view.setTranslationX(horizontal ? startTranslation : startCross);
+    view.setTranslationY(horizontal ? startCross : startTranslation);
+    view.animate().translationX(0f).translationY(0f).setDuration(DROP_SETTLE_MS)
+      .withEndAction(() -> view.setTranslationZ(0f)).start();
   }
 
   /*
@@ -292,6 +302,11 @@ class ShadowListDragController {
     float touchAxisContent = horizontal ? contentX : contentY;
     mDragGrabOffset = touchAxisContent - restingLeading;
     mDragTouchInViewport = horizontal ? event.getX() : event.getY();
+    mColumns = mView.getColumns();
+    float restingCross = horizontal ? view.getTop() : view.getLeft();
+    mDragCrossGrabOffset = (horizontal ? contentY : contentX) - restingCross;
+    mDragCrossTouchInViewport = horizontal ? event.getY() : event.getX();
+    mDragCrossLeading = restingCross;
 
     mView.setInnerScrollEnabled(false);
 
@@ -376,13 +391,18 @@ class ShadowListDragController {
     mDragLeading = desiredLeading;
 
     float translation = desiredLeading - restingLeading;
-    if (horizontal) {
-      mDraggedView.setTranslationX(translation);
-      mDraggedView.setTranslationY(0f);
-    } else {
-      mDraggedView.setTranslationY(translation);
-      mDraggedView.setTranslationX(0f);
+    float restingCross = horizontal ? mDraggedView.getTop() : mDraggedView.getLeft();
+    float crossExtent = horizontal ? mDraggedView.getHeight() : mDraggedView.getWidth();
+    float crossTranslation = 0f;
+    if (mColumns > 1) {
+      float crossOffset = horizontal ? scrollView.getScrollY() : scrollView.getScrollX();
+      float crossContentExtent = horizontal ? contentView.getHeight() : contentView.getWidth();
+      mDragCrossLeading = (float) ShadowListGeometry.dragHeldLeading(
+        mDragCrossTouchInViewport + crossOffset, mDragCrossGrabOffset, crossExtent, crossContentExtent);
+      crossTranslation = mDragCrossLeading - restingCross;
     }
+    mDraggedView.setTranslationX(horizontal ? translation : crossTranslation);
+    mDraggedView.setTranslationY(horizontal ? crossTranslation : translation);
 
     // The held row's key can change with the data too, and the drop names it by key.
     String liveKey = mDraggedView.getElementKey();
@@ -390,8 +410,16 @@ class ShadowListDragController {
       mDragOriginKey = liveKey;
     }
     collectRows();
-    int position = ShadowListGeometry.dragInsertionPosition(
-      mRowIndices, mRowLeadings, mRowExtents, mRowCount, currentDragOriginIndex(), desiredLeading + extent / 2f);
+    int position;
+    if (mColumns > 1) {
+      position = ShadowListGeometry.dragGridInsertionPosition(
+        mRowIndices, mRowLeadings, mRowExtents, mRowCrossLeadings, mRowCrossExtents, mRowCount,
+        currentDragOriginIndex(), restingLeading, extent, restingCross, crossExtent,
+        mDragInsertionIndex, desiredLeading + extent / 2f, mDragCrossLeading + crossExtent / 2f);
+    } else {
+      position = ShadowListGeometry.dragInsertionPosition(
+        mRowIndices, mRowLeadings, mRowExtents, mRowCount, currentDragOriginIndex(), desiredLeading + extent / 2f);
+    }
     if (position < 0) {
       mDragInsertionIndex = currentDragOriginIndex();
       mDragInsertionKey = mDragOriginKey;
@@ -428,6 +456,9 @@ class ShadowListDragController {
       mRowLeadings = new double[childCount];
       mRowExtents = new double[childCount];
       mRowShifts = new double[childCount];
+      mRowCrossLeadings = new double[childCount];
+      mRowCrossExtents = new double[childCount];
+      mRowCrossShifts = new double[childCount];
       mRowViews = new ShadowListElementView[childCount];
     }
     int count = 0;
@@ -444,6 +475,8 @@ class ShadowListDragController {
       mRowIndices[count] = elementIndex;
       mRowLeadings[count] = horizontal ? child.getLeft() : child.getTop();
       mRowExtents[count] = horizontal ? child.getWidth() : child.getHeight();
+      mRowCrossLeadings[count] = horizontal ? child.getTop() : child.getLeft();
+      mRowCrossExtents[count] = horizontal ? child.getHeight() : child.getWidth();
       mRowViews[count] = elementChild;
       count++;
     }
@@ -457,6 +490,7 @@ class ShadowListDragController {
   /*
    * Open a gap by sliding the rows between pickup and landing toward the empty slot.
    * Each moves by the held row's size, which is exactly where it ends up after the reorder.
+   * In a grid each cell moves to its new resting place, which can be in another column.
    */
   void applyDragShuffle() {
     collectRows();
@@ -468,18 +502,29 @@ class ShadowListDragController {
       return;
     }
     boolean horizontal = mView.isHorizontal();
-    ShadowListGeometry.dragShifts(
-      mRowIndices, mRowCount, currentDragOriginIndex(), mDragInsertionIndex, mDraggedExtent, mRowShifts);
+    if (mColumns > 1 && mDraggedView != null) {
+      ShadowListElementView held = mDraggedView;
+      ShadowListGeometry.dragGridShifts(
+        mRowIndices, mRowLeadings, mRowExtents, mRowCrossLeadings, mRowCrossExtents, mRowCount,
+        currentDragOriginIndex(),
+        horizontal ? held.getLeft() : held.getTop(),
+        horizontal ? held.getWidth() : held.getHeight(),
+        horizontal ? held.getTop() : held.getLeft(),
+        horizontal ? held.getHeight() : held.getWidth(),
+        mDragInsertionIndex, mColumns, mRowShifts, mRowCrossShifts);
+    } else {
+      ShadowListGeometry.dragShifts(
+        mRowIndices, mRowCount, currentDragOriginIndex(), mDragInsertionIndex, mDraggedExtent, mRowShifts);
+      for (int i = 0; i < mRowCount; i++) {
+        mRowCrossShifts[i] = 0.0;
+      }
+    }
     for (int i = 0; i < mRowCount; i++) {
       View child = mRowViews[i];
       float shift = (float) mRowShifts[i];
-      if (horizontal) {
-        child.setTranslationX(shift);
-        child.setTranslationY(0f);
-      } else {
-        child.setTranslationY(shift);
-        child.setTranslationX(0f);
-      }
+      float crossShift = (float) mRowCrossShifts[i];
+      child.setTranslationX(horizontal ? shift : crossShift);
+      child.setTranslationY(horizontal ? crossShift : shift);
     }
   }
 
@@ -524,6 +569,7 @@ class ShadowListDragController {
     int to = mDragInsertionIndex;
     ShadowListElementView view = mDraggedView;
     mDropReleaseLeading = mDragLeading;
+    mDropReleaseCrossLeading = mDragCrossLeading;
     mDragging = false;
     mDraggedView = null;
 

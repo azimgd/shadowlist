@@ -319,6 +319,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _copiedStickyHeaderSizes.reset();
   _copiedSnapOffsets.reset();
   _dragEnabled = NO;
+  _columns = 1;
 #if !TARGET_OS_OSX
   [self teardownDrag];
   _dragRecognizer.enabled = NO;
@@ -363,6 +364,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _horizontal = nextProps.horizontal;
   _scrollSync.setHorizontal(_horizontal);
   _dragEnabled = nextProps.dragEnabled;
+  _columns = nextProps.columns;
   _snapToItem = nextProps.snapToItem;
 #if !TARGET_OS_OSX
   _dragRecognizer.enabled = _dragEnabled;

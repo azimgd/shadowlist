@@ -47,6 +47,63 @@ std::vector<long>& scratchIndices() {
   return indices;
 }
 
+/*
+ * Copies of the grid cell arrays. They only grow, so drag frames reuse them.
+ */
+struct GridScratch {
+  std::vector<double> leadings;
+  std::vector<double> extents;
+  std::vector<double> crossLeadings;
+  std::vector<double> crossExtents;
+  std::vector<double> shifts;
+  std::vector<double> crossShifts;
+};
+
+GridScratch& gridScratch() {
+  static thread_local GridScratch scratch;
+  return scratch;
+}
+
+bool readGridCells(
+  JNIEnv* env,
+  jintArray indicesArray,
+  jdoubleArray leadingsArray,
+  jdoubleArray extentsArray,
+  jdoubleArray crossLeadingsArray,
+  jdoubleArray crossExtentsArray,
+  jint count,
+  sl::DragCells& cells) {
+  if (count <= 0 || indicesArray == nullptr || leadingsArray == nullptr || extentsArray == nullptr ||
+      crossLeadingsArray == nullptr || crossExtentsArray == nullptr || env->GetArrayLength(indicesArray) < count ||
+      env->GetArrayLength(leadingsArray) < count || env->GetArrayLength(extentsArray) < count ||
+      env->GetArrayLength(crossLeadingsArray) < count || env->GetArrayLength(crossExtentsArray) < count) {
+    return false;
+  }
+  auto size = static_cast<std::size_t>(count);
+  auto& indices = scratchIndices();
+  auto& scratch = gridScratch();
+  indices.resize(size);
+  scratch.leadings.resize(size);
+  scratch.extents.resize(size);
+  scratch.crossLeadings.resize(size);
+  scratch.crossExtents.resize(size);
+  auto* rawIndices = static_cast<jint*>(env->GetPrimitiveArrayCritical(indicesArray, nullptr));
+  if (rawIndices == nullptr) {
+    return false;
+  }
+  for (std::size_t row = 0; row < size; ++row) {
+    indices[row] = rawIndices[row];
+  }
+  env->ReleasePrimitiveArrayCritical(indicesArray, rawIndices, JNI_ABORT);
+  env->GetDoubleArrayRegion(leadingsArray, 0, count, scratch.leadings.data());
+  env->GetDoubleArrayRegion(extentsArray, 0, count, scratch.extents.data());
+  env->GetDoubleArrayRegion(crossLeadingsArray, 0, count, scratch.crossLeadings.data());
+  env->GetDoubleArrayRegion(crossExtentsArray, 0, count, scratch.crossExtents.data());
+  cells = {indices.data(), scratch.leadings.data(), scratch.extents.data(), scratch.crossLeadings.data(),
+    scratch.crossExtents.data(), size};
+  return true;
+}
+
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_stickyTranslations(
@@ -203,6 +260,74 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragShi
   if (indices != nullptr) {
     env->ReleasePrimitiveArrayCritical(indicesArray, indices, JNI_ABORT);
   }
+}
+
+extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_dragGridInsertionPosition(
+  JNIEnv* env,
+  jclass /*clazz*/,
+  jintArray indicesArray,
+  jdoubleArray leadingsArray,
+  jdoubleArray extentsArray,
+  jdoubleArray crossLeadingsArray,
+  jdoubleArray crossExtentsArray,
+  jint count,
+  jint heldIndex,
+  jdouble heldLeading,
+  jdouble heldExtent,
+  jdouble heldCrossLeading,
+  jdouble heldCrossExtent,
+  jint insertionIndex,
+  jdouble center,
+  jdouble crossCenter) {
+  sl::DragCells cells;
+  if (!readGridCells(env, indicesArray, leadingsArray, extentsArray, crossLeadingsArray, crossExtentsArray, count, cells)) {
+    cells = {};
+  }
+  sl::DragRow held;
+  held.index = heldIndex;
+  held.leading = heldLeading;
+  held.extent = heldExtent;
+  held.crossLeading = heldCrossLeading;
+  held.crossExtent = heldCrossExtent;
+  return static_cast<jint>(sl::dragGridInsertionPosition(cells, held, insertionIndex, center, crossCenter));
+}
+
+extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragGridShifts(
+  JNIEnv* env,
+  jclass /*clazz*/,
+  jintArray indicesArray,
+  jdoubleArray leadingsArray,
+  jdoubleArray extentsArray,
+  jdoubleArray crossLeadingsArray,
+  jdoubleArray crossExtentsArray,
+  jint count,
+  jint heldIndex,
+  jdouble heldLeading,
+  jdouble heldExtent,
+  jdouble heldCrossLeading,
+  jdouble heldCrossExtent,
+  jint insertionIndex,
+  jint columns,
+  jdoubleArray shiftsArray,
+  jdoubleArray crossShiftsArray) {
+  sl::DragCells cells;
+  if (shiftsArray == nullptr || crossShiftsArray == nullptr || env->GetArrayLength(shiftsArray) < count ||
+      env->GetArrayLength(crossShiftsArray) < count || columns <= 0 ||
+      !readGridCells(env, indicesArray, leadingsArray, extentsArray, crossLeadingsArray, crossExtentsArray, count, cells)) {
+    return;
+  }
+  sl::DragRow held;
+  held.index = heldIndex;
+  held.leading = heldLeading;
+  held.extent = heldExtent;
+  held.crossLeading = heldCrossLeading;
+  held.crossExtent = heldCrossExtent;
+  auto& scratch = gridScratch();
+  scratch.shifts.resize(cells.count);
+  scratch.crossShifts.resize(cells.count);
+  sl::dragGridShifts(cells, held, insertionIndex, static_cast<std::size_t>(columns), scratch.shifts.data(), scratch.crossShifts.data());
+  env->SetDoubleArrayRegion(shiftsArray, 0, count, scratch.shifts.data());
+  env->SetDoubleArrayRegion(crossShiftsArray, 0, count, scratch.crossShifts.data());
 }
 
 extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_dragHeldLeading(

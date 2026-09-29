@@ -12,6 +12,7 @@ import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
 import { SectionListScreen } from './SectionListScreen';
 import { ReorderScreen } from './ReorderScreen';
+import { ReorderGridScreen } from './ReorderGridScreen';
 import { TreeScreen } from './TreeScreen';
 import { SnapScreen } from './SnapScreen';
 
@@ -33,6 +34,7 @@ export type ExampleRoute =
   | 'Contacts'
   | 'SectionList'
   | 'Reorder'
+  | 'ReorderGrid'
   | 'Tree'
   | 'Snap';
 
@@ -133,6 +135,12 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         title: 'Boarding Order',
         summary: 'Touch and hold a row, then drag it',
         component: ReorderScreen,
+      },
+      {
+        route: 'ReorderGrid',
+        title: 'Sky Wishlist',
+        summary: 'Touch and hold a card, then drag it across the grid',
+        component: ReorderGridScreen,
       },
       {
         route: 'Tree',

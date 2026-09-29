@@ -49,6 +49,29 @@ static NSString *SLDragKey(const std::string& key)
 }
 
 /*
+ * A row's resting frame for the drag math, along and across the scroll axis.
+ */
+- (azimgd::shadowlist::DragRow)dragRowForView:(UIView *)view index:(NSInteger)index
+{
+  CGRect resting = [self restingFrameForView:view];
+  NSString *key = [self keyOfElementView:view];
+  return {
+    (long)index,
+    key ? std::string(key.UTF8String) : std::string(),
+    _horizontal ? resting.origin.x : resting.origin.y,
+    _horizontal ? resting.size.width : resting.size.height,
+    _horizontal ? resting.origin.y : resting.origin.x,
+    _horizontal ? resting.size.height : resting.size.width};
+}
+
+- (CGAffineTransform)dragTransformForOffset:(azimgd::shadowlist::DragOffset)offset
+{
+  return _horizontal
+    ? CGAffineTransformMakeTranslation(offset.leading, offset.cross)
+    : CGAffineTransformMakeTranslation(offset.cross, offset.leading);
+}
+
+/*
  * The topmost row under a point in the content.
  */
 - (UIView *)elementViewAtContentPoint:(CGPoint)point
@@ -69,7 +92,7 @@ static NSString *SLDragKey(const std::string& key)
 {
   switch (gesture.state) {
     case UIGestureRecognizerStateBegan:
-      [self beginDrag:gesture];
+      [self beginDragAtPoint:[gesture locationInView:self]];
       break;
     case UIGestureRecognizerStateChanged:
       _dragTouchInViewport = [gesture locationInView:self];
@@ -85,9 +108,33 @@ static NSString *SLDragKey(const std::string& key)
   }
 }
 
-- (void)beginDrag:(UILongPressGestureRecognizer *)gesture
+/*
+ * For scripted runs, like -SLAutoDrag in the example app. Drives the same path as the long
+ * press with a point in this view: phase 1 picks up, 2 moves and 3 drops.
+ */
+- (void)debugDragPhase:(NSNumber *)phase point:(NSValue *)point
 {
-  CGPoint contentPoint = [gesture locationInView:_contentView];
+  if (!_dragEnabled) {
+    return;
+  }
+  CGPoint location = point.CGPointValue;
+  switch (phase.intValue) {
+    case 1:
+      [self beginDragAtPoint:location];
+      break;
+    case 2:
+      _dragTouchInViewport = location;
+      [self updateDrag];
+      break;
+    default:
+      [self finishDrag];
+      break;
+  }
+}
+
+- (void)beginDragAtPoint:(CGPoint)location
+{
+  CGPoint contentPoint = [self convertPoint:location toView:_contentView];
   UIView *view = [self elementViewAtContentPoint:contentPoint];
   NSInteger index = [self indexOfElementView:view];
   if (!view || index == NSNotFound) {
@@ -101,15 +148,17 @@ static NSString *SLDragKey(const std::string& key)
 
   _dragging = YES;
   _draggedView = view;
-  NSString *key = [self keyOfElementView:view] ?: @"";
-  CGRect resting = [self restingFrameForView:view];
-  _drag.begin(
-    (long)index,
-    std::string(key.UTF8String),
-    _horizontal ? resting.origin.x : resting.origin.y,
-    _horizontal ? resting.size.width : resting.size.height,
-    _horizontal ? contentPoint.x : contentPoint.y);
-  _dragTouchInViewport = [gesture locationInView:self];
+  azimgd::shadowlist::DragRow resting = [self dragRowForView:view index:index];
+  if (_columns > 1) {
+    _drag.beginCell(
+      resting,
+      _horizontal ? contentPoint.x : contentPoint.y,
+      _horizontal ? contentPoint.y : contentPoint.x,
+      (std::size_t)_columns);
+  } else {
+    _drag.begin(resting.index, resting.key, resting.leading, resting.extent, _horizontal ? contentPoint.x : contentPoint.y);
+  }
+  _dragTouchInViewport = location;
 
   // We scroll ourselves near the edges, so stop the scroll view from following the finger.
   _scrollView.scrollEnabled = NO;
@@ -187,21 +236,30 @@ static NSString *SLDragKey(const std::string& key)
   NSString *currentKey = [self keyOfElementView:view];
   _drag.updateOrigin(currentIndex == NSNotFound ? -1 : (long)currentIndex, currentKey ? std::string(currentKey.UTF8String) : std::string());
 
-  CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
-  CGFloat touchViewport = _horizontal ? _dragTouchInViewport.x : _dragTouchInViewport.y;
-  CGRect resting = [self restingFrameForView:view];
-  CGFloat translation = _drag.place(
-    touchViewport + offset,
-    _horizontal ? resting.origin.x : resting.origin.y,
-    _horizontal ? resting.size.width : resting.size.height,
-    _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height);
+  CGPoint touchContent = CGPointMake(
+    _dragTouchInViewport.x + _scrollView.contentOffset.x, _dragTouchInViewport.y + _scrollView.contentOffset.y);
+  azimgd::shadowlist::DragRow resting = [self dragRowForView:view index:_drag.originIndex()];
+  azimgd::shadowlist::DragOffset translation;
+  if (_drag.isGrid()) {
+    translation = _drag.placeCell(
+      _horizontal ? touchContent.x : touchContent.y,
+      _horizontal ? touchContent.y : touchContent.x,
+      resting,
+      _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
+      // The scroll view's content size is 0 across the scroll axis, so use the content view.
+      _horizontal ? _contentView.bounds.size.height : _contentView.bounds.size.width);
+  } else {
+    translation.leading = _drag.place(
+      _horizontal ? touchContent.x : touchContent.y,
+      resting.leading,
+      resting.extent,
+      _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height);
+  }
 
   // The row can change size while held.
   SLUpdateDragShadowPath(view);
 
-  view.transform = _horizontal
-    ? CGAffineTransformMakeTranslation(translation, 0.0)
-    : CGAffineTransformMakeTranslation(0.0, translation);
+  view.transform = [self dragTransformForOffset:translation];
 
   // Find where it would drop among the other mounted rows.
   std::vector<azimgd::shadowlist::DragRow> rows;
@@ -214,13 +272,7 @@ static NSString *SLDragKey(const std::string& key)
     if (elementIndex == NSNotFound) {
       continue;
     }
-    CGRect restingFrame = [self restingFrameForView:subview];
-    NSString *key = [self keyOfElementView:subview];
-    rows.push_back({
-      (long)elementIndex,
-      key ? std::string(key.UTF8String) : std::string(),
-      _horizontal ? restingFrame.origin.x : restingFrame.origin.y,
-      _horizontal ? restingFrame.size.width : restingFrame.size.height});
+    rows.push_back([self dragRowForView:subview index:elementIndex]);
   }
   _drag.updateInsertion(rows);
   [self applyDragShuffle];
@@ -228,6 +280,7 @@ static NSString *SLDragKey(const std::string& key)
 
 /*
  * Open a gap at the drop spot by shifting the rows in between by the dragged row's size.
+ * In a grid each cell moves to its new resting place, which can be in another column.
  */
 - (void)applyDragShuffle
 {
@@ -240,10 +293,7 @@ static NSString *SLDragKey(const std::string& key)
     if (elementIndex == NSNotFound) {
       continue;
     }
-    CGFloat shift = _drag.shiftFor((long)elementIndex);
-    subview.transform = _horizontal
-      ? CGAffineTransformMakeTranslation(shift, 0.0)
-      : CGAffineTransformMakeTranslation(0.0, shift);
+    subview.transform = [self dragTransformForOffset:_drag.offsetFor((long)elementIndex)];
   }
 }
 
@@ -268,11 +318,12 @@ static NSString *SLDragKey(const std::string& key)
   }
 
   CGRect resting = [self restingFrameForView:view];
-  CGFloat newResting = _horizontal ? resting.origin.x : resting.origin.y;
-  CGFloat startTranslation = _dropReleaseLeading - newResting;
-  view.transform = _horizontal
-    ? CGAffineTransformMakeTranslation(startTranslation, 0.0)
-    : CGAffineTransformMakeTranslation(0.0, startTranslation);
+  azimgd::shadowlist::DragOffset start;
+  start.leading = _dropReleaseLeading - (_horizontal ? resting.origin.x : resting.origin.y);
+  if (_drag.isGrid()) {
+    start.cross = _dropReleaseCross - (_horizontal ? resting.origin.y : resting.origin.x);
+  }
+  view.transform = [self dragTransformForOffset:start];
 
   [UIView animateWithDuration:0.18
                         delay:0.0
@@ -322,6 +373,7 @@ static NSString *SLDragKey(const std::string& key)
   NSInteger to = _drag.insertionIndex();
   UIView *view = _draggedView;
   _dropReleaseLeading = _drag.leading();
+  _dropReleaseCross = _drag.crossLeading();
   _dragging = NO;
   _draggedView = nil;
 

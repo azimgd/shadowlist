@@ -1,6 +1,11 @@
-import type { MasonryItem, NestedItem } from 'shadowlist-utils/native';
+import type {
+  MasonryItem,
+  NestedItem,
+  ReorderTileItem,
+} from 'shadowlist-utils/native';
 import { generateMasonryElement } from '../fixtures/masonry';
 import { generateNestedElement } from '../fixtures/nested';
+import { generateWishlistItem } from '../fixtures/wishlist';
 import { Collection, type CursorPage, type PageCursor } from './Collection';
 import { request, type RequestSignal } from './network';
 import { listCount } from '../launchSettings';
@@ -61,4 +66,20 @@ export function fetchShelvesPage(
     () => shelves.page(cursor, { limit: SHELF_PAGE_SIZE, from: 'start' }),
     signal
   );
+}
+
+// A user-ordered wishlist of sights for the reorder grid; the order itself is server state.
+const wishlist = new Collection<ReorderTileItem>({
+  seed: () =>
+    Array.from({ length: 60 }, (_, index) => generateWishlistItem(index)),
+});
+
+export function fetchWishlist(
+  signal?: RequestSignal
+): Promise<ReorderTileItem[]> {
+  return request(() => wishlist.all(), signal);
+}
+
+export function saveWishlistOrder(ids: ReadonlyArray<string>): Promise<void> {
+  return request(() => wishlist.reorder(ids));
 }

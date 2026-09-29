@@ -168,7 +168,8 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "columns")
   public void setColumns(ShadowListView view, int columns) {
-    // Only the core reads this prop.
+    // The core lays the columns out. The view only needs them for grid drags.
+    view.setColumns(columns);
   }
 
   @Override

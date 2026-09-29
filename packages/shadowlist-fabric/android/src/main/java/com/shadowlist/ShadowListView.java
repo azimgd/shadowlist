@@ -93,6 +93,8 @@ public class ShadowListView extends FrameLayout {
   private ViewGroup mScrollView;
   private final ShadowListStickyController mStickyController;
   private final ShadowListDragController mDragController;
+  // Grid columns from props. The drag moves cells across columns when above 1.
+  private int mColumns = 1;
 
   /*
    * Pin sticky views again when a header or footer is laid out, so a sticky footer follows
@@ -645,6 +647,10 @@ public class ShadowListView extends FrameLayout {
     mDragController.setEnabled(dragEnabled);
   }
 
+  public void setColumns(int columns) {
+    mColumns = Math.max(1, columns);
+  }
+
   /*
    * Reset drag and sticky state before this view is recycled.
    */
@@ -1047,6 +1053,10 @@ public class ShadowListView extends FrameLayout {
 
   boolean isHorizontal() {
     return mHorizontal;
+  }
+
+  int getColumns() {
+    return mColumns;
   }
 
   @Nullable StateWrapper getStateWrapper() {

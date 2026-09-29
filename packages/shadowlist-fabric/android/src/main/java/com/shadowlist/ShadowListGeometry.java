@@ -66,6 +66,23 @@ final class ShadowListGeometry {
     int[] indices, int count, int originIndex, int insertionIndex, double draggedExtent, double[] shifts);
 
   /*
+   * The position in the arrays of the grid cell the held one would drop at, or -1 for its
+   * own slot. Over no cell it keeps insertionIndex.
+   */
+  static native int dragGridInsertionPosition(
+    int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
+    int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
+    int insertionIndex, double center, double crossCenter);
+
+  /*
+   * How far each grid cell slides along and across the scroll axis to open the gap.
+   */
+  static native void dragGridShifts(
+    int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
+    int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
+    int insertionIndex, int columns, double[] shifts, double[] crossShifts);
+
+  /*
    * Where the held row's leading edge goes, kept inside the content.
    */
   static native double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentExtent);
