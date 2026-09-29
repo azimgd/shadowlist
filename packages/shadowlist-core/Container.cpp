@@ -85,9 +85,16 @@ void Container::scrollToStart() {
 }
 
 void Container::requestScrollToIndex(double commandIndex, double commandSequence, int propIndex, double commandViewPosition) {
-  // The command wins over the prop. Each call bumps a counter, so the same index can scroll twice.
+  /*
+   * The command wins over the prop. Each call bumps a counter, so the same index can scroll
+   * twice. Hosts only ever count up, so a lower sequence is an older state coming through
+   * after the command ran, like a report built on the state before it. Ignoring it keeps the
+   * command from running again when the newer sequence follows, which would pull the reader
+   * back to the target after they scrolled away.
+   */
   bool fired = false;
-  if (commandSequence != this->previousScrollToIndexSequence) {
+  if (commandSequence > this->previousScrollToIndexSequence) {
+    SL_LOG("  scroll command: index=%.0f sequence=%.0f position=%.2f", commandIndex, commandSequence, commandViewPosition);
     this->previousScrollToIndexSequence = commandSequence;
     // scrollToEnd comes through the same command with SCROLL_TO_END_INDEX as the index.
     if (commandIndex == SCROLL_TO_END_INDEX) {

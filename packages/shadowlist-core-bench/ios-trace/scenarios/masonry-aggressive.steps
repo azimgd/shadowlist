@@ -1,0 +1,25 @@
+# Three column grid under fast flings, with inserts during momentum.
+route Masonry
+latency 0,0
+wait 3
+mark fling-run-down
+repeat 10 pan 200 780 0 -700 100
+wait 2
+mark fling-run-up
+repeat 6 pan 200 130 0 700 100
+wait 2
+mark append-mid-fling
+pan 200 780 0 -700 90
+press 262 78
+wait 3
+mark prepend-mid-fling
+pan 200 780 0 -700 90
+press 210 78
+wait 3
+mark random-during-momentum
+pan 200 780 0 -700 90
+press 317 78
+wait 3
+mark stt
+statusbar
+wait 3

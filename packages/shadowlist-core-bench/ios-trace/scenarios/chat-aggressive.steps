@@ -1,0 +1,46 @@
+# Inverted chat under abuse: history loads and incoming rows during flings both ways,
+# bursts while dragging slowly, and a return to the bottom.
+route Chat
+latency 0,0
+wait 3
+mark incoming-burst-at-bottom
+repeat 3 press 262 78
+wait 2.5
+mark fling-up-into-history
+repeat 6 pan 200 200 0 600 100
+wait 2
+mark history-mid-fling-x2
+pan 200 200 0 600 90
+press 210 78
+wait 0.3
+press 210 78
+wait 3
+mark incoming-mid-fling-up
+pan 200 200 0 600 90
+press 262 78
+wait 3
+mark slow-drag-with-history
+press 210 78
+pan 200 300 0 400 1500
+wait 2.5
+mark fling-down-with-incoming
+pan 200 750 0 -650 90
+press 262 78
+wait 3
+mark fling-to-bottom
+repeat 10 pan 200 750 0 -700 100
+wait 2.5
+mark incoming-at-bottom-after-flings
+press 262 78
+wait 2
+mark history-at-bottom
+press 210 78
+wait 2.5
+mark stt-from-bottom
+statusbar
+wait 3
+mark random-then-incoming
+press 317 78
+wait 1.5
+press 262 78
+wait 2.5

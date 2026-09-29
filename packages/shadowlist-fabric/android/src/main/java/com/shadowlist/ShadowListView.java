@@ -159,6 +159,8 @@ public class ShadowListView extends FrameLayout {
    */
   private int mProgrammaticTargetX = 0;
   private int mProgrammaticTargetY = 0;
+  private double mProgrammaticTargetDipX = Double.NaN;
+  private double mProgrammaticTargetDipY = Double.NaN;
   private boolean mProgrammaticPending = false;
   private boolean mProgrammaticAnimated = false;
   /*
@@ -166,6 +168,13 @@ public class ShadowListView extends FrameLayout {
    * Zero for our own scrolls like snapping or scrollToOffset.
    */
   private long mArmedToken = 0;
+
+  /*
+   * Set while the content view takes a new size. A shorter content clamps the scroll
+   * position from inside that layout call, and the report it causes is ours, not the
+   * user's. Same as _applyingContentSize on iOS.
+   */
+  private boolean mApplyingContentSize = false;
   // Token of the last correction we reported back. Later reports keep sending it.
   private long mEchoedToken = 0;
   /*
@@ -710,8 +719,21 @@ public class ShadowListView extends FrameLayout {
   }
 
   private void markProgrammaticScroll(int targetX, int targetY, boolean animated, long token) {
+    markProgrammaticScroll(targetX, targetY, animated, token, Double.NaN, Double.NaN);
+  }
+
+  /*
+   * targetDipX and targetDipY are the exact offset the core asked for, when there is one.
+   * The scroll view only holds whole pixels, so the echo of a fractional target would come
+   * back a fraction off, and the core would move its anchor by that fraction on every
+   * correction. Reporting the requested value when the view landed on it stops the drift.
+   */
+  private void markProgrammaticScroll(
+      int targetX, int targetY, boolean animated, long token, double targetDipX, double targetDipY) {
     mProgrammaticTargetX = targetX;
     mProgrammaticTargetY = targetY;
+    mProgrammaticTargetDipX = targetDipX;
+    mProgrammaticTargetDipY = targetDipY;
     mProgrammaticAnimated = animated;
     mProgrammaticPending = true;
     mArmedToken = token;
@@ -826,7 +848,10 @@ public class ShadowListView extends FrameLayout {
      * snap spans many frames, all ours until it reaches the target. Calling ours a user
      * scroll makes the core drop its correction and freezes the visible rows.
      */
-    boolean userScrolled = true;
+    boolean userScrolled = !mApplyingContentSize;
+    // The exact offset the core asked for, reported instead of the rounded pixels when we landed on it.
+    double exactOffsetX = Double.NaN;
+    double exactOffsetY = Double.NaN;
     // Any frame of a scroll we started is sent, including the one that echoes a correction.
     boolean ourMove = mProgrammaticPending;
     if (mProgrammaticPending) {
@@ -847,6 +872,13 @@ public class ShadowListView extends FrameLayout {
         mEchoedToken = mArmedToken;
         mProgrammaticPending = false;
         mArmedToken = 0;
+        boolean landed =
+          Math.abs(scrollX - mProgrammaticTargetX) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX
+            && Math.abs(scrollY - mProgrammaticTargetY) <= PROGRAMMATIC_SCROLL_TOLERANCE_PX;
+        if (landed && !Double.isNaN(mProgrammaticTargetDipX) && !Double.isNaN(mProgrammaticTargetDipY)) {
+          exactOffsetX = mProgrammaticTargetDipX;
+          exactOffsetY = mProgrammaticTargetDipY;
+        }
       }
     }
     /*
@@ -863,8 +895,8 @@ public class ShadowListView extends FrameLayout {
     double scrollPhase = mTouching
       ? SCROLL_PHASE_DRAGGING
       : (mSettling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE);
-    double offsetX = PixelUtil.toDIPFromPixel(scrollX);
-    double offsetY = PixelUtil.toDIPFromPixel(scrollY);
+    double offsetX = Double.isNaN(exactOffsetX) ? PixelUtil.toDIPFromPixel(scrollX) : exactOffsetX;
+    double offsetY = Double.isNaN(exactOffsetY) ? PixelUtil.toDIPFromPixel(scrollY) : exactOffsetY;
 
     /*
      * Every frame goes into the live report. Only frames the core needs become a state
@@ -932,6 +964,10 @@ public class ShadowListView extends FrameLayout {
     // The gesture changed, a correction was echoed, or a hide was acknowledged.
     if (mLastLiveUserScrolled != mLastPushedUserScrolled || mLastLivePhase != mLastPushedPhase
         || mEchoedToken != mLastPushedToken || mMountedConcealGeneration != mLastPushedAck) {
+      return true;
+    }
+    // The scroll view clamped the offset to a new content size, which the core must see.
+    if (mApplyingContentSize) {
       return true;
     }
     // Pull to refresh and drag to reorder lean on every frame.
@@ -1015,7 +1051,18 @@ public class ShadowListView extends FrameLayout {
     // Skip the layout call when the size is the same, which it is on most mounts.
     if (mContentView.getLeft() != 0 || mContentView.getTop() != 0
         || mContentView.getWidth() != newContentWidth || mContentView.getHeight() != newContentHeight) {
-      mContentView.layout(0, 0, newContentWidth, newContentHeight);
+      /*
+       * Shorter content clamps the scroll position inside this call, and the scroll view
+       * reports the clamp like any scroll. That is not the user, see mApplyingContentSize.
+       * During a rotation the clamp even uses the old viewport height, so an inverted chat
+       * at its bottom was reported as scrolled away and lost its bottom follow.
+       */
+      mApplyingContentSize = true;
+      try {
+        mContentView.layout(0, 0, newContentWidth, newContentHeight);
+      } finally {
+        mApplyingContentSize = false;
+      }
     }
 
     // While dragging a row, core corrections must not move the content.
@@ -1084,7 +1131,10 @@ public class ShadowListView extends FrameLayout {
        * Mark the scroll before writing. scrollTo calls onScrollChanged right away, and
        * updateScrollState needs the token to send it back.
        */
-      markProgrammaticScroll(appliedX, appliedY, false, token);
+      markProgrammaticScroll(
+        appliedX, appliedY, false, token,
+        shiftLiveOffset ? Double.NaN : containerOffsetX,
+        shiftLiveOffset ? Double.NaN : containerOffsetY);
       /*
        * A plain scrollTo leaves the fling running, and its next tick writes its own
        * position over ours. A prepend during a fling at the top lost its correction that

@@ -1,0 +1,52 @@
+# Feed under abuse: long fast fling runs both ways, prepends and appends landing during
+# momentum, scroll-to-random during momentum, and a continuous slow drag from top to bottom.
+route Feed
+latency 0,0
+wait 3
+mark fling-run-down
+repeat 12 pan 200 780 0 -700 100
+wait 2
+mark fling-run-up
+repeat 8 pan 200 130 0 700 100
+wait 2
+mark prepend-mid-fling-x3
+pan 200 780 0 -700 90
+press 210 78
+wait 0.3
+press 210 78
+wait 0.3
+press 210 78
+wait 3
+mark append-mid-fling
+pan 200 780 0 -700 90
+press 262 78
+wait 3
+mark random-during-momentum
+pan 200 780 0 -700 90
+press 317 78
+wait 3
+mark random-burst
+repeat 3 press 317 78
+wait 3
+mark statusbar-mid-fling
+pan 200 780 0 -700 90
+statusbar
+wait 3
+mark slow-drag-top-to-bottom
+pan 200 800 0 -650 1500
+wait 0.5
+pan 200 800 0 -650 1500
+wait 0.5
+pan 200 800 0 -650 1500
+wait 2
+mark prepend-during-slow-drag
+press 210 78
+pan 200 800 0 -400 1500
+wait 2.5
+mark reverse-flick-during-momentum
+pan 200 780 0 -700 90
+pan 200 200 0 500 90
+wait 3
+mark stt-end
+statusbar
+wait 3

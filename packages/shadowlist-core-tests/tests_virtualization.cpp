@@ -661,6 +661,90 @@ double settleAtBottom(
 }
 
 /*
+ * Switching an inverted chat to another conversation replaces every row. The new set opens
+ * on its bottom, like a fresh list, instead of keeping the old offset and showing its oldest rows.
+ */
+TEST(inverted_dataset_swap_opens_on_the_new_bottom) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(30, "a");
+  Container container;
+  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  double bottom = settleAtBottom(container, keys, fixture);
+
+  // The reader scrolls up into the history, then the conversation changes under them.
+  FrameInput away = inputFor(keys, bottom - 900.0, fixture);
+  away.userScrolled = true;
+  Virtualizer::update(&container, away);
+  Virtualizer::update(&container, inputFor(keys, bottom - 900.0, fixture));
+
+  std::vector<std::string> other = keysFor(12, "b");
+  FrameInput swap = inputFor(other, bottom - 900.0, fixture);
+  Virtualizer::update(&container, swap);
+  measureRows(container, std::vector<double>(other.size(), 100.0));
+  double newBottom = settleAtBottom(container, other, fixture);
+  CHECK_NEAR(container.revision.containerOffsetY, newBottom, 1.0);
+  CHECK(!container.invertedBottomReleased);
+
+  // A partial swap that keeps a visible row still holds that row, like any other change.
+  FrameInput up = inputFor(other, newBottom - 300.0, fixture);
+  up.userScrolled = true;
+  Virtualizer::update(&container, up);
+  Virtualizer::update(&container, inputFor(other, newBottom - 300.0, fixture));
+  std::string held = container.anchor.key;
+  double heldScreen = offsetOf(container, container.findElementIndexByKey(held)) - container.revision.containerOffsetY;
+  std::vector<std::string> mixed = keysFor(10, "c");
+  mixed.push_back(held);
+  std::vector<std::string> after = keysFor(10, "d");
+  mixed.insert(mixed.end(), after.begin(), after.end());
+  Virtualizer::update(&container, inputFor(mixed, container.revision.containerOffsetY, fixture));
+  CHECK_NEAR(offsetOf(container, container.findElementIndexByKey(held)) - container.revision.containerOffsetY, heldScreen, 1.0);
+}
+
+/*
+ * A scroll to the end is still landing when the layout pass measures a row above the viewport
+ * larger than its estimate. The rows move down by the difference, so the offset must follow the
+ * new bottom in the same pass. Waiting for the next frame shows the rows shifted for one frame,
+ * then snapped back, which is the jitter seen as an incoming message is followed.
+ */
+TEST(scroll_to_end_in_flight_follows_growth_measured_in_the_layout_pass) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  double bottom = settleAtBottom(container, keys, fixture);
+
+  // The reader scrolls far up, then a new message arrives and the screen asks for the end.
+  FrameInput away = inputFor(keys, bottom - 2000.0, fixture);
+  away.userScrolled = true;
+  Virtualizer::update(&container, away);
+  Virtualizer::update(&container, inputFor(keys, bottom - 2000.0, fixture));
+  keys.push_back("k40");
+  container.scrollToEnd();
+  Virtualizer::update(&container, inputFor(keys, bottom - 2000.0, fixture));
+  CHECK(container.operation && container.operation->type == OperationType::ScrollToEnd);
+  double target = container.revision.containerOffsetY;
+  CHECK_NEAR(target, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
+
+  // Our write comes back before the host confirms it, and the pass measures rows above the view.
+  FrameInput ownWrite = inputFor(keys, target, fixture);
+  ownWrite.containerOffsetEnabled = true;
+  ownWrite.commitToken = container.operation->id;
+  Virtualizer::update(&container, ownWrite);
+  CHECK(container.operation);
+  Virtualizer::updateElementAtIndex(&container, 30, {WINDOW_WIDTH, 160.0});
+  Virtualizer::updateElementAtIndex(&container, 40, {WINDOW_WIDTH, 130.0});
+  Virtualizer::recomputeTotalSize(&container);
+  CHECK_NEAR(container.revision.containerOffsetY, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
+  CHECK(container.containerOffsetCorrected);
+}
+
+/*
  * A streaming reply taller than the screen sits at the bottom of an inverted list. When the
  * user drags up into it, the list must stop sticking to the bottom and stay that way while
  * the row grows, or the view snaps back to the bottom.
@@ -1036,6 +1120,55 @@ TEST(inverted_bottom_pin_follows_growth_measured_between_frames) {
   double parked = container.revision.containerOffsetY;
   Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 200.0});
   CHECK_NEAR(container.revision.containerOffsetY, parked, 0.01);
+}
+
+/*
+ * A grid's tracks move on their own as rows above the screen get measured. The anchor must
+ * stay on the row it already holds while that row is on screen, or each frame holds a
+ * different track and the row the reader was on drifts.
+ */
+TEST(grid_keeps_its_anchor_row_while_other_tracks_get_measured) {
+  Fixture fixture;
+  fixture.columns = 3;
+
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  // Every row 100 tall, so the tracks line up and rows 30, 31 and 32 start at 1000.
+  for (std::size_t index = 0; index < keys.size(); ++index) {
+    Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH / 3.0, 100.0});
+  }
+  Virtualizer::commitElementSizes(&container, 0);
+  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::update(&container, inputFor(keys, 1040.0, fixture));
+  Virtualizer::update(&container, inputFor(keys, 1040.0, fixture));
+  CHECK_EQ(container.anchor.key, std::string("k30"));
+  double k30Screen = offsetOf(container, 30) - container.revision.containerOffsetY;
+
+  // Prepend a full row of tracks, then measure the new rows unevenly: track 0 grows, track 2 shrinks.
+  std::vector<std::string> next = keysFor(3, "n");
+  next.insert(next.end(), keys.begin(), keys.end());
+  Virtualizer::update(&container, inputFor(next, 1040.0, fixture));
+  CHECK_NEAR(offsetOf(container, 33) - container.revision.containerOffsetY, k30Screen, 0.5);
+  Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH / 3.0, 300.0});
+  Virtualizer::applyElementSize(&container, 1, {WINDOW_WIDTH / 3.0, 100.0});
+  Virtualizer::applyElementSize(&container, 2, {WINDOW_WIDTH / 3.0, 20.0});
+  Virtualizer::commitElementSizes(&container, 0);
+  Virtualizer::recomputeTotalSize(&container);
+  CHECK_NEAR(offsetOf(container, 33) - container.revision.containerOffsetY, k30Screen, 0.5);
+
+  // Frames go by with the host at the corrected offset. k30 keeps holding, not the row in track 2.
+  for (int frame = 0; frame < 4; ++frame) {
+    FrameInput own = inputFor(next, container.revision.containerOffsetY, fixture);
+    own.containerOffsetEnabled = container.containerOffsetCorrected;
+    own.commitToken = container.operation ? container.operation->id : 0;
+    Virtualizer::update(&container, own);
+    FrameInput echo = inputFor(next, container.revision.containerOffsetY, fixture);
+    echo.commitToken = container.operation ? container.operation->id : 0;
+    Virtualizer::update(&container, echo);
+    CHECK_EQ(container.anchor.key, std::string("k30"));
+    CHECK_NEAR(offsetOf(container, 33) - container.revision.containerOffsetY, k30Screen, 0.5);
+  }
 }
 
 TEST(scroll_to_index_lands_on_the_requested_row) {

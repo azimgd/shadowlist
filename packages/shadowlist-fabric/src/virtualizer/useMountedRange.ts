@@ -7,6 +7,7 @@ import {
   rangeToIndices,
   shouldReseedFromOffsetIndex,
   stepMountedRange,
+  mountStepForWindow,
   unionRangeIndices,
   type MountedRange,
 } from './mountedRange';
@@ -268,14 +269,15 @@ export function useMountedRange({
         return previous;
       }
       const current = latest.resolveRange(previous);
+      const window = {
+        low: Math.min(windowLow, windowHigh),
+        high: Math.max(windowLow, windowHigh),
+      };
       const next = stepMountedRange(
         current,
         { low, high },
-        {
-          low: Math.min(windowLow, windowHigh),
-          high: Math.max(windowLow, windowHigh),
-        },
-        MOUNT_STEP_ROWS
+        window,
+        mountStepForWindow(window, MOUNT_STEP_ROWS)
       );
       if (next.low === low && next.high === high) mountTargetRef.current = null;
       if (next.low === current.low && next.high === current.high)
@@ -360,11 +362,12 @@ export function useMountedRange({
 
         const targetLow = Math.max(0, windowLow - lowPad);
         const targetHigh = Math.min(keys.length - 1, windowHigh + highPad);
+        const window = { low: windowLow, high: windowHigh };
         const { low, high } = stepMountedRange(
           current,
           { low: targetLow, high: targetHigh },
-          { low: windowLow, high: windowHigh },
-          MOUNT_STEP_ROWS
+          window,
+          mountStepForWindow(window, MOUNT_STEP_ROWS)
         );
         mountTargetRef.current =
           low === targetLow && high === targetHigh

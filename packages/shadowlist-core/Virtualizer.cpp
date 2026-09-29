@@ -500,7 +500,22 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
       ? container->revision.elements.back().key
       : std::string();
     std::vector<Anchor> fallbackAnchors = captureFallbackAnchors(container, inputOffset);
-    reconcileElements(container, inputKeys);
+    std::size_t survivors = reconcileElements(container, inputKeys);
+    /*
+     * An inverted list whose rows were all replaced, like switching to another conversation,
+     * opens on the new bottom the way a fresh list does. Nothing on screen is left to hold,
+     * and staying at the old offset would show the oldest rows of the new set.
+     */
+    if (container->inverted && hadElementsBefore && survivors == 0 && !container->revision.elements.empty()) {
+      SL_LOG("  inverted swap: %zu rows, pinning to the bottom again", container->revision.elements.size());
+      container->invertedInitialized = false;
+      container->invertedBottomReleased = false;
+      container->invertedOpeningPin = false;
+      container->operation.reset();
+      container->pendingScrollToEnd = false;
+      anchorKey.clear();
+      fallbackAnchors.clear();
+    }
     /*
      * The anchor row may have been removed, like a refresh that drops the top post while
      * adding new ones. Hold the next row that was on screen instead.
@@ -535,7 +550,15 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   double previousWindowSize = container->getWindowContainerSize();
   container->revision.windowContainerWidth = input.windowContainerWidth;
   container->revision.windowContainerHeight = input.windowContainerHeight;
+  /*
+   * A window change that moves the offset, an inverted list following its bottom as the
+   * composer grows, is our own write. resolveScroll below starts from a clean flag, so
+   * remember it here and publish it even when nothing else corrects.
+   */
+  double offsetBeforeWindow = container->getContainerOffset();
+  container->containerOffsetCorrected = false;
   applyWindowSizeChange(container, previousWindowSize);
+  bool windowMovedOffset = container->containerOffsetCorrected && container->getContainerOffset() != offsetBeforeWindow;
   anchorDelta = container->anchor.subOffset;
   measure(container);
 
@@ -567,9 +590,9 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
     static_cast<std::ptrdiff_t>(anchorKey.empty() ? UNDEFINED_INDEX : container->findElementIndexByKey(anchorKey)));
 
   // Apply scroll corrections, and pick the window again if the offset moved.
-  bool offsetConfirmed = !input.containerOffsetEnabled && !headerMovedOffset;
+  bool offsetConfirmed = !input.containerOffsetEnabled && !headerMovedOffset && !windowMovedOffset;
   bool scrollCorrected = resolveScroll(container, anchorKey, anchorDelta, hadElementsBefore, offsetConfirmed);
-  if (headerMovedOffset) {
+  if (headerMovedOffset || windowMovedOffset) {
     container->containerOffsetCorrected = true;
   }
   if (scrollCorrected) {
@@ -1092,9 +1115,13 @@ void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex
    * is down and no correction is running. The stored total is stale here, so the bottom
    * comes from the reflowed rows.
    * A pending scroll to the end, or a list still settling on the bottom it opened at,
-   * follows the bottom here too for the same reason.
+   * follows the bottom here too for the same reason. So does a running correction that aims
+   * at the end, the bottom pin or scroll to end: it would re-aim on the next frame anyway,
+   * and leaving the rows moved by this measurement for one frame is the jitter a reader sees
+   * as a message arrives.
    */
-  bool followBottom = container->pendingScrollToEnd ||
+  bool endEdgeOperation = container->operation && container->operation->target.mode == AnchorMode::EndEdge;
+  bool followBottom = container->pendingScrollToEnd || endEdgeOperation ||
     (container->inverted && container->invertedOpeningPin && container->restingAtInvertedBottom &&
      !container->invertedBottomReleased && !container->gestureActive && !container->operation);
   if (!followBottom && container->inverted && !container->invertedBottomReleased && !container->gestureActive &&
@@ -1127,7 +1154,9 @@ void Virtualizer::applyHeaderSizeChange(Container* container, double previousHea
   if (container->operation && container->operation->target.mode == AnchorMode::Element) {
     std::size_t anchorIndex = container->findElementIndexByKey(container->operation->target.key);
     if (anchorIndex != UNDEFINED_INDEX) {
-      double target = container->getElementOffset(anchorIndex) + container->operation->target.subOffset;
+      // A scroll to a key works its sub offset out from the view position, like resolveScroll does.
+      double target = container->getElementOffset(anchorIndex) +
+        resolveAnchorSubOffset(container, *container->operation, anchorIndex);
       target = target < 0.0 ? 0.0 : target;
       SL_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f->%.1f resolved op=%llu",
         previousHeaderSize, container->headerSize, offset, target,
@@ -1271,7 +1300,7 @@ void Virtualizer::consumePredictions(Container* container) {
   }
 }
 
-void Virtualizer::reconcileElements(Container* container, const std::vector<std::string>& nextKeys) {
+std::size_t Virtualizer::reconcileElements(Container* container, const std::vector<std::string>& nextKeys) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
   std::vector<Element>& previousElements = container->revision.elements;
@@ -1312,7 +1341,7 @@ void Virtualizer::reconcileElements(Container* container, const std::vector<std:
 
       container->geometryVersion++;
       container->elementsStructureDirty = true;
-      return;
+      return previousElements.size();
     }
   }
 
@@ -1359,7 +1388,7 @@ void Virtualizer::reconcileElements(Container* container, const std::vector<std:
        */
       container->geometryVersion++;
       container->elementsStructureDirty = true;
-      return;
+      return previousElements.size() - prependCount;
     }
   }
 
@@ -1430,6 +1459,7 @@ void Virtualizer::reconcileElements(Container* container, const std::vector<std:
     container->revision.measuredRealTotalWidth = 0.0;
     container->revision.measuredRealTotalHeight = 0.0;
   }
+  return survivorCount;
 }
 
 std::vector<Anchor> Virtualizer::captureFallbackAnchors(Container* container, double inputOffset) {
@@ -1462,6 +1492,7 @@ std::vector<Anchor> Virtualizer::captureFallbackAnchors(Container* container, do
 }
 
 void Virtualizer::captureAnchor(Container* container, double inputOffset) {
+  const std::string previousAnchorKey = container->anchor.key;
   container->anchor = Anchor{"", 0.0, AnchorMode::Element};
 
   const std::vector<Element>& previousElements = container->revision.elements;
@@ -1475,6 +1506,24 @@ void Virtualizer::captureAnchor(Container* container, double inputOffset) {
   auto elementSizeOf = [&](const Element& element) {
     return container->horizontal ? element.width : element.height;
   };
+
+  /*
+   * In a grid the tracks move independently as their rows get measured, so the row with the
+   * lowest index on screen changes from frame to frame. Picking a new anchor each time holds a
+   * different track each frame and the row the reader was on drifts. Keep last frame's anchor
+   * while it is still on screen and can be anchored.
+   */
+  if (container->columns > 1 && !previousAnchorKey.empty() && container->isAnchorable(previousAnchorKey)) {
+    std::size_t previousAnchorIndex = container->findElementIndexByKey(previousAnchorKey);
+    if (previousAnchorIndex != UNDEFINED_INDEX) {
+      const Element& previousAnchor = previousElements[previousAnchorIndex];
+      double start = elementOffsetOf(previousAnchor);
+      if (start + elementSizeOf(previousAnchor) > inputOffset && start < inputOffset + container->getWindowContainerSize()) {
+        container->anchor = Anchor{previousAnchorKey, inputOffset - start, AnchorMode::Element};
+        return;
+      }
+    }
+  }
 
   /*
    * The anchor is the first content row at the top of the viewport. Decoration rows like

@@ -111,3 +111,19 @@ export function stepMountedRange(
       : Math.min(target.high, Math.max(base.high + step, window.high));
   return { low, high };
 }
+
+/*
+ * How many overscan rows to add per step for a window this size. Two rows a frame is right
+ * for screen sized cards, where each row is a big subtree. Short rows fill the window with
+ * dozens of rows, a fling passes several of them a frame, and two rows a step could never
+ * get ahead of it: the leading pad stayed empty and the top of the screen went blank. Grow
+ * the pad by a quarter of the window instead, so a pad forms within a few frames however
+ * tall the rows are.
+ */
+export function mountStepForWindow(
+  window: MountedRange,
+  minimumStep: number
+): number {
+  const windowRows = window.high - window.low + 1;
+  return Math.max(minimumStep, Math.ceil(windowRows / 4));
+}

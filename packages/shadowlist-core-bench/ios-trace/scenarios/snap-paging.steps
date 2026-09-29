@@ -1,0 +1,22 @@
+# Snap list: flings of different strengths must rest on a row edge, forwards and back.
+route Snap
+latency 0,0
+wait 3
+mark short-fling
+pan 200 700 0 -300 120
+wait 2
+mark long-fling
+pan 200 750 0 -650 100
+wait 2.5
+mark slow-drag-release
+pan 200 700 0 -250 1500
+wait 2
+mark back-fling
+pan 200 200 0 500 100
+wait 2.5
+mark tiny-nudge
+pan 200 600 0 -40 400
+wait 2
+mark stt
+statusbar
+wait 2.5

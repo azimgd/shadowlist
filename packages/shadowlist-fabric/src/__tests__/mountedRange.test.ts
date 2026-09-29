@@ -1,5 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+  mountStepForWindow,
   initialMountedRange,
   rangeToIndices,
   shouldReseedFromOffsetIndex,
@@ -200,5 +201,26 @@ describe('stepMountedRange', () => {
         2
       )
     ).toEqual({ low: 14, high: 32 });
+  });
+});
+
+describe('mountStepForWindow', () => {
+  it('keeps the minimum step for a window of a few tall rows', () => {
+    expect(mountStepForWindow({ low: 10, high: 15 }, 2)).toBe(2);
+  });
+
+  it('grows the pad by a quarter of a window full of short rows', () => {
+    // 36 rows in the window, like a section list: a fling passes several rows a frame.
+    expect(mountStepForWindow({ low: 875, high: 910 }, 2)).toBe(9);
+  });
+
+  it('reaches a ten row leading pad within a couple of steps on short rows', () => {
+    const window = { low: 875, high: 910 };
+    const step = mountStepForWindow(window, 2);
+    let range = { low: 875, high: 914 };
+    const target = { low: 865, high: 914 };
+    range = stepMountedRange(range, target, window, step);
+    range = stepMountedRange(range, target, window, step);
+    expect(range).toEqual(target);
   });
 });

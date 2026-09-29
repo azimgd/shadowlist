@@ -377,3 +377,41 @@ TEST(inserting_and_removing_rows_above_the_viewport_keeps_the_visible_rows_in_ev
     }
   }
 }
+
+/*
+ * A scroll command reaches the core through state, and an older state can come through after
+ * it with the sequence from before the command. That must not run the command again, or a
+ * reader who scrolled away after the jump is pulled back to the target.
+ */
+TEST(an_older_command_sequence_does_not_run_the_scroll_command_again) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  Virtualizer::update(&container, report(keys, 0.0));
+  layoutPass(container, HEADER, 0, 59, 100.0);
+
+  container.requestScrollToIndex(30.0, 1.0, -2);
+  Virtualizer::update(&container, report(keys, 0.0));
+  double target = container.revision.containerOffsetY;
+  CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
+  std::uint64_t token = container.operation->id;
+  Virtualizer::update(&container, ownWrite(container, keys));
+  Virtualizer::update(&container, echo(container, keys, token));
+  CHECK(!container.operation);
+
+  // A report built on the state before the command, then one built on the state after it.
+  container.requestScrollToIndex(0.0, 0.0, -2);
+  Virtualizer::update(&container, report(keys, target));
+  container.requestScrollToIndex(30.0, 1.0, -2);
+  // The reader has scrolled away in the meantime.
+  FrameInput away = report(keys, target + 400.0);
+  away.userScrolled = true;
+  Virtualizer::update(&container, away);
+  Virtualizer::update(&container, report(keys, target + 400.0));
+  CHECK(!container.operation);
+  CHECK_NEAR(container.revision.containerOffsetY, target + 400.0, 0.5);
+
+  // A newer sequence still runs, even for the same index.
+  container.requestScrollToIndex(30.0, 2.0, -2);
+  Virtualizer::update(&container, report(keys, target + 400.0));
+  CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
+}

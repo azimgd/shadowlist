@@ -208,3 +208,42 @@ TEST(unchanged_anchor_ignore_keys_keep_the_set_the_core_already_has) {
   CHECK(container.isAnchorable("k0"));
   CHECK(!container.isAnchorable("k2"));
 }
+
+/*
+ * The window change can also reach the core through update, on hosts without a layout pass.
+ * The bottom follow it makes is our own write and must be published, or the host never moves
+ * and the newest rows sit under the composer.
+ */
+TEST(a_window_resize_through_update_publishes_the_bottom_follow) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  FrameInput input = inputFor(keys, 0.0);
+  input.inverted = true;
+  Virtualizer::update(&container, input);
+  for (std::size_t index = 0; index < keys.size(); ++index) {
+    Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, 100.0});
+  }
+  Virtualizer::commitElementSizes(&container, 0);
+  Virtualizer::recomputeTotalSize(&container);
+  double offset = container.revision.containerOffsetY;
+  for (int frame = 0; frame < 6; ++frame) {
+    input = inputFor(keys, offset);
+    input.inverted = true;
+    Virtualizer::update(&container, input);
+    offset = container.revision.containerOffsetY;
+  }
+  double bottom = container.revision.totalContainerHeight - WINDOW_HEIGHT;
+  CHECK_NEAR(offset, bottom, 1.0);
+
+  // The composer grows by 300 and the host reports the same offset with the smaller window.
+  input = inputFor(keys, offset);
+  input.inverted = true;
+  input.windowContainerHeight = WINDOW_HEIGHT - 300.0;
+  Virtualizer::update(&container, input);
+  CHECK(container.containerOffsetCorrected);
+  CHECK_NEAR(container.revision.containerOffsetY, bottom + 300.0, 1.0);
+  ContainerStateUpdate state = container.resolveStateUpdate(offset, offset,
+    container.revision.totalContainerWidth, container.revision.totalContainerHeight);
+  CHECK(state.applyContainerOffset);
+  CHECK_NEAR(state.containerOffsetY, bottom + 300.0, 1.0);
+}

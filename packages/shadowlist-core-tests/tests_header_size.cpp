@@ -388,3 +388,35 @@ TEST(scroll_to_start_with_new_rows_at_offset_zero_stays_at_zero) {
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
 }
+
+/*
+ * A scroll to an index that rests the row mid screen is still landing when the header resizes.
+ * The header change must aim at the same mid screen position, not at the row's top, or the row
+ * jumps to the top for a frame and back.
+ */
+TEST(header_change_during_a_scroll_to_index_keeps_the_view_position) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  FrameInput input = inputFor(keys, 0.0);
+  input.headerSize = 100.0;
+  Virtualizer::update(&container, input);
+  for (std::size_t index = 0; index < keys.size(); ++index) {
+    Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, 100.0});
+  }
+  Virtualizer::commitElementSizes(&container, 0);
+  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::update(&container, input);
+
+  container.scrollToIndex(30, 0.5);
+  Virtualizer::update(&container, input);
+  CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
+  double rowTop = offsetOf(container, 30) - container.revision.containerOffsetY;
+  CHECK_NEAR(rowTop, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
+
+  // The header grows while the command is still in flight, as the Fabric layout pass would apply it.
+  double previousHeader = container.headerSize;
+  container.headerSize = 160.0;
+  Virtualizer::recomputeElementOffsets(&container, 0);
+  Virtualizer::applyHeaderSizeChange(&container, previousHeader);
+  CHECK_NEAR(offsetOf(container, 30) - container.revision.containerOffsetY, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
+}

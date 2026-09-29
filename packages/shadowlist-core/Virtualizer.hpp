@@ -136,8 +136,9 @@ public:
 
   /*
    * Match the rows to a new key list. Existing rows keep their sizes, new keys get new rows.
+   * Returns how many old rows survived. Zero means the whole dataset was swapped.
    */
-  static void reconcileElements(Container* container, const std::vector<std::string>& nextKeys);
+  static std::size_t reconcileElements(Container* container, const std::vector<std::string>& nextKeys);
 
   /*
    * Set a row's measured size and move the rows after it. Same as applyElementSize then
