@@ -12,6 +12,8 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/ListCommit.hpp>
+#include <shadowlist-core/host/ScrollSync.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -61,9 +63,8 @@ struct SimHost {
   ScrollPhase phase = ScrollPhase::Idle;
   bool userScrolled = false;
 
-  // The last state the host mounted, base included, to mirror the shift logic of the view.
-  std::uint64_t shiftedToken = 0;
-  double shiftedTokenDelta = 0.0;
+  // The last state the host mounted, base included, and the view's own scroll protocol.
+  ScrollSync sync;
   double stateOffset = 0.0;
   double stateBase = 0.0;
   std::uint64_t stateToken = 0;
@@ -180,46 +181,58 @@ struct SimHost {
   }
 
   /*
-   * Mount the state the layout pass produced, as the scroll view would: an idle view takes
-   * the offset, a moving one is shifted by the part of the correction not applied yet.
+   * Mount the state the layout pass produced, as the scroll view would, through the hosts'
+   * own ScrollSync: an idle view takes the offset, a moving one is shifted by the part of the
+   * correction not applied yet.
    */
   void mountState() {
     Container& core = this->container;
-    ContainerStateUpdate state = core.resolveStateUpdate(this->stateOffset, this->stateOffset,
+    ContainerStateUpdate update = core.resolveStateUpdate(this->stateOffset, this->stateOffset,
       core.revision.totalContainerWidth, core.revision.totalContainerHeight);
-    bool continues = state.commitToken != 0 && state.commitToken == this->stateToken;
-    if (state.changed && !continues) {
-      this->stateBase = this->stateOffset;
-    }
-    if (state.changed) {
-      this->stateOffset = state.containerOffsetY;
-      this->stateToken = state.commitToken;
+    ListScrollState state;
+    state.offsetY = this->stateOffset;
+    state.baseY = this->stateBase;
+    state.commitToken = static_cast<double>(this->stateToken);
+    if (publishStateUpdate(state, update, 0)) {
+      this->stateOffset = state.offsetY;
+      this->stateBase = state.baseY;
+      this->stateToken = static_cast<std::uint64_t>(state.commitToken);
     }
     // The content size write clamps a resting view, but not one held past the edge by a finger.
     if (this->phase == ScrollPhase::Idle && this->hostOffset > this->maxOffset()) {
       this->hostOffset = this->maxOffset();
     }
-    if (!state.applyContainerOffset) {
-      return;
-    }
-    double applied = state.containerOffsetY;
-    bool moving = this->phase != ScrollPhase::Idle || this->userScrolled ||
-      (state.commitToken != 0 && state.commitToken == this->shiftedToken);
-    if (moving) {
-      double shift = state.containerOffsetY - this->stateBase;
-      if (state.commitToken != 0) {
-        double unapplied = state.commitToken == this->shiftedToken ? shift - this->shiftedTokenDelta : shift;
-        this->shiftedToken = state.commitToken;
-        this->shiftedTokenDelta = shift;
-        shift = unapplied;
+
+    MountedScroll mounted;
+    mounted.offsetEnabled = update.applyContainerOffset;
+    mounted.offsetY = update.containerOffsetY;
+    mounted.baseY = this->stateBase;
+    mounted.commitToken = update.commitToken;
+    mounted.userScrolled = this->userScrolled;
+    mounted.scrollPhase = this->phase == ScrollPhase::Dragging ? SCROLL_PHASE_DRAGGING
+      : this->phase == ScrollPhase::Settling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE;
+    ViewMotion view;
+    view.offsetY = this->hostOffset;
+    view.shiftFromY = this->hostOffset;
+    view.maxOffset = this->maxOffset();
+    view.moving = this->phase != ScrollPhase::Idle || this->userScrolled;
+    this->sync.beginMount(mounted, nullptr);
+    MountAction action = this->sync.correction(view);
+    if (action.kind == MountAction::Kind::Write) {
+      // The scroll view keeps a written offset inside its range.
+      double applied = std::min(std::max(action.offsetY, 0.0), this->maxOffset());
+      bool moved = std::fabs(applied - this->hostOffset) >= 0.01;
+      this->sync.willWrite(action);
+      if (moved) {
+        this->hostOffset = applied;
+        ScrollFrame frame;
+        frame.offsetY = applied;
+        this->sync.onScroll(frame);
+        this->echoedToken = this->sync.echoedToken();
       }
-      applied = this->hostOffset + shift;
+      this->sync.didWrite(moved);
     }
-    applied = std::min(std::max(applied, 0.0), this->maxOffset());
-    if (std::fabs(applied - this->hostOffset) >= 0.01) {
-      this->hostOffset = applied;
-      this->echoedToken = state.commitToken;
-    }
+    this->sync.endMount();
   }
 
   /*

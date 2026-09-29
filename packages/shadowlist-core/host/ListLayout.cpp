@@ -1,0 +1,158 @@
+#include <shadowlist-core/host/ListLayout.hpp>
+#include <shadowlist-core/Virtualizer.hpp>
+
+namespace azimgd::shadowlist {
+
+bool applyLayoutInputs(Container& core, double headerSize, double footerSize, double windowWidth, double windowHeight) {
+  bool changed = core.headerSize != headerSize || core.footerSize != footerSize ||
+    core.revision.windowContainerWidth != windowWidth || core.revision.windowContainerHeight != windowHeight;
+  if (!changed) {
+    return false;
+  }
+  double previousHeaderSize = core.headerSize;
+  double previousWindowSize = core.getWindowContainerSize();
+  /*
+   * Row offsets only depend on the header and, for columns, on the window's cross size.
+   * A window growing or shrinking along the scroll axis, like a chat composer resizing the
+   * list, or a footer change moves no row, so skip walking every row for those.
+   */
+  bool rowsMove = previousHeaderSize != headerSize ||
+    (core.horizontal ? core.revision.windowContainerHeight != windowHeight
+                     : core.revision.windowContainerWidth != windowWidth);
+  core.headerSize = headerSize;
+  core.footerSize = footerSize;
+  core.revision.windowContainerWidth = windowWidth;
+  core.revision.windowContainerHeight = windowHeight;
+  if (rowsMove) {
+    Virtualizer::recomputeElementOffsets(&core, 0);
+  }
+  /*
+   * The core's frame ran with the old header size and doesn't know the rows moved. Settle the
+   * header change now, or the rows jump for one frame, like when a header spinner toggles
+   * during a prepend.
+   */
+  Virtualizer::applyHeaderSizeChange(&core, previousHeaderSize);
+  // A chat resting at its bottom keeps it as the composer resizes the list.
+  Virtualizer::applyWindowSizeChange(&core, previousWindowSize);
+  // While the user is scrolled this just writes the current offset again.
+  core.containerOffsetCorrected = true;
+  return true;
+}
+
+void applyMeasuredRows(Container& core, const std::vector<MeasuredRow>& rows, bool horizontal,
+  std::vector<std::uint64_t>& firstMeasured) {
+  /*
+   * applyElementSize only records the size, then one commitElementSizes reflows from the
+   * lowest changed row, so there is one reflow per layout instead of one per row.
+   */
+  std::size_t lowestChangedIndex = UNDEFINED_INDEX;
+  for (const MeasuredRow& row : rows) {
+    const Element& element = core.getElementAtIndex(row.elementIndex);
+    Size size{row.width, row.height};
+    if (core.columns > 1) {
+      if (horizontal) {
+        size.height = element.height;
+      } else {
+        size.width = element.width;
+      }
+    }
+    bool firstMeasurement = !element.measured;
+    bool changed = Virtualizer::applyElementSize(&core, row.elementIndex, size);
+    if (firstMeasurement) {
+      firstMeasured.push_back(row.id);
+    }
+    if (changed && row.elementIndex < lowestChangedIndex) {
+      lowestChangedIndex = row.elementIndex;
+    }
+  }
+  if (lowestChangedIndex != UNDEFINED_INDEX) {
+    Virtualizer::commitElementSizes(&core, lowestChangedIndex);
+  }
+  // The total size once for the whole batch. The footer and content size need it.
+  Virtualizer::recomputeTotalSize(&core);
+}
+
+RowFrame rowFrame(const Container& core, std::size_t elementIndex, bool horizontal) {
+  const Element& element = core.getElementAtIndex(elementIndex);
+  RowFrame frame;
+  if (core.columns > 1) {
+    frame.x = element.offsetX;
+    frame.y = element.offsetY;
+    frame.width = element.width;
+    frame.setsWidth = true;
+  } else if (horizontal) {
+    frame.x = element.offsetX;
+  } else {
+    frame.y = element.offsetY;
+  }
+  return frame;
+}
+
+TemplateOffsets templateOffsets(const Container& core, double headerSize, double footerSize) {
+  TemplateOffsets offsets;
+  offsets.empty = headerSize;
+  offsets.footer = core.getFooterOffset(footerSize);
+  return offsets;
+}
+
+bool PublishedGeometry::refresh(const Container& core) {
+  double windowSize = core.getWindowContainerSize();
+  double totalSize = core.horizontal ? core.revision.totalContainerWidth : core.revision.totalContainerHeight;
+  bool stale = geometryVersion_ != core.geometryVersion || snapToItem_ != core.snapToItem ||
+    snapAlignment_ != core.snapAlignment || inverted_ != core.inverted || horizontal_ != core.horizontal ||
+    windowSize_ != windowSize || totalSize_ != totalSize || sourceStickyIndices_ != core.stickyIndices;
+  if (!stale) {
+    return false;
+  }
+  geometryVersion_ = core.geometryVersion;
+  snapToItem_ = core.snapToItem;
+  snapAlignment_ = core.snapAlignment;
+  inverted_ = core.inverted;
+  horizontal_ = core.horizontal;
+  windowSize_ = windowSize;
+  totalSize_ = totalSize;
+  sourceStickyIndices_ = core.stickyIndices;
+
+  /*
+   * Build plain vectors, then keep the old pointer when nothing changed. Measuring new rows
+   * while scrolling bumps the version every frame, but the results are usually the same.
+   */
+  auto adoptIfChanged = [](auto& cached, auto&& next) {
+    using ValueT = typename std::decay_t<decltype(next)>::value_type;
+    if (next.empty()) {
+      cached = nullptr;
+      return;
+    }
+    if (cached && *cached == next) {
+      return;
+    }
+    cached = std::make_shared<const std::vector<ValueT>>(std::move(next));
+  };
+
+  std::vector<int> indices;
+  std::vector<double> offsets;
+  std::vector<double> sizes;
+  std::size_t elementsSize = core.getElementsSize();
+  /*
+   * Sticky headers in an inverted list aren't supported. Pinning has no inverted case and
+   * would pin to the wrong edge, so publish nothing, which hides the overlay.
+   */
+  if (!core.inverted) {
+    for (std::size_t stickyIndex : core.stickyIndices) {
+      if (stickyIndex >= elementsSize) {
+        continue;
+      }
+      indices.push_back(static_cast<int>(stickyIndex));
+      offsets.push_back(core.getElementOffset(stickyIndex));
+      sizes.push_back(core.getElementSize(stickyIndex));
+    }
+  }
+  adoptIfChanged(stickyHeaderIndices, std::move(indices));
+  adoptIfChanged(stickyHeaderOffsets, std::move(offsets));
+  adoptIfChanged(stickyHeaderSizes, std::move(sizes));
+  // Empty unless snapToItem is set.
+  adoptIfChanged(snapOffsets, std::vector<double>(core.getSnapOffsets()));
+  return true;
+}
+
+}
