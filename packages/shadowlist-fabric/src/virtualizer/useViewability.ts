@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
 import type { OnViewableIndicesChange } from 'shadowlist';
 import type { ViewToken } from '../types';
+import { activeStickyIndexFor, viewableWindow } from './viewability';
 
 interface UseViewabilityOptions<ElementT> {
   data: ReadonlyArray<ElementT>;
@@ -41,11 +42,7 @@ export function useViewability<ElementT>({
         setActiveStickyIndex((previous) => (previous === -1 ? previous : -1));
         return;
       }
-      let active = -1;
-      for (const stickyIndex of stickyHeaderIndices) {
-        if (stickyIndex <= windowLow) active = stickyIndex;
-        else break;
-      }
+      const active = activeStickyIndexFor(stickyHeaderIndices, windowLow);
       setActiveStickyIndex((previous) =>
         previous === active ? previous : active
       );
@@ -119,24 +116,21 @@ export function useViewability<ElementT>({
   > = useCallback(
     (event) => {
       const { viewableStartIndex, viewableEndIndex } = event.nativeEvent;
-      const isActive = viewableStartIndex !== -1 && viewableEndIndex !== -1;
-      // Inverted lists report start after end, so sort them.
-      const windowLow = Math.min(viewableStartIndex, viewableEndIndex);
-      const windowHigh = Math.max(viewableStartIndex, viewableEndIndex);
+      const window = viewableWindow(viewableStartIndex, viewableEndIndex);
 
       // The sticky overlay shows the section of the top visible row.
-      if (isActive) {
-        updateActiveStickyIndex(windowLow);
+      if (window) {
+        updateActiveStickyIndex(window.low);
       }
 
-      activeWindowRef.current = isActive
-        ? { low: windowLow, high: windowHigh, dataLength: data.length }
+      activeWindowRef.current = window
+        ? { low: window.low, high: window.high, dataLength: data.length }
         : null;
 
       // Tokens are only for onViewableItemsChanged, so skip them when nobody listens.
       if (!onViewableItemsChanged) return;
 
-      diffAndEmit(isActive ? buildViewableItems(windowLow, windowHigh) : []);
+      diffAndEmit(window ? buildViewableItems(window.low, window.high) : []);
     },
     [
       data,

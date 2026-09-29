@@ -3,12 +3,14 @@ import type { CodegenTypes } from 'react-native';
 import type { OnVisibleIndicesChange } from 'shadowlist';
 import { slTrace, slTraceEnabled } from './helpers';
 import {
+  grownMountedRange,
   initialMountedRange,
   rangeToIndices,
   shouldReseedFromOffsetIndex,
   stepMountedRange,
   mountStepForWindow,
   unionRangeIndices,
+  visibleTargetRange,
   type MountedRange,
 } from './mountedRange';
 
@@ -39,12 +41,6 @@ interface SeedTarget {
   index: number;
   viewPosition: number;
 }
-
-/*
- * How many appended rows an inverted list at its end mounts on top of its range. A bigger
- * burst, like a reconnect syncing hundreds of messages, moves the range to the tail instead.
- */
-const MAX_FOLLOWED_APPEND = 50;
 
 /*
  * New overscan rows mounted per end per frame, see stepMountedRange. Rows on screen always
@@ -135,41 +131,16 @@ export function useMountedRange({
         const lowIndex = keyToIndex.get(edges.lowKey);
         const highIndex = keyToIndex.get(edges.highKey);
         if (lowIndex !== undefined && highIndex !== undefined) {
-          /*
-           * A range that touches an edge of the data grows to take rows added past it, up to
-           * the leading pad. Think a new chat message, a page appended at the end, or history
-           * added on top. Mount them in the same render as the data change, instead of waiting
-           * a full round trip for native to report them while the screen already shows them.
-           */
-          const low = Math.min(lowIndex, highIndex);
-          const high = Math.max(lowIndex, highIndex);
-          /*
-           * An inverted list at its end with followAppends. The core scrolls to the newest rows
-           * in the same commit, so those must mount, however many came in. Padding from the old
-           * edge misses rows when a burst is bigger than the pad, or a second append lands before
-           * native reports the first. That shows a blank frame and then a jump.
-           * Only a burst over MAX_FOLLOWED_APPEND moves the range to the tail instead of growing
-           * it, since a reader just above may still see those rows.
-           */
-          if (inverted && followAppends && edges.highAtEnd) {
-            const tailHigh = keys.length - 1;
-            const tailLow = tailHigh - (high - low) - MAX_FOLLOWED_APPEND;
-            return {
-              low: Math.max(
-                edges.lowAtStart ? Math.max(0, low - overscanRowsLeading) : low,
-                tailLow
-              ),
-              high: tailHigh,
-            };
-          }
-          return {
-            low: edges.lowAtStart
-              ? Math.max(0, low - overscanRowsLeading)
-              : low,
-            high: edges.highAtEnd
-              ? Math.min(keys.length - 1, high + overscanRowsLeading)
-              : high,
-          };
+          // See grownMountedRange for how a range at an edge of the data grows.
+          return grownMountedRange(
+            lowIndex,
+            highIndex,
+            edges.lowAtStart,
+            edges.highAtEnd,
+            keys.length,
+            overscanRowsLeading,
+            inverted && followAppends
+          );
         }
       }
       if (commandSeed !== null) {
@@ -349,19 +320,14 @@ export function useMountedRange({
           };
         }
 
-        /*
-         * Mount more rows ahead of where the user is going. The direction comes from how the
-         * visible range moved, so normal, inverted and horizontal lists all work the same.
-         * A first report, or one that didn't move, pads both sides evenly.
-         */
-        const movingForward = lastWindow ? windowLow > lastWindow.low : false;
-        const movingBackward = lastWindow ? windowLow < lastWindow.low : false;
-        const leadingPad = overscanRowsLeading;
-        const lowPad = movingBackward ? leadingPad : overscanRows;
-        const highPad = movingForward ? leadingPad : overscanRows;
-
-        const targetLow = Math.max(0, windowLow - lowPad);
-        const targetHigh = Math.min(keys.length - 1, windowHigh + highPad);
+        // Pad ahead of where the user is going, see visibleTargetRange.
+        const { low: targetLow, high: targetHigh } = visibleTargetRange(
+          { low: windowLow, high: windowHigh },
+          lastWindow,
+          keys.length,
+          overscanRows,
+          overscanRowsLeading
+        );
         const window = { low: windowLow, high: windowHigh };
         const { low, high } = stepMountedRange(
           current,

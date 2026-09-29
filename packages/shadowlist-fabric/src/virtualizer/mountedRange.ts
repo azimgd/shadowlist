@@ -127,3 +127,64 @@ export function mountStepForWindow(
   const windowRows = window.high - window.low + 1;
   return Math.max(minimumStep, Math.ceil(windowRows / 4));
 }
+
+/*
+ * How many appended rows an inverted list at its end mounts on top of its range. A bigger
+ * burst, like a reconnect syncing hundreds of messages, moves the range to the tail instead.
+ */
+export const MAX_FOLLOWED_APPEND = 50;
+
+/*
+ * The mounted range from its edge rows' current indices. A range that touches an edge of the
+ * data grows to take rows added past it, up to the leading pad. Think a new chat message, a
+ * page appended at the end, or history added on top. They mount in the same render as the
+ * data change, instead of a full round trip later while the screen already shows them.
+ * An inverted list at its end with followAppends (followTail) scrolls to the newest rows in
+ * the same commit, so those all mount, and only a burst over MAX_FOLLOWED_APPEND moves the
+ * range to the tail instead of growing it.
+ */
+export function grownMountedRange(
+  lowIndex: number,
+  highIndex: number,
+  lowAtStart: boolean,
+  highAtEnd: boolean,
+  size: number,
+  overscanRowsLeading: number,
+  followTail: boolean
+): MountedRange {
+  const low = Math.min(lowIndex, highIndex);
+  const high = Math.max(lowIndex, highIndex);
+  const grownLow = lowAtStart ? Math.max(0, low - overscanRowsLeading) : low;
+  if (followTail && highAtEnd) {
+    const tailHigh = size - 1;
+    const tailLow = tailHigh - (high - low) - MAX_FOLLOWED_APPEND;
+    return { low: Math.max(grownLow, tailLow), high: tailHigh };
+  }
+  return {
+    low: grownLow,
+    high: highAtEnd ? Math.min(size - 1, high + overscanRowsLeading) : high,
+  };
+}
+
+/*
+ * Where the mounted range should end up for a visible window: overscan on both sides, and the
+ * leading pad ahead of where the user is going. The direction comes from how the window moved,
+ * so normal, inverted and horizontal lists all work the same. A first report, or one that
+ * didn't move, pads both sides evenly.
+ */
+export function visibleTargetRange(
+  window: MountedRange,
+  lastWindow: MountedRange | null,
+  size: number,
+  overscanRows: number,
+  overscanRowsLeading: number
+): MountedRange {
+  const movingForward = lastWindow ? window.low > lastWindow.low : false;
+  const movingBackward = lastWindow ? window.low < lastWindow.low : false;
+  const lowPad = movingBackward ? overscanRowsLeading : overscanRows;
+  const highPad = movingForward ? overscanRowsLeading : overscanRows;
+  return {
+    low: Math.max(0, window.low - lowPad),
+    high: Math.min(size - 1, window.high + highPad),
+  };
+}

@@ -1,11 +1,14 @@
 import { describe, expect, it } from '@jest/globals';
 import {
+  MAX_FOLLOWED_APPEND,
+  grownMountedRange,
   mountStepForWindow,
   initialMountedRange,
   rangeToIndices,
   shouldReseedFromOffsetIndex,
   stepMountedRange,
   unionRangeIndices,
+  visibleTargetRange,
 } from '../virtualizer/mountedRange';
 import { SHADOWLIST_OVERSCAN } from '../virtualizer/helpers';
 
@@ -222,5 +225,75 @@ describe('mountStepForWindow', () => {
     range = stepMountedRange(range, target, window, step);
     range = stepMountedRange(range, target, window, step);
     expect(range).toEqual(target);
+  });
+});
+
+describe('grownMountedRange', () => {
+  it('keeps a range away from the data edges as is', () => {
+    expect(grownMountedRange(30, 20, false, false, 100, 10, false)).toEqual({
+      low: 20,
+      high: 30,
+    });
+  });
+
+  it('grows a range at an edge by the leading pad', () => {
+    expect(grownMountedRange(5, 20, true, false, 100, 10, false)).toEqual({
+      low: 0,
+      high: 20,
+    });
+    expect(grownMountedRange(80, 95, false, true, 100, 10, false)).toEqual({
+      low: 80,
+      high: 99,
+    });
+  });
+
+  it('follows every appended row at the tail of an inverted list', () => {
+    // 30 rows arrived past the old end at 69, more than the pad.
+    expect(grownMountedRange(60, 69, false, true, 100, 10, true)).toEqual({
+      low: 60,
+      high: 99,
+    });
+    // A burst past MAX_FOLLOWED_APPEND moves the range to the tail instead.
+    const size = 70 + MAX_FOLLOWED_APPEND + 100;
+    expect(grownMountedRange(60, 69, false, true, size, 10, true)).toEqual({
+      low: size - 1 - 9 - MAX_FOLLOWED_APPEND,
+      high: size - 1,
+    });
+  });
+});
+
+describe('visibleTargetRange', () => {
+  it('pads both sides evenly on a first report', () => {
+    expect(visibleTargetRange({ low: 50, high: 55 }, null, 200, 4, 12)).toEqual(
+      { low: 46, high: 59 }
+    );
+  });
+
+  it('pads ahead of the scroll direction', () => {
+    expect(
+      visibleTargetRange(
+        { low: 50, high: 55 },
+        { low: 45, high: 50 },
+        200,
+        4,
+        12
+      )
+    ).toEqual({ low: 46, high: 67 });
+    expect(
+      visibleTargetRange(
+        { low: 50, high: 55 },
+        { low: 60, high: 65 },
+        200,
+        4,
+        12
+      )
+    ).toEqual({ low: 38, high: 59 });
+  });
+
+  it('stays inside the data', () => {
+    expect(visibleTargetRange({ low: 2, high: 8 }, null, 10, 4, 12)).toEqual({
+      low: 0,
+      high: 9,
+    });
   });
 });
