@@ -34,7 +34,7 @@ export function useKeyboardLift({
  */
 export function useKeyboardSpace(
   options: UseKeyboardLiftOptions = {}
-): Animated.AnimatedMultiplication<number> {
+): ReturnType<typeof Animated.multiply> {
   const lift = useKeyboardLift(options);
   return useMemo(() => Animated.multiply(lift, -1), [lift]);
 }

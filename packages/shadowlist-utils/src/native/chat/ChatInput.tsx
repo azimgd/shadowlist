@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ComponentRef } from 'react';
 import {
   View,
   TextInput,
@@ -40,7 +40,7 @@ export const ChatInput = ({
   const styles = useStyles();
   const l = useLabels(defaultChatLabels, labels);
   const insets = useSafeAreaInsets();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
   const [uncontrolledText, setUncontrolledText] = useState(defaultValue);
   const isControlled = value !== undefined;
   const text = isControlled ? value : uncontrolledText;
