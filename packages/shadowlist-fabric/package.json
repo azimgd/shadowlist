@@ -21,6 +21,7 @@
     "shadowlist-core",
     "*.podspec",
     "react-native.config.js",
+    "scripts/vendor-core.js",
     "!ios/build",
     "!android/build",
     "!android/gradle",
