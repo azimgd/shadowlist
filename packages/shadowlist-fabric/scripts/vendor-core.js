@@ -22,7 +22,8 @@ if (!fs.existsSync(srcDir)) {
 fs.rmSync(destDir, { recursive: true, force: true });
 fs.cpSync(srcDir, destDir, {
   recursive: true,
-  filter: (src) => fs.statSync(src).isDirectory() || /\.(cpp|hpp)$/.test(src),
+  filter: (src) =>
+    fs.statSync(src).isDirectory() || /\.(cpp|hpp|cmake)$/.test(src),
 });
 
 console.log(

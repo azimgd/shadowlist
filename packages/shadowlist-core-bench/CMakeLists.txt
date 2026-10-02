@@ -9,9 +9,9 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # The core has no dependencies, so its sources compile straight into the bench binary.
-file(GLOB CORE_SRCS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/*.cpp)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/sources.cmake)
 
-add_executable(shadowlist_core_bench ${CORE_SRCS} ${CMAKE_CURRENT_SOURCE_DIR}/bench.cpp)
+add_executable(shadowlist_core_bench ${SHADOWLIST_CORE_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/bench.cpp)
 
 target_compile_definitions(shadowlist_core_bench PRIVATE SHADOWLIST_DEBUG_LOG=0)
 

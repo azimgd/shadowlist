@@ -5,14 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # The core has no dependencies, so its sources compile straight into the test binary.
-file(GLOB CORE_SRCS CONFIGURE_DEPENDS
-  ${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/*.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/host/*.cpp)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/sources.cmake)
 file(GLOB TEST_SRCS CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/tests_*.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp)
 
-add_executable(shadowlist_core_tests ${CORE_SRCS} ${TEST_SRCS})
+add_executable(shadowlist_core_tests ${SHADOWLIST_CORE_SOURCES} ${TEST_SRCS})
 
 target_include_directories(shadowlist_core_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/..   # for shadowlist-core includes

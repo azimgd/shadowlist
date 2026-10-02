@@ -1,13 +1,10 @@
 import type { ComponentType } from 'react';
 import type { ContactItem } from 'shadowlist-utils/native';
 import { FeedScreen } from './FeedScreen';
-import { FeedNativeScreen } from './FeedNativeScreen';
 import { ChatScreen } from './ChatScreen';
-import { ChatNativeScreen } from './ChatNativeScreen';
 import { AssistantScreen } from './AssistantScreen';
 import { ActivityScreen } from './ActivityScreen';
 import { NestedScreen } from './NestedScreen';
-import { NestedNativeScreen } from './NestedNativeScreen';
 import { MasonryScreen } from './MasonryScreen';
 import { ContactsScreen } from './ContactsScreen';
 import { SectionListScreen } from './SectionListScreen';
@@ -23,13 +20,10 @@ export type RootStackParamList = {
 
 export type ExampleRoute =
   | 'Feed'
-  | 'FeedNative'
   | 'Chat'
-  | 'ChatNative'
   | 'Assistant'
   | 'Activity'
   | 'Nested'
-  | 'NestedNative'
   | 'Masonry'
   | 'Contacts'
   | 'SectionList'
@@ -61,12 +55,6 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         component: FeedScreen,
       },
       {
-        route: 'FeedNative',
-        title: 'Native Feed',
-        summary: 'The same feed with rows built natively',
-        component: FeedNativeScreen,
-      },
-      {
         route: 'Masonry',
         title: 'Gallery',
         summary: 'Photos in three columns',
@@ -78,12 +66,6 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         summary: 'Horizontal shelves inside a vertical list',
         component: NestedScreen,
       },
-      {
-        route: 'NestedNative',
-        title: 'Native Explore',
-        summary: 'Shelves and a grid built natively',
-        component: NestedNativeScreen,
-      },
     ],
   },
   {
@@ -94,12 +76,6 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         title: 'Chat',
         summary: 'Group chat that keeps your place as messages arrive',
         component: ChatScreen,
-      },
-      {
-        route: 'ChatNative',
-        title: 'Native Chat',
-        summary: 'The same chat with bubbles built natively',
-        component: ChatNativeScreen,
       },
       {
         route: 'Assistant',

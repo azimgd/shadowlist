@@ -6,7 +6,6 @@
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutContext.h>
 
-#include "ShadowListNativeEngine.h"
 #include "ShadowListViewState.h"
 
 #include <shadowlist-core/Container.hpp>
@@ -37,9 +36,6 @@ struct ShadowListViewGeometryCache {
    * address from being freed and reused, so a pointer match really means same keys.
    */
   std::shared_ptr<const Props> keysProps;
-
-  // For ShadowListNative, the store keys version the core last took in, or 0 for none.
-  std::uint64_t nativeKeysVersion = 0;
 
   /*
    * The event emitter the core's callbacks dispatch through, and which optional ones were
@@ -103,15 +99,6 @@ public:
   const std::shared_ptr<azimgd::shadowlist::Container>& getContainerManager() const { return containerManager_; }
   const std::shared_ptr<ShadowListViewGeometryCache>& getGeometryCache() const { return geometryCache_; }
 
-  /*
-   * For ShadowListNative, the engine that builds this list's rows, null for a ShadowList,
-   * and the row keys the core matched up on the commit that made this node.
-   */
-  void setNativeEngine(std::shared_ptr<ShadowListNativeEngine> nativeEngine) { nativeEngine_ = std::move(nativeEngine); }
-  const std::shared_ptr<ShadowListNativeEngine>& getNativeEngine() const { return nativeEngine_; }
-  void setNativeKeys(std::shared_ptr<const std::vector<std::string>> nativeKeys) { nativeKeys_ = std::move(nativeKeys); }
-  const std::shared_ptr<const std::vector<std::string>>& getNativeKeys() const { return nativeKeys_; }
-
 private:
   /*
    * Whether this node's Yoga node owns the child. Only a child cloned or adopted for this
@@ -133,9 +120,6 @@ private:
     LayoutContext& layoutContext);
 
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
-
-  std::shared_ptr<ShadowListNativeEngine> nativeEngine_;
-  std::shared_ptr<const std::vector<std::string>> nativeKeys_;
 
   // Geometry from the core to publish, shared across this list's clones.
   std::shared_ptr<ShadowListViewGeometryCache> geometryCache_;

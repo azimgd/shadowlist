@@ -175,7 +175,7 @@ static NSString *SLDragKey(const std::string& key)
 
   // Tell the core a drag started so this row stays mounted when it scrolls off screen.
   NSString *originKey = SLDragKey(_drag.originKey());
-  [self dispatchDragEventType:1 fromKey:originKey toKey:originKey];
+  [self dispatchDragEventType:azimgd::shadowlist::DRAG_EVENT_START fromKey:originKey toKey:originKey];
 
   _dragDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
@@ -381,7 +381,7 @@ static NSString *SLDragKey(const std::string& key)
    * Send the reorder by key and keep the rows shifted until the commit lands.
    * The indexes below still drive the settle animation.
    */
-  [self dispatchDragEventType:3 fromKey:SLDragKey(_drag.originKey()) toKey:SLDragKey(_drag.insertionKey())];
+  [self dispatchDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:SLDragKey(_drag.originKey()) toKey:SLDragKey(_drag.insertionKey())];
 
   if (from == to || !view) {
     // Dropped where it started, so no commit will come. Settle now.
@@ -537,7 +537,7 @@ static NSString *SLDragKey(const std::string& key)
     return NO;
   }
 
-  [self dispatchDragEventType:3 fromKey:key toKey:neighborKey];
+  [self dispatchDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:key toKey:neighborKey];
   return YES;
 }
 

@@ -324,8 +324,8 @@ TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
 }
 
 /*
- * ShadowListNative setData with scrollTo start sends the new rows and scrollToStart in one
- * update. The command wins over keeping the visible row in place, so the only correction is
+ * Replacing the data and scrolling to the start can arrive as the new rows and scrollToStart in
+ * one update. The command wins over keeping the visible row in place, so the only correction is
  * to offset 0. Without the command the same update holds the old row.
  */
 TEST(scroll_to_start_with_new_rows_is_one_correction) {

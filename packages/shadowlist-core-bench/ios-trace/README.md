@@ -64,8 +64,7 @@ rejects the gesture.
 
 Expected cases are tagged `(explained)`: a fast fling, an inverted list pinned to its bottom
 as messages arrive, the scroll-to-top jump, a host scroll command (`scrollToIndex` /
-`scrollToEnd`), an overscroll settling, the refresh inset. A ShadowListNative engine scroll
-(`[SL] native: scroll index=...`) has no host event, so its jump still shows as `!!`.
+`scrollToEnd`), an overscroll settling, the refresh inset.
 
 Debug builds also log the core's corrections: `[SL]   op arrived: type= key= index=` when a
 correction reaches its target (type 0 MVCP, 1 scrollToIndex, 2 scrollToStart, 3 scrollToEnd,
@@ -96,7 +95,7 @@ edits do not reach it until the next build.
 ## Perf suite
 
 `../perf-suite.sh <ios|android> <label>` runs `scenarios/perf-<screen>.steps` (iOS) or the
-same flings through adb (Android) for Feed, FeedNative, Chat, ChatNative, SectionList and
+same flings through adb (Android) for Feed, Chat, SectionList and
 Masonry at 50, 200 and 1000 rows (`SLCount` launch setting), `RUNS` times each, and writes
 `results/perf/<label>/<platform>/` with a `summary.md`. `../perf.py compare <a> <b>` diffs two
 labels. Step files may use `{FLINGS}`, `{BACK}` and `{HALF}`, which run.sh fills from `$FLINGS`.

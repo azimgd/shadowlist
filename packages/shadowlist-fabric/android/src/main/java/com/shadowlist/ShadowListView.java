@@ -44,12 +44,16 @@ public class ShadowListView extends FrameLayout {
   }
 
   /*
-   * Values for the scrollPhase state key, matching ShadowListViewState.h.
+   * Values for the scrollPhase state key, matching SCROLL_PHASE_* in host/LiveScroll.hpp.
    * Idle, finger down, or momentum running.
    */
   private static final double SCROLL_PHASE_IDLE = 0.0;
   private static final double SCROLL_PHASE_DRAGGING = 1.0;
   private static final double SCROLL_PHASE_SETTLING = 2.0;
+  /*
+   * The scrollToIndex index that means the end, matching SCROLL_TO_END_INDEX in Constants.hpp.
+   */
+  private static final double SCROLL_TO_END_INDEX = -3.0;
 
   /*
    * Keys of the state MapBuffer, matching ShadowListStateKey in ShadowListViewState.h.
@@ -60,7 +64,6 @@ public class ShadowListView extends FrameLayout {
   private static final int STATE_OFFSET_X = 3;
   private static final int STATE_OFFSET_Y = 4;
   private static final int STATE_COMMIT_TOKEN = 5;
-  private static final int STATE_MOMENTUM_YIELD_TOKEN = 6;
   private static final int STATE_OFFSET_BASE_X = 7;
   private static final int STATE_OFFSET_BASE_Y = 8;
   private static final int STATE_USER_SCROLLED = 9;
@@ -802,7 +805,6 @@ public class ShadowListView extends FrameLayout {
       mapBuffer.getDouble(STATE_OFFSET_BASE_X),
       mapBuffer.getDouble(STATE_OFFSET_BASE_Y),
       mapBuffer.getDouble(STATE_COMMIT_TOKEN),
-      mapBuffer.getDouble(STATE_MOMENTUM_YIELD_TOKEN),
       mapBuffer.getBoolean(STATE_USER_SCROLLED),
       mapBuffer.getDouble(STATE_SCROLL_PHASE),
       mapBuffer.getDouble(STATE_CONCEAL_GENERATION),
@@ -902,13 +904,6 @@ public class ShadowListView extends FrameLayout {
       mDragController.ownsScrollOffset());
     if (action != ShadowListScrollSync.ACTION_WRITE) {
       return;
-    }
-    /*
-     * A ShadowListNative scroll command reaches the core in a commit, not through this view.
-     * Stop momentum when the correction mounts, like scrollToIndex does, and write the offset.
-     */
-    if (mSync.actionStopsMomentum()) {
-      stopMomentum();
     }
     int appliedX = Math.round(PixelUtil.toPixelFromDIP((float) mSync.actionX()));
     int appliedY = Math.round(PixelUtil.toPixelFromDIP((float) mSync.actionY()));
@@ -1040,10 +1035,9 @@ public class ShadowListView extends FrameLayout {
       return;
     }
     /*
-     * Index -3 means the end. The core keeps adjusting as rows get measured instead of
-     * jumping to an estimated bottom.
+     * The core keeps adjusting as rows get measured instead of jumping to an estimated bottom.
      */
-    issueScrollCommand(-3.0, 0.0);
+    issueScrollCommand(SCROLL_TO_END_INDEX, 0.0);
   }
 
   /*

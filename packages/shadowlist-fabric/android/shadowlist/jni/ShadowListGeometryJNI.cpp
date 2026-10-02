@@ -1,4 +1,3 @@
-#ifdef ANDROID
 /*
  * JNI side of com.shadowlist.ShadowListGeometry. Plain calls into the host layer's pinning,
  * drag and snap math. The Java host calls these on the UI thread with arrays it reuses.
@@ -354,5 +353,3 @@ extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_drag
     sl::DRAG_AUTO_SCROLL_ANDROID.maxSpeed * pixelsPerDip};
   return sl::dragAutoScrollOffset(config, touch, windowSize, offset, maxOffset);
 }
-
-#endif

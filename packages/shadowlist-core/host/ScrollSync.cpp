@@ -51,18 +51,6 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
     return action;
   }
 
-  /*
-   * A scroll command issued in C++, like a ShadowListNative scrollToIndex, reaches the core in
-   * a commit, not through the view. Stop momentum when it mounts and write the offset.
-   * A finger on the list wins, and the core lets the drag cancel the command.
-   */
-  std::uint64_t yieldToken = state.momentumYieldToken;
-  bool scrollCommand = yieldToken != 0 && token == yieldToken && !view.touching;
-  if (scrollCommand && yieldToken != yieldedToken_) {
-    yieldedToken_ = yieldToken;
-    action.stopMomentum = true;
-  }
-
   double offsetX = state.offsetX;
   double offsetY = state.offsetY;
 
@@ -75,7 +63,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
    */
   bool continuesShiftedCorrection = token != 0 && token == shiftedToken_;
   bool computedDuringGesture = token != 0 && (state.userScrolled || state.scrollPhase != SCROLL_PHASE_IDLE);
-  bool shift = !scrollCommand && (view.moving || continuesShiftedCorrection || computedDuringGesture);
+  bool shift = view.moving || continuesShiftedCorrection || computedDuringGesture;
   if (shift) {
     double delta = target - base;
     /*
@@ -100,7 +88,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
    * carry an offset a frame old, and rebuilding the fling from it would restart momentum from
    * the past on every frame. Our own animated scrolls use a plain write too.
    */
-  action.preserveMomentum = !scrollCommand && (token != 0 || shift) && !armedAnimated();
+  action.preserveMomentum = (token != 0 || shift) && !armedAnimated();
 
   action.kind = MountAction::Kind::Write;
   action.offsetX = offsetX;

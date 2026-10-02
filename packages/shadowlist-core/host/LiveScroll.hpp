@@ -20,7 +20,7 @@ constexpr double SCROLL_PHASE_SETTLING = 2.0;
  * The host's newest scroll report, shared by every state of one list.
  *
  * The host writes it on every scroll frame without a commit. A commit that runs for any
- * other reason, like a React render or a ShadowListNative data change, reads it in adopt(),
+ * other reason, like a React render, reads it in adopt(),
  * so the core never works from an offset older than the screen. That matters for keeping
  * content in place: an update run on an old offset anchors there and moves the content by
  * the difference.

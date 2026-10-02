@@ -33,10 +33,9 @@ final class ShadowListScrollSync {
   private static final int OUT_ACTION_X = 14;
   private static final int OUT_ACTION_Y = 15;
   private static final int OUT_ACTION_TOKEN = 16;
-  private static final int OUT_ACTION_STOP_MOMENTUM = 17;
-  private static final int OUT_ACTION_SHIFTED = 18;
-  private static final int OUT_ACTION_PRESERVE_MOMENTUM = 19;
-  private static final int OUT_SLOTS = 20;
+  private static final int OUT_ACTION_SHIFTED = 17;
+  private static final int OUT_ACTION_PRESERVE_MOMENTUM = 18;
+  private static final int OUT_SLOTS = 19;
 
   // Values of correction(), matching MountAction::Kind.
   static final int ACTION_NONE = 0;
@@ -83,7 +82,6 @@ final class ShadowListScrollSync {
     double baseX,
     double baseY,
     double commitToken,
-    double momentumYieldToken,
     boolean userScrolled,
     double scrollPhase,
     double concealGeneration,
@@ -91,7 +89,7 @@ final class ShadowListScrollSync {
     double bandLow,
     double bandHigh) {
     nativeBeginMount(mNative, liveHandle, offsetEnabled, offsetX, offsetY, baseX, baseY, commitToken,
-      momentumYieldToken, userScrolled, scrollPhase, concealGeneration, commandSequence, bandLow, bandHigh);
+      userScrolled, scrollPhase, concealGeneration, commandSequence, bandLow, bandHigh);
   }
 
   void setApplyingContentSize(boolean applying) {
@@ -118,10 +116,6 @@ final class ShadowListScrollSync {
 
   long actionToken() {
     return (long) mOut[OUT_ACTION_TOKEN];
-  }
-
-  boolean actionStopsMomentum() {
-    return mOut[OUT_ACTION_STOP_MOMENTUM] != 0.0;
   }
 
   boolean actionShifted() {
@@ -240,7 +234,6 @@ final class ShadowListScrollSync {
     double baseX,
     double baseY,
     double commitToken,
-    double momentumYieldToken,
     boolean userScrolled,
     double scrollPhase,
     double concealGeneration,

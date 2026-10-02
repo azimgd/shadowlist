@@ -12,7 +12,7 @@ ScrollPhase scrollPhaseFromReport(double scrollPhase) {
   return ScrollPhase::Idle;
 }
 
-bool applyHostScroll(FrameInput& input, const ListScrollState& state, bool engineScrollCommand) {
+void applyHostScroll(FrameInput& input, const ListScrollState& state) {
   input.containerOffsetX = state.offsetX;
   input.containerOffsetY = state.offsetY;
   input.containerOffsetEnabled = state.offsetEnabled;
@@ -28,16 +28,9 @@ bool applyHostScroll(FrameInput& input, const ListScrollState& state, bool engin
   input.scrollPhase = scrollPhaseFromReport(state.scrollPhase);
   // The token the host echoed back, so the core can spot its own write. 0 if none.
   input.commitToken = static_cast<std::uint64_t>(state.commitToken);
-
-  bool yieldsMomentum = engineScrollCommand && input.scrollPhase != ScrollPhase::Dragging;
-  if (yieldsMomentum) {
-    input.userScrolled = false;
-    input.scrollPhase = ScrollPhase::Idle;
-  }
-  return yieldsMomentum;
 }
 
-bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& update, std::uint64_t engineYieldToken) {
+bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& update) {
   if (!update.changed) {
     return false;
   }
@@ -54,11 +47,6 @@ bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& upda
   state.offsetEnabled = update.applyContainerOffset;
   // 0 when no offset was written.
   state.commitToken = static_cast<double>(update.commitToken);
-  if (engineYieldToken != 0 && update.applyContainerOffset && update.commitToken == engineYieldToken) {
-    state.momentumYieldToken = static_cast<double>(update.commitToken);
-    state.userScrolled = false;
-    state.scrollPhase = SCROLL_PHASE_IDLE;
-  }
   return true;
 }
 

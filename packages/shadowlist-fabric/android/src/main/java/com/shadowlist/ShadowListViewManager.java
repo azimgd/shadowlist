@@ -259,12 +259,6 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "nativeListId")
-  public void setNativeListId(ShadowListView view, @Nullable String nativeListId) {
-    // For ShadowListNative. The shadow node reads it to build the rows.
-  }
-
-  @Override
   public void scrollToIndex(ShadowListView view, int index, double viewPosition) {
     view.scrollToIndex(index, viewPosition);
   }

@@ -62,6 +62,11 @@ class ShadowListDragController {
   private float mDragCrossLeading = 0f;
   private float mDropReleaseCrossLeading = 0f;
   private static final long DROP_SETTLE_MS = 180;
+  /*
+   * Match DRAG_EVENT_* in shadowlist-core/host/DragReorder.hpp.
+   */
+  private static final int DRAG_EVENT_START = 1;
+  private static final int DRAG_EVENT_END = 3;
 
   /*
    * The other mounted rows for the drag math, refilled each frame. The arrays only grow, so
@@ -321,7 +326,7 @@ class ShadowListDragController {
      */
     view.setTranslationZ(PixelUtil.toPixelFromDIP(8));
 
-    dispatchDragEvent(1, mDragOriginKey, mDragOriginKey);
+    dispatchDragEvent(DRAG_EVENT_START, mDragOriginKey, mDragOriginKey);
     startDragLoop();
     updateDrag();
   }
@@ -579,7 +584,7 @@ class ShadowListDragController {
     mDraggedView = null;
 
     // Send the one reorder by key. Keep the rows shifted until it lands so nothing snaps back.
-    dispatchDragEvent(3, mDragOriginKey, mDragInsertionKey);
+    dispatchDragEvent(DRAG_EVENT_END, mDragOriginKey, mDragInsertionKey);
 
     if (from == to || view == null) {
       // Dropped where it started, so there is nothing to wait for.

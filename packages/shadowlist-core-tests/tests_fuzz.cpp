@@ -193,7 +193,7 @@ struct SimHost {
     state.offsetY = this->stateOffset;
     state.baseY = this->stateBase;
     state.commitToken = static_cast<double>(this->stateToken);
-    if (publishStateUpdate(state, update, 0)) {
+    if (publishStateUpdate(state, update)) {
       this->stateOffset = state.offsetY;
       this->stateBase = state.baseY;
       this->stateToken = static_cast<std::uint64_t>(state.commitToken);

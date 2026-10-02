@@ -42,9 +42,8 @@ using ShadowListLiveScroll = azimgd::shadowlist::LiveScroll;
  * environment variable SHADOWLIST_SCROLL_BAND=0 to turn it off. Android apps get no launch
  * environment, so there only the define counts.
  *
- * SHADOWLIST_IMMEDIATE_STATE: the iOS host and ShadowListNative data changes commit their
- * state update right away on the calling thread instead of on the next event beat. Off by
- * default. Set SHADOWLIST_IMMEDIATE_STATE=1 to try it.
+ * SHADOWLIST_IMMEDIATE_STATE: the iOS host commits its state update right away on the calling
+ * thread instead of on the next event beat. Off by default. Set SHADOWLIST_IMMEDIATE_STATE=1 to try it.
  */
 #ifndef SHADOWLIST_SCROLL_BAND
 #define SHADOWLIST_SCROLL_BAND 1
@@ -97,7 +96,6 @@ constexpr MapBuffer::Key OFFSET_ENABLED = 2;
 constexpr MapBuffer::Key OFFSET_X = 3;
 constexpr MapBuffer::Key OFFSET_Y = 4;
 constexpr MapBuffer::Key COMMIT_TOKEN = 5;
-constexpr MapBuffer::Key MOMENTUM_YIELD_TOKEN = 6;
 constexpr MapBuffer::Key OFFSET_BASE_X = 7;
 constexpr MapBuffer::Key OFFSET_BASE_Y = 8;
 constexpr MapBuffer::Key USER_SCROLLED = 9;
@@ -187,8 +185,6 @@ public:
     // Android never conceals rows, so just carry these over.
     concealGeneration_(previousState.concealGeneration_),
     concealGenerationAck_(previousState.concealGenerationAck_),
-    // Only the core writes this, so carry it over.
-    momentumYieldToken_(previousState.momentumYieldToken_),
     // The band comes from the layout pass and the live report is shared, so carry both over.
     offsetBandLow_(previousState.offsetBandLow_),
     offsetBandHigh_(previousState.offsetBandHigh_),
@@ -281,7 +277,6 @@ public:
     result["commitToken"] = commitToken_;
     result["containerOffsetBaseX"] = containerOffsetBaseX_;
     result["containerOffsetBaseY"] = containerOffsetBaseY_;
-    result["momentumYieldToken"] = momentumYieldToken_;
     return result;
   };
 
@@ -298,7 +293,6 @@ public:
     builder.putDouble(ShadowListStateKey::OFFSET_X, containerOffsetX_);
     builder.putDouble(ShadowListStateKey::OFFSET_Y, containerOffsetY_);
     builder.putDouble(ShadowListStateKey::COMMIT_TOKEN, commitToken_);
-    builder.putDouble(ShadowListStateKey::MOMENTUM_YIELD_TOKEN, momentumYieldToken_);
     builder.putDouble(ShadowListStateKey::OFFSET_BASE_X, containerOffsetBaseX_);
     builder.putDouble(ShadowListStateKey::OFFSET_BASE_Y, containerOffsetBaseY_);
     builder.putBool(ShadowListStateKey::USER_SCROLLED, userScrolled_);
@@ -330,7 +324,6 @@ public:
     state.baseX = containerOffsetBaseX_;
     state.baseY = containerOffsetBaseY_;
     state.commitToken = commitToken_;
-    state.momentumYieldToken = momentumYieldToken_;
     state.userScrolled = userScrolled_;
     state.scrollPhase = scrollPhase_;
     state.totalWidth = totalContainerWidth_;
@@ -345,7 +338,6 @@ public:
     containerOffsetBaseX_ = state.baseX;
     containerOffsetBaseY_ = state.baseY;
     commitToken_ = state.commitToken;
-    momentumYieldToken_ = state.momentumYieldToken;
     userScrolled_ = state.userScrolled;
     scrollPhase_ = state.scrollPhase;
     totalContainerWidth_ = state.totalWidth;
@@ -416,7 +408,6 @@ public:
     mounted.baseX = containerOffsetBaseX_;
     mounted.baseY = containerOffsetBaseY_;
     mounted.commitToken = static_cast<std::uint64_t>(commitToken_);
-    mounted.momentumYieldToken = static_cast<std::uint64_t>(momentumYieldToken_);
     mounted.userScrolled = userScrolled_;
     mounted.scrollPhase = scrollPhase_;
     mounted.concealGeneration = concealGeneration_;
@@ -530,17 +521,9 @@ public:
   double concealGenerationAck_{0.0};
 
   /*
-   * The commit token of a scroll command issued in C++, like a ShadowListNative
-   * scrollToIndex, or 0 when none. A host mounting that correction stops momentum first
-   * and then writes the offset, just like its own scroll commands do.
-   * Keep it after concealGenerationAck_ to match the Android constructor's init order.
-   */
-  double momentumYieldToken_{0.0};
-
-  /*
    * The scroll offsets the host can move through without sending a state update, from the
    * layout pass, see azimgd::shadowlist::OffsetBand. Low above high means send every frame,
-   * which is also the start value. Keep these after momentumYieldToken_ to match the Android
+   * which is also the start value. Keep these after concealGenerationAck_ to match the Android
    * constructor's init order.
    */
   double offsetBandLow_{1.0};

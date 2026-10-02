@@ -49,18 +49,12 @@ struct ElementSizeSpec {
 };
 
 /*
- * Parses the elementsSizeSpecs JSON. Bad input just gives fewer specs, and those rows fall
- * back to estimates, never a thrown error.
- */
-std::vector<ElementSizeSpec> parseElementSizeSpecs(const std::string& json);
-
-/*
  * Feeds predicted sizes to the core a few rows per commit.
  *
  * Measuring costs a text layout per row, about a tenth of a millisecond each, and doing a
  * whole list at once spikes the commit thread. So each run stops at the budget and the next
  * picks up where it stopped. A row not measured yet just uses the normal estimate.
- * The parse is cached too, since parsing the whole JSON on every commit would cost more than
+ * The parsed specs are cached too, since parsing them on every commit would cost more than
  * the measuring. A new source, which the host keeps alive so its address can't be reused, or
  * a new width starts over.
  */
@@ -70,12 +64,13 @@ public:
   static constexpr std::size_t BUDGET_PER_RUN = 24;
 
   /*
-   * Measure the next specs of json. measure(spec, width) returns the row size. A new width
+   * Measure the next specs of source. parse() returns them and only runs for a new source or
+   * width. measure(spec, width) returns the row size. A new width
    * makes every predicted height wrong, so they are all dropped first. Text wraps to the
    * list width, so nothing happens at zero width.
    */
-  template <typename Measure>
-  void run(Container& core, const std::shared_ptr<const void>& source, const std::string& json, double width, Measure&& measure) {
+  template <typename Parse, typename Measure>
+  void run(Container& core, const std::shared_ptr<const void>& source, double width, Parse&& parse, Measure&& measure) {
     if (!(width > 0.0)) {
       return;
     }
@@ -88,7 +83,7 @@ public:
       return;
     }
     if (!sameSpecs) {
-      specs_ = parseElementSizeSpecs(json);
+      specs_ = parse();
       cursor_ = 0;
       source_ = source;
     }

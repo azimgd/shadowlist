@@ -185,41 +185,6 @@ TEST(scroll_sync_shift_starts_from_the_bounced_offset) {
   CHECK_EQ(mountAndWrite(sync, correctionState(160.0, 0.0, 6), live, view), 120.0);
 }
 
-TEST(scroll_sync_core_scroll_command_stops_momentum_once) {
-  auto live = std::make_shared<LiveScroll>();
-  ScrollSync sync;
-  MountedScroll command = correctionState(2000.0, 100.0, 12);
-  command.momentumYieldToken = 12;
-  ViewMotion flinging = viewAt(140.0);
-  flinging.moving = true;
-
-  sync.beginMount(command, live);
-  MountAction first = sync.correction(flinging);
-  sync.endMount();
-  CHECK(first.kind == MountAction::Kind::Write);
-  CHECK(first.stopMomentum);
-  CHECK(!first.shifted);
-  CHECK(!first.preserveMomentum);
-  CHECK_EQ(first.offsetY, 2000.0);
-
-  sync.beginMount(command, live);
-  MountAction again = sync.correction(viewAt(2000.0));
-  sync.endMount();
-  CHECK(!again.stopMomentum);
-
-  // A finger on the list wins: no stop, and the moving view shifts like any correction.
-  ScrollSync touched;
-  ViewMotion finger = viewAt(140.0);
-  finger.touching = true;
-  finger.moving = true;
-  touched.beginMount(command, live);
-  MountAction held = touched.correction(finger);
-  touched.endMount();
-  CHECK(!held.stopMomentum);
-  CHECK(held.shifted);
-  CHECK_EQ(held.offsetY, 2040.0);
-}
-
 TEST(scroll_sync_content_size_clamp_is_not_a_user_scroll) {
   auto live = std::make_shared<LiveScroll>();
   ScrollSync sync;

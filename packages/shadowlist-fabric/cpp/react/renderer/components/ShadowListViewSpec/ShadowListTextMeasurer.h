@@ -9,6 +9,8 @@
 #include <react/renderer/textlayoutmanager/TextLayoutManager.h>
 #include <react/utils/ContextContainer.h>
 
+#include <folly/json.h>
+
 #include <shadowlist-core/Element.hpp>
 #include <shadowlist-core/host/ElementSizeSpec.hpp>
 
@@ -19,6 +21,61 @@
 #include <vector>
 
 namespace facebook::react {
+
+/*
+ * Parses the elementsSizeSpecs JSON. Bad input just gives fewer specs, and those rows fall
+ * back to estimates, never a thrown error.
+ */
+inline std::vector<azimgd::shadowlist::ElementSizeSpec> parseElementSizeSpecs(const std::string& json) {
+  std::vector<azimgd::shadowlist::ElementSizeSpec> specs;
+  folly::dynamic parsed;
+  try {
+    parsed = folly::parseJson(json);
+  } catch (...) {
+    return specs;
+  }
+  if (!parsed.isArray()) {
+    return specs;
+  }
+  auto number = [](const folly::dynamic& entry, const char* name, double fallback) {
+    auto field = entry.get_ptr(name);
+    return field != nullptr && field->isNumber() ? field->asDouble() : fallback;
+  };
+  auto text = [](const folly::dynamic& entry, const char* name) {
+    auto field = entry.get_ptr(name);
+    return field != nullptr && field->isString() ? field->getString() : std::string{};
+  };
+  constexpr double NaN = std::numeric_limits<double>::quiet_NaN();
+  specs.reserve(parsed.size());
+  for (const auto& entry : parsed) {
+    if (!entry.isObject()) {
+      continue;
+    }
+    azimgd::shadowlist::ElementSizeSpec spec;
+    spec.key = text(entry, "key");
+    if (spec.key.empty()) {
+      continue;
+    }
+    spec.text = text(entry, "text");
+    spec.fontFamily = text(entry, "fontFamily");
+    spec.fontWeight = text(entry, "fontWeight");
+    // fontWeight can also be a number like 700, so turn it into a string.
+    if (auto fontWeight = entry.get_ptr("fontWeight"); fontWeight != nullptr && fontWeight->isNumber()) {
+      spec.fontWeight = std::to_string(static_cast<int>(fontWeight->asDouble()));
+    }
+    spec.fontStyle = text(entry, "fontStyle");
+    spec.fontSize = number(entry, "fontSize", azimgd::shadowlist::ElementSizeSpec::DEFAULT_FONT_SIZE);
+    spec.lineHeight = number(entry, "lineHeight", NaN);
+    spec.letterSpacing = number(entry, "letterSpacing", NaN);
+    spec.numberOfLines = static_cast<int>(number(entry, "numberOfLines", 0.0));
+    spec.insetWidth = number(entry, "insetWidth", 0.0);
+    spec.insetHeight = number(entry, "insetHeight", 0.0);
+    spec.widthFraction = number(entry, "widthFraction", 1.0);
+    spec.fixedHeight = number(entry, "fixedHeight", NaN);
+    specs.push_back(std::move(spec));
+  }
+  return specs;
+}
 
 /*
  * Measures row text before the row renders, so its height is right from the first frame

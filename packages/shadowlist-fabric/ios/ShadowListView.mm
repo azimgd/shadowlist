@@ -652,12 +652,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     _scrollToTopJumpY = action.offsetY;
     _scrollToTopJumpToken = action.token;
   } else if (action.kind == azimgd::shadowlist::MountAction::Kind::Write) {
-#if !TARGET_OS_OSX
-    // A ShadowListNative scroll command stops momentum when it mounts, like scrollToIndex.
-    if (action.stopMomentum && [self stopMomentum]) {
-      _scrollSync.momentumStopped();
-    }
-#else
+#if TARGET_OS_OSX
     // A plain write never keeps a fling on macOS, so shifting would not help.
     if (action.shifted) {
       action.offsetX = nextStateData.containerOffsetX_;
@@ -1453,12 +1448,11 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   }
 
   /*
-   * Use SCROLL_TO_END_INDEX, which is -3, so the core keeps aiming at the real bottom as
-   * rows get measured. animated is unused but kept for API compatibility.
+   * SCROLL_TO_END_INDEX makes the core keep aiming at the real bottom as rows get measured. animated is unused but kept for API compatibility.
    */
   (void)animated;
   SLF_TRACE("ev=cmd-scroll-to-end off=%.1f,%.1f", _scrollView.contentOffset.x, _scrollView.contentOffset.y);
-  [self commitScrollCommandIndex:-3.0 viewPosition:0.0];
+  [self commitScrollCommandIndex:azimgd::shadowlist::SCROLL_TO_END_INDEX viewPosition:0.0];
 }
 
 Class<RCTComponentViewProtocol> ShadowListViewCls(void)

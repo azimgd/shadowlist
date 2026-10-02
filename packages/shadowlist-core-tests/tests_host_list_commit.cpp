@@ -43,20 +43,12 @@ TEST(list_commit_host_scroll_fills_the_frame) {
   state.scrollPhase = SCROLL_PHASE_DRAGGING;
   state.commitToken = 4.0;
   FrameInput input;
-  CHECK(!applyHostScroll(input, state, false));
+  applyHostScroll(input, state);
   CHECK_EQ(input.containerOffsetY, 120.0);
   CHECK(input.userScrolled);
   CHECK(input.scrollPhase == ScrollPhase::Dragging);
   CHECK_EQ(input.commitToken, static_cast<std::uint64_t>(4));
 
-  // A ShadowListNative command yields momentum, unless a finger is down.
-  state.scrollPhase = SCROLL_PHASE_SETTLING;
-  CHECK(applyHostScroll(input, state, true));
-  CHECK(!input.userScrolled);
-  CHECK(input.scrollPhase == ScrollPhase::Idle);
-  state.scrollPhase = SCROLL_PHASE_DRAGGING;
-  CHECK(!applyHostScroll(input, state, true));
-  CHECK(input.scrollPhase == ScrollPhase::Dragging);
 }
 
 TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {
@@ -67,7 +59,7 @@ TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {
   update.applyContainerOffset = true;
   update.containerOffsetY = 300.0;
   update.commitToken = 8;
-  CHECK(publishStateUpdate(state, update, 0));
+  CHECK(publishStateUpdate(state, update));
   CHECK_EQ(state.baseY, 200.0);
   CHECK_EQ(state.offsetY, 300.0);
   CHECK(state.offsetEnabled);
@@ -77,39 +69,18 @@ TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {
   state.offsetY = 260.0;
   state.offsetEnabled = false;
   update.containerOffsetY = 330.0;
-  CHECK(publishStateUpdate(state, update, 0));
+  CHECK(publishStateUpdate(state, update));
   CHECK_EQ(state.baseY, 200.0);
 
   // A new token starts a new base.
   state.offsetY = 330.0;
   update.commitToken = 9;
   update.containerOffsetY = 400.0;
-  publishStateUpdate(state, update, 0);
+  publishStateUpdate(state, update);
   CHECK_EQ(state.baseY, 330.0);
 
   ContainerStateUpdate unchanged;
-  CHECK(!publishStateUpdate(state, unchanged, 0));
-}
-
-TEST(list_commit_publish_marks_an_engine_scroll_command) {
-  ListScrollState state;
-  state.userScrolled = true;
-  state.scrollPhase = SCROLL_PHASE_SETTLING;
-  ContainerStateUpdate update;
-  update.changed = true;
-  update.applyContainerOffset = true;
-  update.containerOffsetY = 900.0;
-  update.commitToken = 15;
-  publishStateUpdate(state, update, 15);
-  CHECK_EQ(state.momentumYieldToken, 15.0);
-  CHECK(!state.userScrolled);
-  CHECK_EQ(state.scrollPhase, SCROLL_PHASE_IDLE);
-
-  ListScrollState other;
-  other.userScrolled = true;
-  publishStateUpdate(other, update, 14);
-  CHECK_EQ(other.momentumYieldToken, 0.0);
-  CHECK(other.userScrolled);
+  CHECK(!publishStateUpdate(state, unchanged));
 }
 
 TEST(list_commit_sticky_indices_drop_negatives) {
@@ -267,34 +238,20 @@ TEST(conceal_tracker_hides_only_above_a_row_anchor) {
   CHECK_EQ(ConcealTracker<int>::hideBeforeIndex(core, true, false), static_cast<std::size_t>(0));
 }
 
-TEST(size_specs_parse_skips_bad_entries) {
-  auto specs = parseElementSizeSpecs(
-    R"([{"key":"a","text":"hi","fontSize":16,"fontWeight":700,"lineHeight":20},)"
-    R"({"text":"no key"},5,{"key":"b","fixedHeight":44,"widthFraction":0.75,"numberOfLines":2}])");
-  CHECK_EQ(specs.size(), static_cast<std::size_t>(2));
-  CHECK_EQ(specs[0].key, std::string("a"));
-  CHECK_EQ(specs[0].fontSize, 16.0);
-  CHECK_EQ(specs[0].fontWeight, std::string("700"));
-  CHECK_EQ(specs[0].lineHeight, 20.0);
-  CHECK(std::isnan(specs[0].letterSpacing));
-  CHECK_EQ(specs[1].fixedHeight, 44.0);
-  CHECK_EQ(specs[1].widthFraction, 0.75);
-  CHECK_EQ(specs[1].numberOfLines, 2);
-  CHECK_EQ(specs[1].fontSize, ElementSizeSpec::DEFAULT_FONT_SIZE);
-  CHECK(parseElementSizeSpecs("not json").empty());
-  CHECK(parseElementSizeSpecs("{\"key\":\"a\"}").empty());
-  CHECK(parseElementSizeSpecs("").empty());
-}
-
 TEST(size_spec_queue_measures_within_a_budget) {
   Container core;
   auto keys = keysFor(60);
   Virtualizer::update(&core, inputFor(keys, 0.0));
-  std::string json = "[";
-  for (std::size_t index = 0; index < 60; ++index) {
-    json += std::string(index ? "," : "") + "{\"key\":\"k" + std::to_string(index) + "\",\"text\":\"t\"}";
+  std::vector<ElementSizeSpec> specs(60);
+  for (std::size_t index = 0; index < specs.size(); ++index) {
+    specs[index].key = "k" + std::to_string(index);
+    specs[index].text = "t";
   }
-  json += "]";
+  std::size_t parsed = 0;
+  auto parse = [&]() {
+    ++parsed;
+    return specs;
+  };
   auto source = std::make_shared<int>(1);
   SizeSpecQueue queue;
   std::size_t measured = 0;
@@ -302,21 +259,22 @@ TEST(size_spec_queue_measures_within_a_budget) {
     ++measured;
     return Size{width, 50.0};
   };
-  queue.run(core, source, json, WINDOW_WIDTH, measure);
+  queue.run(core, source, WINDOW_WIDTH, parse, measure);
   CHECK_EQ(measured, SizeSpecQueue::BUDGET_PER_RUN);
   CHECK(!queue.finished(source));
-  queue.run(core, source, json, WINDOW_WIDTH, measure);
-  queue.run(core, source, json, WINDOW_WIDTH, measure);
+  queue.run(core, source, WINDOW_WIDTH, parse, measure);
+  queue.run(core, source, WINDOW_WIDTH, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(60));
   CHECK(queue.finished(source));
-  queue.run(core, source, json, WINDOW_WIDTH, measure);
+  queue.run(core, source, WINDOW_WIDTH, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(60));
+  CHECK_EQ(parsed, static_cast<std::size_t>(1));
 
   // A new source or a new width starts over. Zero width does nothing.
   auto other = std::make_shared<int>(2);
   CHECK(!queue.finished(other));
-  queue.run(core, other, json, 0.0, measure);
+  queue.run(core, other, 0.0, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(60));
-  queue.run(core, source, json, WINDOW_WIDTH / 2, measure);
+  queue.run(core, source, WINDOW_WIDTH / 2, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(60) + SizeSpecQueue::BUDGET_PER_RUN);
 }

@@ -3,7 +3,6 @@
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
-#include "ShadowListNativeJSI.h"
 #include "ShadowListOffsetBand.h"
 #include "ShadowListTextMeasurer.h"
 #include "ShadowListTrace.h"
@@ -11,9 +10,9 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/DragReorder.hpp>
 #include <shadowlist-core/host/ListCommit.hpp>
 
-#include <algorithm>
 #include <atomic>
 #include <mutex>
 
@@ -28,64 +27,7 @@ public:
      * React Native's Paragraph descriptor, if built after us, shares our measure cache.
      * Doing it later at measure time would be too late. See getSharedTextLayoutManager.
      */
-    textLayoutManager_(getSharedTextLayoutManager(this->contextContainer_)) {
-    // Install the ShadowListNative data API early so JS rarely waits for it.
-    installShadowListNativeJSI(this->contextContainer_);
-  };
-
-  /*
-   * ShadowListNative rows are children that no React component renders. Any clone with new
-   * props, children or state matches them to the window the core just picked in adopt(),
-   * and commits the result as this node's children.
-   *
-   * Build a second node instead of editing children in place. A node built with new children
-   * gets its Yoga subtree set up by the layout pass like any React child. Editing a node
-   * already marked set up would lay the new rows out with Yoga defaults.
-   * Layout only clones are left alone.
-   */
-  std::shared_ptr<ShadowNode> cloneShadowNode(const ShadowNode& sourceShadowNode, const ShadowNodeFragment& fragment)
-    const override {
-    auto shadowNode = ConcreteComponentDescriptor::cloneShadowNode(sourceShadowNode, fragment);
-    if (!fragment.props && !fragment.children && !fragment.state) {
-      return shadowNode;
-    }
-    SL_TRACE_COMMIT(shadowNode->getTag());
-    auto& listShadowNode = static_cast<ShadowListViewShadowNode&>(*shadowNode);
-    auto children = reconcileNativeRows(listShadowNode);
-    if (!children) {
-      return shadowNode;
-    }
-    auto nextShadowNode = std::make_shared<ShadowListViewShadowNode>(*shadowNode, ShadowNodeFragment{.children = children});
-    shadowNode->transferRuntimeShadowNodeReference(nextShadowNode, fragment);
-    return nextShadowNode;
-  }
-
-  /*
-   * React appends a list's children one by one. Put the rows right after the
-   * ShadowListNative templates container, same as cloneShadowNode does.
-   */
-  void appendChild(
-    const std::shared_ptr<const ShadowNode>& parentShadowNode,
-    const std::shared_ptr<const ShadowNode>& childShadowNode) const override {
-    ConcreteComponentDescriptor::appendChild(parentShadowNode, childShadowNode);
-    const auto templateProps = std::dynamic_pointer_cast<const ShadowListTemplateViewProps>(childShadowNode->getProps());
-    if (!templateProps || templateProps->templateType != "native") {
-      return;
-    }
-    auto& listShadowNode = const_cast<ShadowListViewShadowNode&>(static_cast<const ShadowListViewShadowNode&>(*parentShadowNode));
-    auto children = reconcileNativeRows(listShadowNode);
-    if (!children) {
-      return;
-    }
-    const auto& current = listShadowNode.getChildren();
-    // The container was just appended last, so only rows can follow it.
-    if (children->size() < current.size() || !std::equal(current.begin(), current.end(), children->begin())) {
-      return;
-    }
-    for (std::size_t index = current.size(); index < children->size(); ++index) {
-      listShadowNode.appendChild((*children)[index]);
-    }
-  }
+    textLayoutManager_(getSharedTextLayoutManager(this->contextContainer_)) {};
 
   void adopt(ShadowNode& shadowNode) const override {
     ConcreteComponentDescriptor::adopt(shadowNode);
@@ -93,10 +35,6 @@ public:
     // Debug trace, does nothing unless the app was launched with SHADOWLIST_FRAME_TRACE=1.
     if (!jsTraceInstalled_.exchange(true, std::memory_order_relaxed)) {
       shadowlist::detail::installJsTrace(this->contextContainer_);
-    }
-
-    if (!nativeJsiInstalled_.exchange(true, std::memory_order_relaxed)) {
-      installShadowListNativeJSI(this->contextContainer_);
     }
 
     auto& shadowlistViewShadowNode = static_cast<ShadowListViewShadowNode&>(shadowNode);
@@ -147,22 +85,6 @@ public:
     auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
     auto containerManager = shadowlistViewShadowNode.getContainerManager().get();
-
-    /*
-     * For ShadowListNative, attach the native store and snapshot its keys. The core and the
-     * mounted rows both use this snapshot, so a row never mounts for a key the core doesn't know.
-     */
-    ShadowListNativeEngine::KeysSnapshot nativeKeys;
-    if (!shadowlistViewProps.nativeListId.empty()) {
-      if (!shadowlistViewShadowNode.getNativeEngine() ||
-          shadowlistViewShadowNode.getNativeEngine()->listId() != shadowlistViewProps.nativeListId) {
-        shadowlistViewShadowNode.setNativeEngine(ShadowListNativeRegistry::obtain(shadowlistViewProps.nativeListId));
-      }
-      const auto& nativeEngine = shadowlistViewShadowNode.getNativeEngine();
-      nativeEngine->attachState(std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteState>(shadowNode.getState()));
-      nativeKeys = nativeEngine->keysSnapshot();
-      shadowlistViewShadowNode.setNativeKeys(nativeKeys.keys);
-    }
 
     /*
      * Lock the shared core for this commit. adopt() can run at the same time as layout,
@@ -268,17 +190,16 @@ public:
     /*
      * Tell JS when a drag starts or ends. The platform view bumps the sequence only on pick
      * up and drop, since finger tracking stays native. Fire once per new sequence.
-     * Type 1 is pick up and 3 is drop.
      */
     if (shadowlistViewStateData.dragEventSequence_ != containerManager->lastDragEventSequence) {
       containerManager->lastDragEventSequence = shadowlistViewStateData.dragEventSequence_;
       const std::string& dragFromKey = shadowlistViewStateData.dragFromKey_;
       const std::string& dragToKey = shadowlistViewStateData.dragToKey_;
       switch (static_cast<int>(shadowlistViewStateData.dragEventType_)) {
-        case 1:
+        case azimgd::shadowlist::DRAG_EVENT_START:
           shadowlistViewEventEmitter.onDragStart({ .key = dragFromKey });
           break;
-        case 3:
+        case azimgd::shadowlist::DRAG_EVENT_END:
           shadowlistViewEventEmitter.onDragEnd({ .fromKey = dragFromKey, .toKey = dragToKey });
           break;
         default:
@@ -296,16 +217,12 @@ public:
       shadowlistViewProps.containerOffsetIndex,
       shadowlistViewStateData.containerOffsetIndexViewPosition_);
 
-    // Run ShadowListNative scroll commands once the rows they wait for are laid out.
-    bool nativeScrollCommand = shadowlistViewShadowNode.getNativeEngine() &&
-      shadowlistViewShadowNode.getNativeEngine()->applyPendingScroll(*containerManager, nativeKeys.version);
-
     azimgd::shadowlist::FrameInput input;
     /*
      * Point the core at the props' keys instead of copying them. Props never change and
      * outlive this call. Copying cost milliseconds per commit on a large chat list.
      */
-    input.keysRef = nativeKeys.keys ? nativeKeys.keys.get() : &shadowlistViewProps.elementsAllKeys;
+    input.keysRef = &shadowlistViewProps.elementsAllKeys;
     /*
      * Keys of decoration rows like date pills and dividers that the core must never use as
      * the anchor for keeping content in place. An empty list means any row can be the anchor.
@@ -319,9 +236,7 @@ public:
      */
     auto geometryCache = shadowlistViewShadowNode.getGeometryCache();
     const auto& currentProps = shadowNode.getProps();
-    input.keysUnchanged = nativeKeys.keys
-      ? geometryCache && geometryCache->nativeKeysVersion == nativeKeys.version
-      : geometryCache && geometryCache->keysProps == currentProps;
+    input.keysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
     // The same props also mean the same anchor ignore keys.
     input.nonAnchorableKeysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
     input.windowContainerWidth = shadowlistViewLayoutMetrics.frame.size.width;
@@ -354,8 +269,7 @@ public:
     input.snapAlignment = shadowlistViewProps.snapToAlignment;
 
     // Offset, echoed token, user scroll flag and gesture phase, see applyHostScroll.
-    bool nativeScrollYieldsMomentum =
-      azimgd::shadowlist::applyHostScroll(input, shadowlistViewStateData.scrollState(), nativeScrollCommand);
+    azimgd::shadowlist::applyHostScroll(input, shadowlistViewStateData.scrollState());
 
     /*
      * Give the core predicted sizes before update(), so this frame picks its window from
@@ -372,10 +286,6 @@ public:
     // If the core throws, skip the frame instead of failing the commit. The next frame recovers.
     try {
       azimgd::shadowlist::Virtualizer::update(containerManager, input);
-      if (nativeScrollYieldsMomentum) {
-        shadowlistViewShadowNode.getNativeEngine()->setMomentumYieldToken(
-          containerManager->operation ? containerManager->operation->id : 0);
-      }
       /*
        * Only the layout pass publishes to the host, and a state only commit won't run it.
        * So mark layout dirty when there's a correction or the state has old geometry.
@@ -410,12 +320,10 @@ public:
        */
       if (geometryCache) {
         geometryCache->keysProps = currentProps;
-        geometryCache->nativeKeysVersion = nativeKeys.version;
       }
     } catch (...) {
       if (geometryCache) {
         geometryCache->keysProps = nullptr;
-        geometryCache->nativeKeysVersion = 0;
       }
     }
   };
@@ -444,41 +352,6 @@ private:
   }
 
   /*
-   * The children a ShadowListNative node should commit with. Null when it already has them,
-   * isn't a ShadowListNative, or its templates aren't mounted yet.
-   */
-  std::shared_ptr<const ShadowListNativeEngine::ChildList> reconcileNativeRows(ShadowListViewShadowNode& listShadowNode) const {
-    const auto& nativeEngine = listShadowNode.getNativeEngine();
-    const auto& nativeKeys = listShadowNode.getNativeKeys();
-    const auto& containerManager = listShadowNode.getContainerManager();
-    if (!nativeEngine || !nativeKeys || !containerManager) {
-      return nullptr;
-    }
-    bool hasTemplates = std::any_of(
-      listShadowNode.getChildren().begin(), listShadowNode.getChildren().end(), [](const auto& child) {
-        const auto templateProps = dynamic_cast<const ShadowListTemplateViewProps*>(child->getProps().get());
-        return templateProps && templateProps->templateType == "native";
-      });
-    if (!hasTemplates) {
-      return nullptr;
-    }
-    const auto& props = listShadowNode.getConcreteProps();
-    std::lock_guard<std::recursive_mutex> coreLock(containerManager->coreMutex);
-    try {
-      return nativeEngine->reconcileRows(
-        listShadowNode,
-        listShadowNode.getChildren(),
-        nativeKeys,
-        *containerManager,
-        props.containerOffsetIndex,
-        props.inverted);
-    } catch (...) {
-      // If a row fails to build, keep the mounted rows for this commit.
-      return nullptr;
-    }
-  }
-
-  /*
    * Turn elementsSizeSpecs into predicted sizes for the core, a few rows per commit.
    * See azimgd::shadowlist::SizeSpecQueue.
    */
@@ -497,8 +370,8 @@ private:
     geometryCache->sizeSpecs.run(
       *containerManager,
       shadowlistViewShadowNode.getProps(),
-      shadowlistViewProps.elementsSizeSpecs,
       availableWidth,
+      [&]() { return parseElementSizeSpecs(shadowlistViewProps.elementsSizeSpecs); },
       [&](const azimgd::shadowlist::ElementSizeSpec& spec, double width) {
         return measureElementSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
       });
@@ -512,7 +385,6 @@ private:
   const std::shared_ptr<const TextLayoutManager> textLayoutManager_;
 
   mutable std::atomic<bool> jsTraceInstalled_{false};
-  mutable std::atomic<bool> nativeJsiInstalled_{false};
 };
 
 void ShadowListViewSpec_registerComponentDescriptorsFromCodegen(

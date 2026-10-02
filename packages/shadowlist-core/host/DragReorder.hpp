@@ -7,6 +7,13 @@
 namespace azimgd::shadowlist {
 
 /*
+ * Drag event types a host writes into the list state when a row is picked up or dropped.
+ * Android's ShadowListDragController.DRAG_EVENT_* constants must match.
+ */
+constexpr int DRAG_EVENT_START = 1;
+constexpr int DRAG_EVENT_END = 3;
+
+/*
  * Drag to reorder along the scroll axis, or across the cells of a grid. The host owns the
  * gesture, the views and the scrolling. This works out where the held row goes, where it
  * would drop and how far every other row slides to open the gap.

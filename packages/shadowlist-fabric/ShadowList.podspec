@@ -2,20 +2,9 @@ require "json"
 
 package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 
-# Copy the core into this package before pod install. Wipe the copy first so files
-# removed from the core don't linger and still get compiled.
-core_source_dir = File.join(__dir__, "../shadowlist-core")
-core_dest_dir = File.join(__dir__, "shadowlist-core")
-if Dir.exist?(core_source_dir)
-  FileUtils.rm_rf(core_dest_dir)
-  FileUtils.mkdir_p(core_dest_dir)
-  Dir.glob(File.join(core_source_dir, "**/*.{cpp,hpp}")).each do |source_file|
-    relative_path = Pathname.new(source_file).relative_path_from(Pathname.new(core_source_dir))
-    dest_file = File.join(core_dest_dir, relative_path)
-    FileUtils.mkdir_p(File.dirname(dest_file))
-    FileUtils.cp(source_file, dest_file)
-  end
-end
+# Copy the core into this package before pod install, so the pod has the current file list.
+# CocoaPods reads the podspec several times per install, so copy once.
+$shadowlist_core_vendored ||= system("node", File.join(__dir__, "scripts", "vendor-core.js"), exception: true)
 
 Pod::Spec.new do |s|
   s.name         = "ShadowList"
@@ -47,6 +36,22 @@ Pod::Spec.new do |s|
   s.user_target_xcconfig = {
     'HEADER_SEARCH_PATHS' => '$(PODS_ROOT)/ShadowList'
   }
+
+  # In the monorepo, refresh the copy's contents before every build, so a core edit reaches
+  # iOS without another pod install. rsync keeps unchanged files untouched, so they don't
+  # rebuild. New or removed files still need pod install.
+  s.script_phases = [{
+    :name => "Sync shadowlist-core",
+    :execution_position => :before_compile,
+    :always_out_of_date => "1",
+    :script => <<~'SCRIPT',
+      CORE="${PODS_TARGET_SRCROOT}/../shadowlist-core"
+      if [ -f "${CORE}/Container.cpp" ]; then
+        rsync -a --delete --include='*/' --include='*.cpp' --include='*.hpp' --include='*.cmake' --exclude='*' \
+          "${CORE}/" "${PODS_TARGET_SRCROOT}/shadowlist-core/"
+      fi
+    SCRIPT
+  }]
 
   install_modules_dependencies(s)
 end

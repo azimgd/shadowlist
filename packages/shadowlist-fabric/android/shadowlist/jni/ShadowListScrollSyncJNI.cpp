@@ -1,4 +1,3 @@
-#ifdef ANDROID
 /*
  * JNI side of com.shadowlist.ShadowListScrollSync. Each Java view owns one ScrollSync from the
  * host layer, reached by pointer, and reads results from an array it reuses, so scroll frames
@@ -35,7 +34,6 @@ enum OutSlot {
   OUT_ACTION_X,
   OUT_ACTION_Y,
   OUT_ACTION_TOKEN,
-  OUT_ACTION_STOP_MOMENTUM,
   OUT_ACTION_SHIFTED,
   OUT_ACTION_PRESERVE_MOMENTUM,
   OUT_SLOTS,
@@ -126,7 +124,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   jdouble baseX,
   jdouble baseY,
   jdouble commitToken,
-  jdouble momentumYieldToken,
   jboolean userScrolled,
   jdouble scrollPhase,
   jdouble concealGeneration,
@@ -146,7 +143,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   mounted.baseX = baseX;
   mounted.baseY = baseY;
   mounted.commitToken = static_cast<std::uint64_t>(commitToken);
-  mounted.momentumYieldToken = static_cast<std::uint64_t>(momentumYieldToken);
   mounted.userScrolled = userScrolled == JNI_TRUE;
   mounted.scrollPhase = scrollPhase;
   mounted.concealGeneration = concealGeneration;
@@ -194,9 +190,8 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   slots[1] = action.offsetX;
   slots[2] = action.offsetY;
   slots[3] = static_cast<double>(action.token);
-  slots[4] = action.stopMomentum ? 1.0 : 0.0;
-  slots[5] = action.shifted ? 1.0 : 0.0;
-  slots[6] = action.preserveMomentum ? 1.0 : 0.0;
+  slots[4] = action.shifted ? 1.0 : 0.0;
+  slots[5] = action.preserveMomentum ? 1.0 : 0.0;
   env->SetDoubleArrayRegion(out, OUT_ACTION_KIND, OUT_SLOTS - OUT_ACTION_KIND, slots);
   return static_cast<jint>(action.kind);
 }
@@ -337,4 +332,3 @@ extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListScrollSync_na
   jlong pointer) {
   return host(pointer)->sync.currentScrollPhase();
 }
-#endif

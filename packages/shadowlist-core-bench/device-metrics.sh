@@ -4,7 +4,7 @@
 #
 #   ./device-metrics.sh <label> <screen> [flings] [swipe_ms]
 #
-# The screen is its route name in the example app, like Chat, Feed or FeedNative. The
+# The screen is its route name in the example app, like Chat, Feed or Masonry. The
 # script opens it from the home list, flings the list and reports:
 #
 #   Frames: timing and jank from dumpsys gfxinfo framestats.

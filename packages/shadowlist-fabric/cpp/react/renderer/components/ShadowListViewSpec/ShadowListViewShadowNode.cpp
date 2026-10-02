@@ -50,8 +50,6 @@ ShadowListViewShadowNode::ShadowListViewShadowNode(
   const auto& source = static_cast<const ShadowListViewShadowNode&>(sourceShadowNode);
   this->containerManager_ = source.containerManager_;
   this->geometryCache_ = source.geometryCache_;
-  this->nativeEngine_ = source.nativeEngine_;
-  this->nativeKeys_ = source.nativeKeys_;
 }
 
 void ShadowListViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager) {
@@ -380,8 +378,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
   if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged || bandChanged) {
     auto scrollState = nextStateData.scrollState();
-    std::uint64_t engineYieldToken = this->nativeEngine_ ? this->nativeEngine_->momentumYieldToken() : 0;
-    if (azimgd::shadowlist::publishStateUpdate(scrollState, stateUpdate, engineYieldToken)) {
+    if (azimgd::shadowlist::publishStateUpdate(scrollState, stateUpdate)) {
       nextStateData.setScrollState(scrollState);
     }
     /*
@@ -403,11 +400,6 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   }
 
   this->firstMeasuredTags_.clear();
-
-  // For ShadowListNative, keep the laid out rows and mount more if they don't fill the viewport.
-  if (this->nativeEngine_) {
-    this->nativeEngine_->didLayout(*this, core);
-  }
 }
 
 void ShadowListViewShadowNode::replaceChild(

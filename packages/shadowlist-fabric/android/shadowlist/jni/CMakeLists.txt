@@ -16,6 +16,7 @@ else()
 endif()
 
 get_filename_component(LIB_CORE_PARENT_DIR "${LIB_CORE_DIR}" DIRECTORY)
+include(${LIB_CORE_DIR}/sources.cmake)
 
 file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS
   ${LIB_JNI_DIR}/*.cpp
@@ -27,8 +28,8 @@ file(GLOB LIB_INCLUDES_SRCS CONFIGURE_DEPENDS
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListElementViewSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListTemplateViewSpec/*.cpp
 
-  ${LIB_CORE_DIR}/*.cpp
-  ${LIB_CORE_DIR}/host/*.cpp
+  # The JNI peers of ShadowListScrollSync.java and ShadowListGeometry.java.
+  ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 )
 
 add_library(
@@ -36,6 +37,7 @@ add_library(
   SHARED
   ${LIB_CODEGEN_SRCS}
   ${LIB_INCLUDES_SRCS}
+  ${SHADOWLIST_CORE_SOURCES}
 )
 
 target_include_directories(react_codegen_ShadowListViewSpec PUBLIC

@@ -37,7 +37,6 @@ struct MountedScroll {
   double baseX = 0.0;
   double baseY = 0.0;
   std::uint64_t commitToken = 0;
-  std::uint64_t momentumYieldToken = 0;
   bool userScrolled = false;
   double scrollPhase = SCROLL_PHASE_IDLE;
   double concealGeneration = 0.0;
@@ -86,8 +85,6 @@ struct MountAction {
   double offsetX = 0.0;
   double offsetY = 0.0;
   std::uint64_t token = 0;
-  // A scroll command from the core. Stop any fling or animation before writing.
-  bool stopMomentum = false;
   // The correction was added to the live offset instead of written as is.
   bool shifted = false;
   // A host that can keep a fling going across the write should, like Android's scrollToPreservingMomentum.
@@ -308,9 +305,6 @@ private:
    */
   std::uint64_t shiftedToken_ = 0;
   double shiftedTokenDelta_ = 0.0;
-
-  // The last core scroll command momentum was stopped for.
-  std::uint64_t yieldedToken_ = 0;
 
   /*
    * Whether the last report was a gesture. The mounted state lags behind, so it can't tell

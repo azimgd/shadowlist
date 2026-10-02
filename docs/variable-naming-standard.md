@@ -37,7 +37,6 @@ Use the same word for the same concept in every language. Casing follows the lan
 | Device pixel suffix                                                 | `xPx`                                                                |                                                                          |
 | Visible frame of the list                                           | `window` (core), `viewport` only for a computed `[start, end)` range |                                                                          |
 | Core slot for one data entry                                        | `element`                                                            | `cell`, `item` (in core and native code)                                 |
-| Row synthesized by `ShadowListNative`                               | `row`                                                                |                                                                          |
 | Anchor that holds content in place during MVCP                      | `anchor`                                                             | `pivot`                                                                  |
 
 `item` stays the name for user data in the public JS API (`renderItem`, `ItemSeparatorComponent`). `visible` and `viewable` are separate concepts: visible means any pixel on screen, viewable means past `viewablePercentThreshold`. Both are public props.

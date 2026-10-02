@@ -20,7 +20,7 @@
 # uiautomator dumps before and after a prepend and an append while scrolled.
 #
 # Environment:
-#   SCREENS="Feed FeedNative Chat ChatNative SectionList Masonry"   COUNTS="50 200 1000"   RUNS=3
+#   SCREENS="Feed Chat SectionList Masonry"   COUNTS="50 200 1000"   RUNS=3
 #   FLING_PT=2500      average travel of one fling in pt; fling count = count x row height / this
 #   FLINGS=<n>         force a fling count instead
 #   EXTRA_LAUNCH_ARGS  more iOS launch arguments, e.g. "-SLEngineFlags NO"; SIMCTL_CHILD_<NAME>
@@ -34,7 +34,7 @@ set -euo pipefail
 
 PLATFORM="${1:?usage: perf-suite.sh <ios|android> <label>}"
 LABEL="${2:?usage: perf-suite.sh <ios|android> <label>}"
-SCREENS="${SCREENS:-Feed FeedNative Chat ChatNative SectionList Masonry}"
+SCREENS="${SCREENS:-Feed Chat SectionList Masonry}"
 COUNTS="${COUNTS:-50 200 1000}"
 RUNS="${RUNS:-3}"
 FLING_PT="${FLING_PT:-2500}"
@@ -49,8 +49,8 @@ lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
 # Rough row height in pt per screen, to size the fling count so a run reaches the far end.
 row_pt() {
   case "$1" in
-    Feed | FeedNative) echo 300 ;;
-    Chat | ChatNative) echo 270 ;;
+    Feed) echo 300 ;;
+    Chat) echo 270 ;;
     SectionList) echo 70 ;;
     Masonry) echo 100 ;;
     *) echo 200 ;;
@@ -64,7 +64,7 @@ fling_count() {
   echo "$n"
 }
 
-inverted() { [[ "$1" == Chat || "$1" == ChatNative ]]; }
+inverted() { [[ "$1" == Chat ]]; }
 
 # ---------------------------------------------------------------------------- iOS
 
@@ -156,8 +156,7 @@ PY
 # Where the list sits, as screen height fractions, for blank bands and MVCP probes.
 viewport() {
   case "$1" in
-    Chat | ChatNative) echo "0.16 0.76" ;;
-    FeedNative) echo "0.12 0.86" ;;
+    Chat) echo "0.16 0.76" ;;
     *) echo "0.12 0.95" ;;
   esac
 }
