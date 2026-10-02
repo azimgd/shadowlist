@@ -78,9 +78,9 @@ public class ShadowListElementViewManager extends ViewGroupManager<ShadowListEle
   /*
    * Take a dropped view out of its parent before it goes into the pool, and report whether
    * it left. A view deleted with a screen that animates out is still drawn by its old parent
-   * until the animation ends: the screen container started a view transition on it, so
+   * until the animation ends: the screen container started a view transition on it.
    * removeView only marks it disappearing and getParent() stays set. Reusing it would fail
-   * in addView with "the specified child already has a parent", so it is not recycled.
+   * in addView with "the specified child already has a parent". It is not recycled.
    */
   static boolean detachForRecycle(View view) {
     ViewParent parent = view.getParent();

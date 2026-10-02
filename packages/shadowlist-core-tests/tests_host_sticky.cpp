@@ -68,7 +68,7 @@ TEST(sticky_footer_does_not_ride_into_the_header_in_a_short_viewport) {
   StickyInput input = listAt(0.0);
   input.windowSize = 60.0;
   input.stickyFooter = true;
-  // Resting would put its top at 20, inside the 50 header, so it stops right under it.
+  // Resting would put its top at 20, inside the 50 header. It stops right under it.
   CHECK_EQ(stickyTranslations(input, state).footer, 50.0 - 1960.0);
 }
 

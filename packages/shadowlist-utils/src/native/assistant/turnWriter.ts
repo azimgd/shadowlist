@@ -44,7 +44,7 @@ export interface AssistantTurnWriter {
 
 /*
  * Feeds one streaming turn into the store. Tokens update a private draft, and a timer
- * publishes it only when something changed, so renders stay capped however fast tokens
+ * publishes it only when something changed. Renders stay capped however fast tokens
  * come. Calls after the turn ends are ignored, since a token can race a stop.
  */
 export function createTurnWriter({
@@ -57,7 +57,7 @@ export function createTurnWriter({
   let content = '';
   let thinking = '';
   let thinkingMs: number | undefined;
-  // Replaced, never mutated, so untouched calls keep their identity.
+  // Replaced, never mutated. Untouched calls keep their identity.
   let toolCalls: readonly AssistantToolCall[] = [];
   let dirty = false;
   let finished = false;
@@ -100,7 +100,8 @@ export function createTurnWriter({
 
   /*
    * Text after a tool call starts a new paragraph. Models narrate in pieces with nothing
-   * between them, so otherwise two sentences run together.
+   * between them. Without the break two sentences run together.
+
    */
   let afterCall = false;
 

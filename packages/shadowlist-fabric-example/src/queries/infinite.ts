@@ -51,7 +51,7 @@ export function useCursorInfiniteQuery<ItemT>({
     getNextPageParam: nextPageCursor,
     getPreviousPageParam: previousPageCursor,
     /*
-     * Rows keep their object identity when a prepend or a history page moves them, so only new
+     * Rows keep their object identity when a prepend or a history page moves them. Only new
      * rows render. The default sharing matches rows by position.
      */
     structuralSharing: shareInfiniteItemsById,
@@ -61,8 +61,8 @@ export function useCursorInfiniteQuery<ItemT>({
 }
 
 /*
- * Pull to refresh for a long infinite list. A refetch reloads every loaded page one by one, so
- * keep only the first page and make it one request. The reader at the top never sees the
+ * Pull to refresh for a long infinite list. A refetch reloads every loaded page one by one.
+ * Keep only the first page and make it one request. The reader at the top never sees the
  * dropped rows.
  */
 export function useRefreshFirstPage(queryKey: QueryKey) {

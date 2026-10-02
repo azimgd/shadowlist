@@ -211,8 +211,8 @@ export function useMountedRange({
   );
 
   /*
-   * The range the last report asked for. Reports only come when the visible rows change, so
-   * the steps between them are driven from here, one per frame, until the range gets there.
+   * The range the last report asked for. Reports only come when the visible rows change.
+   * The steps between them are driven from here, one per frame, until the range gets there.
    */
   const mountTargetRef = useRef<MountTarget | null>(null);
   const stepFrameRef = useRef<number | null>(null);
@@ -272,7 +272,7 @@ export function useMountedRange({
   );
 
   /*
-   * The last visible range native reported, so we know the scroll direction next time. A
+   * The last visible range native reported. It gives the scroll direction next time. A
    * ref, since it must never cause a render and only the updater below reads it.
    */
   const lastWindowRef = useRef<{ low: number; high: number } | null>(null);
@@ -284,7 +284,7 @@ export function useMountedRange({
     (event) => {
       const { visibleStartIndex, visibleEndIndex } = event.nativeEvent;
       if (visibleStartIndex === -1 || visibleEndIndex === -1) return;
-      // Inverted lists report start after end, so sort them.
+      // Inverted lists report start after end. Sort them.
       const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
       const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
       if (windowLow < 0 || windowHigh >= keys.length) return;
@@ -310,7 +310,7 @@ export function useMountedRange({
           overscanRowsLeading,
           MOUNT_STEP_ROWS
         );
-        // Already mounted, so skip the re-render.
+        // Already mounted. Skip the re-render.
         if (reported === null) return previous;
         const { low: targetLow, high: targetHigh } = reported.target;
         const { low, high } = reported.range;

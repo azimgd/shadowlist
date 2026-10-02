@@ -80,7 +80,7 @@ public class ShadowListView extends FrameLayout {
 
   /*
    * The mounted list's live report handle, and the versions that tell when its sticky and
-   * snap lists changed, so they are only copied then.
+   * snap lists changed. They are only copied then.
    */
   private long mLiveHandle = 0;
   private long mStickyVersion = -1;
@@ -102,11 +102,11 @@ public class ShadowListView extends FrameLayout {
   private int mColumns = 1;
 
   /*
-   * Pin sticky views again when a header or footer is laid out, so a sticky footer follows
+   * Pin sticky views again when a header or footer is laid out. A sticky footer then follows
    * its real position when the list size changes.
    */
   private final View.OnLayoutChangeListener mTemplateLayoutListener;
-  // A mounted template changed type, so the sticky views must be found again.
+  // A mounted template changed type. The sticky views must be found again.
   private final Runnable mTemplateTypeListener;
 
   // The scroll axis. Changing it rebuilds the inner scroll view.
@@ -122,7 +122,7 @@ public class ShadowListView extends FrameLayout {
 
   /*
    * Momentum after a fling, reported to the core as settling. Android has no callback for
-   * the end of a fling, so we poll the offset like ReactScrollView does and report idle once
+   * the end of a fling. We poll the offset like ReactScrollView does and report idle once
    * it has stayed still for a few polls in a row.
    */
   private boolean mSettling = false;
@@ -230,7 +230,7 @@ public class ShadowListView extends FrameLayout {
     }
 
     /*
-     * Track the finger here, not in onTouchEvent. A row takes the touch first, so
+     * Track the finger here, not in onTouchEvent. A row takes the touch first and
      * onTouchEvent misses the down event. Dispatch sees the whole gesture.
      */
     @Override
@@ -275,7 +275,7 @@ public class ShadowListView extends FrameLayout {
     }
 
     /*
-     * Track the finger here, not in onTouchEvent. A row takes the touch first, so
+     * Track the finger here, not in onTouchEvent. A row takes the touch first and
      * onTouchEvent misses the down event. Dispatch sees the whole gesture.
      */
     @Override
@@ -343,8 +343,8 @@ public class ShadowListView extends FrameLayout {
     mScrollView.setClipToPadding(false);
 
     /*
-     * The inner scroll view has no React tag, so every ScrollEvent it sends goes to tag -1
-     * and logs an error, once per frame. The list reports scrolling itself, so throttle
+     * The inner scroll view has no React tag. Every ScrollEvent it sends goes to tag -1
+     * and logs an error, once per frame. The list reports scrolling itself and throttles
      * them away. The last dispatch time in the future keeps even the first one back.
      */
     if (mScrollView instanceof ReactScrollView) {
@@ -404,7 +404,7 @@ public class ShadowListView extends FrameLayout {
     if (!refreshing) {
       /*
        * Refresh ended. Fire onRefreshSettle once the spinner is gone and nothing moves the
-       * list, so JS can add the new rows to a list at rest, like on iOS.
+       * list. JS then adds the new rows to a list at rest, like on iOS.
        * JS also has a timeout fallback.
        */
       postDelayed(mRefreshSettleRunnable, REFRESH_SETTLE_DELAY_MS);
@@ -505,8 +505,8 @@ public class ShadowListView extends FrameLayout {
 
   private void handleInnerTouchDown() {
     /*
-     * The finger takes over from any scroll we started, so report the drag as the user.
-     * The touch also stops any fling, so settling ends here.
+     * The finger takes over from any scroll we started. Report the drag as the user.
+     * The touch also stops any fling and settling ends here.
      */
     mSync.disarm();
     mTouching = true;
@@ -541,7 +541,7 @@ public class ShadowListView extends FrameLayout {
     }
     /*
      * Going idle also ends the user scroll, like clearUserScrolled on iOS. Updates merge into
-     * the last state, so otherwise the old userScrolled flag sticks around and the core
+     * the last state. Otherwise the old userScrolled flag sticks around and the core
      * mistakes its own correction for the user moving the list and drops it.
      */
     if (scrollPhase == SCROLL_PHASE_IDLE) {
@@ -823,7 +823,7 @@ public class ShadowListView extends FrameLayout {
   private void applyMountedState(ReadableMapBuffer mapBuffer, boolean offsetEnabled) {
     long stickyVersion = mapBuffer.getLong(STATE_STICKY_VERSION);
     long snapVersion = mapBuffer.getLong(STATE_SNAP_VERSION);
-    // Versions count per list, so a different list always reads its lists again.
+    // Versions count per list. A different list always reads its lists again.
     boolean sameList = mGeometryHandle == mLiveHandle && mLiveHandle != 0;
     boolean stickyStale = !sameList || stickyVersion != mStickyVersion;
     boolean snapStale = !sameList || snapVersion != mSnapVersion;
@@ -985,7 +985,7 @@ public class ShadowListView extends FrameLayout {
   }
 
   /*
-   * A scroll command stops any fling or snap, so it can't overwrite the offset the core is
+   * A scroll command stops any fling or snap. It then can't overwrite the offset the core is
    * about to apply, and reports idle with the command. If a finger is down it stays dragging,
    * and the core lets the drag cancel the command.
    */

@@ -33,7 +33,7 @@ export type OnDragStart = {
 export type OnDragEnd = {
   /*
    * Keys of the moved row and the row it was dropped next to. JS looks up their current
-   * index before moving, so a data change during the drag can't move the wrong rows.
+   * index before moving. A data change during the drag can't move the wrong rows.
    */
   fromKey: string;
   toKey: string;

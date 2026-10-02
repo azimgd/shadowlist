@@ -53,7 +53,7 @@ export interface SectionRows<ElementT, SectionT> {
 
 /*
  * Whether cached rows still describe the section. The elements are compared one by one, not
- * just the data array, so a data array edited in place is still picked up.
+ * just the data array. A data array edited in place is still picked up.
  */
 function sectionUnchanged<ElementT, SectionT>(
   cached: SectionRows<ElementT, SectionT> | undefined,
@@ -89,7 +89,7 @@ function sectionUnchanged<ElementT, SectionT>(
 
 /*
  * Sections to flat rows plus the sticky header positions. previousSections is the last
- * result's nextSections, so unchanged sections and rows keep their objects.
+ * result's nextSections. Unchanged sections and rows keep their objects.
  */
 export function flattenSections<ElementT, SectionT>(
   sections: ReadonlyArray<SectionListData<ElementT, SectionT>>,

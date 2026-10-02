@@ -62,8 +62,8 @@ constexpr double SCROLL_TO_END_INDEX = -3.0;
 #if SHADOWLIST_DEBUG_LOG
 #if defined(__ANDROID__)
 /*
- * Android drops stdout, so log through logcat. Read it with adb logcat -s SL.
- * The SL tag matches the Java side, so one filter shows both.
+ * Android drops stdout. Log through logcat. Read it with adb logcat -s SL.
+ * The SL tag matches the Java side and one filter shows both.
  */
 #include <android/log.h>
 #define SL_LOG(...) __android_log_print(ANDROID_LOG_INFO, "SL", __VA_ARGS__)

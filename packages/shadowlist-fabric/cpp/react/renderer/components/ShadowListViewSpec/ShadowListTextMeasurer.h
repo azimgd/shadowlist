@@ -23,7 +23,7 @@
 namespace facebook::react {
 
 /*
- * Measures row text before the row renders, so its height is right from the first frame
+ * Measures row text before the row renders. Its height is right from the first frame
  * instead of being fixed up while the user scrolls.
  * TextLayoutManager caches by text and text style only, not by node. So the real paragraph
  * hits the same cache entry later and the text is still measured once.
@@ -35,7 +35,7 @@ namespace facebook::react {
 
 /*
  * Finds a TextLayoutManager to share with RN's paragraph descriptor so both use one cache.
- * RN never stores its own and builds a new one on each lookup, so we store ours under RN's key.
+ * RN never stores its own and builds a new one on each lookup. We store ours under RN's key.
  * This runs from a descriptor constructor so later descriptors pick it up. If RN's paragraph
  * descriptor was built first, text is measured twice but the size is still right.
  */
@@ -143,7 +143,7 @@ inline std::vector<azimgd::shadowlist::ElementSizeSpec> parseElementSizeSpecs(co
     spec.text = shadowlist::detail::optionalString(entry, "text");
     spec.fontFamily = shadowlist::detail::optionalString(entry, "fontFamily");
     spec.fontWeight = shadowlist::detail::optionalString(entry, "fontWeight");
-    // fontWeight can also be a number like 700, so turn it into a string.
+    // fontWeight can also be a number like 700. Turn it into a string.
     if (auto* fontWeight = entry.get_ptr("fontWeight"); fontWeight != nullptr && fontWeight->isNumber()) {
       spec.fontWeight = std::to_string(static_cast<int>(fontWeight->asDouble()));
     }

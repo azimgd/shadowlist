@@ -54,7 +54,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
   double offsetY = state.offsetY;
 
   /*
-   * A moving view has gone on by the time a correction mounts, so add the correction to the
+   * A moving view has gone on by the time a correction mounts. Add the correction to the
    * live offset instead. Corrections made during a gesture or already shifted keep shifting
    * after the motion stops.
    */
@@ -63,7 +63,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
   bool shift = view.moving || continuesShiftedCorrection || computedDuringGesture;
   if (shift) {
     double delta = target - base;
-    // The core resends the full correction until it is echoed, so shift only by what is left.
+    // The core resends the full correction until it is echoed. Shift only by what is left.
     if (token != 0) {
       double unapplied = token == shiftedToken_ ? delta - shiftedTokenDelta_ : delta;
       shiftedToken_ = token;

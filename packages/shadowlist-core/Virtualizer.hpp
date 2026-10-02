@@ -32,7 +32,7 @@ struct FrameInput {
    * Set only when these are provably the same key list the last update used, the very same
    * object kept alive in between. Fabric can tell because a scroll reuses the same props.
    * It lets us skip comparing every key on a scroll frame. Getting it wrong puts the rows out
-   * of step with the data, so leave it false if in doubt.
+   * of step with the data. Leave it false if in doubt.
    */
   bool keysUnchanged = false;
 
@@ -112,8 +112,8 @@ struct FrameInput {
 };
 
 /*
- * A Container can be shared across threads. Every public method here locks coreMutex, so
- * they are safe to call from any thread, even while the caller already holds the lock.
+ * A Container can be shared across threads. Every public method here locks coreMutex.
+ * They are safe to call from any thread, even while the caller already holds the lock.
  * Private helpers expect the lock to be held already.
  */
 class Virtualizer {
@@ -163,7 +163,7 @@ public:
   static std::size_t applyPredictedElementSize(Container* container, const std::string& key, Size size);
 
   /*
-   * Throw away every predicted size, so those rows go back to the estimate until measured.
+   * Throw away every predicted size. Those rows go back to the estimate until measured.
    * Use it when predictions go stale, like after a width change rewraps the text.
    * Rows measured natively keep their sizes.
    */

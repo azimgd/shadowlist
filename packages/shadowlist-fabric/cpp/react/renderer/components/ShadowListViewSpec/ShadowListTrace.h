@@ -15,7 +15,7 @@
 /*
  * JS side of the device trace, on in debug Apple builds run with SHADOWLIST_FRAME_TRACE=1.
  * Installs globalThis.__shadowlistTrace, which prints an [SLJ] line with a timestamp.
- * It uses the same clock as CACurrentMediaTime, so JS renders line up with native frames in the log.
+ * It uses the same clock as CACurrentMediaTime. JS renders line up with native frames in the log.
  */
 namespace facebook::react::shadowlist::detail {
 

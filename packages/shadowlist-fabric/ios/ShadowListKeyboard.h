@@ -1,4 +1,4 @@
-// This pulls in an ObjC++ spec header, so import it only from .mm files.
+// This pulls in an ObjC++ spec header. Import it only from .mm files.
 #import <React/RCTInvalidating.h>
 #import <ShadowListViewSpec/ShadowListViewSpec.h>
 

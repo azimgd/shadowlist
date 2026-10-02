@@ -106,7 +106,7 @@ export const AssistantUserMessage = memo(
             accessibilityRole="button"
             accessibilityHint={l.showActionsHint}
             /*
-             * Screen readers can't long press, so offer the same toggle as a named action.
+             * Screen readers can't long press. Offer the same toggle as a named action.
              * Otherwise Copy and Edit are out of reach.
              */
             accessibilityActions={accessibilityActions}

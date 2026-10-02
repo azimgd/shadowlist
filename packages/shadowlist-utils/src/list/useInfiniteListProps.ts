@@ -17,7 +17,7 @@ export interface UseInfiniteListPropsOptions {
   refresh?: () => Promise<unknown>;
   /*
    * Gets any error thrown by a page fetch or the refresh. React Query's own fetchers never
-   * reject, the error lands on the query, so this is for custom fetchers. Without it the
+   * reject, the error lands on the query. This is for custom fetchers. Without it the
    * rejection goes unhandled.
    */
   onError?: (error: unknown) => void;
@@ -34,7 +34,7 @@ export interface InfiniteListProps<ItemT> {
 /**
  * Connects an infinite query to a shadowlist list.
  *
- * - `data` is the flattened rows, memoized on the cache value, so the list only gets a new
+ * - `data` is the flattened rows, memoized on the cache value. The list only gets a new
  *   array when a page really changed.
  * - `onEndReached` and `onStartReached` are stable and safe to call again and again. They do
  *   nothing when there is no page to load, while any fetch runs, since a page fetch racing
@@ -79,7 +79,7 @@ export function useInfiniteListProps<
   // Guards that flip right away, since isFetching only changes on the next render.
   const pendingRef = useRef({ next: false, previous: false });
 
-  // Run inside then, so a synchronous throw still clears the guard instead of leaving it stuck.
+  // Run inside then. A synchronous throw still clears the guard instead of leaving it stuck.
   const settle = useCallback(
     (fetchPage: () => Promise<unknown>, clearGuard: () => void) => {
       const pending = Promise.resolve().then(fetchPage).finally(clearGuard);

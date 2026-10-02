@@ -40,7 +40,7 @@ export interface AssistantComposerHandle {
    */
   setDraft: (text: string, options?: { focus?: boolean }) => void;
   getDraft: () => string;
-  // Clears the text without focusing, so the keyboard doesn't rise.
+  // Clears the text without focusing. The keyboard doesn't rise.
   clearDraft: () => void;
   focus: () => void;
 }

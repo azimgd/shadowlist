@@ -59,7 +59,7 @@ struct Fired {
 
 /*
  * Build a list with every row measured, resting at the scenario offset after a finger
- * scroll ended there. The same steps always give the same core, so tests rebuild it to
+ * scroll ended there. The same steps always give the same core. Tests rebuild it to
  * try one more frame without disturbing the original.
  */
 std::unique_ptr<Container> settledContainer(const BandScenario& scenario, Fired* fired = nullptr) {
@@ -147,7 +147,7 @@ void checkBandIsExact(const BandScenario& scenario) {
 
   /*
    * The window event only carries the lowest and highest row. With several columns a row
-   * inside that range can flip without changing either, so there the band may end early.
+   * inside that range can flip without changing either. There the band may end early.
    */
   if (scenario.columns > 1) {
     return;
@@ -273,7 +273,7 @@ TEST(offset_band_is_empty_while_a_measured_size_waits_for_layout) {
 
 /*
  * A composer or keyboard resizing a chat changes only the window height. That does not
- * move rows, so the band must come back on the next frame instead of staying empty.
+ * move rows. The band must come back on the next frame instead of staying empty.
  */
 TEST(offset_band_survives_a_scroll_axis_window_resize) {
   BandScenario scenario;

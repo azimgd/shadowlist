@@ -2,7 +2,7 @@
 """
 Reduce one device-metrics.sh run to a comparable report.
 
-A raw screenshot is RGBA pixels after a 16 byte header, so plain Python can read it.
+A raw screenshot is RGBA pixels after a 16 byte header. Plain Python can read it.
 In each one we find the tallest full width band of background in the list. A band much
 taller than row padding is a missing row, which the user sees as a blank cell.
 
@@ -106,7 +106,7 @@ def parse_frames(path):
         lines = [line for line in block.strip().splitlines() if line.strip()]
         if not lines:
             continue
-        # Look up columns by name. Android keeps adding framestats columns, so fixed
+        # Look up columns by name. Android keeps adding framestats columns. Fixed
         # positions would read the wrong field and quietly find no frames.
         header = [cell.strip() for cell in lines[0].rstrip(",").split(",")]
         try:

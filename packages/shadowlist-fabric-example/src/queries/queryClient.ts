@@ -11,7 +11,7 @@ export const queryClient = new QueryClient({
 });
 
 /*
- * React Native has no window focus, so treat the app coming back to the foreground as focus.
+ * React Native has no window focus. Treat the app coming back to the foreground as focus.
  * Stale queries on mounted screens then refetch when the user returns.
  */
 focusManager.setEventListener((handleFocus) => {

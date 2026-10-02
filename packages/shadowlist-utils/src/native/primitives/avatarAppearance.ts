@@ -1,5 +1,6 @@
 /*
- * A stable hash, so a name keeps its color across sessions and list positions.
+ * A stable hash. A name keeps its color across sessions and list positions.
+
  */
 export function getAvatarColor(
   name: string,

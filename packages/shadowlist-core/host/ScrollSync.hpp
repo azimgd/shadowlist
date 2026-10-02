@@ -10,7 +10,7 @@ namespace azimgd::shadowlist {
 
 /*
  * A state update a host sends. It patches the newest committed state instead of copying the
- * mounted one, so a committed core change is never undone. The report and offsetEnabled are
+ * mounted one. A committed core change is never undone. The report and offsetEnabled are
  * always set, the rest only by the update that owns it.
  */
 struct ScrollPatch {
@@ -59,7 +59,7 @@ struct ViewMotion {
   bool touching = false;
   // A finger, momentum or an animation is moving the view.
   bool moving = false;
-  // A row drag owns the offset, so corrections wait.
+  // A row drag owns the offset. Corrections wait.
   bool ownsOffset = false;
   // An iOS scroll to top waiting to jump to jumpOffset along the scroll axis.
   bool jumpPending = false;
@@ -94,7 +94,7 @@ struct ScrollFrame {
   double offsetX = 0.0;
   double offsetY = 0.0;
   double scrollPhase = SCROLL_PHASE_IDLE;
-  // Pull to refresh, scroll to top and row drags lean on every frame, so each one commits.
+  // Pull to refresh, scroll to top and row drags lean on every frame. Each one commits.
   bool commitEveryFrame = false;
 };
 
@@ -135,12 +135,12 @@ public:
 #pragma mark - Mount
 
   /*
-   * A new state mounts. Call before the content size write, so a clamp it causes counts as ours.
+   * A new state mounts. Call before the content size write. A clamp it causes then counts as ours.
    */
   void beginMount(const MountedScroll& state, std::shared_ptr<LiveScroll> liveScroll);
 
   /*
-   * Set around the content size write, so the clamp it causes is not taken for the user.
+   * Set around the content size write. The clamp it causes is not taken for the user.
    */
   void setApplyingContentSize(bool applying) {
     applyingContentSize_ = applying;
@@ -152,12 +152,12 @@ public:
   MountAction correction(const ViewMotion& view);
 
   /*
-   * Right before a Write, so its scroll frame is our own move and echoes the token.
+   * Right before a Write. Its scroll frame is our own move and echoes the token.
    */
   void willWrite(const MountAction& action);
 
   /*
-   * After a Write. A write that moved nothing fires no scroll frame, so it disarms.
+   * After a Write. A write that moved nothing fires no scroll frame and disarms.
    */
   void didWrite(bool moved);
 
@@ -176,13 +176,13 @@ public:
   FrameReport onScroll(const ScrollFrame& frame);
 
   /*
-   * Mark a scroll we start ourselves, like a snap or scrollToOffset, so its frames are not the
+   * Mark a scroll we start ourselves, like a snap or scrollToOffset. Its frames are not the
    * user. An animated one lasts until it lands on the target.
    */
   void arm(double offsetX, double offsetY, bool animated, std::uint64_t token = 0, bool exact = false);
 
   /*
-   * A finger took over, so a scroll of ours still waiting for its frame is the user's now.
+   * A finger took over. A scroll of ours still waiting for its frame is the user's now.
    */
   void disarm();
 
@@ -224,7 +224,7 @@ public:
   std::optional<ScrollPatch> clearUserScrolled(double offsetX, double offsetY);
 
   /*
-   * A scroll command. The sequence always goes past the previous one, so the same index still
+   * A scroll command. The sequence always goes past the previous one. The same index still
    * scrolls again. momentumYielded makes the report idle after a fling was stopped for it.
    */
   ScrollPatch issueCommand(double index, double viewPosition, double offsetX, double offsetY, bool momentumYielded);

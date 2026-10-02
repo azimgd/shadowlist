@@ -49,13 +49,13 @@ import {
  *
  * How streaming stays cheap:
  * The list data changes only when a reply starts and ends. Tokens go to a store that only the
- * streaming row reads, so the list does no work per token. Tokens are batched into one flush
+ * streaming row reads. The list does no work per token. Tokens are batched into one flush
  * every STREAM_FLUSH_MS.
  * getElementSizeSpec sizes prompts exactly and returns null for replies. The streaming row is
- * always mounted, so its real size wins over any guess.
+ * always mounted. Its real size wins over any guess.
  * Following the stream is native. At the bottom, the rows near the newest one are marked as not
- * anchorable, so the core keeps the newest row pinned as it grows, with no scroll per flush.
- * A user scroll away from the bottom stops the pin at once, so a drag is never fought. Once the
+ * anchorable. The core keeps the newest row pinned as it grows, with no scroll per flush.
+ * A user scroll away from the bottom stops the pin at once. A drag is never fought. Once the
  * end marker stays off screen, the anchor marks are dropped, the text holds still while the reply
  * grows below, and the jump button shows. Coming back to the bottom resumes following.
  */
@@ -63,18 +63,18 @@ import {
 const KEYBOARD_GAP = 8;
 /*
  * How many rows before the newest get marked as not anchorable while following. Only rows that
- * can be on screen matter, so a short tail is enough and keeps the list the core checks small.
+ * can be on screen matter. A short tail is enough and keeps the list the core checks small.
  */
 const FOLLOW_ANCHOR_WINDOW = 30;
 /*
  * How long the end marker must stay off screen before following stops. Growth runs about a
- * flush ahead of the pin, so a short gap is not the reader leaving. Scroll deltas are not used,
+ * flush ahead of the pin. A short gap is not the reader leaving. Scroll deltas are not used,
  * because content shrinking at the bottom moves the offset just like a small upward drag.
  */
 const DISENGAGE_MS = 400;
 /*
  * Not following: every row can anchor, the end marker too. As the last one it stops the core
- * from treating a tall reply as resting at the bottom, so the visible text holds still.
+ * from treating a tall reply as resting at the bottom. The visible text holds still.
  */
 const NOTHING_IGNORED: ReadonlyArray<string> = [];
 
@@ -136,7 +136,7 @@ export const AssistantScreen = () => {
   const streamRef = useRef<ScriptPlayback | null>(null);
   /*
    * Keep finished turns in the store until their data commit renders. A store change renders at
-   * once but a timer's setData does not, so removing early would flash an empty reply for a frame.
+   * once but a timer's setData does not. Removing early would flash an empty reply for a frame.
    */
   const settledIdsRef = useRef<string[]>([]);
 
@@ -205,7 +205,7 @@ export const AssistantScreen = () => {
 
   /*
    * The anchor policy that makes following native. While following, only the newest row in the
-   * tail can anchor, so the core pins the bottom as it grows. Otherwise plain anchoring holds the
+   * tail can anchor. The core pins the bottom as it grows. Otherwise plain anchoring holds the
    * view still.
    */
   const nonAnchorKeys = useMemo(() => {
@@ -322,7 +322,7 @@ export const AssistantScreen = () => {
 
   /*
    * Regenerating or retrying any reply but the newest must stop following first. The pin chases
-   * the bottom, so the rewritten text would scroll off the top as it arrives.
+   * the bottom. The rewritten text would scroll off the top as it arrives.
    */
   const releaseFollowingUnlessNewest = useCallback(
     (messageId: string) => {
@@ -458,7 +458,7 @@ export const AssistantScreen = () => {
   );
 
   /*
-   * The end marker is 1pt at the very end, so it is on screen only at the true bottom. Reaching
+   * The end marker is 1pt at the very end. It is on screen only at the true bottom. Reaching
    * it resumes following at once. Leaving stops following only after DISENGAGE_MS, since growth
    * runs a flush ahead of the pin, and neither that nor content shrinking at the bottom should
    * count as the reader leaving.
@@ -518,7 +518,8 @@ export const AssistantScreen = () => {
 
   /*
    * Drawn over the list instead of as ListEmptyComponent. The core's total size never includes
-   * the empty template, so with no messages the content is 0pt tall and Android clips it.
+   * the empty template. With no messages the content is 0pt tall and Android clips it.
+
    */
   const empty = useMemo(
     () => (

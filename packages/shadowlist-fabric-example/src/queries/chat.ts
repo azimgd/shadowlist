@@ -47,7 +47,7 @@ export function useSendChatMessage() {
     mutationFn: sendChatMessage,
     /*
      * The bubble shows at once as sending, and the response confirms it in place with the same id.
-     * A failure keeps the bubble marked failed, so the text is never lost and can be retried.
+     * A failure keeps the bubble marked failed. The text is never lost and can be retried.
      */
     onMutate: (message) =>
       writeToThread(queryClient, [{ ...message, status: 'sending' }]),

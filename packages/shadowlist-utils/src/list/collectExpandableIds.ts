@@ -5,7 +5,8 @@ export interface CollectExpandableIdsOptions<NodeT> {
 
 /**
  * The id of every node with at least one child, at any depth. Use it as `expandedIds` for
- * an expand all action on a TreeList. It uses a loop, so deep trees can't overflow the stack.
+ * an expand all action on a TreeList. It uses a loop. Deep trees can't overflow the stack.
+
  *
  * @example
  * setExpandedIds(new Set(collectExpandableIds(tree, { getChildren, keyExtractor })));

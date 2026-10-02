@@ -24,7 +24,7 @@ using namespace azimgd::shadowlist;
 namespace {
 
 /*
- * Heights far from the estimate, so an estimated row is easy to tell from a real one.
+ * Heights far from the estimate. An estimated row is easy to tell from a real one.
  */
 std::vector<double> trueHeightsFor(std::size_t count) {
   std::vector<double> heights;
@@ -125,7 +125,7 @@ TEST(predicted_geometry_matches_fully_measured_geometry) {
 }
 
 /*
- * The total size is right before any row is laid out, so the scroll bar is accurate and
+ * The total size is right before any row is laid out. The scroll bar is accurate and
  * scrollToEnd lands in one go.
  */
 TEST(total_size_is_exact_before_anything_is_measured) {
@@ -182,7 +182,7 @@ TEST(a_prediction_for_a_live_row_reflows_the_rows_after_it) {
 }
 
 /*
- * A prediction equal to the row's current size moves nothing, so resending the same
+ * A prediction equal to the row's current size moves nothing. Resending the same
  * predictions every frame is cheap.
  */
 TEST(a_redundant_prediction_reflows_nothing) {
@@ -231,7 +231,7 @@ TEST(a_late_prediction_never_overwrites_a_measurement) {
 }
 
 /*
- * The average only uses real sizes. A fully predicted list has none, so a row nobody
+ * The average only uses real sizes. A fully predicted list has none. A row nobody
  * predicted still uses the configured estimate.
  */
 TEST(predictions_stay_out_of_the_frozen_average) {
@@ -270,7 +270,7 @@ TEST(only_predicted_or_measured_rows_carry_trusted_geometry) {
 
 /*
  * scrollToIndex on a fresh list. With predictions the target offset is known in the first
- * frame, so it lands at once.
+ * frame. It lands at once.
  */
 TEST(scroll_to_index_lands_immediately_on_a_cold_predicted_list) {
   std::vector<std::string> keys = keysFor(500);
@@ -363,7 +363,7 @@ TEST(a_prediction_staged_on_a_settled_list_lands_on_the_next_frame) {
 
   double offsetBefore = container.revision.elements[40].offsetY;
 
-  // Same keys, so the data is not reconciled in this frame.
+  // Same keys. The data is not reconciled in this frame.
   container.setPredictedSize("k3", {WINDOW_WIDTH, 400.0});
   Virtualizer::update(&container, inputFor(keys, 0.0));
 
@@ -389,7 +389,7 @@ TEST(a_prediction_lands_even_when_the_keys_shortcut_is_engaged) {
 }
 
 /*
- * Text wraps to the row width, so predicted heights are wrong after a resize. Predicted rows
+ * Text wraps to the row width. Predicted heights are wrong after a resize. Predicted rows
  * go back to the estimate, while natively measured rows keep their real sizes.
  */
 TEST(invalidating_predictions_returns_rows_to_the_estimate) {
@@ -414,7 +414,7 @@ TEST(invalidating_predictions_returns_rows_to_the_estimate) {
 }
 
 /*
- * Appending is the most common change, like a chat message or a new page, so it updates
+ * Appending is the most common change, like a chat message or a new page. It updates
  * the rows in place instead of rebuilding them. These check it matches a full rebuild,
  * including how duplicate keys resolve.
  */
@@ -603,7 +603,8 @@ TEST(in_place_prepend_shifts_survivors_by_exactly_the_prepended_height) {
   Virtualizer::update(&container, inputFor(prepended, 0.0));
   Virtualizer::recomputeTotalSize(&container);
 
-  // The prepended rows are unmeasured, so they all share the same fallback size.
+  // The prepended rows are unmeasured. They all share the same fallback size.
+
   double fallback = container.revision.elements[0].height;
   double prependedTotal = 0.0;
   for (std::size_t index = 0; index < prependCount; ++index) {

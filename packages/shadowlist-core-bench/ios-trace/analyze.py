@@ -13,7 +13,7 @@ Input is the console log of simctl launch --console-pty with SHADOWLIST_FRAME_TR
   [SL] ...                                        core trace, no timestamp (kept for --window)
 
 Timestamps are mach_absolute_time seconds. Row positions are on screen positions along the
-scroll axis, so a row that keeps its position between two frames did not move for the reader.
+scroll axis. A row that keeps its position between two frames did not move for the reader.
 
 Findings:
   idle-shift     visible rows moved with no finger, fling or scroll to top going on.
@@ -81,7 +81,7 @@ class Frame:
         counts = defaultdict(int)
         for row in self.rows:
             counts[row[0]] += 1
-        # Short keys can collide, so skip any key that appears twice.
+        # Short keys can collide. Skip any key that appears twice.
         self.pos = {row[0]: row[1] for row in self.rows if counts[row[0]] == 1}
         self.size = {row[0]: row[2] for row in self.rows if counts[row[0]] == 1}
 
@@ -196,7 +196,7 @@ def analyze_list(list_frames, list_events, blank_pt):
         motions.append((cur.t, shift, cur.ph, cur.stt or prev.stt))
 
         # Rows added on screen push the rows after them down while the rows above hold.
-        # That's expected, so note it here and don't count it as a reflow or idle shift.
+        # That's expected. Note it here and don't count it as a reflow or idle shift.
         new_keys = [row[0] for row in cur.rows if row[0] not in prev.pos and row[0] in cur.pos]
         gone_keys = [key for key in prev.pos if key not in cur.pos]
         def structure_holds(boundary, position_of):

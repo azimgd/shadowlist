@@ -172,7 +172,7 @@ TEST(measurement_out_of_bounds_is_rejected) {
 // Skipping the key check.
 
 /*
- * A scroll commit carries the same props, so the host can tell the core the keys did not
+ * A scroll commit carries the same props. The host can tell the core the keys did not
  * change. The result must match letting the core check the keys itself.
  */
 TEST(declaring_keys_unchanged_matches_revalidating_them) {

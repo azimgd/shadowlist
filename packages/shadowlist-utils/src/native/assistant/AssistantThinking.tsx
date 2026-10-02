@@ -24,7 +24,7 @@ export interface AssistantThinkingProps {
 
 /*
  * How much reasoning the one line preview keeps. Layout measures the whole string before
- * cutting it to one line, so pass only the tail it shows.
+ * cutting it to one line. Pass only the tail it shows.
  */
 const PREVIEW_TAIL_CHARS = 160;
 
@@ -82,7 +82,7 @@ export const AssistantThinking = memo(
           /*
            * Stays while there is reasoning to preview, not only while it arrives. Dropping
            * it on the first reply token would shrink the row and move every row below.
-           * Cut from the front, so it shows the newest words.
+           * Cut from the front to show the newest words.
            */
           <Text style={styles.preview} numberOfLines={1} ellipsizeMode="head">
             {thinking.slice(-PREVIEW_TAIL_CHARS)}

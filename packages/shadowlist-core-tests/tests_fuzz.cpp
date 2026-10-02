@@ -3,7 +3,7 @@
  * random data changes, gestures, header and window changes and scroll commands, and checks
  * after every frame that the layout is consistent, the window covers the viewport, every
  * correction settles, and the row the reader was looking at stays where it was.
- * Each test runs many seeds. A failure prints the seed and the steps that led to it, so it
+ * Each test runs many seeds. A failure prints the seed and the steps that led to it. It
  * can be turned into a plain test.
  */
 
@@ -486,8 +486,8 @@ void changeAndHold(SimHost& host, std::uint32_t seed, const std::vector<std::str
       return;
     }
     /*
-     * An inverted list resting on its newest row holds the bottom edge instead of the row,
-     * so the row may move when the list ends at the bottom.
+     * An inverted list resting on its newest row holds the bottom edge instead of the row.
+     * The row may move when the list ends at the bottom.
      */
     if (host.inverted && wasAtBottom && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE) {
       return;
@@ -693,7 +693,7 @@ TEST(fuzz_header_and_footer_changes_keep_the_rows) {
         host.note("header " + std::to_string(previousHeader) + " -> " + std::to_string(host.header) +
           " off=" + std::to_string(host.hostOffset));
       }
-      // The header changes in a layout pass with no data change, so run just that and settle.
+      // The header changes in a layout pass with no data change. Run just that and settle.
       host.commit(false);
       checkFrame(host, seed);
       if (host.settle() < 0) {
@@ -1081,7 +1081,7 @@ std::string checkAxisGeometry(const AxisHost& host) {
 
 /*
  * First anchorable row overlapping the viewport, in index order. In a grid the tracks have
- * independent heights, so one offset can only hold one track: the core holds the first
+ * independent heights. One offset can only hold one track: the core holds the first
  * overlapping row by index, and so does this check.
  */
 ScreenRow firstAxisRow(const AxisHost& host) {
@@ -1147,7 +1147,7 @@ void axisScrollTo(AxisHost& host, std::uint32_t seed, double offset) {
 
 /*
  * A data change on a grid or horizontal list holds the row at the top of the screen. Only
- * one track can be held in a grid, so the check is on the anchor's own track.
+ * one track can be held in a grid. The check is on the anchor's own track.
  */
 void axisChangeAndHold(AxisHost& host, std::uint32_t seed, const std::vector<std::string>& nextKeys, const std::string& what) {
   ScreenRow row = firstAxisRow(host);

@@ -8,7 +8,7 @@ import type { InfiniteItem, InfinitePages, ItemsPage } from './InfinitePages';
  *   );
  *
  * Pages and rows that did not change keep their identity, and data comes back as is when
- * nothing changed, so memoized rows skip the re-render. When nothing is cached yet undefined
+ * nothing changed. Memoized rows skip the re-render. When nothing is cached yet undefined
  * passes through, which React Query takes as leave the cache alone.
  */
 
@@ -36,7 +36,7 @@ function mapPages<DataT extends AnyInfinitePages>(
 
 /**
  * Every row of every loaded page in display order, ready for the list's `data` prop.
- * Returns one shared empty array while nothing is cached, so it is safe as a memo dependency.
+ * Returns one shared empty array while nothing is cached. It is safe as a memo dependency.
  *
  * @see {@linkcode useInfiniteListProps}, which memoizes this for you.
  */
@@ -150,7 +150,8 @@ export function upsertInfiniteItems<DataT extends AnyInfinitePages>(
 
 /**
  * Keeps only the first `pageCount` loaded pages. A refetch loads every cached page one by
- * one, so after a long scroll a pull to refresh can take seconds. Trimming to the first
+ * one. After a long scroll a pull to refresh can take seconds. Trimming to the first
+
  * page makes it one request, and a reader pulling at the top never sees the dropped rows.
  */
 export function trimInfinitePages<DataT extends AnyInfinitePages>(

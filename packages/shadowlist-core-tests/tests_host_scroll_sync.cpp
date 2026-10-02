@@ -295,7 +295,7 @@ TEST(scroll_sync_commands_sequence_past_the_mounted_one) {
   CHECK_EQ(report.commandSequence, 6.0);
   CHECK(!report.offsetEnabled);
 
-  // The mounted state is behind, so the next command still goes past ours.
+  // The mounted state is behind. The next command still goes past ours.
   CHECK_EQ(sync.issueCommand(-3.0, 0.0, 0.0, 12.0, false).commandSequence, 7.0);
 }
 
@@ -313,7 +313,8 @@ TEST(scroll_sync_correction_moves_a_waiting_scroll_to_top_jump) {
   CHECK_EQ(action.offsetY, 950.0);
   CHECK_EQ(action.token, static_cast<std::uint64_t>(21));
 
-  // The jump applies the whole correction, so a resend of the token only adds what's new.
+  // The jump applies the whole correction. A resend of the token only adds what's new.
+
   ViewMotion landed = viewAt(950.0);
   landed.moving = true;
   CHECK_EQ(mountAndWrite(sync, correctionState(960.0, 800.0, 21), live, landed), 960.0);

@@ -10,7 +10,7 @@ import {
 import type { ShadowListCommands, SectionListProps } from './types';
 
 /*
- * ShadowList renders one flat list, so each section becomes a header row, its elements,
+ * ShadowList renders one flat list. Each section becomes a header row, its elements,
  * then a footer row. The header positions go into stickyHeaderIndices so native can pin them.
  */
 
@@ -45,7 +45,7 @@ function toRowIds<ElementT, SectionT>(
       ids.push(row.id);
     }
   }
-  // The same ids keep the old array, so native gets no new prop.
+  // The same ids keep the old array. Native gets no new prop.
   if (
     previous !== undefined &&
     previous.length === ids.length &&
@@ -78,8 +78,8 @@ function SectionListInner<ElementT, SectionT = object>(
   sectionsRef.current = sections;
 
   /*
-   * Rows from the last flatten, per section key, so an unchanged row keeps its old object.
-   * The list mounts rows by identity, so without this any change to sections re-renders
+   * Rows from the last flatten, per section key. An unchanged row keeps its old object.
+   * The list mounts rows by identity. Without this any change to sections re-renders
    * every row. An unchanged section is reused whole.
    */
   const previousSectionsRef = useRef<
@@ -158,7 +158,7 @@ function SectionListInner<ElementT, SectionT = object>(
   }, [data, persistentKeys]);
 
   /*
-   * Both separators go inside every row, so an inline element would rebuild every mounted
+   * Both separators go inside every row. An inline element would rebuild every mounted
    * row on each caller render.
    */
   const elementSeparator = useStableElement(
@@ -231,7 +231,7 @@ function SectionListInner<ElementT, SectionT = object>(
 
   /*
    * Device trace only. Logs which input gave the row renderer a new identity. A renderer that
-   * changes every commit rebuilds every mounted row, so check this first when a list
+   * changes every commit rebuilds every mounted row. Check this first when a list
    * re-renders more rows than changed.
    */
   const traceDepsRef = useRef<ReadonlyArray<unknown>>([]);

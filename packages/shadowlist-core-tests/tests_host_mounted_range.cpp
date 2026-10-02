@@ -1,6 +1,6 @@
 /*
  * Mounted range and viewability tests. The same cases as the TypeScript tests in
- * shadowlist-fabric/src/__tests__/mountedRange.test.ts and viewability.test.ts, so the two
+ * shadowlist-fabric/src/__tests__/mountedRange.test.ts and viewability.test.ts. The two
  * implementations stay in step.
  */
 

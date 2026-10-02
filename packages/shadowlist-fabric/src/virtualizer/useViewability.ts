@@ -127,7 +127,7 @@ export function useViewability<ElementT>({
         ? { low: window.low, high: window.high, dataLength: data.length }
         : null;
 
-      // Tokens are only for onViewableItemsChanged, so skip them when nobody listens.
+      // Tokens are only for onViewableItemsChanged. Skip them when nobody listens.
       if (!onViewableItemsChanged) return;
 
       diffAndEmit(window ? buildViewableItems(window.low, window.high) : []);
@@ -143,7 +143,7 @@ export function useViewability<ElementT>({
 
   /*
    * A reorder can change which items sit in the visible range without native sending a new
-   * event, so check again whenever data changes.
+   * event. Check again whenever data changes.
    */
   useEffect(() => {
     if (!onViewableItemsChanged) return;

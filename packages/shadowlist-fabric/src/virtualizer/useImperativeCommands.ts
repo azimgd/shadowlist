@@ -10,7 +10,7 @@ interface ElementSizesRef {
   current: Map<string, number> | null;
 }
 
-// Returned when a list doesn't track sizes, so callers always get a map.
+// Returned when a list doesn't track sizes. Callers always get a map.
 const EMPTY_SIZES: ReadonlyMap<string, number> = new Map();
 
 export function useImperativeCommands(

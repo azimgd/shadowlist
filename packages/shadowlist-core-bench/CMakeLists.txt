@@ -8,7 +8,8 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# The core has no dependencies, so its sources compile straight into the bench binary.
+# The core has no dependencies. Its sources compile straight into the bench binary.
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/sources.cmake)
 
 add_executable(shadowlist_core_bench ${SHADOWLIST_CORE_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/bench.cpp)

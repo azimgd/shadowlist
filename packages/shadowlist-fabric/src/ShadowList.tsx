@@ -129,7 +129,7 @@ function ShadowListInner<ElementT extends { id: string }>(
   }, [onRefresh]);
 
   /*
-   * Wrap the edge reached handlers once, so the trace sees every native call and the
+   * Wrap the edge reached handlers once. The trace then sees every native call and the
    * handler doesn't change whenever the caller's does.
    */
   const edgeHandlersRef = useRef({ onStartReached, onEndReached });
@@ -161,7 +161,7 @@ function ShadowListInner<ElementT extends { id: string }>(
 
   /*
    * Every row's key, built once per data change. Native uses them to follow rows across
-   * updates, and the hooks below share them. keyToIndex gives a key's first index, so the
+   * updates, and the hooks below share them. keyToIndex gives a key's first index. The
    * first copy of a duplicate wins, same as the core.
    * When the keys come out the same as last time, like an item edited in place, the previous
    * array and map are returned. Then React sends no new elementsAllKeys prop to native (no
@@ -193,7 +193,7 @@ function ShadowListInner<ElementT extends { id: string }>(
   }, [data, keyExtractor]);
 
   /*
-   * Shared with every row, so a row that skipped a move still answers a late index read.
+   * Shared with every row. A row that skipped a move still answers a late index read.
    * Written in render, before the rows render, like each row's own index.
    */
   const rowIndexRef = useRef<RowIndexStore | null>(null);
@@ -248,7 +248,7 @@ function ShadowListInner<ElementT extends { id: string }>(
     if (elementSizesRef.current === null) elementSizesRef.current = new Map();
   } else if (elementSizesRef.current !== null) {
     /*
-     * Tracking was turned off, so drop the map. The layout callbacks are gone too, and
+     * Tracking was turned off. Drop the map. The layout callbacks are gone too, and
      * nothing would keep it up to date.
      */
     elementSizesRef.current = null;
@@ -293,7 +293,7 @@ function ShadowListInner<ElementT extends { id: string }>(
   );
 
   /*
-   * Precomputed sizes for rows near the screen, so native knows their real heights before
+   * Precomputed sizes for rows near the screen. Native knows their real heights before
    * React renders them. Empty string when there is no getElementSizeSpec, which turns the
    * feature off on both sides.
    */
@@ -324,7 +324,7 @@ function ShadowListInner<ElementT extends { id: string }>(
   );
 
   /*
-   * The separator is inside every row, so an inline element would rebuild every mounted
+   * The separator is inside every row. An inline element would rebuild every mounted
    * row on each caller render. useStableElement keeps the old one while it looks the same.
    */
   const separator = useStableElement(
@@ -370,7 +370,7 @@ function ShadowListInner<ElementT extends { id: string }>(
       ref={shadowlistViewRef}
       /*
        * Native reads the header and footer size from their layout frame. In a column they
-       * stretch across, so a horizontal list would see a screen wide header. A row sizes them
+       * stretch across and a horizontal list would see a screen wide header. A row sizes them
        * by their content instead.
        */
       style={[
@@ -397,7 +397,7 @@ function ShadowListInner<ElementT extends { id: string }>(
       scrollEventEnabled={onScroll != null}
       viewableEventEnabled={onViewableItemsChanged != null || stickyEnabled}
       elementsAllKeys={elementsAllKeys}
-      // Codegen wants a string array. Native only reads it, so a ReadonlyArray is fine.
+      // Codegen wants a string array. Native only reads it. A ReadonlyArray is fine.
       elementsAnchorIgnoreKeys={(nonAnchorKeys ?? EMPTY_STRINGS) as string[]}
       elementsSizeSpecs={elementsSizeSpecs}
       inverted={inverted}

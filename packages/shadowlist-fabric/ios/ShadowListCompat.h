@@ -2,7 +2,7 @@
 
 /*
  * react-native-macos has RCTUIKit.h with the shared RCTUI view and color names.
- * Plain react-native does not, so map those names to their UIKit types here.
+ * Plain react-native does not. Map those names to their UIKit types here.
  */
 #if __has_include(<React/RCTUIKit.h>)
 #import <React/RCTUIKit.h>

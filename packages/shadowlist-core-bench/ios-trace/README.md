@@ -48,7 +48,7 @@ rejects the gesture.
 - `[SLJ] ... render|vis|vis apply|reached|refresh|row-miss` — the JS side, printed natively
   through `globalThis.__shadowlistTrace` so it shares the host's clock.
 - `[SL] ...` — the C++ core (debug builds only), without timestamps; the analyzer stamps them
-  with the previous timestamped line, so they can read up to a second early. File order is right.
+  with the previous timestamped line. They can read up to a second early. File order is right.
 
 ## Findings
 
@@ -89,8 +89,8 @@ xcodebuild -workspace ShadowListExample.xcworkspace -scheme ShadowListExample \
   'GCC_PREPROCESSOR_DEFINITIONS=$(inherited) SHADOWLIST_FRAME_TRACE_COMPILED=1' build
 ```
 
-It keeps `[SLF]`/`[SLJ]` and drops the per-commit `[SL]` core log. Its JS is bundled, so Metro
-edits do not reach it until the next build.
+It keeps `[SLF]`/`[SLJ]` and drops the per-commit `[SL]` core log. Its JS is bundled. Metro edits
+do not reach it until the next build.
 
 ## Perf suite
 

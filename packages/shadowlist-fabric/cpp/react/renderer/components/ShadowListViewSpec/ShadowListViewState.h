@@ -38,9 +38,9 @@ using ShadowListLiveScroll = azimgd::shadowlist::LiveScroll;
  * SHADOWLIST_SCROLL_BAND: hosts write every scroll frame into ShadowListLiveScroll and only
  * send a state update, which is a full commit, when the offset leaves the band the layout
  * pass published or something else the core needs changed. With the switch off the layout
- * pass publishes an empty band, so both hosts send every frame like before. Set the
+ * pass publishes an empty band and both hosts send every frame like before. Set the
  * environment variable SHADOWLIST_SCROLL_BAND=0 to turn it off. Android apps get no launch
- * environment, so there only the define counts.
+ * environment. There only the define counts.
  *
  * SHADOWLIST_IMMEDIATE_STATE: the iOS host commits its state update right away on the
  * calling thread instead of on the next event beat. Off by default. Set
@@ -168,7 +168,7 @@ public:
     userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_),
     scrollPhase_(data.count("scrollPhase") ? data["scrollPhase"].getDouble() : previousState.scrollPhase_),
     /*
-     * Sticky header geometry only comes from the core, so a partial update from
+     * Sticky header geometry only comes from the core. A partial update from
      * the Android view, like a scroll commit, carries it over unchanged.
      */
     stickyHeaderIndices_(previousState.stickyHeaderIndices_),
@@ -178,15 +178,15 @@ public:
     commitToken_(data.count("commitToken") ? (Float)data["commitToken"].getDouble() : previousState.commitToken_),
     /*
      * Carry the base over from the mounted state, like iOS does. A report that echoes a
-     * correction keeps the base its first write started from, so a republished correction
+     * correction keeps the base its first write started from. A republished correction
      * stays one running delta the host has partly applied.
      */
     containerOffsetBaseX_(previousState.containerOffsetBaseX_),
     containerOffsetBaseY_(previousState.containerOffsetBaseY_),
-    // Android never conceals rows, so just carry these over.
+    // Android never conceals rows. Just carry these over.
     concealGeneration_(previousState.concealGeneration_),
     concealGenerationAck_(previousState.concealGenerationAck_),
-    // The band comes from the layout pass and the live report is shared, so carry both over.
+    // The band comes from the layout pass and the live report is shared. Carry both over.
     offsetBandLow_(previousState.offsetBandLow_),
     offsetBandHigh_(previousState.offsetBandHigh_),
     hostSequence_(data.count("hostSequence") ? data["hostSequence"].asDouble() : previousState.hostSequence_),
@@ -379,7 +379,7 @@ public:
   }
 
   /*
-   * Whether this state already holds all of a patch, so the update can be dropped. Only when
+   * Whether this state already holds all of a patch and the update can be dropped. Only when
    * nothing waits on the host: a state with an offset to apply or hidden rows needs its report
    * even if it repeats, since each commit moves those along.
    */
@@ -440,7 +440,7 @@ public:
    * Drag to reorder. The platform view writes these as the gesture goes, and the
    * component descriptor fires each JS drag event once. The sequence goes up on every
    * drag event so a fresh event looks different from a carried one. The type is 1 for
-   * start, 3 for end and 0 for none. Finger tracking stays native, so there is no
+   * start, 3 for end and 0 for none. Finger tracking stays native. There is no
    * event in between. The keys name the moved row and its drop neighbor, and JS looks
    * them up in the current data so an edit mid drag can't move the wrong rows.
    * Keep these before userScrolled_ to match the Android constructor's init order.
@@ -453,7 +453,7 @@ public:
   /*
    * True when this offset came from the user scrolling, false when it is the resting
    * position or an offset the core wrote. The core drops a pending correction as soon
-   * as the user takes over, so a short keep in place nudge can't get stuck and freeze
+   * as the user takes over. A short keep in place nudge can't get stuck and freeze
    * the window. The platforms set it from their drag state.
    */
   bool userScrolled_{false};
@@ -461,7 +461,7 @@ public:
   /*
    * The gesture phase the host last reported: idle, dragging with a finger down, or
    * settling with momentum. Unlike userScrolled_ it lasts across commits between touch
-   * frames, so the core can tell a finger is still down even when the offset didn't move.
+   * frames. The core can tell a finger is still down even when the offset didn't move.
    * Keep it after userScrolled_ to match the Android constructor's init order.
    */
   double scrollPhase_{0.0};
@@ -469,7 +469,7 @@ public:
   /*
    * Sticky header positions along the scroll axis from the layout pass, one entry per
    * sticky header in index order, empty for a plain list. The platforms pin the active
-   * header from these each scroll frame, so they never read a view frame that may be
+   * header from these each scroll frame. They never read a view frame that may be
    * transformed. Keep them after scrollPhase_ to match the Android constructor's init order.
    *
    * These lists are held by pointer on purpose. State gets copied every commit, every
@@ -478,7 +478,7 @@ public:
    * A shared pointer makes a copy cheap and makes the change check a pointer compare.
    *
    * A null pointer means empty, and readers must treat both the same. Nothing changes a
-   * list after it is published, so sharing it across copies and threads is safe.
+   * list after it is published. Sharing it across copies and threads is safe.
    */
   std::shared_ptr<const std::vector<int>> stickyHeaderIndices_{};
   std::shared_ptr<const std::vector<double>> stickyHeaderOffsets_{};
@@ -492,7 +492,7 @@ public:
 
   /*
    * The id of the pending offset correction. The core sends it with the offset and the
-   * view echoes it back, so the core knows its own write by id instead of guessing by
+   * view echoes it back. The core knows its own write by id instead of guessing by
    * distance. Zero means no correction or a report from the host. Stored as a double like
    * the other fields. Keep it after snapOffsets_ to match the Android constructor's init order.
    */
@@ -501,7 +501,7 @@ public:
   /*
    * The offset the core started from when it published a correction. The container
    * offset minus this is the correction as a delta. A commit can mount frames after the
-   * report it was built on, and a moving view has gone further by then, so writing the
+   * report it was built on, and a moving view has gone further by then. Writing the
    * absolute offset would make the content jump. While the view moves, both hosts add the
    * delta to the live offset instead, and also for an operation correction made from a
    * gesture report. Only meaningful when containerOffsetEnabled_ is set. Host reports

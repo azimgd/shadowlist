@@ -14,13 +14,13 @@ public:
 
   /*
    * Maps each key to its row index so anchors resolve without a scan. The first duplicate wins.
-   * Stored values include indexBias, so always use indexForKey and setIndexForKey. Reading
+   * Stored values include indexBias. Always use indexForKey and setIndexForKey. Reading
    * a value directly gives a wrong index, and rows end up taking other rows' sizes.
    */
   std::unordered_map<std::string, std::size_t> elementIndexByKey;
 
   /*
-   * Added to every stored index, so a prepend only changes this number instead of every entry.
+   * Added to every stored index. A prepend only changes this number instead of every entry.
    * Unsigned wraparound is fine because the bias and the values wrap together.
    * A full rebuild sets it back to zero.
    */

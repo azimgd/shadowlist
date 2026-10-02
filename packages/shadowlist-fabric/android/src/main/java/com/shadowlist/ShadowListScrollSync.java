@@ -119,7 +119,7 @@ final class ShadowListScrollSync {
   }
 
   /*
-   * Right before writing the correction, so its scroll callback counts as ours.
+   * Right before writing the correction. Its scroll callback then counts as ours.
    */
   void willWrite() {
     nativeWillWrite(mNative);
@@ -146,7 +146,7 @@ final class ShadowListScrollSync {
   }
 
   /*
-   * Mark a scroll we start, like a snap or scrollToOffset, so its frames are not the user.
+   * Mark a scroll we start, like a snap or scrollToOffset. Its frames are not the user.
    */
   void arm(double offsetX, double offsetY, boolean animated) {
     nativeArm(mNative, offsetX, offsetY, animated);

@@ -206,8 +206,8 @@ export interface SectionListProps<ElementT, SectionT = object> extends Omit<
 /*
  * TreeList types. Nodes whose parents are all expanded are flattened into one list, and
  * collapsed branches are never walked. keyExtractor must return an id that is unique
- * across the whole tree and stays the same when nodes expand or collapse, so rows and
- * cached sizes stay matched.
+ * across the whole tree and stays the same when nodes expand or collapse. Rows and
+ * cached sizes then stay matched.
  */
 export interface TreeListRenderElementInfo<ElementT> {
   element: ElementT;

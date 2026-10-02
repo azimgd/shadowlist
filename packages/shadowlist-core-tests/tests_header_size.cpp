@@ -40,7 +40,7 @@ const double OLDER_ROW_HEIGHT = 174.0;
 enum class OlderRows {
   // Sized like every other row, at the estimate.
   AtEstimate,
-  // Not mounted yet, so the core gets no size for them.
+  // Not mounted yet. The core gets no size for them.
   Unmounted,
   // Mounting in this pass, sized to zero first and then to their real size.
   Mounting,
@@ -178,7 +178,7 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
   std::vector<std::string> grown = prependedTo(keys, 6);
   Virtualizer::update(&container, frame(grown, 0.0, SPINNER_HEADER));
   std::uint64_t token = container.operation ? container.operation->id : 0;
-  // The page has not mounted yet, so its rows keep their estimates here.
+  // The page has not mounted yet. Its rows keep their estimates here.
   layoutPass(container, PLAIN_HEADER, OlderRows::Unmounted);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
@@ -325,8 +325,9 @@ TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
 
 /*
  * Replacing the data and scrolling to the start can arrive as the new rows and scrollToStart in
- * one update. The command wins over keeping the visible row in place, so the only correction is
- * to offset 0. Without the command the same update holds the old row.
+ * one update. The command wins over keeping the visible row in place. The only correction is
+ * to offset 0.
+ * Without the command the same update holds the old row.
  */
 TEST(scroll_to_start_with_new_rows_is_one_correction) {
   std::vector<std::string> keys = keysFor(40);

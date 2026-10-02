@@ -1,7 +1,7 @@
 /*
  * Work the layout skips because it can't change anything. A window that only grows or
- * shrinks along the scroll axis, like a chat composer resizing the list, moves no row,
- * so the rows are not walked again. These tests check the layout still comes out the
+ * shrinks along the scroll axis, like a chat composer resizing the list, moves no row.
+ * The rows are not walked again. These tests check the layout still comes out the
  * same as a full reflow would give, and that changes that do move rows still reflow.
  */
 
@@ -117,7 +117,7 @@ TEST(a_cross_axis_resize_still_reflows_columns) {
   Virtualizer::update(&container, input);
   CHECK_NEAR(container.revision.elements[1].width, WINDOW_WIDTH / 2.0, 0.0001);
 
-  // Only the height changes, so the columns keep their width.
+  // Only the height changes. The columns keep their width.
   input.windowContainerHeight = 500.0;
   Virtualizer::update(&container, input);
   CHECK_NEAR(container.revision.elements[1].width, WINDOW_WIDTH / 2.0, 0.0001);
@@ -194,7 +194,7 @@ TEST(unchanged_anchor_ignore_keys_keep_the_set_the_core_already_has) {
   CHECK(!container.isAnchorable("k1"));
   CHECK(container.isAnchorable("k2"));
 
-  // The host vouches the keys are the ones it sent before, so the set stays as it is.
+  // The host vouches the keys are the ones it sent before. The set stays as it is.
   input.nonAnchorableKeysUnchanged = true;
   Virtualizer::update(&container, input);
   CHECK(!container.isAnchorable("k0"));

@@ -14,10 +14,10 @@ public class ShadowListTemplateView extends ViewGroup {
   // Header, footer or empty. The list reads it to pin sticky templates.
   private String mTemplateType = "";
 
-  // Set by the list while mounted, so sticky pinning follows this view's frame.
+  // Set by the list while mounted. Sticky pinning follows this view's frame.
   private @Nullable View.OnLayoutChangeListener mListLayoutListener = null;
 
-  // Set by the list while mounted, so it finds its sticky views again when the type changes.
+  // Set by the list while mounted. It finds its sticky views again when the type changes.
   private @Nullable Runnable mListTypeListener = null;
 
   public ShadowListTemplateView(Context context) {
@@ -38,7 +38,7 @@ public class ShadowListTemplateView extends ViewGroup {
   /*
    * The sticky controller lifts pinned templates with translationZ so they draw above the
    * rows. Without a background the default outline casts an invisible shadow that the
-   * renderer still processes every frame, so drop the outline then. A styled template
+   * renderer still processes every frame. Drop the outline then. A styled template
    * keeps its outline and its shadow.
    */
   private void updateOutline() {

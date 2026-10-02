@@ -16,7 +16,7 @@ enum class AnchorMode {
 
 /*
  * A scroll position given as a row and how far its top sits past the top of the viewport.
- * Unlike a pixel offset it survives prepends, inserts and removes, so holding it keeps
+ * Unlike a pixel offset it survives prepends, inserts and removes. Holding it keeps
  * the same content on screen.
  */
 struct Anchor {
@@ -26,7 +26,7 @@ struct Anchor {
 };
 
 /*
- * The current scroll gesture as reported by the host, so we know whether the user is scrolling.
+ * The current scroll gesture as reported by the host. It tells whether the user is scrolling.
  * Idle covers our own moves. Dragging and Settling mean the user is in control.
  */
 enum class ScrollPhase {
@@ -44,13 +44,13 @@ enum class OperationType {
   ScrollToStart,   // Hold the first row at its offset from the top
   ScrollToEnd,     // Keep closing in on the real bottom as rows get measured
   BottomPin,       // First bottom pin of an inverted list, dropped once the user drags
-  ShrinkClamp,     // Content got shorter than the offset, so pull back to the new end
+  ShrinkClamp,     // Content got shorter than the offset. Pull back to the new end
 };
 
 /*
  * One running offset correction. The id is stamped on every offset write it makes and stays
  * the same while it settles over several frames. The host sends it back with the next scroll
- * report, so we can tell our own writes apart. A new type or anchor key gets a new id.
+ * report. That tells our own writes apart. A new type or anchor key gets a new id.
  */
 struct Operation {
   std::uint64_t id = 0;

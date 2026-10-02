@@ -76,8 +76,8 @@ inline std::set<std::size_t> overlappingIndices(const azimgd::shadowlist::Contai
     double elementOffset = offsetOf(container, index);
     double elementSize = sizeOf(container, index);
     /*
-     * Count real overlap only. A row starting exactly on the far edge covers no pixels,
-     * so the core may include it or not.
+     * Count real overlap only. A row starting exactly on the far edge covers no pixels.
+     * The core may include it or not.
      */
     if (elementOffset >= upperBound) {
       continue;

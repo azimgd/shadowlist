@@ -16,9 +16,9 @@ import type { ReorderTileItem } from './types';
 
 export interface ReorderTileProps {
   item: ReorderTileItem;
-  // Screen readers cannot drag, so moves are also offered as accessibility actions.
+  // Moves are also offered as accessibility actions because screen readers cannot drag.
   onMove?: (id: string, offset: -1 | 1) => void;
-  // Overrides the item's swatch ratio, so every tile in the grid is the same size.
+  // Overrides the item's swatch ratio. Every tile in the grid is the same size.
   aspectRatio?: number;
   labels?: Partial<ReorderLabels>;
   style?: StyleProp<ViewStyle>;

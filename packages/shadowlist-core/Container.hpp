@@ -39,7 +39,7 @@ struct ContainerStateUpdate {
  * sending the core a new frame. Inside it the core would pick the same window, fire no
  * edge or visible rows callback, and start no correction.
  * Empty when the core needs every frame, like while a correction runs. The empty default
- * has low above high, so a host that never got a band sends every frame.
+ * has low above high. A host that never got a band sends every frame.
  */
 struct OffsetBand {
   double low = 1.0;
@@ -121,12 +121,12 @@ public:
   // Indexes of sticky section headers in order, set each frame. Empty for a plain list.
   std::vector<std::size_t> stickyIndices;
 
-  // Last drag event number sent to JS, so each drag event fires once. -1 means none yet.
+  // Last drag event number sent to JS, to fire each drag event once. -1 means none yet.
   double lastDragEventSequence = -1.0;
 
   /*
    * Scroll requests. resolveScroll turns each into an operation and clears it.
-   * A request can arrive between frames, so it waits here until the revision is measured.
+   * A request can arrive between frames. It waits here until the revision is measured.
    */
 
   // Pending scrollToIndex target, or UNDEFINED_INDEX when there is none.
@@ -141,7 +141,7 @@ public:
   /*
    * Set while scrollToEnd closes in on the bottom as rows get measured.
    * Cleared once we reach the bottom and the total size stops changing.
-   * update also sets it when rows are appended to an inverted list resting at the bottom, so it follows them.
+   * update also sets it when rows are appended to an inverted list resting at the bottom. The list then follows them.
    */
   bool pendingScrollToEnd = false;
   // Set by scrollToStart and used up by the next resolve.
@@ -156,7 +156,7 @@ public:
   bool invertedInitialized = false;
 
   /*
-   * Set when the user scrolls an inverted list up off the bottom, so the bottom pin lets go.
+   * Set when the user scrolls an inverted list up off the bottom. The bottom pin then lets go.
    * Without it a tall last row gets pinned again every frame and the view snaps back under the finger.
    * Cleared only when the user scrolls back to the bottom. Content shrinking under a still reader
    * must not turn the pin back on. Updated in update before anything is measured.
@@ -172,7 +172,7 @@ public:
 
   /*
    * Id of the last operation running during a gesture, or 0.
-   * During a gesture the host applies our correction on top of its live offset, so its echo
+   * During a gesture the host applies our correction on top of its live offset. Its echo
    * counts as done even after the motion stops. Otherwise we would push the view to a target
    * that ignores how far the finger moved.
    */
@@ -191,7 +191,7 @@ public:
 
   /*
    * How much the anchor row grew, or shrank if negative, on its first real measurement.
-   * That row usually sits across the top edge, so commitElementSizes takes the change above
+   * That row usually sits across the top edge. commitElementSizes takes the change above
    * the viewport instead of moving the rows below. Set by applyElementSize and reset on commit.
    */
   double anchorFirstMeasurementDelta = 0.0;
@@ -221,7 +221,7 @@ public:
 
   /*
    * Sizes the host measured ahead of time, by key, before the row was ever rendered.
-   * An entry moves onto its row once the row exists and is then erased, so this only holds
+   * An entry moves onto its row once the row exists and is then erased. This only holds
    * sizes that arrived early. They never feed the average, which counts real measurements only.
    * The host keeps this small. Measure a screen or two ahead, not the whole dataset.
    */
@@ -240,7 +240,7 @@ public:
   std::unordered_set<std::string> nonAnchorableKeys;
 
   /*
-   * Layout inputs from the last offset pass, so layoutElements can skip it when nothing changed.
+   * Layout inputs from the last offset pass. layoutElements skips the pass when nothing changed.
    * Window sizes are here because column widths depend on them.
    */
   double lastLayoutHeaderSize = -1.0;
@@ -257,8 +257,8 @@ public:
   double lastFallbackHeight = -1.0;
 
   /*
-   * Bumped whenever row positions, sizes or the row list change, so snap offsets and sticky
-   * headers can be cached between frames. Starts at 1 because 0 means nothing cached.
+   * Bumped whenever row positions, sizes or the row list change. Snap offsets and sticky
+   * headers are cached against it between frames. Starts at 1 because 0 means nothing cached.
    */
   std::uint64_t geometryVersion = 1;
 
@@ -270,7 +270,7 @@ public:
 
   /*
    * Lowest row whose size changed outside layoutElements, or UNDEFINED_INDEX.
-   * A size change only moves rows after it, so the next layout starts here instead of at row 0.
+   * A size change only moves rows after it. The next layout starts here instead of at row 0.
    */
   std::size_t elementsSizeDirtyFromIndex = UNDEFINED_INDEX;
 
@@ -430,8 +430,8 @@ public:
    * rows or sizes not laid out yet, the inverted opening pin, and scroll, viewable or
    * sticky listeners, which need every offset. Otherwise the band ends where a row enters
    * or leaves the window, where an edge callback or the inverted bottom pin would flip,
-   * and at both ends of the scroll range. Each of those ends is pulled in by a margin, so
-   * a host rounding its offset still sends the frame that crosses it.
+   * and at both ends of the scroll range. Each of those ends is pulled in by a margin. A
+   * host rounding its offset still sends the frame that crosses it.
    */
   OffsetBand computeOffsetBand() const;
 
@@ -445,31 +445,31 @@ private:
   mutable double snapCacheTotalSize = -1.0;
   mutable bool snapCacheHorizontal = false;
 
-  // Last visible range sent, so we only send changes.
+  // Last visible range sent. Only changes are sent.
   std::size_t previousVisibleStartIndex = UNDEFINED_INDEX;
   std::size_t previousVisibleEndIndex = UNDEFINED_INDEX;
 
-  // Last viewable range sent, so we only send changes.
+  // Last viewable range sent. Only changes are sent.
   std::size_t previousViewableStartIndex = UNDEFINED_INDEX;
   std::size_t previousViewableEndIndex = UNDEFINED_INDEX;
 
   /*
-   * Whether we were already at an edge, so reached callbacks fire once on arrival.
+   * Whether we were already at an edge. Reached callbacks fire once on arrival.
    * They reset when the row count changes, like after loading a page.
    */
   bool previousReachedStart = false;
   bool previousReachedEnd = false;
   std::size_t previousReachedElementsSize = UNDEFINED_INDEX;
 
-  // Last offset sent to onScroll, so we only send changes.
+  // Last offset sent to onScroll. Only changes are sent.
   double previousContainerOffsetX = 0.0;
   double previousContainerOffsetY = 0.0;
   bool previousContainerOffsetValid = false;
 
-  // Last scrollToIndex command number handled, so the same index can still scroll again.
+  // Last scrollToIndex command number handled. The same index can still scroll again.
   double previousScrollToIndexSequence = 0.0;
 
-  // Last containerOffsetIndex prop handled, so it only scrolls when the value changes.
+  // Last containerOffsetIndex prop handled. The prop only scrolls when its value changes.
   int previousScrollToIndexProp = -1;
 };
 

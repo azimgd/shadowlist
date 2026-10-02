@@ -111,7 +111,7 @@ function shareArrayById(
  *
  *   useQuery({ ..., structuralSharing: shareItemsById });
  *
- * The default matches arrays by position, so one insert or removal gives every later row a
+ * The default matches arrays by position. One insert or removal gives every later row a
  * new object and re-renders all mounted rows. Here a row equal to the previous row with the
  * same id keeps its identity wherever it moved.
  *
@@ -131,9 +131,9 @@ export function shareItemsById<DataT>(previous: unknown, next: DataT): DataT {
  *   useInfiniteQuery({ ..., structuralSharing: shareInfiniteItemsById });
  *
  * The default, replaceEqualDeep, compares arrays index by index. A prepend shifts every
- * later row, so each comes back as a new object and every mounted row re-renders. Here a
+ * later row. Each comes back as a new object and every mounted row re-renders. Here a
  * row equal to the previous row with the same id keeps the old object, an unchanged page
- * keeps the old page, and unchanged data comes back as the previous value, so nothing
+ * keeps the old page, and unchanged data comes back as the previous value. Nothing
  * re-renders.
  *
  * Rows without an `id` and values that are not infinite data pass through unshared.

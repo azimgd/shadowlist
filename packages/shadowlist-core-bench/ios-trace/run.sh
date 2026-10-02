@@ -18,7 +18,7 @@
 #   ad <args...>            any other agent-device command, run in the session
 #
 # {FLINGS}, {BACK} and {HALF} in a step are replaced by $FLINGS (default 12), $BACK
-# (default 3/4 of it) and half of it, so perf-suite.sh can size fling runs to the list.
+# (default 3/4 of it) and half of it. perf-suite.sh uses them to size fling runs to the list.
 #
 # Environment: UDID and DEVICE pick the simulator and its agent-device name, default sl-iosfix.
 # Also SESSION, OUT_DIR, AD for the agent-device command, LOG for the log path, and
@@ -75,12 +75,12 @@ CONSOLE_PID=$!
 trap 'kill $CONSOLE_PID 2>/dev/null || true' EXIT
 
 # Wait until the list has rendered from JS. An empty screen like the assistant's
-# suggestions renders zero rows, so don't wait for a row count.
+# suggestions renders zero rows. Don't wait for a row count.
 for _ in $(seq 1 180); do
   if grep -qE '\[SLJ\] .*render id=[0-9]|\[SLF\] .*frame' "$LOG" 2>/dev/null; then break; fi
   sleep 0.5
 done
-# An empty screen can render before JS tracing is ready and then sit still, so a missing
+# An empty screen can render before JS tracing is ready and then sit still. A missing
 # render line only warns. The steps below will produce trace activity.
 grep -qE '\[SLJ\] .*render id=|\[SLF\] .*frame' "$LOG" ||
   echo "warning: no list trace yet (Metro up? build has trace?); running the steps anyway" >&2

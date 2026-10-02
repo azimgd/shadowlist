@@ -9,7 +9,7 @@ export interface UseKeyboardLiftOptions {
 
 /*
  * Moves a list and composer column up with the keyboard. The keyboard height includes the
- * bottom safe area the composer already pads for, so the lift stays at 0 until the keyboard
+ * bottom safe area the composer already pads for. The lift stays at 0 until the keyboard
  * passes it, then settles gap above the keyboard.
  */
 export function useKeyboardLift({

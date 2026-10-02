@@ -29,8 +29,8 @@ interface ElementRendererProps<ElementT> {
   separator: ReactElement | null;
   nativeIndex: number;
   /*
-   * Set only when trackElementSizes is on. Otherwise the row has no onLayout at all, so
-   * lists that don't track sizes pay nothing.
+   * Set only when trackElementSizes is on. Otherwise the row has no onLayout at all.
+   * Lists that don't track sizes pay nothing.
    */
   onElementLayout?: (key: string, width: number, height: number) => void;
   onElementRelease?: (key: string) => void;
@@ -85,8 +85,9 @@ export const ElementRenderer = memo(function ElementRendererInner<
 }: ElementRendererProps<ElementT>) {
   /*
    * Rebuild the row only when something it used changed. The index only counts if the last
-   * renderElement call read it. A prepend shifts every row's index but not its element, so a
+   * renderElement call read it. A prepend shifts every row's index but not its element. A
    * row that never read the index can keep its children and React skips the subtree.
+
    * A renderer that does read the index, say for numbering, still re-renders when it moves.
    */
   const renderedRef = useRef<RenderedChildren<ElementT> | null>(null);

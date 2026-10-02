@@ -57,7 +57,7 @@ describe('initialMountedRange', () => {
   });
 
   /*
-   * A jump centered or aligned to the end shows the rows before the target, so mounting only
+   * A jump centered or aligned to the end shows the rows before the target. Mounting only
    * forward would leave that half blank until native reports.
    */
   it('seeds behind the target in proportion to viewPosition', () => {
@@ -75,7 +75,7 @@ describe('initialMountedRange', () => {
   });
 
   /*
-   * initialMountedRange is public, so old callers passing four arguments must not get a NaN
+   * initialMountedRange is public. Old callers passing four arguments must not get a NaN
    * range, which mounts nothing.
    */
   it('falls back to the default overscan when the caller omits it', () => {

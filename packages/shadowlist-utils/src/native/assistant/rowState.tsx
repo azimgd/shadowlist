@@ -2,12 +2,12 @@ import { createContext, useContext, type ReactElement } from 'react';
 
 /*
  * List wide state that rows show, like whether a reply is streaming. AssistantList provides
- * it here instead of through renderElement, so a change re-renders only the small parts
+ * it here instead of through renderElement. A change re-renders only the small parts
  * below that read it, not every mounted row. A reply start and end used to rebuild every row
  * twice. Outside an AssistantList the defaults change nothing.
  */
 export interface AssistantRowState {
-  // A reply is streaming, so Regenerate, Retry and Edit are off.
+  // Regenerate, Retry and Edit are off while a reply is streaming.
   busy: boolean;
   // The newest reply, the only one that shows follow ups.
   latestId: string | undefined;

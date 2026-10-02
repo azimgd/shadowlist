@@ -1,6 +1,6 @@
 # ShadowList
 
-ShadowList is a monorepo with one shared list-virtualization engine and the React Native package that uses it.
+Virtualized list for React Native. Layout, virtualization and scroll position live in a shared C++ core that runs on iOS and Android.
 
 ## Packages
 

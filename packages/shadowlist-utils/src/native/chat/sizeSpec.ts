@@ -3,11 +3,11 @@ import type { Theme } from '../theme';
 import type { ChatMessage } from './types';
 
 /*
- * Copies ChatBubble's styles. If the two disagree the predicted height is wrong, so edit
+ * Copies ChatBubble's styles. If the two disagree the predicted height is wrong. Edit
  * both together.
  *
  *   container     paddingHorizontal spacing.md, paddingVertical spacing.xxs
- *   avatar        beside the column, not inside it, so it narrows nothing
+ *   avatar        beside the column, not inside it. It narrows nothing
  *   bubbleColumn  maxWidth 75% of the container's content box
  *   sender        typography.caption line + spacing.xxs margin, on messages from others
  *   bubble        paddingHorizontal BUBBLE_PADDING_HORIZONTAL, paddingVertical spacing.sm
@@ -15,7 +15,7 @@ import type { ChatMessage } from './types';
  *   caption       typography.caption line + spacing.xs margin, inside the bubble
  *   failedStatus  typography.caption line + spacing.xs margin, under a failed bubble
  *
- * Sending only dims the bubble, so a send that turns into sent never changes the height.
+ * Sending only dims the bubble. A send that turns into sent never changes the height.
  */
 export const BUBBLE_WIDTH_FRACTION = 0.75;
 export const BUBBLE_PADDING_HORIZONTAL = 14;
@@ -26,7 +26,7 @@ export interface ChatMessageSizeSpecOptions {
 }
 
 /*
- * Image messages get their height from the images, so they are measured natively.
+ * Image messages are measured natively because their height comes from the images.
  */
 export function getChatMessageSizeSpec(
   message: ChatMessage,

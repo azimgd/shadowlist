@@ -22,7 +22,7 @@ export interface AssistantEmptyProps {
 
 /*
  * Drawn over the list instead of as ListEmptyComponent. The list's content size never
- * counts the empty template, so with no rows Android clips it out of view.
+ * counts the empty template. With no rows Android clips it out of view.
  */
 export const AssistantEmpty = memo(
   ({ suggestions, onSelectSuggestion, labels, style }: AssistantEmptyProps) => {

@@ -31,7 +31,7 @@ export function useDragReorder<ElementT>({
   onReorder,
 }: UseDragReorderOptions<ElementT>): UseDragReorderResult {
   /*
-   * Find a key's current index in data, or -1 if it's gone. Native sends keys, so a data
+   * Find a key's current index in data, or -1 if it's gone. Native sends keys. A data
    * change during the drag still moves the right rows.
    */
   const indexOfKey = useCallback(
@@ -40,7 +40,7 @@ export function useDragReorder<ElementT>({
   );
   /*
    * Key of the dragged row, not its index. An insert or remove during the drag would make an
-   * index stale, so look the index up again on every render, like handleDragEnd does on drop.
+   * index stale. Look the index up again on every render, like handleDragEnd does on drop.
    */
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
 

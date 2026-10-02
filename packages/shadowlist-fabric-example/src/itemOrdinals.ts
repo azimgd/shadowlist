@@ -5,7 +5,7 @@ import { useCallback, useMemo, useRef } from 'react';
  * A row's number is given once, when it first appears, and kept by id rather than by index.
  * Loading chat history shifts every index, and labels based on the index would renumber and
  * re-render every mounted row at once.
- * Rows that arrive before the numbered ones count separately, away from the start, so each
+ * Rows that arrive before the numbered ones count separately, away from the start. Each
  * prepended page keeps its own sequence. Rows appended after the last numbered one continue
  * the forward count.
  */
@@ -29,7 +29,7 @@ export interface ItemOrdinals {
 
 /*
  * Positions are spelled out in full, like five hundred thirty ninth item. Intl can only pick
- * the suffix category and has no spell-out mode, so the few English rules live here behind a cache.
+ * the suffix category and has no spell-out mode. The few English rules live here behind a cache.
  */
 const ONES = [
   'zero',
@@ -161,7 +161,7 @@ export function useItemOrdinals<ItemT extends { id: string }>(
         : data.findIndex((item) => item.id === registry.headId);
 
     if (headIndex === -1) {
-      // Nothing is numbered yet, or the numbered rows are gone, so this is the baseline page.
+      // Nothing is numbered yet, or the numbered rows are gone. This is the baseline page.
       registry.numbers.clear();
       registry.forwardCount = 0;
       registry.prependedCount = 0;
@@ -174,7 +174,7 @@ export function useItemOrdinals<ItemT extends { id: string }>(
     } else {
       /*
        * Rows before the old head are a prepended page. Number them from the row nearest the head
-       * outwards, so each older page keeps counting where the last one stopped.
+       * outwards. Each older page keeps counting where the last one stopped.
        */
       for (let index = headIndex - 1; index >= 0; index--) {
         const item = data[index]!;

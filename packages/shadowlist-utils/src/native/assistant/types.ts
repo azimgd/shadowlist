@@ -10,7 +10,7 @@ export interface AssistantAttachment {
 }
 
 /*
- * Stopped is not failed. A tool the reader stopped was not a failure, so it should not
+ * Stopped is not failed. A tool the reader stopped was not a failure. It should not
  * show red.
  */
 export type AssistantToolStatus = 'running' | 'done' | 'failed' | 'stopped';
@@ -21,7 +21,8 @@ interface AssistantToolCallBase {
   input: string;
   /*
    * The length of the reply text when the call started. The row draws the text up to here,
-   * then the call, then the rest, so things read in the order they happened. Older calls
+   * then the call, then the rest. Things read in the order they happened. Older calls
+
    * don't have it and are drawn before the text.
    */
   at?: number;

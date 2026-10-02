@@ -3,7 +3,7 @@ export const SHADOWLIST_OVERSCAN = 4;
 
 /*
  * Default extra rows mounted ahead in the scroll direction, overridden by overscanRowsLeading.
- * A blank cell in a fling is a row native reached before React mounted it, so rows ahead are
+ * A blank cell in a fling is a row native reached before React mounted it. Rows ahead are
  * what help. Rows behind only cost render work. A fling mounts this many ahead and
  * SHADOWLIST_OVERSCAN behind, and a list at rest keeps SHADOWLIST_OVERSCAN on both sides.
  */
@@ -15,8 +15,8 @@ export const SNAP_ALIGNMENT = { start: 0, center: 1, end: 2 } as const;
 /*
  * Device trace. Debug Apple builds started with SHADOWLIST_FRAME_TRACE=1 install
  * __shadowlistTrace, see ShadowListTrace.h. It prints [SLJ] lines on the same clock as the
- * native [SLF] frame trace. Elsewhere it's missing and a call costs one global read, so
- * only build messages behind slTraceEnabled().
+ * native [SLF] frame trace. Elsewhere it's missing and a call costs one global read.
+ * Only build messages behind slTraceEnabled().
  */
 interface TraceGlobal {
   __shadowlistTrace?: (message: string) => void;

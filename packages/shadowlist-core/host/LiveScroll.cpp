@@ -16,7 +16,7 @@ std::mutex& registryMutex() {
 }
 
 /*
- * Weak entries, so the registry never keeps a list alive. Dead entries are swept when a new
+ * Weak entries. The registry never keeps a list alive. Dead entries are swept when a new
  * list registers, and there are only ever a few lists.
  */
 std::unordered_map<std::int64_t, std::weak_ptr<LiveScroll>>& registry() {

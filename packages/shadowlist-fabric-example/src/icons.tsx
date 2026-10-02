@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles -- icon geometry is derived from
- * the size/color/strokeWidth props, so the shape styles are intentionally dynamic. */
+ * the size/color/strokeWidth props. The shape styles are intentionally dynamic. */
 import { View } from 'react-native';
 import { useTheme, type IconProps } from 'shadowlist-utils/native';
 

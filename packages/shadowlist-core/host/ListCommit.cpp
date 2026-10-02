@@ -24,7 +24,7 @@ void applyHostScroll(FrameInput& input, const ListScrollState& state) {
   input.userScrolled = state.userScrolled;
   // The phase lasts across reports, see Container::gestureActive.
   input.scrollPhase = scrollPhaseFromReport(state.scrollPhase);
-  // The token the host echoed back, so the core can spot its own write. 0 if none.
+  // The token the host echoed back. The core uses it to spot its own write. 0 if none.
   input.commitToken = static_cast<std::uint64_t>(state.commitToken);
 }
 

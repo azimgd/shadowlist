@@ -41,7 +41,7 @@ void Container::endRevision() {
   bool reachedEnd = reachingHighEdge;
   bool reachedStart = reachingLowEdge;
 
-  // A list shorter than the viewport touches both edges, so report only the end.
+  // A list shorter than the viewport touches both edges. Report only the end.
   if (reachedStart && reachedEnd) {
     reachedStart = false;
   }
@@ -86,7 +86,7 @@ void Container::scrollToStart() {
 
 void Container::requestScrollToIndex(double commandIndex, double commandSequence, int propIndex, double commandViewPosition) {
   /*
-   * The command wins over the prop. Each call bumps a counter, so the same index can scroll
+   * The command wins over the prop. Each call bumps a counter. The same index can scroll
    * twice, and a lower sequence is an older state that must not run the command again.
    */
   bool fired = false;
@@ -143,7 +143,7 @@ ContainerStateUpdate Container::resolveStateUpdate(
   update.changed = corrected || sizeChanged;
 
   /*
-   * Send the operation id only when an operation moved the offset, so the host can send it back.
+   * Send the operation id only when an operation moved the offset. The host sends it back.
    * Offset changes without an operation send 0.
    */
   update.commitToken = (corrected && this->operation) ? this->operation->id : 0;
@@ -160,7 +160,7 @@ const std::vector<double>& Container::getSnapOffsets() const {
   double windowSize = this->getWindowContainerSize();
   double totalSize = this->horizontal ? this->revision.totalContainerWidth : this->revision.totalContainerHeight;
 
-  // Scrolling alone never changes the snap offsets, so reuse them unless the geometry or settings changed.
+  // Scrolling alone never changes the snap offsets. Reuse them unless the geometry or settings changed.
   if (this->snapCacheVersion == this->geometryVersion &&
       this->snapCacheSnapToItem == this->snapToItem &&
       this->snapCacheAlignment == this->snapAlignment &&
@@ -196,7 +196,7 @@ const std::vector<double>& Container::getSnapOffsets() const {
 
   /*
    * One target per row, clamped to the scroll range. Rows near either end collapse onto
-   * the same value, so skip repeats.
+   * the same value. Skip repeats.
    */
   snapOffsets.reserve(elementsSize);
   for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
@@ -304,7 +304,7 @@ OffsetBand Container::computeOffsetBand() const {
     return empty;
   }
 
-  // Rows or sizes the next frame would still lay out, so positions are about to move.
+  // Rows or sizes the next frame would still lay out. Positions are about to move.
   if (this->elementsStructureDirty || this->elementsSizeDirtyFromIndex != UNDEFINED_INDEX) {
     return empty;
   }
@@ -370,7 +370,7 @@ OffsetBand Container::computeOffsetBand() const {
   /*
    * A row is in the window while it ends past offset minus the overscan and starts before
    * the far edge plus the overscan. So it enters and leaves at these two offsets. Only rows
-   * near the window matter. Each column is in order, so the nearest flips come from rows
+   * near the window matter. Each column is in order. The nearest flips come from rows
    * at most a couple of columns outside the measured range.
    */
   double overscanSize = windowSize * this->overscan;
@@ -441,7 +441,7 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
   double windowSize = this->getWindowContainerSize();
   double viewportEnd = viewportStart + windowSize;
 
-  // Inverted lists store the range backwards, so flip it.
+  // Inverted lists store the range backwards. Flip it.
   std::size_t windowLow = this->inverted ? measuredEndIndex : measuredStartIndex;
   std::size_t windowHigh = this->inverted ? measuredStartIndex : measuredEndIndex;
 
@@ -462,7 +462,7 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices() const {
     double visible = overlapEnd - overlapStart;
 
     /*
-     * Compare against the smaller of row and viewport, so a row taller than the screen
+     * Compare against the smaller of row and viewport. A row taller than the screen
      * can still count as fully visible.
      */
     double referenceSize = elementSize < windowSize ? elementSize : windowSize;

@@ -31,7 +31,7 @@ class MainApplication : Application(), ReactApplication {
 
   /*
    * Turn on React Native engine flags that make list commits cheaper. loadReactNative already
-   * set React Native's own flags, so this replaces them, which is only safe before React Native
+   * set React Native's own flags. This replaces them and is only safe before React Native
    * starts. BuildConfig.SHADOWLIST_ENGINE_FLAGS turns it off for an A/B run, see build.gradle.
    */
   private fun applyEngineFlags() {

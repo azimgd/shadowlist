@@ -1,6 +1,6 @@
 #include <TargetConditionals.h>
 
-// Drag to reorder needs UIKit gestures, display links and animations, so it is iOS only.
+// Drag to reorder is iOS only because it needs UIKit gestures, display links and animations.
 #if !TARGET_OS_OSX
 
 #import "ShadowListView.h"
@@ -163,7 +163,7 @@ static NSString *SLDragKey(const std::string& key)
   }
   _dragTouchInViewport = location;
 
-  // We scroll ourselves near the edges, so stop the scroll view from following the finger.
+  // We scroll ourselves near the edges. Stop the scroll view from following the finger.
   _scrollView.scrollEnabled = NO;
 
   // Lift the row with a shadow so it looks picked up.
@@ -250,7 +250,7 @@ static NSString *SLDragKey(const std::string& key)
       _horizontal ? touchContent.y : touchContent.x,
       resting,
       _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
-      // The scroll view's content size is 0 across the scroll axis, so use the content view.
+      // The scroll view's content size is 0 across the scroll axis. Use the content view.
       _horizontal ? _contentView.bounds.size.height : _contentView.bounds.size.width);
   } else {
     translation.leading = _drag.place(
@@ -385,7 +385,7 @@ static NSString *SLDragKey(const std::string& key)
                       toKey:SLDragKey(_drag.insertionKey())];
 
   if (from == to || !view) {
-    // Dropped where it started, so no commit will come. Settle now.
+    // Dropped where it started. No commit will come. Settle now.
     [self clearDragTransforms];
     _dragDropPending = NO;
     _droppedView = nil;
@@ -396,7 +396,7 @@ static NSString *SLDragKey(const std::string& key)
 
     /*
      * Check each frame for the landing. A reorder of same size rows may not publish
-     * new state, so watch for the row's index to reach its new spot.
+     * new state. Watch for the row's index to reach its new spot.
      */
     [_dropSettleLink invalidate];
     _dropSettleLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
@@ -434,7 +434,7 @@ static NSString *SLDragKey(const std::string& key)
     return;
   }
   if (_droppedView == nil) {
-    // The dropped row went off screen and unmounted, so there is nothing to animate.
+    // The dropped row went off screen and unmounted. There is nothing to animate.
     [self clearDragTransforms];
     _dragDropPending = NO;
     [_dropSettleLink invalidate];
@@ -473,7 +473,7 @@ static NSString *SLDragKey(const std::string& key)
 
 /*
  * For VoiceOver, give each row Move up and Move down actions while drag is on.
- * The handlers read the row's index and key when used, so data changes never leave them stale.
+ * The handlers read the row's index and key when used. Data changes never leave them stale.
  */
 - (void)applyDragAccessibilityActionsToView:(UIView *)view
 {
@@ -501,7 +501,8 @@ static NSString *SLDragKey(const std::string& key)
 
 /*
  * Swap the row with the nearest mounted row above or below. It goes through the same
- * path as a real drop, so onDragEnd and useDragReorder handle it as usual.
+ * path as a real drop. onDragEnd and useDragReorder handle it as usual.
+
  */
 - (BOOL)performAccessibilityMove:(UIView *)view up:(BOOL)up
 {

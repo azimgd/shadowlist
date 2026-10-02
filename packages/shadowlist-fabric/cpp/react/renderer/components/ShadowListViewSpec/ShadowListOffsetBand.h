@@ -24,8 +24,8 @@ inline azimgd::shadowlist::OffsetBand shadowListOffsetBand(const ShadowListViewS
 }
 
 /*
- * Whether the state already carries this band. Every empty band is the same default value,
- * so they compare equal too.
+ * Whether the state already carries this band. Every empty band is the same default value.
+ * They compare equal too.
  */
 inline bool shadowListOffsetBandPublished(const ShadowListViewState& stateData, const azimgd::shadowlist::OffsetBand& band) {
   return azimgd::shadowlist::offsetBandPublished(stateData.offsetBandLow_, stateData.offsetBandHigh_, band);

@@ -50,7 +50,7 @@ export const ActivityHeader = memo(
         {actions && actions.length > 0 ? (
           <View style={styles.actions}>
             {actions.map((action, index) => (
-              // Keyed by position, so a label can change, like a counter, without a remount.
+              // Keyed by position. A label can change, like a counter, without a remount.
               <ActionButton key={index} action={action} />
             ))}
           </View>

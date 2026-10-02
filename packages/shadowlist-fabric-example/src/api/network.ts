@@ -1,6 +1,6 @@
 /*
  * The fake network every endpoint in src/api goes through. A response is built when it arrives,
- * not when it is requested, so a slow read sees a write that landed meanwhile, like a real server.
+ * not when it is requested. A slow read sees a write that landed meanwhile, like a real server.
  */
 export const network = {
   // Round-trip time, drawn uniformly from this range. Set both to 0 for benchmark runs.

@@ -8,7 +8,7 @@ interface QueryStatusProps {
 
 /*
  * Shown before a list screen has its first page: a spinner, or the error with a retry. Screens
- * mount their list only once data is in, so props that act on the first layout see real rows.
+ * mount their list only once data is in. Props that act on the first layout see real rows.
  */
 export const QueryStatus = ({ error, onRetry }: QueryStatusProps) => {
   const styles = useStyles();

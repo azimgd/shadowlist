@@ -98,7 +98,7 @@ const CodeBlock = ({
   const [copied, setCopied] = useState(false);
   /*
    * One Text per line instead of one for the block. Streaming code only grows its last
-   * line, so only that line redraws on each flush. Empty lines hold a non breaking space
+   * line. Only that line redraws on each flush. Empty lines hold a non breaking space
    * so they keep their height.
    */
   const codeLines = useMemo(() => code.split('\n'), [code]);
@@ -115,7 +115,7 @@ const CodeBlock = ({
         <Text style={styles.codeLanguage}>
           {language || labels.codeLanguageFallback}
         </Text>
-        {/* Nobody wants half a block, so wait for the closing fence. */}
+        {/* Nobody wants half a block. Wait for the closing fence. */}
         {closed ? (
           <Pressable
             onPress={() => {
@@ -211,8 +211,8 @@ const TableBlock = ({
 };
 
 /*
- * One block, memoized on its source text. Once a later block exists this one is final,
- * so only the last block re-renders per flush.
+ * One block, memoized on its source text. Once a later block exists this one is final.
+ * Only the last block re-renders per flush.
  */
 const MarkdownBlockView = memo(
   ({
@@ -314,7 +314,7 @@ export const AssistantMarkdown = memo(
     const styles = useStyles();
     const l = useLabels(defaultAssistantLabels, labels);
     /*
-     * While a reply streams the text only grows, so each flush continues the last parse
+     * While a reply streams the text only grows. Each flush continues the last parse
      * instead of reading the whole reply again.
      */
     const parseRef = useRef<MarkdownParse | null>(null);

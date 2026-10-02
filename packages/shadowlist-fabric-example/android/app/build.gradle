@@ -104,9 +104,9 @@ android {
             }
         }
         /*
-         * -PshadowlistScrollBand=false turns off the offset band, so the list sends a state
-         * update every scroll frame like before. Android apps get no launch environment, so
-         * the SHADOWLIST_SCROLL_BAND define is the only switch there (ShadowListViewState.h).
+         * -PshadowlistScrollBand=false turns off the offset band. The list then sends a state
+         * update every scroll frame like before. Android apps get no launch environment. The
+         * SHADOWLIST_SCROLL_BAND define is the only switch there (ShadowListViewState.h).
          */
         if ((findProperty("shadowlistScrollBand") ?: "true").toString() == "false") {
             externalNativeBuild {

@@ -10,8 +10,8 @@
 #include <vector>
 
 /*
- * Raise a subview above its siblings. UIKit reorders the subviews. AppKit cannot,
- * so on macOS we set the layer's z position instead. Higher wins and the default is 0.
+ * Raise a subview above its siblings. UIKit reorders the subviews. AppKit cannot.
+ * On macOS we set the layer's z position instead. Higher wins and the default is 0.
  */
 static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat zPosition)
 {
@@ -73,7 +73,7 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   __weak RCTUIView *_sectionHeaderOverlay;
   /*
    * The published lists the vectors above and _snapOffsets were copied from. The core only
-   * publishes a new pointer when the values change, so a mount with the same pointers skips
+   * publishes a new pointer when the values change. A mount with the same pointers skips
    * the copy.
    */
   std::shared_ptr<const std::vector<int>> _copiedStickyHeaderIndices;
@@ -87,7 +87,7 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
    */
   azimgd::shadowlist::ScrollSync _scrollSync;
   /*
-   * Set while a mount runs our code, so a state update sent from there waits for the next
+   * Set while a mount runs our code. A state update sent from there waits for the next
    * event beat instead of committing inside the mount. See SHADOWLIST_IMMEDIATE_STATE.
    */
   BOOL _inStateUpdate;
@@ -109,7 +109,7 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 
   /*
    * Status bar tap to scroll to top, iOS only. We animate it ourselves because UIKit
-   * writes fixed offsets each frame and wipes out core corrections, so content jumps.
+   * writes fixed offsets each frame and wipes out core corrections. Content jumps.
    * Ours works from the live offset, and corrections are added on top of it.
    * See ShadowListViewState::containerOffsetBaseX_. Progress is how far it has eased so far.
    */
@@ -152,7 +152,7 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   // After a drop, hold the shuffle until the reorder commit lands, then clear it.
   BOOL _dragDropPending;
   NSInteger _dropInsertionIndex;
-  // Where the dragged row was let go, so it can animate into place instead of snapping.
+  // Where the dragged row was let go. It animates into place from here instead of snapping.
   CGFloat _dropReleaseLeading;
   CGFloat _dropReleaseCross;
   // Grid columns from props. Above 1 the held cell also moves across the scroll axis.

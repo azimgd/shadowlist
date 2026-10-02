@@ -36,8 +36,9 @@ using namespace facebook::react;
 
 /*
  * Fabric shares recycled row views across every list in the app, even on other screens.
- * The base reset skips transform and hidden, and a drag sets both, so a row recycled mid drag
- * would show up shifted in the next list. Reset everything we set from native here.
+ * The base reset skips transform and hidden, and a drag sets both. A row recycled mid drag
+ * would show up shifted in the next list.
+ * Reset everything we set from native here.
  */
 - (void)prepareForRecycle
 {

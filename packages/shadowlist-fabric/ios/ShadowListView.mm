@@ -32,7 +32,7 @@
 
 /*
  * Cancel the React Native touch under this view. RN only cancels a press when its own
- * ScrollView takes over, so without this a row pressed at the start of a swipe fires on release.
+ * ScrollView takes over. Without this a row pressed at the start of a swipe fires on release.
  * Toggling the touch recognizer is how RN cancels touches itself, and the scroll keeps going.
  */
 static void CancelReactTouches(UIView *view)
@@ -59,7 +59,7 @@ static void CancelReactTouches(UIView *view)
 /*
  * A tap while the list is still coasting after a flick should stop the scroll, not press a row.
  * RN's ScrollView does the same. We check this list and every scroll view around it at touch time.
- * The recognizer only watches and never recognizes, so it takes nothing from the list or rows.
+ * The recognizer only watches and never recognizes. It takes nothing from the list or rows.
  */
 @interface ShadowListStopTapRecognizer : UIGestureRecognizer
 @end
@@ -75,7 +75,7 @@ static void CancelReactTouches(UIView *view)
     }
   }
   if (coasting) {
-    // Wait until RN has seen the touch start, so the cancel reaches that press.
+    // Wait until RN has seen the touch start. The cancel then reaches that press.
     __weak UIView *weakView = self.view;
     dispatch_async(dispatch_get_main_queue(), ^{
       UIView *strong = weakView;
@@ -102,7 +102,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
  * Frame trace for debugging scroll jumps. Off unless the app launches with
  * SHADOWLIST_FRAME_TRACE=1, on the simulator via SIMCTL_CHILD_SHADOWLIST_FRAME_TRACE=1.
  * Event lines mark each place we move the view. Frame lines show what each committed frame
- * put on screen, so a correction that lands a frame late shows up as rows jumping and back.
+ * put on screen. A correction that lands a frame late shows up as rows jumping and back.
  */
 static BOOL SLFrameTraceEnabled(void)
 {
@@ -448,7 +448,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 
   if (!refreshing) {
     /*
-     * Refresh ended. Fire onRefreshSettle once the spinner has retracted, so JS can
+     * Refresh ended. Fire onRefreshSettle once the spinner has retracted. JS can then
      * apply a held prepend while nothing is moving. See scheduleRefreshSettle.
      */
     _refreshAwaitingSettle = YES;
@@ -486,7 +486,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 }
 
 /*
- * Tell JS the spinner has fully retracted, so it can apply a held prepend.
+ * Tell JS the spinner has fully retracted. It can then apply a held prepend.
  */
 - (void)emitRefreshSettle
 {
@@ -498,7 +498,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 }
 
 /*
- * Each call bumps the token and schedules a check, and only the latest one fires, so it
+ * Each call bumps the token and schedules a check, and only the latest one fires. It
  * lands a short while after the spinner stops moving. It waits again while a finger is
  * down or the offset is still past the top.
  */
@@ -519,7 +519,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     if (!strongSelf->_refreshAwaitingSettle || strongSelf->_refreshing) {
       return;
     }
-    // Still moving, or a finger is down, so keep waiting.
+    // Still moving, or a finger is down. Keep waiting.
     if (strongSelf->_scrollView.isDragging || strongSelf->_scrollView.isTracking ||
         strongSelf->_scrollView.contentOffset.y < -1.0) {
       [strongSelf scheduleRefreshSettle];
@@ -564,7 +564,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   /*
    * Copy the section header positions for pinning on each scroll. A null pointer means
    * empty, see ShadowListViewState. The core only publishes a new pointer when the values
-   * changed, so copy only then. Copying on every mount cost a full snap list per frame.
+   * changed. Copy only then. Copying on every mount cost a full snap list per frame.
    */
   BOOL stickyGeometryChanged = NO;
   auto copyPublished = [&stickyGeometryChanged](auto& destination, auto& copiedFrom, const auto& published) {
@@ -616,7 +616,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   /*
    * Decide what the mounted correction does, see azimgd::shadowlist::ScrollSync::correction.
    * A bounce past an edge sits outside the scroll range, and the content size write above
-   * pulls it back to the edge. The core measured the correction from the bounced offset, so a
+   * pulls it back to the edge. The core measured the correction from the bounced offset. A
    * shift starts from there, or a history page landing mid bounce jumps by the bounce distance.
    */
   azimgd::shadowlist::ViewMotion motion;
@@ -649,7 +649,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     _scrollToTopJumpToken = action.token;
   } else if (action.kind == azimgd::shadowlist::MountAction::Kind::Write) {
 #if TARGET_OS_OSX
-    // A plain write never keeps a fling on macOS, so shifting would not help.
+    // Shifting would not help. A plain write never keeps a fling on macOS.
     if (action.shifted) {
       action.offsetX = nextStateData.containerOffsetX_;
       action.offsetY = nextStateData.containerOffsetY_;
@@ -692,7 +692,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   }
 
 #if !TARGET_OS_OSX
-  // The header may have a new size, so move the spinner below it.
+  // Move the spinner below the header, which may have a new size.
   [self applyRefreshProgressOffset];
 
   // A commit during a drag. Put the row back under the finger and shift the others again.
@@ -730,14 +730,14 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 
   /*
    * Pull to refresh offsets are reported like any other. Rows prepended while the spinner
-   * shows are placed against this offset, so the core must know it, or the row the user
+   * shows are placed against this offset. The core must know it, or the row the user
    * reads would move up by the spinner's height.
    */
 
   /*
    * The gesture phase, finger down, momentum or idle. It stays set between frames so the
    * core keeps the inverted bottom pin off while a finger rests on the list.
-   * See Container::gestureActive. macOS has no drag state, so it keeps the current one.
+   * See Container::gestureActive. macOS has no drag state and keeps the current one.
    */
   azimgd::shadowlist::ScrollFrame frame;
   frame.offsetX = scrollView.contentOffset.x;
@@ -774,7 +774,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 #pragma mark - State updates
 
 /*
- * Immediate commits run the whole commit and mount on this thread right away, so a frame
+ * Immediate commits run the whole commit and mount on this thread right away. A frame
  * that needs new rows gets them before it renders. Never from inside a mount, where it
  * could loop through our own state update. See SHADOWLIST_IMMEDIATE_STATE.
  */
@@ -813,7 +813,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 }
 
 /*
- * Clear the user scroll flag once the gesture and momentum end, so a later commit is not
+ * Clear the user scroll flag once the gesture and momentum end. A later commit is then not
  * taken for a user scroll and does not cancel a real correction.
  */
 - (void)clearUserScrolled
@@ -837,7 +837,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     _scrollView.contentOffset.x, _scrollView.contentOffset.y, userScrolled, _scrollSync.currentScrollPhase());
   std::string dragFromKey = fromKey ? std::string(fromKey.UTF8String) : std::string();
   std::string dragToKey = toKey ? std::string(toKey.UTF8String) : std::string();
-  // The sequence goes past the newest state's, so each event fires once.
+  // The sequence goes past the newest state's. Each event fires once.
   _state->updateState(
     [patch, type, dragFromKey, dragToKey](const ShadowListStateData& oldData) -> StateData::Shared {
       auto nextData = std::make_shared<ShadowListStateData>(oldData);
@@ -869,11 +869,11 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 }
 #endif
 
-// macOS only gives us scrollViewDidScroll, so the callbacks below and snap to item are iOS only.
+// The callbacks below and snap to item are iOS only. macOS only gives us scrollViewDidScroll.
 #if !TARGET_OS_OSX
 /*
  * A swipe that starts on a row may be taken by a scroll view around the list, like a sideways
- * grid. That drag must also end the press, so listen to every outer scroll view's pan while
+ * grid. That drag must also end the press. Listen to every outer scroll view's pan while
  * on screen and stop when we leave.
  */
 - (void)didMoveToWindow
@@ -956,7 +956,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 
 /*
  * Status bar tap. Return NO so UIKit does not animate and run ours instead.
- * A horizontal list has nothing to scroll up, so let UIKit handle it.
+ * A horizontal list has nothing to scroll up. Let UIKit handle it.
  */
 - (BOOL)scrollViewShouldScrollToTop:(UIScrollView *)scrollView
 {
@@ -974,7 +974,7 @@ static const CFTimeInterval SCROLL_TO_TOP_DURATION = 0.45;
 
 /*
  * How far the animation travels, in screens. The core keeps about a screen of rows mounted
- * past the visible area, so this never outruns them. Longer trips jump closer first, like UIKit.
+ * past the visible area. This never outruns them. Longer trips jump closer first, like UIKit.
  */
 static const CGFloat SCROLL_TO_TOP_ANIMATED_VIEWPORTS = 1.0;
 
@@ -1010,8 +1010,8 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   [_scrollToTopLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
   /*
-   * A long trip jumps first. Jumping right away would show a blank screen until rows mount,
-   * so send the target to the core and stay put. The core renders rows there, and the jump
+   * A long trip jumps first. Jumping right away would show a blank screen until rows mount.
+   * Send the target to the core and stay put. The core renders rows there, and the jump
    * lands in the mount that brings them in. See mountingTransactionDidMount.
    */
   CGFloat viewport = _scrollView.bounds.size.height;
@@ -1021,7 +1021,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     _scrollToTopJumpY = jumpY;
     _scrollToTopJumpToken = 0;
     /*
-     * The live report says the view is at the target too, so a commit for another reason
+     * The live report says the view is at the target too. A commit for another reason
      * renders the same rows. It keeps the mounted ack, since the jump reports when it lands.
      */
     ShadowListLiveScroll::Report report;
@@ -1035,7 +1035,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 }
 
 /*
- * Whether mounted rows fill the screen starting at y, so a jump there shows content right away.
+ * Whether mounted rows fill the screen starting at y. A jump there then shows content right away.
  * Row frames already match the core's layout, including rows just added around the target.
  */
 - (BOOL)mountedRowsCoverViewportAt:(CGFloat)y
@@ -1139,7 +1139,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 }
 
 /*
- * One frame of the ease toward the top. The distance left comes from the live offset, so a
+ * One frame of the ease toward the top. The distance left comes from the live offset. A
  * core correction since the last frame just makes the rest of the trip longer or shorter.
  * Steps are capped, and a capped trip keeps going past the normal duration if needed.
  */
@@ -1155,7 +1155,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     return;
   }
 
-  // The last frame reached the top, so finish.
+  // The last frame reached the top. Finish.
   if (_scrollToTopProgress >= 1.0) {
     [self finishScrollToTop];
     return;
@@ -1332,7 +1332,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 /*
  * A scroll command replaces any running momentum, from scroll to top or a fling. Stop it so
  * its next frame cannot move the view off the core's offset. A finger on the list keeps its
- * drag phase, so the core lets the drag cancel the command.
+ * drag phase. The core lets the drag cancel the command.
  * Returns whether momentum stopped, which makes the command's report idle.
  */
 - (BOOL)yieldMomentum
@@ -1399,7 +1399,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 }
 
 /*
- * Send a scroll command. The sequence always goes past the last one, so the same index
+ * Send a scroll command. The sequence always goes past the last one. The same index
  * still scrolls again, and the offset is marked as ours until the core applies it.
  */
 - (void)commitScrollCommandIndex:(double)index viewPosition:(double)viewPosition

@@ -44,7 +44,7 @@ const outputOf = (call: AssistantToolCall) =>
   call.status === 'done' || call.status === 'failed' ? call.output : undefined;
 
 /*
- * Memoized on the call object. The stream replaces only the call that changed, so finished
+ * Memoized on the call object. The stream replaces only the call that changed. Finished
  * calls above a running one never re-render.
  */
 export const AssistantToolCallCard = memo(

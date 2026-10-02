@@ -38,7 +38,7 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
   @Nullable private View mObservedView = null;
   @Nullable private KeyboardInsetsCallback mCallback = null;
   /*
-   * Set by invalidate before the detach runs, so a late callback does nothing
+   * Set by invalidate before the detach runs. A late callback then does nothing
    * instead of touching torn down state.
    */
   private volatile boolean mInvalidated = false;
@@ -181,7 +181,7 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
   @Override
   public void invalidate() {
     /*
-     * Set this before posting the detach, so a callback that fires before the detach runs
+     * Set this before posting the detach. A callback that fires before the detach runs
      * on the UI thread does nothing instead of touching torn down state.
      */
     mInvalidated = true;

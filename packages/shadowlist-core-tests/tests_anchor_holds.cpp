@@ -98,14 +98,14 @@ double onScreen(const Container& container, const std::string& key) {
 
 /*
  * A list opens deep enough that the rows above are still estimated when the average is fixed.
- * They shrink to the average and so does the total, so the first offset is now past the end.
+ * They shrink to the average and so does the total. The first offset is now past the end.
  * The target must still land at the top.
  */
 TEST(scroll_to_index_holds_its_row_when_the_rows_above_shrink_to_the_average) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
   container.scrollToIndex(30);
-  // The first commit runs before layout, so there is no window or header size yet.
+  // The first commit runs before layout. There is no window or header size yet.
   FrameInput first = report(keys, 0.0, 0.0);
   first.windowContainerWidth = 0.0;
   first.windowContainerHeight = 0.0;
@@ -137,7 +137,7 @@ TEST(rows_above_shrinking_near_the_end_keep_the_visible_row) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
   Virtualizer::update(&container, report(keys, 0.0));
-  // Jump deep without measuring anything above, so rows 0 to 29 stay estimated.
+  // Jump deep without measuring anything above. Rows 0 to 29 stay estimated.
   double deep = HEADER + 30 * ESTIMATED_ROW_HEIGHT;
   Virtualizer::update(&container, report(keys, deep));
   Virtualizer::update(&container, report(keys, deep));
@@ -259,7 +259,7 @@ Size sized(const Container& container, double mainAxis) {
  */
 void settleMidList(Container& container, const Variant& variant, const std::vector<std::string>& keys) {
   Virtualizer::update(&container, variantFrame(variant, keys, 0.0));
-  // An inverted list opens at its bottom, so drag away from it first.
+  // An inverted list opens at its bottom. Drag away from it first.
   FrameInput away = variantFrame(variant, keys, 100.0);
   away.userScrolled = true;
   away.scrollPhase = ScrollPhase::Dragging;
@@ -309,7 +309,7 @@ TEST(resizing_a_row_above_the_viewport_keeps_the_visible_rows_in_every_layout) {
     double nextBefore = screenPos(container, "k33");
 
     /*
-     * Each grid column stacks on its own, so one offset cannot hold two columns when only one
+     * Each grid column stacks on its own. One offset cannot hold two columns when only one
      * resizes. In a grid the whole row above resizes instead.
      */
     std::vector<std::string> resized = variant.columns > 1

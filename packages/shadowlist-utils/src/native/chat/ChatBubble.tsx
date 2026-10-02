@@ -75,7 +75,7 @@ export const ChatBubble = memo(
       </BubbleView>
     ) : null;
 
-    // getChatMessageSizeSpec counts this height, so keep the two in step.
+    // getChatMessageSizeSpec counts this height. Keep the two in step.
     const failedLine =
       status === 'failed' ? (
         <Pressable

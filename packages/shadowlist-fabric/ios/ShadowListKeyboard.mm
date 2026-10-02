@@ -3,12 +3,12 @@
 #import "ShadowListCompat.h"
 
 /*
- * macOS has no software keyboard, so the observers below are iOS only.
+ * The observers below are iOS only because macOS has no software keyboard.
  */
 @implementation ShadowListKeyboard {
   /*
    * How many useKeyboardAnimation users are active. We attach on the first and detach
-   * after the last, so one user unmounting never cuts off another.
+   * after the last. One user unmounting never cuts off another.
    */
   NSInteger _enabledCount;
   CGFloat _current;       // Last height we sent, in dp.
@@ -51,7 +51,7 @@ RCT_EXPORT_MODULE()
 }
 
 /*
- * Counted, so calling it repeatedly is safe. Attach on the first enable and detach after
+ * Counted. Calling it repeatedly is safe. Attach on the first enable and detach after
  * the last disable. Main thread only.
  */
 - (void)applyEnabled:(BOOL)enabled
@@ -87,7 +87,7 @@ RCT_EXPORT_MODULE()
 }
 
 /*
- * The display link retains us, so dealloc may run late on teardown. Clean up here instead.
+ * The display link retains us. dealloc may run late on teardown. Clean up here instead.
  * Never use dispatch_sync: the main thread is waiting on module invalidation and it deadlocks.
  * The block keeps self alive until cleanup runs.
  */
@@ -159,7 +159,7 @@ RCT_EXPORT_MODULE()
   }
 
   if (duration <= 0) {
-    // No animation, so jump straight to the new height.
+    // No animation. Jump straight to the new height.
     [self stopDisplayLink];
     [self emitHeight:height];
     if (hiding) {

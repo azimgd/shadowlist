@@ -52,7 +52,7 @@ function toSet(
   return ids instanceof Set ? new Set(ids) : new Set(ids as Iterable<string>);
 }
 
-// Returned when the inner list isn't mounted, so callers always get a map.
+// Returned when the inner list isn't mounted. Callers always get a map.
 const EMPTY_SIZES: ReadonlyMap<string, number> = new Map();
 
 function TreeListInner<ElementT>(
@@ -86,8 +86,8 @@ function TreeListInner<ElementT>(
   expandedRef.current = expandedSet;
 
   /*
-   * Rows from the last flatten, by id, so an unchanged row keeps its old object. The list
-   * mounts rows by identity, so without this an expand or collapse re-renders every row.
+   * Rows from the last flatten, by id. An unchanged row keeps its old object. The list
+   * mounts rows by identity. Without this an expand or collapse re-renders every row.
    */
   const previousRowsRef = useRef<Map<string, TreeFlatRow<ElementT>>>(new Map());
 
@@ -136,7 +136,7 @@ function TreeListInner<ElementT>(
   }, [data, getChildren, keyExtractor, expandedSet]);
 
   /*
-   * Read through a ref, so an inline onExpandedChange doesn't give renderRow a new identity
+   * Read through a ref. An inline onExpandedChange then doesn't give renderRow a new identity
    * and rebuild every mounted row on each caller render.
    */
   const onExpandedChangeRef = useRef(onExpandedChange);

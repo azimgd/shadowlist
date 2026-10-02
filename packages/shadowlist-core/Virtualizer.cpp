@@ -9,8 +9,8 @@ namespace azimgd::shadowlist {
 
 /*
  * Debug only. Gives the key at an index so native and JS logs can be matched by content,
- * since an index points at different rows during a prepend. It is only used inside SL_LOG,
- * so it is marked maybe_unused to keep Android builds with -Werror=unused-function clean.
+ * since an index points at different rows during a prepend. It is only used inside SL_LOG.
+ * It is marked maybe_unused to keep Android builds with -Werror=unused-function clean.
  */
 namespace {
 [[maybe_unused]] const char* debugKeyAt(const Container* container, std::size_t index) {
@@ -52,7 +52,7 @@ void correctOffset(Container* container, double offset) {
 
 /*
  * Correct the offset only when probe is a real move from the current offset.
- * Probe is the target before any clamp, so it equals offset unless the caller clamps.
+ * Probe is the target before any clamp. It equals offset unless the caller clamps.
  */
 bool correctOffsetIfMoved(Container* container, double offset, double probe) {
   if (std::fabs(probe - scrollAxisOffset(container)) < OFFSET_MOVED_THRESHOLD) {
@@ -133,14 +133,14 @@ bool visitMeasuredElement(
     }
 
     /*
-     * Layout already gave unmeasured rows this size, so usually nothing changes here.
+     * Layout already gave unmeasured rows this size. Usually nothing changes here.
      * Only mark sizes dirty on a real change. Otherwise dragging the scroll indicator
      * would reflow the whole list on every frame.
      */
     if (nextElement.width != width || nextElement.height != height) {
       nextElement.width = width;
       nextElement.height = height;
-      // The size changed outside the layout loop, so make sure it reflows offsets.
+      // The size changed outside the layout loop. Make sure it reflows offsets.
       container->markElementSizeDirty(nextElementIndex);
     }
     nextElement.estimated = true;
@@ -219,7 +219,7 @@ void reflowTracks(
 
     std::size_t trackIndex = nextElementIndex % columns;
 
-    // Set the width too, so a reflow after the window size is known fixes it.
+    // Set the width too. A reflow after the window size is known fixes it.
     anyOffsetChanged = anyOffsetChanged || nextElement.*offset != trackSizes[trackIndex] ||
       nextElement.*crossOffset != trackIndex * trackSize;
     nextElement.*crossOffset = trackIndex * trackSize;
@@ -237,7 +237,7 @@ void reflowTracks(
 /*
  * How far past the top of the viewport the anchored row should sit.
  * Keeping the visible content in place stores this in pixels. A scroll to a key works it
- * out again each frame from the free space around the row, so it stays right while the
+ * out again each frame from the free space around the row. It stays right while the
  * row's size or the window size is still settling.
  */
 double resolveAnchorSubOffset(Container* container, const Operation& operation, std::size_t anchorIndex) {
@@ -271,7 +271,7 @@ bool resolveAnchorOffset(Container* container, const Operation& operation, doubl
 void Virtualizer::update(Container* container, const FrameInput& input) {
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
-  // The keys may be borrowed from the caller, so they are only valid during this call.
+  // The keys may be borrowed from the caller. They are only valid during this call.
   const std::vector<std::string>& inputKeys = input.keyList();
   const std::vector<std::string>& inputNonAnchorableKeys = input.nonAnchorableKeyList();
 
@@ -288,7 +288,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   // Remember the old header size so a change can be settled after the rows reflow.
   double previousHeaderSize = container->headerSize;
 
-  // Flipping the list order moves the bottom, so start following the bottom again.
+  // Flipping the list order moves the bottom. Start following the bottom again.
   if (container->inverted != input.inverted) {
     container->invertedBottomReleased = false;
   }
@@ -299,7 +299,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   container->overscan = input.overscan;
   container->headerSize = input.headerSize;
   container->footerSize = input.footerSize;
-  // Compare first, so an unchanged list costs no copy.
+  // Compare first. An unchanged list costs no copy.
   const std::vector<std::size_t>& inputStickyIndices = input.stickyIndexList();
   if (container->stickyIndices != inputStickyIndices) {
     container->stickyIndices = inputStickyIndices;
@@ -333,12 +333,12 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
    */
   bool coreOffsetWrite = input.containerOffsetEnabled;
 
-  // If the offset has not moved, the user is not scrolling, so a running correction survives.
+  // A running correction survives while the offset has not moved. The user is not scrolling.
   bool userMovedOffset = !coreOffsetWrite &&
     std::fabs(inputOffset - container->lastReportedOffset) >= OFFSET_MOVED_THRESHOLD;
   /*
    * When the user takes over, drop any running correction and stop pinning to the bottom.
-   * The host's gesture phase decides. userScrolled only counts with a real move, so a stale
+   * The host's gesture phase decides. userScrolled only counts with a real move. A stale
    * flag can't cancel a correction and hosts without a phase still work.
    */
   bool gestureTakeover =
@@ -396,7 +396,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   }
   container->gestureActive = gestureTakeover;
 
-  // Whether an inverted list rests at its bottom, so rows appended below get followed.
+  // Whether an inverted list rests at its bottom. Rows appended there get followed.
   bool restingAtBottom = false;
 
   /*
@@ -405,7 +405,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
    * keyboard opening or a rotation release a reader who never moved. That is also why
    * this runs before the reconcile below.
    * Only a gesture releases the pin. Pinning again needs a real move toward the bottom made
-   * by the user or a scroll command, so shrinking content or our own correction can't
+   * by the user or a scroll command. Shrinking content or our own correction can't
    * quietly pin the reader again.
    */
   if (container->inverted) {
@@ -415,7 +415,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
     double bottomWindow = container->horizontal ? container->revision.windowContainerWidth
                                                 : container->revision.windowContainerHeight;
     bool atBottom = atInvertedBottom(inputOffset, bottomTotal, bottomWindow);
-    // Content that fits the window has no bottom to leave, so a bounce must not release it.
+    // Content that fits the window has no bottom to leave. A bounce must not release it.
     bool scrollable = bottomTotal > bottomWindow;
 
     if (gestureTakeover && scrollable && !atBottom) {
@@ -434,7 +434,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   }
   // resolveScroll reads this to hold the bottom while the list opens.
   container->restingAtInvertedBottom = restingAtBottom;
-  // Our own write is not where the host is, so don't record it.
+  // Our own write is not where the host is. Don't record it.
   if (!coreOffsetWrite) {
     container->lastReportedOffset = inputOffset;
   }
@@ -476,7 +476,7 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
 #endif
 
   /*
-   * Match the rows to the new keys. Most commits don't change the keys, so compare them
+   * Match the rows to the new keys. Most commits don't change the keys. Compare them
    * first and skip the rebuild, which is the main cost of each commit after a prepend.
    */
   bool keysChanged = !input.keysUnchanged && container->revision.elements.size() != inputKeys.size();
@@ -539,8 +539,8 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   }
 
   /*
-   * Apply sizes the host predicted since the last frame. This must run after the reconcile,
-   * so new rows get theirs, and before measure, so the window uses the predicted sizes.
+   * Apply sizes the host predicted since the last frame. This runs after the reconcile to
+   * give new rows theirs, and before measure for the window to use the predicted sizes.
    */
   consumePredictions(container);
 
@@ -561,8 +561,8 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   measure(container);
 
   /*
-   * Settle a header size change the same way the Fabric layout pass does, so the code below
-   * doesn't read it as a scroll. An offset moved here is our own write, so it can't confirm
+   * Settle a header size change the same way the Fabric layout pass does. The code below
+   * then doesn't read it as a scroll. An offset moved here is our own write. It can't confirm
    * a running correction, and it is published even if nothing else corrects.
    */
   bool headerMovedOffset = false;
@@ -679,7 +679,7 @@ void Virtualizer::measureNextRevision(Container* container) {
 
   /*
    * Measure the window plus a buffer on each side so scrolling shows rows, not blanks.
-   * Overscan counts in window heights, so 1 means one window above and one below.
+   * Overscan counts in window heights. 1 means one window above and one below.
    */
   double overscanSize = windowSize * container->overscan;
   double lowerBound = containerOffset - overscanSize;
@@ -688,7 +688,7 @@ void Virtualizer::measureNextRevision(Container* container) {
   std::size_t measuredMinIndex = UNDEFINED_INDEX;
   std::size_t measuredMaxIndex = UNDEFINED_INDEX;
 
-  // Before a reflow, offsets may be stale and out of order, so scan every row instead.
+  // Before a reflow, offsets may be stale and out of order. Scan every row instead.
   bool geometryOrdered = !container->elementsStructureDirty;
 
   auto elementOffsetAt = [&](std::size_t index) {
@@ -706,7 +706,7 @@ void Virtualizer::measureNextRevision(Container* container) {
 
   /*
    * Binary search a column for the first row whose end is past lowerBound.
-   * Rows in a column sit end to end, so this works, and deep scrolls avoid walking every row.
+   * This works because rows in a column sit end to end. Deep scrolls avoid walking every row.
    */
   auto seekTrack = [&](std::size_t first, std::size_t step) {
     std::size_t low = 0;
@@ -731,7 +731,7 @@ void Virtualizer::measureNextRevision(Container* container) {
       visit(nextElementIndex);
     }
   } else if (geometryOrdered && container->columns > 1) {
-    // Rows go to columns in turn, so each column is in order. Search each one separately.
+    // Rows go to columns in turn. Each column is in order. Search each one separately.
     for (std::size_t track = 0; track < container->columns && track < elementsSize; ++track) {
       std::size_t stepsPast = seekTrack(track, container->columns);
       for (std::size_t nextElementIndex = track + stepsPast * container->columns;
@@ -744,7 +744,7 @@ void Virtualizer::measureNextRevision(Container* container) {
       }
     }
   } else {
-    // Offsets are not in order yet, so check every row against the window.
+    // Offsets are not in order yet. Check every row against the window.
     for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
       double elementOffset = elementOffsetAt(nextElementIndex);
       double elementSize = elementSizeAt(nextElementIndex);
@@ -761,7 +761,7 @@ void Virtualizer::measureNextRevision(Container* container) {
 }
 
 void Virtualizer::finalizeMeasurement(Container* container, std::size_t measuredMinIndex, std::size_t measuredMaxIndex) {
-  // An inverted list runs backwards, so its start index is the higher one.
+  // An inverted list runs backwards. Its start index is the higher one.
   if (container->inverted) {
     container->revision.measurementElementStartIndex = measuredMaxIndex;
     container->revision.measurementElementEndIndex = measuredMinIndex;
@@ -783,8 +783,8 @@ void Virtualizer::layoutElements(Container* container) {
 
   /*
    * Only inputs that move rows count. The footer and the window size along the scroll axis
-   * never do, so a chat composer resizing the list doesn't walk every row. Columns take
-   * their width from the window's cross size, so that one counts.
+   * never do. A chat composer resizing the list doesn't walk every row. Columns take
+   * their width from the window's cross size. That one counts.
    */
   bool layoutParamsChanged =
     container->headerSize != container->lastLayoutHeaderSize ||
@@ -795,7 +795,7 @@ void Virtualizer::layoutElements(Container* container) {
     container->horizontal != container->lastLayoutHorizontal;
 
   /*
-   * The sizing loop visits every row, so only run it when it can change something:
+   * The sizing loop visits every row. Only run it when it can change something:
    * a new fallback size, a new layout setting, or new rows. Otherwise every scroll frame
    * would walk the whole list for nothing.
    */
@@ -837,13 +837,13 @@ void Virtualizer::layoutElements(Container* container) {
     container->lastFallbackHeight = fallbackHeight;
   }
 
-  // Recomputing offsets walks every row, so skip it unless a size, row or setting changed.
+  // Recomputing offsets walks every row. Skip it unless a size, row or setting changed.
   bool sizesDirty = container->elementsSizeDirtyFromIndex != UNDEFINED_INDEX;
 
   if (anyNewlyEstimated || layoutParamsChanged || container->elementsStructureDirty || sizesDirty) {
     /*
      * Reflow from the first row that moved. Row, setting or fallback changes can move
-     * anything, so they start at 0. A size change only moves the rows after it.
+     * anything. They start at 0. A size change only moves the rows after it.
      */
     std::size_t reflowFrom =
       (anyNewlyEstimated || layoutParamsChanged || container->elementsStructureDirty)
@@ -866,7 +866,7 @@ void Virtualizer::recomputeElementOffsets(Container* container, std::size_t from
   std::lock_guard<std::recursive_mutex> lock(container->coreMutex);
 
   /*
-   * All row positions are written here, so this is where snap and sticky caches go stale.
+   * All row positions are written here. This is where snap and sticky caches go stale.
    * Only bump the geometry version when an offset really changed, or those caches get
    * thrown away for nothing.
    */
@@ -912,7 +912,7 @@ void Virtualizer::recomputeElementOffsets(Container* container, std::size_t from
 
     /*
      * Past the last changed row, stop at the first row already at the right offset.
-     * Every row after it is correct too, so a reflow that moves nothing costs almost nothing.
+     * Every row after it is correct too. A reflow that moves nothing costs almost nothing.
      * Two guards: don't stop between two changed rows, and a full pass from 0 must visit
      * every row to rebuild the widest extent.
      */
@@ -942,7 +942,7 @@ void Virtualizer::recomputeTotalSize(Container* container) {
 
   /*
    * Along the scroll axis, add the footer and never go below the header.
-   * Across it, never go below the window, so columns can't collapse to zero width,
+   * Across it, never go below the window to keep columns from collapsing to zero width,
    * and cover any row measured wider than the window.
    */
   if (container->horizontal) {
@@ -986,8 +986,8 @@ bool Virtualizer::applyElementSize(Container* container, std::size_t index, Size
   bool dimensionsChanged = previousWidth != size.width || previousHeight != size.height;
 
   /*
-   * Already measured at this size. Fabric reports every mounted row on every layout pass,
-   * so most calls stop here. Without this, each one would reflow the rest of the list.
+   * Already measured at this size. Fabric reports every mounted row on every layout pass.
+   * Most calls stop here. Without this, each one would reflow the rest of the list.
    */
   if (!dimensionsChanged && wasMeasured) {
     return false;
@@ -1087,7 +1087,7 @@ void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex
     double compensationDelta = compensationAnchor->subOffset;
     std::size_t anchorIndex = container->findElementIndexByKey(compensationAnchor->key);
     if (anchorIndex != UNDEFINED_INDEX) {
-      // Compare the target before clamping, so a bounce at the top is left alone.
+      // Compare the target before clamping. A bounce at the top is left alone.
       double rawAnchoredOffset = container->getElementOffset(anchorIndex) + compensationDelta;
       /*
        * When the anchor row starts above the viewport, the reader sees its bottom part.
@@ -1097,7 +1097,7 @@ void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex
         rawAnchoredOffset += container->anchorFirstMeasurementDelta;
       }
       /*
-       * Only clamp at zero. The total is stale while measuring, so clamping the top end
+       * Only clamp at zero. The total is stale while measuring. Clamping the top end
        * would yank the anchor. resolveScroll clamps it next frame.
        */
       double anchoredOffset = rawAnchoredOffset < 0.0 ? 0.0 : rawAnchoredOffset;
@@ -1110,7 +1110,7 @@ void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex
    * An inverted list resting on its newest row follows that row as it grows. Otherwise the
    * growth lands below the fold, and a reply that finishes after the last commit gets no
    * next frame to fix it. It only follows when the reader hasn't scrolled away, no finger
-   * is down and no correction is running. The stored total is stale here, so the bottom
+   * is down and no correction is running. The stored total is stale here. The bottom
    * comes from the reflowed rows.
    * A pending scroll to the end, or a list still settling on the bottom it opened at,
    * follows the bottom here too for the same reason, and so does a running correction aimed
@@ -1144,7 +1144,7 @@ void Virtualizer::applyHeaderSizeChange(Container* container, double previousHea
   const double offset = scrollAxisOffset(container);
 
   /*
-   * A running anchor correction already knows where the rows belong, so resolve it against
+   * A running anchor correction already knows where the rows belong. Resolve it against
    * the reflowed rows. Its last written offset may be clamped and can't be trusted here.
    */
   if (container->operation && container->operation->target.mode == AnchorMode::Element) {
@@ -1162,7 +1162,7 @@ void Virtualizer::applyHeaderSizeChange(Container* container, double previousHea
     }
   }
 
-  // The header was fully scrolled off, so every row on screen moved. Move the offset with them.
+  // The header was fully scrolled off. Every row on screen moved. Move the offset with them.
   SL_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f branch=%s anchorSub=%.1f",
     previousHeaderSize, container->headerSize, offset,
     (offset > 0.0 && offset >= previousHeaderSize) ? "hold" : "push", container->anchor.subOffset);
@@ -1173,7 +1173,7 @@ void Virtualizer::applyHeaderSizeChange(Container* container, double previousHea
 
   /*
    * The header is on screen and pushes the rows down. Keep the offset and shift the anchor
-   * instead, so it still points at this offset.
+   * instead. It still points at this offset.
    */
   shiftAnchors(container, -delta);
 }
@@ -1252,7 +1252,7 @@ void Virtualizer::invalidatePredictions(Container* container) {
   }
 
   if (anyCleared) {
-    // Predicted rows went back to the fallback size, so reflow the whole list.
+    // Predicted rows went back to the fallback size. Reflow the whole list.
     container->markElementSizeDirty(0);
   }
 }
@@ -1284,7 +1284,7 @@ void Virtualizer::consumePredictions(Container* container) {
         container->horizontal ? entry->second.width : entry->second.height, predictedElement.estimated ? 1 : 0);
       predictedElement.width = entry->second.width;
       predictedElement.height = entry->second.height;
-      // The layout loop can't see this change, so mark it for a reflow.
+      // The layout loop can't see this change. Mark it for a reflow.
       container->markElementSizeDirty(predictedIndex);
     }
     if (!predictedElement.measured) {
@@ -1311,7 +1311,7 @@ std::size_t Virtualizer::reconcileElements(Container* container, const std::vect
   /*
    * Fast path for a plain append, the most common change.
    * Rebuilding the key map costs about 6ms at 100k rows, a dropped frame. An append keeps
-   * every old index, so just extend the rows and the map in place.
+   * every old index. Just extend the rows and the map in place.
    * An empty list is a cold start, not an append, and takes the general path.
    */
   if (!previousElements.empty() && nextKeys.size() > previousElements.size()) {
@@ -1343,7 +1343,7 @@ std::size_t Virtualizer::reconcileElements(Container* container, const std::vect
 
   /*
    * Fast path for a plain prepend, like loading older chat messages.
-   * Every old row survives with a shifted index, so keep the map instead of rebuilding it.
+   * Every old row survives with a shifted index. Keep the map instead of rebuilding it.
    */
   if (!previousElements.empty() && nextKeys.size() > previousElements.size()) {
     std::size_t prependCount = nextKeys.size() - previousElements.size();
@@ -1438,14 +1438,14 @@ std::size_t Virtualizer::reconcileElements(Container* container, const std::vect
   // The rebuilt map holds true indices.
   container->revision.indexBias = 0;
 
-  // Rows moved, so any geometry derived from the old list is stale.
+  // Rows moved. Any geometry derived from the old list is stale.
   container->geometryVersion++;
 
-  // Rows were added, removed or moved, so the next layout must recompute offsets.
+  // Rows were added, removed or moved. The next layout must recompute offsets.
   container->elementsStructureDirty = true;
 
   /*
-   * No row survived, so the whole dataset was swapped. Reset the average so it is taken
+   * No row survived. The whole dataset was swapped. Reset the average so it is taken
    * again from the new rows. If some rows survived, the old average still fits.
    */
   if (survivorCount == 0) {
@@ -1504,7 +1504,7 @@ void Virtualizer::captureAnchor(Container* container, double inputOffset) {
   };
 
   /*
-   * In a grid the tracks move independently as rows get measured, so a new anchor each frame
+   * In a grid the tracks move independently as rows get measured. A new anchor each frame
    * lets the row the reader was on drift. Keep the previous anchor while it is still on screen.
    */
   if (container->columns > 1 && !previousAnchorKey.empty() && container->isAnchorable(previousAnchorKey)) {
@@ -1523,7 +1523,7 @@ void Virtualizer::captureAnchor(Container* container, double inputOffset) {
    * The anchor is the first content row at the top of the viewport. Decoration rows like
    * date pills are skipped. firstPast keeps the actual top row in case the viewport holds
    * only decoration.
-   * A single column is in order, so binary search for the start. Grids scan from 0.
+   * A single column is in order. Binary search for the start. Grids scan from 0.
    */
   std::size_t scanStart = 0;
   if (container->columns <= 1) {
@@ -1604,7 +1604,7 @@ bool Virtualizer::resolveScroll(
   std::size_t elementsSize = container->revision.elements.size();
   container->containerOffsetCorrected = false;
 
-  // An emptied list starts over, so an inverted list sticks to the bottom again when rows arrive.
+  // An emptied list starts over. An inverted list sticks to the bottom again when rows arrive.
   if (elementsSize == 0) {
     container->invertedInitialized = false;
     container->invertedBottomReleased = false;
@@ -1636,7 +1636,7 @@ bool Virtualizer::resolveScroll(
   };
 
   /*
-   * Reuse the id when the same correction is requested again, so the host's reply still
+   * Reuse the id when the same correction is requested again. The host's reply then still
    * matches it over several frames. A new type or a new row gets a new id.
    */
   auto operationId = [&](OperationType type, AnchorMode mode, const std::string& key) -> std::uint64_t {
@@ -1660,7 +1660,7 @@ bool Virtualizer::resolveScroll(
 
   /*
    * Start or repeat a correction that aims at a row. The target is looked up by key each
-   * frame, so it follows the row while nearby rows get measured.
+   * frame. It follows the row while nearby rows get measured.
    */
   auto requestAnchor = [&](OperationType type, const std::string& key, double delta, double viewPosition = 0.0) {
     if (container->operation && (container->operation->type != type || container->operation->target.key != key)) {
@@ -1672,7 +1672,7 @@ bool Virtualizer::resolveScroll(
   };
 
   /*
-   * Set when a scroll command arrives this frame. The command owns the offset, so holding
+   * Set when a scroll command arrives this frame. The command owns the offset. Holding
    * the old visible content must not pull the view back.
    */
   bool commandRequestedThisFrame = false;
@@ -1723,7 +1723,7 @@ bool Virtualizer::resolveScroll(
 
   /*
    * Step 1b. Scroll to the start. It holds the first row below the header so it keeps up
-   * with measuring. It is a command, so momentum neither cancels nor moves it.
+   * with measuring. Momentum neither cancels nor moves it because it is a command.
    */
   if (container->pendingScrollToStart) {
     container->pendingScrollToStart = false;
@@ -1805,7 +1805,7 @@ bool Virtualizer::resolveScroll(
           return false;
         }
       } else {
-        // The offset moved, so the caller picks the window again.
+        // The offset moved. The caller picks the window again.
         correctOffset(container, target);
         return true;
       }

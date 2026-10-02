@@ -5,7 +5,7 @@ import com.facebook.soloader.SoLoader;
 /*
  * The list's pinning, drag to reorder and snap math, which lives in C++ in the host layer
  * of shadowlist-core (host/StickyLayout, host/DragReorder, host/Snap). Every call takes
- * primitive arrays the caller reuses, so scroll and drag frames allocate nothing.
+ * primitive arrays the caller reuses. Scroll and drag frames allocate nothing.
  */
 final class ShadowListGeometry {
   static {

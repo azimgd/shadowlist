@@ -303,7 +303,7 @@ void DragReorder::updateInsertion(const std::vector<DragRow>& rows) {
     extent = rows[current].extent;
   });
   if (position < 0) {
-    // Nothing passed, so the drop names the held row itself and nothing moves.
+    // Nothing passed. The drop names the held row itself and nothing moves.
     insertionIndex_ = originIndex_;
     insertionKey_ = originKey_;
     return;

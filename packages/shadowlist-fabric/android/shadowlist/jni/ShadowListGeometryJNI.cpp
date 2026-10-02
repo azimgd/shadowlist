@@ -43,7 +43,7 @@ enum StickySlot {
 };
 
 /*
- * Only the UI thread calls in, so one scratch buffer is enough.
+ * One scratch buffer is enough because only the UI thread calls in.
  */
 std::vector<long>& scratchIndices() {
   static thread_local std::vector<long> indices;
@@ -51,7 +51,7 @@ std::vector<long>& scratchIndices() {
 }
 
 /*
- * Copies of the grid element arrays. They only grow, so drag frames reuse them.
+ * Copies of the grid element arrays. They only grow. Drag frames reuse them.
  */
 struct GridScratch {
   std::vector<double> leadings;

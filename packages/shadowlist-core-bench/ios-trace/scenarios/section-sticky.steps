@@ -26,4 +26,5 @@ repeat 4 pan 200 750 0 -600 120
 wait 1.5
 repeat 2 press 262 78
 wait 3
-# No rotation step. The app is portrait only on iPhone, so testing a width change needs an iPad simulator.
+# No rotation step. The app is portrait only on iPhone. Testing a width change needs an iPad simulator.
+

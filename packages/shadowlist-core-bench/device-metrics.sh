@@ -13,7 +13,7 @@
 #   Memory: PSS, native heap and the live view count, which the native view band should move.
 #   CPU: process time from /proc, as a share of one core over the run.
 #
-# This covers React, Yoga, mounting, JNI and the GPU too, unlike run.sh, so it's noisier.
+# This covers React, Yoga, mounting, JNI and the GPU too, unlike run.sh. It's noisier.
 # Run it more than once.
 #
 # Environment:
@@ -32,10 +32,10 @@ FLINGS="${3:-14}"
 SWIPE_MS="${4:-60}"
 # The theme background color. Fixed by default so every build is scored the same way.
 BACKGROUND="${BACKGROUND-000000}"
-# sweep flings the same way every time, so the run goes deep into fresh rows where
+# sweep flings the same way every time. The run goes deep into fresh rows where
 # slow per frame work shows up. local alternates and stays in one area.
 MODE="${MODE:-sweep}"
-# Each screenshot takes about 170ms on device, so this should cover the whole run.
+# Each screenshot takes about 170ms on device. This should cover the whole run.
 SHOT_COUNT="${SHOT_COUNT:-90}"
 VIEWPORT_TOP="${VIEWPORT_TOP:-0.16}"
 VIEWPORT_BOTTOM="${VIEWPORT_BOTTOM:-0.76}"

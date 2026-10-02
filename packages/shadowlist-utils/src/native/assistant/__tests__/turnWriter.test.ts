@@ -34,7 +34,7 @@ describe('createTurnWriter', () => {
     expect(writes).toHaveLength(2);
     expect(turn()?.content).toBe('Hello');
 
-    // Nothing new, so nothing is written.
+    // Nothing new is written.
     jest.advanceTimersByTime(200);
     expect(writes).toHaveLength(2);
     writer.stop();

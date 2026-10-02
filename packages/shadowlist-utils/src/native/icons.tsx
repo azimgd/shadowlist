@@ -1,11 +1,11 @@
 /* eslint-disable react-native/no-inline-styles -- icon geometry is derived from
- * the size/color/strokeWidth props, so the shape styles are intentionally dynamic. */
+ * the size/color/strokeWidth props. The shape styles are intentionally dynamic. */
 import type { ComponentType } from 'react';
 import { View } from 'react-native';
 import { useTheme, type ThemeColors } from './theme';
 
 /*
- * Thin line icons drawn only with Views, so there is no font or SVG dependency.
+ * Thin line icons drawn only with Views. There is no font or SVG dependency.
  * The color defaults to a theme color.
  */
 
@@ -37,7 +37,7 @@ const CHEVRON_ROTATION: Record<Direction, string> = {
 };
 
 /*
- * A chevron is two borders of a rotated square, so it sits off center toward its tip.
+ * A chevron is two borders of a rotated square. It sits off center toward its tip.
  * Shift it back so it looks centered in its frame.
  */
 const CHEVRON_SHIFT: Record<Direction, { x: number; y: number }> = {

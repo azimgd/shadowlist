@@ -65,8 +65,8 @@ public class ShadowListElementView extends ViewGroup {
 
   /*
    * Drag to reorder lifts the held row with translationZ. Without a background the default
-   * outline casts an invisible shadow that the renderer still processes every frame, so
-   * drop the outline then. A row with a background keeps its outline and its lift shadow.
+   * outline casts an invisible shadow that the renderer still processes every frame. Drop
+   * the outline then. A row with a background keeps its outline and its lift shadow.
    */
   private void updateOutline() {
     setOutlineProvider(getBackground() == null ? null : ViewOutlineProvider.BACKGROUND);

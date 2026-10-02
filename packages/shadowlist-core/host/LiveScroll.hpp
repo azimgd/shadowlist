@@ -68,15 +68,15 @@ public:
   }
 
   /*
-   * A process wide id for this list, so a host that can't hold the pointer, like Android's
-   * Java view, can find it. See registerHandle.
+   * A process wide id for this list. A host that can't hold the pointer, like Android's
+   * Java view, finds it by this id. See registerHandle.
    */
   std::int64_t handle() const {
     return handle_;
   }
 
   /*
-   * Versions of the sticky and snap lists, so hosts that reach the report by handle read them
+   * Versions of the sticky and snap lists. Hosts that reach the report by handle read them
    * only when they moved. A version goes up whenever a published pointer differs from the
    * previous one seen here.
    */

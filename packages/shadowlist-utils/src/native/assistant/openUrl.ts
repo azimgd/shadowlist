@@ -1,7 +1,7 @@
 import { Linking } from 'react-native';
 
 /*
- * Reply links come from model output, so by default we only open ones that go to a browser
+ * Reply links come from model output. By default we only open ones that go to a browser
  * or mail client. Phone, SMS or deep links could start an action the reader never asked for.
  * Pass onOpenLink to allow more.
  */

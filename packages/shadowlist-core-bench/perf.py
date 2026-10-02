@@ -72,7 +72,7 @@ def ios_run(log, ps_path, out):
                 except ValueError:
                     continue
     if samples:
-        # The run relaunches the app, so keep only the process that ran the scenario.
+        # The run relaunches the app. Keep only the process that ran the scenario.
         pid = samples[-1][1]
         own = [sample for sample in samples if sample[1] == pid]
         elapsed = own[-1][0] - own[0][0]

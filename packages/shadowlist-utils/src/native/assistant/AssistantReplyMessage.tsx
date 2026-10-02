@@ -188,7 +188,7 @@ export const AssistantReplyMessage = memo(
       <View style={[styles.container, style]}>
         <View style={styles.header}>
           <View style={styles.avatar}>
-            {/* On the accent disc, so the accent's own foreground: label was black on blue in light mode. */}
+            {/* On the accent disc it uses the accent's own foreground: label was black on blue in light mode. */}
             <SparkleIcon size={14} color={colors.onAccent} />
           </View>
           <Text style={styles.name}>{l.assistantName}</Text>
@@ -210,7 +210,7 @@ export const AssistantReplyMessage = memo(
 
         {/*
          * Text and tool calls in the order they happened. Only the last piece of text still
-         * grows, so everything above it stays put while the reply streams.
+         * grows. Everything above it stays put while the reply streams.
          */}
         {stepsOf(turn.content, toolCalls).map((step, index, steps) =>
           step.kind === 'calls' ? (
@@ -284,7 +284,7 @@ export const AssistantReplyMessage = memo(
         {/*
          * Stays mounted but invisible while streaming. Mounting it at the end would add a
          * 32pt row and shift the text the reader is on. Hidden views still take touches and
-         * get read out, so both are turned off.
+         * get read out. Both are turned off.
          */}
         <View
           style={[styles.actions, streaming && styles.actionsHidden]}
@@ -550,7 +550,7 @@ const useStyles = createStyles((theme) =>
       gap: theme.spacing.xs,
       marginLeft: -theme.spacing.sm,
     },
-    // Invisible but still takes up its row, so finishing a reply changes no height.
+    // Invisible but still takes up its row. Finishing a reply changes no height.
     actionsHidden: {
       opacity: 0,
     },

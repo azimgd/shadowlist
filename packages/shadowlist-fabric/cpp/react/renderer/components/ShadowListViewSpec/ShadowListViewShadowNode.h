@@ -25,20 +25,20 @@ JSI_EXPORT extern const char ShadowListViewComponentName[];
  */
 struct ShadowListViewGeometryCache {
   /*
-   * Sticky header and snap positions sent to the platform view through state, so it can pin
-   * headers and snap on the UI thread. See azimgd::shadowlist::PublishedGeometry.
+   * Sticky header and snap positions sent to the platform view through state. It pins
+   * headers and snaps on the UI thread. See azimgd::shadowlist::PublishedGeometry.
    */
   azimgd::shadowlist::PublishedGeometry published;
 
   /*
    * The props whose keys the core last took in. Holding a strong reference keeps the
-   * address from being freed and reused, so a pointer match really means same keys.
+   * address from being freed and reused. A pointer match really means same keys.
    */
   std::shared_ptr<const Props> keysProps;
 
   /*
    * The event emitter the core's callbacks dispatch through, and which optional ones were
-   * set. The emitter belongs to the node family, so the callbacks are only built again
+   * set. The emitter belongs to the node family. The callbacks are only built again
    * when it or the listened events change, not on every commit.
    */
   std::shared_ptr<const EventEmitter> callbacksEmitter;
@@ -77,7 +77,7 @@ public:
 
   /*
    * The core and geometry cache live on the node so they die with the node family.
-   * Inherited constructors leave derived members empty, so the clone copies them from
+   * Inherited constructors leave derived members empty. The clone copies them from
    * its source. That keeps one core per list across all its clones.
    */
   ShadowListViewShadowNode(
@@ -101,7 +101,7 @@ public:
 private:
   /*
    * Whether this node's Yoga node owns the child. Only a child cloned or adopted for this
-   * very node is owned, so it belongs to this commit alone and no other tree shares it.
+   * very node is owned. It belongs to this commit alone and no other tree shares it.
    * Yoga writes layout metrics into owned children in place, and so can we.
    */
   bool ownsLayoutableChild(const YogaLayoutableShadowNode& child) const;
@@ -124,14 +124,14 @@ private:
   std::shared_ptr<ShadowListViewGeometryCache> geometryCache_;
 
   /*
-   * Set while layout() writes its own frames into the tree, so replaceChild doesn't
+   * Set while layout() writes its own frames into the tree. replaceChild then doesn't
    * report them as new measurements. Only used inside one single threaded layout pass.
    */
   bool suppressElementSizeFeedback_ = false;
 
   /*
    * Rows measured for the first time in this layout cycle, which may get hidden.
-   * Yoga reports a new row through replaceChild before layout() runs, so we record it there.
+   * Yoga reports a new row through replaceChild before layout() runs. We record it there.
    * Cleared at the end of layout().
    */
   std::vector<Tag> firstMeasuredTags_;
@@ -140,7 +140,7 @@ private:
    * Children this layout pass swapped out, kept alive until the next pass.
    * Warning: Yoga stores raw pointers to relaid children in LayoutContext::affectedNodes,
    * and ShadowTree::tryCommit reads them after layout in emitLayoutEvents. We replace those
-   * children with moved clones, so without this a child could be freed while still listed.
+   * children with moved clones. Without this a child could be freed while still listed.
    * That crashes inside emitLayoutEvents, more often the more rows mount per commit.
    */
   std::vector<std::shared_ptr<const ShadowNode>> replacedChildren_;

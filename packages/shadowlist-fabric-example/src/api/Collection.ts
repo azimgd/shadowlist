@@ -1,7 +1,7 @@
 /*
  * An in-memory table standing in for a server collection. Rows are kept in display order, each
  * with a number cursor that grows toward the end and shrinks toward the start. Cursors stay
- * valid while rows are added or removed around them, so paging never skips or repeats a row.
+ * valid while rows are added or removed around them. Paging never skips or repeats a row.
  * Offset paging would, the moment someone posts above the page a reader has loaded.
  */
 

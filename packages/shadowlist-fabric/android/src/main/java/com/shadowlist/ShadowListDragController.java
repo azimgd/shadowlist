@@ -68,8 +68,8 @@ class ShadowListDragController {
   static final int DRAG_EVENT_END = 3;
 
   /*
-   * The other mounted rows for the drag math, refilled each frame. The arrays only grow, so
-   * frames allocate nothing. mRowViews holds the view at each position.
+   * The other mounted rows for the drag math, refilled each frame. The arrays only grow.
+   * Frames allocate nothing. mRowViews holds the view at each position.
    */
   private int mRowCount = 0;
   private int[] mRowIndices = new int[0];
@@ -160,7 +160,7 @@ class ShadowListDragController {
   }
 
   /*
-   * New rows may have mounted, so put the held row back under the finger.
+   * New rows may have mounted. Put the held row back under the finger.
    */
   void onStateCommitted() {
     if (mDragging) {
@@ -184,7 +184,7 @@ class ShadowListDragController {
             return;
           }
           if (mDroppedView.getParent() == null) {
-            // The row was unmounted off screen, so there is nothing to animate.
+            // The row was unmounted off screen. There is nothing to animate.
             clearDragTransforms();
             mDragDropPending = false;
             mDroppedView = null;
@@ -211,7 +211,7 @@ class ShadowListDragController {
   }
 
   /*
-   * The reorder has landed. The other rows are already in place, so reset them at once
+   * The reorder has landed. The other rows are already in place. Reset them at once
    * and animate the dropped row from where it was let go.
    */
   private void settleDroppedView(ShadowListElementView view) {
@@ -438,7 +438,7 @@ class ShadowListDragController {
   }
 
   /*
-   * A data change during the drag can shift the held row's index, so read it from the view.
+   * A data change during the drag can shift the held row's index. Read it from the view.
    * Fall back to the index saved at pickup only when the view has none.
    */
   private int currentDragOriginIndex() {
@@ -584,7 +584,8 @@ class ShadowListDragController {
     dispatchDragEvent(DRAG_EVENT_END, mDragOriginKey, mDragInsertionKey);
 
     if (from == to || view == null) {
-      // Dropped where it started, so there is nothing to wait for.
+      // Dropped where it started. There is nothing to wait for.
+
       clearDragTransforms();
       mDragDropPending = false;
       mDroppedView = null;

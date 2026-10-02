@@ -61,7 +61,8 @@ TEST(grid_drag_forward_across_a_row_wraps_cells_back) {
   CHECK_EQ(drag.insertionKey(), std::string("k5"));
   checkOffset(drag, 0, 0.0, 0.0);
   checkOffset(drag, 2, 0.0, -100.0);
-  // Cell 3 starts a row, so it wraps up to the end of the row above.
+  // Cell 3 starts a row. It wraps up to the end of the row above.
+
   checkOffset(drag, 3, -100.0, 200.0);
   checkOffset(drag, 4, 0.0, -100.0);
   checkOffset(drag, 5, 0.0, -100.0);

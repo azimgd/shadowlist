@@ -1,13 +1,13 @@
 /*
  * ShadowList core benchmark.
  *
- * Drives the core the same way the Fabric integration does, so a core change can be
+ * Drives the core the same way the Fabric integration does. A core change can be
  * compared before and after, here and on an Android device. See run.sh.
  * Keys are borrowed through keysRef, scroll frames set keysUnchanged, and mounted
  * sizes go through applyElementSize and then one commitElementSizes.
  *
  * Prints a TSV block and a readable table. Each scenario reports the median of its
- * timed batches, so one slow batch can't skew the result.
+ * timed batches. One slow batch can't skew the result.
  */
 
 #include <shadowlist-core/Container.hpp>
@@ -69,7 +69,7 @@ double nowUs() {
 
 /*
  * Run body in batches and keep the median batch mean. Setup runs untimed before
- * every batch, warmups too, so each batch starts from the same state.
+ * every batch, warmups too. Each batch starts from the same state.
  */
 Timing measure(
   std::size_t opsPerBatch,
@@ -230,7 +230,7 @@ void benchWarmUpdateMeasured(const std::vector<std::string>& keys, std::size_t r
 
 /*
  * Fabric sends back every mounted row's size during layout. Here the sizes haven't
- * changed, so ideally nothing reflows. startIndex picks where the mounted rows sit.
+ * changed. Ideally nothing reflows. startIndex picks where the mounted rows sit.
  */
 void benchUnchangedMeasurements(const std::vector<std::string>& keys, std::size_t rows, std::size_t startIndex, const char* label) {
   Container container;
@@ -307,11 +307,11 @@ void benchReconcile(const std::vector<std::string>& keys, std::size_t rows) {
 /*
  * Predicted sizes arriving for rows deep in the list.
  *
- * The host measures a screen or two ahead of what's mounted, so the changed rows are far
+ * The host measures a screen or two ahead of what's mounted. The changed rows are far
  * from the start. A reflow that always restarts at row 0 does badly here, and no other
  * scenario covers it.
  *
- * Rows stay unmeasured on purpose. A real measurement beats a prediction, so measured
+ * Rows stay unmeasured on purpose. A real measurement beats a prediction. Measured
  * rows would ignore every predicted size.
  */
 void benchDeepPredictions(const std::vector<std::string>& keys, std::size_t rows) {
@@ -422,7 +422,7 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
   stampFullyMeasured(container, rows, options.horizontal ? CARD_WIDTH : ROW_HEIGHT, options.horizontal);
 
   /*
-   * Count rows mounted and measured over the run, so a very fast result can be told
+   * Count rows mounted and measured over the run. A very fast result can then be told
    * apart from a scenario that stopped doing work.
    */
   std::size_t rowsTouched = 0;
@@ -450,7 +450,7 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
       high = std::min(high, low + MOUNTED_ROWS * options.columns);
       for (std::size_t index = low; index <= high && index < rows; ++index) {
         /*
-         * In a grid the column layout owns the cross axis width, so keep the core's value
+         * In a grid the column layout owns the cross axis width. Keep the core's value
          * and send back only the scroll axis size. A full width would fight the columns.
          */
         const Element& element = container.getElementAtIndex(index);
@@ -649,7 +649,7 @@ void benchScrollToIndexCentred(const std::vector<std::string>& keys, std::size_t
           std::size_t low = std::min(visible.first, visible.second);
           std::size_t high = std::min(std::max(visible.first, visible.second), rows - 1);
           feedWindowMeasurements(container, low, high, [](std::size_t index) {
-            // Sizes far from the estimate, so the resting place really has to move.
+            // Sizes far from the estimate. The resting place really has to move.
             return Size{WINDOW_WIDTH, index % 3 == 0 ? ROW_HEIGHT * 3.0 : ROW_HEIGHT};
           });
         }

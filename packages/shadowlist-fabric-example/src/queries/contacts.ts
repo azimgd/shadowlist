@@ -10,7 +10,7 @@ import {
 } from '../api/contacts';
 
 /*
- * Contacts and Section List share this cached query, so a contact deleted on one screen is
+ * Contacts and Section List share this cached query. A contact deleted on one screen is
  * already gone on the other, without a refetch.
  */
 const contactsKey = ['contacts'] as const;
@@ -20,7 +20,7 @@ export const useContactsQuery = () =>
     queryKey: contactsKey,
     queryFn: ({ signal }) => fetchContacts(signal),
     /*
-     * Rows keep their identity when contacts are added or removed around them, so only changed
+     * Rows keep their identity when contacts are added or removed around them. Only changed
      * rows re-render. The default sharing matches rows by position.
      */
     structuralSharing: shareItemsById,

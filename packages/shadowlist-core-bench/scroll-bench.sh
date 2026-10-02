@@ -138,7 +138,7 @@ run_android() {
 
 # Other projects' builds on this host starve the emulator and simulator. Start each run quiet.
 LOAD_MAX="${LOAD_MAX:-10}"
-# Other emulators share the host GPU, so their CPU (a proxy for their rendering) counts too.
+# Other emulators share the host GPU. Their CPU (a proxy for their rendering) counts too.
 OTHER_EMU_MAX="${OTHER_EMU_MAX:-30}"
 # The AVD running the benchmark, left out of the other emulators' CPU.
 EMULATOR_AVD="${EMULATOR_AVD:-sl_perf_android}"

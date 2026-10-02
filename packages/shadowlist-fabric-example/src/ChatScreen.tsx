@@ -64,7 +64,7 @@ export const ChatScreen = () => {
   }, [lastId]);
 
   /*
-   * A failed send grows its row by the retry line. The list keeps the visible area still, so on
+   * A failed send grows its row by the retry line. The list keeps the visible area still. On
    * the newest message that line would end up hidden under the composer.
    */
   const lastFailed =
@@ -75,13 +75,13 @@ export const ChatScreen = () => {
 
   /*
    * Each message's position in the thread, shown under its bubble. Numbers are given once per
-   * id, so loading older history labels only the new page and leaves mounted bubbles alone.
+   * id. Loading older history labels only the new page and leaves mounted bubbles alone.
    * That is also why the renderer and size spec below stay stable.
    */
   const ordinals = useItemOrdinals(list.data);
   const { labelOf } = ordinals;
 
-  // The same id goes out again, so the bubble flips back to sending in place.
+  // The same id goes out again. The bubble flips back to sending in place.
   const handleRetry = useCallback(
     (message: ChatMessage) => sendMessage(message),
     [sendMessage]
@@ -99,7 +99,8 @@ export const ChatScreen = () => {
   );
 
   /*
-   * The caption is its own line, so the predicted height includes it.
+   * The caption is its own line. The predicted height includes it.
+
    * The spec already adds the status line of a failed message.
    */
   const getSizeSpec = useCallback(

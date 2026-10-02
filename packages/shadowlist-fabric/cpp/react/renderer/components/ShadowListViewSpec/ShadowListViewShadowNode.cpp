@@ -16,7 +16,7 @@ namespace {
 
 /*
  * Only hide rows on hosts that echo back the generation of the state they mounted.
- * Android merges its reports onto the newest state instead, so it never hides rows.
+ * Android never hides rows because it merges its reports onto the newest state instead.
  */
 #ifdef __APPLE__
 constexpr bool CONCEAL_UNSETTLED_ROWS = true;
@@ -25,7 +25,7 @@ constexpr bool CONCEAL_UNSETTLED_ROWS = false;
 #endif
 
 /*
- * Build the row's props with opacity 0. Props can't be copied, so parse them from raw.
+ * Build the row's props with opacity 0. Props can't be copied. Parse them from raw.
  * Returns null without a ContextContainer.
  */
 std::shared_ptr<const Props> concealedPropsForRow(const ShadowNode& rowShadowNode) {
@@ -62,7 +62,7 @@ void ShadowListViewShadowNode::setGeometryCache(std::shared_ptr<ShadowListViewGe
 
 bool ShadowListViewShadowNode::ownsLayoutableChild(const YogaLayoutableShadowNode& child) const {
   /*
-   * yogaNode_ is protected, so it can't be read on another node directly. A member pointer
+   * yogaNode_ is protected and can't be read on another node directly. A member pointer
    * named through this class can, which is the plain C++ way to reach it.
    */
   constexpr auto yogaNodeMember = &ShadowListViewShadowNode::yogaNode_;
@@ -78,7 +78,7 @@ void ShadowListViewShadowNode::placeChild(
   LayoutContext& layoutContext) {
   /*
    * The base layout pass cloned every row it laid out for this commit and wrote its frame
-   * in place. Such a row is ours alone, so write the core's origin the same way instead of
+   * in place. Such a row is ours alone. Write the core's origin the same way instead of
    * cloning it a second time. React's reference already moved to it with Yoga's clone.
    * Listing it in affectedNodes again is harmless, onLayout drops repeated frames.
    */
@@ -91,7 +91,7 @@ void ShadowListViewShadowNode::placeChild(
   }
 
   /*
-   * Opacity isn't a Yoga style, so changing it keeps the row's layout intact.
+   * Opacity isn't a Yoga style. Changing it keeps the row's layout intact.
    * A clone that only moves the row passes React's reference along. A hiding clone must
    * not, or React's next update of the row would start from the hidden props.
    */
@@ -100,7 +100,7 @@ void ShadowListViewShadowNode::placeChild(
   nextChild->setLayoutMetrics(layoutMetrics);
   /*
    * Pass the child index, or replaceChild searches the children for every row.
-   * The first pass already took the sizes, so don't report the frame we just wrote.
+   * The first pass already took the sizes. Don't report the frame we just wrote.
    * That would fight the column layout in a multi column list.
    * Keep the old child alive past this commit, see replacedChildren_.
    */
@@ -122,7 +122,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
   auto& core = *this->containerManager_;
 
-  // The commit that held raw pointers to these children is long done, so let them go.
+  // The commit that held raw pointers to these children is long done. Let them go.
   this->replacedChildren_.clear();
 
   /*
@@ -130,7 +130,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    *
    * Warning: affectedNodes belongs to the whole surface for this commit, and onLayout fires
    * for everything in it afterward. Never clear it, or other nodes lose their onLayout.
-   * It can also be null, so check it before use like the rest of the framework does.
+   * It can also be null. Check it before use like the rest of the framework does.
    */
 
   /*
@@ -236,7 +236,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     ? azimgd::shadowlist::ConcealTracker<ShadowListViewGeometryCache::ConcealedProps>::hideBeforeIndex(
         core, correcting, !this->firstMeasuredTags_.empty())
     : 0;
-  // Sorted, so each row below checks it with a binary search instead of a scan.
+  // Sorted. Each row below checks it with a binary search instead of a scan.
   if (concealBeforeIndex > 0) {
     std::sort(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end());
   }
@@ -244,8 +244,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   std::vector<std::uint64_t> stillConcealedTags;
 
   /*
-   * Place each row where the core says. A row that didn't move still has the right frame, so
-   * only touch the rows that moved. Cloning every row each scroll frame was a lot of wasted
+   * Place each row where the core says. Only touch the rows that moved, the others still
+   * have the right frame. Cloning every row each scroll frame was a lot of wasted
    * work, see placeChild.
    */
   for (const auto& mounted : mountedElements) {
@@ -319,7 +319,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       return;
     }
     /*
-     * Float is float on Android and double on Apple, so cast to avoid a narrowing error that
+     * Float is float on Android and double on Apple. The cast avoids a narrowing error that
      * only one platform reports.
      */
     auto along = static_cast<Float>(offset);
@@ -342,7 +342,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
   /*
    * Work out what to publish. The core decides if the content size changed and if it wants
-   * to move the scroll view. The offset is only written then, so we never fight the user.
+   * to move the scroll view. The offset is only written then. We never fight the user.
    */
   auto nextStateData = getStateData();
   auto stateUpdate = core.resolveStateUpdate(
@@ -355,7 +355,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   auto& published = geometry.published;
   published.refresh(core);
 
-  // Compare pointers. The cache only takes a new one when the values changed, so this stays cheap.
+  // Compare pointers. This stays cheap because the cache only takes a new one when the values changed.
   bool stickyChanged =
     published.stickyHeaderIndices != nextStateData.stickyHeaderIndices_ ||
     published.stickyHeaderOffsets != nextStateData.stickyHeaderOffsets_ ||
@@ -383,7 +383,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     }
     /*
      * Copy, don't move, since the next layout reuses the cache. It's just a shared pointer
-     * and the list never changes once published, so sharing it is safe.
+     * and the list never changes once published. Sharing it is safe.
      */
     if (stickyChanged) {
       nextStateData.stickyHeaderIndices_ = published.stickyHeaderIndices;
@@ -413,7 +413,7 @@ void ShadowListViewShadowNode::replaceChild(
    * since this can run at the same time as the commit phase.
    */
   if (this->suppressElementSizeFeedback_) {
-    // layout() already gave the core these sizes, so skip the frame it just wrote.
+    // layout() already gave the core these sizes. Skip the frame it just wrote.
   } else if (const auto elementViewProps = dynamic_cast<const ShadowListElementViewProps*>(nextElementShadowNode->getProps().get())) {
     if (this->containerManager_) {
       std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);

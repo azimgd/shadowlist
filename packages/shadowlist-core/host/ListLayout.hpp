@@ -22,7 +22,7 @@ struct MeasuredRow {
 };
 
 /*
- * Give the core the measured header, footer and window size and reflow the rows, so the first
+ * Give the core the measured header, footer and window size and reflow the rows. The first
  * layout is right even though the core's frame ran before the host laid the list out. Returns
  * whether anything changed, which marks the offset corrected so the host writes it again.
  */
@@ -30,7 +30,7 @@ bool applyLayoutInputs(Container& core, double headerSize, double footerSize, do
 
 /*
  * Give the core every mounted row's size, then reflow once from the lowest changed row.
- * In a multi column list the column sets the cross size, so only the scroll axis size is
+ * In a multi column list the column sets the cross size. Only the scroll axis size is
  * taken. Ids of rows measured for the first time go into firstMeasured.
  */
 void applyMeasuredRows(Container& core, const std::vector<MeasuredRow>& rows, bool horizontal,

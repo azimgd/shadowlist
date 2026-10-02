@@ -16,7 +16,7 @@ export interface PullToRefresh {
  * Use this instead of a query's `isRefetching`. That flag is also true for background
  * refetches, which would show the spinner when the reader never pulled.
  *
- * `refresh` and `onError` are read at call time, so they do not need to be stable.
+ * `refresh` and `onError` are read at call time. They do not need to be stable.
  *
  * @example
  * const poll = useQuery(pollQuery);
@@ -32,7 +32,7 @@ export function usePullToRefresh(
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  // A guard that flips right away. State changes on the next render, so a second pull could slip past.
+  // A guard that flips right away. State changes on the next render, and a second pull could slip past it.
   const inFlightRef = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -40,7 +40,7 @@ export function usePullToRefresh(
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setRefreshing(true);
-    // Run inside then, so a synchronous throw still reaches finally.
+    // Run inside then. A synchronous throw still reaches finally.
     const pending = Promise.resolve()
       .then(() => refreshRef.current())
       .finally(() => {

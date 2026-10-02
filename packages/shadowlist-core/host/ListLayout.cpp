@@ -24,7 +24,7 @@ bool applyLayoutInputs(Container& core, double headerSize, double footerSize, do
   if (rowsMove) {
     Virtualizer::recomputeElementOffsets(&core, 0);
   }
-  // The core's frame ran with the previous header size, so settle the change now.
+  // The core's frame ran with the previous header size. Settle the change now.
   Virtualizer::applyHeaderSizeChange(&core, previousHeaderSize);
   // A chat resting at its bottom keeps it as the composer resizes the list.
   Virtualizer::applyWindowSizeChange(&core, previousWindowSize);
@@ -121,7 +121,8 @@ bool PublishedGeometry::refresh(const Container& core) {
   std::vector<double> offsets;
   std::vector<double> sizes;
   std::size_t elementsSize = core.getElementsSize();
-  // Sticky headers in an inverted list aren't supported, so publish nothing.
+  // Sticky headers in an inverted list aren't supported. Publish nothing.
+
   if (!core.inverted) {
     for (std::size_t stickyIndex : core.stickyIndices) {
       if (stickyIndex >= elementsSize) {

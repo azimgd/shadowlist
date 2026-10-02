@@ -18,7 +18,7 @@ interface UseElementSizeSpecsOptions<ElementT> {
  * Sending is costly, and not because of the specs. Any prop change makes Fabric deep copy
  * every other prop, see convertRawProp in propsConversions.h:177. That copies all of
  * elementsAllKeys, measured at 86 us for 100k short keys and 1.88 ms for 100k long ones.
- * It also gives the core a new props pointer, so it compares every key again.
+ * It also gives the core a new props pointer. The core then compares every key again.
  *
  * Sending every 16 rows paid that constantly. Now we only send when the specs would run out,
  * about once every lookaheadRows minus EDGE_MARGIN rows.
@@ -26,7 +26,7 @@ interface UseElementSizeSpecsOptions<ElementT> {
 const EDGE_MARGIN = 24;
 
 /*
- * Build the elementsSizeSpecs prop, so native knows the real heights of rows near the
+ * Build the elementsSizeSpecs prop. It tells native the real heights of rows near the
  * screen before React renders them.
  *
  * We send the whole range, not just what changed. A width change like a rotation makes
@@ -88,8 +88,8 @@ export function useElementSizeSpecs<ElementT extends { id: string }>({
 
       /*
        * A row whose height doesn't come from its text, like one with an inline image,
-       * returns nothing and is left out. The core estimates it and measures it natively,
-       * so it's fine to describe only some rows.
+       * returns nothing and is left out. The core estimates it and measures it natively.
+       * Describing only some rows is fine.
        */
       const spec = getElementSizeSpec(element, index);
       if (!spec) continue;

@@ -10,7 +10,7 @@ repeat {FLINGS} pan 200 780 0 -650 100
 wait 2
 mark rest-at-end
 wait 1.5
-# Fewer flings back, then the status bar, so a fling never overshoots into pull to refresh.
+# Fewer flings back, then the status bar. A fling never overshoots into pull to refresh.
 mark fling-back
 repeat {BACK} pan 200 130 0 650 100
 wait 2

@@ -115,7 +115,7 @@ TEST(upward_fling_pages_history_while_the_consumer_keeps_up) {
 }
 
 /*
- * The real case. A paging hook drops a request that lands during a fetch, so the list
+ * The real case. A paging hook drops a request that lands during a fetch. The list
  * must ask again while the reader keeps scrolling, or the history stops arriving.
  */
 TEST(upward_fling_keeps_paging_when_a_request_lands_mid_fetch) {
@@ -163,7 +163,7 @@ TEST(scroll_to_index_places_the_row_at_the_requested_view_position) {
 }
 
 /*
- * A position below 0 or above 1 would put the row off screen, so it is clamped to the
+ * A position below 0 or above 1 would put the row off screen. It is clamped to the
  * nearer edge and the row stays visible.
  */
 TEST(scroll_to_index_clamps_a_view_position_outside_the_viewport) {
@@ -193,7 +193,7 @@ TEST(scroll_to_index_clamps_a_view_position_outside_the_viewport) {
 
 /*
  * A jump to an unmeasured row aims at its estimated size, and the real size only arrives
- * once the row mounts. The free space is worked out again every frame, so the row still
+ * once the row mounts. The free space is worked out again every frame. The row still
  * ends up where its real size puts it.
  */
 TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
@@ -203,7 +203,7 @@ TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
   Container container;
 
   Virtualizer::update(&container, chatInput(keys, 0.0));
-  // Only the first rows are measured, so the target still uses its estimate.
+  // Only the first rows are measured. The target still uses its estimate.
   measureAll(container, 10);
   Virtualizer::update(&container, chatInput(keys, 0.0));
 

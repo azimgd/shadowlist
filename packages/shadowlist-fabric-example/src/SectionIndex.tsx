@@ -18,7 +18,7 @@ export const SectionIndex = memo(({ titles, onSelect }: SectionIndexProps) => {
   const styles = useStyles();
   const viewRef = useRef<ComponentRef<typeof View>>(null);
   /*
-   * Window frame. locationY is relative to the touched letter, so touches use pageY instead.
+   * Window frame. Touches use pageY because locationY is relative to the touched letter.
    */
   const frameRef = useRef({ top: 0, height: 0 });
   const lastRef = useRef(-1);

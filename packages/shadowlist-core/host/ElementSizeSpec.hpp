@@ -11,7 +11,7 @@
 namespace azimgd::shadowlist {
 
 /*
- * Describes a row's text before it renders, so a host can predict its height with its own
+ * Describes a row's text before it renders. A host predicts its height with its own
  * text layout. Comes from the elementsSizeSpecs prop, a JSON array of these.
  */
 struct ElementSizeSpec {
@@ -46,7 +46,7 @@ struct ElementSizeSpec {
 };
 
 /*
- * Feeds predicted sizes to the core a few rows per commit, so a long list never spikes the
+ * Feeds predicted sizes to the core a few rows per commit. A long list never spikes the
  * commit thread. The parsed specs are cached until the source or the width changes.
  */
 class SizeSpecQueue final {

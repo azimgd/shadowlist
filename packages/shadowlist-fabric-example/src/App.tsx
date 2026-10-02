@@ -89,7 +89,7 @@ export default function App() {
   }, [theme]);
 
   /*
-   * ShadowList manages its own insets, so list screens can't sit under a see-through bar.
+   * ShadowList manages its own insets. List screens can't sit under a see-through bar.
    */
   const exampleOptions = useMemo<NativeStackNavigationOptions>(
     () => ({

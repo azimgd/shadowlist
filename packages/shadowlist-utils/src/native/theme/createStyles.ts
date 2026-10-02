@@ -2,7 +2,7 @@ import type { Theme } from './Theme';
 import { useTheme } from './useTheme';
 
 /*
- * Styles are cached per theme object, so memoized rows never rebuild a stylesheet on render.
+ * Styles are cached per theme object. Memoized rows never rebuild a stylesheet on render.
  */
 export function createStyles<T extends object>(
   factory: (theme: Theme) => T

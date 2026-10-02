@@ -52,7 +52,7 @@ public:
     auto& shadowlistViewShadowNode = static_cast<ShadowListViewShadowNode&>(shadowNode);
 
     /*
-     * Create the core for a list's first node. Clones carry it along, so one core is shared
+     * Create the core for a list's first node. Clones carry it along. One core is shared
      * by all clones and freed with the node family. No registry here that could leak.
      */
     if (!shadowlistViewShadowNode.getContainerManager()) {
@@ -76,8 +76,8 @@ public:
     /*
      * The host only sends a state update when its offset leaves the published band, but it
      * writes every frame into the live report. If that report is newer than this state, this
-     * commit runs on it, so the core sees where the screen really is, see ShadowListLiveScroll.
-     * The report goes into this node's state too, so the layout pass starts a correction from
+     * commit runs on it. The core then sees where the screen really is, see ShadowListLiveScroll.
+     * The report goes into this node's state too. The layout pass starts a correction from
      * the same offset the core used. A state with an offset of our own to apply, like a scroll
      * command, is left alone.
      */
@@ -111,19 +111,19 @@ public:
      * The three per frame events below skip the generated emitter methods and use
      * dispatchUniqueEvent, which marks them unique and continuous, like React Native's own
      * ScrollView scroll event. The generated methods cause two problems:
-     * Events are not merged, so when JS falls behind, like while dragging the scroll
+     * Events are not merged. When JS falls behind, like while dragging the scroll
      * indicator, the queue grows for the whole gesture. That backlog is the long freeze.
-     * Events are sent as discrete, so React renders each one synchronously. Dragging content
+     * Events are sent as discrete. React renders each one synchronously. Dragging content
      * is fine, but the scroll indicator, a macOS scroller and iOS momentum frames all turned
      * into one blocking render per frame.
      * Event names stay the same either way.
      *
-     * Merging only looks at the last event queued for this view, so sending several kinds of
+     * Merging only looks at the last event queued for this view. Sending several kinds of
      * event per frame defeats it. That's another reason scroll and viewable only fire when
      * someone listens.
      */
     /*
-     * The callbacks hold the family's event emitter, so they only need building again when
+     * The callbacks hold the family's event emitter. They only need building again when
      * the emitter or the listened events change. Rebuilding five std::function objects on
      * every commit, scroll frames included, was pure allocation.
      */
@@ -242,7 +242,7 @@ public:
     input.nonAnchorableKeysRef = &shadowlistViewProps.elementsAnchorIgnoreKeys;
 
     /*
-     * A scroll keeps the same props, so the same props pointer means the same keys.
+     * A scroll keeps the same props. The same props pointer means the same keys.
      * The cache holds the old props so the address can't be reused. This lets the core
      * skip comparing every key on scroll frames.
      */
@@ -253,7 +253,7 @@ public:
     input.nonAnchorableKeysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
     input.windowContainerWidth = shadowlistViewLayoutMetrics.frame.size.width;
     input.windowContainerHeight = shadowlistViewLayoutMetrics.frame.size.height;
-    // The layout pass writes the header and footer sizes into the core, so these are current.
+    // These are current because the layout pass writes the header and footer sizes into the core.
     input.headerSize = containerManager->headerSize;
     input.footerSize = containerManager->footerSize;
     /*
@@ -284,7 +284,7 @@ public:
     azimgd::shadowlist::applyHostScroll(input, shadowlistViewStateData.scrollState());
 
     /*
-     * Give the core predicted sizes before update(), so this frame picks its window from
+     * Give the core predicted sizes before update(). This frame then picks its window from
      * real sizes instead of estimates.
      */
     applyElementSizeSpecs(
@@ -314,7 +314,7 @@ public:
           geometryCache->published.stickyHeaderSizes != shadowlistViewStateData.stickyHeaderSizes_));
       /*
        * The layout pass shows hidden rows again, and the host's echo usually comes in a plain
-       * scroll report, so keep layout dirty while any row is hidden.
+       * scroll report. Keep layout dirty while any row is hidden.
        */
       bool rowsConcealed = geometryCache && !geometryCache->concealedRows.empty();
       /*

@@ -1,7 +1,7 @@
 import { useReducer, useRef, useCallback, useMemo, useEffect } from 'react';
 
-/* The tsconfig has no DOM or Node lib, so timer globals have no types. Read them off
- * globalThis without destructuring, so the calls stay bound to the global. */
+/* The tsconfig has no DOM or Node lib and timer globals have no types. Read them off
+ * globalThis without destructuring to keep the calls bound to the global. */
 const timers = globalThis as unknown as {
   setTimeout: (handler: () => void, timeout: number) => number;
   clearTimeout: (handle: number) => void;
@@ -62,7 +62,7 @@ type ListAction<ElementT> =
       match: (element: ElementT, index: number) => boolean;
     };
 
-/* Flag actions return the same state when nothing changes, so scrollStarted on every
+/* Flag actions return the same state when nothing changes. scrollStarted on every
  * scroll event doesn't re-render. */
 function listReducer<ElementT extends { id: string }>(
   state: ListState<ElementT>,
@@ -90,7 +90,7 @@ function listReducer<ElementT extends { id: string }>(
         typeof action.update === 'function'
           ? action.update(state.data)
           : action.update;
-      // The updater changed nothing, so skip the re-render.
+      // The updater changed nothing. Skip the re-render.
       return data === state.data ? state : { ...state, data };
     }
     case 'itemsPrepended':
@@ -188,7 +188,7 @@ export function useListController<
   optionsRef.current = options;
 
   /*
-   * Busy guards that flip right away. State only changes on the next render, so a second
+   * Busy guards that flip right away. State only changes on the next render. A second
    * call in the same tick would slip past it.
    */
   const busyRef = useRef({ refresh: false, end: false, start: false });
@@ -204,7 +204,7 @@ export function useListController<
   const lastScrollAtRef = useRef(0);
 
   /*
-   * Runs the callback, then settle. The callback runs inside then, so a synchronous throw
+   * Runs the callback, then settle. The callback runs inside then. A synchronous throw
    * still becomes a rejection here. Otherwise settle never runs and the loading flag stays stuck.
    */
   const run = useCallback(

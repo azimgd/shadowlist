@@ -38,7 +38,7 @@ export function useRefreshDefer<ElementT>({
   const refreshHeldDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
   const previousRefreshingRef = useRef(refreshing);
   /*
-   * The data the last commit showed. Kept in a ref, not state, so a normal data change
+   * The data the last commit showed. Kept in a ref, not state. A normal data change
    * renders once. Setting state here during render made React run the whole list twice.
    */
   const shownDataRef = useRef(dataProp);
@@ -83,7 +83,8 @@ export function useRefreshDefer<ElementT>({
 
   /*
    * Fallback in case onRefreshSettle never comes. Release the held data shortly after the
-   * refresh ends. On iOS the settle event fires first, so this does nothing there.
+   * refresh ends. On iOS the settle event fires first. This does nothing there.
+
    */
   const previousRefreshingForFallbackRef = useRef(refreshing);
   useEffect(() => {

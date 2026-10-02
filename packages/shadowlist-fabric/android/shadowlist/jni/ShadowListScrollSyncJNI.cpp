@@ -1,6 +1,6 @@
 /*
  * JNI side of com.shadowlist.ShadowListScrollSync. Each Java view owns one ScrollSync from the
- * host layer, reached by pointer, and reads results from an array it reuses, so scroll frames
+ * host layer, reached by pointer, and reads results from an array it reuses. Scroll frames
  * allocate nothing. Only the UI thread calls in.
  */
 
@@ -133,7 +133,8 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   jdouble bandLow,
   jdouble bandHigh) {
   Host* target = host(pointer);
-  // The registry lookup takes a lock, so only look the list up again when it changed.
+  // The registry lookup takes a lock. Only look the list up again when it changed.
+
   if (liveHandle != target->liveHandle || !target->liveScroll) {
     target->liveHandle = liveHandle;
     target->liveScroll = liveHandle != 0 ? sl::LiveScroll::find(liveHandle) : nullptr;

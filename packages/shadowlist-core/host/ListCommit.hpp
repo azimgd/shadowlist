@@ -17,8 +17,8 @@ struct ListScrollState {
   double offsetY = 0.0;
   bool offsetEnabled = false;
   /*
-   * The offset the core started from when it published a correction, so a moving view can
-   * add the delta to its live offset. Only meaningful while offsetEnabled is set.
+   * The offset the core started from when it published a correction. A moving view adds
+   * the delta to its live offset. Only meaningful while offsetEnabled is set.
    */
   double baseX = 0.0;
   double baseY = 0.0;

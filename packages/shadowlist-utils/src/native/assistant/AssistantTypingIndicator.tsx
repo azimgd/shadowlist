@@ -22,7 +22,7 @@ export interface AssistantTypingIndicatorProps {
 }
 
 /*
- * Fades opacity between 0.25 and 1 while mounted. It runs on the UI thread, so a streaming
+ * Fades opacity between 0.25 and 1 while mounted. It runs on the UI thread. A streaming
  * row that re-renders on every flush never restarts it.
  */
 export function usePulseStyle(

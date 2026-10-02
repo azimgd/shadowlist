@@ -3,7 +3,7 @@
  * headings, lists, quotes, code, tables, rules and four inline styles. It copes with text
  * that stops mid token, since during a stream every render sees an unfinished document.
  *
- * It returns a flat list of blocks. Every block but the last is final, so the renderer
+ * It returns a flat list of blocks. Every block but the last is final. The renderer
  * memoizes each block on raw and only the last one re-renders per flush.
  */
 
@@ -46,7 +46,7 @@ const FENCE_OPEN = /^```(\S*)\s*$/;
 const FENCE_CLOSE = /^```\s*$/;
 const PARTIAL_FENCE = /^`{1,2}\s*$/;
 /*
- * Text after a marker is optional, so a line that is only a marker like # or 1. already
+ * Text after a marker is optional. A line that is only a marker like # or 1. already
  * gets its final block type. Otherwise it would be a paragraph for one flush and a heading
  * the next, remounting the block and moving everything under it.
  */
@@ -54,10 +54,10 @@ const HEADING = /^(#{1,6})(?:\s+(.*))?$/;
 const RULE = /^(-{3,}|\*{3,})\s*$/;
 const QUOTE = /^>\s?(.*)$/;
 /*
- * Allow up to three spaces of indent, so a nested item starts its own block instead of
+ * Allow up to three spaces of indent. A nested item then starts its own block instead of
  * joining the paragraph above. Four or more spaces is indented code, left alone.
  *
- * Bold text at the start of a line must not become a bullet, so the marker needs a space
+ * Bold text at the start of a line must not become a bullet. The marker needs a space
  * after it or must stand alone.
  */
 const BULLET = /^\s{0,3}[-*](?:\s+(.*))?$/;
@@ -66,7 +66,7 @@ const TABLE_ROW = /^\|/;
 /*
  * A row with no cell content. That is the alignment row, any part of it streamed so far,
  * and the bare pipe every row starts as. Matching only the full alignment row would show
- * these as data rows that vanish a token later, so the table would lose a row mid stream.
+ * these as data rows that vanish a token later. The table would lose a row mid stream.
  */
 const TABLE_STRUCTURE_ROW = /^[\s:|-]*$/;
 
@@ -82,7 +82,7 @@ const isBlockStart = (line: string) =>
 const WORD_CHAR = /\w/;
 
 /*
- * Inline styles. An opener with no closer yet runs to the end of the text, so half streamed
+ * Inline styles. An opener with no closer yet runs to the end of the text. Half streamed
  * bold text shows bold right away instead of flashing raw asterisks.
  */
 function parseInline(text: string): MarkdownInline[] {
@@ -227,7 +227,7 @@ export function parseMarkdown(source: string): MarkdownBlock[] {
 /*
  * Parses source, reusing previous when source only grew from it, like a streamed reply.
  * A block is kept when every line it was decided on is complete in previous, which is all
- * lines but the last. Parsing resumes after the kept blocks, so a flush costs the tail of
+ * lines but the last. Parsing resumes after the kept blocks. A flush costs the tail of
  * the reply instead of all of it, and gives the same blocks as a full parse.
  */
 export function parseMarkdownFrom(
@@ -262,7 +262,7 @@ export function parseMarkdownFrom(
   }
   const keyFor = (type: MarkdownBlock['type']) => `${blocks.length}:${type}`;
   let index = 0;
-  // Each pass adds at most one block, so where the next pass starts is where it ended.
+  // Each pass adds at most one block. Where the next pass starts is where it ended.
   const recordEnd = () => {
     if (blocks.length > ends.length) {
       ends.push(lineBase + index);
