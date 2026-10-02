@@ -9,9 +9,9 @@ import {
   type TreeNode,
 } from 'shadowlist-utils/native';
 import { useHeaderMenu } from './HeaderActions';
-import { DEBUG } from './launchSettings';
+import { DEBUG } from '../launchSettings';
 import { QueryStatus } from './QueryStatus';
-import { useFileTreeQuery } from './queries/files';
+import { useFileTreeQuery } from '../queries/files';
 
 const getChildren = (node: TreeNode) => node.children;
 const keyExtractor = (node: TreeNode) => node.id;

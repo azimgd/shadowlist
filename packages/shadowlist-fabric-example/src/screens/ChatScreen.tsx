@@ -13,17 +13,17 @@ import {
   useTheme,
   type ChatMessage,
 } from 'shadowlist-utils/native';
-import { useItemOrdinals } from './itemOrdinals';
+import { useItemOrdinals } from '../itemOrdinals';
 import { useHeaderActions } from './HeaderActions';
-import { haptics } from './haptics';
-import { benchOverscan, DEBUG } from './launchSettings';
+import { haptics } from '../haptics';
+import { benchOverscan, DEBUG } from '../launchSettings';
 import { QueryStatus } from './QueryStatus';
-import { createOutgoingMessage, simulateIncomingMessages } from './api/chat';
+import { createOutgoingMessage, simulateIncomingMessages } from '../api/chat';
 import {
   useChatMessagesQuery,
   useIncomingChatMessages,
   useSendChatMessage,
-} from './queries/chat';
+} from '../queries/chat';
 
 const KEYBOARD_GAP = 8;
 const INCOMING_COUNT = 10;

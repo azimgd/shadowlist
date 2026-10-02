@@ -7,7 +7,7 @@ import {
   type GestureResponderEvent,
 } from 'react-native';
 import { createStyles } from 'shadowlist-utils/native';
-import { haptics } from './haptics';
+import { haptics } from '../../haptics';
 
 interface SectionIndexProps {
   titles: string[];

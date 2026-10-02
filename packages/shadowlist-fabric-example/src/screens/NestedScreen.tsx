@@ -12,12 +12,12 @@ import {
   CAROUSEL_SHELF_ID,
   CarouselShelf,
   type CarouselShelfItem,
-} from './CarouselShelf';
+} from './nested/CarouselShelf';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
-import { request } from './api/network';
-import { createCarouselCards } from './fixtures/carousel';
-import { useShelvesQuery } from './queries/gallery';
+import { request } from '../api/network';
+import { createCarouselCards } from '../fixtures/carousel';
+import { useShelvesQuery } from '../queries/gallery';
 import { useScreenStyles } from './screenStyles';
 
 type ShelfRow = NestedItem | CarouselShelfItem;

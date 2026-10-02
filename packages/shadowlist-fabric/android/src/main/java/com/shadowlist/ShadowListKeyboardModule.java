@@ -77,6 +77,8 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
       // No Activity yet. onHostResume will try again.
       return;
     }
+    // A recreated Activity has a new window. Let go of the old one first.
+    detach();
     mObservedView = activity.getWindow().getDecorView();
     mCallback = new KeyboardInsetsCallback(this);
     ViewCompat.setWindowInsetsAnimationCallback(mObservedView, mCallback);
@@ -119,8 +121,12 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
   private static final class KeyboardInsetsCallback extends WindowInsetsAnimationCompat.Callback {
     private final WeakReference<ShadowListKeyboardModule> mModuleRef;
 
+    /*
+     * The callback sits on the decor view. DISPATCH_MODE_STOP would keep every view below it
+     * from seeing inset animations, which breaks other keyboard handling in the app.
+     */
     KeyboardInsetsCallback(ShadowListKeyboardModule module) {
-      super(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_STOP);
+      super(WindowInsetsAnimationCompat.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE);
       mModuleRef = new WeakReference<>(module);
     }
 

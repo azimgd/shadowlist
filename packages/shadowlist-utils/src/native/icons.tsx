@@ -1,7 +1,5 @@
-/* eslint-disable react-native/no-inline-styles -- icon geometry is derived from
- * the size/color/strokeWidth props. The shape styles are intentionally dynamic. */
 import type { ComponentType } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTheme, type ThemeColors } from './theme';
 
 /*
@@ -58,14 +56,7 @@ export const ChevronIcon = ({
   const k = side * 0.3535;
   const shift = CHEVRON_SHIFT[direction];
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <View style={[styles.center, { width: size, height: size }]}>
       <View
         style={{
           transform: [{ translateX: k * shift.x }, { translateY: k * shift.y }],
@@ -91,27 +82,16 @@ export const FolderIcon = ({ size = 18, color: colorProp }: IconProps) => {
   return (
     <View style={{ width: size, height: size * 0.82 }}>
       <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: size * 0.44,
-          height: size * 0.28,
-          backgroundColor: color,
-          borderTopLeftRadius: 2.5,
-          borderTopRightRadius: 2.5,
-        }}
+        style={[
+          styles.folderTab,
+          { width: size * 0.44, height: size * 0.28, backgroundColor: color },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          top: size * 0.16,
-          backgroundColor: color,
-          borderRadius: 3,
-        }}
+        style={[
+          styles.folderBody,
+          { top: size * 0.16, backgroundColor: color },
+        ]}
       />
     </View>
   );
@@ -126,25 +106,19 @@ export const DocIcon = ({
   const w = size * 0.72;
   const h = size * 0.9;
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <View style={[styles.center, { width: size, height: size }]}>
       <View
-        style={{
-          width: w,
-          height: h,
-          borderWidth: strokeWidth,
-          borderColor: color,
-          borderRadius: 2.5,
-          paddingHorizontal: w * 0.18,
-          justifyContent: 'center',
-          gap: h * 0.16,
-        }}
+        style={[
+          styles.docPage,
+          {
+            width: w,
+            height: h,
+            borderWidth: strokeWidth,
+            borderColor: color,
+            paddingHorizontal: w * 0.18,
+            gap: h * 0.16,
+          },
+        ]}
       >
         <View
           style={{
@@ -154,12 +128,14 @@ export const DocIcon = ({
           }}
         />
         <View
-          style={{
-            height: strokeWidth,
-            width: '70%',
-            backgroundColor: color,
-            borderRadius: strokeWidth,
-          }}
+          style={[
+            styles.docShortLine,
+            {
+              height: strokeWidth,
+              backgroundColor: color,
+              borderRadius: strokeWidth,
+            },
+          ]}
         />
       </View>
     </View>
@@ -180,12 +156,10 @@ export const GripIcon = ({
   };
   return (
     <View
-      style={{
-        width: size,
-        height: size,
-        justifyContent: 'center',
-        gap: size * 0.22,
-      }}
+      style={[
+        styles.justifyCenter,
+        { width: size, height: size, gap: size * 0.22 },
+      ]}
     >
       <View style={line} />
       <View style={line} />
@@ -202,14 +176,7 @@ export const ArrowUpIcon = ({
   const color = useIconColor(colorProp, 'label');
   const head = size * 0.36;
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <View style={[styles.center, { width: size, height: size }]}>
       <View
         style={{
           width: strokeWidth,
@@ -219,24 +186,18 @@ export const ArrowUpIcon = ({
           marginTop: size * 0.08,
         }}
       />
-      <View
-        style={{
-          position: 'absolute',
-          top: size * 0.16,
-          left: 0,
-          right: 0,
-          alignItems: 'center',
-        }}
-      >
+      <View style={[styles.arrowHeadFrame, { top: size * 0.16 }]}>
         <View
-          style={{
-            width: head,
-            height: head,
-            borderTopWidth: strokeWidth,
-            borderRightWidth: strokeWidth,
-            borderColor: color,
-            transform: [{ rotate: '-45deg' }],
-          }}
+          style={[
+            styles.rotateUp,
+            {
+              width: head,
+              height: head,
+              borderTopWidth: strokeWidth,
+              borderRightWidth: strokeWidth,
+              borderColor: color,
+            },
+          ]}
         />
       </View>
     </View>
@@ -251,14 +212,7 @@ export const PlusIcon = ({
   const color = useIconColor(colorProp, 'label');
   const bar = size * 0.56;
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <View style={[styles.center, { width: size, height: size }]}>
       <View
         style={{
           width: bar,
@@ -268,15 +222,17 @@ export const PlusIcon = ({
         }}
       />
       <View
-        style={{
-          position: 'absolute',
-          top: (size - bar) / 2,
-          left: (size - strokeWidth) / 2,
-          width: strokeWidth,
-          height: bar,
-          backgroundColor: color,
-          borderRadius: strokeWidth,
-        }}
+        style={[
+          styles.absolute,
+          {
+            top: (size - bar) / 2,
+            left: (size - strokeWidth) / 2,
+            width: strokeWidth,
+            height: bar,
+            backgroundColor: color,
+            borderRadius: strokeWidth,
+          },
+        ]}
       />
     </View>
   );
@@ -300,51 +256,59 @@ export const MicIcon = ({
   return (
     <View style={{ width: size, height: size }}>
       <View
-        style={{
-          position: 'absolute',
-          top: size * 0.06,
-          left: (size - capsuleWidth) / 2,
-          width: capsuleWidth,
-          height: capsuleHeight,
-          borderRadius: capsuleWidth / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-        }}
+        style={[
+          styles.absolute,
+          {
+            top: size * 0.06,
+            left: (size - capsuleWidth) / 2,
+            width: capsuleWidth,
+            height: capsuleHeight,
+            borderRadius: capsuleWidth / 2,
+            borderWidth: strokeWidth,
+            borderColor: color,
+          },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          top: holderTop,
-          left: (size - holderWidth) / 2,
-          width: holderWidth,
-          height: holderHeight,
-          borderWidth: strokeWidth,
-          borderTopWidth: 0,
-          borderColor: color,
-          borderBottomLeftRadius: holderWidth / 2,
-          borderBottomRightRadius: holderWidth / 2,
-        }}
+        style={[
+          styles.absolute,
+          styles.noTopBorder,
+          {
+            top: holderTop,
+            left: (size - holderWidth) / 2,
+            width: holderWidth,
+            height: holderHeight,
+            borderWidth: strokeWidth,
+            borderColor: color,
+            borderBottomLeftRadius: holderWidth / 2,
+            borderBottomRightRadius: holderWidth / 2,
+          },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          top: holderTop + holderHeight,
-          left: (size - strokeWidth) / 2,
-          width: strokeWidth,
-          height: size * 0.14,
-          backgroundColor: color,
-        }}
+        style={[
+          styles.absolute,
+          {
+            top: holderTop + holderHeight,
+            left: (size - strokeWidth) / 2,
+            width: strokeWidth,
+            height: size * 0.14,
+            backgroundColor: color,
+          },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          top: holderTop + holderHeight + size * 0.14 - strokeWidth / 2,
-          left: (size - baseWidth) / 2,
-          width: baseWidth,
-          height: strokeWidth,
-          borderRadius: strokeWidth,
-          backgroundColor: color,
-        }}
+        style={[
+          styles.absolute,
+          {
+            top: holderTop + holderHeight + size * 0.14 - strokeWidth / 2,
+            left: (size - baseWidth) / 2,
+            width: baseWidth,
+            height: strokeWidth,
+            borderRadius: strokeWidth,
+            backgroundColor: color,
+          },
+        ]}
       />
     </View>
   );
@@ -357,13 +321,7 @@ export const CloseIcon = ({
 }: IconProps) => {
   const color = useIconColor(colorProp, 'label');
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        transform: [{ rotate: '45deg' }],
-      }}
-    >
+    <View style={[styles.rotate45, { width: size, height: size }]}>
       <PlusIcon size={size} color={color} strokeWidth={strokeWidth} />
     </View>
   );
@@ -373,14 +331,7 @@ export const StopIcon = ({ size = 20, color: colorProp }: IconProps) => {
   const color = useIconColor(colorProp, 'label');
   const side = size * 0.4;
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <View style={[styles.center, { width: size, height: size }]}>
       <View
         style={{
           width: side,
@@ -400,14 +351,7 @@ export const CheckIcon = ({
 }: IconProps) => {
   const color = useIconColor(colorProp, 'label');
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <View style={[styles.center, { width: size, height: size }]}>
       <View
         style={{
           width: size * 0.26,
@@ -430,7 +374,6 @@ export const CopyIcon = ({
   const color = useIconColor(colorProp, 'label');
   const sheet = size * 0.5;
   const sheetStyle = {
-    position: 'absolute' as const,
     width: sheet,
     height: sheet,
     borderRadius: sheet * 0.22,
@@ -439,8 +382,20 @@ export const CopyIcon = ({
   };
   return (
     <View style={{ width: size, height: size }}>
-      <View style={[sheetStyle, { left: size * 0.16, top: size * 0.16 }]} />
-      <View style={[sheetStyle, { left: size * 0.34, top: size * 0.34 }]} />
+      <View
+        style={[
+          styles.absolute,
+          sheetStyle,
+          { left: size * 0.16, top: size * 0.16 },
+        ]}
+      />
+      <View
+        style={[
+          styles.absolute,
+          sheetStyle,
+          { left: size * 0.34, top: size * 0.34 },
+        ]}
+      />
     </View>
   );
 };
@@ -454,37 +409,33 @@ export const RetryIcon = ({
   const ring = size * 0.6;
   const head = size * 0.2;
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <View style={[styles.center, { width: size, height: size }]}>
       <View
-        style={{
-          width: ring,
-          height: ring,
-          borderRadius: ring / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-          borderTopColor: 'transparent',
-          transform: [{ rotate: '45deg' }],
-        }}
+        style={[
+          styles.retryRing,
+          {
+            width: ring,
+            height: ring,
+            borderRadius: ring / 2,
+            borderWidth: strokeWidth,
+            borderColor: color,
+          },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          top: size * 0.2,
-          left: size * 0.62,
-          width: head,
-          height: head,
-          borderTopWidth: strokeWidth,
-          borderRightWidth: strokeWidth,
-          borderColor: color,
-          transform: [{ rotate: '100deg' }],
-        }}
+        style={[
+          styles.absolute,
+          styles.rotateRetryHead,
+          {
+            top: size * 0.2,
+            left: size * 0.62,
+            width: head,
+            height: head,
+            borderTopWidth: strokeWidth,
+            borderRightWidth: strokeWidth,
+            borderColor: color,
+          },
+        ]}
       />
     </View>
   );
@@ -501,42 +452,47 @@ export const ShareIcon = ({
   return (
     <View style={{ width: size, height: size }}>
       <View
-        style={{
-          position: 'absolute',
-          left: (size - trayWidth) / 2,
-          bottom: size * 0.12,
-          width: trayWidth,
-          height: size * 0.4,
-          borderWidth: strokeWidth,
-          borderTopWidth: 0,
-          borderColor: color,
-          borderBottomLeftRadius: 3,
-          borderBottomRightRadius: 3,
-        }}
+        style={[
+          styles.absolute,
+          styles.noTopBorder,
+          styles.trayCorners,
+          {
+            left: (size - trayWidth) / 2,
+            bottom: size * 0.12,
+            width: trayWidth,
+            height: size * 0.4,
+            borderWidth: strokeWidth,
+            borderColor: color,
+          },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          left: (size - strokeWidth) / 2,
-          top: size * 0.1,
-          width: strokeWidth,
-          height: size * 0.52,
-          backgroundColor: color,
-          borderRadius: strokeWidth,
-        }}
+        style={[
+          styles.absolute,
+          {
+            left: (size - strokeWidth) / 2,
+            top: size * 0.1,
+            width: strokeWidth,
+            height: size * 0.52,
+            backgroundColor: color,
+            borderRadius: strokeWidth,
+          },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          left: (size - head) / 2,
-          top: size * 0.12,
-          width: head,
-          height: head,
-          borderTopWidth: strokeWidth,
-          borderRightWidth: strokeWidth,
-          borderColor: color,
-          transform: [{ rotate: '-45deg' }],
-        }}
+        style={[
+          styles.absolute,
+          styles.rotateUp,
+          {
+            left: (size - head) / 2,
+            top: size * 0.12,
+            width: head,
+            height: head,
+            borderTopWidth: strokeWidth,
+            borderRightWidth: strokeWidth,
+            borderColor: color,
+          },
+        ]}
       />
     </View>
   );
@@ -549,27 +505,31 @@ export const SparkleIcon = ({ size = 20, color: colorProp }: IconProps) => {
   return (
     <View style={{ width: size, height: size }}>
       <View
-        style={{
-          position: 'absolute',
-          left: offset,
-          top: offset,
-          width: side,
-          height: side,
-          borderRadius: side * 0.14,
-          backgroundColor: color,
-        }}
+        style={[
+          styles.absolute,
+          {
+            left: offset,
+            top: offset,
+            width: side,
+            height: side,
+            borderRadius: side * 0.14,
+            backgroundColor: color,
+          },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          left: offset,
-          top: offset,
-          width: side,
-          height: side,
-          borderRadius: side * 0.14,
-          backgroundColor: color,
-          transform: [{ rotate: '45deg' }],
-        }}
+        style={[
+          styles.absolute,
+          styles.rotate45,
+          {
+            left: offset,
+            top: offset,
+            width: side,
+            height: side,
+            borderRadius: side * 0.14,
+            backgroundColor: color,
+          },
+        ]}
       />
     </View>
   );
@@ -583,36 +543,29 @@ export const PencilIcon = ({
   const color = useIconColor(colorProp, 'label');
   const barrel = size * 0.22;
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <View style={{ alignItems: 'center', transform: [{ rotate: '45deg' }] }}>
+    <View style={[styles.center, { width: size, height: size }]}>
+      <View style={styles.pencilBody}>
         <View
-          style={{
-            width: barrel,
-            height: size * 0.5,
-            borderWidth: strokeWidth,
-            borderColor: color,
-            borderTopLeftRadius: 2,
-            borderTopRightRadius: 2,
-          }}
+          style={[
+            styles.pencilBarrel,
+            {
+              width: barrel,
+              height: size * 0.5,
+              borderWidth: strokeWidth,
+              borderColor: color,
+            },
+          ]}
         />
         <View
-          style={{
-            width: 0,
-            height: 0,
-            borderLeftWidth: barrel / 2,
-            borderRightWidth: barrel / 2,
-            borderTopWidth: size * 0.16,
-            borderLeftColor: 'transparent',
-            borderRightColor: 'transparent',
-            borderTopColor: color,
-          }}
+          style={[
+            styles.pencilTip,
+            {
+              borderLeftWidth: barrel / 2,
+              borderRightWidth: barrel / 2,
+              borderTopWidth: size * 0.16,
+              borderTopColor: color,
+            },
+          ]}
         />
       </View>
     </View>
@@ -630,30 +583,111 @@ export const SearchIcon = ({
   return (
     <View style={{ width: size, height: size }}>
       <View
-        style={{
-          position: 'absolute',
-          top: size * 0.06,
-          left: size * 0.06,
-          width: lens,
-          height: lens,
-          borderRadius: lens / 2,
-          borderWidth: strokeWidth,
-          borderColor: color,
-        }}
+        style={[
+          styles.absolute,
+          {
+            top: size * 0.06,
+            left: size * 0.06,
+            width: lens,
+            height: lens,
+            borderRadius: lens / 2,
+            borderWidth: strokeWidth,
+            borderColor: color,
+          },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          top: size * 0.06 + lens * 0.85 + handle * 0.15,
-          left: size * 0.06 + lens * 0.85 - strokeWidth / 2,
-          width: handle,
-          height: strokeWidth,
-          borderRadius: strokeWidth,
-          backgroundColor: color,
-          transform: [{ rotate: '45deg' }],
-          transformOrigin: 'left center',
-        }}
+        style={[
+          styles.absolute,
+          styles.rotate45,
+          styles.originLeft,
+          {
+            top: size * 0.06 + lens * 0.85 + handle * 0.15,
+            left: size * 0.06 + lens * 0.85 - strokeWidth / 2,
+            width: handle,
+            height: strokeWidth,
+            borderRadius: strokeWidth,
+            backgroundColor: color,
+          },
+        ]}
       />
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  center: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  justifyCenter: {
+    justifyContent: 'center',
+  },
+  absolute: {
+    position: 'absolute',
+  },
+  rotate45: {
+    transform: [{ rotate: '45deg' }],
+  },
+  rotateUp: {
+    transform: [{ rotate: '-45deg' }],
+  },
+  rotateRetryHead: {
+    transform: [{ rotate: '100deg' }],
+  },
+  originLeft: {
+    transformOrigin: 'left center',
+  },
+  noTopBorder: {
+    borderTopWidth: 0,
+  },
+  trayCorners: {
+    borderBottomLeftRadius: 3,
+    borderBottomRightRadius: 3,
+  },
+  folderTab: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    borderTopLeftRadius: 2.5,
+    borderTopRightRadius: 2.5,
+  },
+  folderBody: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 3,
+  },
+  docPage: {
+    borderRadius: 2.5,
+    justifyContent: 'center',
+  },
+  docShortLine: {
+    width: '70%',
+  },
+  arrowHeadFrame: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  retryRing: {
+    borderTopColor: 'transparent',
+    transform: [{ rotate: '45deg' }],
+  },
+  pencilBody: {
+    alignItems: 'center',
+    transform: [{ rotate: '45deg' }],
+  },
+  pencilBarrel: {
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+  },
+  pencilTip: {
+    width: 0,
+    height: 0,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+});

@@ -278,3 +278,31 @@ TEST(size_spec_queue_measures_within_a_budget) {
   queue.run(core, source, WINDOW_WIDTH / 2, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(60) + SizeSpecQueue::BUDGET_PER_RUN);
 }
+
+/*
+ * A rotation in Fabric reaches the core's window width through the layout pass before the
+ * next commit runs the queue. The queue must still notice the width its specs were measured at changed.
+ */
+TEST(size_spec_queue_remeasures_after_the_layout_pass_took_the_new_width) {
+  Container core;
+  auto keys = keysFor(10);
+  Virtualizer::update(&core, inputFor(keys, 0.0));
+  std::vector<ElementSizeSpec> specs(10);
+  for (std::size_t index = 0; index < specs.size(); ++index) {
+    specs[index].key = "k" + std::to_string(index);
+  }
+  auto parse = [&]() { return specs; };
+  std::size_t measured = 0;
+  auto measure = [&measured](const ElementSizeSpec&, double width) {
+    ++measured;
+    return Size{width, 50.0};
+  };
+  auto source = std::make_shared<int>(1);
+  SizeSpecQueue queue;
+  queue.run(core, source, WINDOW_WIDTH, parse, measure);
+  CHECK(queue.finished(source));
+
+  applyLayoutInputs(core, 0.0, 0.0, WINDOW_WIDTH / 2, WINDOW_HEIGHT);
+  queue.run(core, source, WINDOW_WIDTH / 2, parse, measure);
+  CHECK_EQ(measured, static_cast<std::size_t>(20));
+}

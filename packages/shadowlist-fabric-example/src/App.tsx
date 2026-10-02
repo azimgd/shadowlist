@@ -20,8 +20,8 @@ import { network } from './api/network';
 import { launchSetting } from './launchSettings';
 import './jsFrameMonitor';
 import { useAppTheme } from './appTheme';
-import { HomeScreen } from './HomeScreen';
-import { ContactDetailScreen } from './ContactDetailScreen';
+import { HomeScreen } from './screens/HomeScreen';
+import { ContactDetailScreen } from './screens/ContactDetailScreen';
 import { EXAMPLES, type RootStackParamList } from './routes';
 
 enableScreens();

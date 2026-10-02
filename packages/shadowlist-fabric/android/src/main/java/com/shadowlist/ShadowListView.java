@@ -490,7 +490,7 @@ public class ShadowListView extends FrameLayout {
      * first so touches don't go to a row that is no longer there.
      */
     if (child != null && child == mDragController.getDraggedView()) {
-      mDragController.teardown();
+      mDragController.cancel();
     }
     mContentView.removeViewAt(index);
   }
@@ -660,6 +660,11 @@ public class ShadowListView extends FrameLayout {
    * Reset drag and sticky state before this view is recycled.
    */
   void onDropInstance() {
+    /*
+     * Fabric has destroyed the state by now. The scrollTo below reports a scroll, and later
+     * frames of a list still animating out with its screen would too. Neither may reach it.
+     */
+    mState = null;
     mDragController.teardown();
     mStickyController.reset();
     /*
@@ -676,9 +681,20 @@ public class ShadowListView extends FrameLayout {
     mGeometryHandle = 0;
     mRefreshAwaitingSettle = false;
     removeCallbacks(mRefreshSettleRunnable);
+    removeCallbacks(mSnapSettleRunnable);
     stopSettling();
     mScrollView.scrollTo(0, 0);
     mContentView.layout(0, 0, 0, 0);
+  }
+
+  /*
+   * A detached list gets no frames to finish a drop. Its Choreographer settle loop would
+   * run every frame until the next attach, when the fallback queued on the view runs.
+   */
+  @Override
+  protected void onDetachedFromWindow() {
+    mDragController.teardown();
+    super.onDetachedFromWindow();
   }
 
   @Override

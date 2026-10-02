@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { Snap } from 'shadowlist-utils/native';
 import { useScreenStyles } from './screenStyles';
-import { generateSnapElement } from './fixtures/snap';
+import { generateSnapElement } from '../fixtures/snap';
 
 const data = Array.from({ length: 50 }, (_, index) =>
   generateSnapElement(index)

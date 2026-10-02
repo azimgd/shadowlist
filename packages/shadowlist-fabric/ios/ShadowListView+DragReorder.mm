@@ -5,6 +5,7 @@
 
 #import "ShadowListView.h"
 #import "ShadowListView+Internal.h"
+#import "ShadowListElementView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
@@ -102,9 +103,12 @@ static NSString *SLDragKey(const std::string& key)
       [self updateDrag];
       break;
     case UIGestureRecognizerStateEnded:
+      [self finishDrag];
+      break;
     case UIGestureRecognizerStateCancelled:
     case UIGestureRecognizerStateFailed:
-      [self finishDrag];
+      // The system or dragEnabled turning off took the touch. Put the row back, no reorder.
+      [self cancelDrag];
       break;
     default:
       break;
@@ -452,7 +456,26 @@ static NSString *SLDragKey(const std::string& key)
 }
 
 /*
- * Stop everything without a reorder, when the view is recycled or drag is turned off.
+ * Abort a live drag without a reorder, when the gesture is cancelled, drag is turned off or
+ * the held row is deleted. The end event goes out with the origin key on both sides. It
+ * turns core corrections back on and clears the held key in JS without moving anything.
+ * This can run inside a mount, where an immediate commit is not allowed. Send it async.
+ */
+- (void)cancelDrag
+{
+  if (_dragging && _state) {
+    NSString *originKey = SLDragKey(_drag.originKey());
+    BOOL wasInMountObserver = _inMountObserver;
+    _inMountObserver = YES;
+    [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:originKey toKey:originKey];
+    _inMountObserver = wasInMountObserver;
+  }
+  [self teardownDrag];
+}
+
+/*
+ * Stop everything without a reorder or an end event. Used directly only on recycle, where
+ * the state belongs to the old list.
  */
 - (void)teardownDrag
 {
@@ -477,8 +500,12 @@ static NSString *SLDragKey(const std::string& key)
  */
 - (void)applyDragAccessibilityActionsToView:(UIView *)view
 {
+  if (![view isKindOfClass:[ShadowListElementView class]]) {
+    return;
+  }
+  ShadowListElementView *elementView = (ShadowListElementView *)view;
   if (!_dragEnabled) {
-    view.accessibilityCustomActions = nil;
+    elementView.nativeAccessibilityActions = nil;
     return;
   }
 
@@ -496,7 +523,7 @@ static NSString *SLDragKey(const std::string& key)
        (void)action;
        return [weakSelf performAccessibilityMove:weakView up:NO];
      }];
-  view.accessibilityCustomActions = @[ moveUp, moveDown ];
+  elementView.nativeAccessibilityActions = @[ moveUp, moveDown ];
 }
 
 /*

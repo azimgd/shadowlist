@@ -6,11 +6,11 @@ import {
   createStyles,
   type ReorderTileItem,
 } from 'shadowlist-utils/native';
-import { haptics } from './haptics';
+import { haptics } from '../haptics';
 import { useHeaderMenu } from './HeaderActions';
-import { DEBUG } from './launchSettings';
+import { DEBUG } from '../launchSettings';
 import { QueryStatus } from './QueryStatus';
-import { useReorderWishlist, useWishlistQuery } from './queries/gallery';
+import { useReorderWishlist, useWishlistQuery } from '../queries/gallery';
 
 const HINT = 'Touch and hold a sight, then drag it anywhere in the grid.';
 

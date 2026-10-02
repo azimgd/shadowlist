@@ -63,9 +63,15 @@ public:
     if (!(width > 0.0)) {
       return;
     }
-    bool widthChanged = core.revision.windowContainerWidth != width;
+    /*
+     * Compare with the width the specs were measured at, not the core's window width. The
+     * layout pass can move the core to the new width before this runs, and the stale
+     * predictions would then never be dropped.
+     */
+    bool widthChanged = width_ != width;
     if (widthChanged) {
       Virtualizer::invalidatePredictions(&core);
+      width_ = width;
     }
     bool sameSpecs = source_ == source && !widthChanged;
     if (sameSpecs && done_) {
@@ -98,6 +104,8 @@ private:
   std::vector<ElementSizeSpec> specs_;
   std::size_t cursor_ = 0;
   bool done_ = false;
+  // Width the current specs were measured at, 0 before the first run.
+  double width_ = 0.0;
 };
 
 }

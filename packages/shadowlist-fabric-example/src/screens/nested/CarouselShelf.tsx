@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { ShadowList } from 'shadowlist';
 import { createStyles } from 'shadowlist-utils/native';
-import type { CarouselCard } from './fixtures/carousel';
+import type { CarouselCard } from '../../fixtures/carousel';
 
 export const CAROUSEL_SHELF_ID = 'carousel-shelf';
 

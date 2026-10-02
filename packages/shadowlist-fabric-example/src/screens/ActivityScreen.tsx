@@ -12,15 +12,15 @@ import {
   START_REACHED_THRESHOLDS,
   END_REACHED_THRESHOLDS,
   nextInCycle,
-} from './fixtures/activity';
+} from '../fixtures/activity';
 import { useHeaderMenu } from './HeaderActions';
-import { DEBUG } from './launchSettings';
+import { DEBUG } from '../launchSettings';
 import { QueryStatus } from './QueryStatus';
 import {
   useActivityQuery,
   useDeleteActivities,
   useRefreshActivity,
-} from './queries/activity';
+} from '../queries/activity';
 
 export const ActivityScreen = () => {
   const styles = useStyles();

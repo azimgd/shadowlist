@@ -6,7 +6,7 @@ import { Masonry, ListFooter, Spinner } from 'shadowlist-utils/native';
 import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
-import { usePhotosQuery, usePublishPhotos } from './queries/gallery';
+import { usePhotosQuery, usePublishPhotos } from '../queries/gallery';
 
 export const MasonryScreen = () => {
   const styles = useScreenStyles();

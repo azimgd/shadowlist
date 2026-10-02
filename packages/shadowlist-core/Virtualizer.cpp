@@ -89,7 +89,12 @@ bool isLastAnchorable(const Container* container, std::size_t index) {
   if (index >= elements.size() || !container->isAnchorable(elements[index].key)) {
     return false;
   }
-  for (std::size_t nextElementIndex = index + 1; nextElementIndex < elements.size(); ++nextElementIndex) {
+  /*
+   * Walk back from the end. Only a few trailing decoration rows sit after the newest content
+   * row. A forward walk from an anchor far up the list would visit every row, and this runs
+   * on each measured row.
+   */
+  for (std::size_t nextElementIndex = elements.size() - 1; nextElementIndex > index; --nextElementIndex) {
     if (container->isAnchorable(elements[nextElementIndex].key)) {
       return false;
     }
@@ -1252,7 +1257,13 @@ void Virtualizer::invalidatePredictions(Container* container) {
   }
 
   if (anyCleared) {
-    // Predicted rows went back to the fallback size. Reflow the whole list.
+    /*
+     * Predicted rows go back to the fallback size. Only the sizing loop in layoutElements
+     * resets rows outside the window, and it skips itself while the fallback is unchanged.
+     * Forget the last fallback to force it, then reflow the whole list.
+     */
+    container->lastFallbackWidth = -1.0;
+    container->lastFallbackHeight = -1.0;
     container->markElementSizeDirty(0);
   }
 }

@@ -283,10 +283,10 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 #if !TARGET_OS_OSX
   /*
    * The dragged or dropping row can be deleted mid drag and unmount here. Stop the drag
-   * so nothing is left running. teardownDrag sends no reorder.
+   * so nothing is left running. A live drag still sends its end event, with no reorder.
    */
   if ((UIView *)childComponentView == _draggedView || (UIView *)childComponentView == _droppedView) {
-    [self teardownDrag];
+    [self cancelDrag];
   }
 #endif
   [childComponentView removeFromSuperview];
@@ -376,6 +376,10 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _columns = nextProps.columns;
   _snapToItem = nextProps.snapToItem;
 #if !TARGET_OS_OSX
+  // Turning drag off mid drag ends it here, before the recognizer cancel arrives.
+  if (!_dragEnabled && _dragging) {
+    [self cancelDrag];
+  }
   _dragRecognizer.enabled = _dragEnabled;
   /*
    * Update the VoiceOver actions only when dragEnabled changes, since this runs on every

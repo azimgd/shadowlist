@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Avatar, Grouped, createStyles } from 'shadowlist-utils/native';
-import type { RootStackParamList } from './routes';
+import type { RootStackParamList } from '../routes';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ContactDetail'>;
 

@@ -62,6 +62,20 @@ class ShadowListDragController {
   private float mDropReleaseCrossLeading = 0f;
   private static final long DROP_SETTLE_MS = 180;
   /*
+   * If the reorder never lands, reset the rows so the gap can't get stuck. One instance,
+   * removed before each post. A fallback left from an earlier drop must not cut a later
+   * drop's settle short.
+   */
+  private static final long DROP_FALLBACK_MS = 300;
+  private final Runnable mDropFallback = () -> {
+    if (mDragDropPending && !mDragging) {
+      stopDropSettle();
+      clearDragTransforms();
+      mDragDropPending = false;
+      mDroppedView = null;
+    }
+  };
+  /*
    * Match DRAG_EVENT_* in shadowlist-core/host/DragReorder.hpp.
    */
   private static final int DRAG_EVENT_START = 1;
@@ -99,7 +113,7 @@ class ShadowListDragController {
   void setEnabled(boolean dragEnabled) {
     mDragEnabled = dragEnabled;
     if (!dragEnabled && mDragging) {
-      teardownDrag();
+      cancel();
     }
   }
 
@@ -247,6 +261,18 @@ class ShadowListDragController {
    * Safe to call when nothing is being dragged.
    */
   void teardown() {
+    teardownDrag();
+  }
+
+  /*
+   * Like teardown, but a running drag also sends its end event, with the held row's key on
+   * both sides. JS then clears the held key without a reorder, and the core turns its scroll
+   * corrections back on. The start event turned them off and only the end event clears that.
+   */
+  void cancel() {
+    if (mDragging) {
+      dispatchDragEvent(DRAG_EVENT_END, mDragOriginKey, mDragOriginKey);
+    }
     teardownDrag();
   }
 
@@ -597,15 +623,8 @@ class ShadowListDragController {
       // Check each frame for the landing instead of waiting for a state commit.
       startDropSettle();
 
-      // If the reorder never lands, reset the rows so the gap can't get stuck.
-      mView.postDelayed(() -> {
-        if (mDragDropPending && !mDragging) {
-          stopDropSettle();
-          clearDragTransforms();
-          mDragDropPending = false;
-          mDroppedView = null;
-        }
-      }, 300);
+      mView.removeCallbacks(mDropFallback);
+      mView.postDelayed(mDropFallback, DROP_FALLBACK_MS);
     }
   }
 
@@ -615,6 +634,7 @@ class ShadowListDragController {
   private void teardownDrag() {
     stopDragLoop();
     stopDropSettle();
+    mView.removeCallbacks(mDropFallback);
     if (mDroppedView != null) {
       mDroppedView.animate().cancel();
     }

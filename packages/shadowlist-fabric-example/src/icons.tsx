@@ -1,9 +1,5 @@
-/* eslint-disable react-native/no-inline-styles -- icon geometry is derived from
- * the size/color/strokeWidth props. The shape styles are intentionally dynamic. */
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTheme, type IconProps } from 'shadowlist-utils/native';
-
-// Header action glyph for the demo, drawn like the package icons.
 
 const useIconColor = (color: string | undefined): string => {
   const theme = useTheme();
@@ -19,14 +15,7 @@ export const ViewfinderIcon = ({
   const ring = size * 0.6;
   const tick = size * 0.16;
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
+    <View style={[styles.center, { width: size, height: size }]}>
       <View
         style={{
           width: ring,
@@ -37,49 +26,39 @@ export const ViewfinderIcon = ({
         }}
       />
       <View
-        style={{
-          position: 'absolute',
-          top: 0,
-          width: strokeWidth,
-          height: tick,
-          backgroundColor: color,
-        }}
+        style={[
+          styles.tickTop,
+          { width: strokeWidth, height: tick, backgroundColor: color },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          width: strokeWidth,
-          height: tick,
-          backgroundColor: color,
-        }}
+        style={[
+          styles.tickBottom,
+          { width: strokeWidth, height: tick, backgroundColor: color },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          left: 0,
-          height: strokeWidth,
-          width: tick,
-          backgroundColor: color,
-        }}
+        style={[
+          styles.tickLeft,
+          { height: strokeWidth, width: tick, backgroundColor: color },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          right: 0,
-          height: strokeWidth,
-          width: tick,
-          backgroundColor: color,
-        }}
+        style={[
+          styles.tickRight,
+          { height: strokeWidth, width: tick, backgroundColor: color },
+        ]}
       />
       <View
-        style={{
-          position: 'absolute',
-          width: strokeWidth * 1.6,
-          height: strokeWidth * 1.6,
-          borderRadius: strokeWidth,
-          backgroundColor: color,
-        }}
+        style={[
+          styles.absolute,
+          {
+            width: strokeWidth * 1.6,
+            height: strokeWidth * 1.6,
+            borderRadius: strokeWidth,
+            backgroundColor: color,
+          },
+        ]}
       />
     </View>
   );
@@ -90,14 +69,10 @@ export const EllipsisIcon = ({ size = 22, color: colorProp }: IconProps) => {
   const dot = Math.round(size * 0.18);
   return (
     <View
-      style={{
-        width: size,
-        height: size,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: size * 0.08,
-      }}
+      style={[
+        styles.dotRow,
+        { width: size, height: size, paddingHorizontal: size * 0.08 },
+      ]}
     >
       {[0, 1, 2].map((index) => (
         <View
@@ -113,3 +88,34 @@ export const EllipsisIcon = ({ size = 22, color: colorProp }: IconProps) => {
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  center: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  absolute: {
+    position: 'absolute',
+  },
+  tickTop: {
+    position: 'absolute',
+    top: 0,
+  },
+  tickBottom: {
+    position: 'absolute',
+    bottom: 0,
+  },
+  tickLeft: {
+    position: 'absolute',
+    left: 0,
+  },
+  tickRight: {
+    position: 'absolute',
+    right: 0,
+  },
+  dotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+});

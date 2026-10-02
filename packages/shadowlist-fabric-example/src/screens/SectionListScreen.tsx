@@ -10,9 +10,9 @@ import {
 import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
-import { SectionIndex } from './SectionIndex';
+import { SectionIndex } from './sectionList/SectionIndex';
 import { useContactActions } from './contactActions';
-import { useAddContacts, useContactsQuery } from './queries/contacts';
+import { useAddContacts, useContactsQuery } from '../queries/contacts';
 
 const NO_CONTACTS: ContactItem[] = [];
 

@@ -23,8 +23,8 @@ import {
   createStyles,
   useTheme,
 } from 'shadowlist-utils/native';
-import { EllipsisIcon, ViewfinderIcon } from './icons';
-import { DEBUG } from './launchSettings';
+import { EllipsisIcon, ViewfinderIcon } from '../icons';
+import { DEBUG } from '../launchSettings';
 
 export interface HeaderAction {
   label: string;

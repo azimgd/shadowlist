@@ -35,12 +35,12 @@ import {
   pickScript,
   playScript,
   type ScriptPlayback,
-} from './fixtures/assistant';
+} from '../fixtures/assistant';
 import { useHeaderActions } from './HeaderActions';
 import {
   useFetchAssistantHistory,
   useSendAssistantFeedback,
-} from './queries/assistant';
+} from '../queries/assistant';
 
 /*
  * A streaming AI chat built on the Assistant template, with Markdown replies, reasoning, tool calls,

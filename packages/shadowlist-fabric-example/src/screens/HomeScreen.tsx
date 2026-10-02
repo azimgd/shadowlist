@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Grouped, createStyles } from 'shadowlist-utils/native';
-import { EXAMPLE_SECTIONS, type RootStackParamList } from './routes';
+import { EXAMPLE_SECTIONS, type RootStackParamList } from '../routes';
 
 export const HomeScreen = () => {
   const styles = useStyles();

@@ -33,8 +33,8 @@ import {
   useTheme,
   type TemplateMap,
 } from 'shadowlist-utils/native';
-import { TemplatesSection } from './TemplatesSection';
-import { TemplatesShelfCount } from './TemplatesShelfCount';
+import { TemplatesSection } from './templates/TemplatesSection';
+import { TemplatesShelfCount } from './templates/TemplatesShelfCount';
 
 type Period = 'day' | 'week' | 'month';
 type Order = 'asc' | 'desc';
@@ -194,7 +194,7 @@ export const TemplatesScreen = () => {
             title="Trip files"
             subtitle="12 documents"
             leading={
-              <View style={[styles.tile, { backgroundColor: colors.accent }]}>
+              <View style={styles.tile}>
                 <FolderIcon size={18} color={colors.onAccent} />
               </View>
             }
@@ -339,6 +339,7 @@ const useStyles = createStyles(({ colors, typography, spacing }) =>
       borderRadius: 7,
       alignItems: 'center',
       justifyContent: 'center',
+      backgroundColor: colors.accent,
     },
     value: {
       ...typography.body,

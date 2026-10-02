@@ -6,7 +6,7 @@ import { useScreenStyles } from './screenStyles';
 import { useHeaderActions } from './HeaderActions';
 import { QueryStatus } from './QueryStatus';
 import { useContactActions } from './contactActions';
-import { useAddContacts, useContactsQuery } from './queries/contacts';
+import { useAddContacts, useContactsQuery } from '../queries/contacts';
 
 export const ContactsScreen = () => {
   const styles = useScreenStyles();

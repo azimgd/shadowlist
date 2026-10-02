@@ -2,9 +2,9 @@ import { useCallback } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { ContactItem } from 'shadowlist-utils/native';
-import { haptics } from './haptics';
-import { useDeleteContact } from './queries/contacts';
-import type { RootStackParamList } from './routes';
+import { haptics } from '../haptics';
+import { useDeleteContact } from '../queries/contacts';
+import type { RootStackParamList } from '../routes';
 
 export function useContactActions() {
   const navigation =

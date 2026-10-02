@@ -117,6 +117,7 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 - (void)updateDrag;
 - (void)applyDragShuffle;
 - (void)clearDragTransforms;
+- (void)cancelDrag;
 - (void)teardownDrag;
 - (void)settleDroppedView:(UIView *)view;
 

@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import { View } from 'react-native';
 import { Reorder, ListFooter, type ContactItem } from 'shadowlist-utils/native';
-import { haptics } from './haptics';
+import { haptics } from '../haptics';
 import { useScreenStyles } from './screenStyles';
 import { QueryStatus } from './QueryStatus';
-import { useFavoritesQuery, useReorderFavorites } from './queries/contacts';
+import { useFavoritesQuery, useReorderFavorites } from '../queries/contacts';
 
 export const ReorderScreen = () => {
   const styles = useScreenStyles();

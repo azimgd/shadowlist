@@ -161,7 +161,8 @@ extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_sect
     return hidden;
   }
   auto* offsets = static_cast<jdouble*>(env->GetPrimitiveArrayCritical(offsetsArray, nullptr));
-  auto* sizes = static_cast<jdouble*>(env->GetPrimitiveArrayCritical(sizesArray, nullptr));
+  // A failed get leaves an exception pending. Skip the second get, only releases are allowed then.
+  auto* sizes = offsets != nullptr ? static_cast<jdouble*>(env->GetPrimitiveArrayCritical(sizesArray, nullptr)) : nullptr;
   sl::SectionOverlayPosition position;
   if (offsets != nullptr && sizes != nullptr) {
     position = sl::sectionOverlayPosition(offsets, sizes, static_cast<std::size_t>(count), offset);
@@ -222,7 +223,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_dragIns
   env->ReleasePrimitiveArrayCritical(indicesArray, rawIndices, JNI_ABORT);
 
   auto* leadings = static_cast<jdouble*>(env->GetPrimitiveArrayCritical(leadingsArray, nullptr));
-  auto* extents = static_cast<jdouble*>(env->GetPrimitiveArrayCritical(extentsArray, nullptr));
+  auto* extents = leadings != nullptr ? static_cast<jdouble*>(env->GetPrimitiveArrayCritical(extentsArray, nullptr)) : nullptr;
   long position = -1;
   if (leadings != nullptr && extents != nullptr) {
     position = sl::dragInsertionPosition(
@@ -251,7 +252,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragShi
     return;
   }
   auto* indices = static_cast<jint*>(env->GetPrimitiveArrayCritical(indicesArray, nullptr));
-  auto* shifts = static_cast<jdouble*>(env->GetPrimitiveArrayCritical(shiftsArray, nullptr));
+  auto* shifts = indices != nullptr ? static_cast<jdouble*>(env->GetPrimitiveArrayCritical(shiftsArray, nullptr)) : nullptr;
   if (indices != nullptr && shifts != nullptr) {
     for (jint row = 0; row < count; ++row) {
       shifts[row] = sl::dragShift(originIndex, insertionIndex, draggedExtent, indices[row]);

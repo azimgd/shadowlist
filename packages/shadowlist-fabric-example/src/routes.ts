@@ -1,18 +1,18 @@
 import type { ComponentType } from 'react';
 import type { ContactItem } from 'shadowlist-utils/native';
-import { FeedScreen } from './FeedScreen';
-import { ChatScreen } from './ChatScreen';
-import { AssistantScreen } from './AssistantScreen';
-import { ActivityScreen } from './ActivityScreen';
-import { NestedScreen } from './NestedScreen';
-import { MasonryScreen } from './MasonryScreen';
-import { ContactsScreen } from './ContactsScreen';
-import { SectionListScreen } from './SectionListScreen';
-import { ReorderScreen } from './ReorderScreen';
-import { ReorderGridScreen } from './ReorderGridScreen';
-import { TreeScreen } from './TreeScreen';
-import { SnapScreen } from './SnapScreen';
-import { TemplatesScreen } from './TemplatesScreen';
+import { FeedScreen } from './screens/FeedScreen';
+import { ChatScreen } from './screens/ChatScreen';
+import { AssistantScreen } from './screens/AssistantScreen';
+import { ActivityScreen } from './screens/ActivityScreen';
+import { NestedScreen } from './screens/NestedScreen';
+import { MasonryScreen } from './screens/MasonryScreen';
+import { ContactsScreen } from './screens/ContactsScreen';
+import { SectionListScreen } from './screens/SectionListScreen';
+import { ReorderScreen } from './screens/ReorderScreen';
+import { ReorderGridScreen } from './screens/ReorderGridScreen';
+import { TreeScreen } from './screens/TreeScreen';
+import { SnapScreen } from './screens/SnapScreen';
+import { TemplatesScreen } from './screens/TemplatesScreen';
 
 export type RootStackParamList = {
   Home: undefined;
