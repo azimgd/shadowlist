@@ -1,13 +1,12 @@
 #pragma once
 
-#include <shadowlist-core/Container.hpp>
-
 #include <algorithm>
 #include <cstdint>
 #include <memory>
-#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+#include <shadowlist-core/Container.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -23,11 +22,9 @@ struct MeasuredRow {
 };
 
 /*
- * Give the core the measured header, footer and window size and reflow the rows. The core
- * runs its frame before the host lays the list out, so on the first render it sees a zero
- * frame, and masonry columns collapse or a header covers the first rows. Doing it here makes
- * the first layout right. Returns whether anything changed, which marks the offset corrected
- * so the host writes it again: every row moved, but the scroll view didn't.
+ * Give the core the measured header, footer and window size and reflow the rows, so the first
+ * layout is right even though the core's frame ran before the host laid the list out. Returns
+ * whether anything changed, which marks the offset corrected so the host writes it again.
  */
 bool applyLayoutInputs(Container& core, double headerSize, double footerSize, double windowWidth, double windowHeight);
 
@@ -67,10 +64,8 @@ TemplateOffsets templateOffsets(const Container& core, double headerSize, double
 
 /*
  * Sticky header and snap positions a host needs to pin headers and snap on its own thread.
- * Building them walks every row, but they depend only on row geometry, never on the offset,
- * so they are rebuilt only when the core's geometry moved. A list is kept by pointer and only
- * replaced when its values change, so a host can tell a change by comparing pointers.
- * Null means empty.
+ * They are rebuilt only when the core's geometry moved, and a list's pointer only changes with
+ * its values. Null means empty.
  */
 class PublishedGeometry final {
 public:
@@ -102,13 +97,9 @@ private:
 constexpr std::size_t MAX_CONCEALED_LAYOUT_PASSES = 8;
 
 /*
- * Rows hidden until their offset correction is on screen, by host id.
- *
- * A row above the anchor measured for the first time can move the anchor, and the layout pass
- * publishes an offset correction. Until the host mounts it, the content looks like it shifts
- * for a few frames. So the row stays hidden from the pass that measures it until a host report
- * echoes its generation with no correction pending, or too many passes went by.
- * Payload is whatever the host needs to hide and show the row, like its props.
+ * Rows hidden until their offset correction is on screen, by host id. A row first measured
+ * above the anchor stays hidden until a host report echoes its generation with no correction
+ * pending. Payload is whatever the host needs to hide and show the row, like its props.
  */
 template <typename Payload>
 class ConcealTracker final {
@@ -120,8 +111,7 @@ public:
   };
 
   /*
-   * The row index to hide first measured rows before, or 0 for none. Only a correction with a
-   * row anchor keeps that row still once mounted, and the rows measured above it moved it.
+   * The row index to hide first measured rows before, or 0 for none.
    */
   static std::size_t hideBeforeIndex(const Container& core, bool correcting, bool anyFirstMeasured) {
     if (!correcting || !anyFirstMeasured) {
@@ -193,7 +183,7 @@ public:
 
 private:
   std::unordered_map<std::uint64_t, Row> rows_;
-  // The last generation given to a hide, or 0 if nothing was ever hidden.
+  // The newest generation given to a hide, or 0 if nothing was ever hidden.
   std::uint64_t generation_ = 0;
   std::uint64_t passGeneration_ = 1;
 };

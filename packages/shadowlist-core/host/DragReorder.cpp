@@ -155,11 +155,7 @@ void gridShifts(std::size_t count, CellAt cellAt, const DragRow& held, long inse
     return index;
   };
 
-  /*
-   * Where each column's stack ends. A column starts at the resting place of its first cell
-   * from low. After a cell that isn't mounted it starts again from the next mounted one, or
-   * right before the mounted cell below that slot.
-   */
+  // Where each column's stack ends, restarted after a cell that isn't mounted.
   static thread_local std::vector<DragOffset> lanes;
   static thread_local std::vector<char> known;
   lanes.assign(columns, DragOffset{});
@@ -316,7 +312,6 @@ void DragReorder::updateInsertion(const std::vector<DragRow>& rows) {
   insertionIndex_ = row.index;
   insertionKey_ = row.key.empty() ? originKey_ : row.key;
 }
-
 
 void DragReorder::updateGridInsertion(const std::vector<DragRow>& rows) {
   heldResting_.index = originIndex_;

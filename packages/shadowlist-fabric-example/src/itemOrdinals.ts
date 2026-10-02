@@ -117,7 +117,7 @@ const labelCache = new Map<string, string>();
  * The spelled out label for a position, like first item or five hundred thirty ninth item.
  * Rows numbered away from the start read prepended: first item.
  */
-export function formatOrdinalLabel(value: number, prepended = false): string {
+function formatOrdinalLabel(value: number, prepended = false): string {
   const key = `${prepended ? 'p' : 'f'}${value}`;
   const cached = labelCache.get(key);
   if (cached !== undefined) return cached;

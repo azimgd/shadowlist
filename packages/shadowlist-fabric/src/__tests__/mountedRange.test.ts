@@ -2,8 +2,8 @@ import { describe, expect, it } from '@jest/globals';
 import {
   MAX_FOLLOWED_APPEND,
   grownMountedRange,
-  mountStepForWindow,
   initialMountedRange,
+  mountStepForWindow,
   rangeToIndices,
   reportedMountedRange,
   shouldReseedFromOffsetIndex,
@@ -214,7 +214,7 @@ describe('mountStepForWindow', () => {
   });
 
   it('grows the pad by a quarter of a window full of short rows', () => {
-    // 36 rows in the window, like a section list: a fling passes several rows a frame.
+    // 36 short rows in the window, like a section list.
     expect(mountStepForWindow({ low: 875, high: 910 }, 2)).toBe(9);
   });
 

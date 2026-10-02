@@ -199,12 +199,10 @@ final class AutoFlingDriver: NSObject {
 }
 
 /*
- * TEST-ONLY. -SLAutoDrag "delay;x,y,x2,y2,move,hold[,x3,y3,move,hold...];..." drags list rows the
- * way a long press does, since XCTest and agent-device cannot hold and drag. After delay seconds
- * each step picks up the row at x,y (window points), then for each waypoint moves there over
- * move seconds and holds for hold seconds (near an edge the list auto scrolls), and drops at the
- * last one. It calls the list's debugDragPhase hook, which runs the same code as the gesture.
- * Writes [SLDRAG] lines to stderr.
+ * TEST-ONLY. -SLAutoDrag "delay;x,y,x2,y2,move,hold[,x3,y3,move,hold...];..." drags list rows,
+ * since XCTest and agent-device cannot hold and drag. Each step picks up the row at x,y in
+ * window points, moves to each waypoint over move seconds, holds for hold seconds and drops at
+ * the last one, through the list's debugDragPhase hook. Writes [SLDRAG] lines to stderr.
  */
 final class AutoDragDriver: NSObject {
   static let shared = AutoDragDriver()
@@ -215,7 +213,9 @@ final class AutoDragDriver: NSObject {
   private var dropped = false
   private weak var list: UIView?
 
-  // Held still after pickup, like a long press, and after each drop.
+  /*
+   * Held still after pickup, like a long press, and after each drop.
+   */
   private let pickupPause = 0.3
   private let dropPause = 1.5
 

@@ -264,7 +264,7 @@ TEST(scroll_sync_clear_user_scrolled_only_after_a_gesture) {
   CHECK_EQ(rest->report.scrollPhase, SCROLL_PHASE_IDLE);
   CHECK(!sync.clearUserScrolled(50.0, 0.0).has_value());
 
-  // A mounted gesture state still needs the rest report even when our last report was idle.
+  // A mounted gesture state still needs the rest report even when our newest report was idle.
   MountedScroll mounted = restingState(50.0);
   mounted.userScrolled = true;
   sync.beginMount(mounted, live);

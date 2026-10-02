@@ -17,7 +17,9 @@ namespace {
 
 namespace sl = azimgd::shadowlist;
 
-// Slots of ShadowListGeometry.STICKY_*.
+/*
+ * Slots of ShadowListGeometry.STICKY_*.
+ */
 enum StickySlot {
   STICKY_OFFSET = 0,
   STICKY_WINDOW_SIZE,
@@ -34,20 +36,22 @@ enum StickySlot {
   STICKY_ACCUMULATE,
   STICKY_HEADER_HIDDEN,
   STICKY_FOOTER_HIDDEN,
-  STICKY_LAST_OFFSET,
+  STICKY_PREVIOUS_OFFSET,
   STICKY_HEADER_TRANSLATION,
   STICKY_FOOTER_TRANSLATION,
   STICKY_SLOTS,
 };
 
-// Only the UI thread calls in, so one scratch buffer is enough.
+/*
+ * Only the UI thread calls in, so one scratch buffer is enough.
+ */
 std::vector<long>& scratchIndices() {
   static thread_local std::vector<long> indices;
   return indices;
 }
 
 /*
- * Copies of the grid cell arrays. They only grow, so drag frames reuse them.
+ * Copies of the grid element arrays. They only grow, so drag frames reuse them.
  */
 struct GridScratch {
   std::vector<double> leadings;
@@ -133,12 +137,12 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_stickyT
   sl::StickyState state;
   state.headerHidden = slots[STICKY_HEADER_HIDDEN];
   state.footerHidden = slots[STICKY_FOOTER_HIDDEN];
-  state.lastOffset = slots[STICKY_LAST_OFFSET];
+  state.previousOffset = slots[STICKY_PREVIOUS_OFFSET];
 
   auto translations = sl::stickyTranslations(input, state);
   slots[STICKY_HEADER_HIDDEN] = state.headerHidden;
   slots[STICKY_FOOTER_HIDDEN] = state.footerHidden;
-  slots[STICKY_LAST_OFFSET] = state.lastOffset;
+  slots[STICKY_PREVIOUS_OFFSET] = state.previousOffset;
   slots[STICKY_HEADER_TRANSLATION] = translations.header;
   slots[STICKY_FOOTER_TRANSLATION] = translations.footer;
   env->SetDoubleArrayRegion(slotsArray, STICKY_HEADER_HIDDEN, STICKY_SLOTS - STICKY_HEADER_HIDDEN, slots + STICKY_HEADER_HIDDEN);
@@ -346,10 +350,10 @@ extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_drag
   jdouble windowSize,
   jdouble offset,
   jdouble maxOffset,
-  jdouble pixelsPerDip) {
+  jdouble pixelsPerDp) {
   // Android's edge and speed are in dp.
   sl::DragAutoScrollConfig config{
-    sl::DRAG_AUTO_SCROLL_ANDROID.edge * pixelsPerDip,
-    sl::DRAG_AUTO_SCROLL_ANDROID.maxSpeed * pixelsPerDip};
+    sl::DRAG_AUTO_SCROLL_ANDROID.edge * pixelsPerDp,
+    sl::DRAG_AUTO_SCROLL_ANDROID.maxSpeed * pixelsPerDp};
   return sl::dragAutoScrollOffset(config, touch, windowSize, offset, maxOffset);
 }

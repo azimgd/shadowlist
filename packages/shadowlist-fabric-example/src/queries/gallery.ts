@@ -30,7 +30,9 @@ export const useWishlistQuery = () =>
     queryFn: ({ signal }) => fetchWishlist(signal),
   });
 
-// Same flow as useReorderFavorites: the dropped order shows at once and resyncs after a burst.
+/*
+ * Same flow as useReorderFavorites, the dropped order shows at once and resyncs after a burst.
+ */
 export function useReorderWishlist() {
   const queryClient = useQueryClient();
   return useMutation({

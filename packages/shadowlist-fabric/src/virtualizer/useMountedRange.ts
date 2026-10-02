@@ -6,10 +6,10 @@ import {
   grownMountedRange,
   initialMountedRange,
   rangeToIndices,
+  mountStepForWindow,
   reportedMountedRange,
   shouldReseedFromOffsetIndex,
   stepMountedRange,
-  mountStepForWindow,
   unionRangeIndices,
   type MountedRange,
 } from './mountedRange';
@@ -131,7 +131,6 @@ export function useMountedRange({
         const lowIndex = keyToIndex.get(edges.lowKey);
         const highIndex = keyToIndex.get(edges.highKey);
         if (lowIndex !== undefined && highIndex !== undefined) {
-          // See grownMountedRange for how a range at an edge of the data grows.
           return grownMountedRange(
             lowIndex,
             highIndex,
@@ -301,7 +300,6 @@ export function useMountedRange({
       setMountedKeys((previous) => {
         const current = resolveRange(previous);
         const window = { low: windowLow, high: windowHigh };
-        // See reportedMountedRange, a first report trims the initial range.
         const reported = reportedMountedRange(
           current,
           window,

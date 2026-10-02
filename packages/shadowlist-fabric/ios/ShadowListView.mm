@@ -142,7 +142,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 #endif
 
 /*
- * The native list view. Sticky pinning is in ShadowListView+Sticky and drag to reorder
+ * The platform list view. Sticky pinning is in ShadowListView+Sticky and drag to reorder
  * is in ShadowListView+DragReorder.
  */
 @implementation ShadowListView
@@ -176,11 +176,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     _scrollView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
 #if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
-    /*
-     * iOS 26 fades the edge of a scroll view under a bar. It sizes that fade from where the
-     * list sits, so a list moved up with the keyboard kept a tall faded band over its top rows
-     * after it came back down. Turn the fade off.
-     */
+    // iOS 26 sizes its edge fade from where the list sits, which left a faded band after the keyboard.
     if (@available(iOS 26.0, *)) {
       _scrollView.topEdgeEffect.hidden = YES;
       _scrollView.bottomEdgeEffect.hidden = YES;
@@ -830,6 +826,31 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   }
 }
 
+- (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey
+{
+  if (!_state) {
+    return;
+  }
+  // A drag counts as a user scroll, which keeps core corrections off until the drop.
+  BOOL userScrolled = type != azimgd::shadowlist::DRAG_EVENT_END;
+  auto patch = _scrollSync.livePatch(
+    _scrollView.contentOffset.x, _scrollView.contentOffset.y, userScrolled, _scrollSync.currentScrollPhase());
+  std::string dragFromKey = fromKey ? std::string(fromKey.UTF8String) : std::string();
+  std::string dragToKey = toKey ? std::string(toKey.UTF8String) : std::string();
+  // The sequence goes past the newest state's, so each event fires once.
+  _state->updateState(
+    [patch, type, dragFromKey, dragToKey](const ShadowListStateData& oldData) -> StateData::Shared {
+      auto nextData = std::make_shared<ShadowListStateData>(oldData);
+      nextData->applyPatch(patch);
+      nextData->dragEventSequence_ = oldData.dragEventSequence_ + 1;
+      nextData->dragEventType_ = (double)type;
+      nextData->dragFromKey_ = dragFromKey;
+      nextData->dragToKey_ = dragToKey;
+      return nextData;
+    },
+    [self stateUpdateMode]);
+}
+
 #if !TARGET_OS_OSX
 /*
  * The gesture phase sent with each scroll frame. Only isTracking means a finger is down.
@@ -1340,30 +1361,6 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 }
 #endif
 
-- (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey
-{
-  if (!_state) {
-    return;
-  }
-  // Turn off scroll corrections while dragging. The end event, type 3, turns them back on.
-  auto patch = _scrollSync.livePatch(
-    _scrollView.contentOffset.x, _scrollView.contentOffset.y, type != 3, _scrollSync.currentScrollPhase());
-  std::string dragFromKey = fromKey ? std::string(fromKey.UTF8String) : std::string();
-  std::string dragToKey = toKey ? std::string(toKey.UTF8String) : std::string();
-  // The sequence goes past the newest state's, so each event fires once.
-  _state->updateState(
-    [patch, type, dragFromKey, dragToKey](const ShadowListStateData& oldData) -> StateData::Shared {
-      auto nextData = std::make_shared<ShadowListStateData>(oldData);
-      nextData->applyPatch(patch);
-      nextData->dragEventSequence_ = oldData.dragEventSequence_ + 1;
-      nextData->dragEventType_ = (double)type;
-      nextData->dragFromKey_ = dragFromKey;
-      nextData->dragToKey_ = dragToKey;
-      return nextData;
-    },
-    [self stateUpdateMode]);
-}
-
 /*
  * Acknowledge a state that hides rows when no scroll report will, because its correction
  * moved nothing or we did not apply it. Otherwise the rows stay hidden until the next scroll.
@@ -1448,7 +1445,8 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   }
 
   /*
-   * SCROLL_TO_END_INDEX makes the core keep aiming at the real bottom as rows get measured. animated is unused but kept for API compatibility.
+   * SCROLL_TO_END_INDEX keeps the core aiming at the real bottom as rows get measured.
+   * animated is unused but kept for API compatibility.
    */
   (void)animated;
   SLF_TRACE("ev=cmd-scroll-to-end off=%.1f,%.1f", _scrollView.contentOffset.x, _scrollView.contentOffset.y);

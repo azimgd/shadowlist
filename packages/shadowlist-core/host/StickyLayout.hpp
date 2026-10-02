@@ -10,13 +10,13 @@ namespace azimgd::shadowlist {
  */
 
 /*
- * How far each auto hide bar has slid away, and the offset of the last pin, so the next one
- * knows how far the user scrolled. Kept by the host across frames.
+ * How far each auto hide bar has slid away, and the offset of the previous pin. Kept by the
+ * host across frames.
  */
 struct StickyState {
   double headerHidden = 0.0;
   double footerHidden = 0.0;
-  double lastOffset = 0.0;
+  double previousOffset = 0.0;
 };
 
 struct StickyInput {
@@ -47,8 +47,6 @@ struct StickyTranslations {
 
 /*
  * Translations that pin the header to the top and the footer to the bottom of the viewport.
- * A sticky header gets pushed off by the footer or the content end, and a sticky footer never
- * rides up into the header in a short list.
  */
 StickyTranslations stickyTranslations(const StickyInput& input, StickyState& state);
 
@@ -58,9 +56,8 @@ struct SectionOverlayPosition {
 };
 
 /*
- * Where the section header overlay goes. Offsets are the section headers' positions in order
- * and sizes their sizes. The active header is the last at or above the top, and the next one
- * pushes it up. Hidden when no header is at or above the top.
+ * Where the section header overlay goes, given the section headers' offsets and sizes in order.
+ * The active header is the last at or above the top, and the next one pushes it up.
  */
 SectionOverlayPosition sectionOverlayPosition(const double* offsets, const double* sizes, std::size_t count, double offset);
 

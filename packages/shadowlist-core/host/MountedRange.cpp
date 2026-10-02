@@ -85,23 +85,23 @@ MountedRange grownMountedRange(long lowIndex, long highIndex, bool lowAtStart, b
   return {grownLow, highAtEnd ? std::min(size - 1, high + overscanRowsLeading) : high};
 }
 
-MountedRange visibleTargetRange(const MountedRange& window, const std::optional<MountedRange>& lastWindow, long size,
+MountedRange visibleTargetRange(const MountedRange& window, const std::optional<MountedRange>& previousWindow, long size,
   long overscanRows, long overscanRowsLeading) {
-  bool movingForward = lastWindow && window.low > lastWindow->low;
-  bool movingBackward = lastWindow && window.low < lastWindow->low;
+  bool movingForward = previousWindow && window.low > previousWindow->low;
+  bool movingBackward = previousWindow && window.low < previousWindow->low;
   long lowPad = movingBackward ? overscanRowsLeading : overscanRows;
   long highPad = movingForward ? overscanRowsLeading : overscanRows;
   return {std::max(0L, window.low - lowPad), std::min(size - 1, window.high + highPad)};
 }
 
 std::optional<ReportedRange> reportedMountedRange(const MountedRange& current, const MountedRange& window,
-  const std::optional<MountedRange>& lastWindow, bool firstReport, long size, long overscanRows,
+  const std::optional<MountedRange>& previousWindow, bool firstReport, long size, long overscanRows,
   long overscanRowsLeading, long minimumStep) {
   bool holdsWindow = current.low >= 0 && window.low >= current.low && window.high <= current.high;
   if (holdsWindow && !firstReport) {
     return std::nullopt;
   }
-  MountedRange target = visibleTargetRange(window, lastWindow, size, overscanRows, overscanRowsLeading);
+  MountedRange target = visibleTargetRange(window, previousWindow, size, overscanRows, overscanRowsLeading);
   MountedRange range = stepMountedRange(current, target, window, mountStepForWindow(window, minimumStep));
   return ReportedRange{range, target};
 }

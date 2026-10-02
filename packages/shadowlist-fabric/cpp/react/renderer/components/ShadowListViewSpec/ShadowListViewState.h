@@ -6,12 +6,10 @@
 #include <shadowlist-core/host/LiveScroll.hpp>
 #include <shadowlist-core/host/ScrollSync.hpp>
 
-#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -24,7 +22,9 @@
 
 namespace facebook::react {
 
-// Values of scrollPhase_, see azimgd::shadowlist::LiveScroll.
+/*
+ * Values of scrollPhase_, see azimgd::shadowlist::LiveScroll.
+ */
 using azimgd::shadowlist::SCROLL_PHASE_DRAGGING;
 using azimgd::shadowlist::SCROLL_PHASE_IDLE;
 using azimgd::shadowlist::SCROLL_PHASE_SETTLING;
@@ -42,8 +42,9 @@ using ShadowListLiveScroll = azimgd::shadowlist::LiveScroll;
  * environment variable SHADOWLIST_SCROLL_BAND=0 to turn it off. Android apps get no launch
  * environment, so there only the define counts.
  *
- * SHADOWLIST_IMMEDIATE_STATE: the iOS host commits its state update right away on the calling
- * thread instead of on the next event beat. Off by default. Set SHADOWLIST_IMMEDIATE_STATE=1 to try it.
+ * SHADOWLIST_IMMEDIATE_STATE: the iOS host commits its state update right away on the
+ * calling thread instead of on the next event beat. Off by default. Set
+ * SHADOWLIST_IMMEDIATE_STATE=1 to try it.
  */
 #ifndef SHADOWLIST_SCROLL_BAND
 #define SHADOWLIST_SCROLL_BAND 1

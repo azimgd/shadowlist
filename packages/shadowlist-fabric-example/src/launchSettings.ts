@@ -27,9 +27,9 @@ export function launchSetting(key: string): string | undefined {
 export const DEBUG = launchSetting('SLDebug') === '1';
 
 /*
- * How many rows the Feed, Chat, SectionList, Masonry and Activity
- * screens open with: their data sources seed and serve the first page with this many rows.
- * 1000 by default; SLCount N overrides it for benchmark runs.
+ * How many rows the Feed, Chat, SectionList, Masonry and Activity screens open with: their
+ * data sources seed and serve the first page with this many rows. 1000 by default; SLCount N
+ * overrides it for benchmark runs.
  */
 export const DEFAULT_LIST_COUNT = 1000;
 

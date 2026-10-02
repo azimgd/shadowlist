@@ -94,15 +94,15 @@ static inline void SLSetHidden(RCTUIView *view, BOOL hidden)
 
   CGFloat axisOffset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   std::size_t count = std::min(_stickyHeaderOffsets.size(), _stickyHeaderSizes.size());
-  auto position = azimgd::shadowlist::sectionOverlayPosition(
+  auto overlay = azimgd::shadowlist::sectionOverlayPosition(
     _stickyHeaderOffsets.data(), _stickyHeaderSizes.data(), _stickyHeaderIndices.empty() ? 0 : count, axisOffset);
-  if (!position.visible) {
+  if (!overlay.visible) {
     SLSetHidden(_sectionHeaderOverlay, YES);
     return;
   }
 
   SLSetHidden(_sectionHeaderOverlay, NO);
-  SLSetTranslation(_sectionHeaderOverlay, _horizontal, position.translation);
+  SLSetTranslation(_sectionHeaderOverlay, _horizontal, overlay.translation);
   // Sit above the sticky header and footer, which use z 1.
   if (_overlayOrderDirty) {
     _overlayOrderDirty = NO;

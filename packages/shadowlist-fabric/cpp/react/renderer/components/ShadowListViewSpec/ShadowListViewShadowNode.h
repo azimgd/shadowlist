@@ -14,7 +14,6 @@
 #include <shadowlist-core/host/ListLayout.hpp>
 
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
 namespace facebook::react {

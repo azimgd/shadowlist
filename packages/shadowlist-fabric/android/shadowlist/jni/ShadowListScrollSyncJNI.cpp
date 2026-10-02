@@ -15,7 +15,9 @@ namespace {
 
 namespace sl = azimgd::shadowlist;
 
-// Slots of ShadowListScrollSync.OUT_*.
+/*
+ * Slots of ShadowListScrollSync.OUT_*.
+ */
 enum OutSlot {
   OUT_COMMIT = 0,
   OUT_FRAME_USER_SCROLLED,
@@ -265,13 +267,6 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   jclass /*clazz*/,
   jlong pointer) {
   host(pointer)->sync.momentumStopped();
-}
-
-extern "C" JNIEXPORT jboolean JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeArmedAnimated(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer) {
-  return host(pointer)->sync.armedAnimated() ? JNI_TRUE : JNI_FALSE;
 }
 
 extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeLivePatch(

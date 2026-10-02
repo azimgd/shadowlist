@@ -113,19 +113,15 @@ export function stepMountedRange(
 }
 
 /*
- * How many overscan rows to add per step for a window this size. Two rows a frame is right
- * for screen sized cards, where each row is a big subtree. Short rows fill the window with
- * dozens of rows, a fling passes several of them a frame, and two rows a step could never
- * get ahead of it: the leading pad stayed empty and the top of the screen went blank. Grow
- * the pad by a quarter of the window instead, so a pad forms within a few frames however
- * tall the rows are.
+ * Overscan rows added per step, at least a quarter of the window so a fling over short rows
+ * still builds a leading pad within a few frames.
  */
 export function mountStepForWindow(
   window: MountedRange,
   minimumStep: number
 ): number {
-  const windowRows = window.high - window.low + 1;
-  return Math.max(minimumStep, Math.ceil(windowRows / 4));
+  const windowCount = window.high - window.low + 1;
+  return Math.max(minimumStep, Math.ceil(windowCount / 4));
 }
 
 /*
@@ -135,13 +131,8 @@ export function mountStepForWindow(
 export const MAX_FOLLOWED_APPEND = 50;
 
 /*
- * The mounted range from its edge rows' current indices. A range that touches an edge of the
- * data grows to take rows added past it, up to the leading pad. Think a new chat message, a
- * page appended at the end, or history added on top. They mount in the same render as the
- * data change, instead of a full round trip later while the screen already shows them.
- * An inverted list at its end with followAppends (followTail) scrolls to the newest rows in
- * the same commit, so those all mount, and only a burst over MAX_FOLLOWED_APPEND moves the
- * range to the tail instead of growing it.
+ * The mounted range from its edge rows' current indices. A range at an edge of the data grows
+ * by up to the leading pad to take rows added past it, and a followed tail takes every append.
  */
 export function grownMountedRange(
   lowIndex: number,
@@ -167,20 +158,22 @@ export function grownMountedRange(
 }
 
 /*
- * Where the mounted range should end up for a visible window: overscan on both sides, and the
- * leading pad ahead of where the user is going. The direction comes from how the window moved,
- * so normal, inverted and horizontal lists all work the same. A first report, or one that
- * didn't move, pads both sides evenly.
+ * Where the mounted range should end up for a visible window, with the leading pad on the side
+ * the window moved toward.
  */
 export function visibleTargetRange(
   window: MountedRange,
-  lastWindow: MountedRange | null,
+  previousWindow: MountedRange | null,
   size: number,
   overscanRows: number,
   overscanRowsLeading: number
 ): MountedRange {
-  const movingForward = lastWindow ? window.low > lastWindow.low : false;
-  const movingBackward = lastWindow ? window.low < lastWindow.low : false;
+  const movingForward = previousWindow
+    ? window.low > previousWindow.low
+    : false;
+  const movingBackward = previousWindow
+    ? window.low < previousWindow.low
+    : false;
   const lowPad = movingBackward ? overscanRowsLeading : overscanRows;
   const highPad = movingForward ? overscanRowsLeading : overscanRows;
   return {
@@ -190,15 +183,13 @@ export function visibleTargetRange(
 }
 
 /*
- * What a visible rows report does to the mounted range: the next step and the target it steps
- * toward, or null to keep the range. A range that already holds the window stays, except on
- * the first report. The initial range is a guess made before layout, often twice the screen,
- * so the first report trims it to the window plus overscan.
+ * The next step and its target for a visible rows report, or null to keep the range. The
+ * first report always steps, which trims the initial range guessed before layout.
  */
 export function reportedMountedRange(
   current: MountedRange,
   window: MountedRange,
-  lastWindow: MountedRange | null,
+  previousWindow: MountedRange | null,
   firstReport: boolean,
   size: number,
   overscanRows: number,
@@ -212,7 +203,7 @@ export function reportedMountedRange(
   if (holdsWindow && !firstReport) return null;
   const target = visibleTargetRange(
     window,
-    lastWindow,
+    previousWindow,
     size,
     overscanRows,
     overscanRowsLeading

@@ -28,9 +28,8 @@ export function useKeyboardLift({
 }
 
 /*
- * The same distance as useKeyboardLift, positive, for bottom padding under the list and
- * composer column. Padding shrinks the list instead of moving it under the header, so a
- * short thread stays in view and an inverted list keeps its newest rows above the composer.
+ * The lift as positive bottom padding, which shrinks the list instead of moving it under the
+ * header.
  */
 export function useKeyboardSpace(
   options: UseKeyboardLiftOptions = {}

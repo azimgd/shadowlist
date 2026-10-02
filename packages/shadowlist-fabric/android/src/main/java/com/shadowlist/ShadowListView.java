@@ -96,7 +96,9 @@ public class ShadowListView extends FrameLayout {
   private ViewGroup mScrollView;
   private final ShadowListStickyController mStickyController;
   private final ShadowListDragController mDragController;
-  // Grid columns from props. The drag moves cells across columns when above 1.
+  /*
+   * Grid columns from props, which drags move rows across.
+   */
   private int mColumns = 1;
 
   /*
@@ -865,12 +867,7 @@ public class ShadowListView extends FrameLayout {
     // Skip the layout call when the size is the same, which it is on most mounts.
     if (mContentView.getLeft() != 0 || mContentView.getTop() != 0
         || mContentView.getWidth() != newContentWidth || mContentView.getHeight() != newContentHeight) {
-      /*
-       * Shorter content clamps the scroll position inside this call, and the scroll view
-       * reports the clamp like any scroll. That is not the user. During a rotation the clamp
-       * even uses the old viewport height, so an inverted chat at its bottom was reported as
-       * scrolled away and lost its bottom follow.
-       */
+      // Shorter content clamps the scroll position here, and that report is not the user.
       mSync.setApplyingContentSize(true);
       try {
         mContentView.layout(0, 0, newContentWidth, newContentHeight);
@@ -928,16 +925,14 @@ public class ShadowListView extends FrameLayout {
   }
 
   /*
-   * Send an update that patches the newest state with the live offset, like a scroll report.
-   * The drag controller uses it for drag events. Updates build on the last mounted state,
-   * whose offset can be many frames old during a fling.
+   * Send a drag event with the live offset, like a scroll report.
    */
   void dispatchDragEvent(int type, String fromKey, String toKey, double sequence) {
     if (mState == null) {
       return;
     }
     // Keep core scroll corrections off during the drag. The end event turns them back on.
-    mSync.livePatch(liveOffsetX(), liveOffsetY(), type != 3, mSync.currentScrollPhase());
+    mSync.livePatch(liveOffsetX(), liveOffsetY(), type != ShadowListDragController.DRAG_EVENT_END, mSync.currentScrollPhase());
     WritableMap map = mSync.patchMap();
     map.putDouble("dragEventSequence", sequence);
     map.putDouble("dragEventType", type);
@@ -992,7 +987,7 @@ public class ShadowListView extends FrameLayout {
   /*
    * A scroll command stops any fling or snap, so it can't overwrite the offset the core is
    * about to apply, and reports idle with the command. If a finger is down it stays dragging,
-   * and the core lets the drag cancel the command. Index -3 means the end.
+   * and the core lets the drag cancel the command.
    */
   private void issueScrollCommand(double index, double viewPosition) {
     boolean yielded = !mTouching;

@@ -9,7 +9,7 @@ import {
 
 const CARDS_PER_ROW = 10;
 
-export function generateNestedCard(imageIndex: number): NestedCardItem {
+function generateNestedCard(imageIndex: number): NestedCardItem {
   return {
     id: generateUniqueId(),
     title: IMAGE_TITLES[imageIndex % IMAGE_TITLES.length]!,

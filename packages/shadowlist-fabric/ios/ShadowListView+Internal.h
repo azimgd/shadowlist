@@ -173,8 +173,7 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 - (void)applyStickyTransforms:(BOOL)accumulate;
 
 /*
- * Send a drag event with the live offset, like every host update. Type 1 is pick up and
- * 3 is drop. Core corrections stay off from pick up until the drop.
+ * Send a drag event, DRAG_EVENT_START or DRAG_EVENT_END, with the live offset.
  */
 - (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey;
 

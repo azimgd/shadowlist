@@ -1,14 +1,12 @@
 #pragma once
 
-#include <shadowlist-core/Container.hpp>
-#include <shadowlist-core/Virtualizer.hpp>
-
 #include <cstddef>
 #include <limits>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
+#include <shadowlist-core/Container.hpp>
+#include <shadowlist-core/Virtualizer.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -31,16 +29,15 @@ struct ElementSizeSpec {
   int numberOfLines = 0;
 
   /*
-   * Space in the row around the text, in points, like padding or an avatar column.
-   * Width is taken off the wrap width and height is added to the measured text.
-   * Rows whose extra space can't be described by these two numbers should not be predicted.
+   * Space in the row around the text, in points, like padding or an avatar column. Width is
+   * taken off the wrap width and height is added to the measured text.
    */
   double insetWidth = 0.0;
   double insetHeight = 0.0;
 
   /*
-   * Share of the list width the text may use before insetWidth, for rows with a percent width
-   * such as a chat bubble capped at 75 percent. A fixed inset can't express that without wrapping wrong.
+   * Share of the list width the text may use before insetWidth, like a chat bubble capped at
+   * 75 percent.
    */
   double widthFraction = 1.0;
 
@@ -49,14 +46,8 @@ struct ElementSizeSpec {
 };
 
 /*
- * Feeds predicted sizes to the core a few rows per commit.
- *
- * Measuring costs a text layout per row, about a tenth of a millisecond each, and doing a
- * whole list at once spikes the commit thread. So each run stops at the budget and the next
- * picks up where it stopped. A row not measured yet just uses the normal estimate.
- * The parsed specs are cached too, since parsing them on every commit would cost more than
- * the measuring. A new source, which the host keeps alive so its address can't be reused, or
- * a new width starts over.
+ * Feeds predicted sizes to the core a few rows per commit, so a long list never spikes the
+ * commit thread. The parsed specs are cached until the source or the width changes.
  */
 class SizeSpecQueue final {
 public:
@@ -65,9 +56,7 @@ public:
 
   /*
    * Measure the next specs of source. parse() returns them and only runs for a new source or
-   * width. measure(spec, width) returns the row size. A new width
-   * makes every predicted height wrong, so they are all dropped first. Text wraps to the
-   * list width, so nothing happens at zero width.
+   * width, and measure(spec, width) returns the row size. A new width drops every prediction.
    */
   template <typename Parse, typename Measure>
   void run(Container& core, const std::shared_ptr<const void>& source, double width, Parse&& parse, Measure&& measure) {
@@ -98,7 +87,7 @@ public:
   }
 
   /*
-   * Whether every spec of this source is measured. Until then the host needs more commits.
+   * Whether every spec of this source is measured.
    */
   bool finished(const std::shared_ptr<const void>& source) const {
     return done_ && source_ == source;

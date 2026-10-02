@@ -7,10 +7,8 @@
 namespace azimgd::shadowlist {
 
 /*
- * Which rows a host keeps mounted, and how that range follows the visible rows. The React
- * Native host runs the same steps in TypeScript (src/virtualizer/mountedRange.ts), function
- * for function, and the tests of both use the same cases.
- * Indices are row indices, low to high. A range with a negative end is empty.
+ * Which rows a host keeps mounted, and how that range follows the visible rows. It mirrors
+ * src/virtualizer/mountedRange.ts function for function. A range with a negative end is empty.
  */
 struct MountedRange {
   long low = -1;
@@ -38,8 +36,7 @@ MountedRange initialMountedRange(long size, long initial, bool inverted, long of
   long overscanRows = DEFAULT_OVERSCAN_ROWS, double viewPosition = 0.0);
 
 /*
- * Indices of both ranges, sorted and without duplicates. While a scroll command is on its way
- * the rows around its target and the rows still on screen both stay mounted.
+ * Indices of both ranges, sorted and without duplicates.
  */
 std::vector<long> unionRangeIndices(const MountedRange& first, const MountedRange& second);
 
@@ -52,15 +49,13 @@ std::vector<long> rangeToIndices(const MountedRange& range);
 bool shouldReseedFromOffsetIndex(long previousOffsetIndex, long nextOffsetIndex);
 
 /*
- * One step from the mounted range toward the target: rows on screen (window) mount right away,
- * the overscan beyond them grows by at most step rows per end. Shrinking is never paced.
- * A target that doesn't overlap the mounted rows, like after a jump, grows from the window.
+ * One step from the mounted range toward the target. Rows on screen mount right away and the
+ * overscan beyond them grows by at most step rows per end. Shrinking is never paced.
  */
 MountedRange stepMountedRange(const MountedRange& current, const MountedRange& target, const MountedRange& window, long step);
 
 /*
- * Overscan rows to add per step for a window this size: a quarter of the window, at least
- * minimumStep, so a pad forms within a few frames however tall the rows are.
+ * Overscan rows to add per step, a quarter of the window and at least minimumStep.
  */
 long mountStepForWindow(const MountedRange& window, long minimumStep);
 
@@ -75,7 +70,7 @@ MountedRange grownMountedRange(long lowIndex, long highIndex, bool lowAtStart, b
  * Where the range should end up for a visible window: overscan on both sides, and the leading
  * pad ahead of the direction the window moved.
  */
-MountedRange visibleTargetRange(const MountedRange& window, const std::optional<MountedRange>& lastWindow, long size,
+MountedRange visibleTargetRange(const MountedRange& window, const std::optional<MountedRange>& previousWindow, long size,
   long overscanRows, long overscanRowsLeading);
 
 /*
@@ -87,12 +82,11 @@ struct ReportedRange {
 };
 
 /*
- * What a visible rows report does to the range, or nothing to keep it. A range that holds the
- * window stays, except on the first report, which trims the initial guess to the window plus
- * overscan.
+ * What a visible rows report does to the range, or nothing to keep it. The first report always
+ * trims the initial guess to the window plus overscan.
  */
 std::optional<ReportedRange> reportedMountedRange(const MountedRange& current, const MountedRange& window,
-  const std::optional<MountedRange>& lastWindow, bool firstReport, long size, long overscanRows,
+  const std::optional<MountedRange>& previousWindow, bool firstReport, long size, long overscanRows,
   long overscanRowsLeading, long minimumStep);
 
 /*

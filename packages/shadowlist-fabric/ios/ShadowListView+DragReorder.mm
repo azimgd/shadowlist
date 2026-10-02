@@ -29,6 +29,9 @@ static void SLUpdateDragShadowPath(UIView *view)
     [UIBezierPath bezierPathWithRoundedRect:bounds cornerRadius:view.layer.cornerRadius].CGPath;
 }
 
+/*
+ * A drag key for JS, empty when the row has none.
+ */
 static NSString *SLDragKey(const std::string& key)
 {
   return [NSString stringWithUTF8String:key.c_str()] ?: @"";
@@ -175,7 +178,7 @@ static NSString *SLDragKey(const std::string& key)
 
   // Tell the core a drag started so this row stays mounted when it scrolls off screen.
   NSString *originKey = SLDragKey(_drag.originKey());
-  [self dispatchDragEventType:azimgd::shadowlist::DRAG_EVENT_START fromKey:originKey toKey:originKey];
+  [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_START fromKey:originKey toKey:originKey];
 
   _dragDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
@@ -234,7 +237,8 @@ static NSString *SLDragKey(const std::string& key)
    */
   NSInteger currentIndex = [self indexOfElementView:view];
   NSString *currentKey = [self keyOfElementView:view];
-  _drag.updateOrigin(currentIndex == NSNotFound ? -1 : (long)currentIndex, currentKey ? std::string(currentKey.UTF8String) : std::string());
+  _drag.updateOrigin(
+    currentIndex == NSNotFound ? -1 : (long)currentIndex, currentKey ? std::string(currentKey.UTF8String) : std::string());
 
   CGPoint touchContent = CGPointMake(
     _dragTouchInViewport.x + _scrollView.contentOffset.x, _dragTouchInViewport.y + _scrollView.contentOffset.y);
@@ -354,11 +358,6 @@ static NSString *SLDragKey(const std::string& key)
   }
 }
 
-- (void)dispatchDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey
-{
-  [self commitDragEventType:type fromKey:fromKey toKey:toKey];
-}
-
 - (void)finishDrag
 {
   if (!_dragging) {
@@ -381,7 +380,9 @@ static NSString *SLDragKey(const std::string& key)
    * Send the reorder by key and keep the rows shifted until the commit lands.
    * The indexes below still drive the settle animation.
    */
-  [self dispatchDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:SLDragKey(_drag.originKey()) toKey:SLDragKey(_drag.insertionKey())];
+  [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END
+                    fromKey:SLDragKey(_drag.originKey())
+                      toKey:SLDragKey(_drag.insertionKey())];
 
   if (from == to || !view) {
     // Dropped where it started, so no commit will come. Settle now.
@@ -537,7 +538,7 @@ static NSString *SLDragKey(const std::string& key)
     return NO;
   }
 
-  [self dispatchDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:key toKey:neighborKey];
+  [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:key toKey:neighborKey];
   return YES;
 }
 

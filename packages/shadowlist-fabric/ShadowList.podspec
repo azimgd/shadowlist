@@ -2,8 +2,7 @@ require "json"
 
 package = JSON.parse(File.read(File.join(__dir__, "package.json")))
 
-# Copy the core into this package before pod install, so the pod has the current file list.
-# CocoaPods reads the podspec several times per install, so copy once.
+# Copy the core into this package once per pod install, which reads the podspec several times.
 $shadowlist_core_vendored ||= system("node", File.join(__dir__, "scripts", "vendor-core.js"), exception: true)
 
 Pod::Spec.new do |s|
@@ -37,9 +36,8 @@ Pod::Spec.new do |s|
     'HEADER_SEARCH_PATHS' => '$(PODS_ROOT)/ShadowList'
   }
 
-  # In the monorepo, refresh the copy's contents before every build, so a core edit reaches
-  # iOS without another pod install. rsync keeps unchanged files untouched, so they don't
-  # rebuild. New or removed files still need pod install.
+  # In the monorepo, refresh the copy before every build so core edits reach iOS without
+  # pod install. New or removed files still need pod install.
   s.script_phases = [{
     :name => "Sync shadowlist-core",
     :execution_position => :before_compile,

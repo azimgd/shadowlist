@@ -502,9 +502,8 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
     std::vector<Anchor> fallbackAnchors = captureFallbackAnchors(container, inputOffset);
     std::size_t survivors = reconcileElements(container, inputKeys);
     /*
-     * An inverted list whose rows were all replaced, like switching to another conversation,
-     * opens on the new bottom the way a fresh list does. Nothing on screen is left to hold,
-     * and staying at the old offset would show the oldest rows of the new set.
+     * An inverted list whose rows were all replaced, like another conversation, opens on the
+     * new bottom the way a fresh list does.
      */
     if (container->inverted && hadElementsBefore && survivors == 0 && !container->revision.elements.empty()) {
       SL_LOG("  inverted swap: %zu rows, pinning to the bottom again", container->revision.elements.size());
@@ -551,9 +550,8 @@ void Virtualizer::update(Container* container, const FrameInput& input) {
   container->revision.windowContainerWidth = input.windowContainerWidth;
   container->revision.windowContainerHeight = input.windowContainerHeight;
   /*
-   * A window change that moves the offset, an inverted list following its bottom as the
-   * composer grows, is our own write. resolveScroll below starts from a clean flag, so
-   * remember it here and publish it even when nothing else corrects.
+   * A window change that moves the offset, like an inverted list following its bottom as the
+   * composer grows, is our own write and gets published even when nothing else corrects.
    */
   double offsetBeforeWindow = container->getContainerOffset();
   container->containerOffsetCorrected = false;
@@ -1115,10 +1113,8 @@ void Virtualizer::commitElementSizes(Container* container, std::size_t fromIndex
    * is down and no correction is running. The stored total is stale here, so the bottom
    * comes from the reflowed rows.
    * A pending scroll to the end, or a list still settling on the bottom it opened at,
-   * follows the bottom here too for the same reason. So does a running correction that aims
-   * at the end, the bottom pin or scroll to end: it would re-aim on the next frame anyway,
-   * and leaving the rows moved by this measurement for one frame is the jitter a reader sees
-   * as a message arrives.
+   * follows the bottom here too for the same reason, and so does a running correction aimed
+   * at the end, or the rows jitter for a frame as a message arrives.
    */
   bool endEdgeOperation = container->operation && container->operation->target.mode == AnchorMode::EndEdge;
   bool followBottom = container->pendingScrollToEnd || endEdgeOperation ||
@@ -1508,10 +1504,8 @@ void Virtualizer::captureAnchor(Container* container, double inputOffset) {
   };
 
   /*
-   * In a grid the tracks move independently as their rows get measured, so the row with the
-   * lowest index on screen changes from frame to frame. Picking a new anchor each time holds a
-   * different track each frame and the row the reader was on drifts. Keep last frame's anchor
-   * while it is still on screen and can be anchored.
+   * In a grid the tracks move independently as rows get measured, so a new anchor each frame
+   * lets the row the reader was on drift. Keep the previous anchor while it is still on screen.
    */
   if (container->columns > 1 && !previousAnchorKey.empty() && container->isAnchorable(previousAnchorKey)) {
     std::size_t previousAnchorIndex = container->findElementIndexByKey(previousAnchorKey);

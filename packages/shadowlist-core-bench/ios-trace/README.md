@@ -95,8 +95,7 @@ edits do not reach it until the next build.
 ## Perf suite
 
 `../perf-suite.sh <ios|android> <label>` runs `scenarios/perf-<screen>.steps` (iOS) or the
-same flings through adb (Android) for Feed, Chat, SectionList and
-Masonry at 50, 200 and 1000 rows (`SLCount` launch setting), `RUNS` times each, and writes
-`results/perf/<label>/<platform>/` with a `summary.md`. `../perf.py compare <a> <b>` diffs two
-labels. Step files may use `{FLINGS}`, `{BACK}` and `{HALF}`, which run.sh fills from `$FLINGS`.
+same flings through adb (Android) for Feed, Chat, SectionList and Masonry at 50, 200 and 1000
+rows (`SLCount` launch setting), `RUNS` times each, and writes `results/perf/<label>/<platform>/`
+with a `summary.md`. `../perf.py compare <a> <b>` diffs two labels. Step files may use `{FLINGS}`, `{BACK}` and `{HALF}`, which run.sh fills from `$FLINGS`.
 `[SLC] t= commit list=<tag>` lines count Fabric commits of a list (trace builds only).

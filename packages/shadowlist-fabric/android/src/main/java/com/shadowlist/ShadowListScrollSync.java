@@ -5,18 +5,17 @@ import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.soloader.SoLoader;
 
 /*
- * Keeps the scroll view and the core in step, through the host layer's ScrollSync in C++
- * (shadowlist-core/host/ScrollSync). It decides which scroll frames become state updates,
- * what a mounted correction does, and the echo of core corrections and scroll commands.
- * The view only reads and writes its scroll position, in dp here, and runs the gestures.
- * Results come back in mOut, which is reused so scroll frames allocate nothing.
+ * Keeps the scroll view and the core in step through the host layer's ScrollSync in C++.
+ * Offsets are in dp, and results come back in mOut, reused so scroll frames allocate nothing.
  */
 final class ShadowListScrollSync {
   static {
     SoLoader.loadLibrary("react_codegen_ShadowListViewSpec");
   }
 
-  // Slots of mOut, matching OutSlot in ShadowListScrollSyncJNI.cpp.
+  /*
+   * Slots of mOut, matching OutSlot in ShadowListScrollSyncJNI.cpp.
+   */
   private static final int OUT_COMMIT = 0;
   private static final int OUT_FRAME_USER_SCROLLED = 1;
   private static final int OUT_OFFSET_X = 2;
@@ -30,6 +29,7 @@ final class ShadowListScrollSync {
   private static final int OUT_COMMAND_INDEX = 10;
   private static final int OUT_COMMAND_SEQUENCE = 11;
   private static final int OUT_COMMAND_VIEW_POSITION = 12;
+  private static final int OUT_ACTION_KIND = 13;
   private static final int OUT_ACTION_X = 14;
   private static final int OUT_ACTION_Y = 15;
   private static final int OUT_ACTION_TOKEN = 16;
@@ -37,7 +37,9 @@ final class ShadowListScrollSync {
   private static final int OUT_ACTION_PRESERVE_MOMENTUM = 18;
   private static final int OUT_SLOTS = 19;
 
-  // Values of correction(), matching MountAction::Kind.
+  /*
+   * Values of correction(), matching MountAction::Kind.
+   */
   static final int ACTION_NONE = 0;
   static final int ACTION_WRITE = 1;
 
@@ -45,9 +47,7 @@ final class ShadowListScrollSync {
   private final double[] mOut = new double[OUT_SLOTS];
 
   /*
-   * landingTolerance is how close, in dp, our own scroll must land to count as reaching its
-   * target. The scroll view holds whole pixels, so the echo of an instant write that landed
-   * reports the exact dp the core asked for.
+   * landingTolerance is how close, in dp, our own scroll must land to count as reaching its target.
    */
   ShadowListScrollSync(double landingTolerance) {
     mNative = nativeCreate(landingTolerance);
@@ -114,19 +114,13 @@ final class ShadowListScrollSync {
     return mOut[OUT_ACTION_Y];
   }
 
-  long actionToken() {
-    return (long) mOut[OUT_ACTION_TOKEN];
-  }
-
-  boolean actionShifted() {
-    return mOut[OUT_ACTION_SHIFTED] != 0.0;
-  }
-
   boolean actionPreservesMomentum() {
     return mOut[OUT_ACTION_PRESERVE_MOMENTUM] != 0.0;
   }
 
-  // Right before writing the correction, so its scroll callback counts as ours.
+  /*
+   * Right before writing the correction, so its scroll callback counts as ours.
+   */
   void willWrite() {
     nativeWillWrite(mNative);
   }
@@ -164,10 +158,6 @@ final class ShadowListScrollSync {
 
   void momentumStopped() {
     nativeMomentumStopped(mNative);
-  }
-
-  boolean armedAnimated() {
-    return nativeArmedAnimated(mNative);
   }
 
   /*
@@ -259,7 +249,6 @@ final class ShadowListScrollSync {
   private static native void nativeArm(long pointer, double offsetX, double offsetY, boolean animated);
   private static native void nativeDisarm(long pointer);
   private static native void nativeMomentumStopped(long pointer);
-  private static native boolean nativeArmedAnimated(long pointer);
   private static native void nativeLivePatch(
     long pointer, double offsetX, double offsetY, boolean current, boolean userScrolled, double scrollPhase, double[] out);
   private static native boolean nativeClearUserScrolled(long pointer, double offsetX, double offsetY, double[] out);

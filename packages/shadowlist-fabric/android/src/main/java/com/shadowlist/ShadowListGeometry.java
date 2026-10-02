@@ -31,7 +31,7 @@ final class ShadowListGeometry {
   static final int STICKY_ACCUMULATE = 12;
   static final int STICKY_HEADER_HIDDEN = 13;
   static final int STICKY_FOOTER_HIDDEN = 14;
-  static final int STICKY_LAST_OFFSET = 15;
+  static final int STICKY_PREVIOUS_OFFSET = 15;
   static final int STICKY_HEADER_TRANSLATION = 16;
   static final int STICKY_FOOTER_TRANSLATION = 17;
   static final int STICKY_SLOTS = 18;
@@ -66,8 +66,8 @@ final class ShadowListGeometry {
     int[] indices, int count, int originIndex, int insertionIndex, double draggedExtent, double[] shifts);
 
   /*
-   * The position in the arrays of the grid cell the held one would drop at, or -1 for its
-   * own slot. Over no cell it keeps insertionIndex.
+   * The position in the arrays of the grid element the held one would drop at, or -1 for its
+   * own slot. Over no element it keeps insertionIndex.
    */
   static native int dragGridInsertionPosition(
     int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
@@ -75,7 +75,7 @@ final class ShadowListGeometry {
     int insertionIndex, double center, double crossCenter);
 
   /*
-   * How far each grid cell slides along and across the scroll axis to open the gap.
+   * How far each grid element slides along and across the scroll axis to open the gap.
    */
   static native void dragGridShifts(
     int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
@@ -91,5 +91,5 @@ final class ShadowListGeometry {
    * The offset after this frame's auto scroll near the viewport edges, in pixels.
    */
   static native double dragAutoScrollOffset(
-    double touch, double windowSize, double offset, double maxOffset, double pixelsPerDip);
+    double touch, double windowSize, double offset, double maxOffset, double pixelsPerDp);
 }

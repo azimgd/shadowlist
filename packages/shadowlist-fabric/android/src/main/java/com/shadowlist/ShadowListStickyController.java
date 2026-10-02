@@ -26,7 +26,9 @@ class ShadowListStickyController {
   private boolean mStickyHeader = false;
   private boolean mStickyFooter = false;
 
-  // Hide on scroll.
+  /*
+   * Hide on scroll.
+   */
   private boolean mAutoHideHeader = false;
   private boolean mAutoHideFooter = false;
 
@@ -83,7 +85,7 @@ class ShadowListStickyController {
   void reset() {
     mStickySlots[ShadowListGeometry.STICKY_HEADER_HIDDEN] = 0.0;
     mStickySlots[ShadowListGeometry.STICKY_FOOTER_HIDDEN] = 0.0;
-    mStickySlots[ShadowListGeometry.STICKY_LAST_OFFSET] = 0.0;
+    mStickySlots[ShadowListGeometry.STICKY_PREVIOUS_OFFSET] = 0.0;
     invalidateTemplates();
   }
 

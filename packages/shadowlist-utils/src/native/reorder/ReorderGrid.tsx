@@ -21,8 +21,7 @@ export type ReorderGridProps = Omit<
 };
 
 /*
- * Tiles in columns that you touch, hold and drag to reorder. Cells move across columns
- * while you drag, and mixed tile sizes stack like masonry.
+ * Tiles in columns that you hold and drag to reorder. Mixed tile sizes stack like masonry.
  */
 export const ReorderGrid = forwardRef<ShadowListCommands, ReorderGridProps>(
   ({ renderElement, tileAspectRatio, labels, columns = 3, ...props }, ref) => {

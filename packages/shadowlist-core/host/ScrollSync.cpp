@@ -31,8 +31,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
 
   /*
    * A correction made against a waiting scroll to top jump moves the jump target instead of
-   * the view. The jump applies the whole correction when it lands, and the core may send the
-   * same token again with the full amount, so remember it as applied.
+   * the view, and counts as applied.
    */
   if (view.jumpPending && state.offsetEnabled && std::fabs(base - view.jumpOffset) < 0.5) {
     action.kind = MountAction::Kind::RetargetJump;
@@ -55,22 +54,16 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
   double offsetY = state.offsetY;
 
   /*
-   * While the view moves it has gone on by the time a correction mounts, and writing the fixed
-   * offset would undo that. So add the correction to the live offset instead, clamped to the
-   * scroll range. Keep shifting for corrections made during a gesture, or ones already shifted,
-   * even after the motion stops. The core accepts those by their echo and never moves the view
-   * to an exact target, so lost movement would never come back.
+   * A moving view has gone on by the time a correction mounts, so add the correction to the
+   * live offset instead. Corrections made during a gesture or already shifted keep shifting
+   * after the motion stops.
    */
   bool continuesShiftedCorrection = token != 0 && token == shiftedToken_;
   bool computedDuringGesture = token != 0 && (state.userScrolled || state.scrollPhase != SCROLL_PHASE_IDLE);
   bool shift = view.moving || continuesShiftedCorrection || computedDuringGesture;
   if (shift) {
     double delta = target - base;
-    /*
-     * The core resends the full correction with each new report until the token is echoed.
-     * Shift only by what this token has not moved yet, or a prepend during a fling would
-     * shift the view again each time.
-     */
+    // The core resends the full correction until it is echoed, so shift only by what is left.
     if (token != 0) {
       double unapplied = token == shiftedToken_ ? delta - shiftedTokenDelta_ : delta;
       shiftedToken_ = token;
@@ -85,8 +78,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
 
   /*
    * Corrections with a token and shifted ones keep a fling going. A write with no token may
-   * carry an offset a frame old, and rebuilding the fling from it would restart momentum from
-   * the past on every frame. Our own animated scrolls use a plain write too.
+   * carry an offset a frame old, and our own animated scrolls use a plain write too.
    */
   action.preserveMomentum = (token != 0 || shift) && !armedAnimated();
 
@@ -120,9 +112,8 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
   double offsetY = frame.offsetY;
 
   /*
-   * Tell a user scroll from our own move by who caused it. If we just wrote an offset, this
-   * frame is ours wherever it landed and echoes the token. An animated scroll of ours is ours
-   * on every frame until it reaches its target.
+   * A frame after our own write is ours wherever it landed and echoes the token. An animated
+   * scroll of ours is ours on every frame until it reaches its target.
    */
   bool userScrolled = !applyingContentSize_;
   bool ourMove = false;
@@ -181,8 +172,8 @@ void ScrollSync::momentumStopped() {
 }
 
 /*
- * Whether a scroll frame must become a state update. Conservative on purpose: anything the
- * core reacts to other than the offset moving inside the band sends it.
+ * Whether a scroll frame must become a state update. Anything but the offset moving inside the
+ * band sends it.
  */
 bool ScrollSync::reportNeedsCommit(const LiveScroll::Report& report, bool commitEveryFrame) const {
   if (!liveScroll_ || report.sequence == 0 || !hasPushedReport_) {
@@ -193,9 +184,9 @@ bool ScrollSync::reportNeedsCommit(const LiveScroll::Report& report, bool commit
     return true;
   }
   // The gesture changed, a correction was echoed, or a hide was acknowledged.
-  if (report.userScrolled != lastPushedReport_.userScrolled || report.scrollPhase != lastPushedReport_.scrollPhase ||
-      report.commitToken != lastPushedReport_.commitToken ||
-      report.concealGenerationAck != lastPushedReport_.concealGenerationAck) {
+  if (report.userScrolled != pushedReport_.userScrolled || report.scrollPhase != pushedReport_.scrollPhase ||
+      report.commitToken != pushedReport_.commitToken ||
+      report.concealGenerationAck != pushedReport_.concealGenerationAck) {
     return true;
   }
   // The view clamped the offset to a new content size, or a mount moved it.
@@ -218,13 +209,13 @@ LiveScroll::Report ScrollSync::writeReport(double offsetX, double offsetY, bool 
   report.commitToken = static_cast<double>(token);
   report.concealGenerationAck = concealGenerationAck;
   report.sequence = liveScroll_ ? liveScroll_->write(report) : 0;
-  lastLiveReport_ = report;
+  liveReport_ = report;
   publishedGesture_ = userScrolled || scrollPhase != SCROLL_PHASE_IDLE;
   return report;
 }
 
 ScrollPatch ScrollSync::push(const LiveScroll::Report& report) {
-  lastPushedReport_ = report;
+  pushedReport_ = report;
   hasPushedReport_ = true;
   ScrollPatch patch;
   patch.report = report;
@@ -252,9 +243,8 @@ ScrollPatch ScrollSync::reportPatch(const LiveScroll::Report& report) {
 
 std::optional<ScrollPatch> ScrollSync::clearUserScrolled(double offsetX, double offsetY) {
   /*
-   * Skip only when neither the mounted state nor our last report was a gesture. The mounted
-   * state alone is not enough: after a pull past the top the bounce back sends one report that
-   * may not have mounted yet, and later corrections would be dropped as if a gesture took over.
+   * Skip only when neither the mounted state nor our newest report was a gesture, since the
+   * mounted state can lag behind a bounce back report.
    */
   if (!publishedGesture_ && !mounted_.userScrolled && mounted_.scrollPhase == SCROLL_PHASE_IDLE) {
     return std::nullopt;
@@ -274,11 +264,11 @@ ScrollPatch ScrollSync::issueCommand(
 }
 
 bool ScrollSync::currentUserScrolled() const {
-  return lastLiveReport_.sequence > 0 || !hasMounted_ ? lastLiveReport_.userScrolled : mounted_.userScrolled;
+  return liveReport_.sequence > 0 || !hasMounted_ ? liveReport_.userScrolled : mounted_.userScrolled;
 }
 
 double ScrollSync::currentScrollPhase() const {
-  return lastLiveReport_.sequence > 0 || !hasMounted_ ? lastLiveReport_.scrollPhase : mounted_.scrollPhase;
+  return liveReport_.sequence > 0 || !hasMounted_ ? liveReport_.scrollPhase : mounted_.scrollPhase;
 }
 
 }

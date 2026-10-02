@@ -29,6 +29,18 @@ public:
      */
     textLayoutManager_(getSharedTextLayoutManager(this->contextContainer_)) {};
 
+  /*
+   * Counts commits for the perf suite. Layout only clones are skipped.
+   */
+  std::shared_ptr<ShadowNode> cloneShadowNode(const ShadowNode& sourceShadowNode, const ShadowNodeFragment& fragment)
+    const override {
+    auto shadowNode = ConcreteComponentDescriptor::cloneShadowNode(sourceShadowNode, fragment);
+    if (fragment.props || fragment.children || fragment.state) {
+      SL_TRACE_COMMIT(shadowNode->getTag());
+    }
+    return shadowNode;
+  }
+
   void adopt(ShadowNode& shadowNode) const override {
     ConcreteComponentDescriptor::adopt(shadowNode);
 

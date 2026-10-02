@@ -1,6 +1,8 @@
 #include <shadowlist-core/host/ListLayout.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
+#include <type_traits>
+
 namespace azimgd::shadowlist {
 
 bool applyLayoutInputs(Container& core, double headerSize, double footerSize, double windowWidth, double windowHeight) {
@@ -11,11 +13,7 @@ bool applyLayoutInputs(Container& core, double headerSize, double footerSize, do
   }
   double previousHeaderSize = core.headerSize;
   double previousWindowSize = core.getWindowContainerSize();
-  /*
-   * Row offsets only depend on the header and, for columns, on the window's cross size.
-   * A window growing or shrinking along the scroll axis, like a chat composer resizing the
-   * list, or a footer change moves no row, so skip walking every row for those.
-   */
+  // Row offsets only depend on the header and the window's cross size.
   bool rowsMove = previousHeaderSize != headerSize ||
     (core.horizontal ? core.revision.windowContainerHeight != windowHeight
                      : core.revision.windowContainerWidth != windowWidth);
@@ -26,11 +24,7 @@ bool applyLayoutInputs(Container& core, double headerSize, double footerSize, do
   if (rowsMove) {
     Virtualizer::recomputeElementOffsets(&core, 0);
   }
-  /*
-   * The core's frame ran with the old header size and doesn't know the rows moved. Settle the
-   * header change now, or the rows jump for one frame, like when a header spinner toggles
-   * during a prepend.
-   */
+  // The core's frame ran with the previous header size, so settle the change now.
   Virtualizer::applyHeaderSizeChange(&core, previousHeaderSize);
   // A chat resting at its bottom keeps it as the composer resizes the list.
   Virtualizer::applyWindowSizeChange(&core, previousWindowSize);
@@ -41,10 +35,7 @@ bool applyLayoutInputs(Container& core, double headerSize, double footerSize, do
 
 void applyMeasuredRows(Container& core, const std::vector<MeasuredRow>& rows, bool horizontal,
   std::vector<std::uint64_t>& firstMeasured) {
-  /*
-   * applyElementSize only records the size, then one commitElementSizes reflows from the
-   * lowest changed row, so there is one reflow per layout instead of one per row.
-   */
+  // One reflow per layout from the lowest changed row, not one per row.
   std::size_t lowestChangedIndex = UNDEFINED_INDEX;
   for (const MeasuredRow& row : rows) {
     const Element& element = core.getElementAtIndex(row.elementIndex);
@@ -68,7 +59,7 @@ void applyMeasuredRows(Container& core, const std::vector<MeasuredRow>& rows, bo
   if (lowestChangedIndex != UNDEFINED_INDEX) {
     Virtualizer::commitElementSizes(&core, lowestChangedIndex);
   }
-  // The total size once for the whole batch. The footer and content size need it.
+  // The footer and content size need the total.
   Virtualizer::recomputeTotalSize(&core);
 }
 
@@ -113,10 +104,7 @@ bool PublishedGeometry::refresh(const Container& core) {
   totalSize_ = totalSize;
   sourceStickyIndices_ = core.stickyIndices;
 
-  /*
-   * Build plain vectors, then keep the old pointer when nothing changed. Measuring new rows
-   * while scrolling bumps the version every frame, but the results are usually the same.
-   */
+  // Keep the previous pointer when the values did not change.
   auto adoptIfChanged = [](auto& cached, auto&& next) {
     using ValueT = typename std::decay_t<decltype(next)>::value_type;
     if (next.empty()) {
@@ -133,10 +121,7 @@ bool PublishedGeometry::refresh(const Container& core) {
   std::vector<double> offsets;
   std::vector<double> sizes;
   std::size_t elementsSize = core.getElementsSize();
-  /*
-   * Sticky headers in an inverted list aren't supported. Pinning has no inverted case and
-   * would pin to the wrong edge, so publish nothing, which hides the overlay.
-   */
+  // Sticky headers in an inverted list aren't supported, so publish nothing.
   if (!core.inverted) {
     for (std::size_t stickyIndex : core.stickyIndices) {
       if (stickyIndex >= elementsSize) {

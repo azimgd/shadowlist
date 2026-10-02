@@ -53,8 +53,7 @@ class ShadowListDragController {
   private float mDragLeading = 0f;
   private float mDropReleaseLeading = 0f;
   /*
-   * Grid drags with more than one column also move the held cell across the scroll axis.
-   * These are the cross axis values of the ones above.
+   * The cross axis values of the ones above, for grid drags across columns.
    */
   private int mColumns = 1;
   private float mDragCrossGrabOffset = 0f;
@@ -66,7 +65,7 @@ class ShadowListDragController {
    * Match DRAG_EVENT_* in shadowlist-core/host/DragReorder.hpp.
    */
   private static final int DRAG_EVENT_START = 1;
-  private static final int DRAG_EVENT_END = 3;
+  static final int DRAG_EVENT_END = 3;
 
   /*
    * The other mounted rows for the drag math, refilled each frame. The arrays only grow, so
@@ -122,10 +121,8 @@ class ShadowListDragController {
   }
 
   /*
-   * Feeds the long press detector every event of the gesture. The list calls this from
-   * dispatchTouchEvent: once the inner scroll view scrolls it blocks onInterceptTouchEvent, and
-   * a detector that never sees the move or the lift fires its long press after the finger is
-   * gone, picking up a row nobody holds.
+   * Feeds the long press detector every event of the gesture, even once the scroll view stops
+   * passing them to onInterceptTouchEvent.
    */
   void trackGesture(MotionEvent event) {
     if (mDragEnabled) {
@@ -500,7 +497,7 @@ class ShadowListDragController {
   /*
    * Open a gap by sliding the rows between pickup and landing toward the empty slot.
    * Each moves by the held row's size, which is exactly where it ends up after the reorder.
-   * In a grid each cell moves to its new resting place, which can be in another column.
+   * In a grid a row can move to another column.
    */
   void applyDragShuffle() {
     collectRows();

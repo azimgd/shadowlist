@@ -2,6 +2,8 @@
 
 namespace azimgd::shadowlist {
 
+namespace {
+
 ScrollPhase scrollPhaseFromReport(double scrollPhase) {
   if (scrollPhase == SCROLL_PHASE_DRAGGING) {
     return ScrollPhase::Dragging;
@@ -12,19 +14,15 @@ ScrollPhase scrollPhaseFromReport(double scrollPhase) {
   return ScrollPhase::Idle;
 }
 
+}
+
 void applyHostScroll(FrameInput& input, const ListScrollState& state) {
   input.containerOffsetX = state.offsetX;
   input.containerOffsetY = state.offsetY;
   input.containerOffsetEnabled = state.offsetEnabled;
-  /*
-   * A real user scroll drops any pending correction so the user isn't snapped back.
-   * Without it a correction can get stuck and freeze the window, leaving a blank list.
-   */
+  // A real user scroll drops any pending correction so the user isn't snapped back.
   input.userScrolled = state.userScrolled;
-  /*
-   * The phase lasts across reports, so while a finger rests on the list the inverted bottom
-   * pin doesn't pull the content under it. See Container::gestureActive.
-   */
+  // The phase lasts across reports, see Container::gestureActive.
   input.scrollPhase = scrollPhaseFromReport(state.scrollPhase);
   // The token the host echoed back, so the core can spot its own write. 0 if none.
   input.commitToken = static_cast<std::uint64_t>(state.commitToken);

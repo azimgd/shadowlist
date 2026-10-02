@@ -7,8 +7,8 @@ type OnReorder<ItemT> = (info: {
 }) => void;
 
 /*
- * Move an item one place, the way a drop does. Screen readers use it, since they cannot drag.
- * It reads data at action time, so row renderers keep their identity across reorders.
+ * Moves an item one place for screen readers, reading data at action time so renderers keep
+ * their identity.
  */
 export function useMoveItem<ItemT extends { id: string }>(
   data: ReadonlyArray<ItemT>,

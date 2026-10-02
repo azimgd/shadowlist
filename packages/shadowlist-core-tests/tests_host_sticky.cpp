@@ -98,7 +98,7 @@ TEST(auto_hide_header_slides_away_with_user_scrolls_only) {
 TEST(auto_hide_header_shows_near_the_start) {
   StickyState state;
   state.headerHidden = 50.0;
-  state.lastOffset = 60.0;
+  state.previousOffset = 60.0;
   StickyInput input = listAt(40.0);
   input.autoHideHeader = true;
   input.accumulate = true;

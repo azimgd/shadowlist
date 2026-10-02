@@ -9,8 +9,8 @@ StickyTranslations stickyTranslations(const StickyInput& input, StickyState& sta
   double offset = input.offset;
   double headerSize = input.hasHeader ? input.headerSize : 0.0;
   double footerSize = input.hasFooter ? input.footerSize : 0.0;
-  double autoHideDelta = input.accumulate ? offset - state.lastOffset : 0.0;
-  state.lastOffset = offset;
+  double autoHideDelta = input.accumulate ? offset - state.previousOffset : 0.0;
+  state.previousOffset = offset;
 
   if (input.hasHeader) {
     if (input.autoHideHeader) {

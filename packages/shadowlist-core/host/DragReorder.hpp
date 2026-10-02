@@ -106,9 +106,7 @@ long dragGridInsertionPosition(const DragCells& cells, const DragRow& held, long
 
 /*
  * How far each grid cell slides to open the gap, written into shifts and crossShifts. Cells
- * go to columns in turn and stack end to end in their column, like the core lays them out,
- * so every cell between the origin and the drop spot moves to its new resting place, which
- * can be in another column. The stacks start from the resting frames of the mounted cells.
+ * are laid out again the way the core does, so a cell can move to another column.
  */
 void dragGridShifts(const DragCells& cells, const DragRow& held, long insertionIndex, std::size_t columns, double* shifts, double* crossShifts);
 
@@ -167,7 +165,9 @@ public:
   long insertionIndex() const { return insertionIndex_; }
   const std::string& originKey() const { return originKey_; }
   const std::string& insertionKey() const { return insertionKey_; }
-  // The held row's leading edge on the last placed frame, where it was let go on drop.
+  /*
+   * The held row's leading edge where it was placed, which is where it was let go on drop.
+   */
   double leading() const { return leading_; }
   double crossLeading() const { return crossLeading_; }
 
@@ -187,7 +187,7 @@ private:
   double crossLeading_ = 0.0;
   double crossCenter_ = 0.0;
   DragRow heldResting_;
-  // Grid shifts from the last updateInsertion, by index from offsetsBase_.
+  // Grid shifts from the previous updateInsertion, by index from offsetsBase_.
   long offsetsBase_ = 0;
   std::vector<DragOffset> offsets_;
 };
