@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { Animated } from 'react-native';
+import { Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useKeyboardAnimation } from 'shadowlist';
 
@@ -25,4 +25,16 @@ export function useKeyboardLift({
       outputRange: [0, -gap, -gap - 1],
     });
   }, [height, insets.bottom, gap]);
+}
+
+/*
+ * The same distance as useKeyboardLift, positive, for bottom padding under the list and
+ * composer column. Padding shrinks the list instead of moving it under the header, so a
+ * short thread stays in view and an inverted list keeps its newest rows above the composer.
+ */
+export function useKeyboardSpace(
+  options: UseKeyboardLiftOptions = {}
+): Animated.AnimatedMultiplication<number> {
+  const lift = useKeyboardLift(options);
+  return useMemo(() => Animated.multiply(lift, -1), [lift]);
 }

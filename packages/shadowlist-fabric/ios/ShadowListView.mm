@@ -175,6 +175,19 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 #if !TARGET_OS_OSX
     _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     _scrollView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
+#if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
+    /*
+     * iOS 26 fades the edge of a scroll view under a bar. It sizes that fade from where the
+     * list sits, so a list moved up with the keyboard kept a tall faded band over its top rows
+     * after it came back down. Turn the fade off.
+     */
+    if (@available(iOS 26.0, *)) {
+      _scrollView.topEdgeEffect.hidden = YES;
+      _scrollView.bottomEdgeEffect.hidden = YES;
+      _scrollView.leftEdgeEffect.hidden = YES;
+      _scrollView.rightEdgeEffect.hidden = YES;
+    }
+#endif
 #endif
 
     _contentView = [[RCTUIView alloc] init];

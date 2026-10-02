@@ -94,6 +94,18 @@ MountedRange visibleTargetRange(const MountedRange& window, const std::optional<
   return {std::max(0L, window.low - lowPad), std::min(size - 1, window.high + highPad)};
 }
 
+std::optional<ReportedRange> reportedMountedRange(const MountedRange& current, const MountedRange& window,
+  const std::optional<MountedRange>& lastWindow, bool firstReport, long size, long overscanRows,
+  long overscanRowsLeading, long minimumStep) {
+  bool holdsWindow = current.low >= 0 && window.low >= current.low && window.high <= current.high;
+  if (holdsWindow && !firstReport) {
+    return std::nullopt;
+  }
+  MountedRange target = visibleTargetRange(window, lastWindow, size, overscanRows, overscanRowsLeading);
+  MountedRange range = stepMountedRange(current, target, window, mountStepForWindow(window, minimumStep));
+  return ReportedRange{range, target};
+}
+
 std::optional<MountedRange> viewableWindow(long startIndex, long endIndex) {
   if (startIndex == -1 || endIndex == -1) {
     return std::nullopt;

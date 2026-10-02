@@ -6,11 +6,11 @@ import {
   grownMountedRange,
   initialMountedRange,
   rangeToIndices,
+  reportedMountedRange,
   shouldReseedFromOffsetIndex,
   stepMountedRange,
   mountStepForWindow,
   unionRangeIndices,
-  visibleTargetRange,
   type MountedRange,
 } from './mountedRange';
 
@@ -300,41 +300,22 @@ export function useMountedRange({
 
       setMountedKeys((previous) => {
         const current = resolveRange(previous);
-        // Already mounted, so skip the re-render.
-        if (
-          current.low >= 0 &&
-          windowLow >= current.low &&
-          windowHigh <= current.high
-        ) {
-          if (previous !== null) return previous;
-          /*
-           * The initial range still uses indices. Pin it to its edge keys, or a later prepend
-           * shifts rows out of it and they remount, losing state like a nested list's scroll
-           * position. The mounted rows stay the same, so nothing re-renders.
-           */
-          return {
-            lowKey: keys[current.low]!,
-            highKey: keys[current.high]!,
-            lowAtStart: current.low === 0,
-            highAtEnd: current.high === keys.length - 1,
-          };
-        }
-
-        // Pad ahead of where the user is going, see visibleTargetRange.
-        const { low: targetLow, high: targetHigh } = visibleTargetRange(
-          { low: windowLow, high: windowHigh },
+        const window = { low: windowLow, high: windowHigh };
+        // See reportedMountedRange, a first report trims the initial range.
+        const reported = reportedMountedRange(
+          current,
+          window,
           lastWindow,
+          previous === null,
           keys.length,
           overscanRows,
-          overscanRowsLeading
+          overscanRowsLeading,
+          MOUNT_STEP_ROWS
         );
-        const window = { low: windowLow, high: windowHigh };
-        const { low, high } = stepMountedRange(
-          current,
-          { low: targetLow, high: targetHigh },
-          window,
-          mountStepForWindow(window, MOUNT_STEP_ROWS)
-        );
+        // Already mounted, so skip the re-render.
+        if (reported === null) return previous;
+        const { low: targetLow, high: targetHigh } = reported.target;
+        const { low, high } = reported.range;
         mountTargetRef.current =
           low === targetLow && high === targetHigh
             ? null

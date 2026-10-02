@@ -29,7 +29,7 @@ import {
   Spinner,
   createStyles,
   defaultChatLabels,
-  useKeyboardLift,
+  useKeyboardSpace,
   useTheme,
   type ChatMessage,
   type ChatMessageStatus,
@@ -168,7 +168,7 @@ export const ChatNativeScreen = () => {
   const theme = useTheme();
   const { colors } = theme;
   const styles = useStyles();
-  const liftTranslateY = useKeyboardLift({ gap: KEYBOARD_GAP });
+  const keyboardSpace = useKeyboardSpace({ gap: KEYBOARD_GAP });
   const ordinals = useOrdinals();
 
   const [initialRows, setInitialRows] = useState<ChatNativeRow[] | null>(null);
@@ -465,9 +465,7 @@ export const ChatNativeScreen = () => {
 
   return (
     <View style={styles.screen}>
-      <Animated.View
-        style={[styles.lifted, { transform: [{ translateY: liftTranslateY }] }]}
-      >
+      <Animated.View style={[styles.lifted, { paddingBottom: keyboardSpace }]}>
         <KeyboardView style={styles.list}>
           <ShadowListNative
             ref={listRef}

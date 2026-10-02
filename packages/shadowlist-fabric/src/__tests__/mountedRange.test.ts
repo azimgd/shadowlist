@@ -5,6 +5,7 @@ import {
   mountStepForWindow,
   initialMountedRange,
   rangeToIndices,
+  reportedMountedRange,
   shouldReseedFromOffsetIndex,
   stepMountedRange,
   unionRangeIndices,
@@ -295,5 +296,91 @@ describe('visibleTargetRange', () => {
       low: 0,
       high: 9,
     });
+  });
+});
+
+describe('reportedMountedRange', () => {
+  it('trims the initial range to the screen plus overscan on the first report', () => {
+    expect(
+      reportedMountedRange(
+        { low: 0, high: 20 },
+        { low: 0, high: 2 },
+        null,
+        true,
+        100,
+        4,
+        10,
+        2
+      )
+    ).toEqual({ range: { low: 0, high: 6 }, target: { low: 0, high: 6 } });
+  });
+
+  it('keeps a range that holds the screen on later reports', () => {
+    expect(
+      reportedMountedRange(
+        { low: 0, high: 20 },
+        { low: 0, high: 2 },
+        { low: 0, high: 2 },
+        false,
+        100,
+        4,
+        10,
+        2
+      )
+    ).toBeNull();
+  });
+
+  it('trims an inverted list at its tail and a range seeded around a target', () => {
+    expect(
+      reportedMountedRange(
+        { low: 80, high: 99 },
+        { low: 95, high: 99 },
+        null,
+        true,
+        100,
+        4,
+        10,
+        2
+      )?.range
+    ).toEqual({ low: 91, high: 99 });
+    expect(
+      reportedMountedRange(
+        { low: 396, high: 420 },
+        { low: 400, high: 403 },
+        null,
+        true,
+        1000,
+        4,
+        10,
+        2
+      )?.range
+    ).toEqual({ low: 396, high: 407 });
+  });
+
+  it('mounts the screen now and paces the pad when the window is past the range', () => {
+    expect(
+      reportedMountedRange(
+        { low: 0, high: 20 },
+        { low: 30, high: 33 },
+        null,
+        true,
+        100,
+        4,
+        10,
+        2
+      )
+    ).toEqual({ range: { low: 28, high: 35 }, target: { low: 26, high: 37 } });
+    expect(
+      reportedMountedRange(
+        { low: 0, high: 20 },
+        { low: 30, high: 33 },
+        { low: 20, high: 23 },
+        false,
+        100,
+        4,
+        10,
+        2
+      )?.target
+    ).toEqual({ low: 26, high: 43 });
   });
 });

@@ -188,3 +188,40 @@ export function visibleTargetRange(
     high: Math.min(size - 1, window.high + highPad),
   };
 }
+
+/*
+ * What a visible rows report does to the mounted range: the next step and the target it steps
+ * toward, or null to keep the range. A range that already holds the window stays, except on
+ * the first report. The initial range is a guess made before layout, often twice the screen,
+ * so the first report trims it to the window plus overscan.
+ */
+export function reportedMountedRange(
+  current: MountedRange,
+  window: MountedRange,
+  lastWindow: MountedRange | null,
+  firstReport: boolean,
+  size: number,
+  overscanRows: number,
+  overscanRowsLeading: number,
+  minimumStep: number
+): { range: MountedRange; target: MountedRange } | null {
+  const holdsWindow =
+    current.low >= 0 &&
+    window.low >= current.low &&
+    window.high <= current.high;
+  if (holdsWindow && !firstReport) return null;
+  const target = visibleTargetRange(
+    window,
+    lastWindow,
+    size,
+    overscanRows,
+    overscanRowsLeading
+  );
+  const range = stepMountedRange(
+    current,
+    target,
+    window,
+    mountStepForWindow(window, minimumStep)
+  );
+  return { range, target };
+}

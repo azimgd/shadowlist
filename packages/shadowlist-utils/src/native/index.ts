@@ -38,7 +38,7 @@ export type { ItemSeparatorProps } from './primitives/ItemSeparator';
 export { SectionHeader } from './primitives/SectionHeader';
 export type { SectionHeaderProps } from './primitives/SectionHeader';
 
-export { useKeyboardLift } from './hooks/useKeyboardLift';
+export { useKeyboardLift, useKeyboardSpace } from './hooks/useKeyboardLift';
 export type { UseKeyboardLiftOptions } from './hooks/useKeyboardLift';
 
 export * from './feed';

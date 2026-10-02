@@ -88,6 +88,29 @@ TEST(mounted_range_visible_target_pads_ahead) {
   CHECK(sameRange(visibleTargetRange({2, 8}, std::nullopt, 10, 4, 12), 0, 9));
 }
 
+TEST(mounted_range_first_report_trims_the_initial_range) {
+  // Feed: 21 initial rows, 3 on screen. The first report keeps the screen plus overscan.
+  auto first = reportedMountedRange({0, 20}, {0, 2}, std::nullopt, true, 100, 4, 10, 2);
+  CHECK(first.has_value());
+  CHECK(sameRange(first->range, 0, 6));
+  CHECK(sameRange(first->target, 0, 6));
+  // Later reports inside the range keep it.
+  CHECK(!reportedMountedRange({0, 20}, {0, 2}, MountedRange{0, 2}, false, 100, 4, 10, 2).has_value());
+  // Inverted chat starts at the tail.
+  auto tail = reportedMountedRange({80, 99}, {95, 99}, std::nullopt, true, 100, 4, 10, 2);
+  CHECK(sameRange(tail->range, 91, 99));
+  // A start target keeps the rows around it.
+  auto seeded = reportedMountedRange({396, 420}, {400, 403}, std::nullopt, true, 1000, 4, 10, 2);
+  CHECK(sameRange(seeded->range, 396, 407));
+  // A window past the initial range mounts the screen now and paces the pad.
+  auto past = reportedMountedRange({0, 20}, {30, 33}, std::nullopt, true, 100, 4, 10, 2);
+  CHECK(sameRange(past->range, 28, 35));
+  CHECK(sameRange(past->target, 26, 37));
+  // A window outside the range moves it on any report.
+  auto moved = reportedMountedRange({0, 20}, {30, 33}, MountedRange{20, 23}, false, 100, 4, 10, 2);
+  CHECK(sameRange(moved->target, 26, 43));
+}
+
 TEST(viewability_window_and_sticky_index) {
   CHECK(viewableWindow(12, 4) == MountedRange({4, 12}));
   CHECK(viewableWindow(4, 12) == MountedRange({4, 12}));

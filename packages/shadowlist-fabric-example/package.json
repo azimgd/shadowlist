@@ -19,7 +19,7 @@
     "react-native-haptic-feedback": "3.0.0",
     "react-native-reanimated": "4.4.1",
     "react-native-safe-area-context": "5.8.0",
-    "react-native-screens": "4.25.2",
+    "react-native-screens": "patch:react-native-screens@npm%3A4.25.2#~/.yarn/patches/react-native-screens-npm-4.25.2-0de6719d95.patch",
     "react-native-worklets": "0.9.1"
   },
   "devDependencies": {

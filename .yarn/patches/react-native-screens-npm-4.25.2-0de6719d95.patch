@@ -1,0 +1,45 @@
+diff --git a/android/src/main/java/com/swmansion/rnscreens/Screen.kt b/android/src/main/java/com/swmansion/rnscreens/Screen.kt
+index 04c53160789e9ef19529c532f83331859630d5f9..8c3384702ed10bfb2170bf66e5071727cd9bc9a9 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/Screen.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/Screen.kt
+@@ -72,6 +72,11 @@ class Screen(
+     var isStatusBarAnimated: Boolean? = null
+     var isBeingRemoved = false
+ 
++    /*
++     * Every parent and child pair the removal transition started, so it can end them all.
++     */
++    private val removalTransitions = mutableListOf<Pair<ViewGroup, View>>()
++
+     // Props for controlling modal presentation
+     var isSheetGrabberVisible: Boolean = false
+ 
+@@ -451,6 +456,16 @@ class Screen(
+         }
+         isBeingRemoved = false
+         endTransitionRecursive(this)
++        /*
++         * React Native removes the views of a popped screen while it animates out. Those
++         * are no longer children, so the walk above misses them and they keep a stale
++         * parent, which breaks React Native's view recycling when they are reused.
++         */
++        for (i in removalTransitions.indices.reversed()) {
++            val (parent, child) = removalTransitions[i]
++            parent.endViewTransition(child)
++        }
++        removalTransitions.clear()
+     }
+ 
+     private fun endTransitionRecursive(parent: ViewGroup) {
+@@ -481,7 +496,10 @@ class Screen(
+                     // TODO: find a better way to handle this scenario
+                     it.addView(View(context), i)
+                 } else {
+-                    child?.let { view -> it.startViewTransition(view) }
++                    child?.let { view ->
++                        it.startViewTransition(view)
++                        removalTransitions.add(it to view)
++                    }
+                 }
+ 
+                 if (child is ScreenStackHeaderConfig) {

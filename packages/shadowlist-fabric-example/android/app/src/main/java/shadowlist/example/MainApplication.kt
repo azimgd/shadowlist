@@ -64,19 +64,8 @@ private class ShadowListEngineFlags(private val commitBranching: Boolean) :
 
   override fun enableAccumulatedUpdatesInRawPropsAndroid(): Boolean = true
 
-  // Lets view managers that opt in, like the list rows, reuse views.
+  // Lets view managers that opt in reuse views, React Native's View, Text and Image included.
   override fun enableViewRecycling(): Boolean = true
-
-  /*
-   * The master switch above also turns on React Native's own View, Text and Image recycling.
-   * That crashes on the second screen push: a view deleted with a popped screen is still in
-   * its old parent's view transition, and the reuse fails in addView. Keep those off.
-   */
-  override fun enableViewRecyclingForView(): Boolean = false
-
-  override fun enableViewRecyclingForText(): Boolean = false
-
-  override fun enableViewRecyclingForImage(): Boolean = false
 
   /*
    * Experimental, only with SHADOWLIST_COMMIT_BRANCHING. Branching keeps JS commits from

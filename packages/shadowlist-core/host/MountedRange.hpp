@@ -22,7 +22,7 @@ struct MountedRange {
 };
 
 // Default overscan rows on each side, matching SHADOWLIST_OVERSCAN.
-constexpr long DEFAULT_OVERSCAN_ROWS = 10;
+constexpr long DEFAULT_OVERSCAN_ROWS = 4;
 
 /*
  * How many appended rows an inverted list at its end mounts on top of its range. A bigger
@@ -77,6 +77,23 @@ MountedRange grownMountedRange(long lowIndex, long highIndex, bool lowAtStart, b
  */
 MountedRange visibleTargetRange(const MountedRange& window, const std::optional<MountedRange>& lastWindow, long size,
   long overscanRows, long overscanRowsLeading);
+
+/*
+ * The next step of the range after a visible rows report, and the target it steps toward.
+ */
+struct ReportedRange {
+  MountedRange range;
+  MountedRange target;
+};
+
+/*
+ * What a visible rows report does to the range, or nothing to keep it. A range that holds the
+ * window stays, except on the first report, which trims the initial guess to the window plus
+ * overscan.
+ */
+std::optional<ReportedRange> reportedMountedRange(const MountedRange& current, const MountedRange& window,
+  const std::optional<MountedRange>& lastWindow, bool firstReport, long size, long overscanRows,
+  long overscanRowsLeading, long minimumStep);
 
 /*
  * The viewable window from a host's start and end, low to high, or nothing when none is

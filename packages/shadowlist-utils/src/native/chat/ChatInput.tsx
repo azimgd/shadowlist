@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   View,
   TextInput,
@@ -40,6 +40,7 @@ export const ChatInput = ({
   const styles = useStyles();
   const l = useLabels(defaultChatLabels, labels);
   const insets = useSafeAreaInsets();
+  const inputRef = useRef<TextInput>(null);
   const [uncontrolledText, setUncontrolledText] = useState(defaultValue);
   const isControlled = value !== undefined;
   const text = isControlled ? value : uncontrolledText;
@@ -59,6 +60,8 @@ export const ChatInput = ({
     onSend(text.trim());
     if (!isControlled) {
       setUncontrolledText('');
+      // Clearing only through value keeps a grown multiline input tall on iOS.
+      inputRef.current?.clear();
     }
   };
 
@@ -72,6 +75,7 @@ export const ChatInput = ({
     >
       <View style={styles.inputContainer}>
         <TextInput
+          ref={inputRef}
           style={styles.input}
           value={text}
           onChangeText={handleChangeText}

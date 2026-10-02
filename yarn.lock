@@ -8021,6 +8021,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-native-screens@patch:react-native-screens@npm%3A4.25.2#~/.yarn/patches/react-native-screens-npm-4.25.2-0de6719d95.patch":
+  version: 4.25.2
+  resolution: "react-native-screens@patch:react-native-screens@npm%3A4.25.2#~/.yarn/patches/react-native-screens-npm-4.25.2-0de6719d95.patch::version=4.25.2&hash=c3e6e6"
+  dependencies:
+    react-freeze: "npm:^1.0.0"
+    warn-once: "npm:^0.1.0"
+  peerDependencies:
+    react: "*"
+    react-native: ">=0.82.0"
+  checksum: 10c0/e8830ac004920d333ba2247588677e875aea5283ddf9509f4c566d378dda927df3afa89f8e2069021dda98066ca09890641eb3346ec7c7e20ce5285ad3a461ef
+  languageName: node
+  linkType: hard
+
 "react-native-worklets@npm:0.9.1":
   version: 0.9.1
   resolution: "react-native-worklets@npm:0.9.1"
@@ -8533,7 +8546,7 @@ __metadata:
     react-native-monorepo-config: "npm:^0.3.3"
     react-native-reanimated: "npm:4.4.1"
     react-native-safe-area-context: "npm:5.8.0"
-    react-native-screens: "npm:4.25.2"
+    react-native-screens: "patch:react-native-screens@npm%3A4.25.2#~/.yarn/patches/react-native-screens-npm-4.25.2-0de6719d95.patch"
     react-native-worklets: "npm:0.9.1"
   languageName: unknown
   linkType: soft

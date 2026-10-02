@@ -23,7 +23,7 @@ import {
   type AssistantSuggestion,
   type AssistantTurn,
   createStyles,
-  useKeyboardLift,
+  useKeyboardSpace,
 } from 'shadowlist-utils/native';
 import {
   ASSISTANT_MODELS,
@@ -130,7 +130,7 @@ export const AssistantScreen = () => {
   const shadowlistRef = useRef<ShadowListCommands>(null);
   const composerRef = useRef<AssistantComposerHandle>(null);
 
-  const liftTranslateY = useKeyboardLift({ gap: KEYBOARD_GAP });
+  const keyboardSpace = useKeyboardSpace({ gap: KEYBOARD_GAP });
 
   const store = useMemo(() => createStreamStore(), []);
   const streamRef = useRef<ScriptPlayback | null>(null);
@@ -533,9 +533,7 @@ export const AssistantScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Animated.View
-        style={[styles.lifted, { transform: [{ translateY: liftTranslateY }] }]}
-      >
+      <Animated.View style={[styles.lifted, { paddingBottom: keyboardSpace }]}>
         <KeyboardView style={styles.list}>
           <Assistant.List
             data={data}

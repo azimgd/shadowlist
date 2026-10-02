@@ -127,7 +127,10 @@ export const AssistantComposer = forwardRef<
           if (options?.focus !== false) inputRef.current?.focus();
         },
         getDraft: () => textRef.current,
-        clearDraft: () => setText(''),
+        clearDraft: () => {
+          setText('');
+          inputRef.current?.clear();
+        },
         focus: () => inputRef.current?.focus(),
       }),
       []
@@ -141,6 +144,7 @@ export const AssistantComposer = forwardRef<
       if (!canSend) return;
       onSend(text.trim(), attachments);
       setText('');
+      inputRef.current?.clear();
     };
 
     return (

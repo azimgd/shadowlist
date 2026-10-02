@@ -9,7 +9,7 @@ import {
   Spinner,
   getChatMessageSizeSpec,
   createStyles,
-  useKeyboardLift,
+  useKeyboardSpace,
   useTheme,
   type ChatMessage,
 } from 'shadowlist-utils/native';
@@ -33,7 +33,7 @@ export const ChatScreen = () => {
   const shadowlistRef = useRef<ShadowListCommands>(null);
   const theme = useTheme();
   const styles = useStyles();
-  const liftTranslateY = useKeyboardLift({ gap: KEYBOARD_GAP });
+  const keyboardSpace = useKeyboardSpace({ gap: KEYBOARD_GAP });
 
   const messages = useChatMessagesQuery();
   const list = useInfiniteListProps(messages);
@@ -144,9 +144,7 @@ export const ChatScreen = () => {
 
   return (
     <View style={styles.container}>
-      <Animated.View
-        style={[styles.lifted, { transform: [{ translateY: liftTranslateY }] }]}
-      >
+      <Animated.View style={[styles.lifted, { paddingBottom: keyboardSpace }]}>
         <KeyboardView style={styles.list}>
           <Chat.List
             data={list.data}
