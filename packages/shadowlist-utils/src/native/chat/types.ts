@@ -2,7 +2,6 @@ export interface ChatAuthor {
   id: string;
   name: string;
   avatarUrl?: string;
-  // Derived from name when left out.
   avatarColor?: string;
 }
 
@@ -22,7 +21,6 @@ export interface ChatMessage {
   author: ChatAuthor;
   isOwn: boolean;
   text?: string;
-  // One image renders full size; two or more render as a grid of up to four.
   images?: ReadonlyArray<string>;
   createdAt?: number;
   status?: ChatMessageStatus;

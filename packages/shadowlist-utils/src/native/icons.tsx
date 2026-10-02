@@ -618,3 +618,42 @@ export const PencilIcon = ({
     </View>
   );
 };
+
+export const SearchIcon = ({
+  size = 17,
+  color: colorProp,
+  strokeWidth = 1.8,
+}: IconProps) => {
+  const color = useIconColor(colorProp, 'secondaryLabel');
+  const lens = size * 0.62;
+  const handle = size * 0.34;
+  return (
+    <View style={{ width: size, height: size }}>
+      <View
+        style={{
+          position: 'absolute',
+          top: size * 0.06,
+          left: size * 0.06,
+          width: lens,
+          height: lens,
+          borderRadius: lens / 2,
+          borderWidth: strokeWidth,
+          borderColor: color,
+        }}
+      />
+      <View
+        style={{
+          position: 'absolute',
+          top: size * 0.06 + lens * 0.85 + handle * 0.15,
+          left: size * 0.06 + lens * 0.85 - strokeWidth / 2,
+          width: handle,
+          height: strokeWidth,
+          borderRadius: strokeWidth,
+          backgroundColor: color,
+          transform: [{ rotate: '45deg' }],
+          transformOrigin: 'left center',
+        }}
+      />
+    </View>
+  );
+};

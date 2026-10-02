@@ -8,6 +8,7 @@ export type {
   ThemeSpacing,
   ThemeRadius,
   ThemeFonts,
+  ThemeGrouped,
   DeepPartial,
   ThemeProviderProps,
 } from './theme';
@@ -37,9 +38,21 @@ export { ItemSeparator } from './primitives/ItemSeparator';
 export type { ItemSeparatorProps } from './primitives/ItemSeparator';
 export { SectionHeader } from './primitives/SectionHeader';
 export type { SectionHeaderProps } from './primitives/SectionHeader';
+export { TemplateList } from './primitives/TemplateList';
+export type {
+  TemplateListProps,
+  TemplateMap,
+  TemplateRow,
+} from './primitives/TemplateList';
 
 export { useKeyboardLift, useKeyboardSpace } from './hooks/useKeyboardLift';
 export type { UseKeyboardLiftOptions } from './hooks/useKeyboardLift';
+export { useKeyboardVisible } from './hooks/useKeyboardVisible';
+export { useLargeText } from './hooks/useLargeText';
+
+export * from './controls';
+export * from './grouped';
+export * from './form';
 
 export * from './feed';
 export * from './chat';

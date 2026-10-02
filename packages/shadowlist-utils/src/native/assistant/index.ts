@@ -13,6 +13,7 @@ export type { AssistantThinkingProps } from './AssistantThinking';
 export type { AssistantToolCallCardProps } from './AssistantToolCallCard';
 export type { AssistantAttachmentChipProps } from './AssistantAttachmentChip';
 export type { AssistantTypingIndicatorProps } from './AssistantTypingIndicator';
+export type { AssistantActionButtonProps } from './AssistantActionButton';
 
 export { defaultAssistantLabels } from './labels';
 export type { AssistantLabels } from './labels';

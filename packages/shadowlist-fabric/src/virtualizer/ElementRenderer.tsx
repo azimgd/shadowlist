@@ -11,7 +11,6 @@ import { countRowRender, slTrace, slTraceEnabled } from './helpers';
  */
 export interface RowIndexStore {
   keyToIndex: ReadonlyMap<string, number>;
-  // Keys of mounted rows whose renderElement read the index.
   readers: Set<string>;
 }
 
@@ -28,10 +27,6 @@ interface ElementRendererProps<ElementT> {
   renderElement: (info: { element: ElementT; index: number }) => ReactElement;
   separator: ReactElement | null;
   nativeIndex: number;
-  /*
-   * Set only when trackElementSizes is on. Otherwise the row has no onLayout at all.
-   * Lists that don't track sizes pay nothing.
-   */
   onElementLayout?: (key: string, width: number, height: number) => void;
   onElementRelease?: (key: string) => void;
 }

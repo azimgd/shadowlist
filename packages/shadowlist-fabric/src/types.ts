@@ -17,19 +17,10 @@ export interface ViewToken<ElementT> {
 export interface ShadowListCommands {
   setStartReachedEnabled: (enabled: boolean) => void;
   setEndReachedEnabled: (enabled: boolean) => void;
-  /*
-   * Scroll the row at index into view. viewPosition 0 puts it at the start, which is
-   * the default, 0.5 in the middle and 1 at the end.
-   */
   scrollToIndex: (index: number, viewPosition?: number) => void;
   scrollToOffset: (offset: number, animated?: boolean) => void;
   scrollToEnd: (animated?: boolean) => void;
-  /*
-   * Size of a mounted row along the scroll axis. Undefined if the row is not mounted,
-   * not laid out yet, or trackElementSizes is off.
-   */
   getElementSize: (key: string) => number | undefined;
-  // Every size recorded so far. This is the live map, not a copy.
   getElementSizes: () => ReadonlyMap<string, number>;
 }
 
@@ -79,22 +70,8 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   stickyHeaderIndices?: ReadonlyArray<number>;
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
   columns?: number;
-  /*
-   * How many viewports past the visible area the core measures and lays out rows.
-   * This is native work only. overscanRows controls how much React mounts.
-   */
   overscan?: number;
-  /*
-   * How many rows React keeps mounted on each side of the visible area. Short rows like
-   * chat or contacts can afford the default of 4 behind and 10 ahead. A feed of full
-   * screen cards wants 1 or 2, since 10 rows ahead means 10 screens of React per fling.
-   * If a fling shows blank cells, raise it until they stop, but no further.
-   */
   overscanRows?: number;
-  /*
-   * Rows mounted ahead in the scroll direction during a fling, in place of overscanRows
-   * on that side. A list at rest uses overscanRows on both sides.
-   */
   overscanRowsLeading?: number;
   getElementSizeSpec?: (
     element: ElementT,
@@ -104,14 +81,6 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   persistentKeys?: ReadonlyArray<string>;
   nonAnchorKeys?: ReadonlyArray<string>;
   containerOffsetIndex?: number;
-  /*
-   * Record each mounted row's size along the scroll axis, readable with getElementSize
-   * and getElementSizes on the ref. Off by default since it adds an onLayout to every
-   * mounted row. Turn it on to place something next to a row, like a context menu.
-   *
-   * Set it once for the life of the list. Rows already mounted report nothing until
-   * their next layout, and turning it off drops every recorded size.
-   */
   trackElementSizes?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void;

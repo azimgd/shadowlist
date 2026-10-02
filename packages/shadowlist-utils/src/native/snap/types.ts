@@ -8,6 +8,5 @@ export interface SnapItem {
   title?: string;
   subtitle?: string;
   image?: SnapImage;
-  // Card background. Falls back to the theme's elevated color.
   color?: string;
 }

@@ -18,10 +18,6 @@ export interface AssistantToolCallCardProps {
   call: AssistantToolCall;
   labels?: Partial<AssistantLabels>;
   style?: StyleProp<ViewStyle>;
-  /*
-   * A row inside a group of calls rather than a card of its own: the group draws the background
-   * and corners, and every row after the first has a hairline above it, inset past the icon.
-   */
   grouped?: boolean;
   separated?: boolean;
 }

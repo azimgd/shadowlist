@@ -15,7 +15,6 @@ export type ReorderGridProps = Omit<
   'renderElement'
 > & {
   renderElement?: ShadowListProps<ReorderTileItem>['renderElement'];
-  // Every swatch takes this ratio, for even rows. Unset keeps each item's own ratio.
   tileAspectRatio?: number;
   labels?: Partial<ReorderLabels>;
 };

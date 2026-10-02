@@ -32,7 +32,6 @@ export type MarkdownBlock =
       type: 'code';
       language: string;
       code: string;
-      // False until the closing fence streams in.
       closed: boolean;
     })
   | (BlockBase & {
@@ -189,7 +188,6 @@ export interface MarkdownParse {
   blocks: MarkdownBlock[];
   ends: number[];
   endOffsets: number[];
-  // Index of the last line of source.
   lastLine: number;
 }
 

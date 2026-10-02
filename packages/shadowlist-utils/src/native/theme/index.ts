@@ -8,6 +8,7 @@ export type {
   ThemeSpacing,
   ThemeRadius,
   ThemeFonts,
+  ThemeGrouped,
 } from './Theme';
 export type { DeepPartial } from './DeepPartial';
 export { darkTheme } from './darkTheme';

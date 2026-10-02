@@ -20,7 +20,6 @@ export type ChatListProps = Omit<
   'renderElement'
 > & {
   renderElement?: RenderChatMessage;
-  // Passed to the default bubble. Keep them stable, or every mounted bubble re-renders.
   onRetryMessage?: (message: ChatMessage) => void;
   onLongPressMessage?: (message: ChatMessage) => void;
   labels?: Partial<ChatLabels>;

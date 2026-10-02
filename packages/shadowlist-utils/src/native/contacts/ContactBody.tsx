@@ -7,7 +7,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Avatar } from '../primitives/Avatar';
-import { useLargeText } from '../internal/useLargeText';
+import { useLargeText } from '../hooks/useLargeText';
 import { createStyles } from '../theme';
 import type { ContactItem } from './types';
 

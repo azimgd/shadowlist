@@ -16,7 +16,6 @@ import type { AssistantAttachment } from './types';
 
 export interface AssistantAttachmentChipProps {
   attachment: AssistantAttachment;
-  // Shows a remove button when given.
   onRemove?: (attachmentId: string) => void;
   labels?: Partial<AssistantLabels>;
   style?: StyleProp<ViewStyle>;

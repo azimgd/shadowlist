@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import {
   Reorder,
   ListFooter,
@@ -67,7 +67,7 @@ export const ReorderGridScreen = () => {
       <View>
         <ListFooter text={HINT} />
         {DEBUG ? (
-          <Text style={styles.statusText}>{lastMove || 'No moves yet'}</Text>
+          <ListFooter text={lastMove || 'No moves yet'} style={styles.status} />
         ) : null}
       </View>
     ),
@@ -92,7 +92,7 @@ export const ReorderGridScreen = () => {
   );
 };
 
-const useStyles = createStyles(({ colors, typography }) =>
+const useStyles = createStyles(({ colors }) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -102,11 +102,8 @@ const useStyles = createStyles(({ colors, typography }) =>
       flex: 1,
       backgroundColor: colors.background,
     },
-    statusText: {
-      color: colors.secondaryLabel,
-      ...typography.footnote,
-      textAlign: 'center',
-      paddingBottom: 12,
+    status: {
+      paddingTop: 0,
     },
   })
 );

@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 export interface UsePullToRefreshOptions {
-  // Gets any error from refresh. Without it the rejection goes unhandled.
   onError?: (error: unknown) => void;
 }
 

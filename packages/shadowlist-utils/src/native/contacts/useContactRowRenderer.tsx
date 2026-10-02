@@ -6,7 +6,6 @@ import type { ContactItem } from './types';
 
 export interface ContactRowOptions {
   onPressItem?: (item: ContactItem) => void;
-  // Enables swipe-to-delete on every row.
   onDelete?: (id: string) => void;
   disclosureIndicator?: boolean;
   labels?: Partial<ContactsLabels>;

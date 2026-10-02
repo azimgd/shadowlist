@@ -15,11 +15,6 @@ export interface InfiniteListQuery<DataT> {
 
 export interface UseInfiniteListPropsOptions {
   refresh?: () => Promise<unknown>;
-  /*
-   * Gets any error thrown by a page fetch or the refresh. React Query's own fetchers never
-   * reject, the error lands on the query. This is for custom fetchers. Without it the
-   * rejection goes unhandled.
-   */
   onError?: (error: unknown) => void;
 }
 

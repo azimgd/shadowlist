@@ -24,6 +24,7 @@ import { AssistantActionButton } from './AssistantActionButton';
 import { AssistantMarkdown } from './AssistantMarkdown';
 import { AssistantTypingIndicator } from './AssistantTypingIndicator';
 import { AssistantThinking } from './AssistantThinking';
+import { AssistantSourceChip } from './AssistantSourceChip';
 import { AssistantToolCallCard } from './AssistantToolCallCard';
 import { useStreamingTurn, type AssistantStreamStore } from './stream';
 import { AssistantBusy, AssistantLatest } from './rowState';
@@ -31,16 +32,13 @@ import type {
   AssistantToolCall,
   AssistantFeedback,
   AssistantReply,
-  AssistantSource,
   AssistantTurn,
 } from './types';
 
 export interface AssistantReplyMessageProps {
   message: AssistantReply;
   store: AssistantStreamStore;
-  // Show follow up suggestions only under the newest reply.
   isLatest?: boolean;
-  // Disables Regenerate and Retry while another reply is streaming.
   busy?: boolean;
   onCopy?: (text: string) => void;
   onCopyCode?: (code: string) => void;
@@ -48,13 +46,11 @@ export interface AssistantReplyMessageProps {
   onRegenerate?: (messageId: string) => void;
   onRetry?: (messageId: string) => void;
   onSelectVariant?: (messageId: string, variantIndex: number) => void;
-  // Passing undefined clears the reader's feedback.
   onFeedback?: (
     messageId: string,
     feedback: AssistantFeedback | undefined
   ) => void;
   onFollowUp?: (prompt: string) => void;
-  // Opens sources and Markdown links. By default only web and mailto links open.
   onOpenLink?: (url: string) => void;
   labels?: Partial<AssistantLabels>;
   style?: StyleProp<ViewStyle>;
@@ -103,45 +99,6 @@ function stepsOf(content: string, calls: readonly AssistantToolCall[]): Step[] {
   pushText(content.length);
   return steps;
 }
-
-const domainOf = (source: AssistantSource) =>
-  source.domain ?? source.url.replace(/^[a-z]+:\/\//i, '').split('/')[0];
-
-const SourceChip = memo(
-  ({
-    source,
-    index,
-    onOpenLink,
-    labels,
-  }: {
-    source: AssistantSource;
-    index: number;
-    onOpenLink: (url: string) => void;
-    labels: AssistantLabels;
-  }) => {
-    const styles = useStyles();
-    return (
-      <Pressable
-        onPress={() => onOpenLink(source.url)}
-        accessibilityRole="link"
-        accessibilityLabel={labels.source(index + 1, source.title)}
-        style={({ pressed }) => [styles.source, pressed && styles.pressed]}
-      >
-        <View style={styles.sourceIndex}>
-          <Text style={styles.sourceIndexText}>{index + 1}</Text>
-        </View>
-        <View style={styles.sourceMeta}>
-          <Text style={styles.sourceTitle} numberOfLines={1}>
-            {source.title}
-          </Text>
-          <Text style={styles.sourceDomain} numberOfLines={1}>
-            {domainOf(source)}
-          </Text>
-        </View>
-      </Pressable>
-    );
-  }
-);
 
 export const AssistantReplyMessage = memo(
   ({
@@ -270,7 +227,7 @@ export const AssistantReplyMessage = memo(
         {sources.length > 0 ? (
           <View style={styles.sources}>
             {sources.map((source, index) => (
-              <SourceChip
+              <AssistantSourceChip
                 key={source.id}
                 source={source}
                 index={index}
@@ -318,48 +275,52 @@ export const AssistantReplyMessage = memo(
               </AssistantActionButton>
             )}
           </AssistantBusy>
-          <AssistantActionButton
-            label={l.goodResponse}
-            selected={message.feedback === 'good'}
-            onPress={() =>
-              onFeedback?.(
-                message.id,
-                message.feedback === 'good' ? undefined : 'good'
-              )
-            }
-          >
-            <ArrowUpIcon
-              size={18}
-              strokeWidth={1.8}
-              color={
-                message.feedback === 'good'
-                  ? colors.accent
-                  : colors.secondaryLabel
-              }
-            />
-          </AssistantActionButton>
-          <AssistantActionButton
-            label={l.badResponse}
-            selected={message.feedback === 'bad'}
-            onPress={() =>
-              onFeedback?.(
-                message.id,
-                message.feedback === 'bad' ? undefined : 'bad'
-              )
-            }
-          >
-            <View style={styles.flipped}>
-              <ArrowUpIcon
-                size={18}
-                strokeWidth={1.8}
-                color={
-                  message.feedback === 'bad'
-                    ? colors.red
-                    : colors.secondaryLabel
+          {onFeedback ? (
+            <>
+              <AssistantActionButton
+                label={l.goodResponse}
+                selected={message.feedback === 'good'}
+                onPress={() =>
+                  onFeedback?.(
+                    message.id,
+                    message.feedback === 'good' ? undefined : 'good'
+                  )
                 }
-              />
-            </View>
-          </AssistantActionButton>
+              >
+                <ArrowUpIcon
+                  size={18}
+                  strokeWidth={1.8}
+                  color={
+                    message.feedback === 'good'
+                      ? colors.accent
+                      : colors.secondaryLabel
+                  }
+                />
+              </AssistantActionButton>
+              <AssistantActionButton
+                label={l.badResponse}
+                selected={message.feedback === 'bad'}
+                onPress={() =>
+                  onFeedback?.(
+                    message.id,
+                    message.feedback === 'bad' ? undefined : 'bad'
+                  )
+                }
+              >
+                <View style={styles.flipped}>
+                  <ArrowUpIcon
+                    size={18}
+                    strokeWidth={1.8}
+                    color={
+                      message.feedback === 'bad'
+                        ? colors.red
+                        : colors.secondaryLabel
+                    }
+                  />
+                </View>
+              </AssistantActionButton>
+            </>
+          ) : null}
           {turn.content ? (
             <AssistantActionButton
               label={l.share}
@@ -507,42 +468,6 @@ const useStyles = createStyles((theme) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: theme.spacing.sm,
-    },
-    source: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.sm,
-      maxWidth: 200,
-      paddingVertical: theme.spacing.xs + 2,
-      paddingLeft: theme.spacing.xs + 2,
-      paddingRight: theme.spacing.md,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.elevated,
-    },
-    sourceIndex: {
-      width: 20,
-      height: 20,
-      borderRadius: theme.radius.pill,
-      backgroundColor: theme.colors.fill,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    sourceIndexText: {
-      color: theme.colors.label,
-      fontSize: theme.fontSize.caption,
-      fontWeight: theme.fontWeight.semibold,
-    },
-    sourceMeta: {
-      flexShrink: 1,
-    },
-    sourceTitle: {
-      color: theme.colors.label,
-      ...theme.typography.caption,
-      fontWeight: theme.fontWeight.semibold,
-    },
-    sourceDomain: {
-      color: theme.colors.secondaryLabel,
-      ...theme.typography.caption,
     },
     actions: {
       flexDirection: 'row',

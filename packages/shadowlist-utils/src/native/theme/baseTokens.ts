@@ -98,6 +98,13 @@ const fonts = {
   mono: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
 } as const;
 
+const grouped = {
+  inset: 16,
+  radius: 10,
+  rowInset: 16,
+  rowHeight: 44,
+} as const;
+
 export const baseTokens = {
   typography,
   fontSize,
@@ -105,5 +112,7 @@ export const baseTokens = {
   spacing,
   radius,
   fonts,
+  grouped,
   rowInset: 68,
+  tapTarget: 44,
 } as const;

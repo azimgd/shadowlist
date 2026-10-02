@@ -1,3 +1,4 @@
+import { AssistantActionButton } from './AssistantActionButton';
 import { AssistantList } from './AssistantList';
 import { AssistantReplyMessage } from './AssistantReplyMessage';
 import { AssistantUserMessage } from './AssistantUserMessage';
@@ -22,4 +23,5 @@ export const Assistant = {
   ToolCallCard: AssistantToolCallCard,
   AttachmentChip: AssistantAttachmentChip,
   TypingIndicator: AssistantTypingIndicator,
+  ActionButton: AssistantActionButton,
 };

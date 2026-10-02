@@ -31,10 +31,6 @@ export type OnDragStart = {
 };
 
 export type OnDragEnd = {
-  /*
-   * Keys of the moved row and the row it was dropped next to. JS looks up their current
-   * index before moving. A data change during the drag can't move the wrong rows.
-   */
   fromKey: string;
   toKey: string;
 };
@@ -55,7 +51,6 @@ interface NativeCommands {
   scrollToIndex: (
     viewRef: React.ElementRef<ShadowListViewComponentType>,
     index: CodegenTypes.Int32,
-    // Where the row ends up on screen. 0 is the start, 0.5 the middle, 1 the end.
     viewPosition: CodegenTypes.Double
   ) => void;
   scrollToOffset: (

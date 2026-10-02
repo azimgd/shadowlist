@@ -7,9 +7,7 @@ import { createContext, useContext, type ReactElement } from 'react';
  * twice. Outside an AssistantList the defaults change nothing.
  */
 export interface AssistantRowState {
-  // Regenerate, Retry and Edit are off while a reply is streaming.
   busy: boolean;
-  // The newest reply, the only one that shows follow ups.
   latestId: string | undefined;
 }
 

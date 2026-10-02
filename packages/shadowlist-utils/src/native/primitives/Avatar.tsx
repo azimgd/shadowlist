@@ -13,7 +13,6 @@ import { getAvatarColor, getInitials } from './avatarAppearance';
 export interface AvatarProps {
   name: string;
   uri?: string;
-  // Defaults to a color from theme.colors.avatarPalette picked by name.
   color?: string;
   size?: number;
   style?: StyleProp<ViewStyle>;

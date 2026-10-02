@@ -21,7 +21,6 @@ export const BUBBLE_WIDTH_FRACTION = 0.75;
 export const BUBBLE_PADDING_HORIZONTAL = 14;
 
 export interface ChatMessageSizeSpecOptions {
-  // Set when the bubble shows a caption.
   caption?: boolean;
 }
 

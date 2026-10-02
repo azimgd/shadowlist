@@ -13,7 +13,7 @@ import {
 import { formatRelativeTime } from '../formatRelativeTime';
 import { useLabels } from '../labels';
 import { Avatar } from '../primitives/Avatar';
-import { useLargeText } from '../internal/useLargeText';
+import { useLargeText } from '../hooks/useLargeText';
 import { createStyles } from '../theme';
 import { defaultFeedLabels, type FeedLabels } from './labels';
 import type { FeedImage, FeedItem } from './types';

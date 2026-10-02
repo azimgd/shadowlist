@@ -19,7 +19,6 @@ import type { AssistantPrompt } from './types';
 
 export interface AssistantUserMessageProps {
   message: AssistantPrompt;
-  // Disables Edit while a reply is streaming.
   busy?: boolean;
   onCopy?: (text: string) => void;
   onEdit?: (messageId: string) => void;

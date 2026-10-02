@@ -16,7 +16,6 @@ import { defaultReorderLabels, type ReorderLabels } from './labels';
 
 export interface ReorderRowProps {
   item: ContactItem;
-  // Screen readers cannot drag. Moves are also offered as accessibility actions.
   onMove?: (id: string, offset: -1 | 1) => void;
   labels?: Partial<ReorderLabels>;
   style?: StyleProp<ViewStyle>;

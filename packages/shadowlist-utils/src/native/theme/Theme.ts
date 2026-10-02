@@ -4,6 +4,8 @@ export interface ThemeColors {
   background: string;
   elevated: string;
   elevated2: string;
+  groupedBackground: string;
+  groupedCell: string;
   label: string;
   secondaryLabel: string;
   tertiaryLabel: string;
@@ -14,6 +16,7 @@ export interface ThemeColors {
   onAccent: string;
   blue: string;
   green: string;
+  orange: string;
   red: string;
   redSoft: string;
   avatarPalette: ReadonlyArray<string>;
@@ -73,6 +76,16 @@ export interface ThemeRadius {
   pill: number;
 }
 
+/*
+ * Metrics of the iOS inset-grouped style: cards of rows on a grouped background.
+ */
+export interface ThemeGrouped {
+  inset: number;
+  radius: number;
+  rowInset: number;
+  rowHeight: number;
+}
+
 export interface ThemeFonts {
   mono: string;
 }
@@ -85,6 +98,7 @@ export interface Theme {
   spacing: ThemeSpacing;
   radius: ThemeRadius;
   fonts: ThemeFonts;
-  // Lines separators and section content up with the text column. Avatar 40, gutter 12 and padding 16.
+  grouped: ThemeGrouped;
+  tapTarget: number;
   rowInset: number;
 }

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, Text, StyleSheet } from 'react-native';
 import { createStyles } from '../theme';
 
-interface AssistantActionButtonProps {
+export interface AssistantActionButtonProps {
   label: string;
   onPress: () => void;
   children: ReactNode;

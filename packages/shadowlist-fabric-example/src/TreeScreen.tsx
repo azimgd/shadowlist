@@ -1,8 +1,13 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { type TreeListCommands } from 'shadowlist';
 import { collectExpandableIds } from 'shadowlist-utils';
-import { Tree, createStyles, type TreeNode } from 'shadowlist-utils/native';
+import {
+  ListFooter,
+  Tree,
+  createStyles,
+  type TreeNode,
+} from 'shadowlist-utils/native';
 import { useHeaderMenu } from './HeaderActions';
 import { DEBUG } from './launchSettings';
 import { QueryStatus } from './QueryStatus';
@@ -59,11 +64,10 @@ const FileTree = ({ tree }: { tree: TreeNode[] }) => {
   const footer = useMemo(
     () =>
       DEBUG ? (
-        <View style={styles.statusFooter}>
-          <Text style={styles.statusText}>
-            {`${openCount} of ${folderCount} folders open`}
-          </Text>
-        </View>
+        <ListFooter
+          text={`${openCount} of ${folderCount} folders open`}
+          style={styles.statusFooter}
+        />
       ) : null,
     [styles, openCount, folderCount]
   );
@@ -83,7 +87,7 @@ const FileTree = ({ tree }: { tree: TreeNode[] }) => {
   );
 };
 
-const useStyles = createStyles(({ colors, typography }) =>
+const useStyles = createStyles(({ colors }) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -95,15 +99,9 @@ const useStyles = createStyles(({ colors, typography }) =>
     },
     statusFooter: {
       width: '100%',
-      alignItems: 'center',
       paddingVertical: 10,
-      backgroundColor: colors.background,
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: colors.separator,
-    },
-    statusText: {
-      color: colors.secondaryLabel,
-      ...typography.footnote,
     },
   })
 );

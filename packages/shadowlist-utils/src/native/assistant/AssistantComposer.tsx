@@ -34,44 +34,26 @@ import { AssistantAttachmentChip } from './AssistantAttachmentChip';
 import type { AssistantAttachment } from './types';
 
 export interface AssistantComposerHandle {
-  /*
-   * Replaces the text and focuses the input, like when editing an earlier prompt. Pass
-   * focus false to keep the keyboard down, like while dictating.
-   */
   setDraft: (text: string, options?: { focus?: boolean }) => void;
   getDraft: () => string;
-  // Clears the text without focusing. The keyboard doesn't rise.
   clearDraft: () => void;
   focus: () => void;
 }
 
 export interface AssistantComposerProps {
-  // The composer clears its own text. The caller owns attachments and clears those.
   onSend: (text: string, attachments: readonly AssistantAttachment[]) => void;
-  // While a reply streams, Send becomes Stop.
   streaming: boolean;
   onStop?: () => void;
-  /*
-   * While a reply streams and there is text in the box, show Send rather than Stop: the caller
-   * takes a message sent mid-reply as "stop that and do this instead". Without it, the only way
-   * to redirect a reply that was going the wrong way was Stop, then retype, then Send -- and the
-   * text typed while waiting sat in the box with nowhere to go.
-   */
   sendWhileStreaming?: boolean;
   attachments?: readonly AssistantAttachment[];
-  // Shows the add attachment button when given.
   onPressAttach?: () => void;
   onRemoveAttachment?: (attachmentId: string) => void;
-  // Shows the model pill when given. Pressing it calls onPressModel to open a picker.
   model?: string;
   onPressModel?: () => void;
-  // Shows the thinking toggle when onThinkingChange is given.
   thinking?: boolean;
   onThinkingChange?: (enabled: boolean) => void;
-  // Shows the microphone button when onPressDictate is given. dictating marks it active.
   dictating?: boolean;
   onPressDictate?: () => void;
-  // Shows the editing banner.
   editing?: boolean;
   onCancelEdit?: () => void;
   maxLength?: number;

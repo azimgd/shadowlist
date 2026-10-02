@@ -19,7 +19,7 @@ import { Appearance, Platform, StatusBar, StyleSheet } from 'react-native';
 import { network } from './api/network';
 import { launchSetting } from './launchSettings';
 import './jsFrameMonitor';
-import { groupedColors, useAppTheme } from './appTheme';
+import { useAppTheme } from './appTheme';
 import { HomeScreen } from './HomeScreen';
 import { ContactDetailScreen } from './ContactDetailScreen';
 import { EXAMPLES, type RootStackParamList } from './routes';
@@ -118,7 +118,7 @@ export default function App() {
                     headerLargeTitle: true,
                     headerStyle:
                       Platform.OS === 'android'
-                        ? { backgroundColor: groupedColors(theme).page }
+                        ? { backgroundColor: theme.colors.groupedBackground }
                         : undefined,
                   }}
                 />

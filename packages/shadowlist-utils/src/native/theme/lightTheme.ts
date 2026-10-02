@@ -7,6 +7,8 @@ export const lightTheme = {
     background: '#FFFFFF',
     elevated: '#F2F2F7',
     elevated2: '#E5E5EA',
+    groupedBackground: '#F2F2F7',
+    groupedCell: '#FFFFFF',
     label: '#000000',
     secondaryLabel: 'rgba(60,60,67,0.6)',
     tertiaryLabel: 'rgba(60,60,67,0.3)',
@@ -17,6 +19,7 @@ export const lightTheme = {
     onAccent: '#FFFFFF',
     blue: '#007AFF',
     green: '#34C759',
+    orange: '#FF9500',
     red: '#FF3B30',
     redSoft: 'rgba(255,59,48,0.16)',
     avatarPalette: [

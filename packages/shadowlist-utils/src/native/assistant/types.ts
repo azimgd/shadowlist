@@ -2,9 +2,7 @@ export interface AssistantAttachment {
   id: string;
   kind: 'image' | 'file';
   name: string;
-  // A second line under the name, like a file size.
   detail?: string;
-  // Image preview. Without one, image chips show color or a neutral fill.
   uri?: string;
   color?: string;
 }
@@ -19,12 +17,6 @@ interface AssistantToolCallBase {
   id: string;
   name: string;
   input: string;
-  /*
-   * The length of the reply text when the call started. The row draws the text up to here,
-   * then the call, then the rest. Things read in the order they happened. Older calls
-
-   * don't have it and are drawn before the text.
-   */
   at?: number;
 }
 
@@ -56,14 +48,12 @@ export interface AssistantSource {
   id: string;
   title: string;
   url: string;
-  // Shown under the title. Taken from url when left out.
   domain?: string;
 }
 
 interface AssistantTurnBase {
   content: string;
   thinking?: string;
-  // Set once reasoning ends. Undefined while the model is still thinking.
   thinkingMs?: number;
   toolCalls?: readonly AssistantToolCall[];
 }
@@ -107,7 +97,6 @@ export interface AssistantPrompt {
 export interface AssistantReply {
   id: string;
   role: 'assistant';
-  // Versions of this reply. Regenerating adds one and the pager moves between them.
   variants: readonly AssistantTurn[];
   variantIndex: number;
   model?: string;

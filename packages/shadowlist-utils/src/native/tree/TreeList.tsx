@@ -19,7 +19,6 @@ export type TreeListProps = Omit<
   getChildren?: BaseProps['getChildren'];
   keyExtractor?: BaseProps['keyExtractor'];
   renderElement?: BaseProps['renderElement'];
-  // Called for rows without children; rows with children toggle instead.
   onPressItem?: (item: TreeNode) => void;
   labels?: Partial<TreeLabels>;
 };

@@ -8,7 +8,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useLabels } from '../labels';
-import { useLargeText } from '../internal/useLargeText';
+import { useLargeText } from '../hooks/useLargeText';
 import { getAvatarColor } from '../primitives/avatarAppearance';
 import { createStyles, useTheme } from '../theme';
 import { defaultReorderLabels, type ReorderLabels } from './labels';
@@ -16,9 +16,7 @@ import type { ReorderTileItem } from './types';
 
 export interface ReorderTileProps {
   item: ReorderTileItem;
-  // Moves are also offered as accessibility actions because screen readers cannot drag.
   onMove?: (id: string, offset: -1 | 1) => void;
-  // Overrides the item's swatch ratio. Every tile in the grid is the same size.
   aspectRatio?: number;
   labels?: Partial<ReorderLabels>;
   style?: StyleProp<ViewStyle>;

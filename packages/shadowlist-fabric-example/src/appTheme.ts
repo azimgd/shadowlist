@@ -7,10 +7,19 @@ import {
   type Theme,
 } from 'shadowlist-utils/native';
 
+// Inset-grouped cards are rounder on iOS 26 and Android than on older iOS.
+const GROUPED_RADIUS =
+  Platform.OS === 'ios' && parseInt(String(Platform.Version), 10) < 26
+    ? 10
+    : 26;
+
+const light = createTheme(lightTheme, { grouped: { radius: GROUPED_RADIUS } });
+const dark = createTheme(darkTheme, { grouped: { radius: GROUPED_RADIUS } });
+
 /*
  * Increase Contrast variants, using Apple's accessible system colors.
  */
-const lightHighContrast = createTheme(lightTheme, {
+const lightHighContrast = createTheme(light, {
   colors: {
     secondaryLabel: 'rgba(60,60,67,0.85)',
     tertiaryLabel: 'rgba(60,60,67,0.6)',
@@ -24,7 +33,7 @@ const lightHighContrast = createTheme(lightTheme, {
   },
 });
 
-const darkHighContrast = createTheme(darkTheme, {
+const darkHighContrast = createTheme(dark, {
   colors: {
     secondaryLabel: 'rgba(235,235,245,0.85)',
     tertiaryLabel: 'rgba(235,235,245,0.6)',
@@ -61,26 +70,14 @@ function useIncreasedContrast(): boolean {
 }
 
 export function useAppTheme(): { theme: Theme; dark: boolean } {
-  const dark = useColorScheme() === 'dark';
+  const isDark = useColorScheme() === 'dark';
   const highContrast = useIncreasedContrast();
-  const theme = dark
+  const theme = isDark
     ? highContrast
       ? darkHighContrast
-      : darkTheme
+      : dark
     : highContrast
       ? lightHighContrast
-      : lightTheme;
-  return { theme, dark };
-}
-
-export const GROUP_RADIUS =
-  Platform.OS === 'ios' && parseInt(String(Platform.Version), 10) < 26
-    ? 10
-    : 26;
-
-export function groupedColors(theme: Theme) {
-  const dark = theme.colors.background === darkTheme.colors.background;
-  return dark
-    ? { page: theme.colors.background, cell: theme.colors.elevated }
-    : { page: theme.colors.elevated, cell: theme.colors.background };
+      : light;
+  return { theme, dark: isDark };
 }

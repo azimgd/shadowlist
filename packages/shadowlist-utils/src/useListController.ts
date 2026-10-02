@@ -25,10 +25,6 @@ export interface UseListControllerOptions<
   onStartReached?: () => void | Promise<void>;
   onScroll?: (event: ScrollEventT) => void;
   onViewableItemsChanged?: (info: ViewableInfoT) => void;
-  /*
-   * Gets any error from onRefresh, onEndReached or onStartReached. Without it the rejection
-   * goes unhandled. The loading flag resets either way.
-   */
   onError?: (error: unknown) => void;
   scrollIdleMs?: number;
 }
@@ -153,9 +149,7 @@ export interface ListController<
   ) => void;
   prepend: (items: readonly ElementT[]) => void;
   append: (items: readonly ElementT[]) => void;
-  // Replaces rows whose id already exists and appends the rest.
   upsertItems: (items: readonly ElementT[]) => void;
-  // Replaces one row by id. Does nothing if the id is missing.
   updateItem: (id: string, update: (element: ElementT) => ElementT) => void;
   removeItems: (
     ids: readonly string[] | ((element: ElementT, index: number) => boolean)

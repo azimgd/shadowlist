@@ -42,7 +42,6 @@ export type AssistantListProps = Omit<
   ReplyHandlers & {
     renderElement?: ShadowListProps<AssistantMessage>['renderElement'];
     store: AssistantStreamStore;
-    // True while a reply streams. Turns off regenerate, retry and edit on every row.
     streaming?: boolean;
     onEdit?: (messageId: string) => void;
     labels?: Partial<AssistantLabels>;

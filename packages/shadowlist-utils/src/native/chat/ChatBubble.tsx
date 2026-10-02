@@ -18,9 +18,7 @@ import type { ChatMessage } from './types';
 
 export interface ChatBubbleProps {
   message: ChatMessage;
-  // A line under the message. When set, pass caption: true to getChatMessageSizeSpec too.
   caption?: string;
-  // Turns a failed message's status line into a retry button. Keep it stable, rows are memoized.
   onRetry?: (message: ChatMessage) => void;
   onLongPress?: (message: ChatMessage) => void;
   labels?: Partial<ChatLabels>;

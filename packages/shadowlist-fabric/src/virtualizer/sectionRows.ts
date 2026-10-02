@@ -47,7 +47,6 @@ export interface SectionRows<ElementT, SectionT> {
   hasFooter: boolean;
   isLastSection: boolean;
   rows: FlatRow<ElementT, SectionT>[];
-  // Where the element rows start in rows.
   elementStart: number;
 }
 

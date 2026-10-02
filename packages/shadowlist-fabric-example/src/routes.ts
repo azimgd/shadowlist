@@ -12,6 +12,7 @@ import { ReorderScreen } from './ReorderScreen';
 import { ReorderGridScreen } from './ReorderGridScreen';
 import { TreeScreen } from './TreeScreen';
 import { SnapScreen } from './SnapScreen';
+import { TemplatesScreen } from './TemplatesScreen';
 
 export type RootStackParamList = {
   Home: undefined;
@@ -30,7 +31,8 @@ export type ExampleRoute =
   | 'Reorder'
   | 'ReorderGrid'
   | 'Tree'
-  | 'Snap';
+  | 'Snap'
+  | 'Templates';
 
 export interface Example {
   route: ExampleRoute;
@@ -129,6 +131,17 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         title: 'Destinations',
         summary: 'Full-screen cards that snap into place',
         component: SnapScreen,
+      },
+    ],
+  },
+  {
+    title: 'Components',
+    examples: [
+      {
+        route: 'Templates',
+        title: 'Templates',
+        summary: 'Every reusable template on one page',
+        component: TemplatesScreen,
       },
     ],
   },

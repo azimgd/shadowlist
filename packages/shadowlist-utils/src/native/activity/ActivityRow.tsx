@@ -10,7 +10,7 @@ import {
 import { formatRelativeTime } from '../formatRelativeTime';
 import { useLabels } from '../labels';
 import { Avatar } from '../primitives/Avatar';
-import { useLargeText } from '../internal/useLargeText';
+import { useLargeText } from '../hooks/useLargeText';
 import { createStyles } from '../theme';
 import { defaultActivityLabels, type ActivityLabels } from './labels';
 import type { ActivityItem } from './types';

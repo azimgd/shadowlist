@@ -10,7 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useLabels } from '../labels';
-import { useLargeText } from '../internal/useLargeText';
+import { useLargeText } from '../hooks/useLargeText';
 import { createStyles } from '../theme';
 import { defaultMasonryLabels, type MasonryLabels } from './labels';
 import type { MasonryItem } from './types';

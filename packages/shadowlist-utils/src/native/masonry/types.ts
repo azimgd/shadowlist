@@ -1,6 +1,5 @@
 export interface MasonryImage {
   uri: string;
-  // Natural size. The card keeps this aspect ratio at any column width.
   width: number;
   height: number;
   alt?: string;

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { ChevronIcon, DocIcon, FolderIcon } from '../icons';
 import { useLabels } from '../labels';
-import { useLargeText } from '../internal/useLargeText';
+import { useLargeText } from '../hooks/useLargeText';
 import { createStyles, useTheme } from '../theme';
 import { defaultTreeLabels, type TreeLabels } from './labels';
 import type { TreeNode } from './types';
@@ -20,9 +20,7 @@ export interface TreeRowProps {
   isExpanded: boolean;
   hasChildren: boolean;
   onToggle: () => void;
-  // Called for rows without children; rows with children toggle instead.
   onPress?: (item: TreeNode) => void;
-  // Replaces the folder or file icon.
   icon?: ReactNode;
   labels?: Partial<TreeLabels>;
   style?: StyleProp<ViewStyle>;

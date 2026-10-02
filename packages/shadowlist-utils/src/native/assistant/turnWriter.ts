@@ -13,24 +13,15 @@ export interface CreateTurnWriterOptions {
   store: AssistantStreamStore;
   messageId: string;
   flushMs?: number;
-  // Gets the final turn, already in the store. Commit it to the list data here.
   onFinish?: (turn: AssistantTurn) => void;
 }
 
 export interface AssistantTurnWriter {
   readonly isFinished: boolean;
-  // How much text the reply holds so far: where a request that may be retried started writing.
   readonly contentLength: number;
   appendThinking: (text: string) => void;
   appendContent: (text: string) => void;
-  /*
-   * Takes the text back to `length`. A request that fails partway -- the connection drops, the
-   * server resets a long stream -- has already streamed some of its answer, and the retry
-   * streams it again from the start; leaving the first attempt's words on screen printed the same
-   * sentence two or three times over, run together.
-   */
   rewindContent: (length: number) => void;
-  // Returns the given id, or a generated one.
   startToolCall: (call: { id?: string; name: string; input: string }) => string;
   completeToolCall: (id: string, output: string) => void;
   failToolCall: (id: string, output?: string) => void;

@@ -7,6 +7,8 @@ export const darkTheme = {
     background: '#000000',
     elevated: '#1C1C1E',
     elevated2: '#2C2C2E',
+    groupedBackground: '#000000',
+    groupedCell: '#1C1C1E',
     label: '#FFFFFF',
     secondaryLabel: 'rgba(235,235,245,0.6)',
     tertiaryLabel: 'rgba(235,235,245,0.3)',
@@ -17,6 +19,7 @@ export const darkTheme = {
     onAccent: '#FFFFFF',
     blue: '#0A84FF',
     green: '#30D158',
+    orange: '#FF9F0A',
     red: '#FF453B',
     redSoft: 'rgba(255,69,59,0.16)',
     avatarPalette: [
