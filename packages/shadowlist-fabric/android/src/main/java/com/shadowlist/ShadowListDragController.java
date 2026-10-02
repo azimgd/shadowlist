@@ -117,13 +117,21 @@ class ShadowListDragController {
   }
 
   /*
-   * Feeds the long press detector. Returns true once a drag starts, taking the gesture
-   * away from the inner scroll view.
+   * Feeds the long press detector every event of the gesture. The list calls this from
+   * dispatchTouchEvent: once the inner scroll view scrolls it blocks onInterceptTouchEvent, and
+   * a detector that never sees the move or the lift fires its long press after the finger is
+   * gone, picking up a row nobody holds.
    */
-  boolean onInterceptTouchEvent(MotionEvent event) {
+  void trackGesture(MotionEvent event) {
     if (mDragEnabled) {
       mDragGestureDetector.onTouchEvent(event);
     }
+  }
+
+  /*
+   * Returns true once a drag starts, taking the gesture away from the inner scroll view.
+   */
+  boolean onInterceptTouchEvent(MotionEvent event) {
     return mDragging;
   }
 
@@ -131,9 +139,6 @@ class ShadowListDragController {
    * Returns true when the drag consumed the event.
    */
   boolean onTouchEvent(MotionEvent event) {
-    if (mDragEnabled) {
-      mDragGestureDetector.onTouchEvent(event);
-    }
     if (mDragging) {
       switch (event.getActionMasked()) {
         case MotionEvent.ACTION_MOVE:

@@ -677,6 +677,12 @@ public class ShadowListView extends FrameLayout {
   }
 
   @Override
+  public boolean dispatchTouchEvent(MotionEvent event) {
+    mDragController.trackGesture(event);
+    return super.dispatchTouchEvent(event);
+  }
+
+  @Override
   public boolean onInterceptTouchEvent(MotionEvent event) {
     if (mDragController.onInterceptTouchEvent(event)) {
       return true;
