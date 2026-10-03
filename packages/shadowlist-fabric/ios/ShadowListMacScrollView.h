@@ -5,7 +5,6 @@
 @protocol ShadowListMacScrollDelegate <RCTUIScrollViewDelegate>
 - (void)shadowListScrollWillBegin;
 - (void)shadowListScrollDidEnd;
-- (void)shadowListRefresh;
 @end
 
 typedef NS_ENUM(NSInteger, ShadowListMacScrollPhase) {

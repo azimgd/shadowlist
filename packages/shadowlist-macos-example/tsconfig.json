@@ -7,9 +7,6 @@
       "shadowlist": ["../shadowlist-fabric/src/index"],
       "shadowlist-utils": ["../shadowlist-utils/src/index"],
       "shadowlist-utils/native": ["../shadowlist-utils/src/native/index"],
-      "shadowlist-utils/native/theme": [
-        "../shadowlist-utils/src/native/theme/index"
-      ],
       "@example/*": ["../shadowlist-fabric-example/src/*"],
       "@tanstack/react-query": ["./node_modules/@tanstack/react-query"],
       "react": ["./node_modules/@types/react"],

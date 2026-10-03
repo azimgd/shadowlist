@@ -10,9 +10,10 @@ import { haptics } from '../haptics';
 import { useHeaderMenu } from './HeaderActions';
 import { DEBUG } from '../launchSettings';
 import { QueryStatus } from './QueryStatus';
+import { HOLD_TO_DRAG } from './holdToDrag';
 import { useReorderWishlist, useWishlistQuery } from '../queries/gallery';
 
-const HINT = 'Touch and hold a sight, then drag it anywhere in the grid.';
+const HINT = `${HOLD_TO_DRAG} a sight, then drag it anywhere in the grid.`;
 
 export const ReorderGridScreen = () => {
   const styles = useStyles();

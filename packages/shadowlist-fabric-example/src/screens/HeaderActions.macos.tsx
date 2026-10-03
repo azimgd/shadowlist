@@ -3,7 +3,7 @@ import {
   useEntryKey,
   useToolbarMenus,
   type MenuGroups,
-} from '../navigation/ToolbarMenu';
+} from '../../../shadowlist-macos-example/src/navigation/ToolbarMenu';
 
 /*
  * The same hooks the iOS and Android example screens call. On macOS the actions land in the

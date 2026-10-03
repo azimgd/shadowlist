@@ -420,9 +420,6 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   [self applyRefreshState:nextProps.refreshEnabled
                 refreshing:nextProps.refreshing
                      color:RCTUIColorFromSharedColor(nextProps.refreshColor)];
-#else
-  _refreshEnabled = nextProps.refreshEnabled;
-  _refreshing = nextProps.refreshing;
 #endif
 
   [super updateProps:props oldProps:oldProps];
@@ -835,13 +832,6 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     // A synchronous correction has no animation frames that could be mistaken for input.
     _scrollView.contentOffset = offset;
     [self clearUserScrolled];
-  }
-}
-
-- (void)shadowListRefresh
-{
-  if (_refreshEnabled && !_refreshing && _eventEmitter) {
-    std::static_pointer_cast<const ShadowListViewEventEmitter>(_eventEmitter)->onRefresh({});
   }
 }
 #endif

@@ -1,5 +1,5 @@
 import { useRef, useMemo } from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { type ShadowListCommands } from 'shadowlist';
 import { useInfiniteListProps } from 'shadowlist-utils';
 import { Feed, ListFooter, Spinner, useTheme } from 'shadowlist-utils/native';
@@ -21,16 +21,29 @@ export const FeedScreen = () => {
   const list = useInfiniteListProps(feed, { refresh: refreshFeed });
   const { mutate: publishPosts } = usePublishPosts();
 
-  useHeaderActions({
-    onPrepend: () => publishPosts(PUBLISH_COUNT),
-    onAppend: list.onEndReached,
-    onScrollToRandom: () =>
-      shadowlistRef.current?.scrollToIndex(
-        Math.floor(Math.random() * list.data.length)
-      ),
-    prependLabel: 'Publish New Posts',
-    appendLabel: 'Load More Posts',
-  });
+  useHeaderActions(
+    {
+      onPrepend: () => publishPosts(PUBLISH_COUNT),
+      onAppend: list.onEndReached,
+      onScrollToRandom: () =>
+        shadowlistRef.current?.scrollToIndex(
+          Math.floor(Math.random() * list.data.length)
+        ),
+      prependLabel: 'Publish New Posts',
+      appendLabel: 'Load More Posts',
+    },
+    Platform.OS === 'macos'
+      ? [
+          [
+            {
+              label: 'Refresh',
+              symbol: 'arrow.clockwise',
+              onPress: list.onRefresh,
+            },
+          ],
+        ]
+      : []
+  );
 
   const { hasNextPage } = feed;
   const footer = useMemo(

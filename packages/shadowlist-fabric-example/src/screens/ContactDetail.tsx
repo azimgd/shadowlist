@@ -6,7 +6,7 @@ import {
   type ContactItem,
 } from 'shadowlist-utils/native';
 
-export const ContactDetailScreen = ({ contact }: { contact: ContactItem }) => {
+export const ContactDetail = ({ contact }: { contact: ContactItem }) => {
   const styles = useStyles();
   return (
     <ScrollView

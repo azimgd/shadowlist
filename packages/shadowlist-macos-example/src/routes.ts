@@ -1,18 +1,18 @@
 import type { ComponentType } from 'react';
 import type { ContactItem } from 'shadowlist-utils/native';
-import { FeedScreen } from './screens/FeedScreen';
-import { ChatScreen } from './screens/ChatScreen';
-import { AssistantScreen } from './screens/AssistantScreen';
-import { ActivityScreen } from './screens/ActivityScreen';
-import { NestedScreen } from './screens/NestedScreen';
-import { MasonryScreen } from './screens/MasonryScreen';
-import { ContactsScreen } from './screens/ContactsScreen';
-import { SectionListScreen } from './screens/SectionListScreen';
-import { ReorderScreen } from './screens/ReorderScreen';
-import { ReorderGridScreen } from './screens/ReorderGridScreen';
-import { TreeScreen } from './screens/TreeScreen';
-import { SnapScreen } from './screens/SnapScreen';
-import { TemplatesScreen } from './screens/TemplatesScreen';
+import { FeedScreen } from '@example/screens/FeedScreen';
+import { ChatScreen } from '@example/screens/ChatScreen';
+import { AssistantScreen } from '@example/screens/AssistantScreen';
+import { ActivityScreen } from '@example/screens/ActivityScreen';
+import { NestedScreen } from '@example/screens/NestedScreen';
+import { MasonryScreen } from '@example/screens/MasonryScreen';
+import { ContactsScreen } from '@example/screens/ContactsScreen';
+import { SectionListScreen } from '@example/screens/SectionListScreen';
+import { ReorderScreen } from '@example/screens/ReorderScreen';
+import { ReorderGridScreen } from '@example/screens/ReorderGridScreen';
+import { TreeScreen } from '@example/screens/TreeScreen';
+import { SnapScreen } from '@example/screens/SnapScreen';
+import { TemplatesScreen } from '@example/screens/TemplatesScreen';
 
 export type Route =
   | { name: 'Home' }

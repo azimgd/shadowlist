@@ -17,7 +17,7 @@ import {
 import { Sidebar } from './navigation/Sidebar';
 import { MoreMenu, Toolbar } from './navigation/Toolbar';
 import { HomeScreen } from './screens/HomeScreen';
-import { ContactDetailScreen } from './screens/ContactDetailScreen';
+import { ContactDetail } from '@example/screens/ContactDetail';
 
 const INITIAL_ROUTE: Route = { name: 'Home' };
 
@@ -39,7 +39,7 @@ function Screen({ route }: { route: Route }) {
     case 'Home':
       return <HomeScreen />;
     case 'ContactDetail':
-      return <ContactDetailScreen contact={route.contact} />;
+      return <ContactDetail contact={route.contact} />;
     default: {
       const Component = EXAMPLES.find(
         (example) => example.route === route.name

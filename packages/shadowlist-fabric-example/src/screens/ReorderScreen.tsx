@@ -4,6 +4,7 @@ import { Reorder, ListFooter, type ContactItem } from 'shadowlist-utils/native';
 import { haptics } from '../haptics';
 import { useScreenStyles } from './screenStyles';
 import { QueryStatus } from './QueryStatus';
+import { HOLD_TO_DRAG } from './holdToDrag';
 import { useFavoritesQuery, useReorderFavorites } from '../queries/contacts';
 
 export const ReorderScreen = () => {
@@ -30,7 +31,9 @@ export const ReorderScreen = () => {
         style={styles.list}
         onReorder={handleReorder}
         ListHeaderComponent={
-          <ListFooter text="Touch and hold a traveller, then drag to change the order." />
+          <ListFooter
+            text={`${HOLD_TO_DRAG} a traveller, then drag to change the order.`}
+          />
         }
       />
     </View>

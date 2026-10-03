@@ -151,18 +151,5 @@ static const NSTimeInterval SLWheelIdleDelay = 0.15;
 {
   return YES;
 }
-
-- (BOOL)performKeyEquivalent:(NSEvent *)event
-{
-  NSResponder *responder = self.window.firstResponder;
-  BOOL focused = responder == self ||
-    ([responder isKindOfClass:NSView.class] && [(NSView *)responder isDescendantOf:self]);
-  if (focused && (event.modifierFlags & NSEventModifierFlagCommand) &&
-      [event.charactersIgnoringModifiers.lowercaseString isEqualToString:@"r"]) {
-    [self.delegate shadowListRefresh];
-    return YES;
-  }
-  return [super performKeyEquivalent:event];
-}
 @end
 #endif
