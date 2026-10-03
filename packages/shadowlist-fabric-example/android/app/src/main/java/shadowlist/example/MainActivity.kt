@@ -8,7 +8,6 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 
 class MainActivity : ReactActivity() {
 
-  /** The name of the root component registered from JavaScript. */
   override fun getMainComponentName(): String = "ShadowListExample"
 
   /** Keeps the SL* intent extras for JS, see [LaunchSettings]. */
@@ -17,7 +16,6 @@ class MainActivity : ReactActivity() {
     super.onCreate(savedInstanceState)
   }
 
-  /** Turns on the New Architecture through the [fabricEnabled] flag. */
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
 }

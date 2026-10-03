@@ -43,7 +43,6 @@ export function fetchChatPage(
 /*
  * The client picks the id and the server keeps it. The optimistic bubble and the stored message
  * then share one list key. Confirming a send never remounts the row.
-
  */
 export function createOutgoingMessage(text: string): ChatMessage {
   return {

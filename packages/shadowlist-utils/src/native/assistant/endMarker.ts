@@ -5,7 +5,6 @@ export const ASSISTANT_END_ID = 'assistant-end';
 /*
  * Append after the last message. It is an invisible but real row. When it is viewable
  * the bottom of the list is on screen.
-
  */
 export const ASSISTANT_END_MARKER: AssistantEndMarker = {
   id: ASSISTANT_END_ID,

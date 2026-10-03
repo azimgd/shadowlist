@@ -1,8 +1,5 @@
 #include <TargetConditionals.h>
-
-// Drag to reorder is iOS only because it needs UIKit gestures, display links and animations.
-#if !TARGET_OS_OSX
-
+#import <QuartzCore/QuartzCore.h>
 #import "ShadowListView.h"
 #import "ShadowListView+Internal.h"
 #import "ShadowListElementView.h"
@@ -19,15 +16,16 @@ using namespace facebook::react;
  * Give the lifted row's shadow an explicit shape. Without one, Core Animation renders the
  * row offscreen every frame to find its outline. Only rebuilt when the size changes.
  */
-static void SLUpdateDragShadowPath(UIView *view)
+static void SLUpdateDragShadowPath(RCTUIView *view)
 {
   CGRect bounds = view.bounds;
   CGPathRef current = view.layer.shadowPath;
   if (current && CGRectEqualToRect(CGPathGetBoundingBox(current), bounds)) {
     return;
   }
-  view.layer.shadowPath =
-    [UIBezierPath bezierPathWithRoundedRect:bounds cornerRadius:view.layer.cornerRadius].CGPath;
+  CGPathRef path = CGPathCreateWithRoundedRect(bounds, view.layer.cornerRadius, view.layer.cornerRadius, NULL);
+  view.layer.shadowPath = path;
+  CGPathRelease(path);
 }
 
 /*
@@ -45,17 +43,21 @@ static NSString *SLDragKey(const std::string& key)
 /*
  * Where the view sits without any drag offset applied.
  */
-- (CGRect)restingFrameForView:(UIView *)view
+- (CGRect)restingFrameForView:(RCTUIView *)view
 {
   CGSize size = view.bounds.size;
+#if TARGET_OS_OSX
+  CGPoint center = CGPointMake(CGRectGetMidX(view.frame), CGRectGetMidY(view.frame));
+#else
   CGPoint center = view.center;
+#endif
   return CGRectMake(center.x - size.width / 2.0, center.y - size.height / 2.0, size.width, size.height);
 }
 
 /*
  * A row's resting frame for the drag math, along and across the scroll axis.
  */
-- (azimgd::shadowlist::DragRow)dragRowForView:(UIView *)view index:(NSInteger)index
+- (azimgd::shadowlist::DragRow)dragRowForView:(RCTUIView *)view index:(NSInteger)index
 {
   CGRect resting = [self restingFrameForView:view];
   NSString *key = [self keyOfElementView:view];
@@ -78,10 +80,10 @@ static NSString *SLDragKey(const std::string& key)
 /*
  * The topmost row under a point in the content.
  */
-- (UIView *)elementViewAtContentPoint:(CGPoint)point
+- (RCTUIView *)elementViewAtContentPoint:(CGPoint)point
 {
-  UIView *result = nil;
-  for (UIView *subview in _contentView.subviews) {
+  RCTUIView *result = nil;
+  for (RCTUIView *subview in _contentView.subviews) {
     if (![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
     }
@@ -92,21 +94,21 @@ static NSString *SLDragKey(const std::string& key)
   return result;
 }
 
-- (void)handleDragGesture:(UILongPressGestureRecognizer *)gesture
+- (void)handleDragGesture:(SLDragGestureRecognizer *)gesture
 {
   switch (gesture.state) {
-    case UIGestureRecognizerStateBegan:
+    case SLGestureStateBegan:
       [self beginDragAtPoint:[gesture locationInView:self]];
       break;
-    case UIGestureRecognizerStateChanged:
+    case SLGestureStateChanged:
       _dragTouchInViewport = [gesture locationInView:self];
       [self updateDrag];
       break;
-    case UIGestureRecognizerStateEnded:
+    case SLGestureStateEnded:
       [self finishDrag];
       break;
-    case UIGestureRecognizerStateCancelled:
-    case UIGestureRecognizerStateFailed:
+    case SLGestureStateCancelled:
+    case SLGestureStateFailed:
       // The system or dragEnabled turning off took the touch. Put the row back, no reorder.
       [self cancelDrag];
       break;
@@ -124,7 +126,11 @@ static NSString *SLDragKey(const std::string& key)
   if (!_dragEnabled) {
     return;
   }
+#if TARGET_OS_OSX
+  CGPoint location = point.pointValue;
+#else
   CGPoint location = point.CGPointValue;
+#endif
   switch (phase.intValue) {
     case 1:
       [self beginDragAtPoint:location];
@@ -142,7 +148,7 @@ static NSString *SLDragKey(const std::string& key)
 - (void)beginDragAtPoint:(CGPoint)location
 {
   CGPoint contentPoint = [self convertPoint:location toView:_contentView];
-  UIView *view = [self elementViewAtContentPoint:contentPoint];
+  RCTUIView *view = [self elementViewAtContentPoint:contentPoint];
   NSInteger index = [self indexOfElementView:view];
   if (!view || index == NSNotFound) {
     return;
@@ -171,10 +177,10 @@ static NSString *SLDragKey(const std::string& key)
   _scrollView.scrollEnabled = NO;
 
   // Lift the row with a shadow so it looks picked up.
-  [_contentView bringSubviewToFront:view];
+  SLRaiseSubview(_contentView, view, 4.0);
   // The row now sits above the sticky views. The next pin raises them again.
   _stickyOrderDirty = YES;
-  view.layer.shadowColor = [UIColor blackColor].CGColor;
+  view.layer.shadowColor = [RCTUIColor blackColor].CGColor;
   view.layer.shadowOpacity = 0.25;
   view.layer.shadowRadius = 8.0;
   view.layer.shadowOffset = CGSizeMake(0.0, 4.0);
@@ -184,7 +190,7 @@ static NSString *SLDragKey(const std::string& key)
   NSString *originKey = SLDragKey(_drag.originKey());
   [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_START fromKey:originKey toKey:originKey];
 
-  _dragDisplayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
+  _dragDisplayLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
   [self updateDrag];
@@ -230,7 +236,7 @@ static NSString *SLDragKey(const std::string& key)
  */
 - (void)updateDrag
 {
-  UIView *view = _draggedView;
+  RCTUIView *view = _draggedView;
   if (!_dragging || !view) {
     return;
   }
@@ -272,7 +278,7 @@ static NSString *SLDragKey(const std::string& key)
   // Find where it would drop among the other mounted rows.
   std::vector<azimgd::shadowlist::DragRow> rows;
   rows.reserve(_contentView.subviews.count);
-  for (UIView *subview in _contentView.subviews) {
+  for (RCTUIView *subview in _contentView.subviews) {
     if (subview == _draggedView) {
       continue;
     }
@@ -292,7 +298,7 @@ static NSString *SLDragKey(const std::string& key)
  */
 - (void)applyDragShuffle
 {
-  for (UIView *subview in _contentView.subviews) {
+  for (RCTUIView *subview in _contentView.subviews) {
     if (subview == _draggedView ||
         ![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
@@ -309,14 +315,14 @@ static NSString *SLDragKey(const std::string& key)
  * Once the reorder lands, reset the other rows right away and animate the dropped row
  * from where it was released into its place.
  */
-- (void)settleDroppedView:(UIView *)view
+- (void)settleDroppedView:(RCTUIView *)view
 {
   if (!view) {
     [self clearDragTransforms];
     return;
   }
 
-  for (UIView *subview in _contentView.subviews) {
+  for (RCTUIView *subview in _contentView.subviews) {
     if (subview == view || ![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
     }
@@ -333,6 +339,30 @@ static NSString *SLDragKey(const std::string& key)
   }
   view.transform = [self dragTransformForOffset:start];
 
+#if TARGET_OS_OSX
+  CATransform3D released = view.layer.transform;
+  view.transform = CGAffineTransformIdentity;
+  CABasicAnimation *settle = [CABasicAnimation animationWithKeyPath:@"transform"];
+  settle.fromValue = [NSValue valueWithCATransform3D:released];
+  settle.toValue = [NSValue valueWithCATransform3D:CATransform3DIdentity];
+  settle.duration = 0.18;
+  settle.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+  __weak ShadowListView *weakSelf = self;
+  __weak RCTUIView *weakView = view;
+  [CATransaction begin];
+  [CATransaction setCompletionBlock:^{
+    ShadowListView *strongSelf = weakSelf;
+    RCTUIView *settled = weakView;
+    if (!strongSelf || !settled || (strongSelf->_dragging && strongSelf->_draggedView == settled)) {
+      return;
+    }
+    settled.layer.shadowOpacity = 0.0;
+    settled.layer.shadowPath = nil;
+    settled.layer.zPosition = 0.0;
+  }];
+  [view.layer addAnimation:settle forKey:@"transform"];
+  [CATransaction commit];
+#else
   [UIView animateWithDuration:0.18
                         delay:0.0
                       options:UIViewAnimationOptionCurveEaseOut
@@ -343,6 +373,7 @@ static NSString *SLDragKey(const std::string& key)
                      view.layer.shadowOpacity = 0.0;
                      view.layer.shadowPath = nil;
                    }];
+#endif
 }
 
 /*
@@ -350,7 +381,7 @@ static NSString *SLDragKey(const std::string& key)
  */
 - (void)clearDragTransforms
 {
-  for (UIView *subview in _contentView.subviews) {
+  for (RCTUIView *subview in _contentView.subviews) {
     if (![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
       continue;
     }
@@ -359,6 +390,9 @@ static NSString *SLDragKey(const std::string& key)
     subview.transform = CGAffineTransformIdentity;
     subview.layer.shadowOpacity = 0.0;
     subview.layer.shadowPath = nil;
+#if TARGET_OS_OSX
+    subview.layer.zPosition = 0.0;
+#endif
   }
 }
 
@@ -374,7 +408,7 @@ static NSString *SLDragKey(const std::string& key)
 
   NSInteger from = _drag.originIndex();
   NSInteger to = _drag.insertionIndex();
-  UIView *view = _draggedView;
+  RCTUIView *view = _draggedView;
   _dropReleaseLeading = _drag.leading();
   _dropReleaseCross = _drag.crossLeading();
   _dragging = NO;
@@ -403,7 +437,7 @@ static NSString *SLDragKey(const std::string& key)
      * new state. Watch for the row's index to reach its new spot.
      */
     [_dropSettleLink invalidate];
-    _dropSettleLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
+    _dropSettleLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
     [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
     /*
@@ -446,7 +480,7 @@ static NSString *SLDragKey(const std::string& key)
     return;
   }
   if ([self indexOfElementView:_droppedView] == _dropInsertionIndex) {
-    UIView *view = _droppedView;
+    RCTUIView *view = _droppedView;
     _dragDropPending = NO;
     _droppedView = nil;
     [_dropSettleLink invalidate];
@@ -498,7 +532,7 @@ static NSString *SLDragKey(const std::string& key)
  * For VoiceOver, give each row Move up and Move down actions while drag is on.
  * The handlers read the row's index and key when used. Data changes never leave them stale.
  */
-- (void)applyDragAccessibilityActionsToView:(UIView *)view
+- (void)applyDragAccessibilityActionsToView:(RCTUIView *)view
 {
   if (![view isKindOfClass:[ShadowListElementView class]]) {
     return;
@@ -510,7 +544,17 @@ static NSString *SLDragKey(const std::string& key)
   }
 
   __weak ShadowListView *weakSelf = self;
-  __weak UIView *weakView = view;
+  __weak RCTUIView *weakView = view;
+#if TARGET_OS_OSX
+  NSAccessibilityCustomAction *moveUp = [[NSAccessibilityCustomAction alloc]
+    initWithName:NSLocalizedString(@"Move up", nil) handler:^BOOL {
+      return [weakSelf performAccessibilityMove:weakView up:YES];
+    }];
+  NSAccessibilityCustomAction *moveDown = [[NSAccessibilityCustomAction alloc]
+    initWithName:NSLocalizedString(@"Move down", nil) handler:^BOOL {
+      return [weakSelf performAccessibilityMove:weakView up:NO];
+    }];
+#else
   UIAccessibilityCustomAction *moveUp = [[UIAccessibilityCustomAction alloc]
       initWithName:NSLocalizedString(@"Move up", nil)
      actionHandler:^BOOL(UIAccessibilityCustomAction *action) {
@@ -523,6 +567,7 @@ static NSString *SLDragKey(const std::string& key)
        (void)action;
        return [weakSelf performAccessibilityMove:weakView up:NO];
      }];
+#endif
   elementView.nativeAccessibilityActions = @[ moveUp, moveDown ];
 }
 
@@ -531,7 +576,7 @@ static NSString *SLDragKey(const std::string& key)
  * path as a real drop. onDragEnd and useDragReorder handle it as usual.
 
  */
-- (BOOL)performAccessibilityMove:(UIView *)view up:(BOOL)up
+- (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up
 {
   NSInteger index = [self indexOfElementView:view];
   if (index == NSNotFound) {
@@ -542,9 +587,9 @@ static NSString *SLDragKey(const std::string& key)
     return NO;
   }
 
-  UIView *neighbor = nil;
+  RCTUIView *neighbor = nil;
   NSInteger neighborIndex = up ? NSIntegerMin : NSIntegerMax;
-  for (UIView *subview in _contentView.subviews) {
+  for (RCTUIView *subview in _contentView.subviews) {
     if (subview == view) {
       continue;
     }
@@ -571,5 +616,3 @@ static NSString *SLDragKey(const std::string& key)
 }
 
 @end
-
-#endif // !TARGET_OS_OSX

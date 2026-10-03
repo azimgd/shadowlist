@@ -20,8 +20,8 @@ interface UseElementSizeSpecsOptions<ElementT> {
  * elementsAllKeys, measured at 86 us for 100k short keys and 1.88 ms for 100k long ones.
  * It also gives the core a new props pointer. The core then compares every key again.
  *
- * Sending every 16 rows paid that constantly. Now we only send when the specs would run out,
- * about once every lookaheadRows minus EDGE_MARGIN rows.
+ * Only send when the specs would run out, about once every lookaheadRows minus EDGE_MARGIN
+ * rows.
  */
 const EDGE_MARGIN = 24;
 

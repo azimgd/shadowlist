@@ -5,6 +5,7 @@ import {
   useReducer,
   useRef,
 } from 'react';
+import { Platform } from 'react-native';
 import { slTrace, slTraceEnabled } from './helpers';
 
 interface UseRefreshDeferOptions<ElementT> {
@@ -32,7 +33,8 @@ export function useRefreshDefer<ElementT>({
   inverted,
   horizontal,
 }: UseRefreshDeferOptions<ElementT>): UseRefreshDeferResult<ElementT> {
-  const refreshDeferEnabled = !!onRefresh && !inverted && !horizontal;
+  const refreshDeferEnabled =
+    Platform.OS !== 'macos' && !!onRefresh && !inverted && !horizontal;
 
   const refreshHoldingRef = useRef(false);
   const refreshHeldDataRef = useRef<ReadonlyArray<ElementT> | null>(null);

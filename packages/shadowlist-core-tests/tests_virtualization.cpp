@@ -2262,7 +2262,6 @@ TEST(prepend_while_bouncing_follows_the_idle_report_of_the_bounce_ending) {
  * top, then the new rows measure far from their estimate. The host reports back the first offset
  * after the core already moved the target. That report is not movement, and it does not confirm
  * the old target. The new target stands. Reaching it ends the correction with the reader's row in place.
-
  */
 TEST(prepend_after_a_pull_to_refresh_keeps_its_retarget_through_the_echo_of_the_first_write) {
   Fixture fixture;

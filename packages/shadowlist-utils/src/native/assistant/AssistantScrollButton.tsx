@@ -1,19 +1,15 @@
-import { memo, useEffect } from 'react';
+import { memo } from 'react';
 import {
   Pressable,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { useLabels } from '../labels';
 import { createStyles, useTheme } from '../theme';
 import { ChevronIcon } from '../icons';
 import { defaultAssistantLabels, type AssistantLabels } from './labels';
+import { FadeScaleView } from './motion';
 
 export interface AssistantScrollButtonProps {
   visible: boolean;
@@ -29,27 +25,16 @@ export const AssistantScrollButton = memo(
     const theme = useTheme();
     const styles = useStyles();
     const l = useLabels(defaultAssistantLabels, labels);
-    const progress = useSharedValue(visible ? 1 : 0);
-
-    useEffect(() => {
-      progress.value = withTiming(visible ? 1 : 0, { duration: FADE_MS });
-    }, [visible, progress]);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-      opacity: progress.value,
-      transform: [{ scale: 0.85 + progress.value * 0.15 }],
-    }));
-
     return (
-      <Animated.View
+      <FadeScaleView
+        visible={visible}
+        duration={FADE_MS}
         style={[
           styles.container,
           visible ? styles.interactive : styles.inert,
           style,
-          animatedStyle,
         ]}
         // Still mounted when faded out. Hide it from screen readers.
-
         accessibilityElementsHidden={!visible}
         importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
       >
@@ -67,7 +52,7 @@ export const AssistantScrollButton = memo(
             strokeWidth={2.2}
           />
         </Pressable>
-      </Animated.View>
+      </FadeScaleView>
     );
   }
 );

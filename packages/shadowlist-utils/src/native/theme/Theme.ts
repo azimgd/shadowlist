@@ -1,25 +1,30 @@
-import type { TextStyle } from 'react-native';
+import type { ColorValue, TextStyle } from 'react-native';
 
+/*
+ * A theme color is anything a style prop accepts, not only a CSS string.
+ * The macOS token set resolves to AppKit semantic colors, which stay
+ * appearance-reactive inside the renderer.
+ */
 export interface ThemeColors {
-  background: string;
-  elevated: string;
-  elevated2: string;
-  groupedBackground: string;
-  groupedCell: string;
-  label: string;
-  secondaryLabel: string;
-  tertiaryLabel: string;
-  separator: string;
-  fill: string;
-  accent: string;
-  accentSoft: string;
-  onAccent: string;
-  blue: string;
-  green: string;
-  orange: string;
-  red: string;
-  redSoft: string;
-  avatarPalette: ReadonlyArray<string>;
+  background: ColorValue;
+  elevated: ColorValue;
+  elevated2: ColorValue;
+  groupedBackground: ColorValue;
+  groupedCell: ColorValue;
+  label: ColorValue;
+  secondaryLabel: ColorValue;
+  tertiaryLabel: ColorValue;
+  separator: ColorValue;
+  fill: ColorValue;
+  accent: ColorValue;
+  accentSoft: ColorValue;
+  onAccent: ColorValue;
+  blue: ColorValue;
+  green: ColorValue;
+  orange: ColorValue;
+  red: ColorValue;
+  redSoft: ColorValue;
+  avatarPalette: ReadonlyArray<ColorValue>;
 }
 
 export interface ThemeTextStyle {

@@ -191,8 +191,8 @@ export function useListController<
   /*
    * Whether scrollStarted went out without a scrollEnded after it, and when the last scroll
    * event came. A scroll event then costs no dispatch and no timer call while scrolling
-   * goes on. Dispatching per event scheduled a render each time, and clearing and setting
-   * the idle timer per event is two native calls.
+   * goes on. Dispatching per event would schedule a render each time, and clearing and
+   * setting the idle timer per event is two native calls.
    */
   const scrollingRef = useRef(false);
   const lastScrollAtRef = useRef(0);

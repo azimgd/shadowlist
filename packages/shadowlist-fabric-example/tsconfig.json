@@ -5,6 +5,9 @@
       "shadowlist": ["../shadowlist-fabric/src/index"],
       "shadowlist-utils": ["../shadowlist-utils/src/index"],
       "shadowlist-utils/native": ["../shadowlist-utils/src/native/index"],
+      "shadowlist-utils/native/theme": [
+        "../shadowlist-utils/src/native/theme/index"
+      ],
       "react": ["./node_modules/@types/react"],
       "react/*": ["./node_modules/@types/react/*"],
       "react-native": [

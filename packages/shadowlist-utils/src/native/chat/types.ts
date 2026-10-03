@@ -1,8 +1,10 @@
+import type { ColorValue } from 'react-native';
+
 export interface ChatAuthor {
   id: string;
   name: string;
   avatarUrl?: string;
-  avatarColor?: string;
+  avatarColor?: ColorValue;
 }
 
 /*

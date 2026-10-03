@@ -100,7 +100,6 @@ export const ChatScreen = () => {
 
   /*
    * The caption is its own line. The predicted height includes it.
-
    * The spec already adds the status line of a failed message.
    */
   const getSizeSpec = useCallback(

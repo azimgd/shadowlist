@@ -1,11 +1,12 @@
+import type { ColorValue } from 'react-native';
+
 /*
  * A stable hash. A name keeps its color across sessions and list positions.
-
  */
 export function getAvatarColor(
   name: string,
-  palette: ReadonlyArray<string>
-): string | undefined {
+  palette: ReadonlyArray<ColorValue>
+): ColorValue | undefined {
   let hash = 0;
   for (let index = 0; index < name.length; index++) {
     hash = (hash * 31 + name.charCodeAt(index)) % 2147483647;

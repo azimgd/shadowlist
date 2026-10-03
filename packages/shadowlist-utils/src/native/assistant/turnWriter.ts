@@ -92,7 +92,6 @@ export function createTurnWriter({
   /*
    * Text after a tool call starts a new paragraph. Models narrate in pieces with nothing
    * between them. Without the break two sentences run together.
-
    */
   let afterCall = false;
 

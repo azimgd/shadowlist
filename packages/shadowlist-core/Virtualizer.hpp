@@ -190,9 +190,6 @@ public:
    */
   static void applyWindowSizeChange(Container* container, double previousWindowSize);
 
-  /*
-   * Recompute row positions starting at fromIndex.
-   */
   static void recomputeElementOffsets(
     Container* container,
     std::size_t fromIndex,

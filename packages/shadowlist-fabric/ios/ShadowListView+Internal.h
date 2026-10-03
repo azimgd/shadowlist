@@ -25,8 +25,7 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 
 /*
  * State and methods shared by the ShadowListView categories. Objective-C++ only.
- * Pull to refresh, drag to reorder and snap to item have no clean macOS version and are
- * left out there. Their plain state stays on both platforms so shared code needs no guards.
+ * Gesture and display-link adapters keep drag geometry shared across Apple platforms.
  */
 @interface ShadowListView () <RCTShadowListViewViewProtocol, RCTUIScrollViewDelegate> {
 @package
@@ -86,13 +85,11 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   uint64_t _scrollToTopJumpToken;
 
   BOOL _dragEnabled;
-#if !TARGET_OS_OSX
-  UILongPressGestureRecognizer *_dragRecognizer;
-  CADisplayLink *_dragDisplayLink;
-  __weak UIView *_draggedView;
-  __weak UIView *_droppedView;
-  CADisplayLink *_dropSettleLink;
-#endif
+  SLDragGestureRecognizer *_dragRecognizer;
+  SLDisplayLink *_dragDisplayLink;
+  __weak RCTUIView *_draggedView;
+  __weak RCTUIView *_droppedView;
+  SLDisplayLink *_dropSettleLink;
   BOOL _dragging;
   azimgd::shadowlist::DragReorder _drag;
   CGPoint _dragTouchInViewport;
@@ -112,17 +109,15 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 
 - (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey;
 
-#if !TARGET_OS_OSX
-- (void)handleDragGesture:(UILongPressGestureRecognizer *)gesture;
+- (void)handleDragGesture:(SLDragGestureRecognizer *)gesture;
 - (void)updateDrag;
 - (void)applyDragShuffle;
 - (void)clearDragTransforms;
 - (void)cancelDrag;
 - (void)teardownDrag;
-- (void)settleDroppedView:(UIView *)view;
+- (void)settleDroppedView:(RCTUIView *)view;
 
-- (void)applyDragAccessibilityActionsToView:(UIView *)view;
-- (BOOL)performAccessibilityMove:(UIView *)view up:(BOOL)up;
-#endif
+- (void)applyDragAccessibilityActionsToView:(RCTUIView *)view;
+- (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up;
 
 @end

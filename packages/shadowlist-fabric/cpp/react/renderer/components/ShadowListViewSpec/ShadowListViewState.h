@@ -38,7 +38,7 @@ using ShadowListLiveScroll = azimgd::shadowlist::LiveScroll;
  * SHADOWLIST_SCROLL_BAND: hosts write every scroll frame into ShadowListLiveScroll and only
  * send a state update, which is a full commit, when the offset leaves the band the layout
  * pass published or something else the core needs changed. With the switch off the layout
- * pass publishes an empty band and both hosts send every frame like before. Set the
+ * pass publishes an empty band and both hosts send every frame. Set the
  * environment variable SHADOWLIST_SCROLL_BAND=0 to turn it off. Android apps get no launch
  * environment. There only the define counts.
  *

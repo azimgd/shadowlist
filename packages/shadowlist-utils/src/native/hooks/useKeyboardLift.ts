@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Animated } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from '../internal/safeAreaInsets';
 import { useKeyboardAnimation } from 'shadowlist';
 
 export interface UseKeyboardLiftOptions {

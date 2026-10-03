@@ -15,11 +15,18 @@ export type {
 export {
   darkTheme,
   lightTheme,
+  macOSAppKitTheme,
   ThemeProvider,
   useTheme,
+  systemTheme,
   createTheme,
   createStyles,
+  cssColor,
+  semantic,
+  dynamic,
+  withEffect,
 } from './theme';
+export type { DynamicColorMacOSTuple, SystemEffectMacOS } from './theme';
 export { useLabels } from './labels';
 export { formatRelativeTime } from './formatRelativeTime';
 export type { RelativeTimeLabels } from './formatRelativeTime';

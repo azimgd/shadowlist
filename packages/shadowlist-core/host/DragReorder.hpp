@@ -107,7 +107,6 @@ long dragGridInsertionPosition(const DragCells& cells, const DragRow& held, long
 /*
  * How far each grid cell slides to open the gap, written into shifts and crossShifts. Cells
  * are laid out again the way the core does. A cell can move to another column.
-
  */
 void dragGridShifts(const DragCells& cells, const DragRow& held, long insertionIndex, std::size_t columns, double* shifts, double* crossShifts);
 

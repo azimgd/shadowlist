@@ -1,7 +1,7 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useTheme, type IconProps } from 'shadowlist-utils/native';
 
-const useIconColor = (color: string | undefined): string => {
+const useIconColor = (color: ColorValue | undefined): ColorValue => {
   const theme = useTheme();
   return color ?? theme.colors.label;
 };

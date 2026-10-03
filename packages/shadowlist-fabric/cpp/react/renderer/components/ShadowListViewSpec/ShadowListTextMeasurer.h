@@ -6,7 +6,12 @@
 #include <react/renderer/attributedstring/AttributedStringBox.h>
 #include <react/renderer/attributedstring/ParagraphAttributes.h>
 #include <react/renderer/attributedstring/TextAttributes.h>
+#if __has_include(<react/renderer/components/text/BaseParagraphComponentDescriptor.h>)
 #include <react/renderer/components/text/BaseParagraphComponentDescriptor.h>
+#else
+// RN macOS 0.83 declares TextLayoutManagerKey on the paragraph descriptor.
+#include <react/renderer/components/text/ParagraphComponentDescriptor.h>
+#endif
 #include <react/renderer/core/LayoutConstraints.h>
 #include <react/renderer/textlayoutmanager/TextLayoutManager.h>
 #include <react/utils/ContextContainer.h>
@@ -191,6 +196,8 @@ inline azimgd::shadowlist::Size measureElementSizeSpec(
 
   TextAttributes textAttributes;
   textAttributes.fontSize = static_cast<Float>(spec.fontSize);
+  // iOS reads an unset multiplier as 1. RN macOS passes NaN to the font and asserts.
+  textAttributes.fontSizeMultiplier = 1.0;
   if (!spec.fontFamily.empty()) {
     textAttributes.fontFamily = spec.fontFamily;
   }

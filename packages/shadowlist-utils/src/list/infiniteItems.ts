@@ -151,7 +151,6 @@ export function upsertInfiniteItems<DataT extends AnyInfinitePages>(
 /**
  * Keeps only the first `pageCount` loaded pages. A refetch loads every cached page one by
  * one. After a long scroll a pull to refresh can take seconds. Trimming to the first
-
  * page makes it one request, and a reader pulling at the top never sees the dropped rows.
  */
 export function trimInfinitePages<DataT extends AnyInfinitePages>(

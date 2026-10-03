@@ -93,7 +93,6 @@ function cardinalWords(value: number): string[] {
   return ones === 0 ? [tens] : [tens, ONES[ones]!];
 }
 
-// Turns twenty into twentieth, nine into ninth and hundred into hundredth.
 const ORDINAL_IRREGULARS: Record<string, string> = {
   one: 'first',
   two: 'second',
@@ -104,6 +103,9 @@ const ORDINAL_IRREGULARS: Record<string, string> = {
   twelve: 'twelfth',
 };
 
+/*
+ * Turns twenty into twentieth, nine into ninth and hundred into hundredth.
+ */
 function toOrdinalWord(word: string): string {
   const irregular = ORDINAL_IRREGULARS[word];
   if (irregular !== undefined) return irregular;

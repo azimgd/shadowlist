@@ -275,8 +275,7 @@ public class ShadowListView extends FrameLayout {
     }
 
     /*
-     * Track the finger here, not in onTouchEvent. A row takes the touch first and
-     * onTouchEvent misses the down event. Dispatch sees the whole gesture.
+     * Same as InnerVerticalScrollView.dispatchTouchEvent.
      */
     @Override
     public boolean dispatchTouchEvent(MotionEvent event) {

@@ -1,0 +1,28 @@
+{
+  "name": "shadowlist-macos-example",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "macos": "react-native run-macos",
+    "start": "react-native start",
+    "build:macos": "react-native build-macos --mode Debug",
+    "pods": "pod install --project-directory=macos"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.101.0",
+    "react": "19.2.3",
+    "react-native": "0.83.10",
+    "react-native-macos": "0.83.0",
+    "shadowlist": "workspace:*"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "20.1.0",
+    "@react-native-community/cli-platform-ios": "20.1.0",
+    "@react-native/babel-preset": "0.83.10",
+    "@react-native/metro-config": "0.83.10",
+    "@react-native/typescript-config": "0.83.10",
+    "@types/react": "^19.2.0"
+  }
+}

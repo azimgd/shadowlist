@@ -6,7 +6,6 @@ import { fetchAssistantHistory, sendAssistantFeedback } from '../api/assistant';
  * The conversation changes locally all the time. It lives in the screen's list controller,
  * not the cache. React Query only fetches earlier history, which never changes once loaded.
  * Each page is cached for good.
-
  */
 export function useFetchAssistantHistory() {
   const queryClient = useQueryClient();

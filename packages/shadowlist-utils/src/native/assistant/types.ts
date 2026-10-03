@@ -1,10 +1,12 @@
+import type { ColorValue } from 'react-native';
+
 export interface AssistantAttachment {
   id: string;
   kind: 'image' | 'file';
   name: string;
   detail?: string;
   uri?: string;
-  color?: string;
+  color?: ColorValue;
 }
 
 /*

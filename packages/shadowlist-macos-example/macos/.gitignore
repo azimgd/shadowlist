@@ -1,0 +1,8 @@
+# CocoaPods
+Pods/
+
+# Xcode
+xcuserdata
+*.xcuserstate
+DerivedData
+.xcode.env.local

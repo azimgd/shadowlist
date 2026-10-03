@@ -81,7 +81,6 @@ public:
   bool endReachedEnabled = true;
   bool startReachedEnabled = true;
 
-  // The current revision and its number.
   Revision revision = {};
   std::size_t revisionCount = REVISION_COUNT_FIRST;
 

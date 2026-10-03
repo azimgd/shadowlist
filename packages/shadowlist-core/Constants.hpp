@@ -8,7 +8,6 @@ namespace azimgd::shadowlist {
 
 constexpr std::size_t UNDEFINED_INDEX = static_cast<std::size_t>(-1);
 
-// Index of the first revision.
 constexpr std::size_t REVISION_COUNT_FIRST = 0;
 
 // The smallest offset change that counts as a real move.

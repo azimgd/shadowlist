@@ -100,8 +100,8 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
 
     /*
      * Rows read busy and the newest reply from context, down in the buttons and follow ups
-     * that use them. In renderElement they gave it a new identity when a reply started and
-     * again when it ended, which rebuilt every mounted row both times.
+     * that use them. In renderElement they would give it a new identity when a reply starts
+     * and again when it ends, rebuilding every mounted row both times.
      */
     const rowState = useMemo<AssistantRowState>(
       () => ({ busy: streaming, latestId }),

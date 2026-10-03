@@ -1,5 +1,11 @@
 import { memo, useMemo } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  type ColorValue,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { useTheme } from '../theme';
 import { clampFraction } from './ProgressBar';
 
@@ -7,8 +13,8 @@ export interface ProgressRingProps {
   fraction: number;
   size?: number;
   strokeWidth?: number;
-  color?: string;
-  trackColor?: string;
+  color?: ColorValue;
+  trackColor?: ColorValue;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -99,8 +105,8 @@ function capAt(degrees: number, size: number, strokeWidth: number) {
 function ringStyles(
   size: number,
   strokeWidth: number,
-  color: string,
-  trackColor: string
+  color: ColorValue,
+  trackColor: ColorValue
 ) {
   const radius = size / 2;
   return StyleSheet.create({

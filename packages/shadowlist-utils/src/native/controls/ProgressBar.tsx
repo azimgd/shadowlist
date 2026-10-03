@@ -1,11 +1,17 @@
 import { memo } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  StyleSheet,
+  View,
+  type ColorValue,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { createStyles, useTheme } from '../theme';
 
 export interface ProgressBarProps {
   fraction: number;
   accessibilityLabel: string;
-  color?: string;
+  color?: ColorValue;
   height?: number;
   style?: StyleProp<ViewStyle>;
 }

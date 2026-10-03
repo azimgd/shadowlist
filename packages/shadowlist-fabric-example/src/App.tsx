@@ -12,7 +12,7 @@ import {
   createNativeStackNavigator,
   type NativeStackNavigationOptions,
 } from '@react-navigation/native-stack';
-import { ThemeProvider } from 'shadowlist-utils/native';
+import { cssColor, ThemeProvider } from 'shadowlist-utils/native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './queries/queryClient';
 import { Appearance, Platform, StatusBar, StyleSheet } from 'react-native';
@@ -59,11 +59,11 @@ export default function App() {
       ...base,
       colors: {
         ...base.colors,
-        background: colors.background,
-        card: colors.background,
-        text: colors.label,
-        border: colors.separator,
-        primary: colors.accent,
+        background: cssColor(colors.background),
+        card: cssColor(colors.background),
+        text: cssColor(colors.label),
+        border: cssColor(colors.separator),
+        primary: cssColor(colors.accent),
       },
     };
   }, [dark, theme]);
@@ -72,17 +72,17 @@ export default function App() {
     const { colors } = theme;
     return Platform.OS === 'ios'
       ? {
-          headerTintColor: colors.accent,
-          headerTitleStyle: { color: colors.label },
-          headerLargeTitleStyle: { color: colors.label },
+          headerTintColor: cssColor(colors.accent),
+          headerTitleStyle: { color: cssColor(colors.label) },
+          headerLargeTitleStyle: { color: cssColor(colors.label) },
           headerLargeTitleShadowVisible: false,
           headerBackButtonDisplayMode: 'minimal',
         }
       : {
-          headerTintColor: colors.accent,
+          headerTintColor: cssColor(colors.accent),
           headerTitleAlign: 'center',
-          headerTitleStyle: { color: colors.label },
-          headerStyle: { backgroundColor: colors.background },
+          headerTitleStyle: { color: cssColor(colors.label) },
+          headerStyle: { backgroundColor: cssColor(colors.background) },
           headerShadowVisible: false,
           animation: 'slide_from_right',
         };
@@ -93,7 +93,7 @@ export default function App() {
    */
   const exampleOptions = useMemo<NativeStackNavigationOptions>(
     () => ({
-      headerStyle: { backgroundColor: theme.colors.background },
+      headerStyle: { backgroundColor: cssColor(theme.colors.background) },
       headerShadowVisible: true,
     }),
     [theme]
@@ -118,7 +118,11 @@ export default function App() {
                     headerLargeTitle: true,
                     headerStyle:
                       Platform.OS === 'android'
-                        ? { backgroundColor: theme.colors.groupedBackground }
+                        ? {
+                            backgroundColor: cssColor(
+                              theme.colors.groupedBackground
+                            ),
+                          }
                         : undefined,
                   }}
                 />

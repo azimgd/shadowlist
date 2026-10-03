@@ -519,7 +519,6 @@ export const AssistantScreen = () => {
   /*
    * Drawn over the list instead of as ListEmptyComponent. The core's total size never includes
    * the empty template. With no messages the content is 0pt tall and Android clips it.
-
    */
   const empty = useMemo(
     () => (

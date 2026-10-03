@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ColorValue,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -13,7 +14,7 @@ import { getAvatarColor, getInitials } from './avatarAppearance';
 export interface AvatarProps {
   name: string;
   uri?: string;
-  color?: string;
+  color?: ColorValue;
   size?: number;
   style?: StyleProp<ViewStyle>;
 }

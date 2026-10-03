@@ -7,12 +7,11 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { useLabels } from '../labels';
 import { createStyles, useTheme } from '../theme';
 import { ChevronIcon } from '../icons';
 import { defaultAssistantLabels, type AssistantLabels } from './labels';
-import { usePulseStyle } from './AssistantTypingIndicator';
+import { PulseText } from './motion';
 
 export interface AssistantThinkingProps {
   thinking: string;
@@ -30,8 +29,7 @@ const PREVIEW_TAIL_CHARS = 160;
 
 const PulsingLabel = ({ label }: { label: string }) => {
   const styles = useStyles();
-  const pulse = usePulseStyle();
-  return <Animated.Text style={[styles.label, pulse]}>{label}</Animated.Text>;
+  return <PulseText style={styles.label}>{label}</PulseText>;
 };
 
 export const AssistantThinking = memo(

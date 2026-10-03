@@ -47,9 +47,7 @@ using namespace facebook::react;
   self.hidden = NO;
   self.layer.shadowOpacity = 0.0;
   self.layer.shadowPath = nil;
-#if !TARGET_OS_OSX
   _nativeAccessibilityActions = nil;
-#endif
 #if TARGET_OS_OSX
   // SLRaiseSubview raises this for sticky pinning. UIKit reorders subviews instead.
   self.layer.zPosition = 0.0;
@@ -57,17 +55,15 @@ using namespace facebook::react;
   [super prepareForRecycle];
 }
 
-#if !TARGET_OS_OSX
-- (NSArray<UIAccessibilityCustomAction *> *)accessibilityCustomActions
+- (NSArray<SLAccessibilityCustomAction *> *)accessibilityCustomActions
 {
-  NSArray<UIAccessibilityCustomAction *> *propActions = [super accessibilityCustomActions];
+  NSArray<SLAccessibilityCustomAction *> *propActions = [super accessibilityCustomActions];
   if (_nativeAccessibilityActions.count == 0) {
     return propActions;
   }
   return propActions.count > 0 ? [propActions arrayByAddingObjectsFromArray:_nativeAccessibilityActions]
                                : _nativeAccessibilityActions;
 }
-#endif
 
 - (void)mountChildComponentView:(RCTUIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {

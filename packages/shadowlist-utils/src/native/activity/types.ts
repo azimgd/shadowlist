@@ -1,7 +1,9 @@
+import type { ColorValue } from 'react-native';
+
 export interface ActivityActor {
   name: string;
   avatarUrl?: string;
-  avatarColor?: string;
+  avatarColor?: ColorValue;
 }
 
 export interface ActivityItem {

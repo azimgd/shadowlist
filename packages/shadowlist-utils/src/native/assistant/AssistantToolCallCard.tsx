@@ -130,8 +130,8 @@ const useStyles = createStyles((theme) =>
       marginLeft: theme.spacing.md + 20 + theme.spacing.md,
     },
     /*
-     * The system face, not the monospaced one: what a caller passes as the name is a readable
-     * step title ("Filling B2:G9"), and a code font made every step look like a log line.
+     * The system face, not the monospaced one. The name is a readable step title
+     * ("Filling B2:G9"), and a code font would make every step look like a log line.
      */
     name: {
       color: theme.colors.label,

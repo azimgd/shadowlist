@@ -3,6 +3,7 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  type ColorValue,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -12,7 +13,7 @@ import { useChipStyles } from './Chip';
 
 export interface ChoiceChipProps {
   label: string;
-  tint: string;
+  tint: ColorValue;
   selected: boolean;
   onPress: () => void;
   style?: StyleProp<ViewStyle>;

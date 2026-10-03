@@ -38,6 +38,7 @@ export default defineConfig([
       // Native example build artifacts.
       'packages/shadowlist-fabric-example/android/',
       'packages/shadowlist-fabric-example/ios/',
+      'packages/shadowlist-macos-example/macos/',
       // Tooling / entry / build JS (not application source).
       '**/*.config.{js,cjs,mjs}',
       '**/babel.config.js',
@@ -47,6 +48,7 @@ export default defineConfig([
       'scripts/**/*.mjs',
       'eslint.config.mjs',
       'packages/shadowlist-fabric-example/index.js',
+      'packages/shadowlist-macos-example/index.js',
       'packages/shadowlist-fabric/scripts/',
     ],
   },

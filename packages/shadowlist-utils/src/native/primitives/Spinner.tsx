@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   View,
   StyleSheet,
+  type ColorValue,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -19,7 +20,7 @@ export const defaultSpinnerLabels: SpinnerLabels = {
 
 export interface SpinnerProps {
   size?: number;
-  color?: string;
+  color?: ColorValue;
   labels?: Partial<SpinnerLabels>;
   style?: StyleProp<ViewStyle>;
 }

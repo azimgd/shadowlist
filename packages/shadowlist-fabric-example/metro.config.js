@@ -6,12 +6,7 @@ const monorepoRoot = path.resolve(__dirname, '../..');
 const libraryRoot = path.resolve(__dirname, '../shadowlist-fabric');
 const utilsRoot = path.resolve(__dirname, '../shadowlist-utils');
 
-/**
- * Metro configuration
- * https://facebook.github.io/metro/docs/configuration
- *
- * @type {import('metro-config').MetroConfig}
- */
+/** @type {import('metro-config').MetroConfig} */
 const config = withMetroConfig(getDefaultConfig(__dirname), {
   root: libraryRoot,
   dirname: __dirname,

@@ -534,9 +534,7 @@ TEST(append_fast_path_declines_non_append_shapes) {
     CHECK_EQ(container.revision.elements[index].index, index);
   }
 
-  /*
-   * A removal is shorter.
-   */
+  // A removal is shorter.
   std::vector<std::string> shrunk(keys.begin(), keys.begin() + 10);
   Virtualizer::update(&container, inputFor(shrunk, 0.0));
   CHECK_EQ(container.revision.elements.size(), static_cast<std::size_t>(10));

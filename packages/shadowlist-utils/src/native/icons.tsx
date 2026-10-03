@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ColorValue } from 'react-native';
 import { useTheme, type ThemeColors } from './theme';
 
 /*
@@ -9,7 +9,7 @@ import { useTheme, type ThemeColors } from './theme';
 
 export interface IconProps {
   size?: number;
-  color?: string;
+  color?: ColorValue;
   strokeWidth?: number;
 }
 
@@ -18,9 +18,9 @@ export type IconComponent = ComponentType<IconProps>;
 type IconColor = Exclude<keyof ThemeColors, 'avatarPalette'>;
 
 const useIconColor = (
-  color: string | undefined,
+  color: ColorValue | undefined,
   fallback: IconColor
-): string => {
+): ColorValue => {
   const theme = useTheme();
   return color ?? theme.colors[fallback];
 };
@@ -239,7 +239,7 @@ export const PlusIcon = ({
 };
 
 /*
- * A microphone. An outlined capsule in a U shaped holder on a short stem and base.
+ * An outlined capsule in a U shaped holder on a short stem and base.
  */
 export const MicIcon = ({
   size = 20,

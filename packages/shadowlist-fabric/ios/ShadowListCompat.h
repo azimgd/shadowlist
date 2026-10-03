@@ -24,3 +24,23 @@
 #define RCTPlatformView UIView
 #endif
 #endif
+
+#if TARGET_OS_OSX
+#define SLDragGestureRecognizer NSPanGestureRecognizer
+#define SLDisplayLink RCTPlatformDisplayLink
+#define SLAccessibilityCustomAction NSAccessibilityCustomAction
+#define SLGestureStateBegan NSGestureRecognizerStateBegan
+#define SLGestureStateChanged NSGestureRecognizerStateChanged
+#define SLGestureStateEnded NSGestureRecognizerStateEnded
+#define SLGestureStateCancelled NSGestureRecognizerStateCancelled
+#define SLGestureStateFailed NSGestureRecognizerStateFailed
+#else
+#define SLDragGestureRecognizer UILongPressGestureRecognizer
+#define SLDisplayLink CADisplayLink
+#define SLAccessibilityCustomAction UIAccessibilityCustomAction
+#define SLGestureStateBegan UIGestureRecognizerStateBegan
+#define SLGestureStateChanged UIGestureRecognizerStateChanged
+#define SLGestureStateEnded UIGestureRecognizerStateEnded
+#define SLGestureStateCancelled UIGestureRecognizerStateCancelled
+#define SLGestureStateFailed UIGestureRecognizerStateFailed
+#endif

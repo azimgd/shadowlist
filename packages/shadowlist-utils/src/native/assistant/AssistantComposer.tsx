@@ -15,7 +15,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from '../internal/safeAreaInsets';
 import { useLabels } from '../labels';
 import { createStyles, useTheme } from '../theme';
 import {

@@ -152,3 +152,31 @@ jobs:
 
       - name: Build example for iOS
         run: yarn workspace shadowlist-example run build:ios --force-pods
+
+  build-macos:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: packages/shadowlist-fabric-example
+      - name: Install macOS pods
+        working-directory: packages/shadowlist-macos-example/macos
+        env:
+          BUNDLE_GEMFILE: ../../shadowlist-fabric-example/Gemfile
+        run: bundle exec pod install --deployment
+      - name: Build macOS example
+        working-directory: packages/shadowlist-macos-example/macos
+        run: >-
+          xcodebuild -workspace ShadowListMacOS.xcworkspace
+          -scheme ShadowListMacOS-macOS -configuration Release
+          -destination 'platform=macOS'
+          CODE_SIGNING_ALLOWED=NO build

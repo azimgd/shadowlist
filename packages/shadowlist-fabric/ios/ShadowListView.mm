@@ -1,5 +1,6 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Internal.h"
+#import "ShadowListMacScrollView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
 #import <react/renderer/components/ShadowListViewSpec/EventEmitters.h>
@@ -8,9 +9,7 @@
 
 #import "RCTFabricComponentsPlugins.h"
 #import <React/RCTConversions.h>
-#if !TARGET_OS_OSX
 #import <React/RCTMountingTransactionObserving.h>
-#endif
 
 #include <shadowlist-core/host/Snap.hpp>
 
@@ -19,12 +18,27 @@
 #include <utility>
 #include <vector>
 
-#if !TARGET_OS_OSX
 /*
  * Lets a waiting scroll to top jump land in the same mount that brings its rows in.
  */
 @interface ShadowListView () <RCTMountingTransactionObserving>
 @end
+
+#if TARGET_OS_OSX
+@interface ShadowListView () <ShadowListMacScrollDelegate>
+@end
+
+static double SLScrollPhaseForMacPhase(ShadowListMacScrollPhase phase)
+{
+  switch (phase) {
+    case ShadowListMacScrollPhaseTracking:
+      return azimgd::shadowlist::SCROLL_PHASE_DRAGGING;
+    case ShadowListMacScrollPhaseMomentum:
+      return azimgd::shadowlist::SCROLL_PHASE_SETTLING;
+    case ShadowListMacScrollPhaseIdle:
+      return azimgd::shadowlist::SCROLL_PHASE_IDLE;
+  }
+}
 #endif
 
 #if !TARGET_OS_OSX
@@ -160,8 +174,14 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     static const auto defaultProps = std::make_shared<const ShadowListViewProps>();
     _props = defaultProps;
 
+#if TARGET_OS_OSX
+    ShadowListMacScrollView *macScrollView = [[ShadowListMacScrollView alloc] init];
+    macScrollView.delegate = self;
+    _scrollView = macScrollView;
+#else
     _scrollView = [[RCTUIScrollView alloc] init];
     _scrollView.delegate = self;
+#endif
 #if !TARGET_OS_OSX
     ShadowListStopTapRecognizer *stopTap = [ShadowListStopTapRecognizer new];
     stopTap.cancelsTouchesInView = NO;
@@ -196,11 +216,15 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 
     self.contentView = _scrollView;
 
+    // Mouse pan on macOS, long press on iOS.
+    _dragRecognizer = [[SLDragGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragGesture:)];
 #if !TARGET_OS_OSX
-    // Long press picks a row up. The dragEnabled prop turns it on. iOS only.
-    _dragRecognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragGesture:)];
     _dragRecognizer.minimumPressDuration = 0.2;
+#endif
     _dragRecognizer.enabled = NO;
+#if TARGET_OS_OSX
+    [_contentView addGestureRecognizer:_dragRecognizer];
+#else
     [_scrollView addGestureRecognizer:_dragRecognizer];
 #endif
 #if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
@@ -239,13 +263,11 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
      */
     _stickyOrderDirty = YES;
     _mountNeedsSticky = YES;
-#if !TARGET_OS_OSX
     if (_dragging && _draggedView) {
       _mountNeedsDragShuffle = YES;
     }
     // Add the VoiceOver move actions. Does nothing unless dragEnabled.
     [self applyDragAccessibilityActionsToView:childComponentView];
-#endif
     return;
   }
 
@@ -280,15 +302,13 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   if (childComponentView == _sectionHeaderOverlay) {
     _sectionHeaderOverlay = nil;
   }
-#if !TARGET_OS_OSX
   /*
    * The dragged or dropping row can be deleted mid drag and unmount here. Stop the drag
    * so nothing is left running. A live drag still sends its end event, with no reorder.
    */
-  if ((UIView *)childComponentView == _draggedView || (UIView *)childComponentView == _droppedView) {
+  if ((RCTUIView *)childComponentView == _draggedView || (RCTUIView *)childComponentView == _droppedView) {
     [self cancelDrag];
   }
-#endif
   [childComponentView removeFromSuperview];
 }
 
@@ -329,10 +349,8 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _copiedSnapOffsets.reset();
   _dragEnabled = NO;
   _columns = 1;
-#if !TARGET_OS_OSX
   [self teardownDrag];
   _dragRecognizer.enabled = NO;
-#endif
   /*
    * A recycled view must not pass its old scroll position or state to the next list.
    * Reset _state before moving the offset. setContentOffset reports a scroll right away,
@@ -340,6 +358,8 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
    */
 #if !TARGET_OS_OSX
   [self cancelScrollToTop];
+#else
+  [(ShadowListMacScrollView *)_scrollView resetScroll];
 #endif
   _state.reset();
   // The live report and the echo state belong to the old list.
@@ -372,10 +392,12 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _autoHideFooter = nextProps.autoHideFooter;
   _horizontal = nextProps.horizontal;
   _scrollSync.setHorizontal(_horizontal);
+#if TARGET_OS_OSX
+  ((ShadowListMacScrollView *)_scrollView).horizontal = _horizontal;
+#endif
   _dragEnabled = nextProps.dragEnabled;
   _columns = nextProps.columns;
   _snapToItem = nextProps.snapToItem;
-#if !TARGET_OS_OSX
   // Turning drag off mid drag ends it here, before the recognizer cancel arrives.
   if (!_dragEnabled && _dragging) {
     [self cancelDrag];
@@ -386,17 +408,21 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
    * props commit. New rows get them in mountChildComponentView.
    */
   if (previousProps.dragEnabled != nextProps.dragEnabled) {
-    for (UIView *subview in _contentView.subviews) {
+    for (RCTUIView *subview in _contentView.subviews) {
       if ([subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
         [self applyDragAccessibilityActionsToView:subview];
       }
     }
   }
-  // Snap deceleration and pull to refresh have no macOS version.
+#if !TARGET_OS_OSX
+  // UIKit refresh and projected snap deceleration.
   _scrollView.decelerationRate = _snapToItem ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
   [self applyRefreshState:nextProps.refreshEnabled
                 refreshing:nextProps.refreshing
                      color:RCTUIColorFromSharedColor(nextProps.refreshColor)];
+#else
+  _refreshEnabled = nextProps.refreshEnabled;
+  _refreshing = nextProps.refreshing;
 #endif
 
   [super updateProps:props oldProps:oldProps];
@@ -599,13 +625,20 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     ? CGSizeMake(nextStateData.totalContainerWidth_, 0)
     : CGSizeMake(0, nextStateData.totalContainerHeight_);
   CGRect contentFrame = CGRectMake(0, 0, nextStateData.totalContainerWidth_, nextStateData.totalContainerHeight_);
+#if TARGET_OS_OSX
+  // NSScrollView's contentSize is the document frame, not a separate scroll range.
+  // Writing zero across the axis would resize the document twice on every mount.
+  contentSize = contentFrame.size;
+#endif
   BOOL contentSizeChanged = !CGSizeEqualToSize(_scrollView.contentSize, contentSize) ||
     !CGRectEqualToRect(_contentView.frame, contentFrame);
   CGPoint offsetBeforeSizeWrite = _scrollView.contentOffset;
   if (contentSizeChanged) {
     // If these writes clamp the offset, UIKit reports it right away, and that is not the user.
     _scrollSync.setApplyingContentSize(true);
+#if !TARGET_OS_OSX
     _scrollView.contentSize = contentSize;
+#endif
     _contentView.frame = contentFrame;
     _scrollSync.setApplyingContentSize(false);
   }
@@ -638,9 +671,13 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   motion.touching = _scrollView.isTracking;
   motion.moving = _scrollingToTop || _scrollView.isDragging || _scrollView.isDecelerating;
 #else
-  // macOS writes the core's offset as is.
-  motion.minOffset = -INFINITY;
-  motion.maxOffset = INFINITY;
+  ShadowListMacScrollPhase macPhase = ((ShadowListMacScrollView *)_scrollView).phase;
+  motion.minOffset = 0;
+  motion.maxOffset = MAX(0, _horizontal
+    ? _scrollView.contentSize.width - _scrollView.contentView.bounds.size.width
+    : _scrollView.contentSize.height - _scrollView.contentView.bounds.size.height);
+  motion.touching = macPhase == ShadowListMacScrollPhaseTracking;
+  motion.moving = macPhase == ShadowListMacScrollPhaseMomentum;
 #endif
   motion.ownsOffset = _dragging || _dragDropPending;
   motion.jumpPending = _scrollToTopJumpPending;
@@ -698,12 +735,12 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 #if !TARGET_OS_OSX
   // Move the spinner below the header, which may have a new size.
   [self applyRefreshProgressOffset];
+#endif
 
   // A commit during a drag. Put the row back under the finger and shift the others again.
   if (_dragging) {
     [self updateDrag];
   }
-#endif
   _scrollSync.endMount();
   _inStateUpdate = NO;
 }
@@ -741,7 +778,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   /*
    * The gesture phase, finger down, momentum or idle. It stays set between frames so the
    * core keeps the inverted bottom pin off while a finger rests on the list.
-   * See Container::gestureActive. macOS has no drag state and keeps the current one.
+   * See Container::gestureActive. AppKit phases come from ShadowListMacScrollView.
    */
   azimgd::shadowlist::ScrollFrame frame;
   frame.offsetX = scrollView.contentOffset.x;
@@ -753,7 +790,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     (_refreshControl != nil && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
     _dragging || _dragDropPending;
 #else
-  frame.scrollPhase = _scrollSync.mounted().scrollPhase;
+  frame.scrollPhase = SLScrollPhaseForMacPhase(((ShadowListMacScrollView *)scrollView).phase);
   frame.commitEveryFrame = _dragging || _dragDropPending;
 #endif
   /*
@@ -774,6 +811,40 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   // Only real user scrolls move the auto hide bars.
   [self applyStickyTransforms:userScrolled];
 }
+
+#if TARGET_OS_OSX
+- (void)shadowListScrollWillBegin
+{
+  _scrollSync.disarm();
+}
+
+- (void)shadowListScrollDidEnd
+{
+  [self clearUserScrolled];
+  if (!_snapToItem || _snapOffsets.empty() || _dragging) {
+    return;
+  }
+  CGPoint offset = _scrollView.contentOffset;
+  CGFloat target = azimgd::shadowlist::nearestSnapOffset(_snapOffsets, _horizontal ? offset.x : offset.y);
+  if (_horizontal) {
+    offset.x = target;
+  } else {
+    offset.y = target;
+  }
+  if (!CGPointEqualToPoint(offset, _scrollView.contentOffset)) {
+    // A synchronous correction has no animation frames that could be mistaken for input.
+    _scrollView.contentOffset = offset;
+    [self clearUserScrolled];
+  }
+}
+
+- (void)shadowListRefresh
+{
+  if (_refreshEnabled && !_refreshing && _eventEmitter) {
+    std::static_pointer_cast<const ShadowListViewEventEmitter>(_eventEmitter)->onRefresh({});
+  }
+}
+#endif
 
 #pragma mark - State updates
 
@@ -873,7 +944,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 }
 #endif
 
-// The callbacks below and snap to item are iOS only. macOS only gives us scrollViewDidScroll.
+// UIKit lifecycle callbacks. AppKit uses the adapter callbacks above.
 #if !TARGET_OS_OSX
 /*
  * A swipe that starts on a row may be taken by a scroll view around the list, like a sideways
@@ -1124,17 +1195,15 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     _mountNeedsSticky = NO;
     [self applyStickyTransforms:NO];
   }
-#if !TARGET_OS_OSX
   if (_mountNeedsDragShuffle) {
     _mountNeedsDragShuffle = NO;
     // New rows go below the dragged row and get shifted like the rest.
     if (_dragging && _draggedView) {
-      [_contentView bringSubviewToFront:_draggedView];
+      SLRaiseSubview(_contentView, _draggedView, 4.0);
       _stickyOrderDirty = YES;
       [self applyDragShuffle];
     }
   }
-#endif
   if (_scrollToTopJumpPending) {
     _inMountObserver = YES;
     [self landScrollToTopJumpIfReady];
@@ -1344,7 +1413,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 #if !TARGET_OS_OSX
   return [self stopMomentum];
 #else
-  return NO;
+  return [(ShadowListMacScrollView *)_scrollView stopMomentum];
 #endif
 }
 

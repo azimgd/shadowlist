@@ -33,7 +33,7 @@ export const AssistantEmpty = memo(
     return (
       <View style={[styles.container, style]}>
         <View style={styles.mark}>
-          {/* The accent's own foreground on the accent disc, as in the reply header: label was black on blue. */}
+          {/* The accent's own foreground on the accent disc, as in the reply header. */}
           <SparkleIcon size={28} color={theme.colors.onAccent} />
         </View>
         <Text style={styles.title} accessibilityRole="header">

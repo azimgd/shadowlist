@@ -71,8 +71,7 @@ type Step =
  *
  * Calls made back to back, with no text between them, are one step: they draw as one grouped
  * card with a row per call, the way iOS lists a run of related rows in an inset group, rather
- * than as a stack of separate cards. A model that writes, fills, reads and formats in one breath
- * produced four floating cards taller than the answer they led to.
+ * than as a stack of separate cards.
  */
 function stepsOf(content: string, calls: readonly AssistantToolCall[]): Step[] {
   const steps: Step[] = [];
@@ -145,7 +144,7 @@ export const AssistantReplyMessage = memo(
       <View style={[styles.container, style]}>
         <View style={styles.header}>
           <View style={styles.avatar}>
-            {/* On the accent disc it uses the accent's own foreground: label was black on blue in light mode. */}
+            {/* The accent's own foreground stays readable on the accent disc in both modes. */}
             <SparkleIcon size={14} color={colors.onAccent} />
           </View>
           <Text style={styles.name}>{l.assistantName}</Text>

@@ -16,6 +16,11 @@
       "types": "./lib/typescript/src/native/index.d.ts",
       "default": "./lib/module/native/index.js"
     },
+    "./native/theme": {
+      "source": "./src/native/theme/index.ts",
+      "types": "./lib/typescript/src/native/theme/index.d.ts",
+      "default": "./lib/module/native/theme/index.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

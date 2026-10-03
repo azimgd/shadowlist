@@ -55,7 +55,6 @@ void ShadowListApplyEngineFlags(void)
   BOOL commitBranching = [defaults boolForKey:@"SLCommitBranching"];
   /*
    * The factory already set React Native's flags. Replace them. This is only safe
-
    * before React Native starts, since it swaps the flag store under any reader.
    */
   ReactNativeFeatureFlags::dangerouslyForceOverride(std::make_unique<ShadowListEngineFlags>(commitBranching));

@@ -169,8 +169,6 @@ TEST(measurement_out_of_bounds_is_rejected) {
   CHECK_EQ(container.getElementsSize(), static_cast<std::size_t>(10));
 }
 
-// Skipping the key check.
-
 /*
  * A scroll commit carries the same props. The host can tell the core the keys did not
  * change. The result must match letting the core check the keys itself.
