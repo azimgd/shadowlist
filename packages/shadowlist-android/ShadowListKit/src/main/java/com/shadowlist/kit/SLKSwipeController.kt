@@ -1,9 +1,12 @@
 package com.shadowlist.kit
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Rect
+import android.graphics.drawable.ColorDrawable
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
@@ -29,7 +32,9 @@ internal class SLKSwipeController(private val list: SLKListView) {
   private var velocityTracker: VelocityTracker? = null
   private var animator: ValueAnimator? = null
 
-  // The row swiped open and its buttons, or null.
+  /*
+   * The row swiped open and its buttons, or null.
+   */
   var cell: SLKListCell? = null
     private set
   private var actionsView: SLKSwipeActionsView? = null
@@ -40,11 +45,15 @@ internal class SLKSwipeController(private val list: SLKListView) {
   private var downY = 0f
   private var tracking = false
 
-  // This touch closed the open row. It selects nothing but may still scroll the list.
+  /*
+   * This touch closed the open row. It selects nothing but may still scroll the list.
+   */
   var closingTouch = false
     private set
 
-  // This touch is on an action button and goes to it.
+  /*
+   * This touch is on an action button and goes to it.
+   */
   private var buttonTouch = false
 
   val isOpen: Boolean get() = cell != null
@@ -203,8 +212,8 @@ internal class SLKSwipeController(private val list: SLKListView) {
       duration = SLKCore.SWIPE_DURATION_MS
       interpolator = DecelerateInterpolator()
       addUpdateListener { if (cell === swiped) apply(it.animatedValue as Float) }
-      addListener(object : android.animation.AnimatorListenerAdapter() {
-        override fun onAnimationEnd(animation: android.animation.Animator) {
+      addListener(object : AnimatorListenerAdapter() {
+        override fun onAnimationEnd(animation: Animator) {
           if (cell === swiped && target == 0f) tearDown()
         }
       })
@@ -289,7 +298,9 @@ internal class SLKSwipeActionsView(
   private val trailingSizes = sizes(trailingButtons, density)
   private val clip = Rect()
 
-  // The revealed span, then each button's start and size, from the core.
+  /*
+   * The revealed span, then each button's start and size, from the core.
+   */
   private val spans = DoubleArray(2 + 2 * max(leadingButtons.size, trailingButtons.size))
 
   val leadingWidth: Double get() = leadingSizes.sum()
@@ -350,7 +361,7 @@ internal class SLKSwipeActionsView(
         if (horizontal) button.layout(0, start, alongSize, end) else button.layout(start, 0, end, alongSize)
       }
     }
-    shown.firstOrNull()?.let { setBackgroundColor((it.background as? android.graphics.drawable.ColorDrawable)?.color ?: 0) }
+    shown.firstOrNull()?.let { setBackgroundColor((it.background as? ColorDrawable)?.color ?: 0) }
     // Only the gap shows the buttons' color.
     val gapStart = spans[0].roundToInt()
     val gapEnd = (spans[0] + spans[1]).roundToInt()

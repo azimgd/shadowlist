@@ -1,6 +1,7 @@
 package com.shadowlist.kit
 
 import android.content.Context
+import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
 
@@ -19,14 +20,20 @@ open class SLKListCell(context: Context, val reuseIdentifier: String?) : FrameLa
     const val NO_INDEX = -1
   }
 
-  // The item the cell shows, or NO_INDEX while it waits in the reuse pool and for a section header or footer.
+  /*
+   * The item the cell shows, or NO_INDEX while it waits in the reuse pool and for a section header or footer.
+   */
   var index: Int = NO_INDEX
     internal set
 
-  // The row the core places for the cell, which differs from index in a list with sections.
+  /*
+   * The row the core places for the cell, which differs from index in a list with sections.
+   */
   internal var row: Int = NO_INDEX
 
-  // The mount pass that last wanted this cell. Cells left behind go back to the pool.
+  /*
+   * The mount pass that last wanted this cell. Cells left behind go back to the pool.
+   */
   internal var mountGeneration = 0L
 
   var highlighted = false
@@ -60,7 +67,7 @@ open class SLKListCell(context: Context, val reuseIdentifier: String?) : FrameLa
     super.onInitializeAccessibilityNodeInfo(info)
     val list = parent as? SLKListView ?: return
     if (index < 0) {
-      if (android.os.Build.VERSION.SDK_INT >= 28) info.isHeading = true
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.isHeading = true
       return
     }
     val columns = list.numberOfColumns

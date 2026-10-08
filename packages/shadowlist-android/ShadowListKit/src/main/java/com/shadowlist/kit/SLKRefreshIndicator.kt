@@ -39,7 +39,9 @@ internal class SLKRefreshIndicator(private val list: SLKListView) {
   private val bounds = RectF()
   private var animator: ValueAnimator? = null
 
-  // How far the spinner is pulled in, in pixels.
+  /*
+   * How far the spinner is pulled in, in pixels.
+   */
   var pull = 0f
     private set
 

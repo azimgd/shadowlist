@@ -6,10 +6,13 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Parcelable
+import android.os.SystemClock
 import android.util.AttributeSet
 import android.util.Log
+import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.Menu
 import android.view.MotionEvent
@@ -195,25 +198,35 @@ open class SLKListView @JvmOverloads constructor(
   var numberOfColumns = 1
     set(value) { field = max(1, value); sendSettings() }
 
-  // Size along the scroll axis assumed for rows not measured yet, in pixels.
+  /*
+   * Size along the scroll axis assumed for rows not measured yet, in pixels.
+   */
   var estimatedItemSize = 120 * resources.displayMetrics.density
     set(value) { field = value; sendSettings() }
 
-  // How far past the viewport rows are measured, in viewport sizes. Default 1.
+  /*
+   * How far past the viewport rows are measured, in viewport sizes. Default 1.
+   */
   var overscan = 1.0
     set(value) { field = value; sendSettings() }
 
-  // How far past the viewport cells are mounted, in viewport sizes. Default 0.5.
+  /*
+   * How far past the viewport cells are mounted, in viewport sizes. Default 0.5.
+   */
   var mountOverscan = 0.5
     set(value) { field = value; invalidateFrame() }
 
-  // Distances to an edge, in viewport sizes, that fire the reached callbacks. Default 1.
+  /*
+   * Distances to an edge, in viewport sizes, that fire the reached callbacks. Default 1.
+   */
   var startReachedThreshold = 1.0
     set(value) { field = value; sendSettings() }
   var endReachedThreshold = 1.0
     set(value) { field = value; sendSettings() }
 
-  // Rest the scroll position on a row edge. Alignment 0 start, 1 center, 2 end.
+  /*
+   * Rest the scroll position on a row edge. Alignment 0 start, 1 center, 2 end.
+   */
   var snapToItem = false
     set(value) { field = value; sendSettings() }
   var snapAlignment = 0
@@ -236,7 +249,9 @@ open class SLKListView @JvmOverloads constructor(
 
   var itemAnimator: SLKItemAnimator = SLKDefaultItemAnimator()
 
-  // Items that stick to the top of the viewport once scrolled past.
+  /*
+   * Items that stick to the top of the viewport once scrolled past.
+   */
   var stickyIndices: IntArray = IntArray(0)
     set(value) {
       field = value.sortedArray()
@@ -244,7 +259,9 @@ open class SLKListView @JvmOverloads constructor(
       invalidateFrame()
     }
 
-  // Every section header sticks to the top of the viewport once scrolled past.
+  /*
+   * Every section header sticks to the top of the viewport once scrolled past.
+   */
   var stickySectionHeaders = false
     set(value) {
       field = value
@@ -276,12 +293,16 @@ open class SLKListView @JvmOverloads constructor(
       if (!value && selectedKeys.size > 1) clearSelection()
     }
 
-  // Passed to the cells. Turns swipe actions and reordering off.
+  /*
+   * Passed to the cells. Turns swipe actions and reordering off.
+   */
   var editing: Boolean
     get() = editingState
     set(value) = setEditing(value, false)
 
-  // Pull to refresh with a spinner the list draws. refreshing shows it spinning.
+  /*
+   * Pull to refresh with a spinner the list draws. refreshing shows it spinning.
+   */
   var refreshEnabled = false
   var refreshing: Boolean
     get() = refresh.refreshing
@@ -310,7 +331,9 @@ open class SLKListView @JvmOverloads constructor(
   internal val core: SLKCore
     get() = coreOrNull ?: createCore()
 
-  // The core when it exists, for work that has nothing to do without one.
+  /*
+   * The core when it exists, for work that has nothing to do without one.
+   */
   internal val liveCore: SLKCore? get() = coreOrNull
 
   /*
@@ -331,10 +354,14 @@ open class SLKListView @JvmOverloads constructor(
   internal val refresh = SLKRefreshIndicator(this)
   private val sectionIndex = SLKSectionIndex(this)
 
-  // Row keys in data order, the same list the core holds. Section headers and footers included.
+  /*
+   * Row keys in data order, the same list the core holds. Section headers and footers included.
+   */
   private var keys = ArrayList<String>()
 
-  // The list reloadData reads the next keys into, swapped with keys after.
+  /*
+   * The list reloadData reads the next keys into, swapped with keys after.
+   */
   private var spareKeys = ArrayList<String>()
 
   /*
@@ -348,14 +375,20 @@ open class SLKListView @JvmOverloads constructor(
   private var rowSeparators: BooleanArray? = null
   private var itemCount = 0
 
-  // The item keys of a list with sections, in item order. A list without sections uses keys.
+  /*
+   * The item keys of a list with sections, in item order. A list without sections uses keys.
+   */
   private var sectionItemKeys: List<String>? = null
 
-  // Mounted cells by key. A cell follows its key across inserts above it.
+  /*
+   * Mounted cells by key. A cell follows its key across inserts above it.
+   */
   internal val mounted = HashMap<String, SLKListCell>()
   private var mountGeneration = 0L
 
-  // What the last mount pass covered. The pass is skipped while all of it holds.
+  /*
+   * What the last mount pass covered. The pass is skipped while all of it holds.
+   */
   private var mountedLow = -1
   private var mountedHigh = -1
   private var mountedSticky = -1
@@ -366,7 +399,9 @@ open class SLKListView @JvmOverloads constructor(
   private val cellFactories = HashMap<String, (Context) -> SLKListCell>()
   private val reusePool = HashMap<String, ArrayList<SLKListCell>>()
 
-  // The rows the core keeps measured and their frames, four values each.
+  /*
+   * The rows the core keeps measured and their frames, four values each.
+   */
   private var windowLow = -1
   private var windowHigh = -1
   private var windowFrames = DoubleArray(256)
@@ -375,7 +410,9 @@ open class SLKListView @JvmOverloads constructor(
 
   private var stickyCell: SLKListCell? = null
 
-  // The sticky rows: the sticky items' rows and the section headers, sorted.
+  /*
+   * The sticky rows: the sticky items' rows and the section headers, sorted.
+   */
   private var stickyRows = IntArray(0)
 
   /*
@@ -386,17 +423,23 @@ open class SLKListView @JvmOverloads constructor(
   private var stickyGeometry = -1.0
   private var frameGeometry = 0.0
 
-  // Child positions of the views drawn last, see dispatchDraw.
+  /*
+   * Child positions of the views drawn last, see dispatchDraw.
+   */
   private var liftedLow = -1
   private var liftedHigh = -1
   private var liftedTop = -1
 
-  // The band of offsets where the core has nothing to do.
+  /*
+   * The band of offsets where the core has nothing to do.
+   */
   private var bandLow = 1.0
   private var bandHigh = 0.0
   private var needsFrame = true
 
-  // Geometry the core last ran with.
+  /*
+   * Geometry the core last ran with.
+   */
   internal var windowAlong = 0
     private set
   internal var windowCross = 0
@@ -406,7 +449,9 @@ open class SLKListView @JvmOverloads constructor(
   internal var contentAlong = 0
     private set
 
-  // The last offset seen, to tell the user's scrolling from our own writes.
+  /*
+   * The last offset seen, to tell the user's scrolling from our own writes.
+   */
   private var previousOffset = 0
   private var userScrolled = false
 
@@ -415,7 +460,9 @@ open class SLKListView @JvmOverloads constructor(
   private var reachedStart = false
   private var reachedEnd = false
 
-  // Changes collected by performBatchUpdates until its block returns.
+  /*
+   * Changes collected by performBatchUpdates until its block returns.
+   */
   private var batchDepth = 0
   private val batchDeleted = ArrayList<Int>()
   private val batchInserted = ArrayList<Int>()
@@ -436,7 +483,9 @@ open class SLKListView @JvmOverloads constructor(
   private var highlightX = 0f
   private var highlightY = 0f
 
-  // The content version of every item applyChanges saw, by key.
+  /*
+   * The content version of every item applyChanges saw, by key.
+   */
   private var contentVersions = HashMap<String, Long>()
 
   private var pendingAnchor: SLKAnchorState? = null
@@ -466,12 +515,16 @@ open class SLKListView @JvmOverloads constructor(
   internal fun along(x: Float, y: Float): Float = if (horizontal) x else y
   internal fun cross(x: Float, y: Float): Float = if (horizontal) y else x
 
-  // The padding before the rows along and across the scroll axis. Rows start there.
+  /*
+   * The padding before the rows along and across the scroll axis. Rows start there.
+   */
   internal val leadingPadding: Int get() = if (horizontal) paddingLeft else paddingTop
   internal val crossPadding: Int get() = if (horizontal) paddingTop else paddingLeft
   private val trailingPadding: Int get() = if (horizontal) paddingRight else paddingBottom
 
-  // The scroll offset along the axis, in pixels.
+  /*
+   * The scroll offset along the axis, in pixels.
+   */
   internal val offset: Int get() = if (horizontal) scrollX else scrollY
 
   internal val maxOffset: Int get() = max(0, contentAlong - windowAlong)
@@ -483,7 +536,9 @@ open class SLKListView @JvmOverloads constructor(
   internal fun contentAlongAt(x: Float, y: Float): Float = along(x, y) + offset - leadingPadding
   internal fun contentCrossAt(x: Float, y: Float): Float = cross(x, y) - crossPadding
 
-  // A point in the list's own coordinates as a position in the padded window along the axis.
+  /*
+   * A point in the list's own coordinates as a position in the padded window along the axis.
+   */
   internal fun windowAlongAt(x: Float, y: Float): Float = along(x, y) - leadingPadding
 
   /*
@@ -643,8 +698,8 @@ open class SLKListView @JvmOverloads constructor(
 
   private fun sectionCell(row: Int): SLKListCell {
     val place = core.placeOfRow(row)
-    val section = place shr 2
-    val footer = (place and 3) == SLKCore.ROW_FOOTER
+    val section = place shr SLKCore.ROW_KIND_BITS
+    val footer = (place and SLKCore.ROW_KIND_MASK) == SLKCore.ROW_FOOTER
     val sections = dataSource as Sections
     val custom = if (footer) sections.cellForFooterInSection(this, section) else sections.cellForHeaderInSection(this, section)
     if (custom != null) return custom
@@ -657,7 +712,9 @@ open class SLKListView @JvmOverloads constructor(
 
   internal fun keyAt(index: Int): String? = keys.getOrNull(index)
 
-  // The mounted cell of a row, or null.
+  /*
+   * The mounted cell of a row, or null.
+   */
   private fun mountedCell(row: Int): SLKListCell? = keyAt(row)?.let { mounted[it] }
 
   override fun generateDefaultLayoutParams(): LayoutParams =
@@ -712,7 +769,9 @@ open class SLKListView @JvmOverloads constructor(
     return items
   }
 
-  // The key of each section's first item, empty for a section without items.
+  /*
+   * The key of each section's first item, empty for a section without items.
+   */
   private fun firstItemKeys(counts: IntArray, items: List<String>): Array<String> {
     var first = 0
     return Array(counts.size) { section ->
@@ -740,7 +799,9 @@ open class SLKListView @JvmOverloads constructor(
     core.setSections(itemCount, counts, flags)
   }
 
-  // The item of every row and whether a separator follows it, copied once per change.
+  /*
+   * The item of every row and whether a separator follows it, copied once per change.
+   */
   private fun readRowItems(rows: Int) {
     val items = IntArray(rows)
     val separators = BooleanArray(rows)
@@ -875,7 +936,9 @@ open class SLKListView @JvmOverloads constructor(
     structureChanged()
   }
 
-  // An item moved, after the data source reflects it.
+  /*
+   * An item moved, after the data source reflects it.
+   */
   fun moveItem(index: Int, newIndex: Int) {
     if (index < 0 || newIndex < 0) return
     performBatchUpdates({
@@ -1066,19 +1129,25 @@ open class SLKListView @JvmOverloads constructor(
 
   val numberOfSections: Int get() = sectionCounts?.size ?: 1
 
-  // The section of an item, or -1.
+  /*
+   * The section of an item, or -1.
+   */
   fun sectionForItem(index: Int): Int {
     if (index < 0 || index >= itemCount) return -1
     return if (isSectioned) core.sectionForItem(index) else 0
   }
 
-  // The item index a section's items start at, or -1.
+  /*
+   * The item index a section's items start at, or -1.
+   */
   fun firstItemIndexInSection(section: Int): Int {
     if (!isSectioned) return if (section == 0) 0 else -1
     return core.firstItemInSection(section)
   }
 
-  // The frame of a section's header in the list's scrolled coordinates, or null.
+  /*
+   * The frame of a section's header in the list's scrolled coordinates, or null.
+   */
   fun rectForHeaderInSection(section: Int): RectF? {
     if (!isSectioned) return null
     return rowRectF(core.headerRow(section))
@@ -1506,8 +1575,8 @@ open class SLKListView @JvmOverloads constructor(
       val sections = dataSource as? Sections
       val place = core.placeOfRow(row)
       if (sections != null && place >= 0) {
-        val section = place shr 2
-        val size = if ((place and 3) == SLKCore.ROW_FOOTER) sections.sizeForFooterInSection(this, section, cross)
+        val section = place shr SLKCore.ROW_KIND_BITS
+        val size = if ((place and SLKCore.ROW_KIND_MASK) == SLKCore.ROW_FOOTER) sections.sizeForFooterInSection(this, section, cross)
           else sections.sizeForHeaderInSection(this, section, cross)
         if (size >= 0) return size.toDouble()
       }
@@ -1698,7 +1767,9 @@ open class SLKListView @JvmOverloads constructor(
     return null
   }
 
-  // The visible item cell under a point, not a section header or footer.
+  /*
+   * The visible item cell under a point, not a section header or footer.
+   */
   internal fun itemCellAt(x: Float, y: Float): SLKListCell? = cellAt(x, y)?.takeIf { it.index >= 0 }
 
   internal fun handleTap(x: Float, y: Float) {
@@ -1765,7 +1836,9 @@ open class SLKListView @JvmOverloads constructor(
       return items.toIntArray()
     }
 
-  // Select an item without delegate calls.
+  /*
+   * Select an item without delegate calls.
+   */
   fun selectItem(index: Int, animated: Boolean = false) {
     val key = keys.getOrNull(rowForItem(index)) ?: return
     if (!allowsSelection) return
@@ -1827,7 +1900,7 @@ open class SLKListView @JvmOverloads constructor(
    * A drag took over the touch. Rows that saw its start get a cancel.
    */
   internal fun cancelChildTouches() {
-    val now = android.os.SystemClock.uptimeMillis()
+    val now = SystemClock.uptimeMillis()
     val cancel = MotionEvent.obtain(now, now, MotionEvent.ACTION_CANCEL, 0f, 0f, 0)
     super.dispatchTouchEvent(cancel)
     cancel.recycle()
@@ -1880,7 +1953,9 @@ open class SLKListView @JvmOverloads constructor(
   internal fun snapTarget(target: Int): Int =
     if (snapToItem) core.nearestSnapOffset(target.toDouble()).roundToInt() else target
 
-  // Whether a drag past the start pulls the refresh spinner.
+  /*
+   * Whether a drag past the start pulls the refresh spinner.
+   */
   internal val canPullToRefresh: Boolean get() = refreshEnabled && !refresh.refreshing && offset <= 0
 
   internal fun refreshReleased() {
@@ -1963,10 +2038,14 @@ open class SLKListView @JvmOverloads constructor(
         .sortedBy { it.row }
     }
 
-  // Size of the content along the scroll axis, header and footer included, in pixels.
+  /*
+   * Size of the content along the scroll axis, header and footer included, in pixels.
+   */
   val contentSize: Int get() = contentAlong
 
-  // The items among the rows overlapping the viewport, low to high, or null before the first layout.
+  /*
+   * The items among the rows overlapping the viewport, low to high, or null before the first layout.
+   */
   val visibleRange: IntRange?
     get() {
       val packed = core.visibleItemRange()
@@ -2252,6 +2331,9 @@ internal class SLKSectionTitleCell(context: Context, identifier: String) : SLKLi
   companion object {
     const val HEADER = "SLKSectionHeader"
     const val FOOTER = "SLKSectionFooter"
+    private const val INSET_HORIZONTAL_DP = 16
+    private const val INSET_VERTICAL_DP = 6
+    private const val MIN_HEIGHT_DP = 28
   }
 
   private val label = TextView(context)
@@ -2266,10 +2348,12 @@ internal class SLKSectionTitleCell(context: Context, identifier: String) : SLKLi
     val footer = identifier == FOOTER
     label.setTextColor(if (night) 0xFF98989F.toInt() else 0xFF6D6D72.toInt())
     label.textSize = if (footer) 13f else 15f
-    if (!footer) label.setTypeface(label.typeface, android.graphics.Typeface.BOLD)
-    label.setPadding((16 * density).roundToInt(), (6 * density).roundToInt(), (16 * density).roundToInt(), (6 * density).roundToInt())
-    label.minHeight = (28 * density).roundToInt()
-    label.gravity = android.view.Gravity.CENTER_VERTICAL
+    if (!footer) label.setTypeface(label.typeface, Typeface.BOLD)
+    val horizontalInset = (INSET_HORIZONTAL_DP * density).roundToInt()
+    val verticalInset = (INSET_VERTICAL_DP * density).roundToInt()
+    label.setPadding(horizontalInset, verticalInset, horizontalInset, verticalInset)
+    label.minHeight = (MIN_HEIGHT_DP * density).roundToInt()
+    label.gravity = Gravity.CENTER_VERTICAL
     if (!footer) setBackgroundColor(if (night) 0xFF1C1C1E.toInt() else 0xFFF2F2F7.toInt())
     addView(label, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
   }

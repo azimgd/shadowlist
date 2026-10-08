@@ -1,5 +1,6 @@
 package com.shadowlist.kit
 
+import android.graphics.Canvas
 import android.view.MotionEvent
 import android.view.VelocityTracker
 import android.view.ViewConfiguration
@@ -9,6 +10,7 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /*
  * Touch scrolling, flings and animated scrolls of one list. Reports the gesture phase the
@@ -17,6 +19,13 @@ import kotlin.math.roundToInt
  * the list, and what nobody takes pulls the edge effect.
  */
 internal class SLKScrollGesture(private val list: SLKListView) {
+  companion object {
+    private const val SETTLE_DURATION_MS = 250L
+    private const val COMMAND_DURATION_MS = 300L
+    private const val SNAP_MIN_DURATION_MS = 200L
+    private const val SNAP_MAX_DURATION_MS = 800L
+  }
+
   private val configuration = ViewConfiguration.get(list.context)
   private val touchSlop = configuration.scaledTouchSlop
   private val minFlingVelocity = configuration.scaledMinimumFlingVelocity
@@ -27,15 +36,21 @@ internal class SLKScrollGesture(private val list: SLKListView) {
   private val consumed = IntArray(2)
   private val offsetInWindow = IntArray(2)
 
-  // A finger moves the list.
+  /*
+   * A finger moves the list.
+   */
   var isTracking = false
     private set
 
-  // The list coasts after a fling.
+  /*
+   * The list coasts after a fling.
+   */
   var isFlinging = false
     private set
 
-  // The scroller runs an animated scroll command.
+  /*
+   * The scroller runs an animated scroll command.
+   */
   private var isAnimating = false
 
   /*
@@ -51,7 +66,9 @@ internal class SLKScrollGesture(private val list: SLKListView) {
   private var previousAlong = 0f
   private var previousCross = 0f
 
-  // A touch that stopped a fling never counts as a tap.
+  /*
+   * A touch that stopped a fling never counts as a tap.
+   */
   private var caughtScroll = false
   private var moved = false
 
@@ -292,23 +309,23 @@ internal class SLKScrollGesture(private val list: SLKListView) {
   /*
    * A decelerating move covers its distance in about twice the time the start velocity would.
    */
-  private fun snapDuration(distance: Int, velocity: Float): Int =
-    (2000f * distance / velocity).roundToInt().coerceIn(200, 800)
+  private fun snapDuration(distance: Int, velocity: Float): Long =
+    (2000f * distance / velocity).roundToLong().coerceIn(SNAP_MIN_DURATION_MS, SNAP_MAX_DURATION_MS)
 
   private fun settleWithoutFling() {
     val snapped = list.snapTarget(list.offset)
     if (snapped != list.offset) {
       isFlinging = true
-      startScroll(list.offset, snapped, 250)
+      startScroll(list.offset, snapped, SETTLE_DURATION_MS)
       list.postInvalidateOnAnimation()
       return
     }
     list.scrollingEnded()
   }
 
-  private fun startScroll(from: Int, to: Int, duration: Int) {
-    if (list.horizontal) scroller.startScroll(from, 0, to - from, 0, duration)
-    else scroller.startScroll(0, from, 0, to - from, duration)
+  private fun startScroll(from: Int, to: Int, durationMs: Long) {
+    if (list.horizontal) scroller.startScroll(from, 0, to - from, 0, durationMs.toInt())
+    else scroller.startScroll(0, from, 0, to - from, durationMs.toInt())
   }
 
   /*
@@ -319,7 +336,7 @@ internal class SLKScrollGesture(private val list: SLKListView) {
     endFlingSteps()
     isFlinging = false
     isAnimating = true
-    startScroll(list.offset, target, 300)
+    startScroll(list.offset, target, COMMAND_DURATION_MS)
     list.postInvalidateOnAnimation()
   }
 
@@ -361,7 +378,7 @@ internal class SLKScrollGesture(private val list: SLKListView) {
   /*
    * Draw the edge effects over the content. Returns whether they need another frame.
    */
-  fun drawEdges(canvas: android.graphics.Canvas): Boolean = edges.draw(canvas)
+  fun drawEdges(canvas: Canvas): Boolean = edges.draw(canvas)
 
   /*
    * A swipe or a menu took the touch. Let go of it without a fling or a tap.

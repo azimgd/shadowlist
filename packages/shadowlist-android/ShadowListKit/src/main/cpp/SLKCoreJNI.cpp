@@ -130,6 +130,9 @@ std::vector<std::string> readPackedKeys(JNIEnv* env, jcharArray packed, jintArra
   jsize length = env->GetArrayLength(packed);
   keys.reserve(bounds.size());
   auto* chars = static_cast<const jchar*>(env->GetPrimitiveArrayCritical(packed, nullptr));
+  if (chars == nullptr) {
+    return {};
+  }
   jint start = 0;
   for (jint end : bounds) {
     end = std::min(std::max(end, start), static_cast<jint>(length));
@@ -198,6 +201,33 @@ enum SwipeSlot {
   SWIPE_OUT_FULL,
   SWIPE_OUT_OFFSET,
   SWIPE_SLOTS,
+};
+
+/*
+ * Values of SWIPE_OUT_SIDE, SLKCore.SWIPE_SIDE_* in Kotlin.
+ */
+enum SwipeSideValue {
+  SWIPE_SIDE_NONE = 0,
+  SWIPE_SIDE_LEADING,
+  SWIPE_SIDE_TRAILING,
+};
+
+/*
+ * Bits of a section's flags in nativeSetSections, SLKCore.SECTION_* in Kotlin.
+ */
+enum SectionFlag {
+  SECTION_HEADER = 1,
+  SECTION_FOOTER = 2,
+};
+
+/*
+ * Kinds of a row in nativePlaceOfRow and the low bits they take, SLKCore.ROW_* in Kotlin.
+ */
+enum RowKindValue {
+  ROW_ITEM = 0,
+  ROW_HEADER,
+  ROW_FOOTER,
+  ROW_KIND_BITS = 2,
 };
 
 sl::SwipeSpec readSwipeSpec(const jdouble* slots) {
@@ -283,6 +313,7 @@ JNIEXPORT jlong JNICALL SLK_JNI(nativeCreate)(JNIEnv* env, jobject thiz) {
   auto* peer = new Peer();
   jclass clazz = env->GetObjectClass(thiz);
   peer->measureItem = env->GetMethodID(clazz, "measureItem", "(ID)D");
+  env->DeleteLocalRef(clazz);
   peer->driver.setMeasureItem([peer](std::size_t index, const std::string&, double cross) {
     if (peer->env == nullptr || peer->target == nullptr) {
       return 0.0;
@@ -537,7 +568,6 @@ JNIEXPORT jdouble JNICALL SLK_JNI(nativeDragAutoScrollOffset)(
   return sl::dragAutoScrollOffset(config, touch, windowSize, offset, maxOffset);
 }
 
-
 /*
  * Sections over the rows. counts has each section's item count, flags its SECTION_* bits.
  * Without counts the list has no sections and count items.
@@ -555,8 +585,8 @@ JNIEXPORT void JNICALL SLK_JNI(nativeSetSections)(
   for (std::size_t section = 0; section < specs.size(); ++section) {
     specs[section].itemCount = static_cast<std::size_t>(std::max(itemCounts[section], 0));
     jint bit = section < bits.size() ? bits[section] : 0;
-    specs[section].hasHeader = (bit & 1) != 0;
-    specs[section].hasFooter = (bit & 2) != 0;
+    specs[section].hasHeader = (bit & SECTION_HEADER) != 0;
+    specs[section].hasFooter = (bit & SECTION_FOOTER) != 0;
   }
   peer->sections.setSections(std::move(specs));
 }
@@ -584,7 +614,8 @@ JNIEXPORT jint JNICALL SLK_JNI(nativeItemForDrop)(JNIEnv*, jclass, jlong handle,
   if (fromRow < 0 || toRow < 0) {
     return -1;
   }
-  return jintFromIndex(peerOf(handle)->sections.itemForDrop(static_cast<std::size_t>(fromRow), static_cast<std::size_t>(toRow)));
+  return jintFromIndex(
+    peerOf(handle)->sections.itemForDrop(static_cast<std::size_t>(fromRow), static_cast<std::size_t>(toRow)));
 }
 
 JNIEXPORT jint JNICALL SLK_JNI(nativeRowForItem)(JNIEnv*, jclass, jlong handle, jint item) {
@@ -596,7 +627,8 @@ JNIEXPORT jint JNICALL SLK_JNI(nativeSectionForItem)(JNIEnv*, jclass, jlong hand
 }
 
 JNIEXPORT jint JNICALL SLK_JNI(nativeFirstItemInSection)(JNIEnv*, jclass, jlong handle, jint section) {
-  return section < 0 ? -1 : jintFromIndex(peerOf(handle)->sections.firstItemInSection(static_cast<std::size_t>(section)));
+  return section < 0 ? -1
+                     : jintFromIndex(peerOf(handle)->sections.firstItemInSection(static_cast<std::size_t>(section)));
 }
 
 JNIEXPORT jint JNICALL SLK_JNI(nativeHeaderRow)(JNIEnv*, jclass, jlong handle, jint section) {
@@ -604,11 +636,12 @@ JNIEXPORT jint JNICALL SLK_JNI(nativeHeaderRow)(JNIEnv*, jclass, jlong handle, j
 }
 
 JNIEXPORT jint JNICALL SLK_JNI(nativeFirstRowInSection)(JNIEnv*, jclass, jlong handle, jint section) {
-  return section < 0 ? -1 : jintFromIndex(peerOf(handle)->sections.firstRowInSection(static_cast<std::size_t>(section)));
+  return section < 0 ? -1
+                     : jintFromIndex(peerOf(handle)->sections.firstRowInSection(static_cast<std::size_t>(section)));
 }
 
 /*
- * Section and kind of a row: section shl 2 or kind, kind 0 item, 1 header, 2 footer, or -1.
+ * Section and kind of a row: section shl ROW_KIND_BITS or a ROW_* kind, or -1.
  */
 JNIEXPORT jint JNICALL SLK_JNI(nativePlaceOfRow)(JNIEnv*, jclass, jlong handle, jint row) {
   const sl::ListSections& sections = peerOf(handle)->sections;
@@ -616,8 +649,10 @@ JNIEXPORT jint JNICALL SLK_JNI(nativePlaceOfRow)(JNIEnv*, jclass, jlong handle, 
     return -1;
   }
   sl::RowPlace place = sections.placeOfRow(static_cast<std::size_t>(row));
-  jint kind = place.kind == sl::RowKind::Header ? 1 : place.kind == sl::RowKind::Footer ? 2 : 0;
-  return (static_cast<jint>(place.section) << 2) | kind;
+  RowKindValue kind = place.kind == sl::RowKind::Header ? ROW_HEADER
+    : place.kind == sl::RowKind::Footer                 ? ROW_FOOTER
+                                                        : ROW_ITEM;
+  return (static_cast<jint>(place.section) << ROW_KIND_BITS) | kind;
 }
 
 JNIEXPORT jintArray JNICALL SLK_JNI(nativeStickyRows)(
@@ -699,7 +734,8 @@ JNIEXPORT jstring JNICALL SLK_JNI(nativeAnchor)(JNIEnv* env, jclass, jlong handl
   return env->NewStringUTF(anchor->key.c_str());
 }
 
-JNIEXPORT jboolean JNICALL SLK_JNI(nativeRestoreAnchor)(JNIEnv* env, jclass, jlong handle, jstring key, jdouble offset) {
+JNIEXPORT jboolean JNICALL SLK_JNI(nativeRestoreAnchor)(
+  JNIEnv* env, jclass, jlong handle, jstring key, jdouble offset) {
   return peerOf(handle)->driver.restoreAnchor({readString(env, key), offset}) ? JNI_TRUE : JNI_FALSE;
 }
 
@@ -709,7 +745,8 @@ JNIEXPORT jboolean JNICALL SLK_JNI(nativeRestoreAnchor)(JNIEnv* env, jclass, jlo
  */
 JNIEXPORT jintArray JNICALL SLK_JNI(nativeDiffKeys)(JNIEnv* env, jclass, jcharArray previousPacked,
   jintArray previousEnds, jcharArray nextPacked, jintArray nextEnds) {
-  sl::KeyDiff diff = sl::diffKeys(readPackedKeys(env, previousPacked, previousEnds), readPackedKeys(env, nextPacked, nextEnds));
+  sl::KeyDiff diff =
+    sl::diffKeys(readPackedKeys(env, previousPacked, previousEnds), readPackedKeys(env, nextPacked, nextEnds));
   std::vector<jint> packed;
   packed.push_back(static_cast<jint>(diff.deleted.size()));
   for (std::size_t index : diff.deleted) {
@@ -802,7 +839,8 @@ JNIEXPORT jdoubleArray JNICALL SLK_JNI(nativeRunChange)(
   if (!changes.isPending()) {
     return nullptr;
   }
-  std::vector<sl::ChangeStep> steps = changes.run(readPackedKeys(env, keysPacked, keysEnds), readPoints(env, positions));
+  std::vector<sl::ChangeStep> steps =
+    changes.run(readPackedKeys(env, keysPacked, keysEnds), readPoints(env, positions));
   std::vector<jdouble> values(steps.size() * CHANGE_STEP_SLOTS);
   for (std::size_t at = 0; at < steps.size(); ++at) {
     jdouble* step = values.data() + at * CHANGE_STEP_SLOTS;
@@ -928,8 +966,7 @@ JNIEXPORT jboolean JNICALL SLK_JNI(nativeSwipeIsOut)(JNIEnv* env, jclass, jdoubl
 }
 
 /*
- * Where a swipe let go at offset rests, into the SWIPE_OUT_* slots. Side is 0 none, 1 leading,
- * 2 trailing.
+ * Where a swipe let go at offset rests, into the SWIPE_OUT_* slots. Side is a SWIPE_SIDE_* value.
  */
 JNIEXPORT void JNICALL SLK_JNI(nativeSwipeSettle)(
   JNIEnv* env, jclass, jdoubleArray io, jdouble offset, jdouble velocity, jdouble flingVelocity) {
@@ -938,7 +975,10 @@ JNIEXPORT void JNICALL SLK_JNI(nativeSwipeSettle)(
   sl::SwipeReveal swipe;
   swipe.begin(readSwipeSpec(slots), 0.0);
   sl::SwipeRest rest = swipe.settle(offset, velocity, flingVelocity);
-  slots[SWIPE_OUT_SIDE] = rest.side == sl::SwipeSide::Leading ? 1.0 : rest.side == sl::SwipeSide::Trailing ? 2.0 : 0.0;
+  SwipeSideValue side = rest.side == sl::SwipeSide::Leading ? SWIPE_SIDE_LEADING
+    : rest.side == sl::SwipeSide::Trailing                  ? SWIPE_SIDE_TRAILING
+                                                            : SWIPE_SIDE_NONE;
+  slots[SWIPE_OUT_SIDE] = static_cast<jdouble>(side);
   slots[SWIPE_OUT_FULL] = rest.full ? 1.0 : 0.0;
   slots[SWIPE_OUT_OFFSET] = rest.offset;
   env->SetDoubleArrayRegion(io, SWIPE_OUT_SIDE, SWIPE_SLOTS - SWIPE_OUT_SIDE, slots + SWIPE_OUT_SIDE);

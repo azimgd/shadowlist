@@ -32,26 +32,38 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     const val PASS_OUT_WINDOW_HIGH = 17
     const val PASS_SLOTS = 18
 
-    // Values of PASS_PHASE, the same as the core's ScrollPhase.
+    /*
+     * Values of PASS_PHASE, the same as the core's ScrollPhase.
+     */
     const val PHASE_IDLE = 0
     const val PHASE_DRAGGING = 1
     const val PHASE_SETTLING = 2
 
-    // Where an animated scroll command lands, the same as the core's ScrollLanding::Target.
+    /*
+     * Where an animated scroll command lands, the same as the core's ScrollLanding::Target.
+     */
     const val LANDING_INDEX = 1
     const val LANDING_START = 2
     const val LANDING_END = 3
 
-    // Bits of a section's flags in setSections.
+    /*
+     * Bits of a section's flags in setSections.
+     */
     const val SECTION_HEADER = 1
     const val SECTION_FOOTER = 2
 
-    // Kinds of a row in placeOfRow, the same order as the core's RowKind.
+    /*
+     * Kinds of a row in placeOfRow, the same order as the core's RowKind, then the low bits they take.
+     */
     const val ROW_ITEM = 0
     const val ROW_HEADER = 1
     const val ROW_FOOTER = 2
+    const val ROW_KIND_BITS = 2
+    const val ROW_KIND_MASK = 3
 
-    // Slots of a swipe array, the spec then where a released swipe rests.
+    /*
+     * Slots of a swipe array, the spec then where a released swipe rests.
+     */
     const val SWIPE_LEADING_WIDTH = 0
     const val SWIPE_TRAILING_WIDTH = 1
     const val SWIPE_LEADING_FULL = 2
@@ -62,12 +74,16 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     const val SWIPE_OUT_OFFSET = 7
     const val SWIPE_SLOTS = 8
 
-    // Values of SWIPE_OUT_SIDE, the same order as the core's SwipeSide.
+    /*
+     * Values of SWIPE_OUT_SIDE, the same order as the core's SwipeSide.
+     */
     const val SWIPE_SIDE_NONE = 0
     const val SWIPE_SIDE_LEADING = 1
     const val SWIPE_SIDE_TRAILING = 2
 
-    // Slots of constants, the same as the core's ConstantSlot in the JNI.
+    /*
+     * Slots of constants, the same as the core's ConstantSlot in the JNI.
+     */
     private const val CONSTANT_SWIPE_FLING_VELOCITY = 0
     private const val CONSTANT_SWIPE_SETTLE_DURATION_MS = 1
     private const val CONSTANT_DRAG_LIFT_SCALE = 2
@@ -79,21 +95,29 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
 
     private val constants: DoubleArray by lazy { nativeConstants() }
 
-    // The core's swipe constants: the fling speed in dp per second and the settle duration.
+    /*
+     * The core's swipe constants: the fling speed in dp per second and the settle duration.
+     */
     val SWIPE_FLING_VELOCITY_DP: Double get() = constants[CONSTANT_SWIPE_FLING_VELOCITY]
     val SWIPE_DURATION_MS: Long get() = constants[CONSTANT_SWIPE_SETTLE_DURATION_MS].toLong()
 
-    // The core's drag constants: the held row's scale and the durations of the drag.
+    /*
+     * The core's drag constants: the held row's scale and the durations of the drag.
+     */
     val LIFT_SCALE: Float get() = constants[CONSTANT_DRAG_LIFT_SCALE].toFloat()
     val LIFT_DURATION_MS: Long get() = constants[CONSTANT_DRAG_LIFT_DURATION_MS].toLong()
     val SHIFT_DURATION_MS: Long get() = constants[CONSTANT_DRAG_SHIFT_DURATION_MS].toLong()
     val DROP_DURATION_MS: Long get() = constants[CONSTANT_DRAG_DROP_DURATION_MS].toLong()
 
-    // The core's section index sizes in dp.
+    /*
+     * The core's section index sizes in dp.
+     */
     val SECTION_INDEX_TITLE_HEIGHT_DP: Double get() = constants[CONSTANT_SECTION_INDEX_TITLE_HEIGHT]
     val SECTION_INDEX_WIDTH_DP: Double get() = constants[CONSTANT_SECTION_INDEX_WIDTH]
 
-    // Slots of a step from runChange, then the kinds in the order of the core's ChangeStepKind.
+    /*
+     * Slots of a step from runChange, then the kinds in the order of the core's ChangeStepKind.
+     */
     const val CHANGE_STEP_KIND = 0
     const val CHANGE_STEP_FROM_X = 1
     const val CHANGE_STEP_FROM_Y = 2
@@ -254,7 +278,9 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     fun sectionIndexTitleAt(y: Double, areaHeight: Double, count: Int, scale: Double): Int =
       nativeSectionIndexTitleAt(y, areaHeight, count, scale)
 
-    // The core's SwipeReveal over a SWIPE_* array.
+    /*
+     * The core's SwipeReveal over a SWIPE_* array.
+     */
     fun swipeDrag(io: DoubleArray, start: Double, translation: Double): Double = nativeSwipeDrag(io, start, translation)
     fun swipePastFull(io: DoubleArray, offset: Double): Boolean = nativeSwipePastFull(io, offset)
     fun swipeIsOut(io: DoubleArray, offset: Double): Boolean = nativeSwipeIsOut(io, offset)
@@ -262,13 +288,19 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
       nativeSwipeSettle(io, offset, velocity, flingVelocity)
   }
 
-  // The native Peer, 0 once destroyed.
+  /*
+   * The native Peer, 0 once destroyed.
+   */
   private var handle: Long = nativeCreate()
 
-  // The pass slots, see PASS_*. The view fills the inputs and reads the outputs.
+  /*
+   * The pass slots, see PASS_*. The view fills the inputs and reads the outputs.
+   */
   val pass = DoubleArray(PASS_SLOTS)
 
-  // Keys joined for the next key call, see replaceKeys. Reused and grown as needed.
+  /*
+   * Keys joined for the next key call, see replaceKeys. Reused and grown as needed.
+   */
   private var packed = CharArray(1024)
 
   private external fun nativeCreate(): Long
@@ -386,6 +418,7 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
    * Sections over the rows, or none for null counts. flags are SECTION_* bits per section.
    */
   fun setSections(count: Int, counts: IntArray?, flags: IntArray?) = nativeSetSections(handle, count, counts, flags)
+
   /*
    * The item of every row, -1 for headers and footers, and whether a separator follows the row.
    */
@@ -402,9 +435,10 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
   fun firstRowInSection(section: Int): Int = nativeFirstRowInSection(handle, section)
 
   /*
-   * Section shl 2 or a ROW_* kind, or -1 past the end.
+   * Section shl ROW_KIND_BITS or a ROW_* kind, or -1 past the end.
    */
   fun placeOfRow(row: Int): Int = nativePlaceOfRow(handle, row)
+
   /*
    * The rows that stick: the sticky items' rows and with sectionHeaders every header row,
    * sorted, each once.

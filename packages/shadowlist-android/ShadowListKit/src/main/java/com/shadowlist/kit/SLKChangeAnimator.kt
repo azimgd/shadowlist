@@ -11,7 +11,9 @@ import android.view.View
  * on a scroll frame.
  */
 internal class SLKChangeAnimator(private val list: SLKListView) {
-  // A change was captured and waits for the layout pass. Saves the core call on other passes.
+  /*
+   * A change was captured and waits for the layout pass. Saves the core call on other passes.
+   */
   private var pending = false
   private val removedOut = DoubleArray(2)
 
@@ -34,7 +36,9 @@ internal class SLKChangeAnimator(private val list: SLKListView) {
     pending = true
   }
 
-  // Where the cell shows now, a slide still running included.
+  /*
+   * Where the cell shows now, a slide still running included.
+   */
   private fun screenLeft(cell: SLKListCell): Float = cell.left + cell.translationX - list.scrollX
   private fun screenTop(cell: SLKListCell): Float = cell.top + cell.translationY - list.scrollY
 

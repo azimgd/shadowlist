@@ -20,7 +20,9 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
   private val touchSlop = ViewConfiguration.get(list.context).scaledTouchSlop
   private val offsetOut = DoubleArray(2)
 
-  // Where each shifted cell is headed, to animate only real changes.
+  /*
+   * Where each shifted cell is headed, to animate only real changes.
+   */
   private val shiftTargets = HashMap<SLKListCell, Long>()
 
   var heldCell: SLKListCell? = null
@@ -28,20 +30,28 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
 
   val hasHeldRow: Boolean get() = heldCell != null
 
-  // Where the held row is in the data now, or -1 without a drag.
+  /*
+   * Where the held row is in the data now, or -1 without a drag.
+   */
   val heldIndex: Int get() = if (hasHeldRow) list.core.heldIndex else -1
 
-  // The finger in the list's own coordinates.
+  /*
+   * The finger in the list's own coordinates.
+   */
   private var touchX = 0f
   private var touchY = 0f
   private var downX = 0f
   private var downY = 0f
   private var pressPending = false
 
-  // The finger moved since the row lifted. A row let go in place shows its menu instead.
+  /*
+   * The finger moved since the row lifted. A row let go in place shows its menu instead.
+   */
   private var movedSinceLift = false
 
-  // A menu showed for this touch, which owns the rest of it.
+  /*
+   * A menu showed for this touch, which owns the rest of it.
+   */
   private var menuShown = false
 
   /*

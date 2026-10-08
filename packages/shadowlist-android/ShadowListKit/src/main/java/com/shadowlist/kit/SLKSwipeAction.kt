@@ -17,7 +17,9 @@ class SLKSwipeAction(
 
   var icon: Drawable? = null
 
-  // Defaults to red for a destructive action and gray otherwise.
+  /*
+   * Defaults to red for a destructive action and gray otherwise.
+   */
   var backgroundColor: Int? = null
 
   internal val shownColor: Int

@@ -41,7 +41,9 @@ internal class SLKSectionIndex(private val list: SLKListView) {
   private val left: Float get() = (list.width - list.paddingRight).toFloat() - width
   private val area: Double get() = (list.height - list.paddingTop - list.paddingBottom).toDouble()
 
-  // Where the titles start in the area, asked of the core once per area and title count.
+  /*
+   * Where the titles start in the area, asked of the core once per area and title count.
+   */
   private var titlesTopArea = -1.0
   private var titlesTop = 0f
   private val top: Float get() {
