@@ -2,6 +2,7 @@
 #import "Internal/SLKListView+Private.h"
 
 #include <algorithm>
+#include <optional>
 
 #include <shadowlist-core/host/ChangeAnimation.hpp>
 

@@ -10,6 +10,7 @@ NS_ASSUME_NONNULL_BEGIN
  * drawAtPoint:inContext:color: draws with the top left corner at point, in a context with
  * UIKit's flipped coordinates.
  */
+NS_SWIFT_SENDABLE
 @interface SLKTextLayout : NSObject
 
 + (instancetype)layoutWithString:(NSString *)string

@@ -61,9 +61,11 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
     [button setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
     [button setImage:action.image forState:UIControlStateNormal];
     button.accessibilityLabel = action.title;
+    __weak SLKSwipeActionsView *weakSelf = self;
     [button addAction:[UIAction actionWithHandler:^(UIAction *) {
-      if (self.onAction) {
-        self.onAction(action);
+      SLKSwipeActionsView *view = weakSelf;
+      if (view && view->_onAction) {
+        view->_onAction(action);
       }
     }] forControlEvents:UIControlEventTouchUpInside];
     CGSize fits = [button sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)];

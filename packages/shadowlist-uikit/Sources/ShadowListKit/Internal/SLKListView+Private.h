@@ -4,7 +4,6 @@
 #include <unordered_map>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
-#include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
 #import "SLKListCell+Private.h"

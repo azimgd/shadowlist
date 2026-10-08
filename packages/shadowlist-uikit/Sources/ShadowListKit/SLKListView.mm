@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <shadowlist-core/host/KeyDiff.hpp>
+#include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
@@ -175,7 +176,9 @@ static BOOL SLKListHandles(SEL selector)
 
   NSUInteger _mountGeneration;
 
-  // What the last mount pass covered. The pass is skipped while all of it holds.
+  /*
+   * What the last mount pass covered. The pass is skipped while all of it holds.
+   */
   std::size_t _mountedLow;
   std::size_t _mountedHigh;
   std::size_t _mountedSticky;
@@ -188,7 +191,9 @@ static BOOL SLKListHandles(SEL selector)
 
   SLKListCell *_stickyCell;
 
-  // The band of offsets where the core has nothing to do.
+  /*
+   * The band of offsets where the core has nothing to do.
+   */
   OffsetBand _band;
   BOOL _needsFrame;
 
@@ -196,7 +201,9 @@ static BOOL SLKListHandles(SEL selector)
   CGFloat _footerSize;
   CGFloat _contentAlong;
 
-  // The last offset seen, to tell the user's scrolling from our own writes.
+  /*
+   * The last offset seen, to tell the user's scrolling from our own writes.
+   */
   double _previousOffset;
 
   /*
@@ -207,20 +214,28 @@ static BOOL SLKListHandles(SEL selector)
   double _exactOffset;
   CGFloat _writtenAlong;
   BOOL _hasWrittenOffset;
-  // The pixel shift the last mount pass placed rows with.
+  /*
+   * The pixel shift the last mount pass placed rows with.
+   */
   double _mountedShift;
   BOOL _userScrolled;
 
   BOOL _inLayoutPass;
-  // A settle frame waits for the next display frame, at most one at a time.
+  /*
+   * A settle frame waits for the next display frame, at most one at a time.
+   */
   BOOL _settleScheduled;
   CADisplayLink *_settleLink;
-  // Whether the data source gives sizes and sections, read again on every reload.
+  /*
+   * Whether the data source gives sizes and sections, read again on every reload.
+   */
   BOOL _sizesFromDataSource;
   BOOL _reachedStart;
   BOOL _reachedEnd;
 
-  // Changes collected by performBatchUpdates:completion: until its block returns.
+  /*
+   * Changes collected by performBatchUpdates:completion: until its block returns.
+   */
   NSInteger _batchDepth;
   BatchUpdate _batch;
   BOOL _batchNeedsReload;
@@ -229,7 +244,9 @@ static BOOL SLKListHandles(SEL selector)
   ListSelection _selection;
   __weak SLKListCell *_highlightedCell;
 
-  // The content version of every item applyChanges saw, by key.
+  /*
+   * The content version of every item applyChanges saw, by key.
+   */
   ContentVersions _contentVersions;
 
   SLKAnchorState *_pendingAnchor;

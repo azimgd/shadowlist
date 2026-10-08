@@ -80,6 +80,7 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
 
 - (instancetype)initWithKey:(NSString *)key offset:(CGFloat)offset NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 @property (nonatomic, copy, readonly) NSString *key;
 @property (nonatomic, readonly) CGFloat offset;
@@ -91,6 +92,9 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * moved to and reloaded indices in the new data.
  */
 @interface SLKListChanges : NSObject
+
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 @property (nonatomic, copy, readonly) NSIndexSet *deletedIndices;
 @property (nonatomic, copy, readonly) NSIndexSet *insertedIndices;
@@ -107,6 +111,7 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * gives the cell back to the reuse pool. animateMoveOfCell: gets a cell already at its new place,
  * and offset is where it showed before, relative to that place.
  */
+NS_SWIFT_UI_ACTOR
 @protocol SLKItemAnimator <NSObject>
 
 - (void)listView:(SLKListView *)listView animateInsertOfCell:(SLKListCell *)cell NS_SWIFT_NAME(listView(_:animateInsertOf:));
@@ -130,6 +135,7 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * items are the ones in the core's measured window, an overscan past the viewport, that have no
  * cell yet. A prefetched item that leaves the window before it shows is cancelled.
  */
+NS_SWIFT_UI_ACTOR
 @protocol SLKListViewPrefetchDataSource <NSObject>
 
 - (void)listView:(SLKListView *)listView prefetchItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:prefetchItemsAt:));
@@ -140,6 +146,7 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
 
 @end
 
+NS_SWIFT_UI_ACTOR
 @protocol SLKListViewDataSource <NSObject>
 
 - (NSInteger)numberOfItemsInListView:(SLKListView *)listView;
@@ -207,6 +214,7 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
 
 @end
 
+NS_SWIFT_UI_ACTOR
 @protocol SLKListViewDelegate <UIScrollViewDelegate>
 
 @optional
