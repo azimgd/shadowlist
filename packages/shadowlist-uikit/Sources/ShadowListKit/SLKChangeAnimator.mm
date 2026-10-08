@@ -2,16 +2,14 @@
 #import "Internal/SLKListView+Private.h"
 
 #include <algorithm>
-#include <unordered_map>
-#include <unordered_set>
+
+#include <shadowlist-core/host/ChangeAnimation.hpp>
+
+using namespace azimgd::shadowlist;
 
 @implementation SLKChangeAnimator {
   __weak SLKListView *_list;
-  BOOL _pending;
-  // Screen center of every mounted row before the change, by key.
-  std::unordered_map<std::string, CGPoint> _before;
-  std::unordered_set<std::string> _inserted;
-  std::unordered_set<std::string> _removed;
+  ChangeAnimation _animation;
 }
 
 - (instancetype)initWithList:(SLKListView *)list
@@ -23,13 +21,16 @@
 }
 
 /*
- * Where a cell shows on screen now, a slide still running included.
+ * Where a cell's top left corner shows on screen, a slide still running included.
  */
-- (CGPoint)screenCenterOf:(SLKListCell *)cell
+- (ScreenPoint)screenOriginOf:(SLKListCell *)cell
 {
   CGPoint offset = _list.contentOffset;
   CGPoint center = cell.center;
-  return CGPointMake(center.x + cell.transform.tx - offset.x, center.y + cell.transform.ty - offset.y);
+  CGSize size = cell.bounds.size;
+  double x = center.x - size.width / 2 + cell.transform.tx - offset.x;
+  double y = center.y - size.height / 2 + cell.transform.ty - offset.y;
+  return {x, y};
 }
 
 - (void)captureRemoved:(const std::vector<std::string>&)removed inserted:(const std::vector<std::string>&)inserted
@@ -38,51 +39,34 @@
   if (!list || !list.window || [list hasHeldRow]) {
     return;
   }
-  if (!_pending) {
+  if (_animation.capture(removed, inserted)) {
     [self recordScreen];
-    _removed.clear();
-    _inserted.clear();
-    _pending = YES;
-  }
-  std::unordered_set<std::string> insertedNow(inserted.begin(), inserted.end());
-  std::unordered_set<std::string> removedNow(removed.begin(), removed.end());
-  // A key on both sides moved. It slides like any row that stays.
-  for (const std::string& key : removed) {
-    if (insertedNow.count(key) == 0) {
-      _removed.insert(key);
-    } else {
-      _inserted.erase(key);
-    }
-  }
-  for (const std::string& key : inserted) {
-    if (removedNow.count(key) == 0) {
-      _inserted.insert(key);
-    } else {
-      _removed.erase(key);
-    }
   }
 }
 
 - (void)recordScreen
 {
-  _before.clear();
   for (auto& entry : _list->_mounted) {
     if (!entry.second.hidden) {
-      _before[entry.first] = [self screenCenterOf:entry.second];
+      _animation.recordPosition(entry.first, [self screenOriginOf:entry.second]);
     }
   }
 }
 
 - (BOOL)fadeOutKey:(const std::string&)key cell:(SLKListCell *)cell
 {
-  auto previous = _before.find(key);
-  if (!_pending || _removed.count(key) == 0 || cell.hidden || previous == _before.end()) {
+  if (cell.hidden) {
+    return NO;
+  }
+  std::optional<ScreenPoint> previous = _animation.removedPosition(key);
+  if (!previous) {
     return NO;
   }
   SLKListView *list = _list;
   CGPoint offset = list.contentOffset;
+  CGSize size = cell.bounds.size;
   cell.transform = CGAffineTransformIdentity;
-  cell.center = CGPointMake(previous->second.x + offset.x, previous->second.y + offset.y);
+  cell.center = CGPointMake(previous->x + offset.x + size.width / 2, previous->y + offset.y + size.height / 2);
   __weak SLKListView *weakList = list;
   [list.itemAnimator listView:list animateRemovalOfCell:cell completion:^{
     [weakList recycleCell:cell];
@@ -92,10 +76,9 @@
 
 - (void)run
 {
-  if (!_pending) {
+  if (!_animation.isPending()) {
     return;
   }
-  _pending = NO;
   SLKListView *list = _list;
   std::vector<SLKListCell *> cells;
   for (auto& entry : list->_mounted) {
@@ -104,24 +87,25 @@
     }
   }
   std::sort(cells.begin(), cells.end(), [](SLKListCell *a, SLKListCell *b) { return a.row < b.row; });
-  CGPoint shift = CGPointZero;
+  std::vector<std::string> keys;
+  std::vector<ScreenPoint> positions;
+  keys.reserve(cells.size());
+  positions.reserve(cells.size());
+  CGPoint offset = list.contentOffset;
   for (SLKListCell *cell : cells) {
-    const std::string& key = list->_driver.getKeyAt((std::size_t)cell.row);
-    auto previous = _before.find(key);
-    if (previous != _before.end()) {
-      CGPoint current = CGPointMake(cell.center.x - list.contentOffset.x, cell.center.y - list.contentOffset.y);
-      shift = CGPointMake(previous->second.x - current.x, previous->second.y - current.y);
-      [list.itemAnimator listView:list animateMoveOfCell:cell fromOffset:shift];
-    } else if (_inserted.count(key) > 0) {
-      [list.itemAnimator listView:list animateInsertOfCell:cell];
+    keys.push_back(list->_driver.getKeyAt((std::size_t)cell.row));
+    CGSize size = cell.bounds.size;
+    positions.push_back({cell.center.x - size.width / 2 - offset.x, cell.center.y - size.height / 2 - offset.y});
+  }
+  std::vector<ChangeStep> steps = _animation.run(keys, positions);
+  for (std::size_t at = 0; at < steps.size(); ++at) {
+    const ChangeStep& step = steps[at];
+    if (step.kind == ChangeStepKind::Insert) {
+      [list.itemAnimator listView:list animateInsertOfCell:cells[at]];
     } else {
-      // Came into view without a place on screen before. It moves with the row above it.
-      [list.itemAnimator listView:list animateMoveOfCell:cell fromOffset:shift];
+      [list.itemAnimator listView:list animateMoveOfCell:cells[at] fromOffset:CGPointMake(step.fromX, step.fromY)];
     }
   }
-  _before.clear();
-  _inserted.clear();
-  _removed.clear();
 }
 
 @end

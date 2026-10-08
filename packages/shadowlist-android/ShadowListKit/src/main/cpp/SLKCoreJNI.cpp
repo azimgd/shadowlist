@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include <shadowlist-core/host/ChangeAnimation.hpp>
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
@@ -55,6 +56,7 @@ enum PassSlot {
 struct Peer {
   sl::ListDriver driver;
   sl::ListSections sections;
+  sl::ChangeAnimation changes;
   JNIEnv* env = nullptr;
   jobject target = nullptr;
   jmethodID measureItem = nullptr;
@@ -212,6 +214,34 @@ jintArray makeIntArray(JNIEnv* env, const std::vector<jint>& values) {
     env->SetIntArrayRegion(array, 0, static_cast<jsize>(values.size()), values.data());
   }
   return array;
+}
+
+/*
+ * Slots of a change animation step in SLKCore.runChange, CHANGE_STEP_* in Kotlin.
+ */
+enum ChangeStepSlot {
+  CHANGE_STEP_KIND = 0,
+  CHANGE_STEP_FROM_X,
+  CHANGE_STEP_FROM_Y,
+  CHANGE_STEP_SLOTS,
+};
+
+/*
+ * Screen points as x, y pairs.
+ */
+std::vector<sl::ScreenPoint> readPoints(JNIEnv* env, jdoubleArray array) {
+  std::vector<sl::ScreenPoint> points;
+  if (array == nullptr) {
+    return points;
+  }
+  jsize length = env->GetArrayLength(array);
+  std::vector<jdouble> values(static_cast<std::size_t>(length));
+  env->GetDoubleArrayRegion(array, 0, length, values.data());
+  points.reserve(values.size() / 2);
+  for (std::size_t at = 0; at + 1 < values.size(); at += 2) {
+    points.push_back({values[at], values[at + 1]});
+  }
+  return points;
 }
 
 /*
@@ -666,6 +696,66 @@ JNIEXPORT jintArray JNICALL SLK_JNI(nativePlanBatch)(JNIEnv* env, jclass, jint p
     sources.push_back(jintFromIndex(source));
   }
   return makeIntArray(env, sources);
+}
+
+/*
+ * A change is about to reach the core. The mounted rows and where they show, x and y pairs,
+ * are recorded when the change starts an animation.
+ */
+JNIEXPORT void JNICALL SLK_JNI(nativeCaptureChange)(JNIEnv* env, jclass, jlong handle, jcharArray removedPacked,
+  jintArray removedEnds, jcharArray insertedPacked, jintArray insertedEnds, jcharArray mountedPacked,
+  jintArray mountedEnds, jdoubleArray mountedPositions) {
+  sl::ChangeAnimation& changes = peerOf(handle)->changes;
+  std::vector<std::string> removed = readPackedKeys(env, removedPacked, removedEnds);
+  std::vector<std::string> inserted = readPackedKeys(env, insertedPacked, insertedEnds);
+  if (!changes.capture(removed, inserted)) {
+    return;
+  }
+  std::vector<std::string> mounted = readPackedKeys(env, mountedPacked, mountedEnds);
+  std::vector<sl::ScreenPoint> positions = readPoints(env, mountedPositions);
+  for (std::size_t at = 0; at < mounted.size() && at < positions.size(); ++at) {
+    changes.recordPosition(mounted[at], positions[at]);
+  }
+}
+
+/*
+ * Where a removed row showed before the change, x and y into out, or false when it does not
+ * fade out.
+ */
+JNIEXPORT jboolean JNICALL SLK_JNI(nativeRemovedPosition)(
+  JNIEnv* env, jclass, jlong handle, jstring key, jdoubleArray out) {
+  std::optional<sl::ScreenPoint> position = peerOf(handle)->changes.removedPosition(readString(env, key));
+  if (!position) {
+    return JNI_FALSE;
+  }
+  jdouble values[2] = {position->x, position->y};
+  env->SetDoubleArrayRegion(out, 0, 2, values);
+  return JNI_TRUE;
+}
+
+/*
+ * The animation of the rows mounted after the layout pass, CHANGE_STEP_SLOTS values per row,
+ * or null without a pending change.
+ */
+JNIEXPORT jdoubleArray JNICALL SLK_JNI(nativeRunChange)(
+  JNIEnv* env, jclass, jlong handle, jcharArray keysPacked, jintArray keysEnds, jdoubleArray positions) {
+  sl::ChangeAnimation& changes = peerOf(handle)->changes;
+  if (!changes.isPending()) {
+    return nullptr;
+  }
+  std::vector<sl::ChangeStep> steps = changes.run(readPackedKeys(env, keysPacked, keysEnds), readPoints(env, positions));
+  std::vector<jdouble> values(steps.size() * CHANGE_STEP_SLOTS);
+  for (std::size_t at = 0; at < steps.size(); ++at) {
+    jdouble* step = values.data() + at * CHANGE_STEP_SLOTS;
+    step[CHANGE_STEP_KIND] = static_cast<jdouble>(static_cast<int>(steps[at].kind));
+    step[CHANGE_STEP_FROM_X] = steps[at].fromX;
+    step[CHANGE_STEP_FROM_Y] = steps[at].fromY;
+  }
+  jdoubleArray array = env->NewDoubleArray(static_cast<jsize>(values.size()));
+  if (array != nullptr && !values.empty()) {
+    env->SetDoubleArrayRegion(array, 0, static_cast<jsize>(values.size()), values.data());
+  }
+  return array;
 }
 
 JNIEXPORT jintArray JNICALL SLK_JNI(nativeInsertionPositions)(

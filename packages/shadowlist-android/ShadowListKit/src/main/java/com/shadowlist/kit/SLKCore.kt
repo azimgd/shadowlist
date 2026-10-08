@@ -67,6 +67,15 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     const val SWIPE_SIDE_LEADING = 1
     const val SWIPE_SIDE_TRAILING = 2
 
+    // Slots of a step from runChange, then the kinds in the order of the core's ChangeStepKind.
+    const val CHANGE_STEP_KIND = 0
+    const val CHANGE_STEP_FROM_X = 1
+    const val CHANGE_STEP_FROM_Y = 2
+    const val CHANGE_STEP_SLOTS = 3
+    const val CHANGE_MOVE = 0
+    const val CHANGE_INSERT = 1
+    const val CHANGE_CARRY = 2
+
     // Prefixes of section header and footer row keys, the same as the core's ListSections.
     const val HEADER_KEY_PREFIX = "\u001fh:"
     const val FOOTER_KEY_PREFIX = "\u001ff:"
@@ -127,6 +136,12 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     @JvmStatic private external fun nativePlanBatch(
       previousCount: Int, nextCount: Int, deleted: IntArray, inserted: IntArray, movedFrom: IntArray, movedTo: IntArray,
     ): IntArray?
+    @JvmStatic private external fun nativeCaptureChange(
+      handle: Long, removedPacked: CharArray, removedEnds: IntArray, insertedPacked: CharArray, insertedEnds: IntArray,
+      mountedPacked: CharArray, mountedEnds: IntArray, mountedPositions: DoubleArray)
+    @JvmStatic private external fun nativeRemovedPosition(handle: Long, key: String, out: DoubleArray): Boolean
+    @JvmStatic private external fun nativeRunChange(
+      handle: Long, keysPacked: CharArray, keysEnds: IntArray, positions: DoubleArray): DoubleArray?
     @JvmStatic private external fun nativeInsertionPositions(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeDeletionPositions(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeSwipeDrag(io: DoubleArray, start: Double, translation: Double): Double
@@ -340,4 +355,30 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
    */
   fun anchor(offset: Double, out: DoubleArray): String? = nativeAnchor(handle, offset, out)
   fun restoreAnchor(key: String, offset: Double): Boolean = nativeRestoreAnchor(handle, key, offset)
+
+  /*
+   * The core's ChangeAnimation: a change about to reach the core, with the mounted rows and
+   * where they show as x, y pairs. They are recorded when the change starts an animation.
+   */
+  fun captureChange(removed: List<String>, inserted: List<String>, mounted: List<String>, positions: DoubleArray) {
+    val (removedPacked, removedEnds) = packed(removed)
+    val (insertedPacked, insertedEnds) = packed(inserted)
+    val (mountedPacked, mountedEnds) = packed(mounted)
+    nativeCaptureChange(handle, removedPacked, removedEnds, insertedPacked, insertedEnds, mountedPacked, mountedEnds,
+      positions)
+  }
+
+  /*
+   * Where a removed row showed before the change into out, or false when it does not fade out.
+   */
+  fun removedPosition(key: String, out: DoubleArray): Boolean = nativeRemovedPosition(handle, key, out)
+
+  /*
+   * The animation of the mounted rows, low to high, CHANGE_STEP_SLOTS values each, or null
+   * without a pending change.
+   */
+  fun runChange(keys: List<String>, positions: DoubleArray): DoubleArray? {
+    val (keysPacked, keysEnds) = packed(keys)
+    return nativeRunChange(handle, keysPacked, keysEnds, positions)
+  }
 }

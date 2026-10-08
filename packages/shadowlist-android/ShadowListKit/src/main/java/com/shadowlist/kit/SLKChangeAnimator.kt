@@ -7,14 +7,13 @@ import android.view.View
  * where every mounted row is on screen. After the layout pass that applies it, rows that stay
  * slide from there to their new place, new rows fade in and removed rows fade out where they
  * were. The core anchors the content as usual: rows that hold still on screen do not move.
+ * The core's ChangeAnimation decides what each row does. It is called once per change, never
+ * on a scroll frame.
  */
 internal class SLKChangeAnimator(private val list: SLKListView) {
+  // A change was captured and waits for the layout pass. Saves the core call on other passes.
   private var pending = false
-
-  // Screen position of every mounted row before the change, left and top, by key.
-  private val before = HashMap<String, FloatArray>()
-  private val inserted = HashSet<String>()
-  private val removed = HashSet<String>()
+  private val removedOut = DoubleArray(2)
 
   /*
    * A change is about to reach the core. Several changes before one layout add up, and the
@@ -22,25 +21,17 @@ internal class SLKChangeAnimator(private val list: SLKListView) {
    */
   fun capture(removed: List<String>, inserted: List<String>) {
     if (!list.isLaidOut || list.hasHeldRow) return
-    if (!pending) {
-      recordScreen()
-      this.removed.clear()
-      this.inserted.clear()
-      pending = true
-    }
-    val insertedNow = HashSet(inserted)
-    val removedNow = HashSet(removed)
-    // A key on both sides moved. It slides like any row that stays.
-    for (key in removed) if (key !in insertedNow) this.removed.add(key) else this.inserted.remove(key)
-    for (key in inserted) if (key !in removedNow) this.inserted.add(key) else this.removed.remove(key)
-  }
-
-  private fun recordScreen() {
-    before.clear()
+    val core = list.liveCore ?: return
+    val keys = ArrayList<String>(list.mounted.size)
+    val positions = DoubleArray(list.mounted.size * 2)
     for ((key, cell) in list.mounted) {
       if (cell.visibility != View.VISIBLE) continue
-      before[key] = floatArrayOf(screenLeft(cell), screenTop(cell))
+      positions[keys.size * 2] = screenLeft(cell).toDouble()
+      positions[keys.size * 2 + 1] = screenTop(cell).toDouble()
+      keys.add(key)
     }
+    core.captureChange(removed, inserted, keys, positions.copyOf(keys.size * 2))
+    pending = true
   }
 
   // Where the cell shows now, a slide still running included.
@@ -52,11 +43,12 @@ internal class SLKChangeAnimator(private val list: SLKListView) {
    * cell should go back to the pool right away.
    */
   fun fadeOut(key: String, cell: SLKListCell): Boolean {
-    if (!pending || key !in removed || cell.visibility != View.VISIBLE) return false
-    val previous = before[key] ?: return false
+    if (!pending || cell.visibility != View.VISIBLE) return false
+    val core = list.liveCore ?: return false
+    if (!core.removedPosition(key, removedOut)) return false
     cell.animate().cancel()
-    cell.translationX = previous[0] - (cell.left - list.scrollX)
-    cell.translationY = previous[1] - (cell.top - list.scrollY)
+    cell.translationX = removedOut[0].toFloat() - (cell.left - list.scrollX)
+    cell.translationY = removedOut[1].toFloat() - (cell.top - list.scrollY)
     list.itemAnimator.animateRemoval(list, cell) { list.recycleCell(cell) }
     return true
   }
@@ -67,25 +59,30 @@ internal class SLKChangeAnimator(private val list: SLKListView) {
   fun run() {
     if (!pending) return
     pending = false
-    var shiftX = 0f
-    var shiftY = 0f
+    val core = list.liveCore ?: return
+    val cells = ArrayList<SLKListCell>(list.mounted.size)
+    val keys = ArrayList<String>(list.mounted.size)
     for (cell in list.mounted.values.sortedBy { it.row }) {
       if (cell.visibility != View.VISIBLE || cell.row < 0) continue
-      val key = list.keyAt(cell.row) ?: continue
-      val previous = before[key]
-      when {
-        previous != null -> {
-          shiftX = previous[0] - (cell.left - list.scrollX)
-          shiftY = previous[1] - (cell.top - list.scrollY)
-          list.itemAnimator.animateMove(list, cell, shiftX, shiftY)
-        }
-        key in inserted -> list.itemAnimator.animateInsert(list, cell)
-        // Came into view without a place on screen before. It moves with the row above it.
-        else -> list.itemAnimator.animateMove(list, cell, shiftX, shiftY)
+      keys.add(list.keyAt(cell.row) ?: continue)
+      cells.add(cell)
+    }
+    val positions = DoubleArray(cells.size * 2)
+    for ((at, cell) in cells.withIndex()) {
+      positions[at * 2] = (cell.left - list.scrollX).toDouble()
+      positions[at * 2 + 1] = (cell.top - list.scrollY).toDouble()
+    }
+    val steps = core.runChange(keys, positions) ?: return
+    for ((at, cell) in cells.withIndex()) {
+      val step = at * SLKCore.CHANGE_STEP_SLOTS
+      if (step + SLKCore.CHANGE_STEP_SLOTS > steps.size) break
+      if (steps[step + SLKCore.CHANGE_STEP_KIND].toInt() == SLKCore.CHANGE_INSERT) {
+        list.itemAnimator.animateInsert(list, cell)
+      } else {
+        val fromX = steps[step + SLKCore.CHANGE_STEP_FROM_X].toFloat()
+        val fromY = steps[step + SLKCore.CHANGE_STEP_FROM_Y].toFloat()
+        list.itemAnimator.animateMove(list, cell, fromX, fromY)
       }
     }
-    before.clear()
-    inserted.clear()
-    removed.clear()
   }
 }

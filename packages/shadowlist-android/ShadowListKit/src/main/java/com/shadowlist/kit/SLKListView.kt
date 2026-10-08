@@ -310,6 +310,9 @@ open class SLKListView @JvmOverloads constructor(
   internal val core: SLKCore
     get() = coreOrNull ?: createCore()
 
+  // The core when it exists, for work that has nothing to do without one.
+  internal val liveCore: SLKCore? get() = coreOrNull
+
   /*
    * Created on first use. View's constructor can ask for nested scrolling state before the
    * fields here exist.
