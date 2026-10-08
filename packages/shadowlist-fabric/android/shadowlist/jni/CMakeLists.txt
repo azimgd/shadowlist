@@ -28,7 +28,7 @@ file(GLOB LIB_INCLUDES_SRCS CONFIGURE_DEPENDS
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListElementViewSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListTemplateViewSpec/*.cpp
 
-  # The JNI peers of ShadowListScrollSync.java and ShadowListGeometry.java.
+  # The JNI peers of ShadowListScrollSync.java, ShadowListGeometry.java and ShadowListSwipeReveal.java.
   ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 )
 

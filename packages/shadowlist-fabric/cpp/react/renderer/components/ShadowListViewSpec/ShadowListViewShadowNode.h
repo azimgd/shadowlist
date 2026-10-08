@@ -6,6 +6,7 @@
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutContext.h>
 
+#include "ShadowListScrollEvent.h"
 #include "ShadowListViewState.h"
 
 #include <shadowlist-core/Container.hpp>
@@ -44,8 +45,29 @@ struct ShadowListViewGeometryCache {
   std::shared_ptr<const EventEmitter> callbacksEmitter;
   bool callbacksViewable = false;
   bool callbacksScroll = false;
+  double callbacksScrollThrottle = 0.0;
+  // The scroll callback's throttle, for the trailing event once the list rests.
+  std::shared_ptr<ShadowListScrollTracker> scrollTracker;
 
-  // stickyHeaderIndices from these props, cleaned up for the core. Same pointer trick.
+  // viewableRules from these props, read for the core. Same pointer trick as the keys.
+  std::shared_ptr<const Props> viewableRulesProps;
+  std::vector<azimgd::shadowlist::ViewableRule> viewableRules;
+
+  /*
+   * The newest animated scroll command the core estimated, and where it lands along the scroll
+   * axis. The layout pass publishes both. 0 before the first one.
+   */
+  double animationSequence = 0.0;
+  double animationOffset = 0.0;
+
+  // The newest anchor request answered with onAnchorState.
+  double anchorRequestSequence = 0.0;
+
+  // The content size last sent with onContentSizeChange, or negative before the first.
+  double emittedContentWidth = -1.0;
+  double emittedContentHeight = -1.0;
+
+  // stickyIndices from these props, cleaned up for the core. Same pointer trick.
   std::shared_ptr<const Props> stickyIndicesProps;
   std::vector<std::size_t> stickyIndices;
 

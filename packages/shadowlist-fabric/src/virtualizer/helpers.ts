@@ -9,7 +9,7 @@ export const SHADOWLIST_OVERSCAN = 4;
  */
 export const SHADOWLIST_OVERSCAN_LEADING = 10;
 
-// Maps snapToAlignment to the native enum value.
+// Maps snapAlignment to the native enum value.
 export const SNAP_ALIGNMENT = { start: 0, center: 1, end: 2 } as const;
 
 /*

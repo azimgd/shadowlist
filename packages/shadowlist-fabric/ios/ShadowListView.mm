@@ -1,5 +1,6 @@
 #import "ShadowListView.h"
-#import "ShadowListView+Internal.h"
+#import "ShadowListView+Private.h"
+#import "ShadowListElementView.h"
 #import "ShadowListMacScrollView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
@@ -10,6 +11,8 @@
 #import "RCTFabricComponentsPlugins.h"
 #import <React/RCTConversions.h>
 #import <React/RCTMountingTransactionObserving.h>
+
+#include "ShadowListScrollEvent.h"
 
 #include <shadowlist-core/host/Snap.hpp>
 
@@ -44,34 +47,29 @@ static double SLScrollPhaseForMacPhase(ShadowListMacScrollPhase phase)
 #if !TARGET_OS_OSX
 #import <UIKit/UIGestureRecognizerSubclass.h>
 
+@interface ShadowListView ()
+- (BOOL)accessibilityScrollList:(UIAccessibilityScrollDirection)direction;
+@end
+
 /*
- * Cancel the React Native touch under this view. RN only cancels a press when its own
- * ScrollView takes over. Without this a row pressed at the start of a swipe fires on release.
- * Toggling the touch recognizer is how RN cancels touches itself, and the scroll keeps going.
+ * The list's scroll view. VoiceOver's three finger swipe goes to the list, which moves one
+ * viewport and says which rows show.
  */
-static void CancelReactTouches(UIView *view)
+@interface ShadowListScrollView : UIScrollView
+@property (nonatomic, weak) ShadowListView *listView;
+@end
+
+@implementation ShadowListScrollView
+- (BOOL)accessibilityScroll:(UIAccessibilityScrollDirection)direction
 {
-  static Class touchHandlerClass;
-  static dispatch_once_t once;
-  dispatch_once(&once, ^{
-    touchHandlerClass = NSClassFromString(@"RCTSurfaceTouchHandler");
-  });
-  if (touchHandlerClass == nil) {
-    return;
-  }
-  for (UIView *ancestor = view; ancestor != nil; ancestor = ancestor.superview) {
-    for (UIGestureRecognizer *recognizer in ancestor.gestureRecognizers) {
-      if ([recognizer isKindOfClass:touchHandlerClass]) {
-        recognizer.enabled = NO;
-        recognizer.enabled = YES;
-        return;
-      }
-    }
-  }
+  ShadowListView *listView = _listView;
+  return listView ? [listView accessibilityScrollList:direction] : [super accessibilityScroll:direction];
 }
+@end
 
 /*
  * A tap while the list is still coasting after a flick should stop the scroll, not press a row.
+ * A tap while a row is swiped open closes it, not press another row.
  * RN's ScrollView does the same. We check this list and every scroll view around it at touch time.
  * The recognizer only watches and never recognizes. It takes nothing from the list or rows.
  */
@@ -81,20 +79,27 @@ static void CancelReactTouches(UIView *view)
 @implementation ShadowListStopTapRecognizer
 - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event
 {
-  BOOL coasting = NO;
-  for (UIView *ancestor = self.view; ancestor != nil; ancestor = ancestor.superview) {
+  BOOL stopsPress = NO;
+  for (UIView *ancestor = self.view; ancestor; ancestor = ancestor.superview) {
     if ([ancestor isKindOfClass:[UIScrollView class]] && ((UIScrollView *)ancestor).isDecelerating) {
-      coasting = YES;
+      stopsPress = YES;
       break;
     }
   }
-  if (coasting) {
+  // A touch outside an open row closes it instead of pressing another row.
+  for (UIView *ancestor = self.view; ancestor; ancestor = ancestor.superview) {
+    if ([ancestor isKindOfClass:[ShadowListView class]]) {
+      stopsPress = [(ShadowListView *)ancestor closeSwipeActionsForTouchInView:touches.anyObject.view] || stopsPress;
+      break;
+    }
+  }
+  if (stopsPress) {
     // Wait until RN has seen the touch start. The cancel then reaches that press.
     __weak UIView *weakView = self.view;
     dispatch_async(dispatch_get_main_queue(), ^{
       UIView *strong = weakView;
-      if (strong != nil) {
-        CancelReactTouches(strong);
+      if (strong) {
+        SLCancelReactTouches(strong);
       }
     });
   }
@@ -144,7 +149,9 @@ static BOOL SLFrameTraceEnabled(void)
 - (void)traceFrame;
 @end
 
-// Run right after Core Animation commits, which uses order 2000000, to see the final frame.
+/*
+ * Run right after Core Animation commits, which uses order 2000000, to see the final frame.
+ */
 static const CFIndex SLF_TRACE_OBSERVER_ORDER = 2000001;
 
 static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivity activity, void *info)
@@ -175,11 +182,13 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     _props = defaultProps;
 
 #if TARGET_OS_OSX
-    ShadowListMacScrollView *macScrollView = [[ShadowListMacScrollView alloc] init];
+    ShadowListMacScrollView *macScrollView = [ShadowListMacScrollView new];
     macScrollView.delegate = self;
     _scrollView = macScrollView;
 #else
-    _scrollView = [[RCTUIScrollView alloc] init];
+    ShadowListScrollView *scrollView = [ShadowListScrollView new];
+    scrollView.listView = self;
+    _scrollView = scrollView;
     _scrollView.delegate = self;
 #endif
 #if !TARGET_OS_OSX
@@ -192,6 +201,8 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     _scrollView.showsVerticalScrollIndicator = YES;
     _scrollView.showsHorizontalScrollIndicator = YES;
     _scrollView.scrollEnabled = YES;
+    _scrollEnabled = YES;
+    _scrollsToTop = YES;
 #if !TARGET_OS_OSX
     _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     _scrollView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
@@ -206,7 +217,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 #endif
 #endif
 
-    _contentView = [[RCTUIView alloc] init];
+    _contentView = [RCTUIView new];
 #if TARGET_OS_OSX
     // On macOS the scroll view scrolls its documentView, and offset and size come from it.
     _scrollView.documentView = _contentView;
@@ -266,7 +277,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     if (_dragging && _draggedView) {
       _mountNeedsDragShuffle = YES;
     }
-    // Add the VoiceOver move actions. Does nothing unless dragEnabled.
+    // Add the VoiceOver move actions. Does nothing unless reorderEnabled.
     [self applyDragAccessibilityActionsToView:childComponentView];
     return;
   }
@@ -347,8 +358,10 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   _copiedStickyHeaderOffsets.reset();
   _copiedStickyHeaderSizes.reset();
   _copiedSnapOffsets.reset();
-  _dragEnabled = NO;
-  _columns = 1;
+  _reorderEnabled = NO;
+  _numberOfColumns = 1;
+  _endDragVelocity = CGPointZero;
+  _pageAnnouncementPending = NO;
   [self teardownDrag];
   _dragRecognizer.enabled = NO;
   /*
@@ -395,19 +408,20 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 #if TARGET_OS_OSX
   ((ShadowListMacScrollView *)_scrollView).horizontal = _horizontal;
 #endif
-  _dragEnabled = nextProps.dragEnabled;
-  _columns = nextProps.columns;
+  _reorderEnabled = nextProps.reorderEnabled;
+  _numberOfColumns = nextProps.numberOfColumns;
   _snapToItem = nextProps.snapToItem;
   // Turning drag off mid drag ends it here, before the recognizer cancel arrives.
-  if (!_dragEnabled && _dragging) {
+  if (!_reorderEnabled && _dragging) {
     [self cancelDrag];
   }
-  _dragRecognizer.enabled = _dragEnabled;
+  _dragRecognizer.enabled = _reorderEnabled;
+  [self applyScrollViewProps:nextProps];
   /*
-   * Update the VoiceOver actions only when dragEnabled changes, since this runs on every
+   * Update the VoiceOver actions only when reorderEnabled changes, since this runs on every
    * props commit. New rows get them in mountChildComponentView.
    */
-  if (previousProps.dragEnabled != nextProps.dragEnabled) {
+  if (previousProps.reorderEnabled != nextProps.reorderEnabled) {
     for (RCTUIView *subview in _contentView.subviews) {
       if ([subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
         [self applyDragAccessibilityActionsToView:subview];
@@ -415,8 +429,12 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     }
   }
 #if !TARGET_OS_OSX
-  // UIKit refresh and projected snap deceleration.
-  _scrollView.decelerationRate = _snapToItem ? UIScrollViewDecelerationRateFast : UIScrollViewDecelerationRateNormal;
+  // UIKit refresh and projected snap deceleration. A snapping list always stops fast.
+  if (_snapToItem) {
+    _scrollView.decelerationRate = UIScrollViewDecelerationRateFast;
+  } else {
+    _scrollView.decelerationRate = _decelerationRate > 0.0 ? _decelerationRate : UIScrollViewDecelerationRateNormal;
+  }
   [self applyRefreshState:nextProps.refreshEnabled
                 refreshing:nextProps.refreshing
                      color:RCTUIColorFromSharedColor(nextProps.refreshColor)];
@@ -425,6 +443,38 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   [super updateProps:props oldProps:oldProps];
 
   [self applyStickyTransforms:NO];
+}
+
+/*
+ * The ScrollView props that map straight onto the scroll view. A running drag keeps scrolling
+ * off until it ends.
+ */
+- (void)applyScrollViewProps:(const ShadowListViewProps&)props
+{
+  _scrollEnabled = props.scrollEnabled;
+  if (!_dragging) {
+    _scrollView.scrollEnabled = _scrollEnabled;
+  }
+  _scrollView.showsVerticalScrollIndicator = props.showsVerticalScrollIndicator;
+  _scrollView.showsHorizontalScrollIndicator = props.showsHorizontalScrollIndicator;
+  _scrollsToTop = props.scrollsToTop;
+  _decelerationRate = props.decelerationRate;
+  _refreshProgressViewOffset = props.refreshProgressViewOffset;
+#if !TARGET_OS_OSX
+  _scrollView.bounces = props.bounces;
+  _scrollView.scrollsToTop = props.scrollsToTop;
+  switch (props.keyboardDismissMode) {
+    case ShadowListViewKeyboardDismissMode::OnDrag:
+      _scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeOnDrag;
+      break;
+    case ShadowListViewKeyboardDismissMode::Interactive:
+      _scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeInteractive;
+      break;
+    case ShadowListViewKeyboardDismissMode::None:
+      _scrollView.keyboardDismissMode = UIScrollViewKeyboardDismissModeNone;
+      break;
+  }
+#endif
 }
 
 #if !TARGET_OS_OSX
@@ -436,7 +486,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 - (UIRefreshControl *)ensureRefreshControl
 {
   if (!_refreshControl) {
-    _refreshControl = [[UIRefreshControl alloc] init];
+    _refreshControl = [UIRefreshControl new];
     [_refreshControl addTarget:self
                         action:@selector(handleRefreshValueChanged)
               forControlEvents:UIControlEventValueChanged];
@@ -565,9 +615,9 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   if (!_refreshControl) {
     return;
   }
-  CGFloat offset = 0.0;
+  CGFloat offset = _refreshProgressViewOffset;
   if ((_stickyHeader || _autoHideHeader) && _stickyHeaderView) {
-    offset = _stickyHeaderView.frame.size.height;
+    offset += _stickyHeaderView.frame.size.height;
   }
   CGRect bounds = _refreshControl.bounds;
   if (bounds.origin.y == -offset) {
@@ -681,7 +731,9 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   motion.jumpOffset = _scrollToTopJumpY;
   auto action = _scrollSync.correction(motion);
   BOOL retargetsScrollToTopJump = action.kind == azimgd::shadowlist::MountAction::Kind::RetargetJump;
-  if (retargetsScrollToTopJump) {
+  if (action.kind == azimgd::shadowlist::MountAction::Kind::Animate) {
+    [self animateCommandTo:CGPointMake(action.offsetX, action.offsetY)];
+  } else if (retargetsScrollToTopJump) {
     // The view follows when the jump lands.
     _scrollToTopJumpY = action.offsetY;
     _scrollToTopJumpToken = action.token;
@@ -784,7 +836,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   frame.scrollPhase = [self currentScrollPhase];
   // Pull to refresh, scroll to top and drag to reorder all lean on every frame.
   frame.commitEveryFrame = _refreshing || _refreshAwaitingSettle ||
-    (_refreshControl != nil && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
+    (_refreshControl && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
     _dragging || _dragDropPending;
 #else
   frame.scrollPhase = SLScrollPhaseForMacPhase(((ShadowListMacScrollView *)scrollView).phase);
@@ -796,10 +848,19 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
    */
   auto report = _scrollSync.onScroll(frame);
   BOOL userScrolled = report.userScrolled;
+  if (report.landed && _scrollSync.isLanding()) {
+    // Commit this frame first. The landing command then builds on it.
+    if (report.needsCommit) {
+      [self commitStatePatch:report.patch];
+    }
+    [self landAnimatedCommand];
+    [self applyStickyTransforms:NO];
+    return;
+  }
 
   SL_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f) userScrolled=%d token=%llu seq=%llu commit=%d",
     scrollView.contentOffset.x, scrollView.contentOffset.y, userScrolled ? 1 : 0,
-    (unsigned long long)_scrollSync.echoedToken(), (unsigned long long)report.patch.report.sequence,
+    (unsigned long long)_scrollSync.getEchoedToken(), (unsigned long long)report.patch.report.sequence,
     report.needsCommit ? 1 : 0);
   if (report.needsCommit) {
     [self commitStatePatch:report.patch];
@@ -813,11 +874,39 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 - (void)shadowListScrollWillBegin
 {
   _scrollSync.disarm();
+  _macDragEnded = NO;
+  _macMomentum = NO;
+  [self emitScrollEvent:"scrollBeginDrag" velocity:CGPointZero];
 }
 
+- (void)shadowListDragDidEnd
+{
+  if (_macDragEnded) {
+    return;
+  }
+  _macDragEnded = YES;
+  [self emitScrollEvent:"scrollEndDrag" velocity:CGPointZero];
+}
+
+- (void)shadowListMomentumWillBegin
+{
+  [self shadowListDragDidEnd];
+  _macMomentum = YES;
+  [self emitScrollEvent:"momentumScrollBegin" velocity:CGPointZero];
+}
+
+/*
+ * The live scroll ended. A mouse wheel never lifted fingers and ends its drag here. A glide
+ * ends its momentum.
+ */
 - (void)shadowListScrollDidEnd
 {
   [self clearUserScrolled];
+  [self shadowListDragDidEnd];
+  if (_macMomentum) {
+    _macMomentum = NO;
+    [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
+  }
   if (!_snapToItem || _snapOffsets.empty() || _dragging) {
     return;
   }
@@ -899,7 +988,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   // A drag counts as a user scroll, which keeps core corrections off until the drop.
   BOOL userScrolled = type != azimgd::shadowlist::DRAG_EVENT_END;
   auto patch = _scrollSync.livePatch(
-    _scrollView.contentOffset.x, _scrollView.contentOffset.y, userScrolled, _scrollSync.currentScrollPhase());
+    _scrollView.contentOffset.x, _scrollView.contentOffset.y, userScrolled, _scrollSync.getCurrentScrollPhase());
   std::string dragFromKey = fromKey ? std::string(fromKey.UTF8String) : std::string();
   std::string dragToKey = toKey ? std::string(toKey.UTF8String) : std::string();
   // The sequence goes past the newest state's. Each event fires once.
@@ -948,13 +1037,13 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     [pan removeTarget:self action:@selector(ancestorDidPan:)];
   }
   [_ancestorPans removeAllObjects];
-  if (self.window == nil) {
+  if (!self.window) {
     return;
   }
-  if (_ancestorPans == nil) {
+  if (!_ancestorPans) {
     _ancestorPans = [NSHashTable weakObjectsHashTable];
   }
-  for (UIView *ancestor = self.superview; ancestor != nil; ancestor = ancestor.superview) {
+  for (UIView *ancestor = self.superview; ancestor; ancestor = ancestor.superview) {
     if ([ancestor isKindOfClass:[UIScrollView class]]) {
       UIPanGestureRecognizer *pan = ((UIScrollView *)ancestor).panGestureRecognizer;
       [pan addTarget:self action:@selector(ancestorDidPan:)];
@@ -966,14 +1055,17 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 - (void)ancestorDidPan:(UIPanGestureRecognizer *)pan
 {
   if (pan.state == UIGestureRecognizerStateBegan) {
-    CancelReactTouches(self);
+    SLCancelReactTouches(self);
   }
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
 {
   // A swipe that began on a row is a scroll, not a press on that row.
-  CancelReactTouches(self);
+  SLCancelReactTouches(self);
+  // An open row closes when the list scrolls.
+  [self closeSwipeActionsExcept:nil];
+  [self emitScrollEvent:"scrollBeginDrag" velocity:CGPointZero];
   // The user grabbed the list. Clear our pending move so the drag counts as a user scroll.
   SLF_TRACE("ev=drag-begin off=%.1f,%.1f", scrollView.contentOffset.x, scrollView.contentOffset.y);
   _scrollSync.disarm();
@@ -984,15 +1076,33 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
 - (void)scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate
 {
   SLF_TRACE("ev=drag-end off=%.1f,%.1f decel=%d", scrollView.contentOffset.x, scrollView.contentOffset.y, decelerate ? 1 : 0);
+  [self emitScrollEvent:"scrollEndDrag" velocity:_endDragVelocity];
+  _endDragVelocity = CGPointZero;
   if (!decelerate) {
     [self clearUserScrolled];
   }
+}
+
+- (void)scrollViewWillBeginDecelerating:(UIScrollView *)scrollView
+{
+  [self emitScrollEvent:"momentumScrollBegin" velocity:CGPointZero];
 }
 
 - (void)scrollViewDidEndDecelerating:(UIScrollView *)scrollView
 {
   SLF_TRACE("ev=decel-end off=%.1f,%.1f", scrollView.contentOffset.x, scrollView.contentOffset.y);
   [self clearUserScrolled];
+  [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
+}
+
+/*
+ * An animated scroll of ours ended. An animated command lands now, and JS hears the end of
+ * the motion like after a fling.
+ */
+- (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView
+{
+  [self landAnimatedCommand];
+  [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
 }
 
 /*
@@ -1003,6 +1113,8 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
                      withVelocity:(CGPoint)velocity
               targetContentOffset:(inout CGPoint *)targetContentOffset
 {
+  // UIKit's velocity is already in points per millisecond.
+  _endDragVelocity = velocity;
   if (!_snapToItem || _snapOffsets.empty()) {
     return;
   }
@@ -1025,6 +1137,9 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
  */
 - (BOOL)scrollViewShouldScrollToTop:(UIScrollView *)scrollView
 {
+  if (!_scrollsToTop) {
+    return NO;
+  }
   if (!_state || _horizontal) {
     return YES;
   }
@@ -1034,29 +1149,38 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   return NO;
 }
 
-// Scroll to top duration, close to UIKit's.
-static const CFTimeInterval SCROLL_TO_TOP_DURATION = 0.45;
+/*
+ * Longest wait for the rows of a VoiceOver page scroll before saying which rows show.
+ */
+static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
+
+/*
+ * Scroll to top duration, close to UIKit's.
+ */
+static const CFTimeInterval SL_SCROLL_TO_TOP_DURATION = 0.45;
 
 /*
  * How far the animation travels, in screens. The core keeps about a screen of rows mounted
  * past the visible area. This never outruns them. Longer trips jump closer first, like UIKit.
  */
-static const CGFloat SCROLL_TO_TOP_ANIMATED_VIEWPORTS = 1.0;
+static const CGFloat SL_SCROLL_TO_TOP_ANIMATED_VIEWPORTS = 1.0;
 
 /*
  * Largest step per frame, in screens. The animation peaks near 0.1. This stops a correction
  * mid flight from stretching a step past the mounted rows.
  */
-static const CGFloat SCROLL_TO_TOP_MAX_STEP_VIEWPORTS = 0.35;
+static const CGFloat SL_SCROLL_TO_TOP_MAX_STEP_VIEWPORTS = 0.35;
 
-// How much of the screen at the jump target must be covered by rows before the jump lands.
-static const CGFloat SCROLL_TO_TOP_JUMP_COVERAGE = 0.9;
+/*
+ * How much of the screen at the jump target must be covered by rows before the jump lands.
+ */
+static const CGFloat SL_SCROLL_TO_TOP_JUMP_COVERAGE = 0.9;
 
 /*
  * Longest wait for the rows at the jump target, in seconds. If they never arrive, say the
  * JS thread is busy, land anyway so the tap is not ignored.
  */
-static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
+static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 
 - (void)startScrollToTop
 {
@@ -1080,7 +1204,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
    * lands in the mount that brings them in. See mountingTransactionDidMount.
    */
   CGFloat viewport = _scrollView.bounds.size.height;
-  CGFloat jumpY = top + viewport * SCROLL_TO_TOP_ANIMATED_VIEWPORTS;
+  CGFloat jumpY = top + viewport * SL_SCROLL_TO_TOP_ANIMATED_VIEWPORTS;
   if (_state && viewport > 0.0 && _scrollView.contentOffset.y > jumpY + viewport) {
     _scrollToTopJumpPending = YES;
     _scrollToTopJumpY = jumpY;
@@ -1134,7 +1258,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
       reached = span.second;
     }
   }
-  return covered >= (end - y) * SCROLL_TO_TOP_JUMP_COVERAGE;
+  return covered >= (end - y) * SL_SCROLL_TO_TOP_JUMP_COVERAGE;
 }
 
 /*
@@ -1145,7 +1269,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   if (!_scrollToTopJumpPending) {
     return;
   }
-  BOOL waitedTooLong = CACurrentMediaTime() - _scrollToTopStartTime > SCROLL_TO_TOP_JUMP_MAX_WAIT;
+  BOOL waitedTooLong = CACurrentMediaTime() - _scrollToTopStartTime > SL_SCROLL_TO_TOP_JUMP_MAX_WAIT;
   if (!waitedTooLong && ![self mountedRowsCoverViewportAt:_scrollToTopJumpY]) {
     return;
   }
@@ -1199,6 +1323,9 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     [self landScrollToTopJumpIfReady];
     _inMountObserver = NO;
   }
+  if (_pageAnnouncementPending && !_horizontal && [self mountedRowsCoverViewportAt:_scrollView.contentOffset.y]) {
+    [self announcePageScroll];
+  }
 }
 
 /*
@@ -1226,7 +1353,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 
   CFTimeInterval now = CACurrentMediaTime();
   CGFloat top = -_scrollView.contentInset.top;
-  CGFloat time = MIN(1.0, (now - _scrollToTopStartTime) / SCROLL_TO_TOP_DURATION);
+  CGFloat time = MIN(1.0, (now - _scrollToTopStartTime) / SL_SCROLL_TO_TOP_DURATION);
   CGFloat eased = 1.0 - pow(1.0 - time, 3.0);
   CGFloat remainingFraction = 1.0 - _scrollToTopProgress;
   CGFloat currentY = _scrollView.contentOffset.y;
@@ -1235,7 +1362,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     : top + (currentY - top) * (1.0 - eased) / remainingFraction;
   CGFloat progress = time >= 1.0 ? 1.0 : eased;
 
-  CGFloat maxStep = MAX(1.0, _scrollView.bounds.size.height * SCROLL_TO_TOP_MAX_STEP_VIEWPORTS);
+  CGFloat maxStep = MAX(1.0, _scrollView.bounds.size.height * SL_SCROLL_TO_TOP_MAX_STEP_VIEWPORTS);
   if (currentY - nextY > maxStep) {
     nextY = currentY - maxStep;
     // Count progress by how far the capped step really went.
@@ -1342,7 +1469,7 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   // The footer and section overlay, in screen positions like the rows.
   UIView *footer = _stickyFooterView;
   UIView *overlay = _sectionHeaderOverlay;
-  BOOL overlayVisible = overlay != nil && !overlay.hidden;
+  BOOL overlayVisible = overlay && !overlay.hidden;
   NSString *signature = [NSString stringWithFormat:@"ax=%@ inv=%d off=%.1f cs=%.1f vp=%.1f ins=%.1f ph=%d ref=%d hdr=%.1f+%.1f ftr=%.1f+%.1f ovl=%.1f+%.1f stt=%d jump=%d rows=[%@ ]",
     horizontal ? @"h" : @"v", inverted ? 1 : 0, offset,
     horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
@@ -1464,25 +1591,32 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 /*
  * Send a scroll command. The sequence always goes past the last one. The same index
  * still scrolls again, and the offset is marked as ours until the core applies it.
+ * An animated command first gets the core's estimate, see animateCommandTo.
  */
-- (void)commitScrollCommandIndex:(double)index viewPosition:(double)viewPosition
+- (void)commitScrollCommand:(const azimgd::shadowlist::ScrollCommand&)command
 {
   BOOL yielded = [self yieldMomentum];
   if (yielded) {
     _scrollSync.momentumStopped();
   }
   [self commitStatePatch:_scrollSync.issueCommand(
-    index, viewPosition, _scrollView.contentOffset.x, _scrollView.contentOffset.y, yielded)];
+    command, _scrollView.contentOffset.x, _scrollView.contentOffset.y, yielded)];
 }
 
-- (void)scrollToIndex:(NSInteger)index viewPosition:(double)viewPosition
+- (void)scrollToItem:(NSInteger)index viewPosition:(double)viewPosition viewOffset:(double)viewOffset animated:(BOOL)animated
 {
   if (!_state) {
     return;
   }
 
-  SLF_TRACE("ev=cmd-scroll-to-index index=%ld viewPosition=%.2f", (long)index, viewPosition);
-  [self commitScrollCommandIndex:(double)index viewPosition:viewPosition];
+  SLF_TRACE("ev=cmd-scroll-to-index index=%ld viewPosition=%.2f animated=%d", (long)index, viewPosition, animated ? 1 : 0);
+  azimgd::shadowlist::ScrollCommand command;
+  command.index = (double)index;
+  command.viewPosition = viewPosition;
+  // The core moves the resting offset by rowOffset. FlatList's viewOffset moves the other way.
+  command.rowOffset = std::isfinite(viewOffset) ? -viewOffset : 0.0;
+  command.animated = [self animatesCommands] && animated;
+  [self commitScrollCommand:command];
 }
 
 - (void)scrollToOffset:(double)offset animated:(BOOL)animated
@@ -1494,6 +1628,19 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 #if !TARGET_OS_OSX
   [self cancelScrollToTop];
 #endif
+  /*
+   * An animated scroll goes through the core like scrollToItem. UIKit's own animation would
+   * stop at the first correction a row measured on the way sends.
+   */
+  if (animated && [self animatesCommands] && _state) {
+    SLF_TRACE("ev=cmd-scroll-to-offset offset=%.1f", offset);
+    azimgd::shadowlist::ScrollCommand command;
+    command.index = azimgd::shadowlist::SCROLL_TO_OFFSET_INDEX;
+    command.rowOffset = offset;
+    command.animated = YES;
+    [self commitScrollCommand:command];
+    return;
+  }
   // Scroll straight to the offset. The core learns the new position from the scroll report.
   CGPoint contentOffset = _horizontal
     ? CGPointMake(offset, _scrollView.contentOffset.y)
@@ -1507,14 +1654,237 @@ static const CFTimeInterval SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     return;
   }
 
-  /*
-   * SCROLL_TO_END_INDEX keeps the core aiming at the real bottom as rows get measured.
-   * animated is unused but kept for API compatibility.
-   */
-  (void)animated;
-  SLF_TRACE("ev=cmd-scroll-to-end off=%.1f,%.1f", _scrollView.contentOffset.x, _scrollView.contentOffset.y);
-  [self commitScrollCommandIndex:azimgd::shadowlist::SCROLL_TO_END_INDEX viewPosition:0.0];
+  // SCROLL_TO_END_INDEX keeps the core aiming at the real bottom as rows get measured.
+  SLF_TRACE("ev=cmd-scroll-to-end off=%.1f,%.1f animated=%d", _scrollView.contentOffset.x, _scrollView.contentOffset.y,
+    animated ? 1 : 0);
+  azimgd::shadowlist::ScrollCommand command;
+  command.index = azimgd::shadowlist::SCROLL_TO_END_INDEX;
+  command.animated = [self animatesCommands] && animated;
+  [self commitScrollCommand:command];
 }
+
+/*
+ * AppKit's scroll view has no end of animation callback. macOS commands land right away.
+ */
+- (BOOL)animatesCommands
+{
+#if TARGET_OS_OSX
+  return NO;
+#else
+  return YES;
+#endif
+}
+
+/*
+ * Animate to where the core estimates an animated command lands. The frames are ours, and
+ * the end lands the command exactly.
+ */
+- (void)animateCommandTo:(CGPoint)target
+{
+#if !TARGET_OS_OSX
+  CGPoint current = _scrollView.contentOffset;
+  CGFloat top = -_scrollView.contentInset.top;
+  CGFloat maxAlong = MAX(top, _horizontal
+    ? _scrollView.contentSize.width - _scrollView.bounds.size.width + _scrollView.contentInset.right
+    : _scrollView.contentSize.height - _scrollView.bounds.size.height + _scrollView.contentInset.bottom);
+  if (_horizontal) {
+    target.x = MIN(MAX(target.x, top), maxAlong);
+  } else {
+    target.y = MIN(MAX(target.y, top), maxAlong);
+  }
+  SLF_TRACE("ev=cmd-animate %.1f->%.1f", _horizontal ? current.x : current.y, _horizontal ? target.x : target.y);
+  if (fabs(target.x - current.x) < 0.5 && fabs(target.y - current.y) < 0.5) {
+    [self landAnimatedCommand];
+    return;
+  }
+  _scrollSync.arm(target.x, target.y, true);
+  [_scrollView setContentOffset:target animated:YES];
+#else
+  [self landAnimatedCommand];
+#endif
+}
+
+/*
+ * Send an animated command again without the animation, which lands it exactly.
+ */
+- (void)landAnimatedCommand
+{
+  if (!_state) {
+    return;
+  }
+  if (auto patch = _scrollSync.land(_scrollView.contentOffset.x, _scrollView.contentOffset.y)) {
+    SLF_TRACE("ev=cmd-land off=%.1f,%.1f", _scrollView.contentOffset.x, _scrollView.contentOffset.y);
+    [self commitStatePatch:*patch];
+  }
+}
+
+/*
+ * Slide every swiped row back.
+ */
+- (void)closeSwipeActions
+{
+  for (RCTUIView *subview in _contentView.subviews) {
+    if ([subview isKindOfClass:[ShadowListElementView class]]) {
+      [(ShadowListElementView *)subview closeSwipeActionsAnimated:YES];
+    }
+  }
+}
+
+#if !TARGET_OS_OSX
+/*
+ * Close the open rows a touch in view is not on. Returns whether any closed.
+ */
+- (BOOL)closeSwipeActionsForTouchInView:(UIView *)view
+{
+  BOOL closed = NO;
+  for (RCTUIView *subview in _contentView.subviews) {
+    if (![subview isKindOfClass:[ShadowListElementView class]]) {
+      continue;
+    }
+    ShadowListElementView *elementView = (ShadowListElementView *)subview;
+    if (elementView.isSwipeOpen && !elementView.isSwipedOut && ![view isDescendantOfView:elementView]) {
+      [elementView closeSwipeActionsAnimated:YES];
+      closed = YES;
+    }
+  }
+  return closed;
+}
+#endif
+
+/*
+ * Only one row stays open. A row swiped all the way stays out while its removal runs.
+ */
+- (void)closeSwipeActionsExcept:(RCTUIView *)view
+{
+  for (RCTUIView *subview in _contentView.subviews) {
+    if (subview != view && [subview isKindOfClass:[ShadowListElementView class]] &&
+        ![(ShadowListElementView *)subview isSwipedOut]) {
+      [(ShadowListElementView *)subview closeSwipeActionsAnimated:YES];
+    }
+  }
+}
+
+- (void)flashScrollIndicators
+{
+#if TARGET_OS_OSX
+  [_scrollView flashScrollers];
+#else
+  [_scrollView flashScrollIndicators];
+#endif
+}
+
+/*
+ * Ask the core for the row at the viewport start. The answer comes back as onAnchorState.
+ */
+- (void)requestAnchorState
+{
+  if (!_state) {
+    return;
+  }
+  [self commitStatePatch:_scrollSync.requestAnchor(_scrollView.contentOffset.x, _scrollView.contentOffset.y)];
+}
+
+#pragma mark - Scroll events
+
+/*
+ * Send a drag or momentum event with the same payload as onScroll.
+ */
+- (void)emitScrollEvent:(const char *)name velocity:(CGPoint)velocity
+{
+  if (!_eventEmitter) {
+    return;
+  }
+  ShadowListScrollMetrics metrics;
+  metrics.offsetX = _scrollView.contentOffset.x;
+  metrics.offsetY = _scrollView.contentOffset.y;
+  metrics.contentWidth = _contentView.frame.size.width;
+  metrics.contentHeight = _contentView.frame.size.height;
+  metrics.viewportWidth = _scrollView.bounds.size.width;
+  metrics.viewportHeight = _scrollView.bounds.size.height;
+  metrics.velocityX = velocity.x;
+  metrics.velocityY = velocity.y;
+  _eventEmitter->dispatchEvent(name, [metrics](facebook::jsi::Runtime& runtime) {
+    return facebook::jsi::Value(shadowListScrollPayload(runtime, metrics));
+  });
+}
+
+#if !TARGET_OS_OSX
+#pragma mark - Accessibility
+
+/*
+ * A three finger swipe moves one viewport. Once the rows there mount, VoiceOver says which
+ * rows show.
+ */
+- (BOOL)accessibilityScrollList:(UIAccessibilityScrollDirection)direction
+{
+  BOOL forward = _horizontal
+    ? (direction == UIAccessibilityScrollDirectionLeft || direction == UIAccessibilityScrollDirectionNext)
+    : (direction == UIAccessibilityScrollDirectionUp || direction == UIAccessibilityScrollDirectionNext);
+  BOOL backward = _horizontal
+    ? (direction == UIAccessibilityScrollDirectionRight || direction == UIAccessibilityScrollDirectionPrevious)
+    : (direction == UIAccessibilityScrollDirectionDown || direction == UIAccessibilityScrollDirectionPrevious);
+  if ((!forward && !backward) || !_state) {
+    return NO;
+  }
+  CGFloat viewport = _horizontal ? _scrollView.bounds.size.width : _scrollView.bounds.size.height;
+  CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
+  CGFloat maxOffset = MAX(0.0, (_horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height) - viewport);
+  CGFloat target = MIN(MAX(offset + (forward ? viewport : -viewport), 0.0), maxOffset);
+  if (fabs(target - offset) < 1.0) {
+    return NO;
+  }
+  [self stopMomentum];
+  _scrollSync.momentumStopped();
+  // The page scroll is the user's, like a drag. The core follows it.
+  _scrollView.contentOffset = _horizontal ? CGPointMake(target, _scrollView.contentOffset.y)
+                                          : CGPointMake(_scrollView.contentOffset.x, target);
+  // The jump is over at once. Report the list at rest, or corrections would wait for a gesture end.
+  [self clearUserScrolled];
+  _pageAnnouncementPending = YES;
+  __weak ShadowListView *weakSelf = self;
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_PAGE_ANNOUNCEMENT_MAX_WAIT * NSEC_PER_SEC)),
+    dispatch_get_main_queue(), ^{
+      [weakSelf announcePageScroll];
+    });
+  return YES;
+}
+
+/*
+ * Say which rows show, like "Rows 4 to 12 of 200". Rows are counted from the keys in props.
+ */
+- (void)announcePageScroll
+{
+  if (!_pageAnnouncementPending) {
+    return;
+  }
+  _pageAnnouncementPending = NO;
+  const auto& props = *std::static_pointer_cast<const ShadowListViewProps>(_props);
+  const auto& keys = props.elementsAllKeys;
+  CGRect visible = _scrollView.bounds;
+  NSInteger first = NSNotFound;
+  NSInteger last = NSNotFound;
+  for (RCTUIView *subview in _contentView.subviews) {
+    if (subview.hidden || !CGRectIntersectsRect(subview.frame, visible)) {
+      continue;
+    }
+    NSString *key = [self keyOfElementView:subview];
+    if (!key) {
+      continue;
+    }
+    auto found = std::find(keys.begin(), keys.end(), std::string(key.UTF8String));
+    if (found == keys.end()) {
+      continue;
+    }
+    NSInteger index = (NSInteger)(found - keys.begin());
+    first = first == NSNotFound ? index : MIN(first, index);
+    last = last == NSNotFound ? index : MAX(last, index);
+  }
+  NSString *status = first == NSNotFound
+    ? nil
+    : [NSString stringWithFormat:@"Rows %ld to %ld of %lu", (long)first + 1, (long)last + 1, (unsigned long)keys.size()];
+  UIAccessibilityPostNotification(UIAccessibilityPageScrolledNotification, status);
+}
+#endif
 
 Class<RCTComponentViewProtocol> ShadowListViewCls(void)
 {

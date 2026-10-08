@@ -1,5 +1,5 @@
 #import "ShadowListView.h"
-#import "ShadowListView+Internal.h"
+#import "ShadowListView+Private.h"
 
 #include <algorithm>
 

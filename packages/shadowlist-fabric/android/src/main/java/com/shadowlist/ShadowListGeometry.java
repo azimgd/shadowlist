@@ -41,55 +41,95 @@ final class ShadowListGeometry {
   /*
    * Header and footer translations for one pin, see STICKY_*. Flags are 0 or 1.
    */
-  static native void stickyTranslations(double[] slots);
+  static void stickyTranslations(double[] slots) {
+    nativeStickyTranslations(slots);
+  }
 
   /*
    * Where the section header overlay goes, or NaN when no section is active.
    */
-  static native double sectionOverlayTranslation(double[] offsets, double[] sizes, int count, double offset);
+  static double sectionOverlayTranslation(double[] offsets, double[] sizes, int count, double offset) {
+    return nativeSectionOverlayTranslation(offsets, sizes, count, offset);
+  }
 
   /*
    * The snap offset nearest to target. Offsets are rounded to whole pixels first.
    */
-  static native int nearestSnapOffsetPx(float[] offsetsPx, int count, int targetPx);
+  static int nearestSnapOffsetPx(float[] offsetsPx, int count, int targetPx) {
+    return nativeNearestSnapOffsetPx(offsetsPx, count, targetPx);
+  }
 
   /*
    * The position in the arrays of the row the held one would drop at, or -1 to stay put.
    */
-  static native int dragInsertionPosition(
-    int[] indices, double[] leadings, double[] extents, int count, int originIndex, double center);
+  static int dragInsertionPosition(
+    int[] indices, double[] leadings, double[] extents, int count, int originIndex, double center) {
+    return nativeDragInsertionPosition(indices, leadings, extents, count, originIndex, center);
+  }
 
   /*
    * How far each row slides to open the gap, written into shifts.
    */
-  static native void dragShifts(
-    int[] indices, int count, int originIndex, int insertionIndex, double draggedExtent, double[] shifts);
+  static void dragShifts(
+    int[] indices, int count, int originIndex, int insertionIndex, double draggedExtent, double[] shifts) {
+    nativeDragShifts(indices, count, originIndex, insertionIndex, draggedExtent, shifts);
+  }
 
   /*
    * The position in the arrays of the grid element the held one would drop at, or -1 for its
    * own slot. Over no element it keeps insertionIndex.
    */
-  static native int dragGridInsertionPosition(
+  static int dragGridInsertionPosition(
     int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
     int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
-    int insertionIndex, double center, double crossCenter);
+    int insertionIndex, double center, double crossCenter) {
+    return nativeDragGridInsertionPosition(indices, leadings, extents, crossLeadings, crossExtents, count, heldIndex,
+      heldLeading, heldExtent, heldCrossLeading, heldCrossExtent, insertionIndex, center, crossCenter);
+  }
 
   /*
    * How far each grid element slides along and across the scroll axis to open the gap.
    */
-  static native void dragGridShifts(
+  static void dragGridShifts(
     int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
     int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
-    int insertionIndex, int columns, double[] shifts, double[] crossShifts);
+    int insertionIndex, int columns, double[] shifts, double[] crossShifts) {
+    nativeDragGridShifts(indices, leadings, extents, crossLeadings, crossExtents, count, heldIndex, heldLeading,
+      heldExtent, heldCrossLeading, heldCrossExtent, insertionIndex, columns, shifts, crossShifts);
+  }
 
   /*
    * Where the held row's leading edge goes, kept inside the content.
    */
-  static native double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentExtent);
+  static double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentExtent) {
+    return nativeDragHeldLeading(touchContent, grabOffset, extent, contentExtent);
+  }
 
   /*
    * The offset after this frame's auto scroll near the viewport edges, in pixels.
    */
-  static native double dragAutoScrollOffset(
+  static double dragAutoScrollOffset(
+    double touch, double windowSize, double offset, double maxOffset, double pixelsPerDp) {
+    return nativeDragAutoScrollOffset(touch, windowSize, offset, maxOffset, pixelsPerDp);
+  }
+
+  private static native void nativeStickyTranslations(double[] slots);
+  private static native double nativeSectionOverlayTranslation(double[] offsets, double[] sizes, int count, double offset);
+  private static native int nativeNearestSnapOffsetPx(float[] offsetsPx, int count, int targetPx);
+  private static native int nativeDragInsertionPosition(
+    int[] indices, double[] leadings, double[] extents, int count, int originIndex, double center);
+  private static native void nativeDragShifts(
+    int[] indices, int count, int originIndex, int insertionIndex, double draggedExtent, double[] shifts);
+  private static native int nativeDragGridInsertionPosition(
+    int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
+    int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
+    int insertionIndex, double center, double crossCenter);
+  private static native void nativeDragGridShifts(
+    int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
+    int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
+    int insertionIndex, int columns, double[] shifts, double[] crossShifts);
+  private static native double nativeDragHeldLeading(
+    double touchContent, double grabOffset, double extent, double contentExtent);
+  private static native double nativeDragAutoScrollOffset(
     double touch, double windowSize, double offset, double maxOffset, double pixelsPerDp);
 }

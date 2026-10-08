@@ -24,7 +24,7 @@ class ShadowListDragController {
   // Watches for the reorder to land after a drop. A reorder of same size rows may never commit state.
   private Choreographer.FrameCallback mDropSettleCallback;
 
-  private boolean mDragEnabled = false;
+  private boolean mReorderEnabled = false;
   private boolean mDragging = false;
   private ShadowListElementView mDraggedView = null;
   /*
@@ -55,7 +55,7 @@ class ShadowListDragController {
   /*
    * The cross axis values of the ones above, for grid drags across columns.
    */
-  private int mColumns = 1;
+  private int mNumberOfColumns = 1;
   private float mDragCrossGrabOffset = 0f;
   private float mDragCrossTouchInViewport = 0f;
   private float mDragCrossLeading = 0f;
@@ -102,7 +102,7 @@ class ShadowListDragController {
     mDragGestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
       @Override
       public void onLongPress(MotionEvent event) {
-        if (mDragEnabled && !mDragging) {
+        if (mReorderEnabled && !mDragging) {
           beginDrag(event);
         }
       }
@@ -110,15 +110,19 @@ class ShadowListDragController {
     mDragGestureDetector.setIsLongpressEnabled(true);
   }
 
-  void setEnabled(boolean dragEnabled) {
-    mDragEnabled = dragEnabled;
-    if (!dragEnabled && mDragging) {
+  void setEnabled(boolean reorderEnabled) {
+    mReorderEnabled = reorderEnabled;
+    if (!reorderEnabled && mDragging) {
       cancel();
     }
   }
 
   boolean isDragging() {
     return mDragging;
+  }
+
+  boolean isEnabled() {
+    return mReorderEnabled;
   }
 
   // The held row, or null when nothing is being dragged.
@@ -139,7 +143,7 @@ class ShadowListDragController {
    * passing them to onInterceptTouchEvent.
    */
   void trackGesture(MotionEvent event) {
-    if (mDragEnabled) {
+    if (mReorderEnabled) {
       mDragGestureDetector.onTouchEvent(event);
     }
   }
@@ -245,7 +249,7 @@ class ShadowListDragController {
     float newResting = horizontal ? view.getLeft() : view.getTop();
     float startTranslation = mDropReleaseLeading - newResting;
     float startCross = 0f;
-    if (mColumns > 1) {
+    if (mNumberOfColumns > 1) {
       startCross = mDropReleaseCrossLeading - (horizontal ? view.getTop() : view.getLeft());
     }
 
@@ -279,7 +283,7 @@ class ShadowListDragController {
   /*
    * The topmost row whose resting frame contains the point.
    */
-  private ShadowListElementView elementViewAtContentPoint(float contentX, float contentY) {
+  @Nullable ShadowListElementView elementViewAtContentPoint(float contentX, float contentY) {
     ViewGroup contentView = mView.getContentView();
     ShadowListElementView result = null;
     for (int i = 0; i < contentView.getChildCount(); i++) {
@@ -335,7 +339,7 @@ class ShadowListDragController {
     float touchAxisContent = horizontal ? contentX : contentY;
     mDragGrabOffset = touchAxisContent - restingLeading;
     mDragTouchInViewport = horizontal ? event.getX() : event.getY();
-    mColumns = mView.getColumns();
+    mNumberOfColumns = mView.getNumberOfColumns();
     float restingCross = horizontal ? view.getTop() : view.getLeft();
     mDragCrossGrabOffset = (horizontal ? contentY : contentX) - restingCross;
     mDragCrossTouchInViewport = horizontal ? event.getY() : event.getX();
@@ -427,7 +431,7 @@ class ShadowListDragController {
     float restingCross = horizontal ? mDraggedView.getTop() : mDraggedView.getLeft();
     float crossExtent = horizontal ? mDraggedView.getHeight() : mDraggedView.getWidth();
     float crossTranslation = 0f;
-    if (mColumns > 1) {
+    if (mNumberOfColumns > 1) {
       float crossOffset = horizontal ? scrollView.getScrollY() : scrollView.getScrollX();
       float crossContentExtent = horizontal ? contentView.getHeight() : contentView.getWidth();
       mDragCrossLeading = (float) ShadowListGeometry.dragHeldLeading(
@@ -444,7 +448,7 @@ class ShadowListDragController {
     }
     collectRows();
     int position;
-    if (mColumns > 1) {
+    if (mNumberOfColumns > 1) {
       position = ShadowListGeometry.dragGridInsertionPosition(
         mRowIndices, mRowLeadings, mRowExtents, mRowCrossLeadings, mRowCrossExtents, mRowCount,
         currentDragOriginIndex(), restingLeading, extent, restingCross, crossExtent,
@@ -535,7 +539,7 @@ class ShadowListDragController {
       return;
     }
     boolean horizontal = mView.isHorizontal();
-    if (mColumns > 1 && mDraggedView != null) {
+    if (mNumberOfColumns > 1 && mDraggedView != null) {
       ShadowListElementView held = mDraggedView;
       ShadowListGeometry.dragGridShifts(
         mRowIndices, mRowLeadings, mRowExtents, mRowCrossLeadings, mRowCrossExtents, mRowCount,
@@ -544,7 +548,7 @@ class ShadowListDragController {
         horizontal ? held.getWidth() : held.getHeight(),
         horizontal ? held.getTop() : held.getLeft(),
         horizontal ? held.getHeight() : held.getWidth(),
-        mDragInsertionIndex, mColumns, mRowShifts, mRowCrossShifts);
+        mDragInsertionIndex, mNumberOfColumns, mRowShifts, mRowCrossShifts);
     } else {
       ShadowListGeometry.dragShifts(
         mRowIndices, mRowCount, currentDragOriginIndex(), mDragInsertionIndex, mDraggedExtent, mRowShifts);

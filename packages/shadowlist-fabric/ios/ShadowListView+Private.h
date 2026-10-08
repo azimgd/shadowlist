@@ -1,3 +1,5 @@
+#pragma once
+
 #import "ShadowListView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
@@ -22,6 +24,34 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   [parent bringSubviewToFront:child];
 #endif
 }
+
+#if !TARGET_OS_OSX
+/*
+ * Cancel the React Native touch under this view. RN only cancels a press when its own
+ * ScrollView takes over. Without this a row pressed at the start of a swipe fires on release.
+ * Toggling the touch recognizer is how RN cancels touches itself, and the scroll keeps going.
+ */
+static inline void SLCancelReactTouches(UIView *view)
+{
+  static Class touchHandlerClass;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    touchHandlerClass = NSClassFromString(@"RCTSurfaceTouchHandler");
+  });
+  if (!touchHandlerClass) {
+    return;
+  }
+  for (UIView *ancestor = view; ancestor; ancestor = ancestor.superview) {
+    for (UIGestureRecognizer *recognizer in ancestor.gestureRecognizers) {
+      if ([recognizer isKindOfClass:touchHandlerClass]) {
+        recognizer.enabled = NO;
+        recognizer.enabled = YES;
+        return;
+      }
+    }
+  }
+}
+#endif
 
 /*
  * State and methods shared by the ShadowListView categories. Objective-C++ only.
@@ -84,7 +114,26 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   CGFloat _scrollToTopJumpY;
   uint64_t _scrollToTopJumpToken;
 
-  BOOL _dragEnabled;
+  /*
+   * ScrollView props. A drag turns scrolling off for its run and gives back _scrollEnabled.
+   */
+  BOOL _scrollEnabled;
+  BOOL _scrollsToTop;
+  CGFloat _decelerationRate;
+  CGFloat _refreshProgressViewOffset;
+  // The velocity UIKit gave the end of the last drag, for onScrollEndDrag. Points per millisecond.
+  CGPoint _endDragVelocity;
+  // A VoiceOver page scroll waits for its rows before it says which rows show.
+  BOOL _pageAnnouncementPending;
+#if TARGET_OS_OSX
+  /*
+   * The live scroll's fingers lifted, and whether momentum followed.
+   */
+  BOOL _macDragEnded;
+  BOOL _macMomentum;
+#endif
+
+  BOOL _reorderEnabled;
   SLDragGestureRecognizer *_dragRecognizer;
   SLDisplayLink *_dragDisplayLink;
   __weak RCTUIView *_draggedView;
@@ -97,7 +146,7 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
   NSInteger _dropInsertionIndex;
   CGFloat _dropReleaseLeading;
   CGFloat _dropReleaseCross;
-  NSInteger _columns;
+  NSInteger _numberOfColumns;
   NSInteger _dropSettleToken;
 }
 
@@ -116,6 +165,11 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 - (void)cancelDrag;
 - (void)teardownDrag;
 - (void)settleDroppedView:(RCTUIView *)view;
+
+- (void)closeSwipeActionsExcept:(RCTUIView *)view;
+#if !TARGET_OS_OSX
+- (BOOL)closeSwipeActionsForTouchInView:(UIView *)view;
+#endif
 
 - (void)applyDragAccessibilityActionsToView:(RCTUIView *)view;
 - (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up;

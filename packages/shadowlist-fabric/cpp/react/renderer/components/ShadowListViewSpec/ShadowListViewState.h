@@ -108,6 +108,8 @@ constexpr MapBuffer::Key BAND_LOW = 14;
 constexpr MapBuffer::Key BAND_HIGH = 15;
 constexpr MapBuffer::Key LIVE_HANDLE = 16;
 constexpr MapBuffer::Key CONCEAL_GENERATION = 17;
+constexpr MapBuffer::Key ANIMATION_SEQUENCE = 18;
+constexpr MapBuffer::Key ANIMATION_OFFSET = 19;
 }
 #endif
 
@@ -175,7 +177,8 @@ public:
     stickyHeaderOffsets_(previousState.stickyHeaderOffsets_),
     stickyHeaderSizes_(previousState.stickyHeaderSizes_),
     snapOffsets_(previousState.snapOffsets_),
-    commitToken_(data.count("commitToken") ? (Float)data["commitToken"].getDouble() : previousState.commitToken_),
+    commitToken_(
+      data.count("commitToken") ? static_cast<std::uint64_t>(data["commitToken"].getDouble()) : previousState.commitToken_),
     /*
      * Carry the base over from the mounted state, like iOS does. A report that echoes a
      * correction keeps the base its first write started from. A republished correction
@@ -190,7 +193,13 @@ public:
     offsetBandLow_(previousState.offsetBandLow_),
     offsetBandHigh_(previousState.offsetBandHigh_),
     hostSequence_(data.count("hostSequence") ? data["hostSequence"].asDouble() : previousState.hostSequence_),
-    liveScroll_(previousState.liveScroll_) {
+    liveScroll_(previousState.liveScroll_),
+    containerOffsetIndexRowOffset_(data.count("containerOffsetIndexRowOffset") ? data["containerOffsetIndexRowOffset"].asDouble() : previousState.containerOffsetIndexRowOffset_),
+    containerOffsetIndexAnimated_(data.count("containerOffsetIndexAnimated") ? data["containerOffsetIndexAnimated"].asBool() : previousState.containerOffsetIndexAnimated_),
+    // The estimate comes from the layout pass. Carry it over.
+    animationTargetSequence_(previousState.animationTargetSequence_),
+    animationTargetOffset_(previousState.animationTargetOffset_),
+    anchorRequestSequence_(data.count("anchorRequestSequence") ? data["anchorRequestSequence"].asDouble() : previousState.anchorRequestSequence_) {
     if (data.count("stickyHeaderIndices") && data.count("stickyHeaderOffsets") && data.count("stickyHeaderSizes")) {
       auto stickyHeaderIndices = std::make_shared<std::vector<int>>();
       auto stickyHeaderOffsets = std::make_shared<std::vector<double>>();
@@ -233,6 +242,9 @@ public:
     result["containerOffsetIndex"] = containerOffsetIndex_;
     result["containerOffsetIndexSequence"] = containerOffsetIndexSequence_;
     result["containerOffsetIndexViewPosition"] = containerOffsetIndexViewPosition_;
+    result["containerOffsetIndexRowOffset"] = containerOffsetIndexRowOffset_;
+    result["containerOffsetIndexAnimated"] = containerOffsetIndexAnimated_;
+    result["anchorRequestSequence"] = anchorRequestSequence_;
     result["totalContainerHeight"] = totalContainerHeight_;
     result["totalContainerWidth"] = totalContainerWidth_;
     result["startReachedEnabled"] = startReachedEnabled_;
@@ -275,7 +287,7 @@ public:
       }
     }
     result["snapOffsets"] = snapOffsets;
-    result["commitToken"] = commitToken_;
+    result["commitToken"] = static_cast<double>(commitToken_);
     result["containerOffsetBaseX"] = containerOffsetBaseX_;
     result["containerOffsetBaseY"] = containerOffsetBaseY_;
     return result;
@@ -293,7 +305,7 @@ public:
     builder.putBool(ShadowListStateKey::OFFSET_ENABLED, containerOffsetEnabled_);
     builder.putDouble(ShadowListStateKey::OFFSET_X, containerOffsetX_);
     builder.putDouble(ShadowListStateKey::OFFSET_Y, containerOffsetY_);
-    builder.putDouble(ShadowListStateKey::COMMIT_TOKEN, commitToken_);
+    builder.putDouble(ShadowListStateKey::COMMIT_TOKEN, static_cast<double>(commitToken_));
     builder.putDouble(ShadowListStateKey::OFFSET_BASE_X, containerOffsetBaseX_);
     builder.putDouble(ShadowListStateKey::OFFSET_BASE_Y, containerOffsetBaseY_);
     builder.putBool(ShadowListStateKey::USER_SCROLLED, userScrolled_);
@@ -308,8 +320,10 @@ public:
     builder.putLong(ShadowListStateKey::SNAP_VERSION, static_cast<std::int64_t>(versions.second));
     builder.putDouble(ShadowListStateKey::BAND_LOW, offsetBandLow_);
     builder.putDouble(ShadowListStateKey::BAND_HIGH, offsetBandHigh_);
-    builder.putLong(ShadowListStateKey::LIVE_HANDLE, liveScroll_ ? liveScroll_->handle() : 0);
+    builder.putLong(ShadowListStateKey::LIVE_HANDLE, liveScroll_ ? liveScroll_->getHandle() : 0);
     builder.putDouble(ShadowListStateKey::CONCEAL_GENERATION, concealGeneration_);
+    builder.putDouble(ShadowListStateKey::ANIMATION_SEQUENCE, animationTargetSequence_);
+    builder.putDouble(ShadowListStateKey::ANIMATION_OFFSET, animationTargetOffset_);
     return builder.build();
   }
 #endif
@@ -369,6 +383,11 @@ public:
       containerOffsetIndex_ = patch.commandIndex;
       containerOffsetIndexSequence_ = patch.commandSequence;
       containerOffsetIndexViewPosition_ = patch.commandViewPosition;
+      containerOffsetIndexRowOffset_ = patch.commandRowOffset;
+      containerOffsetIndexAnimated_ = patch.commandAnimated;
+    }
+    if (patch.hasAnchorRequest) {
+      anchorRequestSequence_ = patch.anchorRequestSequence;
     }
     if (patch.hasStartReachedEnabled) {
       startReachedEnabled_ = patch.startReachedEnabled;
@@ -393,7 +412,10 @@ public:
       userScrolled_ == report.userScrolled && scrollPhase_ == report.scrollPhase &&
       (!patch.hasCommand ||
        (containerOffsetIndex_ == patch.commandIndex && containerOffsetIndexSequence_ == patch.commandSequence &&
-        containerOffsetIndexViewPosition_ == patch.commandViewPosition)) &&
+        containerOffsetIndexViewPosition_ == patch.commandViewPosition &&
+        containerOffsetIndexRowOffset_ == patch.commandRowOffset &&
+        containerOffsetIndexAnimated_ == patch.commandAnimated)) &&
+      (!patch.hasAnchorRequest || anchorRequestSequence_ == patch.anchorRequestSequence) &&
       (!patch.hasStartReachedEnabled || startReachedEnabled_ == patch.startReachedEnabled) &&
       (!patch.hasEndReachedEnabled || endReachedEnabled_ == patch.endReachedEnabled);
   }
@@ -408,12 +430,14 @@ public:
     mounted.offsetY = containerOffsetY_;
     mounted.baseX = containerOffsetBaseX_;
     mounted.baseY = containerOffsetBaseY_;
-    mounted.commitToken = static_cast<std::uint64_t>(commitToken_);
+    mounted.commitToken = commitToken_;
     mounted.userScrolled = userScrolled_;
     mounted.scrollPhase = scrollPhase_;
     mounted.concealGeneration = concealGeneration_;
     mounted.concealGenerationAck = concealGenerationAck_;
     mounted.commandSequence = containerOffsetIndexSequence_;
+    mounted.animationSequence = animationTargetSequence_;
+    mounted.animationOffset = animationTargetOffset_;
     mounted.band.low = offsetBandLow_;
     mounted.band.high = offsetBandHigh_;
     return mounted;
@@ -426,7 +450,7 @@ public:
   double containerOffsetIndex_{-2.0};
   double containerOffsetIndexSequence_{0.0};
   /*
-   * Where scrollToIndex places its row in the viewport: 0 start, 0.5 center, 1 end.
+   * Where scrollToItem places its row in the viewport: 0 start, 0.5 center, 1 end.
    * The platform views carry it along with containerOffsetIndex_.
    */
   double containerOffsetIndexViewPosition_{0.0};
@@ -493,10 +517,11 @@ public:
   /*
    * The id of the pending offset correction. The core sends it with the offset and the
    * view echoes it back. The core knows its own write by id instead of guessing by
-   * distance. Zero means no correction or a report from the host. Stored as a double like
-   * the other fields. Keep it after snapOffsets_ to match the Android constructor's init order.
+   * distance. Zero means no correction or a report from the host. The dynamic and MapBuffer
+   * forms carry it as a double. Keep it after snapOffsets_ to match the Android constructor's
+   * init order.
    */
-  double commitToken_{0.0};
+  std::uint64_t commitToken_{0};
 
   /*
    * The offset the core started from when it published a correction. The container
@@ -541,6 +566,28 @@ public:
    * every copy after that, like the sticky and snap lists.
    */
   std::shared_ptr<ShadowListLiveScroll> liveScroll_{std::make_shared<ShadowListLiveScroll>()};
+
+  /*
+   * The rest of the newest scroll command: how far past its view position the row rests, and
+   * whether it animates to the core's estimate first. Keep these after liveScroll_ to match
+   * the Android constructor's init order.
+   */
+  double containerOffsetIndexRowOffset_{0.0};
+  bool containerOffsetIndexAnimated_{false};
+
+  /*
+   * Where the core estimates the newest animated command lands along the scroll axis, and its
+   * sequence, from the layout pass. The host animates there, then sends the command again
+   * without the animation.
+   */
+  double animationTargetSequence_{0.0};
+  double animationTargetOffset_{0.0};
+
+  /*
+   * Bumped by the host to ask for the anchor at its offset. The component descriptor answers
+   * once per new value with onAnchorState.
+   */
+  double anchorRequestSequence_{0.0};
 };
 
 }

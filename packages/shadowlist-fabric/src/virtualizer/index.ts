@@ -20,6 +20,7 @@ export {
   ElementRenderer,
   createRowIndexStore,
   type RowIndexStore,
+  type RowSelection,
 } from './ElementRenderer';
 export { useStableElement } from './useStableElement';
 export { useMountedRange } from './useMountedRange';
@@ -28,4 +29,8 @@ export { useDragReorder } from './useDragReorder';
 export { usePersistentKeys } from './usePersistentKeys';
 export { useViewability } from './useViewability';
 export { useElementSizeSpecs } from './useElementSizeSpecs';
-export { useImperativeCommands } from './useImperativeCommands';
+export {
+  useImperativeCommands,
+  forwardedCommands,
+  type CommandSource,
+} from './useImperativeCommands';

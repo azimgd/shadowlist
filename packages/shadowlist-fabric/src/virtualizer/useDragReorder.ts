@@ -7,7 +7,7 @@ interface UseDragReorderOptions<ElementT> {
   data: ReadonlyArray<ElementT>;
   keyToIndex: ReadonlyMap<string, number>;
   mountedIndices: number[];
-  dragEnabled: boolean;
+  reorderEnabled: boolean;
   onReorder:
     | ((info: { from: number; to: number; data: ElementT[] }) => void)
     | undefined;
@@ -27,7 +27,7 @@ export function useDragReorder<ElementT>({
   data,
   keyToIndex,
   mountedIndices,
-  dragEnabled,
+  reorderEnabled,
   onReorder,
 }: UseDragReorderOptions<ElementT>): UseDragReorderResult {
   /*
@@ -93,10 +93,10 @@ export function useDragReorder<ElementT>({
 
   // Clear draggingKey if dragging is turned off mid drag, since the drop event may never come.
   useEffect(() => {
-    if (!dragEnabled) {
+    if (!reorderEnabled) {
       setDraggingKey((previous) => (previous === null ? previous : null));
     }
-  }, [dragEnabled]);
+  }, [reorderEnabled]);
 
   return { renderIndices, handleDragStart, handleDragEnd };
 }

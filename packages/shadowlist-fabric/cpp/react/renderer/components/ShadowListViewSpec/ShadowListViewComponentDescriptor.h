@@ -4,6 +4,7 @@
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
 #include "ShadowListOffsetBand.h"
+#include "ShadowListScrollEvent.h"
 #include "ShadowListTextMeasurer.h"
 #include "ShadowListTrace.h"
 #include "ShadowListViewShadowNode.h"
@@ -12,6 +13,7 @@
 #include <shadowlist-core/Virtualizer.hpp>
 #include <shadowlist-core/host/DragReorder.hpp>
 #include <shadowlist-core/host/ListCommit.hpp>
+#include <shadowlist-core/host/ScrollTarget.hpp>
 
 #include <atomic>
 #include <mutex>
@@ -131,7 +133,8 @@ public:
     const auto& eventEmitter = shadowNode.getEventEmitter();
     bool callbacksCurrent = callbacksCache && callbacksCache->callbacksEmitter == eventEmitter &&
       callbacksCache->callbacksViewable == shadowlistViewProps.viewableEventEnabled &&
-      callbacksCache->callbacksScroll == shadowlistViewProps.scrollEventEnabled;
+      callbacksCache->callbacksScroll == shadowlistViewProps.scrollEventEnabled &&
+      callbacksCache->callbacksScrollThrottle == shadowlistViewProps.scrollEventThrottle;
     if (!callbacksCurrent) {
       auto emitter = std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteEventEmitter>(eventEmitter);
       containerManager->onStartReachedCallback = [emitter]() -> void {
@@ -157,14 +160,26 @@ public:
        * an event that nobody handles.
        */
       if (shadowlistViewProps.viewableEventEnabled) {
-        containerManager->onViewableIndicesChangeCallback = [emitter](std::size_t startIndex, std::size_t endIndex) -> void {
-          int viewableStartIndex = static_cast<int>(startIndex);
-          int viewableEndIndex = static_cast<int>(endIndex);
+        /*
+         * One range per viewability rule, two indices each and -1 for none. The first rule's
+         * range also goes out as viewableStartIndex and viewableEndIndex.
+         */
+        containerManager->onViewableIndicesChangeCallback = [emitter](const std::vector<std::size_t>& ranges) -> void {
+          std::vector<int> indices;
+          indices.reserve(ranges.size());
+          for (auto index : ranges) {
+            indices.push_back(index == azimgd::shadowlist::UNDEFINED_INDEX ? -1 : static_cast<int>(index));
+          }
           emitter->dispatchUniqueEvent("viewableIndicesChange",
-            [viewableStartIndex, viewableEndIndex](jsi::Runtime& runtime) {
+            [indices = std::move(indices)](jsi::Runtime& runtime) {
               auto payload = jsi::Object(runtime);
-              payload.setProperty(runtime, "viewableStartIndex", viewableStartIndex);
-              payload.setProperty(runtime, "viewableEndIndex", viewableEndIndex);
+              payload.setProperty(runtime, "viewableStartIndex", indices.size() >= 2 ? indices[0] : -1);
+              payload.setProperty(runtime, "viewableEndIndex", indices.size() >= 2 ? indices[1] : -1);
+              auto ranges = jsi::Array(runtime, indices.size());
+              for (std::size_t position = 0; position < indices.size(); ++position) {
+                ranges.setValueAtIndex(runtime, position, indices[position]);
+              }
+              payload.setProperty(runtime, "ranges", ranges);
               return payload;
             });
         };
@@ -173,23 +188,42 @@ public:
       }
 
       if (shadowlistViewProps.scrollEventEnabled) {
-        containerManager->onScrollCallback = [emitter](double containerOffsetX, double containerOffsetY) -> void {
+        /*
+         * The callback lives in the core and only runs while the core does. Reading its sizes
+         * through the raw pointer is safe. The tracker adds velocity and drops events inside
+         * scrollEventThrottle.
+         */
+        auto tracker = std::make_shared<ShadowListScrollTracker>(shadowlistViewProps.scrollEventThrottle);
+        containerManager->onScrollCallback = [emitter, tracker, containerManager](
+                                               double containerOffsetX, double containerOffsetY) -> void {
+          ShadowListScrollMetrics metrics;
+          metrics.offsetX = containerOffsetX;
+          metrics.offsetY = containerOffsetY;
+          metrics.contentWidth = containerManager->revision.totalContainerWidth;
+          metrics.contentHeight = containerManager->revision.totalContainerHeight;
+          metrics.viewportWidth = containerManager->revision.windowContainerWidth;
+          metrics.viewportHeight = containerManager->revision.windowContainerHeight;
+          if (!tracker->track(metrics)) {
+            return;
+          }
           emitter->dispatchUniqueEvent("scroll",
-            [containerOffsetX, containerOffsetY](jsi::Runtime& runtime) {
-              auto payload = jsi::Object(runtime);
-              payload.setProperty(runtime, "contentOffsetX", containerOffsetX);
-              payload.setProperty(runtime, "contentOffsetY", containerOffsetY);
-              return payload;
-            });
+            [metrics](jsi::Runtime& runtime) { return shadowListScrollPayload(runtime, metrics); });
         };
+        if (callbacksCache) {
+          callbacksCache->scrollTracker = tracker;
+        }
       } else {
         containerManager->onScrollCallback = nullptr;
+        if (callbacksCache) {
+          callbacksCache->scrollTracker = nullptr;
+        }
       }
 
       if (callbacksCache) {
         callbacksCache->callbacksEmitter = eventEmitter;
         callbacksCache->callbacksViewable = shadowlistViewProps.viewableEventEnabled;
         callbacksCache->callbacksScroll = shadowlistViewProps.scrollEventEnabled;
+        callbacksCache->callbacksScrollThrottle = shadowlistViewProps.scrollEventThrottle;
       }
     }
     /*
@@ -220,14 +254,46 @@ public:
     }
 
     /*
-     * Handle a pending scrollToIndex. The command writes its target into state and the
+     * Handle a pending scrollToItem. The command writes its target into state and the
      * prop gives the initial index. The core picks which wins and scrolls once per target.
+     * An animated command only gets an estimate here, which the layout pass publishes. The
+     * host animates there and sends the same command again without the animation.
      */
+    bool animatedCommand = shadowlistViewStateData.containerOffsetIndexAnimated_;
+    if (animatedCommand && callbacksCache &&
+        shadowlistViewStateData.containerOffsetIndexSequence_ > callbacksCache->animationSequence) {
+      auto target = azimgd::shadowlist::commandTargetOffset(
+        *containerManager,
+        shadowlistViewStateData.containerOffsetIndex_,
+        shadowlistViewStateData.containerOffsetIndexViewPosition_,
+        shadowlistViewStateData.containerOffsetIndexRowOffset_);
+      if (target) {
+        callbacksCache->animationSequence = shadowlistViewStateData.containerOffsetIndexSequence_;
+        callbacksCache->animationOffset = *target;
+      }
+    }
     containerManager->requestScrollToIndex(
       shadowlistViewStateData.containerOffsetIndex_,
-      shadowlistViewStateData.containerOffsetIndexSequence_,
+      animatedCommand ? 0.0 : shadowlistViewStateData.containerOffsetIndexSequence_,
       shadowlistViewProps.containerOffsetIndex,
-      shadowlistViewStateData.containerOffsetIndexViewPosition_);
+      shadowlistViewStateData.containerOffsetIndexViewPosition_,
+      shadowlistViewStateData.containerOffsetIndexRowOffset_);
+
+    /*
+     * Answer an anchor request once, with the row at the viewport start of the offset this
+     * commit runs on.
+     */
+    if (callbacksCache && shadowlistViewStateData.anchorRequestSequence_ > callbacksCache->anchorRequestSequence) {
+      callbacksCache->anchorRequestSequence = shadowlistViewStateData.anchorRequestSequence_;
+      double offset = shadowlistViewProps.horizontal ? shadowlistViewStateData.containerOffsetX_
+                                                     : shadowlistViewStateData.containerOffsetY_;
+      auto anchor = azimgd::shadowlist::anchorAt(*containerManager, offset);
+      ShadowListViewEventEmitter::OnAnchorState event;
+      event.found = anchor.has_value();
+      event.key = anchor ? anchor->key : std::string();
+      event.offset = anchor ? anchor->offset : 0.0;
+      shadowlistViewEventEmitter.onAnchorState(event);
+    }
 
     azimgd::shadowlist::FrameInput input;
     /*
@@ -262,23 +328,36 @@ public:
      */
     if (geometryCache) {
       if (geometryCache->stickyIndicesProps != currentProps) {
-        azimgd::shadowlist::stickyIndicesFromProps(shadowlistViewProps.stickyHeaderIndices, geometryCache->stickyIndices);
+        azimgd::shadowlist::stickyIndicesFromProps(shadowlistViewProps.stickyIndices, geometryCache->stickyIndices);
         geometryCache->stickyIndicesProps = currentProps;
       }
       input.stickyIndicesRef = &geometryCache->stickyIndices;
     } else {
-      azimgd::shadowlist::stickyIndicesFromProps(shadowlistViewProps.stickyHeaderIndices, input.stickyIndices);
+      azimgd::shadowlist::stickyIndicesFromProps(shadowlistViewProps.stickyIndices, input.stickyIndices);
     }
     input.inverted = shadowlistViewProps.inverted;
     input.followAppends = shadowlistViewProps.followAppends;
     input.horizontal = shadowlistViewProps.horizontal;
-    input.columns = shadowlistViewProps.columns > 0 ? static_cast<std::size_t>(shadowlistViewProps.columns) : 1;
+    input.columns =
+      shadowlistViewProps.numberOfColumns > 0 ? static_cast<std::size_t>(shadowlistViewProps.numberOfColumns) : 1;
     input.overscan = shadowlistViewProps.overscan;
     input.startReachedThreshold = shadowlistViewProps.startReachedThreshold;
     input.endReachedThreshold = shadowlistViewProps.endReachedThreshold;
-    input.viewablePercentThreshold = shadowlistViewProps.viewablePercentThreshold;
+    /*
+     * Viewability rules, two values each: the threshold from 0 to 1, then 1 for viewport
+     * coverage or 0 for the row's own share. Read once per props and lent to the core.
+     */
+    if (geometryCache) {
+      if (geometryCache->viewableRulesProps != currentProps) {
+        viewableRulesFromProps(shadowlistViewProps.viewableRules, geometryCache->viewableRules);
+        geometryCache->viewableRulesProps = currentProps;
+      }
+      input.viewableRulesRef = &geometryCache->viewableRules;
+    } else {
+      viewableRulesFromProps(shadowlistViewProps.viewableRules, input.viewableRules);
+    }
     input.snapToItem = shadowlistViewProps.snapToItem;
-    input.snapAlignment = shadowlistViewProps.snapToAlignment;
+    input.snapAlignment = shadowlistViewProps.snapAlignment;
 
     // Offset, echoed token, user scroll flag and gesture phase, see applyHostScroll.
     azimgd::shadowlist::applyHostScroll(input, shadowlistViewStateData.scrollState());
@@ -297,7 +376,20 @@ public:
 
     // If the core throws, skip the frame instead of failing the commit. The next frame recovers.
     try {
-      azimgd::shadowlist::Virtualizer::update(containerManager, input);
+      azimgd::shadowlist::Virtualizer::update(*containerManager, input);
+      /*
+       * The list came to rest with a scroll event still held back by scrollEventThrottle.
+       * Send it now. JS would otherwise keep an offset from before the scroll stopped.
+       */
+      if (callbacksCache && callbacksCache->scrollTracker &&
+          shadowlistViewStateData.scrollPhase_ == SCROLL_PHASE_IDLE && !shadowlistViewStateData.userScrolled_) {
+        ShadowListScrollMetrics trailing;
+        if (callbacksCache->scrollTracker->takeTrailing(trailing)) {
+          std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteEventEmitter>(eventEmitter)
+            ->dispatchUniqueEvent("scroll",
+              [trailing](jsi::Runtime& runtime) { return shadowListScrollPayload(runtime, trailing); });
+        }
+      }
       /*
        * Only the layout pass publishes to the host, and a state only commit won't run it.
        * So mark layout dirty when there's a correction or the state has old geometry.
@@ -311,12 +403,13 @@ public:
          (geometryCache->published.snapOffsets != shadowlistViewStateData.snapOffsets_ ||
           geometryCache->published.stickyHeaderIndices != shadowlistViewStateData.stickyHeaderIndices_ ||
           geometryCache->published.stickyHeaderOffsets != shadowlistViewStateData.stickyHeaderOffsets_ ||
-          geometryCache->published.stickyHeaderSizes != shadowlistViewStateData.stickyHeaderSizes_));
+          geometryCache->published.stickyHeaderSizes != shadowlistViewStateData.stickyHeaderSizes_ ||
+          geometryCache->animationSequence != shadowlistViewStateData.animationTargetSequence_));
       /*
        * The layout pass shows hidden rows again, and the host's echo usually comes in a plain
        * scroll report. Keep layout dirty while any row is hidden.
        */
-      bool rowsConcealed = geometryCache && !geometryCache->concealedRows.empty();
+      bool rowsConcealed = geometryCache && !geometryCache->concealedRows.isEmpty();
       /*
        * The band is also only published by the layout pass. If this frame moved it, like a
        * new window, an edge crossed or rows reconciled, lay out again so the host gets the
@@ -341,6 +434,18 @@ public:
   };
 
 private:
+  static void viewableRulesFromProps(
+    const std::vector<double>& values,
+    std::vector<azimgd::shadowlist::ViewableRule>& rules) {
+    rules.clear();
+    for (std::size_t position = 0; position + 1 < values.size(); position += 2) {
+      rules.push_back({values[position], values[position + 1] != 0.0});
+    }
+    if (rules.empty()) {
+      rules.push_back({});
+    }
+  }
+
   /*
    * Write the host's live scroll report into the node's state when it is newer than
    * stateData, the state this commit would otherwise run on. Returns whether it did.
@@ -353,10 +458,10 @@ private:
     if (!liveScroll || !liveScroll->newerReport(stateData.hostSequence_, stateData.containerOffsetEnabled_, report)) {
       return false;
     }
-    SL_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%.0f phase=%.0f",
+    SL_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%llu phase=%.0f",
       static_cast<unsigned long long>(report.sequence), stateData.hostSequence_,
       stateData.containerOffsetX_, stateData.containerOffsetY_, report.offsetX, report.offsetY,
-      report.commitToken, report.scrollPhase);
+      static_cast<unsigned long long>(report.commitToken), report.scrollPhase);
     ShadowListViewState nextStateData = stateData;
     nextStateData.applyLiveReport(report);
     listShadowNode.setStateData(std::move(nextStateData));

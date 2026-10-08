@@ -1,7 +1,7 @@
 #import "ShadowListMacScrollView.h"
 
 #if TARGET_OS_OSX
-static const NSTimeInterval SLWheelIdleDelay = 0.15;
+static const NSTimeInterval SL_WHEEL_IDLE_DELAY = 0.15;
 
 @implementation ShadowListMacScrollView {
   ShadowListMacScrollPhase _phase;
@@ -60,7 +60,7 @@ static const NSTimeInterval SLWheelIdleDelay = 0.15;
 - (void)setHorizontal:(BOOL)horizontal
 {
   _horizontal = horizontal;
-  // No rubber band across the axis, so a stray cross-axis delta never wobbles the list.
+  // No rubber band across the axis. A stray cross-axis delta never wobbles the list.
   self.horizontalScrollElasticity = horizontal ? NSScrollElasticityAutomatic : NSScrollElasticityNone;
   self.verticalScrollElasticity = horizontal ? NSScrollElasticityNone : NSScrollElasticityAutomatic;
 }
@@ -119,10 +119,17 @@ static const NSTimeInterval SLWheelIdleDelay = 0.15;
   } else {
     _phase = ShadowListMacScrollPhaseIdle;
   }
+  // Fingers lift, then momentum may follow, like a UIKit drag and deceleration.
+  if (event.phase == NSEventPhaseEnded) {
+    [self.delegate shadowListDragDidEnd];
+  }
+  if (event.momentumPhase == NSEventPhaseBegan) {
+    [self.delegate shadowListMomentumWillBegin];
+  }
   [super scrollWheel:event];
   if (unphased) {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(endLiveScroll:) object:nil];
-    [self performSelector:@selector(endLiveScroll:) withObject:nil afterDelay:SLWheelIdleDelay];
+    [self performSelector:@selector(endLiveScroll:) withObject:nil afterDelay:SL_WHEEL_IDLE_DELAY];
   } else if (momentumEnds || event.phase == NSEventPhaseCancelled) {
     [self endLiveScroll:nil];
   }

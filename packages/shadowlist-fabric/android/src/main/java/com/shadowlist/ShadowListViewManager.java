@@ -84,7 +84,8 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "elementsAllKeys")
   public void setElementsAllKeys(ShadowListView view, @Nullable ReadableArray elementsAllKeys) {
-    // Only the core reads this prop.
+    // The core reads this prop. The view only counts rows for accessibility.
+    view.setItemKeys(elementsAllKeys);
   }
 
   @Override
@@ -144,14 +145,14 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "dragEnabled")
-  public void setDragEnabled(ShadowListView view, boolean dragEnabled) {
-    view.setDragEnabled(dragEnabled);
+  @ReactProp(name = "reorderEnabled")
+  public void setReorderEnabled(ShadowListView view, boolean reorderEnabled) {
+    view.setReorderEnabled(reorderEnabled);
   }
 
   @Override
-  @ReactProp(name = "stickyHeaderIndices")
-  public void setStickyHeaderIndices(ShadowListView view, @Nullable ReadableArray stickyHeaderIndices) {
+  @ReactProp(name = "stickyIndices")
+  public void setStickyIndices(ShadowListView view, @Nullable ReadableArray stickyIndices) {
     // Only the core reads this prop. Pinning reads the header positions back from state.
   }
 
@@ -166,10 +167,10 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "columns")
-  public void setColumns(ShadowListView view, int columns) {
+  @ReactProp(name = "numberOfColumns")
+  public void setNumberOfColumns(ShadowListView view, int numberOfColumns) {
     // The core lays the columns out. The view only needs them for grid drags.
-    view.setColumns(columns);
+    view.setNumberOfColumns(numberOfColumns);
   }
 
   @Override
@@ -199,7 +200,7 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Nullable
   @Override
   public Map<String, Object> getExportedCustomDirectEventTypeConstants() {
-    // Hook the refresh events up to onRefresh and onRefreshSettle in JS.
+    // Hook the events this view sends itself up to their JS handlers.
     return MapBuilder.<String, Object>builder()
       .put(
         ShadowListRefreshEvent.EVENT_NAME,
@@ -207,6 +208,18 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
       .put(
         ShadowListRefreshEvent.SETTLE_EVENT_NAME,
         MapBuilder.of("registrationName", "onRefreshSettle"))
+      .put(
+        ShadowListScrollEvent.BEGIN_DRAG,
+        MapBuilder.of("registrationName", "onScrollBeginDrag"))
+      .put(
+        ShadowListScrollEvent.END_DRAG,
+        MapBuilder.of("registrationName", "onScrollEndDrag"))
+      .put(
+        ShadowListScrollEvent.MOMENTUM_BEGIN,
+        MapBuilder.of("registrationName", "onMomentumScrollBegin"))
+      .put(
+        ShadowListScrollEvent.MOMENTUM_END,
+        MapBuilder.of("registrationName", "onMomentumScrollEnd"))
       .build();
   }
 
@@ -223,9 +236,75 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "viewablePercentThreshold")
-  public void setViewablePercentThreshold(ShadowListView view, double viewablePercentThreshold) {
+  @ReactProp(name = "viewableRules")
+  public void setViewableRules(ShadowListView view, @Nullable ReadableArray viewableRules) {
     // Only the core reads this prop.
+  }
+
+  @Override
+  @ReactProp(name = "scrollEventThrottle")
+  public void setScrollEventThrottle(ShadowListView view, double scrollEventThrottle) {
+    // Only the component descriptor reads this prop.
+  }
+
+  @Override
+  @ReactProp(name = "contentSizeEventEnabled")
+  public void setContentSizeEventEnabled(ShadowListView view, boolean contentSizeEventEnabled) {
+    // Only the layout pass reads this prop.
+  }
+
+  @Override
+  @ReactProp(name = "scrollEnabled", defaultBoolean = true)
+  public void setScrollEnabled(ShadowListView view, boolean scrollEnabled) {
+    view.setScrollEnabled(scrollEnabled);
+  }
+
+  @Override
+  @ReactProp(name = "showsVerticalScrollIndicator", defaultBoolean = true)
+  public void setShowsVerticalScrollIndicator(ShadowListView view, boolean shows) {
+    view.setShowsVerticalScrollIndicator(shows);
+  }
+
+  @Override
+  @ReactProp(name = "showsHorizontalScrollIndicator", defaultBoolean = true)
+  public void setShowsHorizontalScrollIndicator(ShadowListView view, boolean shows) {
+    view.setShowsHorizontalScrollIndicator(shows);
+  }
+
+  @Override
+  @ReactProp(name = "bounces", defaultBoolean = true)
+  public void setBounces(ShadowListView view, boolean bounces) {
+    view.setBounces(bounces);
+  }
+
+  @Override
+  @ReactProp(name = "decelerationRate")
+  public void setDecelerationRate(ShadowListView view, double decelerationRate) {
+    view.setDecelerationRate(decelerationRate);
+  }
+
+  @Override
+  @ReactProp(name = "scrollsToTop", defaultBoolean = true)
+  public void setScrollsToTop(ShadowListView view, boolean scrollsToTop) {
+    // Android has no status bar tap.
+  }
+
+  @Override
+  @ReactProp(name = "keyboardDismissMode")
+  public void setKeyboardDismissMode(ShadowListView view, @Nullable String keyboardDismissMode) {
+    // JS dismisses the keyboard when a drag begins, like React Native's ScrollView on Android.
+  }
+
+  @Override
+  @ReactProp(name = "nestedScrollEnabled")
+  public void setNestedScrollEnabled(ShadowListView view, boolean nestedScrollEnabled) {
+    view.setNestedScrollEnabled(nestedScrollEnabled);
+  }
+
+  @Override
+  @ReactProp(name = "refreshProgressViewOffset")
+  public void setRefreshProgressViewOffset(ShadowListView view, double refreshProgressViewOffset) {
+    view.setRefreshProgressViewOffset(refreshProgressViewOffset);
   }
 
   @Override
@@ -253,14 +332,14 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "snapToAlignment")
-  public void setSnapToAlignment(ShadowListView view, int snapToAlignment) {
+  @ReactProp(name = "snapAlignment")
+  public void setSnapAlignment(ShadowListView view, int snapAlignment) {
     // The core applies the alignment. The view only needs the snap offsets.
   }
 
   @Override
-  public void scrollToIndex(ShadowListView view, int index, double viewPosition) {
-    view.scrollToIndex(index, viewPosition);
+  public void scrollToItem(ShadowListView view, int index, double viewPosition, double viewOffset, boolean animated) {
+    view.scrollToItem(index, viewPosition, viewOffset, animated);
   }
 
   @Override
@@ -271,6 +350,21 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   public void scrollToEnd(ShadowListView view, boolean animated) {
     view.scrollToEnd(animated);
+  }
+
+  @Override
+  public void flashScrollIndicators(ShadowListView view) {
+    view.flashScrollIndicators();
+  }
+
+  @Override
+  public void requestAnchorState(ShadowListView view) {
+    view.requestAnchorState();
+  }
+
+  @Override
+  public void closeSwipeActions(ShadowListView view) {
+    view.closeSwipeActions();
   }
 
   @Nullable

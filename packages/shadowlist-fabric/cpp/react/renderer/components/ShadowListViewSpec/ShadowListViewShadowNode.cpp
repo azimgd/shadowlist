@@ -362,7 +362,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     published.stickyHeaderSizes != nextStateData.stickyHeaderSizes_;
   bool snapChanged = published.snapOffsets != nextStateData.snapOffsets_;
 
-  double concealGeneration = concealed.publishedGeneration();
+  double concealGeneration = concealed.getPublishedGeneration();
   bool concealChanged = nextStateData.concealGeneration_ != concealGeneration;
 
   // The offsets the host can scroll through without a state update, see ShadowListOffsetBand.h.
@@ -376,7 +376,10 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
     stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
-  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged || bandChanged) {
+  // A new animated command's estimate, see ShadowListViewGeometryCache::animationSequence.
+  bool animationChanged = nextStateData.animationTargetSequence_ != geometry.animationSequence;
+
+  if (stateUpdate.changed || stickyChanged || snapChanged || concealChanged || bandChanged || animationChanged) {
     auto scrollState = nextStateData.scrollState();
     if (azimgd::shadowlist::publishStateUpdate(scrollState, stateUpdate)) {
       nextStateData.setScrollState(scrollState);
@@ -396,7 +399,26 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     nextStateData.concealGeneration_ = concealGeneration;
     nextStateData.offsetBandLow_ = offsetBand.low;
     nextStateData.offsetBandHigh_ = offsetBand.high;
+    nextStateData.animationTargetSequence_ = geometry.animationSequence;
+    nextStateData.animationTargetOffset_ = geometry.animationOffset;
     setStateData(std::move(nextStateData));
+  }
+
+  /*
+   * Tell JS when the content size changes, header and footer included, like ScrollView's
+   * onContentSizeChange. Once per size for the whole list, not per clone, and only while JS
+   * listens.
+   */
+  double contentWidth = stateUpdate.totalContainerWidth;
+  double contentHeight = stateUpdate.totalContainerHeight;
+  if (getConcreteProps().contentSizeEventEnabled &&
+      (contentWidth != geometry.emittedContentWidth || contentHeight != geometry.emittedContentHeight)) {
+    geometry.emittedContentWidth = contentWidth;
+    geometry.emittedContentHeight = contentHeight;
+    ShadowListViewEventEmitter::OnContentSizeChange event;
+    event.width = contentWidth;
+    event.height = contentHeight;
+    getConcreteEventEmitter().onContentSizeChange(event);
   }
 
   this->firstMeasuredTags_.clear();
@@ -436,7 +458,7 @@ void ShadowListViewShadowNode::replaceChild(
         bool firstMeasurement = !this->containerManager_->getElementAtIndex(elementIndex).measured;
 
         azimgd::shadowlist::Virtualizer::updateElementAtIndex(
-          this->containerManager_.get(),
+          *this->containerManager_,
           elementIndex,
           {.width = elementViewNodeSize.width, .height = elementViewNodeSize.height});
 

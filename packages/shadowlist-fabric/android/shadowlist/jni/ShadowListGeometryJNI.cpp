@@ -5,13 +5,14 @@
 
 #include <jni.h>
 
+#include <cmath>
+#include <cstddef>
+#include <limits>
+#include <vector>
+
 #include <shadowlist-core/host/DragReorder.hpp>
 #include <shadowlist-core/host/Snap.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
-
-#include <cmath>
-#include <limits>
-#include <vector>
 
 namespace {
 
@@ -45,9 +46,20 @@ enum StickySlot {
 /*
  * One scratch buffer is enough because only the UI thread calls in.
  */
-std::vector<long>& scratchIndices() {
-  static thread_local std::vector<long> indices;
+std::vector<std::size_t>& scratchIndices() {
+  static thread_local std::vector<std::size_t> indices;
   return indices;
+}
+
+/*
+ * Java carries a missing index as -1, the core as UNDEFINED_INDEX.
+ */
+std::size_t indexFromJint(jint index) {
+  return index < 0 ? sl::UNDEFINED_INDEX : static_cast<std::size_t>(index);
+}
+
+jint jintFromIndex(std::size_t index) {
+  return index == sl::UNDEFINED_INDEX ? -1 : static_cast<jint>(index);
 }
 
 /*
@@ -95,7 +107,7 @@ bool readGridCells(
     return false;
   }
   for (std::size_t row = 0; row < size; ++row) {
-    indices[row] = rawIndices[row];
+    indices[row] = indexFromJint(rawIndices[row]);
   }
   env->ReleasePrimitiveArrayCritical(indicesArray, rawIndices, JNI_ABORT);
   env->GetDoubleArrayRegion(leadingsArray, 0, count, scratch.leadings.data());
@@ -109,10 +121,11 @@ bool readGridCells(
 
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_stickyTranslations(
-  JNIEnv* env,
-  jclass /*clazz*/,
-  jdoubleArray slotsArray) {
+#define SL_GEOMETRY_JNI(name) Java_com_shadowlist_ShadowListGeometry_##name
+
+extern "C" {
+
+JNIEXPORT void JNICALL SL_GEOMETRY_JNI(nativeStickyTranslations)(JNIEnv* env, jclass, jdoubleArray slotsArray) {
   if (slotsArray == nullptr || env->GetArrayLength(slotsArray) < STICKY_SLOTS) {
     return;
   }
@@ -148,9 +161,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_stickyT
   env->SetDoubleArrayRegion(slotsArray, STICKY_HEADER_HIDDEN, STICKY_SLOTS - STICKY_HEADER_HIDDEN, slots + STICKY_HEADER_HIDDEN);
 }
 
-extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_sectionOverlayTranslation(
+JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativeSectionOverlayTranslation)(
   JNIEnv* env,
-  jclass /*clazz*/,
+  jclass,
   jdoubleArray offsetsArray,
   jdoubleArray sizesArray,
   jint count,
@@ -176,9 +189,9 @@ extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_sect
   return position.visible ? position.translation : hidden;
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_nearestSnapOffsetPx(
+JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeNearestSnapOffsetPx)(
   JNIEnv* env,
-  jclass /*clazz*/,
+  jclass,
   jfloatArray offsetsArray,
   jint count,
   jint targetPx) {
@@ -197,9 +210,9 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_nearest
   return static_cast<jint>(sl::nearestSnapOffset(offsets, static_cast<double>(targetPx), true));
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_dragInsertionPosition(
+JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeDragInsertionPosition)(
   JNIEnv* env,
-  jclass /*clazz*/,
+  jclass,
   jintArray indicesArray,
   jdoubleArray leadingsArray,
   jdoubleArray extentsArray,
@@ -218,16 +231,16 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_dragIns
     return -1;
   }
   for (jint row = 0; row < count; ++row) {
-    indices[static_cast<std::size_t>(row)] = rawIndices[row];
+    indices[static_cast<std::size_t>(row)] = indexFromJint(rawIndices[row]);
   }
   env->ReleasePrimitiveArrayCritical(indicesArray, rawIndices, JNI_ABORT);
 
   auto* leadings = static_cast<jdouble*>(env->GetPrimitiveArrayCritical(leadingsArray, nullptr));
   auto* extents = leadings != nullptr ? static_cast<jdouble*>(env->GetPrimitiveArrayCritical(extentsArray, nullptr)) : nullptr;
-  long position = -1;
+  std::size_t position = sl::UNDEFINED_INDEX;
   if (leadings != nullptr && extents != nullptr) {
     position = sl::dragInsertionPosition(
-      indices.data(), leadings, extents, static_cast<std::size_t>(count), originIndex, center);
+      indices.data(), leadings, extents, static_cast<std::size_t>(count), indexFromJint(originIndex), center);
   }
   if (extents != nullptr) {
     env->ReleasePrimitiveArrayCritical(extentsArray, extents, JNI_ABORT);
@@ -235,12 +248,12 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_dragIns
   if (leadings != nullptr) {
     env->ReleasePrimitiveArrayCritical(leadingsArray, leadings, JNI_ABORT);
   }
-  return static_cast<jint>(position);
+  return jintFromIndex(position);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragShifts(
+JNIEXPORT void JNICALL SL_GEOMETRY_JNI(nativeDragShifts)(
   JNIEnv* env,
-  jclass /*clazz*/,
+  jclass,
   jintArray indicesArray,
   jint count,
   jint originIndex,
@@ -254,8 +267,10 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragShi
   auto* indices = static_cast<jint*>(env->GetPrimitiveArrayCritical(indicesArray, nullptr));
   auto* shifts = indices != nullptr ? static_cast<jdouble*>(env->GetPrimitiveArrayCritical(shiftsArray, nullptr)) : nullptr;
   if (indices != nullptr && shifts != nullptr) {
+    std::size_t origin = indexFromJint(originIndex);
+    std::size_t insertion = indexFromJint(insertionIndex);
     for (jint row = 0; row < count; ++row) {
-      shifts[row] = sl::dragShift(originIndex, insertionIndex, draggedExtent, indices[row]);
+      shifts[row] = sl::dragShift(origin, insertion, draggedExtent, indexFromJint(indices[row]));
     }
   }
   if (shifts != nullptr) {
@@ -266,9 +281,9 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragShi
   }
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_dragGridInsertionPosition(
+JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeDragGridInsertionPosition)(
   JNIEnv* env,
-  jclass /*clazz*/,
+  jclass,
   jintArray indicesArray,
   jdoubleArray leadingsArray,
   jdoubleArray extentsArray,
@@ -288,17 +303,17 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListGeometry_dragGri
     cells = {};
   }
   sl::DragRow held;
-  held.index = heldIndex;
+  held.index = indexFromJint(heldIndex);
   held.leading = heldLeading;
   held.extent = heldExtent;
   held.crossLeading = heldCrossLeading;
   held.crossExtent = heldCrossExtent;
-  return static_cast<jint>(sl::dragGridInsertionPosition(cells, held, insertionIndex, center, crossCenter));
+  return jintFromIndex(sl::dragGridInsertionPosition(cells, held, indexFromJint(insertionIndex), center, crossCenter));
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragGridShifts(
+JNIEXPORT void JNICALL SL_GEOMETRY_JNI(nativeDragGridShifts)(
   JNIEnv* env,
-  jclass /*clazz*/,
+  jclass,
   jintArray indicesArray,
   jdoubleArray leadingsArray,
   jdoubleArray extentsArray,
@@ -321,7 +336,7 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragGri
     return;
   }
   sl::DragRow held;
-  held.index = heldIndex;
+  held.index = indexFromJint(heldIndex);
   held.leading = heldLeading;
   held.extent = heldExtent;
   held.crossLeading = heldCrossLeading;
@@ -329,14 +344,14 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListGeometry_dragGri
   auto& scratch = gridScratch();
   scratch.shifts.resize(cells.count);
   scratch.crossShifts.resize(cells.count);
-  sl::dragGridShifts(cells, held, insertionIndex, static_cast<std::size_t>(columns), scratch.shifts.data(), scratch.crossShifts.data());
+  sl::dragGridShifts(cells, held, indexFromJint(insertionIndex), static_cast<std::size_t>(columns), scratch.shifts.data(), scratch.crossShifts.data());
   env->SetDoubleArrayRegion(shiftsArray, 0, count, scratch.shifts.data());
   env->SetDoubleArrayRegion(crossShiftsArray, 0, count, scratch.crossShifts.data());
 }
 
-extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_dragHeldLeading(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
+JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativeDragHeldLeading)(
+  JNIEnv*,
+  jclass,
   jdouble touchContent,
   jdouble grabOffset,
   jdouble extent,
@@ -344,9 +359,9 @@ extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_drag
   return sl::dragHeldLeading(touchContent, grabOffset, extent, contentExtent);
 }
 
-extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_dragAutoScrollOffset(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
+JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativeDragAutoScrollOffset)(
+  JNIEnv*,
+  jclass,
   jdouble touch,
   jdouble windowSize,
   jdouble offset,
@@ -357,4 +372,6 @@ extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListGeometry_drag
     sl::DRAG_AUTO_SCROLL_ANDROID.edge * pixelsPerDp,
     sl::DRAG_AUTO_SCROLL_ANDROID.maxSpeed * pixelsPerDp};
   return sl::dragAutoScrollOffset(config, touch, windowSize, offset, maxOffset);
+}
+
 }
