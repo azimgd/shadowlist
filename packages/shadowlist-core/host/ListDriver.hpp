@@ -214,9 +214,16 @@ public:
   std::size_t indexOfKey(const std::string& key) const;
 
   /*
-   * The rows to mount for this offset, padded by pad on both ends.
+   * The rows to mount for this offset, padded by pad on both ends. Insets are the parts of the
+   * view before and after the window, like the area under translucent bars or padding with
+   * clipping off. Rows there show and are mounted too.
    */
-  MountPlan planMount(double offset, double windowAlong, double pad) const;
+  MountPlan planMount(
+    double offset,
+    double windowAlong,
+    double pad,
+    double leadingInset = 0.0,
+    double trailingInset = 0.0) const;
 
   /*
    * Whether a row in the plan's range gets mounted. In a masonry grid a row inside the index

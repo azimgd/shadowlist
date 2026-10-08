@@ -402,6 +402,33 @@ TEST(list_driver_mount_plan_covers_the_viewport) {
   CHECK(host.driver.shouldMount(plan, plan.low));
 }
 
+/*
+ * The mount rule SLKListView.mountCells on Android runs over its copied frames: the view spans
+ * the window, the pad on both ends and the insets before and after it.
+ */
+TEST(list_driver_mount_plan_reaches_into_the_insets) {
+  Host host(1000);
+  host.settle();
+  host.scrollTo(2000.0);
+  host.settle();
+  constexpr double LEADING_INSET = 100.0;
+  constexpr double TRAILING_INSET = 80.0;
+  MountPlan bare = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  MountPlan inset = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0, LEADING_INSET, TRAILING_INSET);
+  CHECK_NEAR(inset.viewLow, host.offset - LEADING_INSET, 1e-9);
+  CHECK_NEAR(inset.viewHigh, host.offset + WINDOW_ALONG + TRAILING_INSET, 1e-9);
+  CHECK(inset.low < bare.low);
+  CHECK(inset.high > bare.high);
+  CHECK(host.driver.getLeadingAt(inset.low) <= host.offset - LEADING_INSET);
+  double bottom = host.driver.getLeadingAt(inset.high) + host.driver.getExtentAt(inset.high);
+  CHECK(bottom >= host.offset + WINDOW_ALONG + TRAILING_INSET);
+
+  // Pad and insets add up on each end.
+  MountPlan padded = host.driver.planMount(host.offset, WINDOW_ALONG, 30.0, LEADING_INSET, TRAILING_INSET);
+  CHECK_NEAR(padded.viewLow, host.offset - 30.0 - LEADING_INSET, 1e-9);
+  CHECK_NEAR(padded.viewHigh, host.offset + WINDOW_ALONG + 30.0 + TRAILING_INSET, 1e-9);
+}
+
 TEST(list_driver_reset_keeps_the_first_visible_row) {
   Host host(1000);
   host.settle();

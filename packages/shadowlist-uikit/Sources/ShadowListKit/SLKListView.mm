@@ -337,6 +337,12 @@ static BOOL SLKListHandles(SEL selector)
   return _horizontal ? inset.left : inset.top;
 }
 
+- (CGFloat)trailingInset
+{
+  UIEdgeInsets inset = self.adjustedContentInset;
+  return _horizontal ? inset.right : inset.bottom;
+}
+
 - (double)offset
 {
   CGFloat along = [self along:self.contentOffset];
@@ -1541,7 +1547,8 @@ static BOOL SLKListHandles(SEL selector)
 
 /*
  * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
- * which keeps the content of a cell that only moved.
+ * which keeps the content of a cell that only moved. Rows under translucent bars show and
+ * are mounted too.
  */
 - (void)mountCells
 {
@@ -1549,7 +1556,8 @@ static BOOL SLKListHandles(SEL selector)
     [self unmountAll];
     return;
   }
-  MountPlan plan = _driver.planMount([self offset], _windowAlong, _windowAlong * _mountOverscan);
+  MountPlan plan = _driver.planMount([self offset], _windowAlong, _windowAlong * _mountOverscan, [self leadingInset],
+    [self trailingInset]);
   if (![self mountNeeded:plan]) {
     return;
   }

@@ -1299,7 +1299,9 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
    * which keeps the content of a cell that only moved. The range follows the core's
-   * ListDriver::planMount, run here over the copied frames. A scroll frame makes no JNI call.
+   * ListDriver::planMount with the padding as insets, run here over the copied frames. A
+   * scroll frame makes no JNI call. The core test list_driver_mount_plan_reaches_into_the_insets
+   * holds the rule this matches.
    */
   private fun mountCells() {
     if (windowLow < 0 || keys.isEmpty()) {

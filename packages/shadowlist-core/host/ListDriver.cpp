@@ -460,10 +460,15 @@ bool ListDriver::overlaps(std::size_t index, double viewLow, double viewHigh) co
   return start + getExtentAt(index) > viewLow && start < viewHigh;
 }
 
-MountPlan ListDriver::planMount(double offset, double windowAlong, double pad) const {
+MountPlan ListDriver::planMount(
+  double offset,
+  double windowAlong,
+  double pad,
+  double leadingInset,
+  double trailingInset) const {
   MountPlan plan;
-  plan.viewLow = offset - pad;
-  plan.viewHigh = offset + windowAlong + pad;
+  plan.viewLow = offset - pad - leadingInset;
+  plan.viewHigh = offset + windowAlong + pad + trailingInset;
   plan.sticky = activeStickyIndex(offset);
   std::optional<MountedRange> window = getMeasuredWindow();
   if (!window) {
