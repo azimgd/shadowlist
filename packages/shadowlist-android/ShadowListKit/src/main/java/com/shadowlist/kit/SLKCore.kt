@@ -127,6 +127,8 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     @JvmStatic private external fun nativePlanBatch(
       previousCount: Int, nextCount: Int, deleted: IntArray, inserted: IntArray, movedFrom: IntArray, movedTo: IntArray,
     ): IntArray?
+    @JvmStatic private external fun nativeInsertionPositions(indices: IntArray, previousCount: Int): IntArray
+    @JvmStatic private external fun nativeDeletionPositions(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeSwipeDrag(io: DoubleArray, start: Double, translation: Double): Double
     @JvmStatic private external fun nativeSwipePastFull(io: DoubleArray, offset: Double): Boolean
     @JvmStatic private external fun nativeSwipeSettle(io: DoubleArray, offset: Double, velocity: Double, flingVelocity: Double)
@@ -168,6 +170,13 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     fun planBatch(
       previousCount: Int, nextCount: Int, deleted: IntArray, inserted: IntArray, movedFrom: IntArray, movedTo: IntArray,
     ): IntArray? = nativePlanBatch(previousCount, nextCount, deleted, inserted, movedFrom, movedTo)
+
+    /*
+     * The core's insertionPositions and deletionPositions: sorted, each once, an insert past the
+     * end at the end, a delete past the end dropped. Negative indices name no row.
+     */
+    fun insertionPositions(indices: IntArray, previousCount: Int): IntArray = nativeInsertionPositions(indices, previousCount)
+    fun deletionPositions(indices: IntArray, previousCount: Int): IntArray = nativeDeletionPositions(indices, previousCount)
 
     // The core's SwipeReveal over a SWIPE_* array.
     fun swipeDrag(io: DoubleArray, start: Double, translation: Double): Double = nativeSwipeDrag(io, start, translation)

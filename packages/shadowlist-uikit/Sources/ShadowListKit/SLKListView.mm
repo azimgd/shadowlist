@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <shadowlist-core/host/KeyDiff.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
 
 using namespace azimgd::shadowlist;
 
@@ -868,7 +869,8 @@ static BOOL SLKListHandles(SEL selector)
     [self reloadData];
     return;
   }
-  std::vector<std::size_t> inserted = SLKIndices(indices);
+  // An index past the end inserts at the end. The key is read where the row lands.
+  std::vector<std::size_t> inserted = insertionPositions(SLKIndices(indices), _driver.getKeyCount());
   std::vector<std::string> keys;
   keys.reserve(inserted.size());
   for (std::size_t index : inserted) {
@@ -896,13 +898,15 @@ static BOOL SLKListHandles(SEL selector)
     [self reloadData];
     return;
   }
-  std::vector<std::size_t> deleted = SLKIndices(indices);
+  std::vector<std::size_t> deleted = deletionPositions(SLKIndices(indices), _driver.getKeyCount());
+  if (deleted.empty()) {
+    return;
+  }
   if (_animatesChanges) {
     std::vector<std::string> removed;
+    removed.reserve(deleted.size());
     for (std::size_t index : deleted) {
-      if (index < _driver.getKeyCount()) {
-        removed.push_back(_driver.getKeyAt(index));
-      }
+      removed.push_back(_driver.getKeyAt(index));
     }
     [_changes captureRemoved:removed inserted:{}];
   }

@@ -1,6 +1,7 @@
 #include <shadowlist-core/host/ListDriver.hpp>
 
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/Snap.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
 
@@ -12,17 +13,6 @@
 namespace azimgd::shadowlist {
 
 namespace {
-
-/*
- * Sorted, unique and below limit.
- */
-std::vector<std::size_t> sortedUnique(std::vector<std::size_t> indices, std::size_t limit) {
-  indices.erase(std::remove_if(indices.begin(), indices.end(), [limit](std::size_t index) { return index >= limit; }),
-    indices.end());
-  std::sort(indices.begin(), indices.end());
-  indices.erase(std::unique(indices.begin(), indices.end()), indices.end());
-  return indices;
-}
 
 /*
  * Runs of adjacent values in a sorted list of count values read through valueAt.
@@ -203,7 +193,7 @@ void ListDriver::insertKeysRebuilding(std::vector<std::pair<std::size_t, std::st
 }
 
 void ListDriver::deleteKeys(std::vector<std::size_t> indices) {
-  std::vector<std::size_t> removed = sortedUnique(std::move(indices), keys_.size());
+  std::vector<std::size_t> removed = deletionPositions(std::move(indices), keys_.size());
   if (removed.empty()) {
     return;
   }

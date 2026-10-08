@@ -302,7 +302,8 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * - insertItemsAtIndices: and deleteItemsAtIndices: tell the list rows were inserted or
  *   deleted, after the data source already reflects it. Only the changed keys are read. A
  *   prepend to a long list costs the same as to a short one. Indices of an insert are
- *   positions in the new data, of a delete positions in the old data.
+ *   positions in the new data, of a delete positions in the old data. An insert past the end
+ *   goes at the end and a delete past the end is dropped.
  * - reloadItemsAtIndices: the rows' content changed under the same keys. Visible cells are
  *   configured again and every listed row is measured again. With a payload, the data source's
  *   listView:reconfigureCell:atIndex:payload: can update the shown cell instead.

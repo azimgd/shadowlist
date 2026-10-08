@@ -763,7 +763,8 @@ open class SLKListView @JvmOverloads constructor(
 
   /*
    * Rows were inserted at these positions of the new data, which the data source already
-   * reflects. Only the new keys are read. A list with sections reads everything again.
+   * reflects. Only the new keys are read. A list with sections reads everything again. An
+   * insert past the end goes at the end.
    */
   fun insertItems(indices: IntArray) {
     if (batchDepth > 0) {
@@ -775,20 +776,19 @@ open class SLKListView @JvmOverloads constructor(
       return
     }
     val source = dataSource ?: return
-    val sorted = validIndices(indices, keys.size + indices.size)
+    // An index past the end inserts at the end. The key is read where the row lands.
+    val sorted = SLKCore.insertionPositions(indices, keys.size)
     if (sorted.isEmpty()) return
     val inserted = Array(sorted.size) { source.keyForItem(this, sorted[it]) }
     if (animatesChanges) changes.capture(removed = emptyList(), inserted = inserted.asList())
-    forEachRun(sorted) { first, last ->
-      keys.addAll(min(sorted[first], keys.size), inserted.asList().subList(first, last + 1))
-    }
+    forEachRun(sorted) { first, last -> keys.addAll(sorted[first], inserted.asList().subList(first, last + 1)) }
     coreOrNull?.insertKeys(sorted, inserted)
     itemCount = keys.size
     structureChanged()
   }
 
   /*
-   * Rows were deleted at these positions of the old data.
+   * Rows were deleted at these positions of the old data. A delete past the end is dropped.
    */
   fun deleteItems(indices: IntArray) {
     if (batchDepth > 0) {
@@ -799,7 +799,7 @@ open class SLKListView @JvmOverloads constructor(
       reloadData()
       return
     }
-    val sorted = validIndices(indices, keys.size)
+    val sorted = SLKCore.deletionPositions(indices, keys.size)
     if (sorted.isEmpty()) return
     if (animatesChanges) changes.capture(removed = sorted.map { keys[it] }, inserted = emptyList())
     // Runs go last to first, which keeps the earlier indices valid.
@@ -976,12 +976,6 @@ open class SLKListView @JvmOverloads constructor(
     for ((row, key) in rows.withIndex()) if (row < items.size && items[row] >= 0) result.add(key)
     return result
   }
-
-  /*
-   * Sorted, unique and inside 0 until limit. The core gets the same list the keys here used.
-   */
-  private fun validIndices(indices: IntArray, limit: Int): IntArray =
-    indices.filter { it in 0 until limit }.distinct().sorted().toIntArray()
 
   /*
    * Calls block with the first and last position of each run of adjacent values in sorted.

@@ -16,6 +16,7 @@
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
 namespace {
@@ -665,6 +666,26 @@ JNIEXPORT jintArray JNICALL SLK_JNI(nativePlanBatch)(JNIEnv* env, jclass, jint p
     sources.push_back(jintFromIndex(source));
   }
   return makeIntArray(env, sources);
+}
+
+JNIEXPORT jintArray JNICALL SLK_JNI(nativeInsertionPositions)(
+  JNIEnv* env, jclass, jintArray indices, jint previousCount) {
+  std::size_t count = static_cast<std::size_t>(std::max(previousCount, 0));
+  std::vector<jint> positions;
+  for (std::size_t position : sl::insertionPositions(readIndices(env, indices), count)) {
+    positions.push_back(static_cast<jint>(position));
+  }
+  return makeIntArray(env, positions);
+}
+
+JNIEXPORT jintArray JNICALL SLK_JNI(nativeDeletionPositions)(
+  JNIEnv* env, jclass, jintArray indices, jint previousCount) {
+  std::size_t count = static_cast<std::size_t>(std::max(previousCount, 0));
+  std::vector<jint> positions;
+  for (std::size_t position : sl::deletionPositions(readIndices(env, indices), count)) {
+    positions.push_back(static_cast<jint>(position));
+  }
+  return makeIntArray(env, positions);
 }
 
 /*
