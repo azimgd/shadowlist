@@ -6,6 +6,7 @@
 
 #include <shadowlist-core/host/ListSections.hpp>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -129,4 +130,47 @@ TEST(sections_drop_maps_to_an_item_inside_the_dragged_rows_section) {
   ListSections plain;
   plain.setPlain(4);
   CHECK_EQ(plain.itemForDrop(1, 3), std::size_t(3));
+}
+
+TEST(sections_items_of_rows_skip_headers_and_footers) {
+  ListSections sections = threeSections();
+  // Rows: H0 i0 i1 F1 H2 i2 i3 i4 F2.
+  std::vector<std::size_t> items = sections.itemsOfRows({0, 1, 3, 6, 20});
+  CHECK(items == (std::vector<std::size_t>{0, 3}));
+  std::optional<MountedRange> range = sections.itemRangeOfRows(2, 6);
+  CHECK(range.has_value());
+  CHECK_EQ(range->low, std::size_t(1));
+  CHECK_EQ(range->high, std::size_t(3));
+  CHECK(!sections.itemRangeOfRows(3, 4).has_value());
+  // A range past the rows stops at the last row.
+  CHECK_EQ(sections.itemRangeOfRows(7, 50)->high, std::size_t(4));
+}
+
+TEST(sections_sticky_rows_join_items_and_headers) {
+  ListSections sections = threeSections();
+  CHECK(sections.stickyRows({3, 0, 99}, false) == (std::vector<std::size_t>{1, 6}));
+  CHECK(sections.stickyRows({3}, true) == (std::vector<std::size_t>{0, 4, 6}));
+  // The first item of section 2 sits right after its header. Both stick once.
+  CHECK(sections.stickyRows({2}, true) == (std::vector<std::size_t>{0, 4, 5}));
+  ListSections plain;
+  plain.setPlain(4);
+  CHECK(plain.stickyRows({2, 2, 7}, true) == (std::vector<std::size_t>{2}));
+}
+
+TEST(sections_edge_keys_default_to_the_first_item_or_the_section_number) {
+  ListSections sections = threeSections();
+  std::vector<std::optional<std::string>> given = {std::nullopt, std::nullopt, std::string("s2")};
+  std::vector<std::string> edges = sections.edgeRowKeys(given, {"a", "", "c"});
+  CHECK_EQ(edges.size(), std::size_t(4));
+  CHECK_EQ(edges[0], std::string(ListSections::HEADER_KEY_PREFIX) + "a");
+  CHECK_EQ(edges[1], std::string(ListSections::FOOTER_KEY_PREFIX) + "#1");
+  CHECK_EQ(edges[2], std::string(ListSections::HEADER_KEY_PREFIX) + "s2");
+  CHECK_EQ(edges[3], std::string(ListSections::FOOTER_KEY_PREFIX) + "s2");
+
+  // rowKeys puts the same keys around the items.
+  std::vector<std::string> rows = sections.rowKeys({"a", "b", "c", "d", "e"}, given);
+  CHECK_EQ(rows[0], edges[0]);
+  CHECK_EQ(rows[3], edges[1]);
+  CHECK_EQ(rows[4], edges[2]);
+  CHECK_EQ(rows[8], edges[3]);
 }

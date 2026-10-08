@@ -348,6 +348,9 @@ open class SLKListView @JvmOverloads constructor(
   private var rowSeparators: BooleanArray? = null
   private var itemCount = 0
 
+  // The item keys of a list with sections, in item order. A list without sections uses keys.
+  private var sectionItemKeys: List<String>? = null
+
   // Mounted cells by key. A cell follows its key across inserts above it.
   internal val mounted = HashMap<String, SLKListCell>()
   private var mountGeneration = 0L
@@ -531,7 +534,7 @@ open class SLKListView @JvmOverloads constructor(
     coreOrNull = created
     applySettings(created)
     if (stickyRows.isNotEmpty()) created.setStickyIndices(stickyRows)
-    sectionCounts?.let { created.setSections(0, it, sectionFlags) }
+    created.setSections(itemCount, sectionCounts, sectionFlags)
     if (keys.isNotEmpty()) created.replaceKeys(0, 0, keys, 0, keys.size)
     windowLow = -1
     windowHigh = -1
@@ -665,11 +668,11 @@ open class SLKListView @JvmOverloads constructor(
   // region Data
 
   /*
-   * Read the sections and every key into next. A list with sections gets its header and footer
-   * rows there.
+   * Read the sections and every key into next and return the item keys. A list with sections
+   * gets its header and footer rows there, with keys from the core's ListSections.
    */
-  private fun readRowKeys(next: ArrayList<String>) {
-    val source = dataSource ?: return
+  private fun readRowKeys(next: ArrayList<String>): List<String> {
+    val source = dataSource ?: return emptyList()
     next.clear()
     val sections = source as? Sections
     if (sections == null) {
@@ -677,43 +680,68 @@ open class SLKListView @JvmOverloads constructor(
       next.ensureCapacity(count)
       for (index in 0 until count) next.add(source.keyForItem(this, index))
       setPlainSections(count)
-      return
+      return next
     }
     val sectionCount = max(0, sections.numberOfSections(this))
     val counts = IntArray(sectionCount)
     val flags = IntArray(sectionCount)
-    var item = 0
+    val sectionKeys = arrayOfNulls<String>(sectionCount)
+    val items = ArrayList<String>()
     for (section in 0 until sectionCount) {
       val count = max(0, sections.numberOfItemsInSection(this, section))
       val hasHeader = sections.titleForHeaderInSection(this, section) != null
       val hasFooter = sections.titleForFooterInSection(this, section) != null
       counts[section] = count
       flags[section] = (if (hasHeader) SLKCore.SECTION_HEADER else 0) or (if (hasFooter) SLKCore.SECTION_FOOTER else 0)
-      val headerAt = next.size
-      if (hasHeader) next.add("")
-      for (local in 0 until count) next.add(source.keyForItem(this, item + local))
-      val sectionKey = sections.keyForSection(this, section)
-        ?: if (count > 0) next[headerAt + if (hasHeader) 1 else 0] else "#$section"
-      if (hasHeader) next[headerAt] = SLKCore.HEADER_KEY_PREFIX + sectionKey
-      if (hasFooter) next.add(SLKCore.FOOTER_KEY_PREFIX + sectionKey)
-      item += count
+      sectionKeys[section] = sections.keyForSection(this, section)
+      val first = items.size
+      for (local in 0 until count) items.add(source.keyForItem(this, first + local))
     }
-    setSections(counts, flags, next.size)
+    setSections(counts, flags, items)
+    // The header and footer keys in row order, placed around each section's items.
+    val edges = core.edgeRowKeys(sectionKeys, firstItemKeys(counts, items))
+    next.ensureCapacity(items.size + edges.size)
+    var edge = 0
+    var item = 0
+    for (section in 0 until sectionCount) {
+      if (flags[section] and SLKCore.SECTION_HEADER != 0) next.add(edges[edge++])
+      for (local in 0 until counts[section]) next.add(items[item++])
+      if (flags[section] and SLKCore.SECTION_FOOTER != 0) next.add(edges[edge++])
+    }
+    readRowItems(next.size)
+    return items
+  }
+
+  // The key of each section's first item, empty for a section without items.
+  private fun firstItemKeys(counts: IntArray, items: List<String>): Array<String> {
+    var first = 0
+    return Array(counts.size) { section ->
+      val key = if (counts[section] > 0) items[first] else ""
+      first += counts[section]
+      key
+    }
   }
 
   private fun setPlainSections(count: Int) {
     sectionCounts = null
     sectionFlags = null
+    sectionItemKeys = null
     rowItems = null
     rowSeparators = null
     itemCount = count
+    coreOrNull?.setSections(count, null, null)
   }
 
-  private fun setSections(counts: IntArray, flags: IntArray, rows: Int) {
+  private fun setSections(counts: IntArray, flags: IntArray, items: List<String>) {
     sectionCounts = counts
     sectionFlags = flags
-    itemCount = counts.sum()
-    coreOrNull?.setSections(0, counts, flags)
+    sectionItemKeys = items
+    itemCount = items.size
+    core.setSections(itemCount, counts, flags)
+  }
+
+  // The item of every row and whether a separator follows it, copied once per change.
+  private fun readRowItems(rows: Int) {
     val items = IntArray(rows)
     val separators = BooleanArray(rows)
     core.copyRows(items, separators)
@@ -735,8 +763,7 @@ open class SLKListView @JvmOverloads constructor(
     }
     if (dataSource == null) return
     val next = spareKeys
-    readRowKeys(next)
-    recordContentVersions(next)
+    recordContentVersions(readRowKeys(next))
     applyRowKeys(next)
     structureChanged()
     reloadSectionIndex()
@@ -747,9 +774,8 @@ open class SLKListView @JvmOverloads constructor(
    * versions outlive the core, which is dropped on detach. The rules are the core's
    * ContentVersions, see content_versions_report_items_whose_version_changed.
    */
-  private fun recordContentVersions(rows: List<String>) {
+  private fun recordContentVersions(items: List<String>) {
     val versioned = dataSource as? ContentVersions ?: return
-    val items = itemKeysOf(rows, rowItems)
     val versions = HashMap<String, Long>(items.size * 2)
     for ((item, key) in items.withIndex()) versions[key] = versioned.contentVersionForItem(this, item)
     contentVersions = versions
@@ -792,7 +818,7 @@ open class SLKListView @JvmOverloads constructor(
     if (animatesChanges) changes.capture(removed = emptyList(), inserted = inserted.asList())
     forEachRun(sorted) { first, last -> keys.addAll(sorted[first], inserted.asList().subList(first, last + 1)) }
     coreOrNull?.insertKeys(sorted, inserted)
-    itemCount = keys.size
+    setPlainSections(keys.size)
     structureChanged()
   }
 
@@ -816,7 +842,7 @@ open class SLKListView @JvmOverloads constructor(
     forEachRun(sorted) { first, last -> runs.add(intArrayOf(sorted[first], sorted[last])) }
     for (run in runs.asReversed()) keys.subList(run[0], run[1] + 1).clear()
     coreOrNull?.deleteKeys(sorted)
-    itemCount = keys.size
+    setPlainSections(keys.size)
     structureChanged()
   }
 
@@ -941,10 +967,9 @@ open class SLKListView @JvmOverloads constructor(
    * version changed, and return what changed. Animates like any change with animatesChanges.
    */
   fun applyChanges(): SLKListChanges {
-    val previousItems = itemKeysOf(keys, rowItems)
+    val previousItems = sectionItemKeys ?: ArrayList(keys)
     val next = spareKeys
-    readRowKeys(next)
-    val nextItems = itemKeysOf(next, rowItems)
+    val nextItems = readRowKeys(next)
     val diff = SLKCore.diffKeys(previousItems, nextItems)
 
     // Rows that stayed but whose content version changed get reloaded.
@@ -979,13 +1004,6 @@ open class SLKListView @JvmOverloads constructor(
     val movedFrom = IntArray(moves) { diff[at + 1 + it * 2] }
     val movedTo = IntArray(moves) { diff[at + 2 + it * 2] }
     return SLKListChanges(deleted, inserted, movedFrom, movedTo, reloaded.toIntArray())
-  }
-
-  private fun itemKeysOf(rows: List<String>, items: IntArray?): List<String> {
-    if (items == null) return ArrayList(rows)
-    val result = ArrayList<String>(rows.size)
-    for ((row, key) in rows.withIndex()) if (row < items.size && items[row] >= 0) result.add(key)
-    return result
   }
 
   /*
@@ -1072,13 +1090,7 @@ open class SLKListView @JvmOverloads constructor(
   }
 
   private fun updateStickyRows() {
-    val rows = ArrayList<Int>()
-    for (item in stickyIndices) {
-      val row = rowForItem(item)
-      if (row >= 0) rows.add(row)
-    }
-    if (stickySectionHeaders && isSectioned) rows.addAll(core.headerRows().asList())
-    val sorted = rows.distinct().sorted().toIntArray()
+    val sorted = core.stickyRows(stickyIndices, stickySectionHeaders)
     if (sorted.contentEquals(stickyRows)) return
     stickyRows = sorted
     coreOrNull?.setStickyIndices(sorted)
@@ -1470,21 +1482,11 @@ open class SLKListView @JvmOverloads constructor(
     val prefetch = prefetchDataSource ?: return
     val packed = core.updatePrefetch(low, high)
     val prefetchCount = packed[0]
-    val items = itemsOfRows(packed, 1, prefetchCount)
+    val items = packed.copyOfRange(1, 1 + prefetchCount)
     val cancelCount = packed[1 + prefetchCount]
-    val cancelled = itemsOfRows(packed, 2 + prefetchCount, cancelCount)
+    val cancelled = packed.copyOfRange(2 + prefetchCount, 2 + prefetchCount + cancelCount)
     if (items.isNotEmpty()) prefetch.prefetchItems(this, items)
     if (cancelled.isNotEmpty()) prefetch.cancelPrefetchingForItems(this, cancelled)
-  }
-
-  private fun itemsOfRows(rows: IntArray, from: Int, count: Int): IntArray {
-    val items = IntArray(count)
-    var found = 0
-    for (at in from until from + count) {
-      val item = itemForRow(rows[at])
-      if (item >= 0) items[found++] = item
-    }
-    return items.copyOf(found)
   }
 
   // endregion
@@ -1965,17 +1967,9 @@ open class SLKListView @JvmOverloads constructor(
   // The items among the rows overlapping the viewport, low to high, or null before the first layout.
   val visibleRange: IntRange?
     get() {
-      val packed = core.visibleRange()
+      val packed = core.visibleItemRange()
       if (packed < 0) return null
-      var low = -1
-      var high = -1
-      for (row in (packed shr 32).toInt()..(packed and 0xffffffffL).toInt()) {
-        val item = itemForRow(row)
-        if (item < 0) continue
-        if (low < 0) low = item
-        high = item
-      }
-      return if (low < 0) null else low..high
+      return (packed shr 32).toInt()..(packed and 0xffffffffL).toInt()
     }
 
   /*
@@ -2114,7 +2108,7 @@ open class SLKListView @JvmOverloads constructor(
    * One viewport toward the end, or toward the start for a negative direction.
    */
   private fun scrollByPage(direction: Int): Boolean {
-    val target = min(max(offset + direction * windowAlong, 0), maxOffset)
+    val target = SLKCore.pageScrollTarget(offset.toDouble(), windowAlong.toDouble(), maxOffset.toDouble(), direction).roundToInt()
     if (target == offset) return false
     gesture.stop()
     writeOffset(target, byUser = true)

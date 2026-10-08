@@ -7,12 +7,12 @@
 using namespace azimgd::shadowlist;
 
 /*
- * Scale of a held row.
+ * Scale of a held row and the durations of the drag, from the core's DragReorder.
  */
-static const CGFloat SLK_LIFT_SCALE = 1.03;
-static const NSTimeInterval SLK_LIFT_DURATION = 0.2;
-static const NSTimeInterval SLK_SHIFT_DURATION = 0.22;
-static const NSTimeInterval SLK_DROP_DURATION = 0.25;
+static const CGFloat SLK_LIFT_SCALE = DRAG_LIFT_SCALE;
+static const NSTimeInterval SLK_LIFT_DURATION = DRAG_LIFT_DURATION_MS / 1000.0;
+static const NSTimeInterval SLK_SHIFT_DURATION = DRAG_SHIFT_DURATION_MS / 1000.0;
+static const NSTimeInterval SLK_DROP_DURATION = DRAG_DROP_DURATION_MS / 1000.0;
 static const NSTimeInterval SLK_PRESS_DURATION = 0.35;
 
 /*

@@ -47,4 +47,10 @@ std::optional<double> commandTargetOffset(
   double viewPosition,
   double rowOffset);
 
+/*
+ * Where a page scroll lands: one window toward the end for a positive direction, toward the
+ * start for a negative one, inside 0 and maxOffset. Accessibility page scrolls use it.
+ */
+double pageScrollTarget(double offset, double windowAlong, double maxOffset, int direction);
+
 }

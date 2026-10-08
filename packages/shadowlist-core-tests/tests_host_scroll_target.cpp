@@ -75,3 +75,10 @@ TEST(anchor_is_empty_before_the_first_layout) {
   Container core;
   CHECK(!anchorAt(core, 0.0).has_value());
 }
+
+TEST(page_scroll_moves_one_window_inside_the_content) {
+  CHECK_EQ(pageScrollTarget(100.0, 600.0, 2000.0, 1), 700.0);
+  CHECK_EQ(pageScrollTarget(100.0, 600.0, 2000.0, -1), 0.0);
+  CHECK_EQ(pageScrollTarget(1800.0, 600.0, 2000.0, 1), 2000.0);
+  CHECK_EQ(pageScrollTarget(100.0, 600.0, -5.0, 1), 0.0);
+}

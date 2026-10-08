@@ -67,4 +67,9 @@ std::optional<double> commandTargetOffset(
   return rowTargetOffset(core, static_cast<std::size_t>(commandIndex), position, offset, windowAlong, maxOffset);
 }
 
+double pageScrollTarget(double offset, double windowAlong, double maxOffset, int direction) {
+  double target = offset + (direction > 0 ? windowAlong : direction < 0 ? -windowAlong : 0.0);
+  return std::min(std::max(target, 0.0), std::max(maxOffset, 0.0));
+}
+
 }

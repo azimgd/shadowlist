@@ -18,6 +18,8 @@
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
+#include <shadowlist-core/host/ScrollTarget.hpp>
+#include <shadowlist-core/host/SectionIndex.hpp>
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
 namespace {
@@ -251,6 +253,12 @@ std::vector<sl::ScreenPoint> readPoints(JNIEnv* env, jdoubleArray array) {
 enum ConstantSlot {
   CONSTANT_SWIPE_FLING_VELOCITY = 0,
   CONSTANT_SWIPE_SETTLE_DURATION_MS,
+  CONSTANT_DRAG_LIFT_SCALE,
+  CONSTANT_DRAG_LIFT_DURATION_MS,
+  CONSTANT_DRAG_SHIFT_DURATION_MS,
+  CONSTANT_DRAG_DROP_DURATION_MS,
+  CONSTANT_SECTION_INDEX_TITLE_HEIGHT,
+  CONSTANT_SECTION_INDEX_WIDTH,
   CONSTANT_SLOTS,
 };
 
@@ -398,14 +406,18 @@ JNIEXPORT jdouble JNICALL SLK_JNI(nativeFooterStart)(JNIEnv*, jclass, jlong hand
 }
 
 /*
- * The visible rows packed as low in the high 32 bits and high in the low ones, or -1.
+ * The items among the visible rows packed as low in the high 32 bits and high in the low ones,
+ * or -1.
  */
-JNIEXPORT jlong JNICALL SLK_JNI(nativeVisibleRange)(JNIEnv*, jclass, jlong handle) {
-  std::optional<sl::MountedRange> visible = peerOf(handle)->driver.getVisibleRange();
-  if (!visible) {
+JNIEXPORT jlong JNICALL SLK_JNI(nativeVisibleItemRange)(JNIEnv*, jclass, jlong handle) {
+  Peer* peer = peerOf(handle);
+  std::optional<sl::MountedRange> visible = peer->driver.getVisibleRange();
+  std::optional<sl::MountedRange> items =
+    visible ? peer->sections.itemRangeOfRows(visible->low, visible->high) : std::nullopt;
+  if (!items) {
     return -1;
   }
-  return (static_cast<jlong>(visible->low) << 32) | static_cast<jlong>(visible->high);
+  return (static_cast<jlong>(items->low) << 32) | static_cast<jlong>(items->high);
 }
 
 JNIEXPORT jint JNICALL SLK_JNI(nativeIndexOfKey)(JNIEnv* env, jclass, jlong handle, jstring key) {
@@ -608,22 +620,59 @@ JNIEXPORT jint JNICALL SLK_JNI(nativePlaceOfRow)(JNIEnv*, jclass, jlong handle, 
   return (static_cast<jint>(place.section) << 2) | kind;
 }
 
-JNIEXPORT jintArray JNICALL SLK_JNI(nativeHeaderRows)(JNIEnv* env, jclass, jlong handle) {
+JNIEXPORT jintArray JNICALL SLK_JNI(nativeStickyRows)(
+  JNIEnv* env, jclass, jlong handle, jintArray items, jboolean sectionHeaders) {
   std::vector<jint> rows;
-  for (std::size_t row : peerOf(handle)->sections.headerRows()) {
+  for (std::size_t row : peerOf(handle)->sections.stickyRows(readIndices(env, items), sectionHeaders)) {
     rows.push_back(static_cast<jint>(row));
   }
   return makeIntArray(env, rows);
 }
 
 /*
- * Prefetch changes for the mounted rows, packed: the prefetch count, those rows, the cancel
- * count, those rows.
+ * The keys of every header and footer row, in row order. A null section key takes the core's
+ * default.
+ */
+JNIEXPORT jobjectArray JNICALL SLK_JNI(nativeEdgeRowKeys)(
+  JNIEnv* env, jclass, jlong handle, jobjectArray sectionKeys, jobjectArray firstItemKeys) {
+  jsize sectionCount = env->GetArrayLength(sectionKeys);
+  std::vector<std::optional<std::string>> given(static_cast<std::size_t>(sectionCount));
+  std::vector<std::string> firsts(static_cast<std::size_t>(sectionCount));
+  for (jsize section = 0; section < sectionCount; ++section) {
+    auto key = static_cast<jstring>(env->GetObjectArrayElement(sectionKeys, section));
+    if (key != nullptr) {
+      given[static_cast<std::size_t>(section)] = readString(env, key);
+      env->DeleteLocalRef(key);
+    }
+    if (section < env->GetArrayLength(firstItemKeys)) {
+      auto first = static_cast<jstring>(env->GetObjectArrayElement(firstItemKeys, section));
+      firsts[static_cast<std::size_t>(section)] = readString(env, first);
+      env->DeleteLocalRef(first);
+    }
+  }
+  std::vector<std::string> edges = peerOf(handle)->sections.edgeRowKeys(given, firsts);
+  jclass stringClass = env->FindClass("java/lang/String");
+  jobjectArray array = env->NewObjectArray(static_cast<jsize>(edges.size()), stringClass, nullptr);
+  for (std::size_t at = 0; array != nullptr && at < edges.size(); ++at) {
+    jstring key = env->NewStringUTF(edges[at].c_str());
+    env->SetObjectArrayElement(array, static_cast<jsize>(at), key);
+    env->DeleteLocalRef(key);
+  }
+  env->DeleteLocalRef(stringClass);
+  return array;
+}
+
+/*
+ * Prefetch changes for the mounted rows, as items, packed: the prefetch count, those items, the
+ * cancel count, those items.
  */
 JNIEXPORT jintArray JNICALL SLK_JNI(nativeUpdatePrefetch)(JNIEnv* env, jclass, jlong handle, jint low, jint high) {
-  std::vector<std::size_t> prefetch;
-  std::vector<std::size_t> cancel;
-  peerOf(handle)->driver.updatePrefetch(indexFromJint(low), indexFromJint(high), prefetch, cancel);
+  Peer* peer = peerOf(handle);
+  std::vector<std::size_t> prefetchRows;
+  std::vector<std::size_t> cancelRows;
+  peer->driver.updatePrefetch(indexFromJint(low), indexFromJint(high), prefetchRows, cancelRows);
+  std::vector<std::size_t> prefetch = peer->sections.itemsOfRows(prefetchRows);
+  std::vector<std::size_t> cancel = peer->sections.itemsOfRows(cancelRows);
   std::vector<jint> packed;
   packed.reserve(prefetch.size() + cancel.size() + 2);
   packed.push_back(static_cast<jint>(prefetch.size()));
@@ -792,11 +841,32 @@ JNIEXPORT jdoubleArray JNICALL SLK_JNI(nativeConstants)(JNIEnv* env, jclass) {
   jdouble values[CONSTANT_SLOTS];
   values[CONSTANT_SWIPE_FLING_VELOCITY] = sl::SWIPE_FLING_VELOCITY;
   values[CONSTANT_SWIPE_SETTLE_DURATION_MS] = sl::SWIPE_SETTLE_DURATION_MS;
+  values[CONSTANT_DRAG_LIFT_SCALE] = sl::DRAG_LIFT_SCALE;
+  values[CONSTANT_DRAG_LIFT_DURATION_MS] = sl::DRAG_LIFT_DURATION_MS;
+  values[CONSTANT_DRAG_SHIFT_DURATION_MS] = sl::DRAG_SHIFT_DURATION_MS;
+  values[CONSTANT_DRAG_DROP_DURATION_MS] = sl::DRAG_DROP_DURATION_MS;
+  values[CONSTANT_SECTION_INDEX_TITLE_HEIGHT] = sl::SECTION_INDEX_TITLE_HEIGHT;
+  values[CONSTANT_SECTION_INDEX_WIDTH] = sl::SECTION_INDEX_WIDTH;
   jdoubleArray array = env->NewDoubleArray(CONSTANT_SLOTS);
   if (array != nullptr) {
     env->SetDoubleArrayRegion(array, 0, CONSTANT_SLOTS, values);
   }
   return array;
+}
+
+JNIEXPORT jdouble JNICALL SLK_JNI(nativePageScrollTarget)(
+  JNIEnv*, jclass, jdouble offset, jdouble windowAlong, jdouble maxOffset, jint direction) {
+  return sl::pageScrollTarget(offset, windowAlong, maxOffset, direction);
+}
+
+JNIEXPORT jdouble JNICALL SLK_JNI(nativeSectionIndexTitlesTop)(
+  JNIEnv*, jclass, jdouble areaHeight, jint count, jdouble scale) {
+  return sl::sectionIndexTitlesTop(areaHeight, static_cast<std::size_t>(std::max(count, 0)), scale);
+}
+
+JNIEXPORT jint JNICALL SLK_JNI(nativeSectionIndexTitleAt)(
+  JNIEnv*, jclass, jdouble y, jdouble areaHeight, jint count, jdouble scale) {
+  return static_cast<jint>(sl::sectionIndexTitleAt(y, areaHeight, static_cast<std::size_t>(std::max(count, 0)), scale));
 }
 
 JNIEXPORT jdouble JNICALL SLK_JNI(nativeSwipeButtonSize)(JNIEnv*, jclass, jdouble fitted, jdouble scale) {

@@ -12,6 +12,7 @@
 
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
+#include <shadowlist-core/host/ScrollTarget.hpp>
 
 using namespace azimgd::shadowlist;
 
@@ -791,9 +792,8 @@ static BOOL SLKListHandles(SEL selector)
   BOOL sectionKeys = [_dataSource respondsToSelector:@selector(listView:keyForSection:)];
   std::vector<SectionSpec> specs;
   std::vector<std::string> itemKeys;
-  std::vector<std::string> keysOfSections;
+  std::vector<std::optional<std::string>> keysOfSections(sectionCount);
   specs.reserve(sectionCount);
-  keysOfSections.reserve(sectionCount);
   for (NSInteger section = 0; section < sectionCount; ++section) {
     SectionSpec spec;
     spec.itemCount = (std::size_t)MAX(0, [_dataSource listView:self numberOfItemsInSection:section]);
@@ -804,9 +804,7 @@ static BOOL SLKListHandles(SEL selector)
       itemKeys.emplace_back([_dataSource listView:self keyForItemAtIndex:(NSInteger)(first + local)].UTF8String);
     }
     if (sectionKeys) {
-      keysOfSections.emplace_back([_dataSource listView:self keyForSection:section].UTF8String);
-    } else {
-      keysOfSections.push_back(spec.itemCount > 0 ? itemKeys[first] : "#" + std::to_string(section));
+      keysOfSections[section] = std::string([_dataSource listView:self keyForSection:section].UTF8String);
     }
     specs.push_back(spec);
   }
@@ -1232,20 +1230,8 @@ static BOOL SLKListHandles(SEL selector)
 
 - (void)updateStickyRows
 {
-  std::vector<std::size_t> rows;
-  if (_stickyIndices.count > 0) {
-    for (std::size_t item : SLKIndices(_stickyIndices)) {
-      std::size_t row = _sections.rowForItem(item);
-      if (row != UNDEFINED_INDEX) {
-        rows.push_back(row);
-      }
-    }
-  }
-  if (_stickySectionHeaders) {
-    std::vector<std::size_t> headers = _sections.headerRows();
-    rows.insert(rows.end(), headers.begin(), headers.end());
-  }
-  _driver.setStickyIndices(std::move(rows));
+  std::vector<std::size_t> items = _stickyIndices.count > 0 ? SLKIndices(_stickyIndices) : std::vector<std::size_t>();
+  _driver.setStickyIndices(_sections.stickyRows(items, _stickySectionHeaders));
 }
 
 /*
@@ -1685,11 +1671,8 @@ static BOOL SLKListHandles(SEL selector)
 - (NSIndexSet *)itemsOfRows:(const std::vector<std::size_t>&)rows
 {
   NSMutableIndexSet *items = [NSMutableIndexSet indexSet];
-  for (std::size_t row : rows) {
-    std::size_t item = _sections.itemForRow(row);
-    if (item != UNDEFINED_INDEX) {
-      [items addIndex:item];
-    }
+  for (std::size_t item : _sections.itemsOfRows(rows)) {
+    [items addIndex:item];
   }
   return items;
 }
@@ -2099,23 +2082,11 @@ static BOOL SLKListHandles(SEL selector)
 - (NSRange)visibleRange
 {
   std::optional<MountedRange> visible = _driver.getVisibleRange();
-  if (!visible) {
+  std::optional<MountedRange> items = visible ? _sections.itemRangeOfRows(visible->low, visible->high) : std::nullopt;
+  if (!items) {
     return NSMakeRange(NSNotFound, 0);
   }
-  std::size_t low = UNDEFINED_INDEX;
-  std::size_t high = UNDEFINED_INDEX;
-  for (std::size_t row = visible->low; row <= visible->high; ++row) {
-    std::size_t item = _sections.itemForRow(row);
-    if (item == UNDEFINED_INDEX) {
-      continue;
-    }
-    low = low == UNDEFINED_INDEX ? item : low;
-    high = item;
-  }
-  if (low == UNDEFINED_INDEX) {
-    return NSMakeRange(NSNotFound, 0);
-  }
-  return NSMakeRange(low, high - low + 1);
+  return NSMakeRange(items->low, items->high - items->low + 1);
 }
 
 - (CGRect)rectForItemAtIndex:(NSInteger)index
@@ -2250,7 +2221,7 @@ static BOOL SLKListHandles(SEL selector)
     return NO;
   }
   double offset = [self offset];
-  double target = std::min(std::max(offset + (forward ? _windowAlong : -_windowAlong), 0.0), (double)[self maxOffset]);
+  double target = pageScrollTarget(offset, _windowAlong, [self maxOffset], forward ? 1 : -1);
   if (std::fabs(target - offset) < 1) {
     return NO;
   }

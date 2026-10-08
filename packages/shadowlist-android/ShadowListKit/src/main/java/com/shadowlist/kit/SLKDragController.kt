@@ -13,12 +13,7 @@ import kotlin.math.abs
  */
 internal class SLKDragController(private val list: SLKListView) : Choreographer.FrameCallback {
   companion object {
-    // Scale of a held row.
-    private const val LIFT_SCALE = 1.03f
     private const val LIFT_ELEVATION_DP = 8f
-    private const val LIFT_DURATION_MS = 200L
-    private const val SHIFT_DURATION_MS = 220L
-    private const val DROP_DURATION_MS = 250L
   }
 
   private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
@@ -147,8 +142,8 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
 
   private fun lift(cell: SLKListCell) {
     cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-    cell.animate().scaleX(LIFT_SCALE).scaleY(LIFT_SCALE).translationZ(LIFT_ELEVATION_DP * list.density)
-      .setDuration(LIFT_DURATION_MS).start()
+    cell.animate().scaleX(SLKCore.LIFT_SCALE).scaleY(SLKCore.LIFT_SCALE).translationZ(LIFT_ELEVATION_DP * list.density)
+      .setDuration(SLKCore.LIFT_DURATION_MS).start()
     list.invalidate()
   }
 
@@ -189,7 +184,7 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
       val known = shiftTargets[cell]
       if (known == target) continue
       shiftTargets[cell] = target
-      if (animated && known != null) animateTranslation(cell, along, cross, SHIFT_DURATION_MS)
+      if (animated && known != null) animateTranslation(cell, along, cross, SLKCore.SHIFT_DURATION_MS)
       else setTranslation(cell, along, cross)
     }
   }
@@ -264,10 +259,10 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
 
   private fun drop(cell: SLKListCell) {
     for (mounted in list.mounted.values) {
-      if (mounted !== cell) animateTranslation(mounted, 0f, 0f, DROP_DURATION_MS)
+      if (mounted !== cell) animateTranslation(mounted, 0f, 0f, SLKCore.DROP_DURATION_MS)
     }
     cell.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f).translationZ(0f)
-      .setDuration(DROP_DURATION_MS).start()
+      .setDuration(SLKCore.DROP_DURATION_MS).start()
   }
 
   // endregion

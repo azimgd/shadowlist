@@ -1,8 +1,10 @@
 #pragma once
 
 #include <shadowlist-core/Constants.hpp>
+#include <shadowlist-core/host/MountedRange.hpp>
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -116,12 +118,47 @@ public:
   std::size_t itemForDrop(std::size_t fromRow, std::size_t toRow) const;
 
   /*
+   * The items of rows, skipping headers, footers and rows past the end, in the rows' order.
+   */
+  std::vector<std::size_t> itemsOfRows(const std::vector<std::size_t>& rows) const;
+
+  /*
+   * The lowest and highest item among the rows low to high, or nothing when they hold none.
+   */
+  std::optional<MountedRange> itemRangeOfRows(std::size_t low, std::size_t high) const;
+
+  /*
+   * The rows that stick once scrolled past: the rows of the sticky items and, with
+   * sectionHeaders, every header row. Sorted, each once.
+   */
+  std::vector<std::size_t> stickyRows(const std::vector<std::size_t>& stickyItems, bool sectionHeaders) const;
+
+  /*
+   * The key a section's header and footer rows derive from: the one the data source gave, or
+   * the key of the section's first item, or "#" and the section number for a section without
+   * items.
+   */
+  std::string sectionKey(
+    std::size_t section,
+    const std::optional<std::string>& given,
+    const std::string& firstItemKey) const;
+
+  /*
+   * The keys of every header and footer row, in row order. sectionKeys has one optional key
+   * per section and firstItemKeys the key of each section's first item, empty for a section
+   * without items.
+   */
+  std::vector<std::string> edgeRowKeys(
+    const std::vector<std::optional<std::string>>& sectionKeys,
+    const std::vector<std::string>& firstItemKeys) const;
+
+  /*
    * The rows' keys: each section's header key, its items' keys and its footer key.
-   * itemKeys has one key per item, sectionKeys one per section.
+   * itemKeys has one key per item, sectionKeys one optional key per section.
    */
   std::vector<std::string> rowKeys(
     const std::vector<std::string>& itemKeys,
-    const std::vector<std::string>& sectionKeys) const;
+    const std::vector<std::optional<std::string>>& sectionKeys) const;
 
   /*
    * The items' keys out of the rows' keys, skipping headers and footers.

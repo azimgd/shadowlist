@@ -70,12 +70,28 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     // Slots of constants, the same as the core's ConstantSlot in the JNI.
     private const val CONSTANT_SWIPE_FLING_VELOCITY = 0
     private const val CONSTANT_SWIPE_SETTLE_DURATION_MS = 1
+    private const val CONSTANT_DRAG_LIFT_SCALE = 2
+    private const val CONSTANT_DRAG_LIFT_DURATION_MS = 3
+    private const val CONSTANT_DRAG_SHIFT_DURATION_MS = 4
+    private const val CONSTANT_DRAG_DROP_DURATION_MS = 5
+    private const val CONSTANT_SECTION_INDEX_TITLE_HEIGHT = 6
+    private const val CONSTANT_SECTION_INDEX_WIDTH = 7
 
     private val constants: DoubleArray by lazy { nativeConstants() }
 
     // The core's swipe constants: the fling speed in dp per second and the settle duration.
     val SWIPE_FLING_VELOCITY_DP: Double get() = constants[CONSTANT_SWIPE_FLING_VELOCITY]
     val SWIPE_DURATION_MS: Long get() = constants[CONSTANT_SWIPE_SETTLE_DURATION_MS].toLong()
+
+    // The core's drag constants: the held row's scale and the durations of the drag.
+    val LIFT_SCALE: Float get() = constants[CONSTANT_DRAG_LIFT_SCALE].toFloat()
+    val LIFT_DURATION_MS: Long get() = constants[CONSTANT_DRAG_LIFT_DURATION_MS].toLong()
+    val SHIFT_DURATION_MS: Long get() = constants[CONSTANT_DRAG_SHIFT_DURATION_MS].toLong()
+    val DROP_DURATION_MS: Long get() = constants[CONSTANT_DRAG_DROP_DURATION_MS].toLong()
+
+    // The core's section index sizes in dp.
+    val SECTION_INDEX_TITLE_HEIGHT_DP: Double get() = constants[CONSTANT_SECTION_INDEX_TITLE_HEIGHT]
+    val SECTION_INDEX_WIDTH_DP: Double get() = constants[CONSTANT_SECTION_INDEX_WIDTH]
 
     // Slots of a step from runChange, then the kinds in the order of the core's ChangeStepKind.
     const val CHANGE_STEP_KIND = 0
@@ -85,10 +101,6 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     const val CHANGE_MOVE = 0
     const val CHANGE_INSERT = 1
     const val CHANGE_CARRY = 2
-
-    // Prefixes of section header and footer row keys, the same as the core's ListSections.
-    const val HEADER_KEY_PREFIX = "\u001fh:"
-    const val FOOTER_KEY_PREFIX = "\u001ff:"
 
     @JvmStatic private external fun nativeDestroy(handle: Long)
     @JvmStatic private external fun nativeSetSettings(
@@ -105,7 +117,7 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     @JvmStatic private external fun nativeCopyRowRects(handle: Long, low: Int, high: Int, out: DoubleArray)
     @JvmStatic private external fun nativeRowRect(handle: Long, index: Int, out: DoubleArray): Boolean
     @JvmStatic private external fun nativeFooterStart(handle: Long, footerSize: Double): Double
-    @JvmStatic private external fun nativeVisibleRange(handle: Long): Long
+    @JvmStatic private external fun nativeVisibleItemRange(handle: Long): Long
     @JvmStatic private external fun nativeIndexOfKey(handle: Long, key: String): Int
     @JvmStatic private external fun nativeCopyStickyFrames(handle: Long, out: DoubleArray): Boolean
     @JvmStatic private external fun nativeScrollToIndex(handle: Long, index: Int, viewPosition: Double)
@@ -137,7 +149,9 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     @JvmStatic private external fun nativeHeaderRow(handle: Long, section: Int): Int
     @JvmStatic private external fun nativeFirstRowInSection(handle: Long, section: Int): Int
     @JvmStatic private external fun nativePlaceOfRow(handle: Long, row: Int): Int
-    @JvmStatic private external fun nativeHeaderRows(handle: Long): IntArray
+    @JvmStatic private external fun nativeStickyRows(handle: Long, items: IntArray, sectionHeaders: Boolean): IntArray
+    @JvmStatic private external fun nativeEdgeRowKeys(
+      handle: Long, sectionKeys: Array<String?>, firstItemKeys: Array<String>): Array<String>
     @JvmStatic private external fun nativeUpdatePrefetch(handle: Long, low: Int, high: Int): IntArray
     @JvmStatic private external fun nativeAnchor(handle: Long, offset: Double, out: DoubleArray): String?
     @JvmStatic private external fun nativeRestoreAnchor(handle: Long, key: String, offset: Double): Boolean
@@ -155,6 +169,10 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     @JvmStatic private external fun nativeInsertionPositions(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeDeletionPositions(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeConstants(): DoubleArray
+    @JvmStatic private external fun nativePageScrollTarget(
+      offset: Double, windowAlong: Double, maxOffset: Double, direction: Int): Double
+    @JvmStatic private external fun nativeSectionIndexTitlesTop(areaHeight: Double, count: Int, scale: Double): Double
+    @JvmStatic private external fun nativeSectionIndexTitleAt(y: Double, areaHeight: Double, count: Int, scale: Double): Int
     @JvmStatic private external fun nativeSwipeButtonSize(fitted: Double, scale: Double): Double
     @JvmStatic private external fun nativeSwipeButtonSpans(
       sizes: DoubleArray, count: Int, offset: Double, full: Boolean, crossSize: Double, out: DoubleArray)
@@ -220,6 +238,21 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
      */
     fun swipeButtonSpans(sizes: DoubleArray, count: Int, offset: Double, full: Boolean, crossSize: Double, out: DoubleArray) =
       nativeSwipeButtonSpans(sizes, count, offset, full, crossSize, out)
+
+    /*
+     * The core's pageScrollTarget: one window toward the end or the start, inside the content.
+     */
+    fun pageScrollTarget(offset: Double, windowAlong: Double, maxOffset: Double, direction: Int): Double =
+      nativePageScrollTarget(offset, windowAlong, maxOffset, direction)
+
+    /*
+     * The core's section index: where the titles start in the area, and the title under y
+     * measured from the area's top.
+     */
+    fun sectionIndexTitlesTop(areaHeight: Double, count: Int, scale: Double): Double =
+      nativeSectionIndexTitlesTop(areaHeight, count, scale)
+    fun sectionIndexTitleAt(y: Double, areaHeight: Double, count: Int, scale: Double): Int =
+      nativeSectionIndexTitleAt(y, areaHeight, count, scale)
 
     // The core's SwipeReveal over a SWIPE_* array.
     fun swipeDrag(io: DoubleArray, start: Double, translation: Double): Double = nativeSwipeDrag(io, start, translation)
@@ -312,9 +345,9 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
   fun footerStart(footerSize: Double): Double = nativeFooterStart(handle, footerSize)
 
   /*
-   * The visible rows as low shl 32 or high, or -1 before the first layout.
+   * The items among the visible rows as low shl 32 or high, or -1 when none shows.
    */
-  fun visibleRange(): Long = nativeVisibleRange(handle)
+  fun visibleItemRange(): Long = nativeVisibleItemRange(handle)
 
   fun indexOfKey(key: String): Int = nativeIndexOfKey(handle, key)
   fun copyStickyFrames(out: DoubleArray): Boolean = nativeCopyStickyFrames(handle, out)
@@ -372,10 +405,21 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
    * Section shl 2 or a ROW_* kind, or -1 past the end.
    */
   fun placeOfRow(row: Int): Int = nativePlaceOfRow(handle, row)
-  fun headerRows(): IntArray = nativeHeaderRows(handle)
+  /*
+   * The rows that stick: the sticky items' rows and with sectionHeaders every header row,
+   * sorted, each once.
+   */
+  fun stickyRows(items: IntArray, sectionHeaders: Boolean): IntArray = nativeStickyRows(handle, items, sectionHeaders)
 
   /*
-   * Prefetch changes, packed: the prefetch count and rows, then the cancel count and rows.
+   * The keys of every header and footer row in row order. sectionKeys has the data source's key
+   * of each section or null, firstItemKeys each section's first item key.
+   */
+  fun edgeRowKeys(sectionKeys: Array<String?>, firstItemKeys: Array<String>): Array<String> =
+    nativeEdgeRowKeys(handle, sectionKeys, firstItemKeys)
+
+  /*
+   * Prefetch changes, packed: the prefetch count and items, then the cancel count and items.
    */
   fun updatePrefetch(low: Int, high: Int): IntArray = nativeUpdatePrefetch(handle, low, high)
 

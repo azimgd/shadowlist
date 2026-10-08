@@ -1,10 +1,8 @@
 #import "Internal/SLKSectionIndexView.h"
 
-/*
- * Height of one title and the strip's width, in points.
- */
-static const CGFloat SLK_INDEX_TITLE_HEIGHT = 16;
-static const CGFloat SLK_INDEX_WIDTH = 24;
+#include <shadowlist-core/host/SectionIndex.hpp>
+
+using namespace azimgd::shadowlist;
 
 @implementation SLKSectionIndexView {
   NSInteger _selected;
@@ -25,7 +23,7 @@ static const CGFloat SLK_INDEX_WIDTH = 24;
 
 - (CGSize)sizeThatFits:(CGSize)size
 {
-  return CGSizeMake(SLK_INDEX_WIDTH, size.height);
+  return CGSizeMake(SECTION_INDEX_WIDTH, size.height);
 }
 
 - (void)setTitles:(NSArray<NSString *> *)titles
@@ -39,7 +37,7 @@ static const CGFloat SLK_INDEX_WIDTH = 24;
 
 - (CGFloat)titlesTop
 {
-  return MAX(0, (self.bounds.size.height - SLK_INDEX_TITLE_HEIGHT * _titles.count) / 2);
+  return (CGFloat)sectionIndexTitlesTop(self.bounds.size.height, _titles.count, 1.0);
 }
 
 - (void)drawRect:(CGRect)rect
@@ -53,7 +51,7 @@ static const CGFloat SLK_INDEX_WIDTH = 24;
     NSString *title = _titles[at];
     CGSize size = [title sizeWithAttributes:attributes];
     CGPoint point = CGPointMake((self.bounds.size.width - size.width) / 2,
-      top + at * SLK_INDEX_TITLE_HEIGHT + (SLK_INDEX_TITLE_HEIGHT - size.height) / 2);
+      top + at * SECTION_INDEX_TITLE_HEIGHT + (SECTION_INDEX_TITLE_HEIGHT - size.height) / 2);
     [title drawAtPoint:point withAttributes:attributes];
   }
 }
@@ -63,8 +61,7 @@ static const CGFloat SLK_INDEX_WIDTH = 24;
   if (_titles.count == 0) {
     return;
   }
-  NSInteger index = (NSInteger)floor((y - [self titlesTop]) / SLK_INDEX_TITLE_HEIGHT);
-  index = MIN(MAX(index, 0), (NSInteger)_titles.count - 1);
+  NSInteger index = (NSInteger)sectionIndexTitleAt(y, self.bounds.size.height, _titles.count, 1.0);
   if (index == _selected) {
     return;
   }

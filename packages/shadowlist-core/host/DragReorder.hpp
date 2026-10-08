@@ -16,6 +16,15 @@ constexpr int DRAG_EVENT_START = 1;
 constexpr int DRAG_EVENT_END = 3;
 
 /*
+ * How a held row looks and moves in both kits: its scale while held, and how long the lift,
+ * the other rows' slide and the drop take, in milliseconds.
+ */
+constexpr double DRAG_LIFT_SCALE = 1.03;
+constexpr double DRAG_LIFT_DURATION_MS = 200.0;
+constexpr double DRAG_SHIFT_DURATION_MS = 220.0;
+constexpr double DRAG_DROP_DURATION_MS = 250.0;
+
+/*
  * Drag to reorder along the scroll axis, or across the cells of a grid. The host owns the
  * gesture, the views and the scrolling. This works out where the held row goes, where it
  * would drop and how far every other row slides to open the gap.

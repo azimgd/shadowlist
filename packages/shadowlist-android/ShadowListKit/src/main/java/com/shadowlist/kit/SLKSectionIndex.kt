@@ -5,22 +5,22 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
-import kotlin.math.floor
-import kotlin.math.max
-import kotlin.math.min
 
 /*
  * The section index along a vertical list's trailing edge, drawn over the rows. Touching or
- * sliding over a title scrolls to its section.
+ * sliding over a title scrolls to its section. Sizes and the title under a touch come from the
+ * core's SectionIndex, shared with iOS.
  */
 internal class SLKSectionIndex(private val list: SLKListView) {
   companion object {
-    private const val TITLE_HEIGHT_DP = 16f
-    private const val WIDTH_DP = 24f
     private const val TEXT_SP = 11f
   }
 
   var titles: List<String> = emptyList()
+    set(value) {
+      field = value
+      titlesTopArea = -1.0
+    }
   var onSelect: ((Int) -> Unit)? = null
 
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -36,12 +36,20 @@ internal class SLKSectionIndex(private val list: SLKListView) {
     get() = paint.color
     set(value) { paint.color = value }
 
-  private val width: Float get() = WIDTH_DP * list.density
-  private val titleHeight: Float get() = TITLE_HEIGHT_DP * list.density
+  private val width: Float get() = (SLKCore.SECTION_INDEX_WIDTH_DP * list.density).toFloat()
+  private val titleHeight: Float get() = (SLKCore.SECTION_INDEX_TITLE_HEIGHT_DP * list.density).toFloat()
   private val left: Float get() = (list.width - list.paddingRight).toFloat() - width
+  private val area: Double get() = (list.height - list.paddingTop - list.paddingBottom).toDouble()
+
+  // Where the titles start in the area, asked of the core once per area and title count.
+  private var titlesTopArea = -1.0
+  private var titlesTop = 0f
   private val top: Float get() {
-    val area = (list.height - list.paddingTop - list.paddingBottom).toFloat()
-    return list.paddingTop + max(0f, (area - titleHeight * titles.size) / 2)
+    if (titlesTopArea != area) {
+      titlesTopArea = area
+      titlesTop = SLKCore.sectionIndexTitlesTop(area, titles.size, list.density.toDouble()).toFloat()
+    }
+    return list.paddingTop + titlesTop
   }
 
   private val isShown: Boolean get() = titles.isNotEmpty() && !list.horizontal
@@ -70,7 +78,7 @@ internal class SLKSectionIndex(private val list: SLKListView) {
   }
 
   private fun select(y: Float) {
-    val index = min(max(floor((y - top) / titleHeight).toInt(), 0), titles.size - 1)
+    val index = SLKCore.sectionIndexTitleAt((y - list.paddingTop).toDouble(), area, titles.size, list.density.toDouble())
     if (index == selected) return
     selected = index
     list.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
