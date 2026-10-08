@@ -18,10 +18,12 @@ packages/shadowlist-core            Shared C++ core
 packages/shadowlist-core-tests      Core integration and perf tests
 packages/shadowlist-core-bench      Core micro-benchmarks and device metrics scripts
 packages/shadowlist-fabric          React Native (Fabric) package
-packages/shadowlist-fabric-example  React Native example app
-packages/shadowlist-utils           Shared demo components used by the example app
+packages/shadowlist-uikit           UIKit list (ShadowListKit)
+packages/shadowlist-android         Android list (ShadowListKit, Kotlin)
+templates/                          Example apps, demo screens and shadowlist-utils
 ```
 
 ## Examples
 
-- React Native example screens live in `packages/shadowlist-fabric-example/src`
+- Example apps for React Native (iOS, Android, macOS), UIKit and Android live in `templates/`.
+  See `templates/README.md` for how to run each one.
