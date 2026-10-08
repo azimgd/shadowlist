@@ -2195,8 +2195,11 @@ open class SLKListView @JvmOverloads constructor(
 
   // region Drag
 
+  /*
+   * A hold on any row lifts it, the one swiped open too. The open row closes, the same as on iOS.
+   */
   internal fun beginDragAt(x: Float, y: Float): Boolean =
-    reorderEnabled && !editingState && !swipe.closingTouch && drag.begin(x, y)
+    reorderEnabled && !editingState && drag.begin(x, y)
 
   internal val hasHeldRow: Boolean get() = drag.hasHeldRow
 

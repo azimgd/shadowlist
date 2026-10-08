@@ -128,6 +128,7 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
    */
   fun begin(x: Float, y: Float): Boolean {
     val cell = movableCellAt(x, y) ?: return false
+    list.closeSwipeActions(true)
     touchX = x
     touchY = y
     list.core.dragBegin(cell.row, list.contentAlongAt(x, y).toDouble(), list.contentCrossAt(x, y).toDouble())
