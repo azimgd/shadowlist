@@ -1,0 +1,380 @@
+package com.shadowlist.kit
+
+import android.animation.ValueAnimator
+import android.content.Context
+import android.graphics.Color
+import android.graphics.Rect
+import android.view.Gravity
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
+import android.view.VelocityTracker
+import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
+import android.widget.TextView
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
+
+/*
+ * Swipe actions. A move across the scroll axis on a row with actions moves the row and shows
+ * its buttons behind it. The core's SwipeReveal in the host layer decides how far the row
+ * follows and where it rests. A touch anywhere else closes an open row, and a drag from there
+ * still scrolls.
+ */
+internal class SLKSwipeController(private val list: SLKListView) {
+  companion object {
+    private const val BUTTON_MIN_DP = 74f
+    private const val BUTTON_PADDING_DP = 24f
+    private const val FLING_VELOCITY_DP = 300f
+    private const val SWIPE_DURATION_MS = 250L
+  }
+
+  private val touchSlop = ViewConfiguration.get(list.context).scaledTouchSlop
+  private val spec = DoubleArray(SLKCore.SWIPE_SLOTS)
+  private var velocityTracker: VelocityTracker? = null
+  private var animator: ValueAnimator? = null
+
+  // The row swiped open and its buttons, or null.
+  var cell: SLKListCell? = null
+    private set
+  private var actionsView: SLKSwipeActionsView? = null
+  private var offset = 0f
+  private var startOffset = 0f
+
+  private var downX = 0f
+  private var downY = 0f
+  private var tracking = false
+
+  // This touch closed the open row. It selects nothing but may still scroll the list.
+  var closingTouch = false
+    private set
+
+  // This touch is on an action button and goes to it.
+  private var buttonTouch = false
+
+  val isOpen: Boolean get() = cell != null
+
+  fun isSwipedOut(candidate: SLKListCell): Boolean =
+    candidate === cell && abs(offset) >= spec[SLKCore.SWIPE_ROW_SIZE] - 1
+
+  /*
+   * Watch a touch for a swipe and own it once one runs. Returns whether the swipe took the event.
+   */
+  fun handle(event: MotionEvent): Boolean {
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN -> return down(event)
+      MotionEvent.ACTION_MOVE -> return move(event)
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> return up(event)
+    }
+    return tracking || closingTouch
+  }
+
+  private fun down(event: MotionEvent): Boolean {
+    tracking = false
+    closingTouch = false
+    buttonTouch = false
+    downX = event.x
+    downY = event.y
+    velocityTracker?.clear()
+    track(event)
+    val open = cell ?: return false
+    if (actionsView?.hasButtonAt(event.x + list.scrollX, event.y + list.scrollY) == true) {
+      buttonTouch = true
+      return false
+    }
+    if (list.itemCellAt(event.x, event.y) !== open) {
+      close(true)
+      closingTouch = true
+      list.cancelHighlight()
+    }
+    return false
+  }
+
+  private fun move(event: MotionEvent): Boolean {
+    if (closingTouch) return false
+    if (buttonTouch) return false
+    track(event)
+    if (!tracking) {
+      val crossDelta = list.cross(event.x, event.y) - list.cross(downX, downY)
+      val alongDelta = list.along(event.x, event.y) - list.along(downX, downY)
+      if (abs(crossDelta) <= touchSlop || abs(crossDelta) <= abs(alongDelta) || !begin(crossDelta)) return false
+      tracking = true
+      list.abandonScrollGesture()
+      list.cancelChildTouches()
+      startOffset = offset
+    }
+    val translation = list.cross(event.x, event.y) - list.cross(downX, downY)
+    val wasPast = pastFull(offset)
+    apply(SLKCore.swipeDrag(spec, startOffset.toDouble(), translation.toDouble()).toFloat())
+    if (pastFull(offset) != wasPast) cell?.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+    return true
+  }
+
+  private fun up(event: MotionEvent): Boolean {
+    // The flag lasts until the next touch. The tap it would make is dropped on the way.
+    if (closingTouch) return false
+    if (tracking) {
+      tracking = false
+      track(event)
+      val tracker = velocityTracker
+      tracker?.computeCurrentVelocity(1000)
+      val velocity = if (tracker == null) 0f else if (list.horizontal) tracker.yVelocity else tracker.xVelocity
+      settle(velocity)
+      return true
+    }
+    // A tap on the open row closes it.
+    val open = cell
+    if (open != null && !buttonTouch && event.actionMasked == MotionEvent.ACTION_UP &&
+      list.itemCellAt(event.x, event.y) === open) {
+      close(true)
+      return true
+    }
+    return false
+  }
+
+  private fun track(event: MotionEvent) {
+    val tracker = velocityTracker ?: VelocityTracker.obtain().also { velocityTracker = it }
+    tracker.addMovement(event)
+  }
+
+  private fun pastFull(value: Float): Boolean = value != 0f && SLKCore.swipePastFull(spec, value.toDouble())
+
+  /*
+   * Start swiping the row under the touch's start toward a side that has actions.
+   */
+  private fun begin(crossDelta: Float): Boolean {
+    if (list.editing || list.hasHeldRow) return false
+    val target = list.itemCellAt(downX, downY) ?: return false
+    if (target === cell) {
+      animator?.cancel()
+      return true
+    }
+    val leading = actions(target, leadingSide = true)
+    val trailing = actions(target, leadingSide = false)
+    if ((if (crossDelta > 0) leading else trailing) == null) return false
+    close(false)
+    open(target, leading, trailing)
+    return true
+  }
+
+  private fun actions(target: SLKListCell, leadingSide: Boolean): SLKSwipeActionsConfiguration? {
+    val delegate = list.delegate ?: return null
+    val configuration = if (leadingSide) delegate.leadingSwipeActionsForItem(list, target.index)
+      else delegate.trailingSwipeActionsForItem(list, target.index)
+    return configuration?.takeIf { it.actions.isNotEmpty() }
+  }
+
+  private fun open(target: SLKListCell, leading: SLKSwipeActionsConfiguration?, trailing: SLKSwipeActionsConfiguration?) {
+    val view = SLKSwipeActionsView(list.context, leading, trailing, list.horizontal, list.density) { perform(it) }
+    list.addSwipeActionsView(view)
+    view.measure(
+      View.MeasureSpec.makeMeasureSpec(target.width, View.MeasureSpec.EXACTLY),
+      View.MeasureSpec.makeMeasureSpec(target.height, View.MeasureSpec.EXACTLY))
+    view.layout(target.left, target.top, target.right, target.bottom)
+    spec[SLKCore.SWIPE_LEADING_WIDTH] = view.leadingWidth.toDouble()
+    spec[SLKCore.SWIPE_TRAILING_WIDTH] = view.trailingWidth.toDouble()
+    spec[SLKCore.SWIPE_LEADING_FULL] = if (leading?.performsFirstActionWithFullSwipe == true) 1.0 else 0.0
+    spec[SLKCore.SWIPE_TRAILING_FULL] = if (trailing?.performsFirstActionWithFullSwipe == true) 1.0 else 0.0
+    spec[SLKCore.SWIPE_ROW_SIZE] = (if (list.horizontal) target.height else target.width).toDouble()
+    cell = target
+    actionsView = view
+    offset = 0f
+    if (target.highlighted) target.setHighlighted(false, false)
+  }
+
+  private fun apply(value: Float) {
+    offset = value
+    val target = cell ?: return
+    if (list.horizontal) target.translationY = value else target.translationX = value
+    actionsView?.layoutFor(value, pastFull(value))
+  }
+
+  private fun settle(velocity: Float) {
+    SLKCore.swipeSettle(spec, offset.toDouble(), velocity.toDouble(), (FLING_VELOCITY_DP * list.density).toDouble())
+    val side = spec[SLKCore.SWIPE_OUT_SIDE].toInt()
+    val full = spec[SLKCore.SWIPE_OUT_FULL] != 0.0
+    animateTo(spec[SLKCore.SWIPE_OUT_OFFSET].toFloat())
+    if (full) {
+      val view = actionsView ?: return
+      val configuration = if (side == SLKCore.SWIPE_SIDE_LEADING) view.leading else view.trailing
+      configuration?.actions?.firstOrNull()?.let(::perform)
+    }
+  }
+
+  private fun animateTo(target: Float) {
+    animator?.cancel()
+    val swiped = cell ?: return
+    animator = ValueAnimator.ofFloat(offset, target).apply {
+      duration = SWIPE_DURATION_MS
+      interpolator = DecelerateInterpolator()
+      addUpdateListener { if (cell === swiped) apply(it.animatedValue as Float) }
+      addListener(object : android.animation.AnimatorListenerAdapter() {
+        override fun onAnimationEnd(animation: android.animation.Animator) {
+          if (cell === swiped && target == 0f) tearDown()
+        }
+      })
+      start()
+    }
+  }
+
+  /*
+   * Run an action. Its completion closes the row, unless the action removed it.
+   */
+  private fun perform(action: SLKSwipeAction) {
+    val swiped = cell ?: return
+    action.handler(action) { _ ->
+      list.post { if (cell === swiped) close(true) }
+    }
+  }
+
+  fun close(animated: Boolean) {
+    if (cell == null) return
+    if (animated) {
+      animateTo(0f)
+      return
+    }
+    animator?.cancel()
+    apply(0f)
+    tearDown()
+  }
+
+  private fun tearDown() {
+    animator?.cancel()
+    animator = null
+    actionsView?.let { list.removeSwipeActionsView(it) }
+    actionsView = null
+    cell?.let {
+      if (list.horizontal) it.translationY = 0f else it.translationX = 0f
+    }
+    cell = null
+    offset = 0f
+  }
+
+  fun cellWillRecycle(recycled: SLKListCell) {
+    if (recycled === cell) tearDown()
+  }
+
+  /*
+   * Keep the buttons under the swiped row after a layout pass moved it. A row that left the
+   * screen closes.
+   */
+  fun layout() {
+    val swiped = cell ?: return
+    val view = actionsView ?: return
+    if (swiped.visibility != View.VISIBLE || swiped.row < 0) {
+      tearDown()
+      return
+    }
+    if (view.left != swiped.left || view.top != swiped.top || view.width != swiped.width || view.height != swiped.height) {
+      view.measure(
+        View.MeasureSpec.makeMeasureSpec(swiped.width, View.MeasureSpec.EXACTLY),
+        View.MeasureSpec.makeMeasureSpec(swiped.height, View.MeasureSpec.EXACTLY))
+      view.layout(swiped.left, swiped.top, swiped.right, swiped.bottom)
+      view.layoutFor(offset, pastFull(offset))
+    }
+  }
+}
+
+/*
+ * The buttons behind a swiped row, for both sides. It sits under the row's cell with the
+ * cell's frame. The side being revealed shows its buttons stretched over the gap the row
+ * leaves. Past the full swipe point the first button fills all of it.
+ */
+internal class SLKSwipeActionsView(
+  context: Context,
+  val leading: SLKSwipeActionsConfiguration?,
+  val trailing: SLKSwipeActionsConfiguration?,
+  private val horizontal: Boolean,
+  density: Float,
+  private val onAction: (SLKSwipeAction) -> Unit,
+) : ViewGroup(context) {
+  private val leadingButtons = buttons(leading)
+  private val trailingButtons = buttons(trailing)
+  private val minSize = (74f * density).roundToInt()
+  private val padding = (24f * density).roundToInt()
+  private val leadingSizes = sizes(leadingButtons)
+  private val trailingSizes = sizes(trailingButtons)
+  private val clip = Rect()
+
+  val leadingWidth: Int get() = leadingSizes.sum()
+  val trailingWidth: Int get() = trailingSizes.sum()
+
+  private fun buttons(configuration: SLKSwipeActionsConfiguration?): List<TextView> =
+    configuration?.actions?.map { action ->
+      TextView(context).apply {
+        text = action.title
+        setTextColor(Color.WHITE)
+        textSize = 15f
+        gravity = Gravity.CENTER
+        maxLines = 1
+        setBackgroundColor(action.shownColor)
+        action.icon?.let { setCompoundDrawablesWithIntrinsicBounds(null, it, null, null) }
+        contentDescription = action.title
+        setOnClickListener { onAction(action) }
+        addView(this)
+      }
+    } ?: emptyList()
+
+  private fun sizes(buttons: List<TextView>): IntArray = IntArray(buttons.size) {
+    val button = buttons[it]
+    button.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED)
+    max(minSize, (if (horizontal) button.measuredHeight else button.measuredWidth) + padding)
+  }
+
+  override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+    setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec))
+  }
+
+  override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {}
+
+  /*
+   * Place the buttons for a row moved offset across the axis. full lets the first button fill
+   * the gap.
+   */
+  fun layoutFor(offset: Float, full: Boolean) {
+    val leadingSide = offset > 0
+    val shown = if (leadingSide) leadingButtons else trailingButtons
+    val other = if (leadingSide) trailingButtons else leadingButtons
+    val sizes = if (leadingSide) leadingSizes else trailingSizes
+    for (button in other) button.visibility = INVISIBLE
+    val crossSize = if (horizontal) height else width
+    val alongSize = if (horizontal) width else height
+    val gap = abs(offset).roundToInt()
+    val total = sizes.sum()
+    val scale = if (total > 0) gap.toFloat() / total else 0f
+    // From the edge inward: the first action sits at the outer edge.
+    var edge = 0
+    for ((at, button) in shown.withIndex()) {
+      val size = if (full) (if (at == 0) gap else 0) else (sizes[at] * scale).roundToInt()
+      val start = if (leadingSide) edge else crossSize - edge - size
+      button.visibility = if (size > 0) VISIBLE else INVISIBLE
+      if (size > 0) {
+        val w = if (horizontal) alongSize else size
+        val h = if (horizontal) size else alongSize
+        button.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
+        if (horizontal) button.layout(0, start, alongSize, start + size) else button.layout(start, 0, start + size, alongSize)
+      }
+      edge += size
+    }
+    shown.firstOrNull()?.let { setBackgroundColor((it.background as? android.graphics.drawable.ColorDrawable)?.color ?: 0) }
+    // Only the gap shows the buttons' color.
+    val gapStart = if (leadingSide) 0 else crossSize - gap
+    if (horizontal) clip.set(0, gapStart, alongSize, gapStart + gap) else clip.set(gapStart, 0, gapStart + gap, alongSize)
+    clipBounds = clip
+  }
+
+  /*
+   * Whether a point in the list's scrolled coordinates hits a shown button.
+   */
+  fun hasButtonAt(x: Float, y: Float): Boolean {
+    val localX = (x - left).toInt()
+    val localY = (y - top).toInt()
+    for (button in leadingButtons + trailingButtons) {
+      if (button.visibility == VISIBLE && localX >= button.left && localX < button.right &&
+        localY >= button.top && localY < button.bottom) return true
+    }
+    return false
+  }
+}

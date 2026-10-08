@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Merged into the React Native example's release manifest by slbench-init.gradle only.
+  The provider starts SLKBench in the launched activity.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <provider
+      android:name="com.shadowlist.kit.bench.SLKBenchProvider"
+      android:authorities="${applicationId}.slbench"
+      android:exported="false" />
+    <profileable android:shell="true" />
+  </application>
+</manifest>

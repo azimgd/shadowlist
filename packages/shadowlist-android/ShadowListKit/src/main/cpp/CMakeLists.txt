@@ -1,0 +1,24 @@
+cmake_minimum_required(VERSION 3.13)
+project(shadowlistkit CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# The canonical core in packages/shadowlist-core, compiled straight into the library.
+get_filename_component(SLK_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../shadowlist-core" ABSOLUTE)
+get_filename_component(SLK_CORE_PARENT_DIR "${SLK_CORE_DIR}" DIRECTORY)
+include(${SLK_CORE_DIR}/sources.cmake)
+
+add_library(shadowlistkit SHARED
+  SLKCoreJNI.cpp
+  ${SHADOWLIST_CORE_SOURCES}
+)
+
+# Core headers include each other as <shadowlist-core/...>, which the parent directory resolves.
+target_include_directories(shadowlistkit PRIVATE ${SLK_CORE_PARENT_DIR})
+
+find_library(log-lib log)
+target_link_libraries(shadowlistkit ${log-lib})
+
+# The layout pass runs on every scroll frame. Optimized builds use -O3. Debug keeps its flags.
+target_compile_options(shadowlistkit PRIVATE -fno-rtti $<$<NOT:$<CONFIG:Debug>>:-O3>)

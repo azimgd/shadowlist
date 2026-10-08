@@ -1,0 +1,104 @@
+package com.shadowlist.kit.example
+
+/*
+ * Strings copied from shadowlist-fabric-example/src/fixtures/common.ts, the same as the UIKit example.
+ */
+object FixtureStrings {
+  val images: List<String> = listOf(
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/M45-Les_Pl%C3%A9iades_Hamois_le_28-12-2024-Luc_Viatour.jpg/1920px-M45-Les_Pl%C3%A9iades_Hamois_le_28-12-2024-Luc_Viatour.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/70/Trifid_and_Lagoon_nebulae.jpg/1920px-Trifid_and_Lagoon_nebulae.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/Aurora_and_perseids.jpg/1920px-Aurora_and_perseids.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d8/Comet_Tsuchinshan%E2%80%93ATLAS%2C_in_the_night_sky_over_Tuntorp_3.jpg/1920px-Comet_Tsuchinshan%E2%80%93ATLAS%2C_in_the_night_sky_over_Tuntorp_3.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/00/Crab_Nebula.jpg/1920px-Crab_Nebula.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/2017-04_Circumpolar_trails_sunset_at_La_Hague_lighthouse.jpg/1920px-2017-04_Circumpolar_trails_sunset_at_La_Hague_lighthouse.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ad/Heart_and_Soul_nebulae.jpg/1920px-Heart_and_Soul_nebulae.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f8/Rho_Ophiuchi.jpg/1920px-Rho_Ophiuchi.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/63/Messier_81_HST.jpg/1920px-Messier_81_HST.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f9/Emission_nebulae_in_Cepheus_and_Cassiopeia.jpg/1920px-Emission_nebulae_in_Cepheus_and_Cassiopeia.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/In_the_photo_there_is_one_Perseid%2C_Milky_Way_and_Andromega_galaxy_and_light_pollution_on_the_horizon_-_Luhasoo_bog_in_Estonia.jpg/1920px-In_the_photo_there_is_one_Perseid%2C_Milky_Way_and_Andromega_galaxy_and_light_pollution_on_the_horizon_-_Luhasoo_bog_in_Estonia.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/69/MarsSunset.jpg/1920px-MarsSunset.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f1/Pillars_of_Creation_%28NIRCam_Image%29.jpg/1920px-Pillars_of_Creation_%28NIRCam_Image%29.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ea/Carina_Nebula.jpg/1920px-Carina_Nebula.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/California_nebula_from_Estonia.jpg/1920px-California_nebula_from_Estonia.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6e/Veil_Nebula_-_NGC6960.jpg/1920px-Veil_Nebula_-_NGC6960.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/32/C2022_E3_%28ZTF%29-_Alessandro_Bianconi.jpg/1920px-C2022_E3_%28ZTF%29-_Alessandro_Bianconi.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/74/Orion_Nebula_multiband_2x2_mosaic_-_RGB.jpg/1920px-Orion_Nebula_multiband_2x2_mosaic_-_RGB.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/06/Euclid%E2%80%99s_view_of_the_Horsehead_Nebula_ESA25170866.jpg/1920px-Euclid%E2%80%99s_view_of_the_Horsehead_Nebula_ESA25170866.jpg",
+    "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f0/Ganymede_-_Perijove_34_Composite.jpg/1920px-Ganymede_-_Perijove_34_Composite.jpg",
+  )
+
+  val sampleTexts: List<String> = listOf(
+    "Boarding for the 6:40 to Reykjavik started twenty minutes late, and nobody at gate B14 seemed to mind. The windows were full of that pale pre-dawn blue you only get at airports, a fuel truck idling below, and a row of ground crew in orange vests laughing about something we couldn't hear. I found a seat by the glass, set my coffee on the ledge, and opened Skyfy to check the weather waiting at the other end.\n\nLow cloud over Keflavik, light rain, wind gusting from the southwest. The pilot came on before pushback and promised a bumpy final approach but a smooth cruise, which is exactly the kind of honesty I want at thirty-seven thousand feet. The cabin went quiet as we taxied.\n\nI pulled the shade halfway, leaned my head against the cool window, and watched the runway lights slide past faster and faster until the ground simply let go of us.",
+    "Stuck on the tarmac in Denver—third de-icing pass. At least the sunrise is free.",
+    "Day two in Lisbon and I have stopped using the map. The trams do the navigating, the hills do the exercise, and every tiled street eventually spills out onto a viewpoint over the river. Here and there a cafe opens its shutters, and the smell of pastries follows you downhill whether you asked for it or not.\n\nBy late afternoon the light turns gold and the whole city slows down. I sat on the steps at Miradouro de Santa Luzia and watched the ferries cross the Tagus, one after another, until the sun dropped behind the bridge and the streetlamps flickered on along the waterfront.",
+    "Reminder for anyone flying through Frankfurt this week: the Skyfy crew board says terminal 1 security lines are running long before 9am. Give yourself an extra forty minutes, grab a pretzel after the checkpoint, and thank me later.",
+    "Six countries in nine days and not a single checked bag. Everything fit in one carry-on and a small backpack: two pairs of shoes, a rain shell, a charger for everything, and far too many postcards to mail home.",
+    "Window seat, clear skies, the Alps below. Perfect.",
+    "Nobody warns you about the jet lag coming home. Flying west feels like a gift, flying east feels like a debt. Three days back from Tokyo and I am still wide awake at four in the morning.",
+    "We took off from Tromsø just after midnight and the aurora was already out. The captain dimmed the cabin lights and announced it over the intercom, and for twenty minutes the whole plane leaned toward the left side windows. Green curtains rippled over the wing, and nobody said a word until they faded behind us.",
+    "Missed my connection in Doha by six minutes. The rebooking desk put me on the next flight, found me a lounge pass, and apologised twice. Honestly, one of the better travel days I've had.",
+    "Above the clouds the sun was already up, even though the city below was still dark. Somewhere along the coast the first streetlights began to switch off.",
+    "Every flight is a small reset. Phone off, window open, nothing to fix.",
+    "Our crew flight to Nairobi turned into the longest day of the trip. A storm over the Gulf held us on the ground for three hours, then a gate change sent all eleven of us running across the terminal. By the time we boarded, half the group was asleep standing up and the rest had befriended a gate agent.\n\nThe flight itself was quiet. Somewhere over Sudan the cabin went dark, and I stayed awake at the window watching lightning flash inside distant clouds, far enough away to feel peaceful. A flight attendant brought me tea without asking, which I will never forget.\n\nWe landed just before sunrise. The air smelled like rain and red dust, the runway was lined with acacia trees, and the whole crew cheered as the wheels finally touched down on the runway.",
+    "Golden hour over Santorini from the ferry deck. The cliffs turn pink, the water turns silver, and everyone forgets their phones.",
+    "I always imagined flight school would be about engines and instruments. Instead, the first month was weather. Cloud types, pressure systems, dew points, the difference between haze and mist. Our instructor would point at the sky every morning and ask us one question: would you take off in that, and if not, why?\n\nNow I check the sky before I check my phone. A forecast is a promise; the clouds are the truth. That habit has kept me on the ground more than once, and I am grateful every time.",
+    "Packing tip from a flight attendant I met in Singapore: roll everything, keep chargers in a glasses case, and always pack one clean shirt in your carry-on.",
+    "The approach into Queenstown is the most beautiful ten minutes I have ever spent in a plane. Mountains on both sides, a lake below, and a runway that seems to appear out of nowhere at the very last moment.",
+    "Just landed. Trying to remember which time zone I'm in.",
+    "The night sky over the Namib desert was so clear the Milky Way seemed to cast shadows. Our guide set up a telescope beside the tents and pointed out Saturn and its rings. I have flown a hundred times this year, but that was the first time I felt small under the sky.",
+    "Gate announcement just now: the flight is on time, the crew is ready, and the weather is clear. Three sentences I rarely hear together.",
+    "People ask why I still print paper boarding passes. It is not nostalgia, I tell them; it is insurance. Phones die, apps crash, and airport wifi is a rumour. A folded piece of paper tucked in my jacket pocket has rescued me at more boarding gates than I can count.\n\nLast month in Istanbul it happened again. My battery gave out in the security line, and the agent just smiled at the paper in my hand and waved me straight through with the rest of my crew.\n\nSkyfy still keeps my digital copy safe, of course. But the paper stays in my pocket, next to my passport, until the wheels leave the runway. Old habits fly well, it turns out.",
+  )
+
+  val imageTitles: List<String> = listOf(
+    "The Pleiades",
+    "Trifid and Lagoon Nebulae",
+    "Aurora and Perseids",
+    "Comet over Sweden",
+    "Crab Nebula",
+    "Star Trails at La Hague",
+    "Heart and Soul Nebulae",
+    "Rho Ophiuchi Clouds",
+    "Bode's Galaxy",
+    "Nebulae in Cepheus and Cassiopeia",
+    "Perseid over Luhasoo Bog",
+    "Sunset on Mars",
+    "Pillars of Creation",
+    "Carina Nebula",
+    "California Nebula",
+    "Veil Nebula",
+    "Comet ZTF",
+    "Orion Nebula",
+    "Horsehead Nebula",
+    "Ganymede from Juno",
+  )
+
+  val characterNames: List<String> = listOf(
+    "Mara Quinn",
+    "Theo Alvarez",
+    "Priya Nair",
+    "Elena Sokolova",
+    "Jonah Brooks",
+    "Sam Okafor",
+    "Paulo Mendes",
+    "Wren Takahashi",
+    "Felix Braun",
+    "Esme Laurent",
+    "Mateo Rossi",
+    "Nadia Haddad",
+    "Victor Lindqvist",
+    "Lena Kowalski",
+    "Hana Sato",
+  )
+
+  val avatarNames: List<String> = listOf(
+    "Aria",
+    "Ben",
+    "Cleo",
+    "Dani",
+    "Eli",
+    "Finn",
+    "Gia",
+    "Hugo",
+  )
+}
