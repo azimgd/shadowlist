@@ -325,7 +325,9 @@ open class SLKListView @JvmOverloads constructor(
 
   /*
    * Created on first use and destroyed when the list detaches. A list attached again gets a
-   * new core with the same settings, keys and sections. Rows are measured again.
+   * new core with the same settings, keys and sections. Rows are measured again. A list that
+   * never attaches leaves its core to SLKCore's reclaimer, which frees the peer once the list is
+   * collected.
    */
   private var coreOrNull: SLKCore? = null
   internal val core: SLKCore

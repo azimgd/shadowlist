@@ -12,6 +12,11 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
       System.loadLibrary("shadowlistkit")
     }
 
+    /*
+     * Frees the peer of a core whose list was dropped without destroy(), like one never attached.
+     */
+    private val reclaimer = SLKPeerReclaimer(::nativeDestroy)
+
     const val PASS_OFFSET = 0
     const val PASS_WINDOW_ALONG = 1
     const val PASS_WINDOW_CROSS = 2
@@ -291,7 +296,7 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
   /*
    * The native Peer, 0 once destroyed.
    */
-  private var handle: Long = nativeCreate()
+  private var handle: Long = nativeCreate().also { reclaimer.register(this, it) }
 
   /*
    * The pass slots, see PASS_*. The view fills the inputs and reads the outputs.
@@ -318,6 +323,7 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
   fun destroy() {
     if (handle == 0L) return
     nativeDestroy(handle)
+    reclaimer.release(handle)
     handle = 0L
   }
 
