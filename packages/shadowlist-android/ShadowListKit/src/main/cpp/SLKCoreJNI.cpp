@@ -245,6 +245,16 @@ std::vector<sl::ScreenPoint> readPoints(JNIEnv* env, jdoubleArray array) {
 }
 
 /*
+ * Slots of SLKCore.constants, CONSTANT_* in Kotlin: kit constants of the core in dp at scale 1
+ * and durations in milliseconds.
+ */
+enum ConstantSlot {
+  CONSTANT_SWIPE_FLING_VELOCITY = 0,
+  CONSTANT_SWIPE_SETTLE_DURATION_MS,
+  CONSTANT_SLOTS,
+};
+
+/*
  * Kotlin carries a missing index as -1, the core as UNDEFINED_INDEX.
  */
 jint jintFromIndex(std::size_t index) {
@@ -778,6 +788,47 @@ JNIEXPORT jintArray JNICALL SLK_JNI(nativeDeletionPositions)(
   return makeIntArray(env, positions);
 }
 
+JNIEXPORT jdoubleArray JNICALL SLK_JNI(nativeConstants)(JNIEnv* env, jclass) {
+  jdouble values[CONSTANT_SLOTS];
+  values[CONSTANT_SWIPE_FLING_VELOCITY] = sl::SWIPE_FLING_VELOCITY;
+  values[CONSTANT_SWIPE_SETTLE_DURATION_MS] = sl::SWIPE_SETTLE_DURATION_MS;
+  jdoubleArray array = env->NewDoubleArray(CONSTANT_SLOTS);
+  if (array != nullptr) {
+    env->SetDoubleArrayRegion(array, 0, CONSTANT_SLOTS, values);
+  }
+  return array;
+}
+
+JNIEXPORT jdouble JNICALL SLK_JNI(nativeSwipeButtonSize)(JNIEnv*, jclass, jdouble fitted, jdouble scale) {
+  return sl::swipeButtonSize(fitted, scale);
+}
+
+/*
+ * Where the revealed side's count buttons go, into out: the revealed span's start and size,
+ * then each button's start and size.
+ */
+JNIEXPORT void JNICALL SLK_JNI(nativeSwipeButtonSpans)(JNIEnv* env, jclass, jdoubleArray sizes, jint count,
+  jdouble offset, jboolean full, jdouble crossSize, jdoubleArray out) {
+  std::size_t buttons = static_cast<std::size_t>(std::max(count, 0));
+  std::vector<double> values(buttons);
+  if (buttons > 0) {
+    env->GetDoubleArrayRegion(sizes, 0, static_cast<jsize>(buttons), values.data());
+  }
+  std::vector<sl::SwipeSpan> spans;
+  sl::swipeButtonSpans(values, offset, full, crossSize, spans);
+  sl::SwipeSpan revealed = sl::swipeRevealedSpan(offset, crossSize);
+  std::vector<jdouble> packed;
+  packed.reserve(2 + spans.size() * 2);
+  packed.push_back(revealed.start);
+  packed.push_back(revealed.size);
+  for (const sl::SwipeSpan& span : spans) {
+    packed.push_back(span.start);
+    packed.push_back(span.size);
+  }
+  jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(packed.size()));
+  env->SetDoubleArrayRegion(out, 0, length, packed.data());
+}
+
 /*
  * The offset of a swiped row for a finger that moved translation since it began at start.
  */
@@ -796,6 +847,14 @@ JNIEXPORT jboolean JNICALL SLK_JNI(nativeSwipePastFull)(JNIEnv* env, jclass, jdo
   sl::SwipeReveal swipe;
   swipe.begin(readSwipeSpec(slots), 0.0);
   return swipe.isPastFullSwipe(offset) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL SLK_JNI(nativeSwipeIsOut)(JNIEnv* env, jclass, jdoubleArray io, jdouble offset) {
+  jdouble slots[SWIPE_SLOTS];
+  env->GetDoubleArrayRegion(io, 0, SWIPE_SLOTS, slots);
+  sl::SwipeReveal swipe;
+  swipe.begin(readSwipeSpec(slots), 0.0);
+  return swipe.isSwipedOut(offset) ? JNI_TRUE : JNI_FALSE;
 }
 
 /*

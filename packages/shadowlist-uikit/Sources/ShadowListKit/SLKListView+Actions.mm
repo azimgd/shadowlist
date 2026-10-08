@@ -1,18 +1,15 @@
 #import "Internal/SLKListView+Private.h"
 
 #include <cmath>
+#include <numeric>
 #include <vector>
 
 using namespace azimgd::shadowlist;
 
 /*
- * Narrowest action button, the padding around its title, and the fling speed that opens or
- * closes a swiped row, in points and points per second.
+ * How long a released row takes to rest, the core's SWIPE_SETTLE_DURATION_MS.
  */
-static const CGFloat SLK_SWIPE_BUTTON_MIN = 74;
-static const CGFloat SLK_SWIPE_BUTTON_PADDING = 24;
-static const CGFloat SLK_SWIPE_FLING_VELOCITY = 300;
-static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
+static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000.0;
 
 #pragma mark - Actions view
 
@@ -31,8 +28,9 @@ static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
 @implementation SLKSwipeActionsView {
   NSArray<UIButton *> *_leadingButtons;
   NSArray<UIButton *> *_trailingButtons;
-  std::vector<CGFloat> _leadingWidths;
-  std::vector<CGFloat> _trailingWidths;
+  std::vector<double> _leadingWidths;
+  std::vector<double> _trailingWidths;
+  std::vector<SwipeSpan> _spans;
 }
 
 - (instancetype)initWithLeading:(SLKSwipeActionsConfiguration *)leading
@@ -50,7 +48,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
   return self;
 }
 
-- (NSArray<UIButton *> *)buttonsFor:(SLKSwipeActionsConfiguration *)configuration widths:(std::vector<CGFloat>&)widths
+- (NSArray<UIButton *> *)buttonsFor:(SLKSwipeActionsConfiguration *)configuration widths:(std::vector<double>&)widths
 {
   NSMutableArray<UIButton *> *buttons = [NSMutableArray array];
   for (SLKSwipeAction *action in configuration.actions) {
@@ -69,7 +67,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
       }
     }] forControlEvents:UIControlEventTouchUpInside];
     CGSize fits = [button sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)];
-    widths.push_back(MAX(SLK_SWIPE_BUTTON_MIN, (_horizontal ? fits.height : fits.width) + SLK_SWIPE_BUTTON_PADDING));
+    widths.push_back(swipeButtonSize(_horizontal ? fits.height : fits.width, 1.0));
     [self addSubview:button];
     [buttons addObject:button];
   }
@@ -78,20 +76,12 @@ static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
 
 - (CGFloat)leadingWidth
 {
-  CGFloat total = 0;
-  for (CGFloat width : _leadingWidths) {
-    total += width;
-  }
-  return total;
+  return (CGFloat)std::accumulate(_leadingWidths.begin(), _leadingWidths.end(), 0.0);
 }
 
 - (CGFloat)trailingWidth
 {
-  CGFloat total = 0;
-  for (CGFloat width : _trailingWidths) {
-    total += width;
-  }
-  return total;
+  return (CGFloat)std::accumulate(_trailingWidths.begin(), _trailingWidths.end(), 0.0);
 }
 
 /*
@@ -103,30 +93,25 @@ static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
   BOOL leading = offset > 0;
   NSArray<UIButton *> *shown = leading ? _leadingButtons : _trailingButtons;
   NSArray<UIButton *> *other = leading ? _trailingButtons : _leadingButtons;
-  const std::vector<CGFloat>& widths = leading ? _leadingWidths : _trailingWidths;
   for (UIButton *button in other) {
     button.hidden = YES;
   }
   CGSize size = self.bounds.size;
   CGFloat crossSize = _horizontal ? size.height : size.width;
   CGFloat alongSize = _horizontal ? size.width : size.height;
-  CGFloat gap = std::fabs(offset);
-  CGFloat total = leading ? [self leadingWidth] : [self trailingWidth];
-  CGFloat scale = total > 0 ? gap / total : 0;
-  // From the edge inward: the first action sits at the outer edge.
-  CGFloat edge = 0;
-  for (NSUInteger at = 0; at < shown.count; ++at) {
+  swipeButtonSpans(leading ? _leadingWidths : _trailingWidths, offset, full, crossSize, _spans);
+  for (NSUInteger at = 0; at < shown.count && at < _spans.size(); ++at) {
     UIButton *button = shown[at];
-    CGFloat width = full ? (at == 0 ? gap : 0) : widths[at] * scale;
-    CGFloat start = leading ? edge : crossSize - edge - width;
+    CGFloat start = (CGFloat)_spans[at].start;
+    CGFloat width = (CGFloat)_spans[at].size;
     button.hidden = width <= 0;
     button.frame = _horizontal ? CGRectMake(0, start, alongSize, width) : CGRectMake(start, 0, width, alongSize);
-    edge += width;
   }
   self.backgroundColor = shown.firstObject.backgroundColor;
   // Only the gap shows the buttons' color.
-  CGRect visible = _horizontal ? CGRectMake(0, leading ? 0 : crossSize - gap, alongSize, gap)
-                               : CGRectMake(leading ? 0 : crossSize - gap, 0, gap, alongSize);
+  SwipeSpan gap = swipeRevealedSpan(offset, crossSize);
+  CGRect visible = _horizontal ? CGRectMake(0, (CGFloat)gap.start, alongSize, (CGFloat)gap.size)
+                               : CGRectMake((CGFloat)gap.start, 0, (CGFloat)gap.size, alongSize);
   self.layer.mask = nil;
   CALayer *mask = [CALayer layer];
   mask.backgroundColor = UIColor.blackColor.CGColor;
@@ -184,7 +169,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
 
 - (BOOL)isSwipedOutCell:(SLKListCell *)cell
 {
-  return cell == _swipeCell && std::fabs(_swipeOffset) >= _swipe.getSpec().rowSize - 1;
+  return cell == _swipeCell && _swipe.isSwipedOut(_swipeOffset);
 }
 
 #pragma mark - Swipe gesture
@@ -274,7 +259,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
       if (!_swipeCell) {
         return;
       }
-      SwipeRest rest = _swipe.settle(_swipeOffset, [self cross:[pan velocityInView:self]], SLK_SWIPE_FLING_VELOCITY);
+      SwipeRest rest = _swipe.settle(_swipeOffset, [self cross:[pan velocityInView:self]], SWIPE_FLING_VELOCITY);
       [self settleSwipeTo:rest];
       break;
     }
@@ -294,7 +279,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = 0.25;
   }
   _swipe.begin(_swipe.getSpec(), _swipeOffset);
   [self setSwipeOffset:(CGFloat)_swipe.drag(distance)];
-  [self settleSwipeTo:_swipe.settle(_swipeOffset, velocity, SLK_SWIPE_FLING_VELOCITY)];
+  [self settleSwipeTo:_swipe.settle(_swipeOffset, velocity, SWIPE_FLING_VELOCITY)];
 }
 
 - (void)unhighlightCellsForSwipe

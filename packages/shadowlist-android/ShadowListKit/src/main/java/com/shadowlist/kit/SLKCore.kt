@@ -67,6 +67,16 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     const val SWIPE_SIDE_LEADING = 1
     const val SWIPE_SIDE_TRAILING = 2
 
+    // Slots of constants, the same as the core's ConstantSlot in the JNI.
+    private const val CONSTANT_SWIPE_FLING_VELOCITY = 0
+    private const val CONSTANT_SWIPE_SETTLE_DURATION_MS = 1
+
+    private val constants: DoubleArray by lazy { nativeConstants() }
+
+    // The core's swipe constants: the fling speed in dp per second and the settle duration.
+    val SWIPE_FLING_VELOCITY_DP: Double get() = constants[CONSTANT_SWIPE_FLING_VELOCITY]
+    val SWIPE_DURATION_MS: Long get() = constants[CONSTANT_SWIPE_SETTLE_DURATION_MS].toLong()
+
     // Slots of a step from runChange, then the kinds in the order of the core's ChangeStepKind.
     const val CHANGE_STEP_KIND = 0
     const val CHANGE_STEP_FROM_X = 1
@@ -144,8 +154,13 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
       handle: Long, keysPacked: CharArray, keysEnds: IntArray, positions: DoubleArray): DoubleArray?
     @JvmStatic private external fun nativeInsertionPositions(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeDeletionPositions(indices: IntArray, previousCount: Int): IntArray
+    @JvmStatic private external fun nativeConstants(): DoubleArray
+    @JvmStatic private external fun nativeSwipeButtonSize(fitted: Double, scale: Double): Double
+    @JvmStatic private external fun nativeSwipeButtonSpans(
+      sizes: DoubleArray, count: Int, offset: Double, full: Boolean, crossSize: Double, out: DoubleArray)
     @JvmStatic private external fun nativeSwipeDrag(io: DoubleArray, start: Double, translation: Double): Double
     @JvmStatic private external fun nativeSwipePastFull(io: DoubleArray, offset: Double): Boolean
+    @JvmStatic private external fun nativeSwipeIsOut(io: DoubleArray, offset: Double): Boolean
     @JvmStatic private external fun nativeSwipeSettle(io: DoubleArray, offset: Double, velocity: Double, flingVelocity: Double)
 
     /*
@@ -193,9 +208,23 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     fun insertionPositions(indices: IntArray, previousCount: Int): IntArray = nativeInsertionPositions(indices, previousCount)
     fun deletionPositions(indices: IntArray, previousCount: Int): IntArray = nativeDeletionPositions(indices, previousCount)
 
+    /*
+     * The core's swipeButtonSize: the title's fitted size with room around it, at least the
+     * narrowest button, scaled to pixels.
+     */
+    fun swipeButtonSize(fitted: Double, scale: Double): Double = nativeSwipeButtonSize(fitted, scale)
+
+    /*
+     * The core's swipeButtonSpans and swipeRevealedSpan into out: the revealed span's start and
+     * size, then each of the count buttons' start and size.
+     */
+    fun swipeButtonSpans(sizes: DoubleArray, count: Int, offset: Double, full: Boolean, crossSize: Double, out: DoubleArray) =
+      nativeSwipeButtonSpans(sizes, count, offset, full, crossSize, out)
+
     // The core's SwipeReveal over a SWIPE_* array.
     fun swipeDrag(io: DoubleArray, start: Double, translation: Double): Double = nativeSwipeDrag(io, start, translation)
     fun swipePastFull(io: DoubleArray, offset: Double): Boolean = nativeSwipePastFull(io, offset)
+    fun swipeIsOut(io: DoubleArray, offset: Double): Boolean = nativeSwipeIsOut(io, offset)
     fun swipeSettle(io: DoubleArray, offset: Double, velocity: Double, flingVelocity: Double) =
       nativeSwipeSettle(io, offset, velocity, flingVelocity)
   }

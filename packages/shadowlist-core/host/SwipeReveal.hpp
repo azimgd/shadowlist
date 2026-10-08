@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <vector>
 
 namespace azimgd::shadowlist {
 
@@ -14,6 +15,23 @@ constexpr double SWIPE_RUBBER_BAND = 0.25;
  * action.
  */
 constexpr double SWIPE_FULL_FRACTION = 0.55;
+
+/*
+ * Narrowest action button and the room around its title, in points, or in dp that the Android
+ * kit scales to pixels.
+ */
+constexpr double SWIPE_BUTTON_MIN = 74.0;
+constexpr double SWIPE_BUTTON_PADDING = 24.0;
+
+/*
+ * Speed toward a side past which a released row counts as flung, in points or dp per second.
+ */
+constexpr double SWIPE_FLING_VELOCITY = 300.0;
+
+/*
+ * How long a released row takes to come to rest, in milliseconds.
+ */
+constexpr double SWIPE_SETTLE_DURATION_MS = 250.0;
 
 /*
  * Which side of a row shows its actions. Leading is the cross axis start, left in a vertical
@@ -48,6 +66,41 @@ struct SwipeRest {
 };
 
 /*
+ * A span across the row, from the row's cross axis start.
+ */
+struct SwipeSpan {
+  double start = 0.0;
+  double size = 0.0;
+};
+
+/*
+ * Cross size of an action button whose title and image fit in fitted: the title with room
+ * around it, never narrower than SWIPE_BUTTON_MIN. scale turns the constants into host units,
+ * 1 for points and the density for Android pixels.
+ */
+double swipeButtonSize(double fitted, double scale);
+
+/*
+ * Where the buttons of the side a row moved offset across the axis reveals go. sizes are that
+ * side's button sizes, the first action at the outer edge. The buttons stretch over the gap the
+ * row leaves in proportion to their sizes. With full the first button fills the gap and the
+ * others get size 0. Each start is the sum of the sizes before it, which lets a host round
+ * every edge to its pixels without the buttons drifting apart. crossSize is the row's size.
+ */
+void swipeButtonSpans(
+  const std::vector<double>& sizes,
+  double offset,
+  bool full,
+  double crossSize,
+  std::vector<SwipeSpan>& out);
+
+/*
+ * The part of the row's cross axis the buttons show through: the gap the row moved offset
+ * leaves at the side it reveals.
+ */
+SwipeSpan swipeRevealedSpan(double offset, double crossSize);
+
+/*
  * The cross axis offset of a row swiped to show its actions, shared by both native lists. A
  * positive offset moves the row toward the trailing side and shows the leading actions. The row
  * follows the finger up to its actions, then slower, or all the way across when a full swipe is
@@ -79,6 +132,11 @@ public:
    * The offset that keeps a side open.
    */
   double openOffset(SwipeSide side) const;
+
+  /*
+   * Whether a row at offset slid all the way out, like after a full swipe.
+   */
+  bool isSwipedOut(double offset) const;
 
 private:
   SwipeSpec spec_;

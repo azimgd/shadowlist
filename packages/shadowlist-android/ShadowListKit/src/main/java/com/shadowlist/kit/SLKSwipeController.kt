@@ -24,13 +24,6 @@ import kotlin.math.roundToInt
  * still scrolls.
  */
 internal class SLKSwipeController(private val list: SLKListView) {
-  companion object {
-    private const val BUTTON_MIN_DP = 74f
-    private const val BUTTON_PADDING_DP = 24f
-    private const val FLING_VELOCITY_DP = 300f
-    private const val SWIPE_DURATION_MS = 250L
-  }
-
   private val touchSlop = ViewConfiguration.get(list.context).scaledTouchSlop
   private val spec = DoubleArray(SLKCore.SWIPE_SLOTS)
   private var velocityTracker: VelocityTracker? = null
@@ -57,7 +50,7 @@ internal class SLKSwipeController(private val list: SLKListView) {
   val isOpen: Boolean get() = cell != null
 
   fun isSwipedOut(candidate: SLKListCell): Boolean =
-    candidate === cell && abs(offset) >= spec[SLKCore.SWIPE_ROW_SIZE] - 1
+    candidate === cell && SLKCore.swipeIsOut(spec, offset.toDouble())
 
   /*
    * Watch a touch for a swipe and own it once one runs. Returns whether the swipe took the event.
@@ -173,8 +166,8 @@ internal class SLKSwipeController(private val list: SLKListView) {
       View.MeasureSpec.makeMeasureSpec(target.width, View.MeasureSpec.EXACTLY),
       View.MeasureSpec.makeMeasureSpec(target.height, View.MeasureSpec.EXACTLY))
     view.layout(target.left, target.top, target.right, target.bottom)
-    spec[SLKCore.SWIPE_LEADING_WIDTH] = view.leadingWidth.toDouble()
-    spec[SLKCore.SWIPE_TRAILING_WIDTH] = view.trailingWidth.toDouble()
+    spec[SLKCore.SWIPE_LEADING_WIDTH] = view.leadingWidth
+    spec[SLKCore.SWIPE_TRAILING_WIDTH] = view.trailingWidth
     spec[SLKCore.SWIPE_LEADING_FULL] = if (leading?.performsFirstActionWithFullSwipe == true) 1.0 else 0.0
     spec[SLKCore.SWIPE_TRAILING_FULL] = if (trailing?.performsFirstActionWithFullSwipe == true) 1.0 else 0.0
     spec[SLKCore.SWIPE_ROW_SIZE] = (if (list.horizontal) target.height else target.width).toDouble()
@@ -192,7 +185,7 @@ internal class SLKSwipeController(private val list: SLKListView) {
   }
 
   private fun settle(velocity: Float) {
-    SLKCore.swipeSettle(spec, offset.toDouble(), velocity.toDouble(), (FLING_VELOCITY_DP * list.density).toDouble())
+    SLKCore.swipeSettle(spec, offset.toDouble(), velocity.toDouble(), SLKCore.SWIPE_FLING_VELOCITY_DP * list.density)
     val side = spec[SLKCore.SWIPE_OUT_SIDE].toInt()
     val full = spec[SLKCore.SWIPE_OUT_FULL] != 0.0
     animateTo(spec[SLKCore.SWIPE_OUT_OFFSET].toFloat())
@@ -207,7 +200,7 @@ internal class SLKSwipeController(private val list: SLKListView) {
     animator?.cancel()
     val swiped = cell ?: return
     animator = ValueAnimator.ofFloat(offset, target).apply {
-      duration = SWIPE_DURATION_MS
+      duration = SLKCore.SWIPE_DURATION_MS
       interpolator = DecelerateInterpolator()
       addUpdateListener { if (cell === swiped) apply(it.animatedValue as Float) }
       addListener(object : android.animation.AnimatorListenerAdapter() {
@@ -292,14 +285,15 @@ internal class SLKSwipeActionsView(
 ) : ViewGroup(context) {
   private val leadingButtons = buttons(leading)
   private val trailingButtons = buttons(trailing)
-  private val minSize = (74f * density).roundToInt()
-  private val padding = (24f * density).roundToInt()
-  private val leadingSizes = sizes(leadingButtons)
-  private val trailingSizes = sizes(trailingButtons)
+  private val leadingSizes = sizes(leadingButtons, density)
+  private val trailingSizes = sizes(trailingButtons, density)
   private val clip = Rect()
 
-  val leadingWidth: Int get() = leadingSizes.sum()
-  val trailingWidth: Int get() = trailingSizes.sum()
+  // The revealed span, then each button's start and size, from the core.
+  private val spans = DoubleArray(2 + 2 * max(leadingButtons.size, trailingButtons.size))
+
+  val leadingWidth: Double get() = leadingSizes.sum()
+  val trailingWidth: Double get() = trailingSizes.sum()
 
   private fun buttons(configuration: SLKSwipeActionsConfiguration?): List<TextView> =
     configuration?.actions?.map { action ->
@@ -317,10 +311,11 @@ internal class SLKSwipeActionsView(
       }
     } ?: emptyList()
 
-  private fun sizes(buttons: List<TextView>): IntArray = IntArray(buttons.size) {
+  private fun sizes(buttons: List<TextView>, density: Float): DoubleArray = DoubleArray(buttons.size) {
     val button = buttons[it]
     button.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED)
-    max(minSize, (if (horizontal) button.measuredHeight else button.measuredWidth) + padding)
+    val fitted = if (horizontal) button.measuredHeight else button.measuredWidth
+    SLKCore.swipeButtonSize(fitted.toDouble(), density.toDouble())
   }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -341,27 +336,25 @@ internal class SLKSwipeActionsView(
     for (button in other) button.visibility = INVISIBLE
     val crossSize = if (horizontal) height else width
     val alongSize = if (horizontal) width else height
-    val gap = abs(offset).roundToInt()
-    val total = sizes.sum()
-    val scale = if (total > 0) gap.toFloat() / total else 0f
-    // From the edge inward: the first action sits at the outer edge.
-    var edge = 0
+    SLKCore.swipeButtonSpans(sizes, sizes.size, offset.toDouble(), full, crossSize.toDouble(), spans)
     for ((at, button) in shown.withIndex()) {
-      val size = if (full) (if (at == 0) gap else 0) else (sizes[at] * scale).roundToInt()
-      val start = if (leadingSide) edge else crossSize - edge - size
+      // Each edge is rounded on its own, which keeps the buttons touching.
+      val start = spans[2 + at * 2].roundToInt()
+      val end = (spans[2 + at * 2] + spans[3 + at * 2]).roundToInt()
+      val size = end - start
       button.visibility = if (size > 0) VISIBLE else INVISIBLE
       if (size > 0) {
         val w = if (horizontal) alongSize else size
         val h = if (horizontal) size else alongSize
         button.measure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
-        if (horizontal) button.layout(0, start, alongSize, start + size) else button.layout(start, 0, start + size, alongSize)
+        if (horizontal) button.layout(0, start, alongSize, end) else button.layout(start, 0, end, alongSize)
       }
-      edge += size
     }
     shown.firstOrNull()?.let { setBackgroundColor((it.background as? android.graphics.drawable.ColorDrawable)?.color ?: 0) }
     // Only the gap shows the buttons' color.
-    val gapStart = if (leadingSide) 0 else crossSize - gap
-    if (horizontal) clip.set(0, gapStart, alongSize, gapStart + gap) else clip.set(gapStart, 0, gapStart + gap, alongSize)
+    val gapStart = spans[0].roundToInt()
+    val gapEnd = (spans[0] + spans[1]).roundToInt()
+    if (horizontal) clip.set(0, gapStart, alongSize, gapEnd) else clip.set(gapStart, 0, gapEnd, alongSize)
     clipBounds = clip
   }
 

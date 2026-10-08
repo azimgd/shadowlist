@@ -76,4 +76,42 @@ double SwipeReveal::openOffset(SwipeSide side) const {
   return 0.0;
 }
 
+bool SwipeReveal::isSwipedOut(double offset) const {
+  return spec_.rowSize > 0.0 && std::fabs(offset) >= spec_.rowSize - 1.0;
+}
+
+double swipeButtonSize(double fitted, double scale) {
+  return std::max(SWIPE_BUTTON_MIN * scale, fitted + SWIPE_BUTTON_PADDING * scale);
+}
+
+void swipeButtonSpans(
+  const std::vector<double>& sizes,
+  double offset,
+  bool full,
+  double crossSize,
+  std::vector<SwipeSpan>& out) {
+  out.clear();
+  out.reserve(sizes.size());
+  bool leading = offset > 0.0;
+  double gap = std::fabs(offset);
+  double total = 0.0;
+  for (double size : sizes) {
+    total += size;
+  }
+  double scale = total > 0.0 ? gap / total : 0.0;
+  // From the edge inward: the first action sits at the outer edge.
+  double edge = 0.0;
+  for (std::size_t at = 0; at < sizes.size(); ++at) {
+    double size = full ? (at == 0 ? gap : 0.0) : sizes[at] * scale;
+    double start = leading ? edge : crossSize - edge - size;
+    out.push_back({start, size});
+    edge += size;
+  }
+}
+
+SwipeSpan swipeRevealedSpan(double offset, double crossSize) {
+  double gap = std::fabs(offset);
+  return {offset > 0.0 ? 0.0 : crossSize - gap, gap};
+}
+
 }
