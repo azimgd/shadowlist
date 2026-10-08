@@ -9212,9 +9212,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"shadowlist-example@workspace:packages/shadowlist-fabric-example":
+"shadowlist-example@workspace:templates/shadowlist-fabric-example":
   version: 0.0.0-use.local
-  resolution: "shadowlist-example@workspace:packages/shadowlist-fabric-example"
+  resolution: "shadowlist-example@workspace:templates/shadowlist-fabric-example"
   dependencies:
     "@babel/core": "npm:^7.25.2"
     "@babel/preset-env": "npm:^7.25.3"
@@ -9243,9 +9243,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"shadowlist-macos-example@workspace:packages/shadowlist-macos-example":
+"shadowlist-macos-example@workspace:templates/shadowlist-macos-example":
   version: 0.0.0-use.local
-  resolution: "shadowlist-macos-example@workspace:packages/shadowlist-macos-example"
+  resolution: "shadowlist-macos-example@workspace:templates/shadowlist-macos-example"
   dependencies:
     "@babel/core": "npm:^7.25.2"
     "@babel/runtime": "npm:^7.25.0"
@@ -9280,9 +9280,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"shadowlist-utils@workspace:packages/shadowlist-utils":
+"shadowlist-utils@workspace:templates/shadowlist-utils":
   version: 0.0.0-use.local
-  resolution: "shadowlist-utils@workspace:packages/shadowlist-utils"
+  resolution: "shadowlist-utils@workspace:templates/shadowlist-utils"
   dependencies:
     "@types/jest": "npm:^29.5.14"
     "@types/react": "npm:^19.2.17"

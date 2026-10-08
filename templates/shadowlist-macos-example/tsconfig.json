@@ -1,0 +1,18 @@
+{
+  "extends": "@react-native/typescript-config",
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "compilerOptions": {
+    "moduleSuffixes": [".macos", ""],
+    "paths": {
+      "shadowlist": ["../../packages/shadowlist-fabric/src/index"],
+      "shadowlist-utils": ["../shadowlist-utils/src/index"],
+      "shadowlist-utils/native": ["../shadowlist-utils/src/native/index"],
+      "@example/*": ["../shadowlist-fabric-example/src/*"],
+      "@tanstack/react-query": ["./node_modules/@tanstack/react-query"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-native": ["./node_modules/react-native/types_generated/index.d.ts"]
+    },
+    "types": ["react", "node"]
+  }
+}
