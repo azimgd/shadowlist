@@ -244,7 +244,8 @@ public:
 
   /*
    * Leading edge and extent of every sticky row, two values each, for a host that pins
-   * headers without calling in on every frame.
+   * headers without calling in on every frame. A row the core has not placed yet has an
+   * infinite leading edge, the same as activeStickyIndex sorts it.
    */
   void stickyFrames(std::vector<double>& out) const;
 

@@ -7,8 +7,10 @@
 
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
+#include <shadowlist-core/host/StickyLayout.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -374,6 +376,41 @@ TEST(list_driver_sticky_header_pins_and_is_pushed_up) {
   double next = host.driver.getLeadingAt(40);
   double pushed = host.driver.stickyLeading(20, next - 5.0);
   CHECK_NEAR(pushed, next - host.driver.getExtentAt(20), 0.01);
+}
+
+/*
+ * The pinning SLKListView.layoutSticky on Android runs over the copied sticky frames: the last
+ * frame starting at or above the offset, pushed up by the next placed one. Rows not placed yet
+ * have an infinite leading edge and never pin or push.
+ */
+TEST(list_driver_sticky_frames_pin_the_same_header_as_the_driver) {
+  Host host(300);
+  host.driver.setStickyIndices({0, 20, 40});
+  host.settle();
+  // Keys for two more sticky rows that the core places on the next layout only.
+  std::vector<std::string> keys = keysFrom(0, 400);
+  host.driver.setKeys(keys);
+  host.driver.setStickyIndices({0, 20, 40, 320, 350});
+  std::vector<double> frames;
+  host.driver.stickyFrames(frames);
+  CHECK_EQ(frames.size(), std::size_t{10});
+  CHECK(std::isinf(frames[6]) && frames[6] > 0.0);
+  CHECK(std::isinf(frames[8]) && frames[8] > 0.0);
+
+  std::vector<std::size_t> rows = {0, 20, 40, 320, 350};
+  auto leadingAt = [&](std::size_t at) { return frames[at * 2]; };
+  for (double offset : {0.0, 500.0, host.driver.getLeadingAt(20) + 3.0, host.driver.getLeadingAt(40) - 2.0, 1e9}) {
+    std::size_t position = pinnedSectionPosition(rows.size(), offset, leadingAt);
+    std::size_t active = host.driver.activeStickyIndex(offset);
+    CHECK_EQ(position == UNDEFINED_INDEX ? UNDEFINED_INDEX : rows[position], active);
+    if (position == UNDEFINED_INDEX) {
+      continue;
+    }
+    bool hasNext = position + 1 < rows.size() && std::isfinite(frames[(position + 1) * 2]);
+    double pinned = pinnedSectionLeading(frames[position * 2], frames[position * 2 + 1], offset, hasNext,
+      hasNext ? frames[(position + 1) * 2] : 0.0);
+    CHECK_NEAR(pinned, host.driver.stickyLeading(active, offset), 1e-9);
+  }
 }
 
 TEST(list_driver_pinned_header_far_above_the_window_is_measured) {

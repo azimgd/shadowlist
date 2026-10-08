@@ -735,6 +735,7 @@ open class SLKListView @JvmOverloads constructor(
     readRowKeys(next)
     recordContentVersions(next)
     applyRowKeys(next)
+    structureChanged()
     reloadSectionIndex()
   }
 
@@ -758,7 +759,6 @@ open class SLKListView @JvmOverloads constructor(
     }
     spareKeys = keys
     keys = next
-    structureChanged()
   }
 
   /*
@@ -912,8 +912,9 @@ open class SLKListView @JvmOverloads constructor(
     }
     if (!planned) readRowKeys(next)
     applyRowKeys(next)
+    // Reloaded rows report the change themselves.
     val rows = rowsOfKeys(reloadedKeys)
-    if (rows.isNotEmpty()) reloadRows(rows, payload)
+    if (rows.isNotEmpty()) reloadRows(rows, payload) else structureChanged()
     if (!planned) reloadSectionIndex()
   }
 
@@ -956,7 +957,7 @@ open class SLKListView @JvmOverloads constructor(
 
     applyRowKeys(next)
     val rows = rowsOfKeys(reloadedKeys)
-    if (rows.isNotEmpty()) reloadRows(rows, null)
+    if (rows.isNotEmpty()) reloadRows(rows, null) else structureChanged()
     reloadSectionIndex()
 
     var at = 0
@@ -1529,7 +1530,10 @@ open class SLKListView @JvmOverloads constructor(
   }
 
   /*
-   * Position in stickyRows of the last sticky row starting at or above the offset, or -1.
+   * Position in stickyRows of the last sticky row starting at or above the offset, or -1. Rows
+   * the core has not placed yet start at infinity and sort last. The core test
+   * list_driver_sticky_frames_pin_the_same_header_as_the_driver holds the rule this and
+   * stickyLeading match.
    */
   private fun activeStickyPosition(offset: Double): Int {
     if (stickyRows.isEmpty()) return -1
@@ -1539,7 +1543,7 @@ open class SLKListView @JvmOverloads constructor(
     var high = stickyRows.size
     while (low < high) {
       val mid = (low + high) ushr 1
-      if (stickyRows[mid] < keys.size && stickyFrames[mid * 2] <= offset) {
+      if (stickyFrames[mid * 2] <= offset) {
         found = mid
         low = mid + 1
       } else {
@@ -1558,7 +1562,7 @@ open class SLKListView @JvmOverloads constructor(
   private fun stickyLeading(position: Int, offset: Double): Double {
     var pinned = max(stickyFrames[position * 2], offset)
     val next = position + 1
-    if (next < stickyRows.size && stickyRows[next] < keys.size) {
+    if (next < stickyRows.size && stickyFrames[next * 2].isFinite()) {
       pinned = min(pinned, stickyFrames[next * 2] - stickyFrames[position * 2 + 1])
     }
     return pinned
@@ -1640,10 +1644,13 @@ open class SLKListView @JvmOverloads constructor(
     if (!follows || delegate?.showsSeparatorAfterItem(this, cell.index) == false) return
     val x = cell.left + cell.translationX
     val y = cell.top + cell.translationY
+    // The line never runs backwards when the insets are wider than the cell.
     if (horizontal) {
-      separatorRect.set(x + cell.width - separatorThickness, y + separatorInsetStart, x + cell.width, y + cell.height - separatorInsetEnd)
+      val length = max(0, cell.height - separatorInsetStart - separatorInsetEnd)
+      separatorRect.set(x + cell.width - separatorThickness, y + separatorInsetStart, x + cell.width, y + separatorInsetStart + length)
     } else {
-      separatorRect.set(x + separatorInsetStart, y + cell.height - separatorThickness, x + cell.width - separatorInsetEnd, y + cell.height)
+      val length = max(0, cell.width - separatorInsetStart - separatorInsetEnd)
+      separatorRect.set(x + separatorInsetStart, y + cell.height - separatorThickness, x + separatorInsetStart + length, y + cell.height)
     }
     separatorPaint.alpha = (Color.alpha(separatorColor) * cell.alpha).roundToInt()
     canvas.drawRect(separatorRect, separatorPaint)

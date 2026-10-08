@@ -506,9 +506,9 @@ void ListDriver::stickyFrames(std::vector<double>& out) const {
   out.clear();
   out.reserve(sticky_.size() * 2);
   for (std::size_t index : sticky_) {
-    bool known = index < getCount();
-    out.push_back(known ? getLeadingAt(index) : 0.0);
-    out.push_back(known ? getExtentAt(index) : 0.0);
+    bool placed = index < getCount();
+    out.push_back(placed ? getLeadingAt(index) : std::numeric_limits<double>::infinity());
+    out.push_back(placed ? getExtentAt(index) : 0.0);
   }
 }
 
