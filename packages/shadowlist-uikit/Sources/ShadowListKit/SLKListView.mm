@@ -52,6 +52,7 @@ static NSString *SLKString(const std::string& value)
 
 @interface SLKListView ()
 - (void)settleFrame;
+- (void)focusAccessibilityRowForKey:(NSString *)key;
 @end
 
 #pragma mark - Settle frame target
@@ -74,6 +75,31 @@ static NSString *SLKString(const std::string& value)
     return;
   }
   [list settleFrame];
+}
+
+@end
+
+#pragma mark - Row accessibility element
+
+/*
+ * Stands in for a row that is not on screen while accessibility walks the list. Its frame
+ * comes from the core's layout. VoiceOver focusing it scrolls the row into view.
+ */
+@interface SLKRowAccessibilityElement : UIAccessibilityElement
+@property (nonatomic, copy) NSString *key;
+@end
+
+@implementation SLKRowAccessibilityElement
+
+- (void)accessibilityElementDidBecomeFocused
+{
+  [super accessibilityElementDidBecomeFocused];
+  NSString *key = _key;
+  __weak SLKListView *weakList = (SLKListView *)self.accessibilityContainer;
+  // Scroll after the focus change finishes, then hand focus to the mounted cell.
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [weakList focusAccessibilityRowForKey:key];
+  });
 }
 
 @end
@@ -255,6 +281,11 @@ static BOOL SLKListHandles(SEL selector)
 
   std::vector<std::size_t> _prefetchRows;
   std::vector<std::size_t> _cancelRows;
+
+  /*
+   * The stand-ins of rows off screen by key, kept while accessibility holds them.
+   */
+  NSMapTable<NSString *, SLKRowAccessibilityElement *> *_rowElements;
 }
 
 @dynamic delegate;
@@ -2171,8 +2202,9 @@ static BOOL SLKListHandles(SEL selector)
 #pragma mark - Accessibility
 
 /*
- * VoiceOver walks every row, not only the mounted ones: the header, then each row, then the
- * footer. A row it moves to that is not mounted is scrolled into view first, which mounts it.
+ * Accessibility walks every row, not only the mounted ones: the header, then each row, then
+ * the footer. A row on screen is its cell. A row off screen is a stand-in at the row's frame.
+ * Walking the list never scrolls it. VoiceOver focusing a stand-in scrolls its row into view.
  */
 - (NSInteger)accessibilityElementCount
 {
@@ -2190,16 +2222,59 @@ static BOOL SLKListHandles(SEL selector)
     return row == rows ? _footerView : nil;
   }
   SLKListCell *cell = [self mountedCellAtIndex:(std::size_t)row];
-  if (!cell || cell.hidden || ![self isRowOnScreen:(std::size_t)row]) {
-    [self scrollToRow:(std::size_t)row viewPosition:0 animated:NO];
-    [self layoutIfNeeded];
-    cell = [self mountedCellAtIndex:(std::size_t)row];
+  if (cell && !cell.hidden && [self isRowOnScreen:(std::size_t)row]) {
+    return cell;
   }
-  return cell;
+  return [self accessibilityElementForRow:(std::size_t)row];
+}
+
+- (SLKRowAccessibilityElement *)accessibilityElementForRow:(std::size_t)row
+{
+  if (!_rowElements) {
+    _rowElements = [NSMapTable strongToWeakObjectsMapTable];
+  }
+  NSString *key = SLKString(_driver.getKeyAt(row));
+  SLKRowAccessibilityElement *element = [_rowElements objectForKey:key];
+  if (!element) {
+    element = [[SLKRowAccessibilityElement alloc] initWithAccessibilityContainer:self];
+    element.key = key;
+    [_rowElements setObject:element forKey:key];
+  }
+  element.accessibilityFrameInContainerSpace = row < _driver.getCount() ? [self rowRect:row] : CGRectZero;
+  return element;
+}
+
+/*
+ * Scroll a row VoiceOver moved to into view from the side it comes from, then move focus to
+ * its cell.
+ */
+- (void)focusAccessibilityRowForKey:(NSString *)key
+{
+  std::size_t row = _driver.indexOfKey(key.UTF8String);
+  if (row == UNDEFINED_INDEX || row >= _driver.getKeyCount()) {
+    return;
+  }
+  if (![self isRowOnScreen:row]) {
+    CGRect visible = UIEdgeInsetsInsetRect(self.bounds, self.adjustedContentInset);
+    CGRect rect = [self rowRect:row];
+    BOOL before = _horizontal
+      ? CGRectGetMinX(rect) < CGRectGetMinX(visible)
+      : CGRectGetMinY(rect) < CGRectGetMinY(visible);
+    [self scrollToRow:row viewPosition:before ? 0 : 1 animated:NO];
+    [self layoutIfNeeded];
+  }
+  SLKListCell *cell = [self mountedCellAtIndex:row];
+  if (cell) {
+    UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, cell);
+  }
 }
 
 - (NSInteger)indexOfAccessibilityElement:(id)element
 {
+  if ([element isKindOfClass:[SLKRowAccessibilityElement class]]) {
+    std::size_t row = _driver.indexOfKey(((SLKRowAccessibilityElement *)element).key.UTF8String);
+    return row == UNDEFINED_INDEX ? NSNotFound : (NSInteger)row + (_headerView ? 1 : 0);
+  }
   if (element && element == _headerView) {
     return 0;
   }
