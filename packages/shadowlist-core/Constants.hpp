@@ -35,6 +35,9 @@ constexpr std::pair<double, double> DEFAULT_ESTIMATED_ELEMENT_SIZE = {120.0, 120
 // Sent as the scrollToIndex index to mean scroll to the end.
 constexpr double SCROLL_TO_END_INDEX = -3.0;
 
+// Sent as the scrollToIndex index to mean scroll to the content offset carried as rowOffset.
+constexpr double SCROLL_TO_OFFSET_INDEX = -4.0;
+
 }
 
 /*

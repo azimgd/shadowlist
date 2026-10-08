@@ -10,7 +10,7 @@ struct Size {
   double height;
 };
 
-class Element {
+class Element final {
 public:
   // The user's key, used to match rows across data updates.
   std::string key = "";

@@ -1,5 +1,10 @@
 #pragma once
 
+#include <shadowlist-core/Constants.hpp>
+#include <shadowlist-core/Element.hpp>
+#include <shadowlist-core/Operation.hpp>
+#include <shadowlist-core/Revision.hpp>
+
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -8,10 +13,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <shadowlist-core/Constants.hpp>
-#include <shadowlist-core/Element.hpp>
-#include <shadowlist-core/Operation.hpp>
-#include <shadowlist-core/Revision.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -46,15 +47,29 @@ struct OffsetBand {
   double high = 0.0;
 
   bool isEmpty() const {
-    return !(this->low <= this->high);
+    return !(low <= high);
   }
 
   bool contains(double offset) const {
-    return this->low <= offset && offset <= this->high;
+    return low <= offset && offset <= high;
   }
 };
 
-class Container {
+/*
+ * Which rows count as viewable. threshold runs from 0 to 1. By default it is the share of the
+ * row on screen, and with coverage set the share of the viewport the row covers. A row fully
+ * on screen is always viewable under coverage. 0 means any overlap.
+ */
+struct ViewableRule {
+  double threshold = 0.0;
+  bool coverage = false;
+
+  bool operator==(const ViewableRule& other) const {
+    return threshold == other.threshold && coverage == other.coverage;
+  }
+};
+
+class Container final {
 public:
   // Width and height used for rows not measured yet.
   std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
@@ -72,10 +87,10 @@ public:
   std::function<void(double, double)> onScrollCallback;
 
   /*
-   * Called with the start and end index when the viewable rows change.
-   * Only rows inside the viewport count, using viewablePercentThreshold.
+   * Called when the viewable rows of any viewable rule change, with a start and an end index
+   * per rule in rule order. A rule with no viewable row has UNDEFINED_INDEX for both.
    */
-  std::function<void(std::size_t, std::size_t)> onViewableIndicesChangeCallback;
+  std::function<void(const std::vector<std::size_t>&)> onViewableIndicesChangeCallback;
 
   // Turn the start and end reached callbacks on or off.
   bool endReachedEnabled = true;
@@ -108,8 +123,8 @@ public:
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
 
-  // How much of a row, from 0 to 1, must be on screen to count as viewable. 0 means any overlap.
-  double viewablePercentThreshold = 0.0;
+  // The rules that decide which rows are viewable, one range each.
+  std::vector<ViewableRule> viewableRules = {ViewableRule{}};
 
   // Size of the header or empty template along the scroll axis. Rows start after it.
   double headerSize = 0.0;
@@ -117,7 +132,7 @@ public:
   // Size of the footer along the scroll axis. It counts toward the total size.
   double footerSize = 0.0;
 
-  // Indexes of sticky section headers in order, set each frame. Empty for a plain list.
+  // Indices of sticky section headers in order, set each frame. Empty for a plain list.
   std::vector<std::size_t> stickyIndices;
 
   // Last drag event number sent to JS, to fire each drag event once. -1 means none yet.
@@ -136,6 +151,12 @@ public:
    * A row taller than the viewport always lands at the top.
    */
   double scrollToIndexViewPosition = 0.0;
+
+  /*
+   * A fixed distance the target row rests past its view position, like a saved scroll
+   * position that sat partway into a row.
+   */
+  double scrollToIndexRowOffset = 0.0;
 
   /*
    * Set while scrollToEnd closes in on the bottom as rows get measured.
@@ -285,10 +306,10 @@ public:
    * noteElementSizeSpan instead, or the work is done twice.
    */
   void markElementSizeDirty(std::size_t index) {
-    if (index < this->elementsSizeDirtyFromIndex) {
-      this->elementsSizeDirtyFromIndex = index;
+    if (index < elementsSizeDirtyFromIndex) {
+      elementsSizeDirtyFromIndex = index;
     }
-    this->noteElementSizeSpan(index);
+    noteElementSizeSpan(index);
   }
 
   /*
@@ -296,8 +317,8 @@ public:
    * Used by batched sizes, where commitElementSizes reflows once and only needs to know where to stop.
    */
   void noteElementSizeSpan(std::size_t index) {
-    if (index > this->elementsSizeDirtyToIndex) {
-      this->elementsSizeDirtyToIndex = index;
+    if (index > elementsSizeDirtyToIndex) {
+      elementsSizeDirtyToIndex = index;
     }
   }
 
@@ -347,10 +368,10 @@ public:
   std::pair<std::size_t, std::size_t> getVisibleIndices() const;
 
   /*
-   * Rows with at least viewablePercentThreshold on screen, or UNDEFINED_INDEX for both when none.
-   * Inverted lists return a start greater than the end.
+   * Rows the rule calls viewable, or UNDEFINED_INDEX for both when none. Inverted lists
+   * return a start greater than the end.
    */
-  std::pair<std::size_t, std::size_t> getViewableIndices() const;
+  std::pair<std::size_t, std::size_t> getViewableIndices(const ViewableRule& rule = {}) const;
 
   /*
    * Whether the row's size can be trusted, either measured natively or predicted by the host.
@@ -360,8 +381,11 @@ public:
   void setEndReachedEnabled(bool enabled);
   void setStartReachedEnabled(bool enabled);
 
-  // Ask to scroll the row at index into view. Handled on the next measurement.
-  void scrollToIndex(std::size_t index, double viewPosition = 0.0);
+  /*
+   * Ask to scroll the row at index into view. Handled on the next measurement. rowOffset
+   * moves the resting offset that much further past the row's view position.
+   */
+  void scrollToIndex(std::size_t index, double viewPosition = 0.0, double rowOffset = 0.0);
 
   /*
    * Ask to scroll to the end, following the bottom as rows get measured.
@@ -374,10 +398,23 @@ public:
   void scrollToStart();
 
   /*
+   * Ask to scroll to a content offset. It becomes a scroll to the row the offset falls in, and
+   * the row is held while rows above it get measured.
+   */
+  void scrollToOffset(double offset);
+
+  /*
    * Turn the scrollToIndex command or prop into a request. The command runs once per call,
    * the prop runs when its value changes. A negative index means none, and the command wins.
+   * commandRowOffset is the command's rowOffset, see scrollToIndex. With SCROLL_TO_OFFSET_INDEX
+   * it is a content offset instead, which lands as the row there and how far into it.
    */
-  void requestScrollToIndex(double commandIndex, double commandSequence, int propIndex, double commandViewPosition = 0.0);
+  void requestScrollToIndex(
+    double commandIndex,
+    double commandSequence,
+    int propIndex,
+    double commandViewPosition = 0.0,
+    double commandRowOffset = 0.0);
 
   /*
    * Work out what to send to the scroll view this frame, given what it has now.
@@ -415,7 +452,7 @@ public:
    * captured anchor when nothing runs, or null while an end correction owns the offset.
    * The key may be empty.
    */
-  const Anchor* compensationAnchor() const;
+  const Anchor* getCompensationAnchor() const;
 
   /*
    * Fire the visible rows and scroll callbacks, but only when their values changed.
@@ -434,42 +471,46 @@ public:
    */
   OffsetBand computeOffsetBand() const;
 
+  /*
+   * Whether a correction or a scroll command still runs and needs more frames to land.
+   */
+  bool hasPendingCommand() const;
+
 private:
   // Cached snap offsets and the inputs they came from. A version of 0 means nothing cached.
-  mutable std::vector<double> snapOffsetsCache;
-  mutable std::uint64_t snapCacheVersion = 0;
-  mutable bool snapCacheSnapToItem = false;
-  mutable int snapCacheAlignment = -1;
-  mutable double snapCacheWindowSize = -1.0;
-  mutable double snapCacheTotalSize = -1.0;
-  mutable bool snapCacheHorizontal = false;
+  mutable std::vector<double> snapOffsetsCache_;
+  mutable std::uint64_t snapCacheVersion_ = 0;
+  mutable bool snapCacheSnapToItem_ = false;
+  mutable int snapCacheAlignment_ = -1;
+  mutable double snapCacheWindowSize_ = -1.0;
+  mutable double snapCacheTotalSize_ = -1.0;
+  mutable bool snapCacheHorizontal_ = false;
 
   // Last visible range sent. Only changes are sent.
-  std::size_t previousVisibleStartIndex = UNDEFINED_INDEX;
-  std::size_t previousVisibleEndIndex = UNDEFINED_INDEX;
+  std::size_t previousVisibleStartIndex_ = UNDEFINED_INDEX;
+  std::size_t previousVisibleEndIndex_ = UNDEFINED_INDEX;
 
-  // Last viewable range sent. Only changes are sent.
-  std::size_t previousViewableStartIndex = UNDEFINED_INDEX;
-  std::size_t previousViewableEndIndex = UNDEFINED_INDEX;
+  // Last viewable ranges sent, two indices per rule. Only changes are sent.
+  std::vector<std::size_t> previousViewableRanges_;
 
   /*
    * Whether we were already at an edge. Reached callbacks fire once on arrival.
    * They reset when the row count changes, like after loading a page.
    */
-  bool previousReachedStart = false;
-  bool previousReachedEnd = false;
-  std::size_t previousReachedElementsSize = UNDEFINED_INDEX;
+  bool previousReachedStart_ = false;
+  bool previousReachedEnd_ = false;
+  std::size_t previousReachedElementsSize_ = UNDEFINED_INDEX;
 
   // Last offset sent to onScroll. Only changes are sent.
-  double previousContainerOffsetX = 0.0;
-  double previousContainerOffsetY = 0.0;
-  bool previousContainerOffsetValid = false;
+  double previousContainerOffsetX_ = 0.0;
+  double previousContainerOffsetY_ = 0.0;
+  bool previousContainerOffsetValid_ = false;
 
   // Last scrollToIndex command number handled. The same index can still scroll again.
-  double previousScrollToIndexSequence = 0.0;
+  double previousScrollToIndexSequence_ = 0.0;
 
   // Last containerOffsetIndex prop handled. The prop only scrolls when its value changes.
-  int previousScrollToIndexProp = -1;
+  int previousScrollToIndexProp_ = -1;
 };
 
 }

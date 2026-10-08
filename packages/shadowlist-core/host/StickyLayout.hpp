@@ -1,5 +1,7 @@
 #pragma once
 
+#include <shadowlist-core/Constants.hpp>
+
 #include <cstddef>
 
 namespace azimgd::shadowlist {
@@ -50,6 +52,40 @@ struct StickyTranslations {
  */
 StickyTranslations stickyTranslations(const StickyInput& input, StickyState& state);
 
+/*
+ * Position of the pinned section header among count headers, the last one starting at or
+ * above the offset, or UNDEFINED_INDEX. leadingAt gives a header's leading edge by position and must not
+ * decrease. Headers not placed yet can report infinity. Binary search.
+ */
+template <typename LeadingAt>
+std::size_t pinnedSectionPosition(std::size_t count, double offset, LeadingAt leadingAt) {
+  std::size_t found = UNDEFINED_INDEX;
+  std::size_t low = 0;
+  std::size_t high = count;
+  while (low < high) {
+    std::size_t mid = low + (high - low) / 2;
+    if (leadingAt(mid) <= offset) {
+      found = mid;
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return found;
+}
+
+/*
+ * Where the pinned header's leading edge goes: at the offset, never above its own place, and
+ * pushed up by the next header when there is one.
+ */
+inline double pinnedSectionLeading(double leading, double extent, double offset, bool hasNext, double nextLeading) {
+  double pinned = leading > offset ? leading : offset;
+  if (hasNext && nextLeading - extent < pinned) {
+    pinned = nextLeading - extent;
+  }
+  return pinned;
+}
+
 struct SectionOverlayPosition {
   bool visible = false;
   double translation = 0.0;
@@ -59,6 +95,10 @@ struct SectionOverlayPosition {
  * Where the section header overlay goes, given the section headers' offsets and sizes in order.
  * The active header is the last at or above the top, and the next one pushes it up.
  */
-SectionOverlayPosition sectionOverlayPosition(const double* offsets, const double* sizes, std::size_t count, double offset);
+SectionOverlayPosition sectionOverlayPosition(
+  const double* offsets,
+  const double* sizes,
+  std::size_t count,
+  double offset);
 
 }

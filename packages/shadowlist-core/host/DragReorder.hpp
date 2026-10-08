@@ -1,5 +1,7 @@
 #pragma once
 
+#include <shadowlist-core/Constants.hpp>
+
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -25,7 +27,7 @@ constexpr int DRAG_EVENT_END = 3;
  * and stay 0 for a single column.
  */
 struct DragRow {
-  long index = -1;
+  std::size_t index = UNDEFINED_INDEX;
   std::string key;
   double leading = 0.0;
   double extent = 0.0;
@@ -45,7 +47,7 @@ struct DragOffset {
  * Mounted grid cells as parallel arrays, for hosts that reuse buffers across frames.
  */
 struct DragCells {
-  const long* indices = nullptr;
+  const std::size_t* indices = nullptr;
   const double* leadings = nullptr;
   const double* extents = nullptr;
   const double* crossLeadings = nullptr;
@@ -77,7 +79,12 @@ double dragAutoScrollDelta(const DragAutoScrollConfig& config, double touch, dou
 /*
  * The offset after this frame's auto scroll, kept inside 0 and maxOffset.
  */
-double dragAutoScrollOffset(const DragAutoScrollConfig& config, double touch, double windowSize, double offset, double maxOffset);
+double dragAutoScrollOffset(
+  const DragAutoScrollConfig& config,
+  double touch,
+  double windowSize,
+  double offset,
+  double maxOffset);
 
 /*
  * Where the held row's leading edge goes, following the finger and kept inside the content.
@@ -85,41 +92,58 @@ double dragAutoScrollOffset(const DragAutoScrollConfig& config, double touch, do
 double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentExtent);
 
 /*
- * The position in rows of the row the held one would drop at, or -1 to stay where it
- * started. It is the farthest row, counted from originIndex, whose midpoint the held row's
- * center has passed. Rows with a negative index are skipped.
+ * The position in rows of the row the held one would drop at, or UNDEFINED_INDEX to stay where
+ * it started. It is the farthest row, counted from originIndex, whose midpoint the held row's
+ * center has passed. Rows with an UNDEFINED_INDEX index are skipped.
  */
-long dragInsertionPosition(const long* indices, const double* leadings, const double* extents, std::size_t count, long originIndex, double center);
+std::size_t dragInsertionPosition(
+  const std::size_t* indices,
+  const double* leadings,
+  const double* extents,
+  std::size_t count,
+  std::size_t originIndex,
+  double center);
 
 /*
  * How far a row slides to open the gap: rows between the origin and the drop spot move by
  * the held row's extent toward the origin.
  */
-double dragShift(long originIndex, long insertionIndex, double draggedExtent, long index);
+double dragShift(std::size_t originIndex, std::size_t insertionIndex, double draggedExtent, std::size_t index);
 
 /*
- * The position in cells of the cell the held one would drop at in a grid, or -1 for its own
- * slot. The drop spot is the cell whose resting frame holds the held cell's center. Over its
+ * The position in cells of the cell the held one would drop at in a grid, or UNDEFINED_INDEX
+ * for its own slot. The drop spot is the cell whose resting frame holds the held cell's center. Over its
  * own resting frame it goes back to the origin, and over no cell it keeps insertionIndex.
  */
-long dragGridInsertionPosition(const DragCells& cells, const DragRow& held, long insertionIndex, double center, double crossCenter);
+std::size_t dragGridInsertionPosition(
+  const DragCells& cells,
+  const DragRow& held,
+  std::size_t insertionIndex,
+  double center,
+  double crossCenter);
 
 /*
  * How far each grid cell slides to open the gap, written into shifts and crossShifts. Cells
  * are laid out again the way the core does. A cell can move to another column.
  */
-void dragGridShifts(const DragCells& cells, const DragRow& held, long insertionIndex, std::size_t columns, double* shifts, double* crossShifts);
+void dragGridShifts(
+  const DragCells& cells,
+  const DragRow& held,
+  std::size_t insertionIndex,
+  std::size_t columns,
+  double* shifts,
+  double* crossShifts);
 
 /*
  * One drag, from pickup to drop.
  */
-class DragReorder {
+class DragReorder final {
 public:
   /*
    * Start with the picked up row, its resting leading edge and extent, and where the finger
    * touched in the content.
    */
-  void begin(long index, std::string key, double restingLeading, double extent, double touchContent);
+  void begin(std::size_t index, std::string key, double restingLeading, double extent, double touchContent);
 
   /*
    * Start a drag in a grid of columns, with the picked up cell's resting frame and where
@@ -128,10 +152,27 @@ public:
   void beginCell(const DragRow& resting, double touchContent, double touchCross, std::size_t columns);
 
   /*
-   * A data change during the drag can move the held row. Take its current index and key.
-   * A negative index or empty key keeps the one we have.
+   * Start a drag in a list or, with columns above 1, in a grid. The same as begin or
+   * beginCell, picked by the column count.
    */
-  void updateOrigin(long index, const std::string& key);
+  void begin(const DragRow& resting, double touchAlong, double touchCross, std::size_t columns);
+
+  /*
+   * Move the held row or grid cell under the finger and return its translation from its
+   * resting place. The same as place or placeCell, picked by the kind of drag.
+   */
+  DragOffset placeRow(
+    double touchAlong,
+    double touchCross,
+    const DragRow& resting,
+    double contentExtent,
+    double crossExtent);
+
+  /*
+   * A data change during the drag can move the held row. Take its current index and key.
+   * An UNDEFINED_INDEX index or empty key keeps the one we have.
+   */
+  void updateOrigin(std::size_t index, const std::string& key);
 
   /*
    * Move the held row under the finger and return its translation from its resting place.
@@ -142,7 +183,12 @@ public:
    * Move the held grid cell under the finger, kept inside the content on both axes, and
    * return its translation from its resting frame.
    */
-  DragOffset placeCell(double touchContent, double touchCross, const DragRow& resting, double contentExtent, double crossContentExtent);
+  DragOffset placeCell(
+    double touchContent,
+    double touchCross,
+    const DragRow& resting,
+    double contentExtent,
+    double crossContentExtent);
 
   /*
    * Find the drop spot for the held row's current place among the other mounted rows.
@@ -150,32 +196,32 @@ public:
    */
   void updateInsertion(const std::vector<DragRow>& rows);
 
-  double shiftFor(long index) const {
+  double shiftFor(std::size_t index) const {
     return dragShift(originIndex_, insertionIndex_, draggedExtent_, index);
   }
 
   /*
    * How far a row or cell slides to open the gap, on both axes.
    */
-  DragOffset offsetFor(long index) const;
+  DragOffset offsetFor(std::size_t index) const;
 
   bool isGrid() const { return columns_ > 1; }
 
-  long originIndex() const { return originIndex_; }
-  long insertionIndex() const { return insertionIndex_; }
-  const std::string& originKey() const { return originKey_; }
-  const std::string& insertionKey() const { return insertionKey_; }
+  std::size_t getOriginIndex() const { return originIndex_; }
+  std::size_t getInsertionIndex() const { return insertionIndex_; }
+  const std::string& getOriginKey() const { return originKey_; }
+  const std::string& getInsertionKey() const { return insertionKey_; }
   /*
    * The held row's leading edge where it was placed, which is where it was let go on drop.
    */
-  double leading() const { return leading_; }
-  double crossLeading() const { return crossLeading_; }
+  double getLeading() const { return leading_; }
+  double getCrossLeading() const { return crossLeading_; }
 
 private:
   void updateGridInsertion(const std::vector<DragRow>& rows);
 
-  long originIndex_ = -1;
-  long insertionIndex_ = -1;
+  std::size_t originIndex_ = UNDEFINED_INDEX;
+  std::size_t insertionIndex_ = UNDEFINED_INDEX;
   std::string originKey_;
   std::string insertionKey_;
   double draggedExtent_ = 0.0;
@@ -188,7 +234,7 @@ private:
   double crossCenter_ = 0.0;
   DragRow heldResting_;
   // Grid shifts from the previous updateInsertion, by index from offsetsBase_.
-  long offsetsBase_ = 0;
+  std::size_t offsetsBase_ = 0;
   std::vector<DragOffset> offsets_;
 };
 

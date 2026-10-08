@@ -1,12 +1,13 @@
 #pragma once
 
+#include <shadowlist-core/Container.hpp>
+#include <shadowlist-core/Virtualizer.hpp>
+
 #include <cstddef>
 #include <limits>
 #include <memory>
 #include <string>
 #include <vector>
-#include <shadowlist-core/Container.hpp>
-#include <shadowlist-core/Virtualizer.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -70,7 +71,7 @@ public:
      */
     bool widthChanged = width_ != width;
     if (widthChanged) {
-      Virtualizer::invalidatePredictions(&core);
+      Virtualizer::invalidatePredictions(core);
       width_ = width;
     }
     bool sameSpecs = source_ == source && !widthChanged;
@@ -95,7 +96,7 @@ public:
   /*
    * Whether every spec of this source is measured.
    */
-  bool finished(const std::shared_ptr<const void>& source) const {
+  bool isFinished(const std::shared_ptr<const void>& source) const {
     return done_ && source_ == source;
   }
 

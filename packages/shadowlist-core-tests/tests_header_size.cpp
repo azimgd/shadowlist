@@ -61,15 +61,15 @@ void layoutPass(Container& container, double headerSize, OlderRows olderRows = O
   if (olderRows == OlderRows::Mounting) {
     for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
       if (isOlder(container.revision.elements[index])) {
-        Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, 0.0});
+        Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, 0.0});
       }
     }
   }
   double previousHeaderSize = container.headerSize;
   if (previousHeaderSize != headerSize) {
     container.headerSize = headerSize;
-    Virtualizer::recomputeElementOffsets(&container, 0);
-    Virtualizer::applyHeaderSizeChange(&container, previousHeaderSize);
+    Virtualizer::recomputeElementOffsets(container, 0);
+    Virtualizer::applyHeaderSizeChange(container, previousHeaderSize);
   }
   std::size_t lowestChangedIndex = UNDEFINED_INDEX;
   for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
@@ -78,14 +78,14 @@ void layoutPass(Container& container, double headerSize, OlderRows olderRows = O
       continue;
     }
     double height = older && olderRows == OlderRows::Mounting ? OLDER_ROW_HEIGHT : ESTIMATED_ROW_HEIGHT;
-    if (Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, height}) && index < lowestChangedIndex) {
+    if (Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, height}) && index < lowestChangedIndex) {
       lowestChangedIndex = index;
     }
   }
   if (lowestChangedIndex != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(&container, lowestChangedIndex);
+    Virtualizer::commitElementSizes(container, lowestChangedIndex);
   }
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::recomputeTotalSize(container);
 }
 
 /*
@@ -95,9 +95,9 @@ void scrollTo(Container& container, const std::vector<std::string>& keys, double
   FrameInput drag = frame(keys, offset, headerSize);
   drag.userScrolled = true;
   drag.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, drag);
+  Virtualizer::update(container, drag);
   layoutPass(container, headerSize);
-  Virtualizer::update(&container, frame(keys, offset, headerSize));
+  Virtualizer::update(container, frame(keys, offset, headerSize));
   layoutPass(container, headerSize);
 }
 
@@ -105,9 +105,9 @@ void scrollTo(Container& container, const std::vector<std::string>& keys, double
  * Open the list with the spinner in the header and rest at offset.
  */
 void openWithSpinnerAt(Container& container, const std::vector<std::string>& keys, double offset) {
-  Virtualizer::update(&container, frame(keys, 0.0, 0.0));
+  Virtualizer::update(container, frame(keys, 0.0, 0.0));
   layoutPass(container, SPINNER_HEADER);
-  Virtualizer::update(&container, frame(keys, 0.0, SPINNER_HEADER));
+  Virtualizer::update(container, frame(keys, 0.0, SPINNER_HEADER));
   layoutPass(container, SPINNER_HEADER);
   if (offset > 0.0) {
     scrollTo(container, keys, offset, SPINNER_HEADER);
@@ -135,7 +135,7 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
 
     // The page lands while update() still sees the spinner in the header.
     std::vector<std::string> grown = prependedTo(keys, 6);
-    Virtualizer::update(&container, frame(grown, restingOffset, SPINNER_HEADER));
+    Virtualizer::update(container, frame(grown, restingOffset, SPINNER_HEADER));
     CHECK(container.operation.has_value());
     std::uint64_t token = container.operation ? container.operation->id : 0;
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
@@ -149,7 +149,7 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
     FrameInput adopt = frame(grown, published, PLAIN_HEADER);
     adopt.containerOffsetEnabled = true;
     adopt.commitToken = token;
-    Virtualizer::update(&container, adopt);
+    Virtualizer::update(container, adopt);
     layoutPass(container, PLAIN_HEADER);
     CHECK_NEAR(container.revision.containerOffsetY, published, 0.5);
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
@@ -157,7 +157,7 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
     // Neither does the host reporting it back.
     FrameInput echo = frame(grown, published, PLAIN_HEADER);
     echo.commitToken = token;
-    Virtualizer::update(&container, echo);
+    Virtualizer::update(container, echo);
     layoutPass(container, PLAIN_HEADER);
     CHECK_NEAR(container.revision.containerOffsetY, published, 0.5);
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
@@ -176,7 +176,7 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
   double before = onScreen(container, "k2");
 
   std::vector<std::string> grown = prependedTo(keys, 6);
-  Virtualizer::update(&container, frame(grown, 0.0, SPINNER_HEADER));
+  Virtualizer::update(container, frame(grown, 0.0, SPINNER_HEADER));
   std::uint64_t token = container.operation ? container.operation->id : 0;
   // The page has not mounted yet. Its rows keep their estimates here.
   layoutPass(container, PLAIN_HEADER, OlderRows::Unmounted);
@@ -186,7 +186,7 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
   FrameInput adopt = frame(grown, published, PLAIN_HEADER);
   adopt.containerOffsetEnabled = true;
   adopt.commitToken = token;
-  Virtualizer::update(&container, adopt);
+  Virtualizer::update(container, adopt);
   layoutPass(container, PLAIN_HEADER, OlderRows::Unmounted);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
@@ -199,13 +199,13 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
   adopt = frame(grown, published, SPINNER_HEADER);
   adopt.containerOffsetEnabled = true;
   adopt.commitToken = container.operation ? container.operation->id : 0;
-  Virtualizer::update(&container, adopt);
+  Virtualizer::update(container, adopt);
   layoutPass(container, SPINNER_HEADER);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
   FrameInput echo = frame(grown, container.revision.containerOffsetY, SPINNER_HEADER);
   echo.commitToken = adopt.commitToken;
-  Virtualizer::update(&container, echo);
+  Virtualizer::update(container, echo);
   layoutPass(container, SPINNER_HEADER);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 }
@@ -221,7 +221,7 @@ TEST(header_resizing_while_scrolled_out_of_view_keeps_the_rows_still) {
   CHECK_NEAR(onScreen(container, "k10"), before, 0.5);
 
   double published = container.revision.containerOffsetY;
-  Virtualizer::update(&container, frame(keys, published, PLAIN_HEADER));
+  Virtualizer::update(container, frame(keys, published, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
   CHECK_NEAR(container.revision.containerOffsetY, published, 0.5);
   CHECK_NEAR(onScreen(container, "k10"), before, 0.5);
@@ -230,7 +230,7 @@ TEST(header_resizing_while_scrolled_out_of_view_keeps_the_rows_still) {
 TEST(header_growing_on_screen_pushes_the_rows_below_it) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
-  Virtualizer::update(&container, frame(keys, 0.0, 0.0));
+  Virtualizer::update(container, frame(keys, 0.0, 0.0));
   layoutPass(container, 0.0);
   CHECK_NEAR(onScreen(container, "k0"), 0.0, 0.5);
 
@@ -238,7 +238,7 @@ TEST(header_growing_on_screen_pushes_the_rows_below_it) {
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "k0"), SPINNER_HEADER, 0.5);
 
-  Virtualizer::update(&container, frame(keys, 0.0, SPINNER_HEADER));
+  Virtualizer::update(container, frame(keys, 0.0, SPINNER_HEADER));
   layoutPass(container, SPINNER_HEADER);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "k0"), SPINNER_HEADER, 0.5);
@@ -251,18 +251,18 @@ TEST(header_growing_on_screen_pushes_the_rows_below_it) {
 TEST(scroll_to_start_after_a_prepend_lands_on_offset_zero_with_the_header) {
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  Virtualizer::update(container, frame(keys, 0.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
 
   std::vector<std::string> prepended = keysFor(10, "new");
   prepended.insert(prepended.end(), keys.begin(), keys.end());
-  Virtualizer::update(&container, frame(prepended, 0.0, PLAIN_HEADER));
+  Virtualizer::update(container, frame(prepended, 0.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
   double anchored = container.revision.containerOffsetY;
   CHECK(anchored > PLAIN_HEADER);
 
   container.scrollToStart();
-  Virtualizer::update(&container, frame(prepended, anchored, PLAIN_HEADER));
+  Virtualizer::update(container, frame(prepended, anchored, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
@@ -275,16 +275,16 @@ TEST(scroll_to_start_after_a_prepend_lands_on_offset_zero_with_the_header) {
 TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  Virtualizer::update(container, frame(keys, 0.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
   FrameInput deep = frame(keys, 2000.0, PLAIN_HEADER);
   deep.userScrolled = true;
   deep.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, deep);
+  Virtualizer::update(container, deep);
   layoutPass(container, PLAIN_HEADER);
 
   container.scrollToStart();
-  Virtualizer::update(&container, frame(keys, 2000.0, PLAIN_HEADER));
+  Virtualizer::update(container, frame(keys, 2000.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
   CHECK(container.operation.has_value());
   std::uint64_t token = container.operation->id;
@@ -292,7 +292,7 @@ TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
   FrameInput coasting = frame(keys, 2100.0, PLAIN_HEADER);
   coasting.userScrolled = true;
   coasting.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, coasting);
+  Virtualizer::update(container, coasting);
   layoutPass(container, PLAIN_HEADER);
   CHECK(container.operation.has_value() && container.operation->id == token);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
@@ -302,14 +302,14 @@ TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
 TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  Virtualizer::update(container, frame(keys, 0.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
 
   container.scrollToEnd();
   FrameInput drag = frame(keys, 400.0, PLAIN_HEADER);
   drag.userScrolled = true;
   drag.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, drag);
+  Virtualizer::update(container, drag);
   layoutPass(container, PLAIN_HEADER);
   CHECK(!container.pendingScrollToEnd);
   CHECK(!container.operation.has_value() || container.operation->type != OperationType::ScrollToEnd);
@@ -318,7 +318,7 @@ TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
   FrameInput coasting = frame(keys, 600.0, PLAIN_HEADER);
   coasting.userScrolled = true;
   coasting.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, coasting);
+  Virtualizer::update(container, coasting);
   layoutPass(container, PLAIN_HEADER);
   CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToEnd);
 }
@@ -335,22 +335,22 @@ TEST(scroll_to_start_with_new_rows_is_one_correction) {
   replaced.insert(replaced.end(), keys.begin(), keys.end());
 
   auto deepContainer = [&](Container& container) {
-    Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+    Virtualizer::update(container, frame(keys, 0.0, PLAIN_HEADER));
     layoutPass(container, PLAIN_HEADER);
-    Virtualizer::update(&container, frame(keys, 2000.0, PLAIN_HEADER));
+    Virtualizer::update(container, frame(keys, 2000.0, PLAIN_HEADER));
     layoutPass(container, PLAIN_HEADER);
   };
 
   Container held;
   deepContainer(held);
-  Virtualizer::update(&held, frame(replaced, 2000.0, PLAIN_HEADER));
+  Virtualizer::update(held, frame(replaced, 2000.0, PLAIN_HEADER));
   CHECK(held.operation.has_value() && held.operation->type == OperationType::MaintainAnchor);
 
   Container container;
   deepContainer(container);
   container.scrollToStart();
   FrameInput moving = frame(replaced, 2000.0, PLAIN_HEADER);
-  Virtualizer::update(&container, moving);
+  Virtualizer::update(container, moving);
   CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToStart);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   layoutPass(container, PLAIN_HEADER);
@@ -369,13 +369,13 @@ TEST(scroll_to_start_with_new_rows_at_offset_zero_stays_at_zero) {
   replaced.insert(replaced.end(), keys.begin(), keys.end());
 
   Container container;
-  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  Virtualizer::update(container, frame(keys, 0.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
-  Virtualizer::update(&container, frame(keys, 0.0, PLAIN_HEADER));
+  Virtualizer::update(container, frame(keys, 0.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
 
   container.scrollToStart();
-  Virtualizer::update(&container, frame(replaced, 0.0, PLAIN_HEADER));
+  Virtualizer::update(container, frame(replaced, 0.0, PLAIN_HEADER));
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
   layoutPass(container, PLAIN_HEADER);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
@@ -383,7 +383,7 @@ TEST(scroll_to_start_with_new_rows_at_offset_zero_stays_at_zero) {
 
   // The next commits keep it at 0 and do not go back to the old first row.
   for (int commit = 0; commit < 3; ++commit) {
-    Virtualizer::update(&container, frame(replaced, container.revision.containerOffsetY, PLAIN_HEADER));
+    Virtualizer::update(container, frame(replaced, container.revision.containerOffsetY, PLAIN_HEADER));
     layoutPass(container, PLAIN_HEADER);
   }
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
@@ -400,16 +400,16 @@ TEST(header_change_during_a_scroll_to_index_keeps_the_view_position) {
   Container container;
   FrameInput input = inputFor(keys, 0.0);
   input.headerSize = 100.0;
-  Virtualizer::update(&container, input);
+  Virtualizer::update(container, input);
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, 100.0});
+    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, 100.0});
   }
-  Virtualizer::commitElementSizes(&container, 0);
-  Virtualizer::recomputeTotalSize(&container);
-  Virtualizer::update(&container, input);
+  Virtualizer::commitElementSizes(container, 0);
+  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::update(container, input);
 
   container.scrollToIndex(30, 0.5);
-  Virtualizer::update(&container, input);
+  Virtualizer::update(container, input);
   CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
   double rowTop = offsetOf(container, 30) - container.revision.containerOffsetY;
   CHECK_NEAR(rowTop, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
@@ -417,7 +417,7 @@ TEST(header_change_during_a_scroll_to_index_keeps_the_view_position) {
   // The header grows while the command is still in flight, as the Fabric layout pass would apply it.
   double previousHeader = container.headerSize;
   container.headerSize = 160.0;
-  Virtualizer::recomputeElementOffsets(&container, 0);
-  Virtualizer::applyHeaderSizeChange(&container, previousHeader);
+  Virtualizer::recomputeElementOffsets(container, 0);
+  Virtualizer::applyHeaderSizeChange(container, previousHeader);
   CHECK_NEAR(offsetOf(container, 30) - container.revision.containerOffsetY, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
 }

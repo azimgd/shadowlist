@@ -42,7 +42,11 @@ FrameInput ownWrite(const Container& container, const std::vector<std::string>& 
 /*
  * The host reporting back that it applied that offset.
  */
-FrameInput echo(const Container& container, const std::vector<std::string>& keys, std::uint64_t token, double header = HEADER) {
+FrameInput echo(
+  const Container& container,
+  const std::vector<std::string>& keys,
+  std::uint64_t token,
+  double header = HEADER) {
   FrameInput input = report(keys, container.revision.containerOffsetY, header);
   input.commitToken = token;
   return input;
@@ -64,9 +68,9 @@ void layoutPass(
     container.headerSize = header;
     container.revision.windowContainerWidth = WINDOW_WIDTH;
     container.revision.windowContainerHeight = WINDOW_HEIGHT;
-    Virtualizer::recomputeElementOffsets(&container, 0);
-    Virtualizer::applyHeaderSizeChange(&container, previousHeader);
-    Virtualizer::applyWindowSizeChange(&container, previousWindow);
+    Virtualizer::recomputeElementOffsets(container, 0);
+    Virtualizer::applyHeaderSizeChange(container, previousHeader);
+    Virtualizer::applyWindowSizeChange(container, previousWindow);
     container.containerOffsetCorrected = true;
   }
   auto visible = container.getVisibleIndices();
@@ -79,15 +83,15 @@ void layoutPass(
     std::size_t to = std::min(mountedTo, container.revision.elements.size() - 1);
     std::size_t lowest = UNDEFINED_INDEX;
     for (std::size_t index = from; index <= to; ++index) {
-      if (Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, rowSize}) && index < lowest) {
+      if (Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, rowSize}) && index < lowest) {
         lowest = index;
       }
     }
     if (lowest != UNDEFINED_INDEX) {
-      Virtualizer::commitElementSizes(&container, lowest);
+      Virtualizer::commitElementSizes(container, lowest);
     }
   }
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::recomputeTotalSize(container);
 }
 
 double onScreen(const Container& container, const std::string& key) {
@@ -109,20 +113,20 @@ TEST(scroll_to_index_holds_its_row_when_the_rows_above_shrink_to_the_average) {
   FrameInput first = report(keys, 0.0, 0.0);
   first.windowContainerWidth = 0.0;
   first.windowContainerHeight = 0.0;
-  Virtualizer::update(&container, first);
+  Virtualizer::update(container, first);
   // The first layout mounts the rows around the target, a few of them above it.
   layoutPass(container, HEADER, 26, 49);
   std::uint64_t token = container.operation ? container.operation->id : 0;
   CHECK(token != 0);
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
 
-  Virtualizer::update(&container, ownWrite(container, keys));
+  Virtualizer::update(container, ownWrite(container, keys));
   layoutPass(container, HEADER, 26, 49);
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
 
   for (int commit = 0; commit < 4; ++commit) {
     std::uint64_t current = container.operation ? container.operation->id : token;
-    Virtualizer::update(&container, echo(container, keys, current));
+    Virtualizer::update(container, echo(container, keys, current));
     layoutPass(container, HEADER, 26, 49);
   }
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
@@ -136,27 +140,27 @@ TEST(scroll_to_index_holds_its_row_when_the_rows_above_shrink_to_the_average) {
 TEST(rows_above_shrinking_near_the_end_keep_the_visible_row) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
-  Virtualizer::update(&container, report(keys, 0.0));
+  Virtualizer::update(container, report(keys, 0.0));
   // Jump deep without measuring anything above. Rows 0 to 29 stay estimated.
   double deep = HEADER + 30 * ESTIMATED_ROW_HEIGHT;
-  Virtualizer::update(&container, report(keys, deep));
-  Virtualizer::update(&container, report(keys, deep));
+  Virtualizer::update(container, report(keys, deep));
+  Virtualizer::update(container, report(keys, deep));
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
 
   // Rows from 30 on get real sizes, which fixes a smaller average.
   for (std::size_t index = 30; index < 50; ++index) {
-    Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, ROW});
+    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, ROW});
   }
-  Virtualizer::commitElementSizes(&container, 30);
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::commitElementSizes(container, 30);
+  Virtualizer::recomputeTotalSize(container);
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
 
   for (int commit = 0; commit < 4; ++commit) {
     std::uint64_t current = container.operation ? container.operation->id : 0;
     if (container.containerOffsetCorrected) {
-      Virtualizer::update(&container, ownWrite(container, keys));
+      Virtualizer::update(container, ownWrite(container, keys));
     }
-    Virtualizer::update(&container, echo(container, keys, current));
+    Virtualizer::update(container, echo(container, keys, current));
   }
   CHECK_NEAR(onScreen(container, "k30"), 0.0, 0.5);
   CHECK(!container.containerOffsetCorrected);
@@ -169,22 +173,22 @@ TEST(rows_above_shrinking_near_the_end_keep_the_visible_row) {
 TEST(refresh_that_drops_the_anchor_row_holds_the_next_visible_row) {
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, report(keys, 0.0));
+  Virtualizer::update(container, report(keys, 0.0));
   layoutPass(container, HEADER, 0, 12, 100.0);
-  Virtualizer::update(&container, report(keys, 0.0));
+  Virtualizer::update(container, report(keys, 0.0));
   double k1Before = onScreen(container, "k1");
 
   std::vector<std::string> refreshed = keysFor(6, "new");
   refreshed.insert(refreshed.end(), keys.begin() + 1, keys.end());
-  Virtualizer::update(&container, report(refreshed, 0.0));
+  Virtualizer::update(container, report(refreshed, 0.0));
   CHECK_NEAR(onScreen(container, "k1"), k1Before, 0.5);
   std::uint64_t token = container.operation ? container.operation->id : 0;
   CHECK(token != 0);
   layoutPass(container, HEADER, 0, 20, 100.0);
-  Virtualizer::update(&container, ownWrite(container, refreshed));
+  Virtualizer::update(container, ownWrite(container, refreshed));
   layoutPass(container, HEADER, 0, 20, 100.0);
-  Virtualizer::update(&container, echo(container, refreshed, token));
-  Virtualizer::update(&container, echo(container, refreshed, token));
+  Virtualizer::update(container, echo(container, refreshed, token));
+  Virtualizer::update(container, echo(container, refreshed, token));
   CHECK_NEAR(onScreen(container, "k1"), k1Before, 0.5);
   CHECK(!container.containerOffsetCorrected);
 }
@@ -196,18 +200,18 @@ TEST(refresh_that_drops_the_anchor_row_holds_the_next_visible_row) {
 TEST(insert_above_that_removes_the_straddling_row_holds_the_next_visible_row) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
-  Virtualizer::update(&container, report(keys, 0.0));
+  Virtualizer::update(container, report(keys, 0.0));
   layoutPass(container, HEADER, 0, 59, 100.0);
   double offset = HEADER + 20 * 100.0 + 40.0;
-  Virtualizer::update(&container, report(keys, offset));
-  Virtualizer::update(&container, report(keys, offset));
+  Virtualizer::update(container, report(keys, offset));
+  Virtualizer::update(container, report(keys, offset));
   double k21Before = onScreen(container, "k21");
   CHECK_NEAR(k21Before, 60.0, 0.5);
 
   std::vector<std::string> edited = keysFor(4, "ins");
   edited.insert(edited.end(), keys.begin(), keys.begin() + 20);
   edited.insert(edited.end(), keys.begin() + 21, keys.end());
-  Virtualizer::update(&container, report(edited, offset));
+  Virtualizer::update(container, report(edited, offset));
   CHECK_NEAR(onScreen(container, "k21"), k21Before, 0.5);
 }
 
@@ -258,22 +262,22 @@ Size sized(const Container& container, double mainAxis) {
  * In a grid k30 is in the first column.
  */
 void settleMidList(Container& container, const Variant& variant, const std::vector<std::string>& keys) {
-  Virtualizer::update(&container, variantFrame(variant, keys, 0.0));
+  Virtualizer::update(container, variantFrame(variant, keys, 0.0));
   // An inverted list opens at its bottom. Drag away from it first.
   FrameInput away = variantFrame(variant, keys, 100.0);
   away.userScrolled = true;
   away.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, away);
+  Virtualizer::update(container, away);
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    Virtualizer::updateElementAtIndex(&container, index, sized(container, 100.0));
+    Virtualizer::updateElementAtIndex(container, index, sized(container, 100.0));
   }
   double rest = offsetOf(container, container.findElementIndexByKey("k30"));
   FrameInput drag = variantFrame(variant, keys, rest);
   drag.userScrolled = true;
   drag.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, drag);
-  Virtualizer::update(&container, variantFrame(variant, keys, rest));
-  Virtualizer::update(&container, variantFrame(variant, keys, rest));
+  Virtualizer::update(container, drag);
+  Virtualizer::update(container, variantFrame(variant, keys, rest));
+  Virtualizer::update(container, variantFrame(variant, keys, rest));
 }
 
 /*
@@ -286,11 +290,11 @@ void settleCommits(Container& container, const Variant& variant, const std::vect
       FrameInput write = variantFrame(variant, keys, scrollOffset(container));
       write.containerOffsetEnabled = true;
       write.commitToken = token;
-      Virtualizer::update(&container, write);
+      Virtualizer::update(container, write);
     }
     FrameInput echoed = variantFrame(variant, keys, scrollOffset(container));
     echoed.commitToken = token;
-    Virtualizer::update(&container, echoed);
+    Virtualizer::update(container, echoed);
   }
 }
 
@@ -319,12 +323,12 @@ TEST(resizing_a_row_above_the_viewport_keeps_the_visible_rows_in_every_layout) {
       std::size_t lowest = UNDEFINED_INDEX;
       for (const std::string& key : resized) {
         std::size_t index = container.findElementIndexByKey(key);
-        if (Virtualizer::applyElementSize(&container, index, sized(container, size)) && index < lowest) {
+        if (Virtualizer::applyElementSize(container, index, sized(container, size)) && index < lowest) {
           lowest = index;
         }
       }
-      Virtualizer::commitElementSizes(&container, lowest);
-      Virtualizer::recomputeTotalSize(&container);
+      Virtualizer::commitElementSizes(container, lowest);
+      Virtualizer::recomputeTotalSize(container);
       if (std::fabs(screenPos(container, "k30") - before) > 0.5) {
         fail(std::string(variant.name) + ": k30 moved on the layout that resized k27 to " + std::to_string(size));
       }
@@ -351,7 +355,7 @@ TEST(inserting_and_removing_rows_above_the_viewport_keeps_the_visible_rows_in_ev
     // Remove three rows above, a whole row in a grid so the columns stay aligned.
     std::vector<std::string> removed = keys;
     removed.erase(removed.begin() + 12, removed.begin() + 15);
-    Virtualizer::update(&container, variantFrame(variant, removed, scrollOffset(container)));
+    Virtualizer::update(container, variantFrame(variant, removed, scrollOffset(container)));
     settleCommits(container, variant, removed);
     if (std::fabs(screenPos(container, "k30") - before) > 0.5) {
       fail(std::string(variant.name) + ": k30 moved when rows above were removed");
@@ -361,7 +365,7 @@ TEST(inserting_and_removing_rows_above_the_viewport_keeps_the_visible_rows_in_ev
     std::vector<std::string> inserted = removed;
     std::vector<std::string> fresh = keysFor(3, "mid");
     inserted.insert(inserted.begin() + 5, fresh.begin(), fresh.end());
-    Virtualizer::update(&container, variantFrame(variant, inserted, scrollOffset(container)));
+    Virtualizer::update(container, variantFrame(variant, inserted, scrollOffset(container)));
     settleCommits(container, variant, inserted);
     if (std::fabs(screenPos(container, "k30") - before) > 0.5) {
       fail(std::string(variant.name) + ": k30 moved when rows were inserted above");
@@ -370,7 +374,7 @@ TEST(inserting_and_removing_rows_above_the_viewport_keeps_the_visible_rows_in_ev
     // Add six rows at the start.
     std::vector<std::string> prepended = keysFor(6, "pre");
     prepended.insert(prepended.end(), inserted.begin(), inserted.end());
-    Virtualizer::update(&container, variantFrame(variant, prepended, scrollOffset(container)));
+    Virtualizer::update(container, variantFrame(variant, prepended, scrollOffset(container)));
     settleCommits(container, variant, prepended);
     if (std::fabs(screenPos(container, "k30") - before) > 0.5) {
       fail(std::string(variant.name) + ": k30 moved when rows were prepended");
@@ -386,32 +390,32 @@ TEST(inserting_and_removing_rows_above_the_viewport_keeps_the_visible_rows_in_ev
 TEST(an_older_command_sequence_does_not_run_the_scroll_command_again) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
-  Virtualizer::update(&container, report(keys, 0.0));
+  Virtualizer::update(container, report(keys, 0.0));
   layoutPass(container, HEADER, 0, 59, 100.0);
 
   container.requestScrollToIndex(30.0, 1.0, -2);
-  Virtualizer::update(&container, report(keys, 0.0));
+  Virtualizer::update(container, report(keys, 0.0));
   double target = container.revision.containerOffsetY;
   CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
   std::uint64_t token = container.operation->id;
-  Virtualizer::update(&container, ownWrite(container, keys));
-  Virtualizer::update(&container, echo(container, keys, token));
+  Virtualizer::update(container, ownWrite(container, keys));
+  Virtualizer::update(container, echo(container, keys, token));
   CHECK(!container.operation);
 
   // A report built on the state before the command, then one built on the state after it.
   container.requestScrollToIndex(0.0, 0.0, -2);
-  Virtualizer::update(&container, report(keys, target));
+  Virtualizer::update(container, report(keys, target));
   container.requestScrollToIndex(30.0, 1.0, -2);
   // The reader has scrolled away in the meantime.
   FrameInput away = report(keys, target + 400.0);
   away.userScrolled = true;
-  Virtualizer::update(&container, away);
-  Virtualizer::update(&container, report(keys, target + 400.0));
+  Virtualizer::update(container, away);
+  Virtualizer::update(container, report(keys, target + 400.0));
   CHECK(!container.operation);
   CHECK_NEAR(container.revision.containerOffsetY, target + 400.0, 0.5);
 
   // A newer sequence still runs, even for the same index.
   container.requestScrollToIndex(30.0, 2.0, -2);
-  Virtualizer::update(&container, report(keys, target + 400.0));
+  Virtualizer::update(container, report(keys, target + 400.0));
   CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
 }

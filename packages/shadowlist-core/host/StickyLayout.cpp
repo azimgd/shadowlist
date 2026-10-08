@@ -46,28 +46,22 @@ StickyTranslations stickyTranslations(const StickyInput& input, StickyState& sta
   return result;
 }
 
-SectionOverlayPosition sectionOverlayPosition(const double* offsets, const double* sizes, std::size_t count, double offset) {
+SectionOverlayPosition sectionOverlayPosition(
+  const double* offsets,
+  const double* sizes,
+  std::size_t count,
+  double offset) {
   SectionOverlayPosition result;
   offset = std::max(offset, 0.0);
-  bool hasActive = false;
-  double activeSize = 0.0;
-  bool hasNext = false;
-  double nextOffset = 0.0;
-  for (std::size_t index = 0; index < count; ++index) {
-    if (offsets[index] <= offset) {
-      hasActive = true;
-      activeSize = sizes[index];
-    } else {
-      hasNext = true;
-      nextOffset = offsets[index];
-      break;
-    }
-  }
-  if (!hasActive) {
+  std::size_t active =
+    pinnedSectionPosition(count, offset, [offsets](std::size_t position) { return offsets[position]; });
+  if (active == UNDEFINED_INDEX) {
     return result;
   }
+  std::size_t next = active + 1;
   result.visible = true;
-  result.translation = hasNext ? std::min(offset, nextOffset - activeSize) : offset;
+  result.translation = pinnedSectionLeading(offsets[active], sizes[active], offset, next < count,
+    next < count ? offsets[next] : 0.0);
   return result;
 }
 

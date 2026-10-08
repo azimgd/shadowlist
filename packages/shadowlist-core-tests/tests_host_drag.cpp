@@ -18,9 +18,9 @@ namespace {
 /*
  * Ten 100 tall rows keyed k0..k9. The held row is left out, like the hosts do.
  */
-std::vector<DragRow> rowsWithout(long held) {
+std::vector<DragRow> rowsWithout(std::size_t held) {
   std::vector<DragRow> rows;
-  for (long index = 0; index < 10; ++index) {
+  for (std::size_t index = 0; index < 10; ++index) {
     if (index != held) {
       rows.push_back({index, "k" + std::to_string(index), index * 100.0, 100.0});
     }
@@ -43,16 +43,16 @@ DragReorder dragRow3To(double touchContent) {
 
 TEST(drag_without_passing_a_midpoint_stays) {
   DragReorder drag = dragRow3To(390.0);
-  CHECK_EQ(drag.insertionIndex(), 3L);
-  CHECK_EQ(drag.insertionKey(), std::string("k3"));
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{3});
+  CHECK_EQ(drag.getInsertionKey(), std::string("k3"));
   CHECK_EQ(drag.shiftFor(4), 0.0);
 }
 
 TEST(drag_forward_drops_past_the_farthest_passed_row) {
   // Center at 560 passed the midpoints of rows 4 (450) and 5 (550).
   DragReorder drag = dragRow3To(560.0);
-  CHECK_EQ(drag.insertionIndex(), 5L);
-  CHECK_EQ(drag.insertionKey(), std::string("k5"));
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{5});
+  CHECK_EQ(drag.getInsertionKey(), std::string("k5"));
   CHECK_EQ(drag.shiftFor(2), 0.0);
   CHECK_EQ(drag.shiftFor(4), -100.0);
   CHECK_EQ(drag.shiftFor(5), -100.0);
@@ -62,8 +62,8 @@ TEST(drag_forward_drops_past_the_farthest_passed_row) {
 TEST(drag_backward_drops_before_the_farthest_passed_row) {
   // Center at 140 passed the midpoints of rows 2 (250) and 1 (150).
   DragReorder drag = dragRow3To(140.0);
-  CHECK_EQ(drag.insertionIndex(), 1L);
-  CHECK_EQ(drag.insertionKey(), std::string("k1"));
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{1});
+  CHECK_EQ(drag.getInsertionKey(), std::string("k1"));
   CHECK_EQ(drag.shiftFor(0), 0.0);
   CHECK_EQ(drag.shiftFor(1), 100.0);
   CHECK_EQ(drag.shiftFor(2), 100.0);
@@ -72,8 +72,8 @@ TEST(drag_backward_drops_before_the_farthest_passed_row) {
 
 TEST(drag_midpoint_leaves_half_a_row_of_slack) {
   // Exactly on row 4's midpoint is not past it.
-  CHECK_EQ(dragRow3To(450.0).insertionIndex(), 3L);
-  CHECK_EQ(dragRow3To(451.0).insertionIndex(), 4L);
+  CHECK_EQ(dragRow3To(450.0).getInsertionIndex(), std::size_t{3});
+  CHECK_EQ(dragRow3To(451.0).getInsertionIndex(), std::size_t{4});
 }
 
 TEST(drag_held_row_stays_inside_the_content) {
@@ -81,10 +81,10 @@ TEST(drag_held_row_stays_inside_the_content) {
   drag.begin(3, "k3", 300.0, 100.0, 350.0);
   // The leading edge would go to -250.
   CHECK_EQ(drag.place(-200.0, 300.0, 100.0, 1000.0), -300.0);
-  CHECK_EQ(drag.leading(), 0.0);
+  CHECK_EQ(drag.getLeading(), 0.0);
   // And past the end it stops with its trailing edge on the content end.
   drag.place(5000.0, 300.0, 100.0, 1000.0);
-  CHECK_EQ(drag.leading(), 900.0);
+  CHECK_EQ(drag.getLeading(), 900.0);
   CHECK_EQ(dragHeldLeading(100.0, 50.0, 100.0, 60.0), 0.0);
 }
 
@@ -93,19 +93,19 @@ TEST(drag_follows_a_moved_origin) {
   drag.begin(3, "k3", 300.0, 100.0, 350.0);
   // A prepend of two rows moved the held row to index 5.
   drag.updateOrigin(5, "k3");
-  CHECK_EQ(drag.originIndex(), 5L);
-  drag.updateOrigin(-1, "");
-  CHECK_EQ(drag.originIndex(), 5L);
-  CHECK_EQ(drag.originKey(), std::string("k3"));
+  CHECK_EQ(drag.getOriginIndex(), std::size_t{5});
+  drag.updateOrigin(UNDEFINED_INDEX, "");
+  CHECK_EQ(drag.getOriginIndex(), std::size_t{5});
+  CHECK_EQ(drag.getOriginKey(), std::string("k3"));
 }
 
 TEST(drag_insertion_position_of_rows_arrays) {
-  std::vector<long> indices{0, 1, 2, 4, -1, 5};
+  std::vector<std::size_t> indices{0, 1, 2, 4, UNDEFINED_INDEX, 5};
   std::vector<double> leadings{0.0, 100.0, 200.0, 400.0, 0.0, 500.0};
   std::vector<double> extents{100.0, 100.0, 100.0, 100.0, 100.0, 100.0};
-  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 560.0), 5L);
-  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 350.0), -1L);
-  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 140.0), 1L);
+  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 560.0), std::size_t{5});
+  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 350.0), UNDEFINED_INDEX);
+  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 140.0), std::size_t{1});
 }
 
 TEST(drag_auto_scroll_speeds_up_toward_the_edges) {

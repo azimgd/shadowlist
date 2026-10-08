@@ -25,7 +25,7 @@ void applyHostScroll(FrameInput& input, const ListScrollState& state) {
   // The phase lasts across reports, see Container::gestureActive.
   input.scrollPhase = scrollPhaseFromReport(state.scrollPhase);
   // The token the host echoed back. The core uses it to spot its own write. 0 if none.
-  input.commitToken = static_cast<std::uint64_t>(state.commitToken);
+  input.commitToken = state.commitToken;
 }
 
 bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& update) {
@@ -33,7 +33,7 @@ bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& upda
     return false;
   }
   bool continuesCorrection =
-    update.commitToken != 0 && static_cast<std::uint64_t>(state.commitToken) == update.commitToken;
+    update.commitToken != 0 && state.commitToken == update.commitToken;
   if (!continuesCorrection) {
     state.baseX = state.offsetX;
     state.baseY = state.offsetY;
@@ -44,7 +44,7 @@ bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& upda
   state.totalHeight = update.totalContainerHeight;
   state.offsetEnabled = update.applyContainerOffset;
   // 0 when no offset was written.
-  state.commitToken = static_cast<double>(update.commitToken);
+  state.commitToken = update.commitToken;
   return true;
 }
 

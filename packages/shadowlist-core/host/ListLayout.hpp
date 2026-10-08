@@ -1,12 +1,13 @@
 #pragma once
 
+#include <shadowlist-core/Container.hpp>
+
 #include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <shadowlist-core/Container.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -29,11 +30,35 @@ struct MeasuredRow {
 bool applyLayoutInputs(Container& core, double headerSize, double footerSize, double windowWidth, double windowHeight);
 
 /*
+ * Row sizes given to the core one at a time, then one reflow from the lowest changed row
+ * instead of one per row.
+ */
+class SizeBatch final {
+public:
+  /*
+   * Give the core one row's size. Returns whether it changed.
+   */
+  bool apply(Container& core, std::size_t elementIndex, Size size);
+
+  /*
+   * Reflow from the lowest changed row and recompute the total size, which the footer and
+   * the content size need. Returns whether any size changed.
+   */
+  bool commit(Container& core);
+
+private:
+  std::size_t lowestChangedIndex_ = UNDEFINED_INDEX;
+};
+
+/*
  * Give the core every mounted row's size, then reflow once from the lowest changed row.
  * In a multi column list the column sets the cross size. Only the scroll axis size is
  * taken. Ids of rows measured for the first time go into firstMeasured.
  */
-void applyMeasuredRows(Container& core, const std::vector<MeasuredRow>& rows, bool horizontal,
+void applyMeasuredRows(
+  Container& core,
+  const std::vector<MeasuredRow>& rows,
+  bool horizontal,
   std::vector<std::uint64_t>& firstMeasured);
 
 /*
@@ -117,7 +142,7 @@ public:
     if (!correcting || !anyFirstMeasured) {
       return 0;
     }
-    const Anchor* anchor = core.compensationAnchor();
+    const Anchor* anchor = core.getCompensationAnchor();
     if (anchor == nullptr || anchor->key.empty()) {
       return 0;
     }
@@ -157,14 +182,14 @@ public:
     }
   }
 
-  bool empty() const {
+  bool isEmpty() const {
     return rows_.empty();
   }
 
   /*
    * The newest hide while any row is hidden, or 0 when nothing waits on the host.
    */
-  double publishedGeneration() const {
+  double getPublishedGeneration() const {
     return rows_.empty() ? 0.0 : static_cast<double>(generation_);
   }
 

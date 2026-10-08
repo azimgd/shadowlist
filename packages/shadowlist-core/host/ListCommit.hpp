@@ -1,16 +1,17 @@
 #pragma once
 
-#include <cstdint>
-#include <vector>
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 #include <shadowlist-core/host/LiveScroll.hpp>
+
+#include <cstdint>
+#include <vector>
 
 namespace azimgd::shadowlist {
 
 /*
  * The scroll fields of a list's state: what the host reported and what the layout pass
- * published back. Stored as doubles like the rest of the state.
+ * published back. Stored as doubles like the rest of the state, except the commit token.
  */
 struct ListScrollState {
   double offsetX = 0.0;
@@ -26,7 +27,7 @@ struct ListScrollState {
    * The id of the pending correction, echoed back by the host. Zero means no correction, or a
    * report from the host.
    */
-  double commitToken = 0.0;
+  std::uint64_t commitToken = 0;
   bool userScrolled = false;
   double scrollPhase = SCROLL_PHASE_IDLE;
   double totalWidth = 0.0;

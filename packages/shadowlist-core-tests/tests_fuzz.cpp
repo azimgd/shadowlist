@@ -75,18 +75,18 @@ struct SimHost {
   explicit SimHost(std::uint32_t seed) : rng(seed), tracing(seed == traceSeed) {}
 
   void note(const std::string& line) {
-    if (this->tracing) {
+    if (tracing) {
       std::printf("      %s\n", line.c_str());
     }
-    this->log.push_back(line);
-    if (this->log.size() > 60) {
-      this->log.erase(this->log.begin());
+    log.push_back(line);
+    if (log.size() > 60) {
+      log.erase(log.begin());
     }
   }
 
   std::string dump() const {
     std::ostringstream out;
-    for (const std::string& line : this->log) {
+    for (const std::string& line : log) {
       out << "\n    " << line;
     }
     return out.str();
@@ -94,19 +94,19 @@ struct SimHost {
 
   double randomSize() {
     std::uniform_int_distribution<int> pick(0, 9);
-    int bucket = pick(this->rng);
+    int bucket = pick(rng);
     if (bucket < 6) {
-      return 40.0 + static_cast<double>(pick(this->rng)) * 12.0;
+      return 40.0 + static_cast<double>(pick(rng)) * 12.0;
     }
     if (bucket < 9) {
-      return 120.0 + static_cast<double>(pick(this->rng)) * 30.0;
+      return 120.0 + static_cast<double>(pick(rng)) * 30.0;
     }
-    return 400.0 + static_cast<double>(pick(this->rng)) * 60.0;
+    return 400.0 + static_cast<double>(pick(rng)) * 60.0;
   }
 
   std::string makeKey() {
-    std::string key = "r" + std::to_string(this->nextKey++);
-    this->trueSizes[key] = randomSize();
+    std::string key = "r" + std::to_string(nextKey++);
+    trueSizes[key] = randomSize();
     return key;
   }
 
@@ -119,21 +119,21 @@ struct SimHost {
   }
 
   double maxOffset() const {
-    double total = this->container.revision.totalContainerHeight;
-    return std::max(0.0, total - this->windowSize);
+    double total = container.revision.totalContainerHeight;
+    return std::max(0.0, total - windowSize);
   }
 
   FrameInput input(bool ownWrite) {
-    FrameInput frame = inputFor(this->keys, ownWrite ? this->container.revision.containerOffsetY : this->hostOffset);
-    frame.windowContainerHeight = this->windowSize;
-    frame.headerSize = this->header;
-    frame.footerSize = this->footer;
-    frame.inverted = this->inverted;
-    frame.followAppends = this->followAppends;
+    FrameInput frame = inputFor(keys, ownWrite ? container.revision.containerOffsetY : hostOffset);
+    frame.windowContainerHeight = windowSize;
+    frame.headerSize = header;
+    frame.footerSize = footer;
+    frame.inverted = inverted;
+    frame.followAppends = followAppends;
     frame.containerOffsetEnabled = ownWrite;
-    frame.commitToken = ownWrite ? (this->container.operation ? this->container.operation->id : 0) : this->echoedToken;
-    frame.scrollPhase = this->phase;
-    frame.userScrolled = this->userScrolled;
+    frame.commitToken = ownWrite ? (container.operation ? container.operation->id : 0) : echoedToken;
+    frame.scrollPhase = phase;
+    frame.userScrolled = userScrolled;
     return frame;
   }
 
@@ -141,22 +141,22 @@ struct SimHost {
    * The layout pass: header and window into the core, every mounted row measured, one reflow.
    */
   void layoutPass() {
-    Container& core = this->container;
-    bool inputsChanged = core.headerSize != this->header || core.footerSize != this->footer ||
-      core.revision.windowContainerHeight != this->windowSize || core.revision.windowContainerWidth != WINDOW_WIDTH;
+    Container& core = container;
+    bool inputsChanged = core.headerSize != header || core.footerSize != footer ||
+      core.revision.windowContainerHeight != windowSize || core.revision.windowContainerWidth != WINDOW_WIDTH;
     if (inputsChanged) {
       double previousHeader = core.headerSize;
       double previousWindow = core.getWindowContainerSize();
-      bool rowsMove = previousHeader != this->header || core.revision.windowContainerWidth != WINDOW_WIDTH;
-      core.headerSize = this->header;
-      core.footerSize = this->footer;
+      bool rowsMove = previousHeader != header || core.revision.windowContainerWidth != WINDOW_WIDTH;
+      core.headerSize = header;
+      core.footerSize = footer;
       core.revision.windowContainerWidth = WINDOW_WIDTH;
-      core.revision.windowContainerHeight = this->windowSize;
+      core.revision.windowContainerHeight = windowSize;
       if (rowsMove) {
-        Virtualizer::recomputeElementOffsets(&core, 0);
+        Virtualizer::recomputeElementOffsets(core, 0);
       }
-      Virtualizer::applyHeaderSizeChange(&core, previousHeader);
-      Virtualizer::applyWindowSizeChange(&core, previousWindow);
+      Virtualizer::applyHeaderSizeChange(core, previousHeader);
+      Virtualizer::applyWindowSizeChange(core, previousWindow);
       core.containerOffsetCorrected = true;
     }
 
@@ -164,20 +164,20 @@ struct SimHost {
     if (visible.first != UNDEFINED_INDEX && !core.revision.elements.empty()) {
       std::size_t low = std::min(visible.first, visible.second);
       std::size_t high = std::max(visible.first, visible.second);
-      low = low > this->mountPad ? low - this->mountPad : 0;
-      high = std::min(core.revision.elements.size() - 1, high + this->mountPad);
+      low = low > mountPad ? low - mountPad : 0;
+      high = std::min(core.revision.elements.size() - 1, high + mountPad);
       std::size_t lowest = UNDEFINED_INDEX;
       for (std::size_t index = low; index <= high; ++index) {
-        double size = this->trueSizes[core.revision.elements[index].key];
-        if (Virtualizer::applyElementSize(&core, index, {WINDOW_WIDTH, size}) && index < lowest) {
+        double size = trueSizes[core.revision.elements[index].key];
+        if (Virtualizer::applyElementSize(core, index, {WINDOW_WIDTH, size}) && index < lowest) {
           lowest = index;
         }
       }
       if (lowest != UNDEFINED_INDEX) {
-        Virtualizer::commitElementSizes(&core, lowest);
+        Virtualizer::commitElementSizes(core, lowest);
       }
     }
-    Virtualizer::recomputeTotalSize(&core);
+    Virtualizer::recomputeTotalSize(core);
   }
 
   /*
@@ -186,53 +186,53 @@ struct SimHost {
    * correction not applied yet.
    */
   void mountState() {
-    Container& core = this->container;
-    ContainerStateUpdate update = core.resolveStateUpdate(this->stateOffset, this->stateOffset,
+    Container& core = container;
+    ContainerStateUpdate update = core.resolveStateUpdate(stateOffset, stateOffset,
       core.revision.totalContainerWidth, core.revision.totalContainerHeight);
     ListScrollState state;
-    state.offsetY = this->stateOffset;
-    state.baseY = this->stateBase;
-    state.commitToken = static_cast<double>(this->stateToken);
+    state.offsetY = stateOffset;
+    state.baseY = stateBase;
+    state.commitToken = stateToken;
     if (publishStateUpdate(state, update)) {
-      this->stateOffset = state.offsetY;
-      this->stateBase = state.baseY;
-      this->stateToken = static_cast<std::uint64_t>(state.commitToken);
+      stateOffset = state.offsetY;
+      stateBase = state.baseY;
+      stateToken = state.commitToken;
     }
     // The content size write clamps a resting view, but not one held past the edge by a finger.
-    if (this->phase == ScrollPhase::Idle && this->hostOffset > this->maxOffset()) {
-      this->hostOffset = this->maxOffset();
+    if (phase == ScrollPhase::Idle && hostOffset > maxOffset()) {
+      hostOffset = maxOffset();
     }
 
     MountedScroll mounted;
     mounted.offsetEnabled = update.applyContainerOffset;
     mounted.offsetY = update.containerOffsetY;
-    mounted.baseY = this->stateBase;
+    mounted.baseY = stateBase;
     mounted.commitToken = update.commitToken;
-    mounted.userScrolled = this->userScrolled;
-    mounted.scrollPhase = this->phase == ScrollPhase::Dragging ? SCROLL_PHASE_DRAGGING
-      : this->phase == ScrollPhase::Settling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE;
+    mounted.userScrolled = userScrolled;
+    mounted.scrollPhase = phase == ScrollPhase::Dragging ? SCROLL_PHASE_DRAGGING
+      : phase == ScrollPhase::Settling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE;
     ViewMotion view;
-    view.offsetY = this->hostOffset;
-    view.shiftFromY = this->hostOffset;
-    view.maxOffset = this->maxOffset();
-    view.moving = this->phase != ScrollPhase::Idle || this->userScrolled;
-    this->sync.beginMount(mounted, nullptr);
-    MountAction action = this->sync.correction(view);
+    view.offsetY = hostOffset;
+    view.shiftFromY = hostOffset;
+    view.maxOffset = maxOffset();
+    view.moving = phase != ScrollPhase::Idle || userScrolled;
+    sync.beginMount(mounted, nullptr);
+    MountAction action = sync.correction(view);
     if (action.kind == MountAction::Kind::Write) {
       // The scroll view keeps a written offset inside its range.
-      double applied = std::min(std::max(action.offsetY, 0.0), this->maxOffset());
-      bool moved = std::fabs(applied - this->hostOffset) >= 0.01;
-      this->sync.willWrite(action);
+      double applied = std::min(std::max(action.offsetY, 0.0), maxOffset());
+      bool moved = std::fabs(applied - hostOffset) >= 0.01;
+      sync.willWrite(action);
       if (moved) {
-        this->hostOffset = applied;
+        hostOffset = applied;
         ScrollFrame frame;
         frame.offsetY = applied;
-        this->sync.onScroll(frame);
-        this->echoedToken = this->sync.echoedToken();
+        sync.onScroll(frame);
+        echoedToken = sync.getEchoedToken();
       }
-      this->sync.didWrite(moved);
+      sync.didWrite(moved);
     }
-    this->sync.endMount();
+    sync.endMount();
   }
 
   /*
@@ -241,23 +241,23 @@ struct SimHost {
   bool commit(bool ownWrite) {
     // A host report patches the state with the live offset before Fabric commits it.
     if (!ownWrite) {
-      this->stateOffset = this->hostOffset;
+      stateOffset = hostOffset;
     }
-    Virtualizer::update(&this->container, this->input(ownWrite));
-    this->layoutPass();
-    bool corrected = this->container.containerOffsetCorrected;
-    this->mountState();
-    if (traceSeed != 0 && this->tracing) {
-      const Container& core = this->container;
+    Virtualizer::update(container, input(ownWrite));
+    layoutPass();
+    bool corrected = container.containerOffsetCorrected;
+    mountState();
+    if (traceSeed != 0 && tracing) {
+      const Container& core = container;
       std::printf("      %s off=%.1f core=%.1f total=%.1f max=%.1f n=%zu op=%s%llu pend=%d rest=%d rel=%d init=%d tok=%llu win=[%zd..%zd]\n",
-        ownWrite ? "own " : "host", this->hostOffset, core.revision.containerOffsetY, core.revision.totalContainerHeight,
-        this->maxOffset(), core.revision.elements.size(),
+        ownWrite ? "own " : "host", hostOffset, core.revision.containerOffsetY, core.revision.totalContainerHeight,
+        maxOffset(), core.revision.elements.size(),
         core.operation ? (core.operation->type == OperationType::MaintainAnchor ? "hold:" :
           core.operation->type == OperationType::ScrollToKey ? "key:" : core.operation->type == OperationType::ScrollToEnd ? "end:" :
           core.operation->type == OperationType::BottomPin ? "pin:" : core.operation->type == OperationType::ShrinkClamp ? "clamp:" : "start:") : "none",
         static_cast<unsigned long long>(core.operation ? core.operation->id : 0),
         core.pendingScrollToEnd ? 1 : 0, core.restingAtInvertedBottom ? 1 : 0, core.invertedBottomReleased ? 1 : 0,
-        core.invertedInitialized ? 1 : 0, static_cast<unsigned long long>(this->echoedToken),
+        core.invertedInitialized ? 1 : 0, static_cast<unsigned long long>(echoedToken),
         static_cast<std::ptrdiff_t>(core.getVisibleIndices().first), static_cast<std::ptrdiff_t>(core.getVisibleIndices().second));
     }
     // The own write commit is what Fabric runs when state changes, without a host report.
@@ -265,7 +265,7 @@ struct SimHost {
       return corrected;
     }
     // A host report clears the one shot gesture flag once the core has seen it.
-    this->userScrolled = false;
+    userScrolled = false;
     return corrected;
   }
 
@@ -275,9 +275,9 @@ struct SimHost {
    */
   int settle() {
     for (int frame = 0; frame < MAX_SETTLE_FRAMES; ++frame) {
-      bool corrected = this->commit(true);
-      bool reported = this->commit(false);
-      if (!corrected && !reported && !this->container.operation && !this->container.pendingScrollToEnd) {
+      bool corrected = commit(true);
+      bool reported = commit(false);
+      if (!corrected && !reported && !container.operation && !container.pendingScrollToEnd) {
         return frame;
       }
     }
@@ -433,7 +433,11 @@ void rest(SimHost& host, std::uint32_t seed) {
  * once the correction lands. Rows removed by the change fall through to the next visible one.
  * expectBottom asks for the list to end at the bottom instead, like followAppends.
  */
-void changeAndHold(SimHost& host, std::uint32_t seed, const std::vector<std::string>& nextKeys, const std::string& what) {
+void changeAndHold(
+  SimHost& host,
+  std::uint32_t seed,
+  const std::vector<std::string>& nextKeys,
+  const std::string& what) {
   std::vector<ScreenRow> before = visibleRows(host);
   double maxBefore = host.maxOffset();
   /*
@@ -535,7 +539,7 @@ void open(SimHost& host, std::uint32_t seed, std::size_t count) {
   FrameInput first = host.input(false);
   first.windowContainerWidth = 0.0;
   first.windowContainerHeight = 0.0;
-  Virtualizer::update(&host.container, first);
+  Virtualizer::update(host.container, first);
   host.layoutPass();
   host.mountState();
   rest(host, seed);
@@ -958,14 +962,14 @@ struct AxisHost : SimHost {
   explicit AxisHost(std::uint32_t seed) : SimHost(seed) {}
 
   FrameInput axisInput(bool ownWrite) {
-    FrameInput frame = this->input(ownWrite);
-    frame.columns = this->columns;
-    frame.horizontal = this->horizontal;
-    if (this->horizontal) {
-      frame.windowContainerWidth = this->windowSize;
+    FrameInput frame = input(ownWrite);
+    frame.columns = columns;
+    frame.horizontal = horizontal;
+    if (horizontal) {
+      frame.windowContainerWidth = windowSize;
       frame.windowContainerHeight = WINDOW_WIDTH;
       // Our own write comes back on the scroll axis, which is x here.
-      frame.containerOffsetX = ownWrite ? this->container.revision.containerOffsetX : this->hostOffset;
+      frame.containerOffsetX = ownWrite ? container.revision.containerOffsetX : hostOffset;
       frame.containerOffsetY = 0.0;
       frame.estimatedElementSize = {ESTIMATED_ROW_HEIGHT, WINDOW_WIDTH};
     }
@@ -990,7 +994,7 @@ bool axisCommit(AxisHost& host, bool ownWrite) {
   if (!ownWrite) {
     host.stateOffset = host.hostOffset;
   }
-  Virtualizer::update(&core, host.axisInput(ownWrite));
+  Virtualizer::update(core, host.axisInput(ownWrite));
 
   // Layout pass along the axis.
   auto visible = core.getVisibleIndices();
@@ -1004,15 +1008,15 @@ bool axisCommit(AxisHost& host, bool ownWrite) {
       const Element& element = core.revision.elements[index];
       double size = host.trueSizes[element.key];
       Size fed = host.horizontal ? Size{size, element.height} : Size{element.width, size};
-      if (Virtualizer::applyElementSize(&core, index, fed) && index < lowest) {
+      if (Virtualizer::applyElementSize(core, index, fed) && index < lowest) {
         lowest = index;
       }
     }
     if (lowest != UNDEFINED_INDEX) {
-      Virtualizer::commitElementSizes(&core, lowest);
+      Virtualizer::commitElementSizes(core, lowest);
     }
   }
-  Virtualizer::recomputeTotalSize(&core);
+  Virtualizer::recomputeTotalSize(core);
 
   bool corrected = core.containerOffsetCorrected;
   ContainerStateUpdate state = core.resolveStateUpdate(host.stateOffset, host.stateOffset,
@@ -1149,7 +1153,11 @@ void axisScrollTo(AxisHost& host, std::uint32_t seed, double offset) {
  * A data change on a grid or horizontal list holds the row at the top of the screen. Only
  * one track can be held in a grid. The check is on the anchor's own track.
  */
-void axisChangeAndHold(AxisHost& host, std::uint32_t seed, const std::vector<std::string>& nextKeys, const std::string& what) {
+void axisChangeAndHold(
+  AxisHost& host,
+  std::uint32_t seed,
+  const std::vector<std::string>& nextKeys,
+  const std::string& what) {
   ScreenRow row = firstAxisRow(host);
   host.keys = nextKeys;
   host.note(what + " n=" + std::to_string(nextKeys.size()) + " off=" + std::to_string(host.hostOffset));
@@ -1188,7 +1196,7 @@ void axisOpen(AxisHost& host, std::uint32_t seed, std::size_t count) {
   FrameInput first = host.axisInput(false);
   first.windowContainerWidth = 0.0;
   first.windowContainerHeight = 0.0;
-  Virtualizer::update(&host.container, first);
+  Virtualizer::update(host.container, first);
   axisCommit(host, false);
   axisRest(host, seed);
 }
@@ -1329,7 +1337,7 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
         }
         FrameInput frame = host.input(ownWrite);
         frame.nonAnchorableKeys = pills;
-        Virtualizer::update(&host.container, frame);
+        Virtualizer::update(host.container, frame);
         host.layoutPass();
         bool corrected = host.container.containerOffsetCorrected;
         host.mountState();
@@ -1485,7 +1493,7 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
         std::vector<std::string> next = withPrepend(host, count);
         for (std::size_t index = 0; index < count; ++index) {
           double guess = host.trueSizes[next[index]] + (coin(host.rng) < 50 ? 0.0 : 30.0);
-          Virtualizer::applyPredictedElementSize(&host.container, next[index], {WINDOW_WIDTH, guess});
+          Virtualizer::applyPredictedElementSize(host.container, next[index], {WINDOW_WIDTH, guess});
         }
         changeAndHold(host, seed, next, "predicted prepend " + std::to_string(count));
         continue;
@@ -1499,7 +1507,7 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
           if (element.measured || coin(host.rng) < 50) {
             continue;
           }
-          Virtualizer::applyPredictedElementSize(&host.container, element.key, {WINDOW_WIDTH, host.trueSizes[element.key] + 10.0});
+          Virtualizer::applyPredictedElementSize(host.container, element.key, {WINDOW_WIDTH, host.trueSizes[element.key] + 10.0});
         }
         host.note("predict unmeasured rows off=" + std::to_string(host.hostOffset));
         host.commit(false);
@@ -1524,7 +1532,7 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
       if (roll < 85) {
         ScreenRow row = firstVisibleRow(host);
         host.note("invalidate predictions off=" + std::to_string(host.hostOffset));
-        Virtualizer::invalidatePredictions(&host.container);
+        Virtualizer::invalidatePredictions(host.container);
         for (const Element& element : host.container.revision.elements) {
           if (element.predicted) {
             failWith(host, seed, "a prediction survived invalidation");

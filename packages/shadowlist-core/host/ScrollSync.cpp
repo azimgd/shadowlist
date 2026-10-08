@@ -12,8 +12,6 @@ void ScrollSync::reset() {
   horizontal_ = horizontal;
 }
 
-#pragma mark - Mount
-
 void ScrollSync::beginMount(const MountedScroll& state, std::shared_ptr<LiveScroll> liveScroll) {
   mounted_ = state;
   hasMounted_ = true;
@@ -42,6 +40,29 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
       shiftedToken_ = token;
       shiftedTokenDelta_ = target - base;
     }
+    return action;
+  }
+
+  /*
+   * The core estimated where the newest animated command lands. Animate there unless a finger
+   * or a drag owns the view, which gives the command up.
+   */
+  if (commandAnimated_ && state.animationSequence == commandSequence_ && state.animationSequence > animatedSequence_) {
+    animatedSequence_ = state.animationSequence;
+    if (!view.touching && !view.ownsOffset) {
+      landing_ = true;
+      action.kind = MountAction::Kind::Animate;
+      action.offsetX = horizontal_ ? state.animationOffset : view.offsetX;
+      action.offsetY = horizontal_ ? view.offsetY : state.animationOffset;
+      return action;
+    }
+  }
+
+  /*
+   * An animated command owns the view until it lands. A write now would cut the animation
+   * short, and the landing command replaces the correction anyway.
+   */
+  if (landing_ && armedAnimated_) {
     return action;
   }
 
@@ -80,7 +101,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
    * Corrections with a token and shifted ones keep a fling going. A write with no token may
    * carry an offset a frame old, and our own animated scrolls use a plain write too.
    */
-  action.preserveMomentum = (token != 0 || shift) && !armedAnimated();
+  action.preserveMomentum = (token != 0 || shift) && !isArmedAnimated();
 
   action.kind = MountAction::Kind::Write;
   action.offsetX = offsetX;
@@ -96,15 +117,13 @@ void ScrollSync::willWrite(const MountAction& action) {
 
 void ScrollSync::didWrite(bool moved) {
   if (!moved) {
-    disarm();
+    release();
   }
 }
 
 bool ScrollSync::concealAckDue(bool jumpPending) const {
   return mounted_.concealGeneration != 0.0 && mounted_.offsetEnabled && !reportedDuringMount_ && !jumpPending;
 }
-
-#pragma mark - Scroll frames
 
 FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
   FrameReport result;
@@ -125,7 +144,11 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
     if (armedAnimated_) {
       if (landed) {
         echoedToken_ = armedToken_;
-        disarm();
+        result.landed = true;
+        armed_ = false;
+        armedAnimated_ = false;
+        armedExact_ = false;
+        armedToken_ = 0;
       }
     } else {
       echoedToken_ = armedToken_;
@@ -133,7 +156,7 @@ FrameReport ScrollSync::onScroll(const ScrollFrame& frame) {
         offsetX = armedX_;
         offsetY = armedY_;
       }
-      disarm();
+      release();
     }
   }
 
@@ -159,11 +182,20 @@ void ScrollSync::arm(double offsetX, double offsetY, bool animated, std::uint64_
   armedToken_ = token;
 }
 
-void ScrollSync::disarm() {
+void ScrollSync::release() {
   armed_ = false;
   armedAnimated_ = false;
   armedExact_ = false;
   armedToken_ = 0;
+}
+
+void ScrollSync::disarm() {
+  release();
+  // A finger or a new command takes over from an animated command, started or not.
+  landing_ = false;
+  if (commandAnimated_) {
+    animatedSequence_ = std::max(animatedSequence_, commandSequence_);
+  }
 }
 
 void ScrollSync::momentumStopped() {
@@ -197,16 +229,19 @@ bool ScrollSync::reportNeedsCommit(const LiveScroll::Report& report, bool commit
   return !mounted_.band.contains(along(report.offsetX, report.offsetY));
 }
 
-#pragma mark - Updates
-
-LiveScroll::Report ScrollSync::writeReport(double offsetX, double offsetY, bool userScrolled, double scrollPhase,
-  std::uint64_t token, double concealGenerationAck) {
+LiveScroll::Report ScrollSync::writeReport(
+  double offsetX,
+  double offsetY,
+  bool userScrolled,
+  double scrollPhase,
+  std::uint64_t token,
+  double concealGenerationAck) {
   LiveScroll::Report report;
   report.offsetX = offsetX;
   report.offsetY = offsetY;
   report.userScrolled = userScrolled;
   report.scrollPhase = scrollPhase;
-  report.commitToken = static_cast<double>(token);
+  report.commitToken = token;
   report.concealGenerationAck = concealGenerationAck;
   report.sequence = liveScroll_ ? liveScroll_->write(report) : 0;
   liveReport_ = report;
@@ -224,6 +259,12 @@ ScrollPatch ScrollSync::push(const LiveScroll::Report& report) {
     patch.commandIndex = commandIndex_;
     patch.commandSequence = commandSequence_;
     patch.commandViewPosition = commandViewPosition_;
+    patch.commandRowOffset = commandRowOffset_;
+    patch.commandAnimated = commandAnimated_;
+  }
+  if (anchorRequestSequence_ > 0) {
+    patch.hasAnchorRequest = true;
+    patch.anchorRequestSequence = anchorRequestSequence_;
   }
   return patch;
 }
@@ -233,12 +274,12 @@ ScrollPatch ScrollSync::livePatch(double offsetX, double offsetY, bool userScrol
 }
 
 ScrollPatch ScrollSync::livePatch(double offsetX, double offsetY) {
-  return livePatch(offsetX, offsetY, currentUserScrolled(), currentScrollPhase());
+  return livePatch(offsetX, offsetY, isCurrentUserScrolled(), getCurrentScrollPhase());
 }
 
 ScrollPatch ScrollSync::reportPatch(const LiveScroll::Report& report) {
   return push(writeReport(report.offsetX, report.offsetY, report.userScrolled, report.scrollPhase,
-    static_cast<std::uint64_t>(report.commitToken), report.concealGenerationAck));
+    report.commitToken, report.concealGenerationAck));
 }
 
 std::optional<ScrollPatch> ScrollSync::clearUserScrolled(double offsetX, double offsetY) {
@@ -253,21 +294,53 @@ std::optional<ScrollPatch> ScrollSync::clearUserScrolled(double offsetX, double 
 }
 
 ScrollPatch ScrollSync::issueCommand(
-  double index, double viewPosition, double offsetX, double offsetY, bool momentumYielded) {
-  commandIndex_ = index;
-  commandViewPosition_ = viewPosition;
+  const ScrollCommand& command,
+  double offsetX,
+  double offsetY,
+  bool momentumYielded) {
+  // A command replaces an animated one still on its way.
+  landing_ = false;
+  if (commandAnimated_) {
+    animatedSequence_ = std::max(animatedSequence_, commandSequence_);
+  }
+  commandIndex_ = command.index;
+  commandViewPosition_ = command.viewPosition;
+  commandRowOffset_ = command.rowOffset;
+  commandAnimated_ = command.animated;
   commandSequence_ = std::max(mounted_.commandSequence, commandSequence_) + 1;
   ScrollPatch patch = momentumYielded ? livePatch(offsetX, offsetY, false, SCROLL_PHASE_IDLE)
                                       : livePatch(offsetX, offsetY);
-  patch.offsetEnabled = true;
+  // An animated command moves nothing yet. The core only estimates where it lands.
+  patch.offsetEnabled = !command.animated;
   return patch;
 }
 
-bool ScrollSync::currentUserScrolled() const {
+std::optional<ScrollPatch> ScrollSync::land(double offsetX, double offsetY) {
+  if (!landing_) {
+    return std::nullopt;
+  }
+  // The animation was ours to its last frame. Its end is not the user.
+  if (armedAnimated_) {
+    echoedToken_ = armedToken_;
+    armed_ = false;
+    armedAnimated_ = false;
+    armedExact_ = false;
+    armedToken_ = 0;
+  }
+  ScrollCommand command{commandIndex_, commandViewPosition_, commandRowOffset_, false};
+  return issueCommand(command, offsetX, offsetY, true);
+}
+
+ScrollPatch ScrollSync::requestAnchor(double offsetX, double offsetY) {
+  anchorRequestSequence_ += 1;
+  return livePatch(offsetX, offsetY);
+}
+
+bool ScrollSync::isCurrentUserScrolled() const {
   return liveReport_.sequence > 0 || !hasMounted_ ? liveReport_.userScrolled : mounted_.userScrolled;
 }
 
-double ScrollSync::currentScrollPhase() const {
+double ScrollSync::getCurrentScrollPhase() const {
   return liveReport_.sequence > 0 || !hasMounted_ ? liveReport_.scrollPhase : mounted_.scrollPhase;
 }
 

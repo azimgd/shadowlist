@@ -19,13 +19,13 @@ namespace {
 /*
  * Twelve 100 by 100 cells in three columns keyed k0..k11. The held cell is left out.
  */
-DragRow gridCell(long index) {
+DragRow gridCell(std::size_t index) {
   return {index, "k" + std::to_string(index), (index / 3) * 100.0, 100.0, (index % 3) * 100.0, 100.0};
 }
 
-std::vector<DragRow> gridWithout(long held) {
+std::vector<DragRow> gridWithout(std::size_t held) {
   std::vector<DragRow> rows;
-  for (long index = 0; index < 12; ++index) {
+  for (std::size_t index = 0; index < 12; ++index) {
     if (index != held) {
       rows.push_back(gridCell(index));
     }
@@ -36,7 +36,7 @@ std::vector<DragRow> gridWithout(long held) {
 /*
  * Pick a cell up by its middle and move the finger to a point in the content.
  */
-DragReorder dragCell(long held, double touchContent, double touchCross) {
+DragReorder dragCell(std::size_t held, double touchContent, double touchCross) {
   DragRow resting = gridCell(held);
   DragReorder drag;
   drag.beginCell(resting, resting.leading + 50.0, resting.crossLeading + 50.0, 3);
@@ -45,7 +45,7 @@ DragReorder dragCell(long held, double touchContent, double touchCross) {
   return drag;
 }
 
-void checkOffset(const DragReorder& drag, long index, double leading, double cross) {
+void checkOffset(const DragReorder& drag, std::size_t index, double leading, double cross) {
   DragOffset offset = drag.offsetFor(index);
   CHECK_EQ(offset.leading, leading);
   CHECK_EQ(offset.cross, cross);
@@ -57,8 +57,8 @@ TEST(grid_drag_forward_across_a_row_wraps_cells_back) {
   // Cell 1 over cell 5, the last cell of the second row.
   DragReorder drag = dragCell(1, 150.0, 250.0);
   CHECK(drag.isGrid());
-  CHECK_EQ(drag.insertionIndex(), 5L);
-  CHECK_EQ(drag.insertionKey(), std::string("k5"));
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{5});
+  CHECK_EQ(drag.getInsertionKey(), std::string("k5"));
   checkOffset(drag, 0, 0.0, 0.0);
   checkOffset(drag, 2, 0.0, -100.0);
   // Cell 3 starts a row. It wraps up to the end of the row above.
@@ -72,7 +72,7 @@ TEST(grid_drag_forward_across_a_row_wraps_cells_back) {
 TEST(grid_drag_backward_wraps_cells_forward) {
   // Cell 7 over cell 2.
   DragReorder drag = dragCell(7, 50.0, 250.0);
-  CHECK_EQ(drag.insertionIndex(), 2L);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{2});
   checkOffset(drag, 1, 0.0, 0.0);
   checkOffset(drag, 2, 100.0, -200.0);
   checkOffset(drag, 3, 0.0, 100.0);
@@ -83,13 +83,13 @@ TEST(grid_drag_backward_wraps_cells_forward) {
 
 TEST(grid_drag_to_the_first_and_last_cells) {
   DragReorder first = dragCell(5, 10.0, 10.0);
-  CHECK_EQ(first.insertionIndex(), 0L);
+  CHECK_EQ(first.getInsertionIndex(), std::size_t{0});
   checkOffset(first, 0, 0.0, 100.0);
   checkOffset(first, 2, 100.0, -200.0);
   checkOffset(first, 4, 0.0, 100.0);
 
   DragReorder last = dragCell(5, 390.0, 290.0);
-  CHECK_EQ(last.insertionIndex(), 11L);
+  CHECK_EQ(last.getInsertionIndex(), std::size_t{11});
   checkOffset(last, 6, -100.0, 200.0);
   checkOffset(last, 11, 0.0, -100.0);
   checkOffset(last, 4, 0.0, 0.0);
@@ -101,18 +101,18 @@ TEST(grid_drag_over_its_own_slot_goes_back) {
   drag.beginCell(resting, 150.0, 150.0, 3);
   drag.placeCell(250.0, 150.0, resting, 400.0, 300.0);
   drag.updateInsertion(gridWithout(4));
-  CHECK_EQ(drag.insertionIndex(), 7L);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{7});
   drag.placeCell(160.0, 140.0, resting, 400.0, 300.0);
   drag.updateInsertion(gridWithout(4));
-  CHECK_EQ(drag.insertionIndex(), 4L);
-  CHECK_EQ(drag.insertionKey(), std::string("k4"));
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{4});
+  CHECK_EQ(drag.getInsertionKey(), std::string("k4"));
   checkOffset(drag, 7, 0.0, 0.0);
 }
 
 TEST(grid_drag_over_no_cell_keeps_the_drop_spot) {
   // Eleven cells leave the last slot empty. Over it the drop spot stays where it was.
   std::vector<DragRow> rows;
-  for (long index = 0; index < 11; ++index) {
+  for (std::size_t index = 0; index < 11; ++index) {
     if (index != 0) {
       rows.push_back(gridCell(index));
     }
@@ -122,10 +122,10 @@ TEST(grid_drag_over_no_cell_keeps_the_drop_spot) {
   drag.beginCell(resting, 50.0, 50.0, 3);
   drag.placeCell(350.0, 150.0, resting, 400.0, 300.0);
   drag.updateInsertion(rows);
-  CHECK_EQ(drag.insertionIndex(), 10L);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{10});
   drag.placeCell(350.0, 250.0, resting, 400.0, 300.0);
   drag.updateInsertion(rows);
-  CHECK_EQ(drag.insertionIndex(), 10L);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{10});
 }
 
 TEST(grid_held_cell_stays_inside_the_content) {
@@ -133,8 +133,8 @@ TEST(grid_held_cell_stays_inside_the_content) {
   DragReorder drag;
   drag.beginCell(resting, 150.0, 150.0, 3);
   DragOffset offset = drag.placeCell(-500.0, 900.0, resting, 400.0, 300.0);
-  CHECK_EQ(drag.leading(), 0.0);
-  CHECK_EQ(drag.crossLeading(), 200.0);
+  CHECK_EQ(drag.getLeading(), 0.0);
+  CHECK_EQ(drag.getCrossLeading(), 200.0);
   CHECK_EQ(offset.leading, -100.0);
   CHECK_EQ(offset.cross, 100.0);
 }
@@ -145,13 +145,13 @@ TEST(grid_single_column_session_is_unchanged) {
   CHECK(!drag.isGrid());
   drag.place(560.0, 300.0, 100.0, 1000.0);
   std::vector<DragRow> rows;
-  for (long index = 0; index < 10; ++index) {
+  for (std::size_t index = 0; index < 10; ++index) {
     if (index != 3) {
       rows.push_back({index, "k" + std::to_string(index), index * 100.0, 100.0});
     }
   }
   drag.updateInsertion(rows);
-  CHECK_EQ(drag.insertionIndex(), 5L);
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{5});
   CHECK_EQ(drag.offsetFor(4).leading, -100.0);
   CHECK_EQ(drag.offsetFor(4).cross, 0.0);
   // A grid drag before it leaves nothing behind.
@@ -163,7 +163,7 @@ TEST(grid_single_column_session_is_unchanged) {
 
 TEST(grid_shifts_of_cell_arrays) {
   // Cells 0..5 in two columns without cell 1, which is held.
-  std::vector<long> indices{0, 2, 3, 4, 5};
+  std::vector<std::size_t> indices{0, 2, 3, 4, 5};
   std::vector<double> leadings{0.0, 100.0, 100.0, 200.0, 200.0};
   std::vector<double> extents(5, 100.0);
   std::vector<double> crossLeadings{0.0, 0.0, 100.0, 0.0, 100.0};
@@ -171,9 +171,9 @@ TEST(grid_shifts_of_cell_arrays) {
   DragCells cells{indices.data(), leadings.data(), extents.data(), crossLeadings.data(), crossExtents.data(), 5};
   DragRow held{1, "", 0.0, 100.0, 100.0, 100.0};
 
-  CHECK_EQ(dragGridInsertionPosition(cells, held, 1, 250.0, 50.0), 3L);
-  CHECK_EQ(dragGridInsertionPosition(cells, held, 4, 50.0, 150.0), -1L);
-  CHECK_EQ(dragGridInsertionPosition(cells, held, 4, 900.0, 50.0), 3L);
+  CHECK_EQ(dragGridInsertionPosition(cells, held, 1, 250.0, 50.0), std::size_t{3});
+  CHECK_EQ(dragGridInsertionPosition(cells, held, 4, 50.0, 150.0), UNDEFINED_INDEX);
+  CHECK_EQ(dragGridInsertionPosition(cells, held, 4, 900.0, 50.0), std::size_t{3});
 
   std::vector<double> shifts(5, 7.0);
   std::vector<double> crossShifts(5, 7.0);
@@ -197,33 +197,33 @@ TEST(grid_masonry_preview_matches_the_core_layout_after_the_move) {
     FrameInput input = inputFor(order, 0.0);
     input.columns = 3;
     input.windowContainerHeight = 4000.0;
-    Virtualizer::update(&container, input);
+    Virtualizer::update(container, input);
     for (std::size_t index = 0; index < order.size(); ++index) {
       int number = std::stoi(order[index].substr(1));
-      Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH / 3.0, heights[number % 7]});
+      Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH / 3.0, heights[number % 7]});
     }
-    Virtualizer::update(&container, input);
+    Virtualizer::update(container, input);
   };
 
-  const long moves[][2] = {{2, 13}, {13, 2}, {0, 29}, {29, 0}, {7, 8}, {10, 4}};
+  const std::size_t moves[][2] = {{2, 13}, {13, 2}, {0, 29}, {29, 0}, {7, 8}, {10, 4}};
   for (const auto& move : moves) {
-    long from = move[0];
-    long to = move[1];
+    std::size_t from = move[0];
+    std::size_t to = move[1];
     Container before;
     layout(before, keys);
     std::vector<DragRow> rows;
     DragRow held;
     for (std::size_t index = 0; index < keys.size(); ++index) {
       const Element& element = before.revision.elements[index];
-      DragRow row{static_cast<long>(index), keys[index], element.offsetY, element.height, element.offsetX, element.width};
-      if (static_cast<long>(index) == from) {
+      DragRow row{index, keys[index], element.offsetY, element.height, element.offsetX, element.width};
+      if (index == from) {
         held = row;
       } else {
         rows.push_back(row);
       }
     }
 
-    std::vector<long> indices;
+    std::vector<std::size_t> indices;
     std::vector<double> leadings, extents, crossLeadings, crossExtents;
     for (const DragRow& row : rows) {
       indices.push_back(row.index);
@@ -254,9 +254,9 @@ TEST(grid_masonry_preview_matches_the_core_layout_after_the_move) {
 
 TEST(grid_preview_restarts_a_column_after_an_unmounted_cell) {
   // Equal cells in two columns. Cell 1 is held and cells 3 to 5 are not mounted.
-  std::vector<long> indices{0, 2, 6, 7, 8, 9};
+  std::vector<std::size_t> indices{0, 2, 6, 7, 8, 9};
   std::vector<double> leadings, extents, crossLeadings, crossExtents;
-  for (long index : indices) {
+  for (std::size_t index : indices) {
     leadings.push_back((index / 2) * 100.0);
     extents.push_back(100.0);
     crossLeadings.push_back((index % 2) * 100.0);

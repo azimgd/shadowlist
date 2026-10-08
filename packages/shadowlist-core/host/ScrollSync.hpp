@@ -1,10 +1,11 @@
 #pragma once
 
+#include <shadowlist-core/Container.hpp>
+#include <shadowlist-core/host/LiveScroll.hpp>
+
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <shadowlist-core/Container.hpp>
-#include <shadowlist-core/host/LiveScroll.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -20,10 +21,26 @@ struct ScrollPatch {
   double commandIndex = 0.0;
   double commandSequence = 0.0;
   double commandViewPosition = 0.0;
+  double commandRowOffset = 0.0;
+  bool commandAnimated = false;
+  bool hasAnchorRequest = false;
+  double anchorRequestSequence = 0.0;
   bool hasStartReachedEnabled = false;
   bool startReachedEnabled = true;
   bool hasEndReachedEnabled = false;
   bool endReachedEnabled = true;
+};
+
+/*
+ * A scroll command from the host: the row at index placed at viewPosition and moved rowOffset
+ * further along the scroll axis, or the end for SCROLL_TO_END_INDEX. An animated command first
+ * animates to the core's estimate, then lands exactly with the same command.
+ */
+struct ScrollCommand {
+  double index = 0.0;
+  double viewPosition = 0.0;
+  double rowOffset = 0.0;
+  bool animated = false;
 };
 
 /*
@@ -41,6 +58,12 @@ struct MountedScroll {
   double concealGeneration = 0.0;
   double concealGenerationAck = 0.0;
   double commandSequence = 0.0;
+  /*
+   * Where the core estimates the newest animated command lands, along the scroll axis, and
+   * that command's sequence. 0 before the first one.
+   */
+  double animationSequence = 0.0;
+  double animationOffset = 0.0;
   OffsetBand band;
 };
 
@@ -76,6 +99,11 @@ struct MountAction {
     Write,
     // Move the waiting scroll to top jump to the offset instead of the view.
     RetargetJump,
+    /*
+     * Animate the view to offsetX and offsetY for an animated scroll command. Arm the move as
+     * animated first. Call ScrollSync::land when it ends.
+     */
+    Animate,
   };
   Kind kind = Kind::None;
   double offsetX = 0.0;
@@ -103,6 +131,8 @@ struct FrameReport {
   bool needsCommit = false;
   // The user moved the view, as opposed to our own write or a content size clamp.
   bool userScrolled = false;
+  // An animated move of ours reached its target on this frame.
+  bool landed = false;
   ScrollPatch patch;
 };
 
@@ -131,8 +161,6 @@ public:
    * Forget everything, for a view recycled into another list.
    */
   void reset();
-
-#pragma mark - Mount
 
   /*
    * A new state mounts. Call before the content size write. A clamp it causes then counts as ours.
@@ -171,8 +199,6 @@ public:
     mounting_ = false;
   }
 
-#pragma mark - Scroll frames
-
   FrameReport onScroll(const ScrollFrame& frame);
 
   /*
@@ -186,11 +212,11 @@ public:
    */
   void disarm();
 
-  bool armed() const {
+  bool isArmed() const {
     return armed_;
   }
 
-  bool armedAnimated() const {
+  bool isArmedAnimated() const {
     return armed_ && armedAnimated_;
   }
 
@@ -198,8 +224,6 @@ public:
    * The host stopped a fling or animation. Forget any scroll of ours waiting for its frame.
    */
   void momentumStopped();
-
-#pragma mark - Updates
 
   /*
    * A patch with the live offset and the echoed token, like a scroll report, with the given
@@ -227,27 +251,55 @@ public:
    * A scroll command. The sequence always goes past the previous one. The same index still
    * scrolls again. momentumYielded makes the report idle after a fling was stopped for it.
    */
-  ScrollPatch issueCommand(double index, double viewPosition, double offsetX, double offsetY, bool momentumYielded);
+  ScrollPatch issueCommand(const ScrollCommand& command, double offsetX, double offsetY, bool momentumYielded);
+
+  /*
+   * The animation of an animated command ended. Returns the same command without the animation,
+   * which lands it exactly, or nothing when no animated command waits.
+   */
+  std::optional<ScrollPatch> land(double offsetX, double offsetY);
+
+  /*
+   * Whether an animated command is on its way and waits for land.
+   */
+  bool isLanding() const {
+    return landing_;
+  }
+
+  /*
+   * Ask the core for the anchor at the live offset. The sequence goes past the previous one.
+   */
+  ScrollPatch requestAnchor(double offsetX, double offsetY);
 
   /*
    * The user scroll flag and phase that later updates carry, the newest report's. Before the
    * first report they are the mounted state's.
    */
-  bool currentUserScrolled() const;
-  double currentScrollPhase() const;
+  bool isCurrentUserScrolled() const;
+  double getCurrentScrollPhase() const;
 
-  std::uint64_t echoedToken() const {
+  std::uint64_t getEchoedToken() const {
     return echoedToken_;
   }
 
-  const MountedScroll& mounted() const {
+  const MountedScroll& getMounted() const {
     return mounted_;
   }
 
 private:
-  LiveScroll::Report writeReport(double offsetX, double offsetY, bool userScrolled, double scrollPhase,
-    std::uint64_t token, double concealGenerationAck);
+  LiveScroll::Report writeReport(
+    double offsetX,
+    double offsetY,
+    bool userScrolled,
+    double scrollPhase,
+    std::uint64_t token,
+    double concealGenerationAck);
   ScrollPatch push(const LiveScroll::Report& report);
+  /*
+   * Our write is done, echoed or moved nothing. Unlike a finger, it leaves an animated command
+   * that still waits for its estimate alone.
+   */
+  void release();
   bool reportNeedsCommit(const LiveScroll::Report& report, bool commitEveryFrame) const;
 
   double along(double x, double y) const {
@@ -297,6 +349,17 @@ private:
   double commandIndex_ = -2.0;
   double commandSequence_ = 0.0;
   double commandViewPosition_ = 0.0;
+  double commandRowOffset_ = 0.0;
+  bool commandAnimated_ = false;
+
+  /*
+   * The newest animated command whose animation started or was given up. An animation starts
+   * only for a newer one. landing_ is set from the start until land or a finger takes over.
+   */
+  double animatedSequence_ = 0.0;
+  bool landing_ = false;
+
+  double anchorRequestSequence_ = 0.0;
 };
 
 }

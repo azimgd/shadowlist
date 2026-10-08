@@ -29,7 +29,7 @@ public:
     double offsetY = 0.0;
     bool userScrolled = false;
     double scrollPhase = SCROLL_PHASE_IDLE;
-    double commitToken = 0.0;
+    std::uint64_t commitToken = 0;
     double concealGenerationAck = 0.0;
     // 0 until the host writes its first report.
     std::uint64_t sequence = 0;
@@ -71,7 +71,7 @@ public:
    * A process wide id for this list. A host that can't hold the pointer, like Android's
    * Java view, finds it by this id. See registerHandle.
    */
-  std::int64_t handle() const {
+  std::int64_t getHandle() const {
     return handle_;
   }
 

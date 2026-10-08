@@ -1,13 +1,13 @@
 #pragma once
 
-#include <string>
-#include <vector>
+#include <chrono>
+#include <cmath>
+#include <cstdio>
 #include <functional>
 #include <iostream>
-#include <cmath>
-#include <chrono>
-#include <cstdio>
+#include <string>
 #include <type_traits>
+#include <vector>
 
 namespace slt {
 

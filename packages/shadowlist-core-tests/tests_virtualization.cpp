@@ -114,7 +114,7 @@ void checkGeometryContiguous(const Container& container, const std::string& cont
  */
 void measureRows(Container& container, const std::vector<double>& heights) {
   for (std::size_t index = 0; index < heights.size(); ++index) {
-    Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, heights[index]});
+    Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, heights[index]});
   }
 }
 
@@ -144,12 +144,12 @@ TEST(window_covers_every_overlapping_row_single_column) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(600);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, unevenHeights(keys.size()));
 
   double total = container.revision.totalContainerHeight;
   for (double offset = 0.0; offset <= total; offset += 137.0) {
-    Virtualizer::update(&container, inputFor(keys, offset, fixture));
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
     checkNoRowLost(container, "single column @" + std::to_string(offset));
   }
 }
@@ -162,15 +162,15 @@ TEST(window_covers_every_overlapping_row_horizontal) {
 
   std::vector<std::string> keys = keysFor(400);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   for (std::size_t index = 0; index < keys.size(); ++index) {
     double width = (index % 4 == 0) ? 300.0 : 120.0 + static_cast<double>(index % 5) * 9.0;
-    Virtualizer::updateElementAtIndex(&container, index, {width, WINDOW_HEIGHT});
+    Virtualizer::updateElementAtIndex(container, index, {width, WINDOW_HEIGHT});
   }
 
   double total = container.revision.totalContainerWidth;
   for (double offset = 0.0; offset <= total; offset += 91.0) {
-    Virtualizer::update(&container, inputFor(keys, offset, fixture));
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
     checkNoRowLost(container, "horizontal @" + std::to_string(offset));
   }
 }
@@ -181,12 +181,12 @@ TEST(window_covers_every_overlapping_row_inverted) {
 
   std::vector<std::string> keys = keysFor(500);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, unevenHeights(keys.size()));
 
   double total = container.revision.totalContainerHeight;
   for (double offset = total; offset >= 0.0; offset -= 149.0) {
-    Virtualizer::update(&container, inputFor(keys, offset < 0.0 ? 0.0 : offset, fixture));
+    Virtualizer::update(container, inputFor(keys, offset < 0.0 ? 0.0 : offset, fixture));
     checkNoRowLost(container, "inverted @" + std::to_string(offset));
   }
 }
@@ -201,17 +201,17 @@ TEST(window_covers_every_overlapping_row_skewed_columns) {
 
   std::vector<std::string> keys = keysFor(600);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   for (std::size_t index = 0; index < keys.size(); ++index) {
     // Column 0 grows fast, column 1 slowly, column 2 in between.
     double height = (index % 3 == 0) ? 400.0 : (index % 3 == 1 ? 40.0 : 150.0);
-    Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH / 3.0, height});
+    Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH / 3.0, height});
   }
 
   double total = container.revision.totalContainerHeight;
   for (double offset = 0.0; offset <= total; offset += 113.0) {
-    Virtualizer::update(&container, inputFor(keys, offset, fixture));
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
     checkNoRowLost(container, "3 skewed columns @" + std::to_string(offset));
   }
 }
@@ -226,7 +226,7 @@ TEST(window_keeps_row_straddling_the_lower_bound) {
 
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   std::vector<double> heights(keys.size(), 100.0);
   heights[10] = 5000.0;  // one row far taller than the screen
@@ -234,7 +234,7 @@ TEST(window_keeps_row_straddling_the_lower_bound) {
 
   // Scroll into the middle of the very tall row.
   double offsetInsideTallRow = offsetOf(container, 10) + 2500.0;
-  Virtualizer::update(&container, inputFor(keys, offsetInsideTallRow, fixture));
+  Virtualizer::update(container, inputFor(keys, offsetInsideTallRow, fixture));
 
   auto window = reportedWindow(container);
   CHECK(window.first != UNDEFINED_INDEX);
@@ -246,10 +246,10 @@ TEST(window_is_correct_on_the_frame_a_reorder_lands) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(300);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, unevenHeights(keys.size()));
 
-  Virtualizer::update(&container, inputFor(keys, 4000.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 4000.0, fixture));
 
   /*
    * Move a row from deep in the list to the front. Its old position would break a search
@@ -260,7 +260,7 @@ TEST(window_is_correct_on_the_frame_a_reorder_lands) {
   reordered.erase(reordered.begin() + 250);
   reordered.insert(reordered.begin(), moved);
 
-  Virtualizer::update(&container, inputFor(reordered, 4000.0, fixture));
+  Virtualizer::update(container, inputFor(reordered, 4000.0, fixture));
   checkNoRowLost(container, "reorder frame");
   checkGeometryContiguous(container, "reorder frame");
 }
@@ -271,13 +271,13 @@ TEST(geometry_stays_contiguous_across_scrolling_and_measurement) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(400);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   std::vector<double> heights = unevenHeights(keys.size());
   for (std::size_t index = 0; index < heights.size(); ++index) {
-    Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, heights[index]});
+    Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, heights[index]});
     if (index % 25 == 0) {
-      Virtualizer::update(&container, inputFor(keys, static_cast<double>(index) * 13.0, fixture));
+      Virtualizer::update(container, inputFor(keys, static_cast<double>(index) * 13.0, fixture));
     }
   }
 
@@ -295,11 +295,11 @@ TEST(repeated_identical_measurements_do_not_move_geometry) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(200);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   std::vector<double> heights = unevenHeights(keys.size());
   measureRows(container, heights);
-  Virtualizer::update(&container, inputFor(keys, 900.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 900.0, fixture));
 
   std::vector<double> offsetsBefore;
   for (std::size_t index = 0; index < keys.size(); ++index) {
@@ -310,10 +310,10 @@ TEST(repeated_identical_measurements_do_not_move_geometry) {
 
   for (int repeat = 0; repeat < 3; ++repeat) {
     for (std::size_t index = 0; index < keys.size(); ++index) {
-      Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, heights[index]});
+      Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, heights[index]});
     }
   }
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::recomputeTotalSize(container);
 
   for (std::size_t index = 0; index < keys.size(); ++index) {
     CHECK_NEAR(offsetOf(container, index), offsetsBefore[index], 0.001);
@@ -326,7 +326,7 @@ TEST(a_genuine_resize_shifts_only_the_rows_after_it) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(100);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   std::vector<double> before;
@@ -334,7 +334,7 @@ TEST(a_genuine_resize_shifts_only_the_rows_after_it) {
     before.push_back(offsetOf(container, index));
   }
 
-  Virtualizer::updateElementAtIndex(&container, 40, {WINDOW_WIDTH, 300.0});
+  Virtualizer::updateElementAtIndex(container, 40, {WINDOW_WIDTH, 300.0});
 
   for (std::size_t index = 0; index <= 40; ++index) {
     CHECK_NEAR(offsetOf(container, index), before[index], 0.001);
@@ -349,13 +349,13 @@ TEST(header_size_shifts_every_row_and_the_total) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(50);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   FrameInput withHeader = inputFor(keys, 0.0, fixture);
   withHeader.headerSize = 250.0;
   withHeader.footerSize = 60.0;
-  Virtualizer::update(&container, withHeader);
+  Virtualizer::update(container, withHeader);
 
   CHECK_NEAR(offsetOf(container, 0), 250.0, 0.001);
   CHECK_NEAR(offsetOf(container, 49), 250.0 + 49.0 * 100.0, 0.001);
@@ -369,7 +369,7 @@ TEST(reconcile_preserves_measured_sizes_of_surviving_rows) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(100);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   std::vector<double> heights = unevenHeights(keys.size());
   measureRows(container, heights);
@@ -384,7 +384,7 @@ TEST(reconcile_preserves_measured_sizes_of_surviving_rows) {
   }
   next.push_back("appended");
 
-  Virtualizer::update(&container, inputFor(next, 0.0, fixture));
+  Virtualizer::update(container, inputFor(next, 0.0, fixture));
 
   for (std::size_t index = 0; index < keys.size(); ++index) {
     if (index == 30 || index == 31) {
@@ -403,7 +403,7 @@ TEST(key_index_map_matches_the_element_list_after_every_mutation) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(60);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   auto checkMap = [&](const std::string& context) {
     for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
@@ -420,19 +420,19 @@ TEST(key_index_map_matches_the_element_list_after_every_mutation) {
   checkMap("initial");
 
   std::vector<std::string> reversed(keys.rbegin(), keys.rend());
-  Virtualizer::update(&container, inputFor(reversed, 0.0, fixture));
+  Virtualizer::update(container, inputFor(reversed, 0.0, fixture));
   checkMap("after full reverse");
 
   std::vector<std::string> trimmed(keys.begin(), keys.begin() + 10);
-  Virtualizer::update(&container, inputFor(trimmed, 0.0, fixture));
+  Virtualizer::update(container, inputFor(trimmed, 0.0, fixture));
   checkMap("after trim");
   CHECK_EQ(container.getElementsSize(), static_cast<std::size_t>(10));
 
   std::vector<std::string> replaced = keysFor(30, "fresh");
-  Virtualizer::update(&container, inputFor(replaced, 0.0, fixture));
+  Virtualizer::update(container, inputFor(replaced, 0.0, fixture));
   checkMap("after full replacement");
 
-  Virtualizer::update(&container, inputFor({}, 0.0, fixture));
+  Virtualizer::update(container, inputFor({}, 0.0, fixture));
   CHECK_EQ(container.getElementsSize(), static_cast<std::size_t>(0));
 }
 
@@ -444,11 +444,11 @@ TEST(duplicate_keys_do_not_share_one_element) {
   Fixture fixture;
   std::vector<std::string> keys = {"a", "b", "c"};
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, {100.0, 200.0, 300.0});
 
   std::vector<std::string> withDuplicate = {"a", "b", "b", "c"};
-  Virtualizer::update(&container, inputFor(withDuplicate, 0.0, fixture));
+  Virtualizer::update(container, inputFor(withDuplicate, 0.0, fixture));
 
   CHECK_EQ(container.getElementsSize(), static_cast<std::size_t>(4));
   CHECK_EQ(container.revision.elements[0].key, std::string("a"));
@@ -466,13 +466,13 @@ TEST(full_replacement_resets_the_frozen_average) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 500.0));
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   CHECK(container.revision.averageElementHeight > 0.0);
 
   std::vector<std::string> replaced = keysFor(40, "fresh");
-  Virtualizer::update(&container, inputFor(replaced, 0.0, fixture));
+  Virtualizer::update(container, inputFor(replaced, 0.0, fixture));
   CHECK_EQ(container.revision.measuredRealCount, static_cast<std::size_t>(0));
   CHECK_NEAR(container.revision.averageElementHeight, 0.0, 0.001);
 }
@@ -483,17 +483,17 @@ TEST(prepend_keeps_the_visible_row_in_place) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(200);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   // Rest on row 80.
   double offset = offsetOf(container, 80);
-  Virtualizer::update(&container, inputFor(keys, offset, fixture));
+  Virtualizer::update(container, inputFor(keys, offset, fixture));
   CHECK_NEAR(offsetOf(container, 80), container.revision.containerOffsetY, 1.0);
 
   std::vector<std::string> prepended = keysFor(30, "older");
   prepended.insert(prepended.end(), keys.begin(), keys.end());
-  Virtualizer::update(&container, inputFor(prepended, offset, fixture));
+  Virtualizer::update(container, inputFor(prepended, offset, fixture));
 
   std::size_t movedIndex = container.findElementIndexByKey("k80");
   CHECK(movedIndex != UNDEFINED_INDEX);
@@ -515,7 +515,7 @@ void checkPrependHoldsFirstVisibleRow(const Fixture& fixture, double headerSize,
   auto frame = [&](const std::vector<std::string>& frameKeys, double offset) {
     FrameInput input = inputFor(frameKeys, offset, fixture);
     input.headerSize = headerSize;
-    Virtualizer::update(&container, input);
+    Virtualizer::update(container, input);
   };
   auto currentOffset = [&]() {
     return fixture.horizontal ? container.revision.containerOffsetX : container.revision.containerOffsetY;
@@ -524,7 +524,7 @@ void checkPrependHoldsFirstVisibleRow(const Fixture& fixture, double headerSize,
   auto measureAll = [&](std::size_t count) {
     for (std::size_t index = 0; index < count; ++index) {
       Size size = fixture.horizontal ? Size{100.0, WINDOW_HEIGHT} : Size{WINDOW_WIDTH, 100.0};
-      Virtualizer::updateElementAtIndex(&container, index, size);
+      Virtualizer::updateElementAtIndex(container, index, size);
     }
   };
 
@@ -552,7 +552,7 @@ void checkPrependHoldsFirstVisibleRow(const Fixture& fixture, double headerSize,
   FrameInput confirm = inputFor(prepended, corrected, fixture);
   confirm.headerSize = headerSize;
   confirm.containerOffsetEnabled = true;
-  Virtualizer::update(&container, confirm);
+  Virtualizer::update(container, confirm);
   measureAll(prepended.size());
   CHECK_NEAR(offsetOf(container, movedIndex) - currentOffset(), restKeyScreenPosition, 1.0);
 }
@@ -585,7 +585,7 @@ TEST(inverted_list_opens_pinned_to_the_bottom) {
 
   std::vector<std::string> keys = keysFor(150);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   // Report the offset back each frame, like the host does, until it settles at the bottom.
@@ -593,7 +593,7 @@ TEST(inverted_list_opens_pinned_to_the_bottom) {
   for (int frame = 0; frame < 6; ++frame) {
     FrameInput input = inputFor(keys, offset, fixture);
     input.containerOffsetEnabled = false;
-    Virtualizer::update(&container, input);
+    Virtualizer::update(container, input);
     offset = container.revision.containerOffsetY;
   }
 
@@ -612,19 +612,19 @@ TEST(inverted_list_jump_to_top_reports_the_first_rows) {
 
   std::vector<std::string> keys = keysFor(400);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   double offset = 0.0;
   for (int frame = 0; frame < 6; ++frame) {
-    Virtualizer::update(&container, inputFor(keys, offset, fixture));
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
     offset = container.revision.containerOffsetY;
   }
 
   FrameInput jump = inputFor(keys, 0.0, fixture);
   jump.userScrolled = true;
   jump.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, jump);
+  Virtualizer::update(container, jump);
 
   auto window = reportedWindow(container);
   CHECK(window.first != UNDEFINED_INDEX);
@@ -633,7 +633,7 @@ TEST(inverted_list_jump_to_top_reports_the_first_rows) {
 
   // The jump must stick and not be pulled back to the bottom.
   FrameInput settle = inputFor(keys, 0.0, fixture);
-  Virtualizer::update(&container, settle);
+  Virtualizer::update(container, settle);
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 1.0);
 }
 
@@ -652,7 +652,7 @@ double settleAtBottom(
   for (int frame = 0; frame < 8; ++frame) {
     FrameInput input = inputFor(keys, offset, fixture);
     input.nonAnchorableKeys = nonAnchorable;
-    Virtualizer::update(&container, input);
+    Virtualizer::update(container, input);
     offset = container.revision.containerOffsetY;
   }
   return offset;
@@ -670,19 +670,19 @@ TEST(inverted_dataset_swap_opens_on_the_new_bottom) {
 
   std::vector<std::string> keys = keysFor(30, "a");
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture);
 
   // The reader scrolls up into the history, then the conversation changes under them.
   FrameInput away = inputFor(keys, bottom - 900.0, fixture);
   away.userScrolled = true;
-  Virtualizer::update(&container, away);
-  Virtualizer::update(&container, inputFor(keys, bottom - 900.0, fixture));
+  Virtualizer::update(container, away);
+  Virtualizer::update(container, inputFor(keys, bottom - 900.0, fixture));
 
   std::vector<std::string> other = keysFor(12, "b");
   FrameInput swap = inputFor(other, bottom - 900.0, fixture);
-  Virtualizer::update(&container, swap);
+  Virtualizer::update(container, swap);
   measureRows(container, std::vector<double>(other.size(), 100.0));
   double newBottom = settleAtBottom(container, other, fixture);
   CHECK_NEAR(container.revision.containerOffsetY, newBottom, 1.0);
@@ -691,15 +691,15 @@ TEST(inverted_dataset_swap_opens_on_the_new_bottom) {
   // A partial swap that keeps a visible row still holds that row, like any other change.
   FrameInput up = inputFor(other, newBottom - 300.0, fixture);
   up.userScrolled = true;
-  Virtualizer::update(&container, up);
-  Virtualizer::update(&container, inputFor(other, newBottom - 300.0, fixture));
+  Virtualizer::update(container, up);
+  Virtualizer::update(container, inputFor(other, newBottom - 300.0, fixture));
   std::string held = container.anchor.key;
   double heldScreen = offsetOf(container, container.findElementIndexByKey(held)) - container.revision.containerOffsetY;
   std::vector<std::string> mixed = keysFor(10, "c");
   mixed.push_back(held);
   std::vector<std::string> after = keysFor(10, "d");
   mixed.insert(mixed.end(), after.begin(), after.end());
-  Virtualizer::update(&container, inputFor(mixed, container.revision.containerOffsetY, fixture));
+  Virtualizer::update(container, inputFor(mixed, container.revision.containerOffsetY, fixture));
   CHECK_NEAR(offsetOf(container, container.findElementIndexByKey(held)) - container.revision.containerOffsetY, heldScreen, 1.0);
 }
 
@@ -715,18 +715,18 @@ TEST(scroll_to_end_in_flight_follows_growth_measured_in_the_layout_pass) {
 
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture);
 
   // The reader scrolls far up, then a new message arrives and the screen asks for the end.
   FrameInput away = inputFor(keys, bottom - 2000.0, fixture);
   away.userScrolled = true;
-  Virtualizer::update(&container, away);
-  Virtualizer::update(&container, inputFor(keys, bottom - 2000.0, fixture));
+  Virtualizer::update(container, away);
+  Virtualizer::update(container, inputFor(keys, bottom - 2000.0, fixture));
   keys.push_back("k40");
   container.scrollToEnd();
-  Virtualizer::update(&container, inputFor(keys, bottom - 2000.0, fixture));
+  Virtualizer::update(container, inputFor(keys, bottom - 2000.0, fixture));
   CHECK(container.operation && container.operation->type == OperationType::ScrollToEnd);
   double target = container.revision.containerOffsetY;
   CHECK_NEAR(target, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
@@ -735,11 +735,11 @@ TEST(scroll_to_end_in_flight_follows_growth_measured_in_the_layout_pass) {
   FrameInput ownWrite = inputFor(keys, target, fixture);
   ownWrite.containerOffsetEnabled = true;
   ownWrite.commitToken = container.operation->id;
-  Virtualizer::update(&container, ownWrite);
+  Virtualizer::update(container, ownWrite);
   CHECK(container.operation);
-  Virtualizer::updateElementAtIndex(&container, 30, {WINDOW_WIDTH, 160.0});
-  Virtualizer::updateElementAtIndex(&container, 40, {WINDOW_WIDTH, 130.0});
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::updateElementAtIndex(container, 30, {WINDOW_WIDTH, 160.0});
+  Virtualizer::updateElementAtIndex(container, 40, {WINDOW_WIDTH, 130.0});
+  Virtualizer::recomputeTotalSize(container);
   CHECK_NEAR(container.revision.containerOffsetY, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
   CHECK(container.containerOffsetCorrected);
 }
@@ -755,7 +755,7 @@ TEST(inverted_bottom_pin_releases_when_the_user_scrolls_up_a_tall_last_row) {
 
   std::vector<std::string> keys = keysFor(20);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   std::vector<double> heights(keys.size(), 100.0);
   heights.back() = 3000.0;
   measureRows(container, heights);
@@ -767,13 +767,13 @@ TEST(inverted_bottom_pin_releases_when_the_user_scrolls_up_a_tall_last_row) {
   double dragged = bottom - 400.0;
   FrameInput drag = inputFor(keys, dragged, fixture);
   drag.userScrolled = true;
-  Virtualizer::update(&container, drag);
+  Virtualizer::update(container, drag);
   CHECK_NEAR(container.revision.containerOffsetY, dragged, 1.0);
 
   // The reply keeps streaming while the finger rests, and the view must not move.
   for (int flush = 1; flush <= 5; ++flush) {
-    Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 3000.0 + flush * 60.0});
-    Virtualizer::update(&container, inputFor(keys, container.revision.containerOffsetY, fixture));
+    Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 3000.0 + flush * 60.0});
+    Virtualizer::update(container, inputFor(keys, container.revision.containerOffsetY, fixture));
   }
   CHECK_NEAR(container.revision.containerOffsetY, dragged, 1.0);
 }
@@ -789,7 +789,7 @@ TEST(inverted_bottom_pin_releases_when_only_the_last_row_is_anchorable) {
   std::vector<std::string> keys = keysFor(40);
   std::vector<std::string> allButLast(keys.begin(), keys.end() - 1);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   double bottom = settleAtBottom(container, keys, fixture, allButLast);
@@ -798,14 +798,14 @@ TEST(inverted_bottom_pin_releases_when_only_the_last_row_is_anchorable) {
   FrameInput drag = inputFor(keys, dragged, fixture);
   drag.userScrolled = true;
   drag.nonAnchorableKeys = allButLast;
-  Virtualizer::update(&container, drag);
+  Virtualizer::update(container, drag);
   CHECK_NEAR(container.revision.containerOffsetY, dragged, 1.0);
 
   for (int flush = 1; flush <= 5; ++flush) {
-    Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 100.0 + flush * 80.0});
+    Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 100.0 + flush * 80.0});
     FrameInput rest = inputFor(keys, container.revision.containerOffsetY, fixture);
     rest.nonAnchorableKeys = allButLast;
-    Virtualizer::update(&container, rest);
+    Virtualizer::update(container, rest);
   }
   CHECK_NEAR(container.revision.containerOffsetY, dragged, 1.0);
 }
@@ -820,7 +820,7 @@ TEST(inverted_bottom_pin_reengages_once_the_user_returns_to_the_bottom) {
 
   std::vector<std::string> keys = keysFor(20);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   std::vector<double> heights(keys.size(), 100.0);
   heights.back() = 3000.0;
   measureRows(container, heights);
@@ -829,19 +829,19 @@ TEST(inverted_bottom_pin_reengages_once_the_user_returns_to_the_bottom) {
 
   FrameInput away = inputFor(keys, bottom - 400.0, fixture);
   away.userScrolled = true;
-  Virtualizer::update(&container, away);
+  Virtualizer::update(container, away);
   // Without this check the test would pass even if the bottom was never let go.
   CHECK(container.invertedBottomReleased);
 
   FrameInput back = inputFor(keys, bottom, fixture);
   back.userScrolled = true;
-  Virtualizer::update(&container, back);
+  Virtualizer::update(container, back);
   CHECK(!container.invertedBottomReleased);
 
-  Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 3300.0});
+  Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 3300.0});
   double offset = container.revision.containerOffsetY;
   for (int frame = 0; frame < 4; ++frame) {
-    Virtualizer::update(&container, inputFor(keys, offset, fixture));
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
     offset = container.revision.containerOffsetY;
   }
   CHECK_NEAR(offset, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
@@ -858,7 +858,7 @@ TEST(inverted_bottom_pin_ignores_a_nudge_off_the_bottom) {
   std::vector<std::string> keys = keysFor(20);
   std::vector<std::string> allButLast(keys.begin(), keys.end() - 1);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   double bottom = settleAtBottom(container, keys, fixture, allButLast);
@@ -866,15 +866,15 @@ TEST(inverted_bottom_pin_ignores_a_nudge_off_the_bottom) {
   FrameInput nudge = inputFor(keys, bottom - 3.0, fixture);
   nudge.userScrolled = true;
   nudge.nonAnchorableKeys = allButLast;
-  Virtualizer::update(&container, nudge);
+  Virtualizer::update(container, nudge);
   CHECK(!container.invertedBottomReleased);
 
   // Still following. The view moves with the growing last row.
   for (int flush = 1; flush <= 4; ++flush) {
-    Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 100.0 + flush * 120.0});
+    Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 100.0 + flush * 120.0});
     FrameInput rest = inputFor(keys, container.revision.containerOffsetY, fixture);
     rest.nonAnchorableKeys = allButLast;
-    Virtualizer::update(&container, rest);
+    Virtualizer::update(container, rest);
   }
   CHECK_NEAR(container.revision.containerOffsetY, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
 }
@@ -890,22 +890,22 @@ TEST(inverted_bottom_pin_survives_a_bounce_on_a_list_shorter_than_the_viewport) 
   std::vector<std::string> keys = keysFor(3);
   std::vector<std::string> allButLast(keys.begin(), keys.end() - 1);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   settleAtBottom(container, keys, fixture, allButLast);
 
   FrameInput bounce = inputFor(keys, -40.0, fixture);
   bounce.userScrolled = true;
   bounce.nonAnchorableKeys = allButLast;
-  Virtualizer::update(&container, bounce);
+  Virtualizer::update(container, bounce);
   CHECK(!container.invertedBottomReleased);
 
   // The reply then grows past the screen, and its new bottom must be followed.
   for (int flush = 1; flush <= 6; ++flush) {
-    Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 100.0 + flush * 300.0});
+    Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 100.0 + flush * 300.0});
     FrameInput rest = inputFor(keys, container.revision.containerOffsetY, fixture);
     rest.nonAnchorableKeys = allButLast;
-    Virtualizer::update(&container, rest);
+    Virtualizer::update(container, rest);
   }
   CHECK_NEAR(container.revision.containerOffsetY, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
 }
@@ -921,7 +921,7 @@ TEST(inverted_bottom_pin_stays_released_when_the_reply_shrinks_onto_the_reader) 
 
   std::vector<std::string> keys = keysFor(20);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   std::vector<double> heights(keys.size(), 100.0);
   heights.back() = 3000.0;
   measureRows(container, heights);
@@ -932,18 +932,18 @@ TEST(inverted_bottom_pin_stays_released_when_the_reply_shrinks_onto_the_reader) 
   double parked = bottom - 400.0;
   FrameInput drag = inputFor(keys, parked, fixture);
   drag.userScrolled = true;
-  Virtualizer::update(&container, drag);
+  Virtualizer::update(container, drag);
   CHECK(container.invertedBottomReleased);
 
   // Shrink the last row until the bottom lands exactly on the reader's offset.
   double shrunk = parked + WINDOW_HEIGHT - headRows;
-  Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, shrunk});
-  Virtualizer::update(&container, inputFor(keys, container.revision.containerOffsetY, fixture));
+  Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, shrunk});
+  Virtualizer::update(container, inputFor(keys, container.revision.containerOffsetY, fixture));
   CHECK(container.invertedBottomReleased);
 
   for (int flush = 1; flush <= 4; ++flush) {
-    Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, shrunk + flush * 150.0});
-    Virtualizer::update(&container, inputFor(keys, container.revision.containerOffsetY, fixture));
+    Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, shrunk + flush * 150.0});
+    Virtualizer::update(container, inputFor(keys, container.revision.containerOffsetY, fixture));
   }
   CHECK_NEAR(container.revision.containerOffsetY, parked, 1.0);
 }
@@ -960,7 +960,7 @@ TEST(inverted_bottom_pin_stays_released_when_a_correction_echo_nears_the_bottom)
 
   std::vector<std::string> keys = keysFor(20);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   std::vector<double> heights(keys.size(), 100.0);
   heights.back() = 3000.0;
   measureRows(container, heights);
@@ -969,7 +969,7 @@ TEST(inverted_bottom_pin_stays_released_when_a_correction_echo_nears_the_bottom)
   double parked = bottom - 400.0;
   FrameInput drag = inputFor(keys, parked, fixture);
   drag.userScrolled = true;
-  Virtualizer::update(&container, drag);
+  Virtualizer::update(container, drag);
   CHECK(container.invertedBottomReleased);
 
   /*
@@ -977,23 +977,23 @@ TEST(inverted_bottom_pin_stays_released_when_a_correction_echo_nears_the_bottom)
    * here because the stored total only updates on the next frame.
    */
   const double emptied = 1600.0;
-  Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, emptied});
+  Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, emptied});
   double shrunkBottom = bottom - (3000.0 - emptied);
   CHECK(shrunkBottom < parked);
 
   // The host clamps just short of the new bottom, then reports the core's nudge onto it.
   FrameInput clamp = inputFor(keys, shrunkBottom - 20.0, fixture);
   clamp.userScrolled = true;
-  Virtualizer::update(&container, clamp);
+  Virtualizer::update(container, clamp);
   FrameInput echo = inputFor(keys, shrunkBottom, fixture);
-  Virtualizer::update(&container, echo);
+  Virtualizer::update(container, echo);
   CHECK(container.invertedBottomReleased);
 
   // The reply streams back in and the reader stays where the clamp left them.
   double rested = container.revision.containerOffsetY;
   for (int flush = 1; flush <= 4; ++flush) {
-    Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, emptied + flush * 150.0});
-    Virtualizer::update(&container, inputFor(keys, container.revision.containerOffsetY, fixture));
+    Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, emptied + flush * 150.0});
+    Virtualizer::update(container, inputFor(keys, container.revision.containerOffsetY, fixture));
   }
   CHECK_NEAR(container.revision.containerOffsetY, rested, 1.0);
 }
@@ -1014,7 +1014,7 @@ TEST(inverted_list_reports_end_at_the_bottom_and_start_at_the_top) {
   container.onStartReachedCallback = [&]() { startReached++; };
   container.onEndReachedCallback = [&]() { endReached++; };
 
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture);
   CHECK_NEAR(bottom, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
@@ -1028,15 +1028,15 @@ TEST(inverted_list_reports_end_at_the_bottom_and_start_at_the_top) {
     grown.insert(grown.end(), keys.begin(), keys.end());
     keys = grown;
     FrameInput input = inputFor(keys, container.revision.containerOffsetY, fixture);
-    Virtualizer::update(&container, input);
-    Virtualizer::update(&container, inputFor(keys, container.revision.containerOffsetY, fixture));
+    Virtualizer::update(container, input);
+    Virtualizer::update(container, inputFor(keys, container.revision.containerOffsetY, fixture));
   }
   CHECK_EQ(startReached, startAtBottom);
 
   // Scrolling to the top fires the start edge.
   FrameInput top = inputFor(keys, 0.0, fixture);
   top.userScrolled = true;
-  Virtualizer::update(&container, top);
+  Virtualizer::update(container, top);
   CHECK(startReached > startAtBottom);
 }
 
@@ -1053,7 +1053,7 @@ TEST(inverted_bottom_pin_yields_while_a_finger_is_down_inside_the_band) {
   std::vector<std::string> keys = keysFor(20);
   std::vector<std::string> allButLast(keys.begin(), keys.end() - 1);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture, allButLast);
 
@@ -1064,7 +1064,7 @@ TEST(inverted_bottom_pin_yields_while_a_finger_is_down_inside_the_band) {
     drag.nonAnchorableKeys = allButLast;
     drag.userScrolled = true;
     drag.scrollPhase = ScrollPhase::Dragging;
-    Virtualizer::update(&container, drag);
+    Virtualizer::update(container, drag);
     CHECK_NEAR(container.revision.containerOffsetY, offset, 0.01);
 
     // A commit between two touch frames reports the same offset with the finger still down.
@@ -1072,7 +1072,7 @@ TEST(inverted_bottom_pin_yields_while_a_finger_is_down_inside_the_band) {
     commit.nonAnchorableKeys = allButLast;
     commit.userScrolled = true;
     commit.scrollPhase = ScrollPhase::Dragging;
-    Virtualizer::update(&container, commit);
+    Virtualizer::update(container, commit);
     CHECK_NEAR(container.revision.containerOffsetY, offset, 0.01);
   }
   CHECK(!container.invertedBottomReleased);
@@ -1080,11 +1080,11 @@ TEST(inverted_bottom_pin_yields_while_a_finger_is_down_inside_the_band) {
   // The finger lifts 16 points above the bottom, inside the band. The view goes back to the bottom.
   FrameInput lift = inputFor(keys, offset, fixture);
   lift.nonAnchorableKeys = allButLast;
-  Virtualizer::update(&container, lift);
+  Virtualizer::update(container, lift);
   for (int frame = 0; frame < 4; ++frame) {
     FrameInput rest = inputFor(keys, container.revision.containerOffsetY, fixture);
     rest.nonAnchorableKeys = allButLast;
-    Virtualizer::update(&container, rest);
+    Virtualizer::update(container, rest);
   }
   CHECK_NEAR(container.revision.containerOffsetY, bottom, 1.0);
 }
@@ -1101,13 +1101,13 @@ TEST(inverted_bottom_pin_follows_growth_measured_between_frames) {
   std::vector<std::string> keys = keysFor(20);
   std::vector<std::string> allButLast(keys.begin(), keys.end() - 1);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture, allButLast);
   CHECK_NEAR(bottom, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
 
   // The newest row grows by 40 points with no frame, and the view is already at the new bottom.
-  Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 140.0});
+  Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 140.0});
   CHECK_NEAR(container.revision.containerOffsetY, bottom + 40.0, 0.01);
   CHECK(container.containerOffsetCorrected);
 
@@ -1115,10 +1115,10 @@ TEST(inverted_bottom_pin_follows_growth_measured_between_frames) {
   FrameInput away = inputFor(keys, bottom - 300.0, fixture);
   away.nonAnchorableKeys = allButLast;
   away.userScrolled = true;
-  Virtualizer::update(&container, away);
+  Virtualizer::update(container, away);
   CHECK(container.invertedBottomReleased);
   double parked = container.revision.containerOffsetY;
-  Virtualizer::updateElementAtIndex(&container, keys.size() - 1, {WINDOW_WIDTH, 200.0});
+  Virtualizer::updateElementAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 200.0});
   CHECK_NEAR(container.revision.containerOffsetY, parked, 0.01);
 }
 
@@ -1133,28 +1133,28 @@ TEST(grid_keeps_its_anchor_row_while_other_tracks_get_measured) {
 
   std::vector<std::string> keys = keysFor(60);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   // Every row is 100 tall. The tracks line up and rows 30, 31 and 32 start at 1000.
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH / 3.0, 100.0});
+    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH / 3.0, 100.0});
   }
-  Virtualizer::commitElementSizes(&container, 0);
-  Virtualizer::recomputeTotalSize(&container);
-  Virtualizer::update(&container, inputFor(keys, 1040.0, fixture));
-  Virtualizer::update(&container, inputFor(keys, 1040.0, fixture));
+  Virtualizer::commitElementSizes(container, 0);
+  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::update(container, inputFor(keys, 1040.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 1040.0, fixture));
   CHECK_EQ(container.anchor.key, std::string("k30"));
   double k30Screen = offsetOf(container, 30) - container.revision.containerOffsetY;
 
   // Prepend a full row of tracks, then measure the new rows unevenly: track 0 grows, track 2 shrinks.
   std::vector<std::string> next = keysFor(3, "n");
   next.insert(next.end(), keys.begin(), keys.end());
-  Virtualizer::update(&container, inputFor(next, 1040.0, fixture));
+  Virtualizer::update(container, inputFor(next, 1040.0, fixture));
   CHECK_NEAR(offsetOf(container, 33) - container.revision.containerOffsetY, k30Screen, 0.5);
-  Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH / 3.0, 300.0});
-  Virtualizer::applyElementSize(&container, 1, {WINDOW_WIDTH / 3.0, 100.0});
-  Virtualizer::applyElementSize(&container, 2, {WINDOW_WIDTH / 3.0, 20.0});
-  Virtualizer::commitElementSizes(&container, 0);
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::applyElementSize(container, 0, {WINDOW_WIDTH / 3.0, 300.0});
+  Virtualizer::applyElementSize(container, 1, {WINDOW_WIDTH / 3.0, 100.0});
+  Virtualizer::applyElementSize(container, 2, {WINDOW_WIDTH / 3.0, 20.0});
+  Virtualizer::commitElementSizes(container, 0);
+  Virtualizer::recomputeTotalSize(container);
   CHECK_NEAR(offsetOf(container, 33) - container.revision.containerOffsetY, k30Screen, 0.5);
 
   // Frames go by with the host at the corrected offset. k30 keeps holding, not the row in track 2.
@@ -1162,10 +1162,10 @@ TEST(grid_keeps_its_anchor_row_while_other_tracks_get_measured) {
     FrameInput own = inputFor(next, container.revision.containerOffsetY, fixture);
     own.containerOffsetEnabled = container.containerOffsetCorrected;
     own.commitToken = container.operation ? container.operation->id : 0;
-    Virtualizer::update(&container, own);
+    Virtualizer::update(container, own);
     FrameInput echo = inputFor(next, container.revision.containerOffsetY, fixture);
     echo.commitToken = container.operation ? container.operation->id : 0;
-    Virtualizer::update(&container, echo);
+    Virtualizer::update(container, echo);
     CHECK_EQ(container.anchor.key, std::string("k30"));
     CHECK_NEAR(offsetOf(container, 33) - container.revision.containerOffsetY, k30Screen, 0.5);
   }
@@ -1175,14 +1175,14 @@ TEST(scroll_to_index_lands_on_the_requested_row) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(500);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   container.scrollToIndex(321);
 
   double offset = 0.0;
   for (int frame = 0; frame < 8; ++frame) {
-    Virtualizer::update(&container, inputFor(keys, offset, fixture));
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
     offset = container.revision.containerOffsetY;
   }
 
@@ -1195,16 +1195,16 @@ TEST(content_shrinking_below_the_offset_pulls_the_view_back) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(300);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   double deepOffset = 20000.0;
-  Virtualizer::update(&container, inputFor(keys, deepOffset, fixture));
+  Virtualizer::update(container, inputFor(keys, deepOffset, fixture));
 
   std::vector<std::string> collapsed(keys.begin(), keys.begin() + 20);
   double offset = deepOffset;
   for (int frame = 0; frame < 6; ++frame) {
-    Virtualizer::update(&container, inputFor(collapsed, offset, fixture));
+    Virtualizer::update(container, inputFor(collapsed, offset, fixture));
     offset = container.revision.containerOffsetY;
   }
 
@@ -1221,9 +1221,9 @@ TEST(snap_offsets_track_geometry_changes) {
   Container container;
   FrameInput input = inputFor(keys, 0.0, fixture);
   input.snapToItem = true;
-  Virtualizer::update(&container, input);
+  Virtualizer::update(container, input);
   measureRows(container, std::vector<double>(keys.size(), 100.0));
-  Virtualizer::update(&container, input);
+  Virtualizer::update(container, input);
 
   std::vector<double> first = container.getSnapOffsets();
   CHECK(!first.empty());
@@ -1234,19 +1234,19 @@ TEST(snap_offsets_track_geometry_changes) {
   CHECK_NEAR(first.front(), 0.0, 0.001);
 
   // The same frame again gives the same snap points.
-  Virtualizer::update(&container, input);
+  Virtualizer::update(container, input);
   CHECK(container.getSnapOffsets() == first);
 
   // A real resize changes them.
-  Virtualizer::updateElementAtIndex(&container, 3, {WINDOW_WIDTH, 700.0});
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::updateElementAtIndex(container, 3, {WINDOW_WIDTH, 700.0});
+  Virtualizer::recomputeTotalSize(container);
   std::vector<double> afterResize = container.getSnapOffsets();
   CHECK(afterResize != first);
   CHECK_NEAR(afterResize[4], offsetOf(container, 4), 0.001);
 
   // So does turning snapping off.
   FrameInput noSnap = inputFor(keys, 0.0, fixture);
-  Virtualizer::update(&container, noSnap);
+  Virtualizer::update(container, noSnap);
   CHECK(container.getSnapOffsets().empty());
 }
 
@@ -1256,15 +1256,15 @@ TEST(snap_offsets_survive_a_pure_scroll) {
   Container container;
   FrameInput input = inputFor(keys, 0.0, fixture);
   input.snapToItem = true;
-  Virtualizer::update(&container, input);
+  Virtualizer::update(container, input);
   measureRows(container, std::vector<double>(keys.size(), 100.0));
-  Virtualizer::update(&container, input);
+  Virtualizer::update(container, input);
 
   std::vector<double> before = container.getSnapOffsets();
   FrameInput scrolled = inputFor(keys, 2500.0, fixture);
   scrolled.snapToItem = true;
   scrolled.userScrolled = true;
-  Virtualizer::update(&container, scrolled);
+  Virtualizer::update(container, scrolled);
   CHECK(container.getSnapOffsets() == before);
 }
 
@@ -1272,18 +1272,18 @@ TEST(viewable_indices_stay_inside_the_viewport) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(200);
   Container container;
-  container.onViewableIndicesChangeCallback = [](std::size_t, std::size_t) {};
+  container.onViewableIndicesChangeCallback = [](const std::vector<std::size_t>&) {};
 
   FrameInput input = inputFor(keys, 0.0, fixture);
-  input.viewablePercentThreshold = 0.5;
-  Virtualizer::update(&container, input);
+  input.viewableRules = {ViewableRule{0.5, false}};
+  Virtualizer::update(container, input);
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
   FrameInput scrolled = inputFor(keys, 1000.0, fixture);
-  scrolled.viewablePercentThreshold = 0.5;
-  Virtualizer::update(&container, scrolled);
+  scrolled.viewableRules = {ViewableRule{0.5, false}};
+  Virtualizer::update(container, scrolled);
 
-  auto viewable = container.getViewableIndices();
+  auto viewable = container.getViewableIndices(container.viewableRules[0]);
   CHECK(viewable.first != UNDEFINED_INDEX);
   double viewportStart = container.revision.containerOffsetY;
   double viewportEnd = viewportStart + WINDOW_HEIGHT;
@@ -1293,6 +1293,63 @@ TEST(viewable_indices_stay_inside_the_viewport) {
     CHECK(end > viewportStart);
     CHECK(start < viewportEnd);
   }
+}
+
+/*
+ * Coverage counts the share of the viewport a row covers. A short row fully on screen still
+ * counts, and a tall row cut by an edge needs to cover enough of the viewport.
+ */
+TEST(viewable_coverage_rule_counts_the_viewport_share) {
+  Fixture fixture;
+  std::vector<std::string> keys = keysFor(20);
+  Container container;
+  FrameInput input = inputFor(keys, 0.0, fixture);
+  Virtualizer::update(container, input);
+  // Rows of 600 at 0, 600, 1200. The viewport of 840 shows 0 to 840, 50 pt past it at 790.
+  measureRows(container, std::vector<double>(keys.size(), 600.0));
+  FrameInput scrolled = inputFor(keys, 50.0, fixture);
+  Virtualizer::update(container, scrolled);
+
+  // Row 0 covers 550 of 840, row 1 covers 290 of 840.
+  auto half = container.getViewableIndices(ViewableRule{0.5, true});
+  CHECK_EQ(half.first, static_cast<std::size_t>(0));
+  CHECK_EQ(half.second, static_cast<std::size_t>(0));
+  auto third = container.getViewableIndices(ViewableRule{0.35, true});
+  CHECK_EQ(third.second, static_cast<std::size_t>(0));
+  auto quarter = container.getViewableIndices(ViewableRule{0.25, true});
+  CHECK_EQ(quarter.second, static_cast<std::size_t>(1));
+}
+
+/*
+ * Every rule gets its own range in one callback, sent only when one of them changes.
+ */
+TEST(viewable_rules_report_one_range_each) {
+  Fixture fixture;
+  std::vector<std::string> keys = keysFor(100);
+  Container container;
+  std::vector<std::vector<std::size_t>> calls;
+  container.onViewableIndicesChangeCallback = [&](const std::vector<std::size_t>& ranges) { calls.push_back(ranges); };
+  FrameInput input = inputFor(keys, 0.0, fixture);
+  input.viewableRules = {ViewableRule{0.0, false}, ViewableRule{1.0, false}};
+  Virtualizer::update(container, input);
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+
+  FrameInput scrolled = inputFor(keys, 150.0, fixture);
+  scrolled.viewableRules = input.viewableRules;
+  Virtualizer::update(container, scrolled);
+  CHECK(!calls.empty());
+  const auto& ranges = calls.back();
+  CHECK_EQ(ranges.size(), static_cast<std::size_t>(4));
+  // Any overlap: row 1 (100 to 200) through row 9 (900 to 1000) for the viewport 150 to 990.
+  CHECK_EQ(ranges[0], static_cast<std::size_t>(1));
+  CHECK_EQ(ranges[1], static_cast<std::size_t>(9));
+  // Fully visible only: rows 2 through 8.
+  CHECK_EQ(ranges[2], static_cast<std::size_t>(2));
+  CHECK_EQ(ranges[3], static_cast<std::size_t>(8));
+
+  std::size_t before = calls.size();
+  Virtualizer::update(container, scrolled);
+  CHECK_EQ(calls.size(), before);
 }
 
 // Estimation
@@ -1307,7 +1364,7 @@ TEST(unmeasured_rows_track_the_current_fallback_size) {
 
   std::vector<std::string> keys = keysFor(500);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   // Nothing is measured yet. Every far row uses the estimate.
   for (std::size_t index = 200; index < 500; ++index) {
@@ -1316,15 +1373,15 @@ TEST(unmeasured_rows_track_the_current_fallback_size) {
 
   // Measure the first screen of rows much taller, and the average becomes the fallback.
   for (std::size_t index = 0; index < 20; ++index) {
-    Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, 400.0});
+    Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, 400.0});
   }
   /*
    * Two frames on purpose. Sizing runs before recomputeTotalSize fixes the average. The
    * new average only reaches unmeasured rows on the second frame.
    */
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   CHECK_NEAR(container.revision.averageElementHeight, 400.0, 0.001);
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   for (std::size_t index = 200; index < 500; ++index) {
     CHECK(!container.revision.elements[index].measured);
@@ -1336,7 +1393,7 @@ TEST(unmeasured_rows_track_the_current_fallback_size) {
   double totalBefore = container.revision.totalContainerHeight;
   double lastOffsetBefore = offsetOf(container, 499);
   for (int repeat = 0; repeat < 3; ++repeat) {
-    Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+    Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   }
   CHECK_NEAR(container.revision.totalContainerHeight, totalBefore, 0.001);
   CHECK_NEAR(offsetOf(container, 499), lastOffsetBefore, 0.001);
@@ -1346,15 +1403,15 @@ TEST(newly_inserted_rows_get_a_fallback_size_immediately) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(100);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 250.0));
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   std::vector<std::string> grown = keys;
   for (std::size_t index = 0; index < 50; ++index) {
     grown.push_back("new" + std::to_string(index));
   }
-  Virtualizer::update(&container, inputFor(grown, 0.0, fixture));
+  Virtualizer::update(container, inputFor(grown, 0.0, fixture));
 
   for (std::size_t index = 100; index < 150; ++index) {
     CHECK(sizeOf(container, index) > 0.0);
@@ -1369,7 +1426,7 @@ TEST(multi_column_rows_span_their_track) {
 
   std::vector<std::string> keys = keysFor(80);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   double trackSize = WINDOW_WIDTH / 4.0;
   for (std::size_t index = 0; index < keys.size(); ++index) {
@@ -1387,14 +1444,14 @@ TEST(empty_then_refilled_list_recovers) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(100);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
 
-  Virtualizer::update(&container, inputFor({}, 0.0, fixture));
+  Virtualizer::update(container, inputFor({}, 0.0, fixture));
   CHECK_EQ(container.getElementsSize(), static_cast<std::size_t>(0));
   CHECK_NEAR(container.revision.totalContainerHeight, 0.0, 0.001);
 
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   CHECK_EQ(container.getElementsSize(), static_cast<std::size_t>(100));
   checkNoRowLost(container, "after refill");
   checkGeometryContiguous(container, "after refill");
@@ -1409,7 +1466,7 @@ TEST(randomized_session_never_loses_a_row) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(250);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   std::uint64_t seed = 0x5DEECE66Dull;
   auto nextRandom = [&]() {
@@ -1434,7 +1491,7 @@ TEST(randomized_session_never_loses_a_row) {
         FrameInput input = inputFor(keys, offset, fixture);
         input.userScrolled = true;
         input.scrollPhase = ScrollPhase::Dragging;
-        Virtualizer::update(&container, input);
+        Virtualizer::update(container, input);
         windowFresh = true;
         break;
       }
@@ -1444,8 +1501,8 @@ TEST(randomized_session_never_loses_a_row) {
         }
         std::size_t index = nextRandom() % container.getElementsSize();
         double height = static_cast<double>(nextRandom() % 400);
-        Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, height});
-        Virtualizer::recomputeTotalSize(&container);
+        Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, height});
+        Virtualizer::recomputeTotalSize(container);
         windowFresh = false;
         break;
       }
@@ -1455,8 +1512,8 @@ TEST(randomized_session_never_loses_a_row) {
         for (std::size_t index = 0; index < 5; ++index) {
           inserted.push_back("fresh" + std::to_string(freshCounter++));
         }
-        keys.insert(keys.begin() + static_cast<long>(at), inserted.begin(), inserted.end());
-        Virtualizer::update(&container, inputFor(keys, offset, fixture));
+        keys.insert(keys.begin() + static_cast<std::ptrdiff_t>(at), inserted.begin(), inserted.end());
+        Virtualizer::update(container, inputFor(keys, offset, fixture));
         windowFresh = true;
         break;
       }
@@ -1465,8 +1522,8 @@ TEST(randomized_session_never_loses_a_row) {
           break;
         }
         std::size_t at = nextRandom() % (keys.size() - 10);
-        keys.erase(keys.begin() + static_cast<long>(at), keys.begin() + static_cast<long>(at) + 8);
-        Virtualizer::update(&container, inputFor(keys, offset, fixture));
+        keys.erase(keys.begin() + static_cast<std::ptrdiff_t>(at), keys.begin() + static_cast<std::ptrdiff_t>(at) + 8);
+        Virtualizer::update(container, inputFor(keys, offset, fixture));
         windowFresh = true;
         break;
       }
@@ -1477,9 +1534,9 @@ TEST(randomized_session_never_loses_a_row) {
         std::size_t from = nextRandom() % keys.size();
         std::size_t to = nextRandom() % keys.size();
         std::string moved = keys[from];
-        keys.erase(keys.begin() + static_cast<long>(from));
-        keys.insert(keys.begin() + static_cast<long>(std::min(to, keys.size())), moved);
-        Virtualizer::update(&container, inputFor(keys, offset, fixture));
+        keys.erase(keys.begin() + static_cast<std::ptrdiff_t>(from));
+        keys.insert(keys.begin() + static_cast<std::ptrdiff_t>(std::min(to, keys.size())), moved);
+        Virtualizer::update(container, inputFor(keys, offset, fixture));
         windowFresh = true;
         break;
       }
@@ -1506,17 +1563,17 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(200);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   for (int frame = 0; frame < 3; ++frame) {
-    Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+    Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   }
 
   // The fling reaches the top area and is still slowing down.
   FrameInput coasting = inputFor(keys, 37.0, fixture);
   coasting.userScrolled = true;
   coasting.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, coasting);
+  Virtualizer::update(container, coasting);
   CHECK_NEAR(container.revision.containerOffsetY, 37.0, 0.5);
 
   // Ten unmeasured rows are prepended, and both runs of the commit see the old report.
@@ -1528,10 +1585,10 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   FrameInput prepend = inputFor(grown, 37.0, fixture);
   prepend.userScrolled = true;
   prepend.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, prepend);
+  Virtualizer::update(container, prepend);
   CHECK_NEAR(container.revision.containerOffsetY, 37.0 + inserted, 1.0);
 
-  Virtualizer::update(&container, prepend);
+  Virtualizer::update(container, prepend);
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(container.revision.containerOffsetY, 37.0 + inserted, 1.0);
   CHECK(container.operation.has_value());
@@ -1540,7 +1597,7 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   FrameInput momentum = inputFor(grown, 21.0, fixture);
   momentum.userScrolled = true;
   momentum.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, momentum);
+  Virtualizer::update(container, momentum);
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(container.revision.containerOffsetY, 21.0 + inserted, 1.0);
   CHECK(container.operation.has_value());
@@ -1550,7 +1607,7 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   FrameInput echo = inputFor(grown, 21.0 + inserted, fixture);
   echo.scrollPhase = ScrollPhase::Settling;
   echo.commitToken = token;
-  Virtualizer::update(&container, echo);
+  Virtualizer::update(container, echo);
   CHECK(!container.containerOffsetCorrected);
   CHECK(!container.operation.has_value());
   CHECK_NEAR(container.revision.containerOffsetY, 21.0 + inserted, 1.0);
@@ -1559,7 +1616,7 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   FrameInput carryOn = inputFor(grown, 5.0 + inserted, fixture);
   carryOn.userScrolled = true;
   carryOn.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, carryOn);
+  Virtualizer::update(container, carryOn);
   CHECK(!container.containerOffsetCorrected);
   CHECK_NEAR(container.revision.containerOffsetY, 5.0 + inserted, 1.0);
 
@@ -1583,7 +1640,7 @@ TEST(inverted_list_at_the_bottom_follows_appended_rows) {
 
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture);
   CHECK_NEAR(bottom, container.revision.totalContainerHeight - WINDOW_HEIGHT, 1.0);
@@ -1595,10 +1652,10 @@ TEST(inverted_list_at_the_bottom_follows_appended_rows) {
 
   double offset = bottom;
   for (int frame = 0; frame < 8; ++frame) {
-    Virtualizer::update(&container, inputFor(grown, offset, fixture));
+    Virtualizer::update(container, inputFor(grown, offset, fixture));
     if (frame == 1) {
       for (std::size_t index = keys.size(); index < grown.size(); ++index) {
-        Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, 180.0});
+        Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, 180.0});
       }
     }
     offset = container.revision.containerOffsetY;
@@ -1620,7 +1677,7 @@ TEST(inverted_list_at_the_bottom_holds_appended_rows_by_default) {
 
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture);
 
@@ -1630,10 +1687,10 @@ TEST(inverted_list_at_the_bottom_holds_appended_rows_by_default) {
   }
   double offset = bottom;
   for (int frame = 0; frame < 8; ++frame) {
-    Virtualizer::update(&container, inputFor(grown, offset, fixture));
+    Virtualizer::update(container, inputFor(grown, offset, fixture));
     if (frame == 1) {
       for (std::size_t index = keys.size(); index < grown.size(); ++index) {
-        Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, 180.0});
+        Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, 180.0});
       }
     }
     offset = container.revision.containerOffsetY;
@@ -1653,7 +1710,7 @@ TEST(inverted_list_scrolled_up_holds_when_rows_are_appended) {
 
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture);
 
@@ -1661,14 +1718,14 @@ TEST(inverted_list_scrolled_up_holds_when_rows_are_appended) {
   FrameInput drag = inputFor(keys, parked, fixture);
   drag.userScrolled = true;
   drag.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, drag);
-  Virtualizer::update(&container, inputFor(keys, parked, fixture));
+  Virtualizer::update(container, drag);
+  Virtualizer::update(container, inputFor(keys, parked, fixture));
   CHECK(container.invertedBottomReleased);
 
   std::vector<std::string> grown = keys;
   grown.push_back("appended");
   for (int frame = 0; frame < 4; ++frame) {
-    Virtualizer::update(&container, inputFor(grown, parked, fixture));
+    Virtualizer::update(container, inputFor(grown, parked, fixture));
     CHECK_NEAR(container.revision.containerOffsetY, parked, 0.01);
   }
   CHECK(!container.pendingScrollToEnd);
@@ -1686,14 +1743,14 @@ TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
 
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double offset = settleAtBottom(container, keys, fixture);
 
   auto frame = [&](const std::vector<std::string>& frameKeys, double windowHeight) {
     FrameInput input = inputFor(frameKeys, offset, fixture);
     input.windowContainerHeight = windowHeight;
-    Virtualizer::update(&container, input);
+    Virtualizer::update(container, input);
     offset = container.revision.containerOffsetY;
   };
 
@@ -1702,7 +1759,7 @@ TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
   for (int settle = 0; settle < 6; ++settle) {
     frame(keys, WINDOW_HEIGHT);
     if (settle == 1) {
-      Virtualizer::updateElementAtIndex(&container, 0, {WINDOW_WIDTH, 100.0});
+      Virtualizer::updateElementAtIndex(container, 0, {WINDOW_WIDTH, 100.0});
     }
   }
   CHECK(!container.invertedOpeningPin);
@@ -1722,7 +1779,7 @@ TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
   for (int settle = 0; settle < 6; ++settle) {
     frame(grown, windowHeight);
     if (settle == 1) {
-      Virtualizer::updateElementAtIndex(&container, grown.size() - 1, {WINDOW_WIDTH, 100.0});
+      Virtualizer::updateElementAtIndex(container, grown.size() - 1, {WINDOW_WIDTH, 100.0});
     }
   }
   CHECK_NEAR(offset, container.revision.totalContainerHeight - windowHeight, 1.0);
@@ -1742,7 +1799,7 @@ TEST(inverted_list_scrolled_up_holds_when_the_viewport_resizes) {
 
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   double bottom = settleAtBottom(container, keys, fixture);
 
@@ -1750,13 +1807,13 @@ TEST(inverted_list_scrolled_up_holds_when_the_viewport_resizes) {
   FrameInput drag = inputFor(keys, parked, fixture);
   drag.userScrolled = true;
   drag.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, drag);
-  Virtualizer::update(&container, inputFor(keys, parked, fixture));
+  Virtualizer::update(container, drag);
+  Virtualizer::update(container, inputFor(keys, parked, fixture));
 
   for (int frame = 0; frame < 4; ++frame) {
     FrameInput input = inputFor(keys, parked, fixture);
     input.windowContainerHeight = WINDOW_HEIGHT - 66.0;
-    Virtualizer::update(&container, input);
+    Virtualizer::update(container, input);
     CHECK_NEAR(container.revision.containerOffsetY, parked, 0.01);
   }
   CHECK(!container.pendingScrollToEnd);
@@ -1771,15 +1828,15 @@ TEST(scroll_to_end_requested_during_momentum_lands_on_the_bottom) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(200);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   double maxOffset = container.revision.totalContainerHeight - WINDOW_HEIGHT;
 
   FrameInput coasting = inputFor(keys, 300.0, fixture);
   coasting.userScrolled = true;
   coasting.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, coasting);
+  Virtualizer::update(container, coasting);
 
   // The command arrives on top of the last momentum report.
   container.requestScrollToIndex(SCROLL_TO_END_INDEX, 1.0, -2);
@@ -1787,14 +1844,14 @@ TEST(scroll_to_end_requested_during_momentum_lands_on_the_bottom) {
   command.userScrolled = true;
   command.scrollPhase = ScrollPhase::Settling;
   command.containerOffsetEnabled = true;
-  Virtualizer::update(&container, command);
+  Virtualizer::update(container, command);
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(container.revision.containerOffsetY, maxOffset, 1.0);
 
   FrameInput momentum = inputFor(keys, 340.0, fixture);
   momentum.userScrolled = true;
   momentum.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, momentum);
+  Virtualizer::update(container, momentum);
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(container.revision.containerOffsetY, maxOffset, 1.0);
 
@@ -1802,8 +1859,8 @@ TEST(scroll_to_end_requested_during_momentum_lands_on_the_bottom) {
   CHECK(token != 0);
   FrameInput echo = inputFor(keys, maxOffset, fixture);
   echo.commitToken = token;
-  Virtualizer::update(&container, echo);
-  Virtualizer::update(&container, inputFor(keys, maxOffset, fixture));
+  Virtualizer::update(container, echo);
+  Virtualizer::update(container, inputFor(keys, maxOffset, fixture));
   CHECK(!container.operation.has_value());
   CHECK(!container.pendingScrollToEnd);
   CHECK_NEAR(container.revision.containerOffsetY, maxOffset, 1.0);
@@ -1813,30 +1870,30 @@ TEST(a_drag_cancels_a_scroll_command_but_momentum_does_not) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(200);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
   measureRows(container, std::vector<double>(keys.size(), 100.0));
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   container.requestScrollToIndex(120.0, 1.0, -2);
   FrameInput command = inputFor(keys, 500.0, fixture);
   command.userScrolled = true;
   command.scrollPhase = ScrollPhase::Settling;
   command.containerOffsetEnabled = true;
-  Virtualizer::update(&container, command);
+  Virtualizer::update(container, command);
   double target = offsetOf(container, 120);
   CHECK_NEAR(container.revision.containerOffsetY, target, 1.0);
 
   FrameInput momentum = inputFor(keys, 520.0, fixture);
   momentum.userScrolled = true;
   momentum.scrollPhase = ScrollPhase::Settling;
-  Virtualizer::update(&container, momentum);
+  Virtualizer::update(container, momentum);
   CHECK(container.operation.has_value());
   CHECK_NEAR(container.revision.containerOffsetY, target, 1.0);
 
   FrameInput drag = inputFor(keys, 540.0, fixture);
   drag.userScrolled = true;
   drag.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, drag);
+  Virtualizer::update(container, drag);
   CHECK(!container.operation.has_value());
   CHECK(!container.containerOffsetCorrected);
   CHECK_NEAR(container.revision.containerOffsetY, 540.0, 0.01);
@@ -1854,7 +1911,7 @@ double settleReportingClamped(
   const Fixture& fixture,
   double offset) {
   for (int frame = 0; frame < 8; ++frame) {
-    Virtualizer::update(&container, inputFor(keys, offset, fixture));
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
     double maxOffset = std::max(0.0, container.revision.totalContainerHeight - WINDOW_HEIGHT);
     offset = std::min(std::max(container.revision.containerOffsetY, 0.0), maxOffset);
   }
@@ -1909,8 +1966,8 @@ TEST(inverted_list_after_a_gesture_holds_the_viewport_top_row_through_a_remeasur
   FrameInput touch = inputFor(keys, bottom, fixture);
   touch.userScrolled = true;
   touch.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, touch);
-  Virtualizer::update(&container, inputFor(keys, bottom, fixture));
+  Virtualizer::update(container, touch);
+  Virtualizer::update(container, inputFor(keys, bottom, fixture));
 
   std::size_t anchorRow = static_cast<std::size_t>(bottom / ESTIMATED_ROW_HEIGHT);
   double anchorDelta = bottom - offsetOf(container, anchorRow);
@@ -1930,18 +1987,18 @@ TEST(first_measurement_of_a_straddling_anchor_row_keeps_the_rows_below_in_place)
   Fixture fixture;
   std::vector<std::string> keys = keysFor(40);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0, fixture));
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
   double straddling = 5 * ESTIMATED_ROW_HEIGHT + 100.0;
   FrameInput scroll = inputFor(keys, straddling, fixture);
   scroll.userScrolled = true;
   scroll.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(&container, scroll);
-  Virtualizer::update(&container, inputFor(keys, straddling, fixture));
+  Virtualizer::update(container, scroll);
+  Virtualizer::update(container, inputFor(keys, straddling, fixture));
   CHECK(!container.operation.has_value());
 
   double belowOnScreen = offsetOf(container, 6) - straddling;
-  Virtualizer::updateElementAtIndex(&container, 5, {WINDOW_WIDTH, 60.0});
+  Virtualizer::updateElementAtIndex(container, 5, {WINDOW_WIDTH, 60.0});
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(offsetOf(container, 6) - container.revision.containerOffsetY, belowOnScreen, 0.5);
 }
@@ -1990,10 +2047,10 @@ FrameInput publishedCorrection(const Container& container, const FrameInput& rep
  * A list resting at its top with every row measured.
  */
 void openAtTheTop(Container& container, const std::vector<std::string>& keys, const Fixture& fixture) {
-  Virtualizer::update(&container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Idle, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Idle, 0));
   measureRows(container, std::vector<double>(keys.size(), TOP_EDGE_ROW_HEIGHT));
   for (int frame = 0; frame < 3; ++frame) {
-    Virtualizer::update(&container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Idle, 0));
+    Virtualizer::update(container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Idle, 0));
   }
 }
 
@@ -2016,19 +2073,19 @@ double belowViewportTop(const Container& container, const std::string& key) {
  */
 void mountRows(Container& container, const std::vector<std::string>& keys, double height) {
   for (const std::string& key : keys) {
-    Virtualizer::updateElementAtIndex(&container, container.findElementIndexByKey(key), {WINDOW_WIDTH, 0.0});
+    Virtualizer::updateElementAtIndex(container, container.findElementIndexByKey(key), {WINDOW_WIDTH, 0.0});
   }
   std::size_t lowestChangedIndex = UNDEFINED_INDEX;
   for (const std::string& key : keys) {
     std::size_t index = container.findElementIndexByKey(key);
-    if (Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, height}) && index < lowestChangedIndex) {
+    if (Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, height}) && index < lowestChangedIndex) {
       lowestChangedIndex = index;
     }
   }
   if (lowestChangedIndex != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(&container, lowestChangedIndex);
+    Virtualizer::commitElementSizes(container, lowestChangedIndex);
   }
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::recomputeTotalSize(container);
 }
 
 std::vector<std::string> keyRange(const std::vector<std::string>& keys, std::size_t from, std::size_t to) {
@@ -2050,36 +2107,36 @@ TEST(prepend_while_bouncing_at_the_top_edge_survives_its_own_offset_write) {
   openAtTheTop(container, keys, fixture);
 
   for (double offset : {40.0, 0.0, -12.0}) {
-    Virtualizer::update(&container, topEdgeReport(keys, offset, fixture, ScrollPhase::Settling, 0));
+    Virtualizer::update(container, topEdgeReport(keys, offset, fixture, ScrollPhase::Settling, 0));
   }
   double firstRowBelowTop = belowViewportTop(container, "k0");
   CHECK_NEAR(firstRowBelowTop, TOP_EDGE_HEADER + 12.0, 0.5);
 
   std::vector<std::string> grown = prependedTo(keys, "fresh");
   FrameInput prepend = topEdgeReport(grown, -12.0, fixture, ScrollPhase::Settling, 0);
-  Virtualizer::update(&container, prepend);
-  Virtualizer::update(&container, prepend);
+  Virtualizer::update(container, prepend);
+  Virtualizer::update(container, prepend);
   CHECK(container.operation.has_value());
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   std::uint64_t token = container.operation ? container.operation->id : 0;
 
-  Virtualizer::update(&container, publishedCorrection(container, prepend));
+  Virtualizer::update(container, publishedCorrection(container, prepend));
   CHECK(container.operation.has_value());
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
 
   // The bounce moves the view 12 pixels down to the edge before the host applies the offset.
   FrameInput spring = topEdgeReport(grown, 0.0, fixture, ScrollPhase::Settling, 0);
-  Virtualizer::update(&container, spring);
+  Virtualizer::update(container, spring);
   CHECK(container.operation.has_value());
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop - 12.0, 0.5);
-  Virtualizer::update(&container, publishedCorrection(container, spring));
+  Virtualizer::update(container, publishedCorrection(container, spring));
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
 
   double applied = container.revision.containerOffsetY;
-  Virtualizer::update(&container, topEdgeReport(grown, applied, fixture, ScrollPhase::Settling, token));
+  Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Settling, token));
   CHECK(!container.operation.has_value());
-  Virtualizer::update(&container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
   CHECK(!container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
   checkNoRowLost(container, "prepend while bouncing at the top edge");
@@ -2097,35 +2154,35 @@ TEST(prepend_while_bouncing_holds_while_the_new_rows_measure_unlike_their_estima
   Container container;
   openAtTheTop(container, keys, fixture);
 
-  Virtualizer::update(&container, topEdgeReport(keys, 30.0, fixture, ScrollPhase::Settling, 0));
-  Virtualizer::update(&container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Settling, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 30.0, fixture, ScrollPhase::Settling, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Settling, 0));
   double firstRowBelowTop = belowViewportTop(container, "k0");
 
   std::vector<std::string> grown = prependedTo(keys, "fresh");
   std::vector<std::string> fresh = keysFor(10, "fresh");
   FrameInput prepend = topEdgeReport(grown, 0.0, fixture, ScrollPhase::Settling, 0);
-  Virtualizer::update(&container, prepend);
-  Virtualizer::update(&container, prepend);
+  Virtualizer::update(container, prepend);
+  Virtualizer::update(container, prepend);
   std::uint64_t token = container.operation ? container.operation->id : 0;
   CHECK(token != 0);
-  Virtualizer::update(&container, publishedCorrection(container, prepend));
+  Virtualizer::update(container, publishedCorrection(container, prepend));
 
   mountRows(container, keyRange(fresh, 0, 5), 160.0);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
-  Virtualizer::update(&container, publishedCorrection(container, prepend));
+  Virtualizer::update(container, publishedCorrection(container, prepend));
   CHECK(container.operation.has_value());
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
 
   double applied = container.revision.containerOffsetY;
-  Virtualizer::update(&container, topEdgeReport(grown, applied, fixture, ScrollPhase::Settling, token));
+  Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Settling, token));
   CHECK(!container.operation.has_value());
 
   mountRows(container, keyRange(fresh, 5, 10), 60.0);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
-  Virtualizer::update(&container, publishedCorrection(container, prepend));
+  Virtualizer::update(container, publishedCorrection(container, prepend));
   double rest = container.revision.containerOffsetY;
-  Virtualizer::update(&container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
-  Virtualizer::update(&container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
   CHECK(!container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   checkNoRowLost(container, "prepend while bouncing with remeasured rows");
@@ -2141,37 +2198,37 @@ TEST(two_prepends_in_quick_succession_while_bouncing_hold_the_first_row) {
   Container container;
   openAtTheTop(container, keys, fixture);
 
-  Virtualizer::update(&container, topEdgeReport(keys, 40.0, fixture, ScrollPhase::Settling, 0));
-  Virtualizer::update(&container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Settling, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 40.0, fixture, ScrollPhase::Settling, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 0.0, fixture, ScrollPhase::Settling, 0));
   double firstRowBelowTop = belowViewportTop(container, "k0");
 
   std::vector<std::string> first = prependedTo(keys, "fresh");
   FrameInput firstPrepend = topEdgeReport(first, 0.0, fixture, ScrollPhase::Settling, 0);
-  Virtualizer::update(&container, firstPrepend);
-  Virtualizer::update(&container, firstPrepend);
+  Virtualizer::update(container, firstPrepend);
+  Virtualizer::update(container, firstPrepend);
   std::uint64_t token = container.operation ? container.operation->id : 0;
   CHECK(token != 0);
-  Virtualizer::update(&container, publishedCorrection(container, firstPrepend));
+  Virtualizer::update(container, publishedCorrection(container, firstPrepend));
 
   std::vector<std::string> second = prependedTo(first, "older");
   FrameInput secondPrepend = topEdgeReport(second, 0.0, fixture, ScrollPhase::Settling, 0);
-  Virtualizer::update(&container, secondPrepend);
-  Virtualizer::update(&container, secondPrepend);
+  Virtualizer::update(container, secondPrepend);
+  Virtualizer::update(container, secondPrepend);
   CHECK(container.operation.has_value());
   CHECK(container.operation && container.operation->id == token);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
-  Virtualizer::update(&container, publishedCorrection(container, secondPrepend));
+  Virtualizer::update(container, publishedCorrection(container, secondPrepend));
 
   mountRows(container, keysFor(10, "older"), 140.0);
   mountRows(container, keysFor(10, "fresh"), 90.0);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
-  Virtualizer::update(&container, publishedCorrection(container, secondPrepend));
+  Virtualizer::update(container, publishedCorrection(container, secondPrepend));
   CHECK(container.operation.has_value());
 
   double applied = container.revision.containerOffsetY;
-  Virtualizer::update(&container, topEdgeReport(second, applied, fixture, ScrollPhase::Settling, token));
+  Virtualizer::update(container, topEdgeReport(second, applied, fixture, ScrollPhase::Settling, token));
   CHECK(!container.operation.has_value());
-  Virtualizer::update(&container, topEdgeReport(second, applied, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(second, applied, fixture, ScrollPhase::Idle, token));
   CHECK(!container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   checkNoRowLost(container, "two prepends in quick succession while bouncing");
@@ -2189,32 +2246,32 @@ TEST(prepend_whose_bounce_ends_before_the_correction_lands_is_confirmed_by_its_e
   Container container;
   openAtTheTop(container, keys, fixture);
 
-  Virtualizer::update(&container, topEdgeReport(keys, 40.0, fixture, ScrollPhase::Settling, 0));
-  Virtualizer::update(&container, topEdgeReport(keys, 16.0, fixture, ScrollPhase::Settling, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 40.0, fixture, ScrollPhase::Settling, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 16.0, fixture, ScrollPhase::Settling, 0));
 
   std::vector<std::string> grown = prependedTo(keys, "fresh");
   FrameInput prepend = topEdgeReport(grown, 16.0, fixture, ScrollPhase::Settling, 0);
-  Virtualizer::update(&container, prepend);
-  Virtualizer::update(&container, prepend);
+  Virtualizer::update(container, prepend);
+  Virtualizer::update(container, prepend);
   std::uint64_t token = container.operation ? container.operation->id : 0;
   CHECK(token != 0);
   double firstTarget = container.revision.containerOffsetY;
-  Virtualizer::update(&container, publishedCorrection(container, prepend));
+  Virtualizer::update(container, publishedCorrection(container, prepend));
 
   mountRows(container, keysFor(10, "fresh"), 150.0);
-  Virtualizer::update(&container, publishedCorrection(container, prepend));
+  Virtualizer::update(container, publishedCorrection(container, prepend));
   double retarget = container.revision.containerOffsetY;
 
   // The host came to rest at the edge, 16 pixels past the report, and shifted by the correction.
   double echoed = 0.0 + (firstTarget - 16.0);
-  Virtualizer::update(&container, topEdgeReport(grown, echoed, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, echoed, fixture, ScrollPhase::Idle, token));
   CHECK(!container.operation.has_value());
   CHECK(!container.containerOffsetCorrected);
 
   // The updated target applies next and moves the view by the difference.
   double rest = echoed + (retarget - firstTarget);
-  Virtualizer::update(&container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
-  Virtualizer::update(&container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
   CHECK(!container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
   checkNoRowLost(container, "prepend whose bounce ends before the correction lands");
@@ -2231,27 +2288,27 @@ TEST(prepend_while_bouncing_follows_the_idle_report_of_the_bounce_ending) {
   Container container;
   openAtTheTop(container, keys, fixture);
 
-  Virtualizer::update(&container, topEdgeReport(keys, 50.0, fixture, ScrollPhase::Settling, 0));
-  Virtualizer::update(&container, topEdgeReport(keys, 24.0, fixture, ScrollPhase::Settling, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 50.0, fixture, ScrollPhase::Settling, 0));
+  Virtualizer::update(container, topEdgeReport(keys, 24.0, fixture, ScrollPhase::Settling, 0));
 
   std::vector<std::string> grown = prependedTo(keys, "fresh");
   FrameInput prepend = topEdgeReport(grown, 24.0, fixture, ScrollPhase::Settling, 0);
-  Virtualizer::update(&container, prepend);
-  Virtualizer::update(&container, prepend);
+  Virtualizer::update(container, prepend);
+  Virtualizer::update(container, prepend);
   std::uint64_t token = container.operation ? container.operation->id : 0;
   CHECK(token != 0);
-  Virtualizer::update(&container, publishedCorrection(container, prepend));
+  Virtualizer::update(container, publishedCorrection(container, prepend));
 
   FrameInput rested = topEdgeReport(grown, 0.0, fixture, ScrollPhase::Idle, 0);
-  Virtualizer::update(&container, rested);
+  Virtualizer::update(container, rested);
   CHECK(container.operation.has_value());
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
 
   double applied = container.revision.containerOffsetY;
-  Virtualizer::update(&container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
   CHECK(!container.operation.has_value());
-  Virtualizer::update(&container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
   CHECK(!container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
   checkNoRowLost(container, "prepend while bouncing with the bounce ending reported idle");
@@ -2271,31 +2328,31 @@ TEST(prepend_after_a_pull_to_refresh_keeps_its_retarget_through_the_echo_of_the_
 
   FrameInput released = topEdgeReport(keys, 0.0, fixture, ScrollPhase::Idle, 0);
   released.userScrolled = true;
-  Virtualizer::update(&container, released);
+  Virtualizer::update(container, released);
   double firstRowBelowTop = belowViewportTop(container, "k0");
 
   std::vector<std::string> grown = prependedTo(keys, "fresh");
   FrameInput refresh = topEdgeReport(grown, 0.0, fixture, ScrollPhase::Idle, 0);
   refresh.userScrolled = true;
-  Virtualizer::update(&container, refresh);
-  Virtualizer::update(&container, refresh);
+  Virtualizer::update(container, refresh);
+  Virtualizer::update(container, refresh);
   std::uint64_t token = container.operation ? container.operation->id : 0;
   CHECK(token != 0);
   double firstTarget = container.revision.containerOffsetY;
-  Virtualizer::update(&container, publishedCorrection(container, refresh));
+  Virtualizer::update(container, publishedCorrection(container, refresh));
 
   mountRows(container, keysFor(10, "fresh"), 60.0);
-  Virtualizer::update(&container, publishedCorrection(container, refresh));
+  Virtualizer::update(container, publishedCorrection(container, refresh));
   double retarget = container.revision.containerOffsetY;
   CHECK(std::fabs(retarget - firstTarget) > 100.0);
 
-  Virtualizer::update(&container, topEdgeReport(grown, firstTarget, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, firstTarget, fixture, ScrollPhase::Idle, token));
   CHECK(container.operation.has_value());
   CHECK(container.containerOffsetCorrected);
   CHECK_NEAR(container.revision.containerOffsetY, retarget, 0.5);
 
-  Virtualizer::update(&container, topEdgeReport(grown, retarget, fixture, ScrollPhase::Idle, token));
-  Virtualizer::update(&container, topEdgeReport(grown, retarget, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, retarget, fixture, ScrollPhase::Idle, token));
+  Virtualizer::update(container, topEdgeReport(grown, retarget, fixture, ScrollPhase::Idle, token));
   CHECK(!container.operation.has_value());
   CHECK(!container.containerOffsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);

@@ -1,4 +1,5 @@
 #include <shadowlist-core/host/ListLayout.hpp>
+
 #include <shadowlist-core/Virtualizer.hpp>
 
 #include <type_traits>
@@ -22,21 +23,41 @@ bool applyLayoutInputs(Container& core, double headerSize, double footerSize, do
   core.revision.windowContainerWidth = windowWidth;
   core.revision.windowContainerHeight = windowHeight;
   if (rowsMove) {
-    Virtualizer::recomputeElementOffsets(&core, 0);
+    Virtualizer::recomputeElementOffsets(core, 0);
   }
   // The core's frame ran with the previous header size. Settle the change now.
-  Virtualizer::applyHeaderSizeChange(&core, previousHeaderSize);
+  Virtualizer::applyHeaderSizeChange(core, previousHeaderSize);
   // A chat resting at its bottom keeps it as the composer resizes the list.
-  Virtualizer::applyWindowSizeChange(&core, previousWindowSize);
+  Virtualizer::applyWindowSizeChange(core, previousWindowSize);
   // While the user is scrolled this just writes the current offset again.
   core.containerOffsetCorrected = true;
   return true;
 }
 
-void applyMeasuredRows(Container& core, const std::vector<MeasuredRow>& rows, bool horizontal,
+bool SizeBatch::apply(Container& core, std::size_t elementIndex, Size size) {
+  bool changed = Virtualizer::applyElementSize(core, elementIndex, size);
+  if (changed && elementIndex < lowestChangedIndex_) {
+    lowestChangedIndex_ = elementIndex;
+  }
+  return changed;
+}
+
+bool SizeBatch::commit(Container& core) {
+  bool changed = lowestChangedIndex_ != UNDEFINED_INDEX;
+  if (changed) {
+    Virtualizer::commitElementSizes(core, lowestChangedIndex_);
+  }
+  Virtualizer::recomputeTotalSize(core);
+  lowestChangedIndex_ = UNDEFINED_INDEX;
+  return changed;
+}
+
+void applyMeasuredRows(
+  Container& core,
+  const std::vector<MeasuredRow>& rows,
+  bool horizontal,
   std::vector<std::uint64_t>& firstMeasured) {
-  // One reflow per layout from the lowest changed row, not one per row.
-  std::size_t lowestChangedIndex = UNDEFINED_INDEX;
+  SizeBatch batch;
   for (const MeasuredRow& row : rows) {
     const Element& element = core.getElementAtIndex(row.elementIndex);
     Size size{row.width, row.height};
@@ -47,20 +68,12 @@ void applyMeasuredRows(Container& core, const std::vector<MeasuredRow>& rows, bo
         size.width = element.width;
       }
     }
-    bool firstMeasurement = !element.measured;
-    bool changed = Virtualizer::applyElementSize(&core, row.elementIndex, size);
-    if (firstMeasurement) {
+    if (!element.measured) {
       firstMeasured.push_back(row.id);
     }
-    if (changed && row.elementIndex < lowestChangedIndex) {
-      lowestChangedIndex = row.elementIndex;
-    }
+    batch.apply(core, row.elementIndex, size);
   }
-  if (lowestChangedIndex != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(&core, lowestChangedIndex);
-  }
-  // The footer and content size need the total.
-  Virtualizer::recomputeTotalSize(&core);
+  batch.commit(core);
 }
 
 RowFrame rowFrame(const Container& core, std::size_t elementIndex, bool horizontal) {

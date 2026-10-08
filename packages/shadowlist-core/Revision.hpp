@@ -1,14 +1,15 @@
 #pragma once
 
-#include <string>
-#include <unordered_map>
-#include <vector>
 #include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/Element.hpp>
 
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 namespace azimgd::shadowlist {
 
-class Revision {
+class Revision final {
 public:
   std::vector<Element> elements;
 
@@ -27,21 +28,27 @@ public:
   std::size_t indexBias = 0;
 
   /*
+   * Whether two rows share a key. The map then holds only the first, and removing rows
+   * needs the full rebuild to find which copy takes over.
+   */
+  bool hasDuplicateKeys = false;
+
+  /*
    * Look up a key's row index, or UNDEFINED_INDEX when the key is missing.
    */
   std::size_t indexForKey(const std::string& key) const {
-    auto entry = this->elementIndexByKey.find(key);
-    if (entry == this->elementIndexByKey.end()) {
+    auto entry = elementIndexByKey.find(key);
+    if (entry == elementIndexByKey.end()) {
       return UNDEFINED_INDEX;
     }
-    return entry->second - this->indexBias;
+    return entry->second - indexBias;
   }
 
   /*
    * Store the key's index unless the key is already there. Returns true if it was new.
    */
   bool setIndexForKey(const std::string& key, std::size_t index) {
-    return this->elementIndexByKey.emplace(key, index + this->indexBias).second;
+    return elementIndexByKey.emplace(key, index + indexBias).second;
   }
 
   double containerOffsetX = 0.0;

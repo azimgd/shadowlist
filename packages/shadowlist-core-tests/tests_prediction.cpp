@@ -57,7 +57,7 @@ std::size_t measureBatch(
   std::size_t changedCount = 0;
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = low; index <= high && index < container.revision.elements.size(); ++index) {
-    if (Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, heights[index]})) {
+    if (Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, heights[index]})) {
       changedCount++;
       if (index < lowestChanged) {
         lowestChanged = index;
@@ -65,7 +65,7 @@ std::size_t measureBatch(
     }
   }
   if (lowestChanged != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(&container, lowestChanged);
+    Virtualizer::commitElementSizes(container, lowestChanged);
   }
   return changedCount;
 }
@@ -94,11 +94,11 @@ TEST(exact_predictions_eliminate_measurement_reflow) {
 
   Container predicted;
   predictAll(predicted, keys, heights);
-  Virtualizer::update(&predicted, inputFor(keys, 0.0));
+  Virtualizer::update(predicted, inputFor(keys, 0.0));
   std::size_t predictedChanges = measureBatch(predicted, heights, 0, keys.size() - 1);
 
   Container blind;
-  Virtualizer::update(&blind, inputFor(keys, 0.0));
+  Virtualizer::update(blind, inputFor(keys, 0.0));
   std::size_t blindChanges = measureBatch(blind, heights, 0, keys.size() - 1);
 
   CHECK_EQ(predictedChanges, static_cast<std::size_t>(0));
@@ -112,13 +112,13 @@ TEST(predicted_geometry_matches_fully_measured_geometry) {
 
   Container predicted;
   predictAll(predicted, keys, heights);
-  Virtualizer::update(&predicted, inputFor(keys, 0.0));
-  Virtualizer::recomputeTotalSize(&predicted);
+  Virtualizer::update(predicted, inputFor(keys, 0.0));
+  Virtualizer::recomputeTotalSize(predicted);
 
   Container measured;
-  Virtualizer::update(&measured, inputFor(keys, 0.0));
+  Virtualizer::update(measured, inputFor(keys, 0.0));
   measureBatch(measured, heights, 0, keys.size() - 1);
-  Virtualizer::recomputeTotalSize(&measured);
+  Virtualizer::recomputeTotalSize(measured);
 
   checkOffsetsAreExactPrefixSums(predicted, heights, "predicted");
   checkOffsetsAreExactPrefixSums(measured, heights, "measured");
@@ -140,8 +140,8 @@ TEST(total_size_is_exact_before_anything_is_measured) {
 
   Container container;
   predictAll(container, keys, heights);
-  Virtualizer::update(&container, inputFor(keys, 0.0));
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  Virtualizer::recomputeTotalSize(container);
 
   for (const Element& element : container.revision.elements) {
     CHECK(!element.measured);
@@ -157,7 +157,7 @@ TEST(a_prediction_staged_early_lands_when_its_row_arrives) {
   container.setPredictedSize("k7", {WINDOW_WIDTH, 777.0});
   CHECK_EQ(container.predictedSizes.size(), static_cast<std::size_t>(1));
 
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   std::size_t index = container.findElementIndexByKey("k7");
   CHECK_NEAR(container.revision.elements[index].height, 777.0, 0.001);
@@ -170,13 +170,13 @@ TEST(a_prediction_staged_early_lands_when_its_row_arrives) {
 TEST(a_prediction_for_a_live_row_reflows_the_rows_after_it) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   double offsetBefore = container.revision.elements[20].offsetY;
 
-  std::size_t reflowFrom = Virtualizer::applyPredictedElementSize(&container, "k5", {WINDOW_WIDTH, 500.0});
+  std::size_t reflowFrom = Virtualizer::applyPredictedElementSize(container, "k5", {WINDOW_WIDTH, 500.0});
   CHECK_EQ(reflowFrom, static_cast<std::size_t>(5));
-  Virtualizer::commitElementSizes(&container, reflowFrom);
+  Virtualizer::commitElementSizes(container, reflowFrom);
 
   CHECK_NEAR(container.revision.elements[5].height, 500.0, 0.001);
   CHECK_NEAR(container.revision.elements[20].offsetY, offsetBefore + (500.0 - ESTIMATED_ROW_HEIGHT), 0.001);
@@ -189,11 +189,11 @@ TEST(a_prediction_for_a_live_row_reflows_the_rows_after_it) {
 TEST(a_redundant_prediction_reflows_nothing) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
-  Virtualizer::applyPredictedElementSize(&container, "k5", {WINDOW_WIDTH, 500.0});
+  Virtualizer::applyPredictedElementSize(container, "k5", {WINDOW_WIDTH, 500.0});
   CHECK_EQ(
-    Virtualizer::applyPredictedElementSize(&container, "k5", {WINDOW_WIDTH, 500.0}),
+    Virtualizer::applyPredictedElementSize(container, "k5", {WINDOW_WIDTH, 500.0}),
     UNDEFINED_INDEX);
 }
 
@@ -205,10 +205,10 @@ TEST(a_real_measurement_supersedes_a_prediction) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
   predictAll(container, keys, std::vector<double>(keys.size(), 200.0));
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   CHECK(container.revision.elements[5].predicted);
-  Virtualizer::updateElementAtIndex(&container, 5, {WINDOW_WIDTH, 333.0});
+  Virtualizer::updateElementAtIndex(container, 5, {WINDOW_WIDTH, 333.0});
 
   CHECK_NEAR(container.revision.elements[5].height, 333.0, 0.001);
   CHECK(container.revision.elements[5].measured);
@@ -218,16 +218,16 @@ TEST(a_real_measurement_supersedes_a_prediction) {
 TEST(a_late_prediction_never_overwrites_a_measurement) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
-  Virtualizer::updateElementAtIndex(&container, 5, {WINDOW_WIDTH, 333.0});
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  Virtualizer::updateElementAtIndex(container, 5, {WINDOW_WIDTH, 333.0});
 
   CHECK_EQ(
-    Virtualizer::applyPredictedElementSize(&container, "k5", {WINDOW_WIDTH, 999.0}),
+    Virtualizer::applyPredictedElementSize(container, "k5", {WINDOW_WIDTH, 999.0}),
     UNDEFINED_INDEX);
   CHECK_NEAR(container.revision.elements[5].height, 333.0, 0.001);
 
   // It must not be queued either, or it would overwrite the real size on the next update.
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
   CHECK_NEAR(container.revision.elements[5].height, 333.0, 0.001);
 }
 
@@ -239,8 +239,8 @@ TEST(predictions_stay_out_of_the_frozen_average) {
   std::vector<std::string> keys = keysFor(200);
   Container container;
   predictAll(container, keys, std::vector<double>(keys.size(), 500.0));
-  Virtualizer::update(&container, inputFor(keys, 0.0));
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  Virtualizer::recomputeTotalSize(container);
 
   CHECK_EQ(container.revision.measuredRealCount, static_cast<std::size_t>(0));
   CHECK_NEAR(container.revision.averageElementHeight, 0.0, 0.001);
@@ -248,7 +248,7 @@ TEST(predictions_stay_out_of_the_frozen_average) {
   // A new unpredicted row gets the estimate, not 500.
   std::vector<std::string> grown = keys;
   grown.push_back("fresh");
-  Virtualizer::update(&container, inputFor(grown, 0.0));
+  Virtualizer::update(container, inputFor(grown, 0.0));
 
   std::size_t freshIndex = container.findElementIndexByKey("fresh");
   CHECK_NEAR(container.revision.elements[freshIndex].height, ESTIMATED_ROW_HEIGHT, 0.001);
@@ -260,8 +260,8 @@ TEST(only_predicted_or_measured_rows_carry_trusted_geometry) {
   std::vector<std::string> keys = keysFor(30);
   Container container;
   container.setPredictedSize("k1", {WINDOW_WIDTH, 200.0});
-  Virtualizer::update(&container, inputFor(keys, 0.0));
-  Virtualizer::updateElementAtIndex(&container, 2, {WINDOW_WIDTH, 200.0});
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  Virtualizer::updateElementAtIndex(container, 2, {WINDOW_WIDTH, 200.0});
 
   CHECK(container.hasTrustedSize(1));   // predicted
   CHECK(container.hasTrustedSize(2));   // measured
@@ -284,9 +284,9 @@ TEST(scroll_to_index_lands_immediately_on_a_cold_predicted_list) {
 
   Container container;
   predictAll(container, keys, heights);
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
   container.scrollToIndex(321);
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   CHECK_NEAR(container.revision.containerOffsetY, expectedOffset, 1.0);
 }
@@ -301,7 +301,7 @@ TEST(predictions_survive_a_prepend) {
 
   Container container;
   predictAll(container, keys, heights);
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   std::vector<std::string> prepended;
   std::vector<double> prependedHeights;
@@ -313,7 +313,7 @@ TEST(predictions_survive_a_prepend) {
   prepended.insert(prepended.end(), keys.begin(), keys.end());
   prependedHeights.insert(prependedHeights.end(), heights.begin(), heights.end());
 
-  Virtualizer::update(&container, inputFor(prepended, container.revision.containerOffsetY));
+  Virtualizer::update(container, inputFor(prepended, container.revision.containerOffsetY));
 
   checkOffsetsAreExactPrefixSums(container, prependedHeights, "after prepend");
   for (const Element& element : container.revision.elements) {
@@ -333,7 +333,7 @@ TEST(predicted_and_unpredicted_rows_coexist) {
   for (std::size_t index = 0; index < keys.size(); index += 2) {
     container.setPredictedSize(keys[index], {WINDOW_WIDTH, heights[index]});
   }
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   std::vector<double> expected;
   expected.reserve(keys.size());
@@ -345,7 +345,7 @@ TEST(predicted_and_unpredicted_rows_coexist) {
   // Only the odd, unpredicted rows report a change when measured.
   std::size_t changed = 0;
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    if (Virtualizer::applyElementSize(&container, index, {WINDOW_WIDTH, heights[index]})) {
+    if (Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, heights[index]})) {
       changed++;
       CHECK(index % 2 == 1);
     }
@@ -360,13 +360,13 @@ TEST(predicted_and_unpredicted_rows_coexist) {
 TEST(a_prediction_staged_on_a_settled_list_lands_on_the_next_frame) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   double offsetBefore = container.revision.elements[40].offsetY;
 
   // Same keys. The data is not reconciled in this frame.
   container.setPredictedSize("k3", {WINDOW_WIDTH, 400.0});
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   CHECK_NEAR(container.revision.elements[3].height, 400.0, 0.001);
   CHECK(container.revision.elements[3].predicted);
@@ -378,12 +378,12 @@ TEST(a_prediction_staged_on_a_settled_list_lands_on_the_next_frame) {
 TEST(a_prediction_lands_even_when_the_keys_shortcut_is_engaged) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   container.setPredictedSize("k3", {WINDOW_WIDTH, 400.0});
   FrameInput scrollFrame = inputFor(keys, 0.0);
   scrollFrame.keysUnchanged = true;
-  Virtualizer::update(&container, scrollFrame);
+  Virtualizer::update(container, scrollFrame);
 
   CHECK_NEAR(container.revision.elements[3].height, 400.0, 0.001);
   CHECK(container.revision.elements[3].predicted);
@@ -397,12 +397,12 @@ TEST(invalidating_predictions_returns_rows_to_the_estimate) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
   predictAll(container, keys, std::vector<double>(keys.size(), 400.0));
-  Virtualizer::update(&container, inputFor(keys, 0.0));
-  Virtualizer::updateElementAtIndex(&container, 2, {WINDOW_WIDTH, 333.0});
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  Virtualizer::updateElementAtIndex(container, 2, {WINDOW_WIDTH, 333.0});
 
   container.setPredictedSize("k59", {WINDOW_WIDTH, 400.0});
-  Virtualizer::invalidatePredictions(&container);
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::invalidatePredictions(container);
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   CHECK_EQ(container.predictedSizes.size(), static_cast<std::size_t>(0));
   CHECK_NEAR(container.revision.elements[0].height, ESTIMATED_ROW_HEIGHT, 0.001);
@@ -428,7 +428,7 @@ TEST(appending_preserves_every_surviving_row) {
   std::vector<double> heights = trueHeightsFor(keys.size());
 
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
   measureBatch(container, heights, 0, keys.size() - 1);
 
   std::vector<double> before;
@@ -440,7 +440,7 @@ TEST(appending_preserves_every_surviving_row) {
   for (std::size_t index = 0; index < 30; ++index) {
     grown.push_back("appended" + std::to_string(index));
   }
-  Virtualizer::update(&container, inputFor(grown, 0.0));
+  Virtualizer::update(container, inputFor(grown, 0.0));
 
   CHECK_EQ(container.revision.elements.size(), grown.size());
   for (std::size_t index = 0; index < keys.size(); ++index) {
@@ -475,16 +475,16 @@ TEST(in_place_append_matches_a_full_rebuild) {
 
   // Appended later, which takes the in place path.
   Container appended;
-  Virtualizer::update(&appended, inputFor(keys, 0.0));
+  Virtualizer::update(appended, inputFor(keys, 0.0));
   measureBatch(appended, heights, 0, keys.size() - 1);
-  Virtualizer::update(&appended, inputFor(grown, 0.0));
-  Virtualizer::recomputeTotalSize(&appended);
+  Virtualizer::update(appended, inputFor(grown, 0.0));
+  Virtualizer::recomputeTotalSize(appended);
 
   // Built with all the keys from the start, with no append.
   Container wholesale;
-  Virtualizer::update(&wholesale, inputFor(grown, 0.0));
+  Virtualizer::update(wholesale, inputFor(grown, 0.0));
   measureBatch(wholesale, heights, 0, keys.size() - 1);
-  Virtualizer::recomputeTotalSize(&wholesale);
+  Virtualizer::recomputeTotalSize(wholesale);
 
   CHECK_EQ(appended.revision.elements.size(), wholesale.revision.elements.size());
   for (std::size_t index = 0; index < grown.size(); ++index) {
@@ -507,11 +507,11 @@ TEST(in_place_append_matches_a_full_rebuild) {
 TEST(appending_a_duplicate_key_keeps_the_first_occurrence) {
   std::vector<std::string> keys = keysFor(20);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   std::vector<std::string> grown = keys;
   grown.push_back("k3");
-  Virtualizer::update(&container, inputFor(grown, 0.0));
+  Virtualizer::update(container, inputFor(grown, 0.0));
 
   CHECK_EQ(container.revision.elements.size(), grown.size());
   CHECK_EQ(container.findElementIndexByKey("k3"), static_cast<std::size_t>(3));
@@ -522,12 +522,12 @@ TEST(appending_a_duplicate_key_keeps_the_first_occurrence) {
 TEST(append_fast_path_declines_non_append_shapes) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   // A prepend is longer, but the start does not match.
   std::vector<std::string> prepended = {"new0", "new1"};
   prepended.insert(prepended.end(), keys.begin(), keys.end());
-  Virtualizer::update(&container, inputFor(prepended, 0.0));
+  Virtualizer::update(container, inputFor(prepended, 0.0));
   CHECK_EQ(container.revision.elements[0].key, std::string("new0"));
   CHECK_EQ(container.findElementIndexByKey("k0"), static_cast<std::size_t>(2));
   for (std::size_t index = 0; index < prepended.size(); ++index) {
@@ -536,7 +536,7 @@ TEST(append_fast_path_declines_non_append_shapes) {
 
   // A removal is shorter.
   std::vector<std::string> shrunk(keys.begin(), keys.begin() + 10);
-  Virtualizer::update(&container, inputFor(shrunk, 0.0));
+  Virtualizer::update(container, inputFor(shrunk, 0.0));
   CHECK_EQ(container.revision.elements.size(), static_cast<std::size_t>(10));
   CHECK_EQ(container.findElementIndexByKey("k9"), static_cast<std::size_t>(9));
   CHECK_EQ(container.findElementIndexByKey("new0"), UNDEFINED_INDEX);
@@ -551,7 +551,7 @@ TEST(prepending_preserves_every_surviving_row) {
   std::vector<double> heights = trueHeightsFor(keys.size());
 
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
   measureBatch(container, heights, 0, keys.size() - 1);
 
   const std::size_t prependCount = 40;
@@ -561,7 +561,7 @@ TEST(prepending_preserves_every_surviving_row) {
   }
   prepended.insert(prepended.end(), keys.begin(), keys.end());
 
-  Virtualizer::update(&container, inputFor(prepended, 0.0));
+  Virtualizer::update(container, inputFor(prepended, 0.0));
 
   CHECK_EQ(container.revision.elements.size(), prepended.size());
   for (std::size_t index = 0; index < prepended.size(); ++index) {
@@ -586,9 +586,9 @@ TEST(in_place_prepend_shifts_survivors_by_exactly_the_prepended_height) {
   std::vector<double> heights = trueHeightsFor(keys.size());
 
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
   measureBatch(container, heights, 0, keys.size() - 1);
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::recomputeTotalSize(container);
 
   std::vector<double> offsetsBefore;
   for (const Element& element : container.revision.elements) {
@@ -603,8 +603,8 @@ TEST(in_place_prepend_shifts_survivors_by_exactly_the_prepended_height) {
   }
   prepended.insert(prepended.end(), keys.begin(), keys.end());
 
-  Virtualizer::update(&container, inputFor(prepended, 0.0));
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::update(container, inputFor(prepended, 0.0));
+  Virtualizer::recomputeTotalSize(container);
 
   // The prepended rows are unmeasured. They all share the same fallback size.
 
@@ -637,11 +637,11 @@ TEST(in_place_prepend_shifts_survivors_by_exactly_the_prepended_height) {
 TEST(prepending_an_existing_key_still_resolves_to_the_first_occurrence) {
   std::vector<std::string> keys = keysFor(30);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   std::vector<std::string> prepended = {"k7", "fresh"};
   prepended.insert(prepended.end(), keys.begin(), keys.end());
-  Virtualizer::update(&container, inputFor(prepended, 0.0));
+  Virtualizer::update(container, inputFor(prepended, 0.0));
 
   CHECK_EQ(container.revision.elements.size(), prepended.size());
   CHECK_EQ(container.findElementIndexByKey("k7"), static_cast<std::size_t>(0));
@@ -655,7 +655,7 @@ TEST(prepending_an_existing_key_still_resolves_to_the_first_occurrence) {
 TEST(chained_prepends_keep_the_key_map_correct) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   std::vector<std::string> current = keys;
   for (std::size_t round = 0; round < 4; ++round) {
@@ -665,7 +665,7 @@ TEST(chained_prepends_keep_the_key_map_correct) {
     }
     next.insert(next.end(), current.begin(), current.end());
     current = next;
-    Virtualizer::update(&container, inputFor(current, 0.0));
+    Virtualizer::update(container, inputFor(current, 0.0));
   }
 
   CHECK_EQ(container.revision.elements.size(), current.size());

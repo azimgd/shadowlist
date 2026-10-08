@@ -62,6 +62,11 @@ struct Operation {
    * Kept as a fraction so the pixel offset can be worked out again each frame.
    */
   double viewPosition = 0.0;
+
+  /*
+   * For ScrollToKey, a fixed distance the row rests past its view position.
+   */
+  double rowOffset = 0.0;
 };
 
 }
