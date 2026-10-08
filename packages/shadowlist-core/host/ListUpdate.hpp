@@ -1,6 +1,5 @@
 #pragma once
 
-#include <shadowlist-core/Constants.hpp>
 #include <shadowlist-core/host/KeyDiff.hpp>
 
 #include <cstddef>
@@ -50,12 +49,16 @@ KeySplice keySplice(const std::vector<std::string>& previous, const std::vector<
 /*
  * The keys of the given rows. Rows past the end are skipped.
  */
-std::unordered_set<std::string> keysOfRows(const std::vector<std::string>& keys, const std::vector<std::size_t>& rows);
+std::unordered_set<std::string> keysOfRows(
+  const std::vector<std::string>& keys,
+  const std::vector<std::size_t>& rows);
 
 /*
  * The rows whose key is in wanted, low to high.
  */
-std::vector<std::size_t> rowsOfKeys(const std::vector<std::string>& keys, const std::unordered_set<std::string>& wanted);
+std::vector<std::size_t> rowsOfKeys(
+  const std::vector<std::string>& keys,
+  const std::unordered_set<std::string>& wanted);
 
 /*
  * The keys after a planned batch. A kept row takes its previous key and an inserted row reads

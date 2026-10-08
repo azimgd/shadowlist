@@ -54,24 +54,34 @@ public:
   double containerOffsetX = 0.0;
   double containerOffsetY = 0.0;
 
-  // Rows measured in this revision, UNDEFINED_INDEX until something is measured.
+  /*
+   * Rows measured in this revision, UNDEFINED_INDEX until something is measured.
+   */
   std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
   std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
 
-  // Average row size, frozen once from real measurements.
+  /*
+   * Average row size, frozen once from real measurements.
+   */
   double averageElementWidth = 0.0;
   double averageElementHeight = 0.0;
 
-  // Count and total size of the rows measured so far, used to compute the average.
+  /*
+   * Count and total size of the rows measured so far, used to compute the average.
+   */
   std::size_t measuredRealCount = 0;
   double measuredRealTotalWidth = 0.0;
   double measuredRealTotalHeight = 0.0;
 
-  // Size of the visible viewport.
+  /*
+   * Size of the visible viewport.
+   */
   double windowContainerHeight = 0.0;
   double windowContainerWidth = 0.0;
 
-  // Full scrollable content size.
+  /*
+   * Full scrollable content size.
+   */
   double totalContainerHeight = 0.0;
   double totalContainerWidth = 0.0;
 };

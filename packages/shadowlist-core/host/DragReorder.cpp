@@ -113,7 +113,9 @@ std::size_t gridInsertionPosition(
   return kept;
 }
 
-// Slot values for an index with no mounted cell and for the held cell.
+/*
+ * Slot values for an index with no mounted cell and for the held cell.
+ */
 constexpr std::size_t NO_CELL = UNDEFINED_INDEX;
 constexpr std::size_t HELD_CELL = UNDEFINED_INDEX - 1;
 

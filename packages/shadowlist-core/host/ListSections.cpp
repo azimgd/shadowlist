@@ -1,6 +1,7 @@
 #include <shadowlist-core/host/ListSections.hpp>
 
 #include <algorithm>
+#include <utility>
 
 namespace azimgd::shadowlist {
 
@@ -200,7 +201,9 @@ std::optional<MountedRange> ListSections::itemRangeOfRows(std::size_t low, std::
   return range;
 }
 
-std::vector<std::size_t> ListSections::stickyRows(const std::vector<std::size_t>& stickyItems, bool sectionHeaders) const {
+std::vector<std::size_t> ListSections::stickyRows(
+  const std::vector<std::size_t>& stickyItems,
+  bool sectionHeaders) const {
   std::vector<std::size_t> rows;
   for (std::size_t item : stickyItems) {
     std::size_t row = rowForItem(item);

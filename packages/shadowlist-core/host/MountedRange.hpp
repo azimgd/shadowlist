@@ -22,7 +22,9 @@ struct MountedRange {
   }
 };
 
-// Default overscan rows on each side, matching SHADOWLIST_OVERSCAN.
+/*
+ * Default overscan rows on each side, matching SHADOWLIST_OVERSCAN.
+ */
 constexpr std::size_t DEFAULT_OVERSCAN_ROWS = 4;
 
 /*

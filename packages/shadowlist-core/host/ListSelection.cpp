@@ -1,5 +1,7 @@
 #include <shadowlist-core/host/ListSelection.hpp>
 
+#include <utility>
+
 namespace azimgd::shadowlist {
 
 void ListSelection::setMultiple(bool multiple) {

@@ -105,7 +105,9 @@ public:
   std::shared_ptr<const std::vector<double>> snapOffsets;
 
 private:
-  // 0 means nothing cached yet.
+  /*
+   * 0 means nothing cached yet.
+   */
   std::uint64_t geometryVersion_ = 0;
   bool snapToItem_ = false;
   int snapAlignment_ = -1;
@@ -208,7 +210,10 @@ public:
 
 private:
   std::unordered_map<std::uint64_t, Row> rows_;
-  // The newest generation given to a hide, or 0 if nothing was ever hidden.
+
+  /*
+   * The newest generation given to a hide, or 0 if nothing was ever hidden.
+   */
   std::uint64_t generation_ = 0;
   std::uint64_t passGeneration_ = 1;
 };

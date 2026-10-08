@@ -31,7 +31,10 @@ public:
     double scrollPhase = SCROLL_PHASE_IDLE;
     std::uint64_t commitToken = 0;
     double concealGenerationAck = 0.0;
-    // 0 until the host writes its first report.
+
+    /*
+     * 0 until the host writes its first report.
+     */
     std::uint64_t sequence = 0;
   };
 

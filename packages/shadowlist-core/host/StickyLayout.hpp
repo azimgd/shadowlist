@@ -33,12 +33,17 @@ struct StickyInput {
 
   bool hasFooter = false;
   double footerSize = 0.0;
-  // Where the footer sits in the content without any translation.
+
+  /*
+   * Where the footer sits in the content without any translation.
+   */
   double footerStart = 0.0;
   bool stickyFooter = false;
   bool autoHideFooter = false;
 
-  // Only real user scrolls slide the auto hide bars. Other moves just reset the start point.
+  /*
+   * Only real user scrolls slide the auto hide bars. Other moves just reset the start point.
+   */
   bool accumulate = false;
 };
 

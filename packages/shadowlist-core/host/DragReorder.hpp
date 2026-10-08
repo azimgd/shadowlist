@@ -73,10 +73,14 @@ struct DragAutoScrollConfig {
   double maxSpeed = 0.0;
 };
 
-// iOS, in points.
+/*
+ * iOS, in points.
+ */
 constexpr DragAutoScrollConfig DRAG_AUTO_SCROLL_IOS{90.0, 16.0};
 
-// Android, in dp. The host scales both to pixels.
+/*
+ * Android, in dp. The host scales both to pixels.
+ */
 constexpr DragAutoScrollConfig DRAG_AUTO_SCROLL_ANDROID{60.0, 12.0};
 
 /*
@@ -220,6 +224,7 @@ public:
   std::size_t getInsertionIndex() const { return insertionIndex_; }
   const std::string& getOriginKey() const { return originKey_; }
   const std::string& getInsertionKey() const { return insertionKey_; }
+
   /*
    * The held row's leading edge where it was placed, which is where it was let go on drop.
    */
@@ -242,7 +247,10 @@ private:
   double crossLeading_ = 0.0;
   double crossCenter_ = 0.0;
   DragRow heldResting_;
-  // Grid shifts from the previous updateInsertion, by index from offsetsBase_.
+
+  /*
+   * Grid shifts from the previous updateInsertion, by index from offsetsBase_.
+   */
   std::size_t offsetsBase_ = 0;
   std::vector<DragOffset> offsets_;
 };

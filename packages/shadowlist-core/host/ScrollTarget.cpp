@@ -1,5 +1,7 @@
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
+#include <shadowlist-core/Constants.hpp>
+
 #include <algorithm>
 #include <cmath>
 

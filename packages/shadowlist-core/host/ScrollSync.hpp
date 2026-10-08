@@ -58,6 +58,7 @@ struct MountedScroll {
   double concealGeneration = 0.0;
   double concealGenerationAck = 0.0;
   double commandSequence = 0.0;
+
   /*
    * Where the core estimates the newest animated command lands, along the scroll axis, and
    * that command's sequence. 0 before the first one.
@@ -73,18 +74,33 @@ struct MountedScroll {
 struct ViewMotion {
   double offsetX = 0.0;
   double offsetY = 0.0;
-  // Where a shifted correction starts, usually the offset.
+
+  /*
+   * Where a shifted correction starts, usually the offset.
+   */
   double shiftFromX = 0.0;
   double shiftFromY = 0.0;
-  // The scroll range along the scroll axis, insets included.
+
+  /*
+   * The scroll range along the scroll axis, insets included.
+   */
   double minOffset = 0.0;
   double maxOffset = 0.0;
   bool touching = false;
-  // A finger, momentum or an animation is moving the view.
+
+  /*
+   * A finger, momentum or an animation is moving the view.
+   */
   bool moving = false;
-  // A row drag owns the offset. Corrections wait.
+
+  /*
+   * A row drag owns the offset. Corrections wait.
+   */
   bool ownsOffset = false;
-  // An iOS scroll to top waiting to jump to jumpOffset along the scroll axis.
+
+  /*
+   * An iOS scroll to top waiting to jump to jumpOffset along the scroll axis.
+   */
   bool jumpPending = false;
   double jumpOffset = 0.0;
 };
@@ -95,9 +111,13 @@ struct ViewMotion {
 struct MountAction {
   enum class Kind {
     None,
-    // Write offsetX and offsetY into the view between ScrollSync::willWrite and didWrite.
+    /*
+     * Write offsetX and offsetY into the view between ScrollSync::willWrite and didWrite.
+     */
     Write,
-    // Move the waiting scroll to top jump to the offset instead of the view.
+    /*
+     * Move the waiting scroll to top jump to the offset instead of the view.
+     */
     RetargetJump,
     /*
      * Animate the view to offsetX and offsetY for an animated scroll command. Arm the move as
@@ -109,9 +129,15 @@ struct MountAction {
   double offsetX = 0.0;
   double offsetY = 0.0;
   std::uint64_t token = 0;
-  // The correction was added to the live offset instead of written as is.
+
+  /*
+   * The correction was added to the live offset instead of written as is.
+   */
   bool shifted = false;
-  // A host that can keep a fling going across the write should, like Android's scrollToPreservingMomentum.
+
+  /*
+   * A host that can keep a fling going across the write should, like Android's scrollToPreservingMomentum.
+   */
   bool preserveMomentum = false;
 };
 
@@ -122,16 +148,27 @@ struct ScrollFrame {
   double offsetX = 0.0;
   double offsetY = 0.0;
   double scrollPhase = SCROLL_PHASE_IDLE;
-  // Pull to refresh, scroll to top and row drags lean on every frame. Each one commits.
+
+  /*
+   * Pull to refresh, scroll to top and row drags lean on every frame. Each one commits.
+   */
   bool commitEveryFrame = false;
 };
 
 struct FrameReport {
-  // Whether the frame must become a state update, which is then patch.
+  /*
+   * Whether the frame must become a state update, which is then patch.
+   */
   bool needsCommit = false;
-  // The user moved the view, as opposed to our own write or a content size clamp.
+
+  /*
+   * The user moved the view, as opposed to our own write or a content size clamp.
+   */
   bool userScrolled = false;
-  // An animated move of ours reached its target on this frame.
+
+  /*
+   * An animated move of ours reached its target on this frame.
+   */
   bool landed = false;
   ScrollPatch patch;
 };
@@ -144,9 +181,14 @@ struct FrameReport {
 class ScrollSync final {
 public:
   struct Options {
-    // How close our own scroll must land to its target to count as reaching it.
+    /*
+     * How close our own scroll must land to its target to count as reaching it.
+     */
     double landingTolerance = 0.0;
-    // Report the exact offset the core asked for when an instant write landed on it.
+
+    /*
+     * Report the exact offset the core asked for when an instant write landed on it.
+     */
     bool exactEcho = false;
   };
 
@@ -295,6 +337,7 @@ private:
     std::uint64_t token,
     double concealGenerationAck);
   ScrollPatch push(const LiveScroll::Report& report);
+
   /*
    * Our write is done, echoed or moved nothing. Unlike a finger, it leaves an animated command
    * that still waits for its estimate alone.
@@ -314,10 +357,15 @@ private:
   bool hasMounted_ = false;
   bool mounting_ = false;
   bool applyingContentSize_ = false;
-  // Set when a scroll frame commits during a mount, which acknowledges hidden rows.
+
+  /*
+   * Set when a scroll frame commits during a mount, which acknowledges hidden rows.
+   */
   bool reportedDuringMount_ = false;
 
-  // Our own pending move, which the next scroll frame or an animation's frames echo.
+  /*
+   * Our own pending move, which the next scroll frame or an animation's frames echo.
+   */
   bool armed_ = false;
   bool armedAnimated_ = false;
   bool armedExact_ = false;
@@ -331,11 +379,15 @@ private:
    */
   std::uint64_t echoedToken_ = 0;
 
-  // The newest correction added to the live offset and how much of it is applied.
+  /*
+   * The newest correction added to the live offset and how much of it is applied.
+   */
   std::uint64_t shiftedToken_ = 0;
   double shiftedTokenDelta_ = 0.0;
 
-  // Whether the newest report was a gesture, see clearUserScrolled.
+  /*
+   * Whether the newest report was a gesture, see clearUserScrolled.
+   */
   bool publishedGesture_ = false;
 
   LiveScroll::Report liveReport_;

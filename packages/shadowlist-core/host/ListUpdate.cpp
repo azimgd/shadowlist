@@ -41,7 +41,9 @@ KeySplice keySplice(const std::vector<std::string>& previous, const std::vector<
   return {start, previous.size() - start - end, next.size() - start - end};
 }
 
-std::unordered_set<std::string> keysOfRows(const std::vector<std::string>& keys, const std::vector<std::size_t>& rows) {
+std::unordered_set<std::string> keysOfRows(
+  const std::vector<std::string>& keys,
+  const std::vector<std::size_t>& rows) {
   std::unordered_set<std::string> found;
   for (std::size_t row : rows) {
     if (row < keys.size()) {
@@ -51,7 +53,9 @@ std::unordered_set<std::string> keysOfRows(const std::vector<std::string>& keys,
   return found;
 }
 
-std::vector<std::size_t> rowsOfKeys(const std::vector<std::string>& keys, const std::unordered_set<std::string>& wanted) {
+std::vector<std::size_t> rowsOfKeys(
+  const std::vector<std::string>& keys,
+  const std::unordered_set<std::string>& wanted) {
   std::vector<std::size_t> rows;
   if (wanted.empty()) {
     return rows;

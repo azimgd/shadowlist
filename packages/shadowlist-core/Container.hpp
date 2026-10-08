@@ -20,10 +20,14 @@ namespace azimgd::shadowlist {
  * What to send to the scroll view for one frame.
  */
 struct ContainerStateUpdate {
-  // True when something changed and new state should be sent.
+  /*
+   * True when something changed and new state should be sent.
+   */
   bool changed = false;
 
-  // Move the scroll view to the offset below. When false, leave it alone so we don't fight the user.
+  /*
+   * Move the scroll view to the offset below. When false, leave it alone so we don't fight the user.
+   */
   bool applyContainerOffset = false;
 
   double containerOffsetX = 0.0;
@@ -31,7 +35,9 @@ struct ContainerStateUpdate {
   double totalContainerWidth = 0.0;
   double totalContainerHeight = 0.0;
 
-  // Id of the operation that moved the offset, or 0. The host sends it back so we know the write was ours.
+  /*
+   * Id of the operation that moved the offset, or 0. The host sends it back so we know the write was ours.
+   */
   std::uint64_t commitToken = 0;
 };
 
@@ -71,19 +77,29 @@ struct ViewableRule {
 
 class Container final {
 public:
-  // Width and height used for rows not measured yet.
+  /*
+   * Width and height used for rows not measured yet.
+   */
   std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
 
-  // Called when the user scrolls near the end.
+  /*
+   * Called when the user scrolls near the end.
+   */
   std::function<void()> onEndReachedCallback;
 
-  // Called when the user scrolls near the start.
+  /*
+   * Called when the user scrolls near the start.
+   */
   std::function<void()> onStartReachedCallback;
 
-  // Called with the start and end index when the visible rows change.
+  /*
+   * Called with the start and end index when the visible rows change.
+   */
   std::function<void(std::size_t, std::size_t)> onVisibleIndicesChangeCallback;
 
-  // Called with the x and y offset when the scroll offset changes.
+  /*
+   * Called with the x and y offset when the scroll offset changes.
+   */
   std::function<void(double, double)> onScrollCallback;
 
   /*
@@ -92,14 +108,18 @@ public:
    */
   std::function<void(const std::vector<std::size_t>&)> onViewableIndicesChangeCallback;
 
-  // Turn the start and end reached callbacks on or off.
+  /*
+   * Turn the start and end reached callbacks on or off.
+   */
   bool endReachedEnabled = true;
   bool startReachedEnabled = true;
 
   Revision revision = {};
   std::size_t revisionCount = REVISION_COUNT_FIRST;
 
-  // An inverted list runs bottom to top.
+  /*
+   * An inverted list runs bottom to top.
+   */
   bool inverted = false;
 
   bool horizontal = false;
@@ -119,23 +139,35 @@ public:
   bool snapToItem = false;
   int snapAlignment = 0;
 
-  // How close to an edge, in viewport sizes, before onStartReached or onEndReached fires.
+  /*
+   * How close to an edge, in viewport sizes, before onStartReached or onEndReached fires.
+   */
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
 
-  // The rules that decide which rows are viewable, one range each.
+  /*
+   * The rules that decide which rows are viewable, one range each.
+   */
   std::vector<ViewableRule> viewableRules = {ViewableRule{}};
 
-  // Size of the header or empty template along the scroll axis. Rows start after it.
+  /*
+   * Size of the header or empty template along the scroll axis. Rows start after it.
+   */
   double headerSize = 0.0;
 
-  // Size of the footer along the scroll axis. It counts toward the total size.
+  /*
+   * Size of the footer along the scroll axis. It counts toward the total size.
+   */
   double footerSize = 0.0;
 
-  // Indices of sticky section headers in order, set each frame. Empty for a plain list.
+  /*
+   * Indices of sticky section headers in order, set each frame. Empty for a plain list.
+   */
   std::vector<std::size_t> stickyIndices;
 
-  // Last drag event number sent to JS, to fire each drag event once. -1 means none yet.
+  /*
+   * Last drag event number sent to JS, to fire each drag event once. -1 means none yet.
+   */
   double lastDragEventSequence = -1.0;
 
   /*
@@ -143,7 +175,9 @@ public:
    * A request can arrive between frames. It waits here until the revision is measured.
    */
 
-  // Pending scrollToIndex target, or UNDEFINED_INDEX when there is none.
+  /*
+   * Pending scrollToIndex target, or UNDEFINED_INDEX when there is none.
+   */
   std::size_t scrollToIndexTarget = UNDEFINED_INDEX;
 
   /*
@@ -164,9 +198,15 @@ public:
    * update also sets it when rows are appended to an inverted list resting at the bottom. The list then follows them.
    */
   bool pendingScrollToEnd = false;
-  // Set by scrollToStart and used up by the next resolve.
+
+  /*
+   * Set by scrollToStart and used up by the next resolve.
+   */
   bool pendingScrollToStart = false;
-  // Last frame's total size, to tell when it stops changing.
+
+  /*
+   * Last frame's total size, to tell when it stops changing.
+   */
   double pendingScrollToEndLastTotal = -1.0;
 
   /*
@@ -206,7 +246,9 @@ public:
    */
   bool invertedOpeningPin = false;
 
-  // Whether the inverted list was at the bottom when this frame started, as the reader saw it.
+  /*
+   * Whether the inverted list was at the bottom when this frame started, as the reader saw it.
+   */
   bool restingAtInvertedBottom = false;
 
   /*
@@ -216,7 +258,9 @@ public:
    */
   double anchorFirstMeasurementDelta = 0.0;
 
-  // The running correction. Only the operation below moves the offset, the rest is its target and bookkeeping.
+  /*
+   * The running correction. Only the operation below moves the offset, the rest is its target and bookkeeping.
+   */
 
   /*
    * True when this frame made an offset the host should apply. Reset at the start of each
@@ -236,7 +280,9 @@ public:
    */
   std::optional<Operation> operation = std::nullopt;
 
-  // Next operation id. Starts at 1 because 0 means no operation, a report from the host.
+  /*
+   * Next operation id. Starts at 1 because 0 means no operation, a report from the host.
+   */
   std::uint64_t nextOperationId = 1;
 
   /*
@@ -477,7 +523,9 @@ public:
   bool hasPendingCommand() const;
 
 private:
-  // Cached snap offsets and the inputs they came from. A version of 0 means nothing cached.
+  /*
+   * Cached snap offsets and the inputs they came from. A version of 0 means nothing cached.
+   */
   mutable std::vector<double> snapOffsetsCache_;
   mutable std::uint64_t snapCacheVersion_ = 0;
   mutable bool snapCacheSnapToItem_ = false;
@@ -486,11 +534,15 @@ private:
   mutable double snapCacheTotalSize_ = -1.0;
   mutable bool snapCacheHorizontal_ = false;
 
-  // Last visible range sent. Only changes are sent.
+  /*
+   * Last visible range sent. Only changes are sent.
+   */
   std::size_t previousVisibleStartIndex_ = UNDEFINED_INDEX;
   std::size_t previousVisibleEndIndex_ = UNDEFINED_INDEX;
 
-  // Last viewable ranges sent, two indices per rule. Only changes are sent.
+  /*
+   * Last viewable ranges sent, two indices per rule. Only changes are sent.
+   */
   std::vector<std::size_t> previousViewableRanges_;
 
   /*
@@ -501,15 +553,21 @@ private:
   bool previousReachedEnd_ = false;
   std::size_t previousReachedElementsSize_ = UNDEFINED_INDEX;
 
-  // Last offset sent to onScroll. Only changes are sent.
+  /*
+   * Last offset sent to onScroll. Only changes are sent.
+   */
   double previousContainerOffsetX_ = 0.0;
   double previousContainerOffsetY_ = 0.0;
   bool previousContainerOffsetValid_ = false;
 
-  // Last scrollToIndex command number handled. The same index can still scroll again.
+  /*
+   * Last scrollToIndex command number handled. The same index can still scroll again.
+   */
   double previousScrollToIndexSequence_ = 0.0;
 
-  // Last containerOffsetIndex prop handled. The prop only scrolls when its value changes.
+  /*
+   * Last containerOffsetIndex prop handled. The prop only scrolls when its value changes.
+   */
   int previousScrollToIndexProp_ = -1;
 };
 

@@ -65,6 +65,7 @@ struct FrameInput {
   double headerSize = 0.0;
   double footerSize = 0.0;
   bool inverted = false;
+
   /*
    * Whether an inverted list at the bottom scrolls to show appended rows, like an assistant chat.
    * When off, appends keep the visible rows in place like any other insert.
@@ -73,13 +74,19 @@ struct FrameInput {
   bool horizontal = false;
   std::size_t columns = 1;
 
-  // Extra rows past the viewport, in viewport sizes. 1 means one screen on each side.
+  /*
+   * Extra rows past the viewport, in viewport sizes. 1 means one screen on each side.
+   */
   double overscan = 1.0;
 
-  // Sorted indices of rows that stick to the top once scrolled past. Empty for a plain list.
+  /*
+   * Sorted indices of rows that stick to the top once scrolled past. Empty for a plain list.
+   */
   std::vector<std::size_t> stickyIndices;
 
-  // Points at the host's list instead of copying it, same rules as keysRef.
+  /*
+   * Points at the host's list instead of copying it, same rules as keysRef.
+   */
   const std::vector<std::size_t>* stickyIndicesRef = nullptr;
 
   const std::vector<std::size_t>& getStickyIndexList() const {
@@ -90,7 +97,9 @@ struct FrameInput {
   double endReachedThreshold = 1.0;
   std::vector<ViewableRule> viewableRules = {ViewableRule{}};
 
-  // Points at the host's rules instead of copying them, same rules as keysRef.
+  /*
+   * Points at the host's rules instead of copying them, same rules as keysRef.
+   */
   const std::vector<ViewableRule>* viewableRulesRef = nullptr;
 
   const std::vector<ViewableRule>& getViewableRules() const {
@@ -106,7 +115,9 @@ struct FrameInput {
   bool snapToItem = false;
   int snapAlignment = 0;
 
-  // Set when the user scrolls. Drops any running correction so the user is not pulled back.
+  /*
+   * Set when the user scrolls. Drops any running correction so the user is not pulled back.
+   */
   bool userScrolled = false;
 
   /*
@@ -115,10 +126,14 @@ struct FrameInput {
    */
   bool containerOffsetEnabled = false;
 
-  // The operation id the host sends back when this report came from our offset write, or 0.
+  /*
+   * The operation id the host sends back when this report came from our offset write, or 0.
+   */
   std::uint64_t commitToken = 0;
 
-  // The current gesture. Dragging and Settling mean the user is scrolling, Idle covers our own moves.
+  /*
+   * The current gesture. Dragging and Settling mean the user is scrolling, Idle covers our own moves.
+   */
   ScrollPhase scrollPhase = ScrollPhase::Idle;
 
   /*
@@ -127,7 +142,9 @@ struct FrameInput {
    */
   std::vector<std::string> nonAnchorableKeys;
 
-  // Points at the host's list instead of copying it, same rules as keysRef.
+  /*
+   * Points at the host's list instead of copying it, same rules as keysRef.
+   */
   const std::vector<std::string>* nonAnchorableKeysRef = nullptr;
 
   const std::vector<std::string>& getNonAnchorableKeyList() const {
