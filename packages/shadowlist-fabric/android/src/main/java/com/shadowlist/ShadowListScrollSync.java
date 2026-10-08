@@ -49,6 +49,12 @@ final class ShadowListScrollSync {
   static final int ACTION_WRITE = 1;
   static final int ACTION_ANIMATE = 3;
 
+  /*
+   * Frees the peer of a view dropped without destroy().
+   */
+  private static final ShadowListPeerReclaimer RECLAIMER =
+    new ShadowListPeerReclaimer(ShadowListScrollSync::nativeDestroy);
+
   private final double mLandingTolerance;
   private final double[] mOut = new double[OUT_SLOTS];
   private boolean mHorizontal;
@@ -72,25 +78,14 @@ final class ShadowListScrollSync {
       return;
     }
     nativeDestroy(mHandle);
+    RECLAIMER.release(mHandle);
     mHandle = 0;
-  }
-
-  /*
-   * A fallback for a view dropped without destroy().
-   */
-  @Override
-  @SuppressWarnings("deprecation")
-  protected void finalize() throws Throwable {
-    try {
-      destroy();
-    } finally {
-      super.finalize();
-    }
   }
 
   private long handle() {
     if (mHandle == 0) {
       mHandle = nativeCreate(mLandingTolerance);
+      RECLAIMER.register(this, mHandle);
       nativeSetHorizontal(mHandle, mHorizontal);
     }
     return mHandle;

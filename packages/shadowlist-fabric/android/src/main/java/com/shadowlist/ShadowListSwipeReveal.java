@@ -40,6 +40,12 @@ final class ShadowListSwipeReveal {
   static final double FLING_VELOCITY_DP = CONSTANTS[CONSTANT_FLING_VELOCITY];
   static final long SETTLE_DURATION_MS = (long) CONSTANTS[CONSTANT_SETTLE_DURATION_MS];
 
+  /*
+   * Frees the peer of a row dropped without destroy().
+   */
+  private static final ShadowListPeerReclaimer RECLAIMER =
+    new ShadowListPeerReclaimer(ShadowListSwipeReveal::nativeDestroy);
+
   private final double[] mOut = new double[OUT_SLOTS];
 
   // The native Peer, 0 until first use and after destroy().
@@ -53,25 +59,14 @@ final class ShadowListSwipeReveal {
       return;
     }
     nativeDestroy(mHandle);
+    RECLAIMER.release(mHandle);
     mHandle = 0;
-  }
-
-  /*
-   * A fallback for a row dropped without destroy().
-   */
-  @Override
-  @SuppressWarnings("deprecation")
-  protected void finalize() throws Throwable {
-    try {
-      destroy();
-    } finally {
-      super.finalize();
-    }
   }
 
   private long handle() {
     if (mHandle == 0) {
       mHandle = nativeCreate();
+      RECLAIMER.register(this, mHandle);
     }
     return mHandle;
   }
