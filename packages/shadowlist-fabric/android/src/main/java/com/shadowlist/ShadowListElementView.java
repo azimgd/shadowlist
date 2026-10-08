@@ -71,11 +71,7 @@ public class ShadowListElementView extends ViewGroup {
 
   // region Swipe actions
 
-  private static final float BUTTON_MIN_DP = 74f;
-  private static final float BUTTON_PADDING_DP = 24f;
   private static final float BUTTON_TEXT_SP = 15f;
-  private static final float FLING_VELOCITY_DP = 300f;
-  private static final long SWIPE_DURATION_MS = 250L;
   private static final int DESTRUCTIVE_COLOR = Color.rgb(255, 59, 48);
 
   @Nullable private ReadableArray mLeadingSwipeActions = null;
@@ -99,13 +95,12 @@ public class ShadowListElementView extends ViewGroup {
   private boolean mSwipedOut = false;
 
   /*
-   * Button sizes of each side in px, measured when a swipe starts. The shown side's buttons
-   * sit at mButtonStarts with mButtonSizes along the cross axis.
+   * Button sizes of each side in px, measured when a swipe starts. mSpans holds the revealed
+   * gap's start and size, then each shown button's start and size along the cross axis.
    */
-  private float[] mLeadingSizes = new float[0];
-  private float[] mTrailingSizes = new float[0];
-  private float[] mButtonStarts = new float[0];
-  private float[] mButtonSizes = new float[0];
+  private double[] mLeadingSizes = new double[0];
+  private double[] mTrailingSizes = new double[0];
+  private double[] mSpans = new double[2];
   private int mShownCount = 0;
   private boolean mShownLeading = false;
   private final Paint mButtonPaint = new Paint();
@@ -376,19 +371,19 @@ public class ShadowListElementView extends ViewGroup {
     return true;
   }
 
-  private float[] measureButtons(@Nullable ReadableArray actions) {
+  private double[] measureButtons(@Nullable ReadableArray actions) {
     float density = getResources().getDisplayMetrics().density;
-    float[] sizes = new float[actionCount(actions)];
+    double[] sizes = new double[actionCount(actions)];
     for (int index = 0; index < sizes.length; index++) {
       float text = mTextPaint.measureText(actionTitle(actions, index));
-      sizes[index] = Math.max(BUTTON_MIN_DP * density, text + BUTTON_PADDING_DP * density);
+      sizes[index] = ShadowListSwipeReveal.buttonSize(text, density);
     }
     return sizes;
   }
 
-  private static float sum(float[] values) {
-    float total = 0f;
-    for (float value : values) {
+  private static double sum(double[] values) {
+    double total = 0.0;
+    for (double value : values) {
       total += value;
     }
     return total;
@@ -407,30 +402,29 @@ public class ShadowListElementView extends ViewGroup {
    */
   private void layoutButtons() {
     mShownLeading = mSwipeOffset > 0f;
-    float[] sizes = mShownLeading ? mLeadingSizes : mTrailingSizes;
+    double[] sizes = mShownLeading ? mLeadingSizes : mTrailingSizes;
     mShownCount = sizes.length;
-    if (mButtonStarts.length < mShownCount) {
-      mButtonStarts = new float[mShownCount];
-      mButtonSizes = new float[mShownCount];
+    if (mSpans.length < 2 + mShownCount * 2) {
+      mSpans = new double[2 + mShownCount * 2];
     }
     boolean full = mSwipe.isPastFullSwipe(mSwipeOffset);
-    float gap = Math.abs(mSwipeOffset);
-    float total = sum(sizes);
-    float scale = total > 0f ? gap / total : 0f;
-    // From the edge inward: the first action sits at the outer edge.
-    float edge = 0f;
-    for (int index = 0; index < mShownCount; index++) {
-      float size = full ? (index == 0 ? gap : 0f) : sizes[index] * scale;
-      mButtonStarts[index] = mShownLeading ? edge : getWidth() - edge - size;
-      mButtonSizes[index] = size;
-      edge += size;
-    }
+    ShadowListSwipeReveal.buttonSpans(sizes, mShownCount, mSwipeOffset, full, getWidth(), mSpans);
+  }
+
+  private float buttonStart(int index) {
+    return (float) mSpans[2 + index * 2];
+  }
+
+  private float buttonSize(int index) {
+    return (float) mSpans[3 + index * 2];
   }
 
   // The shown button under x, or -1.
   private int buttonAt(float x) {
     for (int index = 0; index < mShownCount; index++) {
-      if (mButtonSizes[index] > 0f && x >= mButtonStarts[index] && x < mButtonStarts[index] + mButtonSizes[index]) {
+      float start = buttonStart(index);
+      float size = buttonSize(index);
+      if (size > 0f && x >= start && x < start + size) {
         return index;
       }
     }
@@ -441,7 +435,7 @@ public class ShadowListElementView extends ViewGroup {
    * Let go: open a side, slide out for a full swipe, or close.
    */
   private void settleSwipe(float velocity) {
-    float flingVelocity = FLING_VELOCITY_DP * getResources().getDisplayMetrics().density;
+    double flingVelocity = ShadowListSwipeReveal.FLING_VELOCITY_DP * getResources().getDisplayMetrics().density;
     mSwipe.settle(mSwipeOffset, velocity, flingVelocity);
     float target = (float) mSwipe.restOffset();
     if (!mSwipe.isRestFull()) {
@@ -457,7 +451,7 @@ public class ShadowListElementView extends ViewGroup {
   private void animateSwipe(float target, @Nullable Runnable onEnd) {
     cancelSwipeAnimator();
     ValueAnimator animator = ValueAnimator.ofFloat(mSwipeOffset, target);
-    animator.setDuration(SWIPE_DURATION_MS);
+    animator.setDuration(ShadowListSwipeReveal.SETTLE_DURATION_MS);
     animator.setInterpolator(new DecelerateInterpolator());
     animator.addUpdateListener(animation -> {
       if (mSwipeAnimator == animation) {
@@ -546,8 +540,8 @@ public class ShadowListElementView extends ViewGroup {
       return;
     }
     float height = getHeight();
-    float gap = Math.abs(mSwipeOffset);
-    float gapStart = mShownLeading ? 0f : getWidth() - gap;
+    float gapStart = (float) mSpans[0];
+    float gap = (float) mSpans[1];
     int saved = canvas.save();
     // Only the gap shows the buttons' color.
     canvas.clipRect(gapStart, 0f, gapStart + gap, height);
@@ -555,8 +549,8 @@ public class ShadowListElementView extends ViewGroup {
     canvas.drawRect(gapStart, 0f, gapStart + gap, height, mButtonPaint);
     float baseline = height / 2f - (mTextPaint.ascent() + mTextPaint.descent()) / 2f;
     for (int index = 0; index < mShownCount; index++) {
-      float start = mButtonStarts[index];
-      float size = mButtonSizes[index];
+      float start = buttonStart(index);
+      float size = buttonSize(index);
       if (size <= 0f) {
         continue;
       }

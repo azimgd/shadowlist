@@ -9,6 +9,7 @@
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
 #include <cmath>
+#include <numeric>
 #include <vector>
 
 using namespace facebook::react;
@@ -16,13 +17,9 @@ using namespace azimgd::shadowlist;
 
 #if !TARGET_OS_OSX
 /*
- * Narrowest action button, the padding around its title, and the fling speed that opens or
- * closes a swiped row, in points and points per second.
+ * How long a released row takes to rest, the core's SWIPE_SETTLE_DURATION_MS.
  */
-static const CGFloat SL_SWIPE_BUTTON_MIN = 74;
-static const CGFloat SL_SWIPE_BUTTON_PADDING = 24;
-static const CGFloat SL_SWIPE_FLING_VELOCITY = 300;
-static const NSTimeInterval SL_SWIPE_DURATION = 0.25;
+static const NSTimeInterval SL_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000.0;
 
 /*
  * A swipe action color from JS is a processed color, a 0xAARRGGBB number.
@@ -68,8 +65,9 @@ static bool SLSameSwipeActions(const std::vector<Action> &a, const std::vector<A
 @implementation ShadowListSwipeActionsView {
   NSArray<UIButton *> *_leadingButtons;
   NSArray<UIButton *> *_trailingButtons;
-  std::vector<CGFloat> _leadingWidths;
-  std::vector<CGFloat> _trailingWidths;
+  std::vector<double> _leadingWidths;
+  std::vector<double> _trailingWidths;
+  std::vector<SwipeSpan> _spans;
 }
 
 - (instancetype)initWithProps:(const ShadowListElementViewProps &)props
@@ -93,7 +91,7 @@ static bool SLSameSwipeActions(const std::vector<Action> &a, const std::vector<A
 - (UIButton *)buttonWithTitle:(const std::string &)title
                         color:(double)color
                       leading:(BOOL)leading
-                       widths:(std::vector<CGFloat> &)widths
+                       widths:(std::vector<double> &)widths
 {
   NSString *text = [NSString stringWithUTF8String:title.c_str()] ?: @"";
   NSInteger index = (NSInteger)widths.size();
@@ -114,27 +112,19 @@ static bool SLSameSwipeActions(const std::vector<Action> &a, const std::vector<A
           }]
    forControlEvents:UIControlEventTouchUpInside];
   CGSize fits = [button sizeThatFits:CGSizeMake(CGFLOAT_MAX, CGFLOAT_MAX)];
-  widths.push_back(MAX(SL_SWIPE_BUTTON_MIN, fits.width + SL_SWIPE_BUTTON_PADDING));
+  widths.push_back(swipeButtonSize(fits.width, 1.0));
   [self addSubview:button];
   return button;
 }
 
 - (CGFloat)leadingWidth
 {
-  CGFloat total = 0;
-  for (CGFloat width : _leadingWidths) {
-    total += width;
-  }
-  return total;
+  return (CGFloat)std::accumulate(_leadingWidths.begin(), _leadingWidths.end(), 0.0);
 }
 
 - (CGFloat)trailingWidth
 {
-  CGFloat total = 0;
-  for (CGFloat width : _trailingWidths) {
-    total += width;
-  }
-  return total;
+  return (CGFloat)std::accumulate(_trailingWidths.begin(), _trailingWidths.end(), 0.0);
 }
 
 /*
@@ -146,29 +136,24 @@ static bool SLSameSwipeActions(const std::vector<Action> &a, const std::vector<A
   BOOL leading = offset > 0;
   NSArray<UIButton *> *shown = leading ? _leadingButtons : _trailingButtons;
   NSArray<UIButton *> *other = leading ? _trailingButtons : _leadingButtons;
-  const std::vector<CGFloat> &widths = leading ? _leadingWidths : _trailingWidths;
   for (UIButton *button in other) {
     button.hidden = YES;
   }
   CGSize size = self.bounds.size;
-  CGFloat gap = std::fabs(offset);
-  CGFloat total = leading ? [self leadingWidth] : [self trailingWidth];
-  CGFloat scale = total > 0 ? gap / total : 0;
-  // From the edge inward: the first action sits at the outer edge.
-  CGFloat edge = 0;
-  for (NSUInteger at = 0; at < shown.count; ++at) {
+  swipeButtonSpans(leading ? _leadingWidths : _trailingWidths, offset, full, size.width, _spans);
+  for (NSUInteger at = 0; at < shown.count && at < _spans.size(); ++at) {
     UIButton *button = shown[at];
-    CGFloat width = full ? (at == 0 ? gap : 0) : widths[at] * scale;
-    CGFloat start = leading ? edge : size.width - edge - width;
+    CGFloat start = (CGFloat)_spans[at].start;
+    CGFloat width = (CGFloat)_spans[at].size;
     button.hidden = width <= 0;
     button.frame = CGRectMake(start, 0, width, size.height);
-    edge += width;
   }
   self.backgroundColor = shown.firstObject.backgroundColor;
   // Only the gap shows the buttons' color.
+  SwipeSpan gap = swipeRevealedSpan(offset, size.width);
   CALayer *mask = [CALayer layer];
   mask.backgroundColor = UIColor.blackColor.CGColor;
-  mask.frame = CGRectMake(leading ? 0 : size.width - gap, 0, gap, size.height);
+  mask.frame = CGRectMake((CGFloat)gap.start, 0, (CGFloat)gap.size, size.height);
   self.layer.mask = mask;
 }
 
@@ -394,7 +379,7 @@ static bool SLSameSwipeActions(const std::vector<Action> &a, const std::vector<A
 #if TARGET_OS_OSX
   return NO;
 #else
-  return _swipeActionsView && std::fabs(_swipeOffset) >= _swipe.getSpec().rowSize - 1;
+  return _swipeActionsView && _swipe.isSwipedOut(_swipeOffset);
 #endif
 }
 
@@ -546,7 +531,7 @@ static bool SLSameSwipeActions(const std::vector<Action> &a, const std::vector<A
       if (!_swipeActionsView) {
         return;
       }
-      [self settleSwipeTo:_swipe.settle(_swipeOffset, [pan velocityInView:self].x, SL_SWIPE_FLING_VELOCITY)];
+      [self settleSwipeTo:_swipe.settle(_swipeOffset, [pan velocityInView:self].x, SWIPE_FLING_VELOCITY)];
       break;
     }
     default:

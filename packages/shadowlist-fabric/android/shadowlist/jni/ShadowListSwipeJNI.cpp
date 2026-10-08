@@ -5,6 +5,10 @@
 
 #include <jni.h>
 
+#include <algorithm>
+#include <cstddef>
+#include <vector>
+
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
 namespace {
@@ -19,6 +23,15 @@ enum OutSlot {
   OUT_FULL,
   OUT_OFFSET,
   OUT_SLOTS,
+};
+
+/*
+ * Slots of ShadowListSwipeReveal.CONSTANT_*.
+ */
+enum ConstantSlot {
+  CONSTANT_FLING_VELOCITY = 0,
+  CONSTANT_SETTLE_DURATION_MS,
+  CONSTANT_SLOTS,
 };
 
 /*
@@ -108,6 +121,54 @@ JNIEXPORT void JNICALL SL_SWIPE_JNI(nativeSettle)(
   slots[OUT_FULL] = rest.full ? 1.0 : 0.0;
   slots[OUT_OFFSET] = rest.offset;
   env->SetDoubleArrayRegion(out, 0, OUT_SLOTS, slots);
+}
+
+JNIEXPORT jdoubleArray JNICALL SL_SWIPE_JNI(nativeConstants)(JNIEnv* env, jclass) {
+  jdouble values[CONSTANT_SLOTS];
+  values[CONSTANT_FLING_VELOCITY] = sl::SWIPE_FLING_VELOCITY;
+  values[CONSTANT_SETTLE_DURATION_MS] = sl::SWIPE_SETTLE_DURATION_MS;
+  jdoubleArray array = env->NewDoubleArray(CONSTANT_SLOTS);
+  if (array != nullptr) {
+    env->SetDoubleArrayRegion(array, 0, CONSTANT_SLOTS, values);
+  }
+  return array;
+}
+
+JNIEXPORT jdouble JNICALL SL_SWIPE_JNI(nativeButtonSize)(JNIEnv*, jclass, jdouble fitted, jdouble scale) {
+  return sl::swipeButtonSize(fitted, scale);
+}
+
+/*
+ * Where the revealed side's count buttons go, into out: the revealed span's start and size,
+ * then each button's start and size.
+ */
+JNIEXPORT void JNICALL SL_SWIPE_JNI(nativeButtonSpans)(
+  JNIEnv* env,
+  jclass,
+  jdoubleArray sizes,
+  jint count,
+  jdouble offset,
+  jboolean full,
+  jdouble crossSize,
+  jdoubleArray out) {
+  std::size_t buttons = static_cast<std::size_t>(std::max(count, 0));
+  std::vector<double> values(buttons);
+  if (buttons > 0) {
+    env->GetDoubleArrayRegion(sizes, 0, static_cast<jsize>(buttons), values.data());
+  }
+  std::vector<sl::SwipeSpan> spans;
+  sl::swipeButtonSpans(values, offset, full == JNI_TRUE, crossSize, spans);
+  sl::SwipeSpan revealed = sl::swipeRevealedSpan(offset, crossSize);
+  std::vector<jdouble> packed;
+  packed.reserve(2 + spans.size() * 2);
+  packed.push_back(revealed.start);
+  packed.push_back(revealed.size);
+  for (const sl::SwipeSpan& span : spans) {
+    packed.push_back(span.start);
+    packed.push_back(span.size);
+  }
+  jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(packed.size()));
+  env->SetDoubleArrayRegion(out, 0, length, packed.data());
 }
 
 }

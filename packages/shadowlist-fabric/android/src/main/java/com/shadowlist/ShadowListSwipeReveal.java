@@ -26,6 +26,20 @@ final class ShadowListSwipeReveal {
   static final int SIDE_LEADING = 1;
   static final int SIDE_TRAILING = 2;
 
+  /*
+   * Slots of nativeConstants(), matching ConstantSlot in ShadowListSwipeJNI.cpp.
+   */
+  private static final int CONSTANT_FLING_VELOCITY = 0;
+  private static final int CONSTANT_SETTLE_DURATION_MS = 1;
+
+  private static final double[] CONSTANTS = nativeConstants();
+
+  /*
+   * The core's swipe constants: the fling speed in dp per second and the settle duration.
+   */
+  static final double FLING_VELOCITY_DP = CONSTANTS[CONSTANT_FLING_VELOCITY];
+  static final long SETTLE_DURATION_MS = (long) CONSTANTS[CONSTANT_SETTLE_DURATION_MS];
+
   private final double[] mOut = new double[OUT_SLOTS];
 
   // The native Peer, 0 until first use and after destroy().
@@ -105,6 +119,31 @@ final class ShadowListSwipeReveal {
     return mOut[OUT_OFFSET];
   }
 
+  /*
+   * The core's swipeButtonSize: the title's fitted size with room around it, at least the
+   * narrowest button, scaled to pixels.
+   */
+  static double buttonSize(double fitted, double scale) {
+    return nativeButtonSize(fitted, scale);
+  }
+
+  /*
+   * The core's swipeButtonSpans and swipeRevealedSpan into out: the revealed span's start and
+   * size, then each of the count buttons' start and size.
+   */
+  static void buttonSpans(double[] sizes, int count, double offset, boolean full, double crossSize, double[] out) {
+    nativeButtonSpans(sizes, count, offset, full, crossSize, out);
+  }
+
+  private static native double[] nativeConstants();
+  private static native double nativeButtonSize(double fitted, double scale);
+  private static native void nativeButtonSpans(
+    double[] sizes,
+    int count,
+    double offset,
+    boolean full,
+    double crossSize,
+    double[] out);
   private static native long nativeCreate();
   private static native void nativeDestroy(long handle);
   private static native void nativeBegin(
