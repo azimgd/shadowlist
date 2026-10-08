@@ -1862,33 +1862,34 @@ static BOOL SLKListHandles(SEL selector)
 {
   NSInteger index = cell.index;
   const std::string& key = _driver.getKeyAt((std::size_t)cell.row);
-  if (_allowsMultipleSelection && _selection.contains(key)) {
-    _selection.deselect(key);
+  id<SLKListViewDelegate> delegate = _userDelegate;
+  SelectionTap tap = _selection.tap(key, [&] {
+    return ![delegate respondsToSelector:@selector(listView:shouldSelectItemAtIndex:)] ||
+      [delegate listView:self shouldSelectItemAtIndex:index];
+  });
+  if (tap.toggledOff) {
     [cell setSelected:NO animated:YES];
-    if ([_userDelegate respondsToSelector:@selector(listView:didDeselectItemAtIndex:)]) {
-      [_userDelegate listView:self didDeselectItemAtIndex:index];
+    if ([delegate respondsToSelector:@selector(listView:didDeselectItemAtIndex:)]) {
+      [delegate listView:self didDeselectItemAtIndex:index];
     }
     return;
   }
-  if ([_userDelegate respondsToSelector:@selector(listView:shouldSelectItemAtIndex:)] &&
-      ![_userDelegate listView:self shouldSelectItemAtIndex:index]) {
+  if (!tap.selected) {
     return;
   }
-  std::vector<std::string> deselected;
-  _selection.select(key, deselected);
-  for (const std::string& previous : deselected) {
+  for (const std::string& previous : tap.deselected) {
     SLKListCell *previousCell = [self mountedCellForKey:previous];
     [previousCell setSelected:NO animated:YES];
     NSInteger previousIndex = [self itemIndexOfKey:previous];
-    if (previousIndex != NSNotFound && [_userDelegate respondsToSelector:@selector(listView:didDeselectItemAtIndex:)]) {
-      [_userDelegate listView:self didDeselectItemAtIndex:previousIndex];
+    if (previousIndex != NSNotFound && [delegate respondsToSelector:@selector(listView:didDeselectItemAtIndex:)]) {
+      [delegate listView:self didDeselectItemAtIndex:previousIndex];
     }
   }
   if (!cell.isSelected) {
     [cell setSelected:YES animated:YES];
   }
-  if ([_userDelegate respondsToSelector:@selector(listView:didSelectItemAtIndex:)]) {
-    [_userDelegate listView:self didSelectItemAtIndex:index];
+  if ([delegate respondsToSelector:@selector(listView:didSelectItemAtIndex:)]) {
+    [delegate listView:self didSelectItemAtIndex:index];
   }
 }
 

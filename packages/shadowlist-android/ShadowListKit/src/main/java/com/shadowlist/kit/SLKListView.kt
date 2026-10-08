@@ -1727,7 +1727,9 @@ open class SLKListView @JvmOverloads constructor(
   // region Selection
 
   /*
-   * A tap on a row. Multiple selection toggles it, single selection moves to it.
+   * A tap on a row. Multiple selection toggles it, single selection moves to it. The rules of
+   * the core's ListSelection.tap, see selection_tap_selects_moves_and_toggles. The selection
+   * stays here because every cell bind reads it.
    */
   private fun userSelected(cell: SLKListCell) {
     val index = cell.index
