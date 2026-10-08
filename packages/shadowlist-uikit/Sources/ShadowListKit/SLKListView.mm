@@ -229,7 +229,7 @@ static BOOL SLKListHandles(SEL selector)
   __weak SLKListCell *_highlightedCell;
 
   // The content version of every item applyChanges saw, by key.
-  std::unordered_map<std::string, NSInteger> _contentVersions;
+  ContentVersions _contentVersions;
 
   SLKAnchorState *_pendingAnchor;
   UIRefreshControl *_refresh;
@@ -835,11 +835,16 @@ static BOOL SLKListHandles(SEL selector)
     return;
   }
   std::vector<std::string> items = _sections.itemKeys(rowKeys);
-  _contentVersions.clear();
-  _contentVersions.reserve(items.size());
-  for (std::size_t item = 0; item < items.size(); ++item) {
-    _contentVersions.emplace(items[item], [_dataSource listView:self contentVersionForItemAtIndex:(NSInteger)item]);
+  _contentVersions.record(items, [self contentVersionsOfItems:items.size()]);
+}
+
+- (std::vector<std::int64_t>)contentVersionsOfItems:(std::size_t)count
+{
+  std::vector<std::int64_t> versions(count);
+  for (std::size_t item = 0; item < count; ++item) {
+    versions[item] = [_dataSource listView:self contentVersionForItemAtIndex:(NSInteger)item];
   }
+  return versions;
 }
 
 /*
@@ -1016,28 +1021,16 @@ static BOOL SLKListHandles(SEL selector)
     return;
   }
   // The reloaded rows by key, from the data before.
-  std::unordered_set<std::string> reloadedKeys;
-  for (std::size_t item : batch.reloaded) {
-    std::size_t row = _sections.rowForItem(item);
-    if (row != UNDEFINED_INDEX && row < _driver.getKeyCount()) {
-      reloadedKeys.insert(_driver.getKeyAt(row));
-    }
-  }
+  std::unordered_set<std::string> reloadedKeys = keysOfRows(_driver.getKeys(), [self rowsOfItems:batch.reloaded]);
   std::vector<std::string> next;
   BOOL planned = NO;
   if (![self hasSections] && !needsReload) {
     NSInteger nextCount = MAX(0, [_dataSource numberOfItemsInListView:self]);
     std::optional<BatchPlan> plan = planBatch(_driver.getKeyCount(), (std::size_t)nextCount, batch);
     if (plan) {
-      next.reserve(plan->sources.size());
-      for (std::size_t index = 0; index < plan->sources.size(); ++index) {
-        std::size_t source = plan->sources[index];
-        if (source == UNDEFINED_INDEX) {
-          next.emplace_back([_dataSource listView:self keyForItemAtIndex:(NSInteger)index].UTF8String);
-        } else {
-          next.push_back(_driver.getKeyAt(source));
-        }
-      }
+      next = keysFromPlan(*plan, _driver.getKeys(), [self](std::size_t index) {
+        return std::string([_dataSource listView:self keyForItemAtIndex:(NSInteger)index].UTF8String);
+      });
       _sections.setPlain(next.size());
       planned = YES;
     } else {
@@ -1051,7 +1044,7 @@ static BOOL SLKListHandles(SEL selector)
     [self captureChangeTo:next];
   }
   _driver.reloadKeys(std::move(next));
-  std::vector<std::size_t> rows = [self rowsOfKeys:reloadedKeys];
+  std::vector<std::size_t> rows = rowsOfKeys(_driver.getKeys(), reloadedKeys);
   if (rows.empty()) {
     [self structureChanged];
   } else {
@@ -1062,15 +1055,16 @@ static BOOL SLKListHandles(SEL selector)
   }
 }
 
-- (std::vector<std::size_t>)rowsOfKeys:(const std::unordered_set<std::string>&)keys
+/*
+ * The rows of items, skipping items past the end.
+ */
+- (std::vector<std::size_t>)rowsOfItems:(const std::vector<std::size_t>&)items
 {
   std::vector<std::size_t> rows;
-  if (keys.empty()) {
-    return rows;
-  }
-  const std::vector<std::string>& all = _driver.getKeys();
-  for (std::size_t row = 0; row < all.size(); ++row) {
-    if (keys.count(all[row]) > 0) {
+  rows.reserve(items.size());
+  for (std::size_t item : items) {
+    std::size_t row = _sections.rowForItem(item);
+    if (row != UNDEFINED_INDEX) {
       rows.push_back(row);
     }
   }
@@ -1088,25 +1082,17 @@ static BOOL SLKListHandles(SEL selector)
   NSMutableIndexSet *reloaded = [NSMutableIndexSet indexSet];
   std::unordered_set<std::string> reloadedKeys;
   if ([_dataSource respondsToSelector:@selector(listView:contentVersionForItemAtIndex:)]) {
-    std::unordered_map<std::string, NSInteger> versions;
-    versions.reserve(nextItems.size());
-    for (std::size_t item = 0; item < nextItems.size(); ++item) {
-      NSInteger version = [_dataSource listView:self contentVersionForItemAtIndex:(NSInteger)item];
-      auto known = _contentVersions.find(nextItems[item]);
-      if (known != _contentVersions.end() && known->second != version) {
-        [reloaded addIndex:item];
-        reloadedKeys.insert(nextItems[item]);
-      }
-      versions.emplace(nextItems[item], version);
+    for (std::size_t item : _contentVersions.update(nextItems, [self contentVersionsOfItems:nextItems.size()])) {
+      [reloaded addIndex:item];
+      reloadedKeys.insert(nextItems[item]);
     }
-    _contentVersions = std::move(versions);
   }
 
   if (_animatesChanges) {
     [self captureChangeTo:next];
   }
   _driver.reloadKeys(std::move(next));
-  std::vector<std::size_t> rows = [self rowsOfKeys:reloadedKeys];
+  std::vector<std::size_t> rows = rowsOfKeys(_driver.getKeys(), reloadedKeys);
   if (rows.empty()) {
     [self structureChanged];
   } else {
@@ -1133,27 +1119,17 @@ static BOOL SLKListHandles(SEL selector)
 }
 
 /*
- * The keys a reload removes and adds, for the change animation. Only computed when it runs.
+ * The keys a reload removes and adds, for the change animation: the changed middle between the
+ * unchanged rows at both ends. A key on both sides moved. Only computed when it runs.
  */
 - (void)captureChangeTo:(const std::vector<std::string>&)next
 {
-  std::unordered_set<std::string> nextSet(next.begin(), next.end());
-  std::unordered_set<std::string> previousSet;
-  std::vector<std::string> removed;
-  for (std::size_t index = 0; index < _driver.getKeyCount(); ++index) {
-    const std::string& key = _driver.getKeyAt(index);
-    previousSet.insert(key);
-    if (nextSet.count(key) == 0) {
-      removed.push_back(key);
-    }
-  }
-  std::vector<std::string> inserted;
-  for (const std::string& key : next) {
-    if (previousSet.count(key) == 0) {
-      inserted.push_back(key);
-    }
-  }
-  [_changes captureRemoved:removed inserted:inserted];
+  const std::vector<std::string>& previous = _driver.getKeys();
+  KeySplice splice = keySplice(previous, next);
+  auto removedFrom = previous.begin() + (std::ptrdiff_t)splice.start;
+  auto insertedFrom = next.begin() + (std::ptrdiff_t)splice.start;
+  [_changes captureRemoved:std::vector<std::string>(removedFrom, removedFrom + (std::ptrdiff_t)splice.removed)
+                  inserted:std::vector<std::string>(insertedFrom, insertedFrom + (std::ptrdiff_t)splice.added)];
 }
 
 /*

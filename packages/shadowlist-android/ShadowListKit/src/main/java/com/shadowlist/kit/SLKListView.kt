@@ -740,7 +740,9 @@ open class SLKListView @JvmOverloads constructor(
   }
 
   /*
-   * The content version of every item now, which the next applyChanges compares against.
+   * The content version of every item now, which the next applyChanges compares against. The
+   * versions outlive the core, which is dropped on detach. The rules are the core's
+   * ContentVersions, see content_versions_report_items_whose_version_changed.
    */
   private fun recordContentVersions(rows: List<String>) {
     val versioned = dataSource as? ContentVersions ?: return
@@ -750,6 +752,10 @@ open class SLKListView @JvmOverloads constructor(
     contentVersions = versions
   }
 
+  /*
+   * The core's keySplice over the key list kept here, which needs no copy of the keys into the
+   * core. The core test key_splice_finds_the_changed_middle holds the rule.
+   */
   private fun applyRowKeys(next: ArrayList<String>) {
     val start = commonPrefix(keys, next)
     val end = commonSuffix(keys, next, start)
@@ -903,6 +909,7 @@ open class SLKListView @JvmOverloads constructor(
       val plan = SLKCore.planBatch(keys.size, nextCount, deleted, inserted, movedFrom, movedTo)
       if (plan != null) {
         next.ensureCapacity(plan.size)
+        // The core's keysFromPlan: a kept row takes its key, an inserted one reads its own.
         for ((index, from) in plan.withIndex()) next.add(if (from < 0) source.keyForItem(this, index) else keys[from])
         setPlainSections(next.size)
         planned = true

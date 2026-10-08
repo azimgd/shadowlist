@@ -69,21 +69,14 @@ void ListDriver::recordEdit(KeyEdit edit) {
 }
 
 void ListDriver::reloadKeys(std::vector<std::string> keys) {
-  std::size_t limit = std::min(keys_.size(), keys.size());
-  std::size_t start = 0;
-  while (start < limit && keys_[start] == keys[start]) {
-    ++start;
-  }
-  std::size_t end = 0;
-  while (end < limit - start && keys_[keys_.size() - 1 - end] == keys[keys.size() - 1 - end]) {
-    ++end;
-  }
-  if (start == keys_.size() && start == keys.size()) {
+  KeySplice splice = keySplice(keys_, keys);
+  if (splice.isEmpty()) {
     return;
   }
-  std::vector<std::string> middle(std::make_move_iterator(keys.begin() + static_cast<std::ptrdiff_t>(start)),
-    std::make_move_iterator(keys.end() - static_cast<std::ptrdiff_t>(end)));
-  replaceKeys(start, keys_.size() - start - end, std::move(middle));
+  auto first = keys.begin() + static_cast<std::ptrdiff_t>(splice.start);
+  std::vector<std::string> middle(std::make_move_iterator(first),
+    std::make_move_iterator(first + static_cast<std::ptrdiff_t>(splice.added)));
+  replaceKeys(splice.start, splice.removed, std::move(middle));
 }
 
 void ListDriver::replaceKeys(std::size_t start, std::size_t count, std::vector<std::string> keys) {

@@ -4,10 +4,13 @@
 
 #include "TestFramework.hpp"
 
+#include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
 
+#include <optional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 using namespace slt;
@@ -53,4 +56,83 @@ TEST(list_driver_appends_inserts_named_past_the_end) {
   // The driver keeps the same rule when it gets the raw indices.
   driver.insertKeys({20}, {"f"});
   CHECK(driver.getKeys() == (std::vector<std::string>{"a", "b", "c", "d", "e", "f"}));
+}
+
+using Keys = std::vector<std::string>;
+
+/*
+ * SLKListView.applyRowKeys on Android finds the same splice with commonPrefix and commonSuffix
+ * over its own key list. These are the cases it has to match.
+ */
+TEST(key_splice_finds_the_changed_middle) {
+  KeySplice prepend = keySplice({"c", "d"}, {"a", "b", "c", "d"});
+  CHECK_EQ(prepend.start, std::size_t{0});
+  CHECK_EQ(prepend.removed, std::size_t{0});
+  CHECK_EQ(prepend.added, std::size_t{2});
+
+  KeySplice trim = keySplice({"a", "b", "c", "d"}, {"a", "b"});
+  CHECK_EQ(trim.start, std::size_t{2});
+  CHECK_EQ(trim.removed, std::size_t{2});
+  CHECK_EQ(trim.added, std::size_t{0});
+
+  KeySplice middle = keySplice({"a", "b", "c", "d"}, {"a", "x", "y", "d"});
+  CHECK_EQ(middle.start, std::size_t{1});
+  CHECK_EQ(middle.removed, std::size_t{2});
+  CHECK_EQ(middle.added, std::size_t{2});
+
+  CHECK(keySplice({"a", "b"}, {"a", "b"}).isEmpty());
+  CHECK(keySplice({}, {}).isEmpty());
+}
+
+TEST(key_splice_never_counts_a_key_in_both_ends) {
+  // "a a" to "a": the prefix takes the one shared key and the suffix finds none left.
+  KeySplice splice = keySplice({"a", "a"}, {"a"});
+  CHECK_EQ(splice.start, std::size_t{1});
+  CHECK_EQ(splice.removed, std::size_t{1});
+  CHECK_EQ(splice.added, std::size_t{0});
+
+  KeySplice cleared = keySplice({"a", "b"}, {});
+  CHECK_EQ(cleared.start, std::size_t{0});
+  CHECK_EQ(cleared.removed, std::size_t{2});
+}
+
+TEST(rows_of_keys_and_keys_of_rows_round_trip) {
+  Keys keys = {"a", "b", "c", "d"};
+  std::unordered_set<std::string> found = keysOfRows(keys, {3, 1, 9});
+  CHECK_EQ(found.size(), std::size_t{2});
+  CHECK(found.count("b") > 0 && found.count("d") > 0);
+  CHECK(rowsOfKeys(keys, found) == (Indices{1, 3}));
+  CHECK(rowsOfKeys(keys, {}).empty());
+}
+
+TEST(keys_from_plan_keep_old_keys_and_read_new_ones) {
+  Keys previous = {"a", "b", "c"};
+  BatchUpdate batch;
+  batch.deleted = {1};
+  batch.inserted = {0, 3};
+  std::optional<BatchPlan> plan = planBatch(previous.size(), 4, batch);
+  CHECK(plan.has_value());
+  Indices read;
+  Keys next = keysFromPlan(*plan, previous, [&](std::size_t index) {
+    read.push_back(index);
+    return "n" + std::to_string(index);
+  });
+  CHECK(next == (Keys{"n0", "a", "c", "n3"}));
+  CHECK(read == (Indices{0, 3}));
+}
+
+/*
+ * SLKListView.applyChanges on Android keeps its versions in a map that outlives the core. It
+ * reloads by the same rule.
+ */
+TEST(content_versions_report_items_whose_version_changed) {
+  ContentVersions versions;
+  CHECK(versions.update({"a", "b"}, {1, 1}).empty());
+  versions.record({"a", "b", "c"}, {1, 1, 1});
+  // b changed, c moved first and kept its version, d is new and has nothing to compare.
+  Indices changed = versions.update({"c", "a", "b", "d"}, {1, 1, 2, 5});
+  CHECK(changed == (Indices{2}));
+  // The new versions are kept: the same data again changes nothing.
+  CHECK(versions.update({"c", "a", "b", "d"}, {1, 1, 2, 5}).empty());
+  CHECK(versions.update({"d"}, {6}) == (Indices{0}));
 }
