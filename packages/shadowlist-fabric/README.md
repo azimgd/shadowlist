@@ -121,7 +121,7 @@ On iOS a VoiceOver three finger swipe moves one screen and says which rows show.
 The C++ core can log every layout pass with an `[SL]` prefix. It is off by default, in debug builds too. To turn it on:
 
 - iOS and macOS: run `SHADOWLIST_DEBUG_LOG=1 pod install`, then rebuild. A plain `pod install` turns it off again. The lines show in the Xcode console.
-- Android: pass `arguments "-DSHADOWLIST_DEBUG_LOG=1"` in the app's `android.defaultConfig.externalNativeBuild.cmake` block, then rebuild. Read it with `adb logcat -s SL`.
+- Android: pass `arguments "-DSHADOWLIST_DEBUG_LOG=1"` in the app's `android.defaultConfig.externalNativeBuild.cmake` block, then rebuild. Read it with `adb logcat -s SL`. Building with `-PshadowlistDebugLog` also turns on the library's Java `[SL]` trace through `BuildConfig`.
 
 ## Migration to 0.9
 
