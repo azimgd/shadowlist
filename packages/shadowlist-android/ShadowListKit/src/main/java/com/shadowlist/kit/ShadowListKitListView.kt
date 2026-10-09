@@ -354,6 +354,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal val refresh = ShadowListKitRefreshIndicator(this)
   private val sectionIndex = ShadowListKitSectionIndex(this)
   internal val selection = ShadowListKitSelection(this)
+  private val stickyPinning = ShadowListKitStickyPinning(this)
 
   private val data = ShadowListKitListData(this)
 
@@ -392,20 +393,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var windowGeometry = -1.0
   private val scratchFrame = DoubleArray(4)
 
-  private var stickyCell: ShadowListKitListCell? = null
-
   /*
-   * The sticky rows: the sticky items' rows and the section headers, sorted.
+   * The geometry version of the core's last pass. Sticky pinning copies its frames again when
+   * it changes.
    */
-  private var stickyRows = IntArray(0)
-
-  /*
-   * Leading edge and extent of every sticky row, copied from the core when the geometry
-   * changes. Pinning reads only these on a scroll frame.
-   */
-  private var stickyFrames = DoubleArray(0)
-  private var stickyGeometry = -1.0
-  private var frameGeometry = 0.0
+  internal var frameGeometry = 0.0
+    private set
 
   /*
    * Child positions of the views drawn last, see dispatchDraw.
@@ -549,13 +542,13 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val created = ShadowListKitCore(::measureItem)
     coreOrNull = created
     applySettings(created)
-    if (stickyRows.isNotEmpty()) created.setStickyIndices(stickyRows)
+    if (stickyPinning.stickyRows.isNotEmpty()) created.setStickyIndices(stickyPinning.stickyRows)
     created.setSections(data.itemCount, data.sectionCounts, data.sectionFlags)
     if (keys.isNotEmpty()) created.replaceKeys(0, 0, keys, 0, keys.size)
     windowLow = -1
     windowHigh = -1
     windowGeometry = -1.0
-    stickyGeometry = -1.0
+    stickyPinning.invalidateFrames()
     bandLow = 1.0
     bandHigh = 0.0
     mountedLow = -1
@@ -677,7 +670,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   /*
    * The mounted cell of a row, or null.
    */
-  private fun mountedCell(row: Int): ShadowListKitListCell? = keyAt(row)?.let { mounted[it] }
+  internal fun mountedCell(row: Int): ShadowListKitListCell? = keyAt(row)?.let { mounted[it] }
 
   override fun generateDefaultLayoutParams(): LayoutParams =
     LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
@@ -797,12 +790,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   private fun updateStickyRows() {
-    val sorted = core.stickyRows(stickyIndices, stickySectionHeaders)
-    if (sorted.contentEquals(stickyRows)) return
-    stickyRows = sorted
-    coreOrNull?.setStickyIndices(sorted)
-    stickyGeometry = -1.0
-    mountedLow = -1
+    if (stickyPinning.updateStickyRows(stickyIndices, stickySectionHeaders)) mountedLow = -1
   }
 
   internal fun reloadSectionIndex() {
@@ -857,7 +845,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       if (needsFrame || geometryChanged || !inBand(offset)) runPasses()
       layoutTemplates()
       mountCells()
-      layoutSticky()
+      stickyPinning.layoutSticky()
       if (hasHeldRow) drag.applyShifts(false)
       changes.run()
       swipe.layout()
@@ -1044,7 +1032,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       if (low < 0) low = index
       high = index
     }
-    val sticky = activeStickyIndex(offset.toDouble())
+    val sticky = stickyPinning.activeStickyIndex(offset.toDouble())
     if (!mountNeeded(low, high, sticky)) return
     recordMount(low, high, sticky)
     mountPlan(low, high, sticky, viewLow, viewHigh)
@@ -1142,7 +1130,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     return core.rowRect(index, out)
   }
 
-  private fun placeCell(cell: ShadowListKitListCell, index: Int) {
+  internal fun placeCell(cell: ShadowListKitListCell, index: Int) {
     if (!rowRect(index, scratchFrame)) return
     placeView(cell, scratchFrame[0], scratchFrame[1], scratchFrame[2], scratchFrame[3])
   }
@@ -1241,74 +1229,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   // endregion
 
-  // region Sticky
-
-  private fun refreshStickyFrames() {
-    if (stickyGeometry == frameGeometry) return
-    if (stickyFrames.size < stickyRows.size * 2) stickyFrames = DoubleArray(stickyRows.size * 2)
-    if (core.copyStickyFrames(stickyFrames)) stickyGeometry = frameGeometry
-  }
-
-  /*
-   * Position in stickyRows of the last sticky row starting at or above the offset, or -1. Rows
-   * the core has not placed yet start at infinity and sort last. The core test
-   * list_driver_sticky_frames_pin_the_same_header_as_the_driver holds the rule this and
-   * stickyLeading match.
-   */
-  private fun activeStickyPosition(offset: Double): Int {
-    if (stickyRows.isEmpty()) return -1
-    refreshStickyFrames()
-    var found = -1
-    var low = 0
-    var high = stickyRows.size
-    while (low < high) {
-      val mid = (low + high) ushr 1
-      if (stickyFrames[mid * 2] <= offset) {
-        found = mid
-        low = mid + 1
-      } else {
-        high = mid
-      }
-    }
-    return found
-  }
-
-  private fun activeStickyIndex(offset: Double): Int =
-    activeStickyPosition(offset).let { if (it >= 0) stickyRows[it] else -1 }
-
-  /*
-   * Where the pinned header's leading edge goes, pushed up by the next header.
-   */
-  private fun stickyLeading(position: Int, offset: Double): Double {
-    var pinned = max(stickyFrames[position * 2], offset)
-    val next = position + 1
-    if (next < stickyRows.size && stickyFrames[next * 2].isFinite()) {
-      pinned = min(pinned, stickyFrames[next * 2] - stickyFrames[position * 2 + 1])
-    }
-    return pinned
-  }
-
-  /*
-   * Pin the active section header and put the one it replaced back in its row.
-   */
-  private fun layoutSticky() {
-    if (stickyRows.isEmpty()) return
-    val position = activeStickyPosition(offset.toDouble())
-    val active = if (position >= 0) stickyRows[position] else -1
-    val cell = mountedCell(active)
-    val previous = stickyCell
-    if (previous != null && previous !== cell) unpinCell(previous)
-    stickyCell = cell
-    if (cell == null) return
-    val pinned = stickyLeading(position, offset.toDouble())
-    val extent = stickyFrames[position * 2 + 1]
-    val cross = windowCross.toDouble()
-    if (horizontal) placeView(cell, pinned, 0.0, extent, cross) else placeView(cell, 0.0, pinned, cross, extent)
-  }
-
-  private fun unpinCell(cell: ShadowListKitListCell) {
-    if (cell.row in keys.indices) placeCell(cell, cell.row)
-  }
+  // region Drawing order
 
   /*
    * The pinned header and the held row draw above the other rows. Their child positions are
@@ -1317,7 +1238,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   override fun dispatchDraw(canvas: Canvas) {
     for (decoration in decorations) decoration.onDraw(canvas, this)
-    val sticky = stickyCell?.let { indexOfChild(it) } ?: -1
+    val sticky = stickyPinning.stickyCell?.let { indexOfChild(it) } ?: -1
     val held = drag.heldCell?.let { indexOfChild(it) } ?: -1
     liftedLow = if (sticky >= 0 && held >= 0) min(sticky, held) else max(sticky, held)
     liftedHigh = if (sticky >= 0 && held >= 0) max(sticky, held) else -1
