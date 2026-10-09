@@ -1,6 +1,7 @@
 #import "Internal/ShadowListKitListView+Private.h"
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListModels+Private.h"
+#import "Internal/ShadowListKitListSupport.h"
 #import "Internal/ShadowListKitSectionIndexView.h"
 
 #include <algorithm>
@@ -16,12 +17,6 @@
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
 using namespace azimgd::shadowlist;
-
-/*
- * Reuse identifier of the built-in section header and footer cells.
- */
-static NSString *const SHADOWLIST_KIT_SECTION_HEADER_IDENTIFIER = @"ShadowListKitSectionHeader";
-static NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectionFooter";
 
 void ShadowListKitPlace(UIView *view, CGRect frame)
 {
@@ -57,32 +52,7 @@ std::string ShadowListKitStdString(NSString *string)
 }
 
 @interface ShadowListKitListView ()
-- (void)settleFrame;
 - (void)focusAccessibilityRowForKey:(NSString *)key;
-@end
-
-#pragma mark - Settle frame target
-
-/*
- * The settle display link's target. It holds the list weakly, which lets the list go away
- * while the link exists.
- */
-@interface ShadowListKitSettleTarget : NSObject
-@property (nonatomic, weak) ShadowListKitListView *list;
-@end
-
-@implementation ShadowListKitSettleTarget
-
-- (void)tick:(CADisplayLink *)link
-{
-  ShadowListKitListView *list = _list;
-  if (!list) {
-    [link invalidate];
-    return;
-  }
-  [list settleFrame];
-}
-
 @end
 
 #pragma mark - Row accessibility element
@@ -106,95 +76,6 @@ std::string ShadowListKitStdString(NSString *string)
   dispatch_async(dispatch_get_main_queue(), ^{
     [weakList focusAccessibilityRowForKey:key];
   });
-}
-
-@end
-
-#pragma mark - Section header cell
-
-/*
- * The cell of a section header or footer the data source gives only a title for.
- */
-@interface ShadowListKitSectionTitleCell : ShadowListKitListCell
-@property (nonatomic, strong, readonly) UILabel *label;
-@property (nonatomic) BOOL footer;
-@end
-
-@implementation ShadowListKitSectionTitleCell
-
-- (instancetype)initWithReuseIdentifier:(NSString *)reuseIdentifier
-{
-  if (self = [super initWithReuseIdentifier:reuseIdentifier]) {
-    _footer = [reuseIdentifier isEqualToString:SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER];
-    _label = [UILabel new];
-    _label.numberOfLines = 0;
-    _label.textColor = UIColor.secondaryLabelColor;
-    _label.font = _footer ? [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote]
-                          : [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    self.backgroundColor = _footer ? UIColor.clearColor : UIColor.secondarySystemBackgroundColor;
-    [self addSubview:_label];
-  }
-  return self;
-}
-
-- (CGSize)sizeThatFits:(CGSize)size
-{
-  CGSize text = [_label sizeThatFits:CGSizeMake(MAX(0, size.width - 32), CGFLOAT_MAX)];
-  return CGSizeMake(size.width, MAX(28, ceil(text.height) + 12));
-}
-
-- (void)layoutSubviews
-{
-  [super layoutSubviews];
-  _label.frame = CGRectMake(16, 6, MAX(0, self.bounds.size.width - 32), MAX(0, self.bounds.size.height - 12));
-}
-
-@end
-
-#pragma mark - Delegate proxy
-
-/*
- * Sits between UIScrollView and the user's delegate. The list sees the scroll events it needs
- * for snapping and gesture phases, and everything else goes to the user's delegate.
- */
-@interface ShadowListKitDelegateProxy : NSProxy
-@property (nonatomic, weak) ShadowListKitListView *list;
-@property (nonatomic, weak) id<ShadowListKitListViewDelegate> target;
-@end
-
-@implementation ShadowListKitDelegateProxy
-
-static BOOL ShadowListKitListHandles(SEL selector)
-{
-  return selector == @selector(scrollViewWillEndDragging:withVelocity:targetContentOffset:) ||
-    selector == @selector(scrollViewDidEndDragging:willDecelerate:) ||
-    selector == @selector(scrollViewDidEndDecelerating:) ||
-    selector == @selector(scrollViewDidEndScrollingAnimation:) ||
-    selector == @selector(scrollViewWillBeginDragging:);
-}
-
-- (BOOL)respondsToSelector:(SEL)selector
-{
-  return ShadowListKitListHandles(selector) || [_target respondsToSelector:selector];
-}
-
-- (NSMethodSignature *)methodSignatureForSelector:(SEL)selector
-{
-  id target = ShadowListKitListHandles(selector) ? (id)_list : (id)_target;
-  return [target methodSignatureForSelector:selector] ?: [NSObject instanceMethodSignatureForSelector:@selector(self)];
-}
-
-- (void)forwardInvocation:(NSInvocation *)invocation
-{
-  SEL selector = invocation.selector;
-  if (ShadowListKitListHandles(selector)) {
-    [invocation invokeWithTarget:_list];
-    if ([_target respondsToSelector:selector]) {
-      [invocation invokeWithTarget:_target];
-    }
-  } else if ([_target respondsToSelector:selector]) {
-    [invocation invokeWithTarget:_target];
-  }
 }
 
 @end

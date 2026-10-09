@@ -39,6 +39,7 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
  * user's scrolling. recycleCell: hides a cell and puts it back in its reuse pool. cellAtPoint:
  * is the visible cell under a point in the list's own coordinates. itemCellAtPoint: is the same
  * for item cells only. itemForRow: and rowForItem: convert indices, NSNotFound when there is none.
+ * settleFrame runs the layout pass the settle display link waited for.
  */
 @interface ShadowListKitListView () <UIScrollViewDelegate> {
  @package
@@ -84,6 +85,7 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
 - (NSInteger)itemForRow:(NSInteger)row;
 - (NSInteger)rowForItem:(NSInteger)item;
 - (BOOL)itemsForDragFromRow:(std::size_t)fromRow toRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to;
+- (void)settleFrame;
 
 @end
 
