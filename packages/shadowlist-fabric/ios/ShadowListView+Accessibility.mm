@@ -1,7 +1,8 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Private.h"
 
-#include <algorithm>
+#include <shadowlist-core/host/ScrollTarget.hpp>
+
 #include <cmath>
 #include <string>
 
@@ -44,7 +45,7 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
   CGFloat viewport = _horizontal ? _scrollView.bounds.size.width : _scrollView.bounds.size.height;
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   CGFloat maxOffset = MAX(0.0, (_horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height) - viewport);
-  CGFloat target = MIN(MAX(offset + (forward ? viewport : -viewport), 0.0), maxOffset);
+  CGFloat target = azimgd::shadowlist::pageScrollTarget(offset, viewport, maxOffset, forward ? 1 : -1);
   if (fabs(target - offset) < 1.0) {
     return NO;
   }
@@ -65,7 +66,8 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
 }
 
 /*
- * Say which rows show, like "Rows 4 to 12 of 200". Rows are counted from the keys in props.
+ * Say which rows show, like "Rows 4 to 12 of 200". Rows are counted from the keys in props,
+ * looked up in an index built once per props.
  */
 - (void)announcePageScroll
 {
@@ -75,6 +77,15 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
   _pageAnnouncementPending = NO;
   const auto& props = *std::static_pointer_cast<const ShadowListViewProps>(_props);
   const auto& keys = props.elementsAllKeys;
+  if (_pageKeyIndicesProps != _props) {
+    // The first row with a key wins, like a search from the start.
+    _pageKeyIndices.clear();
+    _pageKeyIndices.reserve(keys.size());
+    for (std::size_t index = 0; index < keys.size(); ++index) {
+      _pageKeyIndices.emplace(keys[index], (NSInteger)index);
+    }
+    _pageKeyIndicesProps = _props;
+  }
   CGRect visible = _scrollView.bounds;
   NSInteger first = NSNotFound;
   NSInteger last = NSNotFound;
@@ -86,11 +97,11 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
     if (!key) {
       continue;
     }
-    auto found = std::find(keys.begin(), keys.end(), std::string(key.UTF8String));
-    if (found == keys.end()) {
+    auto found = _pageKeyIndices.find(std::string(key.UTF8String));
+    if (found == _pageKeyIndices.end()) {
       continue;
     }
-    NSInteger index = (NSInteger)(found - keys.begin());
+    NSInteger index = found->second;
     first = first == NSNotFound ? index : MIN(first, index);
     last = last == NSNotFound ? index : MAX(last, index);
   }

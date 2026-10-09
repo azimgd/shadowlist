@@ -287,6 +287,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _numberOfColumns = 1;
   _endDragVelocity = CGPointZero;
   _pageAnnouncementPending = NO;
+  _pageKeyIndicesProps.reset();
+  _pageKeyIndices.clear();
   [self teardownDrag];
   _dragRecognizer.enabled = NO;
   /*

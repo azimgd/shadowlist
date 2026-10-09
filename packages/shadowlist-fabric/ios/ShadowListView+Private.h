@@ -9,6 +9,8 @@
 #include <shadowlist-core/host/ScrollSync.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
 
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 /*
@@ -164,6 +166,9 @@ static inline BOOL SLFrameTraceEnabled(void)
   CGPoint _endDragVelocity;
   // A VoiceOver page scroll waits for its rows before it says which rows show.
   BOOL _pageAnnouncementPending;
+  // Row index by key for the page announcement, built for these props.
+  facebook::react::Props::Shared _pageKeyIndicesProps;
+  std::unordered_map<std::string, NSInteger> _pageKeyIndices;
 #if TARGET_OS_OSX
   /*
    * The live scroll's fingers lifted, and whether momentum followed.
