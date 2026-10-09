@@ -2,7 +2,6 @@ import {
   useRef,
   useMemo,
   useCallback,
-  useEffect,
   useLayoutEffect,
   useState,
   forwardRef,
@@ -21,14 +20,11 @@ import {
   type ViewStyle,
 } from 'react-native';
 import ShadowListView, {
-  Commands,
-  type OnAnchorState,
   type OnContentSizeChange,
   type OnScroll,
 } from './ShadowListViewNativeComponent';
 import ShadowListTemplateView from './ShadowListTemplateViewNativeComponent';
 import type {
-  AnchorState,
   ShadowListProps,
   ShadowListCommands,
   ViewabilityConfigCallbackPair,
@@ -48,6 +44,7 @@ import {
   useStableElement,
   useRowSelection,
   usePrefetch,
+  useAnchorState,
   slTrace,
   slTraceEnabled,
   slTraceNow,
@@ -81,11 +78,6 @@ const EMPTY_NUMBERS: ReadonlyArray<number> = [];
  * Default extra rows on each side of the mounted rows that prefetchDataSource hears about.
  */
 const PREFETCH_ROWS = 10;
-
-/*
- * Longest wait for native to answer getAnchorState.
- */
-const ANCHOR_STATE_TIMEOUT_MS = 1000;
 
 /*
  * FlatList's named deceleration rates.
@@ -403,21 +395,13 @@ function ShadowListInner<ElementT>(
     [horizontal]
   );
 
-  /*
-   * getAnchorState asks native and waits for onAnchorState. restoreAnchorState scrolls the
-   * anchor's row back, now or once a data change brings its key.
-   */
-  const anchorWaitersRef = useRef<((state: AnchorState | null) => void)[]>([]);
-  const handleAnchorState = useCallback(
-    (event: { nativeEvent: OnAnchorState }) => {
-      const { found, key, offset } = event.nativeEvent;
-      const waiters = anchorWaitersRef.current;
-      anchorWaitersRef.current = [];
-      waiters.forEach((resolve) => resolve(found ? { key, offset } : null));
-    },
-    []
-  );
-  const pendingAnchorRef = useRef<AnchorState | null>(null);
+  const { handleAnchorState, requestAnchorState, restoreAnchorState } =
+    useAnchorState({
+      viewRef: shadowlistViewRef,
+      rowIndex,
+      keyToIndex,
+      seedAroundIndex,
+    });
 
   const commandSourceRef = useRef<CommandSource | null>(null);
   const commandSource: CommandSource = {
@@ -438,42 +422,10 @@ function ShadowListInner<ElementT>(
     },
     getSelectedIndices: () =>
       selectedIndices(selectionStateRef.current.keys, rowIndex.keyToIndex),
-    requestAnchorState: () =>
-      new Promise<AnchorState | null>((resolve) => {
-        const view = shadowlistViewRef.current;
-        if (!view) {
-          resolve(null);
-          return;
-        }
-        let settled = false;
-        const finish = (state: AnchorState | null) => {
-          if (settled) return;
-          settled = true;
-          resolve(state);
-        };
-        anchorWaitersRef.current.push(finish);
-        setTimeout(() => finish(null), ANCHOR_STATE_TIMEOUT_MS);
-        Commands.requestAnchorState(view);
-      }),
-    restoreAnchorState: (state: AnchorState) => {
-      const index = rowIndex.keyToIndex.get(state.key);
-      const view = shadowlistViewRef.current;
-      if (index === undefined || !view) {
-        pendingAnchorRef.current = state;
-        return;
-      }
-      pendingAnchorRef.current = null;
-      seedAroundIndex(index, 0);
-      Commands.scrollToItem(view, index, 0, -state.offset, false);
-    },
+    requestAnchorState,
+    restoreAnchorState,
   };
   commandSourceRef.current = commandSource;
-  useEffect(() => {
-    const pending = pendingAnchorRef.current;
-    if (pending && keyToIndex.has(pending.key)) {
-      commandSourceRef.current?.restoreAnchorState(pending);
-    }
-  }, [keyToIndex]);
 
   useImperativeCommands(
     ref,

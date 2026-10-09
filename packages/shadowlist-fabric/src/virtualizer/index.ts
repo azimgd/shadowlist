@@ -33,6 +33,7 @@ export { useViewability } from './useViewability';
 export { useElementSizeSpecs } from './useElementSizeSpecs';
 export { useRowSelection } from './useRowSelection';
 export { usePrefetch } from './usePrefetch';
+export { useAnchorState } from './useAnchorState';
 export {
   useImperativeCommands,
   forwardedCommands,
