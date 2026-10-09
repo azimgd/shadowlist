@@ -241,10 +241,13 @@ static BOOL ShadowListKitListHandles(SEL selector)
   /*
    * The offset the core last asked for and the device pixel aligned content offset written
    * for it. While the scroll view rests there, the core is told the exact offset and rows are
-   * drawn shifted by the difference, which keeps the content where the core holds it.
+   * drawn shifted by the difference, which keeps the content where the core holds it. The
+   * leading inset of that moment counts too. A refresh control that ends changes the inset
+   * without moving the content offset, and the old exact offset is then wrong by the change.
    */
   double _exactOffset;
   CGFloat _writtenAlong;
+  CGFloat _writtenInset;
   BOOL _hasWrittenOffset;
   /*
    * The pixel shift the last mount pass placed rows with.
@@ -411,7 +414,8 @@ static BOOL ShadowListKitListHandles(SEL selector)
 
 - (BOOL)restsOnWrittenOffset:(CGFloat)along
 {
-  return _hasWrittenOffset && std::fabs(along - _writtenAlong) < 1e-3;
+  return _hasWrittenOffset && std::fabs(along - _writtenAlong) < 1e-3 &&
+    std::fabs([self leadingInset] - _writtenInset) < 1e-3;
 }
 
 /*
@@ -460,6 +464,7 @@ static BOOL ShadowListKitListHandles(SEL selector)
   }
   _exactOffset = offset;
   _writtenAlong = along;
+  _writtenInset = [self leadingInset];
   _hasWrittenOffset = YES;
   self.contentOffset = point;
 }
