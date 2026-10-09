@@ -25,7 +25,7 @@ namespace {
  */
 void layOut(Container& core, std::size_t count, double rowHeight, double offset = 0.0) {
   auto keys = keysFor(count);
-  Virtualizer::update(&core, inputFor(keys, offset));
+  Virtualizer::update(core, inputFor(keys, offset));
   std::vector<MeasuredRow> rows;
   for (std::size_t index = 0; index < count; ++index) {
     rows.push_back({index, WINDOW_WIDTH, rowHeight, index + 1});
@@ -41,7 +41,7 @@ TEST(list_commit_host_scroll_fills_the_frame) {
   state.offsetY = 120.0;
   state.userScrolled = true;
   state.scrollPhase = SCROLL_PHASE_DRAGGING;
-  state.commitToken = 4.0;
+  state.commitToken = 4;
   FrameInput input;
   applyHostScroll(input, state);
   CHECK_EQ(input.containerOffsetY, 120.0);
@@ -63,7 +63,7 @@ TEST(list_commit_publish_keeps_the_first_base_of_a_correction) {
   CHECK_EQ(state.baseY, 200.0);
   CHECK_EQ(state.offsetY, 300.0);
   CHECK(state.offsetEnabled);
-  CHECK_EQ(state.commitToken, 8.0);
+  CHECK_EQ(state.commitToken, static_cast<std::uint64_t>(8));
 
   // A host report moved the offset, then the core retargets the same token.
   state.offsetY = 260.0;
@@ -117,7 +117,7 @@ TEST(list_layout_inputs_reflow_and_mark_the_offset) {
 TEST(list_layout_measured_rows_report_first_measurements) {
   Container core;
   auto keys = keysFor(10);
-  Virtualizer::update(&core, inputFor(keys, 0.0));
+  Virtualizer::update(core, inputFor(keys, 0.0));
   std::vector<std::uint64_t> firstMeasured;
   applyMeasuredRows(core, {{0, WINDOW_WIDTH, 80.0, 100}, {1, WINDOW_WIDTH, 90.0, 101}}, false, firstMeasured);
   CHECK_EQ(firstMeasured.size(), static_cast<std::size_t>(2));
@@ -138,7 +138,7 @@ TEST(list_layout_template_offsets) {
   Container core;
   layOut(core, 3, 100.0);
   applyLayoutInputs(core, 40.0, 30.0, WINDOW_WIDTH, WINDOW_HEIGHT);
-  Virtualizer::recomputeTotalSize(&core);
+  Virtualizer::recomputeTotalSize(core);
   TemplateOffsets offsets = templateOffsets(core, 40.0, 30.0);
   CHECK_EQ(offsets.header, 0.0);
   CHECK_EQ(offsets.empty, 40.0);
@@ -151,7 +151,7 @@ TEST(list_layout_published_geometry_keeps_pointers_when_unchanged) {
   auto keys = keysFor(30);
   FrameInput input = inputFor(keys, 0.0);
   input.stickyIndices = {0, 10, 20};
-  Virtualizer::update(&core, input);
+  Virtualizer::update(core, input);
   PublishedGeometry published;
   CHECK(published.refresh(core));
   CHECK(published.stickyHeaderIndices != nullptr);
@@ -183,7 +183,7 @@ TEST(list_layout_inverted_lists_publish_no_sticky_headers) {
   FrameInput input = inputFor(keys, 0.0);
   input.stickyIndices = {0, 10};
   input.inverted = true;
-  Virtualizer::update(&core, input);
+  Virtualizer::update(core, input);
   PublishedGeometry published;
   published.refresh(core);
   CHECK(published.stickyHeaderIndices == nullptr);
@@ -191,13 +191,13 @@ TEST(list_layout_inverted_lists_publish_no_sticky_headers) {
 
 TEST(conceal_tracker_generations_and_settling) {
   ConcealTracker<std::string> tracker;
-  CHECK(tracker.empty());
-  CHECK_EQ(tracker.publishedGeneration(), 0.0);
+  CHECK(tracker.isEmpty());
+  CHECK_EQ(tracker.getPublishedGeneration(), 0.0);
 
   tracker.beginPass();
   CHECK_EQ(tracker.hide(7, "a"), static_cast<std::uint64_t>(1));
   CHECK_EQ(tracker.hide(8, "b"), static_cast<std::uint64_t>(1));
-  CHECK_EQ(tracker.publishedGeneration(), 1.0);
+  CHECK_EQ(tracker.getPublishedGeneration(), 1.0);
 
   // A pass with no hide keeps the generation.
   tracker.beginPass();
@@ -226,8 +226,8 @@ TEST(conceal_tracker_generations_and_settling) {
   CHECK(tracker.find(8) == nullptr);
   CHECK(tracker.find(9) != nullptr);
   tracker.show(9);
-  CHECK(tracker.empty());
-  CHECK_EQ(tracker.publishedGeneration(), 0.0);
+  CHECK(tracker.isEmpty());
+  CHECK_EQ(tracker.getPublishedGeneration(), 0.0);
 }
 
 TEST(conceal_tracker_hides_only_above_a_row_anchor) {
@@ -241,7 +241,7 @@ TEST(conceal_tracker_hides_only_above_a_row_anchor) {
 TEST(size_spec_queue_measures_within_a_budget) {
   Container core;
   auto keys = keysFor(60);
-  Virtualizer::update(&core, inputFor(keys, 0.0));
+  Virtualizer::update(core, inputFor(keys, 0.0));
   std::vector<ElementSizeSpec> specs(60);
   for (std::size_t index = 0; index < specs.size(); ++index) {
     specs[index].key = "k" + std::to_string(index);
@@ -261,18 +261,18 @@ TEST(size_spec_queue_measures_within_a_budget) {
   };
   queue.run(core, source, WINDOW_WIDTH, parse, measure);
   CHECK_EQ(measured, SizeSpecQueue::BUDGET_PER_RUN);
-  CHECK(!queue.finished(source));
+  CHECK(!queue.isFinished(source));
   queue.run(core, source, WINDOW_WIDTH, parse, measure);
   queue.run(core, source, WINDOW_WIDTH, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(60));
-  CHECK(queue.finished(source));
+  CHECK(queue.isFinished(source));
   queue.run(core, source, WINDOW_WIDTH, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(60));
   CHECK_EQ(parsed, static_cast<std::size_t>(1));
 
   // A new source or a new width starts over. Zero width does nothing.
   auto other = std::make_shared<int>(2);
-  CHECK(!queue.finished(other));
+  CHECK(!queue.isFinished(other));
   queue.run(core, other, 0.0, parse, measure);
   CHECK_EQ(measured, static_cast<std::size_t>(60));
   queue.run(core, source, WINDOW_WIDTH / 2, parse, measure);
@@ -286,7 +286,7 @@ TEST(size_spec_queue_measures_within_a_budget) {
 TEST(size_spec_queue_remeasures_after_the_layout_pass_took_the_new_width) {
   Container core;
   auto keys = keysFor(10);
-  Virtualizer::update(&core, inputFor(keys, 0.0));
+  Virtualizer::update(core, inputFor(keys, 0.0));
   std::vector<ElementSizeSpec> specs(10);
   for (std::size_t index = 0; index < specs.size(); ++index) {
     specs[index].key = "k" + std::to_string(index);
@@ -300,7 +300,7 @@ TEST(size_spec_queue_remeasures_after_the_layout_pass_took_the_new_width) {
   auto source = std::make_shared<int>(1);
   SizeSpecQueue queue;
   queue.run(core, source, WINDOW_WIDTH, parse, measure);
-  CHECK(queue.finished(source));
+  CHECK(queue.isFinished(source));
 
   applyLayoutInputs(core, 0.0, 0.0, WINDOW_WIDTH / 2, WINDOW_HEIGHT);
   queue.run(core, source, WINDOW_WIDTH / 2, parse, measure);

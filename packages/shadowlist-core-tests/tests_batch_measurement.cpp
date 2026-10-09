@@ -46,25 +46,25 @@ TEST(batched_measurement_matches_the_per_row_path) {
   std::vector<double> heights = heightsFor(keys.size());
 
   Container perRow;
-  Virtualizer::update(&perRow, inputFor(keys, 0.0));
+  Virtualizer::update(perRow, inputFor(keys, 0.0));
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    Virtualizer::updateElementAtIndex(&perRow, index, {WINDOW_WIDTH, heights[index]});
+    Virtualizer::updateElementAtIndex(perRow, index, {WINDOW_WIDTH, heights[index]});
   }
-  Virtualizer::recomputeTotalSize(&perRow);
+  Virtualizer::recomputeTotalSize(perRow);
 
   Container batched;
-  Virtualizer::update(&batched, inputFor(keys, 0.0));
+  Virtualizer::update(batched, inputFor(keys, 0.0));
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    if (Virtualizer::applyElementSize(&batched, index, {WINDOW_WIDTH, heights[index]}) &&
+    if (Virtualizer::applyElementSize(batched, index, {WINDOW_WIDTH, heights[index]}) &&
         index < lowestChanged) {
       lowestChanged = index;
     }
   }
   if (lowestChanged != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(&batched, lowestChanged);
+    Virtualizer::commitElementSizes(batched, lowestChanged);
   }
-  Virtualizer::recomputeTotalSize(&batched);
+  Virtualizer::recomputeTotalSize(batched);
 
   CHECK(offsetsOf(perRow) == offsetsOf(batched));
   CHECK_NEAR(perRow.revision.totalContainerHeight, batched.revision.totalContainerHeight, 0.001);
@@ -78,11 +78,11 @@ TEST(batched_measurement_matches_the_per_row_path_while_scrolled) {
   std::vector<double> heights = heightsFor(keys.size());
 
   auto prime = [&](Container& container) {
-    Virtualizer::update(&container, inputFor(keys, 0.0));
+    Virtualizer::update(container, inputFor(keys, 0.0));
     for (std::size_t index = 0; index < keys.size(); ++index) {
-      Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, 120.0});
+      Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, 120.0});
     }
-    Virtualizer::update(&container, inputFor(keys, 9000.0));
+    Virtualizer::update(container, inputFor(keys, 9000.0));
   };
 
   Container perRow;
@@ -95,21 +95,21 @@ TEST(batched_measurement_matches_the_per_row_path_while_scrolled) {
   const std::size_t high = 150;
 
   for (std::size_t index = low; index <= high; ++index) {
-    Virtualizer::updateElementAtIndex(&perRow, index, {WINDOW_WIDTH, heights[index]});
+    Virtualizer::updateElementAtIndex(perRow, index, {WINDOW_WIDTH, heights[index]});
   }
-  Virtualizer::recomputeTotalSize(&perRow);
+  Virtualizer::recomputeTotalSize(perRow);
 
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = low; index <= high; ++index) {
-    if (Virtualizer::applyElementSize(&batched, index, {WINDOW_WIDTH, heights[index]}) &&
+    if (Virtualizer::applyElementSize(batched, index, {WINDOW_WIDTH, heights[index]}) &&
         index < lowestChanged) {
       lowestChanged = index;
     }
   }
   if (lowestChanged != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(&batched, lowestChanged);
+    Virtualizer::commitElementSizes(batched, lowestChanged);
   }
-  Virtualizer::recomputeTotalSize(&batched);
+  Virtualizer::recomputeTotalSize(batched);
 
   CHECK(offsetsOf(perRow) == offsetsOf(batched));
   // The scroll correction must match too, not just the row positions.
@@ -120,18 +120,18 @@ TEST(batched_measurement_matches_the_per_row_path_while_scrolled) {
 TEST(reporting_an_unchanged_size_reports_no_change) {
   std::vector<std::string> keys = keysFor(100);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   // The first size for a row always counts, even if it equals the estimate.
-  CHECK(Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH, 200.0}));
+  CHECK(Virtualizer::applyElementSize(container, 0, {WINDOW_WIDTH, 200.0}));
   CHECK(container.revision.elements[0].measured);
 
   // Reporting the same size again does not.
-  CHECK(!Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH, 200.0}));
-  CHECK(!Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH, 200.0}));
+  CHECK(!Virtualizer::applyElementSize(container, 0, {WINDOW_WIDTH, 200.0}));
+  CHECK(!Virtualizer::applyElementSize(container, 0, {WINDOW_WIDTH, 200.0}));
 
   // A real change counts again.
-  CHECK(Virtualizer::applyElementSize(&container, 0, {WINDOW_WIDTH, 201.0}));
+  CHECK(Virtualizer::applyElementSize(container, 0, {WINDOW_WIDTH, 201.0}));
 }
 
 /*
@@ -141,11 +141,11 @@ TEST(reporting_an_unchanged_size_reports_no_change) {
 TEST(a_first_measurement_equal_to_the_estimate_is_still_counted) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   std::size_t before = container.revision.measuredRealCount;
   double sizeMatchingEstimate = container.revision.elements[5].height;
-  Virtualizer::applyElementSize(&container, 5, {WINDOW_WIDTH, sizeMatchingEstimate});
+  Virtualizer::applyElementSize(container, 5, {WINDOW_WIDTH, sizeMatchingEstimate});
 
   CHECK_EQ(container.revision.measuredRealCount, before + 1);
   CHECK(container.revision.elements[5].measured);
@@ -154,18 +154,18 @@ TEST(a_first_measurement_equal_to_the_estimate_is_still_counted) {
 TEST(measurement_out_of_bounds_is_rejected) {
   std::vector<std::string> keys = keysFor(10);
   Container container;
-  Virtualizer::update(&container, inputFor(keys, 0.0));
+  Virtualizer::update(container, inputFor(keys, 0.0));
 
   bool threw = false;
   try {
-    Virtualizer::applyElementSize(&container, 10, {WINDOW_WIDTH, 100.0});
+    Virtualizer::applyElementSize(container, 10, {WINDOW_WIDTH, 100.0});
   } catch (const InvalidOperationError&) {
     threw = true;
   }
   CHECK(threw);
 
   // Committing past the end does nothing, since a batch can race the list shrinking.
-  Virtualizer::commitElementSizes(&container, 999);
+  Virtualizer::commitElementSizes(container, 999);
   CHECK_EQ(container.getElementsSize(), static_cast<std::size_t>(10));
 }
 
@@ -178,16 +178,16 @@ TEST(declaring_keys_unchanged_matches_revalidating_them) {
 
   auto run = [&](bool declareUnchanged) {
     Container container;
-    Virtualizer::update(&container, inputFor(keys, 0.0));
+    Virtualizer::update(container, inputFor(keys, 0.0));
     for (std::size_t index = 0; index < keys.size(); ++index) {
-      Virtualizer::updateElementAtIndex(&container, index, {WINDOW_WIDTH, 100.0});
+      Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, 100.0});
     }
     for (double offset = 0.0; offset < 8000.0; offset += 250.0) {
       FrameInput input = inputFor(keys, offset);
       input.keysUnchanged = declareUnchanged;
       input.userScrolled = true;
       input.scrollPhase = ScrollPhase::Dragging;
-      Virtualizer::update(&container, input);
+      Virtualizer::update(container, input);
     }
     return offsetsOf(container);
   };
@@ -203,12 +203,12 @@ TEST(borrowed_keys_behave_like_owned_keys) {
   Container borrowed;
   for (double offset = 0.0; offset < 4000.0; offset += 400.0) {
     FrameInput ownedInput = inputFor(keys, offset);
-    Virtualizer::update(&owned, ownedInput);
+    Virtualizer::update(owned, ownedInput);
 
     FrameInput borrowedInput = inputFor(keys, offset);
     borrowedInput.keys.clear();
     borrowedInput.keysRef = &keys;
-    Virtualizer::update(&borrowed, borrowedInput);
+    Virtualizer::update(borrowed, borrowedInput);
   }
 
   CHECK_EQ(owned.getElementsSize(), borrowed.getElementsSize());

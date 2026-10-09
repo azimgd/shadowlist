@@ -35,7 +35,7 @@ const EDGE_MARGIN = 24;
  *
  * Returns an empty string without getElementSizeSpec, which turns the feature off on both sides.
  */
-export function useElementSizeSpecs<ElementT extends { id: string }>({
+export function useElementSizeSpecs<ElementT>({
   data,
   keys,
   getElementSizeSpec,

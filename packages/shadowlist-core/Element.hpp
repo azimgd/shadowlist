@@ -10,9 +10,11 @@ struct Size {
   double height;
 };
 
-class Element {
+class Element final {
 public:
-  // The user's key, used to match rows across data updates.
+  /*
+   * The user's key, used to match rows across data updates.
+   */
   std::string key = "";
 
   std::size_t index = 0;
@@ -20,14 +22,20 @@ public:
   double width = 0.0;
   double height = 0.0;
 
-  // Top left corner inside the container.
+  /*
+   * Top left corner inside the container.
+   */
   double offsetX = 0.0;
   double offsetY = 0.0;
 
-  // Set once the row has an estimated size.
+  /*
+   * Set once the row has an estimated size.
+   */
   bool estimated = false;
 
-  // Set once the row has been measured natively.
+  /*
+   * Set once the row has been measured natively.
+   */
   bool measured = false;
 
   /*

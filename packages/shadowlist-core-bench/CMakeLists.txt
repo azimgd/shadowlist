@@ -8,8 +8,6 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# The core has no dependencies. Its sources compile straight into the bench binary.
-
 include(${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core/sources.cmake)
 
 add_executable(shadowlist_core_bench ${SHADOWLIST_CORE_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/bench.cpp)
@@ -18,7 +16,8 @@ target_compile_definitions(shadowlist_core_bench PRIVATE SHADOWLIST_DEBUG_LOG=0)
 
 target_include_directories(shadowlist_core_bench PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/..   # for shadowlist-core includes
-  ${CMAKE_CURRENT_SOURCE_DIR})
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core-tests)   # for the shared test helpers
 
 find_package(Threads REQUIRED)
 target_link_libraries(shadowlist_core_bench PRIVATE Threads::Threads)

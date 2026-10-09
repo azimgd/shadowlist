@@ -1,0 +1,48 @@
+# Build output, node_modules, logs and coverage are ignored at the repo root.
+
+# Xcode and CocoaPods
+xcuserdata
+*.xcuserstate
+*.hmap
+*.ipa
+DerivedData
+**/.xcode.env.local
+**/Pods/
+shadowlist-uikit-example/*.xcodeproj
+shadowlist-uikit-example/Sources/Info.plist
+
+# Ruby gems installed by Bundler (.bundle/config is committed)
+shadowlist-fabric-example/vendor/
+
+# Gradle and Android Studio
+.gradle/
+.kotlin/
+.cxx/
+.idea/
+*.iml
+*.hprof
+local.properties
+shadowlist-fabric-example/android/app/libs
+shadowlist-fabric-example/android/keystores/debug.keystore
+
+# Metro and bench output
+.metro-health-check*
+results/
+
+# Legacy Xcode user state, Android project files and misc tool caches
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.xccheckout
+*.moved-aside
+.classpath
+.project
+.settings
+.expo/
+.turbo/
+buck-out/

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnVisibleIndicesChange } from 'shadowlist';
+import type { OnVisibleIndicesChange } from '../ShadowListViewNativeComponent';
 import { slTrace, slTraceEnabled } from './helpers';
 import {
   grownMountedRange,
@@ -35,7 +35,7 @@ interface UseMountedRangeResult {
 }
 
 /*
- * Where a scrollToIndex call is about to scroll to.
+ * Where a scrollToItem call is about to scroll to.
  */
 interface SeedTarget {
   index: number;
@@ -107,7 +107,7 @@ export function useMountedRange({
   }
 
   /*
-   * Target of a scrollToIndex call that hasn't landed yet. The prop always aligns to the
+   * Target of a scrollToItem call that hasn't landed yet. The prop always aligns to the
    * start, and the core prefers a command over the prop when a commit has both. So this wins
    * over containerOffsetIndex and survives a prop change until native says the scroll landed.
    */

@@ -1,12 +1,15 @@
 #pragma once
 
+#include <shadowlist-core/Container.hpp>
+
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <shadowlist-core/Container.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -29,11 +32,35 @@ struct MeasuredRow {
 bool applyLayoutInputs(Container& core, double headerSize, double footerSize, double windowWidth, double windowHeight);
 
 /*
+ * Row sizes given to the core one at a time, then one reflow from the lowest changed row
+ * instead of one per row.
+ */
+class SizeBatch final {
+public:
+  /*
+   * Give the core one row's size. Returns whether it changed.
+   */
+  bool apply(Container& core, std::size_t elementIndex, Size size);
+
+  /*
+   * Reflow from the lowest changed row and recompute the total size, which the footer and
+   * the content size need. Returns whether any size changed.
+   */
+  bool commit(Container& core);
+
+private:
+  std::size_t lowestChangedIndex_ = UNDEFINED_INDEX;
+};
+
+/*
  * Give the core every mounted row's size, then reflow once from the lowest changed row.
  * In a multi column list the column sets the cross size. Only the scroll axis size is
  * taken. Ids of rows measured for the first time go into firstMeasured.
  */
-void applyMeasuredRows(Container& core, const std::vector<MeasuredRow>& rows, bool horizontal,
+void applyMeasuredRows(
+  Container& core,
+  const std::vector<MeasuredRow>& rows,
+  bool horizontal,
   std::vector<std::uint64_t>& firstMeasured);
 
 /*
@@ -80,7 +107,9 @@ public:
   std::shared_ptr<const std::vector<double>> snapOffsets;
 
 private:
-  // 0 means nothing cached yet.
+  /*
+   * 0 means nothing cached yet.
+   */
   std::uint64_t geometryVersion_ = 0;
   bool snapToItem_ = false;
   int snapAlignment_ = -1;
@@ -117,7 +146,7 @@ public:
     if (!correcting || !anyFirstMeasured) {
       return 0;
     }
-    const Anchor* anchor = core.compensationAnchor();
+    const Anchor* anchor = core.getCompensationAnchor();
     if (anchor == nullptr || anchor->key.empty()) {
       return 0;
     }
@@ -144,7 +173,8 @@ public:
   }
 
   /*
-   * Forget hidden rows that are no longer mounted. stillHidden need not be sorted.
+   * Forget hidden rows that are no longer mounted. stillHidden holds hidden ids only, each
+   * once, and need not be sorted.
    */
   void forgetExcept(std::vector<std::uint64_t>& stillHidden) {
     if (rows_.size() <= stillHidden.size()) {
@@ -157,14 +187,14 @@ public:
     }
   }
 
-  bool empty() const {
+  bool isEmpty() const {
     return rows_.empty();
   }
 
   /*
    * The newest hide while any row is hidden, or 0 when nothing waits on the host.
    */
-  double publishedGeneration() const {
+  double getPublishedGeneration() const {
     return rows_.empty() ? 0.0 : static_cast<double>(generation_);
   }
 
@@ -183,7 +213,10 @@ public:
 
 private:
   std::unordered_map<std::uint64_t, Row> rows_;
-  // The newest generation given to a hide, or 0 if nothing was ever hidden.
+
+  /*
+   * The newest generation given to a hide, or 0 if nothing was ever hidden.
+   */
   std::uint64_t generation_ = 0;
   std::uint64_t passGeneration_ = 1;
 };

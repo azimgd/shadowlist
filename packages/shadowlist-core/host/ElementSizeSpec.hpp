@@ -1,12 +1,13 @@
 #pragma once
 
+#include <shadowlist-core/Container.hpp>
+#include <shadowlist-core/Virtualizer.hpp>
+
 #include <cstddef>
 #include <limits>
 #include <memory>
 #include <string>
 #include <vector>
-#include <shadowlist-core/Container.hpp>
-#include <shadowlist-core/Virtualizer.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -41,7 +42,9 @@ struct ElementSizeSpec {
    */
   double widthFraction = 1.0;
 
-  // A known row height. When set, the text is not measured and this height is used as is.
+  /*
+   * A known row height. When set, the text is not measured and this height is used as is.
+   */
   double fixedHeight = std::numeric_limits<double>::quiet_NaN();
 };
 
@@ -51,7 +54,9 @@ struct ElementSizeSpec {
  */
 class SizeSpecQueue final {
 public:
-  // Text layouts per run. Small enough for a frame, big enough to finish a window in a couple.
+  /*
+   * Text layouts per run. Small enough for a frame, big enough to finish a window in a couple.
+   */
   static constexpr std::size_t BUDGET_PER_RUN = 24;
 
   /*
@@ -70,7 +75,7 @@ public:
      */
     bool widthChanged = width_ != width;
     if (widthChanged) {
-      Virtualizer::invalidatePredictions(&core);
+      Virtualizer::invalidatePredictions(core);
       width_ = width;
     }
     bool sameSpecs = source_ == source && !widthChanged;
@@ -95,7 +100,7 @@ public:
   /*
    * Whether every spec of this source is measured.
    */
-  bool finished(const std::shared_ptr<const void>& source) const {
+  bool isFinished(const std::shared_ptr<const void>& source) const {
     return done_ && source_ == source;
   }
 
@@ -104,7 +109,10 @@ private:
   std::vector<ElementSizeSpec> specs_;
   std::size_t cursor_ = 0;
   bool done_ = false;
-  // Width the current specs were measured at, 0 before the first run.
+
+  /*
+   * Width the current specs were measured at, 0 before the first run.
+   */
   double width_ = 0.0;
 };
 

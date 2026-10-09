@@ -1,5 +1,6 @@
-import type { Ref, ReactElement } from 'react';
+import type { ComponentType, Ref, ReactElement } from 'react';
 import {
+  isValidElement,
   useMemo,
   useState,
   useRef,
@@ -9,10 +10,13 @@ import {
 } from 'react';
 import ShadowList from './ShadowList';
 import type {
+  ItemSeparatorProps,
+  RenderElementInfo,
   ShadowListCommands,
   TreeListProps,
   TreeListCommands,
 } from './types';
+import { forwardedCommands } from './virtualizer';
 
 /*
  * TreeList sits on top of ShadowList, like SectionList does for sections. It flattens the
@@ -52,9 +56,6 @@ function toSet(
   return ids instanceof Set ? new Set(ids) : new Set(ids as Iterable<string>);
 }
 
-// Returned when the inner list isn't mounted. Callers always get a map.
-const EMPTY_SIZES: ReadonlyMap<string, number> = new Map();
-
 function TreeListInner<ElementT>(
   {
     data,
@@ -66,6 +67,7 @@ function TreeListInner<ElementT>(
     onExpandedChange,
     indentWidth = 16,
     getElementSizeSpec,
+    ItemSeparatorComponent,
     ...rest
   }: TreeListProps<ElementT>,
   ref: Ref<TreeListCommands>
@@ -157,27 +159,49 @@ function TreeListInner<ElementT>(
   useImperativeHandle(
     ref,
     () => ({
-      setStartReachedEnabled: (enabled: boolean) =>
-        innerRef.current?.setStartReachedEnabled(enabled),
-      setEndReachedEnabled: (enabled: boolean) =>
-        innerRef.current?.setEndReachedEnabled(enabled),
-      scrollToIndex: (index: number, viewPosition?: number) =>
-        innerRef.current?.scrollToIndex(index, viewPosition),
-      scrollToOffset: (offset: number, animated?: boolean) =>
-        innerRef.current?.scrollToOffset(offset, animated),
-      scrollToEnd: (animated?: boolean) =>
-        innerRef.current?.scrollToEnd(animated),
+      ...forwardedCommands(innerRef),
       scrollToNode: (id: string, viewPosition?: number) => {
         const index = indexByKey.get(id);
         if (index !== undefined) {
-          innerRef.current?.scrollToIndex(index, viewPosition);
+          innerRef.current?.scrollToItem(index, viewPosition);
         }
       },
-      getElementSize: (key: string) => innerRef.current?.getElementSize(key),
-      getElementSizes: () => innerRef.current?.getElementSizes() ?? EMPTY_SIZES,
     }),
     [indexByKey]
   );
+
+  /*
+   * A separator component gets the nodes on both sides, not the flattened rows. An element
+   * or a function without parameters goes through as is.
+   */
+  const rowSeparator = useMemo(() => {
+    if (
+      !ItemSeparatorComponent ||
+      isValidElement(ItemSeparatorComponent) ||
+      (typeof ItemSeparatorComponent === 'function' &&
+        ItemSeparatorComponent.length === 0)
+    ) {
+      return ItemSeparatorComponent;
+    }
+    const Separator = ItemSeparatorComponent as ComponentType<
+      ItemSeparatorProps<ElementT>
+    >;
+    return function TreeRowSeparator({
+      highlighted,
+      leadingItem,
+      trailingItem,
+      ...separatorProps
+    }: ItemSeparatorProps<TreeFlatRow<ElementT>>) {
+      return (
+        <Separator
+          {...separatorProps}
+          highlighted={highlighted}
+          leadingItem={leadingItem.element}
+          trailingItem={trailingItem?.element}
+        />
+      );
+    };
+  }, [ItemSeparatorComponent]);
 
   /*
    * Pass one row to renderElement with its depth, indent, expanded state and a toggle.
@@ -185,7 +209,7 @@ function TreeListInner<ElementT>(
    * Reading it here would re-render every row below an expand.
    */
   const renderRow = useCallback(
-    (info: { element: TreeFlatRow<ElementT>; index: number }) => {
+    (info: RenderElementInfo<TreeFlatRow<ElementT>>) => {
       const row = info.element;
       return renderElement({
         element: row.element,
@@ -197,6 +221,7 @@ function TreeListInner<ElementT>(
         hasChildren: row.hasChildren,
         indent: row.depth * indentWidth,
         toggle: () => toggleId(row.id),
+        separators: info.separators,
       });
     },
     [renderElement, indentWidth, toggleId]
@@ -216,6 +241,7 @@ function TreeListInner<ElementT>(
       {...rest}
       ref={innerRef}
       data={rows}
+      ItemSeparatorComponent={rowSeparator as never}
       renderElement={renderRow}
       getElementSizeSpec={getRowSizeSpec}
     />

@@ -5,8 +5,7 @@ set(LIB_JNI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../build/generated/source/codegen
 set(LIB_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 set(LIB_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../cpp)
 
-# In the monorepo, compile the core straight from packages/shadowlist-core.
-# A published package has no such path. Use the copy shipped inside it.
+# The monorepo compiles packages/shadowlist-core. A published package uses its vendored copy.
 get_filename_component(LIB_CORE_CANONICAL "${CMAKE_CURRENT_SOURCE_DIR}/../../../../shadowlist-core" ABSOLUTE)
 get_filename_component(LIB_CORE_VENDORED "${CMAKE_CURRENT_SOURCE_DIR}/../../../shadowlist-core" ABSOLUTE)
 if(EXISTS "${LIB_CORE_CANONICAL}/Container.cpp")
@@ -28,7 +27,7 @@ file(GLOB LIB_INCLUDES_SRCS CONFIGURE_DEPENDS
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListElementViewSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListTemplateViewSpec/*.cpp
 
-  # The JNI peers of ShadowListScrollSync.java and ShadowListGeometry.java.
+  # The JNI peers of ShadowListScrollSync.java, ShadowListGeometry.java and ShadowListSwipeReveal.java.
   ${CMAKE_CURRENT_SOURCE_DIR}/*.cpp
 )
 
@@ -65,5 +64,11 @@ target_link_libraries(
 
 target_compile_reactnative_options(react_codegen_ShadowListViewSpec PRIVATE)
 
-# The list's C++ runs on every commit. Optimized builds use -O3. Debug keeps its flags.
+# The list's C++ runs on every commit. Optimized builds use -O3.
 target_compile_options(react_codegen_ShadowListViewSpec PRIVATE $<$<NOT:$<CONFIG:Debug>>:-O3>)
+
+# The core's [SL] debug log is off by default. An app turns it on by passing
+# arguments "-DSHADOWLIST_DEBUG_LOG=1" in its externalNativeBuild cmake block.
+if(SHADOWLIST_DEBUG_LOG)
+  target_compile_definitions(react_codegen_ShadowListViewSpec PRIVATE SHADOWLIST_DEBUG_LOG=1)
+endif()

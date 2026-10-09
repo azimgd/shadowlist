@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Merged into the React Native example's release manifest by slbench-init.gradle only. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <application>
+    <provider
+      android:name="com.shadowlist.kit.bench.ShadowListKitBenchProvider"
+      android:authorities="${applicationId}.slbench"
+      android:exported="false" />
+    <profileable android:shell="true" />
+  </application>
+</manifest>

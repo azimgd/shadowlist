@@ -10,11 +10,14 @@
  * timed batches. One slow batch can't skew the result.
  */
 
+#include "TestHelpers.hpp"
+
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -115,15 +118,6 @@ void record(const std::string& scenario, std::size_t rows, Timing timing, const 
 /*
  * Keys
  */
-std::vector<std::string> makeShortKeys(std::size_t count) {
-  std::vector<std::string> keys;
-  keys.reserve(count);
-  for (std::size_t index = 0; index < count; ++index) {
-    keys.push_back("k" + std::to_string(index));
-  }
-  return keys;
-}
-
 std::vector<std::string> makeLongKeys(std::size_t count) {
   std::vector<std::string> keys;
   keys.reserve(count);
@@ -167,8 +161,8 @@ void stampFullyMeasured(Container& container, std::size_t count, double mainSize
   container.revision.measuredRealCount = count;
   container.revision.measuredRealTotalWidth = width * static_cast<double>(count);
   container.revision.measuredRealTotalHeight = height * static_cast<double>(count);
-  Virtualizer::recomputeElementOffsets(&container, 0);
-  Virtualizer::recomputeTotalSize(&container);
+  Virtualizer::recomputeElementOffsets(container, 0);
+  Virtualizer::recomputeTotalSize(container);
 }
 
 /*
@@ -179,12 +173,12 @@ template <typename SizeFn>
 void feedWindowMeasurements(Container& container, std::size_t low, std::size_t high, SizeFn sizeOf) {
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = low; index <= high; ++index) {
-    if (Virtualizer::applyElementSize(&container, index, sizeOf(index)) && index < lowestChanged) {
+    if (Virtualizer::applyElementSize(container, index, sizeOf(index)) && index < lowestChanged) {
       lowestChanged = index;
     }
   }
   if (lowestChanged != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(&container, lowestChanged);
+    Virtualizer::commitElementSizes(container, lowestChanged);
   }
 }
 
@@ -196,7 +190,7 @@ void feedWindowMeasurements(Container& container, std::size_t low, std::size_t h
  */
 void benchWarmUpdatePartial(const std::vector<std::string>& keys, std::size_t rows) {
   Container container;
-  Virtualizer::update(&container, makeInput(keys, 0.0));
+  Virtualizer::update(container, makeInput(keys, 0.0));
 
   // Commit the same keys over and over, like a scroll settling.
   FrameInput input = makeInput(keys, 0.0);
@@ -205,18 +199,22 @@ void benchWarmUpdatePartial(const std::vector<std::string>& keys, std::size_t ro
   Timing timing = measure(
     25, 7,
     [] {},
-    [&](std::size_t) { Virtualizer::update(&container, input); });
+    [&](std::size_t) { Virtualizer::update(container, input); });
   record("warm top update, partially estimated", rows, timing);
 }
 
 /*
  * The same frame once every row has a real measurement.
  */
-void benchWarmUpdateMeasured(const std::vector<std::string>& keys, std::size_t rows, double offsetY, const char* label) {
+void benchWarmUpdateMeasured(
+  const std::vector<std::string>& keys,
+  std::size_t rows,
+  double offsetY,
+  const char* label) {
   Container container;
-  Virtualizer::update(&container, makeInput(keys, 0.0));
+  Virtualizer::update(container, makeInput(keys, 0.0));
   stampFullyMeasured(container, rows, ROW_HEIGHT);
-  Virtualizer::update(&container, makeInput(keys, offsetY));
+  Virtualizer::update(container, makeInput(keys, offsetY));
 
   FrameInput input = makeInput(keys, offsetY);
   input.keysUnchanged = true;
@@ -224,7 +222,7 @@ void benchWarmUpdateMeasured(const std::vector<std::string>& keys, std::size_t r
   Timing timing = measure(
     25, 7,
     [] {},
-    [&](std::size_t) { Virtualizer::update(&container, input); });
+    [&](std::size_t) { Virtualizer::update(container, input); });
   record(label, rows, timing);
 }
 
@@ -232,9 +230,13 @@ void benchWarmUpdateMeasured(const std::vector<std::string>& keys, std::size_t r
  * Fabric sends back every mounted row's size during layout. Here the sizes haven't
  * changed. Ideally nothing reflows. startIndex picks where the mounted rows sit.
  */
-void benchUnchangedMeasurements(const std::vector<std::string>& keys, std::size_t rows, std::size_t startIndex, const char* label) {
+void benchUnchangedMeasurements(
+  const std::vector<std::string>& keys,
+  std::size_t rows,
+  std::size_t startIndex,
+  const char* label) {
   Container container;
-  Virtualizer::update(&container, makeInput(keys, 0.0));
+  Virtualizer::update(container, makeInput(keys, 0.0));
   stampFullyMeasured(container, rows, ROW_HEIGHT);
 
   std::size_t count = std::min<std::size_t>(20, rows - startIndex);
@@ -243,7 +245,7 @@ void benchUnchangedMeasurements(const std::vector<std::string>& keys, std::size_
     [] {},
     [&](std::size_t) {
       for (std::size_t offset = 0; offset < count; ++offset) {
-        Virtualizer::updateElementAtIndex(&container, startIndex + offset, {WINDOW_WIDTH, ROW_HEIGHT});
+        Virtualizer::updateElementAtIndex(container, startIndex + offset, {WINDOW_WIDTH, ROW_HEIGHT});
       }
     });
   record(label, rows, timing, "us/20-row batch");
@@ -271,7 +273,7 @@ void benchSnapOffsets(const std::vector<std::string>& keys, std::size_t rows) {
   Container container;
   FrameInput input = makeInput(keys, 0.0);
   input.snapToItem = true;
-  Virtualizer::update(&container, input);
+  Virtualizer::update(container, input);
   stampFullyMeasured(container, rows, ROW_HEIGHT);
 
   Timing timing = measure(
@@ -289,7 +291,7 @@ void benchSnapOffsets(const std::vector<std::string>& keys, std::size_t rows) {
  */
 void benchReconcile(const std::vector<std::string>& keys, std::size_t rows) {
   Container container;
-  Virtualizer::update(&container, makeInput(keys, 0.0));
+  Virtualizer::update(container, makeInput(keys, 0.0));
   stampFullyMeasured(container, rows, ROW_HEIGHT);
 
   std::vector<std::string> grown = keys;
@@ -299,7 +301,7 @@ void benchReconcile(const std::vector<std::string>& keys, std::size_t rows) {
     25, 7,
     [] {},
     [&](std::size_t op) {
-      Virtualizer::reconcileElements(&container, (op % 2 == 0) ? grown : keys);
+      Virtualizer::reconcileElements(container, (op % 2 == 0) ? grown : keys);
     });
   record("reconcile alternating append-one/remove-one", rows, timing);
 }
@@ -320,7 +322,7 @@ void benchDeepPredictions(const std::vector<std::string>& keys, std::size_t rows
   }
 
   Container container;
-  Virtualizer::update(&container, makeInput(keys, 0.0));
+  Virtualizer::update(container, makeInput(keys, 0.0));
 
   std::size_t base = rows - 200;
 
@@ -335,7 +337,7 @@ void benchDeepPredictions(const std::vector<std::string>& keys, std::size_t rows
       }
       FrameInput input = makeInput(keys, 0.0);
       input.keysUnchanged = true;
-      Virtualizer::update(&container, input);
+      Virtualizer::update(container, input);
     });
   record("predictions land deep in the list", rows, timing, "us/frame");
 }
@@ -350,7 +352,7 @@ void benchColdUpdate(const std::vector<std::string>& keys, std::size_t rows) {
     Container container;
     FrameInput input = makeInput(keys, 0.0);
     double start = nowUs();
-    Virtualizer::update(&container, input);
+    Virtualizer::update(container, input);
     double elapsed = nowUs() - start;
     if (sample >= 3) {
       samples.push_back(elapsed);
@@ -418,7 +420,7 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
     return input;
   };
 
-  Virtualizer::update(&container, frameInput(options.startOffset, true));
+  Virtualizer::update(container, frameInput(options.startOffset, true));
   stampFullyMeasured(container, rows, options.horizontal ? CARD_WIDTH : ROW_HEIGHT, options.horizontal);
 
   /*
@@ -435,7 +437,7 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
     [&](std::size_t) {
       offset += options.pixelsPerFrame;
       ++framesRun;
-      Virtualizer::update(&container, frameInput(offset, false));
+      Virtualizer::update(container, frameInput(offset, false));
 
       /*
        * Send back every mounted row's size, like Fabric's layout pass. During a fling
@@ -464,7 +466,7 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
             measured.width = element.width;
           }
         }
-        Virtualizer::updateElementAtIndex(&container, index, measured);
+        Virtualizer::updateElementAtIndex(container, index, measured);
         ++rowsTouched;
       }
     });
@@ -506,11 +508,11 @@ void benchScrollbarDrag(const std::vector<std::string>& keys, std::size_t rows, 
 
   auto reset = [&] {
     container = std::make_unique<Container>();
-    Virtualizer::update(container.get(), makeInput(keys, 0.0));
+    Virtualizer::update(*container, makeInput(keys, 0.0));
     auto firstWindow = container->getVisibleIndices();
     if (firstWindow.first != UNDEFINED_INDEX) {
       for (std::size_t index = firstWindow.first; index <= firstWindow.second && index < rows; ++index) {
-        Virtualizer::updateElementAtIndex(container.get(), index, {WINDOW_WIDTH, ROW_HEIGHT});
+        Virtualizer::updateElementAtIndex(*container, index, {WINDOW_WIDTH, ROW_HEIGHT});
       }
     }
     double total = container->revision.totalContainerHeight;
@@ -529,7 +531,7 @@ void benchScrollbarDrag(const std::vector<std::string>& keys, std::size_t rows, 
       input.userScrolled = true;
       input.scrollPhase = ScrollPhase::Dragging;
       input.keysUnchanged = true;
-      Virtualizer::update(container.get(), input);
+      Virtualizer::update(*container, input);
 
       auto visible = container->getVisibleIndices();
       if (visible.first == UNDEFINED_INDEX) {
@@ -576,19 +578,19 @@ void benchInvertedScrollToTop(const std::vector<std::string>& keys, std::size_t 
     return input;
   };
 
-  Virtualizer::update(&container, frameInput(0.0, false));
+  Virtualizer::update(container, frameInput(0.0, false));
   primed = true;
   stampFullyMeasured(container, rows, ROW_HEIGHT);
   double bottom = container.revision.totalContainerHeight - WINDOW_HEIGHT;
-  Virtualizer::update(&container, frameInput(bottom, true));
+  Virtualizer::update(container, frameInput(bottom, true));
 
   Timing timing = measure(
     10, 7,
-    [&] { Virtualizer::update(&container, frameInput(bottom, true)); },
+    [&] { Virtualizer::update(container, frameInput(bottom, true)); },
     [&](std::size_t) {
       // The jump and the settle frames the scroll view reports after it.
-      Virtualizer::update(&container, frameInput(0.0, true));
-      Virtualizer::update(&container, frameInput(0.0, false));
+      Virtualizer::update(container, frameInput(0.0, true));
+      Virtualizer::update(container, frameInput(0.0, false));
     });
   record("inverted list: jump to top (tap status bar)", rows, timing, "us/jump");
 }
@@ -599,7 +601,7 @@ void benchInvertedScrollToTop(const std::vector<std::string>& keys, std::size_t 
  */
 void benchPrependWhileScrolled(const std::vector<std::string>& keys, std::size_t rows) {
   Container container;
-  Virtualizer::update(&container, makeInput(keys, 0.0));
+  Virtualizer::update(container, makeInput(keys, 0.0));
   stampFullyMeasured(container, rows, ROW_HEIGHT);
 
   std::vector<std::string> prepended;
@@ -615,7 +617,7 @@ void benchPrependWhileScrolled(const std::vector<std::string>& keys, std::size_t
     [] {},
     [&](std::size_t op) {
       FrameInput input = makeInput((op % 2 == 0) ? prepended : keys, offset);
-      Virtualizer::update(&container, input);
+      Virtualizer::update(container, input);
     });
   record("prepend 30 rows while scrolled (chat)", rows, timing, "us/prepend");
 }
@@ -628,9 +630,9 @@ void benchPrependWhileScrolled(const std::vector<std::string>& keys, std::size_t
 void benchScrollToIndexCentred(const std::vector<std::string>& keys, std::size_t rows) {
   const std::size_t target = rows * 3 / 5;
   Container container;
-  Virtualizer::update(&container, makeInput(keys, 0.0));
+  Virtualizer::update(container, makeInput(keys, 0.0));
   // Only the first screen is laid out. Every row past it is still an estimate.
-  feedWindowMeasurements(container, 0, MOUNTED_ROWS, [](std::size_t) {
+  feedWindowMeasurements(container, 0, std::min(MOUNTED_ROWS, rows - 1), [](std::size_t) {
     return Size{WINDOW_WIDTH, ROW_HEIGHT};
   });
 
@@ -643,7 +645,7 @@ void benchScrollToIndexCentred(const std::vector<std::string>& keys, std::size_t
         static_cast<double>(target), static_cast<double>(++sequence), -2, 0.5);
       // Each settle frame mounts and measures the rows the correction moved to.
       for (int frame = 0; frame < 6; ++frame) {
-        Virtualizer::update(&container, makeInput(keys, container.revision.containerOffsetY));
+        Virtualizer::update(container, makeInput(keys, container.revision.containerOffsetY));
         auto visible = container.getVisibleIndices();
         if (visible.first != UNDEFINED_INDEX) {
           std::size_t low = std::min(visible.first, visible.second);
@@ -686,7 +688,7 @@ int main(int argc, char** argv) {
   std::printf("---------------------------------------------------------------------------------------\n");
 
   for (std::size_t rows : sizes) {
-    std::vector<std::string> shortKeys = makeShortKeys(rows);
+    std::vector<std::string> shortKeys = slt::keysFor(rows);
     std::vector<std::string> longKeys = makeLongKeys(rows);
 
     benchWarmUpdatePartial(shortKeys, rows);

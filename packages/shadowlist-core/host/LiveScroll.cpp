@@ -1,5 +1,6 @@
 #include <shadowlist-core/host/LiveScroll.hpp>
 
+#include <iterator>
 #include <unordered_map>
 
 namespace azimgd::shadowlist {
@@ -52,13 +53,13 @@ void LiveScroll::registerHandle(const std::shared_ptr<LiveScroll>& liveScroll) {
   }
   std::lock_guard<std::mutex> lock(registryMutex());
   auto& entries = registry();
-  if (entries.find(liveScroll->handle()) != entries.end()) {
+  if (entries.find(liveScroll->getHandle()) != entries.end()) {
     return;
   }
   for (auto entry = entries.begin(); entry != entries.end();) {
     entry = entry->second.expired() ? entries.erase(entry) : std::next(entry);
   }
-  entries.emplace(liveScroll->handle(), liveScroll);
+  entries.emplace(liveScroll->getHandle(), liveScroll);
 }
 
 std::shared_ptr<LiveScroll> LiveScroll::find(std::int64_t handle) {

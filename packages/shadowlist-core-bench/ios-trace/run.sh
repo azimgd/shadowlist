@@ -18,7 +18,7 @@
 #   ad <args...>            any other agent-device command, run in the session
 #
 # {FLINGS}, {BACK} and {HALF} in a step are replaced by $FLINGS (default 12), $BACK
-# (default 3/4 of it) and half of it. perf-suite.sh uses them to size fling runs to the list.
+# (default 3/4 of it) and half of it.
 #
 # Environment: UDID and DEVICE pick the simulator and its agent-device name, default sl-iosfix.
 # Also SESSION, OUT_DIR, AD for the agent-device command, LOG for the log path, and

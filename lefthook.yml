@@ -1,4 +1,3 @@
-# Activate with `yarn lefthook install` (one-time, after install).
 pre-commit:
   parallel: true
   commands:

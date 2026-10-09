@@ -1,0 +1,63 @@
+name: ShadowListKitExample
+options:
+  bundleIdPrefix: shadowlist
+  deploymentTarget:
+    iOS: '16.0'
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: B6BB88CAP5
+    CODE_SIGN_STYLE: Automatic
+    SWIFT_VERSION: '5.0'
+    CLANG_CXX_LANGUAGE_STANDARD: c++20
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+targets:
+  ShadowListKit:
+    type: framework.static
+    platform: iOS
+    sources:
+      - path: ../../packages/shadowlist-uikit/Sources/ShadowListKit/include/ShadowListKit
+        headerVisibility: public
+      - path: ../../packages/shadowlist-uikit/Sources/ShadowListKit/Internal
+        headerVisibility: project
+      - path: ../../packages/shadowlist-uikit/Sources/ShadowListKit
+        includes: ['*.mm']
+      - path: ../../packages/shadowlist-core
+        includes: ['*.cpp', 'host/*.cpp']
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: shadowlist.kit
+        DEFINES_MODULE: YES
+        HEADER_SEARCH_PATHS: ['$(SRCROOT)/../../packages']
+        CLANG_ENABLE_OBJC_ARC: YES
+        GENERATE_INFOPLIST_FILE: YES
+  ShadowListKitExample:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: ../../packages/shadowlist-uikit/Bench/ShadowListKitBench.m
+    dependencies:
+      - target: ShadowListKit
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: SL UIKit
+        UILaunchScreen: {}
+        CADisableMinimumFrameDurationOnPhone: true
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: shadowlist.uikit.example
+        SWIFT_OBJC_BRIDGING_HEADER: Sources/Bridging.h
+        OTHER_LDFLAGS: ['-ObjC', '-lc++']
+        TARGETED_DEVICE_FAMILY: '1'

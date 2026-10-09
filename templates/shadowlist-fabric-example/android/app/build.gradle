@@ -1,0 +1,90 @@
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"
+
+react {
+    autolinkLibrariesWithApp()
+}
+
+def enableProguardInReleaseBuilds = false
+
+def jscFlavor = 'io.github.react-native-community:jsc-android:2026004.+'
+
+android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
+    namespace "shadowlist.example"
+    defaultConfig {
+        applicationId "shadowlist.example"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        // -PshadowlistFrameTrace compiles the [SLC] trace into release builds for perf-suite.sh.
+        if (project.hasProperty("shadowlistFrameTrace")) {
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-DSHADOWLIST_FRAME_TRACE_COMPILED=1"
+                }
+            }
+        }
+        // -PshadowlistDebugLog compiles in the core's [SL] debug log, read with adb logcat -s SL.
+        if (project.hasProperty("shadowlistDebugLog")) {
+            externalNativeBuild {
+                cmake {
+                    arguments "-DSHADOWLIST_DEBUG_LOG=1"
+                }
+            }
+        }
+        /*
+         * -PshadowlistScrollBand=false sends a state update every scroll frame.
+         * Android has no launch environment and this define is its only switch.
+         */
+        if ((findProperty("shadowlistScrollBand") ?: "true").toString() == "false") {
+            externalNativeBuild {
+                cmake {
+                    cppFlags "-DSHADOWLIST_SCROLL_BAND=0"
+                }
+            }
+        }
+        /*
+         * Engine flags in MainApplication.kt. -PshadowlistEngineFlags=false uses React Native's own.
+         * -PshadowlistCommitBranching=true adds the experimental commit flags.
+         */
+        buildConfigField "boolean", "SHADOWLIST_ENGINE_FLAGS", (findProperty("shadowlistEngineFlags") ?: "true").toString()
+        buildConfigField "boolean", "SHADOWLIST_COMMIT_BRANCHING", (findProperty("shadowlistCommitBranching") ?: "false").toString()
+    }
+    buildFeatures {
+        buildConfig true
+    }
+    signingConfigs {
+        debug {
+            storeFile file('debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled enableProguardInReleaseBuilds
+            proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+        }
+    }
+}
+
+dependencies {
+    implementation("com.facebook.react:react-android")
+
+    if (hermesEnabled.toBoolean()) {
+        implementation("com.facebook.react:hermes-android")
+    } else {
+        implementation jscFlavor
+    }
+}

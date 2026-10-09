@@ -52,8 +52,12 @@ ScrollFrame frameAt(double offsetY, double scrollPhase = SCROLL_PHASE_IDLE) {
  * Mount a state, run its correction and write it into a view at offsetY, returning where
  * the view ends up. The write's scroll frame follows right away, like on both platforms.
  */
-double mountAndWrite(ScrollSync& sync, const MountedScroll& state, const std::shared_ptr<LiveScroll>& live,
-  const ViewMotion& view, FrameReport* written = nullptr) {
+double mountAndWrite(
+  ScrollSync& sync,
+  const MountedScroll& state,
+  const std::shared_ptr<LiveScroll>& live,
+  const ViewMotion& view,
+  FrameReport* written = nullptr) {
   sync.beginMount(state, live);
   MountAction action = sync.correction(view);
   double offset = view.offsetY;
@@ -120,15 +124,15 @@ TEST(scroll_sync_idle_correction_writes_and_echoes_its_token) {
   CHECK_EQ(offset, 300.0);
   CHECK(written.needsCommit);
   CHECK(!written.userScrolled);
-  CHECK_EQ(written.patch.report.commitToken, 7.0);
-  CHECK_EQ(sync.echoedToken(), static_cast<std::uint64_t>(7));
+  CHECK_EQ(written.patch.report.commitToken, static_cast<std::uint64_t>(7));
+  CHECK_EQ(sync.getEchoedToken(), static_cast<std::uint64_t>(7));
 
   // Later reports keep sending the token, and a user frame is the user again.
   sync.beginMount(restingState(300.0), live);
   sync.endMount();
   FrameReport later = sync.onScroll(frameAt(310.0, SCROLL_PHASE_DRAGGING));
   CHECK(later.userScrolled);
-  CHECK_EQ(later.patch.report.commitToken, 7.0);
+  CHECK_EQ(later.patch.report.commitToken, static_cast<std::uint64_t>(7));
 }
 
 TEST(scroll_sync_moving_view_shifts_by_the_unapplied_part) {
@@ -203,7 +207,7 @@ TEST(scroll_sync_write_that_moved_nothing_disarms) {
   auto live = std::make_shared<LiveScroll>();
   ScrollSync sync;
   mountAndWrite(sync, correctionState(300.0, 300.0, 2), live, viewAt(300.0));
-  CHECK(!sync.armed());
+  CHECK(!sync.isArmed());
   sync.beginMount(restingState(300.0), live);
   sync.endMount();
   CHECK(sync.onScroll(frameAt(320.0, SCROLL_PHASE_DRAGGING)).userScrolled);
@@ -243,10 +247,10 @@ TEST(scroll_sync_animated_scroll_is_ours_until_it_lands) {
   FrameReport middle = sync.onScroll(frameAt(200.0));
   CHECK(!middle.userScrolled);
   CHECK(middle.needsCommit);
-  CHECK(sync.armed());
+  CHECK(sync.isArmed());
   FrameReport end = sync.onScroll(frameAt(399.5));
   CHECK(!end.userScrolled);
-  CHECK(!sync.armed());
+  CHECK(!sync.isArmed());
   CHECK(sync.onScroll(frameAt(380.0, SCROLL_PHASE_DRAGGING)).userScrolled);
 }
 
@@ -281,7 +285,7 @@ TEST(scroll_sync_commands_sequence_past_the_mounted_one) {
   sync.endMount();
   sync.onScroll(frameAt(10.0, SCROLL_PHASE_SETTLING));
 
-  ScrollPatch command = sync.issueCommand(40.0, 0.5, 0.0, 10.0, true);
+  ScrollPatch command = sync.issueCommand({40.0, 0.5, 0.0, false}, 0.0, 10.0, true);
   CHECK(command.offsetEnabled);
   CHECK(command.hasCommand);
   CHECK_EQ(command.commandSequence, 6.0);
@@ -296,7 +300,7 @@ TEST(scroll_sync_commands_sequence_past_the_mounted_one) {
   CHECK(!report.offsetEnabled);
 
   // The mounted state is behind. The next command still goes past ours.
-  CHECK_EQ(sync.issueCommand(-3.0, 0.0, 0.0, 12.0, false).commandSequence, 7.0);
+  CHECK_EQ(sync.issueCommand({-3.0, 0.0, 0.0, false}, 0.0, 12.0, false).commandSequence, 7.0);
 }
 
 TEST(scroll_sync_correction_moves_a_waiting_scroll_to_top_jump) {
@@ -384,8 +388,150 @@ TEST(live_scroll_newer_report_rules) {
 TEST(live_scroll_registry_finds_live_lists_only) {
   auto live = std::make_shared<LiveScroll>();
   LiveScroll::registerHandle(live);
-  CHECK(LiveScroll::find(live->handle()) == live);
-  std::int64_t handle = live->handle();
+  CHECK(LiveScroll::find(live->getHandle()) == live);
+  std::int64_t handle = live->getHandle();
   live.reset();
   CHECK(LiveScroll::find(handle) == nullptr);
+}
+
+/*
+ * An animated command moves nothing at first. The view animates to the core's estimate, then
+ * the same command runs without the animation and lands exactly.
+ */
+TEST(scroll_sync_animated_command_animates_to_the_estimate_then_lands) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  sync.beginMount(restingState(0.0), live);
+  sync.endMount();
+
+  ScrollPatch command = sync.issueCommand({40.0, 0.5, -20.0, true}, 0.0, 0.0, false);
+  CHECK(!command.offsetEnabled);
+  CHECK(command.commandAnimated);
+  CHECK_EQ(command.commandRowOffset, -20.0);
+  CHECK_EQ(command.commandSequence, 1.0);
+
+  // The state with the estimate mounts. The view animates there once.
+  MountedScroll estimated = restingState(0.0);
+  estimated.commandSequence = 1.0;
+  estimated.animationSequence = 1.0;
+  estimated.animationOffset = 3200.0;
+  sync.beginMount(estimated, live);
+  MountAction action = sync.correction(viewAt(0.0));
+  sync.endMount();
+  CHECK(action.kind == MountAction::Kind::Animate);
+  CHECK_EQ(action.offsetY, 3200.0);
+  CHECK(sync.isLanding());
+  sync.beginMount(estimated, live);
+  CHECK(sync.correction(viewAt(0.0)).kind == MountAction::Kind::None);
+  sync.endMount();
+
+  // The animation's frames are ours, and the last one lands it.
+  sync.arm(0.0, 3200.0, true);
+  FrameReport middle = sync.onScroll(frameAt(1600.0));
+  CHECK(!middle.userScrolled);
+  CHECK(!middle.landed);
+  FrameReport last = sync.onScroll(frameAt(3200.0));
+  CHECK(last.landed);
+
+  auto landing = sync.land(0.0, 3200.0);
+  CHECK(landing.has_value());
+  CHECK(landing->offsetEnabled);
+  CHECK(!landing->commandAnimated);
+  CHECK_EQ(landing->commandIndex, 40.0);
+  CHECK_EQ(landing->commandViewPosition, 0.5);
+  CHECK_EQ(landing->commandRowOffset, -20.0);
+  CHECK_EQ(landing->commandSequence, 2.0);
+  CHECK(!sync.isLanding());
+  CHECK(!sync.land(0.0, 3200.0).has_value());
+}
+
+/*
+ * A finger on the list gives an animated command up, before or after its animation started.
+ */
+TEST(scroll_sync_a_finger_gives_an_animated_command_up) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  sync.beginMount(restingState(0.0), live);
+  sync.endMount();
+  sync.issueCommand({40.0, 0.0, 0.0, true}, 0.0, 0.0, false);
+  sync.disarm();
+
+  MountedScroll estimated = restingState(0.0);
+  estimated.commandSequence = 1.0;
+  estimated.animationSequence = 1.0;
+  estimated.animationOffset = 3200.0;
+  sync.beginMount(estimated, live);
+  CHECK(sync.correction(viewAt(0.0)).kind == MountAction::Kind::None);
+  sync.endMount();
+  CHECK(!sync.isLanding());
+  CHECK(!sync.land(0.0, 0.0).has_value());
+}
+
+/*
+ * While an animated command is on its way, a correction waits. Writing it would stop the
+ * animation, and the landing command replaces it.
+ */
+TEST(scroll_sync_a_correction_waits_for_an_animated_command) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  sync.beginMount(restingState(0.0), live);
+  sync.endMount();
+  sync.issueCommand({40.0, 0.0, 0.0, true}, 0.0, 0.0, false);
+  MountedScroll estimated = restingState(0.0);
+  estimated.commandSequence = 1.0;
+  estimated.animationSequence = 1.0;
+  estimated.animationOffset = 3200.0;
+  sync.beginMount(estimated, live);
+  CHECK(sync.correction(viewAt(0.0)).kind == MountAction::Kind::Animate);
+  sync.endMount();
+  sync.arm(0.0, 3200.0, true);
+
+  MountedScroll corrected = correctionState(1400.0, 1300.0, 9);
+  corrected.commandSequence = 1.0;
+  corrected.animationSequence = 1.0;
+  corrected.animationOffset = 3200.0;
+  sync.beginMount(corrected, live);
+  CHECK(sync.correction(viewAt(1300.0)).kind == MountAction::Kind::None);
+  sync.endMount();
+}
+
+/*
+ * A correction written while an animated command waits for its estimate is no finger. The
+ * estimate that mounts after it still animates.
+ */
+TEST(scroll_sync_a_correction_write_keeps_a_waiting_animated_command) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  sync.beginMount(restingState(0.0), live);
+  sync.endMount();
+  sync.issueCommand({40.0, 0.5, 0.0, true}, 0.0, 0.0, false);
+
+  // A correction from a commit made before the command mounts first and is written.
+  CHECK_EQ(mountAndWrite(sync, correctionState(140.0, 100.0, 5), live, viewAt(100.0)), 140.0);
+  // A write that moved nothing is let go too.
+  CHECK_EQ(mountAndWrite(sync, correctionState(140.0, 140.0, 6), live, viewAt(140.0)), 140.0);
+
+  MountedScroll estimated = restingState(140.0);
+  estimated.commandSequence = 1.0;
+  estimated.animationSequence = 1.0;
+  estimated.animationOffset = 3200.0;
+  sync.beginMount(estimated, live);
+  MountAction action = sync.correction(viewAt(140.0));
+  sync.endMount();
+  CHECK(action.kind == MountAction::Kind::Animate);
+  CHECK_EQ(action.offsetY, 3200.0);
+  CHECK(sync.isLanding());
+}
+
+TEST(scroll_sync_anchor_requests_sequence_up_and_ride_along) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  sync.beginMount(restingState(0.0), live);
+  sync.endMount();
+  CHECK(!sync.livePatch(0.0, 10.0).hasAnchorRequest);
+  ScrollPatch first = sync.requestAnchor(0.0, 10.0);
+  CHECK(first.hasAnchorRequest);
+  CHECK_EQ(first.anchorRequestSequence, 1.0);
+  CHECK_EQ(sync.requestAnchor(0.0, 10.0).anchorRequestSequence, 2.0);
+  CHECK_EQ(sync.livePatch(0.0, 12.0).anchorRequestSequence, 2.0);
 }

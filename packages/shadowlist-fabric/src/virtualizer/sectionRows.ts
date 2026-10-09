@@ -1,4 +1,5 @@
 import type { SectionListData } from '../types';
+import { defaultKeyExtractor } from './helpers';
 
 type FlatRowType = 'sectionHeader' | 'element' | 'sectionFooter';
 
@@ -162,7 +163,7 @@ export function flattenSections<ElementT, SectionT>(
     section.data.forEach((element, elementIndex) => {
       const elementKey = sectionKeyExtractor
         ? sectionKeyExtractor(element, elementIndex)
-        : ((element as { id?: string })?.id ?? `${elementIndex}`);
+        : defaultKeyExtractor(element, elementIndex);
       const isLastInSection = elementIndex === lastElementIndex;
       push({
         id: `si:${sectionKey}:${elementKey}`,

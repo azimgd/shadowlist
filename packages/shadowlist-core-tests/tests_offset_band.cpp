@@ -65,18 +65,18 @@ struct Fired {
 std::unique_ptr<Container> settledContainer(const BandScenario& scenario, Fired* fired = nullptr) {
   auto container = std::make_unique<Container>();
   std::vector<std::string> keys = keysFor(scenario.rows);
-  Virtualizer::update(container.get(), bandInput(scenario, keys, 0.0));
+  Virtualizer::update(*container, bandInput(scenario, keys, 0.0));
   for (std::size_t index = 0; index < scenario.rows; ++index) {
     double width = scenario.columns > 1 ? WINDOW_WIDTH / static_cast<double>(scenario.columns) : WINDOW_WIDTH;
-    Virtualizer::updateElementAtIndex(container.get(), index, {width, rowHeight(index)});
+    Virtualizer::updateElementAtIndex(*container, index, {width, rowHeight(index)});
   }
   FrameInput drag = bandInput(scenario, keys, scenario.offset);
   drag.userScrolled = true;
   drag.scrollPhase = ScrollPhase::Dragging;
-  Virtualizer::update(container.get(), drag);
+  Virtualizer::update(*container, drag);
   FrameInput rest = bandInput(scenario, keys, scenario.offset);
-  Virtualizer::update(container.get(), rest);
-  Virtualizer::update(container.get(), rest);
+  Virtualizer::update(*container, rest);
+  Virtualizer::update(*container, rest);
 
   if (fired != nullptr) {
     container->onVisibleIndicesChangeCallback = [fired](std::size_t, std::size_t) { fired->visible++; };
@@ -106,7 +106,7 @@ FrameOutcome frameAt(const BandScenario& scenario, double offset, bool gesture) 
     input.userScrolled = true;
     input.scrollPhase = ScrollPhase::Dragging;
   }
-  Virtualizer::update(container.get(), input);
+  Virtualizer::update(*container, input);
   FrameOutcome outcome;
   outcome.visible = container->getVisibleIndices();
   outcome.fired = fired;
@@ -233,7 +233,7 @@ TEST(offset_band_is_empty_while_a_scroll_command_runs) {
   std::vector<std::string> keys = keysFor(scenario.rows);
   container->scrollToIndex(150);
   CHECK(container->computeOffsetBand().isEmpty());
-  Virtualizer::update(container.get(), bandInput(scenario, keys, scenario.offset));
+  Virtualizer::update(*container, bandInput(scenario, keys, scenario.offset));
   CHECK(container->operation.has_value());
   CHECK(container->computeOffsetBand().isEmpty());
 }
@@ -244,7 +244,7 @@ TEST(offset_band_is_empty_while_a_prepend_is_held_in_place) {
   std::vector<std::string> keys = keysFor(scenario.rows);
   std::vector<std::string> prepended = keysFor(10, "p");
   prepended.insert(prepended.end(), keys.begin(), keys.end());
-  Virtualizer::update(container.get(), bandInput(scenario, prepended, scenario.offset));
+  Virtualizer::update(*container, bandInput(scenario, prepended, scenario.offset));
   CHECK(container->containerOffsetCorrected);
   CHECK(container->computeOffsetBand().isEmpty());
 }
@@ -256,7 +256,7 @@ TEST(offset_band_is_empty_with_scroll_or_viewable_listeners) {
   container->onScrollCallback = [](double, double) {};
   CHECK(container->computeOffsetBand().isEmpty());
   container->onScrollCallback = nullptr;
-  container->onViewableIndicesChangeCallback = [](std::size_t, std::size_t) {};
+  container->onViewableIndicesChangeCallback = [](const std::vector<std::size_t>&) {};
   CHECK(container->computeOffsetBand().isEmpty());
   container->onViewableIndicesChangeCallback = nullptr;
   container->stickyIndices = {0, 40};
@@ -281,8 +281,8 @@ TEST(offset_band_survives_a_scroll_axis_window_resize) {
   std::vector<std::string> keys = keysFor(scenario.rows);
   FrameInput resized = bandInput(scenario, keys, scenario.offset);
   resized.windowContainerHeight = WINDOW_HEIGHT - 300.0;
-  Virtualizer::update(container.get(), resized);
-  Virtualizer::update(container.get(), resized);
+  Virtualizer::update(*container, resized);
+  Virtualizer::update(*container, resized);
   CHECK(!container->computeOffsetBand().isEmpty());
 }
 

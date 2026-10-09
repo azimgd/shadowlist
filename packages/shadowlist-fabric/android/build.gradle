@@ -40,6 +40,8 @@ android {
   defaultConfig {
     minSdkVersion getExtOrDefault("minSdkVersion")
     targetSdkVersion getExtOrDefault("targetSdkVersion")
+    // -PshadowlistDebugLog turns on the Java [SL] trace, read with adb logcat -s SL.
+    buildConfigField "boolean", "SHADOWLIST_DEBUG_LOG", project.hasProperty("shadowlistDebugLog") ? "true" : "false"
   }
 
   buildFeatures {
@@ -80,6 +82,5 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-  // Pull to refresh for the vertical list. react-android already pulls it in too.
   implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.1.0"
 }

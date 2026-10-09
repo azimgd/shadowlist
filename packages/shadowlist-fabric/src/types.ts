@@ -1,9 +1,11 @@
-import type { ReactElement } from 'react';
+import type { ComponentType, ReactElement } from 'react';
 import type {
   ViewStyle,
   TextStyle,
   ColorValue,
   AccessibilityRole,
+  StyleProp,
+  Insets,
 } from 'react-native';
 import type { OnScroll } from './ShadowListViewNativeComponent';
 
@@ -14,19 +16,141 @@ export interface ViewToken<ElementT> {
   isViewable: boolean;
 }
 
+export interface ScrollToIndexParams {
+  index: number;
+  animated?: boolean;
+  viewOffset?: number;
+  viewPosition?: number;
+}
+
+export interface ScrollToItemParams<ElementT = unknown> {
+  item: ElementT;
+  animated?: boolean;
+  viewOffset?: number;
+  viewPosition?: number;
+}
+
+export interface ScrollToIndexFailedInfo {
+  index: number;
+  highestMeasuredFrameIndex: number;
+  averageItemLength: number;
+}
+
+export interface AnchorState {
+  key: string;
+  offset: number;
+}
+
 export interface ShadowListCommands {
   setStartReachedEnabled: (enabled: boolean) => void;
   setEndReachedEnabled: (enabled: boolean) => void;
-  scrollToIndex: (index: number, viewPosition?: number) => void;
-  scrollToOffset: (offset: number, animated?: boolean) => void;
-  scrollToEnd: (animated?: boolean) => void;
+  scrollToItem: {
+    (index: number, viewPosition?: number, animated?: boolean): void;
+    (params: ScrollToItemParams): void;
+  };
+  scrollToIndex: (params: ScrollToIndexParams) => void;
+  scrollToOffset: {
+    (offset: number, animated?: boolean): void;
+    (params: { offset: number; animated?: boolean }): void;
+  };
+  scrollToEnd: {
+    (animated?: boolean): void;
+    (params: { animated?: boolean }): void;
+  };
+  flashScrollIndicators: () => void;
+  recordInteraction: () => void;
+  getNativeScrollRef: () => unknown;
+  getScrollResponder: () => unknown;
+  getScrollableNode: () => number | null;
   getElementSize: (key: string) => number | undefined;
   getElementSizes: () => ReadonlyMap<string, number>;
+  selectItem: (index: number) => void;
+  deselectItem: (index: number) => void;
+  getSelectedIndices: () => number[];
+  closeSwipeActions: () => void;
+  getAnchorState: () => Promise<AnchorState | null>;
+  restoreAnchorState: (state: AnchorState) => void;
 }
 
 export interface ViewabilityConfig {
   itemVisiblePercentThreshold?: number;
+  viewAreaCoveragePercentThreshold?: number;
+  minimumViewTime?: number;
+  waitForInteraction?: boolean;
 }
+
+export interface ViewableItemsChangedInfo<ElementT> {
+  viewableItems: ViewToken<ElementT>[];
+  changed: ViewToken<ElementT>[];
+}
+
+export interface ViewabilityConfigCallbackPair<ElementT> {
+  viewabilityConfig: ViewabilityConfig;
+  onViewableItemsChanged:
+    | ((info: ViewableItemsChangedInfo<ElementT>) => void)
+    | null
+    | undefined;
+}
+
+/*
+ * What a row can do to the separators next to it, like FlatList's separators. leading is the
+ * separator above the row, trailing the one below.
+ */
+export interface Separators {
+  highlight: () => void;
+  unhighlight: () => void;
+  updateProps: (
+    select: 'leading' | 'trailing',
+    newProps: Record<string, unknown>
+  ) => void;
+}
+
+export interface ItemSeparatorProps<ElementT> {
+  highlighted: boolean;
+  leadingItem: ElementT;
+  trailingItem: ElementT | undefined;
+}
+
+export interface RenderElementInfo<ElementT> {
+  element: ElementT;
+  index: number;
+  separators: Separators;
+  selected: boolean;
+  select: () => void;
+  deselect: () => void;
+}
+
+export interface SwipeAction<ElementT> {
+  title: string;
+  style?: 'normal' | 'destructive';
+  backgroundColor?: ColorValue;
+  onPress: (info: { item: ElementT; index: number }) => void | Promise<unknown>;
+}
+
+export interface SwipeActionsConfiguration<ElementT> {
+  actions: ReadonlyArray<SwipeAction<ElementT>>;
+  performsFirstActionWithFullSwipe?: boolean;
+}
+
+export interface ContextMenuAction<ElementT> {
+  title: string;
+  style?: 'normal' | 'destructive';
+  disabled?: boolean;
+  systemImage?: string;
+  onPress: (info: { item: ElementT; index: number }) => void;
+}
+
+export interface ContextMenu<ElementT> {
+  title?: string;
+  actions: ReadonlyArray<ContextMenuAction<ElementT>>;
+}
+
+export interface PrefetchDataSource {
+  prefetchItems: (indices: number[]) => void;
+  cancelPrefetchingForItems?: (indices: number[]) => void;
+}
+
+export type ScrollEvent = { nativeEvent: OnScroll };
 
 export interface ElementSizeSpec {
   text: string;
@@ -47,12 +171,12 @@ export interface ElementSizeSpec {
   fixedHeight?: number;
 }
 
-export interface ShadowListProps<ElementT extends { id: string }> {
+export interface ShadowListProps<ElementT> {
   data: ReadonlyArray<ElementT>;
-  renderElement: (info: { element: ElementT; index: number }) => ReactElement;
+  renderElement: (info: RenderElementInfo<ElementT>) => ReactElement;
   keyExtractor?: (element: ElementT, index: number) => string;
-  style?: ViewStyle;
-  elementStyle?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
+  elementStyle?: StyleProp<ViewStyle>;
   accessible?: boolean;
   accessibilityLabel?: string;
   accessibilityRole?: AccessibilityRole;
@@ -65,11 +189,11 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   stickyFooter?: boolean;
   autoHideHeader?: boolean;
   autoHideFooter?: boolean;
-  dragEnabled?: boolean;
+  reorderEnabled?: boolean;
   onReorder?: (info: { from: number; to: number; data: ElementT[] }) => void;
-  stickyHeaderIndices?: ReadonlyArray<number>;
+  stickyIndices?: ReadonlyArray<number>;
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
-  columns?: number;
+  numberOfColumns?: number;
   overscan?: number;
   overscanRows?: number;
   overscanRowsLeading?: number;
@@ -80,28 +204,72 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   measureLookaheadRows?: number;
   persistentKeys?: ReadonlyArray<string>;
   nonAnchorKeys?: ReadonlyArray<string>;
+  initialScrollIndex?: number | null;
   containerOffsetIndex?: number;
   trackElementSizes?: boolean;
+  extraData?: unknown;
   refreshing?: boolean;
   onRefresh?: () => void;
   refreshColor?: ColorValue;
+  progressViewOffset?: number;
   initialElementsSize?: number;
   onStartReached?: () => void;
   onEndReached?: () => void;
   onStartReachedThreshold?: number;
   onEndReachedThreshold?: number;
-  onScroll?: (event: { nativeEvent: OnScroll }) => void;
+  onScroll?: (event: ScrollEvent) => void;
+  onScrollBeginDrag?: (event: ScrollEvent) => void;
+  onScrollEndDrag?: (event: ScrollEvent) => void;
+  onMomentumScrollBegin?: (event: ScrollEvent) => void;
+  onMomentumScrollEnd?: (event: ScrollEvent) => void;
+  onContentSizeChange?: (width: number, height: number) => void;
+  scrollEventThrottle?: number;
+  onScrollToIndexFailed?: (info: ScrollToIndexFailedInfo) => void;
+  scrollEnabled?: boolean;
+  showsVerticalScrollIndicator?: boolean;
+  showsHorizontalScrollIndicator?: boolean;
+  bounces?: boolean;
+  decelerationRate?: 'normal' | 'fast' | number;
+  scrollsToTop?: boolean;
+  keyboardDismissMode?: 'none' | 'on-drag' | 'interactive';
+  keyboardShouldPersistTaps?: boolean | 'always' | 'never' | 'handled';
+  nestedScrollEnabled?: boolean;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+  contentInset?: Insets;
   snapToItem?: boolean;
-  snapToAlignment?: 'start' | 'center' | 'end';
+  snapAlignment?: 'start' | 'center' | 'end';
   viewabilityConfig?: ViewabilityConfig;
-  onViewableItemsChanged?: (info: {
-    viewableItems: ViewToken<ElementT>[];
-    changed: ViewToken<ElementT>[];
-  }) => void;
-  ItemSeparatorComponent?: ReactElement | (() => ReactElement | null) | null;
+  onViewableItemsChanged?: (info: ViewableItemsChangedInfo<ElementT>) => void;
+  viewabilityConfigCallbackPairs?: ReadonlyArray<
+    ViewabilityConfigCallbackPair<ElementT>
+  >;
+  allowsMultipleSelection?: boolean;
+  selectedKeys?: ReadonlyArray<string>;
+  onSelectionChange?: (selectedKeys: string[]) => void;
+  leadingSwipeActionsForItem?: (info: {
+    item: ElementT;
+    index: number;
+  }) => SwipeActionsConfiguration<ElementT> | null | undefined;
+  trailingSwipeActionsForItem?: (info: {
+    item: ElementT;
+    index: number;
+  }) => SwipeActionsConfiguration<ElementT> | null | undefined;
+  contextMenuForItem?: (info: {
+    item: ElementT;
+    index: number;
+  }) => ContextMenu<ElementT> | null | undefined;
+  prefetchDataSource?: PrefetchDataSource;
+  prefetchRows?: number;
+  ItemSeparatorComponent?:
+    | ReactElement
+    | ComponentType<ItemSeparatorProps<ElementT>>
+    | null;
   ListHeaderComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListHeaderComponentStyle?: StyleProp<ViewStyle>;
   ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
+  ListFooterComponentStyle?: StyleProp<ViewStyle>;
   ListEmptyComponent?: ReactElement | (() => ReactElement | null) | null;
+  columnWrapperStyle?: StyleProp<ViewStyle>;
 }
 
 /*
@@ -122,6 +290,7 @@ export interface SectionListRenderElementInfo<ElementT, SectionT = object> {
   element: ElementT;
   index: number;
   section: SectionListData<ElementT, SectionT>;
+  separators: Separators;
 }
 
 export type SectionListRenderElement<ElementT, SectionT = object> = (
@@ -134,22 +303,60 @@ export type SectionListRenderElement<ElementT, SectionT = object> = (
  * define their own version of such a prop or don't offer it.
  */
 export type ShadowListForwardedProps = Omit<
-  ShadowListProps<{ id: string }>,
+  ShadowListProps<unknown>,
   | 'data'
   | 'renderElement'
   | 'keyExtractor'
   | 'getElementSizeSpec'
-  | 'stickyHeaderIndices'
+  | 'stickyIndices'
   | 'renderStickyHeaderOverlay'
-  | 'dragEnabled'
+  | 'reorderEnabled'
   | 'onReorder'
   | 'viewabilityConfig'
   | 'onViewableItemsChanged'
+  | 'viewabilityConfigCallbackPairs'
+  | 'allowsMultipleSelection'
+  | 'selectedKeys'
+  | 'onSelectionChange'
+  | 'leadingSwipeActionsForItem'
+  | 'trailingSwipeActionsForItem'
+  | 'contextMenuForItem'
+  | 'prefetchDataSource'
+  | 'ItemSeparatorComponent'
 >;
+
+export interface SectionListLocation {
+  sectionIndex: number;
+  itemIndex: number;
+  animated?: boolean;
+  viewOffset?: number;
+  viewPosition?: number;
+}
+
+export interface SectionListCommands extends ShadowListCommands {
+  scrollToLocation: (params: SectionListLocation) => void;
+  scrollToSection: (sectionIndex: number, animated?: boolean) => void;
+}
+
+export interface SectionItemSeparatorProps<ElementT, SectionT = object> {
+  highlighted: boolean;
+  leadingItem: ElementT | undefined;
+  trailingItem: ElementT | undefined;
+  section: SectionListData<ElementT, SectionT>;
+}
+
+export interface SectionSeparatorProps<ElementT, SectionT = object> {
+  highlighted: boolean;
+  leadingItem: ElementT | undefined;
+  leadingSection: SectionListData<ElementT, SectionT> | undefined;
+  section: SectionListData<ElementT, SectionT>;
+  trailingItem: ElementT | undefined;
+  trailingSection: SectionListData<ElementT, SectionT> | undefined;
+}
 
 export interface SectionListProps<ElementT, SectionT = object> extends Omit<
   ShadowListForwardedProps,
-  'ItemSeparatorComponent' | 'nonAnchorKeys' | 'persistentKeys'
+  'nonAnchorKeys' | 'persistentKeys'
 > {
   sections: ReadonlyArray<SectionListData<ElementT, SectionT>>;
   renderElement?: SectionListRenderElement<ElementT, SectionT>;
@@ -161,8 +368,16 @@ export interface SectionListProps<ElementT, SectionT = object> extends Omit<
   }) => ReactElement | null;
   keyExtractor?: (element: ElementT, index: number) => string;
   stickySectionHeadersEnabled?: boolean;
-  ItemSeparatorComponent?: ReactElement | (() => ReactElement | null) | null;
-  SectionSeparatorComponent?: ReactElement | (() => ReactElement | null) | null;
+  sectionIndexTitles?: ReadonlyArray<string>;
+  sectionForSectionIndexTitle?: (title: string, index: number) => number;
+  ItemSeparatorComponent?:
+    | ReactElement
+    | ComponentType<SectionItemSeparatorProps<ElementT, SectionT>>
+    | null;
+  SectionSeparatorComponent?:
+    | ReactElement
+    | ComponentType<SectionSeparatorProps<ElementT, SectionT>>
+    | null;
   getElementSizeSpec?: (
     element: ElementT,
     index: number,
@@ -186,6 +401,7 @@ export interface TreeListRenderElementInfo<ElementT> {
   hasChildren: boolean;
   indent: number;
   toggle: () => void;
+  separators: Separators;
 }
 
 export interface TreeListCommands extends ShadowListCommands {
@@ -206,4 +422,8 @@ export interface TreeListProps<ElementT> extends ShadowListForwardedProps {
     index: number,
     depth: number
   ) => ElementSizeSpec | null | undefined;
+  ItemSeparatorComponent?:
+    | ReactElement
+    | ComponentType<ItemSeparatorProps<ElementT>>
+    | null;
 }

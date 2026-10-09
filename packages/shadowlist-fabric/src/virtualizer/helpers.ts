@@ -1,3 +1,5 @@
+import type { ReactElement } from 'react';
+
 // Default extra rows mounted on each side of the screen. See overscanRows for how to pick one.
 export const SHADOWLIST_OVERSCAN = 4;
 
@@ -9,7 +11,7 @@ export const SHADOWLIST_OVERSCAN = 4;
  */
 export const SHADOWLIST_OVERSCAN_LEADING = 10;
 
-// Maps snapToAlignment to the native enum value.
+// Maps snapAlignment to the native enum value.
 export const SNAP_ALIGNMENT = { start: 0, center: 1, end: 2 } as const;
 
 /*
@@ -58,6 +60,32 @@ export function takeRowRenderCount(): number {
  */
 export function nativeTagOf(instance: unknown): number {
   return (instance as { __nativeTag?: number } | null)?.__nativeTag ?? -1;
+}
+
+/*
+ * The key of a row when the list has no keyExtractor, like FlatList: the element's id when
+ * it is a string or a number, and its index otherwise. An index key belongs to the position,
+ * not the row. Rows inserted above the screen then change the keys of the rows on it, and the
+ * list cannot keep them still. Give such data a keyExtractor.
+ */
+export function defaultKeyExtractor(element: unknown, index: number): string {
+  if (typeof element === 'object' && element !== null) {
+    const id = (element as { id?: unknown }).id;
+    if (typeof id === 'string' || typeof id === 'number') {
+      return String(id);
+    }
+  }
+  return String(index);
+}
+
+/*
+ * The element of a slot prop that takes an element or a function returning one.
+ */
+export function renderComponent(
+  component: ReactElement | (() => ReactElement | null) | null | undefined
+): ReactElement | null {
+  if (!component) return null;
+  return typeof component === 'function' ? component() : component;
 }
 
 /*

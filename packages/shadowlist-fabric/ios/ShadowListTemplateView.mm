@@ -26,7 +26,7 @@ using namespace facebook::react;
     static const auto defaultProps = std::make_shared<const ShadowListTemplateViewProps>();
     _props = defaultProps;
 
-    _contentView = [[RCTUIView alloc] init];
+    _contentView = [RCTUIView new];
 
     self.contentView = _contentView;
   }
@@ -49,6 +49,16 @@ using namespace facebook::react;
   self.layer.zPosition = 0.0;
 #endif
   [super prepareForRecycle];
+}
+
+/*
+ * Children sit where Yoga put them, padding included. The base view would also inset the
+ * content view by the padding, which applied it twice.
+ */
+- (void)updateLayoutMetrics:(const LayoutMetrics &)layoutMetrics oldLayoutMetrics:(const LayoutMetrics &)oldLayoutMetrics
+{
+  [super updateLayoutMetrics:layoutMetrics oldLayoutMetrics:oldLayoutMetrics];
+  _contentView.frame = CGRectMake(0, 0, layoutMetrics.frame.size.width, layoutMetrics.frame.size.height);
 }
 
 - (void)mountChildComponentView:(RCTUIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index

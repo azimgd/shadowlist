@@ -9,6 +9,8 @@ export {
   takeRowRenderCount,
   nativeTagOf,
   describeDataChange,
+  defaultKeyExtractor,
+  renderComponent,
 } from './helpers';
 export {
   initialMountedRange,
@@ -20,6 +22,7 @@ export {
   ElementRenderer,
   createRowIndexStore,
   type RowIndexStore,
+  type RowSelection,
 } from './ElementRenderer';
 export { useStableElement } from './useStableElement';
 export { useMountedRange } from './useMountedRange';
@@ -28,4 +31,17 @@ export { useDragReorder } from './useDragReorder';
 export { usePersistentKeys } from './usePersistentKeys';
 export { useViewability } from './useViewability';
 export { useElementSizeSpecs } from './useElementSizeSpecs';
-export { useImperativeCommands } from './useImperativeCommands';
+export { useRowSelection } from './useRowSelection';
+export { usePrefetch } from './usePrefetch';
+export { useAnchorState } from './useAnchorState';
+export { useKeyboardDismissResponder } from './useKeyboardDismissResponder';
+export {
+  useRenderTraceStart,
+  useRenderTrace,
+  useInputTrace,
+} from './useRenderTrace';
+export {
+  useImperativeCommands,
+  forwardedCommands,
+  type CommandSource,
+} from './useImperativeCommands';

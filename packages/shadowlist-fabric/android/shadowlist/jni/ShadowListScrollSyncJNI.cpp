@@ -1,15 +1,16 @@
 /*
  * JNI side of com.shadowlist.ShadowListScrollSync. Each Java view owns one ScrollSync from the
- * host layer, reached by pointer, and reads results from an array it reuses. Scroll frames
+ * host layer, reached by handle, and reads results from an array it reuses. Scroll frames
  * allocate nothing. Only the UI thread calls in.
  */
 
 #include <jni.h>
 
+#include <cstdint>
+#include <memory>
+
 #include <shadowlist-core/host/LiveScroll.hpp>
 #include <shadowlist-core/host/ScrollSync.hpp>
-
-#include <cstdint>
 
 namespace {
 
@@ -38,24 +39,35 @@ enum OutSlot {
   OUT_ACTION_TOKEN,
   OUT_ACTION_SHIFTED,
   OUT_ACTION_PRESERVE_MOMENTUM,
+  OUT_COMMAND_ROW_OFFSET,
+  OUT_COMMAND_ANIMATED,
+  OUT_HAS_ANCHOR_REQUEST,
+  OUT_ANCHOR_REQUEST_SEQUENCE,
+  OUT_FRAME_LANDED,
   OUT_SLOTS,
 };
 
 /*
  * A view's ScrollSync, the live report it writes to, and the last correction it was told about.
  */
-struct Host {
+struct Peer {
   sl::ScrollSync sync;
   std::int64_t liveHandle = 0;
   std::shared_ptr<sl::LiveScroll> liveScroll;
   sl::MountAction action;
 };
 
-Host* host(jlong pointer) {
-  return reinterpret_cast<Host*>(static_cast<std::intptr_t>(pointer));
+Peer* peerOf(jlong handle) {
+  return reinterpret_cast<Peer*>(handle);
 }
 
-void writePatch(JNIEnv* env, jdoubleArray out, const sl::ScrollPatch& patch, bool commit, bool frameUserScrolled) {
+void writePatch(
+  JNIEnv* env,
+  jdoubleArray out,
+  const sl::ScrollPatch& patch,
+  bool commit,
+  bool frameUserScrolled,
+  bool frameLanded = false) {
   jdouble slots[OUT_ACTION_KIND];
   slots[OUT_COMMIT] = commit ? 1.0 : 0.0;
   slots[OUT_FRAME_USER_SCROLLED] = frameUserScrolled ? 1.0 : 0.0;
@@ -64,61 +76,49 @@ void writePatch(JNIEnv* env, jdoubleArray out, const sl::ScrollPatch& patch, boo
   slots[OUT_OFFSET_ENABLED] = patch.offsetEnabled ? 1.0 : 0.0;
   slots[OUT_USER_SCROLLED] = patch.report.userScrolled ? 1.0 : 0.0;
   slots[OUT_SCROLL_PHASE] = patch.report.scrollPhase;
-  slots[OUT_COMMIT_TOKEN] = patch.report.commitToken;
+  slots[OUT_COMMIT_TOKEN] = static_cast<double>(patch.report.commitToken);
   slots[OUT_SEQUENCE] = static_cast<double>(patch.report.sequence);
   slots[OUT_HAS_COMMAND] = patch.hasCommand ? 1.0 : 0.0;
   slots[OUT_COMMAND_INDEX] = patch.commandIndex;
   slots[OUT_COMMAND_SEQUENCE] = patch.commandSequence;
   slots[OUT_COMMAND_VIEW_POSITION] = patch.commandViewPosition;
   env->SetDoubleArrayRegion(out, 0, OUT_ACTION_KIND, slots);
+  jdouble more[OUT_SLOTS - OUT_COMMAND_ROW_OFFSET];
+  more[OUT_COMMAND_ROW_OFFSET - OUT_COMMAND_ROW_OFFSET] = patch.commandRowOffset;
+  more[OUT_COMMAND_ANIMATED - OUT_COMMAND_ROW_OFFSET] = patch.commandAnimated ? 1.0 : 0.0;
+  more[OUT_HAS_ANCHOR_REQUEST - OUT_COMMAND_ROW_OFFSET] = patch.hasAnchorRequest ? 1.0 : 0.0;
+  more[OUT_ANCHOR_REQUEST_SEQUENCE - OUT_COMMAND_ROW_OFFSET] = patch.anchorRequestSequence;
+  more[OUT_FRAME_LANDED - OUT_COMMAND_ROW_OFFSET] = frameLanded ? 1.0 : 0.0;
+  env->SetDoubleArrayRegion(out, OUT_COMMAND_ROW_OFFSET, OUT_SLOTS - OUT_COMMAND_ROW_OFFSET, more);
 }
 
 }
 
-extern "C" JNIEXPORT jlong JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeCreate(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jdouble landingTolerance) {
+#define SL_SCROLL_SYNC_JNI(name) Java_com_shadowlist_ShadowListScrollSync_##name
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL SL_SCROLL_SYNC_JNI(nativeCreate)(JNIEnv*, jclass, jdouble landingTolerance) {
   sl::ScrollSync::Options options;
   options.landingTolerance = landingTolerance;
   options.exactEcho = true;
-  auto* created = new Host();
-  created->sync = sl::ScrollSync(options);
-  return static_cast<jlong>(reinterpret_cast<std::intptr_t>(created));
+  auto* peer = new Peer();
+  peer->sync = sl::ScrollSync(options);
+  return reinterpret_cast<jlong>(peer);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeDestroy(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer) {
-  delete host(pointer);
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeDestroy)(JNIEnv*, jclass, jlong handle) {
+  delete peerOf(handle);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeReset(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer,
-  jboolean horizontal) {
-  Host* target = host(pointer);
-  target->sync.reset();
-  target->sync.setHorizontal(horizontal == JNI_TRUE);
-  target->liveHandle = 0;
-  target->liveScroll = nullptr;
-  target->action = {};
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeSetHorizontal)(JNIEnv*, jclass, jlong handle, jboolean horizontal) {
+  peerOf(handle)->sync.setHorizontal(horizontal == JNI_TRUE);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeSetHorizontal(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer,
-  jboolean horizontal) {
-  host(pointer)->sync.setHorizontal(horizontal == JNI_TRUE);
-}
-
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeBeginMount(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer,
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeBeginMount)(
+  JNIEnv*,
+  jclass,
+  jlong handle,
   jlong liveHandle,
   jboolean offsetEnabled,
   jdouble offsetX,
@@ -130,14 +130,15 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   jdouble scrollPhase,
   jdouble concealGeneration,
   jdouble commandSequence,
+  jdouble animationSequence,
+  jdouble animationOffset,
   jdouble bandLow,
   jdouble bandHigh) {
-  Host* target = host(pointer);
+  Peer* peer = peerOf(handle);
   // The registry lookup takes a lock. Only look the list up again when it changed.
-
-  if (liveHandle != target->liveHandle || !target->liveScroll) {
-    target->liveHandle = liveHandle;
-    target->liveScroll = liveHandle != 0 ? sl::LiveScroll::find(liveHandle) : nullptr;
+  if (liveHandle != peer->liveHandle || !peer->liveScroll) {
+    peer->liveHandle = liveHandle;
+    peer->liveScroll = liveHandle != 0 ? sl::LiveScroll::find(liveHandle) : nullptr;
   }
   sl::MountedScroll mounted;
   mounted.offsetEnabled = offsetEnabled == JNI_TRUE;
@@ -150,23 +151,25 @@ extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   mounted.scrollPhase = scrollPhase;
   mounted.concealGeneration = concealGeneration;
   mounted.commandSequence = commandSequence;
+  mounted.animationSequence = animationSequence;
+  mounted.animationOffset = animationOffset;
   mounted.band.low = bandLow;
   mounted.band.high = bandHigh;
-  target->sync.beginMount(mounted, target->liveScroll);
+  peer->sync.beginMount(mounted, peer->liveScroll);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeSetApplyingContentSize(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer,
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeSetApplyingContentSize)(
+  JNIEnv*,
+  jclass,
+  jlong handle,
   jboolean applying) {
-  host(pointer)->sync.setApplyingContentSize(applying == JNI_TRUE);
+  peerOf(handle)->sync.setApplyingContentSize(applying == JNI_TRUE);
 }
 
-extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeCorrection(
+JNIEXPORT jint JNICALL SL_SCROLL_SYNC_JNI(nativeCorrection)(
   JNIEnv* env,
-  jclass /*clazz*/,
-  jlong pointer,
+  jclass,
+  jlong handle,
   jdouble offsetX,
   jdouble offsetY,
   jdouble minOffset,
@@ -175,7 +178,7 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   jboolean moving,
   jboolean ownsOffset,
   jdoubleArray out) {
-  Host* target = host(pointer);
+  Peer* peer = peerOf(handle);
   sl::ViewMotion motion;
   motion.offsetX = offsetX;
   motion.offsetY = offsetY;
@@ -186,8 +189,8 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   motion.touching = touching == JNI_TRUE;
   motion.moving = moving == JNI_TRUE;
   motion.ownsOffset = ownsOffset == JNI_TRUE;
-  target->action = target->sync.correction(motion);
-  const auto& action = target->action;
+  peer->action = peer->sync.correction(motion);
+  const auto& action = peer->action;
   jdouble slots[OUT_SLOTS - OUT_ACTION_KIND];
   slots[0] = static_cast<double>(action.kind);
   slots[1] = action.offsetX;
@@ -199,33 +202,23 @@ extern "C" JNIEXPORT jint JNICALL Java_com_shadowlist_ShadowListScrollSync_nativ
   return static_cast<jint>(action.kind);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeWillWrite(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer) {
-  Host* target = host(pointer);
-  target->sync.willWrite(target->action);
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeWillWrite)(JNIEnv*, jclass, jlong handle) {
+  Peer* peer = peerOf(handle);
+  peer->sync.willWrite(peer->action);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeDidWrite(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer,
-  jboolean moved) {
-  host(pointer)->sync.didWrite(moved == JNI_TRUE);
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeDidWrite)(JNIEnv*, jclass, jlong handle, jboolean moved) {
+  peerOf(handle)->sync.didWrite(moved == JNI_TRUE);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeEndMount(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer) {
-  host(pointer)->sync.endMount();
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeEndMount)(JNIEnv*, jclass, jlong handle) {
+  peerOf(handle)->sync.endMount();
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeOnScroll(
+JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeOnScroll)(
   JNIEnv* env,
-  jclass /*clazz*/,
-  jlong pointer,
+  jclass,
+  jlong handle,
   jdouble offsetX,
   jdouble offsetY,
   jdouble scrollPhase,
@@ -236,64 +229,60 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_shadowlist_ShadowListScrollSync_n
   frame.offsetY = offsetY;
   frame.scrollPhase = scrollPhase;
   frame.commitEveryFrame = commitEveryFrame == JNI_TRUE;
-  auto report = host(pointer)->sync.onScroll(frame);
+  auto report = peerOf(handle)->sync.onScroll(frame);
   if (report.needsCommit) {
-    writePatch(env, out, report.patch, true, report.userScrolled);
+    writePatch(env, out, report.patch, true, report.userScrolled, report.landed);
   } else {
     jdouble slots[2] = {0.0, report.userScrolled ? 1.0 : 0.0};
     env->SetDoubleArrayRegion(out, 0, 2, slots);
+    jdouble landed = report.landed ? 1.0 : 0.0;
+    env->SetDoubleArrayRegion(out, OUT_FRAME_LANDED, 1, &landed);
   }
   return report.needsCommit ? JNI_TRUE : JNI_FALSE;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeArm(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer,
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeArm)(
+  JNIEnv*,
+  jclass,
+  jlong handle,
   jdouble offsetX,
   jdouble offsetY,
   jboolean animated) {
-  host(pointer)->sync.arm(offsetX, offsetY, animated == JNI_TRUE);
+  peerOf(handle)->sync.arm(offsetX, offsetY, animated == JNI_TRUE);
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeDisarm(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer) {
-  host(pointer)->sync.disarm();
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeDisarm)(JNIEnv*, jclass, jlong handle) {
+  peerOf(handle)->sync.disarm();
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeMomentumStopped(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer) {
-  host(pointer)->sync.momentumStopped();
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeMomentumStopped)(JNIEnv*, jclass, jlong handle) {
+  peerOf(handle)->sync.momentumStopped();
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeLivePatch(
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeLivePatch)(
   JNIEnv* env,
-  jclass /*clazz*/,
-  jlong pointer,
+  jclass,
+  jlong handle,
   jdouble offsetX,
   jdouble offsetY,
   jboolean current,
   jboolean userScrolled,
   jdouble scrollPhase,
   jdoubleArray out) {
-  auto& sync = host(pointer)->sync;
+  auto& sync = peerOf(handle)->sync;
   auto patch = current == JNI_TRUE ? sync.livePatch(offsetX, offsetY)
                                    : sync.livePatch(offsetX, offsetY, userScrolled == JNI_TRUE, scrollPhase);
   writePatch(env, out, patch, true, false);
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeClearUserScrolled(
+JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeClearUserScrolled)(
   JNIEnv* env,
-  jclass /*clazz*/,
-  jlong pointer,
+  jclass,
+  jlong handle,
   jdouble offsetX,
   jdouble offsetY,
   jdoubleArray out) {
-  auto patch = host(pointer)->sync.clearUserScrolled(offsetX, offsetY);
+  auto patch = peerOf(handle)->sync.clearUserScrolled(offsetX, offsetY);
   if (!patch) {
     return JNI_FALSE;
   }
@@ -301,30 +290,58 @@ extern "C" JNIEXPORT jboolean JNICALL Java_com_shadowlist_ShadowListScrollSync_n
   return JNI_TRUE;
 }
 
-extern "C" JNIEXPORT void JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeIssueCommand(
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeIssueCommand)(
   JNIEnv* env,
-  jclass /*clazz*/,
-  jlong pointer,
+  jclass,
+  jlong handle,
   jdouble index,
   jdouble viewPosition,
+  jdouble rowOffset,
+  jboolean animated,
   jdouble offsetX,
   jdouble offsetY,
   jboolean momentumYielded,
   jdoubleArray out) {
-  auto patch = host(pointer)->sync.issueCommand(index, viewPosition, offsetX, offsetY, momentumYielded == JNI_TRUE);
+  sl::ScrollCommand command{index, viewPosition, rowOffset, animated == JNI_TRUE};
+  auto patch = peerOf(handle)->sync.issueCommand(command, offsetX, offsetY, momentumYielded == JNI_TRUE);
   writePatch(env, out, patch, true, false);
 }
 
-extern "C" JNIEXPORT jboolean JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeCurrentUserScrolled(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer) {
-  return host(pointer)->sync.currentUserScrolled() ? JNI_TRUE : JNI_FALSE;
+JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeLand)(
+  JNIEnv* env,
+  jclass,
+  jlong handle,
+  jdouble offsetX,
+  jdouble offsetY,
+  jdoubleArray out) {
+  auto patch = peerOf(handle)->sync.land(offsetX, offsetY);
+  if (!patch) {
+    return JNI_FALSE;
+  }
+  writePatch(env, out, *patch, true, false);
+  return JNI_TRUE;
 }
 
-extern "C" JNIEXPORT jdouble JNICALL Java_com_shadowlist_ShadowListScrollSync_nativeCurrentScrollPhase(
-  JNIEnv* /*env*/,
-  jclass /*clazz*/,
-  jlong pointer) {
-  return host(pointer)->sync.currentScrollPhase();
+JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeIsLanding)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->sync.isLanding() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeRequestAnchor)(
+  JNIEnv* env,
+  jclass,
+  jlong handle,
+  jdouble offsetX,
+  jdouble offsetY,
+  jdoubleArray out) {
+  writePatch(env, out, peerOf(handle)->sync.requestAnchor(offsetX, offsetY), true, false);
+}
+
+JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeCurrentUserScrolled)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->sync.isCurrentUserScrolled() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jdouble JNICALL SL_SCROLL_SYNC_JNI(nativeCurrentScrollPhase)(JNIEnv*, jclass, jlong handle) {
+  return peerOf(handle)->sync.getCurrentScrollPhase();
+}
+
 }

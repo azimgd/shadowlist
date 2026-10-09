@@ -1,43 +1,62 @@
 #include <shadowlist-core/host/MountedRange.hpp>
 
+#include <shadowlist-core/host/StickyLayout.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <unordered_set>
 
 namespace azimgd::shadowlist {
 
-MountedRange initialMountedRange(long size, long initial, bool inverted, long offsetIndex, long overscanRows,
+namespace {
+
+/*
+ * value minus amount, stopping at 0.
+ */
+std::size_t subtractClamped(std::size_t value, std::size_t amount) {
+  return value > amount ? value - amount : 0;
+}
+
+}
+
+MountedRange initialMountedRange(
+  std::size_t size,
+  std::size_t initial,
+  bool inverted,
+  std::size_t offsetIndex,
+  std::size_t overscanRows,
   double viewPosition) {
-  if (size <= 0) {
-    return {-1, -1};
+  if (size == 0) {
+    return {};
   }
-  if (offsetIndex >= 0) {
-    long target = std::min(offsetIndex, size - 1);
+  if (offsetIndex != UNDEFINED_INDEX) {
+    std::size_t target = std::min(offsetIndex, size - 1);
     // Math.round in JS rounds halves up.
-    long before = static_cast<long>(std::floor(viewPosition * static_cast<double>(initial) + 0.5));
-    return {std::max(0L, target - overscanRows - before), std::min(size - 1, target + (initial - before))};
+    double rounded = std::floor(viewPosition * static_cast<double>(initial) + 0.5);
+    std::size_t before = std::min(initial, static_cast<std::size_t>(std::max(0.0, rounded)));
+    return {subtractClamped(target, overscanRows + before), std::min(size - 1, target + (initial - before))};
   }
   if (inverted) {
-    return {std::max(0L, size - initial), size - 1};
+    return {subtractClamped(size, initial), size - 1};
   }
   return {0, std::min(initial, size - 1)};
 }
 
-std::vector<long> rangeToIndices(const MountedRange& range) {
-  std::vector<long> indices;
-  if (range.low < 0 || range.high < 0 || range.low > range.high) {
+std::vector<std::size_t> rangeToIndices(const MountedRange& range) {
+  std::vector<std::size_t> indices;
+  if (range.low == UNDEFINED_INDEX || range.high == UNDEFINED_INDEX || range.low > range.high) {
     return indices;
   }
-  indices.reserve(static_cast<std::size_t>(range.high - range.low + 1));
-  for (long index = range.low; index <= range.high; ++index) {
+  indices.reserve(range.high - range.low + 1);
+  for (std::size_t index = range.low; index <= range.high; ++index) {
     indices.push_back(index);
   }
   return indices;
 }
 
-std::vector<long> unionRangeIndices(const MountedRange& first, const MountedRange& second) {
-  std::vector<long> firstIndices = rangeToIndices(first);
-  std::vector<long> secondIndices = rangeToIndices(second);
+std::vector<std::size_t> unionRangeIndices(const MountedRange& first, const MountedRange& second) {
+  std::vector<std::size_t> firstIndices = rangeToIndices(first);
+  std::vector<std::size_t> secondIndices = rangeToIndices(second);
   if (firstIndices.empty()) {
     return secondIndices;
   }
@@ -49,55 +68,86 @@ std::vector<long> unionRangeIndices(const MountedRange& first, const MountedRang
   if (upper.low <= lower.high + 1) {
     return rangeToIndices({lower.low, std::max(lower.high, upper.high)});
   }
-  std::vector<long> indices = rangeToIndices(lower);
-  std::vector<long> upperIndices = rangeToIndices(upper);
+  std::vector<std::size_t> indices = rangeToIndices(lower);
+  std::vector<std::size_t> upperIndices = rangeToIndices(upper);
   indices.insert(indices.end(), upperIndices.begin(), upperIndices.end());
   return indices;
 }
 
-bool shouldReseedFromOffsetIndex(long previousOffsetIndex, long nextOffsetIndex) {
-  return nextOffsetIndex != previousOffsetIndex && nextOffsetIndex >= 0;
+bool shouldReseedFromOffsetIndex(std::size_t previousOffsetIndex, std::size_t nextOffsetIndex) {
+  return nextOffsetIndex != previousOffsetIndex && nextOffsetIndex != UNDEFINED_INDEX;
 }
 
-MountedRange stepMountedRange(const MountedRange& current, const MountedRange& target, const MountedRange& window, long step) {
-  bool disjoint = current.low < 0 || current.high < 0 || target.low > current.high || target.high < current.low;
+MountedRange stepMountedRange(
+  const MountedRange& current,
+  const MountedRange& target,
+  const MountedRange& window,
+  std::size_t step) {
+  bool disjoint = current.low == UNDEFINED_INDEX || current.high == UNDEFINED_INDEX || target.low > current.high ||
+    target.high < current.low;
   const MountedRange& base = disjoint ? window : current;
-  long low = target.low >= base.low ? target.low : std::max(target.low, std::min(base.low - step, window.low));
-  long high = target.high <= base.high ? target.high : std::min(target.high, std::max(base.high + step, window.high));
+  std::size_t low = target.low >= base.low
+    ? target.low
+    : std::max(target.low, std::min(subtractClamped(base.low, step), window.low));
+  std::size_t high = target.high <= base.high
+    ? target.high
+    : std::min(target.high, std::max(base.high + step, window.high));
   return {low, high};
 }
 
-long mountStepForWindow(const MountedRange& window, long minimumStep) {
-  long windowRows = window.high - window.low + 1;
+std::size_t mountStepForWindow(const MountedRange& window, std::size_t minimumStep) {
+  std::size_t windowRows = window.high - window.low + 1;
   return std::max(minimumStep, (windowRows + 3) / 4);
 }
 
-MountedRange grownMountedRange(long lowIndex, long highIndex, bool lowAtStart, bool highAtEnd, long size,
-  long overscanRowsLeading, bool followTail) {
-  long low = std::min(lowIndex, highIndex);
-  long high = std::max(lowIndex, highIndex);
-  long grownLow = lowAtStart ? std::max(0L, low - overscanRowsLeading) : low;
+MountedRange grownMountedRange(
+  std::size_t lowIndex,
+  std::size_t highIndex,
+  bool lowAtStart,
+  bool highAtEnd,
+  std::size_t size,
+  std::size_t overscanRowsLeading,
+  bool followTail) {
+  if (size == 0) {
+    return {};
+  }
+  std::size_t low = std::min(lowIndex, highIndex);
+  std::size_t high = std::max(lowIndex, highIndex);
+  std::size_t grownLow = lowAtStart ? subtractClamped(low, overscanRowsLeading) : low;
   if (followTail && highAtEnd) {
-    long tailHigh = size - 1;
-    long tailLow = tailHigh - (high - low) - MAX_FOLLOWED_APPEND;
+    std::size_t tailHigh = size - 1;
+    std::size_t tailLow = subtractClamped(tailHigh, (high - low) + MAX_FOLLOWED_APPEND);
     return {std::max(grownLow, tailLow), tailHigh};
   }
   return {grownLow, highAtEnd ? std::min(size - 1, high + overscanRowsLeading) : high};
 }
 
-MountedRange visibleTargetRange(const MountedRange& window, const std::optional<MountedRange>& previousWindow, long size,
-  long overscanRows, long overscanRowsLeading) {
+MountedRange visibleTargetRange(
+  const MountedRange& window,
+  const std::optional<MountedRange>& previousWindow,
+  std::size_t size,
+  std::size_t overscanRows,
+  std::size_t overscanRowsLeading) {
+  if (size == 0) {
+    return {};
+  }
   bool movingForward = previousWindow && window.low > previousWindow->low;
   bool movingBackward = previousWindow && window.low < previousWindow->low;
-  long lowPad = movingBackward ? overscanRowsLeading : overscanRows;
-  long highPad = movingForward ? overscanRowsLeading : overscanRows;
-  return {std::max(0L, window.low - lowPad), std::min(size - 1, window.high + highPad)};
+  std::size_t lowPad = movingBackward ? overscanRowsLeading : overscanRows;
+  std::size_t highPad = movingForward ? overscanRowsLeading : overscanRows;
+  return {subtractClamped(window.low, lowPad), std::min(size - 1, window.high + highPad)};
 }
 
-std::optional<ReportedRange> reportedMountedRange(const MountedRange& current, const MountedRange& window,
-  const std::optional<MountedRange>& previousWindow, bool firstReport, long size, long overscanRows,
-  long overscanRowsLeading, long minimumStep) {
-  bool holdsWindow = current.low >= 0 && window.low >= current.low && window.high <= current.high;
+std::optional<ReportedRange> reportedMountedRange(
+  const MountedRange& current,
+  const MountedRange& window,
+  const std::optional<MountedRange>& previousWindow,
+  bool firstReport,
+  std::size_t size,
+  std::size_t overscanRows,
+  std::size_t overscanRowsLeading,
+  std::size_t minimumStep) {
+  bool holdsWindow = current.low != UNDEFINED_INDEX && window.low >= current.low && window.high <= current.high;
   if (holdsWindow && !firstReport) {
     return std::nullopt;
   }
@@ -106,22 +156,17 @@ std::optional<ReportedRange> reportedMountedRange(const MountedRange& current, c
   return ReportedRange{range, target};
 }
 
-std::optional<MountedRange> viewableWindow(long startIndex, long endIndex) {
-  if (startIndex == -1 || endIndex == -1) {
+std::optional<MountedRange> viewableWindow(std::size_t startIndex, std::size_t endIndex) {
+  if (startIndex == UNDEFINED_INDEX || endIndex == UNDEFINED_INDEX) {
     return std::nullopt;
   }
   return MountedRange{std::min(startIndex, endIndex), std::max(startIndex, endIndex)};
 }
 
-long activeStickyIndexFor(const std::vector<long>& stickyHeaderIndices, long windowLow) {
-  long active = -1;
-  for (long stickyIndex : stickyHeaderIndices) {
-    if (stickyIndex > windowLow) {
-      break;
-    }
-    active = stickyIndex;
-  }
-  return active;
+std::size_t activeStickyIndexFor(const std::vector<std::size_t>& stickyHeaderIndices, std::size_t windowLow) {
+  std::size_t position = pinnedSectionPosition(stickyHeaderIndices.size(), static_cast<double>(windowLow),
+    [&](std::size_t at) { return static_cast<double>(stickyHeaderIndices[at]); });
+  return position == UNDEFINED_INDEX ? UNDEFINED_INDEX : stickyHeaderIndices[position];
 }
 
 ViewableChanges viewableChanges(const std::vector<std::string>& previous, const std::vector<std::string>& current) {

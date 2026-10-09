@@ -76,9 +76,70 @@ jobs:
       - name: Build package
         run: yarn workspace shadowlist run prepare
 
+      - name: Check package contents
+        working-directory: packages/shadowlist-fabric
+        run: |
+          npm pack --dry-run --ignore-scripts > "$RUNNER_TEMP/pack.txt" 2>&1
+          for f in lib/module/index.js lib/typescript/src/index.d.ts shadowlist-core/Container.cpp shadowlist-core/sources.cmake scripts/vendor-core.js ShadowList.podspec react-native.config.js android/shadowlist/jni/CMakeLists.txt; do
+            grep -q " $f\$" "$RUNNER_TEMP/pack.txt" || { echo "missing $f"; exit 1; }
+          done
+          if grep -qE "__tests__|/build/|\.test\." "$RUNNER_TEMP/pack.txt"; then
+            echo "tests or build output in the package"
+            exit 1
+          fi
+
       # Its declarations build against the fabric package's lib/typescript output.
       - name: Build utils package
-        run: yarn workspace shadowlist-utils run prepare
+        run: yarn workspace shadowlist-utils run build
+
+  build-android-kit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/shadowlist-android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Finalize Android SDK
+        run: |
+          /bin/bash -c "yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-kit-${{ hashFiles('packages/shadowlist-android/gradle/wrapper/gradle-wrapper.properties', 'packages/shadowlist-android/**/*.gradle.kts') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-kit-
+
+      - name: Build ShadowListKit
+        run: ./gradlew --no-daemon --console=plain :ShadowListKit:assembleRelease
+
+  build-ios-kit:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build ShadowListKit with SwiftPM
+        run: >-
+          xcodebuild -scheme ShadowListKit
+          -destination 'generic/platform=iOS'
+          CODE_SIGNING_ALLOWED=NO build
 
   build-android:
     runs-on: ubuntu-latest
@@ -108,7 +169,7 @@ jobs:
           path: |
             ~/.gradle/wrapper
             ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('packages/shadowlist-fabric-example/android/gradle/wrapper/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('templates/shadowlist-fabric-example/android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
@@ -139,14 +200,14 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: packages/shadowlist-fabric-example
+          working-directory: templates/shadowlist-fabric-example
 
       - name: Cache cocoapods
         uses: actions/cache@v4
         with:
           path: |
-            packages/shadowlist-fabric-example/ios/Pods
-          key: ${{ runner.os }}-cocoapods-${{ hashFiles('packages/shadowlist-fabric-example/ios/Podfile.lock') }}
+            templates/shadowlist-fabric-example/ios/Pods
+          key: ${{ runner.os }}-cocoapods-${{ hashFiles('templates/shadowlist-fabric-example/ios/Podfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-cocoapods-
 
@@ -167,14 +228,14 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: packages/shadowlist-fabric-example
+          working-directory: templates/shadowlist-fabric-example
       - name: Install macOS pods
-        working-directory: packages/shadowlist-macos-example/macos
+        working-directory: templates/shadowlist-macos-example/macos
         env:
           BUNDLE_GEMFILE: ../../shadowlist-fabric-example/Gemfile
         run: bundle exec pod install --deployment
       - name: Build macOS example
-        working-directory: packages/shadowlist-macos-example/macos
+        working-directory: templates/shadowlist-macos-example/macos
         run: >-
           xcodebuild -workspace ShadowListMacOS.xcworkspace
           -scheme ShadowListMacOS-macOS -configuration Release

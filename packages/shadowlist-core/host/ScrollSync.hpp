@@ -1,10 +1,11 @@
 #pragma once
 
+#include <shadowlist-core/Container.hpp>
+#include <shadowlist-core/host/LiveScroll.hpp>
+
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <shadowlist-core/Container.hpp>
-#include <shadowlist-core/host/LiveScroll.hpp>
 
 namespace azimgd::shadowlist {
 
@@ -20,10 +21,26 @@ struct ScrollPatch {
   double commandIndex = 0.0;
   double commandSequence = 0.0;
   double commandViewPosition = 0.0;
+  double commandRowOffset = 0.0;
+  bool commandAnimated = false;
+  bool hasAnchorRequest = false;
+  double anchorRequestSequence = 0.0;
   bool hasStartReachedEnabled = false;
   bool startReachedEnabled = true;
   bool hasEndReachedEnabled = false;
   bool endReachedEnabled = true;
+};
+
+/*
+ * A scroll command from the host: the row at index placed at viewPosition and moved rowOffset
+ * further along the scroll axis, or the end for SCROLL_TO_END_INDEX. An animated command first
+ * animates to the core's estimate, then lands exactly with the same command.
+ */
+struct ScrollCommand {
+  double index = 0.0;
+  double viewPosition = 0.0;
+  double rowOffset = 0.0;
+  bool animated = false;
 };
 
 /*
@@ -41,6 +58,13 @@ struct MountedScroll {
   double concealGeneration = 0.0;
   double concealGenerationAck = 0.0;
   double commandSequence = 0.0;
+
+  /*
+   * Where the core estimates the newest animated command lands, along the scroll axis, and
+   * that command's sequence. 0 before the first one.
+   */
+  double animationSequence = 0.0;
+  double animationOffset = 0.0;
   OffsetBand band;
 };
 
@@ -50,18 +74,33 @@ struct MountedScroll {
 struct ViewMotion {
   double offsetX = 0.0;
   double offsetY = 0.0;
-  // Where a shifted correction starts, usually the offset.
+
+  /*
+   * Where a shifted correction starts, usually the offset.
+   */
   double shiftFromX = 0.0;
   double shiftFromY = 0.0;
-  // The scroll range along the scroll axis, insets included.
+
+  /*
+   * The scroll range along the scroll axis, insets included.
+   */
   double minOffset = 0.0;
   double maxOffset = 0.0;
   bool touching = false;
-  // A finger, momentum or an animation is moving the view.
+
+  /*
+   * A finger, momentum or an animation is moving the view.
+   */
   bool moving = false;
-  // A row drag owns the offset. Corrections wait.
+
+  /*
+   * A row drag owns the offset. Corrections wait.
+   */
   bool ownsOffset = false;
-  // An iOS scroll to top waiting to jump to jumpOffset along the scroll axis.
+
+  /*
+   * An iOS scroll to top waiting to jump to jumpOffset along the scroll axis.
+   */
   bool jumpPending = false;
   double jumpOffset = 0.0;
 };
@@ -72,18 +111,33 @@ struct ViewMotion {
 struct MountAction {
   enum class Kind {
     None,
-    // Write offsetX and offsetY into the view between ScrollSync::willWrite and didWrite.
+    /*
+     * Write offsetX and offsetY into the view between ScrollSync::willWrite and didWrite.
+     */
     Write,
-    // Move the waiting scroll to top jump to the offset instead of the view.
+    /*
+     * Move the waiting scroll to top jump to the offset instead of the view.
+     */
     RetargetJump,
+    /*
+     * Animate the view to offsetX and offsetY for an animated scroll command. Arm the move as
+     * animated first. Call ScrollSync::land when it ends.
+     */
+    Animate,
   };
   Kind kind = Kind::None;
   double offsetX = 0.0;
   double offsetY = 0.0;
   std::uint64_t token = 0;
-  // The correction was added to the live offset instead of written as is.
+
+  /*
+   * The correction was added to the live offset instead of written as is.
+   */
   bool shifted = false;
-  // A host that can keep a fling going across the write should, like Android's scrollToPreservingMomentum.
+
+  /*
+   * A host that can keep a fling going across the write should, like Android's scrollToPreservingMomentum.
+   */
   bool preserveMomentum = false;
 };
 
@@ -94,15 +148,28 @@ struct ScrollFrame {
   double offsetX = 0.0;
   double offsetY = 0.0;
   double scrollPhase = SCROLL_PHASE_IDLE;
-  // Pull to refresh, scroll to top and row drags lean on every frame. Each one commits.
+
+  /*
+   * Pull to refresh, scroll to top and row drags lean on every frame. Each one commits.
+   */
   bool commitEveryFrame = false;
 };
 
 struct FrameReport {
-  // Whether the frame must become a state update, which is then patch.
+  /*
+   * Whether the frame must become a state update, which is then patch.
+   */
   bool needsCommit = false;
-  // The user moved the view, as opposed to our own write or a content size clamp.
+
+  /*
+   * The user moved the view, as opposed to our own write or a content size clamp.
+   */
   bool userScrolled = false;
+
+  /*
+   * An animated move of ours reached its target on this frame.
+   */
+  bool landed = false;
   ScrollPatch patch;
 };
 
@@ -114,9 +181,14 @@ struct FrameReport {
 class ScrollSync final {
 public:
   struct Options {
-    // How close our own scroll must land to its target to count as reaching it.
+    /*
+     * How close our own scroll must land to its target to count as reaching it.
+     */
     double landingTolerance = 0.0;
-    // Report the exact offset the core asked for when an instant write landed on it.
+
+    /*
+     * Report the exact offset the core asked for when an instant write landed on it.
+     */
     bool exactEcho = false;
   };
 
@@ -131,8 +203,6 @@ public:
    * Forget everything, for a view recycled into another list.
    */
   void reset();
-
-#pragma mark - Mount
 
   /*
    * A new state mounts. Call before the content size write. A clamp it causes then counts as ours.
@@ -171,8 +241,6 @@ public:
     mounting_ = false;
   }
 
-#pragma mark - Scroll frames
-
   FrameReport onScroll(const ScrollFrame& frame);
 
   /*
@@ -186,11 +254,11 @@ public:
    */
   void disarm();
 
-  bool armed() const {
+  bool isArmed() const {
     return armed_;
   }
 
-  bool armedAnimated() const {
+  bool isArmedAnimated() const {
     return armed_ && armedAnimated_;
   }
 
@@ -198,8 +266,6 @@ public:
    * The host stopped a fling or animation. Forget any scroll of ours waiting for its frame.
    */
   void momentumStopped();
-
-#pragma mark - Updates
 
   /*
    * A patch with the live offset and the echoed token, like a scroll report, with the given
@@ -227,27 +293,52 @@ public:
    * A scroll command. The sequence always goes past the previous one. The same index still
    * scrolls again. momentumYielded makes the report idle after a fling was stopped for it.
    */
-  ScrollPatch issueCommand(double index, double viewPosition, double offsetX, double offsetY, bool momentumYielded);
+  ScrollPatch issueCommand(const ScrollCommand& command, double offsetX, double offsetY, bool momentumYielded);
+
+  /*
+   * The animation of an animated command ended. Returns the same command without the animation,
+   * which lands it exactly, or nothing when no animated command waits.
+   */
+  std::optional<ScrollPatch> land(double offsetX, double offsetY);
+
+  /*
+   * Whether an animated command is on its way and waits for land.
+   */
+  bool isLanding() const {
+    return landing_;
+  }
+
+  /*
+   * Ask the core for the anchor at the live offset. The sequence goes past the previous one.
+   */
+  ScrollPatch requestAnchor(double offsetX, double offsetY);
 
   /*
    * The user scroll flag and phase that later updates carry, the newest report's. Before the
    * first report they are the mounted state's.
    */
-  bool currentUserScrolled() const;
-  double currentScrollPhase() const;
+  bool isCurrentUserScrolled() const;
+  double getCurrentScrollPhase() const;
 
-  std::uint64_t echoedToken() const {
+  std::uint64_t getEchoedToken() const {
     return echoedToken_;
   }
 
-  const MountedScroll& mounted() const {
-    return mounted_;
-  }
-
 private:
-  LiveScroll::Report writeReport(double offsetX, double offsetY, bool userScrolled, double scrollPhase,
-    std::uint64_t token, double concealGenerationAck);
+  LiveScroll::Report writeReport(
+    double offsetX,
+    double offsetY,
+    bool userScrolled,
+    double scrollPhase,
+    std::uint64_t token,
+    double concealGenerationAck);
   ScrollPatch push(const LiveScroll::Report& report);
+
+  /*
+   * Our write is done, echoed or moved nothing. Unlike a finger, it leaves an animated command
+   * that still waits for its estimate alone.
+   */
+  void release();
   bool reportNeedsCommit(const LiveScroll::Report& report, bool commitEveryFrame) const;
 
   double along(double x, double y) const {
@@ -262,10 +353,15 @@ private:
   bool hasMounted_ = false;
   bool mounting_ = false;
   bool applyingContentSize_ = false;
-  // Set when a scroll frame commits during a mount, which acknowledges hidden rows.
+
+  /*
+   * Set when a scroll frame commits during a mount, which acknowledges hidden rows.
+   */
   bool reportedDuringMount_ = false;
 
-  // Our own pending move, which the next scroll frame or an animation's frames echo.
+  /*
+   * Our own pending move, which the next scroll frame or an animation's frames echo.
+   */
   bool armed_ = false;
   bool armedAnimated_ = false;
   bool armedExact_ = false;
@@ -279,11 +375,15 @@ private:
    */
   std::uint64_t echoedToken_ = 0;
 
-  // The newest correction added to the live offset and how much of it is applied.
+  /*
+   * The newest correction added to the live offset and how much of it is applied.
+   */
   std::uint64_t shiftedToken_ = 0;
   double shiftedTokenDelta_ = 0.0;
 
-  // Whether the newest report was a gesture, see clearUserScrolled.
+  /*
+   * Whether the newest report was a gesture, see clearUserScrolled.
+   */
   bool publishedGesture_ = false;
 
   LiveScroll::Report liveReport_;
@@ -297,6 +397,17 @@ private:
   double commandIndex_ = -2.0;
   double commandSequence_ = 0.0;
   double commandViewPosition_ = 0.0;
+  double commandRowOffset_ = 0.0;
+  bool commandAnimated_ = false;
+
+  /*
+   * The newest animated command whose animation started or was given up. An animation starts
+   * only for a newer one. landing_ is set from the start until land or a finger takes over.
+   */
+  double animatedSequence_ = 0.0;
+  bool landing_ = false;
+
+  double anchorRequestSequence_ = 0.0;
 };
 
 }

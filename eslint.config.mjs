@@ -14,10 +14,6 @@ const compat = new FlatCompat({
   allConfig: js.configs.all,
 });
 
-/*
- * Single repo-wide flat config: React Native preset + Prettier, applied across
- * every workspace.
- */
 export default defineConfig([
   {
     extends: fixupConfigRules(compat.extends('@react-native', 'prettier')),
@@ -35,20 +31,19 @@ export default defineConfig([
       '**/build/',
       '**/.yarn/',
       '**/coverage/',
-      // Native example build artifacts.
-      'packages/shadowlist-fabric-example/android/',
-      'packages/shadowlist-fabric-example/ios/',
-      'packages/shadowlist-macos-example/macos/',
-      // Tooling / entry / build JS (not application source).
+      '.claude/',
+      'templates/shadowlist-fabric-example/android/',
+      'templates/shadowlist-fabric-example/ios/',
+      'templates/shadowlist-fabric-example/vendor/',
+      'templates/shadowlist-macos-example/macos/',
       '**/*.config.{js,cjs,mjs}',
       '**/babel.config.js',
       '**/metro.config.js',
       '**/react-native.config.js',
-      '**/jest.config.js',
       'scripts/**/*.mjs',
       'eslint.config.mjs',
-      'packages/shadowlist-fabric-example/index.js',
-      'packages/shadowlist-macos-example/index.js',
+      'templates/shadowlist-fabric-example/index.js',
+      'templates/shadowlist-macos-example/index.js',
       'packages/shadowlist-fabric/scripts/',
     ],
   },

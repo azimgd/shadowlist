@@ -8475,7 +8475,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-is@npm:^19.1.0":
+"react-is@npm:^19.1.0, react-is@npm:^19.2.3":
   version: 19.2.7
   resolution: "react-is@npm:19.2.7"
   checksum: 10c0/419fe54d5bd7fdf5414a5bb7bd9a1e0e36f9fae28ffb4cb73290fbe342bde15d8584a90d1db62547f6aa03018dce517b178a041abb522136cd4b4b51b4e94c83
@@ -8797,6 +8797,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"react-test-renderer@npm:19.2.3":
+  version: 19.2.3
+  resolution: "react-test-renderer@npm:19.2.3"
+  dependencies:
+    react-is: "npm:^19.2.3"
+    scheduler: "npm:^0.27.0"
+  peerDependencies:
+    react: ^19.2.3
+  checksum: 10c0/842b82239dbddbc536083a6260c3e1b0507c02a3400bd05879fc19160468fd0f8ab79fec5dceffa6113b131835cc7621212f8415b46ea5156ab66bbfd7e24297
+  languageName: node
+  linkType: hard
+
 "react@npm:19.2.3":
   version: 19.2.3
   resolution: "react@npm:19.2.3"
@@ -9089,7 +9101,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"scheduler@npm:0.27.0":
+"scheduler@npm:0.27.0, scheduler@npm:^0.27.0":
   version: 0.27.0
   resolution: "scheduler@npm:0.27.0"
   checksum: 10c0/4f03048cb05a3c8fddc45813052251eca00688f413a3cee236d984a161da28db28ba71bd11e7a3dd02f7af84ab28d39fb311431d3b3772fed557945beb00c452
@@ -9212,9 +9224,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"shadowlist-example@workspace:packages/shadowlist-fabric-example":
+"shadowlist-example@workspace:templates/shadowlist-fabric-example":
   version: 0.0.0-use.local
-  resolution: "shadowlist-example@workspace:packages/shadowlist-fabric-example"
+  resolution: "shadowlist-example@workspace:templates/shadowlist-fabric-example"
   dependencies:
     "@babel/core": "npm:^7.25.2"
     "@babel/preset-env": "npm:^7.25.3"
@@ -9223,7 +9235,6 @@ __metadata:
     "@react-native-community/cli-platform-android": "npm:20.1.0"
     "@react-native-community/cli-platform-ios": "npm:20.1.0"
     "@react-native/babel-preset": "npm:0.85.0"
-    "@react-native/jest-preset": "npm:0.85.0"
     "@react-native/metro-config": "npm:0.85.0"
     "@react-native/typescript-config": "npm:0.85.0"
     "@react-navigation/native": "npm:7.4.1"
@@ -9243,9 +9254,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"shadowlist-macos-example@workspace:packages/shadowlist-macos-example":
+"shadowlist-macos-example@workspace:templates/shadowlist-macos-example":
   version: 0.0.0-use.local
-  resolution: "shadowlist-macos-example@workspace:packages/shadowlist-macos-example"
+  resolution: "shadowlist-macos-example@workspace:templates/shadowlist-macos-example"
   dependencies:
     "@babel/core": "npm:^7.25.2"
     "@babel/runtime": "npm:^7.25.0"
@@ -9280,9 +9291,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"shadowlist-utils@workspace:packages/shadowlist-utils":
+"shadowlist-utils@workspace:templates/shadowlist-utils":
   version: 0.0.0-use.local
-  resolution: "shadowlist-utils@workspace:packages/shadowlist-utils"
+  resolution: "shadowlist-utils@workspace:templates/shadowlist-utils"
   dependencies:
     "@types/jest": "npm:^29.5.14"
     "@types/react": "npm:^19.2.17"
@@ -9319,6 +9330,7 @@ __metadata:
     "@react-native/jest-preset": "npm:0.85.0"
     "@types/jest": "npm:^29.5.14"
     "@types/react": "npm:^19.2.0"
+    "@types/react-test-renderer": "npm:^19.1.0"
     del-cli: "npm:^7.0.0"
     eslint: "npm:^9.39.4"
     eslint-config-prettier: "npm:^10.1.8"
@@ -9328,10 +9340,11 @@ __metadata:
     react: "npm:19.2.3"
     react-native: "npm:0.85.0"
     react-native-builder-bob: "npm:^0.41.0"
+    react-test-renderer: "npm:19.2.3"
     typescript: "npm:^6.0.2"
   peerDependencies:
-    react: ">=18.2.0"
-    react-native: ">=0.74.0"
+    react: ">=19.2.0"
+    react-native: ">=0.83.0"
   languageName: unknown
   linkType: soft
 

@@ -1,7 +1,7 @@
 #include <TargetConditionals.h>
 #import <QuartzCore/QuartzCore.h>
 #import "ShadowListView.h"
-#import "ShadowListView+Internal.h"
+#import "ShadowListView+Private.h"
 #import "ShadowListElementView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
@@ -36,6 +36,22 @@ static NSString *SLDragKey(const std::string& key)
   return [NSString stringWithUTF8String:key.c_str()] ?: @"";
 }
 
+/*
+ * The core's index for a view index, UNDEFINED_INDEX for NSNotFound.
+ */
+static std::size_t SLCoreIndex(NSInteger index)
+{
+  return index == NSNotFound || index < 0 ? azimgd::shadowlist::UNDEFINED_INDEX : (std::size_t)index;
+}
+
+/*
+ * A view index for the core's index, NSNotFound for UNDEFINED_INDEX.
+ */
+static NSInteger SLViewIndex(std::size_t index)
+{
+  return index == azimgd::shadowlist::UNDEFINED_INDEX ? NSNotFound : (NSInteger)index;
+}
+
 @implementation ShadowListView (DragReorder)
 
 #pragma mark - Drag gesture
@@ -62,7 +78,7 @@ static NSString *SLDragKey(const std::string& key)
   CGRect resting = [self restingFrameForView:view];
   NSString *key = [self keyOfElementView:view];
   return {
-    (long)index,
+    SLCoreIndex(index),
     key ? std::string(key.UTF8String) : std::string(),
     _horizontal ? resting.origin.x : resting.origin.y,
     _horizontal ? resting.size.width : resting.size.height,
@@ -109,7 +125,7 @@ static NSString *SLDragKey(const std::string& key)
       break;
     case SLGestureStateCancelled:
     case SLGestureStateFailed:
-      // The system or dragEnabled turning off took the touch. Put the row back, no reorder.
+      // The system or reorderEnabled turning off took the touch. Put the row back, no reorder.
       [self cancelDrag];
       break;
     default:
@@ -123,7 +139,7 @@ static NSString *SLDragKey(const std::string& key)
  */
 - (void)debugDragPhase:(NSNumber *)phase point:(NSValue *)point
 {
-  if (!_dragEnabled) {
+  if (!_reorderEnabled) {
     return;
   }
 #if TARGET_OS_OSX
@@ -162,15 +178,11 @@ static NSString *SLDragKey(const std::string& key)
   _dragging = YES;
   _draggedView = view;
   azimgd::shadowlist::DragRow resting = [self dragRowForView:view index:index];
-  if (_columns > 1) {
-    _drag.beginCell(
-      resting,
-      _horizontal ? contentPoint.x : contentPoint.y,
-      _horizontal ? contentPoint.y : contentPoint.x,
-      (std::size_t)_columns);
-  } else {
-    _drag.begin(resting.index, resting.key, resting.leading, resting.extent, _horizontal ? contentPoint.x : contentPoint.y);
-  }
+  _drag.begin(
+    resting,
+    _horizontal ? contentPoint.x : contentPoint.y,
+    _horizontal ? contentPoint.y : contentPoint.x,
+    (std::size_t)MAX(_numberOfColumns, 1));
   _dragTouchInViewport = location;
 
   // We scroll ourselves near the edges. Stop the scroll view from following the finger.
@@ -187,9 +199,11 @@ static NSString *SLDragKey(const std::string& key)
   SLUpdateDragShadowPath(view);
 
   // Tell the core a drag started so this row stays mounted when it scrolls off screen.
-  NSString *originKey = SLDragKey(_drag.originKey());
+  NSString *originKey = SLDragKey(_drag.getOriginKey());
   [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_START fromKey:originKey toKey:originKey];
 
+  // A scripted pickup can arrive while a drag runs. Its old link would keep this view alive.
+  [_dragDisplayLink invalidate];
   _dragDisplayLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
@@ -247,28 +261,18 @@ static NSString *SLDragKey(const std::string& key)
    */
   NSInteger currentIndex = [self indexOfElementView:view];
   NSString *currentKey = [self keyOfElementView:view];
-  _drag.updateOrigin(
-    currentIndex == NSNotFound ? -1 : (long)currentIndex, currentKey ? std::string(currentKey.UTF8String) : std::string());
+  _drag.updateOrigin(SLCoreIndex(currentIndex), currentKey ? std::string(currentKey.UTF8String) : std::string());
 
   CGPoint touchContent = CGPointMake(
     _dragTouchInViewport.x + _scrollView.contentOffset.x, _dragTouchInViewport.y + _scrollView.contentOffset.y);
-  azimgd::shadowlist::DragRow resting = [self dragRowForView:view index:_drag.originIndex()];
-  azimgd::shadowlist::DragOffset translation;
-  if (_drag.isGrid()) {
-    translation = _drag.placeCell(
-      _horizontal ? touchContent.x : touchContent.y,
-      _horizontal ? touchContent.y : touchContent.x,
-      resting,
-      _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
-      // The scroll view's content size is 0 across the scroll axis. Use the content view.
-      _horizontal ? _contentView.bounds.size.height : _contentView.bounds.size.width);
-  } else {
-    translation.leading = _drag.place(
-      _horizontal ? touchContent.x : touchContent.y,
-      resting.leading,
-      resting.extent,
-      _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height);
-  }
+  azimgd::shadowlist::DragRow resting = [self dragRowForView:view index:SLViewIndex(_drag.getOriginIndex())];
+  azimgd::shadowlist::DragOffset translation = _drag.placeRow(
+    _horizontal ? touchContent.x : touchContent.y,
+    _horizontal ? touchContent.y : touchContent.x,
+    resting,
+    _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height,
+    // The scroll view's content size is 0 across the scroll axis. Use the content view.
+    _horizontal ? _contentView.bounds.size.height : _contentView.bounds.size.width);
 
   // The row can change size while held.
   SLUpdateDragShadowPath(view);
@@ -307,7 +311,7 @@ static NSString *SLDragKey(const std::string& key)
     if (elementIndex == NSNotFound) {
       continue;
     }
-    subview.transform = [self dragTransformForOffset:_drag.offsetFor((long)elementIndex)];
+    subview.transform = [self dragTransformForOffset:_drag.offsetFor(SLCoreIndex(elementIndex))];
   }
 }
 
@@ -363,6 +367,7 @@ static NSString *SLDragKey(const std::string& key)
   [view.layer addAnimation:settle forKey:@"transform"];
   [CATransaction commit];
 #else
+  __weak ShadowListView *weakSelf = self;
   [UIView animateWithDuration:0.18
                         delay:0.0
                       options:UIViewAnimationOptionCurveEaseOut
@@ -370,6 +375,14 @@ static NSString *SLDragKey(const std::string& key)
                      view.transform = CGAffineTransformIdentity;
                    }
                    completion:^(BOOL finished) {
+                     /*
+                      * A new pickup of the same row cancels this animation. The completion
+                      * then runs after the lift and must not clear the new shadow.
+                      */
+                     ShadowListView *strongSelf = weakSelf;
+                     if (strongSelf && strongSelf->_dragging && strongSelf->_draggedView == view) {
+                       return;
+                     }
                      view.layer.shadowOpacity = 0.0;
                      view.layer.shadowPath = nil;
                    }];
@@ -404,23 +417,23 @@ static NSString *SLDragKey(const std::string& key)
 
   [_dragDisplayLink invalidate];
   _dragDisplayLink = nil;
-  _scrollView.scrollEnabled = YES;
+  _scrollView.scrollEnabled = _scrollEnabled;
 
-  NSInteger from = _drag.originIndex();
-  NSInteger to = _drag.insertionIndex();
+  NSInteger from = SLViewIndex(_drag.getOriginIndex());
+  NSInteger to = SLViewIndex(_drag.getInsertionIndex());
   RCTUIView *view = _draggedView;
-  _dropReleaseLeading = _drag.leading();
-  _dropReleaseCross = _drag.crossLeading();
+  _dropReleaseLeading = _drag.getLeading();
+  _dropReleaseCross = _drag.getCrossLeading();
   _dragging = NO;
   _draggedView = nil;
 
   /*
    * Send the reorder by key and keep the rows shifted until the commit lands.
-   * The indexes below still drive the settle animation.
+   * The indices below still drive the settle animation.
    */
   [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END
-                    fromKey:SLDragKey(_drag.originKey())
-                      toKey:SLDragKey(_drag.insertionKey())];
+                    fromKey:SLDragKey(_drag.getOriginKey())
+                      toKey:SLDragKey(_drag.getInsertionKey())];
 
   if (from == to || !view) {
     // Dropped where it started. No commit will come. Settle now.
@@ -471,7 +484,7 @@ static NSString *SLDragKey(const std::string& key)
     _dropSettleLink = nil;
     return;
   }
-  if (_droppedView == nil) {
+  if (!_droppedView) {
     // The dropped row went off screen and unmounted. There is nothing to animate.
     [self clearDragTransforms];
     _dragDropPending = NO;
@@ -498,7 +511,7 @@ static NSString *SLDragKey(const std::string& key)
 - (void)cancelDrag
 {
   if (_dragging && _state) {
-    NSString *originKey = SLDragKey(_drag.originKey());
+    NSString *originKey = SLDragKey(_drag.getOriginKey());
     BOOL wasInMountObserver = _inMountObserver;
     _inMountObserver = YES;
     [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:originKey toKey:originKey];
@@ -522,7 +535,7 @@ static NSString *SLDragKey(const std::string& key)
   _draggedView = nil;
   _dragDropPending = NO;
   _droppedView = nil;
-  _scrollView.scrollEnabled = YES;
+  _scrollView.scrollEnabled = _scrollEnabled;
   [self clearDragTransforms];
 }
 
@@ -538,7 +551,7 @@ static NSString *SLDragKey(const std::string& key)
     return;
   }
   ShadowListElementView *elementView = (ShadowListElementView *)view;
-  if (!_dragEnabled) {
+  if (!_reorderEnabled) {
     elementView.nativeAccessibilityActions = nil;
     return;
   }
@@ -574,7 +587,6 @@ static NSString *SLDragKey(const std::string& key)
 /*
  * Swap the row with the nearest mounted row above or below. It goes through the same
  * path as a real drop. onDragEnd and useDragReorder handle it as usual.
-
  */
 - (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up
 {

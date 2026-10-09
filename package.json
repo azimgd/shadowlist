@@ -2,19 +2,19 @@
   "name": "shadowlist-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "ShadowList monorepo — native (Fabric) virtualization, shared utils, and example app.",
+  "description": "ShadowList monorepo — native (Fabric) virtualization, list templates and example apps.",
   "license": "MIT",
   "packageManager": "yarn@4.11.0",
   "workspaces": [
     "packages/shadowlist-fabric",
-    "packages/shadowlist-utils",
-    "packages/shadowlist-fabric-example",
-    "packages/shadowlist-macos-example"
+    "templates/shadowlist-utils",
+    "templates/shadowlist-fabric-example",
+    "templates/shadowlist-macos-example"
   ],
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p packages/shadowlist-fabric-example/tsconfig.json && tsc -p packages/shadowlist-utils/tsconfig.json && tsc -p packages/shadowlist-macos-example/tsconfig.json --noEmit",
+    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p templates/shadowlist-fabric-example/tsconfig.json && tsc -p templates/shadowlist-utils/tsconfig.json && tsc -p templates/shadowlist-macos-example/tsconfig.json --noEmit",
     "test": "yarn workspace shadowlist run test && yarn workspace shadowlist-utils run test",
     "build": "yarn workspace shadowlist run prepare",
     "clean": "yarn workspace shadowlist run clean",

@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 
-# Yarn (Berry, node-modules linker) — keep the pinned release, ignore the rest
+# Yarn
 .yarn/*
 !.yarn/releases
 !.yarn/patches
@@ -19,8 +19,32 @@ build/
 coverage/
 *.log
 
-# Benchmark output (regenerate with packages/shadowlist-core-bench/run.sh or device-metrics.sh)
+# Benchmark output
 packages/shadowlist-core-bench/results/
 
 # OS
 .DS_Store
+
+# Native build state and machine-local config
+.gradle/
+.cxx/
+local.properties
+xcuserdata/
+*.xcuserstate
+DerivedData/
+**/.xcode.env.local
+*.apk
+*.aab
+*.ipa
+*.dylib
+
+# Agent worktrees and local editor settings
+.claude/
+
+# Local clangd config
+.clangd
+.clangd.include/
+
+# Swift Package Manager
+.build/
+.swiftpm/

@@ -1,0 +1,7 @@
+jdk:
+  - openjdk17
+before_install:
+  - yes | sdkmanager --licenses > /dev/null || true
+  - yes | sdkmanager "ndk;27.1.12297006" "cmake;3.22.1"
+install:
+  - cd packages/shadowlist-android && ./gradlew --no-daemon --console=plain :ShadowListKit:publishToMavenLocal

@@ -6,6 +6,7 @@
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutContext.h>
 
+#include "ShadowListScrollEvent.h"
 #include "ShadowListViewState.h"
 
 #include <shadowlist-core/Container.hpp>
@@ -44,8 +45,29 @@ struct ShadowListViewGeometryCache {
   std::shared_ptr<const EventEmitter> callbacksEmitter;
   bool callbacksViewable = false;
   bool callbacksScroll = false;
+  double callbacksScrollThrottle = 0.0;
+  // The scroll callback's throttle, for the trailing event once the list rests.
+  std::shared_ptr<ShadowListScrollTracker> scrollTracker;
 
-  // stickyHeaderIndices from these props, cleaned up for the core. Same pointer trick.
+  // viewableRules from these props, read for the core. Same pointer trick as the keys.
+  std::shared_ptr<const Props> viewableRulesProps;
+  std::vector<azimgd::shadowlist::ViewableRule> viewableRules;
+
+  /*
+   * The newest animated scroll command the core estimated, and where it lands along the scroll
+   * axis. The layout pass publishes both. 0 before the first one.
+   */
+  double animationSequence = 0.0;
+  double animationOffset = 0.0;
+
+  // The newest anchor request answered with onAnchorState.
+  double anchorRequestSequence = 0.0;
+
+  // The content size last sent with onContentSizeChange, or negative before the first.
+  double emittedContentWidth = -1.0;
+  double emittedContentHeight = -1.0;
+
+  // stickyIndices from these props, cleaned up for the core. Same pointer trick.
   std::shared_ptr<const Props> stickyIndicesProps;
   std::vector<std::size_t> stickyIndices;
 
@@ -99,6 +121,76 @@ public:
   const std::shared_ptr<ShadowListViewGeometryCache>& getGeometryCache() const { return geometryCache_; }
 
 private:
+  /*
+   * A template child and where it sits in the children, or no node when it isn't mounted.
+   * Raw pointers are fine, the children keep them alive for the whole pass.
+   */
+  struct TemplateSlot {
+    const YogaLayoutableShadowNode* node = nullptr;
+    std::size_t childIndex = 0;
+  };
+
+  /*
+   * Sort the children once. Rows keep their current core index and their layoutable node so
+   * the passes below don't repeat the casts or the key lookup.
+   */
+  struct MountedElement {
+    std::size_t childIndex;
+    std::size_t elementIndex;
+    const YogaLayoutableShadowNode* node;
+  };
+
+  /*
+   * The templates, their sizes along the scroll axis and the mounted rows of one layout pass.
+   */
+  struct LayoutSlots {
+    TemplateSlot headerSlot;
+    TemplateSlot footerSlot;
+    /*
+     * The SectionList sticky header overlay, an always mounted template showing the current
+     * section's header. It floats over the content and takes no list space, and the platform pins it.
+     */
+    TemplateSlot sectionHeaderSlot;
+    /*
+     * Separate from headerSlot because an empty list mounts both the header and the empty
+     * template, and sharing one slot would overwrite the real header.
+     */
+    TemplateSlot emptySlot;
+    double headerSize = 0.0;
+    double footerSize = 0.0;
+    std::vector<MountedElement> mountedElements;
+  };
+
+  /*
+   * Sorts the children into slots, then writes the header, footer and window sizes and every
+   * mounted row's size into the core.
+   */
+  void measureChildren(azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots);
+
+  /*
+   * Moves each mounted row to the core's frame, hiding or showing unsettled rows.
+   */
+  void placeElements(
+    azimgd::shadowlist::Container& core,
+    const std::vector<MountedElement>& mountedElements,
+    bool horizontal,
+    LayoutContext& layoutContext);
+
+  /*
+   * Moves the header, empty, footer and section header templates along the scroll axis.
+   */
+  void placeTemplates(
+    azimgd::shadowlist::Container& core,
+    const LayoutSlots& slots,
+    bool horizontal,
+    LayoutContext& layoutContext);
+
+  /*
+   * Writes a new state when the offset, sizes, sticky or snap geometry, hidden rows, band or
+   * animation estimate changed, and reports a new content size to JS.
+   */
+  void publishLayoutState(azimgd::shadowlist::Container& core, double headerSize, double footerSize);
+
   /*
    * Whether this node's Yoga node owns the child. Only a child cloned or adopted for this
    * very node is owned. It belongs to this commit alone and no other tree shares it.
