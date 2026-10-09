@@ -16,7 +16,8 @@ target_compile_definitions(shadowlist_core_bench PRIVATE SHADOWLIST_DEBUG_LOG=0)
 
 target_include_directories(shadowlist_core_bench PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/..   # for shadowlist-core includes
-  ${CMAKE_CURRENT_SOURCE_DIR})
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../shadowlist-core-tests)   # for the shared test helpers
 
 find_package(Threads REQUIRED)
 target_link_libraries(shadowlist_core_bench PRIVATE Threads::Threads)

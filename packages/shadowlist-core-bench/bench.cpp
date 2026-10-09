@@ -10,6 +10,8 @@
  * timed batches. One slow batch can't skew the result.
  */
 
+#include "TestHelpers.hpp"
+
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
@@ -116,15 +118,6 @@ void record(const std::string& scenario, std::size_t rows, Timing timing, const 
 /*
  * Keys
  */
-std::vector<std::string> makeShortKeys(std::size_t count) {
-  std::vector<std::string> keys;
-  keys.reserve(count);
-  for (std::size_t index = 0; index < count; ++index) {
-    keys.push_back("k" + std::to_string(index));
-  }
-  return keys;
-}
-
 std::vector<std::string> makeLongKeys(std::size_t count) {
   std::vector<std::string> keys;
   keys.reserve(count);
@@ -695,7 +688,7 @@ int main(int argc, char** argv) {
   std::printf("---------------------------------------------------------------------------------------\n");
 
   for (std::size_t rows : sizes) {
-    std::vector<std::string> shortKeys = makeShortKeys(rows);
+    std::vector<std::string> shortKeys = slt::keysFor(rows);
     std::vector<std::string> longKeys = makeLongKeys(rows);
 
     benchWarmUpdatePartial(shortKeys, rows);
