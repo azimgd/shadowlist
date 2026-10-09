@@ -5,6 +5,7 @@
 #include <vector>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
+#include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
 #import "ShadowListKitListCell+Private.h"
@@ -51,6 +52,8 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
  * _rowElements holds the stand-ins of rows off screen by key, kept while accessibility holds them.
  * mountedCellAtIndex: is the mounted cell of a row, or nil.
  * _sectionIndex is the section index view while the data source gives titles for it.
+ * _selection holds the selected keys and _highlightedCell the row a finger rests on.
+ * mountedCellForKey: is the mounted cell of a key, or nil. itemsOfRows: is the items among rows.
  */
 @interface ShadowListKitListView () <UIScrollViewDelegate> {
  @package
@@ -90,6 +93,10 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
   NSIndexSet *_stickyIndices;
   BOOL _stickySectionHeaders;
   ShadowListKitSectionIndexView *_sectionIndex;
+
+  BOOL _allowsSelection;
+  azimgd::shadowlist::ListSelection _selection;
+  __weak ShadowListKitListCell *_highlightedCell;
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -104,6 +111,8 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
 - (nullable ShadowListKitListCell *)itemCellAtPoint:(CGPoint)point;
 - (void)settleFrame;
 - (nullable ShadowListKitListCell *)mountedCellAtIndex:(std::size_t)index;
+- (nullable ShadowListKitListCell *)mountedCellForKey:(const std::string&)key;
+- (NSIndexSet *)itemsOfRows:(const std::vector<std::size_t>&)rows;
 - (void)scrollToRow:(std::size_t)row viewPosition:(CGFloat)viewPosition animated:(BOOL)animated;
 - (void)stopScrolling;
 
@@ -155,6 +164,18 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
 - (void)updateStickyRows;
 - (void)reloadSectionIndex;
 - (void)layoutSectionIndex;
+
+@end
+
+/*
+ * Selection. userSelectedCell: is a tap on a row. clearSelection deselects every row without
+ * delegate calls. unhighlight takes the highlight off the touched row.
+ */
+@interface ShadowListKitListView (Selection)
+
+- (void)userSelectedCell:(ShadowListKitListCell *)cell;
+- (void)clearSelection;
+- (void)unhighlight;
 
 @end
 
