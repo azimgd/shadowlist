@@ -11,7 +11,6 @@ import android.os.Bundle
 import android.os.Parcelable
 import android.os.SystemClock
 import android.util.AttributeSet
-import android.util.Log
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
 import android.view.Menu
@@ -349,38 +348,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
       nestedHelper = it
     }
 
-  private val changes = ShadowListKitChangeAnimator(this)
+  internal val changes = ShadowListKitChangeAnimator(this)
   private val gesture = ShadowListKitScrollGesture(this)
   private val drag = ShadowListKitDragController(this)
   private val swipe = ShadowListKitSwipeController(this)
   internal val refresh = ShadowListKitRefreshIndicator(this)
   private val sectionIndex = ShadowListKitSectionIndex(this)
 
-  /*
-   * Row keys in data order, the same list the core holds. Section headers and footers included.
-   */
-  private var keys = ArrayList<String>()
+  private val data = ShadowListKitListData(this)
 
   /*
-   * The list reloadData reads the next keys into, swapped with keys after.
+   * Row keys in data order, the same list the core holds, and the item count. Both live in
+   * ShadowListKitListData.
    */
-  private var spareKeys = ArrayList<String>()
-
-  /*
-   * The sections, null without. rowItems has the item of every row, -1 for headers and footers,
-   * and rowSeparators whether a separator follows the row. A list without sections maps rows to
-   * the same items and makes no call into the core for it.
-   */
-  private var sectionCounts: IntArray? = null
-  private var sectionFlags: IntArray? = null
-  private var rowItems: IntArray? = null
-  private var rowSeparators: BooleanArray? = null
-  private var itemCount = 0
-
-  /*
-   * The item keys of a list with sections, in item order. A list without sections uses keys.
-   */
-  private var sectionItemKeys: List<String>? = null
+  internal val keys: ArrayList<String> get() = data.keys
+  internal val itemCount: Int get() = data.itemCount
 
   /*
    * Mounted cells by key. A cell follows its key across inserts above it.
@@ -463,18 +445,6 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var reachedEnd = false
 
   /*
-   * Changes collected by performBatchUpdates until its block returns.
-   */
-  private var batchDepth = 0
-  private val batchDeleted = ArrayList<Int>()
-  private val batchInserted = ArrayList<Int>()
-  private val batchMovedFrom = ArrayList<Int>()
-  private val batchMovedTo = ArrayList<Int>()
-  private val batchReloaded = ArrayList<Int>()
-  private var batchPayload: Any? = null
-  private var batchNeedsReload = false
-
-  /*
    * Selected rows by key. The same rules as the core's ListSelection the UIKit list uses, kept
    * here because the selection outlives the core, which is dropped on detach.
    */
@@ -484,11 +454,6 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private val highlightRunnable = Runnable { highlightPending() }
   private var highlightX = 0f
   private var highlightY = 0f
-
-  /*
-   * The content version of every item applyChanges saw, by key.
-   */
-  private var contentVersions = HashMap<String, Long>()
 
   private var pendingAnchor: ShadowListKitAnchorState? = null
   private val decorations = ArrayList<ShadowListKitItemDecoration>()
@@ -594,7 +559,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     coreOrNull = created
     applySettings(created)
     if (stickyRows.isNotEmpty()) created.setStickyIndices(stickyRows)
-    created.setSections(itemCount, sectionCounts, sectionFlags)
+    created.setSections(data.itemCount, data.sectionCounts, data.sectionFlags)
     if (keys.isNotEmpty()) created.replaceKeys(0, 0, keys, 0, keys.size)
     windowLow = -1
     windowHigh = -1
@@ -731,187 +696,23 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Data
 
   /*
-   * Read the sections and every key into next and return the item keys. A list with sections
-   * gets its header and footer rows there, with keys from the core's ListSections.
-   */
-  private fun readRowKeys(next: ArrayList<String>): List<String> {
-    val source = dataSource ?: return emptyList()
-    next.clear()
-    val sections = source as? Sections
-    if (sections == null) {
-      val count = max(0, source.numberOfItems(this))
-      next.ensureCapacity(count)
-      for (index in 0 until count) next.add(source.keyForItem(this, index))
-      setPlainSections(count)
-      return next
-    }
-    val sectionCount = max(0, sections.numberOfSections(this))
-    val counts = IntArray(sectionCount)
-    val flags = IntArray(sectionCount)
-    val sectionKeys = arrayOfNulls<String>(sectionCount)
-    val items = ArrayList<String>()
-    for (section in 0 until sectionCount) {
-      val count = max(0, sections.numberOfItemsInSection(this, section))
-      val hasHeader = sections.titleForHeaderInSection(this, section) != null
-      val hasFooter = sections.titleForFooterInSection(this, section) != null
-      counts[section] = count
-      flags[section] = (if (hasHeader) ShadowListKitCore.SECTION_HEADER else 0) or (if (hasFooter) ShadowListKitCore.SECTION_FOOTER else 0)
-      sectionKeys[section] = sections.keyForSection(this, section)
-      val first = items.size
-      for (local in 0 until count) items.add(source.keyForItem(this, first + local))
-    }
-    setSections(counts, flags, items)
-    // The header and footer keys in row order, placed around each section's items.
-    val edges = core.edgeRowKeys(sectionKeys, firstItemKeys(counts, items))
-    next.ensureCapacity(items.size + edges.size)
-    var edge = 0
-    var item = 0
-    for (section in 0 until sectionCount) {
-      if (flags[section] and ShadowListKitCore.SECTION_HEADER != 0) next.add(edges[edge++])
-      for (local in 0 until counts[section]) next.add(items[item++])
-      if (flags[section] and ShadowListKitCore.SECTION_FOOTER != 0) next.add(edges[edge++])
-    }
-    readRowItems(next.size)
-    return items
-  }
-
-  /*
-   * The key of each section's first item, empty for a section without items.
-   */
-  private fun firstItemKeys(counts: IntArray, items: List<String>): Array<String> {
-    var first = 0
-    return Array(counts.size) { section ->
-      val key = if (counts[section] > 0) items[first] else ""
-      first += counts[section]
-      key
-    }
-  }
-
-  private fun setPlainSections(count: Int) {
-    sectionCounts = null
-    sectionFlags = null
-    sectionItemKeys = null
-    rowItems = null
-    rowSeparators = null
-    itemCount = count
-    coreOrNull?.setSections(count, null, null)
-  }
-
-  private fun setSections(counts: IntArray, flags: IntArray, items: List<String>) {
-    sectionCounts = counts
-    sectionFlags = flags
-    sectionItemKeys = items
-    itemCount = items.size
-    core.setSections(itemCount, counts, flags)
-  }
-
-  /*
-   * The item of every row and whether a separator follows it, copied once per change.
-   */
-  private fun readRowItems(rows: Int) {
-    val items = IntArray(rows)
-    val separators = BooleanArray(rows)
-    core.copyRows(items, separators)
-    rowItems = items
-    rowSeparators = separators
-  }
-
-  internal val isSectioned: Boolean get() = sectionCounts != null
-
-  /*
    * Read the row count and keys again. Rows keep their sizes and cells by key, and the
    * visible content stays in place. Cells of surviving keys are not configured again.
    * Only the keys between the unchanged rows at both ends go to the core.
    */
-  fun reloadData() {
-    if (batchDepth > 0) {
-      batchNeedsReload = true
-      return
-    }
-    if (dataSource == null) return
-    val next = spareKeys
-    recordContentVersions(readRowKeys(next))
-    applyRowKeys(next)
-    structureChanged()
-    reloadSectionIndex()
-  }
-
-  /*
-   * The content version of every item now, which the next applyChanges compares against. The
-   * versions outlive the core, which is dropped on detach. The rules are the core's
-   * ContentVersions, see content_versions_report_items_whose_version_changed.
-   */
-  private fun recordContentVersions(items: List<String>) {
-    val versioned = dataSource as? ContentVersions ?: return
-    val versions = HashMap<String, Long>(items.size * 2)
-    for ((item, key) in items.withIndex()) versions[key] = versioned.contentVersionForItem(this, item)
-    contentVersions = versions
-  }
-
-  /*
-   * The core's keySplice over the key list kept here, which needs no copy of the keys into the
-   * core. The core test key_splice_finds_the_changed_middle holds the rule.
-   */
-  private fun applyRowKeys(next: ArrayList<String>) {
-    val start = commonPrefix(keys, next)
-    val end = commonSuffix(keys, next, start)
-    if (start < keys.size || start < next.size) {
-      if (animatesChanges) changes.capture(removed = keys.subList(start, keys.size - end), inserted = next.subList(start, next.size - end))
-      coreOrNull?.replaceKeys(start, keys.size - start - end, next, start, next.size - end)
-    }
-    spareKeys = keys
-    keys = next
-  }
+  fun reloadData() = data.reloadData()
 
   /*
    * Rows were inserted at these positions of the new data, which the data source already
    * reflects. Only the new keys are read. A list with sections reads everything again. An
    * insert past the end goes at the end.
    */
-  fun insertItems(indices: IntArray) {
-    if (batchDepth > 0) {
-      batchInserted.addAll(indices.asList())
-      return
-    }
-    if (dataSource is Sections) {
-      reloadData()
-      return
-    }
-    val source = dataSource ?: return
-    // An index past the end inserts at the end. The key is read where the row lands.
-    val sorted = ShadowListKitCore.insertionPositions(indices, keys.size)
-    if (sorted.isEmpty()) return
-    val inserted = Array(sorted.size) { source.keyForItem(this, sorted[it]) }
-    if (animatesChanges) changes.capture(removed = emptyList(), inserted = inserted.asList())
-    forEachRun(sorted) { first, last -> keys.addAll(sorted[first], inserted.asList().subList(first, last + 1)) }
-    coreOrNull?.insertKeys(sorted, inserted)
-    setPlainSections(keys.size)
-    structureChanged()
-  }
+  fun insertItems(indices: IntArray) = data.insertItems(indices)
 
   /*
    * Rows were deleted at these positions of the old data. A delete past the end is dropped.
    */
-  fun deleteItems(indices: IntArray) {
-    if (batchDepth > 0) {
-      batchDeleted.addAll(indices.asList())
-      return
-    }
-    if (dataSource is Sections) {
-      reloadData()
-      return
-    }
-    val sorted = ShadowListKitCore.deletionPositions(indices, keys.size)
-    if (sorted.isEmpty()) return
-    if (animatesChanges) changes.capture(removed = sorted.map { keys[it] }, inserted = emptyList())
-    // Runs go last to first, which keeps the earlier indices valid.
-    val runs = ArrayList<IntArray>()
-    forEachRun(sorted) { first, last -> runs.add(intArrayOf(sorted[first], sorted[last])) }
-    for (run in runs.asReversed()) keys.subList(run[0], run[1] + 1).clear()
-    coreOrNull?.deleteKeys(sorted)
-    setPlainSections(keys.size)
-    structureChanged()
-  }
+  fun deleteItems(indices: IntArray) = data.deleteItems(indices)
 
   /*
    * The rows' content changed under the same keys. Visible cells are configured again and
@@ -919,39 +720,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * update a shown cell instead.
    */
   @JvmOverloads
-  fun reloadItems(indices: IntArray, payload: Any? = null) {
-    if (batchDepth > 0) {
-      batchReloaded.addAll(indices.asList())
-      batchPayload = payload
-      return
-    }
-    val rows = indices.map(::rowForItem).filter { it >= 0 }.toIntArray()
-    reloadRows(rows, payload)
-  }
-
-  private fun reloadRows(rows: IntArray, payload: Any?) {
-    for (row in rows) {
-      val key = keys.getOrNull(row) ?: continue
-      val cell = mounted[key] ?: continue
-      val item = itemForRow(row)
-      if (payload != null && item >= 0 && dataSource?.reconfigureCell(this, cell, item, payload) == true) continue
-      mounted.remove(key)
-      recycleCell(cell)
-    }
-    coreOrNull?.markRemeasure(rows)
-    structureChanged()
-  }
+  fun reloadItems(indices: IntArray, payload: Any? = null) = data.reloadItems(indices, payload)
 
   /*
    * An item moved, after the data source reflects it.
    */
-  fun moveItem(index: Int, newIndex: Int) {
-    if (index < 0 || newIndex < 0) return
-    performBatchUpdates({
-      batchMovedFrom.add(index)
-      batchMovedTo.add(newIndex)
-    })
-  }
+  fun moveItem(index: Int, newIndex: Int) = data.moveItem(index, newIndex)
 
   /*
    * Inserts, deletes, moves and reloads made in updates land together in one layout and one
@@ -960,162 +734,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * up reloads everything. completion runs once the change animation ended.
    */
   @JvmOverloads
-  fun performBatchUpdates(updates: () -> Unit, completion: ((finished: Boolean) -> Unit)? = null) {
-    ++batchDepth
-    try {
-      updates()
-    } finally {
-      --batchDepth
-    }
-    if (batchDepth == 0) commitBatch()
-    if (completion == null) return
-    val wait = if (animatesChanges && isAttachedToWindow) (itemAnimator as? ShadowListKitDefaultItemAnimator)?.durationMs ?: 0L else 0L
-    runCommandNow()
-    postDelayed({ completion(true) }, wait)
-  }
-
-  /*
-   * Apply the changes a batch collected in one go. The core's batch plan builds the next keys
-   * from the keys held and the new ones it reads. A list with sections, or a batch that does
-   * not add up, reads everything again.
-   */
-  private fun commitBatch() {
-    val deleted = batchDeleted.toIntArray()
-    val inserted = batchInserted.toIntArray()
-    val movedFrom = batchMovedFrom.toIntArray()
-    val movedTo = batchMovedTo.toIntArray()
-    val reloaded = batchReloaded.toIntArray()
-    val payload = batchPayload
-    val needsReload = batchNeedsReload
-    batchDeleted.clear()
-    batchInserted.clear()
-    batchMovedFrom.clear()
-    batchMovedTo.clear()
-    batchReloaded.clear()
-    batchPayload = null
-    batchNeedsReload = false
-    val source = dataSource ?: return
-    if (deleted.isEmpty() && inserted.isEmpty() && movedFrom.isEmpty() && reloaded.isEmpty() && !needsReload) return
-    // The reloaded rows by key, from the data before.
-    val reloadedKeys = HashSet<String>()
-    for (item in reloaded) keys.getOrNull(rowForItem(item))?.let(reloadedKeys::add)
-    val next = spareKeys
-    next.clear()
-    var planned = false
-    if (source !is Sections && !needsReload) {
-      val nextCount = max(0, source.numberOfItems(this))
-      val plan = ShadowListKitCore.planBatch(keys.size, nextCount, deleted, inserted, movedFrom, movedTo)
-      if (plan != null) {
-        next.ensureCapacity(plan.size)
-        // The core's keysFromPlan: a kept row takes its key, an inserted one reads its own.
-        for ((index, from) in plan.withIndex()) next.add(if (from < 0) source.keyForItem(this, index) else keys[from])
-        setPlainSections(next.size)
-        planned = true
-      } else {
-        Log.w("ShadowListKitListView", "batch updates do not add up to $nextCount items, reloading")
-      }
-    }
-    if (!planned) readRowKeys(next)
-    commitKeyChanges(next, reloadedKeys, payload, reloadsSectionIndex = !planned)
-  }
-
-  /*
-   * Take the next keys, then reload the rows of reloadedKeys. Reloaded rows report the change
-   * themselves.
-   */
-  private fun commitKeyChanges(next: ArrayList<String>, reloadedKeys: Set<String>, payload: Any?, reloadsSectionIndex: Boolean) {
-    applyRowKeys(next)
-    val rows = rowsOfKeys(reloadedKeys)
-    if (rows.isNotEmpty()) reloadRows(rows, payload) else structureChanged()
-    if (reloadsSectionIndex) reloadSectionIndex()
-  }
-
-  private fun rowsOfKeys(wanted: Set<String>): IntArray {
-    if (wanted.isEmpty()) return IntArray(0)
-    val rows = ArrayList<Int>()
-    for ((row, key) in keys.withIndex()) if (key in wanted) rows.add(row)
-    return rows.toIntArray()
-  }
+  fun performBatchUpdates(updates: () -> Unit, completion: ((finished: Boolean) -> Unit)? = null) =
+    data.performBatchUpdates(updates, completion)
 
   /*
    * The data source already shows the new data. Read every key, work out the inserts, deletes
    * and moves against the keys held with the core's diffKeys, reload the rows whose content
    * version changed, and return what changed. Animates like any change with animatesChanges.
    */
-  fun applyChanges(): ShadowListKitListChanges {
-    // Without a data source readRowKeys leaves the spare list as it was. Nothing is read, the same as reloadData.
-    if (dataSource == null) return ShadowListKitListChanges(IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
-    val previousItems = sectionItemKeys ?: ArrayList(keys)
-    val next = spareKeys
-    val nextItems = readRowKeys(next)
-    val diff = ShadowListKitCore.diffKeys(previousItems, nextItems)
-
-    // Rows that stayed but whose content version changed get reloaded.
-    val reloaded = ArrayList<Int>()
-    val reloadedKeys = HashSet<String>()
-    val versioned = dataSource as? ContentVersions
-    if (versioned != null) {
-      val versions = HashMap<String, Long>(nextItems.size * 2)
-      for ((item, key) in nextItems.withIndex()) {
-        val version = versioned.contentVersionForItem(this, item)
-        val known = contentVersions[key]
-        if (known != null && known != version) {
-          reloaded.add(item)
-          reloadedKeys.add(key)
-        }
-        versions[key] = version
-      }
-      contentVersions = versions
-    }
-
-    commitKeyChanges(next, reloadedKeys, null, reloadsSectionIndex = true)
-
-    var at = 0
-    val deleted = IntArray(diff[at]) { diff[at + 1 + it] }
-    at += 1 + deleted.size
-    val inserted = IntArray(diff[at]) { diff[at + 1 + it] }
-    at += 1 + inserted.size
-    val moves = diff[at]
-    val movedFrom = IntArray(moves) { diff[at + 1 + it * 2] }
-    val movedTo = IntArray(moves) { diff[at + 2 + it * 2] }
-    return ShadowListKitListChanges(deleted, inserted, movedFrom, movedTo, reloaded.toIntArray())
-  }
-
-  /*
-   * Calls block with the first and last position of each run of adjacent values in sorted.
-   */
-  private inline fun forEachRun(sorted: IntArray, block: (first: Int, last: Int) -> Unit) {
-    var first = 0
-    while (first < sorted.size) {
-      var last = first
-      while (last + 1 < sorted.size && sorted[last + 1] == sorted[last] + 1) ++last
-      block(first, last)
-      first = last + 1
-    }
-  }
-
-  private fun commonPrefix(previous: List<String>, next: List<String>): Int {
-    val limit = min(previous.size, next.size)
-    var count = 0
-    while (count < limit && previous[count] == next[count]) ++count
-    return count
-  }
-
-  /*
-   * Keys equal at the end of both lists, not reaching into the first start keys of either.
-   */
-  private fun commonSuffix(previous: List<String>, next: List<String>, start: Int): Int {
-    val limit = min(previous.size, next.size) - start
-    var count = 0
-    while (count < limit && previous[previous.size - 1 - count] == next[next.size - 1 - count]) ++count
-    return count
-  }
+  fun applyChanges(): ShadowListKitListChanges = data.applyChanges()
 
   /*
    * The data changed. Sticky rows follow the sections, the selection drops removed rows and a
    * waiting saved position lands once its row is there.
    */
-  private fun structureChanged() {
+  internal fun structureChanged() {
     ++structureVersion
     // An open row closes. One swiped all the way stays out while its removal runs.
     swipe.cell?.let { if (!swipe.isSwipedOut(it)) swipe.close(false) }
@@ -1130,7 +763,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Sections
 
   internal fun itemForRow(row: Int): Int {
-    val items = rowItems ?: return if (row in keys.indices) row else -1
+    val items = data.rowItems ?: return if (row in keys.indices) row else -1
     return if (row in items.indices) items[row] else -1
   }
 
@@ -1139,7 +772,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
     return if (isSectioned) core.rowForItem(item) else item
   }
 
-  val numberOfSections: Int get() = sectionCounts?.size ?: 1
+  internal val isSectioned: Boolean get() = data.sectionCounts != null
+
+  val numberOfSections: Int get() = data.sectionCounts?.size ?: 1
 
   /*
    * The section of an item, or -1.
@@ -1179,7 +814,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     mountedLow = -1
   }
 
-  private fun reloadSectionIndex() {
+  internal fun reloadSectionIndex() {
     val sections = dataSource as? Sections
     val titles = if (horizontal) null else sections?.sectionIndexTitles(this)
     sectionIndex.titles = titles ?: emptyList()
@@ -1734,7 +1369,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private fun drawSeparator(canvas: Canvas, cell: ShadowListKitListCell) {
     val row = cell.row
     if (numberOfColumns > 1 || row < 0) return
-    val follows = rowSeparators?.let { row < it.size && it[row] } ?: (row + 1 < keys.size)
+    val follows = data.rowSeparators?.let { row < it.size && it[row] } ?: (row + 1 < keys.size)
     if (!follows || delegate?.showsSeparatorAfterItem(this, cell.index) == false) return
     val x = cell.left + cell.translationX
     val y = cell.top + cell.translationY
@@ -2286,7 +1921,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     core.cancelLanding()
   }
 
-  private fun runCommandNow() {
+  internal fun runCommandNow() {
     needsFrame = true
     if (isLaidOut && !isLayoutRequested) layoutPass() else requestLayout()
   }
