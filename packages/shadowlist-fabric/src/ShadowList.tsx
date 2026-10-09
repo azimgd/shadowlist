@@ -10,18 +10,14 @@ import {
   type ReactElement,
 } from 'react';
 import {
-  Keyboard,
   Platform,
   StyleSheet,
-  TextInput,
   View,
-  type GestureResponderEvent,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import ShadowListView, {
   type OnContentSizeChange,
-  type OnScroll,
 } from './ShadowListViewNativeComponent';
 import ShadowListTemplateView from './ShadowListTemplateViewNativeComponent';
 import type {
@@ -45,6 +41,7 @@ import {
   useRowSelection,
   usePrefetch,
   useAnchorState,
+  useKeyboardDismissResponder,
   slTrace,
   slTraceEnabled,
   slTraceNow,
@@ -579,57 +576,17 @@ function ShadowListInner<ElementT>(
     [stickyEnabled, activeStickyIndex, renderStickyHeaderOverlay]
   );
 
-  /*
-   * A drag counts as an interaction for viewability, and on Android it dismisses the
-   * keyboard for keyboardDismissMode, like ScrollView. iOS dismisses it natively.
-   */
-  const scrollBeginDragRef = useRef({ onScrollBeginDrag, keyboardDismissMode });
-  scrollBeginDragRef.current = { onScrollBeginDrag, keyboardDismissMode };
-  const handleScrollBeginDrag = useCallback(
-    (event: { nativeEvent: OnScroll }) => {
-      recordInteraction();
-      const current = scrollBeginDragRef.current;
-      if (Platform.OS === 'android' && current.keyboardDismissMode !== 'none') {
-        Keyboard.dismiss();
-      }
-      current.onScrollBeginDrag?.(event);
-    },
-    [recordInteraction]
-  );
-
-  /*
-   * keyboardShouldPersistTaps, like ScrollView. never: a tap while the keyboard is up only
-   * dismisses it. handled: a tap no row handles dismisses it. always, or unset: taps reach
-   * the rows and the keyboard stays.
-   */
-  const persistTaps =
-    keyboardShouldPersistTaps === true ? 'always' : keyboardShouldPersistTaps;
-  const keyboardIsDismissible = () =>
-    TextInput.State.currentlyFocusedInput() != null && Keyboard.isVisible();
-  const handleStartShouldSetResponderCapture = useCallback(
-    (event: GestureResponderEvent) =>
-      (persistTaps === 'never' || persistTaps === false) &&
-      keyboardIsDismissible() &&
-      (event.target as unknown) !==
-        (TextInput.State.currentlyFocusedInput() as unknown),
-    [persistTaps]
-  );
-  const handleStartShouldSetResponder = useCallback(
-    (event: GestureResponderEvent) =>
-      persistTaps === 'handled' &&
-      keyboardIsDismissible() &&
-      (event.target as unknown) !==
-        (TextInput.State.currentlyFocusedInput() as unknown),
-    [persistTaps]
-  );
-  const handleResponderRelease = useCallback(() => {
-    const input = TextInput.State.currentlyFocusedInput();
-    if (input != null) TextInput.State.blurTextInput(input);
-  }, []);
-  const managesTaps =
-    persistTaps === 'never' ||
-    persistTaps === false ||
-    persistTaps === 'handled';
+  const {
+    handleScrollBeginDrag,
+    onStartShouldSetResponderCapture,
+    onStartShouldSetResponder,
+    onResponderRelease,
+  } = useKeyboardDismissResponder({
+    keyboardDismissMode,
+    keyboardShouldPersistTaps,
+    onScrollBeginDrag,
+    recordInteraction,
+  });
 
   const nativeDecelerationRate =
     typeof decelerationRate === 'number'
@@ -676,13 +633,9 @@ function ShadowListInner<ElementT>(
       accessibilityRole={accessibilityRole}
       accessibilityHint={accessibilityHint}
       testID={testID}
-      onStartShouldSetResponderCapture={
-        managesTaps ? handleStartShouldSetResponderCapture : undefined
-      }
-      onStartShouldSetResponder={
-        managesTaps ? handleStartShouldSetResponder : undefined
-      }
-      onResponderRelease={managesTaps ? handleResponderRelease : undefined}
+      onStartShouldSetResponderCapture={onStartShouldSetResponderCapture}
+      onStartShouldSetResponder={onStartShouldSetResponder}
+      onResponderRelease={onResponderRelease}
       onVisibleIndicesChange={handleVisibleIndicesChange}
       onViewableIndicesChange={
         viewableEventEnabled ? handleViewableIndicesChange : undefined

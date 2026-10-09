@@ -34,6 +34,7 @@ export { useElementSizeSpecs } from './useElementSizeSpecs';
 export { useRowSelection } from './useRowSelection';
 export { usePrefetch } from './usePrefetch';
 export { useAnchorState } from './useAnchorState';
+export { useKeyboardDismissResponder } from './useKeyboardDismissResponder';
 export {
   useImperativeCommands,
   forwardedCommands,
