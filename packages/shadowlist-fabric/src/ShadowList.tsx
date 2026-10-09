@@ -63,7 +63,13 @@ import {
   separatorComponentOf,
   sharedSeparatorOf,
 } from './virtualizer/separators';
-import { contentPadding, rowPaddingStyles } from './virtualizer/contentPadding';
+import {
+  contentPadding,
+  crossPadding,
+  footerPaddingStyles,
+  headerPaddingStyles,
+  rowPaddingStyles,
+} from './virtualizer/contentPadding';
 
 export { initialMountedRange, type MountedRange } from './virtualizer';
 
@@ -523,39 +529,25 @@ function ShadowListInner<ElementT>(
     [ListEmptyComponent]
   );
 
-  const crossPaddingStyle = useMemo<ViewStyle | null>(() => {
-    if (padding.crossStart === 0 && padding.crossEnd === 0) return null;
-    return horizontal
-      ? { paddingTop: padding.crossStart, paddingBottom: padding.crossEnd }
-      : { paddingLeft: padding.crossStart, paddingRight: padding.crossEnd };
-  }, [horizontal, padding.crossStart, padding.crossEnd]);
+  const crossPaddingStyle = useMemo(
+    () => crossPadding(padding.crossStart, padding.crossEnd, horizontal),
+    [horizontal, padding.crossStart, padding.crossEnd]
+  );
 
   /*
    * Content padding goes around the header and footer, like a ScrollView's content container
    * around FlatList's. Their own style then sits on a view inside. Without padding it goes on
    * the template itself and costs no extra view.
    */
-  const headerPadding = useMemo<ViewStyle[] | null>(() => {
-    const leading =
-      padding.leading > 0
-        ? horizontal
-          ? { paddingLeft: padding.leading }
-          : { paddingTop: padding.leading }
-        : null;
-    if (!crossPaddingStyle && !leading) return null;
-    return [crossPaddingStyle ?? {}, leading ?? {}];
-  }, [crossPaddingStyle, padding.leading, horizontal]);
+  const headerPadding = useMemo(
+    () => headerPaddingStyles(crossPaddingStyle, padding.leading, horizontal),
+    [crossPaddingStyle, padding.leading, horizontal]
+  );
 
-  const footerPadding = useMemo<ViewStyle[] | null>(() => {
-    const trailing =
-      padding.trailing > 0
-        ? horizontal
-          ? { paddingRight: padding.trailing }
-          : { paddingBottom: padding.trailing }
-        : null;
-    if (!crossPaddingStyle && !trailing) return null;
-    return [crossPaddingStyle ?? {}, trailing ?? {}];
-  }, [crossPaddingStyle, padding.trailing, horizontal]);
+  const footerPadding = useMemo(
+    () => footerPaddingStyles(crossPaddingStyle, padding.trailing, horizontal),
+    [crossPaddingStyle, padding.trailing, horizontal]
+  );
 
   /*
    * The separator is inside every row. An inline element would rebuild every mounted

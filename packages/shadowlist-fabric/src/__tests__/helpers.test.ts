@@ -12,6 +12,9 @@ import {
 } from '../virtualizer/selection';
 import {
   contentPadding,
+  crossPadding,
+  footerPaddingStyles,
+  headerPaddingStyles,
   rowPaddingStyles,
 } from '../virtualizer/contentPadding';
 import { SeparatorStore } from '../virtualizer/separators';
@@ -163,6 +166,27 @@ describe('content padding', () => {
     expect(new Set(widths.map((width) => width.toFixed(6))).size).toBe(1);
     expect(styles[0]!.paddingLeft).toBe(0);
     expect(rowPaddingStyles(1, 0, 0, undefined, false)).toBeNull();
+  });
+
+  it('pads the header and footer templates', () => {
+    expect(crossPadding(0, 0, false)).toBeNull();
+    const cross = crossPadding(4, 6, false);
+    expect(cross).toEqual({ paddingLeft: 4, paddingRight: 6 });
+    expect(crossPadding(4, 6, true)).toEqual({
+      paddingTop: 4,
+      paddingBottom: 6,
+    });
+    expect(headerPaddingStyles(null, 0, false)).toBeNull();
+    expect(footerPaddingStyles(null, 0, true)).toBeNull();
+    expect(headerPaddingStyles(cross, 8, false)).toEqual([
+      cross,
+      { paddingTop: 8 },
+    ]);
+    expect(footerPaddingStyles(null, 8, true)).toEqual([
+      {},
+      { paddingRight: 8 },
+    ]);
+    expect(footerPaddingStyles(cross, 0, false)).toEqual([cross, {}]);
   });
 });
 

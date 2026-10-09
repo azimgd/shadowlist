@@ -109,3 +109,61 @@ export function rowPaddingStyles(
   }
   return styles;
 }
+
+/*
+ * The cross axis padding of the header, footer and empty templates. Null when there is none.
+ */
+export function crossPadding(
+  crossStart: number,
+  crossEnd: number,
+  horizontal: boolean
+): ViewStyle | null {
+  if (crossStart === 0 && crossEnd === 0) return null;
+  return horizontal
+    ? { paddingTop: crossStart, paddingBottom: crossEnd }
+    : { paddingLeft: crossStart, paddingRight: crossEnd };
+}
+
+function templatePadding(
+  cross: ViewStyle | null,
+  edge: ViewStyle | null
+): ViewStyle[] | null {
+  if (!cross && !edge) return null;
+  return [cross ?? {}, edge ?? {}];
+}
+
+/*
+ * The header's padding: the cross axis padding and the leading padding. Null when there is
+ * none.
+ */
+export function headerPaddingStyles(
+  cross: ViewStyle | null,
+  leading: number,
+  horizontal: boolean
+): ViewStyle[] | null {
+  const edge =
+    leading > 0
+      ? horizontal
+        ? { paddingLeft: leading }
+        : { paddingTop: leading }
+      : null;
+  return templatePadding(cross, edge);
+}
+
+/*
+ * The footer's padding: the cross axis padding and the trailing padding. Null when there is
+ * none.
+ */
+export function footerPaddingStyles(
+  cross: ViewStyle | null,
+  trailing: number,
+  horizontal: boolean
+): ViewStyle[] | null {
+  const edge =
+    trailing > 0
+      ? horizontal
+        ? { paddingRight: trailing }
+        : { paddingBottom: trailing }
+      : null;
+  return templatePadding(cross, edge);
+}
