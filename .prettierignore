@@ -6,8 +6,6 @@
 **/vendor
 .yarn
 yarn.lock
-packages/shadowlist-wasm/src/wasm
-**/*.wasm
 templates/shadowlist-fabric-example/android
 templates/shadowlist-fabric-example/ios
 packages/shadowlist-android/**/.cxx

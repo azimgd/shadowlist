@@ -40,3 +40,7 @@ DerivedData/
 
 # Agent worktrees and local editor settings
 .claude/
+
+# Local clangd config
+.clangd
+.clangd.include/
