@@ -111,7 +111,7 @@ using namespace facebook::react;
   azimgd::shadowlist::ScrollCommand command;
   command.index = (double)index;
   command.viewPosition = viewPosition;
-  // The core moves the resting offset by rowOffset. FlatList's viewOffset moves the other way.
+  // The core moves the resting offset by rowOffset. viewOffset moves the other way.
   command.rowOffset = std::isfinite(viewOffset) ? -viewOffset : 0.0;
   command.animated = [self animatesCommands] && animated;
   [self commitScrollCommand:command];

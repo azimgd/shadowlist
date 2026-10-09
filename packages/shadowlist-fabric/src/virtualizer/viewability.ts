@@ -68,7 +68,7 @@ const DEFAULT_TIMERS: ViewabilityTimers = {
 };
 
 /*
- * One viewability config and its callback, like FlatList's ViewabilityHelper. Tokens are
+ * One viewability config and its callback. Tokens are
  * compared by key, and only a change calls back. With waitForInteraction nothing is viewable
  * before recordInteraction. With minimumViewTime the rows must stay viewable that long. Each
  * change starts the wait again, and the rows viewable when it ends are reported.

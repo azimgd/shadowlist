@@ -140,7 +140,7 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
     std::uint64_t token = container.operation ? container.operation->id : 0;
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
 
-    // Layout measures the header without the spinner. This frame used to show the jump.
+    // Layout measures the header without the spinner. This frame must not show the jump.
     layoutPass(container, PLAIN_HEADER);
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
     double published = container.revision.containerOffsetY;

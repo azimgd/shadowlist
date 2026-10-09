@@ -28,7 +28,7 @@ describe('initialMountedRange', () => {
   });
 
   it('treats every negative value as "no target", not only -2', () => {
-    // -1 reads like an index sentinel and used to be mistaken for one.
+    // -1 reads like an index sentinel and must not be mistaken for one.
     for (const off of [-1, -2, -99]) {
       expect(
         initialMountedRange(1000, 20, false, off, SHADOWLIST_OVERSCAN)

@@ -164,7 +164,7 @@ TEST(scroll_to_index_places_the_row_at_the_requested_view_position) {
 
 /*
  * A command's row offset moves the resting offset that much further past the row's view
- * position. FlatList's viewOffset is its negative.
+ * position. A JS viewOffset is its negative.
  */
 TEST(scroll_command_row_offset_moves_the_resting_offset) {
   std::vector<std::string> keys = keysFor(120, "m");

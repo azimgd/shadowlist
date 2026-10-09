@@ -4,8 +4,7 @@ import android.view.ViewConfiguration
 
 /*
  * Selected rows by key and the highlight under a resting finger. The same rules as the core's
- * ListSelection the UIKit list uses, kept here because the selection outlives the core, which
- * is dropped on detach.
+ * ListSelection, kept here because the selection outlives the core, which is dropped on detach.
  */
 internal class ShadowListKitSelection(private val list: ShadowListKitListView) {
   private val selectedKeys = LinkedHashSet<String>()

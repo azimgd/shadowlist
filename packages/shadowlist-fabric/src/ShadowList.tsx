@@ -81,7 +81,7 @@ const EMPTY_NUMBERS: ReadonlyArray<number> = [];
 const PREFETCH_ROWS = 10;
 
 /*
- * FlatList's named deceleration rates.
+ * The named deceleration rates.
  */
 const DECELERATION_RATES = {
   normal: Platform.OS === 'ios' ? 0.998 : 0.985,
@@ -185,8 +185,8 @@ function ShadowListInner<ElementT>(
   const traceRenderStartRef = useRenderTraceStart();
 
   /*
-   * initialScrollIndex only counts on mount, like FlatList. containerOffsetIndex, the older
-   * name, still scrolls whenever it changes and wins when both are set.
+   * initialScrollIndex only counts on mount. containerOffsetIndex scrolls
+   * whenever it changes and wins when both are set.
    */
   const [initialIndex] = useState(initialScrollIndex);
   const containerOffsetIndex =
@@ -306,7 +306,7 @@ function ShadowListInner<ElementT>(
   });
 
   /*
-   * One viewability pair per config, FlatList's single config and callback included.
+   * One viewability pair per config, the single config and callback included.
    */
   const viewabilityPairs = useMemo<
     ReadonlyArray<ViewabilityConfigCallbackPair<ElementT>>
@@ -494,7 +494,7 @@ function ShadowListInner<ElementT>(
   });
 
   /*
-   * extraData rebuilds every mounted row when it changes, like FlatList. The rows compare
+   * extraData rebuilds every mounted row when it changes. The rows compare
    * renderElement, and a new one makes them render again.
    */
   const renderElementWithExtraData = useMemo(
@@ -526,8 +526,8 @@ function ShadowListInner<ElementT>(
   );
 
   /*
-   * Content padding goes around the header and footer, like a ScrollView's content container
-   * around FlatList's. Their own style then sits on a view inside. Without padding it goes on
+   * Content padding goes around the header and footer, like a ScrollView's content container.
+   * Their own style then sits on a view inside. Without padding it goes on
    * the template itself and costs no extra view.
    */
   const headerPadding = useMemo(
@@ -543,7 +543,7 @@ function ShadowListInner<ElementT>(
   /*
    * The separator is inside every row. An inline element would rebuild every mounted
    * row on each caller render. useStableElement keeps the old one while it looks the same.
-   * A separator component renders per row with FlatList's props instead.
+   * A separator component renders per row with its own props instead.
    */
   const SeparatorComponent = separatorComponentOf(ItemSeparatorComponent);
   const separator = useStableElement(

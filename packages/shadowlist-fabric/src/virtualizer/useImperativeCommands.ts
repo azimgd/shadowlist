@@ -48,9 +48,8 @@ function clampViewPosition(viewPosition: number | undefined): number {
 }
 
 /*
- * The ref commands. The positional forms are the list's own, and the object forms are
- * FlatList's. Positional scrollToItem does not animate unless asked, like before. The object
- * forms animate by default, like FlatList.
+ * The ref commands, in positional and object forms. Positional scrollToItem does not animate
+ * unless asked. The object forms animate by default.
  */
 export function useImperativeCommands(
   ref: Ref<ShadowListCommands>,

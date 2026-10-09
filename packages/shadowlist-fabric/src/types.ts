@@ -93,7 +93,7 @@ export interface ViewabilityConfigCallbackPair<ElementT> {
 }
 
 /*
- * What a row can do to the separators next to it, like FlatList's separators. leading is the
+ * What a row can do to the separators next to it. leading is the
  * separator above the row, trailing the one below.
  */
 export interface Separators {

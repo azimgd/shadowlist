@@ -63,7 +63,7 @@ export function nativeTagOf(instance: unknown): number {
 }
 
 /*
- * The key of a row when the list has no keyExtractor, like FlatList: the element's id when
+ * The key of a row when the list has no keyExtractor: the element's id when
  * it is a string or a number, and its index otherwise. An index key belongs to the position,
  * not the row. Rows inserted above the screen then change the keys of the rows on it, and the
  * list cannot keep them still. Give such data a keyExtractor.

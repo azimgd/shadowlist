@@ -714,8 +714,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Inserts, deletes, moves and reloads made in updates land together in one layout and one
-   * animation, the way UITableView takes them: deletes, reloads and move sources are indices in
-   * the data before, inserts and move destinations in the data after. A batch that does not add
+   * animation. Deletes, reloads and move sources are indices in the data before, inserts and
+   * move destinations in the data after. A batch that does not add
    * up reloads everything. completion runs once the change animation ended.
    */
   @JvmOverloads

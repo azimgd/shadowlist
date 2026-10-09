@@ -1165,7 +1165,7 @@ public class ShadowListView extends FrameLayout {
     if (mState == null) {
       return;
     }
-    // The core moves the resting offset by rowOffset. FlatList's viewOffset moves the other way.
+    // The core moves the resting offset by rowOffset. viewOffset moves the other way.
     double rowOffset = Double.isNaN(viewOffset) || Double.isInfinite(viewOffset) ? 0 : -viewOffset;
     issueScrollCommand((double) index, viewPosition, rowOffset, animated);
   }

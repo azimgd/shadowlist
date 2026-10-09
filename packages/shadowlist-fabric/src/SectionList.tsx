@@ -217,7 +217,7 @@ function SectionListInner<ElementT, SectionT = object>(
 
   /*
    * Both separators go inside every row. An inline element would rebuild every mounted
-   * row on each caller render. Separator components render per row with FlatList's props.
+   * row on each caller render. Separator components render per row with their own props.
    */
   const elementSeparator = useStableElement(
     useMemo(

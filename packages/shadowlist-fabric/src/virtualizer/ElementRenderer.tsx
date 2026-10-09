@@ -225,7 +225,7 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
   );
 
   /*
-   * FlatList's separators. Highlighting a row highlights the separators on both sides of it.
+   * The row's separators. Highlighting a row highlights the separators on both sides of it.
    * The one above belongs to the row before.
    */
   const separators = useMemo<Separators>(() => {

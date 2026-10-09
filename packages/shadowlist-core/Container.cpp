@@ -36,8 +36,8 @@ void Container::endRevision() {
 
   /*
    * Start is always row 0 and end the last row, even when inverted.
-   * Don't swap them like FlatList does. In an inverted chat onStartReached would fire at the
-   * bottom, each prepend would re-arm it, and loading earlier messages would loop forever.
+   * Swapping them breaks inverted chats: onStartReached would fire at the bottom, each
+   * prepend would re-arm it, and loading earlier messages would loop forever.
    */
   bool reachedEnd = reachingHighEdge;
   bool reachedStart = reachingLowEdge;
