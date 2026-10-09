@@ -4,15 +4,19 @@
   "description": "List helpers, hooks and React Native list templates for shadowlist.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
+  "react-native": "./src/index.ts",
+  "source": "./src/index.ts",
   "sideEffects": false,
   "exports": {
     ".": {
       "source": "./src/index.ts",
+      "react-native": "./src/index.ts",
       "types": "./lib/typescript/src/index.d.ts",
       "default": "./lib/module/index.js"
     },
     "./native": {
       "source": "./src/native/index.ts",
+      "react-native": "./src/native/index.ts",
       "types": "./lib/typescript/src/native/index.d.ts",
       "default": "./lib/module/native/index.js"
     },
@@ -28,7 +32,8 @@
   ],
   "scripts": {
     "clean": "rm -rf lib",
-    "prepare": "bob build",
+    "build": "bob build",
+    "prepack": "bob build",
     "typecheck": "tsc --noEmit",
     "test": "jest"
   },

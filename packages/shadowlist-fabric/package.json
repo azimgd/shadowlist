@@ -1,7 +1,7 @@
 {
   "name": "shadowlist",
   "version": "0.9.0",
-  "description": "shadowlist",
+  "description": "Virtualized React Native lists for the New Architecture, laid out by a shared C++ core: ShadowList, SectionList, TreeList and DraggableList.",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
   "exports": {
@@ -44,7 +44,12 @@
     "react-native",
     "ios",
     "android",
-    "macos"
+    "macos",
+    "list",
+    "flatlist",
+    "sectionlist",
+    "virtualized-list",
+    "fabric"
   ],
   "repository": {
     "type": "git",
@@ -81,8 +86,8 @@
     "typescript": "^6.0.2"
   },
   "peerDependencies": {
-    "react": ">=18.2.0",
-    "react-native": ">=0.74.0"
+    "react": ">=19.2.0",
+    "react-native": ">=0.83.0"
   },
   "packageManager": "yarn@4.11.0",
   "jest": {
