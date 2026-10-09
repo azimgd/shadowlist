@@ -37,12 +37,10 @@ resolves through `node_modules` like any other, with no path into `templates/` i
 }
 ```
 
-The `react-native` export condition points at the TypeScript source, so Metro bundles the
-source and no `lib/` build is needed. TypeScript does the same with `"customConditions":
-["react-native"]`. The package has no `prepare` script for the same reason: npm installs the link
-without building it, and `build`, which `prepack` runs, makes `lib/` for publishing. Metro has to watch the checkout, which `file:` links outside the app: add
-`../shadowlist/templates/shadowlist-utils` to `watchFolders` and block its own `node_modules`, so
-React and React Native come from the app.
+The `react-native` export condition points at the TypeScript source. Metro bundles the source and
+no `lib/` build is needed. TypeScript does the same with `"customConditions": ["react-native"]`.
+Add `../shadowlist/templates/shadowlist-utils` to Metro's `watchFolders` and block its own
+`node_modules`. React and React Native then come from the app.
 
 ## Quick start
 
@@ -471,7 +469,6 @@ onOpenLink={(url) => (url.startsWith('myapp://trip/') ? openTrip(url) : openUrl(
 - `react` >= 18.2
 - `react-native` >= 0.74
 - The New Architecture (Fabric) is required, because `shadowlist` is a Fabric-only native component.
-- `shadowlist-utils/native` also needs `react-native-gesture-handler`, `react-native-reanimated` and `react-native-safe-area-context`.
 
 ## License
 

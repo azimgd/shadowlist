@@ -34,6 +34,5 @@ iOS reads launch arguments (`-SLRoute Chat`). Android reads intent extras
 - React Native: `SLRoute <screen>`, `SLCount N` (start size), `SLDebug 1` (debug buttons, captions and
   status lines), `SLTheme light|dark`, `SLLatency a,b`, `SLSendFailureRate 0.5`, `SLNetLog 1`, `SLOverscan N`.
   iOS `-SLEngineFlags NO` turns the engine flags off.
-- UIKit and Android kits: `SLRoute`, `SLEngine sl|sl-auto|table|table-auto` (iOS) or
-  `sl|sl-auto|recycler|recycler-auto` (Android), `SLCount`, `SLScenario prepend|append|jump|cost|...`,
-  `SLAutoDrag 1`, `SLBench 1`. See the kit READMEs in `packages/shadowlist-uikit` and `packages/shadowlist-android`.
+- UIKit and Android examples: see the [UIKit kit README](../packages/shadowlist-uikit/README.md#run-it) and the
+  [Android kit README](../packages/shadowlist-android/README.md#run-it).

@@ -1,8 +1,7 @@
 # iOS device trace
 
-Scripted scenarios on a simulator, traced frame by frame, reduced to findings. It answers
-"did the content jump / go blank / stutter, and what did the list do at that moment", which
-neither a screenshot nor a frame-rate number can.
+Scripted scenarios on a simulator, traced frame by frame, reduced to findings: whether the
+content jumped, went blank or stuttered, and what the list did at that moment.
 
 ## Run one
 
@@ -82,8 +81,7 @@ Useful flags: `--window 12.3:12.8` prints the raw lines of that stretch, `--blan
 
 ## Release trace build
 
-Debug JS is several times slower than release, which distorts anything timing-related. Build
-the example in Release with the trace compiled in:
+For anything timing related, build the example in Release with the trace compiled in:
 
 ```sh
 xcodebuild -workspace ShadowListExample.xcworkspace -scheme ShadowListExample \
@@ -93,8 +91,7 @@ xcodebuild -workspace ShadowListExample.xcworkspace -scheme ShadowListExample \
 ```
 
 It keeps `[SLF]`/`[SLJ]` and has no `[SL]` core log unless `SHADOWLIST_DEBUG_LOG=1` joins the
-same override. Its JS is bundled. Metro edits
-do not reach it until the next build.
+same override. Its JS is bundled. Metro edits do not reach it until the next build.
 
 ## Perf suite
 

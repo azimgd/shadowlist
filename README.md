@@ -25,5 +25,5 @@ templates/                          Example apps, demo screens and shadowlist-ut
 
 ## Examples
 
-- Example apps for React Native (iOS, Android, macOS), UIKit and Android live in `templates/`.
-  See `templates/README.md` for how to run each one.
+Example apps for React Native (iOS, Android, macOS), UIKit and Android live in `templates/`.
+See [templates/README.md](templates/README.md) for how to run each one.

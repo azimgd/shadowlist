@@ -2,7 +2,7 @@
 
 React Native Fabric list components on the shared C++ core: `ShadowList`, `SectionList`, `TreeList` and `DraggableList`.
 
-Prop and command names follow the shared words in [docs/code-style.md](https://github.com/azimgd/shadowlist/blob/main/docs/code-style.md#public-api-words). The same concept has the same name on Fabric, UIKit and Android.
+Prop and command names follow the shared words in [docs/code-style.md](https://github.com/azimgd/shadowlist/blob/main/docs/code-style.md#public-api-words).
 
 ## Install
 
@@ -95,7 +95,7 @@ The ref also has `setStartReachedEnabled(enabled)` and `setEndReachedEnabled(ena
 
 ### Scroll commands
 
-`scrollToItem`, `scrollToIndex`, `scrollToEnd` and an animated `scrollToOffset` animate the way the native lists do. The view animates to where the core estimates the row is, then the same command runs without the animation and lands exactly, whatever the rows measure on the way. A finger on the list cancels it. macOS lands right away without the animation. The positional `scrollToItem(index)` does not animate unless asked, as before. `scrollToEnd()` and every object form animate by default, like FlatList.
+`scrollToItem`, `scrollToIndex`, `scrollToEnd` and an animated `scrollToOffset` animate. The view animates to where the core estimates the row is, then the same command runs without the animation and lands exactly, whatever the rows measure on the way. A finger on the list cancels it. macOS lands right away without the animation. The positional `scrollToItem(index)` does not animate unless asked. `scrollToEnd()` and every object form animate by default, like FlatList.
 
 ### Selection, swipe actions and menus
 
