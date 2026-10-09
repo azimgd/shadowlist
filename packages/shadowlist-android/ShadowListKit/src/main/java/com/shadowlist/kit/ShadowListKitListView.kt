@@ -1016,11 +1016,18 @@ open class ShadowListKitListView @JvmOverloads constructor(
       }
     }
     if (!planned) readRowKeys(next)
+    commitKeyChanges(next, reloadedKeys, payload, reloadsSectionIndex = !planned)
+  }
+
+  /*
+   * Take the next keys, then reload the rows of reloadedKeys. Reloaded rows report the change
+   * themselves.
+   */
+  private fun commitKeyChanges(next: ArrayList<String>, reloadedKeys: Set<String>, payload: Any?, reloadsSectionIndex: Boolean) {
     applyRowKeys(next)
-    // Reloaded rows report the change themselves.
     val rows = rowsOfKeys(reloadedKeys)
     if (rows.isNotEmpty()) reloadRows(rows, payload) else structureChanged()
-    if (!planned) reloadSectionIndex()
+    if (reloadsSectionIndex) reloadSectionIndex()
   }
 
   private fun rowsOfKeys(wanted: Set<String>): IntArray {
@@ -1061,10 +1068,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       contentVersions = versions
     }
 
-    applyRowKeys(next)
-    val rows = rowsOfKeys(reloadedKeys)
-    if (rows.isNotEmpty()) reloadRows(rows, null) else structureChanged()
-    reloadSectionIndex()
+    commitKeyChanges(next, reloadedKeys, null, reloadsSectionIndex = true)
 
     var at = 0
     val deleted = IntArray(diff[at]) { diff[at + 1 + it] }
