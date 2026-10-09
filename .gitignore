@@ -44,3 +44,7 @@ DerivedData/
 # Local clangd config
 .clangd
 .clangd.include/
+
+# Swift Package Manager
+.build/
+.swiftpm/

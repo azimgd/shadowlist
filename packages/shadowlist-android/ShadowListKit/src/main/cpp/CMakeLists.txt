@@ -20,6 +20,9 @@ target_include_directories(shadowlistkit PRIVATE ${SHADOWLIST_KIT_CORE_PARENT_DI
 find_library(log-lib log)
 target_link_libraries(shadowlistkit ${log-lib})
 
+# The static C++ runtime stays private to the library. Apps with their own libc++ do not see its symbols.
+target_link_options(shadowlistkit PRIVATE -Wl,--exclude-libs,ALL)
+
 # The layout pass runs on every scroll frame. Optimized builds use -O3. Debug keeps its flags.
 target_compile_options(shadowlistkit PRIVATE -fno-rtti $<$<NOT:$<CONFIG:Debug>>:-O3>)
 

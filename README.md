@@ -11,6 +11,11 @@ Virtualized list for React Native. Layout, virtualization and scroll position li
   React Native Fabric list components: `ShadowList`, `SectionList`, `TreeList` and
   `DraggableList`.
 
+- `ShadowListKit`
+  The list for UIKit ([packages/shadowlist-uikit](packages/shadowlist-uikit)) and Android views
+  ([packages/shadowlist-android](packages/shadowlist-android)), on the same core. Swift Package Manager, CocoaPods,
+  Maven Central and JitPack. [RELEASING.md](RELEASING.md) covers publishing.
+
 ## Repo Layout
 
 ```text

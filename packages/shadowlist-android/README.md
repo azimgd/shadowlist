@@ -1,4 +1,4 @@
-# ShadowListKit for Android (prototype)
+# ShadowListKit for Android
 
 A virtualized list for Android views, written in Kotlin on the shadowlist core in C++. No React
 Native. `ShadowListKitListView` is a `ViewGroup` with a data source. The visible content stays
@@ -88,21 +88,32 @@ The view's own behavior:
 - `animatesChanges`: inserted rows fade in, removed rows fade out where they were, and rows that
   stay slide to their new place.
 
-## Add it to an app
+## Install
 
-There is no Maven artifact yet. Include the Gradle module from a checkout, the way the example's
-`settings.gradle.kts` does:
+Android API 24 or newer and Java 17. The AAR ships `libshadowlistkit.so` with the C++ runtime linked
+statically, aligned for 16 KB pages.
+
+Maven Central:
 
 ```kotlin
-include(":ShadowListKit")
-project(":ShadowListKit").projectDir = file("<repo>/packages/shadowlist-android/ShadowListKit")
+dependencies {
+  implementation("io.github.azimgd:shadowlist-kit:0.9.0")
+}
 ```
 
-The module builds the core from `packages/shadowlist-core` with CMake and the NDK, which needs the
-repo layout around it. It needs Android API 24 or newer and Java 17.
+JitPack, with `maven("https://jitpack.io")` in the repositories:
 
-The core's `[SL]` debug log is off by default. Build with `-PshadowlistDebugLog` to compile it in
-and read it with `adb logcat -s SL`. It prints on every pass.
+```kotlin
+dependencies {
+  implementation("com.github.azimgd.shadowlist:shadowlist-kit:v0.9.0")
+}
+```
+
+The core's `[SL]` debug log is off by default. Build the module from a checkout with `-PshadowlistDebugLog`
+to compile it in and read it with `adb logcat -s SL`. It prints on every pass.
+
+`./gradlew :ShadowListKit:publishToMavenLocal` installs the current checkout as
+`io.github.azimgd:shadowlist-kit` with `VERSION_NAME` from `ShadowListKit/gradle.properties`.
 
 ## Run it
 

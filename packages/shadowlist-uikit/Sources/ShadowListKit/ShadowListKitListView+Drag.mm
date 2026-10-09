@@ -1,5 +1,5 @@
 #import "Internal/ShadowListKitListView+Private.h"
-#import "ShadowListKitListView+Testing.h"
+#import <ShadowListKit/ShadowListKitListView+Testing.h>
 
 #include <cmath>
 #include <vector>

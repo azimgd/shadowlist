@@ -16,9 +16,8 @@ targets:
     type: framework.static
     platform: iOS
     sources:
-      - path: ../../packages/shadowlist-uikit/Sources/ShadowListKit
+      - path: ../../packages/shadowlist-uikit/Sources/ShadowListKit/include/ShadowListKit
         headerVisibility: public
-        excludes: ['*.mm', 'Internal/**']
       - path: ../../packages/shadowlist-uikit/Sources/ShadowListKit/Internal
         headerVisibility: project
       - path: ../../packages/shadowlist-uikit/Sources/ShadowListKit

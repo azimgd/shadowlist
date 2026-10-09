@@ -1,4 +1,4 @@
-# ShadowListKit (prototype)
+# ShadowListKit
 
 A virtualized list for UIKit, written in Objective-C++ on the shadowlist core. No React Native.
 `ShadowListKitListView` is a `UIScrollView` subclass with a UITableView-like data source. The visible
@@ -19,6 +19,7 @@ content stays still while rows are measured, inserted above or removed. Rows hav
 | `ShadowListKitListModels.mm`                                                     | `ShadowListKitSwipeAction`, `ShadowListKitAnchorState`, `ShadowListKitListChanges`, `ShadowListKitDefaultItemAnimator`. |
 | `ShadowListKitChangeAnimator.mm`                                                 | Works out what `animatesChanges` animates and hands it to the `itemAnimator`.                                           |
 | `ShadowListKitSectionIndexView.mm`                                               | The section index along the trailing edge.                                                                              |
+| `include/ShadowListKit/*.h`                                                      | The public headers, Objective-C without C++.                                                                            |
 | `Internal/*.h`                                                                   | State the list shares with its drag category and the change animator. Not public headers.                               |
 | `ShadowListKitText.{h,mm}`                                                       | Precomputed text layout and drawing.                                                                                    |
 
@@ -73,21 +74,28 @@ The header, `ShadowListKitListView.h`, documents every member.
 Masonry stays round robin. A shortest column layout would move rows between columns whenever an earlier row is
 measured, which breaks keeping the visible rows still. Full width rows in a grid are not supported: the core places
 row `i` in column `i % numberOfColumns`, and its visible row search, reflow, anchoring and drag all rely on that.
-Accessibility rotor support is not in the prototype.
+Accessibility rotor support is not there yet.
 
-## Add it to an app
+## Install
 
-There is no CocoaPods spec or Swift package yet. Build a static framework target the way the example's
-`project.yml` does:
+iOS 16 or newer.
 
-- Compile `Sources/ShadowListKit/*.mm` and `packages/shadowlist-core/*.cpp` and `host/*.cpp` into it.
-- Make the headers in `Sources/ShadowListKit` public and keep `Internal/` project only.
-- Add `packages` to `HEADER_SEARCH_PATHS`, because the core includes itself as `<shadowlist-core/...>`.
-- Use C++20 (`CLANG_CXX_LANGUAGE_STANDARD = c++20`) and ARC, and set `DEFINES_MODULE` for Swift.
-- The core's `[SL]` debug log is off by default. To read it while debugging the kit, add `SHADOWLIST_DEBUG_LOG=1`
-  to `GCC_PREPROCESSOR_DEFINITIONS`. It prints on every pass. The example's `build.sh` does this when run with
-  `SHADOWLIST_DEBUG_LOG=1` in its environment.
-- Link the app with `-ObjC -lc++`. iOS 16 or newer.
+Swift Package Manager: add `https://github.com/azimgd/shadowlist` and the `ShadowListKit` product.
+
+```swift
+.package(url: "https://github.com/azimgd/shadowlist", from: "0.9.0")
+```
+
+CocoaPods:
+
+```ruby
+pod 'ShadowListKit', '~> 0.9'
+```
+
+Then `import ShadowListKit` in Swift, or `#import <ShadowListKit/ShadowListKit.h>` in Objective-C.
+
+The core's `[SL]` debug log is off by default. The example's `build.sh` compiles it in when run with
+`SHADOWLIST_DEBUG_LOG=1`. It prints on every pass.
 
 ## Run it
 

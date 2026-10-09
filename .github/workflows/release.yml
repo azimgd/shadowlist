@@ -1,0 +1,101 @@
+name: Release kits
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Publishes the native kits for a version tag. The npm package keeps its own release flow.
+# Each publish step runs only when its secrets exist and otherwise skips with a notice.
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # The tag, the npm package, the podspec (which reads package.json) and the Android kit share one version.
+      - name: Check the versions match the tag
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          NPM=$(node -p "require('./packages/shadowlist-fabric/package.json').version")
+          GRADLE=$(sed -n 's/^VERSION_NAME=//p' packages/shadowlist-android/ShadowListKit/gradle.properties)
+          echo "tag $TAG, npm $NPM, gradle $GRADLE"
+          if [ "$TAG" != "$NPM" ] || [ "$TAG" != "$GRADLE" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json ($NPM) and VERSION_NAME ($GRADLE)"
+            exit 1
+          fi
+
+  ios:
+    needs: check-version
+    runs-on: macos-15
+    env:
+      COCOAPODS_TRUNK_TOKEN: ${{ secrets.COCOAPODS_TRUNK_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      # SwiftPM resolves the tag straight from GitHub. This checks the package builds for it.
+      - name: Build ShadowListKit with SwiftPM
+        run: >-
+          xcodebuild -scheme ShadowListKit
+          -destination 'generic/platform=iOS'
+          CODE_SIGNING_ALLOWED=NO build
+
+      - name: Lint the podspec
+        run: pod lib lint ShadowListKit.podspec --allow-warnings
+
+      - name: Push to CocoaPods trunk
+        run: |
+          if [ -z "$COCOAPODS_TRUNK_TOKEN" ]; then
+            echo "::notice::COCOAPODS_TRUNK_TOKEN is not set. Skipping pod trunk push."
+            exit 0
+          fi
+          pod trunk push ShadowListKit.podspec --allow-warnings
+
+  android:
+    needs: check-version
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/shadowlist-android
+    env:
+      MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+      MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+      SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+      SIGNING_KEY_ID: ${{ secrets.SIGNING_KEY_ID }}
+      SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Finalize Android SDK
+        run: |
+          /bin/bash -c "yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null"
+
+      - name: Build ShadowListKit
+        run: ./gradlew --no-daemon --console=plain :ShadowListKit:assembleRelease
+
+      - name: Publish to Maven Central
+        run: |
+          if [ -z "$MAVEN_CENTRAL_USERNAME" ] || [ -z "$MAVEN_CENTRAL_PASSWORD" ] || [ -z "$SIGNING_KEY" ]; then
+            echo "::notice::MAVEN_CENTRAL_USERNAME, MAVEN_CENTRAL_PASSWORD or SIGNING_KEY is not set. Skipping Maven Central."
+            exit 0
+          fi
+          export ORG_GRADLE_PROJECT_mavenCentralUsername="$MAVEN_CENTRAL_USERNAME"
+          export ORG_GRADLE_PROJECT_mavenCentralPassword="$MAVEN_CENTRAL_PASSWORD"
+          export ORG_GRADLE_PROJECT_signingInMemoryKey="$SIGNING_KEY"
+          # The key id is optional, and a key without a passphrase needs no password.
+          if [ -n "$SIGNING_KEY_ID" ]; then export ORG_GRADLE_PROJECT_signingInMemoryKeyId="$SIGNING_KEY_ID"; fi
+          if [ -n "$SIGNING_KEY_PASSWORD" ]; then export ORG_GRADLE_PROJECT_signingInMemoryKeyPassword="$SIGNING_KEY_PASSWORD"; fi
+          ./gradlew --no-daemon --console=plain :ShadowListKit:publishAndReleaseToMavenCentral

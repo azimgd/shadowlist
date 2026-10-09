@@ -1,4 +1,4 @@
-#import "ShadowListKitText.h"
+#import <ShadowListKit/ShadowListKitText.h>
 
 #import <CoreText/CoreText.h>
 
