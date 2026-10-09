@@ -55,6 +55,15 @@ public class ShadowListScrollEvent extends Event<ShadowListScrollEvent> {
     return mEventName;
   }
 
+  /*
+   * Each drag and momentum event is a discrete edge, like React Native's own. A merged
+   * one would drop a begin or an end that JS pairs with its partner.
+   */
+  @Override
+  public boolean canCoalesce() {
+    return false;
+  }
+
   @Nullable
   @Override
   protected WritableMap getEventData() {

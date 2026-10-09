@@ -111,15 +111,6 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeDestroy)(JNIEnv*, jclass, jlong 
   delete peerOf(handle);
 }
 
-JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeReset)(JNIEnv*, jclass, jlong handle, jboolean horizontal) {
-  Peer* peer = peerOf(handle);
-  peer->sync.reset();
-  peer->sync.setHorizontal(horizontal == JNI_TRUE);
-  peer->liveHandle = 0;
-  peer->liveScroll = nullptr;
-  peer->action = {};
-}
-
 JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeSetHorizontal)(JNIEnv*, jclass, jlong handle, jboolean horizontal) {
   peerOf(handle)->sync.setHorizontal(horizontal == JNI_TRUE);
 }
@@ -145,7 +136,6 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeBeginMount)(
   jdouble bandHigh) {
   Peer* peer = peerOf(handle);
   // The registry lookup takes a lock. Only look the list up again when it changed.
-
   if (liveHandle != peer->liveHandle || !peer->liveScroll) {
     peer->liveHandle = liveHandle;
     peer->liveScroll = liveHandle != 0 ? sl::LiveScroll::find(liveHandle) : nullptr;

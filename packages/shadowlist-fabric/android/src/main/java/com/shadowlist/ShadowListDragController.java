@@ -13,6 +13,8 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.uimanager.PixelUtil;
 import com.facebook.react.uimanager.StateWrapper;
 
+import java.util.Arrays;
+
 /*
  * Long press drag to reorder. The held row follows the finger, the list scrolls near the
  * edges and the other rows slide to open a gap. The data order only changes once, on drop.
@@ -646,7 +648,16 @@ class ShadowListDragController {
     mDraggedView = null;
     mDragDropPending = false;
     mDroppedView = null;
+    releaseCollectedRows();
     mView.setInnerScrollEnabled(true);
     clearDragTransforms();
+  }
+
+  /*
+   * Let go of the rows the last drag frame collected. A dropped list must not keep them alive.
+   */
+  private void releaseCollectedRows() {
+    Arrays.fill(mRowViews, 0, mRowCount, null);
+    mRowCount = 0;
   }
 }

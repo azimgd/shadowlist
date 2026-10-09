@@ -151,7 +151,15 @@ JNIEXPORT void JNICALL SL_SWIPE_JNI(nativeButtonSpans)(
   jboolean full,
   jdouble crossSize,
   jdoubleArray out) {
-  std::size_t buttons = static_cast<std::size_t>(std::max(count, 0));
+  if (out == nullptr) {
+    return;
+  }
+  /*
+   * A count past the sizes array would leave an exception pending, and no JNI call but a
+   * few may follow one. Read only what the array holds.
+   */
+  jsize available = sizes != nullptr ? env->GetArrayLength(sizes) : 0;
+  std::size_t buttons = static_cast<std::size_t>(std::clamp<jint>(count, 0, available));
   std::vector<double> values(buttons);
   if (buttons > 0) {
     env->GetDoubleArrayRegion(sizes, 0, static_cast<jsize>(buttons), values.data());

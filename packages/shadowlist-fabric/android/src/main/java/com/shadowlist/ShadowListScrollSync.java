@@ -70,8 +70,8 @@ final class ShadowListScrollSync {
   }
 
   /*
-   * Free the native peer. The next call creates a fresh one, the same as reset(). The view
-   * calls this when Fabric drops it.
+   * Free the native peer. The next call creates a fresh one. The view calls this when Fabric
+   * drops it.
    */
   void destroy() {
     if (mHandle == 0) {
@@ -89,13 +89,6 @@ final class ShadowListScrollSync {
       nativeSetHorizontal(mHandle, mHorizontal);
     }
     return mHandle;
-  }
-
-  void reset(boolean horizontal) {
-    mHorizontal = horizontal;
-    if (mHandle != 0) {
-      nativeReset(mHandle, horizontal);
-    }
   }
 
   void setHorizontal(boolean horizontal) {
@@ -283,7 +276,6 @@ final class ShadowListScrollSync {
 
   private static native long nativeCreate(double landingTolerance);
   private static native void nativeDestroy(long handle);
-  private static native void nativeReset(long handle, boolean horizontal);
   private static native void nativeSetHorizontal(long handle, boolean horizontal);
   private static native void nativeBeginMount(
     long handle,
