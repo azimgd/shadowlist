@@ -40,6 +40,8 @@ android {
   defaultConfig {
     minSdkVersion getExtOrDefault("minSdkVersion")
     targetSdkVersion getExtOrDefault("targetSdkVersion")
+    // -PshadowlistDebugLog turns on the Java [SL] trace, read with adb logcat -s SL.
+    buildConfigField "boolean", "SHADOWLIST_DEBUG_LOG", project.hasProperty("shadowlistDebugLog") ? "true" : "false"
   }
 
   buildFeatures {

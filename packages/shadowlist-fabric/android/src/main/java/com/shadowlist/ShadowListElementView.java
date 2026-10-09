@@ -607,10 +607,6 @@ public class ShadowListElementView extends ViewGroup {
     updateAccessibilityActions();
   }
 
-  boolean hasContextMenu() {
-    return actionCount(mContextMenuActions) > 0;
-  }
-
   /*
    * Show the row's menu for a long press. Returns whether there was one. PopupMenu has no
    * header and the title is not shown.

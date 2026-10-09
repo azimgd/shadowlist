@@ -43,8 +43,8 @@ import java.util.HashMap;
  * which use the accessors at the bottom.
  */
 public class ShadowListView extends FrameLayout {
-  // Trace logging for state sync. Filter with adb logcat -s SL
-  static final boolean DEBUG_LOG = false;
+  // Trace logging for state sync, on with -PshadowlistDebugLog. Filter with adb logcat -s SL
+  static final boolean DEBUG_LOG = BuildConfig.SHADOWLIST_DEBUG_LOG;
   private static final String LOG_TAG = "SL";
 
   static void slLog(String message) {
