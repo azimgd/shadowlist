@@ -122,6 +122,76 @@ public:
 
 private:
   /*
+   * A template child and where it sits in the children, or no node when it isn't mounted.
+   * Raw pointers are fine, the children keep them alive for the whole pass.
+   */
+  struct TemplateSlot {
+    const YogaLayoutableShadowNode* node = nullptr;
+    std::size_t childIndex = 0;
+  };
+
+  /*
+   * Sort the children once. Rows keep their current core index and their layoutable node so
+   * the passes below don't repeat the casts or the key lookup.
+   */
+  struct MountedElement {
+    std::size_t childIndex;
+    std::size_t elementIndex;
+    const YogaLayoutableShadowNode* node;
+  };
+
+  /*
+   * The templates, their sizes along the scroll axis and the mounted rows of one layout pass.
+   */
+  struct LayoutSlots {
+    TemplateSlot headerSlot;
+    TemplateSlot footerSlot;
+    /*
+     * The SectionList sticky header overlay, an always mounted template showing the current
+     * section's header. It floats over the content and takes no list space, and the platform pins it.
+     */
+    TemplateSlot sectionHeaderSlot;
+    /*
+     * Separate from headerSlot because an empty list mounts both the header and the empty
+     * template, and sharing one slot would overwrite the real header.
+     */
+    TemplateSlot emptySlot;
+    double headerSize = 0.0;
+    double footerSize = 0.0;
+    std::vector<MountedElement> mountedElements;
+  };
+
+  /*
+   * Sorts the children into slots, then writes the header, footer and window sizes and every
+   * mounted row's size into the core.
+   */
+  void measureChildren(azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots);
+
+  /*
+   * Moves each mounted row to the core's frame, hiding or showing unsettled rows.
+   */
+  void placeElements(
+    azimgd::shadowlist::Container& core,
+    const std::vector<MountedElement>& mountedElements,
+    bool horizontal,
+    LayoutContext& layoutContext);
+
+  /*
+   * Moves the header, empty, footer and section header templates along the scroll axis.
+   */
+  void placeTemplates(
+    azimgd::shadowlist::Container& core,
+    const LayoutSlots& slots,
+    bool horizontal,
+    LayoutContext& layoutContext);
+
+  /*
+   * Writes a new state when the offset, sizes, sticky or snap geometry, hidden rows, band or
+   * animation estimate changed, and reports a new content size to JS.
+   */
+  void publishLayoutState(azimgd::shadowlist::Container& core, double headerSize, double footerSize);
+
+  /*
    * Whether this node's Yoga node owns the child. Only a child cloned or adopted for this
    * very node is owned. It belongs to this commit alone and no other tree shares it.
    * Yoga writes layout metrics into owned children in place, and so can we.

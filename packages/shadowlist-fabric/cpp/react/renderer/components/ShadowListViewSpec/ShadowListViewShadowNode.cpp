@@ -132,42 +132,18 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    * for everything in it afterward. Never clear it, or other nodes lose their onLayout.
    * It can also be null. Check it before use like the rest of the framework does.
    */
-
-  /*
-   * A template child and where it sits in the children, or no node when it isn't mounted.
-   * Raw pointers are fine, the children keep them alive for the whole pass.
-   */
-  struct TemplateSlot {
-    const YogaLayoutableShadowNode* node = nullptr;
-    std::size_t childIndex = 0;
-  };
-  TemplateSlot headerSlot;
-  TemplateSlot footerSlot;
-  /*
-   * The SectionList sticky header overlay, an always mounted template showing the current
-   * section's header. It floats over the content and takes no list space, and the platform pins it.
-   */
-  TemplateSlot sectionHeaderSlot;
-  /*
-   * Separate from headerSlot because an empty list mounts both the header and the empty
-   * template, and sharing one slot would overwrite the real header.
-   */
-  TemplateSlot emptySlot;
-  double headerSize = 0.0;
-  double footerSize = 0.0;
   bool horizontal = getConcreteProps().horizontal;
+  LayoutSlots slots;
+  measureChildren(core, horizontal, slots);
+  placeElements(core, slots.mountedElements, horizontal, layoutContext);
+  placeTemplates(core, slots, horizontal, layoutContext);
+  publishLayoutState(core, slots.headerSize, slots.footerSize);
 
-  /*
-   * Sort the children once. Rows keep their current core index and their layoutable node so
-   * the passes below don't repeat the casts or the key lookup.
-   */
-  struct MountedElement {
-    std::size_t childIndex;
-    std::size_t elementIndex;
-    const YogaLayoutableShadowNode* node;
-  };
-  std::vector<MountedElement> mountedElements;
-  mountedElements.reserve(getChildren().size());
+  this->firstMeasuredTags_.clear();
+}
+
+void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots) {
+  slots.mountedElements.reserve(getChildren().size());
   std::vector<azimgd::shadowlist::MeasuredRow> measuredRows;
   measuredRows.reserve(getChildren().size());
 
@@ -184,7 +160,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
         : core.findElementIndexByKey(elementViewProps->elementKey);
       const auto elementViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(child.get());
       if (elementViewNode != nullptr && elementIndex < core.getElementsSize()) {
-        mountedElements.push_back({childIndex, elementIndex, elementViewNode});
+        slots.mountedElements.push_back({childIndex, elementIndex, elementViewNode});
         const auto& measuredSize = elementViewNode->getLayoutMetrics().frame.size;
         measuredRows.push_back({elementIndex, measuredSize.width, measuredSize.height,
           static_cast<std::uint64_t>(elementViewNode->getTag())});
@@ -200,28 +176,34 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
       const auto& templateFrameSize = templateViewNode->getLayoutMetrics().frame.size;
       const auto templateViewNodeSize = horizontal ? templateFrameSize.width : templateFrameSize.height;
       if (templateProps->templateType == "sectionHeader") {
-        sectionHeaderSlot = {templateViewNode, childIndex};
+        slots.sectionHeaderSlot = {templateViewNode, childIndex};
       } else if (templateProps->templateType == "header") {
-        headerSlot = {templateViewNode, childIndex};
-        headerSize = templateViewNodeSize;
+        slots.headerSlot = {templateViewNode, childIndex};
+        slots.headerSize = templateViewNodeSize;
       } else if (templateProps->templateType == "empty") {
-        emptySlot = {templateViewNode, childIndex};
+        slots.emptySlot = {templateViewNode, childIndex};
       } else if (templateProps->templateType == "footer") {
-        footerSlot = {templateViewNode, childIndex};
-        footerSize = templateViewNodeSize;
+        slots.footerSlot = {templateViewNode, childIndex};
+        slots.footerSize = templateViewNodeSize;
       }
     }
   }
 
   // Header, footer and window into the core, then every mounted row's size in one reflow.
   const auto& windowFrameSize = getLayoutMetrics().frame.size;
-  azimgd::shadowlist::applyLayoutInputs(core, headerSize, footerSize, windowFrameSize.width, windowFrameSize.height);
+  azimgd::shadowlist::applyLayoutInputs(core, slots.headerSize, slots.footerSize, windowFrameSize.width, windowFrameSize.height);
   std::vector<std::uint64_t> firstMeasured;
   azimgd::shadowlist::applyMeasuredRows(core, measuredRows, horizontal, firstMeasured);
   for (auto tag : firstMeasured) {
     this->firstMeasuredTags_.push_back(static_cast<Tag>(tag));
   }
+}
 
+void ShadowListViewShadowNode::placeElements(
+  azimgd::shadowlist::Container& core,
+  const std::vector<MountedElement>& mountedElements,
+  bool horizontal,
+  LayoutContext& layoutContext) {
   auto& geometry = *this->geometryCache_;
   auto& concealed = geometry.concealedRows;
 
@@ -311,9 +293,15 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
 
   // Forget hidden rows that are no longer mounted.
   concealed.forgetExcept(stillConcealedTags);
+}
 
+void ShadowListViewShadowNode::placeTemplates(
+  azimgd::shadowlist::Container& core,
+  const LayoutSlots& slots,
+  bool horizontal,
+  LayoutContext& layoutContext) {
   // Move a template along the scroll axis, only if it actually moved, same as the rows.
-  auto templates = azimgd::shadowlist::templateOffsets(core, headerSize, footerSize);
+  auto templates = azimgd::shadowlist::templateOffsets(core, slots.headerSize, slots.footerSize);
   auto placeTemplate = [&](const TemplateSlot& slot, double offset) {
     if (slot.node == nullptr) {
       return;
@@ -335,10 +323,15 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
    * A sticky header is pinned natively while scrolling, because commits are too slow to
    * follow the scroll smoothly. The same goes for the section header overlay.
    */
-  placeTemplate(headerSlot, templates.header);
-  placeTemplate(emptySlot, templates.empty);
-  placeTemplate(footerSlot, templates.footer);
-  placeTemplate(sectionHeaderSlot, templates.sectionHeader);
+  placeTemplate(slots.headerSlot, templates.header);
+  placeTemplate(slots.emptySlot, templates.empty);
+  placeTemplate(slots.footerSlot, templates.footer);
+  placeTemplate(slots.sectionHeaderSlot, templates.sectionHeader);
+}
+
+void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container& core, double headerSize, double footerSize) {
+  auto& geometry = *this->geometryCache_;
+  auto& concealed = geometry.concealedRows;
 
   /*
    * Work out what to publish. The core decides if the content size changed and if it wants
@@ -420,9 +413,8 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
     event.height = contentHeight;
     getConcreteEventEmitter().onContentSizeChange(event);
   }
-
-  this->firstMeasuredTags_.clear();
 }
+
 
 void ShadowListViewShadowNode::replaceChild(
   const ShadowNode& previousElementShadowNode,
