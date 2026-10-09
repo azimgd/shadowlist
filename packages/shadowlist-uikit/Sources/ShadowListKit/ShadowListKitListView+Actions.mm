@@ -148,6 +148,12 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
 {
   if (!_swipePan) {
     _swipePan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipePan:)];
+    /*
+     * The list decides in gestureRecognizerShouldBegin whether a pan swipes a row. UIKit asks
+     * it only through the delegate. Without one the pan began on vertical drags too and the
+     * scroll view never scrolled.
+     */
+    _swipePan.delegate = (id<UIGestureRecognizerDelegate>)self;
     [self addGestureRecognizer:_swipePan];
   }
   BOOL menus = [_userDelegate respondsToSelector:@selector(listView:contextMenuForItemAtIndex:)];
