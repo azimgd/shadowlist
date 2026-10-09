@@ -16,7 +16,6 @@ import android.view.HapticFeedbackConstants
 import android.view.Menu
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -284,12 +283,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
   var allowsSelection = true
     set(value) {
       field = value
-      if (!value) clearSelection()
+      if (!value) selection.clear()
     }
   var allowsMultipleSelection = false
     set(value) {
       field = value
-      if (!value && selectedKeys.size > 1) clearSelection()
+      if (!value && selection.count > 1) selection.clear()
     }
 
   /*
@@ -351,9 +350,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal val changes = ShadowListKitChangeAnimator(this)
   private val gesture = ShadowListKitScrollGesture(this)
   private val drag = ShadowListKitDragController(this)
-  private val swipe = ShadowListKitSwipeController(this)
+  internal val swipe = ShadowListKitSwipeController(this)
   internal val refresh = ShadowListKitRefreshIndicator(this)
   private val sectionIndex = ShadowListKitSectionIndex(this)
+  internal val selection = ShadowListKitSelection(this)
 
   private val data = ShadowListKitListData(this)
 
@@ -444,16 +444,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var reachedStart = false
   private var reachedEnd = false
 
-  /*
-   * Selected rows by key. The same rules as the core's ListSelection the UIKit list uses, kept
-   * here because the selection outlives the core, which is dropped on detach.
-   */
-  private val selectedKeys = LinkedHashSet<String>()
   private var editingState = false
-  private var highlightedCell: ShadowListKitListCell? = null
-  private val highlightRunnable = Runnable { highlightPending() }
-  private var highlightX = 0f
-  private var highlightY = 0f
 
   private var pendingAnchor: ShadowListKitAnchorState? = null
   private val decorations = ArrayList<ShadowListKitItemDecoration>()
@@ -476,7 +467,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     drag.end(false)
     swipe.close(false)
     swipe.releaseTracker()
-    cancelHighlight()
+    selection.cancelHighlight()
     destroyCore()
   }
 
@@ -753,7 +744,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     // An open row closes. One swiped all the way stays out while its removal runs.
     swipe.cell?.let { if (!swipe.isSwipedOut(it)) swipe.close(false) }
     if (stickyIndices.isNotEmpty() || stickySectionHeaders) updateStickyRows()
-    if (selectedKeys.isNotEmpty()) selectedKeys.retainAll(HashSet(keys))
+    selection.dropRemovedKeys(keys)
     restorePendingAnchor()
     invalidateFrame()
   }
@@ -1115,7 +1106,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * A cell coming on screen shows its row's selection and the list's editing state.
    */
   private fun applyState(cell: ShadowListKitListCell, key: String) {
-    val selected = cell.index >= 0 && key in selectedKeys
+    val selected = cell.index >= 0 && selection.isSelected(key)
     if (cell.isSelected != selected) cell.setSelected(selected, false)
     if (cell.editing != editingState) cell.setEditing(editingState, false)
   }
@@ -1423,7 +1414,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal fun handleTap(x: Float, y: Float) {
     if (swipe.isOpen || swipe.closingTouch || hasHeldRow) return
     val cell = itemCellAt(x, y) ?: return
-    if (allowsSelection) userSelected(cell)
+    if (allowsSelection) selection.userSelected(cell)
   }
 
   /*
@@ -1445,92 +1436,14 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   // region Selection
 
-  /*
-   * A tap on a row. Multiple selection toggles it, single selection moves to it. The rules of
-   * the core's ListSelection.tap, see selection_tap_selects_moves_and_toggles. The selection
-   * stays here because every cell bind reads it.
-   */
-  private fun userSelected(cell: ShadowListKitListCell) {
-    val index = cell.index
-    val key = keys.getOrNull(cell.row) ?: return
-    if (allowsMultipleSelection && key in selectedKeys) {
-      selectedKeys.remove(key)
-      cell.setSelected(false, true)
-      delegate?.didDeselectItem(this, index)
-      return
-    }
-    if (delegate?.shouldSelectItem(this, index) == false) return
-    if (!allowsMultipleSelection) {
-      for (previous in selectedKeys.toList()) {
-        if (previous == key) continue
-        selectedKeys.remove(previous)
-        mounted[previous]?.setSelected(false, true)
-        val previousIndex = keys.indexOf(previous).let(::itemForRow)
-        if (previousIndex >= 0) delegate?.didDeselectItem(this, previousIndex)
-      }
-    }
-    selectedKeys.add(key)
-    if (!cell.isSelected) cell.setSelected(true, true)
-    delegate?.didSelectItem(this, index)
-  }
-
-  val selectedIndices: IntArray
-    get() {
-      if (selectedKeys.isEmpty()) return IntArray(0)
-      val items = ArrayList<Int>()
-      for ((row, key) in keys.withIndex()) {
-        if (key in selectedKeys) itemForRow(row).takeIf { it >= 0 }?.let(items::add)
-      }
-      return items.toIntArray()
-    }
+  val selectedIndices: IntArray get() = selection.selectedIndices
 
   /*
    * Select an item without delegate calls.
    */
-  fun selectItem(index: Int, animated: Boolean = false) {
-    val key = keys.getOrNull(rowForItem(index)) ?: return
-    if (!allowsSelection) return
-    if (!allowsMultipleSelection) {
-      for (previous in selectedKeys) if (previous != key) mounted[previous]?.setSelected(false, animated)
-      selectedKeys.clear()
-    }
-    selectedKeys.add(key)
-    mounted[key]?.let { if (!it.isSelected) it.setSelected(true, animated) }
-  }
+  fun selectItem(index: Int, animated: Boolean = false) = selection.selectItem(index, animated)
 
-  fun deselectItem(index: Int, animated: Boolean = false) {
-    val key = keys.getOrNull(rowForItem(index)) ?: return
-    if (selectedKeys.remove(key)) mounted[key]?.setSelected(false, animated)
-  }
-
-  private fun clearSelection() {
-    for (key in selectedKeys) mounted[key]?.setSelected(false, false)
-    selectedKeys.clear()
-  }
-
-  /*
-   * A finger resting on a selectable row highlights it after the tap timeout, unless it moves.
-   */
-  internal fun highlightDown(x: Float, y: Float) {
-    cancelHighlight()
-    if (!allowsSelection || hasHeldRow || swipe.isOpen || swipe.closingTouch) return
-    highlightX = x
-    highlightY = y
-    postDelayed(highlightRunnable, ViewConfiguration.getTapTimeout().toLong())
-  }
-
-  private fun highlightPending() {
-    val cell = itemCellAt(highlightX, highlightY) ?: return
-    if (delegate?.shouldHighlightItem(this, cell.index) == false) return
-    cell.setHighlighted(true, false)
-    highlightedCell = cell
-  }
-
-  internal fun cancelHighlight() {
-    removeCallbacks(highlightRunnable)
-    highlightedCell?.let { if (it.highlighted) it.setHighlighted(false, true) }
-    highlightedCell = null
-  }
+  fun deselectItem(index: Int, animated: Boolean = false) = selection.deselectItem(index, animated)
 
   // endregion
 
@@ -1561,7 +1474,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal fun abandonScrollGesture() {
     gesture.abandon()
     drag.cancelPress()
-    cancelHighlight()
+    selection.cancelHighlight()
   }
 
   /*
@@ -1590,7 +1503,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * A finger started moving the list. The highlight goes and an open row closes.
    */
   internal fun scrollTrackingStarted() {
-    cancelHighlight()
+    selection.cancelHighlight()
     drag.cancelPress()
     if (swipe.isOpen) swipe.close(true)
   }

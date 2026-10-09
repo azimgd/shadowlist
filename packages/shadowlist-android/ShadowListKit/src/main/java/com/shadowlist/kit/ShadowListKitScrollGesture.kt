@@ -85,19 +85,19 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
         downY = event.y
         moved = false
         caughtScroll = isFlinging || isAnimating
-        if (!caughtScroll) list.highlightDown(event.x, event.y)
+        if (!caughtScroll) list.selection.highlightDown(event.x, event.y)
       }
       MotionEvent.ACTION_MOVE -> {
         if (!moved && (abs(event.x - downX) > touchSlop || abs(event.y - downY) > touchSlop)) {
           moved = true
-          list.cancelHighlight()
+          list.selection.cancelHighlight()
         }
       }
       MotionEvent.ACTION_UP -> {
         if (!moved && !caughtScroll && !isTracking) list.handleTap(event.x, event.y)
-        list.cancelHighlight()
+        list.selection.cancelHighlight()
       }
-      MotionEvent.ACTION_CANCEL -> list.cancelHighlight()
+      MotionEvent.ACTION_CANCEL -> list.selection.cancelHighlight()
     }
   }
 

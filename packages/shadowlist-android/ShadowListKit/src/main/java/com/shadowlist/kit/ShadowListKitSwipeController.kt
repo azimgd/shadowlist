@@ -89,7 +89,7 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
     if (list.itemCellAt(event.x, event.y) !== open) {
       close(true)
       closingTouch = true
-      list.cancelHighlight()
+      list.selection.cancelHighlight()
     }
     return false
   }
