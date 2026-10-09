@@ -26,7 +26,8 @@ static const NSTimeInterval SL_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000.
  */
 static UIColor *SLColorFromProcessedColor(double color)
 {
-  uint32_t argb = (uint32_t)(int64_t)color;
+  // Casting a non finite double to an integer is undefined. Treat it as transparent.
+  uint32_t argb = std::isfinite(color) ? (uint32_t)(int64_t)color : 0;
   return [UIColor colorWithRed:((argb >> 16) & 0xFF) / 255.0
                          green:((argb >> 8) & 0xFF) / 255.0
                           blue:(argb & 0xFF) / 255.0

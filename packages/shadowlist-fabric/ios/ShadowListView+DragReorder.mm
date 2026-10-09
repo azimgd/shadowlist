@@ -202,6 +202,8 @@ static NSInteger SLViewIndex(std::size_t index)
   NSString *originKey = SLDragKey(_drag.getOriginKey());
   [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_START fromKey:originKey toKey:originKey];
 
+  // A scripted pickup can arrive while a drag runs. Its old link would keep this view alive.
+  [_dragDisplayLink invalidate];
   _dragDisplayLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
@@ -365,6 +367,7 @@ static NSInteger SLViewIndex(std::size_t index)
   [view.layer addAnimation:settle forKey:@"transform"];
   [CATransaction commit];
 #else
+  __weak ShadowListView *weakSelf = self;
   [UIView animateWithDuration:0.18
                         delay:0.0
                       options:UIViewAnimationOptionCurveEaseOut
@@ -372,6 +375,14 @@ static NSInteger SLViewIndex(std::size_t index)
                      view.transform = CGAffineTransformIdentity;
                    }
                    completion:^(BOOL finished) {
+                     /*
+                      * A new pickup of the same row cancels this animation. The completion
+                      * then runs after the lift and must not clear the new shadow.
+                      */
+                     ShadowListView *strongSelf = weakSelf;
+                     if (strongSelf && strongSelf->_dragging && strongSelf->_draggedView == view) {
+                       return;
+                     }
                      view.layer.shadowOpacity = 0.0;
                      view.layer.shadowPath = nil;
                    }];
@@ -576,7 +587,6 @@ static NSInteger SLViewIndex(std::size_t index)
 /*
  * Swap the row with the nearest mounted row above or below. It goes through the same
  * path as a real drop. onDragEnd and useDragReorder handle it as usual.
-
  */
 - (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up
 {
