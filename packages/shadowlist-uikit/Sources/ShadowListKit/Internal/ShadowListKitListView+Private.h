@@ -3,15 +3,18 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
 #include <shadowlist-core/host/ListSelection.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
 #import "ShadowListKitListCell+Private.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
+@class ShadowListKitChangeAnimator;
 @class ShadowListKitSwipeActionsView;
 @class ShadowListKitRowAccessibilityElement;
 @class ShadowListKitSectionIndexView;
@@ -56,6 +59,13 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
  * mountedCellForKey: is the mounted cell of a key, or nil. itemsOfRows: is the items among rows.
  * _pendingAnchor is a saved position waiting for its key. contentOffsetAt: is the content offset
  * of an offset along the axis. invalidateFrame runs the core on the next layout pass.
+ * _changes animates data changes and _itemAnimator runs its animations. _structureVersion counts
+ * data changes, and a mount pass runs again after one. _inLayoutSubviews is set while UIKit lays
+ * the list out. A data change made then, like rows added from the reached callbacks, runs in the
+ * layout UIKit already has pending. _sizesFromDataSource is whether the data source gives sizes,
+ * read again on every reload. _batch* holds the changes performBatchUpdates:completion: collects
+ * until its block returns. _contentVersions is the content version of every item applyChanges
+ * saw, by key.
  */
 @interface ShadowListKitListView () <UIScrollViewDelegate> {
  @package
@@ -101,6 +111,17 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
   __weak ShadowListKitListCell *_highlightedCell;
 
   ShadowListKitAnchorState *_pendingAnchor;
+
+  ShadowListKitChangeAnimator *_changes;
+  id<ShadowListKitItemAnimator> _itemAnimator;
+  NSUInteger _structureVersion;
+  BOOL _inLayoutSubviews;
+  BOOL _sizesFromDataSource;
+  NSInteger _batchDepth;
+  azimgd::shadowlist::BatchUpdate _batch;
+  BOOL _batchNeedsReload;
+  id _batchPayload;
+  azimgd::shadowlist::ContentVersions _contentVersions;
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -152,6 +173,16 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
 - (BOOL)swipeTakesPan:(UIPanGestureRecognizer *)pan;
 - (BOOL)showMenuForCell:(ShadowListKitListCell *)cell atPoint:(CGPoint)point;
 - (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity;
+
+@end
+
+/*
+ * Data changes. structureChanged runs after every change: sticky rows follow the sections, the
+ * selection drops removed rows and a waiting saved position lands.
+ */
+@interface ShadowListKitListView (Data)
+
+- (void)structureChanged;
 
 @end
 
