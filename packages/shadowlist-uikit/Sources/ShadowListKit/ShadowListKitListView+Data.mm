@@ -300,6 +300,18 @@ using namespace azimgd::shadowlist;
   if (!planned) {
     next = [self readRowKeys];
   }
+  [self commitKeyChanges:std::move(next) reloadedKeys:reloadedKeys payload:payload reloadsSectionIndex:!planned];
+}
+
+/*
+ * Hand the next keys to the core, reload the rows of reloadedKeys that remain and lay the change
+ * out. A list whose sections may have changed reads its section index again.
+ */
+- (void)commitKeyChanges:(std::vector<std::string>)next
+            reloadedKeys:(const std::unordered_set<std::string>&)reloadedKeys
+                 payload:(id)payload
+     reloadsSectionIndex:(BOOL)reloadsSectionIndex
+{
   if (_animatesChanges) {
     [self captureChangeTo:next];
   }
@@ -310,7 +322,7 @@ using namespace azimgd::shadowlist;
   } else {
     [self reloadRows:rows payload:payload];
   }
-  if (!planned) {
+  if (reloadsSectionIndex) {
     [self reloadSectionIndex];
   }
   [self layoutDataChange];
@@ -349,18 +361,7 @@ using namespace azimgd::shadowlist;
     }
   }
 
-  if (_animatesChanges) {
-    [self captureChangeTo:next];
-  }
-  _driver.reloadKeys(std::move(next));
-  std::vector<std::size_t> rows = rowsOfKeys(_driver.getKeys(), reloadedKeys);
-  if (rows.empty()) {
-    [self structureChanged];
-  } else {
-    [self reloadRows:rows payload:nil];
-  }
-  [self reloadSectionIndex];
-  [self layoutDataChange];
+  [self commitKeyChanges:std::move(next) reloadedKeys:reloadedKeys payload:nil reloadsSectionIndex:YES];
 
   NSMutableIndexSet *deleted = [NSMutableIndexSet indexSet];
   NSMutableIndexSet *inserted = [NSMutableIndexSet indexSet];
