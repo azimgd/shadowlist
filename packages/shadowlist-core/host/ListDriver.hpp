@@ -140,7 +140,6 @@ public:
 
   void setMeasureItem(MeasureItem measureItem);
   void setSettings(const ListSettings& settings);
-  const ListSettings& getSettings() const { return settings_; }
 
   /*
    * Rows pinned once scrolled past, like section headers. Sorted here.
@@ -304,7 +303,6 @@ public:
   void dragBegin(std::size_t index, double touchAlong, double touchCross);
   void dragEnd();
   bool isDragging() const { return !heldKey_.empty(); }
-  const std::string& getHeldKey() const { return heldKey_; }
 
   /*
    * Where the held row is in the data now, or UNDEFINED_INDEX without a drag or when its key is gone.

@@ -324,10 +324,6 @@ public:
     return echoedToken_;
   }
 
-  const MountedScroll& getMounted() const {
-    return mounted_;
-  }
-
 private:
   LiveScroll::Report writeReport(
     double offsetX,
