@@ -1,6 +1,7 @@
 /*
  * JNI side of com.shadowlist.ShadowListGeometry. Plain calls into the host layer's pinning,
- * drag and snap math. The Java host calls these on the UI thread with arrays it reuses.
+ * drag, snap and page scroll math. The Java host calls these on the UI thread with arrays it
+ * reuses.
  */
 
 #include <jni.h>
@@ -11,6 +12,7 @@
 #include <vector>
 
 #include <shadowlist-core/host/DragReorder.hpp>
+#include <shadowlist-core/host/ScrollTarget.hpp>
 #include <shadowlist-core/host/Snap.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
 
@@ -372,6 +374,16 @@ JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativeDragAutoScrollOffset)(
     sl::DRAG_AUTO_SCROLL_ANDROID.edge * pixelsPerDp,
     sl::DRAG_AUTO_SCROLL_ANDROID.maxSpeed * pixelsPerDp};
   return sl::dragAutoScrollOffset(config, touch, windowSize, offset, maxOffset);
+}
+
+JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativePageScrollTarget)(
+  JNIEnv*,
+  jclass,
+  jdouble offset,
+  jdouble windowAlong,
+  jdouble maxOffset,
+  jint direction) {
+  return sl::pageScrollTarget(offset, windowAlong, maxOffset, direction);
 }
 
 }

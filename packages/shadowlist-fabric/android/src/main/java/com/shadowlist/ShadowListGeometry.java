@@ -3,9 +3,10 @@ package com.shadowlist;
 import com.facebook.soloader.SoLoader;
 
 /*
- * The list's pinning, drag to reorder and snap math, which lives in C++ in the host layer
- * of shadowlist-core (host/StickyLayout, host/DragReorder, host/Snap). Every call takes
- * primitive arrays the caller reuses. Scroll and drag frames allocate nothing.
+ * The list's pinning, drag to reorder, snap and page scroll math, which lives in C++ in the
+ * host layer of shadowlist-core (host/StickyLayout, host/DragReorder, host/Snap,
+ * host/ScrollTarget). Every call takes primitive arrays the caller reuses. Scroll and drag
+ * frames allocate nothing.
  */
 final class ShadowListGeometry {
   static {
@@ -113,6 +114,14 @@ final class ShadowListGeometry {
     return nativeDragAutoScrollOffset(touch, windowSize, offset, maxOffset, pixelsPerDp);
   }
 
+  /*
+   * Where an accessibility page scroll lands: one window toward the end for a positive
+   * direction, toward the start for a negative one, inside 0 and maxOffset.
+   */
+  static double pageScrollTarget(double offset, double windowAlong, double maxOffset, int direction) {
+    return nativePageScrollTarget(offset, windowAlong, maxOffset, direction);
+  }
+
   private static native void nativeStickyTranslations(double[] slots);
   private static native double nativeSectionOverlayTranslation(double[] offsets, double[] sizes, int count, double offset);
   private static native int nativeNearestSnapOffsetPx(float[] offsetsPx, int count, int targetPx);
@@ -132,4 +141,5 @@ final class ShadowListGeometry {
     double touchContent, double grabOffset, double extent, double contentExtent);
   private static native double nativeDragAutoScrollOffset(
     double touch, double windowSize, double offset, double maxOffset, double pixelsPerDp);
+  private static native double nativePageScrollTarget(double offset, double windowAlong, double maxOffset, int direction);
 }

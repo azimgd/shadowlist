@@ -1,7 +1,6 @@
 package com.shadowlist;
 
 import android.content.Context;
-import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
@@ -10,15 +9,11 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.accessibility.AccessibilityEvent;
-import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.OverScroller;
 
 import androidx.annotation.Nullable;
-import androidx.core.view.AccessibilityDelegateCompat;
 import androidx.core.view.ViewCompat;
-import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.facebook.react.bridge.ReactContext;
@@ -34,12 +29,10 @@ import com.facebook.react.uimanager.events.NativeGestureUtil;
 import com.facebook.react.views.scroll.ReactHorizontalScrollView;
 import com.facebook.react.views.scroll.ReactScrollView;
 
-import java.util.HashMap;
-
 /*
  * Hosts the content in an inner scroll view for the chosen axis. Handles scrolling, state
- * sync and scroll commands. Sticky pinning and drag to reorder live in their own controllers,
- * which use the accessors at the bottom.
+ * sync and scroll commands. Sticky pinning, drag to reorder and accessibility live in their own
+ * classes, which use the accessors at the bottom.
  */
 public class ShadowListView extends FrameLayout {
   // Trace logging for state sync, on with -PshadowlistDebugLog. Filter with adb logcat -s SL
@@ -56,7 +49,7 @@ public class ShadowListView extends FrameLayout {
    * Values for the scrollPhase state key, matching SCROLL_PHASE_* in host/LiveScroll.hpp.
    * Idle, finger down, or momentum running.
    */
-  private static final int SCROLL_PHASE_IDLE = 0;
+  static final int SCROLL_PHASE_IDLE = 0;
   private static final int SCROLL_PHASE_DRAGGING = 1;
   private static final int SCROLL_PHASE_SETTLING = 2;
   /*
@@ -193,11 +186,8 @@ public class ShadowListView extends FrameLayout {
   private boolean mMomentumEventSent = false;
   private int mFlingVelocity = 0;
 
-  /*
-   * Every row's key from props, for accessibility. The index map is built when first needed.
-   */
-  @Nullable private ReadableArray mItemKeys = null;
-  @Nullable private HashMap<String, Integer> mItemIndices = null;
+  // Row count, visible rows and scroll actions for accessibility services.
+  private final ShadowListAccessibility mAccessibility = new ShadowListAccessibility(this);
 
   /*
    * An animated command lands when its animation reaches the target. If something stops the
@@ -296,7 +286,7 @@ public class ShadowListView extends FrameLayout {
 
     mScrollView.addView(mContentView);
     applyScrollViewProps();
-    ViewCompat.setAccessibilityDelegate(mScrollView, mAccessibilityDelegate);
+    ViewCompat.setAccessibilityDelegate(mScrollView, mAccessibility);
 
     if (!horizontal) {
       // Vertical lists get wrapped for pull to refresh.
@@ -399,8 +389,7 @@ public class ShadowListView extends FrameLayout {
    * otherwise.
    */
   public void setItemKeys(@Nullable ReadableArray keys) {
-    mItemKeys = keys;
-    mItemIndices = null;
+    mAccessibility.setItemKeys(keys);
   }
 
   // endregion
@@ -585,7 +574,7 @@ public class ShadowListView extends FrameLayout {
     reportScrollPhase(mSettling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE);
   }
 
-  private void reportScrollPhase(int scrollPhase) {
+  void reportScrollPhase(int scrollPhase) {
     if (mState == null) {
       return;
     }
@@ -1142,7 +1131,7 @@ public class ShadowListView extends FrameLayout {
   /*
    * Stop a fling or snap and forget any scroll of ours still waiting for its echo.
    */
-  private void stopMomentum() {
+  void stopMomentum() {
     if (mScrollView instanceof ReactScrollView) {
       ((ReactScrollView) mScrollView).abortAnimation();
     } else if (mScrollView instanceof ReactHorizontalScrollView) {
@@ -1159,7 +1148,7 @@ public class ShadowListView extends FrameLayout {
    * and the core lets the drag cancel the command. An animated command first gets the core's
    * estimate, see animateCommandTo.
    */
-  private void issueScrollCommand(double index, double viewPosition, double rowOffset, boolean animated) {
+  void issueScrollCommand(double index, double viewPosition, double rowOffset, boolean animated) {
     boolean yielded = !mTouching;
     if (yielded) {
       stopMomentum();
@@ -1321,148 +1310,8 @@ public class ShadowListView extends FrameLayout {
       velocityY));
   }
 
-  // region Accessibility
-
   /*
-   * The list tells accessibility services how many rows it holds, not only the mounted ones,
-   * and offers page scrolls and scrolling to any row, like the native kit's list.
-   */
-  private final AccessibilityDelegateCompat mAccessibilityDelegate = new AccessibilityDelegateCompat() {
-    @Override
-    public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfoCompat info) {
-      super.onInitializeAccessibilityNodeInfo(host, info);
-      int columns = Math.max(1, mNumberOfColumns);
-      int itemCount = getItemCount();
-      int lines = (itemCount + columns - 1) / columns;
-      info.setClassName(columns > 1 ? "android.widget.GridView" : "android.widget.ListView");
-      info.setScrollable(scrollRangePx() > 0 && mScrollEnabled);
-      info.setCollectionInfo(mHorizontal
-        ? AccessibilityNodeInfoCompat.CollectionInfoCompat.obtain(columns, lines, false,
-            AccessibilityNodeInfoCompat.CollectionInfoCompat.SELECTION_MODE_NONE)
-        : AccessibilityNodeInfoCompat.CollectionInfoCompat.obtain(lines, columns, false,
-            AccessibilityNodeInfoCompat.CollectionInfoCompat.SELECTION_MODE_NONE));
-      info.addAction(AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_SCROLL_TO_POSITION);
-    }
-
-    @Override
-    public void onInitializeAccessibilityEvent(View host, AccessibilityEvent event) {
-      super.onInitializeAccessibilityEvent(host, event);
-      event.setItemCount(getItemCount());
-      int[] visible = visibleItemRange();
-      if (visible != null) {
-        event.setFromIndex(visible[0]);
-        event.setToIndex(visible[1]);
-      }
-    }
-
-    @Override
-    public boolean performAccessibilityAction(View host, int action, @Nullable Bundle arguments) {
-      if (!mScrollEnabled) {
-        return super.performAccessibilityAction(host, action, arguments);
-      }
-      int forward = mHorizontal ? android.R.id.accessibilityActionScrollRight : android.R.id.accessibilityActionScrollDown;
-      int backward = mHorizontal ? android.R.id.accessibilityActionScrollLeft : android.R.id.accessibilityActionScrollUp;
-      if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD || action == forward) {
-        return scrollByPage(1);
-      }
-      if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD || action == backward) {
-        return scrollByPage(-1);
-      }
-      if (action == android.R.id.accessibilityActionScrollToPosition) {
-        return scrollToPosition(arguments);
-      }
-      return super.performAccessibilityAction(host, action, arguments);
-    }
-  };
-
-  private int getItemCount() {
-    return mItemKeys != null ? mItemKeys.size() : 0;
-  }
-
-  private int scrollRangePx() {
-    return mHorizontal
-      ? Math.max(0, mContentView.getWidth() - mScrollView.getWidth())
-      : Math.max(0, mContentView.getHeight() - mScrollView.getHeight());
-  }
-
-  /*
-   * One viewport toward the end, or toward the start for a negative direction.
-   */
-  private boolean scrollByPage(int direction) {
-    int offset = mHorizontal ? mScrollView.getScrollX() : mScrollView.getScrollY();
-    int viewport = mHorizontal ? mScrollView.getWidth() : mScrollView.getHeight();
-    int target = Math.min(Math.max(offset + direction * viewport, 0), scrollRangePx());
-    if (target == offset) {
-      return false;
-    }
-    stopMomentum();
-    mScrollView.scrollTo(mHorizontal ? target : mScrollView.getScrollX(), mHorizontal ? mScrollView.getScrollY() : target);
-    // The jump is over at once. Report the list at rest, or corrections would wait for a gesture end.
-    reportScrollPhase(SCROLL_PHASE_IDLE);
-    mScrollView.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SCROLLED);
-    return true;
-  }
-
-  private boolean scrollToPosition(@Nullable Bundle arguments) {
-    if (arguments == null || mState == null) {
-      return false;
-    }
-    int row = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_ROW_INT, -1);
-    int column = arguments.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_COLUMN_INT, 0);
-    int columns = Math.max(1, mNumberOfColumns);
-    int index = mHorizontal ? column * columns + row : row * columns + column;
-    if (index < 0 || index >= getItemCount()) {
-      return false;
-    }
-    issueScrollCommand(index, 0.0, 0.0, false);
-    mScrollView.sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SCROLLED);
-    return true;
-  }
-
-  /*
-   * The lowest and highest index of the mounted rows on screen, or null when none. Rows are
-   * looked up by key in the props' keys.
-   */
-  @Nullable
-  private int[] visibleItemRange() {
-    if (mItemKeys == null) {
-      return null;
-    }
-    if (mItemIndices == null) {
-      HashMap<String, Integer> indices = new HashMap<>();
-      for (int index = mItemKeys.size() - 1; index >= 0; index--) {
-        indices.put(mItemKeys.getString(index), index);
-      }
-      mItemIndices = indices;
-    }
-    int low = mHorizontal ? mScrollView.getScrollX() : mScrollView.getScrollY();
-    int high = low + (mHorizontal ? mScrollView.getWidth() : mScrollView.getHeight());
-    int first = -1;
-    int last = -1;
-    for (int child = 0; child < mContentView.getChildCount(); child++) {
-      View view = mContentView.getChildAt(child);
-      if (!(view instanceof ShadowListElementView)) {
-        continue;
-      }
-      int start = mHorizontal ? view.getLeft() : view.getTop();
-      int end = mHorizontal ? view.getRight() : view.getBottom();
-      if (end <= low || start >= high) {
-        continue;
-      }
-      Integer index = mItemIndices.get(((ShadowListElementView) view).getElementKey());
-      if (index == null) {
-        continue;
-      }
-      first = first < 0 ? index : Math.min(first, index);
-      last = Math.max(last, index);
-    }
-    return first < 0 ? null : new int[] {first, last};
-  }
-
-  // endregion
-
-  /*
-   * Used by the sticky and drag controllers.
+   * Used by the sticky and drag controllers and the accessibility delegate.
    */
   ViewGroup getContentView() {
     return mContentView;
@@ -1470,6 +1319,10 @@ public class ShadowListView extends FrameLayout {
 
   ViewGroup getScrollView() {
     return mScrollView;
+  }
+
+  boolean isScrollEnabled() {
+    return mScrollEnabled;
   }
 
   boolean isHorizontal() {
