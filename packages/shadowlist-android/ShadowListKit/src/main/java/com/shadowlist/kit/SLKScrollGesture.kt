@@ -391,6 +391,14 @@ internal class SLKScrollGesture(private val list: SLKListView) {
     list.stopNestedScroll(ViewCompat.TYPE_TOUCH)
   }
 
+  /*
+   * Give the velocity tracker back to its pool. The next touch obtains a new one.
+   */
+  fun releaseTracker() {
+    velocityTracker?.recycle()
+    velocityTracker = null
+  }
+
   fun stop() {
     if (scroller.isFinished) return
     scroller.abortAnimation()

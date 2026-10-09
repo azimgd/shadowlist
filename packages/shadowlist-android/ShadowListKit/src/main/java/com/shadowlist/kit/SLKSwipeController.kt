@@ -254,6 +254,14 @@ internal class SLKSwipeController(private val list: SLKListView) {
     offset = 0f
   }
 
+  /*
+   * Give the velocity tracker back to its pool. The next touch obtains a new one.
+   */
+  fun releaseTracker() {
+    velocityTracker?.recycle()
+    velocityTracker = null
+  }
+
   fun cellWillRecycle(recycled: SLKListCell) {
     if (recycled === cell) tearDown()
   }

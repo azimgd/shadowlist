@@ -507,8 +507,11 @@ open class SLKListView @JvmOverloads constructor(
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
     gesture.stop()
+    gesture.releaseTracker()
     drag.end(false)
     swipe.close(false)
+    swipe.releaseTracker()
+    cancelHighlight()
     destroyCore()
   }
 
@@ -666,6 +669,7 @@ open class SLKListView @JvmOverloads constructor(
   internal fun recycleCell(cell: SLKListCell) {
     val index = cell.index
     swipe.cellWillRecycle(cell)
+    drag.cellWillRecycle(cell)
     cell.animate().cancel()
     cell.alpha = 1f
     cell.translationX = 0f
@@ -1032,6 +1036,8 @@ open class SLKListView @JvmOverloads constructor(
    * version changed, and return what changed. Animates like any change with animatesChanges.
    */
   fun applyChanges(): SLKListChanges {
+    // Without a data source readRowKeys leaves the spare list as it was. Nothing is read, the same as reloadData.
+    if (dataSource == null) return SLKListChanges(IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
     val previousItems = sectionItemKeys ?: ArrayList(keys)
     val next = spareKeys
     val nextItems = readRowKeys(next)
@@ -1347,7 +1353,8 @@ open class SLKListView @JvmOverloads constructor(
     settleScheduled = true
     postOnAnimation {
       settleScheduled = false
-      layoutPass()
+      // A list detached meanwhile dropped its core. The next attach lays out again.
+      if (isAttachedToWindow) layoutPass()
     }
   }
 
@@ -2050,7 +2057,8 @@ open class SLKListView @JvmOverloads constructor(
    */
   val visibleRange: IntRange?
     get() {
-      val packed = core.visibleItemRange()
+      // A list without a core has not laid out. Asking would create a peer only to answer null.
+      val packed = liveCore?.visibleItemRange() ?: return null
       if (packed < 0) return null
       return (packed shr 32).toInt()..(packed and 0xffffffffL).toInt()
     }

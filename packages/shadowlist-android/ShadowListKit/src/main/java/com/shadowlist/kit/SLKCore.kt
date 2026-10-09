@@ -1,5 +1,6 @@
 package com.shadowlist.kit
 
+import androidx.annotation.Keep
 import kotlin.math.max
 
 /*
@@ -313,7 +314,9 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
 
   /*
    * Called by the driver during runPasses for every row in the window that has no size yet.
+   * Only JNI calls it. Keep stops R8 in a minified app from removing or renaming it.
    */
+  @Keep
   @Suppress("unused")
   private fun measureItem(index: Int, crossSize: Double): Double = measure(index, crossSize)
 

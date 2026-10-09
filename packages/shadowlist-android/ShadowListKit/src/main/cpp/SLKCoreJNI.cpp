@@ -96,6 +96,9 @@ std::string readString(JNIEnv* env, jstring value) {
     return {};
   }
   const char* chars = env->GetStringUTFChars(value, nullptr);
+  if (chars == nullptr) {
+    return {};
+  }
   std::string result(chars);
   env->ReleaseStringUTFChars(value, chars);
   return result;
@@ -315,11 +318,12 @@ JNIEXPORT jlong JNICALL SLK_JNI(nativeCreate)(JNIEnv* env, jobject thiz) {
   peer->measureItem = env->GetMethodID(clazz, "measureItem", "(ID)D");
   env->DeleteLocalRef(clazz);
   peer->driver.setMeasureItem([peer](std::size_t index, const std::string&, double cross) {
-    if (peer->env == nullptr || peer->target == nullptr) {
+    // A measure that threw leaves its exception pending. No JNI call may follow until runPasses returns.
+    if (peer->env == nullptr || peer->target == nullptr || peer->env->ExceptionCheck()) {
       return 0.0;
     }
-    return static_cast<double>(
-      peer->env->CallDoubleMethod(peer->target, peer->measureItem, static_cast<jint>(index), cross));
+    double size = peer->env->CallDoubleMethod(peer->target, peer->measureItem, static_cast<jint>(index), cross);
+    return peer->env->ExceptionCheck() ? 0.0 : size;
   });
   return reinterpret_cast<jlong>(peer);
 }
@@ -390,6 +394,10 @@ JNIEXPORT void JNICALL SLK_JNI(nativeRunPasses)(JNIEnv* env, jobject thiz, jlong
   sl::PassResult result = peer->driver.runPasses(readPassInput(slots));
   peer->env = nullptr;
   peer->target = nullptr;
+  // The exception thrown by a measure reaches Kotlin with the outputs left as they were.
+  if (env->ExceptionCheck()) {
+    return;
+  }
   writePassResult(peer->driver, result, slots);
   env->SetDoubleArrayRegion(io, PASS_OUT_OFFSET, PASS_SLOTS - PASS_OUT_OFFSET, slots + PASS_OUT_OFFSET);
 }
@@ -690,6 +698,9 @@ JNIEXPORT jobjectArray JNICALL SLK_JNI(nativeEdgeRowKeys)(
   jobjectArray array = env->NewObjectArray(static_cast<jsize>(edges.size()), stringClass, nullptr);
   for (std::size_t at = 0; array != nullptr && at < edges.size(); ++at) {
     jstring key = env->NewStringUTF(edges[at].c_str());
+    if (key == nullptr) {
+      break;
+    }
     env->SetObjectArrayElement(array, static_cast<jsize>(at), key);
     env->DeleteLocalRef(key);
   }
@@ -917,7 +928,8 @@ JNIEXPORT jdouble JNICALL SLK_JNI(nativeSwipeButtonSize)(JNIEnv*, jclass, jdoubl
  */
 JNIEXPORT void JNICALL SLK_JNI(nativeSwipeButtonSpans)(JNIEnv* env, jclass, jdoubleArray sizes, jint count,
   jdouble offset, jboolean full, jdouble crossSize, jdoubleArray out) {
-  std::size_t buttons = static_cast<std::size_t>(std::max(count, 0));
+  jsize given = sizes == nullptr ? 0 : env->GetArrayLength(sizes);
+  std::size_t buttons = static_cast<std::size_t>(std::clamp(count, 0, given));
   std::vector<double> values(buttons);
   if (buttons > 0) {
     env->GetDoubleArrayRegion(sizes, 0, static_cast<jsize>(buttons), values.data());

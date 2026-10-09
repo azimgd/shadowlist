@@ -94,6 +94,14 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
 
   fun cancelPress() = cancelLongPress()
 
+  /*
+   * A cell going back to the pool loses its shift. Reused for another row it must take that
+   * row's shift even when the target matches the old one.
+   */
+  fun cellWillRecycle(cell: SLKListCell) {
+    shiftTargets.remove(cell)
+  }
+
   private fun watchLongPress(event: MotionEvent) {
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
