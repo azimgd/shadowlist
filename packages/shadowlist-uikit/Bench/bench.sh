@@ -12,6 +12,7 @@
 #                                           Release build installed as shadowlist.example)
 #   SCREENS="Feed Chat SectionList Masonry"  COUNTS="1000"  RUNS=3
 #   SPEED=4000  SECONDS_PER_LEG=6  DELAY=4
+#   AXES=y                                   y, x or xy, comma separated. One result line per axis.
 #
 # Runs are interleaved engine by engine inside each round. Host load hits every engine alike.
 # Results: ../results/<label>/runs.jsonl, then ./summarize.py ../results/<label>/runs.jsonl
@@ -26,6 +27,7 @@ RUNS="${RUNS:-3}"
 SPEED="${SPEED:-4000}"
 SECONDS_PER_LEG="${SECONDS_PER_LEG:-6}"
 DELAY="${DELAY:-4}"
+AXES="${AXES:-y}"
 OUT="$HERE/../results/$LABEL"
 mkdir -p "$OUT"
 RESULTS="$OUT/runs.jsonl"
@@ -44,7 +46,7 @@ run_one() {
   local bundle=shadowlist.uikit.example
   local args=(-SLRoute "$screen" -SLCount "$count" -SLLatency 0,0 -SLDebug 1
     -SLBench 1 -SLBenchExit 1 -SLBenchSpeed "$SPEED" -SLBenchSeconds "$SECONDS_PER_LEG" -SLBenchDelay "$DELAY"
-    -SLBenchLabel "$engine")
+    -SLBenchAxes "$AXES" -SLBenchLabel "$engine")
   # An engine name can carry options after a plus: sl+async draws text on a background queue.
   local base="${engine%%+*}"
   if [[ "$base" == rn ]]; then
@@ -54,7 +56,9 @@ run_one() {
   fi
   [[ "$engine" == *+async* ]] && args+=(-SLTextAsync 1)
   local log="$OUT/$engine-$screen-$count-$run.log"
-  local limit=$(( DELAY + 2 * SECONDS_PER_LEG + 40 ))
+  local axes_count
+  axes_count=$(( $(tr -cd ',' <<< "$AXES" | wc -c) + 1 ))
+  local limit=$(( DELAY + axes_count * (2 * SECONDS_PER_LEG + 1) + 40 ))
   if [[ "$KIND" == sim ]]; then
     if [[ "$base" == rn ]]; then
       SIMCTL_CHILD_DYLD_INSERT_LIBRARIES="$DYLIB" timeout "$limit" \
@@ -65,16 +69,19 @@ run_one() {
   else
     timeout "$limit" xcrun devicectl device process launch --console --terminate-existing --device "$UDID" "$bundle" -- "${args[@]}" > "$log" 2>&1
   fi
-  local line
-  line="$(grep -m1 -o '\[SLBENCH\] {.*}' "$log" | sed 's/^\[SLBENCH\] //')"
-  if [[ -z "$line" ]]; then
+  local lines
+  lines="$(grep -o '\[SLBENCH\] {.*}' "$log" | sed 's/^\[SLBENCH\] //')"
+  if [[ -z "$lines" ]]; then
     echo "!! $engine $screen $count run $run: no result (see $log)"
     return
   fi
-  python3 -c 'import json,sys; r=json.loads(sys.argv[1]); r.update(engine=sys.argv[2], screen=sys.argv[3], count=int(sys.argv[4]), run=int(sys.argv[5]), kind=sys.argv[6]); print(json.dumps(r))' \
-    "$line" "$engine" "$screen" "$count" "$run" "$KIND" >> "$RESULTS"
-  python3 -c 'import json,sys; r=json.loads(sys.argv[1]); print("   %-10s %-11s n=%-5s hitch=%6.1fms/s dropped=%-4d p99=%5.1fms main=%6.1fms/s blank=%.3f" % (sys.argv[2], sys.argv[3], sys.argv[4], r["hitchMsPerS"], r["dropped"], r["p99"], r["mainCpuMsPerS"], r["blankAvg"]))' \
-    "$line" "$engine" "$screen" "$count"
+  local line
+  while IFS= read -r line; do
+    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); r.update(engine=sys.argv[2], screen=sys.argv[3], count=int(sys.argv[4]), run=int(sys.argv[5]), kind=sys.argv[6]); print(json.dumps(r))' \
+      "$line" "$engine" "$screen" "$count" "$run" "$KIND" >> "$RESULTS"
+    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); a=r.get("axis","y"); print("   %-10s %-11s n=%-5s %-2s skipped: %s" % (sys.argv[2], sys.argv[3], sys.argv[4], a, r["skipped"]) if "skipped" in r else "   %-10s %-11s n=%-5s %-2s hitch=%6.1fms/s dropped=%-4d p99=%5.1fms main=%6.1fms/s blank=%.3f" % (sys.argv[2], sys.argv[3], sys.argv[4], a, r["hitchMsPerS"], r["dropped"], r["p99"], r["mainCpuMsPerS"], r["blankAvg"]))' \
+      "$line" "$engine" "$screen" "$count"
+  done <<< "$lines"
 }
 
 [[ " $ENGINES " == *" rn "* ]] && build_dylib
