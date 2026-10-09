@@ -10,6 +10,7 @@ export {
   nativeTagOf,
   describeDataChange,
   defaultKeyExtractor,
+  renderComponent,
 } from './helpers';
 export {
   initialMountedRange,

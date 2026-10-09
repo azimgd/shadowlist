@@ -53,6 +53,7 @@ import {
   nativeTagOf,
   describeDataChange,
   defaultKeyExtractor,
+  renderComponent,
   createRowIndexStore,
   type RowIndexStore,
   type RowSelection,
@@ -98,13 +99,6 @@ const DECELERATION_RATES = {
   normal: Platform.OS === 'ios' ? 0.998 : 0.985,
   fast: Platform.OS === 'ios' ? 0.99 : 0.9,
 };
-
-function renderComponent(
-  component: ReactElement | (() => ReactElement | null) | null | undefined
-): ReactElement | null {
-  if (!component) return null;
-  return typeof component === 'function' ? component() : component;
-}
 
 /*
  * The JS side of the native ShadowListView. It mounts only the rows near the screen and

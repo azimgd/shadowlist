@@ -1,3 +1,5 @@
+import type { ReactElement } from 'react';
+
 // Default extra rows mounted on each side of the screen. See overscanRows for how to pick one.
 export const SHADOWLIST_OVERSCAN = 4;
 
@@ -74,6 +76,16 @@ export function defaultKeyExtractor(element: unknown, index: number): string {
     }
   }
   return String(index);
+}
+
+/*
+ * The element of a slot prop that takes an element or a function returning one.
+ */
+export function renderComponent(
+  component: ReactElement | (() => ReactElement | null) | null | undefined
+): ReactElement | null {
+  if (!component) return null;
+  return typeof component === 'function' ? component() : component;
 }
 
 /*

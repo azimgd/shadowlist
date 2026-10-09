@@ -10,6 +10,7 @@ import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import ShadowList from './ShadowList';
 import {
   forwardedCommands,
+  renderComponent,
   slTrace,
   slTraceEnabled,
   useStableElement,
@@ -39,13 +40,6 @@ import type {
  * ShadowList renders one flat list. Each section becomes a header row, its elements,
  * then a footer row. The header positions go into stickyIndices so native can pin them.
  */
-
-function renderComponent(
-  component: ReactElement | (() => ReactElement | null) | null | undefined
-): ReactElement | null {
-  if (!component) return null;
-  return typeof component === 'function' ? component() : component;
-}
 
 function sameIndices(
   previous: number[] | undefined,
