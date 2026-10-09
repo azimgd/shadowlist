@@ -19,6 +19,13 @@ NS_ASSUME_NONNULL_BEGIN
 void SLKPlace(UIView *view, CGRect frame);
 
 /*
+ * Convert between keys the core holds and strings. A nil string becomes an empty key, and bytes
+ * that are not UTF-8 become an empty string.
+ */
+NSString *SLKString(const std::string& value);
+std::string SLKStdString(NSString *_Nullable string);
+
+/*
  * State and helpers the list shares with its categories in SLKListView+Drag.mm and
  * SLKListView+Actions.mm.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.

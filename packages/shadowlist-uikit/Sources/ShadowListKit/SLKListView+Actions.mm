@@ -364,6 +364,10 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   if (!action || !cell) {
     return;
   }
+  if (!action.handler) {
+    [self closeSwipeAnimated:YES];
+    return;
+  }
   __weak SLKListView *weakSelf = self;
   action.handler(action, ^(BOOL) {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -467,10 +471,11 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
     return nil;
   }
   UIMenu *menu = [self menuForCell:cell];
-  if (!menu) {
+  // A data change since the last layout pass may have dropped the cell's row.
+  if (!menu || (std::size_t)cell.row >= _driver.getKeyCount()) {
     return nil;
   }
-  NSString *key = @(_driver.getKeyAt((std::size_t)cell.row).c_str());
+  NSString *key = SLKString(_driver.getKeyAt((std::size_t)cell.row));
   return [UIContextMenuConfiguration configurationWithIdentifier:key previewProvider:nil
                                                   actionProvider:^UIMenu *(NSArray<UIMenuElement *> *) {
                                                     return menu;
@@ -480,7 +485,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
 - (UITargetedPreview *)previewForConfiguration:(UIContextMenuConfiguration *)configuration
 {
   NSString *key = (NSString *)configuration.identifier;
-  auto mounted = _mounted.find(key.UTF8String ?: "");
+  auto mounted = _mounted.find(SLKStdString(key));
   if (mounted == _mounted.end() || mounted->second.hidden || !mounted->second.window) {
     return nil;
   }

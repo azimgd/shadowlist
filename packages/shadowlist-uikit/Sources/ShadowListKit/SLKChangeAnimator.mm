@@ -41,13 +41,13 @@ using namespace azimgd::shadowlist;
     return;
   }
   if (_animation.capture(removed, inserted)) {
-    [self recordScreen];
+    [self recordScreenOf:list];
   }
 }
 
-- (void)recordScreen
+- (void)recordScreenOf:(SLKListView *)list
 {
-  for (auto& entry : _list->_mounted) {
+  for (auto& entry : list->_mounted) {
     if (!entry.second.hidden) {
       _animation.recordPosition(entry.first, [self screenOriginOf:entry.second]);
     }
@@ -64,6 +64,9 @@ using namespace azimgd::shadowlist;
     return NO;
   }
   SLKListView *list = _list;
+  if (!list) {
+    return NO;
+  }
   CGPoint offset = list.contentOffset;
   CGSize size = cell.bounds.size;
   cell.transform = CGAffineTransformIdentity;
@@ -81,9 +84,13 @@ using namespace azimgd::shadowlist;
     return;
   }
   SLKListView *list = _list;
+  if (!list) {
+    return;
+  }
   std::vector<SLKListCell *> cells;
+  std::size_t keyCount = list->_driver.getKeyCount();
   for (auto& entry : list->_mounted) {
-    if (!entry.second.hidden && entry.second.row != NSNotFound) {
+    if (!entry.second.hidden && entry.second.row != NSNotFound && (std::size_t)entry.second.row < keyCount) {
       cells.push_back(entry.second);
     }
   }

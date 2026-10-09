@@ -25,6 +25,29 @@ static const CGFloat SLK_MENU_SLOP = 10;
 - (void)beginDragAtPoint:(CGPoint)location;
 - (void)updateDrag;
 - (void)endDrag:(BOOL)commit;
+- (void)dragAutoScroll:(CADisplayLink *)link;
+@end
+
+/*
+ * The auto scroll display link's target. It holds the list weakly. A display link retains its
+ * target, and the list would otherwise stay alive until the drag ends.
+ */
+@interface SLKDragLinkTarget : NSObject
+@property (nonatomic, weak) SLKListView *list;
+@end
+
+@implementation SLKDragLinkTarget
+
+- (void)tick:(CADisplayLink *)link
+{
+  SLKListView *list = _list;
+  if (!list) {
+    [link invalidate];
+    return;
+  }
+  [list dragAutoScroll:link];
+}
+
 @end
 
 /*
@@ -99,6 +122,9 @@ static const CGFloat SLK_MENU_SLOP = 10;
  */
 - (void)beginDragAtPoint:(CGPoint)location
 {
+  if ([self hasHeldRow]) {
+    return;
+  }
   SLKListCell *cell = [self movableCellAtPoint:location];
   if (!cell) {
     return;
@@ -107,7 +133,9 @@ static const CGFloat SLK_MENU_SLOP = 10;
   _driver.dragBegin((std::size_t)cell.row, [self along:location], [self cross:location]);
   _heldCell = cell;
   [self liftCell:cell];
-  _dragLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(dragAutoScroll:)];
+  SLKDragLinkTarget *target = [SLKDragLinkTarget new];
+  target.list = self;
+  _dragLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
   [_dragLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
   [UIView animateWithDuration:SLK_LIFT_DURATION animations:^{
     [self updateDrag];

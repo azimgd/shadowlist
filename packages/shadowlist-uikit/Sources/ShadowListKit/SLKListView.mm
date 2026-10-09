@@ -45,9 +45,15 @@ static std::vector<std::size_t> SLKIndices(NSIndexSet *set)
   return std::vector<std::size_t>(raw.begin(), raw.end());
 }
 
-static NSString *SLKString(const std::string& value)
+NSString *SLKString(const std::string& value)
 {
   return [[NSString alloc] initWithBytes:value.data() length:value.size() encoding:NSUTF8StringEncoding] ?: @"";
+}
+
+std::string SLKStdString(NSString *string)
+{
+  const char *bytes = string.UTF8String;
+  return bytes ? std::string(bytes) : std::string();
 }
 
 @interface SLKListView ()
@@ -344,6 +350,7 @@ static BOOL SLKListHandles(SEL selector)
 - (void)dealloc
 {
   [_settleLink invalidate];
+  [_dragLink invalidate];
 }
 
 #pragma mark - Delegate
@@ -829,7 +836,7 @@ static BOOL SLKListHandles(SEL selector)
     std::vector<std::string> keys;
     keys.reserve(count);
     for (NSInteger index = 0; index < count; ++index) {
-      keys.emplace_back([_dataSource listView:self keyForItemAtIndex:index].UTF8String);
+      keys.push_back(SLKStdString([_dataSource listView:self keyForItemAtIndex:index]));
     }
     _sections.setPlain((std::size_t)count);
     return keys;
@@ -849,10 +856,10 @@ static BOOL SLKListHandles(SEL selector)
     spec.hasFooter = footers && [_dataSource listView:self titleForFooterInSection:section] != nil;
     std::size_t first = itemKeys.size();
     for (std::size_t local = 0; local < spec.itemCount; ++local) {
-      itemKeys.emplace_back([_dataSource listView:self keyForItemAtIndex:(NSInteger)(first + local)].UTF8String);
+      itemKeys.push_back(SLKStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)(first + local)]));
     }
     if (sectionKeys) {
-      keysOfSections[section] = std::string([_dataSource listView:self keyForSection:section].UTF8String);
+      keysOfSections[section] = SLKStdString([_dataSource listView:self keyForSection:section]);
     }
     specs.push_back(spec);
   }
@@ -925,7 +932,7 @@ static BOOL SLKListHandles(SEL selector)
   std::vector<std::string> keys;
   keys.reserve(inserted.size());
   for (std::size_t index : inserted) {
-    keys.emplace_back([_dataSource listView:self keyForItemAtIndex:(NSInteger)index].UTF8String);
+    keys.push_back(SLKStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]));
   }
   if (_animatesChanges) {
     [_changes captureRemoved:{} inserted:keys];
@@ -1075,7 +1082,7 @@ static BOOL SLKListHandles(SEL selector)
     std::optional<BatchPlan> plan = planBatch(_driver.getKeyCount(), (std::size_t)nextCount, batch);
     if (plan) {
       next = keysFromPlan(*plan, _driver.getKeys(), [self](std::size_t index) {
-        return std::string([_dataSource listView:self keyForItemAtIndex:(NSInteger)index].UTF8String);
+        return SLKStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]);
       });
       _sections.setPlain(next.size());
       planned = YES;
@@ -1908,8 +1915,13 @@ static BOOL SLKListHandles(SEL selector)
  */
 - (void)userSelectedCell:(SLKListCell *)cell
 {
+  // A data change since the last layout pass may have dropped the cell's row.
+  if ((std::size_t)cell.row >= _driver.getKeyCount()) {
+    return;
+  }
   NSInteger index = cell.index;
-  const std::string& key = _driver.getKeyAt((std::size_t)cell.row);
+  // A copy, because the delegate calls below may change the keys.
+  std::string key = _driver.getKeyAt((std::size_t)cell.row);
   id<SLKListViewDelegate> delegate = _userDelegate;
   SelectionTap tap = _selection.tap(key, [&] {
     return ![delegate respondsToSelector:@selector(listView:shouldSelectItemAtIndex:)] ||
@@ -1959,7 +1971,7 @@ static BOOL SLKListHandles(SEL selector)
   if (row == NSNotFound || !_allowsSelection) {
     return;
   }
-  const std::string& key = _driver.getKeyAt((std::size_t)row);
+  std::string key = _driver.getKeyAt((std::size_t)row);
   std::vector<std::string> deselected;
   _selection.select(key, deselected);
   for (const std::string& previous : deselected) {
@@ -1977,7 +1989,7 @@ static BOOL SLKListHandles(SEL selector)
   if (row == NSNotFound) {
     return;
   }
-  const std::string& key = _driver.getKeyAt((std::size_t)row);
+  std::string key = _driver.getKeyAt((std::size_t)row);
   if (_selection.deselect(key)) {
     [[self mountedCellForKey:key] setSelected:NO animated:animated];
   }
@@ -2172,7 +2184,7 @@ static BOOL SLKListHandles(SEL selector)
   if (!_pendingAnchor) {
     return;
   }
-  ListAnchor anchor{_pendingAnchor.key.UTF8String, (double)_pendingAnchor.offset};
+  ListAnchor anchor{SLKStdString(_pendingAnchor.key), (double)_pendingAnchor.offset};
   if (!_driver.restoreAnchor(anchor)) {
     return;
   }
@@ -2250,9 +2262,17 @@ static BOOL SLKListHandles(SEL selector)
  */
 - (void)focusAccessibilityRowForKey:(NSString *)key
 {
-  std::size_t row = _driver.indexOfKey(key.UTF8String);
+  std::size_t row = _driver.indexOfKey(SLKStdString(key));
   if (row == UNDEFINED_INDEX || row >= _driver.getKeyCount()) {
     return;
+  }
+  if (row >= _driver.getCount()) {
+    // The core has not placed the row yet. Let the next layout pass do it first.
+    [self layoutIfNeeded];
+    row = _driver.indexOfKey(SLKStdString(key));
+    if (row == UNDEFINED_INDEX || row >= _driver.getCount()) {
+      return;
+    }
   }
   if (![self isRowOnScreen:row]) {
     CGRect visible = UIEdgeInsetsInsetRect(self.bounds, self.adjustedContentInset);
@@ -2272,7 +2292,7 @@ static BOOL SLKListHandles(SEL selector)
 - (NSInteger)indexOfAccessibilityElement:(id)element
 {
   if ([element isKindOfClass:[SLKRowAccessibilityElement class]]) {
-    std::size_t row = _driver.indexOfKey(((SLKRowAccessibilityElement *)element).key.UTF8String);
+    std::size_t row = _driver.indexOfKey(SLKStdString(((SLKRowAccessibilityElement *)element).key));
     return row == UNDEFINED_INDEX ? NSNotFound : (NSInteger)row + (_headerView ? 1 : 0);
   }
   if (element && element == _headerView) {
@@ -2294,6 +2314,9 @@ static BOOL SLKListHandles(SEL selector)
 
 - (BOOL)isRowOnScreen:(std::size_t)index
 {
+  if (index >= _driver.getCount()) {
+    return NO;
+  }
   CGRect rect = [self rowRect:index];
   CGRect visible = UIEdgeInsetsInsetRect(self.bounds, self.adjustedContentInset);
   return CGRectIntersectsRect(rect, visible);
@@ -2322,6 +2345,10 @@ static BOOL SLKListHandles(SEL selector)
   [self writeOffset:target byUser:YES];
   [self layoutIfNeeded];
   NSRange visible = self.visibleRange;
+  if (visible.location == NSNotFound) {
+    UIAccessibilityPostNotification(UIAccessibilityPageScrolledNotification, nil);
+    return YES;
+  }
   NSString *status = [NSString stringWithFormat:@"Rows %lu to %lu of %lu", (unsigned long)visible.location + 1,
     (unsigned long)NSMaxRange(visible), (unsigned long)_sections.getItemCount()];
   UIAccessibilityPostNotification(UIAccessibilityPageScrolledNotification, status);
