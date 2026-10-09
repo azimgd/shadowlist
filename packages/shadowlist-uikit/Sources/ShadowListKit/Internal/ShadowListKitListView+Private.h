@@ -11,6 +11,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class ShadowListKitSwipeActionsView;
+@class ShadowListKitRowAccessibilityElement;
 
 /*
  * Place a view at a frame through its center and bounds, which stay valid while a drag
@@ -40,6 +41,8 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
  * is the visible cell under a point in the list's own coordinates. itemCellAtPoint: is the same
  * for item cells only. itemForRow: and rowForItem: convert indices, NSNotFound when there is none.
  * settleFrame runs the layout pass the settle display link waited for.
+ * _rowElements holds the stand-ins of rows off screen by key, kept while accessibility holds them.
+ * mountedCellAtIndex: is the mounted cell of a row, or nil.
  */
 @interface ShadowListKitListView () <UIScrollViewDelegate> {
  @package
@@ -70,6 +73,10 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
   UIContextMenuInteraction *_menuInteraction;
   UIEditMenuInteraction *_editMenu;
   UIMenu *_pendingMenu;
+
+  UIView *_headerView;
+  UIView *_footerView;
+  NSMapTable<NSString *, ShadowListKitRowAccessibilityElement *> *_rowElements;
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -86,6 +93,9 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
 - (NSInteger)rowForItem:(NSInteger)item;
 - (BOOL)itemsForDragFromRow:(std::size_t)fromRow toRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to;
 - (void)settleFrame;
+- (nullable ShadowListKitListCell *)mountedCellAtIndex:(std::size_t)index;
+- (void)scrollToRow:(std::size_t)row viewPosition:(CGFloat)viewPosition animated:(BOOL)animated;
+- (void)stopScrolling;
 
 @end
 
@@ -119,6 +129,16 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
 - (BOOL)swipeTakesPan:(UIPanGestureRecognizer *)pan;
 - (BOOL)showMenuForCell:(ShadowListKitListCell *)cell atPoint:(CGPoint)point;
 - (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity;
+
+@end
+
+/*
+ * Every row as an accessibility element, and VoiceOver page scrolls. focusAccessibilityRowForKey:
+ * scrolls a row a stand-in stood for into view and moves focus to its cell.
+ */
+@interface ShadowListKitListView (Accessibility)
+
+- (void)focusAccessibilityRowForKey:(NSString *)key;
 
 @end
 
