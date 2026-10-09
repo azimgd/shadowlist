@@ -257,6 +257,11 @@ static BOOL ShadowListKitListHandles(SEL selector)
 
   BOOL _inLayoutPass;
   /*
+   * Set while UIKit lays the list out. A data change made then, like rows added from the
+   * reached callbacks, runs in the layout UIKit already has pending.
+   */
+  BOOL _inLayoutSubviews;
+  /*
    * A settle frame waits for the next display frame, at most one at a time.
    */
   BOOL _settleScheduled;
@@ -882,6 +887,7 @@ static BOOL ShadowListKitListHandles(SEL selector)
   [self recordContentVersions:keys];
   [self applyRowKeys:std::move(keys)];
   [self reloadSectionIndex];
+  [self layoutDataChange];
 }
 
 /*
@@ -945,6 +951,7 @@ static BOOL ShadowListKitListHandles(SEL selector)
   _driver.insertKeys(std::move(inserted), std::move(keys));
   _sections.setPlain(_driver.getKeyCount());
   [self structureChanged];
+  [self layoutDataChange];
 }
 
 - (void)deleteItemsAtIndices:(NSIndexSet *)indices
@@ -976,6 +983,7 @@ static BOOL ShadowListKitListHandles(SEL selector)
   _driver.deleteKeys(std::move(deleted));
   _sections.setPlain(_driver.getKeyCount());
   [self structureChanged];
+  [self layoutDataChange];
 }
 
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices
@@ -999,6 +1007,7 @@ static BOOL ShadowListKitListHandles(SEL selector)
     }
   }
   [self reloadRows:rows payload:payload];
+  [self layoutDataChange];
 }
 
 /*
@@ -1111,6 +1120,7 @@ static BOOL ShadowListKitListHandles(SEL selector)
   if (!planned) {
     [self reloadSectionIndex];
   }
+  [self layoutDataChange];
 }
 
 /*
@@ -1157,6 +1167,7 @@ static BOOL ShadowListKitListHandles(SEL selector)
     [self reloadRows:rows payload:nil];
   }
   [self reloadSectionIndex];
+  [self layoutDataChange];
 
   NSMutableIndexSet *deleted = [NSMutableIndexSet indexSet];
   NSMutableIndexSet *inserted = [NSMutableIndexSet indexSet];
@@ -1209,6 +1220,21 @@ static BOOL ShadowListKitListHandles(SEL selector)
   }
   [self restorePendingAnchor];
   [self invalidateFrame];
+}
+
+/*
+ * Lay out a data change right away while the list is on screen, the way UITableView applies
+ * its updates. Until the pass runs, the content offset is the one from before the change and
+ * misses the correction that keeps the visible rows still. UIKit code that reads it in the same
+ * turn writes that offset back after the pass, and the rows jump. UIRefreshControl does this
+ * in endRefreshing, called right after the refreshed rows were inserted.
+ */
+- (void)layoutDataChange
+{
+  if (!self.window || _inLayoutSubviews || _batchDepth > 0) {
+    return;
+  }
+  [self layoutIfNeeded];
 }
 
 #pragma mark - Sections
@@ -1360,8 +1386,10 @@ static BOOL ShadowListKitListHandles(SEL selector)
 
 - (void)layoutSubviews
 {
+  _inLayoutSubviews = YES;
   [super layoutSubviews];
   [self layoutPass];
+  _inLayoutSubviews = NO;
 }
 
 /*
