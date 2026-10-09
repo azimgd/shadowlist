@@ -21,8 +21,8 @@ final class ReorderRowView: RowView {
   private static let grip = UIImage(systemName: "line.3.horizontal", withConfiguration: UIImage.SymbolConfiguration(pointSize: 17, weight: .regular))
 
   private let avatar = AvatarView(size: 40)
-  private let name = SLKTextView.make()
-  private let subtitle = SLKTextView.make()
+  private let name = ShadowListKitTextView.make()
+  private let subtitle = ShadowListKitTextView.make()
   private let grip = UIImageView(image: ReorderRowView.grip)
   private let separator = UIView()
 
@@ -79,14 +79,14 @@ struct SnapRow: Row {
 final class SnapLayout: RowLayout {
   var card = CGRect.zero
   var caption = CGRect.zero
-  var title: SLKTextLayout!
+  var title: ShadowListKitTextLayout!
 }
 
 final class SnapCardView: RowView {
   private let card = UIView()
   private let image = RemoteImageView()
   private let caption = UIView()
-  private let title = SLKTextView.make()
+  private let title = ShadowListKitTextView.make()
 
   required init(frame: CGRect) {
     super.init(frame: frame)

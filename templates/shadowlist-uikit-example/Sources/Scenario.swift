@@ -16,7 +16,7 @@ enum Scenario {
   static func start(_ screen: ListScreen) {
     guard let name = UserDefaults.standard.string(forKey: "SLScenario") else { return }
     let list = screen.list!
-    if name == "animate" || name == "a11y", let slk = list.view as? SLKListView {
+    if name == "animate" || name == "a11y", let slk = list.view as? ShadowListKitListView {
       after(1.5) { name == "animate" ? checkAnimation(screen, slk) : checkAccessibility(slk) }
       return
     }
@@ -120,7 +120,7 @@ enum Scenario {
    * Logs the new row's alpha and a survivor's slide while the animation runs, then whether it
    * settled and how far the first visible row moved.
    */
-  private static func checkAnimation(_ screen: ListScreen, _ slk: SLKListView) {
+  private static func checkAnimation(_ screen: ListScreen, _ slk: ShadowListKitListView) {
     let list = screen.list!
     slk.animatesChanges = true
     let first = slk.visibleRange.location
@@ -148,10 +148,10 @@ enum Scenario {
     }
   }
 
-  private static func checkAccessibility(_ slk: SLKListView) {
+  private static func checkAccessibility(_ slk: ShadowListKitListView) {
     let count = slk.accessibilityElementCount()
     let target = 500
-    let element = slk.accessibilityElement(at: target) as? SLKListCell
+    let element = slk.accessibilityElement(at: target) as? ShadowListKitListCell
     var result: [String: Any] = ["scenario": "a11y", "elementCount": count]
     result["elementRow"] = element?.index ?? -1
     result["elementOnScreen"] = NSLocationInRange(target, slk.visibleRange)

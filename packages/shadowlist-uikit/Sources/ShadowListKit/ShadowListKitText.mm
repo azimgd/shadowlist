@@ -1,4 +1,4 @@
-#import "SLKText.h"
+#import "ShadowListKitText.h"
 
 #import <CoreText/CoreText.h>
 
@@ -6,7 +6,7 @@
 
 #pragma mark - Layout
 
-@implementation SLKTextLayout {
+@implementation ShadowListKitTextLayout {
   CFArrayRef _lines;
   std::vector<CGPoint> _origins;
   CGFloat _lineHeight;
@@ -138,7 +138,7 @@
 
 #pragma mark - View
 
-static dispatch_queue_t SLKTextRenderQueue(void)
+static dispatch_queue_t ShadowListKitTextRenderQueue(void)
 {
   static dispatch_queue_t queue;
   static dispatch_once_t once;
@@ -152,31 +152,31 @@ static dispatch_queue_t SLKTextRenderQueue(void)
  * Async drawing stats for benchmarks: how many bitmaps were drawn, and how many arrived while
  * their view was already on screen, with how long those waited.
  */
-static NSUInteger SLKAsyncRendered;
-static NSUInteger SLKAsyncLate;
-static double SLKAsyncLateWaitSum;
-static double SLKAsyncLateWaitMax;
+static NSUInteger ShadowListKitAsyncRendered;
+static NSUInteger ShadowListKitAsyncLate;
+static double ShadowListKitAsyncLateWaitSum;
+static double ShadowListKitAsyncLateWaitMax;
 
-@implementation SLKTextView {
+@implementation ShadowListKitTextView {
   NSUInteger _generation;
 }
 
-+ (NSDictionary *)slk_asyncStats
++ (NSDictionary *)shadowListKit_asyncStats
 {
   return @{
-    @"rendered" : @(SLKAsyncRendered),
-    @"late" : @(SLKAsyncLate),
-    @"lateWaitAvgMs" : @(SLKAsyncLate > 0 ? SLKAsyncLateWaitSum * 1000 / SLKAsyncLate : 0),
-    @"lateWaitMaxMs" : @(SLKAsyncLateWaitMax * 1000),
+    @"rendered" : @(ShadowListKitAsyncRendered),
+    @"late" : @(ShadowListKitAsyncLate),
+    @"lateWaitAvgMs" : @(ShadowListKitAsyncLate > 0 ? ShadowListKitAsyncLateWaitSum * 1000 / ShadowListKitAsyncLate : 0),
+    @"lateWaitMaxMs" : @(ShadowListKitAsyncLateWaitMax * 1000),
   };
 }
 
-+ (void)slk_resetAsyncStats
++ (void)shadowListKit_resetAsyncStats
 {
-  SLKAsyncRendered = 0;
-  SLKAsyncLate = 0;
-  SLKAsyncLateWaitSum = 0;
-  SLKAsyncLateWaitMax = 0;
+  ShadowListKitAsyncRendered = 0;
+  ShadowListKitAsyncLate = 0;
+  ShadowListKitAsyncLateWaitSum = 0;
+  ShadowListKitAsyncLateWaitMax = 0;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
@@ -191,7 +191,7 @@ static double SLKAsyncLateWaitMax;
   return self;
 }
 
-- (void)setTextLayout:(SLKTextLayout *)textLayout
+- (void)setTextLayout:(ShadowListKitTextLayout *)textLayout
 {
   if (_textLayout == textLayout) {
     return;
@@ -224,7 +224,7 @@ static double SLKAsyncLateWaitMax;
     [self setNeedsDisplay];
     return;
   }
-  SLKTextLayout *layout = _textLayout;
+  ShadowListKitTextLayout *layout = _textLayout;
   if (!layout || layout.lineCount == 0) {
     self.layer.contents = nil;
     return;
@@ -235,8 +235,8 @@ static double SLKAsyncLateWaitMax;
   CGSize size = layout.size;
   self.layer.contents = nil;
   CFTimeInterval requested = CACurrentMediaTime();
-  __weak SLKTextView *weakSelf = self;
-  dispatch_async(SLKTextRenderQueue(), ^{
+  __weak ShadowListKitTextView *weakSelf = self;
+  dispatch_async(ShadowListKitTextRenderQueue(), ^{
     UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
     format.scale = scale;
     format.opaque = NO;
@@ -246,17 +246,17 @@ static double SLKAsyncLateWaitMax;
     }];
     CGColorRelease(color);
     dispatch_async(dispatch_get_main_queue(), ^{
-      SLKTextView *view = weakSelf;
+      ShadowListKitTextView *view = weakSelf;
       if (view && view->_generation == generation) {
         view.layer.contentsScale = scale;
         view.layer.contents = (__bridge id)image.CGImage;
-        ++SLKAsyncRendered;
+        ++ShadowListKitAsyncRendered;
         UIWindow *window = view.window;
         if (window && !view.hidden && CGRectIntersectsRect([view convertRect:view.bounds toView:nil], window.bounds)) {
           double wait = CACurrentMediaTime() - requested;
-          ++SLKAsyncLate;
-          SLKAsyncLateWaitSum += wait;
-          SLKAsyncLateWaitMax = MAX(SLKAsyncLateWaitMax, wait);
+          ++ShadowListKitAsyncLate;
+          ShadowListKitAsyncLateWaitSum += wait;
+          ShadowListKitAsyncLateWaitMax = MAX(ShadowListKitAsyncLateWaitMax, wait);
         }
       }
     });

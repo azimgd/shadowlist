@@ -3,8 +3,8 @@
 #include <string>
 #include <vector>
 
-@class SLKListView;
-@class SLKListCell;
+@class ShadowListKitListView;
+@class ShadowListKitListCell;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -20,11 +20,11 @@ NS_ASSUME_NONNULL_BEGIN
  * should go back to the pool right away. run slides the rows that stay and fades in the new
  * ones after the layout pass.
  */
-@interface SLKChangeAnimator : NSObject
+@interface ShadowListKitChangeAnimator : NSObject
 
-- (instancetype)initWithList:(SLKListView *)list;
+- (instancetype)initWithList:(ShadowListKitListView *)list;
 - (void)captureRemoved:(const std::vector<std::string>&)removed inserted:(const std::vector<std::string>&)inserted;
-- (BOOL)fadeOutKey:(const std::string&)key cell:(SLKListCell *)cell;
+- (BOOL)fadeOutKey:(const std::string&)key cell:(ShadowListKitListCell *)cell;
 - (void)run;
 
 @end

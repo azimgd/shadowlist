@@ -5,9 +5,9 @@ import Foundation
  * -SLDebug 1. -SLEngine picks the list implementation.
  */
 enum Engine: String, CaseIterable {
-  // SLKListView with sizes from the precomputed layouts.
+  // ShadowListKitListView with sizes from the precomputed layouts.
   case shadowlist = "sl"
-  // SLKListView measuring each row through its cell's sizeThatFits on the main thread.
+  // ShadowListKitListView measuring each row through its cell's sizeThatFits on the main thread.
   case shadowlistAuto = "sl-auto"
   // UITableView with heightForRowAt from the same precomputed layouts.
   case table = "table"
@@ -16,8 +16,8 @@ enum Engine: String, CaseIterable {
 
   var title: String {
     switch self {
-    case .shadowlist: return "SLKListView"
-    case .shadowlistAuto: return "SLKListView (self-sizing)"
+    case .shadowlist: return "ShadowListKitListView"
+    case .shadowlistAuto: return "ShadowListKitListView (self-sizing)"
     case .table: return "UITableView"
     case .tableAuto: return "UITableView (self-sizing)"
     }

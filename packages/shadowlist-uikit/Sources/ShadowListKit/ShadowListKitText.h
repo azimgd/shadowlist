@@ -11,7 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
  * UIKit's flipped coordinates.
  */
 NS_SWIFT_SENDABLE
-@interface SLKTextLayout : NSObject
+@interface ShadowListKitTextLayout : NSObject
 
 + (instancetype)layoutWithString:(NSString *)string
                             font:(UIFont *)font
@@ -29,13 +29,13 @@ NS_SWIFT_SENDABLE
 @end
 
 /*
- * Shows an SLKTextLayout. It draws the lines it is given and never measures text itself.
+ * Shows an ShadowListKitTextLayout. It draws the lines it is given and never measures text itself.
  * With displaysAsynchronously the lines are drawn into a bitmap on a background queue and the
  * view shows it when ready, leaving the main thread only the hand over of the bitmap.
  */
-@interface SLKTextView : UIView
+@interface ShadowListKitTextView : UIView
 
-@property (nonatomic, strong, nullable) SLKTextLayout *textLayout;
+@property (nonatomic, strong, nullable) ShadowListKitTextLayout *textLayout;
 @property (nonatomic, strong) UIColor *textColor;
 @property (nonatomic) BOOL displaysAsynchronously;
 

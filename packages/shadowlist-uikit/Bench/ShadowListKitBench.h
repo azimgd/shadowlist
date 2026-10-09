@@ -19,7 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
  *   -SLBenchLabel name     copied into the result
  *   -SLBenchExit 1         quit when done, for a script waiting on the process
  */
-@interface SLKBench : NSObject
+@interface ShadowListKitBench : NSObject
 @end
 
 /*
@@ -30,12 +30,12 @@ NS_ASSUME_NONNULL_BEGIN
  * of the uncovered share and the probe's. blankAvg, blankMax and blankFrames stay the uncovered
  * share alone.
  */
-@protocol SLKBenchProbe <NSObject>
+@protocol ShadowListKitBenchProbe <NSObject>
 
 /*
  * The share of the viewport, from 0 to 1, with content not drawn yet.
  */
-- (double)slk_benchBlankFraction;
+- (double)shadowListKit_benchBlankFraction;
 
 @end
 

@@ -1,19 +1,19 @@
-#import "Internal/SLKListModels+Private.h"
+#import "Internal/ShadowListKitListModels+Private.h"
 
 /*
  * Default duration of the change animations, in seconds.
  */
-static const NSTimeInterval SLK_CHANGE_DURATION = 0.25;
+static const NSTimeInterval SHADOWLIST_KIT_CHANGE_DURATION = 0.25;
 
 #pragma mark - Swipe actions
 
-@implementation SLKSwipeAction
+@implementation ShadowListKitSwipeAction
 
-+ (instancetype)actionWithStyle:(SLKSwipeActionStyle)style
++ (instancetype)actionWithStyle:(ShadowListKitSwipeActionStyle)style
                           title:(NSString *)title
-                        handler:(void (^)(SLKSwipeAction *, void (^)(BOOL)))handler
+                        handler:(void (^)(ShadowListKitSwipeAction *, void (^)(BOOL)))handler
 {
-  SLKSwipeAction *action = [SLKSwipeAction new];
+  ShadowListKitSwipeAction *action = [ShadowListKitSwipeAction new];
   action->_style = style;
   action->_title = [title copy];
   action->_handler = [handler copy];
@@ -25,16 +25,16 @@ static const NSTimeInterval SLK_CHANGE_DURATION = 0.25;
   if (_backgroundColor) {
     return _backgroundColor;
   }
-  return _style == SLKSwipeActionStyleDestructive ? UIColor.systemRedColor : UIColor.systemGrayColor;
+  return _style == ShadowListKitSwipeActionStyleDestructive ? UIColor.systemRedColor : UIColor.systemGrayColor;
 }
 
 @end
 
-@implementation SLKSwipeActionsConfiguration
+@implementation ShadowListKitSwipeActionsConfiguration
 
-+ (instancetype)configurationWithActions:(NSArray<SLKSwipeAction *> *)actions
++ (instancetype)configurationWithActions:(NSArray<ShadowListKitSwipeAction *> *)actions
 {
-  SLKSwipeActionsConfiguration *configuration = [SLKSwipeActionsConfiguration new];
+  ShadowListKitSwipeActionsConfiguration *configuration = [ShadowListKitSwipeActionsConfiguration new];
   configuration->_actions = [actions copy];
   configuration->_performsFirstActionWithFullSwipe = YES;
   return configuration;
@@ -44,7 +44,7 @@ static const NSTimeInterval SLK_CHANGE_DURATION = 0.25;
 
 #pragma mark - Anchor state
 
-@implementation SLKAnchorState
+@implementation ShadowListKitAnchorState
 
 + (BOOL)supportsSecureCoding
 {
@@ -79,7 +79,7 @@ static const NSTimeInterval SLK_CHANGE_DURATION = 0.25;
 
 #pragma mark - Changes
 
-@implementation SLKListChanges
+@implementation ShadowListKitListChanges
 
 - (instancetype)initWithDeleted:(NSIndexSet *)deleted
                        inserted:(NSIndexSet *)inserted
@@ -105,7 +105,7 @@ static const NSTimeInterval SLK_CHANGE_DURATION = 0.25;
 
 - (NSString *)description
 {
-  return [NSString stringWithFormat:@"<SLKListChanges deleted=%lu inserted=%lu moved=%lu reloaded=%lu>",
+  return [NSString stringWithFormat:@"<ShadowListKitListChanges deleted=%lu inserted=%lu moved=%lu reloaded=%lu>",
     (unsigned long)_deletedIndices.count, (unsigned long)_insertedIndices.count,
     (unsigned long)_movedFromIndices.count, (unsigned long)_reloadedIndices.count];
 }
@@ -114,17 +114,17 @@ static const NSTimeInterval SLK_CHANGE_DURATION = 0.25;
 
 #pragma mark - Default item animator
 
-@implementation SLKDefaultItemAnimator
+@implementation ShadowListKitDefaultItemAnimator
 
 - (instancetype)init
 {
   if (self = [super init]) {
-    _duration = SLK_CHANGE_DURATION;
+    _duration = SHADOWLIST_KIT_CHANGE_DURATION;
   }
   return self;
 }
 
-- (void)listView:(SLKListView *)listView animateInsertOfCell:(SLKListCell *)cell
+- (void)listView:(ShadowListKitListView *)listView animateInsertOfCell:(ShadowListKitListCell *)cell
 {
   cell.transform = CGAffineTransformIdentity;
   cell.alpha = 0;
@@ -133,7 +133,7 @@ static const NSTimeInterval SLK_CHANGE_DURATION = 0.25;
   }];
 }
 
-- (void)listView:(SLKListView *)listView animateRemovalOfCell:(SLKListCell *)cell completion:(void (^)(void))completion
+- (void)listView:(ShadowListKitListView *)listView animateRemovalOfCell:(ShadowListKitListCell *)cell completion:(void (^)(void))completion
 {
   [UIView animateWithDuration:_duration animations:^{
     cell.alpha = 0;
@@ -142,7 +142,7 @@ static const NSTimeInterval SLK_CHANGE_DURATION = 0.25;
   }];
 }
 
-- (void)listView:(SLKListView *)listView animateMoveOfCell:(SLKListCell *)cell fromOffset:(CGPoint)offset
+- (void)listView:(ShadowListKitListView *)listView animateMoveOfCell:(ShadowListKitListCell *)cell fromOffset:(CGPoint)offset
 {
   if (offset.x == 0 && offset.y == 0 && CGAffineTransformIsIdentity(cell.transform)) {
     return;

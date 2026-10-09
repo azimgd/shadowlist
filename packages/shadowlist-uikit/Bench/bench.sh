@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Scroll benchmark across list engines. Each run launches the app on one screen, lets SLKBench
+# Scroll benchmark across list engines. Each run launches the app on one screen, lets ShadowListKitBench
 # drive the list at a constant speed and appends its [SLBENCH] JSON line to a results file.
 #
 #   ./bench.sh <sim|device> <udid> <label>
@@ -31,13 +31,13 @@ AXES="${AXES:-y}"
 OUT="$HERE/../results/$LABEL"
 mkdir -p "$OUT"
 RESULTS="$OUT/runs.jsonl"
-DYLIB="$HERE/../build/SLKBench-sim.dylib"
+DYLIB="$HERE/../build/ShadowListKitBench-sim.dylib"
 
 build_dylib() {
-  [[ -f "$DYLIB" && "$DYLIB" -nt "$HERE/SLKBench.m" ]] && return
+  [[ -f "$DYLIB" && "$DYLIB" -nt "$HERE/ShadowListKitBench.m" ]] && return
   mkdir -p "$(dirname "$DYLIB")"
   xcrun --sdk iphonesimulator clang -dynamiclib -fobjc-arc -O2 -target arm64-apple-ios16.0-simulator \
-    -framework UIKit -framework QuartzCore -framework CoreGraphics -framework Foundation "$HERE/SLKBench.m" -o "$DYLIB"
+    -framework UIKit -framework QuartzCore -framework CoreGraphics -framework Foundation "$HERE/ShadowListKitBench.m" -o "$DYLIB"
   codesign -f -s - "$DYLIB" >/dev/null 2>&1
 }
 

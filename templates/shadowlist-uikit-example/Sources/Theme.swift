@@ -108,10 +108,10 @@ struct TextStyle {
 
 extension TextStyle {
   /*
-   * Typeset text for an SLKTextView. Thread safe, row layouts call it off the main thread.
+   * Typeset text for an ShadowListKitTextView. Thread safe, row layouts call it off the main thread.
    */
-  func layout(_ text: String, width: CGFloat, maxLines: Int = 0, alignment: NSTextAlignment = .natural) -> SLKTextLayout {
-    SLKTextLayout(
+  func layout(_ text: String, width: CGFloat, maxLines: Int = 0, alignment: NSTextAlignment = .natural) -> ShadowListKitTextLayout {
+    ShadowListKitTextLayout(
       string: text, font: font, lineHeight: lineHeight, kern: kern, width: width,
       maximumLines: UInt(maxLines), alignment: alignment)
   }
@@ -124,14 +124,14 @@ enum TextRendering {
   static let async = UserDefaults.standard.string(forKey: "SLTextAsync") == "1"
 }
 
-extension SLKTextView {
-  static func make() -> SLKTextView {
-    let view = SLKTextView(frame: .zero)
+extension ShadowListKitTextView {
+  static func make() -> ShadowListKitTextView {
+    let view = ShadowListKitTextView(frame: .zero)
     view.displaysAsynchronously = TextRendering.async
     return view
   }
 
-  func show(_ layout: SLKTextLayout?, _ color: UIColor) {
+  func show(_ layout: ShadowListKitTextLayout?, _ color: UIColor) {
     textColor = color
     textLayout = layout
   }

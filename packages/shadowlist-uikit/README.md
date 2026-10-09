@@ -1,7 +1,7 @@
 # ShadowListKit (prototype)
 
 A virtualized list for UIKit, written in Objective-C++ on the shadowlist core. No React Native.
-`SLKListView` is a `UIScrollView` subclass with a UITableView-like data source, and it adds
+`ShadowListKitListView` is a `UIScrollView` subclass with a UITableView-like data source, and it adds
 what the shadowlist core does well: the visible content stays still while rows are measured,
 inserted above or removed. Rows have stable keys.
 
@@ -37,26 +37,26 @@ host, which keeps the band usable for section lists.
 | File                                                                             | Role                                                                                                                                     |
 | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/shadowlist-core/host/ListDriver.{hpp,cpp}`                             | The core driven for a native list: layout passes, measurement, keys, mount plan, sticky math, scroll landing, drag. Shared with Android. |
-| `SLKListView.mm`                                                                 | Public API, layout pass, mounting, sticky placement, scroll commands, delegate proxy.                                                    |
+| `ShadowListKitListView.mm`                                                       | Public API, layout pass, mounting, sticky placement, scroll commands, delegate proxy.                                                    |
 | `packages/shadowlist-core/host/ListSections.{hpp,cpp}`                           | Sections over the rows: item and row indices, header and footer rows, row keys, drops inside a section. Shared with Android.             |
 | `packages/shadowlist-core/host/KeyDiff.{hpp,cpp}`                                | `diffKeys` for `applyChanges` and `planBatch` for `performBatchUpdates:completion:`. Shared with Android.                                |
 | `packages/shadowlist-core/host/SwipeReveal.{hpp,cpp}`, `ListSelection.{hpp,cpp}` | Swipe action offsets and rests, selection by key.                                                                                        |
-| `SLKListView+Drag.mm`                                                            | Touch and hold to reorder, and the testing hooks in `SLKListView+Testing.h`.                                                             |
-| `SLKListView+Actions.mm`                                                         | Swipe actions and context menus.                                                                                                         |
-| `SLKListCell.mm`                                                                 | Row base view: highlight, selection and editing states, Auto Layout fitting.                                                             |
-| `SLKListModels.mm`                                                               | `SLKSwipeAction`, `SLKAnchorState`, `SLKListChanges`, `SLKDefaultItemAnimator`.                                                          |
-| `SLKChangeAnimator.mm`                                                           | Works out what `animatesChanges` animates and hands it to the `itemAnimator`.                                                            |
-| `SLKSectionIndexView.mm`                                                         | The section index along the trailing edge.                                                                                               |
+| `ShadowListKitListView+Drag.mm`                                                  | Touch and hold to reorder, and the testing hooks in `ShadowListKitListView+Testing.h`.                                                   |
+| `ShadowListKitListView+Actions.mm`                                               | Swipe actions and context menus.                                                                                                         |
+| `ShadowListKitListCell.mm`                                                       | Row base view: highlight, selection and editing states, Auto Layout fitting.                                                             |
+| `ShadowListKitListModels.mm`                                                     | `ShadowListKitSwipeAction`, `ShadowListKitAnchorState`, `ShadowListKitListChanges`, `ShadowListKitDefaultItemAnimator`.                  |
+| `ShadowListKitChangeAnimator.mm`                                                 | Works out what `animatesChanges` animates and hands it to the `itemAnimator`.                                                            |
+| `ShadowListKitSectionIndexView.mm`                                               | The section index along the trailing edge.                                                                                               |
 | `Internal/*.h`                                                                   | State the list shares with its drag category and the change animator. Not public headers.                                                |
-| `SLKText.{h,mm}`                                                                 | Precomputed text layout and drawing.                                                                                                     |
+| `ShadowListKitText.{h,mm}`                                                       | Precomputed text layout and drawing.                                                                                                     |
 
-`SLKTextLayout` and `SLKTextView` move text off the main thread. Line breaking happens when a
+`ShadowListKitTextLayout` and `ShadowListKitTextView` move text off the main thread. Line breaking happens when a
 row's layout is computed, on any thread. The view either draws the ready lines, or with
 `displaysAsynchronously` gets a bitmap drawn on a background queue.
 
 ## Features
 
-|                                                           | SLKListView                                                                   | UITableView                                 | shadowlist (RN) |
+|                                                           | ShadowListKitListView                                                         | UITableView                                 | shadowlist (RN) |
 | --------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- | --------------- |
 | Variable row sizes without jumps                          | yes, measured or precomputed                                                  | estimates jump, or every height up front    | yes             |
 | Keep visible rows still on insert, remove and regroup     | yes, by key                                                                   | manual offset fix, lost on reload           | yes             |
@@ -77,7 +77,7 @@ row's layout is computed, on any thread. The view either draws the ready lines, 
 | Moves, batches and diffing                                | `moveItemAtIndex:toIndex:`, `performBatchUpdates:completion:`, `applyChanges` | `performBatchUpdates`, diffable data source | n/a             |
 | Partial reloads                                           | `reloadItemsAtIndices:payload:`                                               | `reconfigureRows`                           | n/a             |
 | Selection, highlight, editing                             | `allowsMultipleSelection`, `selectedIndices`, `editing`                       | yes                                         | n/a             |
-| Swipe actions and swipe to delete                         | `SLKSwipeActionsConfiguration`                                                | yes                                         | no              |
+| Swipe actions and swipe to delete                         | `ShadowListKitSwipeActionsConfiguration`                                      | yes                                         | no              |
 | Context menus                                             | `UIMenu` per row, also on reorderable rows                                    | yes                                         | no              |
 | Prefetching                                               | `prefetchDataSource`                                                          | yes                                         | n/a             |
 | Separators                                                | `showsSeparators`                                                             | yes                                         | no              |
@@ -88,7 +88,7 @@ row's layout is computed, on any thread. The view either draws the ready lines, 
 
 ## API
 
-The header, `SLKListView.h`, documents every member. The same names exist in the Android list.
+The header, `ShadowListKitListView.h`, documents every member. The same names exist in the Android list.
 
 - Data source: `numberOfItemsInListView:`, `listView:keyForItemAtIndex:`, `listView:cellForItemAtIndex:`, optional
   `listView:sizeForItemAtIndex:crossSize:`. Without sizes every row is measured through its cell's `sizeThatFits:`,
@@ -106,13 +106,13 @@ The header, `SLKListView.h`, documents every member. The same names exist in the
   `moveItemAtIndex:toIndex:`, `performBatchUpdates:completion:` (UITableView's index rules, planned by the core's
   `planBatch`; a batch that does not add up reloads everything) and `applyChanges`, which diffs every key with the
   core's `diffKeys`, reloads rows whose `listView:contentVersionForItemAtIndex:` changed and returns an
-  `SLKListChanges`. With `animatesChanges` all of them animate through `itemAnimator`, an `SLKItemAnimator`
-  (`SLKDefaultItemAnimator` by default).
+  `ShadowListKitListChanges`. With `animatesChanges` all of them animate through `itemAnimator`, an `ShadowListKitItemAnimator`
+  (`ShadowListKitDefaultItemAnimator` by default).
 - Selection: `allowsSelection` (on), `allowsMultipleSelection`, `selectedIndices`, `selectItemAtIndex:animated:`,
   `deselectItemAtIndex:animated:`, `editing`. Delegate `shouldSelect`, `didSelect`, `didDeselect`,
   `shouldHighlight`. Cells get `setHighlighted:animated:`, `setSelected:animated:` and `setEditing:animated:`.
 - Swipe actions: delegate `listView:leadingSwipeActionsForItemAtIndex:` and `...trailing...` return an
-  `SLKSwipeActionsConfiguration` of `SLKSwipeAction`s. A full swipe performs the first action, like swipe to
+  `ShadowListKitSwipeActionsConfiguration` of `ShadowListKitSwipeAction`s. A full swipe performs the first action, like swipe to
   dismiss. `closeSwipeActionsAnimated:`. Off while editing.
 - Context menus: delegate `listView:contextMenuForItemAtIndex:` returns a `UIMenu`, shown through
   `UIContextMenuInteraction`. A row that can also be reordered lifts on the hold, and letting it go in place shows
@@ -122,7 +122,7 @@ The header, `SLKListView.h`, documents every member. The same names exist in the
 - Pull to refresh: `refreshEnabled`, `refreshing`, delegate `listViewDidBeginRefreshing:`.
 - Separators: `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`,
   `separatorThickness`, delegate `listView:showsSeparatorAfterItemAtIndex:`. Only between items of one section.
-- Saved position: `anchorState` (`SLKAnchorState`, the key at the viewport start and the distance into it) and
+- Saved position: `anchorState` (`ShadowListKitAnchorState`, the key at the viewport start and the distance into it) and
   `restoreAnchorState:`, which lands now or once a reload brings the key. UIKit state restoration saves it.
 
 Masonry stays round robin. A shortest column layout would move rows between columns whenever an earlier row is
@@ -159,23 +159,23 @@ compiles `Sources/ShadowListKit` and the canonical core in `packages/shadowlist-
 
 The example has the same screens and looks as the React Native example: Feed, Gallery, Chat,
 Directory, Boarding Order and Destinations. The same data comes from the same fixtures. Every
-screen runs on any engine. Two more screens run on SLKListView only: Sections (route `Sections`, section headers
+screen runs on any engine. Two more screens run on ShadowListKitListView only: Sections (route `Sections`, section headers
 and footers, the index and Auto Layout cells without sizes) and Inbox (route `Inbox`, swipe actions, menus,
 selection and editing, refresh, batches, `applyChanges` and the saved position).
 
-| `-SLEngine`  | List        | Row sizes                                          |
-| ------------ | ----------- | -------------------------------------------------- |
-| `sl`         | SLKListView | precomputed layouts, off the main thread           |
-| `sl-auto`    | SLKListView | each cell's `sizeThatFits:` on the main thread     |
-| `table`      | UITableView | `heightForRowAt` from the same precomputed layouts |
-| `table-auto` | UITableView | self-sizing cells with an estimated height         |
+| `-SLEngine`  | List                  | Row sizes                                          |
+| ------------ | --------------------- | -------------------------------------------------- |
+| `sl`         | ShadowListKitListView | precomputed layouts, off the main thread           |
+| `sl-auto`    | ShadowListKitListView | each cell's `sizeThatFits:` on the main thread     |
+| `table`      | UITableView           | `heightForRowAt` from the same precomputed layouts |
+| `table-auto` | UITableView           | self-sizing cells with an estimated height         |
 
 All engines show the same row views. The comparison isolates the list itself.
 `-SLTextAsync 1` draws text on a background queue, and `-SLCount N` sets the list size.
 
 ## Benchmarks
 
-`Bench/SLKBench.m` drives any app's main scroll view at a constant speed with a display link. It
+`Bench/ShadowListKitBench.m` drives any app's main scroll view at a constant speed with a display link. It
 logs one JSON line with frame intervals, hitch time, main thread and process CPU, memory, and
 how much of the viewport no row covers. The UIKit example links it in. The React Native example
 gets it injected without any project change. On the simulator that is `DYLD_INSERT_LIBRARIES`,
@@ -189,8 +189,8 @@ Bench/summarize.py results/my-label/runs.jsonl
 `-SLBenchAxes y,x,xy` (`AXES` in `bench.sh`) runs one leg pair per axis and logs one line each with an
 `axis` key. y drives the vertical scroll view with the most content, x the horizontal one, xy both at
 once. An axis without a scroll view logs a line with `skipped`. A view that draws its content after
-its rows show, like tiles, can adopt `SLKBenchProbe` and return the share of the viewport not drawn
-yet from `slk_benchBlankFraction`. The bench asks the driven views and their superviews, and the
+its rows show, like tiles, can adopt `ShadowListKitBenchProbe` and return the share of the viewport not drawn
+yet from `shadowListKit_benchBlankFraction`. The bench asks the driven views and their superviews, and the
 result then adds `contentBlankAvg`, `contentBlankMax` and `contentBlankFrames`. `blankAvg` stays the
 share no row covers.
 
@@ -223,43 +223,43 @@ iPhone 12 Pro, iOS 18.7, 60 Hz, Release builds, 1000 rows, the list driven at 60
 6 s each way, 3 interleaved runs, medians. Cells are main thread / whole process CPU in ms per
 second of scrolling. Lower is better. Raw runs are in `results/device-matrix`.
 
-| Screen    | SLK, async text | SLK       | SLK self-sizing | UITableView | UITableView self-sizing | shadowlist RN |
-| --------- | --------------- | --------- | --------------- | ----------- | ----------------------- | ------------- |
-| Feed      | 83 / 192        | 102 / 141 | 145 / 179       | 122 / 161   | 139 / 178               | 158 / 287     |
-| Chat      | 85 / 241        | 115 / 140 | 166 / 191       | 138 / 159   | 224 / 239               | 158 / 267     |
-| Directory | 123 / 291       | 140 / 148 | 206 / 215       | 188 / 192   | 245 / 249               | 149 / 469     |
-| Gallery   | 113 / 178       | 122 / 135 | 171 / 185       | 152 / 168   | 171 / 186               | 174 / 363     |
+| Screen    | ShadowListKit, async text | ShadowListKit | ShadowListKit self-sizing | UITableView | UITableView self-sizing | shadowlist RN |
+| --------- | ------------------------- | ------------- | ------------------------- | ----------- | ----------------------- | ------------- |
+| Feed      | 83 / 192                  | 102 / 141     | 145 / 179                 | 122 / 161   | 139 / 178               | 158 / 287     |
+| Chat      | 85 / 241                  | 115 / 140     | 166 / 191                 | 138 / 159   | 224 / 239               | 158 / 267     |
+| Directory | 123 / 291                 | 140 / 148     | 206 / 215                 | 188 / 192   | 245 / 249               | 149 / 469     |
+| Gallery   | 113 / 178                 | 122 / 135     | 171 / 185                 | 152 / 168   | 171 / 186               | 174 / 363     |
 
 - No engine dropped a frame or showed a blank area in these runs, not even at 16000 pt/s.
   On this device the list engine decides how much CPU headroom is left, not whether frames drop.
-- With the same cells, SLKListView uses 16 to 26 percent less main thread time than
+- With the same cells, ShadowListKitListView uses 16 to 26 percent less main thread time than
   UITableView, and 27 to 49 percent less than self-sizing UITableView.
-- SLK with async text has the lowest main thread time on every screen, 26 to 38 percent
+- ShadowListKit with async text has the lowest main thread time on every screen, 26 to 38 percent
   below UITableView. Its text bitmaps mostly arrive before the row is on screen. When one arrives
   after its row is on screen, it is less than a frame late (simulator: 0 late in Feed, 13 percent
   in Chat with a 1.4 ms average wait).
 - shadowlist RN keeps its main thread lean through Fabric, but the whole process uses 2 to 3
-  times the CPU of SLK. Its peak memory is lower in image screens and much higher in Directory.
+  times the CPU of ShadowListKit. Its peak memory is lower in image screens and much higher in Directory.
 - Before text moved off the main thread, UILabel re-typesetting dominated every native engine
-  and RN beat them at high speeds. `SLKTextLayout` fixed that for all native engines.
+  and RN beat them at high speeds. `ShadowListKitTextLayout` fixed that for all native engines.
 
 Data updates, `-SLScenario cost`, 10k rows, simulator (iPhone 16 Pro, iOS 26), resting mid
 list, the list's own main thread ms for one update plus its layout, 3 rounds of 30 updates,
 medians. Before is the list before the key and reconcile work of 2026-10-07 (the core rehashed
 its whole key map on every small insert, and reloadData sent every key).
 
-| 10k rows                        | SLK before | SLK  | UITableView |
-| ------------------------------- | ---------- | ---- | ----------- |
-| Chat, prepend 50                | 0.34       | 0.14 | 6.0         |
-| Chat, append 10                 | 0.20       | 0.04 | 3.4         |
-| Feed, prepend 10                | 0.29       | 0.13 | 4.4         |
-| Feed, append 20                 | 0.20       | 0.04 | 4.4         |
-| Directory, regroup after 10 new | 2.29       | 1.91 | 3.9         |
+| 10k rows                        | ShadowListKit before | ShadowListKit | UITableView |
+| ------------------------------- | -------------------- | ------------- | ----------- |
+| Chat, prepend 50                | 0.34                 | 0.14          | 6.0         |
+| Chat, append 10                 | 0.20                 | 0.04          | 3.4         |
+| Feed, prepend 10                | 0.29                 | 0.13          | 4.4         |
+| Feed, append 20                 | 0.20                 | 0.04          | 4.4         |
+| Directory, regroup after 10 new | 2.29                 | 1.91          | 3.9         |
 
 Building the rows in the example costs more than the list update on every engine (Directory
 regroups and sorts 10k contacts: about 32 ms, the same for every engine).
 
 Keeping the place, `-SLScenario prepend`: adding travellers to the Directory regroups the
-sections. Visible rows move 0 pt with SLK and 67 pt with UITableView, which loses the
+sections. Visible rows move 0 pt with ShadowListKit and 67 pt with UITableView, which loses the
 position on reloadData. Feed and Chat prepends hold still on every engine, because UITableView
 gets the usual manual offset fix there.

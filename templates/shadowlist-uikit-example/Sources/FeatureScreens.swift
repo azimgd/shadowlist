@@ -8,8 +8,8 @@ import UIKit
  * a count in each section's footer, a section index, separators and Auto Layout cells that size
  * themselves. The data source gives no sizes.
  */
-final class SectionsScreen: UIViewController, SLKListViewDataSource, SLKListViewDelegate {
-  let list = SLKListView()
+final class SectionsScreen: UIViewController, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
+  let list = ShadowListKitListView()
   private(set) var sections: [(letter: String, contacts: [Contact])] = []
   private var fresh = 5000
 
@@ -56,19 +56,19 @@ final class SectionsScreen: UIViewController, SLKListViewDataSource, SLKListView
     list.insertItems(at: IndexSet(integer: 0))
   }
 
-  func numberOfItems(in listView: SLKListView) -> Int { allContacts.count }
-  func numberOfSections(in listView: SLKListView) -> Int { sections.count }
-  func listView(_ listView: SLKListView, numberOfItemsInSection section: Int) -> Int { sections[section].contacts.count }
-  func listView(_ listView: SLKListView, keyForSection section: Int) -> String { sections[section].letter }
-  func listView(_ listView: SLKListView, titleForHeaderInSection section: Int) -> String? { sections[section].letter }
-  func listView(_ listView: SLKListView, titleForFooterInSection section: Int) -> String? {
+  func numberOfItems(in listView: ShadowListKitListView) -> Int { allContacts.count }
+  func numberOfSections(in listView: ShadowListKitListView) -> Int { sections.count }
+  func listView(_ listView: ShadowListKitListView, numberOfItemsInSection section: Int) -> Int { sections[section].contacts.count }
+  func listView(_ listView: ShadowListKitListView, keyForSection section: Int) -> String { sections[section].letter }
+  func listView(_ listView: ShadowListKitListView, titleForHeaderInSection section: Int) -> String? { sections[section].letter }
+  func listView(_ listView: ShadowListKitListView, titleForFooterInSection section: Int) -> String? {
     "\(sections[section].contacts.count) travellers"
   }
-  func sectionIndexTitles(for listView: SLKListView) -> [String]? { sections.map(\.letter) }
+  func sectionIndexTitles(for listView: ShadowListKitListView) -> [String]? { sections.map(\.letter) }
 
-  func listView(_ listView: SLKListView, keyForItemAt index: Int) -> String { contact(at: index).id }
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { contact(at: index).id }
 
-  func listView(_ listView: SLKListView, cellForItemAt index: Int) -> SLKListCell {
+  func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
     let cell = listView.dequeueReusableCell(withIdentifier: "contact") as! AutoContactCell
     let contact = contact(at: index)
     // Every fifth traveller has a longer note, which wraps and makes the row taller.
@@ -76,15 +76,15 @@ final class SectionsScreen: UIViewController, SLKListViewDataSource, SLKListView
     return cell
   }
 
-  func listView(_ listView: SLKListView, didSelectItemAt index: Int) {
+  func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) {
     listView.deselectItem(at: index, animated: true)
   }
 }
 
 /*
- * A row laid out with Auto Layout. SLKListCell fits its constraints for the row height.
+ * A row laid out with Auto Layout. ShadowListKitListCell fits its constraints for the row height.
  */
-final class AutoContactCell: SLKListCell {
+final class AutoContactCell: ShadowListKitListCell {
   private let avatar = UILabel()
   private let name = UILabel()
   private let note = UILabel()
@@ -166,11 +166,11 @@ struct Message {
  * with editing, pull to refresh, separators, batch updates, applyChanges with content versions,
  * payload reloads, prefetching and a saved scroll position. Changes animate.
  */
-final class InboxScreen: UIViewController, SLKListViewDataSource, SLKListViewDelegate, SLKListViewPrefetchDataSource {
-  let list = SLKListView()
+final class InboxScreen: UIViewController, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate, ShadowListKitListViewPrefetchDataSource {
+  let list = ShadowListKitListView()
   var messages: [Message] = (0..<200).map { Message(index: $0) }
   private var fresh = 1000
-  private var savedPlace: SLKAnchorState?
+  private var savedPlace: ShadowListKitAnchorState?
   private(set) var prefetched = 0
   private(set) var cancelled = 0
   private(set) var reconfigured = 0
@@ -201,7 +201,7 @@ final class InboxScreen: UIViewController, SLKListViewDataSource, SLKListViewDel
     // -SLSwipeDemo 1 opens the trailing actions of the second row, for screenshots.
     if UserDefaults.standard.string(forKey: "SLSwipeDemo") == "1" {
       DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-        self?.list.slk_swipeItem(at: 1, distance: -170, velocity: 0)
+        self?.list.shadowListKit_swipeItem(at: 1, distance: -170, velocity: 0)
       }
     }
   }
@@ -248,7 +248,7 @@ final class InboxScreen: UIViewController, SLKListViewDataSource, SLKListViewDel
    * Shuffle a few messages, edit two and hand the list the new data to diff.
    */
   @discardableResult
-  func shuffle() -> SLKListChanges {
+  func shuffle() -> ShadowListKitListChanges {
     let range = 2..<min(12, messages.count)
     let reversed = Array(messages[range].reversed())
     messages.replaceSubrange(range, with: reversed)
@@ -267,28 +267,28 @@ final class InboxScreen: UIViewController, SLKListViewDataSource, SLKListViewDel
     list.insertItems(at: IndexSet(0..<count))
   }
 
-  func numberOfItems(in listView: SLKListView) -> Int { messages.count }
-  func listView(_ listView: SLKListView, keyForItemAt index: Int) -> String { messages[index].id }
-  func listView(_ listView: SLKListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 76 }
-  func listView(_ listView: SLKListView, contentVersionForItemAt index: Int) -> Int { messages[index].version }
+  func numberOfItems(in listView: ShadowListKitListView) -> Int { messages.count }
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String { messages[index].id }
+  func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat { 76 }
+  func listView(_ listView: ShadowListKitListView, contentVersionForItemAt index: Int) -> Int { messages[index].version }
 
-  func listView(_ listView: SLKListView, cellForItemAt index: Int) -> SLKListCell {
+  func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
     let cell = listView.dequeueReusableCell(withIdentifier: "message") as! MessageCell
     cell.show(messages[index])
     return cell
   }
 
-  func listView(_ listView: SLKListView, reconfigureCell cell: SLKListCell, at index: Int, payload: Any?) -> Bool {
+  func listView(_ listView: ShadowListKitListView, reconfigureCell cell: ShadowListKitListCell, at index: Int, payload: Any?) -> Bool {
     guard let cell = cell as? MessageCell, payload as? String == "read" else { return false }
     reconfigured += 1
     cell.show(messages[index])
     return true
   }
 
-  func listView(_ listView: SLKListView, prefetchItemsAt indices: IndexSet) { prefetched += indices.count }
-  func listView(_ listView: SLKListView, cancelPrefetchingForItemsAt indices: IndexSet) { cancelled += indices.count }
+  func listView(_ listView: ShadowListKitListView, prefetchItemsAt indices: IndexSet) { prefetched += indices.count }
+  func listView(_ listView: ShadowListKitListView, cancelPrefetchingForItemsAt indices: IndexSet) { cancelled += indices.count }
 
-  func listView(_ listView: SLKListView, didSelectItemAt index: Int) {
+  func listView(_ listView: ShadowListKitListView, didSelectItemAt index: Int) {
     if !listView.isEditing {
       listView.deselectItem(at: index, animated: true)
       toggleRead(index)
@@ -296,7 +296,7 @@ final class InboxScreen: UIViewController, SLKListViewDataSource, SLKListViewDel
     onSelectionChange?()
   }
 
-  func listView(_ listView: SLKListView, didDeselectItemAt index: Int) { onSelectionChange?() }
+  func listView(_ listView: ShadowListKitListView, didDeselectItemAt index: Int) { onSelectionChange?() }
 
   func toggleRead(_ index: Int) {
     messages[index].read.toggle()
@@ -308,33 +308,33 @@ final class InboxScreen: UIViewController, SLKListViewDataSource, SLKListViewDel
     list.deleteItems(at: IndexSet(integer: index))
   }
 
-  func listView(_ listView: SLKListView, leadingSwipeActionsForItemAt index: Int) -> SLKSwipeActionsConfiguration? {
-    let read = SLKSwipeAction(style: .normal, title: messages[index].read ? "Unread" : "Read") { [weak self] _, done in
+  func listView(_ listView: ShadowListKitListView, leadingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
+    let read = ShadowListKitSwipeAction(style: .normal, title: messages[index].read ? "Unread" : "Read") { [weak self] _, done in
       self?.toggleRead(index)
       done(true)
     }
     read.backgroundColor = Theme.accent
-    return SLKSwipeActionsConfiguration(actions: [read])
+    return ShadowListKitSwipeActionsConfiguration(actions: [read])
   }
 
-  func listView(_ listView: SLKListView, trailingSwipeActionsForItemAt index: Int) -> SLKSwipeActionsConfiguration? {
+  func listView(_ listView: ShadowListKitListView, trailingSwipeActionsForItemAt index: Int) -> ShadowListKitSwipeActionsConfiguration? {
     let key = messages[index].id
-    let delete = SLKSwipeAction(style: .destructive, title: "Delete") { [weak self] _, done in
+    let delete = ShadowListKitSwipeAction(style: .destructive, title: "Delete") { [weak self] _, done in
       guard let self, let at = self.messages.firstIndex(where: { $0.id == key }) else { return done(false) }
       self.delete(at)
       done(true)
     }
-    let flag = SLKSwipeAction(style: .normal, title: "Flag") { [weak self] _, done in
+    let flag = ShadowListKitSwipeAction(style: .normal, title: "Flag") { [weak self] _, done in
       guard let self, let at = self.messages.firstIndex(where: { $0.id == key }) else { return done(false) }
       self.messages[at].flagged.toggle()
       self.list.reloadItems(at: IndexSet(integer: at), payload: "read")
       done(true)
     }
     flag.backgroundColor = .systemOrange
-    return SLKSwipeActionsConfiguration(actions: [delete, flag])
+    return ShadowListKitSwipeActionsConfiguration(actions: [delete, flag])
   }
 
-  func listView(_ listView: SLKListView, contextMenuForItemAt index: Int) -> UIMenu? {
+  func listView(_ listView: ShadowListKitListView, contextMenuForItemAt index: Int) -> UIMenu? {
     let key = messages[index].id
     let at = { [weak self] in self?.messages.firstIndex(where: { $0.id == key }) }
     return UIMenu(children: [
@@ -353,7 +353,7 @@ final class InboxScreen: UIViewController, SLKListViewDataSource, SLKListViewDel
     ])
   }
 
-  func listViewDidBeginRefreshing(_ listView: SLKListView) {
+  func listViewDidBeginRefreshing(_ listView: ShadowListKitListView) {
     refreshes += 1
     DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
       self?.addNewMail(3)
@@ -366,7 +366,7 @@ final class InboxScreen: UIViewController, SLKListViewDataSource, SLKListViewDel
  * A message row: avatar, sender, text, an unread dot and a flag. It shows highlight, selection
  * and, while editing, a check circle.
  */
-final class MessageCell: SLKListCell {
+final class MessageCell: ShadowListKitListCell {
   private let avatar = UILabel()
   private let sender = UILabel()
   private let body = UILabel()
@@ -471,10 +471,10 @@ enum FeatureScenario {
       list.setContentOffset(CGPoint(x: 0, y: list.contentOffset.y + 120), animated: false)
       list.layoutIfNeeded()
       let viewportTop = list.contentOffset.y + list.adjustedContentInset.top
-      let pinned = list.subviews.compactMap { $0 as? SLKListCell }.first { !$0.isHidden && $0.index == NSNotFound && $0.layer.zPosition == 1 }
+      let pinned = list.subviews.compactMap { $0 as? ShadowListKitListCell }.first { !$0.isHidden && $0.index == NSNotFound && $0.layer.zPosition == 1 }
       result["pinnedHeaderOffset"] = pinned.map { Double($0.frame.minY - viewportTop) } ?? NSNull()
       result["separators"] = list.visibleCells.filter { cell in cell.layer.sublayers?.contains { $0.zPosition == 1000 && !$0.isHidden } ?? false }.count
-      result["hasSectionIndex"] = list.subviews.contains { String(describing: type(of: $0)) == "SLKSectionIndexView" }
+      result["hasSectionIndex"] = list.subviews.contains { String(describing: type(of: $0)) == "ShadowListKitSectionIndexView" }
       // Adding a traveller regroups the sections. Visible rows stay put.
       let before = visibleItems(list)
       screen.addTraveller()
@@ -528,12 +528,12 @@ enum FeatureScenario {
       // Swipe the third row all the way: its delete runs.
       let count = screen.messages.count
       let swiped = screen.messages[2].id
-      list.slk_swipeItem(at: 2, distance: -list.bounds.width, velocity: 0)
+      list.shadowListKit_swipeItem(at: 2, distance: -list.bounds.width, velocity: 0)
       after(0.6) {
         list.layoutIfNeeded()
         result["fullSwipeDeleted"] = screen.messages.count == count - 1 && !screen.messages.contains { $0.id == swiped }
         // A partial swipe opens the row. Closing it puts it back.
-        list.slk_swipeItem(at: 1, distance: 120, velocity: 0)
+        list.shadowListKit_swipeItem(at: 1, distance: 120, velocity: 0)
         let open = list.cellForItem(at: 1)?.transform.tx ?? 0
         list.closeSwipeActions(animated: false)
         result["swipeOpenOffset"] = Double(open)
@@ -587,7 +587,7 @@ enum FeatureScenario {
     return screen.list.numberOfItemsCheck(screen.messages.count)
   }
 
-  private static func visibleItems(_ list: SLKListView) -> [String: CGFloat] {
+  private static func visibleItems(_ list: ShadowListKitListView) -> [String: CGFloat] {
     var rows: [String: CGFloat] = [:]
     for cell in list.visibleCells {
       if let key = list.dataSource?.listView(list, keyForItemAt: cell.index) {
@@ -614,26 +614,26 @@ enum FeatureScenario {
 /*
  * The default animations, counted.
  */
-final class CountingAnimator: SLKDefaultItemAnimator {
+final class CountingAnimator: ShadowListKitDefaultItemAnimator {
   private(set) var calls = 0
 
-  override func listView(_ listView: SLKListView, animateInsertOf cell: SLKListCell) {
+  override func listView(_ listView: ShadowListKitListView, animateInsertOf cell: ShadowListKitListCell) {
     calls += 1
     super.listView(listView, animateInsertOf: cell)
   }
 
-  override func listView(_ listView: SLKListView, animateRemovalOf cell: SLKListCell, completion: @escaping () -> Void) {
+  override func listView(_ listView: ShadowListKitListView, animateRemovalOf cell: ShadowListKitListCell, completion: @escaping () -> Void) {
     calls += 1
     super.listView(listView, animateRemovalOf: cell, completion: completion)
   }
 
-  override func listView(_ listView: SLKListView, animateMoveOf cell: SLKListCell, fromOffset offset: CGPoint) {
+  override func listView(_ listView: ShadowListKitListView, animateMoveOf cell: ShadowListKitListCell, fromOffset offset: CGPoint) {
     calls += 1
     super.listView(listView, animateMoveOf: cell, fromOffset: offset)
   }
 }
 
-private extension SLKListView {
+private extension ShadowListKitListView {
   /*
    * Whether the list holds count items: the last one has a frame and the one after does not.
    */

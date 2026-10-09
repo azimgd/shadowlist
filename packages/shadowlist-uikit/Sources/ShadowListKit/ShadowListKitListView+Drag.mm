@@ -1,5 +1,5 @@
-#import "Internal/SLKListView+Private.h"
-#import "SLKListView+Testing.h"
+#import "Internal/ShadowListKitListView+Private.h"
+#import "ShadowListKitListView+Testing.h"
 
 #include <cmath>
 #include <vector>
@@ -9,18 +9,18 @@ using namespace azimgd::shadowlist;
 /*
  * Scale of a held row and the durations of the drag, from the core's DragReorder.
  */
-static const CGFloat SLK_LIFT_SCALE = DRAG_LIFT_SCALE;
-static const NSTimeInterval SLK_LIFT_DURATION = DRAG_LIFT_DURATION_MS / 1000.0;
-static const NSTimeInterval SLK_SHIFT_DURATION = DRAG_SHIFT_DURATION_MS / 1000.0;
-static const NSTimeInterval SLK_DROP_DURATION = DRAG_DROP_DURATION_MS / 1000.0;
-static const NSTimeInterval SLK_PRESS_DURATION = 0.35;
+static const CGFloat SHADOWLIST_KIT_LIFT_SCALE = DRAG_LIFT_SCALE;
+static const NSTimeInterval SHADOWLIST_KIT_LIFT_DURATION = DRAG_LIFT_DURATION_MS / 1000.0;
+static const NSTimeInterval SHADOWLIST_KIT_SHIFT_DURATION = DRAG_SHIFT_DURATION_MS / 1000.0;
+static const NSTimeInterval SHADOWLIST_KIT_DROP_DURATION = DRAG_DROP_DURATION_MS / 1000.0;
+static const NSTimeInterval SHADOWLIST_KIT_PRESS_DURATION = 0.35;
 
 /*
  * How far a held row may move and still count as held in place, which shows its menu on release.
  */
-static const CGFloat SLK_MENU_SLOP = 10;
+static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 
-@interface SLKListView (DragSteps)
+@interface ShadowListKitListView (DragSteps)
 - (void)setDragTouch:(CGPoint)location;
 - (void)beginDragAtPoint:(CGPoint)location;
 - (void)updateDrag;
@@ -32,15 +32,15 @@ static const CGFloat SLK_MENU_SLOP = 10;
  * The auto scroll display link's target. It holds the list weakly. A display link retains its
  * target, and the list would otherwise stay alive until the drag ends.
  */
-@interface SLKDragLinkTarget : NSObject
-@property (nonatomic, weak) SLKListView *list;
+@interface ShadowListKitDragLinkTarget : NSObject
+@property (nonatomic, weak) ShadowListKitListView *list;
 @end
 
-@implementation SLKDragLinkTarget
+@implementation ShadowListKitDragLinkTarget
 
 - (void)tick:(CADisplayLink *)link
 {
-  SLKListView *list = _list;
+  ShadowListKitListView *list = _list;
   if (!list) {
     [link invalidate];
     return;
@@ -55,13 +55,13 @@ static const CGFloat SLK_MENU_SLOP = 10;
  * open the gap, and the list scrolls while the row is held near an edge. The drop slot and
  * the shifts come from the core's ListDriver, which runs the host layer's DragReorder.
  */
-@implementation SLKListView (Drag)
+@implementation ShadowListKitListView (Drag)
 
 - (void)enableDragPress:(BOOL)enabled
 {
   if (enabled && !_dragPress) {
     _dragPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragPress:)];
-    _dragPress.minimumPressDuration = SLK_PRESS_DURATION;
+    _dragPress.minimumPressDuration = SHADOWLIST_KIT_PRESS_DURATION;
     [self addGestureRecognizer:_dragPress];
   }
   _dragPress.enabled = enabled;
@@ -98,7 +98,7 @@ static const CGFloat SLK_MENU_SLOP = 10;
       [self beginDragAtPoint:location];
       break;
     case UIGestureRecognizerStateChanged:
-      if (std::hypot(location.x - _dragStart.x, location.y - _dragStart.y) > SLK_MENU_SLOP) {
+      if (std::hypot(location.x - _dragStart.x, location.y - _dragStart.y) > SHADOWLIST_KIT_MENU_SLOP) {
         _dragMoved = YES;
       }
       [self updateDrag];
@@ -125,7 +125,7 @@ static const CGFloat SLK_MENU_SLOP = 10;
   if ([self hasHeldRow]) {
     return;
   }
-  SLKListCell *cell = [self movableCellAtPoint:location];
+  ShadowListKitListCell *cell = [self movableCellAtPoint:location];
   if (!cell) {
     return;
   }
@@ -133,18 +133,18 @@ static const CGFloat SLK_MENU_SLOP = 10;
   _driver.dragBegin((std::size_t)cell.row, [self along:location], [self cross:location]);
   _heldCell = cell;
   [self liftCell:cell];
-  SLKDragLinkTarget *target = [SLKDragLinkTarget new];
+  ShadowListKitDragLinkTarget *target = [ShadowListKitDragLinkTarget new];
   target.list = self;
   _dragLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
   [_dragLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
-  [UIView animateWithDuration:SLK_LIFT_DURATION animations:^{
+  [UIView animateWithDuration:SHADOWLIST_KIT_LIFT_DURATION animations:^{
     [self updateDrag];
   }];
 }
 
-- (SLKListCell *)movableCellAtPoint:(CGPoint)location
+- (ShadowListKitListCell *)movableCellAtPoint:(CGPoint)location
 {
-  SLKListCell *cell = [self itemCellAtPoint:location];
+  ShadowListKitListCell *cell = [self itemCellAtPoint:location];
   if (!cell || (std::size_t)cell.row >= _driver.getCount() || _editing) {
     return nil;
   }
@@ -155,7 +155,7 @@ static const CGFloat SLK_MENU_SLOP = 10;
   return cell;
 }
 
-- (void)liftCell:(SLKListCell *)cell
+- (void)liftCell:(ShadowListKitListCell *)cell
 {
   cell.layer.zPosition = 2;
   cell.layer.shadowColor = UIColor.blackColor.CGColor;
@@ -183,7 +183,7 @@ static const CGFloat SLK_MENU_SLOP = 10;
   CGPoint offset = self.contentOffset;
   CGPoint touch = CGPointMake(_dragTouch.x + offset.x, _dragTouch.y + offset.y);
   DragOffset placed = _driver.placeHeld(held, [self along:touch], [self cross:touch]);
-  CGAffineTransform lift = CGAffineTransformMakeScale(SLK_LIFT_SCALE, SLK_LIFT_SCALE);
+  CGAffineTransform lift = CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE);
   _heldCell.transform = CGAffineTransformConcat(lift, [self transformAlong:placed.leading cross:placed.cross]);
   std::size_t insertion = _driver.getDragInsertionIndex();
   _driver.dragUpdateInsertion([self mountedIndices]);
@@ -209,7 +209,7 @@ static const CGFloat SLK_MENU_SLOP = 10;
 {
   void (^apply)(void) = ^{
     for (auto& entry : self->_mounted) {
-      SLKListCell *cell = entry.second;
+      ShadowListKitListCell *cell = entry.second;
       if (cell == self->_heldCell || cell.hidden || cell.row == NSNotFound) {
         continue;
       }
@@ -221,7 +221,7 @@ static const CGFloat SLK_MENU_SLOP = 10;
     }
   };
   if (animated) {
-    [UIView animateWithDuration:SLK_SHIFT_DURATION delay:0
+    [UIView animateWithDuration:SHADOWLIST_KIT_SHIFT_DURATION delay:0
                         options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
                      animations:apply completion:nil];
   } else {
@@ -257,7 +257,7 @@ static const CGFloat SLK_MENU_SLOP = 10;
   }
   [_dragLink invalidate];
   _dragLink = nil;
-  SLKListCell *cell = _heldCell;
+  ShadowListKitListCell *cell = _heldCell;
   std::size_t from = _driver.getDragOriginIndex();
   std::size_t to = _driver.getDragInsertionIndex();
   _heldCell = nil;
@@ -280,7 +280,7 @@ static const CGFloat SLK_MENU_SLOP = 10;
 /*
  * Move the row in the data and lay out again. The held cell keeps showing where it was let go.
  */
-- (void)commitMoveOfCell:(SLKListCell *)cell from:(NSInteger)from to:(NSInteger)to
+- (void)commitMoveOfCell:(ShadowListKitListCell *)cell from:(NSInteger)from to:(NSInteger)to
 {
   CGPoint shown = CGPointMake(cell.center.x + cell.transform.tx, cell.center.y + cell.transform.ty);
   [_userDelegate listView:self moveItemAtIndex:from toIndex:to];
@@ -293,13 +293,13 @@ static const CGFloat SLK_MENU_SLOP = 10;
   [self reloadData];
   [self layoutIfNeeded];
   _animatesChanges = animates;
-  cell.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(SLK_LIFT_SCALE, SLK_LIFT_SCALE),
+  cell.transform = CGAffineTransformConcat(CGAffineTransformMakeScale(SHADOWLIST_KIT_LIFT_SCALE, SHADOWLIST_KIT_LIFT_SCALE),
     CGAffineTransformMakeTranslation(shown.x - cell.center.x, shown.y - cell.center.y));
 }
 
-- (void)dropCell:(SLKListCell *)cell
+- (void)dropCell:(ShadowListKitListCell *)cell
 {
-  [UIView animateWithDuration:SLK_DROP_DURATION delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0
+  [UIView animateWithDuration:SHADOWLIST_KIT_DROP_DURATION delay:0 usingSpringWithDamping:0.9 initialSpringVelocity:0
                       options:UIViewAnimationOptionBeginFromCurrentState animations:^{
                         for (auto& entry : self->_mounted) {
                           entry.second.transform = CGAffineTransformIdentity;
@@ -314,28 +314,28 @@ static const CGFloat SLK_MENU_SLOP = 10;
 
 @end
 
-@implementation SLKListView (Testing)
+@implementation ShadowListKitListView (Testing)
 
-- (void)slk_beginDragAtPoint:(CGPoint)point
+- (void)shadowListKit_beginDragAtPoint:(CGPoint)point
 {
   [self setDragTouch:point];
   [self beginDragAtPoint:point];
 }
 
-- (void)slk_moveDragToPoint:(CGPoint)point
+- (void)shadowListKit_moveDragToPoint:(CGPoint)point
 {
   [self setDragTouch:point];
   [self updateDrag];
 }
 
-- (void)slk_endDrag
+- (void)shadowListKit_endDrag
 {
   [self endDrag:YES];
 }
 
-- (void)slk_swipeItemAtIndex:(NSInteger)index distance:(CGFloat)distance velocity:(CGFloat)velocity
+- (void)shadowListKit_swipeItemAtIndex:(NSInteger)index distance:(CGFloat)distance velocity:(CGFloat)velocity
 {
-  SLKListCell *cell = [self cellForItemAtIndex:index];
+  ShadowListKitListCell *cell = [self cellForItemAtIndex:index];
   if (cell) {
     [self scriptSwipeOfCell:cell distance:distance velocity:velocity];
   }

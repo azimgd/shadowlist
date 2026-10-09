@@ -1,1 +1,1 @@
-#import "../../../packages/shadowlist-uikit/Bench/SLKBench.h"
+#import "../../../packages/shadowlist-uikit/Bench/ShadowListKitBench.h"

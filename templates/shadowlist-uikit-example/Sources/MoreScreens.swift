@@ -36,20 +36,20 @@ final class SnapScreen: ListScreen {
  */
 enum AutoDrag {
   static func run(_ screen: ReorderScreen, list: UIScrollView, names: @escaping () -> [String]) {
-    guard UserDefaults.standard.string(forKey: "SLAutoDrag") == "1", let list = list as? SLKListView else { return }
+    guard UserDefaults.standard.string(forKey: "SLAutoDrag") == "1", let list = list as? ShadowListKitListView else { return }
     DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
       let before = names().prefix(6)
       let start = list.rectForItem(at: 1)
       var point = CGPoint(x: start.midX, y: start.midY)
-      list.slk_beginDrag(at: point)
+      list.shadowListKit_beginDrag(at: point)
       var step = 0
       Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { timer in
         step += 1
         point.y += 67 * 4.2 / 30
-        list.slk_moveDrag(to: point)
+        list.shadowListKit_moveDrag(to: point)
         if step == 30 {
           timer.invalidate()
-          list.slk_endDrag()
+          list.shadowListKit_endDrag()
           DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
             print("[SLAUTODRAG] before=\(Array(before)) after=\(Array(names().prefix(6)))")
             fflush(stdout)

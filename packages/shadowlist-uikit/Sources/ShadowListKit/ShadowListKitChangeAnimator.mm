@@ -1,5 +1,5 @@
-#import "Internal/SLKChangeAnimator.h"
-#import "Internal/SLKListView+Private.h"
+#import "Internal/ShadowListKitChangeAnimator.h"
+#import "Internal/ShadowListKitListView+Private.h"
 
 #include <algorithm>
 #include <optional>
@@ -8,12 +8,12 @@
 
 using namespace azimgd::shadowlist;
 
-@implementation SLKChangeAnimator {
-  __weak SLKListView *_list;
+@implementation ShadowListKitChangeAnimator {
+  __weak ShadowListKitListView *_list;
   ChangeAnimation _animation;
 }
 
-- (instancetype)initWithList:(SLKListView *)list
+- (instancetype)initWithList:(ShadowListKitListView *)list
 {
   if (self = [super init]) {
     _list = list;
@@ -24,7 +24,7 @@ using namespace azimgd::shadowlist;
 /*
  * Where a cell's top left corner shows on screen, a slide still running included.
  */
-- (ScreenPoint)screenOriginOf:(SLKListCell *)cell
+- (ScreenPoint)screenOriginOf:(ShadowListKitListCell *)cell
 {
   CGPoint offset = _list.contentOffset;
   CGPoint center = cell.center;
@@ -36,7 +36,7 @@ using namespace azimgd::shadowlist;
 
 - (void)captureRemoved:(const std::vector<std::string>&)removed inserted:(const std::vector<std::string>&)inserted
 {
-  SLKListView *list = _list;
+  ShadowListKitListView *list = _list;
   if (!list || !list.window || [list hasHeldRow]) {
     return;
   }
@@ -45,7 +45,7 @@ using namespace azimgd::shadowlist;
   }
 }
 
-- (void)recordScreenOf:(SLKListView *)list
+- (void)recordScreenOf:(ShadowListKitListView *)list
 {
   for (auto& entry : list->_mounted) {
     if (!entry.second.hidden) {
@@ -54,7 +54,7 @@ using namespace azimgd::shadowlist;
   }
 }
 
-- (BOOL)fadeOutKey:(const std::string&)key cell:(SLKListCell *)cell
+- (BOOL)fadeOutKey:(const std::string&)key cell:(ShadowListKitListCell *)cell
 {
   if (cell.hidden) {
     return NO;
@@ -63,7 +63,7 @@ using namespace azimgd::shadowlist;
   if (!previous) {
     return NO;
   }
-  SLKListView *list = _list;
+  ShadowListKitListView *list = _list;
   if (!list) {
     return NO;
   }
@@ -71,7 +71,7 @@ using namespace azimgd::shadowlist;
   CGSize size = cell.bounds.size;
   cell.transform = CGAffineTransformIdentity;
   cell.center = CGPointMake(previous->x + offset.x + size.width / 2, previous->y + offset.y + size.height / 2);
-  __weak SLKListView *weakList = list;
+  __weak ShadowListKitListView *weakList = list;
   [list.itemAnimator listView:list animateRemovalOfCell:cell completion:^{
     [weakList recycleCell:cell];
   }];
@@ -83,24 +83,24 @@ using namespace azimgd::shadowlist;
   if (!_animation.isPending()) {
     return;
   }
-  SLKListView *list = _list;
+  ShadowListKitListView *list = _list;
   if (!list) {
     return;
   }
-  std::vector<SLKListCell *> cells;
+  std::vector<ShadowListKitListCell *> cells;
   std::size_t keyCount = list->_driver.getKeyCount();
   for (auto& entry : list->_mounted) {
     if (!entry.second.hidden && entry.second.row != NSNotFound && (std::size_t)entry.second.row < keyCount) {
       cells.push_back(entry.second);
     }
   }
-  std::sort(cells.begin(), cells.end(), [](SLKListCell *a, SLKListCell *b) { return a.row < b.row; });
+  std::sort(cells.begin(), cells.end(), [](ShadowListKitListCell *a, ShadowListKitListCell *b) { return a.row < b.row; });
   std::vector<std::string> keys;
   std::vector<ScreenPoint> positions;
   keys.reserve(cells.size());
   positions.reserve(cells.size());
   CGPoint offset = list.contentOffset;
-  for (SLKListCell *cell : cells) {
+  for (ShadowListKitListCell *cell : cells) {
     keys.push_back(list->_driver.getKeyAt((std::size_t)cell.row));
     CGSize size = cell.bounds.size;
     positions.push_back({cell.center.x - size.width / 2 - offset.x, cell.center.y - size.height / 2 - offset.y});

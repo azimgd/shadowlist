@@ -1,7 +1,7 @@
-#import "Internal/SLKListView+Private.h"
-#import "Internal/SLKChangeAnimator.h"
-#import "Internal/SLKListModels+Private.h"
-#import "Internal/SLKSectionIndexView.h"
+#import "Internal/ShadowListKitListView+Private.h"
+#import "Internal/ShadowListKitChangeAnimator.h"
+#import "Internal/ShadowListKitListModels+Private.h"
+#import "Internal/ShadowListKitSectionIndexView.h"
 
 #include <algorithm>
 #include <cmath>
@@ -20,10 +20,10 @@ using namespace azimgd::shadowlist;
 /*
  * Reuse identifier of the built-in section header and footer cells.
  */
-static NSString *const SLK_SECTION_HEADER_IDENTIFIER = @"SLKSectionHeader";
-static NSString *const SLK_SECTION_FOOTER_IDENTIFIER = @"SLKSectionFooter";
+static NSString *const SHADOWLIST_KIT_SECTION_HEADER_IDENTIFIER = @"ShadowListKitSectionHeader";
+static NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectionFooter";
 
-void SLKPlace(UIView *view, CGRect frame)
+void ShadowListKitPlace(UIView *view, CGRect frame)
 {
   CGRect bounds = CGRectMake(0, 0, frame.size.width, frame.size.height);
   if (!CGSizeEqualToSize(view.bounds.size, bounds.size)) {
@@ -38,25 +38,25 @@ void SLKPlace(UIView *view, CGRect frame)
 /*
  * The indices in a set, low to high.
  */
-static std::vector<std::size_t> SLKIndices(NSIndexSet *set)
+static std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set)
 {
   std::vector<NSUInteger> raw(set.count);
   [set getIndexes:raw.data() maxCount:raw.size() inIndexRange:nil];
   return std::vector<std::size_t>(raw.begin(), raw.end());
 }
 
-NSString *SLKString(const std::string& value)
+NSString *ShadowListKitString(const std::string& value)
 {
   return [[NSString alloc] initWithBytes:value.data() length:value.size() encoding:NSUTF8StringEncoding] ?: @"";
 }
 
-std::string SLKStdString(NSString *string)
+std::string ShadowListKitStdString(NSString *string)
 {
   const char *bytes = string.UTF8String;
   return bytes ? std::string(bytes) : std::string();
 }
 
-@interface SLKListView ()
+@interface ShadowListKitListView ()
 - (void)settleFrame;
 - (void)focusAccessibilityRowForKey:(NSString *)key;
 @end
@@ -67,15 +67,15 @@ std::string SLKStdString(NSString *string)
  * The settle display link's target. It holds the list weakly, which lets the list go away
  * while the link exists.
  */
-@interface SLKSettleTarget : NSObject
-@property (nonatomic, weak) SLKListView *list;
+@interface ShadowListKitSettleTarget : NSObject
+@property (nonatomic, weak) ShadowListKitListView *list;
 @end
 
-@implementation SLKSettleTarget
+@implementation ShadowListKitSettleTarget
 
 - (void)tick:(CADisplayLink *)link
 {
-  SLKListView *list = _list;
+  ShadowListKitListView *list = _list;
   if (!list) {
     [link invalidate];
     return;
@@ -91,17 +91,17 @@ std::string SLKStdString(NSString *string)
  * Stands in for a row that is not on screen while accessibility walks the list. Its frame
  * comes from the core's layout. VoiceOver focusing it scrolls the row into view.
  */
-@interface SLKRowAccessibilityElement : UIAccessibilityElement
+@interface ShadowListKitRowAccessibilityElement : UIAccessibilityElement
 @property (nonatomic, copy) NSString *key;
 @end
 
-@implementation SLKRowAccessibilityElement
+@implementation ShadowListKitRowAccessibilityElement
 
 - (void)accessibilityElementDidBecomeFocused
 {
   [super accessibilityElementDidBecomeFocused];
   NSString *key = _key;
-  __weak SLKListView *weakList = (SLKListView *)self.accessibilityContainer;
+  __weak ShadowListKitListView *weakList = (ShadowListKitListView *)self.accessibilityContainer;
   // Scroll after the focus change finishes, then hand focus to the mounted cell.
   dispatch_async(dispatch_get_main_queue(), ^{
     [weakList focusAccessibilityRowForKey:key];
@@ -115,17 +115,17 @@ std::string SLKStdString(NSString *string)
 /*
  * The cell of a section header or footer the data source gives only a title for.
  */
-@interface SLKSectionTitleCell : SLKListCell
+@interface ShadowListKitSectionTitleCell : ShadowListKitListCell
 @property (nonatomic, strong, readonly) UILabel *label;
 @property (nonatomic) BOOL footer;
 @end
 
-@implementation SLKSectionTitleCell
+@implementation ShadowListKitSectionTitleCell
 
 - (instancetype)initWithReuseIdentifier:(NSString *)reuseIdentifier
 {
   if (self = [super initWithReuseIdentifier:reuseIdentifier]) {
-    _footer = [reuseIdentifier isEqualToString:SLK_SECTION_FOOTER_IDENTIFIER];
+    _footer = [reuseIdentifier isEqualToString:SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER];
     _label = [UILabel new];
     _label.numberOfLines = 0;
     _label.textColor = UIColor.secondaryLabelColor;
@@ -157,14 +157,14 @@ std::string SLKStdString(NSString *string)
  * Sits between UIScrollView and the user's delegate. The list sees the scroll events it needs
  * for snapping and gesture phases, and everything else goes to the user's delegate.
  */
-@interface SLKDelegateProxy : NSProxy
-@property (nonatomic, weak) SLKListView *list;
-@property (nonatomic, weak) id<SLKListViewDelegate> target;
+@interface ShadowListKitDelegateProxy : NSProxy
+@property (nonatomic, weak) ShadowListKitListView *list;
+@property (nonatomic, weak) id<ShadowListKitListViewDelegate> target;
 @end
 
-@implementation SLKDelegateProxy
+@implementation ShadowListKitDelegateProxy
 
-static BOOL SLKListHandles(SEL selector)
+static BOOL ShadowListKitListHandles(SEL selector)
 {
   return selector == @selector(scrollViewWillEndDragging:withVelocity:targetContentOffset:) ||
     selector == @selector(scrollViewDidEndDragging:willDecelerate:) ||
@@ -175,19 +175,19 @@ static BOOL SLKListHandles(SEL selector)
 
 - (BOOL)respondsToSelector:(SEL)selector
 {
-  return SLKListHandles(selector) || [_target respondsToSelector:selector];
+  return ShadowListKitListHandles(selector) || [_target respondsToSelector:selector];
 }
 
 - (NSMethodSignature *)methodSignatureForSelector:(SEL)selector
 {
-  id target = SLKListHandles(selector) ? (id)_list : (id)_target;
+  id target = ShadowListKitListHandles(selector) ? (id)_list : (id)_target;
   return [target methodSignatureForSelector:selector] ?: [NSObject instanceMethodSignatureForSelector:@selector(self)];
 }
 
 - (void)forwardInvocation:(NSInvocation *)invocation
 {
   SEL selector = invocation.selector;
-  if (SLKListHandles(selector)) {
+  if (ShadowListKitListHandles(selector)) {
     [invocation invokeWithTarget:_list];
     if ([_target respondsToSelector:selector]) {
       [invocation invokeWithTarget:_target];
@@ -201,10 +201,10 @@ static BOOL SLKListHandles(SEL selector)
 
 #pragma mark - List
 
-@implementation SLKListView {
-  SLKDelegateProxy *_proxy;
-  SLKChangeAnimator *_changes;
-  id<SLKItemAnimator> _itemAnimator;
+@implementation ShadowListKitListView {
+  ShadowListKitDelegateProxy *_proxy;
+  ShadowListKitChangeAnimator *_changes;
+  id<ShadowListKitItemAnimator> _itemAnimator;
 
   NSUInteger _mountGeneration;
 
@@ -219,9 +219,9 @@ static BOOL SLKListHandles(SEL selector)
   NSUInteger _structureVersion;
 
   NSMutableDictionary<NSString *, Class> *_cellClasses;
-  NSMutableDictionary<NSString *, NSMutableArray<SLKListCell *> *> *_reusePool;
+  NSMutableDictionary<NSString *, NSMutableArray<ShadowListKitListCell *> *> *_reusePool;
 
-  SLKListCell *_stickyCell;
+  ShadowListKitListCell *_stickyCell;
 
   /*
    * The band of offsets where the core has nothing to do.
@@ -274,16 +274,16 @@ static BOOL SLKListHandles(SEL selector)
   id _batchPayload;
 
   ListSelection _selection;
-  __weak SLKListCell *_highlightedCell;
+  __weak ShadowListKitListCell *_highlightedCell;
 
   /*
    * The content version of every item applyChanges saw, by key.
    */
   ContentVersions _contentVersions;
 
-  SLKAnchorState *_pendingAnchor;
+  ShadowListKitAnchorState *_pendingAnchor;
   UIRefreshControl *_refresh;
-  SLKSectionIndexView *_sectionIndex;
+  ShadowListKitSectionIndexView *_sectionIndex;
 
   std::vector<std::size_t> _prefetchRows;
   std::vector<std::size_t> _cancelRows;
@@ -291,7 +291,7 @@ static BOOL SLKListHandles(SEL selector)
   /*
    * The stand-ins of rows off screen by key, kept while accessibility holds them.
    */
-  NSMapTable<NSString *, SLKRowAccessibilityElement *> *_rowElements;
+  NSMapTable<NSString *, ShadowListKitRowAccessibilityElement *> *_rowElements;
 }
 
 @dynamic delegate;
@@ -314,13 +314,13 @@ static BOOL SLKListHandles(SEL selector)
 
 - (void)commonInit
 {
-  _proxy = [SLKDelegateProxy alloc];
+  _proxy = [ShadowListKitDelegateProxy alloc];
   _proxy.list = self;
   [super setDelegate:(id<UIScrollViewDelegate>)_proxy];
   _cellClasses = [NSMutableDictionary new];
   _reusePool = [NSMutableDictionary new];
-  _changes = [[SLKChangeAnimator alloc] initWithList:self];
-  _itemAnimator = [SLKDefaultItemAnimator new];
+  _changes = [[ShadowListKitChangeAnimator alloc] initWithList:self];
+  _itemAnimator = [ShadowListKitDefaultItemAnimator new];
   _numberOfColumns = 1;
   _estimatedItemSize = 120;
   _overscan = 1;
@@ -335,9 +335,9 @@ static BOOL SLKListHandles(SEL selector)
   _separatorColor = UIColor.separatorColor;
   _separatorInsetStart = 16;
 
-  __weak SLKListView *weakSelf = self;
+  __weak ShadowListKitListView *weakSelf = self;
   _driver.setMeasureItem([weakSelf](std::size_t index, const std::string& key, double cross) -> double {
-    SLKListView *list = weakSelf;
+    ShadowListKitListView *list = weakSelf;
     return list ? [list measureRow:(NSInteger)index key:key cross:(CGFloat)cross] : 0.0;
   });
 
@@ -355,13 +355,13 @@ static BOOL SLKListHandles(SEL selector)
 
 #pragma mark - Delegate
 
-- (void)setDataSource:(id<SLKListViewDataSource>)dataSource
+- (void)setDataSource:(id<ShadowListKitListViewDataSource>)dataSource
 {
   _dataSource = dataSource;
   _sizesFromDataSource = [dataSource respondsToSelector:@selector(listView:sizeForItemAtIndex:crossSize:)];
 }
 
-- (void)setDelegate:(id<SLKListViewDelegate>)delegate
+- (void)setDelegate:(id<ShadowListKitListViewDelegate>)delegate
 {
   _userDelegate = delegate;
   _proxy.target = delegate;
@@ -371,7 +371,7 @@ static BOOL SLKListHandles(SEL selector)
   [self installActionGestures];
 }
 
-- (id<SLKListViewDelegate>)delegate
+- (id<ShadowListKitListViewDelegate>)delegate
 {
   return _userDelegate;
 }
@@ -559,14 +559,14 @@ static BOOL SLKListHandles(SEL selector)
   [self invalidateFrame];
 }
 
-- (id<SLKItemAnimator>)itemAnimator
+- (id<ShadowListKitItemAnimator>)itemAnimator
 {
   return _itemAnimator;
 }
 
-- (void)setItemAnimator:(id<SLKItemAnimator>)itemAnimator
+- (void)setItemAnimator:(id<ShadowListKitItemAnimator>)itemAnimator
 {
-  _itemAnimator = itemAnimator ?: [SLKDefaultItemAnimator new];
+  _itemAnimator = itemAnimator ?: [ShadowListKitDefaultItemAnimator new];
 }
 
 - (void)setAllowsSelection:(BOOL)allowsSelection
@@ -708,23 +708,23 @@ static BOOL SLKListHandles(SEL selector)
   _cellClasses[identifier] = cellClass;
 }
 
-- (__kindof SLKListCell *)dequeueReusableCellWithIdentifier:(NSString *)identifier
+- (__kindof ShadowListKitListCell *)dequeueReusableCellWithIdentifier:(NSString *)identifier
 {
-  NSMutableArray<SLKListCell *> *pool = _reusePool[identifier];
-  SLKListCell *cell = pool.lastObject;
+  NSMutableArray<ShadowListKitListCell *> *pool = _reusePool[identifier];
+  ShadowListKitListCell *cell = pool.lastObject;
   if (cell) {
     [pool removeLastObject];
     [cell prepareForReuse];
     return cell;
   }
-  Class cellClass = _cellClasses[identifier] ?: [SLKListCell class];
+  Class cellClass = _cellClasses[identifier] ?: [ShadowListKitListCell class];
   cell = [[cellClass alloc] initWithReuseIdentifier:identifier];
   cell.hidden = YES;
   [self addSubview:cell];
   return cell;
 }
 
-- (void)recycleCell:(SLKListCell *)cell
+- (void)recycleCell:(ShadowListKitListCell *)cell
 {
   NSInteger index = cell.index;
   [self swipeCellWillRecycle:cell];
@@ -748,7 +748,7 @@ static BOOL SLKListHandles(SEL selector)
     [cell removeFromSuperview];
     return;
   }
-  NSMutableArray<SLKListCell *> *pool = _reusePool[cell.reuseIdentifier];
+  NSMutableArray<ShadowListKitListCell *> *pool = _reusePool[cell.reuseIdentifier];
   if (!pool) {
     pool = [NSMutableArray new];
     _reusePool[cell.reuseIdentifier] = pool;
@@ -759,10 +759,10 @@ static BOOL SLKListHandles(SEL selector)
 /*
  * The cell of a row: an item's from the data source, or a section header or footer.
  */
-- (SLKListCell *)makeCellAtRow:(NSInteger)row
+- (ShadowListKitListCell *)makeCellAtRow:(NSInteger)row
 {
   RowPlace place = _sections.placeOfRow((std::size_t)row);
-  SLKListCell *cell = nil;
+  ShadowListKitListCell *cell = nil;
   switch (place.kind) {
     case RowKind::Item:
       cell = [_dataSource listView:self cellForItemAtIndex:(NSInteger)place.item];
@@ -780,7 +780,7 @@ static BOOL SLKListHandles(SEL selector)
   return cell;
 }
 
-- (SLKListCell *)sectionCellAtSection:(NSInteger)section footer:(BOOL)footer
+- (ShadowListKitListCell *)sectionCellAtSection:(NSInteger)section footer:(BOOL)footer
 {
   if (!footer && [_dataSource respondsToSelector:@selector(listView:cellForHeaderInSection:)]) {
     return [_dataSource listView:self cellForHeaderInSection:section];
@@ -788,11 +788,11 @@ static BOOL SLKListHandles(SEL selector)
   if (footer && [_dataSource respondsToSelector:@selector(listView:cellForFooterInSection:)]) {
     return [_dataSource listView:self cellForFooterInSection:section];
   }
-  NSString *identifier = footer ? SLK_SECTION_FOOTER_IDENTIFIER : SLK_SECTION_HEADER_IDENTIFIER;
+  NSString *identifier = footer ? SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER : SHADOWLIST_KIT_SECTION_HEADER_IDENTIFIER;
   if (!_cellClasses[identifier]) {
-    _cellClasses[identifier] = [SLKSectionTitleCell class];
+    _cellClasses[identifier] = [ShadowListKitSectionTitleCell class];
   }
-  SLKSectionTitleCell *cell = [self dequeueReusableCellWithIdentifier:identifier];
+  ShadowListKitSectionTitleCell *cell = [self dequeueReusableCellWithIdentifier:identifier];
   cell.label.text = footer ? [_dataSource listView:self titleForFooterInSection:section]
                            : [_dataSource listView:self titleForHeaderInSection:section];
   [cell setNeedsLayout];
@@ -802,7 +802,7 @@ static BOOL SLKListHandles(SEL selector)
 /*
  * The mounted cell of a row, or nil.
  */
-- (SLKListCell *)mountedCellAtIndex:(std::size_t)index
+- (ShadowListKitListCell *)mountedCellAtIndex:(std::size_t)index
 {
   if (index >= _driver.getKeyCount()) {
     return nil;
@@ -811,7 +811,7 @@ static BOOL SLKListHandles(SEL selector)
   return mounted != _mounted.end() ? mounted->second : nil;
 }
 
-- (SLKListCell *)mountedCellForKey:(const std::string&)key
+- (ShadowListKitListCell *)mountedCellForKey:(const std::string&)key
 {
   auto mounted = _mounted.find(key);
   return mounted != _mounted.end() ? mounted->second : nil;
@@ -836,7 +836,7 @@ static BOOL SLKListHandles(SEL selector)
     std::vector<std::string> keys;
     keys.reserve(count);
     for (NSInteger index = 0; index < count; ++index) {
-      keys.push_back(SLKStdString([_dataSource listView:self keyForItemAtIndex:index]));
+      keys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:index]));
     }
     _sections.setPlain((std::size_t)count);
     return keys;
@@ -856,10 +856,10 @@ static BOOL SLKListHandles(SEL selector)
     spec.hasFooter = footers && [_dataSource listView:self titleForFooterInSection:section] != nil;
     std::size_t first = itemKeys.size();
     for (std::size_t local = 0; local < spec.itemCount; ++local) {
-      itemKeys.push_back(SLKStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)(first + local)]));
+      itemKeys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)(first + local)]));
     }
     if (sectionKeys) {
-      keysOfSections[section] = SLKStdString([_dataSource listView:self keyForSection:section]);
+      keysOfSections[section] = ShadowListKitStdString([_dataSource listView:self keyForSection:section]);
     }
     specs.push_back(spec);
   }
@@ -919,7 +919,7 @@ static BOOL SLKListHandles(SEL selector)
     return;
   }
   if (_batchDepth > 0) {
-    std::vector<std::size_t> inserted = SLKIndices(indices);
+    std::vector<std::size_t> inserted = ShadowListKitIndices(indices);
     _batch.inserted.insert(_batch.inserted.end(), inserted.begin(), inserted.end());
     return;
   }
@@ -928,11 +928,11 @@ static BOOL SLKListHandles(SEL selector)
     return;
   }
   // An index past the end inserts at the end. The key is read where the row lands.
-  std::vector<std::size_t> inserted = insertionPositions(SLKIndices(indices), _driver.getKeyCount());
+  std::vector<std::size_t> inserted = insertionPositions(ShadowListKitIndices(indices), _driver.getKeyCount());
   std::vector<std::string> keys;
   keys.reserve(inserted.size());
   for (std::size_t index : inserted) {
-    keys.push_back(SLKStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]));
+    keys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]));
   }
   if (_animatesChanges) {
     [_changes captureRemoved:{} inserted:keys];
@@ -948,7 +948,7 @@ static BOOL SLKListHandles(SEL selector)
     return;
   }
   if (_batchDepth > 0) {
-    std::vector<std::size_t> deleted = SLKIndices(indices);
+    std::vector<std::size_t> deleted = ShadowListKitIndices(indices);
     _batch.deleted.insert(_batch.deleted.end(), deleted.begin(), deleted.end());
     return;
   }
@@ -956,7 +956,7 @@ static BOOL SLKListHandles(SEL selector)
     [self reloadData];
     return;
   }
-  std::vector<std::size_t> deleted = deletionPositions(SLKIndices(indices), _driver.getKeyCount());
+  std::vector<std::size_t> deleted = deletionPositions(ShadowListKitIndices(indices), _driver.getKeyCount());
   if (deleted.empty()) {
     return;
   }
@@ -981,13 +981,13 @@ static BOOL SLKListHandles(SEL selector)
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices payload:(id)payload
 {
   if (_batchDepth > 0) {
-    std::vector<std::size_t> reloaded = SLKIndices(indices);
+    std::vector<std::size_t> reloaded = ShadowListKitIndices(indices);
     _batch.reloaded.insert(_batch.reloaded.end(), reloaded.begin(), reloaded.end());
     _batchPayload = payload;
     return;
   }
   std::vector<std::size_t> rows;
-  for (std::size_t item : SLKIndices(indices)) {
+  for (std::size_t item : ShadowListKitIndices(indices)) {
     std::size_t row = _sections.rowForItem(item);
     if (row != UNDEFINED_INDEX) {
       rows.push_back(row);
@@ -1005,7 +1005,7 @@ static BOOL SLKListHandles(SEL selector)
   BOOL reconfigures = payload != nil &&
     [_dataSource respondsToSelector:@selector(listView:reconfigureCell:atIndex:payload:)];
   for (std::size_t row : rows) {
-    SLKListCell *cell = [self mountedCellAtIndex:row];
+    ShadowListKitListCell *cell = [self mountedCellAtIndex:row];
     if (!cell) {
       continue;
     }
@@ -1046,8 +1046,8 @@ static BOOL SLKListHandles(SEL selector)
   }
   // The change animation runs after the next layout. Completion follows it.
   NSTimeInterval wait = 0;
-  if (_animatesChanges && self.window && [_itemAnimator isKindOfClass:[SLKDefaultItemAnimator class]]) {
-    wait = ((SLKDefaultItemAnimator *)_itemAnimator).duration;
+  if (_animatesChanges && self.window && [_itemAnimator isKindOfClass:[ShadowListKitDefaultItemAnimator class]]) {
+    wait = ((ShadowListKitDefaultItemAnimator *)_itemAnimator).duration;
   }
   if (self.window) {
     [self layoutIfNeeded];
@@ -1082,12 +1082,12 @@ static BOOL SLKListHandles(SEL selector)
     std::optional<BatchPlan> plan = planBatch(_driver.getKeyCount(), (std::size_t)nextCount, batch);
     if (plan) {
       next = keysFromPlan(*plan, _driver.getKeys(), [self](std::size_t index) {
-        return SLKStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]);
+        return ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]);
       });
       _sections.setPlain(next.size());
       planned = YES;
     } else {
-      NSLog(@"[SLKListView] batch updates do not add up to %ld items, reloading", (long)nextCount);
+      NSLog(@"[ShadowListKitListView] batch updates do not add up to %ld items, reloading", (long)nextCount);
     }
   }
   if (!planned) {
@@ -1124,7 +1124,7 @@ static BOOL SLKListHandles(SEL selector)
   return rows;
 }
 
-- (SLKListChanges *)applyChanges
+- (ShadowListKitListChanges *)applyChanges
 {
   std::vector<std::string> previousItems = _sections.itemKeys(_driver.getKeys());
   std::vector<std::string> next = [self readRowKeys];
@@ -1167,7 +1167,7 @@ static BOOL SLKListHandles(SEL selector)
     [movedFrom addObject:@(move.from)];
     [movedTo addObject:@(move.to)];
   }
-  return [[SLKListChanges alloc] initWithDeleted:deleted inserted:inserted movedFrom:movedFrom movedTo:movedTo
+  return [[ShadowListKitListChanges alloc] initWithDeleted:deleted inserted:inserted movedFrom:movedFrom movedTo:movedTo
                                         reloaded:reloaded];
 }
 
@@ -1285,7 +1285,7 @@ static BOOL SLKListHandles(SEL selector)
 
 - (void)updateStickyRows
 {
-  std::vector<std::size_t> items = _stickyIndices.count > 0 ? SLKIndices(_stickyIndices) : std::vector<std::size_t>();
+  std::vector<std::size_t> items = _stickyIndices.count > 0 ? ShadowListKitIndices(_stickyIndices) : std::vector<std::size_t>();
   _driver.setStickyIndices(_sections.stickyRows(items, _stickySectionHeaders));
 }
 
@@ -1304,9 +1304,9 @@ static BOOL SLKListHandles(SEL selector)
     return;
   }
   if (!_sectionIndex) {
-    _sectionIndex = [SLKSectionIndexView new];
+    _sectionIndex = [ShadowListKitSectionIndexView new];
     _sectionIndex.layer.zPosition = 10;
-    __weak SLKListView *weakSelf = self;
+    __weak ShadowListKitListView *weakSelf = self;
     _sectionIndex.onSelect = ^(NSInteger index) {
       [weakSelf scrollToSectionIndexTitleAtIndex:index];
     };
@@ -1515,7 +1515,7 @@ static BOOL SLKListHandles(SEL selector)
   }
   _settleScheduled = YES;
   if (!_settleLink) {
-    SLKSettleTarget *target = [SLKSettleTarget new];
+    ShadowListKitSettleTarget *target = [ShadowListKitSettleTarget new];
     target.list = self;
     _settleLink = [CADisplayLink displayLinkWithTarget:target selector:@selector(tick:)];
     [_settleLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
@@ -1633,7 +1633,7 @@ static BOOL SLKListHandles(SEL selector)
     return;
   }
   const std::string& key = _driver.getKeyAt(index);
-  SLKListCell *cell = nil;
+  ShadowListKitListCell *cell = nil;
   BOOL appearing = NO;
   auto mounted = _mounted.find(key);
   if (mounted != _mounted.end()) {
@@ -1648,7 +1648,7 @@ static BOOL SLKListHandles(SEL selector)
   cell.row = (NSInteger)index;
   cell.index = item == UNDEFINED_INDEX ? NSNotFound : (NSInteger)item;
   cell.mountGeneration = generation;
-  SLKPlace(cell, [self rowRect:index]);
+  ShadowListKitPlace(cell, [self rowRect:index]);
   [self placeSeparatorOfCell:cell row:index];
   if (!appearing) {
     return;
@@ -1663,7 +1663,7 @@ static BOOL SLKListHandles(SEL selector)
 /*
  * A cell coming on screen shows its row's selection and the list's editing state.
  */
-- (void)applyStateToCell:(SLKListCell *)cell key:(const std::string&)key
+- (void)applyStateToCell:(ShadowListKitListCell *)cell key:(const std::string&)key
 {
   BOOL selected = cell.index != NSNotFound && _selection.contains(key);
   if (cell.isSelected != selected) {
@@ -1708,7 +1708,7 @@ static BOOL SLKListHandles(SEL selector)
  */
 - (void)prefetchAround:(const MountPlan&)plan
 {
-  id<SLKListViewPrefetchDataSource> prefetch = _prefetchDataSource;
+  id<ShadowListKitListViewPrefetchDataSource> prefetch = _prefetchDataSource;
   if (!prefetch) {
     return;
   }
@@ -1767,7 +1767,7 @@ static BOOL SLKListHandles(SEL selector)
  */
 - (CGFloat)measureCellAtRow:(NSInteger)row key:(const std::string&)key cross:(CGFloat)cross
 {
-  SLKListCell *cell = nil;
+  ShadowListKitListCell *cell = nil;
   auto mounted = _mounted.find(key);
   if (mounted != _mounted.end()) {
     cell = mounted->second;
@@ -1792,7 +1792,7 @@ static BOOL SLKListHandles(SEL selector)
   }
   double offset = [self offset];
   std::size_t active = _driver.activeStickyIndex(offset);
-  SLKListCell *cell = active != UNDEFINED_INDEX ? [self mountedCellAtIndex:active] : nil;
+  ShadowListKitListCell *cell = active != UNDEFINED_INDEX ? [self mountedCellAtIndex:active] : nil;
   if (_stickyCell && _stickyCell != cell) {
     [self unpinCell:_stickyCell];
   }
@@ -1807,14 +1807,14 @@ static BOOL SLKListHandles(SEL selector)
   } else {
     rect.y = pinned;
   }
-  SLKPlace(cell, [self displayRect:rect.x y:rect.y width:rect.width height:rect.height]);
+  ShadowListKitPlace(cell, [self displayRect:rect.x y:rect.y width:rect.width height:rect.height]);
   cell.layer.zPosition = 1;
 }
 
-- (void)unpinCell:(SLKListCell *)cell
+- (void)unpinCell:(ShadowListKitListCell *)cell
 {
   if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getCount()) {
-    SLKPlace(cell, [self rowRect:(std::size_t)cell.row]);
+    ShadowListKitPlace(cell, [self rowRect:(std::size_t)cell.row]);
   }
   cell.layer.zPosition = 0;
 }
@@ -1825,7 +1825,7 @@ static BOOL SLKListHandles(SEL selector)
  * The line over an item's trailing edge when another item of its section follows. Grids have
  * none.
  */
-- (void)placeSeparatorOfCell:(SLKListCell *)cell row:(std::size_t)row
+- (void)placeSeparatorOfCell:(ShadowListKitListCell *)cell row:(std::size_t)row
 {
   BOOL shows = _showsSeparators && _numberOfColumns == 1 && row + 1 < _driver.getKeyCount() &&
     _sections.isItemBeforeItem(row);
@@ -1879,10 +1879,10 @@ static BOOL SLKListHandles(SEL selector)
 /*
  * The visible cell under a point in the list's own coordinates.
  */
-- (SLKListCell *)cellAtPoint:(CGPoint)point
+- (ShadowListKitListCell *)cellAtPoint:(CGPoint)point
 {
   for (auto& entry : _mounted) {
-    SLKListCell *cell = entry.second;
+    ShadowListKitListCell *cell = entry.second;
     if (!cell.hidden && cell.row != NSNotFound && CGRectContainsPoint(cell.frame, point)) {
       return cell;
     }
@@ -1890,9 +1890,9 @@ static BOOL SLKListHandles(SEL selector)
   return nil;
 }
 
-- (SLKListCell *)itemCellAtPoint:(CGPoint)point
+- (ShadowListKitListCell *)itemCellAtPoint:(CGPoint)point
 {
-  SLKListCell *cell = [self cellAtPoint:point];
+  ShadowListKitListCell *cell = [self cellAtPoint:point];
   return cell.index != NSNotFound ? cell : nil;
 }
 
@@ -1902,7 +1902,7 @@ static BOOL SLKListHandles(SEL selector)
   if ([self swipeOwnsTapAtPoint:point] || [self hasHeldRow]) {
     return;
   }
-  SLKListCell *cell = [self itemCellAtPoint:point];
+  ShadowListKitListCell *cell = [self itemCellAtPoint:point];
   if (cell && _allowsSelection) {
     [self userSelectedCell:cell];
   }
@@ -1913,7 +1913,7 @@ static BOOL SLKListHandles(SEL selector)
 /*
  * A tap on a row. Multiple selection toggles it, single selection moves to it.
  */
-- (void)userSelectedCell:(SLKListCell *)cell
+- (void)userSelectedCell:(ShadowListKitListCell *)cell
 {
   // A data change since the last layout pass may have dropped the cell's row.
   if ((std::size_t)cell.row >= _driver.getKeyCount()) {
@@ -1922,7 +1922,7 @@ static BOOL SLKListHandles(SEL selector)
   NSInteger index = cell.index;
   // A copy, because the delegate calls below may change the keys.
   std::string key = _driver.getKeyAt((std::size_t)cell.row);
-  id<SLKListViewDelegate> delegate = _userDelegate;
+  id<ShadowListKitListViewDelegate> delegate = _userDelegate;
   SelectionTap tap = _selection.tap(key, [&] {
     return ![delegate respondsToSelector:@selector(listView:shouldSelectItemAtIndex:)] ||
       [delegate listView:self shouldSelectItemAtIndex:index];
@@ -1938,7 +1938,7 @@ static BOOL SLKListHandles(SEL selector)
     return;
   }
   for (const std::string& previous : tap.deselected) {
-    SLKListCell *previousCell = [self mountedCellForKey:previous];
+    ShadowListKitListCell *previousCell = [self mountedCellForKey:previous];
     [previousCell setSelected:NO animated:YES];
     NSInteger previousIndex = [self itemIndexOfKey:previous];
     if (previousIndex != NSNotFound && [delegate respondsToSelector:@selector(listView:didDeselectItemAtIndex:)]) {
@@ -1977,7 +1977,7 @@ static BOOL SLKListHandles(SEL selector)
   for (const std::string& previous : deselected) {
     [[self mountedCellForKey:previous] setSelected:NO animated:animated];
   }
-  SLKListCell *cell = [self mountedCellForKey:key];
+  ShadowListKitListCell *cell = [self mountedCellForKey:key];
   if (cell && !cell.isSelected) {
     [cell setSelected:YES animated:animated];
   }
@@ -2014,7 +2014,7 @@ static BOOL SLKListHandles(SEL selector)
   if (!_allowsSelection || touches.count != 1 || [self hasHeldRow] || [self isSwipeOpen]) {
     return;
   }
-  SLKListCell *cell = [self itemCellAtPoint:[touches.anyObject locationInView:self]];
+  ShadowListKitListCell *cell = [self itemCellAtPoint:[touches.anyObject locationInView:self]];
   if (!cell || ([_userDelegate respondsToSelector:@selector(listView:shouldHighlightItemAtIndex:)] &&
                 ![_userDelegate listView:self shouldHighlightItemAtIndex:cell.index])) {
     return;
@@ -2037,7 +2037,7 @@ static BOOL SLKListHandles(SEL selector)
 
 - (void)unhighlight
 {
-  SLKListCell *cell = _highlightedCell;
+  ShadowListKitListCell *cell = _highlightedCell;
   _highlightedCell = nil;
   if (cell.isHighlighted) {
     [cell setHighlighted:NO animated:YES];
@@ -2111,27 +2111,27 @@ static BOOL SLKListHandles(SEL selector)
 
 #pragma mark - Queries
 
-- (SLKListCell *)cellForItemAtIndex:(NSInteger)index
+- (ShadowListKitListCell *)cellForItemAtIndex:(NSInteger)index
 {
   NSInteger row = [self rowForItem:index];
   if (row == NSNotFound) {
     return nil;
   }
-  SLKListCell *cell = [self mountedCellAtIndex:(std::size_t)row];
+  ShadowListKitListCell *cell = [self mountedCellAtIndex:(std::size_t)row];
   return cell.hidden ? nil : cell;
 }
 
-- (NSArray<SLKListCell *> *)visibleCells
+- (NSArray<ShadowListKitListCell *> *)visibleCells
 {
-  NSMutableArray<SLKListCell *> *cells = [NSMutableArray arrayWithCapacity:_mounted.size()];
+  NSMutableArray<ShadowListKitListCell *> *cells = [NSMutableArray arrayWithCapacity:_mounted.size()];
   CGRect visible = self.bounds;
   for (auto& entry : _mounted) {
-    SLKListCell *cell = entry.second;
+    ShadowListKitListCell *cell = entry.second;
     if (!cell.hidden && cell.index != NSNotFound && CGRectIntersectsRect(cell.frame, visible)) {
       [cells addObject:cell];
     }
   }
-  [cells sortUsingComparator:^NSComparisonResult(SLKListCell *a, SLKListCell *b) {
+  [cells sortUsingComparator:^NSComparisonResult(ShadowListKitListCell *a, ShadowListKitListCell *b) {
     return a.row < b.row ? NSOrderedAscending : a.row > b.row ? NSOrderedDescending : NSOrderedSame;
   }];
   return cells;
@@ -2161,16 +2161,16 @@ static BOOL SLKListHandles(SEL selector)
 
 #pragma mark - Saved position
 
-- (SLKAnchorState *)anchorState
+- (ShadowListKitAnchorState *)anchorState
 {
   std::optional<ListAnchor> anchor = _driver.getAnchor([self offset]);
   if (!anchor) {
     return _pendingAnchor;
   }
-  return [[SLKAnchorState alloc] initWithKey:SLKString(anchor->key) offset:(CGFloat)anchor->offset];
+  return [[ShadowListKitAnchorState alloc] initWithKey:ShadowListKitString(anchor->key) offset:(CGFloat)anchor->offset];
 }
 
-- (void)restoreAnchorState:(SLKAnchorState *)state
+- (void)restoreAnchorState:(ShadowListKitAnchorState *)state
 {
   _pendingAnchor = state;
   [self restorePendingAnchor];
@@ -2184,7 +2184,7 @@ static BOOL SLKListHandles(SEL selector)
   if (!_pendingAnchor) {
     return;
   }
-  ListAnchor anchor{SLKStdString(_pendingAnchor.key), (double)_pendingAnchor.offset};
+  ListAnchor anchor{ShadowListKitStdString(_pendingAnchor.key), (double)_pendingAnchor.offset};
   if (!_driver.restoreAnchor(anchor)) {
     return;
   }
@@ -2196,16 +2196,16 @@ static BOOL SLKListHandles(SEL selector)
 - (void)encodeRestorableStateWithCoder:(NSCoder *)coder
 {
   [super encodeRestorableStateWithCoder:coder];
-  SLKAnchorState *state = self.anchorState;
+  ShadowListKitAnchorState *state = self.anchorState;
   if (state) {
-    [coder encodeObject:state forKey:@"SLKAnchorState"];
+    [coder encodeObject:state forKey:@"ShadowListKitAnchorState"];
   }
 }
 
 - (void)decodeRestorableStateWithCoder:(NSCoder *)coder
 {
   [super decodeRestorableStateWithCoder:coder];
-  SLKAnchorState *state = [coder decodeObjectOfClass:[SLKAnchorState class] forKey:@"SLKAnchorState"];
+  ShadowListKitAnchorState *state = [coder decodeObjectOfClass:[ShadowListKitAnchorState class] forKey:@"ShadowListKitAnchorState"];
   if (state) {
     [self restoreAnchorState:state];
   }
@@ -2233,22 +2233,22 @@ static BOOL SLKListHandles(SEL selector)
   if (row >= rows) {
     return row == rows ? _footerView : nil;
   }
-  SLKListCell *cell = [self mountedCellAtIndex:(std::size_t)row];
+  ShadowListKitListCell *cell = [self mountedCellAtIndex:(std::size_t)row];
   if (cell && !cell.hidden && [self isRowOnScreen:(std::size_t)row]) {
     return cell;
   }
   return [self accessibilityElementForRow:(std::size_t)row];
 }
 
-- (SLKRowAccessibilityElement *)accessibilityElementForRow:(std::size_t)row
+- (ShadowListKitRowAccessibilityElement *)accessibilityElementForRow:(std::size_t)row
 {
   if (!_rowElements) {
     _rowElements = [NSMapTable strongToWeakObjectsMapTable];
   }
-  NSString *key = SLKString(_driver.getKeyAt(row));
-  SLKRowAccessibilityElement *element = [_rowElements objectForKey:key];
+  NSString *key = ShadowListKitString(_driver.getKeyAt(row));
+  ShadowListKitRowAccessibilityElement *element = [_rowElements objectForKey:key];
   if (!element) {
-    element = [[SLKRowAccessibilityElement alloc] initWithAccessibilityContainer:self];
+    element = [[ShadowListKitRowAccessibilityElement alloc] initWithAccessibilityContainer:self];
     element.key = key;
     [_rowElements setObject:element forKey:key];
   }
@@ -2262,14 +2262,14 @@ static BOOL SLKListHandles(SEL selector)
  */
 - (void)focusAccessibilityRowForKey:(NSString *)key
 {
-  std::size_t row = _driver.indexOfKey(SLKStdString(key));
+  std::size_t row = _driver.indexOfKey(ShadowListKitStdString(key));
   if (row == UNDEFINED_INDEX || row >= _driver.getKeyCount()) {
     return;
   }
   if (row >= _driver.getCount()) {
     // The core has not placed the row yet. Let the next layout pass do it first.
     [self layoutIfNeeded];
-    row = _driver.indexOfKey(SLKStdString(key));
+    row = _driver.indexOfKey(ShadowListKitStdString(key));
     if (row == UNDEFINED_INDEX || row >= _driver.getCount()) {
       return;
     }
@@ -2283,7 +2283,7 @@ static BOOL SLKListHandles(SEL selector)
     [self scrollToRow:row viewPosition:before ? 0 : 1 animated:NO];
     [self layoutIfNeeded];
   }
-  SLKListCell *cell = [self mountedCellAtIndex:row];
+  ShadowListKitListCell *cell = [self mountedCellAtIndex:row];
   if (cell) {
     UIAccessibilityPostNotification(UIAccessibilityLayoutChangedNotification, cell);
   }
@@ -2291,8 +2291,8 @@ static BOOL SLKListHandles(SEL selector)
 
 - (NSInteger)indexOfAccessibilityElement:(id)element
 {
-  if ([element isKindOfClass:[SLKRowAccessibilityElement class]]) {
-    std::size_t row = _driver.indexOfKey(SLKStdString(((SLKRowAccessibilityElement *)element).key));
+  if ([element isKindOfClass:[ShadowListKitRowAccessibilityElement class]]) {
+    std::size_t row = _driver.indexOfKey(ShadowListKitStdString(((ShadowListKitRowAccessibilityElement *)element).key));
     return row == UNDEFINED_INDEX ? NSNotFound : (NSInteger)row + (_headerView ? 1 : 0);
   }
   if (element && element == _headerView) {
@@ -2302,10 +2302,10 @@ static BOOL SLKListHandles(SEL selector)
     return [self accessibilityElementCount] - 1;
   }
   UIView *view = [element isKindOfClass:[UIView class]] ? element : nil;
-  while (view && ![view isKindOfClass:[SLKListCell class]]) {
+  while (view && ![view isKindOfClass:[ShadowListKitListCell class]]) {
     view = view.superview;
   }
-  SLKListCell *cell = (SLKListCell *)view;
+  ShadowListKitListCell *cell = (ShadowListKitListCell *)view;
   if (!cell || cell.superview != self || cell.row == NSNotFound) {
     return NSNotFound;
   }

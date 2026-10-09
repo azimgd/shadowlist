@@ -3,7 +3,7 @@ import UIKit
 
 /*
  * What changed between two row lists. UITableView needs it to keep the visible rows still;
- * SLKListView works it out from the keys.
+ * ShadowListKitListView works it out from the keys.
  */
 enum RowChange {
   case reset
@@ -14,7 +14,7 @@ enum RowChange {
 
 /*
  * One list API over the engines being compared. Screens hand it rows and it shows them with
- * SLKListView, UITableView, or for a grid UICollectionView.
+ * ShadowListKitListView, UITableView, or for a grid UICollectionView.
  */
 final class ListController: NSObject {
   let engine: Engine
@@ -126,9 +126,9 @@ protocol ListBackend: AnyObject {
   func scrollToEnd(animated: Bool)
 }
 
-// MARK: - SLKListView
+// MARK: - ShadowListKitListView
 
-final class ShadowListCell: SLKListCell {
+final class ShadowListCell: ShadowListKitListCell {
   private(set) var rowView: RowView?
 
   func show(_ row: Row, layout: RowLayout?) {
@@ -151,9 +151,9 @@ final class ShadowListCell: SLKListCell {
   }
 }
 
-final class ShadowListBackend: NSObject, ListBackend, SLKListViewDataSource, SLKListViewDelegate {
+final class ShadowListBackend: NSObject, ListBackend, ShadowListKitListViewDataSource, ShadowListKitListViewDelegate {
   private unowned let controller: ListController
-  private let list = SLKListView()
+  private let list = ShadowListKitListView()
   private var registered = Set<String>()
 
   init(controller: ListController, inverted: Bool) {
@@ -180,7 +180,7 @@ final class ShadowListBackend: NSObject, ListBackend, SLKListViewDataSource, SLK
     set { list.snapToItem = newValue }
   }
 
-  func listView(_ listView: SLKListView, moveItemAt sourceIndex: Int, to destinationIndex: Int) {
+  func listView(_ listView: ShadowListKitListView, moveItemAt sourceIndex: Int, to destinationIndex: Int) {
     controller.moveRow(from: sourceIndex, to: destinationIndex)
   }
 
@@ -222,15 +222,15 @@ final class ShadowListBackend: NSObject, ListBackend, SLKListViewDataSource, SLK
     list.scrollToEnd(animated: animated)
   }
 
-  func numberOfItems(in listView: SLKListView) -> Int {
+  func numberOfItems(in listView: ShadowListKitListView) -> Int {
     controller.rows.count
   }
 
-  func listView(_ listView: SLKListView, keyForItemAt index: Int) -> String {
+  func listView(_ listView: ShadowListKitListView, keyForItemAt index: Int) -> String {
     controller.rows[index].key
   }
 
-  func listView(_ listView: SLKListView, cellForItemAt index: Int) -> SLKListCell {
+  func listView(_ listView: ShadowListKitListView, cellForItemAt index: Int) -> ShadowListKitListCell {
     let row = controller.rows[index]
     let identifier = row.reuseIdentifier
     if !registered.contains(identifier) {
@@ -248,21 +248,21 @@ final class ShadowListBackend: NSObject, ListBackend, SLKListViewDataSource, SLK
    * every row through its cell, and respondsToSelector is what it asks.
    */
   override func responds(to selector: Selector!) -> Bool {
-    if selector == #selector(SLKListViewDataSource.listView(_:sizeForItemAt:crossSize:)) {
+    if selector == #selector(ShadowListKitListViewDataSource.listView(_:sizeForItemAt:crossSize:)) {
       return !controller.engine.selfSizing
     }
     return super.responds(to: selector)
   }
 
-  func listView(_ listView: SLKListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
+  func listView(_ listView: ShadowListKitListView, sizeForItemAt index: Int, crossSize: CGFloat) -> CGFloat {
     controller.cache.layout(controller.rows[index], width: crossSize).height
   }
 
-  func listViewDidReachStart(_ listView: SLKListView) {
+  func listViewDidReachStart(_ listView: ShadowListKitListView) {
     controller.onStartReached?()
   }
 
-  func listViewDidReachEnd(_ listView: SLKListView) {
+  func listViewDidReachEnd(_ listView: ShadowListKitListView) {
     controller.onEndReached?()
   }
 }

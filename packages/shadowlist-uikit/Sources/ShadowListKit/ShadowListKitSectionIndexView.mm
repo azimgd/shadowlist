@@ -1,10 +1,10 @@
-#import "Internal/SLKSectionIndexView.h"
+#import "Internal/ShadowListKitSectionIndexView.h"
 
 #include <shadowlist-core/host/SectionIndex.hpp>
 
 using namespace azimgd::shadowlist;
 
-@implementation SLKSectionIndexView {
+@implementation ShadowListKitSectionIndexView {
   NSInteger _selected;
 }
 

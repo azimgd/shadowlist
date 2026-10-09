@@ -1,23 +1,23 @@
-#import "SLKBench.h"
+#import "ShadowListKitBench.h"
 
 #import <QuartzCore/QuartzCore.h>
 #import <UIKit/UIKit.h>
 #import <mach/mach.h>
 #import <sys/resource.h>
 
-static thread_act_t SLKBenchMainThread;
+static thread_act_t ShadowListKitBenchMainThread;
 
 /*
  * Pause between two axis runs, which lets the last run's work settle.
  */
-static const NSTimeInterval SLK_BENCH_RUN_GAP = 0.5;
+static const NSTimeInterval SHADOWLIST_KIT_BENCH_RUN_GAP = 0.5;
 
 /*
  * A frame counts as blank past this share of the viewport.
  */
-static const double SLK_BENCH_BLANK_FRAME = 0.02;
+static const double SHADOWLIST_KIT_BENCH_BLANK_FRAME = 0.02;
 
-static double SLKBenchThreadSeconds(thread_act_t thread)
+static double ShadowListKitBenchThreadSeconds(thread_act_t thread)
 {
   thread_basic_info_data_t info;
   mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -27,14 +27,14 @@ static double SLKBenchThreadSeconds(thread_act_t thread)
   return info.user_time.seconds + info.user_time.microseconds / 1e6 + info.system_time.seconds + info.system_time.microseconds / 1e6;
 }
 
-static double SLKBenchProcessSeconds(void)
+static double ShadowListKitBenchProcessSeconds(void)
 {
   struct rusage usage;
   getrusage(RUSAGE_SELF, &usage);
   return usage.ru_utime.tv_sec + usage.ru_utime.tv_usec / 1e6 + usage.ru_stime.tv_sec + usage.ru_stime.tv_usec / 1e6;
 }
 
-static double SLKBenchFootprintMB(void)
+static double ShadowListKitBenchFootprintMB(void)
 {
   task_vm_info_data_t info;
   mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
@@ -44,14 +44,14 @@ static double SLKBenchFootprintMB(void)
   return info.phys_footprint / 1048576.0;
 }
 
-@implementation SLKBench {
+@implementation ShadowListKitBench {
   NSArray<NSString *> *_axes;
   NSUInteger _run;
   NSString *_axis;
   UIScrollView *_vertical;
   UIScrollView *_horizontal;
   UIScrollView *_coverage;
-  id<SLKBenchProbe> _probe;
+  id<ShadowListKitBenchProbe> _probe;
   BOOL _drivesX;
   BOOL _drivesY;
   CADisplayLink *_link;
@@ -82,11 +82,11 @@ static double SLKBenchFootprintMB(void)
 
 + (void)load
 {
-  SLKBenchMainThread = mach_thread_self();
+  ShadowListKitBenchMainThread = mach_thread_self();
   if (![[NSUserDefaults standardUserDefaults] stringForKey:@"SLBench"]) {
     return;
   }
-  static SLKBench *bench;
+  static ShadowListKitBench *bench;
   [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidBecomeActiveNotification
                                                     object:nil
                                                      queue:NSOperationQueue.mainQueue
@@ -94,7 +94,7 @@ static double SLKBenchFootprintMB(void)
                                                   if (bench) {
                                                     return;
                                                   }
-                                                  bench = [SLKBench new];
+                                                  bench = [ShadowListKitBench new];
                                                   double delay = [self setting:@"SLBenchDelay" fallback:3];
                                                   dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)),
                                                     dispatch_get_main_queue(), ^{
@@ -149,12 +149,12 @@ static double SLKBenchFootprintMB(void)
 /*
  * The first of the views and their superviews that answers the probe.
  */
-+ (id<SLKBenchProbe>)findProbeFrom:(NSArray<UIView *> *)views
++ (id<ShadowListKitBenchProbe>)findProbeFrom:(NSArray<UIView *> *)views
 {
   for (UIView *start in views) {
     for (UIView *view = start; view; view = view.superview) {
-      if ([view respondsToSelector:@selector(slk_benchBlankFraction)]) {
-        return (id<SLKBenchProbe>)view;
+      if ([view respondsToSelector:@selector(shadowListKit_benchBlankFraction)]) {
+        return (id<ShadowListKitBenchProbe>)view;
       }
     }
   }
@@ -197,8 +197,8 @@ static double SLKBenchFootprintMB(void)
     }
   }
   _axes = list.count > 0 ? list : @[ @"y" ];
-  _speed = [SLKBench setting:@"SLBenchSpeed" fallback:4000];
-  _seconds = [SLKBench setting:@"SLBenchSeconds" fallback:6];
+  _speed = [ShadowListKitBench setting:@"SLBenchSpeed" fallback:4000];
+  _seconds = [ShadowListKitBench setting:@"SLBenchSeconds" fallback:6];
   _nominal = 1.0 / UIScreen.mainScreen.maximumFramesPerSecond;
   _run = 0;
   [self startRun];
@@ -209,14 +209,14 @@ static double SLKBenchFootprintMB(void)
   _axis = _axes[_run];
   _drivesX = [_axis containsString:@"x"];
   _drivesY = [_axis containsString:@"y"];
-  _vertical = _drivesY ? [SLKBench findScrollViewAlongX:NO] : nil;
-  _horizontal = _drivesX ? [SLKBench findScrollViewAlongX:YES] : nil;
+  _vertical = _drivesY ? [ShadowListKitBench findScrollViewAlongX:NO] : nil;
+  _horizontal = _drivesX ? [ShadowListKitBench findScrollViewAlongX:YES] : nil;
   if ((_drivesY && !_vertical) || (_drivesX && !_horizontal)) {
     [self skipRun:_drivesY && !_vertical ? @"no vertical scroll view" : @"no horizontal scroll view"];
     return;
   }
   // Rows are counted along y when a vertical view is driven or found, along x on a horizontal list.
-  _coverage = _vertical ?: [SLKBench findScrollViewAlongX:NO] ?: _horizontal;
+  _coverage = _vertical ?: [ShadowListKitBench findScrollViewAlongX:NO] ?: _horizontal;
   NSMutableArray<UIView *> *driven = [NSMutableArray new];
   if (_vertical) {
     [driven addObject:_vertical];
@@ -224,7 +224,7 @@ static double SLKBenchFootprintMB(void)
   if (_horizontal) {
     [driven addObject:_horizontal];
   }
-  _probe = [SLKBench findProbeFrom:driven];
+  _probe = [ShadowListKitBench findProbeFrom:driven];
   _positionX = _horizontal.contentOffset.x;
   _positionY = _vertical.contentOffset.y;
   _directionX = _horizontal ? [self directionOf:_horizontal alongX:YES] : 1;
@@ -246,11 +246,11 @@ static double SLKBenchFootprintMB(void)
     float maxRate = (float)UIScreen.mainScreen.maximumFramesPerSecond;
     _link.preferredFrameRateRange = CAFrameRateRangeMake(maxRate, maxRate, maxRate);
   }
-  _mainStart = SLKBenchThreadSeconds(SLKBenchMainThread);
-  _processStart = SLKBenchProcessSeconds();
-  _peakMB = SLKBenchFootprintMB();
-  Class textView = NSClassFromString(@"SLKTextView");
-  SEL reset = NSSelectorFromString(@"slk_resetAsyncStats");
+  _mainStart = ShadowListKitBenchThreadSeconds(ShadowListKitBenchMainThread);
+  _processStart = ShadowListKitBenchProcessSeconds();
+  _peakMB = ShadowListKitBenchFootprintMB();
+  Class textView = NSClassFromString(@"ShadowListKitTextView");
+  SEL reset = NSSelectorFromString(@"shadowListKit_resetAsyncStats");
   if ([textView respondsToSelector:reset]) {
     ((void (*)(id, SEL))[textView methodForSelector:reset])(textView, reset);
   }
@@ -313,7 +313,7 @@ static double SLKBenchFootprintMB(void)
     [self sampleBlank];
   }
   if (_frame % 30 == 0) {
-    _peakMB = MAX(_peakMB, SLKBenchFootprintMB());
+    _peakMB = MAX(_peakMB, ShadowListKitBenchFootprintMB());
   }
 
   // A leg ends when its time is up or every driven axis stopped at an edge.
@@ -420,14 +420,14 @@ static double SLKBenchFootprintMB(void)
   _blankSum += blank;
   _blankMax = MAX(_blankMax, blank);
   ++_blankSamples;
-  if (blank > SLK_BENCH_BLANK_FRAME) {
+  if (blank > SHADOWLIST_KIT_BENCH_BLANK_FRAME) {
     ++_blankFrames;
   }
   if (_probe) {
-    double content = MAX(blank, MIN(1.0, MAX(0.0, [_probe slk_benchBlankFraction])));
+    double content = MAX(blank, MIN(1.0, MAX(0.0, [_probe shadowListKit_benchBlankFraction])));
     _contentBlankSum += content;
     _contentBlankMax = MAX(_contentBlankMax, content);
-    if (content > SLK_BENCH_BLANK_FRAME) {
+    if (content > SHADOWLIST_KIT_BENCH_BLANK_FRAME) {
       ++_contentBlankFrames;
     }
   }
@@ -448,8 +448,8 @@ static double SLKBenchFootprintMB(void)
 {
   [_link invalidate];
   _link = nil;
-  double mainSeconds = SLKBenchThreadSeconds(SLKBenchMainThread) - _mainStart;
-  double processSeconds = SLKBenchProcessSeconds() - _processStart;
+  double mainSeconds = ShadowListKitBenchThreadSeconds(ShadowListKitBenchMainThread) - _mainStart;
+  double processSeconds = ShadowListKitBenchProcessSeconds() - _processStart;
 
   NSArray<NSNumber *> *sorted = [_intervals sortedArrayUsingSelector:@selector(compare:)];
   double total = 0;
@@ -493,7 +493,7 @@ static double SLKBenchFootprintMB(void)
     @"mainCpuMsPerS" : @(total > 0 ? mainSeconds * 1000 / total : 0),
     @"processCpuMsPerS" : @(total > 0 ? processSeconds * 1000 / total : 0),
     @"mainCpuUsPerFrame" : @(_intervals.count > 0 ? mainSeconds * 1e6 / _intervals.count : 0),
-    @"footprintMB" : @(SLKBenchFootprintMB()),
+    @"footprintMB" : @(ShadowListKitBenchFootprintMB()),
     @"peakMB" : @(_peakMB),
     @"blankAvg" : @(_blankSamples > 0 ? _blankSum / _blankSamples : 0),
     @"blankMax" : @(_blankMax),
@@ -509,8 +509,8 @@ static double SLKBenchFootprintMB(void)
     result[@"contentBlankMax"] = @(_contentBlankMax);
     result[@"contentBlankFrames"] = @(_contentBlankFrames);
   }
-  Class textView = NSClassFromString(@"SLKTextView");
-  SEL stats = NSSelectorFromString(@"slk_asyncStats");
+  Class textView = NSClassFromString(@"ShadowListKitTextView");
+  SEL stats = NSSelectorFromString(@"shadowListKit_asyncStats");
   if ([textView respondsToSelector:stats]) {
     NSDictionary *asyncText = ((NSDictionary * (*)(id, SEL))[textView methodForSelector:stats])(textView, stats);
     if (asyncText) {
@@ -543,7 +543,7 @@ static double SLKBenchFootprintMB(void)
 {
   ++_run;
   if (_run < _axes.count) {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SLK_BENCH_RUN_GAP * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SHADOWLIST_KIT_BENCH_RUN_GAP * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
       [self startRun];
     });
     return;

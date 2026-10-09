@@ -156,10 +156,10 @@ final class LayoutCache {
  * A colored circle with initials. The initials are typeset once per name and size.
  */
 final class AvatarView: UIView {
-  private static var cache: [String: SLKTextLayout] = [:]
+  private static var cache: [String: ShadowListKitTextLayout] = [:]
   private static var lock = os_unfair_lock()
 
-  static func initials(_ author: Author, size: CGFloat) -> SLKTextLayout {
+  static func initials(_ author: Author, size: CGFloat) -> ShadowListKitTextLayout {
     let key = "\(author.initials)#\(size)"
     os_unfair_lock_lock(&lock)
     defer { os_unfair_lock_unlock(&lock) }
@@ -173,7 +173,7 @@ final class AvatarView: UIView {
   }
 
   private let size: CGFloat
-  private let text = SLKTextView.make()
+  private let text = ShadowListKitTextView.make()
 
   init(size: CGFloat) {
     self.size = size
@@ -195,7 +195,7 @@ final class AvatarView: UIView {
 }
 
 extension CGRect {
-  init(_ origin: CGPoint, _ layout: SLKTextLayout) {
+  init(_ origin: CGPoint, _ layout: ShadowListKitTextLayout) {
     self.init(origin: origin, size: layout.size)
   }
 }
@@ -235,10 +235,10 @@ struct FeedRow: Row {
 }
 
 final class FeedLayout: RowLayout {
-  var name: SLKTextLayout!
-  var handle: SLKTextLayout!
-  var date: SLKTextLayout!
-  var body: SLKTextLayout!
+  var name: ShadowListKitTextLayout!
+  var handle: ShadowListKitTextLayout!
+  var date: ShadowListKitTextLayout!
+  var body: ShadowListKitTextLayout!
   var nameFrame = CGRect.zero
   var handleFrame = CGRect.zero
   var dateFrame = CGRect.zero
@@ -257,10 +257,10 @@ final class FeedLayout: RowLayout {
 
 final class FeedRowView: RowView {
   private let avatar = AvatarView(size: 40)
-  private let name = SLKTextView.make()
-  private let handle = SLKTextView.make()
-  private let date = SLKTextView.make()
-  private let body = SLKTextView.make()
+  private let name = ShadowListKitTextView.make()
+  private let handle = ShadowListKitTextView.make()
+  private let date = ShadowListKitTextView.make()
+  private let body = ShadowListKitTextView.make()
   private let image = RemoteImageView()
   private let carousel = UIScrollView()
   private var carouselImages: [RemoteImageView] = []
@@ -384,9 +384,9 @@ struct ChatRow: Row {
 }
 
 final class ChatLayout: RowLayout {
-  var name: SLKTextLayout?
-  var text: SLKTextLayout?
-  var caption: SLKTextLayout?
+  var name: ShadowListKitTextLayout?
+  var text: ShadowListKitTextLayout?
+  var caption: ShadowListKitTextLayout?
   var avatar = CGRect.zero
   var nameFrame = CGRect.zero
   var bubble = CGRect.zero
@@ -437,10 +437,10 @@ enum BubbleImages {
 
 final class ChatRowView: RowView {
   private let avatar = AvatarView(size: 30)
-  private let name = SLKTextView.make()
+  private let name = ShadowListKitTextView.make()
   private let bubble = UIImageView()
-  private let text = SLKTextView.make()
-  private let caption = SLKTextView.make()
+  private let text = ShadowListKitTextView.make()
+  private let caption = ShadowListKitTextView.make()
   private let imageBlock = UIView()
   private var images: [RemoteImageView] = []
 
@@ -522,14 +522,14 @@ struct ContactRow: Row {
 }
 
 final class ContactLayout: RowLayout {
-  var name: SLKTextLayout!
-  var subtitle: SLKTextLayout!
+  var name: ShadowListKitTextLayout!
+  var subtitle: ShadowListKitTextLayout!
 }
 
 final class ContactRowView: RowView {
   private let avatar = AvatarView(size: 40)
-  private let name = SLKTextView.make()
-  private let subtitle = SLKTextView.make()
+  private let name = ShadowListKitTextView.make()
+  private let subtitle = ShadowListKitTextView.make()
   private let separator = UIView()
   private let strip = UIView()
 
@@ -576,13 +576,13 @@ struct SectionHeaderRow: Row {
 }
 
 final class SectionHeaderLayout: RowLayout {
-  var title: SLKTextLayout!
-  var count: SLKTextLayout!
+  var title: ShadowListKitTextLayout!
+  var count: ShadowListKitTextLayout!
 }
 
 final class SectionHeaderView: RowView {
-  private let title = SLKTextView.make()
-  private let count = SLKTextView.make()
+  private let title = ShadowListKitTextView.make()
+  private let count = ShadowListKitTextView.make()
 
   required init(frame: CGRect) {
     super.init(frame: frame)
@@ -622,13 +622,13 @@ struct PhotoRow: Row {
 
 final class PhotoLayout: RowLayout {
   var image = CGRect.zero
-  var title: SLKTextLayout!
+  var title: ShadowListKitTextLayout!
   var titleFrame = CGRect.zero
 }
 
 final class PhotoCardView: RowView {
   private let image = RemoteImageView()
-  private let title = SLKTextView.make()
+  private let title = ShadowListKitTextView.make()
 
   required init(frame: CGRect) {
     super.init(frame: frame)

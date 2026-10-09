@@ -1,6 +1,6 @@
-#import "Internal/SLKListCell+Private.h"
+#import "Internal/ShadowListKitListCell+Private.h"
 
-@implementation SLKListCell
+@implementation ShadowListKitListCell
 
 - (instancetype)initWithReuseIdentifier:(NSString *)reuseIdentifier
 {

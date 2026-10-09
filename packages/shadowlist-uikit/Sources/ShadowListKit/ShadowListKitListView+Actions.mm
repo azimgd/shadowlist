@@ -1,4 +1,4 @@
-#import "Internal/SLKListView+Private.h"
+#import "Internal/ShadowListKitListView+Private.h"
 
 #include <cmath>
 #include <numeric>
@@ -9,7 +9,7 @@ using namespace azimgd::shadowlist;
 /*
  * How long a released row takes to rest, the core's SWIPE_SETTLE_DURATION_MS.
  */
-static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000.0;
+static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000.0;
 
 #pragma mark - Actions view
 
@@ -18,14 +18,14 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
  * cell's resting frame. The side being revealed shows its buttons stretched over the gap the
  * row leaves. Past the full swipe point the first button fills all of it.
  */
-@interface SLKSwipeActionsView : UIView
-@property (nonatomic, strong, nullable) SLKSwipeActionsConfiguration *leading;
-@property (nonatomic, strong, nullable) SLKSwipeActionsConfiguration *trailing;
+@interface ShadowListKitSwipeActionsView : UIView
+@property (nonatomic, strong, nullable) ShadowListKitSwipeActionsConfiguration *leading;
+@property (nonatomic, strong, nullable) ShadowListKitSwipeActionsConfiguration *trailing;
 @property (nonatomic) BOOL horizontal;
-@property (nonatomic, copy, nullable) void (^onAction)(SLKSwipeAction *action);
+@property (nonatomic, copy, nullable) void (^onAction)(ShadowListKitSwipeAction *action);
 @end
 
-@implementation SLKSwipeActionsView {
+@implementation ShadowListKitSwipeActionsView {
   NSArray<UIButton *> *_leadingButtons;
   NSArray<UIButton *> *_trailingButtons;
   std::vector<double> _leadingWidths;
@@ -33,8 +33,8 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   std::vector<SwipeSpan> _spans;
 }
 
-- (instancetype)initWithLeading:(SLKSwipeActionsConfiguration *)leading
-                       trailing:(SLKSwipeActionsConfiguration *)trailing
+- (instancetype)initWithLeading:(ShadowListKitSwipeActionsConfiguration *)leading
+                       trailing:(ShadowListKitSwipeActionsConfiguration *)trailing
                      horizontal:(BOOL)horizontal
 {
   if (self = [super initWithFrame:CGRectZero]) {
@@ -48,10 +48,10 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   return self;
 }
 
-- (NSArray<UIButton *> *)buttonsFor:(SLKSwipeActionsConfiguration *)configuration widths:(std::vector<double>&)widths
+- (NSArray<UIButton *> *)buttonsFor:(ShadowListKitSwipeActionsConfiguration *)configuration widths:(std::vector<double>&)widths
 {
   NSMutableArray<UIButton *> *buttons = [NSMutableArray array];
-  for (SLKSwipeAction *action in configuration.actions) {
+  for (ShadowListKitSwipeAction *action in configuration.actions) {
     UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
     button.backgroundColor = action.backgroundColor;
     button.tintColor = UIColor.whiteColor;
@@ -61,9 +61,9 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
     [button setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
     [button setImage:action.image forState:UIControlStateNormal];
     button.accessibilityLabel = action.title;
-    __weak SLKSwipeActionsView *weakSelf = self;
+    __weak ShadowListKitSwipeActionsView *weakSelf = self;
     [button addAction:[UIAction actionWithHandler:^(UIAction *) {
-      SLKSwipeActionsView *view = weakSelf;
+      ShadowListKitSwipeActionsView *view = weakSelf;
       if (view && view->_onAction) {
         view->_onAction(action);
       }
@@ -142,7 +142,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
  * unless the row can be reordered. The hold then lifts the row, and the menu shows when it is let
  * go in place, through UIEditMenuInteraction.
  */
-@implementation SLKListView (Actions)
+@implementation ShadowListKitListView (Actions)
 
 - (void)installActionGestures
 {
@@ -169,35 +169,35 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   return _swipeCell != nil;
 }
 
-- (BOOL)isSwipedOutCell:(SLKListCell *)cell
+- (BOOL)isSwipedOutCell:(ShadowListKitListCell *)cell
 {
   return cell == _swipeCell && _swipe.isSwipedOut(_swipeOffset);
 }
 
 #pragma mark - Swipe gesture
 
-- (SLKSwipeActionsConfiguration *)leadingActionsForCell:(SLKListCell *)cell
+- (ShadowListKitSwipeActionsConfiguration *)leadingActionsForCell:(ShadowListKitListCell *)cell
 {
   if (![_userDelegate respondsToSelector:@selector(listView:leadingSwipeActionsForItemAtIndex:)]) {
     return nil;
   }
-  SLKSwipeActionsConfiguration *configuration = [_userDelegate listView:self leadingSwipeActionsForItemAtIndex:cell.index];
+  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self leadingSwipeActionsForItemAtIndex:cell.index];
   return configuration.actions.count > 0 ? configuration : nil;
 }
 
-- (SLKSwipeActionsConfiguration *)trailingActionsForCell:(SLKListCell *)cell
+- (ShadowListKitSwipeActionsConfiguration *)trailingActionsForCell:(ShadowListKitListCell *)cell
 {
   if (![_userDelegate respondsToSelector:@selector(listView:trailingSwipeActionsForItemAtIndex:)]) {
     return nil;
   }
-  SLKSwipeActionsConfiguration *configuration = [_userDelegate listView:self trailingSwipeActionsForItemAtIndex:cell.index];
+  ShadowListKitSwipeActionsConfiguration *configuration = [_userDelegate listView:self trailingSwipeActionsForItemAtIndex:cell.index];
   return configuration.actions.count > 0 ? configuration : nil;
 }
 
 /*
  * The row a pan across the axis would swipe, or nil. A pan along the axis scrolls instead.
  */
-- (SLKListCell *)swipeCellForPan:(UIPanGestureRecognizer *)pan
+- (ShadowListKitListCell *)swipeCellForPan:(UIPanGestureRecognizer *)pan
 {
   if (_editing || [self hasHeldRow]) {
     return nil;
@@ -207,7 +207,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   if (std::fabs(cross) <= std::fabs([self along:velocity])) {
     return nil;
   }
-  SLKListCell *cell = [self itemCellAtPoint:[pan locationInView:self]];
+  ShadowListKitListCell *cell = [self itemCellAtPoint:[pan locationInView:self]];
   if (!cell) {
     return nil;
   }
@@ -232,7 +232,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
 {
   switch (pan.state) {
     case UIGestureRecognizerStateBegan: {
-      SLKListCell *cell = [self swipeCellForPan:pan] ?: [self itemCellAtPoint:[pan locationInView:self]];
+      ShadowListKitListCell *cell = [self swipeCellForPan:pan] ?: [self itemCellAtPoint:[pan locationInView:self]];
       if (cell != _swipeCell) {
         [self closeSwipeAnimated:NO];
         [self openActionsForCell:cell];
@@ -270,7 +270,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   }
 }
 
-- (void)scriptSwipeOfCell:(SLKListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity
+- (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity
 {
   if (cell != _swipeCell) {
     [self closeSwipeAnimated:NO];
@@ -294,19 +294,19 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
 /*
  * Put the actions of a row under it, closed.
  */
-- (void)openActionsForCell:(SLKListCell *)cell
+- (void)openActionsForCell:(ShadowListKitListCell *)cell
 {
   if (!cell) {
     return;
   }
-  SLKSwipeActionsConfiguration *leading = [self leadingActionsForCell:cell];
-  SLKSwipeActionsConfiguration *trailing = [self trailingActionsForCell:cell];
+  ShadowListKitSwipeActionsConfiguration *leading = [self leadingActionsForCell:cell];
+  ShadowListKitSwipeActionsConfiguration *trailing = [self trailingActionsForCell:cell];
   if (!leading && !trailing) {
     return;
   }
-  SLKSwipeActionsView *view = [[SLKSwipeActionsView alloc] initWithLeading:leading trailing:trailing horizontal:_horizontal];
-  __weak SLKListView *weakSelf = self;
-  view.onAction = ^(SLKSwipeAction *action) {
+  ShadowListKitSwipeActionsView *view = [[ShadowListKitSwipeActionsView alloc] initWithLeading:leading trailing:trailing horizontal:_horizontal];
+  __weak ShadowListKitListView *weakSelf = self;
+  view.onAction = ^(ShadowListKitSwipeAction *action) {
     [weakSelf performSwipeAction:action];
   };
   view.bounds = cell.bounds;
@@ -336,8 +336,8 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
 
 - (void)settleSwipeTo:(SwipeRest)rest
 {
-  SLKListCell *cell = _swipeCell;
-  [UIView animateWithDuration:SLK_SWIPE_DURATION delay:0 usingSpringWithDamping:1 initialSpringVelocity:0
+  ShadowListKitListCell *cell = _swipeCell;
+  [UIView animateWithDuration:SHADOWLIST_KIT_SWIPE_DURATION delay:0 usingSpringWithDamping:1 initialSpringVelocity:0
                       options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
                    animations:^{
                      [self setSwipeOffset:(CGFloat)rest.offset];
@@ -349,7 +349,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
                      }
                    }];
   if (rest.full) {
-    SLKSwipeActionsConfiguration *configuration = rest.side == SwipeSide::Leading ? _swipeActionsView.leading
+    ShadowListKitSwipeActionsConfiguration *configuration = rest.side == SwipeSide::Leading ? _swipeActionsView.leading
                                                                                     : _swipeActionsView.trailing;
     [self performSwipeAction:configuration.actions.firstObject];
   }
@@ -358,9 +358,9 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
 /*
  * Run an action. Its completion closes the row, unless the action removed it.
  */
-- (void)performSwipeAction:(SLKSwipeAction *)action
+- (void)performSwipeAction:(ShadowListKitSwipeAction *)action
 {
-  SLKListCell *cell = _swipeCell;
+  ShadowListKitListCell *cell = _swipeCell;
   if (!action || !cell) {
     return;
   }
@@ -368,10 +368,10 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
     [self closeSwipeAnimated:YES];
     return;
   }
-  __weak SLKListView *weakSelf = self;
+  __weak ShadowListKitListView *weakSelf = self;
   action.handler(action, ^(BOOL) {
     dispatch_async(dispatch_get_main_queue(), ^{
-      SLKListView *list = weakSelf;
+      ShadowListKitListView *list = weakSelf;
       if (list && list->_swipeCell == cell) {
         [list closeSwipeAnimated:YES];
       }
@@ -404,7 +404,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   _swipeOffset = 0;
 }
 
-- (void)swipeCellWillRecycle:(SLKListCell *)cell
+- (void)swipeCellWillRecycle:(ShadowListKitListCell *)cell
 {
   if (cell == _swipeCell) {
     [self tearDownSwipe];
@@ -445,7 +445,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
 
 #pragma mark - Menus
 
-- (UIMenu *)menuForCell:(SLKListCell *)cell
+- (UIMenu *)menuForCell:(ShadowListKitListCell *)cell
 {
   if (!cell || cell.index == NSNotFound || ![_userDelegate respondsToSelector:@selector(listView:contextMenuForItemAtIndex:)]) {
     return nil;
@@ -453,7 +453,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   return [_userDelegate listView:self contextMenuForItemAtIndex:cell.index];
 }
 
-- (BOOL)canMoveCell:(SLKListCell *)cell
+- (BOOL)canMoveCell:(ShadowListKitListCell *)cell
 {
   if (!self.reorderEnabled || _editing) {
     return NO;
@@ -465,7 +465,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
 - (UIContextMenuConfiguration *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
                         configurationForMenuAtLocation:(CGPoint)location
 {
-  SLKListCell *cell = [self itemCellAtPoint:location];
+  ShadowListKitListCell *cell = [self itemCellAtPoint:location];
   // A row that can be reordered lifts on the hold. Its menu waits for the release.
   if (!cell || [self hasHeldRow] || [self isSwipeOpen] || [self canMoveCell:cell]) {
     return nil;
@@ -475,7 +475,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   if (!menu || (std::size_t)cell.row >= _driver.getKeyCount()) {
     return nil;
   }
-  NSString *key = SLKString(_driver.getKeyAt((std::size_t)cell.row));
+  NSString *key = ShadowListKitString(_driver.getKeyAt((std::size_t)cell.row));
   return [UIContextMenuConfiguration configurationWithIdentifier:key previewProvider:nil
                                                   actionProvider:^UIMenu *(NSArray<UIMenuElement *> *) {
                                                     return menu;
@@ -485,7 +485,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
 - (UITargetedPreview *)previewForConfiguration:(UIContextMenuConfiguration *)configuration
 {
   NSString *key = (NSString *)configuration.identifier;
-  auto mounted = _mounted.find(SLKStdString(key));
+  auto mounted = _mounted.find(ShadowListKitStdString(key));
   if (mounted == _mounted.end() || mounted->second.hidden || !mounted->second.window) {
     return nil;
   }
@@ -506,7 +506,7 @@ static const NSTimeInterval SLK_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000
   return [self previewForConfiguration:configuration];
 }
 
-- (BOOL)showMenuForCell:(SLKListCell *)cell atPoint:(CGPoint)point
+- (BOOL)showMenuForCell:(ShadowListKitListCell *)cell atPoint:(CGPoint)point
 {
   UIMenu *menu = [self menuForCell:cell];
   if (!menu || !_editMenu) {

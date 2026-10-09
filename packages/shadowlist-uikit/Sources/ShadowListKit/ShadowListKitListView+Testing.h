@@ -1,4 +1,4 @@
-#import <ShadowListKit/SLKListView.h>
+#import <ShadowListKit/ShadowListKitListView.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -7,12 +7,12 @@ NS_ASSUME_NONNULL_BEGIN
  * coordinates, the same as a gesture's locationInView: on the list. A swipe moves the item's row
  * distance points across the axis, positive toward the trailing side, and lets go with velocity.
  */
-@interface SLKListView (Testing)
+@interface ShadowListKitListView (Testing)
 
-- (void)slk_beginDragAtPoint:(CGPoint)point;
-- (void)slk_moveDragToPoint:(CGPoint)point;
-- (void)slk_endDrag;
-- (void)slk_swipeItemAtIndex:(NSInteger)index distance:(CGFloat)distance velocity:(CGFloat)velocity;
+- (void)shadowListKit_beginDragAtPoint:(CGPoint)point;
+- (void)shadowListKit_moveDragToPoint:(CGPoint)point;
+- (void)shadowListKit_endDrag;
+- (void)shadowListKit_swipeItemAtIndex:(NSInteger)index distance:(CGFloat)distance velocity:(CGFloat)velocity;
 
 @end
 

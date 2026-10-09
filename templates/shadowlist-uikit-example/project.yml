@@ -37,7 +37,7 @@ targets:
     platform: iOS
     sources:
       - path: Sources
-      - path: ../../packages/shadowlist-uikit/Bench/SLKBench.m
+      - path: ../../packages/shadowlist-uikit/Bench/ShadowListKitBench.m
     dependencies:
       - target: ShadowListKit
     info:

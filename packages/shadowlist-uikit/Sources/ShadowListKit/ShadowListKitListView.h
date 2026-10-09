@@ -2,7 +2,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class SLKListView;
+@class ShadowListKitListView;
 
 /*
  * A row view. Subclasses lay out their subviews by hand in layoutSubviews and report their
@@ -16,7 +16,7 @@ NS_ASSUME_NONNULL_BEGIN
  * and editing while the list is editing. Override the animated setters to show them. They are
  * called only when the value changes.
  */
-@interface SLKListCell : UIView
+@interface ShadowListKitListCell : UIView
 
 @property (nonatomic, copy, readonly, nullable) NSString *reuseIdentifier;
 @property (nonatomic, readonly) NSInteger index;
@@ -34,9 +34,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
-  SLKSwipeActionStyleNormal,
-  SLKSwipeActionStyleDestructive,
+typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
+  ShadowListKitSwipeActionStyleNormal,
+  ShadowListKitSwipeActionStyleDestructive,
 };
 
 /*
@@ -44,17 +44,17 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * swiped all the way. Call completion with whether the action was performed. The row then
  * closes, unless the action removed it.
  */
-@interface SLKSwipeAction : NSObject
+@interface ShadowListKitSwipeAction : NSObject
 
-+ (instancetype)actionWithStyle:(SLKSwipeActionStyle)style
++ (instancetype)actionWithStyle:(ShadowListKitSwipeActionStyle)style
                           title:(nullable NSString *)title
-                        handler:(void (^)(SLKSwipeAction *action, void (^completion)(BOOL performed)))handler;
+                        handler:(void (^)(ShadowListKitSwipeAction *action, void (^completion)(BOOL performed)))handler;
 
-@property (nonatomic, readonly) SLKSwipeActionStyle style;
+@property (nonatomic, readonly) ShadowListKitSwipeActionStyle style;
 @property (nonatomic, copy, nullable) NSString *title;
 @property (nonatomic, strong, nullable) UIImage *image;
 @property (nonatomic, strong, null_resettable) UIColor *backgroundColor;
-@property (nonatomic, copy, readonly) void (^handler)(SLKSwipeAction *action, void (^completion)(BOOL performed));
+@property (nonatomic, copy, readonly) void (^handler)(ShadowListKitSwipeAction *action, void (^completion)(BOOL performed));
 
 @end
 
@@ -63,11 +63,11 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * performsFirstActionWithFullSwipe, the default, swiping the row all the way performs it, like
  * swipe to dismiss.
  */
-@interface SLKSwipeActionsConfiguration : NSObject
+@interface ShadowListKitSwipeActionsConfiguration : NSObject
 
-+ (instancetype)configurationWithActions:(NSArray<SLKSwipeAction *> *)actions;
++ (instancetype)configurationWithActions:(NSArray<ShadowListKitSwipeAction *> *)actions;
 
-@property (nonatomic, copy, readonly) NSArray<SLKSwipeAction *> *actions;
+@property (nonatomic, copy, readonly) NSArray<ShadowListKitSwipeAction *> *actions;
 @property (nonatomic) BOOL performsFirstActionWithFullSwipe;
 
 @end
@@ -76,7 +76,7 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * A scroll position that survives data changes: the key of the row at the viewport start and
  * how far the viewport start is past that row's leading edge.
  */
-@interface SLKAnchorState : NSObject <NSSecureCoding>
+@interface ShadowListKitAnchorState : NSObject <NSSecureCoding>
 
 - (instancetype)initWithKey:(NSString *)key offset:(CGFloat)offset NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -91,7 +91,7 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * What applyChanges found. Deleted and moved from are indices in the previous data, inserted,
  * moved to and reloaded indices in the new data.
  */
-@interface SLKListChanges : NSObject
+@interface ShadowListKitListChanges : NSObject
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
@@ -112,11 +112,11 @@ typedef NS_ENUM(NSInteger, SLKSwipeActionStyle) {
  * and offset is where it showed before, relative to that place.
  */
 NS_SWIFT_UI_ACTOR
-@protocol SLKItemAnimator <NSObject>
+@protocol ShadowListKitItemAnimator <NSObject>
 
-- (void)listView:(SLKListView *)listView animateInsertOfCell:(SLKListCell *)cell NS_SWIFT_NAME(listView(_:animateInsertOf:));
-- (void)listView:(SLKListView *)listView animateRemovalOfCell:(SLKListCell *)cell completion:(void (^)(void))completion NS_SWIFT_NAME(listView(_:animateRemovalOf:completion:));
-- (void)listView:(SLKListView *)listView animateMoveOfCell:(SLKListCell *)cell fromOffset:(CGPoint)offset NS_SWIFT_NAME(listView(_:animateMoveOf:fromOffset:));
+- (void)listView:(ShadowListKitListView *)listView animateInsertOfCell:(ShadowListKitListCell *)cell NS_SWIFT_NAME(listView(_:animateInsertOf:));
+- (void)listView:(ShadowListKitListView *)listView animateRemovalOfCell:(ShadowListKitListCell *)cell completion:(void (^)(void))completion NS_SWIFT_NAME(listView(_:animateRemovalOf:completion:));
+- (void)listView:(ShadowListKitListView *)listView animateMoveOfCell:(ShadowListKitListCell *)cell fromOffset:(CGPoint)offset NS_SWIFT_NAME(listView(_:animateMoveOf:fromOffset:));
 
 @end
 
@@ -124,7 +124,7 @@ NS_SWIFT_UI_ACTOR
  * The animator a list starts with: new rows fade in, removed rows fade out and rows that stay
  * slide, for duration seconds.
  */
-@interface SLKDefaultItemAnimator : NSObject <SLKItemAnimator>
+@interface ShadowListKitDefaultItemAnimator : NSObject <ShadowListKitItemAnimator>
 
 @property (nonatomic) NSTimeInterval duration;
 
@@ -136,29 +136,29 @@ NS_SWIFT_UI_ACTOR
  * cell yet. A prefetched item that leaves the window before it shows is cancelled.
  */
 NS_SWIFT_UI_ACTOR
-@protocol SLKListViewPrefetchDataSource <NSObject>
+@protocol ShadowListKitListViewPrefetchDataSource <NSObject>
 
-- (void)listView:(SLKListView *)listView prefetchItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:prefetchItemsAt:));
+- (void)listView:(ShadowListKitListView *)listView prefetchItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:prefetchItemsAt:));
 
 @optional
 
-- (void)listView:(SLKListView *)listView cancelPrefetchingForItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:cancelPrefetchingForItemsAt:));
+- (void)listView:(ShadowListKitListView *)listView cancelPrefetchingForItemsAtIndices:(NSIndexSet *)indices NS_SWIFT_NAME(listView(_:cancelPrefetchingForItemsAt:));
 
 @end
 
 NS_SWIFT_UI_ACTOR
-@protocol SLKListViewDataSource <NSObject>
+@protocol ShadowListKitListViewDataSource <NSObject>
 
-- (NSInteger)numberOfItemsInListView:(SLKListView *)listView;
+- (NSInteger)numberOfItemsInListView:(ShadowListKitListView *)listView;
 
 /*
  * A stable identity for the row. Sizes, cells and the scroll position follow keys across
  * reloadData. A prepend or an insert above keeps what is on screen in place.
  * A row whose content changed under the same key needs reloadItemsAtIndices:.
  */
-- (NSString *)listView:(SLKListView *)listView keyForItemAtIndex:(NSInteger)index;
+- (NSString *)listView:(ShadowListKitListView *)listView keyForItemAtIndex:(NSInteger)index;
 
-- (SLKListCell *)listView:(SLKListView *)listView cellForItemAtIndex:(NSInteger)index;
+- (ShadowListKitListCell *)listView:(ShadowListKitListView *)listView cellForItemAtIndex:(NSInteger)index;
 
 @optional
 
@@ -167,7 +167,7 @@ NS_SWIFT_UI_ACTOR
  * known without a view, like from a layout precomputed off the main thread. Otherwise every
  * row is measured once through a sizing cell's sizeThatFits:.
  */
-- (CGFloat)listView:(SLKListView *)listView sizeForItemAtIndex:(NSInteger)index crossSize:(CGFloat)crossSize;
+- (CGFloat)listView:(ShadowListKitListView *)listView sizeForItemAtIndex:(NSInteger)index crossSize:(CGFloat)crossSize;
 
 /*
  * Sections. A data source with numberOfSectionsInListView: groups its items in sections and
@@ -179,29 +179,29 @@ NS_SWIFT_UI_ACTOR
  * when implemented, otherwise the cell is measured. listView:keyForSection: gives the header
  * and footer their identity, by default the key of the section's first item.
  */
-- (NSInteger)numberOfSectionsInListView:(SLKListView *)listView;
-- (NSInteger)listView:(SLKListView *)listView numberOfItemsInSection:(NSInteger)section;
-- (NSString *)listView:(SLKListView *)listView keyForSection:(NSInteger)section;
-- (nullable NSString *)listView:(SLKListView *)listView titleForHeaderInSection:(NSInteger)section;
-- (nullable NSString *)listView:(SLKListView *)listView titleForFooterInSection:(NSInteger)section;
-- (SLKListCell *)listView:(SLKListView *)listView cellForHeaderInSection:(NSInteger)section;
-- (SLKListCell *)listView:(SLKListView *)listView cellForFooterInSection:(NSInteger)section;
-- (CGFloat)listView:(SLKListView *)listView sizeForHeaderInSection:(NSInteger)section crossSize:(CGFloat)crossSize;
-- (CGFloat)listView:(SLKListView *)listView sizeForFooterInSection:(NSInteger)section crossSize:(CGFloat)crossSize;
+- (NSInteger)numberOfSectionsInListView:(ShadowListKitListView *)listView;
+- (NSInteger)listView:(ShadowListKitListView *)listView numberOfItemsInSection:(NSInteger)section;
+- (NSString *)listView:(ShadowListKitListView *)listView keyForSection:(NSInteger)section;
+- (nullable NSString *)listView:(ShadowListKitListView *)listView titleForHeaderInSection:(NSInteger)section;
+- (nullable NSString *)listView:(ShadowListKitListView *)listView titleForFooterInSection:(NSInteger)section;
+- (ShadowListKitListCell *)listView:(ShadowListKitListView *)listView cellForHeaderInSection:(NSInteger)section;
+- (ShadowListKitListCell *)listView:(ShadowListKitListView *)listView cellForFooterInSection:(NSInteger)section;
+- (CGFloat)listView:(ShadowListKitListView *)listView sizeForHeaderInSection:(NSInteger)section crossSize:(CGFloat)crossSize;
+- (CGFloat)listView:(ShadowListKitListView *)listView sizeForFooterInSection:(NSInteger)section crossSize:(CGFloat)crossSize;
 
 /*
  * Titles of the section index along the trailing edge, and the section a title scrolls to,
  * by default the section at the title's position.
  */
-- (nullable NSArray<NSString *> *)sectionIndexTitlesForListView:(SLKListView *)listView NS_SWIFT_NAME(sectionIndexTitles(for:));
-- (NSInteger)listView:(SLKListView *)listView sectionForSectionIndexTitle:(NSString *)title atIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:sectionForSectionIndexTitle:at:));
+- (nullable NSArray<NSString *> *)sectionIndexTitlesForListView:(ShadowListKitListView *)listView NS_SWIFT_NAME(sectionIndexTitles(for:));
+- (NSInteger)listView:(ShadowListKitListView *)listView sectionForSectionIndexTitle:(NSString *)title atIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:sectionForSectionIndexTitle:at:));
 
 /*
  * Update a shown cell for a payload given to reloadItemsAtIndices:payload: without a new cell.
  * Return NO to have the row reloaded in full instead.
  */
-- (BOOL)listView:(SLKListView *)listView
-  reconfigureCell:(SLKListCell *)cell
+- (BOOL)listView:(ShadowListKitListView *)listView
+  reconfigureCell:(ShadowListKitListCell *)cell
           atIndex:(NSInteger)index
           payload:(nullable id)payload
     NS_SWIFT_NAME(listView(_:reconfigureCell:at:payload:));
@@ -210,29 +210,29 @@ NS_SWIFT_UI_ACTOR
  * A value that changes when the item's content changes under the same key, like a revision or
  * a hash. applyChanges reloads the rows whose value changed.
  */
-- (NSInteger)listView:(SLKListView *)listView contentVersionForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contentVersionForItemAt:));
+- (NSInteger)listView:(ShadowListKitListView *)listView contentVersionForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contentVersionForItemAt:));
 
 @end
 
 NS_SWIFT_UI_ACTOR
-@protocol SLKListViewDelegate <UIScrollViewDelegate>
+@protocol ShadowListKitListViewDelegate <UIScrollViewDelegate>
 
 @optional
 
-- (void)listView:(SLKListView *)listView willDisplayCell:(SLKListCell *)cell atIndex:(NSInteger)index;
-- (void)listView:(SLKListView *)listView didEndDisplayingCell:(SLKListCell *)cell atIndex:(NSInteger)index;
-- (void)listView:(SLKListView *)listView didSelectItemAtIndex:(NSInteger)index;
-- (void)listView:(SLKListView *)listView didDeselectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didDeselectItemAt:));
-- (BOOL)listView:(SLKListView *)listView shouldSelectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldSelectItemAt:));
-- (BOOL)listView:(SLKListView *)listView shouldHighlightItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldHighlightItemAt:));
+- (void)listView:(ShadowListKitListView *)listView willDisplayCell:(ShadowListKitListCell *)cell atIndex:(NSInteger)index;
+- (void)listView:(ShadowListKitListView *)listView didEndDisplayingCell:(ShadowListKitListCell *)cell atIndex:(NSInteger)index;
+- (void)listView:(ShadowListKitListView *)listView didSelectItemAtIndex:(NSInteger)index;
+- (void)listView:(ShadowListKitListView *)listView didDeselectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:didDeselectItemAt:));
+- (BOOL)listView:(ShadowListKitListView *)listView shouldSelectItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldSelectItemAt:));
+- (BOOL)listView:(ShadowListKitListView *)listView shouldHighlightItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldHighlightItemAt:));
 
 /*
  * Actions behind a row swiped from its leading or trailing side, or nil for none.
  */
-- (nullable SLKSwipeActionsConfiguration *)listView:(SLKListView *)listView
+- (nullable ShadowListKitSwipeActionsConfiguration *)listView:(ShadowListKitListView *)listView
                   leadingSwipeActionsForItemAtIndex:(NSInteger)index
     NS_SWIFT_NAME(listView(_:leadingSwipeActionsForItemAt:));
-- (nullable SLKSwipeActionsConfiguration *)listView:(SLKListView *)listView
+- (nullable ShadowListKitSwipeActionsConfiguration *)listView:(ShadowListKitListView *)listView
                  trailingSwipeActionsForItemAtIndex:(NSInteger)index
     NS_SWIFT_NAME(listView(_:trailingSwipeActionsForItemAt:));
 
@@ -240,35 +240,35 @@ NS_SWIFT_UI_ACTOR
  * The menu for touching and holding a row, or nil for none. A row that can also be reordered
  * lifts on the hold. Letting go without moving it shows the menu.
  */
-- (nullable UIMenu *)listView:(SLKListView *)listView contextMenuForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contextMenuForItemAt:));
+- (nullable UIMenu *)listView:(ShadowListKitListView *)listView contextMenuForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contextMenuForItemAt:));
 
 /*
  * Whether the separator below an item shows when showsSeparators is set. Separators only go
  * between items of one section.
  */
-- (BOOL)listView:(SLKListView *)listView showsSeparatorAfterItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:showsSeparatorAfterItemAt:));
+- (BOOL)listView:(ShadowListKitListView *)listView showsSeparatorAfterItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:showsSeparatorAfterItemAt:));
 
 /*
  * The reader pulled to refresh with refreshEnabled. Set refreshing to NO when done.
  */
-- (void)listViewDidBeginRefreshing:(SLKListView *)listView;
+- (void)listViewDidBeginRefreshing:(ShadowListKitListView *)listView;
 
 /*
  * Whether a row can be picked up when reorderEnabled is set. Every row can by default.
  */
-- (BOOL)listView:(SLKListView *)listView canMoveItemAtIndex:(NSInteger)index;
+- (BOOL)listView:(ShadowListKitListView *)listView canMoveItemAtIndex:(NSInteger)index;
 
 /*
  * A held row was dropped at another index. Move the item in the data, the list reads the
  * data again right after and keeps the dropped row where it was let go.
  */
-- (void)listView:(SLKListView *)listView moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
+- (void)listView:(ShadowListKitListView *)listView moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
 
 /*
  * The scroll position came within startReachedThreshold or endReachedThreshold of an edge.
  */
-- (void)listViewDidReachStart:(SLKListView *)listView;
-- (void)listViewDidReachEnd:(SLKListView *)listView;
+- (void)listViewDidReachStart:(ShadowListKitListView *)listView;
+- (void)listViewDidReachEnd:(ShadowListKitListView *)listView;
 
 @end
 
@@ -356,10 +356,10 @@ NS_SWIFT_UI_ACTOR
  *   rests in the viewport, from 0 at the start to 1 at the end. The core keeps correcting until
  *   the row lands, even across estimates.
  */
-@interface SLKListView : UIScrollView
+@interface ShadowListKitListView : UIScrollView
 
-@property (nonatomic, weak, nullable) id<SLKListViewDataSource> dataSource;
-@property (nonatomic, weak, nullable) id<SLKListViewDelegate> delegate;
+@property (nonatomic, weak, nullable) id<ShadowListKitListViewDataSource> dataSource;
+@property (nonatomic, weak, nullable) id<ShadowListKitListViewDelegate> delegate;
 
 @property (nonatomic, getter=isInverted) BOOL inverted;
 @property (nonatomic) BOOL followAppends;
@@ -379,8 +379,8 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic, strong, nullable) UIView *headerView;
 @property (nonatomic, strong, nullable) UIView *footerView;
 
-@property (nonatomic, weak, nullable) id<SLKListViewPrefetchDataSource> prefetchDataSource;
-@property (nonatomic, strong, null_resettable) id<SLKItemAnimator> itemAnimator;
+@property (nonatomic, weak, nullable) id<ShadowListKitListViewPrefetchDataSource> prefetchDataSource;
+@property (nonatomic, strong, null_resettable) id<ShadowListKitItemAnimator> itemAnimator;
 
 @property (nonatomic) BOOL allowsSelection;
 @property (nonatomic) BOOL allowsMultipleSelection;
@@ -397,10 +397,10 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) CGFloat separatorThickness;
 
 @property (nonatomic, readonly) NSInteger numberOfSections;
-@property (nonatomic, readonly, nullable) SLKAnchorState *anchorState;
+@property (nonatomic, readonly, nullable) ShadowListKitAnchorState *anchorState;
 
 - (void)registerClass:(Class)cellClass forCellReuseIdentifier:(NSString *)identifier;
-- (__kindof SLKListCell *)dequeueReusableCellWithIdentifier:(NSString *)identifier;
+- (__kindof ShadowListKitListCell *)dequeueReusableCellWithIdentifier:(NSString *)identifier;
 
 - (void)reloadData;
 - (void)insertItemsAtIndices:(NSIndexSet *)indices;
@@ -409,21 +409,21 @@ NS_SWIFT_UI_ACTOR
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices payload:(nullable id)payload;
 - (void)moveItemAtIndex:(NSInteger)index toIndex:(NSInteger)newIndex;
 - (void)performBatchUpdates:(void (NS_NOESCAPE ^_Nullable)(void))updates completion:(void (^_Nullable)(BOOL finished))completion;
-- (SLKListChanges *)applyChanges;
+- (ShadowListKitListChanges *)applyChanges;
 
 - (void)setEditing:(BOOL)editing animated:(BOOL)animated;
 - (void)selectItemAtIndex:(NSInteger)index animated:(BOOL)animated;
 - (void)deselectItemAtIndex:(NSInteger)index animated:(BOOL)animated;
 - (void)closeSwipeActionsAnimated:(BOOL)animated;
-- (void)restoreAnchorState:(SLKAnchorState *)state NS_SWIFT_NAME(restoreAnchorState(_:));
+- (void)restoreAnchorState:(ShadowListKitAnchorState *)state NS_SWIFT_NAME(restoreAnchorState(_:));
 
 - (NSInteger)sectionForItemAtIndex:(NSInteger)index;
 - (NSInteger)firstItemIndexInSection:(NSInteger)section NS_SWIFT_NAME(firstItemIndexInSection(_:));
 - (CGRect)rectForHeaderInSection:(NSInteger)section;
 - (void)scrollToSection:(NSInteger)section animated:(BOOL)animated NS_SWIFT_NAME(scrollToSection(_:animated:));
 
-- (nullable __kindof SLKListCell *)cellForItemAtIndex:(NSInteger)index;
-@property (nonatomic, readonly) NSArray<__kindof SLKListCell *> *visibleCells;
+- (nullable __kindof ShadowListKitListCell *)cellForItemAtIndex:(NSInteger)index;
+@property (nonatomic, readonly) NSArray<__kindof ShadowListKitListCell *> *visibleCells;
 @property (nonatomic, readonly) NSRange visibleRange;
 - (CGRect)rectForItemAtIndex:(NSInteger)index;
 
