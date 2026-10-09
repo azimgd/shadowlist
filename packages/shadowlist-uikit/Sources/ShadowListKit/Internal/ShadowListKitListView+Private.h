@@ -2,6 +2,7 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
 #include <shadowlist-core/host/SwipeReveal.hpp>
@@ -12,6 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @class ShadowListKitSwipeActionsView;
 @class ShadowListKitRowAccessibilityElement;
+@class ShadowListKitSectionIndexView;
 
 /*
  * Place a view at a frame through its center and bounds, which stay valid while a drag
@@ -27,6 +29,11 @@ NSString *ShadowListKitString(const std::string& value);
 std::string ShadowListKitStdString(NSString *_Nullable string);
 
 /*
+ * The indices in a set, low to high.
+ */
+std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
+
+/*
  * State and helpers the list shares with its categories in ShadowListKitListView+Drag.mm and
  * ShadowListKitListView+Actions.mm.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.
@@ -39,15 +46,17 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
  * asked for itself. Only a move made for the user, like the drag auto scroll, counts as the
  * user's scrolling. recycleCell: hides a cell and puts it back in its reuse pool. cellAtPoint:
  * is the visible cell under a point in the list's own coordinates. itemCellAtPoint: is the same
- * for item cells only. itemForRow: and rowForItem: convert indices, NSNotFound when there is none.
+ * for item cells only.
  * settleFrame runs the layout pass the settle display link waited for.
  * _rowElements holds the stand-ins of rows off screen by key, kept while accessibility holds them.
  * mountedCellAtIndex: is the mounted cell of a row, or nil.
+ * _sectionIndex is the section index view while the data source gives titles for it.
  */
 @interface ShadowListKitListView () <UIScrollViewDelegate> {
  @package
   azimgd::shadowlist::ListDriver _driver;
   azimgd::shadowlist::ListSections _sections;
+  __weak id<ShadowListKitListViewDataSource> _dataSource;
   __weak id<ShadowListKitListViewDelegate> _userDelegate;
   BOOL _horizontal;
   BOOL _animatesChanges;
@@ -77,6 +86,10 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
   UIView *_headerView;
   UIView *_footerView;
   NSMapTable<NSString *, ShadowListKitRowAccessibilityElement *> *_rowElements;
+
+  NSIndexSet *_stickyIndices;
+  BOOL _stickySectionHeaders;
+  ShadowListKitSectionIndexView *_sectionIndex;
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -89,9 +102,6 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
 - (void)recycleCell:(ShadowListKitListCell *)cell;
 - (nullable ShadowListKitListCell *)cellAtPoint:(CGPoint)point;
 - (nullable ShadowListKitListCell *)itemCellAtPoint:(CGPoint)point;
-- (NSInteger)itemForRow:(NSInteger)row;
-- (NSInteger)rowForItem:(NSInteger)item;
-- (BOOL)itemsForDragFromRow:(std::size_t)fromRow toRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to;
 - (void)settleFrame;
 - (nullable ShadowListKitListCell *)mountedCellAtIndex:(std::size_t)index;
 - (void)scrollToRow:(std::size_t)row viewPosition:(CGFloat)viewPosition animated:(BOOL)animated;
@@ -129,6 +139,22 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
 - (BOOL)swipeTakesPan:(UIPanGestureRecognizer *)pan;
 - (BOOL)showMenuForCell:(ShadowListKitListCell *)cell atPoint:(CGPoint)point;
 - (void)scriptSwipeOfCell:(ShadowListKitListCell *)cell distance:(CGFloat)distance velocity:(CGFloat)velocity;
+
+@end
+
+/*
+ * Sections over the rows. itemForRow: and rowForItem: convert indices, NSNotFound when there is
+ * none. updateStickyRows hands the core the pinned rows. reloadSectionIndex reads the index
+ * titles again and layoutSectionIndex keeps the index on the trailing edge.
+ */
+@interface ShadowListKitListView (Sections)
+
+- (NSInteger)itemForRow:(NSInteger)row;
+- (NSInteger)rowForItem:(NSInteger)item;
+- (BOOL)itemsForDragFromRow:(std::size_t)fromRow toRow:(std::size_t)toRow from:(NSInteger *)from to:(NSInteger *)to;
+- (void)updateStickyRows;
+- (void)reloadSectionIndex;
+- (void)layoutSectionIndex;
 
 @end
 
