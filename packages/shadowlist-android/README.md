@@ -1,28 +1,53 @@
 # ShadowListKit for Android
 
-A virtualized list for Android views, written in Kotlin on the shadowlist core in C++. No React
-Native. `ShadowListKitListView` is a `ViewGroup` with a data source. The visible content stays
+A virtualized list for Android views, written in Kotlin on the shadowlist core in C++.
+`ShadowListKitListView` is a `ViewGroup` with a data source. The visible content stays
 still while rows are measured, inserted above, removed or regrouped. Rows have stable keys.
 
-## Source layout
+## Install
 
-| File                                                                                                                          | Role                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `packages/shadowlist-core/host/ListDriver.{hpp,cpp}`                                                                          | The core driven for a native list: layout passes, measurement, keys, sticky math, scroll landing, drag. |
-| `ShadowListKit/src/main/cpp/ShadowListKitCoreJNI.cpp`                                                                         | Thin JNI hops into the driver with reused arrays.                                                       |
-| `ShadowListKitListView.kt`                                                                                                    | Public API, layout pass, mounting, sticky placement, scroll commands.                                   |
-| `ShadowListKitScrollGesture.kt`                                                                                               | Touch scrolling, flings, snapping, animated scrolls, the gesture phase and nested scrolling.            |
-| `ShadowListKitEdgeEffects.kt`                                                                                                 | The platform edge effect at both ends, glow or stretch.                                                 |
-| `packages/shadowlist-core/host/ListSections`, `KeyDiff`, `SwipeReveal`                                                        | Sections over the rows, the key diff and batch plan, swipe offsets, reached through JNI.                |
-| `ShadowListKitChangeAnimator.kt`, `ShadowListKitItemAnimator.kt`                                                              | What `animatesChanges` animates, and the pluggable animations.                                          |
-| `ShadowListKitDragController.kt`                                                                                              | Touch and hold to reorder through the host layer's DragReorder, and the row menu on a hold.             |
-| `ShadowListKitSwipeController.kt`                                                                                             | Swipe actions and the buttons behind a swiped row.                                                      |
-| `ShadowListKitRefreshIndicator.kt`, `ShadowListKitSectionIndex.kt`                                                            | Pull to refresh without SwipeRefreshLayout, the section index.                                          |
-| `ShadowListKitSwipeAction.kt`, `ShadowListKitAnchorState.kt`, `ShadowListKitListChanges.kt`, `ShadowListKitItemDecoration.kt` | Public value types and the decoration hook.                                                             |
-| `ShadowListKitCore.kt`, `ShadowListKitListCell.kt`, `ShadowListKitText.kt`                                                    | JNI wrapper, row base view with its states, precomputed text.                                           |
+Maven Central:
 
-`ShadowListKitTextLayout` breaks text into lines once with `StaticLayout`, on any thread, and
-`ShadowListKitTextView` only draws it.
+```kotlin
+dependencies {
+  implementation("io.github.azimgd:shadowlist-kit:0.9.0")
+}
+```
+
+JitPack, with `maven("https://jitpack.io")` in the repositories:
+
+```kotlin
+dependencies {
+  implementation("com.github.azimgd.shadowlist:shadowlist-kit:v0.9.0")
+}
+```
+
+- Android API 24 or newer and Java 17.
+- The AAR ships `libshadowlistkit.so` with the C++ runtime linked statically, aligned for 16 KB pages.
+
+`./gradlew :ShadowListKit:publishToMavenLocal` installs the current checkout as
+`io.github.azimgd:shadowlist-kit` with `VERSION_NAME` from `ShadowListKit/gradle.properties`.
+
+## Usage
+
+```kotlin
+class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKitListView.DataSource {
+  val list = ShadowListKitListView(context).also {
+    it.registerCell("post") { ctx -> PostCell(ctx) }
+    it.dataSource = this
+  }
+
+  override fun numberOfItems(listView: ShadowListKitListView) = posts.size
+
+  override fun keyForItem(listView: ShadowListKitListView, index: Int) = posts[index].id
+
+  override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell {
+    val cell = listView.dequeueReusableCell<PostCell>("post")
+    cell.bind(posts[index])
+    return cell
+  }
+}
+```
 
 ## API
 
@@ -50,7 +75,8 @@ Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estim
   title, shown in a plain cell unless `cellForHeaderInSection` gives one. `sectionIndexTitles` adds the index along
   the trailing edge. A list with sections reads its sections and keys again on every change, and a dragged row
   stays in its section.
-- Batches follow UITableView's index rules and are planned by the core's `planBatch`. A batch that does not add up
+- Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data
+  before, inserts and move destinations in the data after. A batch that does not add up
   reloads everything. `applyChanges` diffs every key with the core's `diffKeys`, reloads rows whose
   `ContentVersions.contentVersionForItem` changed since the last reload, and returns a `ShadowListKitListChanges`.
 - `itemAnimator` (a `ShadowListKitItemAnimator`, `ShadowListKitDefaultItemAnimator` by default) animates inserts, removals
@@ -85,34 +111,7 @@ The view's own behavior:
 - `animatesChanges`: inserted rows fade in, removed rows fade out where they were, and rows that
   stay slide to their new place.
 
-## Install
-
-Android API 24 or newer and Java 17. The AAR ships `libshadowlistkit.so` with the C++ runtime linked
-statically, aligned for 16 KB pages.
-
-Maven Central:
-
-```kotlin
-dependencies {
-  implementation("io.github.azimgd:shadowlist-kit:0.9.0")
-}
-```
-
-JitPack, with `maven("https://jitpack.io")` in the repositories:
-
-```kotlin
-dependencies {
-  implementation("com.github.azimgd.shadowlist:shadowlist-kit:v0.9.0")
-}
-```
-
-The core's `[SL]` debug log is off by default. Build the module from a checkout with `-PshadowlistDebugLog`
-to compile it in and read it with `adb logcat -s SL`. It prints on every pass.
-
-`./gradlew :ShadowListKit:publishToMavenLocal` installs the current checkout as
-`io.github.azimgd:shadowlist-kit` with `VERSION_NAME` from `ShadowListKit/gradle.properties`.
-
-## Run it
+## Example app
 
 The example app lives in [`templates/shadowlist-android-example`](../../templates/shadowlist-android-example). From the repo root:
 
@@ -143,6 +142,11 @@ All engines show the same row views. RecyclerView uses `LinearLayoutManager` (wi
 `stackFromEnd` for chat), `StaggeredGridLayoutManager` for the gallery, stable ids, its default
 prefetch, and the usual item decoration for sticky headers.
 
+## Debug log
+
+The core's `[SL]` log is off by default. Build the module from a checkout with `-PshadowlistDebugLog`
+to compile it in and read it with `adb logcat -s SL`. It prints on every pass.
+
 ## Benchmarks
 
 `Bench/src/.../ShadowListKitBench.kt` drives the biggest vertical scroll view at a constant speed, one
@@ -159,17 +163,6 @@ Bench/summarize.py results/my-label/runs.jsonl
 key, and a `skipped` line for an axis without a scroll view. A view that draws its content after its rows show
 implements `ShadowListKitBenchProbe.benchBlankFraction()`, and the result adds `contentBlankAvg`, `contentBlankMax`
 and `contentBlankFrames`.
-
-The `rn` engine runs the React Native example (`shadowlist.example`) with ShadowListKitBench added by a Gradle
-init script:
-
-```sh
-cd templates/shadowlist-fabric-example/android
-./gradlew --init-script ../../../packages/shadowlist-android/Bench/rn/slbench-init.gradle \
-  app:assembleRelease -PreactNativeArchitectures=arm64-v8a
-adb install -r app/build/outputs/apk/release/app-release.apk
-cd ../../../packages/shadowlist-android && ENGINES="sl recycler rn" Bench/bench.sh my-label
-```
 
 Scenarios run from the example itself:
 
@@ -192,3 +185,23 @@ adb logcat -s SLSCENARIO SLAUTODRAG
   order before and after.
 - `sections` (Sections) and `features` (Inbox): the feature screens' checks, one `SLSCENARIO` JSON line each. The
   Inbox one swipes, holds and pulls with synthesized touches and saves the position through `saveHierarchyState`.
+
+## Source layout
+
+| File                                                                                                                          | Role                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `packages/shadowlist-core/host/ListDriver.{hpp,cpp}`                                                                          | The core driven for a native list: layout passes, measurement, keys, sticky math, scroll landing, drag. |
+| `ShadowListKit/src/main/cpp/ShadowListKitCoreJNI.cpp`                                                                         | Thin JNI hops into the driver with reused arrays.                                                       |
+| `ShadowListKitListView.kt`                                                                                                    | Public API, layout pass, mounting, sticky placement, scroll commands.                                   |
+| `ShadowListKitScrollGesture.kt`                                                                                               | Touch scrolling, flings, snapping, animated scrolls, the gesture phase and nested scrolling.            |
+| `ShadowListKitEdgeEffects.kt`                                                                                                 | The platform edge effect at both ends, glow or stretch.                                                 |
+| `packages/shadowlist-core/host/ListSections`, `KeyDiff`, `SwipeReveal`                                                        | Sections over the rows, the key diff and batch plan, swipe offsets, reached through JNI.                |
+| `ShadowListKitChangeAnimator.kt`, `ShadowListKitItemAnimator.kt`                                                              | What `animatesChanges` animates, and the pluggable animations.                                          |
+| `ShadowListKitDragController.kt`                                                                                              | Touch and hold to reorder through the host layer's DragReorder, and the row menu on a hold.             |
+| `ShadowListKitSwipeController.kt`                                                                                             | Swipe actions and the buttons behind a swiped row.                                                      |
+| `ShadowListKitRefreshIndicator.kt`, `ShadowListKitSectionIndex.kt`                                                            | Pull to refresh without SwipeRefreshLayout, the section index.                                          |
+| `ShadowListKitSwipeAction.kt`, `ShadowListKitAnchorState.kt`, `ShadowListKitListChanges.kt`, `ShadowListKitItemDecoration.kt` | Public value types and the decoration hook.                                                             |
+| `ShadowListKitCore.kt`, `ShadowListKitListCell.kt`, `ShadowListKitText.kt`                                                    | JNI wrapper, row base view with its states, precomputed text.                                           |
+
+`ShadowListKitTextLayout` breaks text into lines once with `StaticLayout`, on any thread, and
+`ShadowListKitTextView` only draws it.

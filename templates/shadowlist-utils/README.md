@@ -1,13 +1,8 @@
 # shadowlist-utils
 
-Hooks, data helpers and ready-made list UI for [`shadowlist`](https://github.com/azimgd/shadowlist). The package has two entry points:
-
-| Import                    | What's in it                                                                                                                                                                                                                            | Needs                                                                                                      |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `shadowlist-utils`        | Plain JS helpers and hooks: a list state controller, infinite-query helpers for React Query (flatten, optimistic edits, id-based structural sharing), pull-to-refresh, a scroll threshold hook, sections, tree ids and viewable ranges. | `react`, `react-native`, `shadowlist`                                                                      |
-| `shadowlist-utils/native` | UI kits built on `ShadowList`: theming, labels (i18n), primitives, and feed, chat, activity, nested, masonry, contacts, reorder, tree, poll, snap, inbox and assistant (streaming AI chat) kits.                                        | the above plus `react-native-gesture-handler`, `react-native-reanimated`, `react-native-safe-area-context` |
-
-The three gesture, animation and safe-area packages are optional peers. You can skip them if you only import from `shadowlist-utils`, but you need all three before you import `shadowlist-utils/native`.
+Hooks, data helpers and ready-made list kits for [`shadowlist`](https://github.com/azimgd/shadowlist).
+`shadowlist-utils` has the plain hooks and helpers. `shadowlist-utils/native` has themed UI kits for feeds, chats,
+assistants, inboxes and more.
 
 ## Install
 
@@ -17,31 +12,16 @@ yarn add shadowlist shadowlist-utils
 yarn add react-native-gesture-handler react-native-reanimated react-native-safe-area-context
 ```
 
-```sh
-npm install shadowlist shadowlist-utils
-npm install react-native-gesture-handler react-native-reanimated react-native-safe-area-context
-```
+- `react` 18.2 or newer and `react-native` 0.74 or newer with the New Architecture (Fabric).
+- `shadowlist-utils/native` needs the three peers above. Add the Reanimated Babel plugin and wrap the app in
+  `GestureHandlerRootView` and `SafeAreaProvider`.
+- The infinite query helpers work on `@tanstack/react-query` data. It is not a dependency.
 
-If you use the native kits, set up each peer as its own docs say: add the Reanimated Babel plugin, wrap the app in `GestureHandlerRootView` and `SafeAreaProvider`. `Chat.Input`, `Assistant.Composer` and `useKeyboardLift` read safe-area insets. `Contacts` rows use a swipe gesture.
+An app outside this repo can depend on a checkout with `"shadowlist-utils": "file:../shadowlist/templates/shadowlist-utils"`.
+Metro and TypeScript (`"customConditions": ["react-native"]`) read the TypeScript source. Add the folder to Metro's
+`watchFolders` and block its own `node_modules`.
 
-The React Query examples below use `@tanstack/react-query`. It is not a dependency of this package. The helpers only rely on the shape of its data.
-
-### From a shadowlist checkout
-
-An app outside this repo can depend on the checkout by path:
-
-```json
-"dependencies": {
-  "shadowlist-utils": "file:../shadowlist/templates/shadowlist-utils"
-}
-```
-
-The `react-native` export condition points at the TypeScript source. Metro bundles the source and
-no `lib/` build is needed. TypeScript does the same with `"customConditions": ["react-native"]`.
-Add `../shadowlist/templates/shadowlist-utils` to Metro's `watchFolders` and block its own
-`node_modules`. React and React Native then come from the app.
-
-## Quick start
+## Usage
 
 ```tsx
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -82,26 +62,7 @@ export function FeedScreen() {
 
 Pages must have the shape `{ items: Item[] }`. Rows are matched by `id`.
 
-Optimistic edits go through `setQueryData`:
-
-```ts
-import { upsertInfiniteItems } from 'shadowlist-utils';
-
-const write = (message: ChatMessage) =>
-  queryClient.setQueryData<ChatData>(['chat'], (data) =>
-    upsertInfiniteItems(data, [message])
-  );
-
-useMutation({
-  mutationFn: sendMessage,
-  onMutate: (message) => write({ ...message, status: 'sending' }),
-  onSuccess: (stored) => write(stored),
-  // Keep the bubble so the text isn't lost; Chat.Bubble offers a retry.
-  onError: (_error, message) => write({ ...message, status: 'failed' }),
-});
-```
-
-## API: `shadowlist-utils`
+## API
 
 ### Error handling (`onError`)
 
@@ -126,6 +87,25 @@ React Query's own `fetchNextPage` and `refetch` resolve even when the request fa
 | Types: `ItemsPage<T>`, `InfinitePages<P>`, `InfiniteItem<D>`, `InfiniteListQuery<D>`, `InfiniteListProps<T>`, `UseInfiniteListPropsOptions` |                                                                                                                                                                                                                                                                                                                                                       |
 
 All edit helpers keep the identity of any page or row they don't change. They return `data` itself when nothing changed, and they pass `undefined` through.
+
+Optimistic edits go through `setQueryData`:
+
+```ts
+import { upsertInfiniteItems } from 'shadowlist-utils';
+
+const write = (message: ChatMessage) =>
+  queryClient.setQueryData<ChatData>(['chat'], (data) =>
+    upsertInfiniteItems(data, [message])
+  );
+
+useMutation({
+  mutationFn: sendMessage,
+  onMutate: (message) => write({ ...message, status: 'sending' }),
+  onSuccess: (stored) => write(stored),
+  // Keep the bubble so the text isn't lost; Chat.Bubble offers a retry.
+  onError: (_error, message) => write({ ...message, status: 'failed' }),
+});
+```
 
 ### List state and scrolling
 
@@ -153,7 +133,7 @@ const list = useListController<Message>({
 | `collectExpandableIds(nodes, { getChildren, keyExtractor })` → `string[]`                                   | Returns the id of every node that has children, at any depth. Use it for a `TreeList` "Expand all" (`expandedIds`). |
 | Types: `ItemSection<T>`, `GroupIntoSectionsOptions<T>`, `CollectExpandableIdsOptions<N>`                    |                                                                                                                     |
 
-## Native kits: `shadowlist-utils/native`
+## Native kits
 
 Each kit is a namespace object, such as `Chat.List` and `Chat.Bubble`. Every `*.List` component wraps `ShadowList` (or `SectionList`, `TreeList` or `DraggableList`), accepts all of that component's props and forwards `ShadowListCommands` through `ref`. It also takes an optional `renderElement` that replaces the kit's default row.
 
@@ -263,8 +243,6 @@ Inset-grouped cards, as iOS Settings draws them. Metrics come from `theme.groupe
 | `Form.Card`, `Form.Row({ label, stacked? })`                                                                           | A form card that draws its own separators, and a label-and-value row. Large text stacks the label. |
 | `Form.Input({ value, onChange, numeric?, accessibilityLabel })`, `Form.Value({ text })`                                | A row's field, aligned to the trailing edge, and a value it shows but does not take.               |
 | `Form.Button({ label, onPress, destructive? })`                                                                        | Full-width button in a card of its own.                                                            |
-
-The example app's `TemplatesScreen.tsx` shows every control, `Grouped` and `Form` component on one page.
 
 ### Chat
 
@@ -419,28 +397,7 @@ export function AssistantScreen() {
 | `emptyTurn()`, `ASSISTANT_END_MARKER`, `ASSISTANT_END_ID`, `defaultAssistantLabels`                                                                                                                                                                                                                                                                             |                                                                                                                                                                                                                                       |
 | Types: `AssistantMessage` (`AssistantPrompt \| AssistantReply \| AssistantEndMarker`), `AssistantTurn` (streaming/done/stopped/failed), `AssistantToolCall` (running/done/failed/stopped), `AssistantSource`, `AssistantAttachment`, `AssistantFeedback`, `AssistantSuggestion`, `AssistantLabels`, `CreateTurnWriterOptions`, and `*Props` for every component |                                                                                                                                                                                                                                       |
 
-The example app's `AssistantScreen.tsx` shows the full setup: follow-the-stream anchoring with `nonAnchorKeys`, regenerate and retry, edit-and-resend, and loading earlier history.
-
-### Other kits
-
-Each of these is a single line of JSX. All of them accept every `ShadowList` prop.
-
-| Kit      | Example                                                                                                                                                                                                                                                                                                                                                                          | Row type                                                                               |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Feed     | `<Feed.List data={list.data} onEndReached={list.onEndReached} onPressItem={open} formatTime={fmt} />`                                                                                                                                                                                                                                                                            | `FeedItem { id, author, text?, images?, createdAt? }`                                  |
-| Activity | `<Activity.List data={list.data} onPressItem={open} />` (sticky header/footer, separators). Also `Activity.Row` and `Activity.Header({ title, subtitle?, actions? })`.                                                                                                                                                                                                           | `ActivityItem { id, actor, action, text?, createdAt, read? }`                          |
-| Nested   | `<ShadowList data={rows} renderElement={({ element }) => <Nested.Row item={element} onPressCard={open} />} />`. A row with a horizontal card list; there is no `Nested.List`.                                                                                                                                                                                                    | `NestedItem { id, title, cards: NestedCardItem[] }`                                    |
-| Masonry  | `<Masonry.List data={list.data} onPressItem={open} />` (3 columns by default)                                                                                                                                                                                                                                                                                                    | `MasonryItem { id, image: { uri, width, height, alt? }, title? }`                      |
-| Contacts | `<Contacts.List data={contacts} onPressItem={open} onDelete={remove} />`. `Contacts.SectionList` takes `sections` (see `groupIntoSections`). Passing `onDelete` enables swipe-to-delete.                                                                                                                                                                                         | `ContactItem { id, name, subtitle?, avatarUrl?, avatarColor? }`                        |
-| Reorder  | `<Reorder.List data={favorites} onReorder={({ data }) => save(data)} />` (built on `DraggableList`)                                                                                                                                                                                                                                                                              | `ContactItem`                                                                          |
-| Tree     | `<Tree.List data={tree} expandedIds={ids} onExpandedChange={setIds} onPressItem={openFile} />`                                                                                                                                                                                                                                                                                   | `TreeNode { id, name, children?, kind? }`                                              |
-| Poll     | `<Poll.List poll={{ question, options, selectedId }} onVote={vote} />`. Takes `poll` instead of `data`.                                                                                                                                                                                                                                                                          | `PollOption { id, label, votes, icon? }`                                               |
-| Snap     | `<Snap.List data={cards} onPressItem={open} />` (`snapToItem`)                                                                                                                                                                                                                                                                                                                   | `SnapItem { id, title?, subtitle?, image?, color? }`                                   |
-| Inbox    | `<Inbox.List data={mail} onToggleRead={markRead} onToggleFlag={flag} onDelete={remove} editing={selecting} selectedKeys={keys} onSelectionChange={setKeys} />`. Native swipe actions (a full swipe runs the first; return a promise to keep the row out until it settles), a long press menu, selection while `editing`. iOS and Android swipe and menus; macOS keeps selection. | `InboxMessage { id, sender, subject, preview, receivedAt, read, flagged, avatarUrl? }` |
-
-Each kit also exports its row or card component, a `default<Kit>Labels` object, a `<Kit>Labels` type and a `*Props` type for each component.
-
-## Security: links in assistant replies
+#### Links in replies
 
 Markdown links and source cards in assistant replies come from model output. By default `Assistant.List`, `Assistant.ReplyMessage` and `Assistant.Markdown` open only `http:`, `https:` and `mailto:` URLs, and they ignore every other scheme (`tel:`, `sms:`, app deep links and so on). To allow more schemes, or to route links through an in-app browser or an allowlist, pass `onOpenLink`:
 
@@ -461,12 +418,27 @@ import { openUrl } from 'shadowlist-utils/native';
 onOpenLink={(url) => (url.startsWith('myapp://trip/') ? openTrip(url) : openUrl(url))}
 ```
 
-## Compatibility
+### Other kits
 
-- `react` >= 18.2
-- `react-native` >= 0.74
-- The New Architecture (Fabric) is required.
+Each of these is a single line of JSX. All of them accept every `ShadowList` prop.
 
-## License
+| Kit      | Example                                                                                                                                                                                                                                                                                                                                                                          | Row type                                                                               |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Feed     | `<Feed.List data={list.data} onEndReached={list.onEndReached} onPressItem={open} formatTime={fmt} />`                                                                                                                                                                                                                                                                            | `FeedItem { id, author, text?, images?, createdAt? }`                                  |
+| Activity | `<Activity.List data={list.data} onPressItem={open} />` (sticky header/footer, separators). Also `Activity.Row` and `Activity.Header({ title, subtitle?, actions? })`.                                                                                                                                                                                                           | `ActivityItem { id, actor, action, text?, createdAt, read? }`                          |
+| Nested   | `<ShadowList data={rows} renderElement={({ element }) => <Nested.Row item={element} onPressCard={open} />} />`. A row with a horizontal card list; there is no `Nested.List`.                                                                                                                                                                                                    | `NestedItem { id, title, cards: NestedCardItem[] }`                                    |
+| Masonry  | `<Masonry.List data={list.data} onPressItem={open} />` (3 columns by default)                                                                                                                                                                                                                                                                                                    | `MasonryItem { id, image: { uri, width, height, alt? }, title? }`                      |
+| Contacts | `<Contacts.List data={contacts} onPressItem={open} onDelete={remove} />`. `Contacts.SectionList` takes `sections` (see `groupIntoSections`). Passing `onDelete` enables swipe-to-delete.                                                                                                                                                                                         | `ContactItem { id, name, subtitle?, avatarUrl?, avatarColor? }`                        |
+| Reorder  | `<Reorder.List data={favorites} onReorder={({ data }) => save(data)} />` (built on `DraggableList`)                                                                                                                                                                                                                                                                              | `ContactItem`                                                                          |
+| Tree     | `<Tree.List data={tree} expandedIds={ids} onExpandedChange={setIds} onPressItem={openFile} />`                                                                                                                                                                                                                                                                                   | `TreeNode { id, name, children?, kind? }`                                              |
+| Poll     | `<Poll.List poll={{ question, options, selectedId }} onVote={vote} />`. Takes `poll` instead of `data`.                                                                                                                                                                                                                                                                          | `PollOption { id, label, votes, icon? }`                                               |
+| Snap     | `<Snap.List data={cards} onPressItem={open} />` (`snapToItem`)                                                                                                                                                                                                                                                                                                                   | `SnapItem { id, title?, subtitle?, image?, color? }`                                   |
+| Inbox    | `<Inbox.List data={mail} onToggleRead={markRead} onToggleFlag={flag} onDelete={remove} editing={selecting} selectedKeys={keys} onSelectionChange={setKeys} />`. Native swipe actions (a full swipe runs the first; return a promise to keep the row out until it settles), a long press menu, selection while `editing`. iOS and Android swipe and menus; macOS keeps selection. | `InboxMessage { id, sender, subject, preview, receivedAt, read, flagged, avatarUrl? }` |
 
-MIT
+Each kit also exports its row or card component, a `default<Kit>Labels` object, a `<Kit>Labels` type and a `*Props` type for each component.
+
+## Example app
+
+The React Native example in [`templates/shadowlist-fabric-example`](../shadowlist-fabric-example) has screens built on
+these kits. `TemplatesScreen.tsx` shows every control, `Grouped` and `Form` component on one page, and
+`AssistantScreen.tsx` the full assistant setup. See [Example apps](../../README.md#example-apps) to run it.
