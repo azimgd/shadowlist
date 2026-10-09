@@ -1,5 +1,5 @@
 /*
- * Gradle init script that adds SLKBench to the React Native example's release build without
+ * Gradle init script that adds ShadowListKitBench to the React Native example's release build without
  * touching the example project:
  *
  *   cd templates/shadowlist-fabric-example/android
@@ -7,7 +7,7 @@
  *     app:assembleRelease -PreactNativeArchitectures=arm64-v8a
  *
  * It compiles Bench/src and Bench/rn/src into the release variant and merges a release
- * manifest whose provider starts SLKBench in the launched activity.
+ * manifest whose provider starts ShadowListKitBench in the launched activity.
  */
 def benchRoot = new File(initscript.sourceFile.parentFile, "..").canonicalFile
 

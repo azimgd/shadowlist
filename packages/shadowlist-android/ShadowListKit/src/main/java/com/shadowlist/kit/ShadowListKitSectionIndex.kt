@@ -11,7 +11,7 @@ import android.view.MotionEvent
  * sliding over a title scrolls to its section. Sizes and the title under a touch come from the
  * core's SectionIndex, shared with iOS.
  */
-internal class SLKSectionIndex(private val list: SLKListView) {
+internal class ShadowListKitSectionIndex(private val list: ShadowListKitListView) {
   companion object {
     private const val TEXT_SP = 11f
   }
@@ -36,8 +36,8 @@ internal class SLKSectionIndex(private val list: SLKListView) {
     get() = paint.color
     set(value) { paint.color = value }
 
-  private val width: Float get() = (SLKCore.SECTION_INDEX_WIDTH_DP * list.density).toFloat()
-  private val titleHeight: Float get() = (SLKCore.SECTION_INDEX_TITLE_HEIGHT_DP * list.density).toFloat()
+  private val width: Float get() = (ShadowListKitCore.SECTION_INDEX_WIDTH_DP * list.density).toFloat()
+  private val titleHeight: Float get() = (ShadowListKitCore.SECTION_INDEX_TITLE_HEIGHT_DP * list.density).toFloat()
   private val left: Float get() = (list.width - list.paddingRight).toFloat() - width
   private val area: Double get() = (list.height - list.paddingTop - list.paddingBottom).toDouble()
 
@@ -49,7 +49,7 @@ internal class SLKSectionIndex(private val list: SLKListView) {
   private val top: Float get() {
     if (titlesTopArea != area) {
       titlesTopArea = area
-      titlesTop = SLKCore.sectionIndexTitlesTop(area, titles.size, list.density.toDouble()).toFloat()
+      titlesTop = ShadowListKitCore.sectionIndexTitlesTop(area, titles.size, list.density.toDouble()).toFloat()
     }
     return list.paddingTop + titlesTop
   }
@@ -80,7 +80,7 @@ internal class SLKSectionIndex(private val list: SLKListView) {
   }
 
   private fun select(y: Float) {
-    val index = SLKCore.sectionIndexTitleAt((y - list.paddingTop).toDouble(), area, titles.size, list.density.toDouble())
+    val index = ShadowListKitCore.sectionIndexTitleAt((y - list.paddingTop).toDouble(), area, titles.size, list.density.toDouble())
     if (index == selected) return
     selected = index
     list.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)

@@ -39,28 +39,28 @@ import kotlin.math.roundToInt
  * Item indices are the public indices. In a list with sections the core places rows: section
  * headers, items and section footers. The list converts between the two at its edges.
  */
-open class SLKListView @JvmOverloads constructor(
+open class ShadowListKitListView @JvmOverloads constructor(
   context: Context,
   attrs: AttributeSet? = null,
 ) : ViewGroup(context, attrs), NestedScrollingChild3 {
 
   interface DataSource {
-    fun numberOfItems(listView: SLKListView): Int
+    fun numberOfItems(listView: ShadowListKitListView): Int
 
     /*
      * A stable identity for the row. Sizes, cells and the scroll position follow keys across
      * reloadData. A prepend or an insert above keeps what is on screen in place.
      * A row whose content changed under the same key needs reloadItems.
      */
-    fun keyForItem(listView: SLKListView, index: Int): String
+    fun keyForItem(listView: ShadowListKitListView, index: Int): String
 
-    fun cellForItem(listView: SLKListView, index: Int): SLKListCell
+    fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell
 
     /*
      * Update a shown cell for a payload given to reloadItems without a new cell. Return false
      * to have the row reloaded in full instead.
      */
-    fun reconfigureCell(listView: SLKListView, cell: SLKListCell, index: Int, payload: Any?): Boolean = false
+    fun reconfigureCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int, payload: Any?): Boolean = false
   }
 
   /*
@@ -68,7 +68,7 @@ open class SLKListView @JvmOverloads constructor(
    * precomputed off the UI thread. Otherwise every row is measured once through its cell.
    */
   interface Sizing {
-    fun sizeForItem(listView: SLKListView, index: Int, crossSize: Int): Int
+    fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int
   }
 
   /*
@@ -82,17 +82,17 @@ open class SLKListView @JvmOverloads constructor(
    * title scrolls to sectionForSectionIndexTitle, by default the section at its position.
    */
   interface Sections {
-    fun numberOfSections(listView: SLKListView): Int
-    fun numberOfItemsInSection(listView: SLKListView, section: Int): Int
-    fun keyForSection(listView: SLKListView, section: Int): String? = null
-    fun titleForHeaderInSection(listView: SLKListView, section: Int): String? = null
-    fun titleForFooterInSection(listView: SLKListView, section: Int): String? = null
-    fun cellForHeaderInSection(listView: SLKListView, section: Int): SLKListCell? = null
-    fun cellForFooterInSection(listView: SLKListView, section: Int): SLKListCell? = null
-    fun sizeForHeaderInSection(listView: SLKListView, section: Int, crossSize: Int): Int = -1
-    fun sizeForFooterInSection(listView: SLKListView, section: Int, crossSize: Int): Int = -1
-    fun sectionIndexTitles(listView: SLKListView): List<String>? = null
-    fun sectionForSectionIndexTitle(listView: SLKListView, title: String, index: Int): Int = index
+    fun numberOfSections(listView: ShadowListKitListView): Int
+    fun numberOfItemsInSection(listView: ShadowListKitListView, section: Int): Int
+    fun keyForSection(listView: ShadowListKitListView, section: Int): String? = null
+    fun titleForHeaderInSection(listView: ShadowListKitListView, section: Int): String? = null
+    fun titleForFooterInSection(listView: ShadowListKitListView, section: Int): String? = null
+    fun cellForHeaderInSection(listView: ShadowListKitListView, section: Int): ShadowListKitListCell? = null
+    fun cellForFooterInSection(listView: ShadowListKitListView, section: Int): ShadowListKitListCell? = null
+    fun sizeForHeaderInSection(listView: ShadowListKitListView, section: Int, crossSize: Int): Int = -1
+    fun sizeForFooterInSection(listView: ShadowListKitListView, section: Int, crossSize: Int): Int = -1
+    fun sectionIndexTitles(listView: ShadowListKitListView): List<String>? = null
+    fun sectionForSectionIndexTitle(listView: ShadowListKitListView, title: String, index: Int): Int = index
   }
 
   /*
@@ -101,7 +101,7 @@ open class SLKListView @JvmOverloads constructor(
    * value changed.
    */
   interface ContentVersions {
-    fun contentVersionForItem(listView: SLKListView, index: Int): Long
+    fun contentVersionForItem(listView: ShadowListKitListView, index: Int): Long
   }
 
   /*
@@ -110,64 +110,64 @@ open class SLKListView @JvmOverloads constructor(
    * no cell yet. A prefetched item that leaves the window before it shows is cancelled.
    */
   interface PrefetchDataSource {
-    fun prefetchItems(listView: SLKListView, indices: IntArray)
-    fun cancelPrefetchingForItems(listView: SLKListView, indices: IntArray) {}
+    fun prefetchItems(listView: ShadowListKitListView, indices: IntArray)
+    fun cancelPrefetchingForItems(listView: ShadowListKitListView, indices: IntArray) {}
   }
 
   interface Delegate {
-    fun willDisplayCell(listView: SLKListView, cell: SLKListCell, index: Int) {}
-    fun didEndDisplayingCell(listView: SLKListView, cell: SLKListCell, index: Int) {}
-    fun didSelectItem(listView: SLKListView, index: Int) {}
-    fun didDeselectItem(listView: SLKListView, index: Int) {}
-    fun shouldSelectItem(listView: SLKListView, index: Int): Boolean = true
-    fun shouldHighlightItem(listView: SLKListView, index: Int): Boolean = true
-    fun didScroll(listView: SLKListView) {}
+    fun willDisplayCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int) {}
+    fun didEndDisplayingCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int) {}
+    fun didSelectItem(listView: ShadowListKitListView, index: Int) {}
+    fun didDeselectItem(listView: ShadowListKitListView, index: Int) {}
+    fun shouldSelectItem(listView: ShadowListKitListView, index: Int): Boolean = true
+    fun shouldHighlightItem(listView: ShadowListKitListView, index: Int): Boolean = true
+    fun didScroll(listView: ShadowListKitListView) {}
 
     /*
      * The list came to rest after a touch, a fling or an animated scroll, on a row edge when
      * snapToItem is set.
      */
-    fun didEndScrolling(listView: SLKListView) {}
+    fun didEndScrolling(listView: ShadowListKitListView) {}
 
     /*
      * Whether a row can be picked up when reorderEnabled is set. Every row can by default.
      */
-    fun canMoveItem(listView: SLKListView, index: Int): Boolean = true
+    fun canMoveItem(listView: ShadowListKitListView, index: Int): Boolean = true
 
     /*
      * A held row was dropped at another index. Move the item in the data, the list reads the
      * data again right after and keeps the dropped row where it was let go.
      */
-    fun moveItem(listView: SLKListView, sourceIndex: Int, destinationIndex: Int) {}
+    fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) {}
 
     /*
      * The scroll position came within startReachedThreshold or endReachedThreshold of an edge.
      */
-    fun didReachStart(listView: SLKListView) {}
-    fun didReachEnd(listView: SLKListView) {}
+    fun didReachStart(listView: ShadowListKitListView) {}
+    fun didReachEnd(listView: ShadowListKitListView) {}
 
     /*
      * Actions behind a row swiped from its leading or trailing side, or null for none.
      */
-    fun leadingSwipeActionsForItem(listView: SLKListView, index: Int): SLKSwipeActionsConfiguration? = null
-    fun trailingSwipeActionsForItem(listView: SLKListView, index: Int): SLKSwipeActionsConfiguration? = null
+    fun leadingSwipeActionsForItem(listView: ShadowListKitListView, index: Int): ShadowListKitSwipeActionsConfiguration? = null
+    fun trailingSwipeActionsForItem(listView: ShadowListKitListView, index: Int): ShadowListKitSwipeActionsConfiguration? = null
 
     /*
      * Fill the menu for touching and holding a row and return true, or false for none. A row
      * that can also be reordered lifts on the hold. Letting go without moving it shows the menu.
      */
-    fun contextMenuForItem(listView: SLKListView, index: Int, menu: Menu): Boolean = false
+    fun contextMenuForItem(listView: ShadowListKitListView, index: Int, menu: Menu): Boolean = false
 
     /*
      * Whether the separator below an item shows when showsSeparators is set. Separators only
      * go between items of one section.
      */
-    fun showsSeparatorAfterItem(listView: SLKListView, index: Int): Boolean = true
+    fun showsSeparatorAfterItem(listView: ShadowListKitListView, index: Int): Boolean = true
 
     /*
      * The reader pulled to refresh with refreshEnabled. Set refreshing to false when done.
      */
-    fun didBeginRefreshing(listView: SLKListView) {}
+    fun didBeginRefreshing(listView: ShadowListKitListView) {}
   }
 
   var dataSource: DataSource? = null
@@ -247,7 +247,7 @@ open class SLKListView @JvmOverloads constructor(
    */
   var animatesChanges = false
 
-  var itemAnimator: SLKItemAnimator = SLKDefaultItemAnimator()
+  var itemAnimator: ShadowListKitItemAnimator = ShadowListKitDefaultItemAnimator()
 
   /*
    * Items that stick to the top of the viewport once scrolled past.
@@ -326,17 +326,17 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * Created on first use and destroyed when the list detaches. A list attached again gets a
    * new core with the same settings, keys and sections. Rows are measured again. A list that
-   * never attaches leaves its core to SLKCore's reclaimer, which frees the peer once the list is
+   * never attaches leaves its core to ShadowListKitCore's reclaimer, which frees the peer once the list is
    * collected.
    */
-  private var coreOrNull: SLKCore? = null
-  internal val core: SLKCore
+  private var coreOrNull: ShadowListKitCore? = null
+  internal val core: ShadowListKitCore
     get() = coreOrNull ?: createCore()
 
   /*
    * The core when it exists, for work that has nothing to do without one.
    */
-  internal val liveCore: SLKCore? get() = coreOrNull
+  internal val liveCore: ShadowListKitCore? get() = coreOrNull
 
   /*
    * Created on first use. View's constructor can ask for nested scrolling state before the
@@ -349,12 +349,12 @@ open class SLKListView @JvmOverloads constructor(
       nestedHelper = it
     }
 
-  private val changes = SLKChangeAnimator(this)
-  private val gesture = SLKScrollGesture(this)
-  private val drag = SLKDragController(this)
-  private val swipe = SLKSwipeController(this)
-  internal val refresh = SLKRefreshIndicator(this)
-  private val sectionIndex = SLKSectionIndex(this)
+  private val changes = ShadowListKitChangeAnimator(this)
+  private val gesture = ShadowListKitScrollGesture(this)
+  private val drag = ShadowListKitDragController(this)
+  private val swipe = ShadowListKitSwipeController(this)
+  internal val refresh = ShadowListKitRefreshIndicator(this)
+  private val sectionIndex = ShadowListKitSectionIndex(this)
 
   /*
    * Row keys in data order, the same list the core holds. Section headers and footers included.
@@ -385,7 +385,7 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * Mounted cells by key. A cell follows its key across inserts above it.
    */
-  internal val mounted = HashMap<String, SLKListCell>()
+  internal val mounted = HashMap<String, ShadowListKitListCell>()
   private var mountGeneration = 0L
 
   /*
@@ -398,8 +398,8 @@ open class SLKListView @JvmOverloads constructor(
   private var mountedStructure = 0
   private var structureVersion = 0
 
-  private val cellFactories = HashMap<String, (Context) -> SLKListCell>()
-  private val reusePool = HashMap<String, ArrayList<SLKListCell>>()
+  private val cellFactories = HashMap<String, (Context) -> ShadowListKitListCell>()
+  private val reusePool = HashMap<String, ArrayList<ShadowListKitListCell>>()
 
   /*
    * The rows the core keeps measured and their frames, four values each.
@@ -410,7 +410,7 @@ open class SLKListView @JvmOverloads constructor(
   private var windowGeometry = -1.0
   private val scratchFrame = DoubleArray(4)
 
-  private var stickyCell: SLKListCell? = null
+  private var stickyCell: ShadowListKitListCell? = null
 
   /*
    * The sticky rows: the sticky items' rows and the section headers, sorted.
@@ -480,7 +480,7 @@ open class SLKListView @JvmOverloads constructor(
    */
   private val selectedKeys = LinkedHashSet<String>()
   private var editingState = false
-  private var highlightedCell: SLKListCell? = null
+  private var highlightedCell: ShadowListKitListCell? = null
   private val highlightRunnable = Runnable { highlightPending() }
   private var highlightX = 0f
   private var highlightY = 0f
@@ -490,8 +490,8 @@ open class SLKListView @JvmOverloads constructor(
    */
   private var contentVersions = HashMap<String, Long>()
 
-  private var pendingAnchor: SLKAnchorState? = null
-  private val decorations = ArrayList<SLKItemDecoration>()
+  private var pendingAnchor: ShadowListKitAnchorState? = null
+  private val decorations = ArrayList<ShadowListKitItemDecoration>()
   private val separatorPaint = Paint().apply { color = separatorColor }
   private val separatorRect = RectF()
 
@@ -566,9 +566,9 @@ open class SLKListView @JvmOverloads constructor(
   }
 
   private fun scrollPhase(): Int = when {
-    gesture.isTracking -> SLKCore.PHASE_DRAGGING
-    gesture.isFlinging -> SLKCore.PHASE_SETTLING
-    else -> SLKCore.PHASE_IDLE
+    gesture.isTracking -> ShadowListKitCore.PHASE_DRAGGING
+    gesture.isFlinging -> ShadowListKitCore.PHASE_SETTLING
+    else -> ShadowListKitCore.PHASE_IDLE
   }
 
   // endregion
@@ -580,7 +580,7 @@ open class SLKListView @JvmOverloads constructor(
     invalidateFrame()
   }
 
-  private fun applySettings(target: SLKCore) {
+  private fun applySettings(target: ShadowListKitCore) {
     target.setSettings(estimatedItemSize.toDouble(), overscan, startReachedThreshold, endReachedThreshold,
       numberOfColumns, inverted, followAppends, horizontal, snapToItem, snapAlignment)
   }
@@ -589,8 +589,8 @@ open class SLKListView @JvmOverloads constructor(
    * A new core with this list's settings, sticky rows, sections and keys. Every copy of its
    * output here is dropped and the next layout pass runs it.
    */
-  private fun createCore(): SLKCore {
-    val created = SLKCore(::measureItem)
+  private fun createCore(): ShadowListKitCore {
+    val created = ShadowListKitCore(::measureItem)
     coreOrNull = created
     applySettings(created)
     if (stickyRows.isNotEmpty()) created.setStickyIndices(stickyRows)
@@ -633,12 +633,12 @@ open class SLKListView @JvmOverloads constructor(
     editingState = editing
   }
 
-  fun addItemDecoration(decoration: SLKItemDecoration) {
+  fun addItemDecoration(decoration: ShadowListKitItemDecoration) {
     decorations.add(decoration)
     invalidate()
   }
 
-  fun removeItemDecoration(decoration: SLKItemDecoration) {
+  fun removeItemDecoration(decoration: ShadowListKitItemDecoration) {
     decorations.remove(decoration)
     invalidate()
   }
@@ -647,26 +647,26 @@ open class SLKListView @JvmOverloads constructor(
 
   // region Cells
 
-  fun registerCell(identifier: String, factory: (Context) -> SLKListCell) {
+  fun registerCell(identifier: String, factory: (Context) -> ShadowListKitListCell) {
     cellFactories[identifier] = factory
   }
 
   @Suppress("UNCHECKED_CAST")
-  fun <T : SLKListCell> dequeueReusableCell(identifier: String): T {
+  fun <T : ShadowListKitListCell> dequeueReusableCell(identifier: String): T {
     val pool = reusePool[identifier]
     if (pool != null && pool.isNotEmpty()) {
       val cell = pool.removeAt(pool.size - 1)
       cell.prepareForReuse()
       return cell as T
     }
-    val factory = cellFactories[identifier] ?: { context: Context -> SLKListCell(context, identifier) }
+    val factory = cellFactories[identifier] ?: { context: Context -> ShadowListKitListCell(context, identifier) }
     val cell = factory(context)
     cell.visibility = INVISIBLE
     addViewInLayout(cell, -1, generateDefaultLayoutParams(), true)
     return cell as T
   }
 
-  internal fun recycleCell(cell: SLKListCell) {
+  internal fun recycleCell(cell: ShadowListKitListCell) {
     val index = cell.index
     swipe.cellWillRecycle(cell)
     drag.cellWillRecycle(cell)
@@ -675,8 +675,8 @@ open class SLKListView @JvmOverloads constructor(
     cell.translationX = 0f
     cell.translationY = 0f
     cell.visibility = INVISIBLE
-    cell.index = SLKListCell.NO_INDEX
-    cell.row = SLKListCell.NO_INDEX
+    cell.index = ShadowListKitListCell.NO_INDEX
+    cell.row = ShadowListKitListCell.NO_INDEX
     if (cell.highlighted) cell.setHighlighted(false, false)
     if (cell.isSelected) cell.setSelected(false, false)
     if (index >= 0) delegate?.didEndDisplayingCell(this, cell, index)
@@ -691,7 +691,7 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * The cell of a row: an item's from the data source, or a section header or footer.
    */
-  private fun makeCell(row: Int): SLKListCell {
+  private fun makeCell(row: Int): ShadowListKitListCell {
     val item = itemForRow(row)
     val cell = if (item >= 0) requireNotNull(dataSource).cellForItem(this, item) else sectionCell(row)
     if (cell.parent !== this) {
@@ -702,16 +702,16 @@ open class SLKListView @JvmOverloads constructor(
     return cell
   }
 
-  private fun sectionCell(row: Int): SLKListCell {
+  private fun sectionCell(row: Int): ShadowListKitListCell {
     val place = core.placeOfRow(row)
-    val section = place shr SLKCore.ROW_KIND_BITS
-    val footer = (place and SLKCore.ROW_KIND_MASK) == SLKCore.ROW_FOOTER
+    val section = place shr ShadowListKitCore.ROW_KIND_BITS
+    val footer = (place and ShadowListKitCore.ROW_KIND_MASK) == ShadowListKitCore.ROW_FOOTER
     val sections = dataSource as Sections
     val custom = if (footer) sections.cellForFooterInSection(this, section) else sections.cellForHeaderInSection(this, section)
     if (custom != null) return custom
-    val identifier = if (footer) SLKSectionTitleCell.FOOTER else SLKSectionTitleCell.HEADER
-    if (identifier !in cellFactories) registerCell(identifier) { SLKSectionTitleCell(it, identifier) }
-    val cell = dequeueReusableCell<SLKSectionTitleCell>(identifier)
+    val identifier = if (footer) ShadowListKitSectionTitleCell.FOOTER else ShadowListKitSectionTitleCell.HEADER
+    if (identifier !in cellFactories) registerCell(identifier) { ShadowListKitSectionTitleCell(it, identifier) }
+    val cell = dequeueReusableCell<ShadowListKitSectionTitleCell>(identifier)
     cell.title = (if (footer) sections.titleForFooterInSection(this, section) else sections.titleForHeaderInSection(this, section)) ?: ""
     return cell
   }
@@ -721,7 +721,7 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * The mounted cell of a row, or null.
    */
-  private fun mountedCell(row: Int): SLKListCell? = keyAt(row)?.let { mounted[it] }
+  private fun mountedCell(row: Int): ShadowListKitListCell? = keyAt(row)?.let { mounted[it] }
 
   override fun generateDefaultLayoutParams(): LayoutParams =
     LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
@@ -755,7 +755,7 @@ open class SLKListView @JvmOverloads constructor(
       val hasHeader = sections.titleForHeaderInSection(this, section) != null
       val hasFooter = sections.titleForFooterInSection(this, section) != null
       counts[section] = count
-      flags[section] = (if (hasHeader) SLKCore.SECTION_HEADER else 0) or (if (hasFooter) SLKCore.SECTION_FOOTER else 0)
+      flags[section] = (if (hasHeader) ShadowListKitCore.SECTION_HEADER else 0) or (if (hasFooter) ShadowListKitCore.SECTION_FOOTER else 0)
       sectionKeys[section] = sections.keyForSection(this, section)
       val first = items.size
       for (local in 0 until count) items.add(source.keyForItem(this, first + local))
@@ -767,9 +767,9 @@ open class SLKListView @JvmOverloads constructor(
     var edge = 0
     var item = 0
     for (section in 0 until sectionCount) {
-      if (flags[section] and SLKCore.SECTION_HEADER != 0) next.add(edges[edge++])
+      if (flags[section] and ShadowListKitCore.SECTION_HEADER != 0) next.add(edges[edge++])
       for (local in 0 until counts[section]) next.add(items[item++])
-      if (flags[section] and SLKCore.SECTION_FOOTER != 0) next.add(edges[edge++])
+      if (flags[section] and ShadowListKitCore.SECTION_FOOTER != 0) next.add(edges[edge++])
     }
     readRowItems(next.size)
     return items
@@ -879,7 +879,7 @@ open class SLKListView @JvmOverloads constructor(
     }
     val source = dataSource ?: return
     // An index past the end inserts at the end. The key is read where the row lands.
-    val sorted = SLKCore.insertionPositions(indices, keys.size)
+    val sorted = ShadowListKitCore.insertionPositions(indices, keys.size)
     if (sorted.isEmpty()) return
     val inserted = Array(sorted.size) { source.keyForItem(this, sorted[it]) }
     if (animatesChanges) changes.capture(removed = emptyList(), inserted = inserted.asList())
@@ -901,7 +901,7 @@ open class SLKListView @JvmOverloads constructor(
       reloadData()
       return
     }
-    val sorted = SLKCore.deletionPositions(indices, keys.size)
+    val sorted = ShadowListKitCore.deletionPositions(indices, keys.size)
     if (sorted.isEmpty()) return
     if (animatesChanges) changes.capture(removed = sorted.map { keys[it] }, inserted = emptyList())
     // Runs go last to first, which keeps the earlier indices valid.
@@ -969,7 +969,7 @@ open class SLKListView @JvmOverloads constructor(
     }
     if (batchDepth == 0) commitBatch()
     if (completion == null) return
-    val wait = if (animatesChanges && isAttachedToWindow) (itemAnimator as? SLKDefaultItemAnimator)?.durationMs ?: 0L else 0L
+    val wait = if (animatesChanges && isAttachedToWindow) (itemAnimator as? ShadowListKitDefaultItemAnimator)?.durationMs ?: 0L else 0L
     runCommandNow()
     postDelayed({ completion(true) }, wait)
   }
@@ -1004,7 +1004,7 @@ open class SLKListView @JvmOverloads constructor(
     var planned = false
     if (source !is Sections && !needsReload) {
       val nextCount = max(0, source.numberOfItems(this))
-      val plan = SLKCore.planBatch(keys.size, nextCount, deleted, inserted, movedFrom, movedTo)
+      val plan = ShadowListKitCore.planBatch(keys.size, nextCount, deleted, inserted, movedFrom, movedTo)
       if (plan != null) {
         next.ensureCapacity(plan.size)
         // The core's keysFromPlan: a kept row takes its key, an inserted one reads its own.
@@ -1012,7 +1012,7 @@ open class SLKListView @JvmOverloads constructor(
         setPlainSections(next.size)
         planned = true
       } else {
-        Log.w("SLKListView", "batch updates do not add up to $nextCount items, reloading")
+        Log.w("ShadowListKitListView", "batch updates do not add up to $nextCount items, reloading")
       }
     }
     if (!planned) readRowKeys(next)
@@ -1035,13 +1035,13 @@ open class SLKListView @JvmOverloads constructor(
    * and moves against the keys held with the core's diffKeys, reload the rows whose content
    * version changed, and return what changed. Animates like any change with animatesChanges.
    */
-  fun applyChanges(): SLKListChanges {
+  fun applyChanges(): ShadowListKitListChanges {
     // Without a data source readRowKeys leaves the spare list as it was. Nothing is read, the same as reloadData.
-    if (dataSource == null) return SLKListChanges(IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
+    if (dataSource == null) return ShadowListKitListChanges(IntArray(0), IntArray(0), IntArray(0), IntArray(0), IntArray(0))
     val previousItems = sectionItemKeys ?: ArrayList(keys)
     val next = spareKeys
     val nextItems = readRowKeys(next)
-    val diff = SLKCore.diffKeys(previousItems, nextItems)
+    val diff = ShadowListKitCore.diffKeys(previousItems, nextItems)
 
     // Rows that stayed but whose content version changed get reloaded.
     val reloaded = ArrayList<Int>()
@@ -1074,7 +1074,7 @@ open class SLKListView @JvmOverloads constructor(
     val moves = diff[at]
     val movedFrom = IntArray(moves) { diff[at + 1 + it * 2] }
     val movedTo = IntArray(moves) { diff[at + 2 + it * 2] }
-    return SLKListChanges(deleted, inserted, movedFrom, movedTo, reloaded.toIntArray())
+    return ShadowListKitListChanges(deleted, inserted, movedFrom, movedTo, reloaded.toIntArray())
   }
 
   /*
@@ -1259,7 +1259,7 @@ open class SLKListView @JvmOverloads constructor(
   private fun trackUserScroll() {
     val current = offset
     if (abs(current - previousOffset) < 1) return
-    if (scrollPhase() != SLKCore.PHASE_IDLE) userScrolled = true
+    if (scrollPhase() != ShadowListKitCore.PHASE_IDLE) userScrolled = true
     previousOffset = current
   }
 
@@ -1297,14 +1297,14 @@ open class SLKListView @JvmOverloads constructor(
    */
   private fun runPasses() {
     val pass = core.pass
-    pass[SLKCore.PASS_OFFSET] = offset.toDouble()
-    pass[SLKCore.PASS_WINDOW_ALONG] = windowAlong.toDouble()
-    pass[SLKCore.PASS_WINDOW_CROSS] = windowCross.toDouble()
-    pass[SLKCore.PASS_HEADER_SIZE] = headerSize.toDouble()
-    pass[SLKCore.PASS_FOOTER_SIZE] = footerSize.toDouble()
-    pass[SLKCore.PASS_PHASE] = scrollPhase().toDouble()
-    pass[SLKCore.PASS_USER_SCROLLED] = if (userScrolled) 1.0 else 0.0
-    pass[SLKCore.PASS_TRACKING] = if (gesture.isTracking) 1.0 else 0.0
+    pass[ShadowListKitCore.PASS_OFFSET] = offset.toDouble()
+    pass[ShadowListKitCore.PASS_WINDOW_ALONG] = windowAlong.toDouble()
+    pass[ShadowListKitCore.PASS_WINDOW_CROSS] = windowCross.toDouble()
+    pass[ShadowListKitCore.PASS_HEADER_SIZE] = headerSize.toDouble()
+    pass[ShadowListKitCore.PASS_FOOTER_SIZE] = footerSize.toDouble()
+    pass[ShadowListKitCore.PASS_PHASE] = scrollPhase().toDouble()
+    pass[ShadowListKitCore.PASS_USER_SCROLLED] = if (userScrolled) 1.0 else 0.0
+    pass[ShadowListKitCore.PASS_TRACKING] = if (gesture.isTracking) 1.0 else 0.0
     core.runPasses()
     userScrolled = false
     needsFrame = false
@@ -1315,25 +1315,25 @@ open class SLKListView @JvmOverloads constructor(
    * The content size goes first. The offset write is then inside the scroll range.
    */
   private fun applyPassResult(pass: DoubleArray) {
-    contentAlong = pass[SLKCore.PASS_OUT_CONTENT].roundToInt()
-    val target = pass[SLKCore.PASS_OUT_OFFSET].roundToInt()
+    contentAlong = pass[ShadowListKitCore.PASS_OUT_CONTENT].roundToInt()
+    val target = pass[ShadowListKitCore.PASS_OUT_OFFSET].roundToInt()
     if (target != offset) writeOffset(target)
-    bandLow = pass[SLKCore.PASS_OUT_BAND_LOW]
-    bandHigh = pass[SLKCore.PASS_OUT_BAND_HIGH]
-    reachedStart = reachedStart || pass[SLKCore.PASS_OUT_REACHED_START] != 0.0
-    reachedEnd = reachedEnd || pass[SLKCore.PASS_OUT_REACHED_END] != 0.0
-    frameGeometry = pass[SLKCore.PASS_OUT_GEOMETRY]
+    bandLow = pass[ShadowListKitCore.PASS_OUT_BAND_LOW]
+    bandHigh = pass[ShadowListKitCore.PASS_OUT_BAND_HIGH]
+    reachedStart = reachedStart || pass[ShadowListKitCore.PASS_OUT_REACHED_START] != 0.0
+    reachedEnd = reachedEnd || pass[ShadowListKitCore.PASS_OUT_REACHED_END] != 0.0
+    frameGeometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]
     copyWindow(pass)
-    if (pass[SLKCore.PASS_OUT_SETTLING] != 0.0) scheduleSettleFrame()
+    if (pass[ShadowListKitCore.PASS_OUT_SETTLING] != 0.0) scheduleSettleFrame()
   }
 
   /*
    * Keep the window's frames on this side. Mount passes inside the band read only these.
    */
   private fun copyWindow(pass: DoubleArray) {
-    val low = pass[SLKCore.PASS_OUT_WINDOW_LOW].toInt()
-    val high = pass[SLKCore.PASS_OUT_WINDOW_HIGH].toInt()
-    val geometry = pass[SLKCore.PASS_OUT_GEOMETRY]
+    val low = pass[ShadowListKitCore.PASS_OUT_WINDOW_LOW].toInt()
+    val high = pass[ShadowListKitCore.PASS_OUT_WINDOW_HIGH].toInt()
+    val geometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]
     if (low == windowLow && high == windowHigh && geometry == windowGeometry) return
     windowLow = low
     windowHigh = high
@@ -1475,7 +1475,7 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * A cell coming on screen shows its row's selection and the list's editing state.
    */
-  private fun applyState(cell: SLKListCell, key: String) {
+  private fun applyState(cell: ShadowListKitListCell, key: String) {
     val selected = cell.index >= 0 && key in selectedKeys
     if (cell.isSelected != selected) cell.setSelected(selected, false)
     if (cell.editing != editingState) cell.setEditing(editingState, false)
@@ -1512,7 +1512,7 @@ open class SLKListView @JvmOverloads constructor(
     return core.rowRect(index, out)
   }
 
-  private fun placeCell(cell: SLKListCell, index: Int) {
+  private fun placeCell(cell: ShadowListKitListCell, index: Int) {
     if (!rowRect(index, scratchFrame)) return
     placeView(cell, scratchFrame[0], scratchFrame[1], scratchFrame[2], scratchFrame[3])
   }
@@ -1584,8 +1584,8 @@ open class SLKListView @JvmOverloads constructor(
       val sections = dataSource as? Sections
       val place = core.placeOfRow(row)
       if (sections != null && place >= 0) {
-        val section = place shr SLKCore.ROW_KIND_BITS
-        val size = if ((place and SLKCore.ROW_KIND_MASK) == SLKCore.ROW_FOOTER) sections.sizeForFooterInSection(this, section, cross)
+        val section = place shr ShadowListKitCore.ROW_KIND_BITS
+        val size = if ((place and ShadowListKitCore.ROW_KIND_MASK) == ShadowListKitCore.ROW_FOOTER) sections.sizeForFooterInSection(this, section, cross)
           else sections.sizeForHeaderInSection(this, section, cross)
         if (size >= 0) return size.toDouble()
       }
@@ -1676,7 +1676,7 @@ open class SLKListView @JvmOverloads constructor(
     if (horizontal) placeView(cell, pinned, 0.0, extent, cross) else placeView(cell, 0.0, pinned, cross, extent)
   }
 
-  private fun unpinCell(cell: SLKListCell) {
+  private fun unpinCell(cell: ShadowListKitListCell) {
     if (cell.row in keys.indices) placeCell(cell, cell.row)
   }
 
@@ -1721,13 +1721,13 @@ open class SLKListView @JvmOverloads constructor(
    */
   override fun drawChild(canvas: Canvas, child: View, drawingTime: Long): Boolean {
     val more = super.drawChild(canvas, child, drawingTime)
-    if (showsSeparators && child is SLKListCell && child.visibility == VISIBLE && child.index >= 0) {
+    if (showsSeparators && child is ShadowListKitListCell && child.visibility == VISIBLE && child.index >= 0) {
       drawSeparator(canvas, child)
     }
     return more
   }
 
-  private fun drawSeparator(canvas: Canvas, cell: SLKListCell) {
+  private fun drawSeparator(canvas: Canvas, cell: ShadowListKitListCell) {
     val row = cell.row
     if (numberOfColumns > 1 || row < 0) return
     val follows = rowSeparators?.let { row < it.size && it[row] } ?: (row + 1 < keys.size)
@@ -1764,7 +1764,7 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * The visible cell under a point in the list's own coordinates.
    */
-  internal fun cellAt(x: Float, y: Float): SLKListCell? {
+  internal fun cellAt(x: Float, y: Float): ShadowListKitListCell? {
     val contentX = x + scrollX
     val contentY = y + scrollY
     for (cell in mounted.values) {
@@ -1779,7 +1779,7 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * The visible item cell under a point, not a section header or footer.
    */
-  internal fun itemCellAt(x: Float, y: Float): SLKListCell? = cellAt(x, y)?.takeIf { it.index >= 0 }
+  internal fun itemCellAt(x: Float, y: Float): ShadowListKitListCell? = cellAt(x, y)?.takeIf { it.index >= 0 }
 
   internal fun handleTap(x: Float, y: Float) {
     if (swipe.isOpen || swipe.closingTouch || hasHeldRow) return
@@ -1790,7 +1790,7 @@ open class SLKListView @JvmOverloads constructor(
   /*
    * Show a row's context menu. Returns whether the delegate gave one.
    */
-  internal fun showMenu(cell: SLKListCell): Boolean {
+  internal fun showMenu(cell: ShadowListKitListCell): Boolean {
     val delegate = delegate ?: return false
     if (cell.index < 0 || swipe.isOpen || swipe.closingTouch || editingState) return false
     val popup = PopupMenu(context, cell)
@@ -1811,7 +1811,7 @@ open class SLKListView @JvmOverloads constructor(
    * the core's ListSelection.tap, see selection_tap_selects_moves_and_toggles. The selection
    * stays here because every cell bind reads it.
    */
-  private fun userSelected(cell: SLKListCell) {
+  private fun userSelected(cell: ShadowListKitListCell) {
     val index = cell.index
     val key = keys.getOrNull(cell.row) ?: return
     if (allowsMultipleSelection && key in selectedKeys) {
@@ -2034,11 +2034,11 @@ open class SLKListView @JvmOverloads constructor(
 
   // region Queries
 
-  fun cellForItem(index: Int): SLKListCell? {
+  fun cellForItem(index: Int): ShadowListKitListCell? {
     return mountedCell(rowForItem(index))?.takeIf { it.visibility == VISIBLE }
   }
 
-  val visibleCells: List<SLKListCell>
+  val visibleCells: List<ShadowListKitListCell>
     get() {
       val low = offset + leadingPadding
       val high = low + windowAlong
@@ -2086,18 +2086,18 @@ open class SLKListView @JvmOverloads constructor(
    * The row at the viewport start by key and how far the viewport is into it, or null before
    * the first layout.
    */
-  val anchorState: SLKAnchorState?
+  val anchorState: ShadowListKitAnchorState?
     get() {
       val current = coreOrNull ?: return pendingAnchor
       val out = DoubleArray(1)
       val key = current.anchor(offset.toDouble(), out) ?: return pendingAnchor
-      return SLKAnchorState(key, out[0].toFloat())
+      return ShadowListKitAnchorState(key, out[0].toFloat())
     }
 
   /*
    * Land the saved row the same distance in again, now or once a reload brings its key.
    */
-  fun restoreAnchorState(state: SLKAnchorState) {
+  fun restoreAnchorState(state: ShadowListKitAnchorState) {
     pendingAnchor = state
     restorePendingAnchor()
   }
@@ -2125,9 +2125,9 @@ open class SLKListView @JvmOverloads constructor(
       super.onRestoreInstanceState(state)
       return
     }
-    state.classLoader = SLKAnchorState::class.java.classLoader
+    state.classLoader = ShadowListKitAnchorState::class.java.classLoader
     super.onRestoreInstanceState(state.getParcelable(STATE_SUPER))
-    state.getParcelable<SLKAnchorState>(STATE_ANCHOR)?.let(::restoreAnchorState)
+    state.getParcelable<ShadowListKitAnchorState>(STATE_ANCHOR)?.let(::restoreAnchorState)
   }
 
   // endregion
@@ -2199,7 +2199,7 @@ open class SLKListView @JvmOverloads constructor(
    * One viewport toward the end, or toward the start for a negative direction.
    */
   private fun scrollByPage(direction: Int): Boolean {
-    val target = SLKCore.pageScrollTarget(offset.toDouble(), windowAlong.toDouble(), maxOffset.toDouble(), direction).roundToInt()
+    val target = ShadowListKitCore.pageScrollTarget(offset.toDouble(), windowAlong.toDouble(), maxOffset.toDouble(), direction).roundToInt()
     if (target == offset) return false
     gesture.stop()
     writeOffset(target, byUser = true)
@@ -2237,7 +2237,7 @@ open class SLKListView @JvmOverloads constructor(
       else Double.NaN
     if (!target.isNaN()) {
       // Animate to the estimate, then let the core land exactly when the animation ends.
-      animateCommand(target.roundToInt(), SLKCore.LANDING_INDEX, row, viewPosition)
+      animateCommand(target.roundToInt(), ShadowListKitCore.LANDING_INDEX, row, viewPosition)
       return
     }
     stopScrolling()
@@ -2248,7 +2248,7 @@ open class SLKListView @JvmOverloads constructor(
   fun scrollToStart(animated: Boolean = false) {
     if (animated) {
       // The header shows at the very start, which landing on row 0 would scroll past.
-      animateCommand(0, SLKCore.LANDING_START)
+      animateCommand(0, ShadowListKitCore.LANDING_START)
       return
     }
     stopScrolling()
@@ -2258,7 +2258,7 @@ open class SLKListView @JvmOverloads constructor(
 
   fun scrollToEnd(animated: Boolean = false) {
     if (animated) {
-      animateCommand(maxOffset, SLKCore.LANDING_END)
+      animateCommand(maxOffset, ShadowListKitCore.LANDING_END)
       return
     }
     stopScrolling()
@@ -2329,18 +2329,18 @@ open class SLKListView @JvmOverloads constructor(
   // endregion
 
   private companion object {
-    const val STATE_SUPER = "SLKListView.super"
-    const val STATE_ANCHOR = "SLKListView.anchor"
+    const val STATE_SUPER = "ShadowListKitListView.super"
+    const val STATE_ANCHOR = "ShadowListKitListView.anchor"
   }
 }
 
 /*
  * The cell of a section header or footer the data source gives only a title for.
  */
-internal class SLKSectionTitleCell(context: Context, identifier: String) : SLKListCell(context, identifier) {
+internal class ShadowListKitSectionTitleCell(context: Context, identifier: String) : ShadowListKitListCell(context, identifier) {
   companion object {
-    const val HEADER = "SLKSectionHeader"
-    const val FOOTER = "SLKSectionFooter"
+    const val HEADER = "ShadowListKitSectionHeader"
+    const val FOOTER = "ShadowListKitSectionFooter"
     private const val INSET_HORIZONTAL_DP = 16
     private const val INSET_VERTICAL_DP = 6
     private const val MIN_HEIGHT_DP = 28

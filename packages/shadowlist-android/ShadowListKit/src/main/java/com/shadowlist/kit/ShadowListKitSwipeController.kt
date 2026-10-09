@@ -26,18 +26,18 @@ import kotlin.math.roundToInt
  * follows and where it rests. A touch anywhere else closes an open row, and a drag from there
  * still scrolls.
  */
-internal class SLKSwipeController(private val list: SLKListView) {
+internal class ShadowListKitSwipeController(private val list: ShadowListKitListView) {
   private val touchSlop = ViewConfiguration.get(list.context).scaledTouchSlop
-  private val spec = DoubleArray(SLKCore.SWIPE_SLOTS)
+  private val spec = DoubleArray(ShadowListKitCore.SWIPE_SLOTS)
   private var velocityTracker: VelocityTracker? = null
   private var animator: ValueAnimator? = null
 
   /*
    * The row swiped open and its buttons, or null.
    */
-  var cell: SLKListCell? = null
+  var cell: ShadowListKitListCell? = null
     private set
-  private var actionsView: SLKSwipeActionsView? = null
+  private var actionsView: ShadowListKitSwipeActionsView? = null
   private var offset = 0f
   private var startOffset = 0f
 
@@ -58,8 +58,8 @@ internal class SLKSwipeController(private val list: SLKListView) {
 
   val isOpen: Boolean get() = cell != null
 
-  fun isSwipedOut(candidate: SLKListCell): Boolean =
-    candidate === cell && SLKCore.swipeIsOut(spec, offset.toDouble())
+  fun isSwipedOut(candidate: ShadowListKitListCell): Boolean =
+    candidate === cell && ShadowListKitCore.swipeIsOut(spec, offset.toDouble())
 
   /*
    * Watch a touch for a swipe and own it once one runs. Returns whether the swipe took the event.
@@ -109,7 +109,7 @@ internal class SLKSwipeController(private val list: SLKListView) {
     }
     val translation = list.cross(event.x, event.y) - list.cross(downX, downY)
     val wasPast = pastFull(offset)
-    apply(SLKCore.swipeDrag(spec, startOffset.toDouble(), translation.toDouble()).toFloat())
+    apply(ShadowListKitCore.swipeDrag(spec, startOffset.toDouble(), translation.toDouble()).toFloat())
     if (pastFull(offset) != wasPast) cell?.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
     return true
   }
@@ -141,7 +141,7 @@ internal class SLKSwipeController(private val list: SLKListView) {
     tracker.addMovement(event)
   }
 
-  private fun pastFull(value: Float): Boolean = value != 0f && SLKCore.swipePastFull(spec, value.toDouble())
+  private fun pastFull(value: Float): Boolean = value != 0f && ShadowListKitCore.swipePastFull(spec, value.toDouble())
 
   /*
    * Start swiping the row under the touch's start toward a side that has actions.
@@ -161,25 +161,25 @@ internal class SLKSwipeController(private val list: SLKListView) {
     return true
   }
 
-  private fun actions(target: SLKListCell, leadingSide: Boolean): SLKSwipeActionsConfiguration? {
+  private fun actions(target: ShadowListKitListCell, leadingSide: Boolean): ShadowListKitSwipeActionsConfiguration? {
     val delegate = list.delegate ?: return null
     val configuration = if (leadingSide) delegate.leadingSwipeActionsForItem(list, target.index)
       else delegate.trailingSwipeActionsForItem(list, target.index)
     return configuration?.takeIf { it.actions.isNotEmpty() }
   }
 
-  private fun open(target: SLKListCell, leading: SLKSwipeActionsConfiguration?, trailing: SLKSwipeActionsConfiguration?) {
-    val view = SLKSwipeActionsView(list.context, leading, trailing, list.horizontal, list.density) { perform(it) }
+  private fun open(target: ShadowListKitListCell, leading: ShadowListKitSwipeActionsConfiguration?, trailing: ShadowListKitSwipeActionsConfiguration?) {
+    val view = ShadowListKitSwipeActionsView(list.context, leading, trailing, list.horizontal, list.density) { perform(it) }
     list.addSwipeActionsView(view)
     view.measure(
       View.MeasureSpec.makeMeasureSpec(target.width, View.MeasureSpec.EXACTLY),
       View.MeasureSpec.makeMeasureSpec(target.height, View.MeasureSpec.EXACTLY))
     view.layout(target.left, target.top, target.right, target.bottom)
-    spec[SLKCore.SWIPE_LEADING_WIDTH] = view.leadingWidth
-    spec[SLKCore.SWIPE_TRAILING_WIDTH] = view.trailingWidth
-    spec[SLKCore.SWIPE_LEADING_FULL] = if (leading?.performsFirstActionWithFullSwipe == true) 1.0 else 0.0
-    spec[SLKCore.SWIPE_TRAILING_FULL] = if (trailing?.performsFirstActionWithFullSwipe == true) 1.0 else 0.0
-    spec[SLKCore.SWIPE_ROW_SIZE] = (if (list.horizontal) target.height else target.width).toDouble()
+    spec[ShadowListKitCore.SWIPE_LEADING_WIDTH] = view.leadingWidth
+    spec[ShadowListKitCore.SWIPE_TRAILING_WIDTH] = view.trailingWidth
+    spec[ShadowListKitCore.SWIPE_LEADING_FULL] = if (leading?.performsFirstActionWithFullSwipe == true) 1.0 else 0.0
+    spec[ShadowListKitCore.SWIPE_TRAILING_FULL] = if (trailing?.performsFirstActionWithFullSwipe == true) 1.0 else 0.0
+    spec[ShadowListKitCore.SWIPE_ROW_SIZE] = (if (list.horizontal) target.height else target.width).toDouble()
     cell = target
     actionsView = view
     offset = 0f
@@ -194,13 +194,13 @@ internal class SLKSwipeController(private val list: SLKListView) {
   }
 
   private fun settle(velocity: Float) {
-    SLKCore.swipeSettle(spec, offset.toDouble(), velocity.toDouble(), SLKCore.SWIPE_FLING_VELOCITY_DP * list.density)
-    val side = spec[SLKCore.SWIPE_OUT_SIDE].toInt()
-    val full = spec[SLKCore.SWIPE_OUT_FULL] != 0.0
-    animateTo(spec[SLKCore.SWIPE_OUT_OFFSET].toFloat())
+    ShadowListKitCore.swipeSettle(spec, offset.toDouble(), velocity.toDouble(), ShadowListKitCore.SWIPE_FLING_VELOCITY_DP * list.density)
+    val side = spec[ShadowListKitCore.SWIPE_OUT_SIDE].toInt()
+    val full = spec[ShadowListKitCore.SWIPE_OUT_FULL] != 0.0
+    animateTo(spec[ShadowListKitCore.SWIPE_OUT_OFFSET].toFloat())
     if (full) {
       val view = actionsView ?: return
-      val configuration = if (side == SLKCore.SWIPE_SIDE_LEADING) view.leading else view.trailing
+      val configuration = if (side == ShadowListKitCore.SWIPE_SIDE_LEADING) view.leading else view.trailing
       configuration?.actions?.firstOrNull()?.let(::perform)
     }
   }
@@ -209,7 +209,7 @@ internal class SLKSwipeController(private val list: SLKListView) {
     animator?.cancel()
     val swiped = cell ?: return
     animator = ValueAnimator.ofFloat(offset, target).apply {
-      duration = SLKCore.SWIPE_DURATION_MS
+      duration = ShadowListKitCore.SWIPE_DURATION_MS
       interpolator = DecelerateInterpolator()
       addUpdateListener { if (cell === swiped) apply(it.animatedValue as Float) }
       addListener(object : AnimatorListenerAdapter() {
@@ -224,7 +224,7 @@ internal class SLKSwipeController(private val list: SLKListView) {
   /*
    * Run an action. Its completion closes the row, unless the action removed it.
    */
-  private fun perform(action: SLKSwipeAction) {
+  private fun perform(action: ShadowListKitSwipeAction) {
     val swiped = cell ?: return
     action.handler(action) { _ ->
       list.post { if (cell === swiped) close(true) }
@@ -262,7 +262,7 @@ internal class SLKSwipeController(private val list: SLKListView) {
     velocityTracker = null
   }
 
-  fun cellWillRecycle(recycled: SLKListCell) {
+  fun cellWillRecycle(recycled: ShadowListKitListCell) {
     if (recycled === cell) tearDown()
   }
 
@@ -292,13 +292,13 @@ internal class SLKSwipeController(private val list: SLKListView) {
  * cell's frame. The side being revealed shows its buttons stretched over the gap the row
  * leaves. Past the full swipe point the first button fills all of it.
  */
-internal class SLKSwipeActionsView(
+internal class ShadowListKitSwipeActionsView(
   context: Context,
-  val leading: SLKSwipeActionsConfiguration?,
-  val trailing: SLKSwipeActionsConfiguration?,
+  val leading: ShadowListKitSwipeActionsConfiguration?,
+  val trailing: ShadowListKitSwipeActionsConfiguration?,
   private val horizontal: Boolean,
   density: Float,
-  private val onAction: (SLKSwipeAction) -> Unit,
+  private val onAction: (ShadowListKitSwipeAction) -> Unit,
 ) : ViewGroup(context) {
   private val leadingButtons = buttons(leading)
   private val trailingButtons = buttons(trailing)
@@ -314,7 +314,7 @@ internal class SLKSwipeActionsView(
   val leadingWidth: Double get() = leadingSizes.sum()
   val trailingWidth: Double get() = trailingSizes.sum()
 
-  private fun buttons(configuration: SLKSwipeActionsConfiguration?): List<TextView> =
+  private fun buttons(configuration: ShadowListKitSwipeActionsConfiguration?): List<TextView> =
     configuration?.actions?.map { action ->
       TextView(context).apply {
         text = action.title
@@ -334,7 +334,7 @@ internal class SLKSwipeActionsView(
     val button = buttons[it]
     button.measure(MeasureSpec.UNSPECIFIED, MeasureSpec.UNSPECIFIED)
     val fitted = if (horizontal) button.measuredHeight else button.measuredWidth
-    SLKCore.swipeButtonSize(fitted.toDouble(), density.toDouble())
+    ShadowListKitCore.swipeButtonSize(fitted.toDouble(), density.toDouble())
   }
 
   override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -355,7 +355,7 @@ internal class SLKSwipeActionsView(
     for (button in other) button.visibility = INVISIBLE
     val crossSize = if (horizontal) height else width
     val alongSize = if (horizontal) width else height
-    SLKCore.swipeButtonSpans(sizes, sizes.size, offset.toDouble(), full, crossSize.toDouble(), spans)
+    ShadowListKitCore.swipeButtonSpans(sizes, sizes.size, offset.toDouble(), full, crossSize.toDouble(), spans)
     for ((at, button) in shown.withIndex()) {
       // Each edge is rounded on its own, which keeps the buttons touching.
       val start = spans[2 + at * 2].roundToInt()

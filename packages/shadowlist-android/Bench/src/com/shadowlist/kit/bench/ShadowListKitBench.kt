@@ -26,7 +26,7 @@ import kotlin.math.roundToLong
  * views and their parents. Results then carry contentBlankAvg, contentBlankMax and
  * contentBlankFrames, where a frame's blank is the larger of the uncovered share and this one.
  */
-interface SLKBenchProbe {
+interface ShadowListKitBenchProbe {
   fun benchBlankFraction(): Double
 }
 
@@ -34,11 +34,11 @@ interface SLKBenchProbe {
  * Drives the biggest scroll view of an activity at a constant speed, one step per frame, and
  * logs one JSON line per axis with frame intervals, janky frames, UI thread, RenderThread and
  * process CPU, memory, and how much of the viewport no row covers. The same metrics as the iOS
- * SLKBench. Extras: SLBench 1, SLBenchAxes (y, x or xy, comma separated, default y),
+ * ShadowListKitBench. Extras: SLBench 1, SLBenchAxes (y, x or xy, comma separated, default y),
  * SLBenchSpeed (dp/s), SLBenchSeconds per leg, SLBenchDelay, SLBenchLabel, SLBenchExit 1.
  * An axis without a scroll view logs a line with skipped set.
  */
-class SLKBench private constructor(private val activity: Activity, intent: Intent) : Choreographer.FrameCallback {
+class ShadowListKitBench private constructor(private val activity: Activity, intent: Intent) : Choreographer.FrameCallback {
   companion object {
     private const val TAG = "SLBENCH"
 
@@ -49,7 +49,7 @@ class SLKBench private constructor(private val activity: Activity, intent: Inten
 
     fun startIfRequested(activity: Activity, intent: Intent) {
       if (intent.getStringExtra("SLBench") != "1") return
-      val bench = SLKBench(activity, intent)
+      val bench = ShadowListKitBench(activity, intent)
       Handler(Looper.getMainLooper()).postDelayed({ bench.start() }, (bench.delay * 1000).toLong())
     }
 
@@ -69,7 +69,7 @@ class SLKBench private constructor(private val activity: Activity, intent: Inten
   private var vertical: View? = null
   private var horizontal: View? = null
   private var coverage: View? = null
-  private var probe: SLKBenchProbe? = null
+  private var probe: ShadowListKitBenchProbe? = null
   private var directionX = 1
   private var directionY = 1
   private var legs = 0
@@ -163,10 +163,10 @@ class SLKBench private constructor(private val activity: Activity, intent: Inten
   /*
    * The view or the first of its parents that answers the probe.
    */
-  private fun findProbe(start: View): SLKBenchProbe? {
+  private fun findProbe(start: View): ShadowListKitBenchProbe? {
     var view: Any? = start
     while (view != null) {
-      if (view is SLKBenchProbe) return view
+      if (view is ShadowListKitBenchProbe) return view
       view = (view as? View)?.parent
     }
     return null
@@ -379,7 +379,7 @@ private class BlankSampler {
   private var probed = false
   private val spans = ArrayList<Pair<Int, Int>>()
 
-  fun sample(list: View, alongX: Boolean, probe: SLKBenchProbe?) {
+  fun sample(list: View, alongX: Boolean, probe: ShadowListKitBenchProbe?) {
     val group = list as? ViewGroup ?: return
     val along = if (alongX) list.width else list.height
     val cross = if (alongX) list.height else list.width

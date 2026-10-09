@@ -15,7 +15,7 @@ import kotlin.math.ceil
  * Text broken into lines once, for one width. Building one is safe on any thread, which moves
  * line breaking off the UI thread when a row's layout is computed ahead. A text view only draws it.
  */
-class SLKTextLayout private constructor(val layout: StaticLayout) {
+class ShadowListKitTextLayout private constructor(val layout: StaticLayout) {
   val width: Int = lineWidth(layout)
   val height: Int = layout.height
 
@@ -26,14 +26,14 @@ class SLKTextLayout private constructor(val layout: StaticLayout) {
       width: Int,
       maxLines: Int = Int.MAX_VALUE,
       lineSpacingExtra: Float = 0f,
-    ): SLKTextLayout {
+    ): ShadowListKitTextLayout {
       val builder = StaticLayout.Builder.obtain(text, 0, text.length, paint, width.coerceAtLeast(1))
         .setAlignment(Layout.Alignment.ALIGN_NORMAL)
         .setIncludePad(false)
         .setLineSpacing(lineSpacingExtra, 1f)
         .setMaxLines(maxLines)
         .setEllipsize(if (maxLines == Int.MAX_VALUE) null else TextUtils.TruncateAt.END)
-      return SLKTextLayout(builder.build())
+      return ShadowListKitTextLayout(builder.build())
     }
 
     private fun lineWidth(layout: StaticLayout): Int {
@@ -49,9 +49,9 @@ class SLKTextLayout private constructor(val layout: StaticLayout) {
 // region View
 
 /*
- * Draws an SLKTextLayout in textColor. Its size is the layout's size, which a row sets as its frame.
+ * Draws an ShadowListKitTextLayout in textColor. Its size is the layout's size, which a row sets as its frame.
  */
-class SLKTextView(context: Context) : View(context) {
+class ShadowListKitTextView(context: Context) : View(context) {
   var textColor: Int = 0xFF000000.toInt()
     set(value) {
       if (field == value) return
@@ -59,7 +59,7 @@ class SLKTextView(context: Context) : View(context) {
       invalidate()
     }
 
-  var textLayout: SLKTextLayout? = null
+  var textLayout: ShadowListKitTextLayout? = null
     set(value) {
       if (field === value) return
       val resized = field?.width != value?.width || field?.height != value?.height

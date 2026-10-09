@@ -10,7 +10,7 @@ import android.view.View
  * The core's ChangeAnimation decides what each row does. It is called once per change, never
  * on a scroll frame.
  */
-internal class SLKChangeAnimator(private val list: SLKListView) {
+internal class ShadowListKitChangeAnimator(private val list: ShadowListKitListView) {
   /*
    * A change was captured and waits for the layout pass. Saves the core call on other passes.
    */
@@ -39,14 +39,14 @@ internal class SLKChangeAnimator(private val list: SLKListView) {
   /*
    * Where the cell shows now, a slide still running included.
    */
-  private fun screenLeft(cell: SLKListCell): Float = cell.left + cell.translationX - list.scrollX
-  private fun screenTop(cell: SLKListCell): Float = cell.top + cell.translationY - list.scrollY
+  private fun screenLeft(cell: ShadowListKitListCell): Float = cell.left + cell.translationX - list.scrollX
+  private fun screenTop(cell: ShadowListKitListCell): Float = cell.top + cell.translationY - list.scrollY
 
   /*
    * Keep a removed row's cell on screen where it was and fade it out. Returns false when the
    * cell should go back to the pool right away.
    */
-  fun fadeOut(key: String, cell: SLKListCell): Boolean {
+  fun fadeOut(key: String, cell: ShadowListKitListCell): Boolean {
     if (!pending || cell.visibility != View.VISIBLE) return false
     val core = list.liveCore ?: return false
     if (!core.removedPosition(key, removedOut)) return false
@@ -64,7 +64,7 @@ internal class SLKChangeAnimator(private val list: SLKListView) {
     if (!pending) return
     pending = false
     val core = list.liveCore ?: return
-    val cells = ArrayList<SLKListCell>(list.mounted.size)
+    val cells = ArrayList<ShadowListKitListCell>(list.mounted.size)
     val keys = ArrayList<String>(list.mounted.size)
     for (cell in list.mounted.values.sortedBy { it.row }) {
       if (cell.visibility != View.VISIBLE || cell.row < 0) continue
@@ -78,13 +78,13 @@ internal class SLKChangeAnimator(private val list: SLKListView) {
     }
     val steps = core.runChange(keys, positions) ?: return
     for ((at, cell) in cells.withIndex()) {
-      val step = at * SLKCore.CHANGE_STEP_SLOTS
-      if (step + SLKCore.CHANGE_STEP_SLOTS > steps.size) break
-      if (steps[step + SLKCore.CHANGE_STEP_KIND].toInt() == SLKCore.CHANGE_INSERT) {
+      val step = at * ShadowListKitCore.CHANGE_STEP_SLOTS
+      if (step + ShadowListKitCore.CHANGE_STEP_SLOTS > steps.size) break
+      if (steps[step + ShadowListKitCore.CHANGE_STEP_KIND].toInt() == ShadowListKitCore.CHANGE_INSERT) {
         list.itemAnimator.animateInsert(list, cell)
       } else {
-        val fromX = steps[step + SLKCore.CHANGE_STEP_FROM_X].toFloat()
-        val fromY = steps[step + SLKCore.CHANGE_STEP_FROM_Y].toFloat()
+        val fromX = steps[step + ShadowListKitCore.CHANGE_STEP_FROM_X].toFloat()
+        val fromY = steps[step + ShadowListKitCore.CHANGE_STEP_FROM_Y].toFloat()
         list.itemAnimator.animateMove(list, cell, fromX, fromY)
       }
     }

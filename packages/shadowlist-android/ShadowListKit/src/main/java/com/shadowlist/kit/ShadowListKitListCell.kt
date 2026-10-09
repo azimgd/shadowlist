@@ -15,7 +15,7 @@ import android.widget.FrameLayout
  * them to show it. Highlighted also sets the pressed state and selected the selected state, which
  * state list drawables follow.
  */
-open class SLKListCell(context: Context, val reuseIdentifier: String?) : FrameLayout(context) {
+open class ShadowListKitListCell(context: Context, val reuseIdentifier: String?) : FrameLayout(context) {
   companion object {
     const val NO_INDEX = -1
   }
@@ -65,7 +65,7 @@ open class SLKListCell(context: Context, val reuseIdentifier: String?) : FrameLa
    */
   override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
     super.onInitializeAccessibilityNodeInfo(info)
-    val list = parent as? SLKListView ?: return
+    val list = parent as? ShadowListKitListView ?: return
     if (index < 0) {
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.isHeading = true
       return

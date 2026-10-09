@@ -18,7 +18,7 @@ import kotlin.math.roundToLong
  * scrolling parent, like a collapsing toolbar, gets its share of every move before and after
  * the list, and what nobody takes pulls the edge effect.
  */
-internal class SLKScrollGesture(private val list: SLKListView) {
+internal class ShadowListKitScrollGesture(private val list: ShadowListKitListView) {
   companion object {
     private const val SETTLE_DURATION_MS = 250L
     private const val COMMAND_DURATION_MS = 300L
@@ -32,7 +32,7 @@ internal class SLKScrollGesture(private val list: SLKListView) {
   private val maxFlingVelocity = configuration.scaledMaximumFlingVelocity
   private val scroller = OverScroller(list.context)
   private var velocityTracker: VelocityTracker? = null
-  private val edges = SLKEdgeEffects(list)
+  private val edges = ShadowListKitEdgeEffects(list)
   private val consumed = IntArray(2)
   private val offsetInWindow = IntArray(2)
 

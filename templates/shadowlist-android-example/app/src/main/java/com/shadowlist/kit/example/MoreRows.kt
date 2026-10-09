@@ -5,9 +5,9 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.view.View
-import com.shadowlist.kit.SLKListCell
-import com.shadowlist.kit.SLKTextLayout
-import com.shadowlist.kit.SLKTextView
+import com.shadowlist.kit.ShadowListKitListCell
+import com.shadowlist.kit.ShadowListKitTextLayout
+import com.shadowlist.kit.ShadowListKitTextView
 import kotlin.math.roundToInt
 
 // region Reorder
@@ -46,8 +46,8 @@ class GripView(context: Context) : View(context) {
 
 class ReorderRowView(context: Context) : RowView(context, "reorder") {
   private val avatar = AvatarView(context, 40.dp)
-  private val name = SLKTextView(context)
-  private val subtitle = SLKTextView(context)
+  private val name = ShadowListKitTextView(context)
+  private val subtitle = ShadowListKitTextView(context)
   private val grip = GripView(context)
   private val separator = SeparatorView(context)
 
@@ -88,11 +88,11 @@ class TileRow(val number: Int) : Row {
   }
 }
 
-class TileLayout(width: Int, height: Int, val title: SLKTextLayout) : RowLayout(width, height)
+class TileLayout(width: Int, height: Int, val title: ShadowListKitTextLayout) : RowLayout(width, height)
 
 class TileView(context: Context) : RowView(context, "tile") {
   private val card = View(context)
-  private val title = SLKTextView(context)
+  private val title = ShadowListKitTextView(context)
 
   init {
     // The lifted tile shows its rounded card only, not a square behind it.
@@ -141,12 +141,12 @@ class SnapRow(val index: Int, private val height: Int) : Row {
   }
 }
 
-class SnapLayout(width: Int, height: Int, val card: Rect, val title: SLKTextLayout) : RowLayout(width, height)
+class SnapLayout(width: Int, height: Int, val card: Rect, val title: ShadowListKitTextLayout) : RowLayout(width, height)
 
 class SnapCardView(context: Context) : RowView(context, "snap") {
   private val image = RemoteImageView(context).apply { cornerRadius = 16.dpf }
   private val caption = View(context).apply { setBackgroundColor(0x59000000) }
-  private val title = SLKTextView(context)
+  private val title = ShadowListKitTextView(context)
 
   init {
     addView(image)
@@ -191,9 +191,9 @@ class StripItem(val key: String, val title: String, val header: Boolean, val col
  * A cell that knows its own width for an exact height, for a horizontal list that measures
  * its cells.
  */
-class StripCell(context: Context) : SLKListCell(context, "strip") {
+class StripCell(context: Context) : ShadowListKitListCell(context, "strip") {
   private val card = View(context)
-  private val title = SLKTextView(context)
+  private val title = ShadowListKitTextView(context)
   private var item: StripItem? = null
 
   init {

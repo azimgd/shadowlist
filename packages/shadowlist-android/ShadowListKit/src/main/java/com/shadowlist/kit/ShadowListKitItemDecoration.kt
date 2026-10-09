@@ -7,7 +7,7 @@ import android.graphics.Canvas
  * onDrawOver after, both in the list's scrolled coordinates. visibleCells gives the cells to
  * draw for. Decorations take no space. Android only: UIKit cells draw their own decorations.
  */
-interface SLKItemDecoration {
-  fun onDraw(canvas: Canvas, listView: SLKListView) {}
-  fun onDrawOver(canvas: Canvas, listView: SLKListView) {}
+interface ShadowListKitItemDecoration {
+  fun onDraw(canvas: Canvas, listView: ShadowListKitListView) {}
+  fun onDrawOver(canvas: Canvas, listView: ShadowListKitListView) {}
 }

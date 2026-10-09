@@ -3,7 +3,7 @@ package com.shadowlist.kit.example
 import android.content.res.Resources
 import android.graphics.Typeface
 import android.text.TextPaint
-import com.shadowlist.kit.SLKTextLayout
+import com.shadowlist.kit.ShadowListKitTextLayout
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -49,8 +49,8 @@ class TextStyle(size: Float, semibold: Boolean, lineHeight: Float) {
   private val lineSpacingExtra = lineHeight.dpf - (paint.fontMetrics.descent - paint.fontMetrics.ascent)
   val lineHeightPx: Int = ceil(lineHeight.dpf).toInt()
 
-  fun layout(text: String, width: Int, maxLines: Int = Int.MAX_VALUE): SLKTextLayout =
-    SLKTextLayout.make(text, paint, width, maxLines, lineSpacingExtra.coerceAtLeast(0f))
+  fun layout(text: String, width: Int, maxLines: Int = Int.MAX_VALUE): ShadowListKitTextLayout =
+    ShadowListKitTextLayout.make(text, paint, width, maxLines, lineSpacingExtra.coerceAtLeast(0f))
 
   companion object {
     val largeTitle = TextStyle(34f, true, 41f)

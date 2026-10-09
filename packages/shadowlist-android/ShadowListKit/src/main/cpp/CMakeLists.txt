@@ -5,17 +5,17 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # The canonical core in packages/shadowlist-core, compiled straight into the library.
-get_filename_component(SLK_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../shadowlist-core" ABSOLUTE)
-get_filename_component(SLK_CORE_PARENT_DIR "${SLK_CORE_DIR}" DIRECTORY)
-include(${SLK_CORE_DIR}/sources.cmake)
+get_filename_component(SHADOWLIST_KIT_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../shadowlist-core" ABSOLUTE)
+get_filename_component(SHADOWLIST_KIT_CORE_PARENT_DIR "${SHADOWLIST_KIT_CORE_DIR}" DIRECTORY)
+include(${SHADOWLIST_KIT_CORE_DIR}/sources.cmake)
 
 add_library(shadowlistkit SHARED
-  SLKCoreJNI.cpp
+  ShadowListKitCoreJNI.cpp
   ${SHADOWLIST_CORE_SOURCES}
 )
 
 # Core headers include each other as <shadowlist-core/...>, which the parent directory resolves.
-target_include_directories(shadowlistkit PRIVATE ${SLK_CORE_PARENT_DIR})
+target_include_directories(shadowlistkit PRIVATE ${SHADOWLIST_KIT_CORE_PARENT_DIR})
 
 find_library(log-lib log)
 target_link_libraries(shadowlistkit ${log-lib})

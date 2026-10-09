@@ -7,7 +7,7 @@ import kotlin.math.max
  * The shadowlist core behind one list, through the core's ListDriver in C++. Every call runs
  * on the UI thread. Pass values go in and out through arrays this object reuses.
  */
-internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> Double) {
+internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Double) -> Double) {
   companion object {
     init {
       System.loadLibrary("shadowlistkit")
@@ -16,7 +16,7 @@ internal class SLKCore(private val measure: (index: Int, crossSize: Double) -> D
     /*
      * Frees the peer of a core whose list was dropped without destroy(), like one never attached.
      */
-    private val reclaimer = SLKPeerReclaimer(::nativeDestroy)
+    private val reclaimer = ShadowListKitPeerReclaimer(::nativeDestroy)
 
     const val PASS_OFFSET = 0
     const val PASS_WINDOW_ALONG = 1

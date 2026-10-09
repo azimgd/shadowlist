@@ -61,7 +61,7 @@ TEST(list_driver_appends_inserts_named_past_the_end) {
 using Keys = std::vector<std::string>;
 
 /*
- * SLKListView.applyRowKeys on Android finds the same splice with commonPrefix and commonSuffix
+ * ShadowListKitListView.applyRowKeys on Android finds the same splice with commonPrefix and commonSuffix
  * over its own key list. These are the cases it has to match.
  */
 TEST(key_splice_finds_the_changed_middle) {
@@ -122,7 +122,7 @@ TEST(keys_from_plan_keep_old_keys_and_read_new_ones) {
 }
 
 /*
- * SLKListView.applyChanges on Android keeps its versions in a map that outlives the core. It
+ * ShadowListKitListView.applyChanges on Android keeps its versions in a map that outlives the core. It
  * reloads by the same rule.
  */
 TEST(content_versions_report_items_whose_version_changed) {

@@ -11,7 +11,7 @@ import kotlin.math.abs
  * open the gap, and the list scrolls while the row is held near an edge. The drop slot and
  * the shifts come from the core's ListDriver, which runs the host layer's DragReorder.
  */
-internal class SLKDragController(private val list: SLKListView) : Choreographer.FrameCallback {
+internal class ShadowListKitDragController(private val list: ShadowListKitListView) : Choreographer.FrameCallback {
   companion object {
     private const val LIFT_ELEVATION_DP = 8f
   }
@@ -23,9 +23,9 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
   /*
    * Where each shifted cell is headed, to animate only real changes.
    */
-  private val shiftTargets = HashMap<SLKListCell, Long>()
+  private val shiftTargets = HashMap<ShadowListKitListCell, Long>()
 
-  var heldCell: SLKListCell? = null
+  var heldCell: ShadowListKitListCell? = null
     private set
 
   val hasHeldRow: Boolean get() = heldCell != null
@@ -98,7 +98,7 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
    * A cell going back to the pool loses its shift. Reused for another row it must take that
    * row's shift even when the target matches the old one.
    */
-  fun cellWillRecycle(cell: SLKListCell) {
+  fun cellWillRecycle(cell: ShadowListKitListCell) {
     shiftTargets.remove(cell)
   }
 
@@ -152,16 +152,16 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
     return true
   }
 
-  private fun movableCellAt(x: Float, y: Float): SLKListCell? {
+  private fun movableCellAt(x: Float, y: Float): ShadowListKitListCell? {
     val cell = list.itemCellAt(x, y) ?: return null
     if (list.delegate?.canMoveItem(list, cell.index) == false) return null
     return cell
   }
 
-  private fun lift(cell: SLKListCell) {
+  private fun lift(cell: ShadowListKitListCell) {
     cell.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-    cell.animate().scaleX(SLKCore.LIFT_SCALE).scaleY(SLKCore.LIFT_SCALE).translationZ(LIFT_ELEVATION_DP * list.density)
-      .setDuration(SLKCore.LIFT_DURATION_MS).start()
+    cell.animate().scaleX(ShadowListKitCore.LIFT_SCALE).scaleY(ShadowListKitCore.LIFT_SCALE).translationZ(LIFT_ELEVATION_DP * list.density)
+      .setDuration(ShadowListKitCore.LIFT_DURATION_MS).start()
     list.invalidate()
   }
 
@@ -202,7 +202,7 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
       val known = shiftTargets[cell]
       if (known == target) continue
       shiftTargets[cell] = target
-      if (animated && known != null) animateTranslation(cell, along, cross, SLKCore.SHIFT_DURATION_MS)
+      if (animated && known != null) animateTranslation(cell, along, cross, ShadowListKitCore.SHIFT_DURATION_MS)
       else setTranslation(cell, along, cross)
     }
   }
@@ -210,17 +210,17 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
   private fun packTarget(along: Float, cross: Float): Long =
     (along.toRawBits().toLong() shl 32) or (cross.toRawBits().toLong() and 0xffffffffL)
 
-  private fun setTranslation(cell: SLKListCell, along: Float, cross: Float) {
+  private fun setTranslation(cell: ShadowListKitListCell, along: Float, cross: Float) {
     cell.animate().cancel()
     translate(cell, along, cross)
   }
 
-  private fun translate(cell: SLKListCell, along: Float, cross: Float) {
+  private fun translate(cell: ShadowListKitListCell, along: Float, cross: Float) {
     cell.translationX = if (list.horizontal) along else cross
     cell.translationY = if (list.horizontal) cross else along
   }
 
-  private fun animateTranslation(cell: SLKListCell, along: Float, cross: Float, duration: Long) {
+  private fun animateTranslation(cell: ShadowListKitListCell, along: Float, cross: Float, duration: Long) {
     cell.animate()
       .translationX(if (list.horizontal) along else cross)
       .translationY(if (list.horizontal) cross else along)
@@ -235,7 +235,7 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
     if (!hasHeldRow) return
     val touch = list.windowAlongAt(touchX, touchY).toDouble()
     val offset = list.offset.toDouble()
-    val next = SLKCore.dragAutoScrollOffset(
+    val next = ShadowListKitCore.dragAutoScrollOffset(
       touch, list.windowAlong.toDouble(), offset, list.maxOffset.toDouble(), list.density.toDouble())
     if (abs(next - offset) >= 1) {
       list.writeOffset(next.toInt(), byUser = true)
@@ -275,12 +275,12 @@ internal class SLKDragController(private val list: SLKListView) : Choreographer.
     if (commit && !moved && !movedSinceLift) list.showMenu(cell)
   }
 
-  private fun drop(cell: SLKListCell) {
+  private fun drop(cell: ShadowListKitListCell) {
     for (mounted in list.mounted.values) {
-      if (mounted !== cell) animateTranslation(mounted, 0f, 0f, SLKCore.DROP_DURATION_MS)
+      if (mounted !== cell) animateTranslation(mounted, 0f, 0f, ShadowListKitCore.DROP_DURATION_MS)
     }
     cell.animate().translationX(0f).translationY(0f).scaleX(1f).scaleY(1f).translationZ(0f)
-      .setDuration(SLKCore.DROP_DURATION_MS).start()
+      .setDuration(ShadowListKitCore.DROP_DURATION_MS).start()
   }
 
   // endregion

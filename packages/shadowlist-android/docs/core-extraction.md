@@ -1,6 +1,6 @@
 # Extracting the native list engine into shadowlist-core/host
 
-Status: done on 2026-10-07. `SLKEngine` is now `ListDriver` in `packages/shadowlist-core/host` and drives both kits. This note keeps the original analysis. Its file and line references point at code that no longer exists.
+Status: done on 2026-10-07. `SLKEngine` is now `ListDriver` in `packages/shadowlist-core/host` and drives both kits. This note keeps the original analysis. Its file and line references point at code that no longer exists, and it keeps the `SLK` prefix the kits used then. The kits now use `ShadowListKit` (`SLKListView` is `ShadowListKitListView`).
 
 Abbreviations used for file references:
 

@@ -14,7 +14,7 @@ import kotlin.math.min
  * rows. Let go past the trigger distance, it stays and spins until refreshing ends. Shorter, it
  * slides back. The rows do not move, like SwipeRefreshLayout.
  */
-internal class SLKRefreshIndicator(private val list: SLKListView) {
+internal class ShadowListKitRefreshIndicator(private val list: ShadowListKitListView) {
   companion object {
     private const val TRIGGER_DP = 72f
     private const val MAX_PULL_DP = 120f

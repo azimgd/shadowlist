@@ -10,7 +10,7 @@ import kotlin.math.abs
  * later. A drag past an end pulls it, a fling that hits an end absorbs its velocity. It follows
  * the scroll axis and the view's overScrollMode.
  */
-internal class SLKEdgeEffects(private val list: SLKListView) {
+internal class ShadowListKitEdgeEffects(private val list: ShadowListKitListView) {
   private val start = EdgeEffect(list.context)
   private val end = EdgeEffect(list.context)
 

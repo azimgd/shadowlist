@@ -8,9 +8,9 @@ import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.HorizontalScrollView
-import com.shadowlist.kit.SLKListCell
-import com.shadowlist.kit.SLKTextLayout
-import com.shadowlist.kit.SLKTextView
+import com.shadowlist.kit.ShadowListKitListCell
+import com.shadowlist.kit.ShadowListKitTextLayout
+import com.shadowlist.kit.ShadowListKitTextView
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -39,10 +39,10 @@ open class RowLayout(val width: Int, height: Int) {
 
 /*
  * The content of one row, shared by every list engine. The engines only differ in how they
- * host it and where its layout comes from. It is an SLKListCell, which RecyclerView hosts as
+ * host it and where its layout comes from. It is an ShadowListKitListCell, which RecyclerView hosts as
  * a plain FrameLayout.
  */
-abstract class RowView(context: Context, viewType: String) : SLKListCell(context, viewType) {
+abstract class RowView(context: Context, viewType: String) : ShadowListKitListCell(context, viewType) {
   var row: Row? = null
     private set
   private var rowLayout: RowLayout? = null
@@ -110,14 +110,14 @@ fun View.place(left: Int, top: Int, width: Int, height: Int) {
 
 fun View.place(frame: Rect) = place(frame.left, frame.top, frame.width(), frame.height())
 
-fun SLKTextView.show(layout: SLKTextLayout?, color: Int, left: Int, top: Int) {
+fun ShadowListKitTextView.show(layout: ShadowListKitTextLayout?, color: Int, left: Int, top: Int) {
   textColor = color
   textLayout = layout
   visibility = if (layout == null) View.GONE else View.VISIBLE
   if (layout != null) place(left, top, layout.width, layout.height)
 }
 
-fun frameOf(left: Int, top: Int, layout: SLKTextLayout) = Rect(left, top, left + layout.width, top + layout.height)
+fun frameOf(left: Int, top: Int, layout: ShadowListKitTextLayout) = Rect(left, top, left + layout.width, top + layout.height)
 
 /*
  * Precomputed layouts by row key and width, filled ahead on a background thread.
@@ -173,10 +173,10 @@ class LayoutCache {
  */
 class AvatarView(context: Context, private val size: Int) : View(context) {
   companion object {
-    private val cache = ConcurrentHashMap<String, SLKTextLayout>()
+    private val cache = ConcurrentHashMap<String, ShadowListKitTextLayout>()
     private val styles = ConcurrentHashMap<Int, TextStyle>()
 
-    fun initials(author: Author, size: Int): SLKTextLayout = cache.getOrPut("${author.initials}#$size") {
+    fun initials(author: Author, size: Int): ShadowListKitTextLayout = cache.getOrPut("${author.initials}#$size") {
       val points = size / 1.dpf
       val style = styles.getOrPut(size) { TextStyle((points * 0.43f).toInt().toFloat(), true, points * 0.52f) }
       style.layout(author.initials, size)
@@ -184,7 +184,7 @@ class AvatarView(context: Context, private val size: Int) : View(context) {
   }
 
   private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-  private var text: SLKTextLayout? = null
+  private var text: ShadowListKitTextLayout? = null
 
   fun show(author: Author) {
     paint.color = author.color
@@ -244,17 +244,17 @@ class FeedRow(val post: FeedPost) : Row {
 
 class FeedLayout(
   width: Int, height: Int,
-  val name: SLKTextLayout, val handle: SLKTextLayout, val date: SLKTextLayout, val body: SLKTextLayout,
+  val name: ShadowListKitTextLayout, val handle: ShadowListKitTextLayout, val date: ShadowListKitTextLayout, val body: ShadowListKitTextLayout,
   val nameFrame: Rect, val handleFrame: Rect, val dateFrame: Rect, val bodyFrame: Rect,
   val image: Rect, val carousel: Rect,
 ) : RowLayout(width, height)
 
 class FeedRowView(context: Context) : RowView(context, "feed") {
   private val avatar = AvatarView(context, 40.dp)
-  private val name = SLKTextView(context)
-  private val handle = SLKTextView(context)
-  private val date = SLKTextView(context)
-  private val body = SLKTextView(context)
+  private val name = ShadowListKitTextView(context)
+  private val handle = ShadowListKitTextView(context)
+  private val date = ShadowListKitTextView(context)
+  private val body = ShadowListKitTextView(context)
   private val image = RemoteImageView(context).apply { cornerRadius = 16.dpf }
   private val carousel = HorizontalScrollView(context).apply {
     isHorizontalScrollBarEnabled = false
@@ -374,8 +374,8 @@ class ChatLayout(width: Int) : RowLayout(width, 0) {
     this.height = height
   }
 
-  var name: SLKTextLayout? = null
-  var text: SLKTextLayout? = null
+  var name: ShadowListKitTextLayout? = null
+  var text: ShadowListKitTextLayout? = null
   var avatar = Rect()
   var nameFrame = Rect()
   var bubble = Rect()
@@ -385,9 +385,9 @@ class ChatLayout(width: Int) : RowLayout(width, 0) {
 
 class ChatRowView(context: Context) : RowView(context, "chat") {
   private val avatar = AvatarView(context, 30.dp)
-  private val name = SLKTextView(context)
+  private val name = ShadowListKitTextView(context)
   private val bubble = View(context)
-  private val text = SLKTextView(context)
+  private val text = ShadowListKitTextView(context)
   private val imageBlock = FrameLayout(context)
   private val images = List(4) { RemoteImageView(context) }
   private val ownBubble = bubbleDrawable(true)
@@ -466,13 +466,13 @@ class ContactRow(val contact: Contact, val separatorBelow: Boolean) : Row {
   }
 }
 
-class ContactLayout(width: Int, height: Int, val name: SLKTextLayout, val subtitle: SLKTextLayout) :
+class ContactLayout(width: Int, height: Int, val name: ShadowListKitTextLayout, val subtitle: ShadowListKitTextLayout) :
   RowLayout(width, height)
 
 class ContactRowView(context: Context) : RowView(context, "contact") {
   private val avatar = AvatarView(context, 40.dp)
-  private val name = SLKTextView(context)
-  private val subtitle = SLKTextView(context)
+  private val name = ShadowListKitTextView(context)
+  private val subtitle = ShadowListKitTextView(context)
   private val separator = SeparatorView(context)
   private val strip = SeparatorView(context)
 
@@ -507,12 +507,12 @@ class SectionHeaderRow(val title: String, val count: Int) : Row {
     TextStyle.footnote.layout("$count", width / 2, 1))
 }
 
-class SectionHeaderLayout(width: Int, height: Int, val title: SLKTextLayout, val count: SLKTextLayout) :
+class SectionHeaderLayout(width: Int, height: Int, val title: ShadowListKitTextLayout, val count: ShadowListKitTextLayout) :
   RowLayout(width, height)
 
 class SectionHeaderView(context: Context) : RowView(context, "section") {
-  private val title = SLKTextView(context)
-  private val count = SLKTextView(context)
+  private val title = ShadowListKitTextView(context)
+  private val count = ShadowListKitTextView(context)
 
   init {
     setBackgroundColor(Theme.elevated)
@@ -545,12 +545,12 @@ class PhotoRow(val photo: Photo) : Row {
   }
 }
 
-class PhotoLayout(width: Int, height: Int, val image: Rect, val title: SLKTextLayout, val titleFrame: Rect) :
+class PhotoLayout(width: Int, height: Int, val image: Rect, val title: ShadowListKitTextLayout, val titleFrame: Rect) :
   RowLayout(width, height)
 
 class PhotoCardView(context: Context) : RowView(context, "photo") {
   private val image = RemoteImageView(context).apply { cornerRadius = 12.dpf }
-  private val title = SLKTextView(context)
+  private val title = ShadowListKitTextView(context)
 
   init {
     addView(image)
@@ -571,7 +571,7 @@ class PhotoCardView(context: Context) : RowView(context, "photo") {
  * A centered line of text under the last row.
  */
 class ListFooterView(context: Context, text: String) : FrameLayout(context) {
-  private val label = SLKTextView(context)
+  private val label = ShadowListKitTextView(context)
   private val layout = TextStyle.footnote.layout(text, Int.MAX_VALUE / 4, 1)
 
   init {

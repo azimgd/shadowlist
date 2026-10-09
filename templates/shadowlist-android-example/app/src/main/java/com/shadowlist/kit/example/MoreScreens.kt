@@ -11,8 +11,8 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.widget.LinearLayout
-import com.shadowlist.kit.SLKListCell
-import com.shadowlist.kit.SLKListView
+import com.shadowlist.kit.ShadowListKitListCell
+import com.shadowlist.kit.ShadowListKitListView
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.abs
@@ -27,12 +27,12 @@ interface Screen {
 }
 
 /*
- * An SLKListView over example rows, for the feature screens. With the sl engine sizes come
+ * An ShadowListKitListView over example rows, for the feature screens. With the sl engine sizes come
  * from the rows' precomputed layouts, with sl-auto from measuring the cells. These screens
- * always run on SLKListView.
+ * always run on ShadowListKitListView.
  */
-class RowsList(context: Context, engine: Engine) : SLKListView.Delegate {
-  val list = SLKListView(context)
+class RowsList(context: Context, engine: Engine) : ShadowListKitListView.Delegate {
+  val list = ShadowListKitListView(context)
   var rows: List<Row> = emptyList()
     private set
   var onMove: ((from: Int, to: Int) -> Unit)? = null
@@ -47,11 +47,11 @@ class RowsList(context: Context, engine: Engine) : SLKListView.Delegate {
     list.dataSource = if (sized) SizedSource() else Source()
   }
 
-  private open inner class Source : SLKListView.DataSource {
-    override fun numberOfItems(listView: SLKListView) = rows.size
-    override fun keyForItem(listView: SLKListView, index: Int) = rows[index].key
+  private open inner class Source : ShadowListKitListView.DataSource {
+    override fun numberOfItems(listView: ShadowListKitListView) = rows.size
+    override fun keyForItem(listView: ShadowListKitListView, index: Int) = rows[index].key
 
-    override fun cellForItem(listView: SLKListView, index: Int): SLKListCell {
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell {
       val row = rows[index]
       if (registered.add(row.viewType)) listView.registerCell(row.viewType) { row.makeView(it) }
       val cell = listView.dequeueReusableCell<RowView>(row.viewType)
@@ -61,8 +61,8 @@ class RowsList(context: Context, engine: Engine) : SLKListView.Delegate {
     }
   }
 
-  private inner class SizedSource : Source(), SLKListView.Sizing {
-    override fun sizeForItem(listView: SLKListView, index: Int, crossSize: Int): Int =
+  private inner class SizedSource : Source(), ShadowListKitListView.Sizing {
+    override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int =
       layouts.layout(rows[index], crossSize).height
   }
 
@@ -71,11 +71,11 @@ class RowsList(context: Context, engine: Engine) : SLKListView.Delegate {
     list.reloadData()
   }
 
-  override fun moveItem(listView: SLKListView, sourceIndex: Int, destinationIndex: Int) {
+  override fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) {
     onMove?.invoke(sourceIndex, destinationIndex)
   }
 
-  override fun didEndScrolling(listView: SLKListView) {
+  override fun didEndScrolling(listView: ShadowListKitListView) {
     onEndScrolling?.invoke()
   }
 }
@@ -133,8 +133,8 @@ class SnapScreen(context: Context, engine: Engine) : Screen {
  * in view stays pinned at the start. Card widths follow their titles, and the list starts from
  * an estimate.
  */
-class HorizontalScreen(context: Context, private val engine: Engine) : Screen, SLKListView.DataSource {
-  private val list = SLKListView(context)
+class HorizontalScreen(context: Context, private val engine: Engine) : Screen, ShadowListKitListView.DataSource {
+  private val list = ShadowListKitListView(context)
   private val items = ArrayList<StripItem>()
   private val page = LinearLayout(context)
   override val view: View get() = page
@@ -170,17 +170,17 @@ class HorizontalScreen(context: Context, private val engine: Engine) : Screen, S
     HorizontalCheck.runIfRequested(list, items)
   }
 
-  override fun numberOfItems(listView: SLKListView) = items.size
-  override fun keyForItem(listView: SLKListView, index: Int) = items[index].key
+  override fun numberOfItems(listView: ShadowListKitListView) = items.size
+  override fun keyForItem(listView: ShadowListKitListView, index: Int) = items[index].key
 
-  override fun cellForItem(listView: SLKListView, index: Int): SLKListCell =
+  override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
     listView.dequeueReusableCell<StripCell>("strip").also { it.configure(items[index]) }
 
   /*
    * Widths from the titles, without measuring a cell.
    */
-  private inner class SizedStrip : SLKListView.DataSource by this@HorizontalScreen, SLKListView.Sizing {
-    override fun sizeForItem(listView: SLKListView, index: Int, crossSize: Int): Int = items[index].width()
+  private inner class SizedStrip : ShadowListKitListView.DataSource by this@HorizontalScreen, ShadowListKitListView.Sizing {
+    override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int = items[index].width()
   }
 }
 
@@ -236,7 +236,7 @@ private fun report(tag: String, result: JSONObject, exit: Boolean) {
  * and after. The same check as the UIKit -SLAutoDrag.
  */
 object AutoDrag {
-  fun runIfRequested(list: SLKListView, columns: Int, names: () -> List<String>) {
+  fun runIfRequested(list: ShadowListKitListView, columns: Int, names: () -> List<String>) {
     if (LaunchArgs.get("SLAutoDrag") != "1") return
     val script = TouchScript(list)
     script.after(1500) {
@@ -306,7 +306,7 @@ object AutoFling {
   /*
    * Distance from the scroll offset to the nearest row's leading edge.
    */
-  private fun edgeDistance(list: SLKListView): Float {
+  private fun edgeDistance(list: ShadowListKitListView): Float {
     val range = list.visibleRange ?: return Float.MAX_VALUE
     var best = Float.MAX_VALUE
     for (index in range) {
@@ -323,7 +323,7 @@ object AutoFling {
  * cover the start of the viewport. Then jump to a far card and check where it lands.
  */
 object HorizontalCheck {
-  fun runIfRequested(list: SLKListView, items: List<StripItem>) {
+  fun runIfRequested(list: ShadowListKitListView, items: List<StripItem>) {
     if (LaunchArgs.get("SLScenario") != "horizontal") return
     val script = TouchScript(list)
     script.after(1500) {
@@ -355,7 +355,7 @@ object HorizontalCheck {
   /*
    * Gaps between visible cells that are not pinned, in content order.
    */
-  private fun countGaps(list: SLKListView, cells: List<SLKListCell>): Int {
+  private fun countGaps(list: ShadowListKitListView, cells: List<ShadowListKitListCell>): Int {
     val laid = cells.filter { !(it as StripCell).isPinnedHeader(list) }.sortedBy { it.left }
     var gaps = 0
     for (index in 1 until laid.size) if (laid[index].left > laid[index - 1].right) ++gaps
@@ -366,10 +366,10 @@ object HorizontalCheck {
     return gaps
   }
 
-  private fun pinnedHeaderCovers(list: SLKListView, cells: List<SLKListCell>): Boolean =
+  private fun pinnedHeaderCovers(list: ShadowListKitListView, cells: List<ShadowListKitListCell>): Boolean =
     cells.any { (it as StripCell).key?.startsWith("head-") == true && it.left <= list.scrollX && it.right > list.scrollX }
 
-  private fun StripCell.isPinnedHeader(list: SLKListView): Boolean =
+  private fun StripCell.isPinnedHeader(list: ShadowListKitListView): Boolean =
     key?.startsWith("head-") == true && left <= list.scrollX
 }
 
@@ -442,7 +442,7 @@ class ChangesScreen(context: Context, engine: Engine) : Screen {
   /*
    * Visible cells that still show the removed row while it fades out.
    */
-  private fun fadingCells(list: SLKListView, key: String): Int {
+  private fun fadingCells(list: ShadowListKitListView, key: String): Int {
     var count = 0
     for (index in 0 until list.childCount) {
       val cell = list.getChildAt(index) as? RowView ?: continue
@@ -525,7 +525,7 @@ class CollapsingScreen(context: Context, engine: Engine) : Screen {
  * whether their scroll actions reach rows that are not mounted.
  */
 object AccessibilityCheck {
-  fun runIfRequested(list: SLKListView) {
+  fun runIfRequested(list: ShadowListKitListView) {
     if (LaunchArgs.get("SLScenario") != "a11y") return
     val script = TouchScript(list)
     script.after(1500) {

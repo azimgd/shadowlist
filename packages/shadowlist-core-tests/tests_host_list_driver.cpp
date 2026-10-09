@@ -1,6 +1,6 @@
 /*
  * ListDriver tests: the synchronous layout the native lists run, with a host that applies
- * every result right away, like SLKListView on iOS and Android.
+ * every result right away, like ShadowListKitListView on iOS and Android.
  */
 
 #include "TestFramework.hpp"
@@ -379,7 +379,7 @@ TEST(list_driver_sticky_header_pins_and_is_pushed_up) {
 }
 
 /*
- * The pinning SLKListView.layoutSticky on Android runs over the copied sticky frames: the last
+ * The pinning ShadowListKitListView.layoutSticky on Android runs over the copied sticky frames: the last
  * frame starting at or above the offset, pushed up by the next placed one. Rows not placed yet
  * have an infinite leading edge and never pin or push.
  */
@@ -440,7 +440,7 @@ TEST(list_driver_mount_plan_covers_the_viewport) {
 }
 
 /*
- * The mount rule SLKListView.mountCells on Android runs over its copied frames: the view spans
+ * The mount rule ShadowListKitListView.mountCells on Android runs over its copied frames: the view spans
  * the window, the pad on both ends and the insets before and after it.
  */
 TEST(list_driver_mount_plan_reaches_into_the_insets) {

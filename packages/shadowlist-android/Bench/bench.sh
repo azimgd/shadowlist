@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
 # Scroll benchmark across list engines on Android. Each run force-starts the example on one
-# screen, lets SLKBench drive the list at a constant speed and appends its SLBENCH JSON line to
+# screen, lets ShadowListKitBench drive the list at a constant speed and appends its SLBENCH JSON line to
 # a results file. The same flow and metrics as the UIKit bench.
 #
 #   ./bench.sh <label>                     (ANDROID_SERIAL picks the device)
 #
 # Environment:
 #   ENGINES="sl recycler recycler-auto sl-auto rn"
-#     rn is the React Native example (shadowlist.example) built with SLKBench in it:
+#     rn is the React Native example (shadowlist.example) built with ShadowListKitBench in it:
 #     cd templates/shadowlist-fabric-example/android && ./gradlew \
 #       --init-script ../../../packages/shadowlist-android/Bench/rn/slbench-init.gradle \
 #       app:assembleRelease -PreactNativeArchitectures=arm64-v8a

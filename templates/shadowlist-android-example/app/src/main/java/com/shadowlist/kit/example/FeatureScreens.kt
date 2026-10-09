@@ -11,13 +11,13 @@ import android.view.Menu
 import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.shadowlist.kit.SLKAnchorState
-import com.shadowlist.kit.SLKDefaultItemAnimator
-import com.shadowlist.kit.SLKListCell
-import com.shadowlist.kit.SLKListChanges
-import com.shadowlist.kit.SLKListView
-import com.shadowlist.kit.SLKSwipeAction
-import com.shadowlist.kit.SLKSwipeActionsConfiguration
+import com.shadowlist.kit.ShadowListKitAnchorState
+import com.shadowlist.kit.ShadowListKitDefaultItemAnimator
+import com.shadowlist.kit.ShadowListKitListCell
+import com.shadowlist.kit.ShadowListKitListChanges
+import com.shadowlist.kit.ShadowListKitListView
+import com.shadowlist.kit.ShadowListKitSwipeAction
+import com.shadowlist.kit.ShadowListKitSwipeActionsConfiguration
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.abs
@@ -30,8 +30,8 @@ import kotlin.math.max
  * a count in each section's footer, a section index, separators and cells that measure
  * themselves. The data source gives no sizes. The same screen as the UIKit Sections route.
  */
-class SectionsScreen(context: Context) : Screen, SLKListView.DataSource, SLKListView.Sections, SLKListView.Delegate {
-  val list = SLKListView(context)
+class SectionsScreen(context: Context) : Screen, ShadowListKitListView.DataSource, ShadowListKitListView.Sections, ShadowListKitListView.Delegate {
+  val list = ShadowListKitListView(context)
   var sections: List<Pair<String, List<Contact>>> = emptyList()
     private set
   private var fresh = 5000
@@ -65,17 +65,17 @@ class SectionsScreen(context: Context) : Screen, SLKListView.DataSource, SLKList
     list.insertItems(intArrayOf(0))
   }
 
-  override fun numberOfItems(listView: SLKListView) = allContacts.size
-  override fun numberOfSections(listView: SLKListView) = sections.size
-  override fun numberOfItemsInSection(listView: SLKListView, section: Int) = sections[section].second.size
-  override fun keyForSection(listView: SLKListView, section: Int) = sections[section].first
-  override fun titleForHeaderInSection(listView: SLKListView, section: Int) = sections[section].first
-  override fun titleForFooterInSection(listView: SLKListView, section: Int) = "${sections[section].second.size} travellers"
-  override fun sectionIndexTitles(listView: SLKListView) = sections.map { it.first }
+  override fun numberOfItems(listView: ShadowListKitListView) = allContacts.size
+  override fun numberOfSections(listView: ShadowListKitListView) = sections.size
+  override fun numberOfItemsInSection(listView: ShadowListKitListView, section: Int) = sections[section].second.size
+  override fun keyForSection(listView: ShadowListKitListView, section: Int) = sections[section].first
+  override fun titleForHeaderInSection(listView: ShadowListKitListView, section: Int) = sections[section].first
+  override fun titleForFooterInSection(listView: ShadowListKitListView, section: Int) = "${sections[section].second.size} travellers"
+  override fun sectionIndexTitles(listView: ShadowListKitListView) = sections.map { it.first }
 
-  override fun keyForItem(listView: SLKListView, index: Int) = allContacts[index].id
+  override fun keyForItem(listView: ShadowListKitListView, index: Int) = allContacts[index].id
 
-  override fun cellForItem(listView: SLKListView, index: Int): SLKListCell {
+  override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell {
     val cell = listView.dequeueReusableCell<ContactCell>("contact")
     val contact = allContacts[index]
     // Every fifth traveller has a longer note, which wraps and makes the row taller.
@@ -83,7 +83,7 @@ class SectionsScreen(context: Context) : Screen, SLKListView.DataSource, SLKList
     return cell
   }
 
-  override fun didSelectItem(listView: SLKListView, index: Int) {
+  override fun didSelectItem(listView: ShadowListKitListView, index: Int) {
     listView.deselectItem(index, true)
   }
 }
@@ -91,7 +91,7 @@ class SectionsScreen(context: Context) : Screen, SLKListView.DataSource, SLKList
 /*
  * A row of plain views measured by the list: its height follows the wrapped note.
  */
-class ContactCell(context: Context) : SLKListCell(context, "contact") {
+class ContactCell(context: Context) : ShadowListKitListCell(context, "contact") {
   private val avatar = TextView(context)
   private val name = TextView(context)
   private val note = TextView(context)
@@ -158,9 +158,9 @@ class Message(index: Int) {
  * payload reloads, prefetching and a saved scroll position. Changes animate. The same screen as
  * the UIKit Inbox route.
  */
-class InboxScreen(context: Context) : Screen, SLKListView.DataSource, SLKListView.Sizing, SLKListView.ContentVersions,
-  SLKListView.Delegate, SLKListView.PrefetchDataSource {
-  val list = SLKListView(context)
+class InboxScreen(context: Context) : Screen, ShadowListKitListView.DataSource, ShadowListKitListView.Sizing, ShadowListKitListView.ContentVersions,
+  ShadowListKitListView.Delegate, ShadowListKitListView.PrefetchDataSource {
+  val list = ShadowListKitListView(context)
   val messages = ArrayList<Message>(List(200) { Message(it) })
   private var fresh = 1000
   var prefetched = 0
@@ -212,7 +212,7 @@ class InboxScreen(context: Context) : Screen, SLKListView.DataSource, SLKListVie
   /*
    * Shuffle a few messages, edit one and hand the list the new data to diff.
    */
-  fun shuffle(): SLKListChanges {
+  fun shuffle(): ShadowListKitListChanges {
     val reversed = messages.subList(2, minOf(12, messages.size)).reversed()
     for ((offset, message) in reversed.withIndex()) messages[2 + offset] = message
     messages[1].version += 1
@@ -238,55 +238,55 @@ class InboxScreen(context: Context) : Screen, SLKListView.DataSource, SLKListVie
     list.deleteItems(intArrayOf(index))
   }
 
-  override fun numberOfItems(listView: SLKListView) = messages.size
-  override fun keyForItem(listView: SLKListView, index: Int) = messages[index].id
-  override fun sizeForItem(listView: SLKListView, index: Int, crossSize: Int) = 76.dp
-  override fun contentVersionForItem(listView: SLKListView, index: Int) = messages[index].version
+  override fun numberOfItems(listView: ShadowListKitListView) = messages.size
+  override fun keyForItem(listView: ShadowListKitListView, index: Int) = messages[index].id
+  override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int) = 76.dp
+  override fun contentVersionForItem(listView: ShadowListKitListView, index: Int) = messages[index].version
 
-  override fun cellForItem(listView: SLKListView, index: Int): SLKListCell =
+  override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell =
     listView.dequeueReusableCell<MessageCell>("message").also { it.show(messages[index]) }
 
-  override fun reconfigureCell(listView: SLKListView, cell: SLKListCell, index: Int, payload: Any?): Boolean {
+  override fun reconfigureCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int, payload: Any?): Boolean {
     if (cell !is MessageCell || payload != "read") return false
     reconfigured++
     cell.show(messages[index])
     return true
   }
 
-  override fun prefetchItems(listView: SLKListView, indices: IntArray) {
+  override fun prefetchItems(listView: ShadowListKitListView, indices: IntArray) {
     prefetched += indices.size
   }
 
-  override fun cancelPrefetchingForItems(listView: SLKListView, indices: IntArray) {
+  override fun cancelPrefetchingForItems(listView: ShadowListKitListView, indices: IntArray) {
     cancelled += indices.size
   }
 
-  override fun didSelectItem(listView: SLKListView, index: Int) {
+  override fun didSelectItem(listView: ShadowListKitListView, index: Int) {
     if (!listView.editing) {
       listView.deselectItem(index, true)
       toggleRead(index)
     }
   }
 
-  override fun leadingSwipeActionsForItem(listView: SLKListView, index: Int): SLKSwipeActionsConfiguration {
+  override fun leadingSwipeActionsForItem(listView: ShadowListKitListView, index: Int): ShadowListKitSwipeActionsConfiguration {
     val key = messages[index].id
-    val read = SLKSwipeAction(SLKSwipeAction.Style.NORMAL, if (messages[index].read) "Unread" else "Read") { _, done ->
+    val read = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, if (messages[index].read) "Unread" else "Read") { _, done ->
       val at = messages.indexOfFirst { it.id == key }
       if (at >= 0) toggleRead(at)
       done(at >= 0)
     }
     read.backgroundColor = Theme.accent
-    return SLKSwipeActionsConfiguration(listOf(read))
+    return ShadowListKitSwipeActionsConfiguration(listOf(read))
   }
 
-  override fun trailingSwipeActionsForItem(listView: SLKListView, index: Int): SLKSwipeActionsConfiguration {
+  override fun trailingSwipeActionsForItem(listView: ShadowListKitListView, index: Int): ShadowListKitSwipeActionsConfiguration {
     val key = messages[index].id
-    val delete = SLKSwipeAction(SLKSwipeAction.Style.DESTRUCTIVE, "Delete") { _, done ->
+    val delete = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.DESTRUCTIVE, "Delete") { _, done ->
       val at = messages.indexOfFirst { it.id == key }
       if (at >= 0) delete(at)
       done(at >= 0)
     }
-    val flag = SLKSwipeAction(SLKSwipeAction.Style.NORMAL, "Flag") { _, done ->
+    val flag = ShadowListKitSwipeAction(ShadowListKitSwipeAction.Style.NORMAL, "Flag") { _, done ->
       val at = messages.indexOfFirst { it.id == key }
       if (at >= 0) {
         messages[at].flagged = !messages[at].flagged
@@ -295,10 +295,10 @@ class InboxScreen(context: Context) : Screen, SLKListView.DataSource, SLKListVie
       done(at >= 0)
     }
     flag.backgroundColor = 0xFFFF9500.toInt()
-    return SLKSwipeActionsConfiguration(listOf(delete, flag))
+    return ShadowListKitSwipeActionsConfiguration(listOf(delete, flag))
   }
 
-  override fun contextMenuForItem(listView: SLKListView, index: Int, menu: Menu): Boolean {
+  override fun contextMenuForItem(listView: ShadowListKitListView, index: Int, menu: Menu): Boolean {
     menus++
     val key = messages[index].id
     fun at() = messages.indexOfFirst { it.id == key }
@@ -321,7 +321,7 @@ class InboxScreen(context: Context) : Screen, SLKListView.DataSource, SLKListVie
     return true
   }
 
-  override fun didBeginRefreshing(listView: SLKListView) {
+  override fun didBeginRefreshing(listView: ShadowListKitListView) {
     refreshes++
     listView.postDelayed({
       addNewMail(3)
@@ -334,7 +334,7 @@ class InboxScreen(context: Context) : Screen, SLKListView.DataSource, SLKListVie
  * A message row: avatar, sender, text, an unread dot and a flag. It shows highlight, selection
  * and, while editing, a check circle.
  */
-class MessageCell(context: Context) : SLKListCell(context, "message") {
+class MessageCell(context: Context) : ShadowListKitListCell(context, "message") {
   private val avatar = TextView(context)
   private val sender = TextView(context)
   private val body = TextView(context)
@@ -448,7 +448,7 @@ object FeatureScenario {
     list.scrollBy(0, 120.dp)
     relayout(list)
     val viewportTop = list.scrollY + list.paddingTop
-    val pinned = (0 until list.childCount).map { list.getChildAt(it) }.filterIsInstance<SLKListCell>()
+    val pinned = (0 until list.childCount).map { list.getChildAt(it) }.filterIsInstance<ShadowListKitListCell>()
       .filter { it.visibility == View.VISIBLE && it.index < 0 && it.top <= viewportTop + 1 && it.bottom > viewportTop }
     result.put("pinnedHeaderOffset", pinned.firstOrNull()?.let { (it.top - viewportTop) / density } ?: JSONObject.NULL)
     val before = visibleItems(list)
@@ -593,7 +593,7 @@ object FeatureScenario {
     report(result)
   }
 
-  private fun anchorError(screen: InboxScreen, place: SLKAnchorState): Float {
+  private fun anchorError(screen: InboxScreen, place: ShadowListKitAnchorState): Float {
     val list = screen.list
     val index = screen.messages.indexOfFirst { it.id == place.key }
     val viewportTop = list.scrollY + list.paddingTop
@@ -614,10 +614,10 @@ object FeatureScenario {
     return list.rectForItem(screen.messages.size - 1) != null && list.rectForItem(screen.messages.size) == null
   }
 
-  private fun visibleItems(list: SLKListView): Map<String, Int> =
+  private fun visibleItems(list: ShadowListKitListView): Map<String, Int> =
     list.visibleCells.associate { (list.dataSource!!.keyForItem(list, it.index)) to (it.top - list.scrollY) }
 
-  private fun relayout(list: SLKListView) {
+  private fun relayout(list: ShadowListKitListView) {
     list.measure(View.MeasureSpec.makeMeasureSpec(list.width, View.MeasureSpec.EXACTLY),
       View.MeasureSpec.makeMeasureSpec(list.height, View.MeasureSpec.EXACTLY))
     list.layout(list.left, list.top, list.right, list.bottom)
@@ -634,21 +634,21 @@ object FeatureScenario {
 /*
  * The default animations, counted.
  */
-class CountingAnimator : SLKDefaultItemAnimator() {
+class CountingAnimator : ShadowListKitDefaultItemAnimator() {
   var calls = 0
     private set
 
-  override fun animateInsert(listView: SLKListView, cell: SLKListCell) {
+  override fun animateInsert(listView: ShadowListKitListView, cell: ShadowListKitListCell) {
     calls++
     super.animateInsert(listView, cell)
   }
 
-  override fun animateRemoval(listView: SLKListView, cell: SLKListCell, completion: () -> Unit) {
+  override fun animateRemoval(listView: ShadowListKitListView, cell: ShadowListKitListCell, completion: () -> Unit) {
     calls++
     super.animateRemoval(listView, cell, completion)
   }
 
-  override fun animateMove(listView: SLKListView, cell: SLKListCell, fromX: Float, fromY: Float) {
+  override fun animateMove(listView: ShadowListKitListView, cell: ShadowListKitListCell, fromX: Float, fromY: Float) {
     calls++
     super.animateMove(listView, cell, fromX, fromY)
   }

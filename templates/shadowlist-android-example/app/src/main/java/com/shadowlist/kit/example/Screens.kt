@@ -7,8 +7,8 @@ import android.os.Bundle
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
-import com.shadowlist.kit.SLKListView
-import com.shadowlist.kit.bench.SLKBench
+import com.shadowlist.kit.ShadowListKitListView
+import com.shadowlist.kit.bench.ShadowListKitBench
 
 /*
  * A screen of the example: one list on one engine with the example's data.
@@ -124,7 +124,7 @@ class GalleryScreen(context: Context, engine: Engine) : ListScreen(context, engi
 object Routes {
   val names = listOf("Feed", "Chat", "SectionList", "Masonry")
 
-  // Feature screens, which always run on SLKListView.
+  // Feature screens, which always run on ShadowListKitListView.
   val features = listOf("Reorder", "ReorderGrid", "Snap", "Horizontal", "Changes", "Collapsing", "Sections", "Inbox")
 
   fun make(name: String, context: Context, engine: Engine): Screen? = when (name) {
@@ -164,9 +164,9 @@ class MainActivity : Activity() {
     window.decorView.setBackgroundColor(Theme.background)
     setContentView(insetFrame(screen.view))
     screen.load()
-    SLKBench.startIfRequested(this, intent)
+    ShadowListKitBench.startIfRequested(this, intent)
     if (screen is ListScreen) Scenario.startIfRequested(screen, intent)
-    (screen.view as? SLKListView)?.let { AccessibilityCheck.runIfRequested(it) }
+    (screen.view as? ShadowListKitListView)?.let { AccessibilityCheck.runIfRequested(it) }
   }
 
   /*

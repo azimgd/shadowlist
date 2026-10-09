@@ -8,10 +8,10 @@ import android.graphics.drawable.Drawable
  * swiped all the way. Call completion with whether the action was performed. The row then
  * closes, unless the action removed it.
  */
-class SLKSwipeAction(
+class ShadowListKitSwipeAction(
   val style: Style,
   var title: String?,
-  val handler: (action: SLKSwipeAction, completion: (performed: Boolean) -> Unit) -> Unit,
+  val handler: (action: ShadowListKitSwipeAction, completion: (performed: Boolean) -> Unit) -> Unit,
 ) {
   enum class Style { NORMAL, DESTRUCTIVE }
 
@@ -31,6 +31,6 @@ class SLKSwipeAction(
  * performsFirstActionWithFullSwipe, the default, swiping the row all the way performs it, like
  * swipe to dismiss.
  */
-class SLKSwipeActionsConfiguration(val actions: List<SLKSwipeAction>) {
+class ShadowListKitSwipeActionsConfiguration(val actions: List<ShadowListKitSwipeAction>) {
   var performsFirstActionWithFullSwipe = true
 }

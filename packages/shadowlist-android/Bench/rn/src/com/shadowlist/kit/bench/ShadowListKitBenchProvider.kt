@@ -9,18 +9,18 @@ import android.net.Uri
 import android.os.Bundle
 
 /*
- * Starts SLKBench in an app that does not call it, like the React Native example. A content
+ * Starts ShadowListKitBench in an app that does not call it, like the React Native example. A content
  * provider runs before the first activity. It waits for the launched activity and hands it
  * the launch extras. slbench-init.gradle adds it to a build, the app's own sources stay as
  * they are.
  */
-class SLKBenchProvider : ContentProvider() {
+class ShadowListKitBenchProvider : ContentProvider() {
   override fun onCreate(): Boolean {
     val application = context?.applicationContext as? Application ?: return true
     application.registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
       override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {
         application.unregisterActivityLifecycleCallbacks(this)
-        SLKBench.startIfRequested(activity, activity.intent)
+        ShadowListKitBench.startIfRequested(activity, activity.intent)
       }
 
       override fun onActivityStarted(activity: Activity) {}

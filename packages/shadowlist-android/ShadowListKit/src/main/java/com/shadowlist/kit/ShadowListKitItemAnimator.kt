@@ -6,24 +6,24 @@ package com.shadowlist.kit
  * the cell back to the reuse pool. animateMove gets a cell already at its new place, and fromX
  * and fromY are where it showed before, relative to that place.
  */
-interface SLKItemAnimator {
-  fun animateInsert(listView: SLKListView, cell: SLKListCell)
-  fun animateRemoval(listView: SLKListView, cell: SLKListCell, completion: () -> Unit)
-  fun animateMove(listView: SLKListView, cell: SLKListCell, fromX: Float, fromY: Float)
+interface ShadowListKitItemAnimator {
+  fun animateInsert(listView: ShadowListKitListView, cell: ShadowListKitListCell)
+  fun animateRemoval(listView: ShadowListKitListView, cell: ShadowListKitListCell, completion: () -> Unit)
+  fun animateMove(listView: ShadowListKitListView, cell: ShadowListKitListCell, fromX: Float, fromY: Float)
 }
 
 /*
  * The animator a list starts with: new rows fade in, removed rows fade out and rows that stay
  * slide, for durationMs.
  */
-open class SLKDefaultItemAnimator : SLKItemAnimator {
+open class ShadowListKitDefaultItemAnimator : ShadowListKitItemAnimator {
   companion object {
     const val CHANGE_DURATION_MS = 250L
   }
 
   var durationMs = CHANGE_DURATION_MS
 
-  override fun animateInsert(listView: SLKListView, cell: SLKListCell) {
+  override fun animateInsert(listView: ShadowListKitListView, cell: ShadowListKitListCell) {
     cell.animate().cancel()
     cell.translationX = 0f
     cell.translationY = 0f
@@ -31,11 +31,11 @@ open class SLKDefaultItemAnimator : SLKItemAnimator {
     cell.animate().alpha(1f).setDuration(durationMs).start()
   }
 
-  override fun animateRemoval(listView: SLKListView, cell: SLKListCell, completion: () -> Unit) {
+  override fun animateRemoval(listView: ShadowListKitListView, cell: ShadowListKitListCell, completion: () -> Unit) {
     cell.animate().alpha(0f).setDuration(durationMs).withEndAction(completion).start()
   }
 
-  override fun animateMove(listView: SLKListView, cell: SLKListCell, fromX: Float, fromY: Float) {
+  override fun animateMove(listView: ShadowListKitListView, cell: ShadowListKitListCell, fromX: Float, fromY: Float) {
     if (fromX == 0f && fromY == 0f && cell.translationX == 0f && cell.translationY == 0f) return
     cell.animate().cancel()
     cell.translationX = fromX

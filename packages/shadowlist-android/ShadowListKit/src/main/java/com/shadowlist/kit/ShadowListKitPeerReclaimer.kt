@@ -8,7 +8,7 @@ import java.lang.ref.ReferenceQueue
  * never attached to a window. Each owner registers its handle here. Once the owner is collected
  * its peer is freed by the next register() or release(). Every call runs on the UI thread.
  */
-internal class SLKPeerReclaimer(private val free: (handle: Long) -> Unit) {
+internal class ShadowListKitPeerReclaimer(private val free: (handle: Long) -> Unit) {
   /*
    * A peer's handle, enqueued once its owner is collected.
    */

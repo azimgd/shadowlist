@@ -9,8 +9,8 @@ import android.widget.FrameLayout
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
-import com.shadowlist.kit.SLKListCell
-import com.shadowlist.kit.SLKListView
+import com.shadowlist.kit.ShadowListKitListCell
+import com.shadowlist.kit.ShadowListKitListView
 
 /*
  * How a new set of rows relates to the shown one.
@@ -69,15 +69,15 @@ class ListController(context: Context, engine: Engine, inverted: Boolean = false
   fun layoutFor(row: Row, width: Int): RowLayout? = if (precomputed) layouts.layout(row, width) else null
 }
 
-// region SLKListView
+// region ShadowListKitListView
 
 private class ShadowListBackend(
   context: Context,
   private val controller: ListController,
   inverted: Boolean,
   columns: Int,
-) : ListBackend, SLKListView.Delegate {
-  private val list = SLKListView(context)
+) : ListBackend, ShadowListKitListView.Delegate {
+  private val list = ShadowListKitListView(context)
   private val registered = HashSet<String>()
 
   override val view: View get() = list
@@ -100,11 +100,11 @@ private class ShadowListBackend(
   /*
    * Rows by index for the list. Cells come from the row's own view type.
    */
-  private open inner class Source : SLKListView.DataSource {
-    override fun numberOfItems(listView: SLKListView) = controller.rows.size
-    override fun keyForItem(listView: SLKListView, index: Int) = controller.rows[index].key
+  private open inner class Source : ShadowListKitListView.DataSource {
+    override fun numberOfItems(listView: ShadowListKitListView) = controller.rows.size
+    override fun keyForItem(listView: ShadowListKitListView, index: Int) = controller.rows[index].key
 
-    override fun cellForItem(listView: SLKListView, index: Int): SLKListCell {
+    override fun cellForItem(listView: ShadowListKitListView, index: Int): ShadowListKitListCell {
       val row = controller.rows[index]
       if (registered.add(row.viewType)) listView.registerCell(row.viewType) { row.makeView(it) }
       val cell = listView.dequeueReusableCell<RowView>(row.viewType)
@@ -118,8 +118,8 @@ private class ShadowListBackend(
   /*
    * Sizes from the precomputed layouts, which the list never measures through a cell.
    */
-  private inner class SizedSource : Source(), SLKListView.Sizing {
-    override fun sizeForItem(listView: SLKListView, index: Int, crossSize: Int): Int =
+  private inner class SizedSource : Source(), ShadowListKitListView.Sizing {
+    override fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int =
       controller.layouts.layout(controller.rows[index], crossSize).height
   }
 

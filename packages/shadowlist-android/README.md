@@ -1,7 +1,7 @@
 # ShadowListKit for Android (prototype)
 
 A virtualized list for Android views, written in Kotlin on the shadowlist core in C++. No React
-Native. `SLKListView` is a `ViewGroup` with a data source shaped like the UIKit `SLKListView`.
+Native. `ShadowListKitListView` is a `ViewGroup` with a data source shaped like the UIKit `ShadowListKitListView`.
 It adds what the shadowlist core does well: the visible content stays still while rows are
 measured, inserted above, removed or regrouped. Rows have stable keys.
 
@@ -32,23 +32,23 @@ Most frames only run the mount pass over the copied frames. Rows binding during 
 not ask the whole window for a layout traversal, the pass measures them itself. Sticky headers
 are pinned by the host, which keeps the band usable for section lists.
 
-`SLKTextLayout` breaks text into lines once with `StaticLayout`, on any thread, and
-`SLKTextView` only draws it. Row layouts computed off the UI thread carry their text.
+`ShadowListKitTextLayout` breaks text into lines once with `StaticLayout`, on any thread, and
+`ShadowListKitTextView` only draws it. Row layouts computed off the UI thread carry their text.
 
-| File                                                                                  | Role                                                                                                                                                   |
-| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/shadowlist-core/host/ListDriver.{hpp,cpp}`                                  | The core driven for a native list: layout passes, measurement, keys, sticky math, scroll landing, drag. No platform types. Shared with the UIKit list. |
-| `ShadowListKit/src/main/cpp/SLKCoreJNI.cpp`                                           | Thin JNI hops into the driver with reused arrays.                                                                                                      |
-| `SLKListView.kt`                                                                      | Public API, layout pass, mounting, sticky placement, scroll commands.                                                                                  |
-| `SLKScrollGesture.kt`                                                                 | Touch scrolling, flings, snapping, animated scrolls, the gesture phase and nested scrolling.                                                           |
-| `SLKEdgeEffects.kt`                                                                   | The platform edge effect at both ends, glow or stretch.                                                                                                |
-| `packages/shadowlist-core/host/ListSections`, `KeyDiff`, `SwipeReveal`                | Sections over the rows, the key diff and batch plan, swipe offsets. Shared with the UIKit list, reached through JNI.                                   |
-| `SLKChangeAnimator.kt`, `SLKItemAnimator.kt`                                          | What `animatesChanges` animates, and the pluggable animations.                                                                                         |
-| `SLKDragController.kt`                                                                | Touch and hold to reorder through the host layer's DragReorder, and the row menu on a hold.                                                            |
-| `SLKSwipeController.kt`                                                               | Swipe actions and the buttons behind a swiped row.                                                                                                     |
-| `SLKRefreshIndicator.kt`, `SLKSectionIndex.kt`                                        | Pull to refresh without SwipeRefreshLayout, the section index.                                                                                         |
-| `SLKSwipeAction.kt`, `SLKAnchorState.kt`, `SLKListChanges.kt`, `SLKItemDecoration.kt` | Public value types and the decoration hook.                                                                                                            |
-| `SLKCore.kt`, `SLKListCell.kt`, `SLKText.kt`                                          | JNI wrapper, row base view with its states, precomputed text.                                                                                          |
+| File                                                                                                                          | Role                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/shadowlist-core/host/ListDriver.{hpp,cpp}`                                                                          | The core driven for a native list: layout passes, measurement, keys, sticky math, scroll landing, drag. No platform types. Shared with the UIKit list. |
+| `ShadowListKit/src/main/cpp/ShadowListKitCoreJNI.cpp`                                                                         | Thin JNI hops into the driver with reused arrays.                                                                                                      |
+| `ShadowListKitListView.kt`                                                                                                    | Public API, layout pass, mounting, sticky placement, scroll commands.                                                                                  |
+| `ShadowListKitScrollGesture.kt`                                                                                               | Touch scrolling, flings, snapping, animated scrolls, the gesture phase and nested scrolling.                                                           |
+| `ShadowListKitEdgeEffects.kt`                                                                                                 | The platform edge effect at both ends, glow or stretch.                                                                                                |
+| `packages/shadowlist-core/host/ListSections`, `KeyDiff`, `SwipeReveal`                                                        | Sections over the rows, the key diff and batch plan, swipe offsets. Shared with the UIKit list, reached through JNI.                                   |
+| `ShadowListKitChangeAnimator.kt`, `ShadowListKitItemAnimator.kt`                                                              | What `animatesChanges` animates, and the pluggable animations.                                                                                         |
+| `ShadowListKitDragController.kt`                                                                                              | Touch and hold to reorder through the host layer's DragReorder, and the row menu on a hold.                                                            |
+| `ShadowListKitSwipeController.kt`                                                                                             | Swipe actions and the buttons behind a swiped row.                                                                                                     |
+| `ShadowListKitRefreshIndicator.kt`, `ShadowListKitSectionIndex.kt`                                                            | Pull to refresh without SwipeRefreshLayout, the section index.                                                                                         |
+| `ShadowListKitSwipeAction.kt`, `ShadowListKitAnchorState.kt`, `ShadowListKitListChanges.kt`, `ShadowListKitItemDecoration.kt` | Public value types and the decoration hook.                                                                                                            |
+| `ShadowListKitCore.kt`, `ShadowListKitListCell.kt`, `ShadowListKitText.kt`                                                    | JNI wrapper, row base view with its states, precomputed text.                                                                                          |
 
 ## API
 
@@ -79,11 +79,11 @@ Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estim
   stays in its section. The rows' items cross JNI once per change, which keeps scroll frames free of JNI calls.
 - Batches follow UITableView's index rules and are planned by the core's `planBatch`. A batch that does not add up
   reloads everything. `applyChanges` diffs every key with the core's `diffKeys`, reloads rows whose
-  `ContentVersions.contentVersionForItem` changed since the last reload, and returns an `SLKListChanges`, like
+  `ContentVersions.contentVersionForItem` changed since the last reload, and returns an `ShadowListKitListChanges`, like
   `ListAdapter.submitList` with `DiffUtil` but on keys.
-- `itemAnimator` (an `SLKItemAnimator`, `SLKDefaultItemAnimator` by default) animates inserts, removals and moves,
+- `itemAnimator` (an `ShadowListKitItemAnimator`, `ShadowListKitDefaultItemAnimator` by default) animates inserts, removals and moves,
   like RecyclerView's ItemAnimator.
-- Swipe actions: an `SLKSwipeActionsConfiguration` of `SLKSwipeAction`s per side, like ItemTouchHelper's swipe to
+- Swipe actions: an `ShadowListKitSwipeActionsConfiguration` of `ShadowListKitSwipeAction`s per side, like ItemTouchHelper's swipe to
   dismiss when the first action runs on a full swipe. Off while editing.
 - Context menus: `contextMenuForItem` fills a `PopupMenu`'s menu on a hold. A row that can also be reordered lifts
   on the hold, and letting it go in place shows the menu.
@@ -91,11 +91,11 @@ Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estim
   `cancelPrefetchingForItems` for ones that left it unseen. One JNI call per mount pass, only with a prefetch data
   source.
 - Pull to refresh draws its own spinner over the rows, without a SwipeRefreshLayout dependency.
-- Separators draw after each item's cell, which keeps a pinned header above them. `SLKItemDecoration` draws below
+- Separators draw after each item's cell, which keeps a pinned header above them. `ShadowListKitItemDecoration` draws below
   or above the rows, like RecyclerView's ItemDecoration without item offsets. Android only.
 - Selection survives detach and is kept by key in Kotlin with the rules of the core's `ListSelection`, because the
   core peer is dropped when the list detaches.
-- The saved position goes into `onSaveInstanceState` as an `SLKAnchorState` when the list has an id, and lands
+- The saved position goes into `onSaveInstanceState` as an `ShadowListKitAnchorState` when the list has an id, and lands
   again once the data has its key.
 
 Masonry stays round robin, the same as the UIKit list: a shortest column layout would move rows between columns
@@ -149,19 +149,19 @@ The release build is optimized, not debuggable and signed with the debug key. Th
 compiles the canonical core in `packages/shadowlist-core` directly.
 
 The example has the Feed, Chat, Directory (`SectionList`) and Gallery (`Masonry`) screens of the
-UIKit and React Native examples, with the same fixtures. Feature screens run on SLKListView
+UIKit and React Native examples, with the same fixtures. Feature screens run on ShadowListKitListView
 only: `Reorder` and `ReorderGrid` (touch and hold to reorder), `Snap` (`snapToItem`),
 `Horizontal` (a horizontal strip with pinned section letters and estimated widths), `Changes`
 (`animatesChanges`), `Collapsing` (a collapsing app bar over the list), `Sections` (section headers, footers,
 the index and measured cells) and `Inbox` (swipe actions, menus, selection, refresh, batches and `applyChanges`). The list screens run
 on any engine:
 
-| `SLEngine`      | List         | Row sizes                                       |
-| --------------- | ------------ | ----------------------------------------------- |
-| `sl`            | SLKListView  | precomputed layouts, off the UI thread          |
-| `sl-auto`       | SLKListView  | each cell measured on the UI thread             |
-| `recycler`      | RecyclerView | fixed heights from the same precomputed layouts |
-| `recycler-auto` | RecyclerView | `wrap_content` rows measured on the UI thread   |
+| `SLEngine`      | List                  | Row sizes                                       |
+| --------------- | --------------------- | ----------------------------------------------- |
+| `sl`            | ShadowListKitListView | precomputed layouts, off the UI thread          |
+| `sl-auto`       | ShadowListKitListView | each cell measured on the UI thread             |
+| `recycler`      | RecyclerView          | fixed heights from the same precomputed layouts |
+| `recycler-auto` | RecyclerView          | `wrap_content` rows measured on the UI thread   |
 
 Extras: `SLCount N` rows, `SLImages 0`, `SLPadding N` (dp of padding, rows under it),
 `SLAnimate 1` (`animatesChanges` on the list screens), `SLAutoDrag 1` on the reorder screens.
@@ -172,7 +172,7 @@ prefetch, and the usual item decoration for sticky headers.
 
 ## Benchmarks
 
-`Bench/src/.../SLKBench.kt` drives the biggest vertical scroll view at a constant speed, one
+`Bench/src/.../ShadowListKitBench.kt` drives the biggest vertical scroll view at a constant speed, one
 step per Choreographer frame, and logs one JSON line: frame intervals, frames over their
 deadline from FrameMetrics, UI thread, RenderThread and process CPU, memory, and how much of
 the viewport no row covers.
@@ -184,13 +184,13 @@ Bench/summarize.py results/my-label/runs.jsonl
 
 `SLBenchAxes` (`AXES` in `bench.sh`) takes `y`, `x` or `xy`, comma separated, the same as iOS: one
 line per axis with an `axis` key, and a `skipped` line for an axis without a scroll view. A view
-that draws its content after its rows show implements `SLKBenchProbe.benchBlankFraction()`, and the
+that draws its content after its rows show implements `ShadowListKitBenchProbe.benchBlankFraction()`, and the
 result adds `contentBlankAvg`, `contentBlankMax` and `contentBlankFrames`.
 
-The `rn` engine runs the React Native example (`shadowlist.example`) with the same SLKBench.
+The `rn` engine runs the React Native example (`shadowlist.example`) with the same ShadowListKitBench.
 A Gradle init script adds the bench to its release build without any change to that project:
 it compiles `Bench/src` and `Bench/rn/src` into the release variant and merges
-`Bench/rn/AndroidManifest.xml`, whose content provider starts SLKBench in the launched activity.
+`Bench/rn/AndroidManifest.xml`, whose content provider starts ShadowListKitBench in the launched activity.
 The example reads `SLRoute` and `SLCount` from the same extras.
 
 ```sh
@@ -231,35 +231,35 @@ medians. UI ms per frame is the UI thread part of each drawn frame from FrameMet
 animation, measure and layout, draw). Lower is better. Raw runs are in `results/v2-4000` and
 `results/v2-12000`.
 
-| UI ms per frame, mean / p95 | SLK            | RecyclerView | SLK self-sizing | RecyclerView self-sizing |
-| --------------------------- | -------------- | ------------ | --------------- | ------------------------ |
-| Feed, 4000 dp/s             | **1.21** / 3.2 | 1.43 / 4.3   | 1.64 / 4.6      | 1.78 / 7.1               |
-| Chat, 4000 dp/s             | **1.16** / 2.8 | 1.31 / 3.9   | 1.62 / 4.4      | 1.84 / 6.8               |
-| Directory, 4000 dp/s        | **1.81** / 3.6 | 2.08 / 5.0   | 3.74 / 9.2      | 3.51 / 9.5               |
-| Gallery, 4000 dp/s          | **1.49** / 3.3 | 1.84 / 5.6   | 1.92 / 4.2      | 2.17 / 5.2               |
-| Feed, 12000 dp/s            | **1.53** / 4.0 | 1.90 / 5.9   | 3.01 / 8.2      | 3.06 / 9.4               |
-| Chat, 12000 dp/s            | **1.72** / 4.0 | 2.21 / 5.6   | 3.27 / 8.2      | 3.05 / 7.8               |
-| Directory, 12000 dp/s       | **2.45** / 5.7 | 4.42 / 9.0   | 4.82 / 10.5     | 4.83 / 10.2              |
-| Gallery, 12000 dp/s         | **1.75** / 3.6 | 2.30 / 5.1   | 3.21 / 7.4      | 3.64 / 8.8               |
+| UI ms per frame, mean / p95 | ShadowListKit  | RecyclerView | ShadowListKit self-sizing | RecyclerView self-sizing |
+| --------------------------- | -------------- | ------------ | ------------------------- | ------------------------ |
+| Feed, 4000 dp/s             | **1.21** / 3.2 | 1.43 / 4.3   | 1.64 / 4.6                | 1.78 / 7.1               |
+| Chat, 4000 dp/s             | **1.16** / 2.8 | 1.31 / 3.9   | 1.62 / 4.4                | 1.84 / 6.8               |
+| Directory, 4000 dp/s        | **1.81** / 3.6 | 2.08 / 5.0   | 3.74 / 9.2                | 3.51 / 9.5               |
+| Gallery, 4000 dp/s          | **1.49** / 3.3 | 1.84 / 5.6   | 1.92 / 4.2                | 2.17 / 5.2               |
+| Feed, 12000 dp/s            | **1.53** / 4.0 | 1.90 / 5.9   | 3.01 / 8.2                | 3.06 / 9.4               |
+| Chat, 12000 dp/s            | **1.72** / 4.0 | 2.21 / 5.6   | 3.27 / 8.2                | 3.05 / 7.8               |
+| Directory, 12000 dp/s       | **2.45** / 5.7 | 4.42 / 9.0   | 4.82 / 10.5               | 4.83 / 10.2              |
+| Gallery, 12000 dp/s         | **1.75** / 3.6 | 2.30 / 5.1   | 3.21 / 7.4                | 3.64 / 8.8               |
 
-- With the same row views and the same precomputed layouts, SLKListView spends 11 to 19 percent
+- With the same row views and the same precomputed layouts, ShadowListKitListView spends 11 to 19 percent
   less UI thread time per frame than RecyclerView at 4000 dp/s, and 19 to 45 percent less at
   12000 dp/s. Its p95 frame is lower on every screen. The gap grows with speed because a frame
   inside the core's band makes no JNI call and a moved row is only offset, not laid out.
 - Self-sizing evens it out. Both lists then spend most of the frame measuring text on the UI
-  thread. SLK is ahead on Feed and Gallery, behind on Chat at 12000 dp/s and on Directory at 4000.
+  thread. ShadowListKit is ahead on Feed and Gallery, behind on Chat at 12000 dp/s and on Directory at 4000.
 - No engine showed a blank area. Dropped frames and RenderThread time are the same for all
   engines within noise. The emulator draws on the host GPU and is RenderThread bound.
 - The host load average was 7 to 25 during these runs, which inflates absolute times. Runs are
   interleaved, which spreads that load across engines. Treat the ratios as the result. A
   physical device run is still to do.
 
-React Native, the same bench on the RN example (`rn`) next to SLK and RecyclerView, 1000 rows,
+React Native, the same bench on the RN example (`rn`) next to ShadowListKit and RecyclerView, 1000 rows,
 3 interleaved runs, medians of UI ms per frame (mean / p95) and process CPU ms per second.
 The emulator is the one above, on 2026-10-07. Raw runs are in `results/rn-4000` and
 `results/rn-12000`.
 
-| UI ms per frame, process CPU ms/s | SLK                 | RecyclerView    | shadowlist RN     |
+| UI ms per frame, process CPU ms/s | ShadowListKit       | RecyclerView    | shadowlist RN     |
 | --------------------------------- | ------------------- | --------------- | ----------------- |
 | Feed, 4000 dp/s                   | **0.85** / 2.2, 369 | 0.98 / 2.8, 392 | 3.25 / 13.9, 572  |
 | Chat, 4000 dp/s                   | **0.82** / 1.8, 338 | 0.90 / 2.3, 339 | 2.23 / 8.6, 574   |
@@ -273,7 +273,7 @@ The emulator is the one above, on 2026-10-07. Raw runs are in `results/rn-4000` 
 - RN spends 2.5 to 5 times the UI thread time per frame of either native list, and its p95
   frame is 3 to 8 times longer. Its process CPU is 1.5 to 4.5 times higher, because the JS thread
   and Fabric commits run next to the UI thread. Directory is RN's worst screen: 1.4 to 1.6 s of
-  CPU per second and a 230 MB peak against 35 MB for SLK.
+  CPU per second and a 230 MB peak against 35 MB for ShadowListKit.
 - No engine showed a blank area.
 - A game ran on the host during the 12000 dp/s runs (load average 10 to 22). Every engine then
   missed about half its frames (hitch 360 to 520 ms/s), and the 12000 numbers are only good as
@@ -283,14 +283,14 @@ Data updates, `SLScenario cost`, 10k rows, `SLImages 0`, apps compiled with `-m 
 list's own UI ms for one update plus a synchronous layout, 3 interleaved rounds of 30 updates,
 medians. Before is the list before the key and reconcile work of 2026-10-07.
 
-| 10k rows                        | SLK before | SLK  | RecyclerView |
-| ------------------------------- | ---------- | ---- | ------------ |
-| Chat, prepend 50                | 2.91       | 0.43 | 0.06         |
-| Chat, append 10                 | 1.45       | 0.12 | 0.07         |
-| Feed, prepend 10                | 1.22       | 0.46 | 0.03 to 0.07 |
-| Feed, append 20                 | 0.92       | 0.19 | 0.05 to 0.09 |
-| Directory, regroup after 10 new | 11.5       | 5.5  | 0.4 to 0.6   |
-| Directory, 10 more              | 12.4       | 5.2  | 0.5          |
+| 10k rows                        | ShadowListKit before | ShadowListKit | RecyclerView |
+| ------------------------------- | -------------------- | ------------- | ------------ |
+| Chat, prepend 50                | 2.91                 | 0.43          | 0.06         |
+| Chat, append 10                 | 1.45                 | 0.12          | 0.07         |
+| Feed, prepend 10                | 1.22                 | 0.46          | 0.03 to 0.07 |
+| Feed, append 20                 | 0.92                 | 0.19          | 0.05 to 0.09 |
+| Directory, regroup after 10 new | 11.5                 | 5.5           | 0.4 to 0.6   |
+| Directory, 10 more              | 12.4                 | 5.2           | 0.5          |
 
 - The old numbers in this table (RecyclerView 0.21 ms) measured almost nothing for
   RecyclerView: with a fixed size it defers adapter updates to the next frame, past the timed
@@ -305,6 +305,6 @@ medians. Before is the list before the key and reconcile work of 2026-10-07.
   of 50 0.151 to 0.042 ms, trim of 50 at the end 0.58 to 0.018 ms, 10 scattered inserts 0.64
   to 0.27 ms.
 - RecyclerView still costs less per update. Its range notifications only touch the visible
-  rows. SLK reflows every row's offset after a change, which is O(n) by design of the core.
+  rows. ShadowListKit reflows every row's offset after a change, which is O(n) by design of the core.
   The Directory regroup is a full `notifyDataSetChanged` for RecyclerView, which loses the
-  position (177 px). SLK keeps it (0 px).
+  position (177 px). ShadowListKit keeps it (0 px).

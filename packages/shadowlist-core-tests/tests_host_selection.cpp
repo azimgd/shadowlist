@@ -45,7 +45,7 @@ TEST(selection_multiple_keeps_every_row_and_follows_keys) {
 }
 
 /*
- * SLKListView.userSelected on Android keeps its own selection, which outlives the core and is
+ * ShadowListKitListView.userSelected on Android keeps its own selection, which outlives the core and is
  * read on every cell bind. It follows the same tap rules.
  */
 TEST(selection_tap_selects_moves_and_toggles) {

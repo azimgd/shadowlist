@@ -6,10 +6,10 @@ import android.content.Intent
  * The list implementation a screen runs on, picked with --es SLEngine.
  */
 enum class Engine(val id: String, val title: String) {
-  // SLKListView with sizes from the precomputed layouts.
-  SHADOWLIST("sl", "SLKListView"),
-  // SLKListView measuring each row through its cell on the UI thread.
-  SHADOWLIST_AUTO("sl-auto", "SLKListView (self-sizing)"),
+  // ShadowListKitListView with sizes from the precomputed layouts.
+  SHADOWLIST("sl", "ShadowListKitListView"),
+  // ShadowListKitListView measuring each row through its cell on the UI thread.
+  SHADOWLIST_AUTO("sl-auto", "ShadowListKitListView (self-sizing)"),
   // RecyclerView with every row's height from the same precomputed layouts.
   RECYCLER("recycler", "RecyclerView"),
   // RecyclerView with wrap_content rows measured on the UI thread.
@@ -41,7 +41,7 @@ object Settings {
   var padding: Int = 0
     private set
 
-  // SLAnimate 1: SLKListView animates inserts and deletes.
+  // SLAnimate 1: ShadowListKitListView animates inserts and deletes.
   var animate: Boolean = false
     private set
 
