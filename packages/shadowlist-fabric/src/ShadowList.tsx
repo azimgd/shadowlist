@@ -52,6 +52,7 @@ import {
   takeRowRenderCount,
   nativeTagOf,
   describeDataChange,
+  defaultKeyExtractor,
   createRowIndexStore,
   type RowIndexStore,
   type RowSelection,
@@ -98,10 +99,6 @@ const DECELERATION_RATES = {
   fast: Platform.OS === 'ios' ? 0.99 : 0.9,
 };
 
-function defaultKeyExtractor(element: { id: string }): string {
-  return element.id;
-}
-
 function renderComponent(
   component: ReactElement | (() => ReactElement | null) | null | undefined
 ): ReactElement | null {
@@ -113,7 +110,7 @@ function renderComponent(
  * The JS side of the native ShadowListView. It mounts only the rows near the screen and
  * passes native scroll, drag and refresh events to the hooks below.
  */
-function ShadowListInner<ElementT extends { id: string }>(
+function ShadowListInner<ElementT>(
   {
     data: dataProp,
     renderElement,
@@ -980,9 +977,7 @@ const styles = StyleSheet.create({
   },
 });
 
-const ShadowList = forwardRef(ShadowListInner) as <
-  ElementT extends { id: string },
->(
+const ShadowList = forwardRef(ShadowListInner) as <ElementT>(
   props: ShadowListProps<ElementT> & { ref?: Ref<ShadowListCommands> }
 ) => ReactElement;
 

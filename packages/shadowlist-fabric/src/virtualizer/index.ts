@@ -9,6 +9,7 @@ export {
   takeRowRenderCount,
   nativeTagOf,
   describeDataChange,
+  defaultKeyExtractor,
 } from './helpers';
 export {
   initialMountedRange,

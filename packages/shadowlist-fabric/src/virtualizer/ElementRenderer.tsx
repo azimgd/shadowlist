@@ -179,9 +179,7 @@ function nativeMenuActions<ElementT>(
   }));
 }
 
-export const ElementRenderer = memo(function ElementRendererInner<
-  ElementT extends { id: string },
->({
+export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
   element,
   index,
   rowIndex,
@@ -476,6 +474,6 @@ export const ElementRenderer = memo(function ElementRendererInner<
       {children}
     </ShadowListElementView>
   );
-}, sameRowProps) as <ElementT extends { id: string }>(
+}, sameRowProps) as <ElementT>(
   props: ElementRendererProps<ElementT>
 ) => ReactElement;

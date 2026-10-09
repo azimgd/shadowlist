@@ -171,7 +171,7 @@ export interface ElementSizeSpec {
   fixedHeight?: number;
 }
 
-export interface ShadowListProps<ElementT extends { id: string }> {
+export interface ShadowListProps<ElementT> {
   data: ReadonlyArray<ElementT>;
   renderElement: (info: RenderElementInfo<ElementT>) => ReactElement;
   keyExtractor?: (element: ElementT, index: number) => string;
@@ -303,7 +303,7 @@ export type SectionListRenderElement<ElementT, SectionT = object> = (
  * define their own version of such a prop or don't offer it.
  */
 export type ShadowListForwardedProps = Omit<
-  ShadowListProps<{ id: string }>,
+  ShadowListProps<unknown>,
   | 'data'
   | 'renderElement'
   | 'keyExtractor'

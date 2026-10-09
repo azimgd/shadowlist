@@ -61,6 +61,22 @@ export function nativeTagOf(instance: unknown): number {
 }
 
 /*
+ * The key of a row when the list has no keyExtractor, like FlatList: the element's id when
+ * it is a string or a number, and its index otherwise. An index key belongs to the position,
+ * not the row. Rows inserted above the screen then change the keys of the rows on it, and the
+ * list cannot keep them still. Give such data a keyExtractor.
+ */
+export function defaultKeyExtractor(element: unknown, index: number): string {
+  if (typeof element === 'object' && element !== null) {
+    const id = (element as { id?: unknown }).id;
+    if (typeof id === 'string' || typeof id === 'number') {
+      return String(id);
+    }
+  }
+  return String(index);
+}
+
+/*
  * How next differs from previous at the edges. pre counts rows added before the old first
  * row, app after the old last row, and mid in between, negative for removals. replace means
  * an edge row is gone.
