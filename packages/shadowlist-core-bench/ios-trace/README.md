@@ -47,8 +47,11 @@ rejects the gesture.
   place the host moved the view or published state. `enabled=1` means the core wrote an offset.
 - `[SLJ] ... render|vis|vis apply|reached|refresh|row-miss` — the JS side, printed natively
   through `globalThis.__shadowlistTrace` so it shares the host's clock.
-- `[SL] ...` — the C++ core (debug builds only), without timestamps; the analyzer stamps them
-  with the previous timestamped line. They can read up to a second early. File order is right.
+- `[SL] ...` — the C++ core, without timestamps; the analyzer stamps them with the previous
+  timestamped line. They can read up to a second early. File order is right. The core log is
+  off by default. Turn it on with `SHADOWLIST_DEBUG_LOG=1 pod install` in the example's `ios/`
+  folder, or add `SHADOWLIST_DEBUG_LOG=1` to the `GCC_PREPROCESSOR_DEFINITIONS` override of the
+  xcodebuild command. Debug builds have `[SLF]` and `[SLJ]` without it.
 
 ## Findings
 
@@ -66,7 +69,7 @@ Expected cases are tagged `(explained)`: a fast fling, an inverted list pinned t
 as messages arrive, the scroll-to-top jump, a host scroll command (`scrollToIndex` /
 `scrollToEnd`), an overscroll settling, the refresh inset.
 
-Debug builds also log the core's corrections: `[SL]   op arrived: type= key= index=` when a
+Builds with the core log also log the core's corrections: `[SL]   op arrived: type= key= index=` when a
 correction reaches its target (type 0 MVCP, 1 scrollToIndex, 2 scrollToStart, 3 scrollToEnd,
 4 bottom pin, 5 shrink clamp), `op replaced:` when one correction takes over from another, and
 `anchor fallback:` when a data change removed the anchored row and MVCP holds the next visible one.
@@ -89,7 +92,8 @@ xcodebuild -workspace ShadowListExample.xcworkspace -scheme ShadowListExample \
   'GCC_PREPROCESSOR_DEFINITIONS=$(inherited) SHADOWLIST_FRAME_TRACE_COMPILED=1' build
 ```
 
-It keeps `[SLF]`/`[SLJ]` and drops the per-commit `[SL]` core log. Its JS is bundled. Metro edits
+It keeps `[SLF]`/`[SLJ]` and has no `[SL]` core log unless `SHADOWLIST_DEBUG_LOG=1` joins the
+same override. Its JS is bundled. Metro edits
 do not reach it until the next build.
 
 ## Perf suite

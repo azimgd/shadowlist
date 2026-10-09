@@ -130,6 +130,9 @@ project(":ShadowListKit").projectDir = file("<repo>/packages/shadowlist-android/
 The module builds the core from `packages/shadowlist-core` with CMake and the NDK, which needs the
 repo layout around it. It needs Android API 24 or newer and Java 17.
 
+The core's `[SL]` debug log is off by default. Build with `-PshadowlistDebugLog` to compile it in
+and read it with `adb logcat -s SL`. It prints on every pass.
+
 ## Run it
 
 The example app lives in `templates/shadowlist-android-example`. From the repo root:

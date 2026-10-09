@@ -22,3 +22,8 @@ target_link_libraries(shadowlistkit ${log-lib})
 
 # The layout pass runs on every scroll frame. Optimized builds use -O3. Debug keeps its flags.
 target_compile_options(shadowlistkit PRIVATE -fno-rtti $<$<NOT:$<CONFIG:Debug>>:-O3>)
+
+# The core's [SL] debug log is off by default. -PshadowlistDebugLog passes this switch.
+if(SHADOWLIST_DEBUG_LOG)
+  target_compile_definitions(shadowlistkit PRIVATE SHADOWLIST_DEBUG_LOG=1)
+endif()

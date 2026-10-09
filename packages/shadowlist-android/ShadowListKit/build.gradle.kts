@@ -13,6 +13,10 @@ android {
     externalNativeBuild {
       cmake {
         arguments += listOf("-DANDROID_STL=c++_shared")
+        // -PshadowlistDebugLog compiles in the core's [SL] debug log. It prints on every pass.
+        if (project.hasProperty("shadowlistDebugLog")) {
+          arguments += listOf("-DSHADOWLIST_DEBUG_LOG=1")
+        }
       }
     }
   }

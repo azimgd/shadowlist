@@ -33,6 +33,11 @@ Pod::Spec.new do |s|
     'GCC_OPTIMIZATION_LEVEL[config=Release]' => '3',
   }
 
+  # The core's [SL] debug log is off by default. SHADOWLIST_DEBUG_LOG=1 pod install compiles it in.
+  if ENV['SHADOWLIST_DEBUG_LOG'] == '1'
+    s.pod_target_xcconfig['GCC_PREPROCESSOR_DEFINITIONS'] = '$(inherited) SHADOWLIST_DEBUG_LOG=1'
+  end
+
   s.user_target_xcconfig = {
     'HEADER_SEARCH_PATHS' => '$(PODS_ROOT)/ShadowList'
   }

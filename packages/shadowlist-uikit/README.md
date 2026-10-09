@@ -138,8 +138,9 @@ There is no CocoaPods spec or Swift package yet. Build a static framework target
 - Make the headers in `Sources/ShadowListKit` public and keep `Internal/` project only.
 - Add `packages` to `HEADER_SEARCH_PATHS`, because the core includes itself as `<shadowlist-core/...>`.
 - Use C++20 (`CLANG_CXX_LANGUAGE_STANDARD = c++20`) and ARC, and set `DEFINES_MODULE` for Swift.
-- Define `SHADOWLIST_DEBUG_LOG=0` in `GCC_PREPROCESSOR_DEFINITIONS`. Xcode does not define `NDEBUG` in Release, and the core
-  logs every pass without one of the two.
+- The core's `[SL]` debug log is off by default. To read it while debugging the kit, add `SHADOWLIST_DEBUG_LOG=1`
+  to `GCC_PREPROCESSOR_DEFINITIONS`. It prints on every pass. The example's `build.sh` does this when run with
+  `SHADOWLIST_DEBUG_LOG=1` in its environment.
 - Link the app with `-ObjC -lc++`. iOS 16 or newer.
 
 ## Run it

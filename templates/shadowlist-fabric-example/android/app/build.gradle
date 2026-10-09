@@ -34,6 +34,17 @@ android {
             }
         }
         /*
+         * -PshadowlistDebugLog compiles in the core's [SL] debug log, read with adb logcat -s SL.
+         * It is off by default because it prints on every pass.
+         */
+        if (project.hasProperty("shadowlistDebugLog")) {
+            externalNativeBuild {
+                cmake {
+                    arguments "-DSHADOWLIST_DEBUG_LOG=1"
+                }
+            }
+        }
+        /*
          * -PshadowlistScrollBand=false turns off the offset band. The list then sends a state
          * update every scroll frame. Android apps get no launch environment. The
          * SHADOWLIST_SCROLL_BAND define is the only switch there (ShadowListViewState.h).

@@ -51,24 +51,27 @@ constexpr double SCROLL_TO_OFFSET_INDEX = -4.0;
 }
 
 /*
- * Debug log is off in release builds, which all define NDEBUG, and on otherwise.
- * Define SHADOWLIST_DEBUG_LOG before this header to force either way.
+ * The [SL] debug log prints on every pass. It is off unless the build defines
+ * SHADOWLIST_DEBUG_LOG=1. Each host has a switch: SHADOWLIST_DEBUG_LOG=1 pod install for
+ * the Fabric pod, -DSHADOWLIST_DEBUG_LOG=1 for the CMake builds (the Fabric Android library
+ * and the core tests), -PshadowlistDebugLog for ShadowListKit on Android and a
+ * GCC_PREPROCESSOR_DEFINITIONS entry for ShadowListKit on iOS.
  */
 #ifndef SHADOWLIST_DEBUG_LOG
-#ifdef NDEBUG
 #define SHADOWLIST_DEBUG_LOG 0
-#else
-#define SHADOWLIST_DEBUG_LOG 1
-#endif
 #endif
 
 /*
- * The device trace is compiled in with the debug log and turned on at runtime with
- * SHADOWLIST_FRAME_TRACE=1. A release build can set SHADOWLIST_FRAME_TRACE_COMPILED=1
- * to get the trace without the per commit log.
+ * The device trace is compiled into debug builds, which leave NDEBUG undefined, and into any
+ * build with the debug log. It is turned on at runtime with SHADOWLIST_FRAME_TRACE=1. A release
+ * build can set SHADOWLIST_FRAME_TRACE_COMPILED=1 to get the trace without the per pass log.
  */
 #ifndef SHADOWLIST_FRAME_TRACE_COMPILED
-#define SHADOWLIST_FRAME_TRACE_COMPILED SHADOWLIST_DEBUG_LOG
+#if SHADOWLIST_DEBUG_LOG || !defined(NDEBUG)
+#define SHADOWLIST_FRAME_TRACE_COMPILED 1
+#else
+#define SHADOWLIST_FRAME_TRACE_COMPILED 0
+#endif
 #endif
 
 #if SHADOWLIST_DEBUG_LOG

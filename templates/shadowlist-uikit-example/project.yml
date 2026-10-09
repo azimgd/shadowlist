@@ -30,7 +30,6 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: shadowlist.kit
         DEFINES_MODULE: YES
         HEADER_SEARCH_PATHS: ['$(SRCROOT)/../../packages']
-        GCC_PREPROCESSOR_DEFINITIONS: ['$(inherited)', 'SHADOWLIST_DEBUG_LOG=0']
         CLANG_ENABLE_OBJC_ARC: YES
         GENERATE_INFOPLIST_FILE: YES
   ShadowListKitExample:

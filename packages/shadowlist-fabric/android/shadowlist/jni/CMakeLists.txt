@@ -67,3 +67,9 @@ target_compile_reactnative_options(react_codegen_ShadowListViewSpec PRIVATE)
 
 # The list's C++ runs on every commit. Optimized builds use -O3. Debug keeps its flags.
 target_compile_options(react_codegen_ShadowListViewSpec PRIVATE $<$<NOT:$<CONFIG:Debug>>:-O3>)
+
+# The core's [SL] debug log is off by default. An app turns it on by passing
+# arguments "-DSHADOWLIST_DEBUG_LOG=1" in its externalNativeBuild cmake block.
+if(SHADOWLIST_DEBUG_LOG)
+  target_compile_definitions(react_codegen_ShadowListViewSpec PRIVATE SHADOWLIST_DEBUG_LOG=1)
+endif()

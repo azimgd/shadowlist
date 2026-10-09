@@ -116,6 +116,13 @@ The ref also has `setStartReachedEnabled(enabled)` and `setEndReachedEnabled(ena
 
 On iOS a VoiceOver three finger swipe moves one screen and says which rows show. On Android the list reports its row count as `CollectionInfo`, the shown rows with scroll events, and offers page scrolls and scrolling to any row.
 
+### Debug log
+
+The C++ core can log every layout pass with an `[SL]` prefix. It is off by default, in debug builds too. To turn it on:
+
+- iOS and macOS: run `SHADOWLIST_DEBUG_LOG=1 pod install`, then rebuild. A plain `pod install` turns it off again. The lines show in the Xcode console.
+- Android: pass `arguments "-DSHADOWLIST_DEBUG_LOG=1"` in the app's `android.defaultConfig.externalNativeBuild.cmake` block, then rebuild. Read it with `adb logcat -s SL`.
+
 ## Migration to 0.9
 
 0.9 renames five public names. The old names are removed with no aliases.
