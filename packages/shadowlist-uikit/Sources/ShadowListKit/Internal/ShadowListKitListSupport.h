@@ -14,6 +14,7 @@ extern NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER;
  */
 @interface ShadowListKitSettleTarget : NSObject
 @property (nonatomic, weak) ShadowListKitListView *list;
+- (void)tick:(CADisplayLink *)link;
 @end
 
 /*
