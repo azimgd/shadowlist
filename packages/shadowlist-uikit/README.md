@@ -9,18 +9,25 @@ content stays still while rows are measured, inserted above or removed. Rows hav
 | File                                                                             | Role                                                                                                                    |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `packages/shadowlist-core/host/ListDriver.{hpp,cpp}`                             | The core driven for a native list: layout passes, measurement, keys, mount plan, sticky math, scroll landing, drag.     |
-| `ShadowListKitListView.mm`                                                       | Public API, layout pass, mounting, sticky placement, scroll commands, delegate proxy.                                   |
+| `ShadowListKitListView.mm`                                                       | Public API, layout pass, mounting, sticky placement, separators, scroll events.                                         |
+| `ShadowListKitListView+Data.mm`                                                  | Data changes: reloads, inserts, deletes, moves, batches and `applyChanges`.                                             |
+| `ShadowListKitListView+Sections.mm`                                              | Section queries and scrolling, sticky rows and the section index.                                                       |
+| `ShadowListKitListView+Selection.mm`                                             | Selection by key and the highlight of a touched row.                                                                    |
+| `ShadowListKitListView+Commands.mm`                                              | Scroll commands and the saved position.                                                                                 |
+| `ShadowListKitListView+Accessibility.mm`                                         | Rows as accessibility elements and VoiceOver page scrolls.                                                              |
+| `ShadowListKitListSupport.mm`                                                    | The settle display link target, the section title cell and the delegate proxy.                                          |
 | `packages/shadowlist-core/host/ListSections.{hpp,cpp}`                           | Sections over the rows: item and row indices, header and footer rows, row keys, drops inside a section.                 |
 | `packages/shadowlist-core/host/KeyDiff.{hpp,cpp}`                                | `diffKeys` for `applyChanges` and `planBatch` for `performBatchUpdates:completion:`.                                    |
 | `packages/shadowlist-core/host/SwipeReveal.{hpp,cpp}`, `ListSelection.{hpp,cpp}` | Swipe action offsets and rests, selection by key.                                                                       |
 | `ShadowListKitListView+Drag.mm`                                                  | Touch and hold to reorder, and the testing hooks in `ShadowListKitListView+Testing.h`.                                  |
 | `ShadowListKitListView+Actions.mm`                                               | Swipe actions and context menus.                                                                                        |
+| `ShadowListKitSwipeActionsView.mm`                                               | The buttons behind a swiped row.                                                                                        |
 | `ShadowListKitListCell.mm`                                                       | Row base view: highlight, selection and editing states, Auto Layout fitting.                                            |
 | `ShadowListKitListModels.mm`                                                     | `ShadowListKitSwipeAction`, `ShadowListKitAnchorState`, `ShadowListKitListChanges`, `ShadowListKitDefaultItemAnimator`. |
 | `ShadowListKitChangeAnimator.mm`                                                 | Works out what `animatesChanges` animates and hands it to the `itemAnimator`.                                           |
 | `ShadowListKitSectionIndexView.mm`                                               | The section index along the trailing edge.                                                                              |
 | `include/ShadowListKit/*.h`                                                      | The public headers, Objective-C without C++.                                                                            |
-| `Internal/*.h`                                                                   | State the list shares with its drag category and the change animator. Not public headers.                               |
+| `Internal/*.h`                                                                   | State the list shares with its categories, the change animator and the support classes. Not public headers.             |
 | `ShadowListKitText.{h,mm}`                                                       | Precomputed text layout and drawing.                                                                                    |
 
 `ShadowListKitTextLayout` breaks lines on any thread. `ShadowListKitTextView` draws the ready lines, or with
