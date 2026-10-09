@@ -53,11 +53,50 @@ static inline void SLCancelReactTouches(UIView *view)
 }
 #endif
 
+#if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
+/*
+ * Frame trace for debugging scroll jumps. Off unless the app launches with
+ * SHADOWLIST_FRAME_TRACE=1, on the simulator via SIMCTL_CHILD_SHADOWLIST_FRAME_TRACE=1.
+ * Event lines mark each place we move the view. Frame lines show what each committed frame
+ * put on screen. A correction that lands a frame late shows up as rows jumping and back.
+ */
+static inline BOOL SLFrameTraceEnabled(void)
+{
+  static BOOL enabled = NO;
+  static dispatch_once_t once;
+  dispatch_once(&once, ^{
+    const char *value = getenv("SHADOWLIST_FRAME_TRACE");
+    enabled = value != NULL && strcmp(value, "1") == 0;
+  });
+  return enabled;
+}
+
+#define SLF_TRACE(fmt, ...)                                                    \
+  do {                                                                         \
+    if (SLFrameTraceEnabled()) {                                               \
+      printf("[SLF] t=%.4f id=%ld " fmt "\n", CACurrentMediaTime(),            \
+        (long)self.tag, ##__VA_ARGS__);                                        \
+    }                                                                          \
+  } while (0)
+#else
+#define SLF_TRACE(...) ((void)0)
+#endif
+
+#if !TARGET_OS_OSX
+/*
+ * The list's scroll view. VoiceOver's three finger swipe goes to the list, which moves one
+ * viewport and says which rows show.
+ */
+@interface ShadowListScrollView : UIScrollView
+@property (nonatomic, weak) ShadowListView *listView;
+@end
+#endif
+
 /*
  * State and methods shared by the ShadowListView categories. Objective-C++ only.
  * Gesture and display-link adapters keep drag geometry shared across Apple platforms.
  */
-@interface ShadowListView () <RCTShadowListViewViewProtocol, RCTUIScrollViewDelegate> {
+@interface ShadowListView () <RCTUIScrollViewDelegate> {
 @package
   facebook::react::ShadowListViewShadowNode::ConcreteState::Shared _state;
   RCTUIScrollView *_scrollView;
@@ -148,15 +187,32 @@ static inline void SLCancelReactTouches(UIView *view)
   CGFloat _dropReleaseCross;
   NSInteger _numberOfColumns;
   NSInteger _dropSettleToken;
+
+#if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
+  CFRunLoopObserverRef _frameTraceObserver;
+  NSString *_frameTraceLast;
+#endif
 }
 
 - (NSInteger)indexOfElementView:(RCTUIView *)view;
 
 - (NSString *)keyOfElementView:(RCTUIView *)view;
 
-- (void)applyStickyTransforms:(BOOL)accumulate;
+- (void)commitStatePatch:(const azimgd::shadowlist::ScrollPatch&)patch;
+- (azimgd::shadowlist::ScrollPatch)livePatch;
+- (void)clearUserScrolled;
 
 - (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey;
+
+@end
+
+@interface ShadowListView (Sticky)
+
+- (void)applyStickyTransforms:(BOOL)accumulate;
+
+@end
+
+@interface ShadowListView (DragReorder)
 
 - (void)handleDragGesture:(SLDragGestureRecognizer *)gesture;
 - (void)updateDrag;
@@ -166,12 +222,58 @@ static inline void SLCancelReactTouches(UIView *view)
 - (void)teardownDrag;
 - (void)settleDroppedView:(RCTUIView *)view;
 
+- (void)applyDragAccessibilityActionsToView:(RCTUIView *)view;
+- (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up;
+
+@end
+
+@interface ShadowListView (Commands) <RCTShadowListViewViewProtocol>
+
+- (void)animateCommandTo:(CGPoint)target;
+- (void)landAnimatedCommand;
+- (void)reportConcealedRowsMounted;
+#if !TARGET_OS_OSX
+- (BOOL)stopMomentum;
+#endif
+
 - (void)closeSwipeActionsExcept:(RCTUIView *)view;
 #if !TARGET_OS_OSX
 - (BOOL)closeSwipeActionsForTouchInView:(UIView *)view;
 #endif
 
-- (void)applyDragAccessibilityActionsToView:(RCTUIView *)view;
-- (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up;
+@end
+
+#if !TARGET_OS_OSX
+@interface ShadowListView (Refresh)
+
+- (void)applyRefreshState:(BOOL)enabled refreshing:(BOOL)refreshing color:(UIColor *)color;
+- (void)scheduleRefreshSettle;
+- (void)applyRefreshProgressOffset;
 
 @end
+
+@interface ShadowListView (ScrollToTop)
+
+- (BOOL)mountedRowsCoverViewportAt:(CGFloat)y;
+- (void)landScrollToTopJumpIfReady;
+- (BOOL)cancelScrollToTop;
+
+@end
+
+@interface ShadowListView (Accessibility)
+
+- (BOOL)accessibilityScrollList:(UIAccessibilityScrollDirection)direction;
+- (void)announcePageScroll;
+
+@end
+#endif
+
+#if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
+@interface ShadowListView (FrameTrace)
+
+- (void)startFrameTrace;
+- (void)stopFrameTrace;
+- (void)traceFrame;
+
+@end
+#endif
