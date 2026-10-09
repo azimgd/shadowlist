@@ -76,9 +76,54 @@ jobs:
       - name: Build package
         run: yarn workspace shadowlist run prepare
 
+      # The tarball must carry the built JS, the types and the vendored core, and no tests or build output.
+      - name: Check package contents
+        working-directory: packages/shadowlist-fabric
+        run: |
+          npm pack --dry-run --ignore-scripts > "$RUNNER_TEMP/pack.txt" 2>&1
+          for f in lib/module/index.js lib/typescript/src/index.d.ts shadowlist-core/Container.cpp shadowlist-core/sources.cmake scripts/vendor-core.js ShadowList.podspec react-native.config.js android/shadowlist/jni/CMakeLists.txt; do
+            grep -q " $f\$" "$RUNNER_TEMP/pack.txt" || { echo "missing $f"; exit 1; }
+          done
+          if grep -qE "__tests__|/build/|\.test\." "$RUNNER_TEMP/pack.txt"; then
+            echo "tests or build output in the package"
+            exit 1
+          fi
+
       # Its declarations build against the fabric package's lib/typescript output.
       - name: Build utils package
-        run: yarn workspace shadowlist-utils run prepare
+        run: yarn workspace shadowlist-utils run build
+
+  build-android-kit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/shadowlist-android
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Finalize Android SDK
+        run: |
+          /bin/bash -c "yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null"
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/wrapper
+            ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-kit-${{ hashFiles('packages/shadowlist-android/gradle/wrapper/gradle-wrapper.properties', 'packages/shadowlist-android/**/*.gradle.kts') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-kit-
+
+      - name: Build ShadowListKit
+        run: ./gradlew --no-daemon --console=plain :ShadowListKit:assembleRelease
 
   build-android:
     runs-on: ubuntu-latest
