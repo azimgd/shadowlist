@@ -243,6 +243,17 @@ sl::SwipeSpec readSwipeSpec(const jdouble* slots) {
   return spec;
 }
 
+/*
+ * A swipe begun at start with the spec in io's SWIPE_* slots.
+ */
+sl::SwipeReveal swipeFrom(JNIEnv* env, jdoubleArray io, jdouble start) {
+  jdouble slots[SWIPE_SLOTS];
+  env->GetDoubleArrayRegion(io, 0, SWIPE_SLOTS, slots);
+  sl::SwipeReveal swipe;
+  swipe.begin(readSwipeSpec(slots), start);
+  return swipe;
+}
+
 jintArray makeIntArray(JNIEnv* env, const std::vector<jint>& values) {
   jintArray array = env->NewIntArray(static_cast<jsize>(values.size()));
   if (array != nullptr && !values.empty()) {
@@ -954,27 +965,15 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSwipeButtonSpans)(JNIEnv* env, j
  */
 JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeSwipeDrag)(
   JNIEnv* env, jclass, jdoubleArray io, jdouble start, jdouble translation) {
-  jdouble slots[SWIPE_SLOTS];
-  env->GetDoubleArrayRegion(io, 0, SWIPE_SLOTS, slots);
-  sl::SwipeReveal swipe;
-  swipe.begin(readSwipeSpec(slots), start);
-  return swipe.drag(translation);
+  return swipeFrom(env, io, start).drag(translation);
 }
 
 JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeSwipePastFull)(JNIEnv* env, jclass, jdoubleArray io, jdouble offset) {
-  jdouble slots[SWIPE_SLOTS];
-  env->GetDoubleArrayRegion(io, 0, SWIPE_SLOTS, slots);
-  sl::SwipeReveal swipe;
-  swipe.begin(readSwipeSpec(slots), 0.0);
-  return swipe.isPastFullSwipe(offset) ? JNI_TRUE : JNI_FALSE;
+  return swipeFrom(env, io, 0.0).isPastFullSwipe(offset) ? JNI_TRUE : JNI_FALSE;
 }
 
 JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeSwipeIsOut)(JNIEnv* env, jclass, jdoubleArray io, jdouble offset) {
-  jdouble slots[SWIPE_SLOTS];
-  env->GetDoubleArrayRegion(io, 0, SWIPE_SLOTS, slots);
-  sl::SwipeReveal swipe;
-  swipe.begin(readSwipeSpec(slots), 0.0);
-  return swipe.isSwipedOut(offset) ? JNI_TRUE : JNI_FALSE;
+  return swipeFrom(env, io, 0.0).isSwipedOut(offset) ? JNI_TRUE : JNI_FALSE;
 }
 
 /*
@@ -982,14 +981,11 @@ JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeSwipeIsOut)(JNIEnv* env, jcl
  */
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSwipeSettle)(
   JNIEnv* env, jclass, jdoubleArray io, jdouble offset, jdouble velocity, jdouble flingVelocity) {
-  jdouble slots[SWIPE_SLOTS];
-  env->GetDoubleArrayRegion(io, 0, SWIPE_SLOTS, slots);
-  sl::SwipeReveal swipe;
-  swipe.begin(readSwipeSpec(slots), 0.0);
-  sl::SwipeRest rest = swipe.settle(offset, velocity, flingVelocity);
+  sl::SwipeRest rest = swipeFrom(env, io, 0.0).settle(offset, velocity, flingVelocity);
   SwipeSideValue side = rest.side == sl::SwipeSide::Leading ? SWIPE_SIDE_LEADING
     : rest.side == sl::SwipeSide::Trailing                  ? SWIPE_SIDE_TRAILING
                                                             : SWIPE_SIDE_NONE;
+  jdouble slots[SWIPE_SLOTS];
   slots[SWIPE_OUT_SIDE] = static_cast<jdouble>(side);
   slots[SWIPE_OUT_FULL] = rest.full ? 1.0 : 0.0;
   slots[SWIPE_OUT_OFFSET] = rest.offset;
