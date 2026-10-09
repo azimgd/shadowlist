@@ -47,6 +47,7 @@ import {
   useElementSizeSpecs,
   useStableElement,
   useRowSelection,
+  usePrefetch,
   slTrace,
   slTraceEnabled,
   slTraceNow,
@@ -59,7 +60,6 @@ import {
   type RowIndexStore,
   type CommandSource,
 } from './virtualizer';
-import { PrefetchTracker, prefetchWindow } from './virtualizer/prefetch';
 import { selectedIndices } from './virtualizer/selection';
 import {
   SeparatorStore,
@@ -378,42 +378,14 @@ function ShadowListInner<ElementT>(
     onSelectionChange,
   });
 
-  /*
-   * Rows ahead of and behind the mounted ones, for the app to load early.
-   */
-  const prefetchTrackerRef = useRef<PrefetchTracker | null>(null);
-  const prefetchDataSourceRef = useRef(prefetchDataSource);
-  prefetchDataSourceRef.current = prefetchDataSource;
-  const hasPrefetch = prefetchDataSource !== undefined;
-  const mountedLow = mountedIndices[0] ?? -1;
-  const mountedHigh = mountedIndices[mountedIndices.length - 1] ?? -1;
-  useEffect(() => {
-    if (!hasPrefetch) {
-      prefetchTrackerRef.current = null;
-      return;
-    }
-    if (prefetchTrackerRef.current === null) {
-      prefetchTrackerRef.current = new PrefetchTracker();
-    }
-    const mounted =
-      mountedLow >= 0 ? { low: mountedLow, high: mountedHigh } : null;
-    const { prefetch, cancel } = prefetchTrackerRef.current.update(
-      elementsAllKeys,
-      keyToIndex,
-      mounted,
-      prefetchWindow(mounted, prefetchRows, elementsAllKeys.length)
-    );
-    const source = prefetchDataSourceRef.current;
-    if (cancel.length > 0) source?.cancelPrefetchingForItems?.(cancel);
-    if (prefetch.length > 0) source?.prefetchItems(prefetch);
-  }, [
-    hasPrefetch,
-    mountedLow,
-    mountedHigh,
-    elementsAllKeys,
+  usePrefetch({
+    keys: elementsAllKeys,
     keyToIndex,
+    mountedIndices,
+    prefetchDataSource,
     prefetchRows,
-  ]);
+  });
+  const mountedHigh = mountedIndices[mountedIndices.length - 1] ?? -1;
 
   /*
    * The content length along the scroll axis, for onScrollToIndexFailed's average row length.
