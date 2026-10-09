@@ -88,7 +88,8 @@ void Container::scrollToStart() {
 
 void Container::scrollToOffset(double offset) {
   std::size_t count = getElementsSize();
-  if (offset <= 0.0 || count == 0) {
+  // A NaN offset matches no row and would carry NaN into the row offset. Treat it as the top.
+  if (std::isnan(offset) || offset <= 0.0 || count == 0) {
     scrollToStart();
     return;
   }
@@ -188,9 +189,9 @@ ContainerStateUpdate Container::resolveStateUpdate(
   return update;
 }
 
-double Container::getFooterOffset(double footerSize) const {
+double Container::getFooterOffset(double footerExtent) const {
   double totalSize = horizontal ? revision.totalContainerWidth : revision.totalContainerHeight;
-  return totalSize - footerSize;
+  return totalSize - footerExtent;
 }
 
 const std::vector<double>& Container::getSnapOffsets() const {
@@ -316,7 +317,8 @@ void Container::dispatchObservers() {
         static_cast<std::ptrdiff_t>(ranges.empty() ? UNDEFINED_INDEX : ranges[0]),
         static_cast<std::ptrdiff_t>(ranges.empty() ? UNDEFINED_INDEX : ranges[1]), viewableRules.size());
       previousViewableRanges_ = ranges;
-      onViewableIndicesChangeCallback(previousViewableRanges_);
+      // Hand out the local copy. A callback that runs another frame rewrites the member under it.
+      onViewableIndicesChangeCallback(ranges);
     }
   }
 

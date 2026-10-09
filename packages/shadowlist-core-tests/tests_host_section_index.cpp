@@ -23,4 +23,9 @@ TEST(section_index_touch_picks_the_title_under_it_clamped) {
   CHECK_EQ(sectionIndexTitleAt(0.0, 400.0, 5, 1.0), std::size_t(0));
   CHECK_EQ(sectionIndexTitleAt(399.0, 400.0, 5, 1.0), std::size_t(4));
   CHECK_EQ(sectionIndexTitleAt(10.0, 400.0, 0, 1.0), std::size_t(0));
+  // A zero scale or a far touch stays inside the titles.
+  CHECK_EQ(sectionIndexTitleAt(300.0, 400.0, 5, 0.0), std::size_t(4));
+  CHECK_EQ(sectionIndexTitleAt(200.0, 400.0, 5, 0.0), std::size_t(0));
+  CHECK_EQ(sectionIndexTitleAt(1e30, 400.0, 5, 1.0), std::size_t(4));
+  CHECK_EQ(sectionIndexTitleAt(-1e30, 400.0, 5, 1.0), std::size_t(0));
 }

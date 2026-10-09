@@ -28,11 +28,14 @@ inline std::size_t sectionIndexTitleAt(double y, double areaHeight, std::size_t 
     return 0;
   }
   double position = (y - sectionIndexTitlesTop(areaHeight, count, scale)) / (SECTION_INDEX_TITLE_HEIGHT * scale);
-  if (position < 0.0) {
+  // A NaN or negative position takes the first title. Casting one out of range is undefined.
+  if (!(position >= 0.0)) {
     return 0;
   }
-  std::size_t index = static_cast<std::size_t>(position);
-  return index < count ? index : count - 1;
+  if (position >= static_cast<double>(count)) {
+    return count - 1;
+  }
+  return static_cast<std::size_t>(position);
 }
 
 }

@@ -1,5 +1,6 @@
 #include <shadowlist-core/host/LiveScroll.hpp>
 
+#include <iterator>
 #include <unordered_map>
 
 namespace azimgd::shadowlist {

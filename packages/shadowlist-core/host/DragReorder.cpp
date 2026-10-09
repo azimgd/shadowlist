@@ -9,11 +9,12 @@ double dragAutoScrollDelta(const DragAutoScrollConfig& config, double touch, dou
   if (config.edge <= 0.0) {
     return 0.0;
   }
+  // A finger past the viewport edge scrolls at maxSpeed, not faster.
   if (touch < config.edge) {
-    return -config.maxSpeed * (1.0 - touch / config.edge);
+    return -config.maxSpeed * std::min(1.0, 1.0 - touch / config.edge);
   }
   if (touch > windowSize - config.edge) {
-    return config.maxSpeed * (1.0 - (windowSize - touch) / config.edge);
+    return config.maxSpeed * std::min(1.0, 1.0 - (windowSize - touch) / config.edge);
   }
   return 0.0;
 }

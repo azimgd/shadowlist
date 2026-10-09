@@ -3,7 +3,9 @@
 #include <shadowlist-core/Container.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <iterator>
 #include <memory>
 #include <unordered_map>
 #include <utility>
@@ -171,7 +173,8 @@ public:
   }
 
   /*
-   * Forget hidden rows that are no longer mounted. stillHidden need not be sorted.
+   * Forget hidden rows that are no longer mounted. stillHidden holds hidden ids only, each
+   * once, and need not be sorted.
    */
   void forgetExcept(std::vector<std::uint64_t>& stillHidden) {
     if (rows_.size() <= stillHidden.size()) {

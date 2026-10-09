@@ -474,7 +474,7 @@ public:
   /*
    * Where the footer sits along the scroll axis, right after the content.
    */
-  double getFooterOffset(double footerSize) const;
+  double getFooterOffset(double footerExtent) const;
 
   /*
    * Sorted offsets where scrolling can come to rest with a row aligned by snapAlignment.

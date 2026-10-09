@@ -116,6 +116,9 @@ TEST(drag_auto_scroll_speeds_up_toward_the_edges) {
   CHECK_NEAR(dragAutoScrollDelta(config, 600.0, 600.0), 16.0, 1e-9);
   CHECK_NEAR(dragAutoScrollDelta(config, 555.0, 600.0), 8.0, 1e-9);
   CHECK_EQ(dragAutoScrollDelta(config, 90.0, 600.0), 0.0);
+  // A finger past the viewport edge does not scroll faster than maxSpeed.
+  CHECK_NEAR(dragAutoScrollDelta(config, -200.0, 600.0), -16.0, 1e-9);
+  CHECK_NEAR(dragAutoScrollDelta(config, 900.0, 600.0), 16.0, 1e-9);
 }
 
 TEST(drag_auto_scroll_stays_in_the_scroll_range) {

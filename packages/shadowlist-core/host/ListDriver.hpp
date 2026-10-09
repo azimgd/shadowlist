@@ -130,6 +130,14 @@ public:
 
   ListDriver();
 
+  /*
+   * The core's callbacks capture this driver. A copy or a move would leave them on the old one.
+   */
+  ListDriver(const ListDriver&) = delete;
+  ListDriver& operator=(const ListDriver&) = delete;
+  ListDriver(ListDriver&&) = delete;
+  ListDriver& operator=(ListDriver&&) = delete;
+
   void setMeasureItem(MeasureItem measureItem);
   void setSettings(const ListSettings& settings);
   const ListSettings& getSettings() const { return settings_; }
