@@ -54,6 +54,8 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
  * _sectionIndex is the section index view while the data source gives titles for it.
  * _selection holds the selected keys and _highlightedCell the row a finger rests on.
  * mountedCellForKey: is the mounted cell of a key, or nil. itemsOfRows: is the items among rows.
+ * _pendingAnchor is a saved position waiting for its key. contentOffsetAt: is the content offset
+ * of an offset along the axis. invalidateFrame runs the core on the next layout pass.
  */
 @interface ShadowListKitListView () <UIScrollViewDelegate> {
  @package
@@ -97,6 +99,8 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
   BOOL _allowsSelection;
   azimgd::shadowlist::ListSelection _selection;
   __weak ShadowListKitListCell *_highlightedCell;
+
+  ShadowListKitAnchorState *_pendingAnchor;
 }
 
 - (CGFloat)along:(CGPoint)point;
@@ -113,8 +117,8 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
 - (nullable ShadowListKitListCell *)mountedCellAtIndex:(std::size_t)index;
 - (nullable ShadowListKitListCell *)mountedCellForKey:(const std::string&)key;
 - (NSIndexSet *)itemsOfRows:(const std::vector<std::size_t>&)rows;
-- (void)scrollToRow:(std::size_t)row viewPosition:(CGFloat)viewPosition animated:(BOOL)animated;
-- (void)stopScrolling;
+- (CGPoint)contentOffsetAt:(double)offset;
+- (void)invalidateFrame;
 
 @end
 
@@ -176,6 +180,19 @@ std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
 - (void)userSelectedCell:(ShadowListKitListCell *)cell;
 - (void)clearSelection;
 - (void)unhighlight;
+
+@end
+
+/*
+ * The saved position and the scroll commands. scrollToRow:viewPosition:animated: scrolls to a
+ * row, which can be a section header. stopScrolling stops momentum and an animated command.
+ * restorePendingAnchor lands a waiting saved position once its key is there.
+ */
+@interface ShadowListKitListView (Commands)
+
+- (void)scrollToRow:(std::size_t)row viewPosition:(CGFloat)viewPosition animated:(BOOL)animated;
+- (void)stopScrolling;
+- (void)restorePendingAnchor;
 
 @end
 
