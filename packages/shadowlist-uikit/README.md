@@ -129,6 +129,19 @@ Masonry stays round robin. A shortest column layout would move rows between colu
 measured, which breaks keeping the visible rows still. Full width rows in a grid are not supported: the core places
 row `i` in column `i % numberOfColumns`, and its visible row search, reflow, anchoring and drag all rely on that.
 
+## Add it to an app
+
+There is no CocoaPods spec or Swift package yet. Build a static framework target the way the example's
+`project.yml` does:
+
+- Compile `Sources/ShadowListKit/*.mm` and `packages/shadowlist-core/*.cpp` and `host/*.cpp` into it.
+- Make the headers in `Sources/ShadowListKit` public and keep `Internal/` project only.
+- Add `packages` to `HEADER_SEARCH_PATHS`, because the core includes itself as `<shadowlist-core/...>`.
+- Use C++20 (`CLANG_CXX_LANGUAGE_STANDARD = c++20`) and ARC, and set `DEFINES_MODULE` for Swift.
+- Define `SHADOWLIST_DEBUG_LOG=0` in `GCC_PREPROCESSOR_DEFINITIONS`. Xcode does not define `NDEBUG` in Release, and the core
+  logs every pass without one of the two.
+- Link the app with `-ObjC -lc++`. iOS 16 or newer.
+
 ## Run it
 
 The example app lives in `templates/shadowlist-uikit-example`. From the repo root:
@@ -168,9 +181,17 @@ gets it injected without any project change. On the simulator that is `DYLD_INSE
 and on a device it is an `OTHER_LDFLAGS` override on the xcodebuild command line.
 
 ```sh
-Bench/bench.sh device <devicectl-udid> my-label      # ENGINES, SCREENS, COUNTS, RUNS, SPEED
+Bench/bench.sh device <devicectl-udid> my-label      # ENGINES, SCREENS, COUNTS, RUNS, SPEED, AXES
 Bench/summarize.py results/my-label/runs.jsonl
 ```
+
+`-SLBenchAxes y,x,xy` (`AXES` in `bench.sh`) runs one leg pair per axis and logs one line each with an
+`axis` key. y drives the vertical scroll view with the most content, x the horizontal one, xy both at
+once. An axis without a scroll view logs a line with `skipped`. A view that draws its content after
+its rows show, like tiles, can adopt `SLKBenchProbe` and return the share of the viewport not drawn
+yet from `slk_benchBlankFraction`. The bench asks the driven views and their superviews, and the
+result then adds `contentBlankAvg`, `contentBlankMax` and `contentBlankFrames`. `blankAvg` stays the
+share no row covers.
 
 Correctness and update cost checks run from the example itself:
 

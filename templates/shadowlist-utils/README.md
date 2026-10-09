@@ -26,6 +26,24 @@ If you use the native kits, set up each peer as its own docs say: add the Reanim
 
 The React Query examples below use `@tanstack/react-query`. It is not a dependency of this package. The helpers only rely on the shape of its data.
 
+### From a shadowlist checkout
+
+Until it is on npm, an app outside this repo depends on the checkout by path. The package then
+resolves through `node_modules` like any other, with no path into `templates/` in the app's code:
+
+```json
+"dependencies": {
+  "shadowlist-utils": "file:../shadowlist/templates/shadowlist-utils"
+}
+```
+
+The `react-native` export condition points at the TypeScript source, so Metro bundles the
+source and no `lib/` build is needed. TypeScript does the same with `"customConditions":
+["react-native"]`. The package has no `prepare` script for the same reason: npm installs the link
+without building it, and `build`, which `prepack` runs, makes `lib/` for publishing. Metro has to watch the checkout, which `file:` links outside the app: add
+`../shadowlist/templates/shadowlist-utils` to `watchFolders` and block its own `node_modules`, so
+React and React Native come from the app.
+
 ## Quick start
 
 This example shows an infinite React Query feed rendered in `ShadowList`.

@@ -1,5 +1,7 @@
 # Extracting the native list engine into shadowlist-core/host
 
+Status: done on 2026-10-07. `SLKEngine` is now `ListDriver` in `packages/shadowlist-core/host` and drives both kits. This note keeps the original analysis. Its file and line references point at code that no longer exists.
+
 Abbreviations used for file references:
 
 - iOS = packages/shadowlist-uikit/Sources/ShadowListKit/SLKListView.mm

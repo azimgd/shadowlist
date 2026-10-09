@@ -2,7 +2,24 @@
 
 React Native Fabric list components on the shared C++ core: `ShadowList`, `SectionList`, `TreeList` and `DraggableList`.
 
-Prop and command names follow the shared words in [docs/code-style.md](../../docs/code-style.md#public-api-words). The same concept has the same name on Fabric, UIKit and Android.
+Prop and command names follow the shared words in [docs/code-style.md](https://github.com/azimgd/shadowlist/blob/main/docs/code-style.md#public-api-words). The same concept has the same name on Fabric, UIKit and Android.
+
+## Install
+
+```sh
+yarn add shadowlist
+cd ios && pod install
+```
+
+Requirements:
+
+- React Native 0.83 or newer with the New Architecture (Fabric). The legacy architecture is not supported.
+- iOS at React Native's minimum version, Android API 24 or newer, and macOS 11 or newer through `react-native-macos`.
+- Nothing to link by hand. Autolinking picks up the pod on iOS and macOS and the CMake build on Android. The C++ core ships inside the package.
+
+On macOS, pull to refresh, `snapToItem` and keyboard avoidance are not available.
+
+## Usage
 
 ```tsx
 const listRef = useRef<ShadowListCommands>(null);
@@ -45,6 +62,36 @@ listRef.current?.scrollToItem(42, 0.5);
 | `scrollEnabled`, `showsVerticalScrollIndicator`, `showsHorizontalScrollIndicator`, `bounces`, `decelerationRate`, `scrollsToTop`, `keyboardDismissMode`, `keyboardShouldPersistTaps`, `nestedScrollEnabled` | passed to the native scroll view. `keyboardShouldPersistTaps` is handled in JS like ScrollView. Unset, taps always reach the rows.                                                                                                              |
 
 Not supported: `getItemLayout` (use `getElementSizeSpec`), `contentInsetAdjustmentBehavior` and `automaticallyAdjustContentInsets` (the list keeps its insets at zero, wrap it in a safe area view), `zoomScale`, `inverted` flipping `contentContainerStyle` padding, `removeClippedSubviews`, `windowSize`, `maxToRenderPerBatch` and `initialNumToRender` (see `overscanRows` and `initialElementsSize`).
+
+## Props beyond FlatList
+
+| Prop                                                | Default | What it does                                                                                                                                                                                   |
+| --------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `keyExtractor`                                      | `id`    | Rows are matched across updates by key. The default reads each element's `id`, and the element type needs a string `id` either way.                                                            |
+| `getElementSizeSpec(element, index)`                |         | Returns an `ElementSizeSpec`: a row's text with its font and insets, or a `fixedHeight`. Native then sizes rows near the screen before React renders them. Use it in place of `getItemLayout`. |
+| `measureLookaheadRows`                              | 48      | How many rows past the mounted ones get their size spec sent to native.                                                                                                                        |
+| `inverted`                                          | false   | Chat style list that opens at the end. Appended rows keep the visible content still.                                                                                                           |
+| `followAppends`                                     | false   | Scroll along with appended rows while the list rests at its end.                                                                                                                               |
+| `horizontal`                                        | false   | Scroll along the x axis.                                                                                                                                                                       |
+| `numberOfColumns`                                   | 1       | Grid columns. Rows go round robin, row `i` in column `i % numberOfColumns`.                                                                                                                    |
+| `stickyIndices`, `renderStickyHeaderOverlay(index)` |         | Rows that pin to the top while their section scrolls, and an optional overlay drawn for the pinned row.                                                                                        |
+| `stickyHeader`, `stickyFooter`                      | false   | Pin `ListHeaderComponent` or `ListFooterComponent` to its edge.                                                                                                                                |
+| `autoHideHeader`, `autoHideFooter`                  | false   | A pinned header or footer slides out while the user scrolls further into the list and slides back when they scroll the other way, like a hiding toolbar.                                       |
+| `reorderEnabled`, `onReorder({ from, to, data })`   | false   | Touch and hold a row to drag it. Save `data` from `onReorder` to your state or the row snaps back. `DraggableList` turns it on by default.                                                     |
+| `snapToItem`, `snapAlignment`                       | false   | Rest on a row edge: `'start'`, `'center'` or `'end'`.                                                                                                                                          |
+| `overscan`                                          | 1       | How far past the viewport native measures and places rows, in viewport sizes.                                                                                                                  |
+| `overscanRows`, `overscanRowsLeading`               | 4, 10   | Rows React keeps mounted on each side of the screen, and ahead of a fling.                                                                                                                     |
+| `initialElementsSize`                               | 20      | Rows mounted before native first reports what is on screen.                                                                                                                                    |
+| `onStartReached`, `onStartReachedThreshold`         | 1       | Like `onEndReached` at the start. Thresholds are in viewport sizes.                                                                                                                            |
+| `persistentKeys`                                    |         | Rows that stay mounted wherever the list scrolls, in their normal place. They are not pinned.                                                                                                  |
+| `nonAnchorKeys`                                     |         | Rows never used to hold the visible content in place, like date pills or unread dividers whose keys come and go.                                                                               |
+| `trackElementSizes`                                 | false   | Keeps every mounted row's size for `getElementSize(key)` and `getElementSizes()` on the ref.                                                                                                   |
+| `elementStyle`                                      |         | Style for the view around each row.                                                                                                                                                            |
+| `refreshColor`                                      |         | Tint of the pull to refresh spinner.                                                                                                                                                           |
+
+The ref also has `setStartReachedEnabled(enabled)` and `setEndReachedEnabled(enabled)`, which pause the edge callbacks while a page loads.
+
+`KeyboardView` dismisses the keyboard on a tap in an empty area. `useKeyboardAnimation()` returns `{ height, progress }` as `Animated.Value`s that follow the keyboard frame by frame.
 
 ### Scroll commands
 

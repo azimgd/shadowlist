@@ -117,6 +117,19 @@ The view's own behavior works like a platform list:
 - `animatesChanges`: inserted rows fade in, removed rows fade out where they were, and rows that
   stay slide to their new place. The core anchors the content as without it.
 
+## Add it to an app
+
+There is no Maven artifact yet. Include the Gradle module from a checkout, the way the example's
+`settings.gradle.kts` does:
+
+```kotlin
+include(":ShadowListKit")
+project(":ShadowListKit").projectDir = file("<repo>/packages/shadowlist-android/ShadowListKit")
+```
+
+The module builds the core from `packages/shadowlist-core` with CMake and the NDK, which needs the
+repo layout around it. It needs Android API 24 or newer and Java 17.
+
 ## Run it
 
 The example app lives in `templates/shadowlist-android-example`. From the repo root:
@@ -162,9 +175,14 @@ deadline from FrameMetrics, UI thread, RenderThread and process CPU, memory, and
 the viewport no row covers.
 
 ```sh
-Bench/bench.sh my-label          # ENGINES, SCREENS, COUNTS, RUNS, SPEED (dp/s), IMAGES
+Bench/bench.sh my-label          # ENGINES, SCREENS, COUNTS, RUNS, SPEED (dp/s), IMAGES, AXES
 Bench/summarize.py results/my-label/runs.jsonl
 ```
+
+`SLBenchAxes` (`AXES` in `bench.sh`) takes `y`, `x` or `xy`, comma separated, the same as iOS: one
+line per axis with an `axis` key, and a `skipped` line for an axis without a scroll view. A view
+that draws its content after its rows show implements `SLKBenchProbe.benchBlankFraction()`, and the
+result adds `contentBlankAvg`, `contentBlankMax` and `contentBlankFrames`.
 
 The `rn` engine runs the React Native example (`shadowlist.example`) with the same SLKBench.
 A Gradle init script adds the bench to its release build without any change to that project:
