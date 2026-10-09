@@ -247,6 +247,54 @@ public:
 
 private:
   /*
+   * Copy the frame's settings into the container. Lists are compared first and copied only on a change.
+   */
+  static void applyFrameInput(Container& container, const FrameInput& input);
+
+  /*
+   * Let a gesture cancel or move the running correction. Returns true when the user took over.
+   */
+  static bool applyGestureState(
+    Container& container,
+    const FrameInput& input,
+    double inputOffset,
+    bool coreOffsetWrite);
+
+  /*
+   * Pin or release the inverted list's bottom. Returns true when it rests at the bottom.
+   */
+  static bool applyInvertedBottomPin(
+    Container& container,
+    const FrameInput& input,
+    double inputOffset,
+    bool gestureTakeover);
+
+  /*
+   * Match the rows to the frame's keys when they changed. Moves the anchor to a fallback row
+   * when its own row is gone.
+   */
+  static void reconcileFrameKeys(
+    Container& container,
+    const FrameInput& input,
+    const std::vector<std::string>& inputKeys,
+    double inputOffset,
+    bool restingAtBottom,
+    bool hadElementsBefore,
+    std::string& anchorKey,
+    double& anchorDelta);
+
+  /*
+   * Apply predictions and the window and header sizes, measure, then fix up the scroll offset.
+   */
+  static void measureFrame(
+    Container& container,
+    const FrameInput& input,
+    double previousHeaderSize,
+    bool hadElementsBefore,
+    const std::string& anchorKey,
+    double anchorDelta);
+
+  /*
    * Move waiting predicted sizes onto rows that now exist. Runs each frame between reconcile and measure.
    */
   static void consumePredictions(Container& container);

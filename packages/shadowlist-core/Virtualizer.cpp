@@ -68,7 +68,6 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
 
   // The keys may be borrowed from the caller. They are only valid during this call.
   const std::vector<std::string>& inputKeys = input.getKeyList();
-  const std::vector<std::string>& inputNonAnchorableKeys = input.getNonAnchorableKeyList();
 
   SL_LOG("update: keys=%zu prevElements=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d total=%.1f dirtyFrom=%zd enabled=%d corrected=%d coreOff=%.1f",
     inputKeys.size(), container.revision.elements.size(),
@@ -82,6 +81,47 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
 
   // Remember the old header size so a change can be settled after the rows reflow.
   double previousHeaderSize = container.headerSize;
+  applyFrameInput(container, input);
+
+  double inputOffset = container.horizontal ? input.containerOffsetX : input.containerOffsetY;
+
+  /*
+   * An enabled offset is our own write coming back before the host applied it, not a host
+   * report. It can't confirm the correction or count as gesture travel.
+   */
+  bool coreOffsetWrite = input.containerOffsetEnabled;
+  bool gestureTakeover = applyGestureState(container, input, inputOffset, coreOffsetWrite);
+  bool restingAtBottom = applyInvertedBottomPin(container, input, inputOffset, gestureTakeover);
+  // Our own write is not where the host is. Don't record it.
+  if (!coreOffsetWrite) {
+    container.lastReportedOffset = inputOffset;
+  }
+
+  // Capture the anchor row so the same content stays in view through the reconcile.
+  bool hadElementsBefore = !container.revision.elements.empty();
+  captureAnchor(container, inputOffset);
+
+  std::string anchorKey = container.anchor.key;
+  double anchorDelta = container.anchor.subOffset;
+  reconcileFrameKeys(container, input, inputKeys, inputOffset, restingAtBottom, hadElementsBefore, anchorKey, anchorDelta);
+
+  measureFrame(container, input, previousHeaderSize, hadElementsBefore, anchorKey, anchorDelta);
+
+  // The commit token is just the running operation's id. No operation means no token.
+  SL_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d token=%llu",
+    container.revision.containerOffsetX, container.revision.containerOffsetY,
+    container.containerOffsetCorrected ? 1 : 0, container.invertedInitialized ? 1 : 0,
+    static_cast<unsigned long long>(container.operation ? container.operation->id : 0));
+
+  if (container.gestureActive && container.operation) {
+    container.gestureOperationId = container.operation->id;
+  }
+
+  container.endRevision();
+}
+
+void Virtualizer::applyFrameInput(Container& container, const FrameInput& input) {
+  const std::vector<std::string>& inputNonAnchorableKeys = input.getNonAnchorableKeyList();
 
   // Flipping the list order moves the bottom. Start following the bottom again.
   if (container.inverted != input.inverted) {
@@ -123,15 +163,13 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
       container.nonAnchorableKeys.insert(ignoredKey);
     }
   }
+}
 
-  double inputOffset = container.horizontal ? input.containerOffsetX : input.containerOffsetY;
-
-  /*
-   * An enabled offset is our own write coming back before the host applied it, not a host
-   * report. It can't confirm the correction or count as gesture travel.
-   */
-  bool coreOffsetWrite = input.containerOffsetEnabled;
-
+bool Virtualizer::applyGestureState(
+  Container& container,
+  const FrameInput& input,
+  double inputOffset,
+  bool coreOffsetWrite) {
   // A running correction survives while the offset has not moved. The user is not scrolling.
   bool userMovedOffset = !coreOffsetWrite &&
     std::fabs(inputOffset - container.lastReportedOffset) >= OFFSET_MOVED_THRESHOLD;
@@ -194,7 +232,14 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
     container.invertedOpeningPin = false;
   }
   container.gestureActive = gestureTakeover;
+  return gestureTakeover;
+}
 
+bool Virtualizer::applyInvertedBottomPin(
+  Container& container,
+  const FrameInput& input,
+  double inputOffset,
+  bool gestureTakeover) {
   // Whether an inverted list rests at its bottom. Rows appended there get followed.
   bool restingAtBottom = false;
 
@@ -233,18 +278,18 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   }
   // resolveScroll reads this to hold the bottom while the list opens.
   container.restingAtInvertedBottom = restingAtBottom;
-  // Our own write is not where the host is. Don't record it.
-  if (!coreOffsetWrite) {
-    container.lastReportedOffset = inputOffset;
-  }
+  return restingAtBottom;
+}
 
-  // Capture the anchor row so the same content stays in view through the reconcile.
-  bool hadElementsBefore = !container.revision.elements.empty();
-  captureAnchor(container, inputOffset);
-
-  std::string anchorKey = container.anchor.key;
-  double anchorDelta = container.anchor.subOffset;
-
+void Virtualizer::reconcileFrameKeys(
+  Container& container,
+  const FrameInput& input,
+  const std::vector<std::string>& inputKeys,
+  double inputOffset,
+  bool restingAtBottom,
+  bool hadElementsBefore,
+  std::string& anchorKey,
+  double& anchorDelta) {
   /*
    * Debug only. Log the frame where the keys changed, which is when JS and native indices
    * drift apart. oldFront@newIdx is how many rows were prepended above the old top row.
@@ -336,7 +381,15 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
       }
     }
   }
+}
 
+void Virtualizer::measureFrame(
+  Container& container,
+  const FrameInput& input,
+  double previousHeaderSize,
+  bool hadElementsBefore,
+  const std::string& anchorKey,
+  double anchorDelta) {
   /*
    * Apply sizes the host predicted since the last frame. This runs after the reconcile to
    * give new rows theirs, and before measure for the window to use the predicted sizes.
@@ -402,18 +455,6 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
       debugKeyAt(container, container.getVisibleIndices().second),
       container.invertedInitialized ? 1 : 0);
   }
-
-  // The commit token is just the running operation's id. No operation means no token.
-  SL_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d token=%llu",
-    container.revision.containerOffsetX, container.revision.containerOffsetY,
-    container.containerOffsetCorrected ? 1 : 0, container.invertedInitialized ? 1 : 0,
-    static_cast<unsigned long long>(container.operation ? container.operation->id : 0));
-
-  if (container.gestureActive && container.operation) {
-    container.gestureOperationId = container.operation->id;
-  }
-
-  container.endRevision();
 }
 
 void Virtualizer::measure(Container& container, bool windowFromOffset) {
