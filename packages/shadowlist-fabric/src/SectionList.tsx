@@ -11,8 +11,7 @@ import ShadowList from './ShadowList';
 import {
   forwardedCommands,
   renderComponent,
-  slTrace,
-  slTraceEnabled,
+  useInputTrace,
   useStableElement,
 } from './virtualizer';
 import {
@@ -40,6 +39,18 @@ import type {
  * ShadowList renders one flat list. Each section becomes a header row, its elements,
  * then a footer row. The header positions go into stickyIndices so native can pin them.
  */
+
+/*
+ * The SectionList inputs that give the row renderer a new identity, for the device trace.
+ */
+const SECTION_TRACE_NAMES = [
+  'renderElement',
+  'renderSectionHeader',
+  'renderSectionFooter',
+  'itemSeparator',
+  'sectionSeparator',
+  'data',
+];
 
 function sameIndices(
   previous: number[] | undefined,
@@ -407,37 +418,14 @@ function SectionListInner<ElementT, SectionT = object>(
     [sectionIndexTitles, scrollToLocation]
   );
 
-  /*
-   * Device trace only. Logs which input gave the row renderer a new identity. A renderer that
-   * changes every commit rebuilds every mounted row. Check this first when a list
-   * re-renders more rows than changed.
-   */
-  const traceDepsRef = useRef<ReadonlyArray<unknown>>([]);
-  if (slTraceEnabled()) {
-    const deps = [
-      renderElement,
-      renderSectionHeader,
-      renderSectionFooter,
-      elementSeparator,
-      sectionSeparator,
-      data,
-    ];
-    const names = [
-      'renderElement',
-      'renderSectionHeader',
-      'renderSectionFooter',
-      'itemSeparator',
-      'sectionSeparator',
-      'data',
-    ];
-    const changed = names.filter(
-      (_name, index) => traceDepsRef.current[index] !== deps[index]
-    );
-    traceDepsRef.current = deps;
-    if (changed.length > 0) {
-      slTrace(`section-deps changed=${changed.join(',')}`);
-    }
-  }
+  useInputTrace('section-deps', SECTION_TRACE_NAMES, [
+    renderElement,
+    renderSectionHeader,
+    renderSectionFooter,
+    elementSeparator,
+    sectionSeparator,
+    data,
+  ]);
 
   const list = (
     <ShadowList

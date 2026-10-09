@@ -36,6 +36,11 @@ export { usePrefetch } from './usePrefetch';
 export { useAnchorState } from './useAnchorState';
 export { useKeyboardDismissResponder } from './useKeyboardDismissResponder';
 export {
+  useRenderTraceStart,
+  useRenderTrace,
+  useInputTrace,
+} from './useRenderTrace';
+export {
   useImperativeCommands,
   forwardedCommands,
   type CommandSource,

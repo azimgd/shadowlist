@@ -2,7 +2,6 @@ import {
   useRef,
   useMemo,
   useCallback,
-  useLayoutEffect,
   useState,
   forwardRef,
   type ComponentRef,
@@ -42,12 +41,11 @@ import {
   usePrefetch,
   useAnchorState,
   useKeyboardDismissResponder,
+  useRenderTraceStart,
+  useRenderTrace,
   slTrace,
   slTraceEnabled,
-  slTraceNow,
-  takeRowRenderCount,
   nativeTagOf,
-  describeDataChange,
   defaultKeyExtractor,
   renderComponent,
   createRowIndexStore,
@@ -184,11 +182,7 @@ function ShadowListInner<ElementT>(
     null
   );
 
-  const traceRenderStartRef = useRef(0);
-  const traceDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
-  if (slTraceEnabled()) {
-    traceRenderStartRef.current = slTraceNow();
-  }
+  const traceRenderStartRef = useRenderTraceStart();
 
   /*
    * initialScrollIndex only counts on mount, like FlatList. containerOffsetIndex, the older
@@ -595,21 +589,13 @@ function ShadowListInner<ElementT>(
         ? DECELERATION_RATES[decelerationRate]
         : 0;
 
-  useLayoutEffect(() => {
-    if (!slTraceEnabled()) return;
-    const previousData = traceDataRef.current;
-    traceDataRef.current = data;
-    const first = renderIndices[0] ?? -1;
-    const last = renderIndices[renderIndices.length - 1] ?? -1;
-    const elapsed = slTraceNow() - traceRenderStartRef.current;
-    slTrace(
-      `render id=${nativeTagOf(shadowlistViewRef.current)} n=${data.length}` +
-        ` mounted=${first}..${last} rows=${takeRowRenderCount()}` +
-        ` jsms=${elapsed.toFixed(1)} refreshing=${refreshing ? 1 : 0}` +
-        (previousData !== data
-          ? ` data=${describeDataChange(previousData, data, keyExtractor)}`
-          : '')
-    );
+  useRenderTrace({
+    startRef: traceRenderStartRef,
+    viewRef: shadowlistViewRef,
+    data,
+    renderIndices,
+    refreshing,
+    keyExtractor,
   });
 
   const viewableEventEnabled = viewabilityPairs.length > 0 || stickyEnabled;
