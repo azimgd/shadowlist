@@ -46,6 +46,7 @@ import {
   useImperativeCommands,
   useElementSizeSpecs,
   useStableElement,
+  useRowSelection,
   slTrace,
   slTraceEnabled,
   slTraceNow,
@@ -56,16 +57,10 @@ import {
   renderComponent,
   createRowIndexStore,
   type RowIndexStore,
-  type RowSelection,
   type CommandSource,
 } from './virtualizer';
 import { PrefetchTracker, prefetchWindow } from './virtualizer/prefetch';
-import {
-  deselectKey,
-  retainKeys,
-  selectKey,
-  selectedIndices,
-} from './virtualizer/selection';
+import { selectedIndices } from './virtualizer/selection';
 import {
   SeparatorStore,
   separatorComponentOf,
@@ -376,52 +371,12 @@ function ShadowListInner<ElementT>(
     elementSizesRef.current?.delete(key);
   }, []);
 
-  /*
-   * Selection by key, controlled through selectedKeys or kept here. Rows read whether they are
-   * selected and select or deselect themselves.
-   */
-  const [ownSelectedKeys, setOwnSelectedKeys] =
-    useState<ReadonlyArray<string>>(EMPTY_STRINGS);
-  const currentSelectedKeys = selectedKeys ?? ownSelectedKeys;
-  const selectedKeySet = useMemo(
-    () => new Set(currentSelectedKeys),
-    [currentSelectedKeys]
-  );
-  const selectionStateRef = useRef({
-    keys: currentSelectedKeys,
-    controlled: selectedKeys !== undefined,
-    multiple: allowsMultipleSelection,
+  const { selectedKeySet, selection, selectionStateRef } = useRowSelection({
+    keyToIndex,
+    selectedKeys,
+    allowsMultipleSelection,
     onSelectionChange,
   });
-  selectionStateRef.current = {
-    keys: currentSelectedKeys,
-    controlled: selectedKeys !== undefined,
-    multiple: allowsMultipleSelection,
-    onSelectionChange,
-  };
-  const applySelection = useCallback((next: ReadonlyArray<string>) => {
-    const state = selectionStateRef.current;
-    if (next === state.keys) return;
-    state.keys = next;
-    if (!state.controlled) setOwnSelectedKeys(next);
-    state.onSelectionChange?.([...next]);
-  }, []);
-  const selection = useMemo<RowSelection>(
-    () => ({
-      select: (key: string) => {
-        const state = selectionStateRef.current;
-        applySelection(selectKey(state.keys, key, state.multiple));
-      },
-      deselect: (key: string) => {
-        applySelection(deselectKey(selectionStateRef.current.keys, key));
-      },
-    }),
-    [applySelection]
-  );
-  // A removed row leaves the selection.
-  useEffect(() => {
-    applySelection(retainKeys(selectionStateRef.current.keys, keyToIndex));
-  }, [keyToIndex, applySelection]);
 
   /*
    * Rows ahead of and behind the mounted ones, for the app to load early.
