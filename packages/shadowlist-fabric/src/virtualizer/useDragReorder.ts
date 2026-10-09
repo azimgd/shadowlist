@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnDragStart, OnDragEnd } from 'shadowlist';
+import type { OnDragStart, OnDragEnd } from '../ShadowListViewNativeComponent';
 import { arrayMove } from './helpers';
 
 interface UseDragReorderOptions<ElementT> {

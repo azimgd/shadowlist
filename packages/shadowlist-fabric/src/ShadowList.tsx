@@ -20,12 +20,13 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { ShadowListView, ShadowListTemplateView, Commands } from 'shadowlist';
-import type {
-  OnAnchorState,
-  OnContentSizeChange,
-  OnScroll,
+import ShadowListView, {
+  Commands,
+  type OnAnchorState,
+  type OnContentSizeChange,
+  type OnScroll,
 } from './ShadowListViewNativeComponent';
+import ShadowListTemplateView from './ShadowListTemplateViewNativeComponent';
 import type {
   AnchorState,
   ShadowListProps,

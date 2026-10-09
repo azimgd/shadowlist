@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnViewableIndicesChange } from 'shadowlist';
+import type { OnViewableIndicesChange } from '../ShadowListViewNativeComponent';
 import type { ViewabilityConfigCallbackPair, ViewToken } from '../types';
 import type { MountedRange } from './mountedRange';
 import {

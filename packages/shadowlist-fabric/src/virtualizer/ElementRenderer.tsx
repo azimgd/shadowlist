@@ -15,8 +15,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { ShadowListElementView } from 'shadowlist';
-import {
+import ShadowListElementView, {
   Commands as ElementCommands,
   type NativeMenuAction,
   type NativeSwipeAction,

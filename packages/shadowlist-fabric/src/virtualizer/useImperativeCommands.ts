@@ -1,5 +1,5 @@
 import { useImperativeHandle, type ComponentRef, type Ref } from 'react';
-import { ShadowListView, Commands } from 'shadowlist';
+import ShadowListView, { Commands } from '../ShadowListViewNativeComponent';
 import type {
   AnchorState,
   ScrollToIndexFailedInfo,

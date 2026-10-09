@@ -175,8 +175,8 @@ export interface ShadowListProps<ElementT extends { id: string }> {
   data: ReadonlyArray<ElementT>;
   renderElement: (info: RenderElementInfo<ElementT>) => ReactElement;
   keyExtractor?: (element: ElementT, index: number) => string;
-  style?: ViewStyle;
-  elementStyle?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
+  elementStyle?: StyleProp<ViewStyle>;
   accessible?: boolean;
   accessibilityLabel?: string;
   accessibilityRole?: AccessibilityRole;

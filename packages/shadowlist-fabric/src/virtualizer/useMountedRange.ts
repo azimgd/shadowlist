@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnVisibleIndicesChange } from 'shadowlist';
+import type { OnVisibleIndicesChange } from '../ShadowListViewNativeComponent';
 import { slTrace, slTraceEnabled } from './helpers';
 import {
   grownMountedRange,
