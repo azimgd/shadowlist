@@ -348,13 +348,14 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
 
   internal val changes = ShadowListKitChangeAnimator(this)
-  private val gesture = ShadowListKitScrollGesture(this)
+  internal val gesture = ShadowListKitScrollGesture(this)
   private val drag = ShadowListKitDragController(this)
   internal val swipe = ShadowListKitSwipeController(this)
   internal val refresh = ShadowListKitRefreshIndicator(this)
   private val sectionIndex = ShadowListKitSectionIndex(this)
   internal val selection = ShadowListKitSelection(this)
   private val stickyPinning = ShadowListKitStickyPinning(this)
+  private val accessibility = ShadowListKitAccessibility(this)
 
   private val data = ShadowListKitListData(this)
 
@@ -1607,89 +1608,20 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   // region Accessibility
 
-  override fun getAccessibilityClassName(): CharSequence =
-    if (numberOfColumns > 1) "android.widget.GridView" else "android.widget.ListView"
+  override fun getAccessibilityClassName(): CharSequence = accessibility.className
 
-  /*
-   * The list tells accessibility services how many rows it holds, not only the mounted ones,
-   * and offers page scrolls and scrolling to any row. TalkBack scrolls forward when focus
-   * leaves the last mounted row.
-   */
   override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
     super.onInitializeAccessibilityNodeInfo(info)
-    info.isScrollable = maxOffset > 0
-    if (offset > 0) {
-      info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_BACKWARD)
-      info.addAction(if (horizontal) AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_LEFT
-        else AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP)
-    }
-    if (offset < maxOffset) {
-      info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_FORWARD)
-      info.addAction(if (horizontal) AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_RIGHT
-        else AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN)
-    }
-    info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_TO_POSITION)
-    val lines = (itemCount + numberOfColumns - 1) / numberOfColumns
-    val mode = if (allowsMultipleSelection) AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_MULTIPLE
-      else if (allowsSelection) AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_SINGLE
-      else AccessibilityNodeInfo.CollectionInfo.SELECTION_MODE_NONE
-    info.collectionInfo = if (horizontal) {
-      AccessibilityNodeInfo.CollectionInfo.obtain(numberOfColumns, lines, false, mode)
-    } else {
-      AccessibilityNodeInfo.CollectionInfo.obtain(lines, numberOfColumns, false, mode)
-    }
+    accessibility.initializeNodeInfo(info)
   }
 
   override fun onInitializeAccessibilityEvent(event: AccessibilityEvent) {
     super.onInitializeAccessibilityEvent(event)
-    event.isScrollable = maxOffset > 0
-    event.itemCount = itemCount
-    visibleRange?.let {
-      event.fromIndex = it.first
-      event.toIndex = it.last
-    }
-    if (horizontal) {
-      event.scrollX = offset
-      event.maxScrollX = maxOffset
-    } else {
-      event.scrollY = offset
-      event.maxScrollY = maxOffset
-    }
+    accessibility.initializeEvent(event)
   }
 
-  override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
-    val forward = if (horizontal) android.R.id.accessibilityActionScrollRight else android.R.id.accessibilityActionScrollDown
-    val backward = if (horizontal) android.R.id.accessibilityActionScrollLeft else android.R.id.accessibilityActionScrollUp
-    return when (action) {
-      AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, forward -> scrollByPage(1)
-      AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, backward -> scrollByPage(-1)
-      android.R.id.accessibilityActionScrollToPosition -> scrollToPosition(arguments)
-      else -> super.performAccessibilityAction(action, arguments)
-    }
-  }
-
-  /*
-   * One viewport toward the end, or toward the start for a negative direction.
-   */
-  private fun scrollByPage(direction: Int): Boolean {
-    val target = ShadowListKitCore.pageScrollTarget(offset.toDouble(), windowAlong.toDouble(), maxOffset.toDouble(), direction).roundToInt()
-    if (target == offset) return false
-    gesture.stop()
-    writeOffset(target, byUser = true)
-    layoutPass()
-    sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SCROLLED)
-    return true
-  }
-
-  private fun scrollToPosition(arguments: Bundle?): Boolean {
-    val row = arguments?.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_ROW_INT, -1) ?: -1
-    val column = arguments?.getInt(AccessibilityNodeInfo.ACTION_ARGUMENT_COLUMN_INT, 0) ?: 0
-    val index = if (horizontal) column * numberOfColumns + row else row * numberOfColumns + column
-    if (index !in 0 until itemCount) return false
-    scrollToItem(index)
-    sendAccessibilityEvent(AccessibilityEvent.TYPE_VIEW_SCROLLED)
-    return true
-  }
+  override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean =
+    accessibility.performAction(action, arguments) ?: super.performAccessibilityAction(action, arguments)
 
   // endregion
 
