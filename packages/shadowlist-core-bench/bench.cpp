@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <functional>
@@ -638,7 +639,7 @@ void benchScrollToIndexCentred(const std::vector<std::string>& keys, std::size_t
   Container container;
   Virtualizer::update(container, makeInput(keys, 0.0));
   // Only the first screen is laid out. Every row past it is still an estimate.
-  feedWindowMeasurements(container, 0, MOUNTED_ROWS, [](std::size_t) {
+  feedWindowMeasurements(container, 0, std::min(MOUNTED_ROWS, rows - 1), [](std::size_t) {
     return Size{WINDOW_WIDTH, ROW_HEIGHT};
   });
 
