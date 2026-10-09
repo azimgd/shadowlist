@@ -8805,7 +8805,7 @@ __metadata:
     scheduler: "npm:^0.27.0"
   peerDependencies:
     react: ^19.2.3
-  checksum: 10c0/d9bbebb0e188f1d04240311d17202ac63c4d25cf59214f3d28db5f43ce62ea33473bd1b0902c5dbf8d07327fa57d09be7b002c23558164e8cfc235d23d1c07b4
+  checksum: 10c0/842b82239dbddbc536083a6260c3e1b0507c02a3400bd05879fc19160468fd0f8ab79fec5dceffa6113b131835cc7621212f8415b46ea5156ab66bbfd7e24297
   languageName: node
   linkType: hard
 
