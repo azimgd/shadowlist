@@ -4,6 +4,11 @@
 
 using namespace azimgd::shadowlist;
 
+/*
+ * Referenced from ShadowListKitListView.mm to keep this file linked without -ObjC.
+ */
+extern "C" const char ShadowListKitListViewCommandsLink = 0;
+
 // The class interface in ShadowListKitListView.h declares the public members implemented here.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wobjc-protocol-method-implementation"

@@ -6,6 +6,11 @@
 
 using namespace azimgd::shadowlist;
 
+/*
+ * Referenced from ShadowListKitListView.mm to keep this file linked without -ObjC.
+ */
+extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
+
 #pragma mark - Row accessibility element
 
 /*

@@ -6,6 +6,11 @@
 using namespace azimgd::shadowlist;
 
 /*
+ * Referenced from ShadowListKitListView.mm to keep this file linked without -ObjC.
+ */
+extern "C" const char ShadowListKitListViewActionsLink = 0;
+
+/*
  * How long a released row takes to rest, the core's SWIPE_SETTLE_DURATION_MS.
  */
 static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000.0;

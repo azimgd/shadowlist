@@ -38,6 +38,22 @@ std::string ShadowListKitStdString(NSString *_Nullable string);
 std::vector<std::size_t> ShadowListKitIndices(NSIndexSet *set);
 
 /*
+ * Each category file of the list defines one of these and ShadowListKitListView.mm refers to
+ * all of them. A static library linked without -ObjC loads an archive member only when it
+ * defines a referenced symbol. Without these the category objects and their public methods
+ * would be left out.
+ */
+extern "C" {
+extern const char ShadowListKitListViewAccessibilityLink;
+extern const char ShadowListKitListViewActionsLink;
+extern const char ShadowListKitListViewCommandsLink;
+extern const char ShadowListKitListViewDataLink;
+extern const char ShadowListKitListViewDragLink;
+extern const char ShadowListKitListViewSectionsLink;
+extern const char ShadowListKitListViewSelectionLink;
+}
+
+/*
  * State and helpers the list shares with its categories in ShadowListKitListView+Drag.mm and
  * ShadowListKitListView+Actions.mm.
  * _mounted holds the mounted cells by key. A cell follows its key across inserts above it.

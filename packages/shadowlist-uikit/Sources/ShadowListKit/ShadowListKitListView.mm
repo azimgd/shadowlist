@@ -11,6 +11,19 @@
 
 using namespace azimgd::shadowlist;
 
+/*
+ * Keeps every category file linked into apps that link the kit as a static library without -ObjC.
+ */
+__attribute__((used)) static const char *const ShadowListKitListViewCategoryLinks[] = {
+  &ShadowListKitListViewAccessibilityLink,
+  &ShadowListKitListViewActionsLink,
+  &ShadowListKitListViewCommandsLink,
+  &ShadowListKitListViewDataLink,
+  &ShadowListKitListViewDragLink,
+  &ShadowListKitListViewSectionsLink,
+  &ShadowListKitListViewSelectionLink,
+};
+
 void ShadowListKitPlace(UIView *view, CGRect frame)
 {
   CGRect bounds = CGRectMake(0, 0, frame.size.width, frame.size.height);

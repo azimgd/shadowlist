@@ -7,6 +7,11 @@
 using namespace azimgd::shadowlist;
 
 /*
+ * Referenced from ShadowListKitListView.mm to keep this file linked without -ObjC.
+ */
+extern "C" const char ShadowListKitListViewDragLink = 0;
+
+/*
  * Scale of a held row and the durations of the drag, from the core's DragReorder.
  */
 static const CGFloat SHADOWLIST_KIT_LIFT_SCALE = DRAG_LIFT_SCALE;
