@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 #
-# Scroll benchmark across list engines on Android. Each run force-starts the example on one
-# screen, lets ShadowListKitBench drive the list at a constant speed and appends its SLBENCH JSON line to
-# a results file. The same flow and metrics as the UIKit bench.
+# Scroll benchmark across list engines on Android. Each run appends one SLBENCH JSON line.
 #
 #   ./bench.sh <label>                     (ANDROID_SERIAL picks the device)
 #
@@ -17,7 +15,6 @@
 #   SPEED=4000 (dp/s)  SECONDS_PER_LEG=6  DELAY=4  IMAGES=1
 #   AXES=y                                   y, x or xy, comma separated. One result line per axis.
 #
-# Runs are interleaved engine by engine inside each round. Host load hits every engine alike.
 # Results: ../results/<label>/runs.jsonl, then ./summarize.py ../results/<label>/runs.jsonl
 #
 set -uo pipefail

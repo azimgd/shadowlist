@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 """Medians per engine, screen and axis from bench.sh results, as a markdown table.
 
-Results without an axis are vertical runs. Skipped axes are left out. The axis column shows
-only when some result has an axis other than y.
-
   ./summarize.py ../results/<label>/runs.jsonl [--json]
 """
 import json

@@ -76,7 +76,6 @@ jobs:
       - name: Build package
         run: yarn workspace shadowlist run prepare
 
-      # The tarball must carry the built JS, the types and the vendored core, and no tests or build output.
       - name: Check package contents
         working-directory: packages/shadowlist-fabric
         run: |
@@ -136,7 +135,6 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      # The Swift package at the repo root, the way apps that add it by URL build it.
       - name: Build ShadowListKit with SwiftPM
         run: >-
           xcodebuild -scheme ShadowListKit

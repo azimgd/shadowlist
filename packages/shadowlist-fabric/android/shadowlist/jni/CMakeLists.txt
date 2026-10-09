@@ -5,8 +5,7 @@ set(LIB_JNI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../build/generated/source/codegen
 set(LIB_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../..)
 set(LIB_CPP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../cpp)
 
-# In the monorepo, compile the core straight from packages/shadowlist-core.
-# A published package has no such path. Use the copy shipped inside it.
+# The monorepo compiles packages/shadowlist-core. A published package uses its vendored copy.
 get_filename_component(LIB_CORE_CANONICAL "${CMAKE_CURRENT_SOURCE_DIR}/../../../../shadowlist-core" ABSOLUTE)
 get_filename_component(LIB_CORE_VENDORED "${CMAKE_CURRENT_SOURCE_DIR}/../../../shadowlist-core" ABSOLUTE)
 if(EXISTS "${LIB_CORE_CANONICAL}/Container.cpp")
@@ -65,7 +64,7 @@ target_link_libraries(
 
 target_compile_reactnative_options(react_codegen_ShadowListViewSpec PRIVATE)
 
-# The list's C++ runs on every commit. Optimized builds use -O3. Debug keeps its flags.
+# The list's C++ runs on every commit. Optimized builds use -O3.
 target_compile_options(react_codegen_ShadowListViewSpec PRIVATE $<$<NOT:$<CONFIG:Debug>>:-O3>)
 
 # The core's [SL] debug log is off by default. An app turns it on by passing

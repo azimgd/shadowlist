@@ -1,6 +1,5 @@
 require "json"
 
-# The kits share their version with the npm package.
 package = JSON.parse(File.read(File.join(__dir__, "packages", "shadowlist-fabric", "package.json")))
 
 Pod::Spec.new do |s|

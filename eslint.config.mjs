@@ -14,10 +14,6 @@ const compat = new FlatCompat({
   allConfig: js.configs.all,
 });
 
-/*
- * Single repo-wide flat config: React Native preset + Prettier, applied across
- * every workspace.
- */
 export default defineConfig([
   {
     extends: fixupConfigRules(compat.extends('@react-native', 'prettier')),
@@ -36,12 +32,10 @@ export default defineConfig([
       '**/.yarn/',
       '**/coverage/',
       '.claude/',
-      // Native example build artifacts.
       'templates/shadowlist-fabric-example/android/',
       'templates/shadowlist-fabric-example/ios/',
       'templates/shadowlist-fabric-example/vendor/',
       'templates/shadowlist-macos-example/macos/',
-      // Tooling / entry / build JS (not application source).
       '**/*.config.{js,cjs,mjs}',
       '**/babel.config.js',
       '**/metro.config.js',

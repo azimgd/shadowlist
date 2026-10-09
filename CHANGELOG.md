@@ -1,7 +1,5 @@
 # Changelog
 
-The npm package `shadowlist` and the native kits share one version. A release is one tag, `vX.Y.Z`.
-
 ## 0.9.0
 
 ### ShadowListKit (iOS and Android)

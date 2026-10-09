@@ -46,14 +46,11 @@ kotlin {
 }
 
 dependencies {
-  // NestedScrollingChild3 and its helper, for lists inside CoordinatorLayout. The list view implements it publicly.
+  // api because the list view implements NestedScrollingChild3 publicly.
   api("androidx.core:core:1.13.1")
 }
 
-/*
- * Coordinates and the POM come from this module's gradle.properties. JitPack builds publish under
- * its own group, com.github.azimgd.shadowlist, with the tag as the version.
- */
+// JitPack publishes under its own group with the tag as the version.
 val jitpack = System.getenv("JITPACK") == "true"
 
 mavenPublishing {

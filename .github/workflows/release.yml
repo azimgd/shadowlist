@@ -4,8 +4,6 @@ on:
     tags:
       - 'v*'
 
-# Publishes the native kits for a version tag. The npm package keeps its own release flow.
-# Each publish step runs only when its secrets exist and otherwise skips with a notice.
 jobs:
   check-version:
     runs-on: ubuntu-latest
@@ -13,7 +11,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # The tag, the npm package, the podspec (which reads package.json) and the Android kit share one version.
       - name: Check the versions match the tag
         run: |
           TAG="${GITHUB_REF_NAME#v}"
@@ -39,7 +36,6 @@ jobs:
         with:
           xcode-version: latest-stable
 
-      # SwiftPM resolves the tag straight from GitHub. This checks the package builds for it.
       - name: Build ShadowListKit with SwiftPM
         run: >-
           xcodebuild -scheme ShadowListKit
@@ -95,7 +91,6 @@ jobs:
           export ORG_GRADLE_PROJECT_mavenCentralUsername="$MAVEN_CENTRAL_USERNAME"
           export ORG_GRADLE_PROJECT_mavenCentralPassword="$MAVEN_CENTRAL_PASSWORD"
           export ORG_GRADLE_PROJECT_signingInMemoryKey="$SIGNING_KEY"
-          # The key id is optional, and a key without a passphrase needs no password.
           if [ -n "$SIGNING_KEY_ID" ]; then export ORG_GRADLE_PROJECT_signingInMemoryKeyId="$SIGNING_KEY_ID"; fi
           if [ -n "$SIGNING_KEY_PASSWORD" ]; then export ORG_GRADLE_PROJECT_signingInMemoryKeyPassword="$SIGNING_KEY_PASSWORD"; fi
           ./gradlew --no-daemon --console=plain :ShadowListKit:publishAndReleaseToMavenCentral

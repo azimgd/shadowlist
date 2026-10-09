@@ -1,7 +1,7 @@
 # Dependencies
 node_modules/
 
-# Yarn (Berry, node-modules linker) — keep the pinned release, ignore the rest
+# Yarn
 .yarn/*
 !.yarn/releases
 !.yarn/patches
@@ -19,7 +19,7 @@ build/
 coverage/
 *.log
 
-# Benchmark output (regenerate with packages/shadowlist-core-bench/run.sh or device-metrics.sh)
+# Benchmark output
 packages/shadowlist-core-bench/results/
 
 # OS

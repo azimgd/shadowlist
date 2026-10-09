@@ -28,8 +28,7 @@ The React Query examples below use `@tanstack/react-query`. It is not a dependen
 
 ### From a shadowlist checkout
 
-Until it is on npm, an app outside this repo depends on the checkout by path. The package then
-resolves through `node_modules` like any other, with no path into `templates/` in the app's code:
+An app outside this repo can depend on the checkout by path:
 
 ```json
 "dependencies": {
@@ -43,8 +42,6 @@ Add `../shadowlist/templates/shadowlist-utils` to Metro's `watchFolders` and blo
 `node_modules`. React and React Native then come from the app.
 
 ## Quick start
-
-This example shows an infinite React Query feed rendered in `ShadowList`.
 
 ```tsx
 import { useInfiniteQuery } from '@tanstack/react-query';
@@ -468,7 +465,7 @@ onOpenLink={(url) => (url.startsWith('myapp://trip/') ? openTrip(url) : openUrl(
 
 - `react` >= 18.2
 - `react-native` >= 0.74
-- The New Architecture (Fabric) is required, because `shadowlist` is a Fabric-only native component.
+- The New Architecture (Fabric) is required.
 
 ## License
 

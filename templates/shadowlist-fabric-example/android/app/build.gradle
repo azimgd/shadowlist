@@ -22,10 +22,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
-        /*
-         * -PshadowlistFrameTrace compiles the list trace into a release build, for the
-         * [SLC] commit counter of shadowlist-core-bench/perf-suite.sh. Debug builds always have it.
-         */
+        // -PshadowlistFrameTrace compiles the [SLC] trace into release builds for perf-suite.sh.
         if (project.hasProperty("shadowlistFrameTrace")) {
             externalNativeBuild {
                 cmake {
@@ -33,10 +30,7 @@ android {
                 }
             }
         }
-        /*
-         * -PshadowlistDebugLog compiles in the core's [SL] debug log, read with adb logcat -s SL.
-         * It is off by default because it prints on every pass.
-         */
+        // -PshadowlistDebugLog compiles in the core's [SL] debug log, read with adb logcat -s SL.
         if (project.hasProperty("shadowlistDebugLog")) {
             externalNativeBuild {
                 cmake {
@@ -45,9 +39,8 @@ android {
             }
         }
         /*
-         * -PshadowlistScrollBand=false turns off the offset band. The list then sends a state
-         * update every scroll frame. Android apps get no launch environment. The
-         * SHADOWLIST_SCROLL_BAND define is the only switch there (ShadowListViewState.h).
+         * -PshadowlistScrollBand=false sends a state update every scroll frame.
+         * Android has no launch environment and this define is its only switch.
          */
         if ((findProperty("shadowlistScrollBand") ?: "true").toString() == "false") {
             externalNativeBuild {
@@ -57,9 +50,8 @@ android {
             }
         }
         /*
-         * React Native engine flags that make list commits cheaper, see MainApplication.kt.
-         * Build with -PshadowlistEngineFlags=false for an A/B run with React Native's own flags,
-         * and -PshadowlistCommitBranching=true to also try the experimental commit flags.
+         * Engine flags in MainApplication.kt. -PshadowlistEngineFlags=false uses React Native's own.
+         * -PshadowlistCommitBranching=true adds the experimental commit flags.
          */
         buildConfigField "boolean", "SHADOWLIST_ENGINE_FLAGS", (findProperty("shadowlistEngineFlags") ?: "true").toString()
         buildConfigField "boolean", "SHADOWLIST_COMMIT_BRANCHING", (findProperty("shadowlistCommitBranching") ?: "false").toString()
@@ -80,10 +72,6 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            /*
-             * Caution! In production, you need to generate your own keystore file.
-             * see https://reactnative.dev/docs/signed-apk-android.
-             */
             signingConfig signingConfigs.debug
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
@@ -92,7 +80,6 @@ android {
 }
 
 dependencies {
-    // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
     if (hermesEnabled.toBoolean()) {

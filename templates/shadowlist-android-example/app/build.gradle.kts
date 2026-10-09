@@ -22,12 +22,11 @@ android {
   buildTypes {
     release {
       isMinifyEnabled = false
-      // Signed with the debug key to install without a keystore. Still a non-debuggable, optimized build.
+      // Signed with the debug key to install without a keystore.
       signingConfig = signingConfigs.getByName("debug")
     }
   }
 
-  // The bench lives next to ShadowListKit in the shadowlist repo and compiles into the example.
   sourceSets["main"].java.srcDir(project(":ShadowListKit").projectDir.resolve("../Bench/src"))
 
   compileOptions {
@@ -43,6 +42,5 @@ kotlin {
 dependencies {
   implementation(project(":ShadowListKit"))
   implementation("androidx.recyclerview:recyclerview:1.3.2")
-  // CoordinatorLayout and AppBarLayout for the nested scrolling screen.
   implementation("com.google.android.material:material:1.12.0")
 }

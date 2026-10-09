@@ -2,12 +2,7 @@
 """
 Reduce one device-metrics.sh run to a comparable report.
 
-A raw screenshot is RGBA pixels after a 16 byte header. Plain Python can read it.
-In each one we find the tallest full width band of background in the list. A band much
-taller than row padding is a missing row, which the user sees as a blank cell.
-
-The background color is usually fixed with --background. Without it, it is read from
-the settled frame cal.raw.
+Without --background, the background color is read from the settled frame cal.raw.
 """
 import argparse
 import math

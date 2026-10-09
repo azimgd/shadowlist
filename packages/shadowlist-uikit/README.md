@@ -23,9 +23,8 @@ content stays still while rows are measured, inserted above or removed. Rows hav
 | `Internal/*.h`                                                                   | State the list shares with its drag category and the change animator. Not public headers.                               |
 | `ShadowListKitText.{h,mm}`                                                       | Precomputed text layout and drawing.                                                                                    |
 
-`ShadowListKitTextLayout` and `ShadowListKitTextView` move text off the main thread. Line breaking happens when a
-row's layout is computed, on any thread. The view either draws the ready lines, or with
-`displaysAsynchronously` gets a bitmap drawn on a background queue.
+`ShadowListKitTextLayout` breaks lines on any thread. `ShadowListKitTextView` draws the ready lines, or with
+`displaysAsynchronously` a bitmap drawn on a background queue.
 
 ## API
 
@@ -71,10 +70,8 @@ The header, `ShadowListKitListView.h`, documents every member.
 - Saved position: `anchorState` (`ShadowListKitAnchorState`, the key at the viewport start and the distance into it) and
   `restoreAnchorState:`, which lands now or once a reload brings the key. UIKit state restoration saves it.
 
-Masonry stays round robin. A shortest column layout would move rows between columns whenever an earlier row is
-measured, which breaks keeping the visible rows still. Full width rows in a grid are not supported: the core places
-row `i` in column `i % numberOfColumns`, and its visible row search, reflow, anchoring and drag all rely on that.
-Accessibility rotor support is not there yet.
+Masonry is round robin: row `i` goes in column `i % numberOfColumns`. Full width rows in a grid and the
+accessibility rotor are not supported.
 
 ## Install
 
@@ -108,8 +105,7 @@ xcrun simctl install <udid> build/dd-sim/Build/Products/Release-iphonesimulator/
 xcrun simctl launch <udid> shadowlist.uikit.example -SLRoute Chat -SLEngine sl
 ```
 
-`xcodegen` generates `ShadowListKitExample.xcodeproj` from its `project.yml`. The framework
-compiles `Sources/ShadowListKit` and the canonical core in `packages/shadowlist-core` directly.
+`xcodegen` generates `ShadowListKitExample.xcodeproj` from its `project.yml`.
 
 `-SLRoute` takes `Feed`, `Masonry`, `Chat`, `SectionList`, `Reorder` and `Snap`, which run on any engine, and
 `Sections` and `Inbox`, which run on ShadowListKitListView only.
@@ -121,16 +117,15 @@ compiles `Sources/ShadowListKit` and the canonical core in `packages/shadowlist-
 | `table`      | UITableView           | `heightForRowAt` from the same precomputed layouts |
 | `table-auto` | UITableView           | self-sizing cells with an estimated height         |
 
-All engines show the same row views. The comparison isolates the list itself.
+All engines show the same row views.
 `-SLTextAsync 1` draws text on a background queue, and `-SLCount N` sets the list size.
 
 ## Benchmarks
 
-`Bench/ShadowListKitBench.m` drives any app's main scroll view at a constant speed with a display link. It
-logs one JSON line with frame intervals, hitch time, main thread and process CPU, memory, and
-how much of the viewport no row covers. The UIKit example links it in. The React Native example
-gets it injected without any project change. On the simulator that is `DYLD_INSERT_LIBRARIES`,
-and on a device it is an `OTHER_LDFLAGS` override on the xcodebuild command line.
+`Bench/ShadowListKitBench.m` drives an app's main scroll view at a constant speed and logs one JSON line with
+frame intervals, hitch time, main thread and process CPU, memory, and how much of the viewport no row covers.
+The React Native example loads it through `DYLD_INSERT_LIBRARIES` on the simulator and an `OTHER_LDFLAGS`
+override on a device.
 
 ```sh
 Bench/bench.sh device <devicectl-udid> my-label      # ENGINES, SCREENS, COUNTS, RUNS, SPEED, AXES

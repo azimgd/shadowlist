@@ -12,13 +12,6 @@
 # The app opens straight on the screen holding exactly <count> rows: launch settings
 # SLRoute, SLCount, SLLatency 0,0 and SLDebug 1 (debug header buttons for inserts).
 #
-# iOS runs ios-trace/run.sh on scenarios/perf-<screen>.steps with the fling count sized to the
-# list, samples the app with ps (CPU, RSS), and reduces the trace with ios-trace/analyze.py:
-# findings by kind (explained or not), jsms / mountms, Fabric commits per second of scrolling.
-# Android flings with adb input swipe and reads gfxinfo framestats, screenshot blank bands
-# and meminfo through analyze-metrics.py, [SLC] commits from logcat, and checks MVCP with
-# uiautomator dumps before and after a prepend and an append while scrolled.
-#
 # Environment:
 #   SCREENS="Feed Chat SectionList Masonry"   COUNTS="50 200 1000"   RUNS=3
 #   FLING_PT=2500      average travel of one fling in pt; fling count = count x row height / this

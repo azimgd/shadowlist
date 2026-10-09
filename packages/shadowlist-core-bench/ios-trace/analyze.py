@@ -13,11 +13,11 @@ Input is the console log of simctl launch --console-pty with SHADOWLIST_FRAME_TR
   [SL] ...                                        core trace, no timestamp (kept for --window)
 
 Timestamps are mach_absolute_time seconds. Row positions are on screen positions along the
-scroll axis. A row that keeps its position between two frames did not move for the reader.
+scroll axis.
 
 Findings:
   idle-shift     visible rows moved with no finger, fling or scroll to top going on.
-                 The reader sees a jump. Marked explained when there's a known reason,
+                 Marked explained when there's a known reason,
                  like an inverted list pinned to its bottom or a refresh inset change.
   reversal       motion flipped for one frame and went back, a jitter, or went backwards
                  during a scroll to top.

@@ -15,7 +15,7 @@ Requirements:
 
 - React Native 0.83 or newer with the New Architecture (Fabric). The legacy architecture is not supported.
 - iOS at React Native's minimum version, Android API 24 or newer, and macOS 11 or newer through `react-native-macos`.
-- Nothing to link by hand. Autolinking picks up the pod on iOS and macOS and the CMake build on Android. The C++ core ships inside the package.
+- Autolinking picks up the pod on iOS and macOS and the CMake build on Android. The C++ core ships inside the package.
 
 On macOS, pull to refresh, `snapToItem` and keyboard avoidance are not available.
 
@@ -39,7 +39,7 @@ listRef.current?.scrollToItem(42, 0.5);
 
 ## FlatList compatibility
 
-`ShadowList` takes FlatList's props and ref methods where they mean something for a list whose rows the native core places. Swap the import and most screens keep working.
+`ShadowList` takes FlatList's props and ref methods where they mean something for a list whose rows the native core places.
 
 | FlatList                                                                                                                                                                                                    | ShadowList                                                                                                                                                                                                                                      |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -95,7 +95,7 @@ The ref also has `setStartReachedEnabled(enabled)` and `setEndReachedEnabled(ena
 
 ### Scroll commands
 
-`scrollToItem`, `scrollToIndex`, `scrollToEnd` and an animated `scrollToOffset` animate. The view animates to where the core estimates the row is, then the same command runs without the animation and lands exactly, whatever the rows measure on the way. A finger on the list cancels it. macOS lands right away without the animation. The positional `scrollToItem(index)` does not animate unless asked. `scrollToEnd()` and every object form animate by default, like FlatList.
+`scrollToItem`, `scrollToIndex`, `scrollToEnd` and an animated `scrollToOffset` animate and land exactly, whatever the rows measure on the way. A finger on the list cancels it. macOS lands right away without the animation. The positional `scrollToItem(index)` does not animate unless asked. `scrollToEnd()` and every object form animate by default, like FlatList.
 
 ### Selection, swipe actions and menus
 

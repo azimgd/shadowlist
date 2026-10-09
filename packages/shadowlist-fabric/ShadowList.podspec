@@ -26,8 +26,7 @@ Pod::Spec.new do |s|
   s.public_header_files = ["shadowlist-core/**/*.{h,hpp}"]
   s.private_header_files = ["ios/**/*.{h,hpp}", "cpp/**/*.{h,hpp}"]
 
-  # The list's C++ runs on every commit. Release builds optimize it for speed, not size.
-
+  # Release builds optimize the C++ for speed, not size.
   s.pod_target_xcconfig = {
     'HEADER_SEARCH_PATHS' => '$(PODS_TARGET_SRCROOT)',
     'GCC_OPTIMIZATION_LEVEL[config=Release]' => '3',

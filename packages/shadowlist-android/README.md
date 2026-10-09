@@ -22,7 +22,7 @@ still while rows are measured, inserted above, removed or regrouped. Rows have s
 | `ShadowListKitCore.kt`, `ShadowListKitListCell.kt`, `ShadowListKitText.kt`                                                    | JNI wrapper, row base view with its states, precomputed text.                                           |
 
 `ShadowListKitTextLayout` breaks text into lines once with `StaticLayout`, on any thread, and
-`ShadowListKitTextView` only draws it. Row layouts computed off the UI thread carry their text.
+`ShadowListKitTextView` only draws it.
 
 ## API
 
@@ -52,10 +52,9 @@ Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estim
   stays in its section.
 - Batches follow UITableView's index rules and are planned by the core's `planBatch`. A batch that does not add up
   reloads everything. `applyChanges` diffs every key with the core's `diffKeys`, reloads rows whose
-  `ContentVersions.contentVersionForItem` changed since the last reload, and returns a `ShadowListKitListChanges`, like
-  `ListAdapter.submitList` with `DiffUtil` but on keys.
+  `ContentVersions.contentVersionForItem` changed since the last reload, and returns a `ShadowListKitListChanges`.
 - `itemAnimator` (a `ShadowListKitItemAnimator`, `ShadowListKitDefaultItemAnimator` by default) animates inserts, removals
-  and moves, like RecyclerView's ItemAnimator.
+  and moves.
 - Swipe actions: a `ShadowListKitSwipeActionsConfiguration` of `ShadowListKitSwipeAction`s per side. A full swipe runs
   the first action. Off while editing.
 - Context menus: `contextMenuForItem` fills a `PopupMenu`'s menu on a hold. A row that can also be reordered lifts
@@ -69,9 +68,7 @@ Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estim
 - The saved position goes into `onSaveInstanceState` as a `ShadowListKitAnchorState` when the list has an id, and lands
   again once the data has its key.
 
-Masonry stays round robin: a shortest column layout would move rows between columns whenever an earlier row is
-measured. Full width rows in a grid are not supported because the core's grid relies on row `i` being in column
-`i % numberOfColumns`.
+Masonry is round robin: row `i` goes in column `i % numberOfColumns`. Full width rows in a grid are not supported.
 
 The view's own behavior:
 
@@ -163,10 +160,8 @@ key, and a `skipped` line for an axis without a scroll view. A view that draws i
 implements `ShadowListKitBenchProbe.benchBlankFraction()`, and the result adds `contentBlankAvg`, `contentBlankMax`
 and `contentBlankFrames`.
 
-The `rn` engine runs the React Native example (`shadowlist.example`) with the same ShadowListKitBench.
-A Gradle init script adds the bench to its release build without any change to that project:
-it compiles `Bench/src` and `Bench/rn/src` into the release variant and merges
-`Bench/rn/AndroidManifest.xml`, whose content provider starts ShadowListKitBench in the launched activity.
+The `rn` engine runs the React Native example (`shadowlist.example`) with ShadowListKitBench added by a Gradle
+init script:
 
 ```sh
 cd templates/shadowlist-fabric-example/android

@@ -23,8 +23,7 @@ Run `yarn install` at the repo root first.
 | UIKit                | `cd shadowlist-uikit-example && ./build.sh sim <simulator-udid>` (or `./build.sh device any`)   |
 | Android (Kotlin)     | `cd shadowlist-android-example && ./gradlew :app:assembleRelease`                               |
 
-The React Native iOS example runs `pod install` on its own. It compiles a copy of the core that the
-podspec syncs from `packages/shadowlist-core` on every build. Android builds compile the core directly.
+The React Native iOS example runs `pod install` on its own.
 
 ## Launch flags
 

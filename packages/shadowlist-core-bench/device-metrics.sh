@@ -10,11 +10,8 @@
 #   Frames: timing and jank from dumpsys gfxinfo framestats.
 #   Blank cells: the tallest empty band in the list while flinging, meaning rows that
 #     weren't drawn yet. See analyze-metrics.py.
-#   Memory: PSS, native heap and the live view count, which the native view band should move.
+#   Memory: PSS, native heap and the live view count.
 #   CPU: process time from /proc, as a share of one core over the run.
-#
-# This covers React, Yoga, mounting, JNI and the GPU too, unlike run.sh. It's noisier.
-# Run it more than once.
 #
 # Environment:
 #   ADB=adb            adb command; may carry a serial, e.g. "adb -s emulator-5554"

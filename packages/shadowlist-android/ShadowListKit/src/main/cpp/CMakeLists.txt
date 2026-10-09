@@ -4,7 +4,6 @@ project(shadowlistkit CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# The canonical core in packages/shadowlist-core, compiled straight into the library.
 get_filename_component(SHADOWLIST_KIT_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../shadowlist-core" ABSOLUTE)
 get_filename_component(SHADOWLIST_KIT_CORE_PARENT_DIR "${SHADOWLIST_KIT_CORE_DIR}" DIRECTORY)
 include(${SHADOWLIST_KIT_CORE_DIR}/sources.cmake)
@@ -23,7 +22,7 @@ target_link_libraries(shadowlistkit ${log-lib})
 # The static C++ runtime stays private to the library. Apps with their own libc++ do not see its symbols.
 target_link_options(shadowlistkit PRIVATE -Wl,--exclude-libs,ALL)
 
-# The layout pass runs on every scroll frame. Optimized builds use -O3. Debug keeps its flags.
+# The layout pass runs on every scroll frame. Optimized builds use -O3.
 target_compile_options(shadowlistkit PRIVATE -fno-rtti $<$<NOT:$<CONFIG:Debug>>:-O3>)
 
 # The core's [SL] debug log is off by default. -PshadowlistDebugLog passes this switch.

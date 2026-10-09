@@ -1,5 +1,3 @@
-# JitPack builds the Android kit from packages/shadowlist-android and serves it as
-# com.github.azimgd.shadowlist:shadowlist-kit:<tag>.
 jdk:
   - openjdk17
 before_install:

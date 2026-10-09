@@ -72,8 +72,7 @@ lib/
 ios/generated
 android/generated
 
-# Vendored mirror of the shared core (canonical lives in ../shadowlist-core).
-# Generated at build / pod-install / publish time; never committed.
+# Vendored mirror of ../shadowlist-core
 /shadowlist-core/
 
 # React Native Nitro Modules

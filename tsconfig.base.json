@@ -1,5 +1,4 @@
 {
-  "// note": "Shared strictness baseline every package extends. Package tsconfigs keep their own target/lib/module/paths and override as needed.",
   "compilerOptions": {
     "strict": true,
     "skipLibCheck": true,
