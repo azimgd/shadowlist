@@ -236,10 +236,13 @@ const std::vector<double>& Container::getSnapOffsets() const {
   }
 
   /*
-   * One target per row, clamped to the scroll range. Rows near either end collapse onto
-   * the same value. Skip repeats.
+   * One target per row, clamped to the scroll range, plus both ends of the range. A header
+   * or footer can then still be scrolled into view. Rows near either end collapse onto the
+   * same value. Grid tracks are not in order. Sort and skip repeats.
    */
-  snapOffsets.reserve(elementsSize);
+  snapOffsets.reserve(elementsSize + 2);
+  snapOffsets.push_back(0.0);
+  snapOffsets.push_back(maxOffset);
   for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
     const Element& nextElement = revision.elements[nextElementIndex];
     double elementOffset = horizontal ? nextElement.offsetX : nextElement.offsetY;
@@ -261,11 +264,16 @@ const std::vector<double>& Container::getSnapOffsets() const {
       target = maxOffset;
     }
 
-    if (snapOffsets.empty() || std::fabs(target - snapOffsets.back()) > OFFSET_MOVED_THRESHOLD) {
+    if (std::fabs(target - snapOffsets.back()) > OFFSET_MOVED_THRESHOLD) {
       snapOffsets.push_back(target);
     }
   }
 
+  std::sort(snapOffsets.begin(), snapOffsets.end());
+  snapOffsets.erase(
+    std::unique(snapOffsets.begin(), snapOffsets.end(),
+      [](double previous, double next) { return next - previous <= OFFSET_MOVED_THRESHOLD; }),
+    snapOffsets.end());
   return snapOffsets;
 }
 

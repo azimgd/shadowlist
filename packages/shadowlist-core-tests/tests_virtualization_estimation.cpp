@@ -75,6 +75,47 @@ TEST(snap_offsets_survive_a_pure_scroll) {
   CHECK(container.getSnapOffsets() == before);
 }
 
+/*
+ * A header and a footer stay reachable when snapping. The range's ends are snap points even
+ * when no row aligns there, and a masonry grid's snap points come out sorted.
+ */
+TEST(snap_offsets_include_both_ends_and_stay_sorted) {
+  Fixture fixture;
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  FrameInput input = inputFor(keys, 0.0, fixture);
+  input.snapToItem = true;
+  input.headerSize = 200.0;
+  input.footerSize = 300.0;
+  input.snapAlignment = 2;
+  Virtualizer::update(container, input);
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  Virtualizer::update(container, input);
+
+  const std::vector<double>& ends = container.getSnapOffsets();
+  double maxOffset = container.revision.totalContainerHeight - WINDOW_HEIGHT;
+  CHECK_NEAR(ends.front(), 0.0, 0.001);
+  CHECK_NEAR(ends.back(), maxOffset, 0.001);
+  // Aligned to the end, the last row rests with the footer below the fold.
+  CHECK(std::find(ends.begin(), ends.end(), maxOffset - 300.0) != ends.end());
+
+  Fixture grid;
+  grid.columns = 2;
+  Container masonry;
+  FrameInput gridInput = inputFor(keys, 0.0, grid);
+  gridInput.snapToItem = true;
+  Virtualizer::update(masonry, gridInput);
+  for (std::size_t index = 0; index < keys.size(); ++index) {
+    double height = index % 2 == 0 ? 70.0 : 230.0;
+    Virtualizer::updateElementAtIndex(masonry, index, {WINDOW_WIDTH / 2.0, height});
+  }
+  Virtualizer::update(masonry, gridInput);
+  const std::vector<double>& sorted = masonry.getSnapOffsets();
+  for (std::size_t index = 1; index < sorted.size(); ++index) {
+    CHECK(sorted[index] > sorted[index - 1]);
+  }
+}
+
 TEST(viewable_indices_stay_inside_the_viewport) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(200);
