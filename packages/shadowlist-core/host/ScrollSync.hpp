@@ -382,6 +382,12 @@ private:
   double shiftedTokenDelta_ = 0.0;
 
   /*
+   * The newest correction written as is, and its size.
+   */
+  std::uint64_t writtenToken_ = 0;
+  double writtenTokenDelta_ = 0.0;
+
+  /*
    * Whether the newest report was a gesture, see clearUserScrolled.
    */
   bool publishedGesture_ = false;

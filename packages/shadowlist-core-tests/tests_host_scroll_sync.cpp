@@ -155,6 +155,26 @@ TEST(scroll_sync_moving_view_shifts_by_the_unapplied_part) {
   CHECK_EQ(offset, 430.0);
 }
 
+/*
+ * Android mounts the same state again after the write moved the view. scrollToEnd landed one
+ * correction short when that second mount added it a second time.
+ */
+TEST(scroll_sync_written_correction_is_not_shifted_again) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  double offset = mountAndWrite(sync, correctionState(92.0, 100.0, 3), live, viewAt(100.0));
+  CHECK_EQ(offset, 92.0);
+
+  ViewMotion moving = viewAt(92.0);
+  moving.moving = true;
+  offset = mountAndWrite(sync, correctionState(92.0, 100.0, 3), live, moving);
+  CHECK_EQ(offset, 92.0);
+
+  // The same token retargeted from the same base moves only by the difference.
+  offset = mountAndWrite(sync, correctionState(110.0, 100.0, 3), live, viewAt(92.0));
+  CHECK_EQ(offset, 110.0);
+}
+
 TEST(scroll_sync_gesture_correction_shifts_after_the_motion_stops) {
   auto live = std::make_shared<LiveScroll>();
   ScrollSync sync;
