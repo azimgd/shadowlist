@@ -19,23 +19,23 @@ using namespace azimgd::shadowlist;
 using Indices = std::vector<std::size_t>;
 
 TEST(insertion_positions_are_sorted_and_unique) {
-  CHECK(insertionPositions({4, 1, 4, 2}, 10) == (Indices{1, 2, 4}));
-  CHECK(insertionPositions({}, 10).empty());
+  CHECK(insertionIndices({4, 1, 4, 2}, 10) == (Indices{1, 2, 4}));
+  CHECK(insertionIndices({}, 10).empty());
 }
 
 TEST(insertion_positions_past_the_end_go_at_the_end) {
   // Three rows before. Inserts at 7 and 9 land at 3 and 4, after the old rows.
-  CHECK(insertionPositions({7, 9}, 3) == (Indices{3, 4}));
+  CHECK(insertionIndices({7, 9}, 3) == (Indices{3, 4}));
   // One in range, then two past the end of the new data.
-  CHECK(insertionPositions({1, 8, 20}, 3) == (Indices{1, 4, 5}));
+  CHECK(insertionIndices({1, 8, 20}, 3) == (Indices{1, 4, 5}));
   // An insert right at the end stays.
-  CHECK(insertionPositions({3}, 3) == (Indices{3}));
+  CHECK(insertionIndices({3}, 3) == (Indices{3}));
   // Into an empty list every insert counts from 0.
-  CHECK(insertionPositions({5, 6}, 0) == (Indices{0, 1}));
+  CHECK(insertionIndices({5, 6}, 0) == (Indices{0, 1}));
 }
 
 TEST(insertion_positions_stay_inside_the_new_data) {
-  Indices positions = insertionPositions({100, 50, 2, 3}, 4);
+  Indices positions = insertionIndices({100, 50, 2, 3}, 4);
   for (std::size_t position : positions) {
     CHECK(position < 4 + positions.size());
   }
@@ -43,14 +43,14 @@ TEST(insertion_positions_stay_inside_the_new_data) {
 }
 
 TEST(deletion_positions_drop_rows_past_the_end) {
-  CHECK(deletionPositions({5, 1, 1, 9, 3}, 6) == (Indices{1, 3, 5}));
-  CHECK(deletionPositions({6, 7}, 6).empty());
+  CHECK(deletionIndices({5, 1, 1, 9, 3}, 6) == (Indices{1, 3, 5}));
+  CHECK(deletionIndices({6, 7}, 6).empty());
 }
 
 TEST(list_driver_appends_inserts_named_past_the_end) {
   ListDriver driver;
   driver.setKeys({"a", "b", "c"});
-  Indices positions = insertionPositions({7, 9}, driver.getKeyCount());
+  Indices positions = insertionIndices({7, 9}, driver.getKeyCount());
   driver.insertKeys(positions, {"d", "e"});
   CHECK(driver.getKeys() == (std::vector<std::string>{"a", "b", "c", "d", "e"}));
   // The driver keeps the same rule when it gets the raw indices.
@@ -67,18 +67,18 @@ using Keys = std::vector<std::string>;
 TEST(key_splice_finds_the_changed_middle) {
   KeySplice prepend = keySplice({"c", "d"}, {"a", "b", "c", "d"});
   CHECK_EQ(prepend.start, std::size_t{0});
-  CHECK_EQ(prepend.removed, std::size_t{0});
-  CHECK_EQ(prepend.added, std::size_t{2});
+  CHECK_EQ(prepend.deleted, std::size_t{0});
+  CHECK_EQ(prepend.inserted, std::size_t{2});
 
   KeySplice trim = keySplice({"a", "b", "c", "d"}, {"a", "b"});
   CHECK_EQ(trim.start, std::size_t{2});
-  CHECK_EQ(trim.removed, std::size_t{2});
-  CHECK_EQ(trim.added, std::size_t{0});
+  CHECK_EQ(trim.deleted, std::size_t{2});
+  CHECK_EQ(trim.inserted, std::size_t{0});
 
   KeySplice middle = keySplice({"a", "b", "c", "d"}, {"a", "x", "y", "d"});
   CHECK_EQ(middle.start, std::size_t{1});
-  CHECK_EQ(middle.removed, std::size_t{2});
-  CHECK_EQ(middle.added, std::size_t{2});
+  CHECK_EQ(middle.deleted, std::size_t{2});
+  CHECK_EQ(middle.inserted, std::size_t{2});
 
   CHECK(keySplice({"a", "b"}, {"a", "b"}).isEmpty());
   CHECK(keySplice({}, {}).isEmpty());
@@ -88,12 +88,12 @@ TEST(key_splice_never_counts_a_key_in_both_ends) {
   // "a a" to "a": the prefix takes the one shared key and the suffix finds none left.
   KeySplice splice = keySplice({"a", "a"}, {"a"});
   CHECK_EQ(splice.start, std::size_t{1});
-  CHECK_EQ(splice.removed, std::size_t{1});
-  CHECK_EQ(splice.added, std::size_t{0});
+  CHECK_EQ(splice.deleted, std::size_t{1});
+  CHECK_EQ(splice.inserted, std::size_t{0});
 
   KeySplice cleared = keySplice({"a", "b"}, {});
   CHECK_EQ(cleared.start, std::size_t{0});
-  CHECK_EQ(cleared.removed, std::size_t{2});
+  CHECK_EQ(cleared.deleted, std::size_t{2});
 }
 
 TEST(rows_of_keys_and_keys_of_rows_round_trip) {

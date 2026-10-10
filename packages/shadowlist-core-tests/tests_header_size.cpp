@@ -45,8 +45,8 @@ enum class OlderRows {
   Mounting,    // Mounting in this pass, sized to zero first and then to their real size
 };
 
-bool isOlder(const Element& element) {
-  return element.key.rfind("older", 0) == 0;
+bool isOlder(const Row& row) {
+  return row.key.rfind("older", 0) == 0;
 }
 
 /*
@@ -58,33 +58,33 @@ void layoutPass(Container& container, double headerSize, OlderRows olderRows = O
    * reads the header.
    */
   if (olderRows == OlderRows::Mounting) {
-    for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
-      if (isOlder(container.revision.elements[index])) {
-        Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, 0.0});
+    for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
+      if (isOlder(container.revision.rows[index])) {
+        Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH, 0.0});
       }
     }
   }
   double previousHeaderSize = container.headerSize;
   if (previousHeaderSize != headerSize) {
     container.headerSize = headerSize;
-    Virtualizer::recomputeElementOffsets(container, 0);
+    Virtualizer::recomputeRowOffsets(container, 0);
     Virtualizer::applyHeaderSizeChange(container, previousHeaderSize);
   }
   std::size_t lowestChangedIndex = UNDEFINED_INDEX;
-  for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
-    bool older = isOlder(container.revision.elements[index]);
+  for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
+    bool older = isOlder(container.revision.rows[index]);
     if (older && olderRows == OlderRows::Unmounted) {
       continue;
     }
     double height = older && olderRows == OlderRows::Mounting ? OLDER_ROW_HEIGHT : ESTIMATED_ROW_HEIGHT;
-    if (Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, height}) && index < lowestChangedIndex) {
+    if (Virtualizer::applyRowSize(container, index, {WINDOW_WIDTH, height}) && index < lowestChangedIndex) {
       lowestChangedIndex = index;
     }
   }
   if (lowestChangedIndex != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(container, lowestChangedIndex);
+    Virtualizer::commitRowSizes(container, lowestChangedIndex);
   }
-  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::recomputeContentSize(container);
 }
 
 /*
@@ -114,7 +114,7 @@ void openWithSpinnerAt(Container& container, const std::vector<std::string>& key
 }
 
 double onScreen(const Container& container, const std::string& key) {
-  return offsetOf(container, container.findElementIndexByKey(key)) - container.revision.containerOffsetY;
+  return offsetOf(container, container.indexOfKey(key)) - container.revision.offsetY;
 }
 
 std::vector<std::string> prependedTo(const std::vector<std::string>& keys, std::size_t count) {
@@ -136,21 +136,21 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
     std::vector<std::string> grown = prependedTo(keys, 6);
     Virtualizer::update(container, frame(grown, restingOffset, SPINNER_HEADER));
     CHECK(container.operation.has_value());
-    std::uint64_t token = container.operation ? container.operation->id : 0;
+    std::uint64_t token = container.operation ? container.operation->commitToken : 0;
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
 
     // Layout measures the header without the spinner. This frame must not show the jump.
     layoutPass(container, PLAIN_HEADER);
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
-    double published = container.revision.containerOffsetY;
+    double published = container.revision.offsetY;
 
     // The commit that applies the new offset must not correct it again.
     FrameInput adopt = frame(grown, published, PLAIN_HEADER);
-    adopt.containerOffsetEnabled = true;
+    adopt.offsetEnabled = true;
     adopt.commitToken = token;
     Virtualizer::update(container, adopt);
     layoutPass(container, PLAIN_HEADER);
-    CHECK_NEAR(container.revision.containerOffsetY, published, 0.5);
+    CHECK_NEAR(container.revision.offsetY, published, 0.5);
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
 
     // Neither does the host reporting it back.
@@ -158,7 +158,7 @@ TEST(prepend_that_removes_the_header_spinner_keeps_the_rows_still_in_every_frame
     echo.commitToken = token;
     Virtualizer::update(container, echo);
     layoutPass(container, PLAIN_HEADER);
-    CHECK_NEAR(container.revision.containerOffsetY, published, 0.5);
+    CHECK_NEAR(container.revision.offsetY, published, 0.5);
     CHECK_NEAR(onScreen(container, "k5"), before, 0.5);
   }
 }
@@ -176,14 +176,14 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
 
   std::vector<std::string> grown = prependedTo(keys, 6);
   Virtualizer::update(container, frame(grown, 0.0, SPINNER_HEADER));
-  std::uint64_t token = container.operation ? container.operation->id : 0;
+  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
   // The page has not mounted yet. Its rows keep their estimates here.
   layoutPass(container, PLAIN_HEADER, OlderRows::Unmounted);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
-  double published = container.revision.containerOffsetY;
+  double published = container.revision.offsetY;
   FrameInput adopt = frame(grown, published, PLAIN_HEADER);
-  adopt.containerOffsetEnabled = true;
+  adopt.offsetEnabled = true;
   adopt.commitToken = token;
   Virtualizer::update(container, adopt);
   layoutPass(container, PLAIN_HEADER, OlderRows::Unmounted);
@@ -194,15 +194,15 @@ TEST(spinner_returning_while_the_landed_page_measures_keeps_the_rows_still) {
   CHECK(container.operation.has_value());
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
-  published = container.revision.containerOffsetY;
+  published = container.revision.offsetY;
   adopt = frame(grown, published, SPINNER_HEADER);
-  adopt.containerOffsetEnabled = true;
-  adopt.commitToken = container.operation ? container.operation->id : 0;
+  adopt.offsetEnabled = true;
+  adopt.commitToken = container.operation ? container.operation->commitToken : 0;
   Virtualizer::update(container, adopt);
   layoutPass(container, SPINNER_HEADER);
   CHECK_NEAR(onScreen(container, "k2"), before, 0.5);
 
-  FrameInput echo = frame(grown, container.revision.containerOffsetY, SPINNER_HEADER);
+  FrameInput echo = frame(grown, container.revision.offsetY, SPINNER_HEADER);
   echo.commitToken = adopt.commitToken;
   Virtualizer::update(container, echo);
   layoutPass(container, SPINNER_HEADER);
@@ -216,13 +216,13 @@ TEST(header_resizing_while_scrolled_out_of_view_keeps_the_rows_still) {
   double before = onScreen(container, "k10");
 
   layoutPass(container, PLAIN_HEADER);
-  CHECK(container.containerOffsetCorrected);
+  CHECK(container.offsetCorrected);
   CHECK_NEAR(onScreen(container, "k10"), before, 0.5);
 
-  double published = container.revision.containerOffsetY;
+  double published = container.revision.offsetY;
   Virtualizer::update(container, frame(keys, published, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
-  CHECK_NEAR(container.revision.containerOffsetY, published, 0.5);
+  CHECK_NEAR(container.revision.offsetY, published, 0.5);
   CHECK_NEAR(onScreen(container, "k10"), before, 0.5);
 }
 
@@ -234,12 +234,12 @@ TEST(header_growing_on_screen_pushes_the_rows_below_it) {
   CHECK_NEAR(onScreen(container, "k0"), 0.0, 0.5);
 
   layoutPass(container, SPINNER_HEADER);
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "k0"), SPINNER_HEADER, 0.5);
 
   Virtualizer::update(container, frame(keys, 0.0, SPINNER_HEADER));
   layoutPass(container, SPINNER_HEADER);
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "k0"), SPINNER_HEADER, 0.5);
 }
 
@@ -257,13 +257,13 @@ TEST(scroll_to_start_after_a_prepend_lands_on_offset_zero_with_the_header) {
   prepended.insert(prepended.end(), keys.begin(), keys.end());
   Virtualizer::update(container, frame(prepended, 0.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
-  double anchored = container.revision.containerOffsetY;
+  double anchored = container.revision.offsetY;
   CHECK(anchored > PLAIN_HEADER);
 
   container.scrollToStart();
   Virtualizer::update(container, frame(prepended, anchored, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
 }
 
@@ -286,15 +286,15 @@ TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
   Virtualizer::update(container, frame(keys, 2000.0, PLAIN_HEADER));
   layoutPass(container, PLAIN_HEADER);
   CHECK(container.operation.has_value());
-  std::uint64_t token = container.operation->id;
+  std::uint64_t token = container.operation->commitToken;
 
   FrameInput coasting = frame(keys, 2100.0, PLAIN_HEADER);
   coasting.userScrolled = true;
   coasting.scrollPhase = ScrollPhase::Settling;
   Virtualizer::update(container, coasting);
   layoutPass(container, PLAIN_HEADER);
-  CHECK(container.operation.has_value() && container.operation->id == token);
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK(container.operation.has_value() && container.operation->commitToken == token);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
 }
 
 /*
@@ -353,9 +353,9 @@ TEST(scroll_to_start_with_new_rows_is_one_correction) {
   FrameInput moving = frame(replaced, 2000.0, PLAIN_HEADER);
   Virtualizer::update(container, moving);
   CHECK(container.operation.has_value() && container.operation->type == OperationType::ScrollToStart);
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   layoutPass(container, PLAIN_HEADER);
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
 }
 
@@ -377,17 +377,17 @@ TEST(scroll_to_start_with_new_rows_at_offset_zero_stays_at_zero) {
 
   container.scrollToStart();
   Virtualizer::update(container, frame(replaced, 0.0, PLAIN_HEADER));
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   layoutPass(container, PLAIN_HEADER);
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
 
   // The next commits keep it at 0 and do not go back to the old first row.
   for (int commit = 0; commit < 3; ++commit) {
-    Virtualizer::update(container, frame(replaced, container.revision.containerOffsetY, PLAIN_HEADER));
+    Virtualizer::update(container, frame(replaced, container.revision.offsetY, PLAIN_HEADER));
     layoutPass(container, PLAIN_HEADER);
   }
-  CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
   CHECK_NEAR(onScreen(container, "new0"), PLAIN_HEADER, 0.5);
 }
 
@@ -403,24 +403,24 @@ TEST(header_change_during_a_scroll_to_index_keeps_the_view_position) {
   input.headerSize = 100.0;
   Virtualizer::update(container, input);
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, 100.0});
+    Virtualizer::applyRowSize(container, index, {WINDOW_WIDTH, 100.0});
   }
-  Virtualizer::commitElementSizes(container, 0);
-  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::commitRowSizes(container, 0);
+  Virtualizer::recomputeContentSize(container);
   Virtualizer::update(container, input);
 
-  container.scrollToIndex(30, 0.5);
+  container.scrollToRow(30, 0.5);
   Virtualizer::update(container, input);
   CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
-  double rowTop = offsetOf(container, 30) - container.revision.containerOffsetY;
+  double rowTop = offsetOf(container, 30) - container.revision.offsetY;
   CHECK_NEAR(rowTop, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
 
   // The header grows while the command is still in flight, as the Fabric layout pass would apply it.
   double previousHeader = container.headerSize;
   container.headerSize = 160.0;
-  Virtualizer::recomputeElementOffsets(container, 0);
+  Virtualizer::recomputeRowOffsets(container, 0);
   Virtualizer::applyHeaderSizeChange(container, previousHeader);
-  CHECK_NEAR(offsetOf(container, 30) - container.revision.containerOffsetY, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
+  CHECK_NEAR(offsetOf(container, 30) - container.revision.offsetY, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
 }
 
 /*
@@ -433,21 +433,21 @@ TEST(rows_measured_during_a_scroll_to_index_keep_the_view_position) {
   FrameInput input = inputFor(keys, 0.0);
   Virtualizer::update(container, input);
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, 100.0});
+    Virtualizer::applyRowSize(container, index, {WINDOW_WIDTH, 100.0});
   }
-  Virtualizer::commitElementSizes(container, 0);
-  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::commitRowSizes(container, 0);
+  Virtualizer::recomputeContentSize(container);
   Virtualizer::update(container, input);
 
-  container.scrollToIndex(30, 0.5);
+  container.scrollToRow(30, 0.5);
   Virtualizer::update(container, input);
   CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
   double resting = (WINDOW_HEIGHT - 100.0) / 2.0;
-  CHECK_NEAR(offsetOf(container, 30) - container.revision.containerOffsetY, resting, 1.0);
+  CHECK_NEAR(offsetOf(container, 30) - container.revision.offsetY, resting, 1.0);
 
   // A row above the target measures taller while the command is still in flight.
-  Virtualizer::applyElementSize(container, 28, {WINDOW_WIDTH, 160.0});
-  Virtualizer::commitElementSizes(container, 28);
-  Virtualizer::recomputeTotalSize(container);
-  CHECK_NEAR(offsetOf(container, 30) - container.revision.containerOffsetY, resting, 1.0);
+  Virtualizer::applyRowSize(container, 28, {WINDOW_WIDTH, 160.0});
+  Virtualizer::commitRowSizes(container, 28);
+  Virtualizer::recomputeContentSize(container);
+  CHECK_NEAR(offsetOf(container, 30) - container.revision.offsetY, resting, 1.0);
 }

@@ -125,19 +125,19 @@ struct SimHost {
   }
 
   double maxOffset() const {
-    double total = container.revision.totalContainerHeight;
+    double total = container.revision.contentHeight;
     return std::max(0.0, total - windowSize);
   }
 
   FrameInput input(bool ownWrite) {
-    FrameInput frame = inputFor(keys, ownWrite ? container.revision.containerOffsetY : hostOffset);
-    frame.windowContainerHeight = windowSize;
+    FrameInput frame = inputFor(keys, ownWrite ? container.revision.offsetY : hostOffset);
+    frame.windowHeight = windowSize;
     frame.headerSize = header;
     frame.footerSize = footer;
     frame.inverted = inverted;
     frame.followAppends = followAppends;
-    frame.containerOffsetEnabled = ownWrite;
-    frame.commitToken = ownWrite ? (container.operation ? container.operation->id : 0) : echoedToken;
+    frame.offsetEnabled = ownWrite;
+    frame.commitToken = ownWrite ? (container.operation ? container.operation->commitToken : 0) : echoedToken;
     frame.scrollPhase = phase;
     frame.userScrolled = userScrolled;
     return frame;
@@ -149,41 +149,41 @@ struct SimHost {
   void layoutPass() {
     Container& core = container;
     bool inputsChanged = core.headerSize != header || core.footerSize != footer ||
-      core.revision.windowContainerHeight != windowSize || core.revision.windowContainerWidth != WINDOW_WIDTH;
+      core.revision.windowHeight != windowSize || core.revision.windowWidth != WINDOW_WIDTH;
     if (inputsChanged) {
       double previousHeader = core.headerSize;
-      double previousWindow = core.getWindowContainerSize();
-      bool rowsMove = previousHeader != header || core.revision.windowContainerWidth != WINDOW_WIDTH;
+      double previousWindow = core.getWindowSize();
+      bool rowsMove = previousHeader != header || core.revision.windowWidth != WINDOW_WIDTH;
       core.headerSize = header;
       core.footerSize = footer;
-      core.revision.windowContainerWidth = WINDOW_WIDTH;
-      core.revision.windowContainerHeight = windowSize;
+      core.revision.windowWidth = WINDOW_WIDTH;
+      core.revision.windowHeight = windowSize;
       if (rowsMove) {
-        Virtualizer::recomputeElementOffsets(core, 0);
+        Virtualizer::recomputeRowOffsets(core, 0);
       }
       Virtualizer::applyHeaderSizeChange(core, previousHeader);
       Virtualizer::applyWindowSizeChange(core, previousWindow);
-      core.containerOffsetCorrected = true;
+      core.offsetCorrected = true;
     }
 
-    auto visible = core.getVisibleIndices();
-    if (visible.first != UNDEFINED_INDEX && !core.revision.elements.empty()) {
-      std::size_t low = std::min(visible.first, visible.second);
-      std::size_t high = std::max(visible.first, visible.second);
+    auto visible = core.getMeasuredRange();
+    if (visible.low != UNDEFINED_INDEX && !core.revision.rows.empty()) {
+      std::size_t low = visible.low;
+      std::size_t high = visible.high;
       low = low > mountPad ? low - mountPad : 0;
-      high = std::min(core.revision.elements.size() - 1, high + mountPad);
+      high = std::min(core.revision.rows.size() - 1, high + mountPad);
       std::size_t lowest = UNDEFINED_INDEX;
       for (std::size_t index = low; index <= high; ++index) {
-        double size = trueSizes[core.revision.elements[index].key];
-        if (Virtualizer::applyElementSize(core, index, {WINDOW_WIDTH, size}) && index < lowest) {
+        double size = trueSizes[core.revision.rows[index].key];
+        if (Virtualizer::applyRowSize(core, index, {WINDOW_WIDTH, size}) && index < lowest) {
           lowest = index;
         }
       }
       if (lowest != UNDEFINED_INDEX) {
-        Virtualizer::commitElementSizes(core, lowest);
+        Virtualizer::commitRowSizes(core, lowest);
       }
     }
-    Virtualizer::recomputeTotalSize(core);
+    Virtualizer::recomputeContentSize(core);
   }
 
   /*
@@ -194,7 +194,7 @@ struct SimHost {
   void mountState() {
     Container& core = container;
     ContainerStateUpdate update = core.resolveStateUpdate(stateOffset, stateOffset,
-      core.revision.totalContainerWidth, core.revision.totalContainerHeight);
+      core.revision.contentWidth, core.revision.contentHeight);
     ListScrollState state;
     state.offsetY = stateOffset;
     state.baseY = stateBase;
@@ -210,8 +210,8 @@ struct SimHost {
     }
 
     MountedScroll mounted;
-    mounted.offsetEnabled = update.applyContainerOffset;
-    mounted.offsetY = update.containerOffsetY;
+    mounted.offsetEnabled = update.applyOffset;
+    mounted.offsetY = update.offsetY;
     mounted.baseY = stateBase;
     mounted.commitToken = update.commitToken;
     mounted.userScrolled = userScrolled;
@@ -251,21 +251,21 @@ struct SimHost {
     }
     Virtualizer::update(container, input(ownWrite));
     layoutPass();
-    bool corrected = container.containerOffsetCorrected;
+    bool corrected = container.offsetCorrected;
     mountState();
     if (traceSeed != 0 && tracing) {
       const Container& core = container;
       std::printf("      %s off=%.1f core=%.1f total=%.1f max=%.1f n=%zu op=%s%llu pend=%d rest=%d rel=%d init=%d tok=%llu win=[%zd..%zd] anchor=%s sub=%.1f\n",
-        ownWrite ? "own " : "host", hostOffset, core.revision.containerOffsetY, core.revision.totalContainerHeight,
-        maxOffset(), core.revision.elements.size(),
+        ownWrite ? "own " : "host", hostOffset, core.revision.offsetY, core.revision.contentHeight,
+        maxOffset(), core.revision.rows.size(),
         core.operation ? (core.operation->type == OperationType::MaintainAnchor ? "hold:" :
           core.operation->type == OperationType::ScrollToKey ? "key:" : core.operation->type == OperationType::ScrollToEnd ? "end:" :
           core.operation->type == OperationType::BottomPin ? "pin:" : core.operation->type == OperationType::ShrinkClamp ? "clamp:" : "start:") : "none",
-        static_cast<unsigned long long>(core.operation ? core.operation->id : 0),
+        static_cast<unsigned long long>(core.operation ? core.operation->commitToken : 0),
         core.pendingScrollToEnd ? 1 : 0, core.restingAtInvertedBottom ? 1 : 0, core.invertedBottomReleased ? 1 : 0,
         core.invertedInitialized ? 1 : 0, static_cast<unsigned long long>(echoedToken),
-        static_cast<std::ptrdiff_t>(core.getVisibleIndices().first), static_cast<std::ptrdiff_t>(core.getVisibleIndices().second),
-        core.anchor.key.c_str(), core.anchor.subOffset);
+        static_cast<std::ptrdiff_t>(core.getMeasuredRange().low), static_cast<std::ptrdiff_t>(core.getMeasuredRange().high),
+        core.anchor.key.c_str(), core.anchor.offset);
     }
     // The own write commit is what Fabric runs when state changes, without a host report.
     if (ownWrite) {
@@ -297,27 +297,27 @@ struct SimHost {
  */
 std::string checkGeometry(const SimHost& host) {
   const Container& core = host.container;
-  const std::vector<Element>& elements = core.revision.elements;
-  if (core.elementsStructureDirty || core.elementsSizeDirtyFromIndex != UNDEFINED_INDEX) {
+  const std::vector<Row>& rows = core.revision.rows;
+  if (core.rowStructureDirty || core.rowSizeDirtyFromIndex != UNDEFINED_INDEX) {
     return "";
   }
   double expected = core.headerSize;
-  for (std::size_t index = 0; index < elements.size(); ++index) {
-    const Element& element = elements[index];
-    if (!std::isfinite(element.offsetY) || !std::isfinite(element.height)) {
+  for (std::size_t index = 0; index < rows.size(); ++index) {
+    const Row& row = rows[index];
+    if (!std::isfinite(row.offsetY) || !std::isfinite(row.height)) {
       return "non finite geometry at " + std::to_string(index);
     }
-    if (std::fabs(element.offsetY - expected) > 0.01) {
-      return "row " + std::to_string(index) + " at " + std::to_string(element.offsetY) + " expected " + std::to_string(expected);
+    if (std::fabs(row.offsetY - expected) > 0.01) {
+      return "row " + std::to_string(index) + " at " + std::to_string(row.offsetY) + " expected " + std::to_string(expected);
     }
-    if (element.index != index) {
-      return "row " + std::to_string(index) + " carries index " + std::to_string(element.index);
+    if (row.index != index) {
+      return "row " + std::to_string(index) + " carries index " + std::to_string(row.index);
     }
-    expected += element.height;
+    expected += row.height;
   }
   double total = std::max(expected, core.headerSize) + core.footerSize;
-  if (std::fabs(core.revision.totalContainerHeight - total) > 0.01) {
-    return "total " + std::to_string(core.revision.totalContainerHeight) + " expected " + std::to_string(total);
+  if (std::fabs(core.revision.contentHeight - total) > 0.01) {
+    return "total " + std::to_string(core.revision.contentHeight) + " expected " + std::to_string(total);
   }
   return "";
 }
@@ -327,20 +327,20 @@ std::string checkGeometry(const SimHost& host) {
  */
 std::string checkCoverage(const SimHost& host) {
   const Container& core = host.container;
-  if (core.revision.elements.empty()) {
+  if (core.revision.rows.empty()) {
     return "";
   }
-  auto visible = core.getVisibleIndices();
-  std::size_t low = std::min(visible.first, visible.second);
-  std::size_t high = std::max(visible.first, visible.second);
-  double offset = core.revision.containerOffsetY;
-  double end = offset + core.getWindowContainerSize();
-  for (std::size_t index = 0; index < core.revision.elements.size(); ++index) {
-    const Element& element = core.revision.elements[index];
-    if (element.offsetY + element.height <= offset || element.offsetY >= end) {
+  auto visible = core.getMeasuredRange();
+  std::size_t low = visible.low;
+  std::size_t high = visible.high;
+  double offset = core.revision.offsetY;
+  double end = offset + core.getWindowSize();
+  for (std::size_t index = 0; index < core.revision.rows.size(); ++index) {
+    const Row& row = core.revision.rows[index];
+    if (row.offsetY + row.height <= offset || row.offsetY >= end) {
       continue;
     }
-    if (visible.first == UNDEFINED_INDEX) {
+    if (visible.low == UNDEFINED_INDEX) {
       return "no window while row " + std::to_string(index) + " overlaps the viewport";
     }
     if (index < low || index > high) {
@@ -361,15 +361,15 @@ struct ScreenRow {
 
 ScreenRow firstVisibleRow(const SimHost& host) {
   const Container& core = host.container;
-  for (const Element& element : core.revision.elements) {
-    if (element.offsetY + element.height <= host.hostOffset) {
+  for (const Row& row : core.revision.rows) {
+    if (row.offsetY + row.height <= host.hostOffset) {
       continue;
     }
-    if (element.offsetY >= host.hostOffset + host.windowSize) {
+    if (row.offsetY >= host.hostOffset + host.windowSize) {
       break;
     }
-    if (core.isAnchorable(element.key)) {
-      return {element.key, element.offsetY - host.hostOffset};
+    if (core.isAnchorable(row.key)) {
+      return {row.key, row.offsetY - host.hostOffset};
     }
   }
   return {};
@@ -378,26 +378,26 @@ ScreenRow firstVisibleRow(const SimHost& host) {
 std::vector<ScreenRow> visibleRows(const SimHost& host) {
   std::vector<ScreenRow> rows;
   const Container& core = host.container;
-  for (const Element& element : core.revision.elements) {
-    if (element.offsetY + element.height <= host.hostOffset) {
+  for (const Row& row : core.revision.rows) {
+    if (row.offsetY + row.height <= host.hostOffset) {
       continue;
     }
-    if (element.offsetY >= host.hostOffset + host.windowSize) {
+    if (row.offsetY >= host.hostOffset + host.windowSize) {
       break;
     }
-    if (core.isAnchorable(element.key)) {
-      rows.push_back({element.key, element.offsetY - host.hostOffset});
+    if (core.isAnchorable(row.key)) {
+      rows.push_back({row.key, row.offsetY - host.hostOffset});
     }
   }
   return rows;
 }
 
 double screenYOf(const SimHost& host, const std::string& key) {
-  std::size_t index = host.container.findElementIndexByKey(key);
+  std::size_t index = host.container.indexOfKey(key);
   if (index == UNDEFINED_INDEX) {
     return std::nan("");
   }
-  return host.container.revision.elements[index].offsetY - host.hostOffset;
+  return host.container.revision.rows[index].offsetY - host.hostOffset;
 }
 
 void failWith(const SimHost& host, std::uint32_t seed, const std::string& what) {
@@ -488,8 +488,8 @@ void changeAndHold(
      * A hold that would put the offset outside the scroll range is clamped instead.
      * Then the view rests on the edge it hit.
      */
-    std::size_t index = host.container.findElementIndexByKey(row.key);
-    double wanted = host.container.revision.elements[index].offsetY - row.screenY;
+    std::size_t index = host.container.indexOfKey(row.key);
+    double wanted = host.container.revision.rows[index].offsetY - row.screenY;
     if (wanted < 0.0 && host.hostOffset <= TOLERANCE) {
       return;
     }
@@ -544,8 +544,8 @@ void open(SimHost& host, std::uint32_t seed, std::size_t count) {
   host.keys = host.makeKeys(count);
   host.note("open n=" + std::to_string(count) + (host.inverted ? " inverted" : ""));
   FrameInput first = host.input(false);
-  first.windowContainerWidth = 0.0;
-  first.windowContainerHeight = 0.0;
+  first.windowWidth = 0.0;
+  first.windowHeight = 0.0;
   Virtualizer::update(host.container, first);
   host.layoutPass();
   host.mountState();
@@ -602,9 +602,9 @@ TEST(fuzz_idle_data_changes_hold_the_first_visible_row) {
       int roll = coin(host.rng);
       std::size_t count = 1 + static_cast<std::size_t>(coin(host.rng) % 12);
       std::size_t size = host.keys.size();
-      auto visible = host.container.getVisibleIndices();
-      std::size_t visLow = std::min(visible.first, visible.second);
-      std::size_t visHigh = std::max(visible.first, visible.second);
+      auto visible = host.container.getMeasuredRange();
+      std::size_t visLow = visible.low;
+      std::size_t visHigh = visible.high;
       if (roll < 25) {
         changeAndHold(host, seed, withPrepend(host, count), "prepend " + std::to_string(count));
       } else if (roll < 40) {
@@ -718,8 +718,8 @@ TEST(fuzz_header_and_footer_changes_keep_the_rows) {
       double delta = host.header - previousHeader;
       bool headerOffScreen = offsetBefore > 0.0 && offsetBefore >= previousHeader;
       double expected = footerChange || headerOffScreen ? row.screenY : row.screenY + delta;
-      std::size_t index = host.container.findElementIndexByKey(row.key);
-      double wanted = host.container.revision.elements[index].offsetY - expected;
+      std::size_t index = host.container.indexOfKey(row.key);
+      double wanted = host.container.revision.rows[index].offsetY - expected;
       bool clamped = (wanted < 0.0 && host.hostOffset <= TOLERANCE) ||
         (wanted > host.maxOffset() && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE);
       if (std::fabs(after - expected) > TOLERANCE && !clamped) {
@@ -746,21 +746,21 @@ TEST(fuzz_scroll_commands_land_and_settle) {
         std::size_t index = static_cast<std::size_t>(coin(host.rng)) % host.keys.size();
         double viewPosition = (coin(host.rng) % 3) * 0.5;
         std::string key = host.keys[index];
-        host.note("scrollToIndex " + std::to_string(index) + " pos " + std::to_string(viewPosition));
-        host.container.scrollToIndex(index, viewPosition);
+        host.note("scrollToRow " + std::to_string(index) + " pos " + std::to_string(viewPosition));
+        host.container.scrollToRow(index, viewPosition);
         host.commit(false);
         if (host.settle() < 0) {
-          failWith(host, seed, "scrollToIndex never settled");
+          failWith(host, seed, "scrollToRow never settled");
         }
         checkFrame(host, seed, true);
-        std::size_t landed = host.container.findElementIndexByKey(key);
-        double rowSize = host.container.revision.elements[landed].height;
+        std::size_t landed = host.container.indexOfKey(key);
+        double rowSize = host.container.revision.rows[landed].height;
         double freeSpace = host.windowSize - rowSize;
         double expectedScreen = freeSpace > 0.0 ? viewPosition * freeSpace : 0.0;
-        double wanted = host.container.revision.elements[landed].offsetY - expectedScreen;
+        double wanted = host.container.revision.rows[landed].offsetY - expectedScreen;
         double clampedWanted = std::min(std::max(wanted, 0.0), host.maxOffset());
         if (std::fabs(host.hostOffset - clampedWanted) > TOLERANCE) {
-          failWith(host, seed, "scrollToIndex landed at " + std::to_string(host.hostOffset) + " wanted " +
+          failWith(host, seed, "scrollToRow landed at " + std::to_string(host.hostOffset) + " wanted " +
             std::to_string(clampedWanted));
         }
       } else if (roll < 55) {
@@ -940,8 +940,8 @@ TEST(fuzz_changes_during_gestures_follow_the_finger) {
         if (std::fabs(after - expected) <= TOLERANCE) {
           break;
         }
-        std::size_t index = host.container.findElementIndexByKey(row.key);
-        double wanted = host.container.revision.elements[index].offsetY - expected;
+        std::size_t index = host.container.indexOfKey(row.key);
+        double wanted = host.container.revision.rows[index].offsetY - expected;
         if (wanted < 0.0 && host.hostOffset <= TOLERANCE) {
           break;
         }
@@ -963,33 +963,33 @@ namespace {
  * trueSizes and the layout pass feeds it on the right axis.
  */
 struct AxisHost : SimHost {
-  std::size_t columns = 1;
+  std::size_t numberOfColumns = 1;
   bool horizontal = false;
 
   explicit AxisHost(std::uint32_t seed) : SimHost(seed) {}
 
   FrameInput axisInput(bool ownWrite) {
     FrameInput frame = input(ownWrite);
-    frame.columns = columns;
+    frame.numberOfColumns = numberOfColumns;
     frame.horizontal = horizontal;
     if (horizontal) {
-      frame.windowContainerWidth = windowSize;
-      frame.windowContainerHeight = WINDOW_WIDTH;
+      frame.windowWidth = windowSize;
+      frame.windowHeight = WINDOW_WIDTH;
       // Our own write comes back on the scroll axis, which is x here.
-      frame.containerOffsetX = ownWrite ? container.revision.containerOffsetX : hostOffset;
-      frame.containerOffsetY = 0.0;
-      frame.estimatedElementSize = {ESTIMATED_ROW_HEIGHT, WINDOW_WIDTH};
+      frame.offsetX = ownWrite ? container.revision.offsetX : hostOffset;
+      frame.offsetY = 0.0;
+      frame.estimatedRowSize = {ESTIMATED_ROW_HEIGHT, WINDOW_WIDTH};
     }
     return frame;
   }
 };
 
 double axisOffset(const Container& core) {
-  return core.horizontal ? core.revision.containerOffsetX : core.revision.containerOffsetY;
+  return core.horizontal ? core.revision.offsetX : core.revision.offsetY;
 }
 
 double axisTotal(const Container& core) {
-  return core.horizontal ? core.revision.totalContainerWidth : core.revision.totalContainerHeight;
+  return core.horizontal ? core.revision.contentWidth : core.revision.contentHeight;
 }
 
 /*
@@ -1004,39 +1004,39 @@ bool axisCommit(AxisHost& host, bool ownWrite) {
   Virtualizer::update(core, host.axisInput(ownWrite));
 
   // Layout pass along the axis.
-  auto visible = core.getVisibleIndices();
-  if (visible.first != UNDEFINED_INDEX && !core.revision.elements.empty()) {
-    std::size_t low = std::min(visible.first, visible.second);
-    std::size_t high = std::max(visible.first, visible.second);
+  auto visible = core.getMeasuredRange();
+  if (visible.low != UNDEFINED_INDEX && !core.revision.rows.empty()) {
+    std::size_t low = visible.low;
+    std::size_t high = visible.high;
     low = low > host.mountPad ? low - host.mountPad : 0;
-    high = std::min(core.revision.elements.size() - 1, high + host.mountPad);
+    high = std::min(core.revision.rows.size() - 1, high + host.mountPad);
     std::size_t lowest = UNDEFINED_INDEX;
     for (std::size_t index = low; index <= high; ++index) {
-      const Element& element = core.revision.elements[index];
-      double size = host.trueSizes[element.key];
-      Size fed = host.horizontal ? Size{size, element.height} : Size{element.width, size};
-      if (Virtualizer::applyElementSize(core, index, fed) && index < lowest) {
+      const Row& row = core.revision.rows[index];
+      double size = host.trueSizes[row.key];
+      Size fed = host.horizontal ? Size{size, row.height} : Size{row.width, size};
+      if (Virtualizer::applyRowSize(core, index, fed) && index < lowest) {
         lowest = index;
       }
     }
     if (lowest != UNDEFINED_INDEX) {
-      Virtualizer::commitElementSizes(core, lowest);
+      Virtualizer::commitRowSizes(core, lowest);
     }
   }
-  Virtualizer::recomputeTotalSize(core);
+  Virtualizer::recomputeContentSize(core);
 
-  bool corrected = core.containerOffsetCorrected;
+  bool corrected = core.offsetCorrected;
   ContainerStateUpdate state = core.resolveStateUpdate(host.stateOffset, host.stateOffset,
-    core.revision.totalContainerWidth, core.revision.totalContainerHeight);
+    core.revision.contentWidth, core.revision.contentHeight);
   double maxOffset = std::max(0.0, axisTotal(core) - host.windowSize);
   if (host.hostOffset > maxOffset) {
     host.hostOffset = maxOffset;
   }
   if (state.changed) {
-    host.stateOffset = host.horizontal ? state.containerOffsetX : state.containerOffsetY;
+    host.stateOffset = host.horizontal ? state.offsetX : state.offsetY;
   }
-  if (state.applyContainerOffset) {
-    double applied = std::min(std::max(host.horizontal ? state.containerOffsetX : state.containerOffsetY, 0.0), maxOffset);
+  if (state.applyOffset) {
+    double applied = std::min(std::max(host.horizontal ? state.offsetX : state.offsetY, 0.0), maxOffset);
     if (std::fabs(applied - host.hostOffset) >= 0.01) {
       host.hostOffset = applied;
       host.echoedToken = state.commitToken;
@@ -1045,10 +1045,10 @@ bool axisCommit(AxisHost& host, bool ownWrite) {
   host.userScrolled = false;
   if (host.tracing) {
     std::printf("      %s off=%.1f core=%.1f total=%.1f max=%.1f n=%zu op=%llu corrected=%d applied=%d anchor=%s sub=%.1f win=[%zd..%zd]\n",
-      ownWrite ? "own " : "host", host.hostOffset, axisOffset(core), axisTotal(core), maxOffset, core.revision.elements.size(),
-      static_cast<unsigned long long>(core.operation ? core.operation->id : 0), corrected ? 1 : 0,
-      state.applyContainerOffset ? 1 : 0, core.anchor.key.c_str(), core.anchor.subOffset,
-      static_cast<std::ptrdiff_t>(core.getVisibleIndices().first), static_cast<std::ptrdiff_t>(core.getVisibleIndices().second));
+      ownWrite ? "own " : "host", host.hostOffset, axisOffset(core), axisTotal(core), maxOffset, core.revision.rows.size(),
+      static_cast<unsigned long long>(core.operation ? core.operation->commitToken : 0), corrected ? 1 : 0,
+      state.applyOffset ? 1 : 0, core.anchor.key.c_str(), core.anchor.offset,
+      static_cast<std::ptrdiff_t>(core.getMeasuredRange().low), static_cast<std::ptrdiff_t>(core.getMeasuredRange().high));
   }
   return corrected;
 }
@@ -1069,15 +1069,15 @@ int axisSettle(AxisHost& host) {
  */
 std::string checkAxisGeometry(const AxisHost& host) {
   const Container& core = host.container;
-  if (core.elementsStructureDirty || core.elementsSizeDirtyFromIndex != UNDEFINED_INDEX) {
+  if (core.rowStructureDirty || core.rowSizeDirtyFromIndex != UNDEFINED_INDEX) {
     return "";
   }
-  std::size_t columns = std::max<std::size_t>(1, core.columns);
+  std::size_t columns = std::max<std::size_t>(1, core.numberOfColumns);
   std::vector<double> edges(columns, core.headerSize);
-  for (std::size_t index = 0; index < core.revision.elements.size(); ++index) {
-    const Element& element = core.revision.elements[index];
-    double start = core.horizontal ? element.offsetX : element.offsetY;
-    double size = core.horizontal ? element.width : element.height;
+  for (std::size_t index = 0; index < core.revision.rows.size(); ++index) {
+    const Row& row = core.revision.rows[index];
+    double start = core.horizontal ? row.offsetX : row.offsetY;
+    double size = core.horizontal ? row.width : row.height;
     std::size_t track = index % columns;
     if (!std::isfinite(start) || !std::isfinite(size)) {
       return "non finite geometry at " + std::to_string(index);
@@ -1098,38 +1098,38 @@ std::string checkAxisGeometry(const AxisHost& host) {
 ScreenRow firstAxisRow(const AxisHost& host) {
   const Container& core = host.container;
   // A grid keeps holding the row it already holds while that row is on screen.
-  if (host.columns > 1 && !core.anchor.key.empty()) {
-    std::size_t index = core.findElementIndexByKey(core.anchor.key);
+  if (host.numberOfColumns > 1 && !core.anchor.key.empty()) {
+    std::size_t index = core.indexOfKey(core.anchor.key);
     if (index != UNDEFINED_INDEX) {
-      const Element& element = core.revision.elements[index];
-      double start = core.horizontal ? element.offsetX : element.offsetY;
-      double size = core.horizontal ? element.width : element.height;
+      const Row& row = core.revision.rows[index];
+      double start = core.horizontal ? row.offsetX : row.offsetY;
+      double size = core.horizontal ? row.width : row.height;
       if (start + size > host.hostOffset && start < host.hostOffset + host.windowSize) {
-        return {element.key, start - host.hostOffset};
+        return {row.key, start - host.hostOffset};
       }
     }
   }
-  for (const Element& element : core.revision.elements) {
-    double start = core.horizontal ? element.offsetX : element.offsetY;
-    double size = core.horizontal ? element.width : element.height;
+  for (const Row& row : core.revision.rows) {
+    double start = core.horizontal ? row.offsetX : row.offsetY;
+    double size = core.horizontal ? row.width : row.height;
     if (start + size <= host.hostOffset || start >= host.hostOffset + host.windowSize) {
       continue;
     }
-    if (!core.isAnchorable(element.key)) {
+    if (!core.isAnchorable(row.key)) {
       continue;
     }
-    return {element.key, start - host.hostOffset};
+    return {row.key, start - host.hostOffset};
   }
   return {};
 }
 
 double axisScreenOf(const AxisHost& host, const std::string& key) {
-  std::size_t index = host.container.findElementIndexByKey(key);
+  std::size_t index = host.container.indexOfKey(key);
   if (index == UNDEFINED_INDEX) {
     return std::nan("");
   }
-  const Element& element = host.container.revision.elements[index];
-  return (host.horizontal ? element.offsetX : element.offsetY) - host.hostOffset;
+  const Row& row = host.container.revision.rows[index];
+  return (host.horizontal ? row.offsetX : row.offsetY) - host.hostOffset;
 }
 
 void axisRest(AxisHost& host, std::uint32_t seed) {
@@ -1183,9 +1183,9 @@ void axisChangeAndHold(
   if (std::isnan(after) || std::fabs(after - row.screenY) <= TOLERANCE) {
     return;
   }
-  std::size_t index = host.container.findElementIndexByKey(row.key);
-  const Element& element = host.container.revision.elements[index];
-  double wanted = (host.horizontal ? element.offsetX : element.offsetY) - row.screenY;
+  std::size_t index = host.container.indexOfKey(row.key);
+  const Row& placed = host.container.revision.rows[index];
+  double wanted = (host.horizontal ? placed.offsetX : placed.offsetY) - row.screenY;
   double maxOffset = std::max(0.0, axisTotal(host.container) - host.windowSize);
   if (wanted < 0.0 && host.hostOffset <= TOLERANCE) {
     return;
@@ -1199,10 +1199,10 @@ void axisChangeAndHold(
 
 void axisOpen(AxisHost& host, std::uint32_t seed, std::size_t count) {
   host.keys = host.makeKeys(count);
-  host.note("open n=" + std::to_string(count) + " cols=" + std::to_string(host.columns) + (host.horizontal ? " horizontal" : ""));
+  host.note("open n=" + std::to_string(count) + " cols=" + std::to_string(host.numberOfColumns) + (host.horizontal ? " horizontal" : ""));
   FrameInput first = host.axisInput(false);
-  first.windowContainerWidth = 0.0;
-  first.windowContainerHeight = 0.0;
+  first.windowWidth = 0.0;
+  first.windowHeight = 0.0;
   Virtualizer::update(host.container, first);
   axisCommit(host, false);
   axisRest(host, seed);
@@ -1252,12 +1252,12 @@ TEST(fuzz_grid_changes_by_whole_rows_hold_the_top_row) {
   for (std::uint32_t seed = 1; seed <= 200; ++seed) {
     AxisHost host(seed);
     std::uniform_int_distribution<int> coin(0, 99);
-    host.columns = 2 + static_cast<std::size_t>(coin(host.rng) % 3);
+    host.numberOfColumns = 2 + static_cast<std::size_t>(coin(host.rng) % 3);
     host.header = coin(host.rng) < 50 ? 0.0 : 80.0;
     axisOpen(host, seed, 30 + static_cast<std::size_t>(coin(host.rng)));
     for (int step = 0; step < 10; ++step) {
       int roll = coin(host.rng);
-      std::size_t count = host.columns * (1 + static_cast<std::size_t>(coin(host.rng) % 4));
+      std::size_t count = host.numberOfColumns * (1 + static_cast<std::size_t>(coin(host.rng) % 4));
       if (roll < 35) {
         axisChangeAndHold(host, seed, withPrepend(host, count), "prepend " + std::to_string(count));
       } else if (roll < 55) {
@@ -1343,10 +1343,10 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
           host.stateOffset = host.hostOffset;
         }
         FrameInput frame = host.input(ownWrite);
-        frame.nonAnchorableKeys = pills;
+        frame.nonAnchorKeys = pills;
         Virtualizer::update(host.container, frame);
         host.layoutPass();
-        bool corrected = host.container.containerOffsetCorrected;
+        bool corrected = host.container.offsetCorrected;
         host.mountState();
         if (!ownWrite) {
           host.userScrolled = false;
@@ -1391,8 +1391,8 @@ TEST(fuzz_non_anchorable_rows_never_hold_and_content_rows_do) {
         if (std::fabs(after - row.screenY) <= TOLERANCE) {
           break;
         }
-        std::size_t index = host.container.findElementIndexByKey(row.key);
-        double wanted = host.container.revision.elements[index].offsetY - row.screenY;
+        std::size_t index = host.container.indexOfKey(row.key);
+        double wanted = host.container.revision.rows[index].offsetY - row.screenY;
         if ((wanted < 0.0 && host.hostOffset <= TOLERANCE) ||
             (wanted > host.maxOffset() && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE)) {
           break;
@@ -1464,8 +1464,8 @@ TEST(fuzz_window_resizes_keep_the_reader) {
       if (std::isnan(after) || std::fabs(after - row.screenY) <= TOLERANCE) {
         continue;
       }
-      std::size_t index = host.container.findElementIndexByKey(row.key);
-      double wanted = host.container.revision.elements[index].offsetY - row.screenY;
+      std::size_t index = host.container.indexOfKey(row.key);
+      double wanted = host.container.revision.rows[index].offsetY - row.screenY;
       if ((wanted < 0.0 && host.hostOffset <= TOLERANCE) ||
           (wanted > host.maxOffset() && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE)) {
         continue;
@@ -1500,7 +1500,7 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
         std::vector<std::string> next = withPrepend(host, count);
         for (std::size_t index = 0; index < count; ++index) {
           double guess = host.trueSizes[next[index]] + (coin(host.rng) < 50 ? 0.0 : 30.0);
-          Virtualizer::applyPredictedElementSize(host.container, next[index], {WINDOW_WIDTH, guess});
+          Virtualizer::applyPredictedRowSize(host.container, next[index], {WINDOW_WIDTH, guess});
         }
         changeAndHold(host, seed, next, "predicted prepend " + std::to_string(count));
         continue;
@@ -1510,11 +1510,11 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
         ScreenRow row = firstVisibleRow(host);
         // Predictions arrive before a frame and the frame's layout reflows them.
         for (std::size_t index = 0; index < host.keys.size(); ++index) {
-          const Element& element = host.container.revision.elements[index];
-          if (element.measured || coin(host.rng) < 50) {
+          const Row& placed = host.container.revision.rows[index];
+          if (placed.measured || coin(host.rng) < 50) {
             continue;
           }
-          Virtualizer::applyPredictedElementSize(host.container, element.key, {WINDOW_WIDTH, host.trueSizes[element.key] + 10.0});
+          Virtualizer::applyPredictedRowSize(host.container, placed.key, {WINDOW_WIDTH, host.trueSizes[placed.key] + 10.0});
         }
         host.note("predict unmeasured rows off=" + std::to_string(host.hostOffset));
         host.commit(false);
@@ -1524,8 +1524,8 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
         checkFrame(host, seed, true);
         if (!row.key.empty()) {
           double after = screenYOf(host, row.key);
-          std::size_t index = host.container.findElementIndexByKey(row.key);
-          double wanted = host.container.revision.elements[index].offsetY - row.screenY;
+          std::size_t index = host.container.indexOfKey(row.key);
+          double wanted = host.container.revision.rows[index].offsetY - row.screenY;
           bool clamped = (wanted < 0.0 && host.hostOffset <= TOLERANCE) ||
             (wanted > host.maxOffset() && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE);
           bool bottomHeld = host.inverted && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE;
@@ -1540,8 +1540,8 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
         ScreenRow row = firstVisibleRow(host);
         host.note("invalidate predictions off=" + std::to_string(host.hostOffset));
         Virtualizer::invalidatePredictions(host.container);
-        for (const Element& element : host.container.revision.elements) {
-          if (element.predicted) {
+        for (const Row& placed : host.container.revision.rows) {
+          if (placed.predicted) {
             failWith(host, seed, "a prediction survived invalidation");
           }
         }
@@ -1552,8 +1552,8 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
         checkFrame(host, seed, true);
         if (!row.key.empty()) {
           double after = screenYOf(host, row.key);
-          std::size_t index = host.container.findElementIndexByKey(row.key);
-          double wanted = host.container.revision.elements[index].offsetY - row.screenY;
+          std::size_t index = host.container.indexOfKey(row.key);
+          double wanted = host.container.revision.rows[index].offsetY - row.screenY;
           bool clamped = (wanted < 0.0 && host.hostOffset <= TOLERANCE) ||
             (wanted > host.maxOffset() && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE);
           bool bottomHeld = host.inverted && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE;
@@ -1567,9 +1567,9 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
       changeAndHold(host, seed, withAppend(host, 1 + static_cast<std::size_t>(coin(host.rng) % 4)), "append");
     }
     // Every mounted row ends up measured, not predicted.
-    for (const Element& element : host.container.revision.elements) {
-      if (element.predicted && element.measured) {
-        failWith(host, seed, "row " + element.key + " is both measured and predicted");
+    for (const Row& row : host.container.revision.rows) {
+      if (row.predicted && row.measured) {
+        failWith(host, seed, "row " + row.key + " is both measured and predicted");
       }
     }
   }
@@ -1583,20 +1583,20 @@ namespace {
  */
 std::string checkMountedCoverage(const SimHost& host) {
   const Container& core = host.container;
-  if (core.revision.elements.empty()) {
+  if (core.revision.rows.empty()) {
     return "";
   }
-  auto visible = core.getVisibleIndices();
-  if (visible.first == UNDEFINED_INDEX) {
+  auto visible = core.getMeasuredRange();
+  if (visible.low == UNDEFINED_INDEX) {
     return "no window";
   }
-  std::size_t low = std::min(visible.first, visible.second);
-  std::size_t high = std::max(visible.first, visible.second);
+  std::size_t low = visible.low;
+  std::size_t high = visible.high;
   low = low > host.mountPad ? low - host.mountPad : 0;
   high += host.mountPad;
-  for (std::size_t index = 0; index < core.revision.elements.size(); ++index) {
-    const Element& element = core.revision.elements[index];
-    if (element.offsetY + element.height <= host.hostOffset || element.offsetY >= host.hostOffset + host.windowSize) {
+  for (std::size_t index = 0; index < core.revision.rows.size(); ++index) {
+    const Row& row = core.revision.rows[index];
+    if (row.offsetY + row.height <= host.hostOffset || row.offsetY >= host.hostOffset + host.windowSize) {
       continue;
     }
     if (index < low || index > high) {
@@ -1612,16 +1612,16 @@ std::string checkMountedCoverage(const SimHost& host) {
  * previousOffset, with its real size. Only such a row can be seen to jump.
  */
 ScreenRow firstRowStartingOnScreen(const SimHost& host, double previousOffset) {
-  for (const Element& element : host.container.revision.elements) {
-    double screenY = element.offsetY - host.hostOffset;
-    bool sawIt = element.offsetY + element.height > previousOffset && element.offsetY < previousOffset + host.windowSize;
-    if (screenY < 0.0 || !element.measured || !sawIt) {
+  for (const Row& row : host.container.revision.rows) {
+    double screenY = row.offsetY - host.hostOffset;
+    bool sawIt = row.offsetY + row.height > previousOffset && row.offsetY < previousOffset + host.windowSize;
+    if (screenY < 0.0 || !row.measured || !sawIt) {
       continue;
     }
     if (screenY >= host.windowSize) {
       break;
     }
-    return {element.key, screenY};
+    return {row.key, screenY};
   }
   return {};
 }
@@ -1708,12 +1708,12 @@ TEST(fuzz_lists_grow_from_small_and_shrink_back) {
     std::size_t endReachedCount = UNDEFINED_INDEX;
     host.container.onEndReachedCallback = [&] {
       ++endReached;
-      endReachedCount = host.container.revision.elements.size();
+      endReachedCount = host.container.revision.rows.size();
     };
     std::size_t startReachedCount = UNDEFINED_INDEX;
     host.container.onStartReachedCallback = [&] {
       ++startReached;
-      startReachedCount = host.container.revision.elements.size();
+      startReachedCount = host.container.revision.rows.size();
     };
     open(host, seed, static_cast<std::size_t>(coin(host.rng) % 4));
 
@@ -1743,7 +1743,7 @@ TEST(fuzz_lists_grow_from_small_and_shrink_back) {
         }
         // Resting at the end of rows it never fired for means the reader waits for a page forever.
         bool atEnd = host.hostOffset >= host.maxOffset() - TOLERANCE;
-        if (!host.keys.empty() && atEnd && endReachedCount != host.container.revision.elements.size()) {
+        if (!host.keys.empty() && atEnd && endReachedCount != host.container.revision.rows.size()) {
           failWith(host, seed, "end reached never fired at the end of " + std::to_string(host.keys.size()) + " rows");
         }
         if (endReached > before) {
@@ -1763,9 +1763,9 @@ TEST(fuzz_lists_grow_from_small_and_shrink_back) {
           failWith(host, seed, "start reached fired " + std::to_string(startReached - before) + " times on one arrival");
         }
         // A list that scrolls, resting on its first row, has fired for the rows it has.
-        bool scrollable = host.container.revision.totalContainerHeight > host.windowSize;
+        bool scrollable = host.container.revision.contentHeight > host.windowSize;
         if (!host.keys.empty() && scrollable && host.hostOffset <= TOLERANCE &&
-            startReachedCount != host.container.revision.elements.size()) {
+            startReachedCount != host.container.revision.rows.size()) {
           failWith(host, seed, "start reached never fired at the start of " + std::to_string(host.keys.size()) + " rows");
         }
         if (startReached > before) {
@@ -1802,20 +1802,20 @@ namespace {
  */
 std::string checkAxisCoverage(const AxisHost& host, std::size_t pad) {
   const Container& core = host.container;
-  if (core.revision.elements.empty()) {
+  if (core.revision.rows.empty()) {
     return "";
   }
-  auto visible = core.getVisibleIndices();
-  if (visible.first == UNDEFINED_INDEX) {
+  auto visible = core.getMeasuredRange();
+  if (visible.low == UNDEFINED_INDEX) {
     return "no window";
   }
-  std::size_t low = std::min(visible.first, visible.second);
-  std::size_t high = std::max(visible.first, visible.second) + pad;
+  std::size_t low = visible.low;
+  std::size_t high = visible.high + pad;
   low = low > pad ? low - pad : 0;
-  for (std::size_t index = 0; index < core.revision.elements.size(); ++index) {
-    const Element& element = core.revision.elements[index];
-    double start = core.horizontal ? element.offsetX : element.offsetY;
-    double size = core.horizontal ? element.width : element.height;
+  for (std::size_t index = 0; index < core.revision.rows.size(); ++index) {
+    const Row& row = core.revision.rows[index];
+    double start = core.horizontal ? row.offsetX : row.offsetY;
+    double size = core.horizontal ? row.width : row.height;
     if (start + size <= host.hostOffset || start >= host.hostOffset + host.windowSize) {
       continue;
     }
@@ -1838,7 +1838,7 @@ TEST(fuzz_grid_and_horizontal_flings_never_blank) {
     AxisHost host(seed);
     std::uniform_int_distribution<int> coin(0, 99);
     int shape = coin(host.rng) % 3;
-    host.columns = shape == 0 ? 2 + static_cast<std::size_t>(coin(host.rng) % 3) : 1;
+    host.numberOfColumns = shape == 0 ? 2 + static_cast<std::size_t>(coin(host.rng) % 3) : 1;
     host.horizontal = shape == 1;
     host.inverted = shape == 2 || (shape == 1 && coin(host.rng) < 30);
     host.header = coin(host.rng) < 50 ? 0.0 : 80.0;
@@ -1866,7 +1866,7 @@ TEST(fuzz_grid_and_horizontal_flings_never_blank) {
          * track can pull more of it into view than the pad holds, until the next frame picks
          * the window again. Only single track lists are judged mid fling.
          */
-        std::string coverage = host.columns > 1 ? "" : checkAxisCoverage(host, host.mountPad);
+        std::string coverage = host.numberOfColumns > 1 ? "" : checkAxisCoverage(host, host.mountPad);
         if (!coverage.empty()) {
           failWith(host, seed, "blank during fling: " + coverage);
         }
@@ -1900,7 +1900,7 @@ TEST(fuzz_grid_and_horizontal_scroll_commands_land) {
     AxisHost host(seed);
     std::uniform_int_distribution<int> coin(0, 99);
     int shape = coin(host.rng) % 2;
-    host.columns = shape == 0 ? 2 + static_cast<std::size_t>(coin(host.rng) % 3) : 1;
+    host.numberOfColumns = shape == 0 ? 2 + static_cast<std::size_t>(coin(host.rng) % 3) : 1;
     host.horizontal = shape == 1;
     host.header = coin(host.rng) < 50 ? 0.0 : 80.0;
     axisOpen(host, seed, 60 + static_cast<std::size_t>(coin(host.rng)) * 2);
@@ -1910,27 +1910,27 @@ TEST(fuzz_grid_and_horizontal_scroll_commands_land) {
         std::size_t index = static_cast<std::size_t>(coin(host.rng)) % host.keys.size();
         double viewPosition = (coin(host.rng) % 3) * 0.5;
         std::string key = host.keys[index];
-        host.note("scrollToIndex " + std::to_string(index) + " pos " + std::to_string(viewPosition));
-        host.container.scrollToIndex(index, viewPosition);
+        host.note("scrollToRow " + std::to_string(index) + " pos " + std::to_string(viewPosition));
+        host.container.scrollToRow(index, viewPosition);
         axisCommit(host, false);
         if (axisSettle(host) < 0) {
-          failWith(host, seed, "scrollToIndex never settled");
+          failWith(host, seed, "scrollToRow never settled");
         }
-        std::size_t landed = host.container.findElementIndexByKey(key);
-        const Element& element = host.container.revision.elements[landed];
-        double start = host.horizontal ? element.offsetX : element.offsetY;
-        double size = host.horizontal ? element.width : element.height;
+        std::size_t landed = host.container.indexOfKey(key);
+        const Row& row = host.container.revision.rows[landed];
+        double start = host.horizontal ? row.offsetX : row.offsetY;
+        double size = host.horizontal ? row.width : row.height;
         double freeSpace = host.windowSize - size;
         double wanted = start - (freeSpace > 0.0 ? viewPosition * freeSpace : 0.0);
         double maxOffset = std::max(0.0, axisTotal(host.container) - host.windowSize);
         double clampedWanted = std::min(std::max(wanted, 0.0), maxOffset);
         if (std::fabs(host.hostOffset - clampedWanted) > TOLERANCE) {
-          failWith(host, seed, "scrollToIndex landed at " + std::to_string(host.hostOffset) + " wanted " +
+          failWith(host, seed, "scrollToRow landed at " + std::to_string(host.hostOffset) + " wanted " +
             std::to_string(clampedWanted));
         }
         std::string coverage = checkAxisCoverage(host, 0);
         if (!coverage.empty()) {
-          failWith(host, seed, "blank after scrollToIndex: " + coverage);
+          failWith(host, seed, "blank after scrollToRow: " + coverage);
         }
       } else if (roll < 65) {
         host.note("scrollToEnd");
@@ -1954,7 +1954,7 @@ TEST(fuzz_grid_and_horizontal_scroll_commands_land) {
           failWith(host, seed, "scrollToStart landed at " + std::to_string(host.hostOffset));
         }
       } else {
-        std::size_t count = host.columns * (1 + static_cast<std::size_t>(coin(host.rng) % 4));
+        std::size_t count = host.numberOfColumns * (1 + static_cast<std::size_t>(coin(host.rng) % 4));
         axisChangeAndHold(host, seed, coin(host.rng) < 50 ? withPrepend(host, count) : withAppend(host, count),
           "change " + std::to_string(count));
       }
@@ -2019,8 +2019,8 @@ TEST(fuzz_inverted_header_and_footer_changes_keep_the_reader) {
       double after = screenYOf(host, row.key);
       bool headerOffScreen = offsetBefore > 0.0 && offsetBefore >= previousHeader;
       double expected = footerChange || headerOffScreen ? row.screenY : row.screenY + (host.header - previousHeader);
-      std::size_t index = host.container.findElementIndexByKey(row.key);
-      double wanted = host.container.revision.elements[index].offsetY - expected;
+      std::size_t index = host.container.indexOfKey(row.key);
+      double wanted = host.container.revision.rows[index].offsetY - expected;
       bool clamped = (wanted < 0.0 && host.hostOffset <= TOLERANCE) ||
         (wanted > host.maxOffset() && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE);
       if (std::fabs(after - expected) > TOLERANCE && !clamped) {

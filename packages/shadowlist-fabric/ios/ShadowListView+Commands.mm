@@ -117,8 +117,8 @@ using namespace facebook::react;
   azimgd::shadowlist::ScrollCommand command;
   command.index = (double)index;
   command.viewPosition = viewPosition;
-  // The core moves the resting offset by rowOffset. viewOffset moves the other way.
-  command.rowOffset = std::isfinite(viewOffset) ? -viewOffset : 0.0;
+  // The core rests the row viewOffset past its view position. React Native's viewOffset moves the other way.
+  command.viewOffset = std::isfinite(viewOffset) ? -viewOffset : 0.0;
   command.animated = [self animatesCommands] && animated;
   [self commitScrollCommand:command];
 }
@@ -141,7 +141,7 @@ using namespace facebook::react;
     SLF_TRACE("ev=cmd-scroll-to-offset offset=%.1f", offset);
     azimgd::shadowlist::ScrollCommand command;
     command.index = azimgd::shadowlist::SCROLL_TO_OFFSET_INDEX;
-    command.rowOffset = offset;
+    command.viewOffset = offset;
     command.animated = [self animatesCommands];
     [self commitScrollCommand:command];
     return;

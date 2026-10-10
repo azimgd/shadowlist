@@ -14,7 +14,7 @@ namespace {
  * Growing to twice the size keeps that amortized like the map's own growth.
  */
 void reserveKeyMap(Revision& revision, std::size_t size) {
-  auto& map = revision.elementIndexByKey;
+  auto& map = revision.rowIndexByKey;
   if (static_cast<double>(size) > static_cast<double>(map.bucket_count()) * map.max_load_factor()) {
     map.reserve(size * 2);
   }
@@ -24,7 +24,7 @@ void reserveKeyMap(Revision& revision, std::size_t size) {
  * Whether keys from first on match the rows from rowFirst on, for count rows.
  */
 bool keysMatchRows(
-  const std::vector<Element>& rows,
+  const std::vector<Row>& rows,
   std::size_t rowFirst,
   const std::vector<std::string>& keys,
   std::size_t first,
@@ -42,7 +42,7 @@ bool keysMatchRows(
  * which catches an edit applied at the wrong end or with the wrong count.
  */
 bool keysMatchRows(
-  const std::vector<Element>& rows,
+  const std::vector<Row>& rows,
   std::size_t rowFirst,
   const std::vector<std::string>& keys,
   std::size_t first,
@@ -65,10 +65,10 @@ bool vouchedFor(const KeyEdit& edit, KeyEditKind kind, std::size_t count) {
  * Flag a structure change for the next layout, from the first row whose place changed.
  */
 void markStructureDirty(Container& container, std::size_t fromIndex) {
-  container.elementsStructureDirtyFromIndex = container.elementsStructureDirty
-    ? std::min(container.elementsStructureDirtyFromIndex, fromIndex)
+  container.rowStructureDirtyFromIndex = container.rowStructureDirty
+    ? std::min(container.rowStructureDirtyFromIndex, fromIndex)
     : fromIndex;
-  container.elementsStructureDirty = true;
+  container.rowStructureDirty = true;
 }
 
 /*
@@ -80,7 +80,7 @@ struct KeyEnds {
   std::size_t suffix = 0;
 };
 
-KeyEnds commonEnds(const std::vector<Element>& rows, const std::vector<std::string>& nextKeys) {
+KeyEnds commonEnds(const std::vector<Row>& rows, const std::vector<std::string>& nextKeys) {
   KeyEnds ends;
   std::size_t shorter = std::min(rows.size(), nextKeys.size());
   while (ends.prefix < shorter && rows[ends.prefix].key == nextKeys[ends.prefix]) {
@@ -99,7 +99,7 @@ KeyEnds commonEnds(const std::vector<Element>& rows, const std::vector<std::stri
  */
 void eraseRowKeys(Revision& revision, std::size_t first, std::size_t count) {
   for (std::size_t index = first; index < first + count; ++index) {
-    revision.elementIndexByKey.erase(revision.elements[index].key);
+    revision.rowIndexByKey.erase(revision.rows[index].key);
   }
 }
 
@@ -113,7 +113,7 @@ bool reconcileAppend(
   const KeyEdit& edit,
   const KeyEnds* ends) {
   Revision& revision = container.revision;
-  std::vector<Element>& rows = revision.elements;
+  std::vector<Row>& rows = revision.rows;
   if (rows.empty() || nextKeys.size() <= rows.size()) {
     return false;
   }
@@ -130,7 +130,7 @@ bool reconcileAppend(
     rows.back().key = nextKeys[index];
     rows.back().index = index;
     // A duplicate key keeps its first index, same as the general path.
-    if (!revision.setIndexForKey(nextKeys[index], index)) {
+    if (!revision.setIndexOfKey(nextKeys[index], index)) {
       revision.hasDuplicateKeys = true;
     }
   }
@@ -147,7 +147,7 @@ bool reconcilePrepend(
   const KeyEdit& edit,
   const KeyEnds* ends) {
   Revision& revision = container.revision;
-  std::vector<Element>& rows = revision.elements;
+  std::vector<Row>& rows = revision.rows;
   if (rows.empty() || nextKeys.size() <= rows.size()) {
     return false;
   }
@@ -160,16 +160,16 @@ bool reconcilePrepend(
   }
   // A prepended key that already exists takes the slow path. It is rare.
   for (std::size_t index = 0; index < prependCount; ++index) {
-    if (revision.indexForKey(nextKeys[index]) != UNDEFINED_INDEX) {
+    if (revision.indexOfKey(nextKeys[index]) != UNDEFINED_INDEX) {
       return false;
     }
   }
   revision.indexBias -= prependCount;
-  rows.insert(rows.begin(), prependCount, Element{});
+  rows.insert(rows.begin(), prependCount, Row{});
   reserveKeyMap(revision, nextKeys.size());
   for (std::size_t index = 0; index < prependCount; ++index) {
     rows[index].key = nextKeys[index];
-    if (!revision.setIndexForKey(nextKeys[index], index)) {
+    if (!revision.setIndexOfKey(nextKeys[index], index)) {
       revision.hasDuplicateKeys = true;
     }
   }
@@ -185,7 +185,7 @@ bool reconcileTrimEnd(
   const KeyEdit& edit,
   const KeyEnds* ends) {
   Revision& revision = container.revision;
-  std::vector<Element>& rows = revision.elements;
+  std::vector<Row>& rows = revision.rows;
   if (revision.hasDuplicateKeys || nextKeys.empty() || nextKeys.size() >= rows.size()) {
     return false;
   }
@@ -210,7 +210,7 @@ bool reconcileTrimStart(
   const KeyEdit& edit,
   const KeyEnds* ends) {
   Revision& revision = container.revision;
-  std::vector<Element>& rows = revision.elements;
+  std::vector<Row>& rows = revision.rows;
   if (revision.hasDuplicateKeys || nextKeys.empty() || nextKeys.size() >= rows.size()) {
     return false;
   }
@@ -241,7 +241,7 @@ bool reconcileSplice(
   const KeyEnds& ends,
   std::size_t& survivorCount) {
   Revision& revision = container.revision;
-  std::vector<Element>& rows = revision.elements;
+  std::vector<Row>& rows = revision.rows;
   std::size_t previousCount = rows.size();
   std::size_t nextCount = nextKeys.size();
   if (revision.hasDuplicateKeys || previousCount == 0 || nextCount == 0) {
@@ -254,7 +254,7 @@ bool reconcileSplice(
     return false;
   }
 
-  auto& map = revision.elementIndexByKey;
+  auto& map = revision.rowIndexByKey;
   const std::size_t bias = revision.indexBias;
   std::size_t previousMiddleEnd = previousCount - suffix;
   std::size_t nextMiddleEnd = nextCount - suffix;
@@ -271,7 +271,7 @@ bool reconcileSplice(
     if (nextKey.empty()) {
       continue;
     }
-    std::size_t stored = revision.indexForKey(nextKey);
+    std::size_t stored = revision.indexOfKey(nextKey);
     if (stored == UNDEFINED_INDEX) {
       if (!fresh.emplace(nextKey, nextIndex).second) {
         return false;
@@ -286,7 +286,7 @@ bool reconcileSplice(
   }
 
   // Build the new stretch from the old rows it keeps and new rows for the rest.
-  std::vector<Element> middle(nextMiddleEnd - prefix);
+  std::vector<Row> middle(nextMiddleEnd - prefix);
   survivorCount = prefix + suffix;
   for (std::size_t position = 0; position < middle.size(); ++position) {
     std::size_t source = sources[position];
@@ -330,7 +330,7 @@ bool reconcileSplice(
   // Shift the rows after the stretch once, then move the new stretch into place.
   if (delta > 0) {
     rows.insert(rows.begin() + static_cast<std::ptrdiff_t>(previousMiddleEnd), static_cast<std::size_t>(delta),
-      Element{});
+      Row{});
   } else if (delta < 0) {
     rows.erase(rows.begin() + static_cast<std::ptrdiff_t>(nextMiddleEnd),
       rows.begin() + static_cast<std::ptrdiff_t>(previousMiddleEnd));
@@ -353,21 +353,21 @@ bool reconcileSplice(
  * Returns how many old rows survived.
  */
 std::size_t reconcileRebuilding(Container& container, const std::vector<std::string>& nextKeys) {
-  std::vector<Element>& previousElements = container.revision.elements;
+  std::vector<Row>& previousRows = container.revision.rows;
 
   /*
    * Find surviving rows through the key map the last reconcile built, instead of a
    * throwaway copy. It stays in step with the rows, and the key check below makes sure.
    */
   const std::unordered_map<std::string, std::size_t>& previousIndexByKey =
-    container.revision.elementIndexByKey;
+    container.revision.rowIndexByKey;
 
-  std::vector<Element> nextElements;
-  nextElements.reserve(nextKeys.size());
+  std::vector<Row> nextRows;
+  nextRows.reserve(nextKeys.size());
 
   // Rebuild the key map with the rows so anchor lookups stay fast. Duplicates keep their first index.
-  std::unordered_map<std::string, std::size_t> nextElementIndexByKey;
-  nextElementIndexByKey.reserve(nextKeys.size());
+  std::unordered_map<std::string, std::size_t> nextRowIndexByKey;
+  nextRowIndexByKey.reserve(nextKeys.size());
 
   /*
    * Old map values still carry the old bias. Only reset it after the last read below,
@@ -378,39 +378,39 @@ std::size_t reconcileRebuilding(Container& container, const std::vector<std::str
   std::size_t survivorCount = 0;
   bool duplicates = false;
 
-  for (std::size_t nextElementIndex = 0; nextElementIndex < nextKeys.size(); ++nextElementIndex) {
-    const std::string& nextKey = nextKeys[nextElementIndex];
+  for (std::size_t nextRowIndex = 0; nextRowIndex < nextKeys.size(); ++nextRowIndex) {
+    const std::string& nextKey = nextKeys[nextRowIndex];
 
     /*
      * Only the first copy of a key can take over the old row, since both maps keep the
      * first copy. A later duplicate gets a new row.
      */
-    bool firstOccurrence = nextElementIndexByKey.emplace(nextKey, nextElementIndex).second;
+    bool firstOccurrence = nextRowIndexByKey.emplace(nextKey, nextRowIndex).second;
     duplicates = duplicates || !firstOccurrence;
 
-    auto previousElementEntry = nextKey.empty() ? previousIndexByKey.end() : previousIndexByKey.find(nextKey);
-    std::size_t previousElementIndex = previousElementEntry != previousIndexByKey.end()
-      ? previousElementEntry->second - previousIndexBias
+    auto previousRowEntry = nextKey.empty() ? previousIndexByKey.end() : previousIndexByKey.find(nextKey);
+    std::size_t previousRowIndex = previousRowEntry != previousIndexByKey.end()
+      ? previousRowEntry->second - previousIndexBias
       : UNDEFINED_INDEX;
     bool survives =
       firstOccurrence &&
-      previousElementIndex < previousElements.size() &&
-      previousElements[previousElementIndex].key == nextKey;
+      previousRowIndex < previousRows.size() &&
+      previousRows[previousRowIndex].key == nextKey;
 
     if (survives) {
       // Keep the row's size and flags. Move it straight into place to avoid a second copy.
-      nextElements.push_back(std::move(previousElements[previousElementIndex]));
-      nextElements.back().index = nextElementIndex;
+      nextRows.push_back(std::move(previousRows[previousRowIndex]));
+      nextRows.back().index = nextRowIndex;
       survivorCount++;
     } else {
-      nextElements.emplace_back();
-      nextElements.back().key = nextKey;
-      nextElements.back().index = nextElementIndex;
+      nextRows.emplace_back();
+      nextRows.back().key = nextKey;
+      nextRows.back().index = nextRowIndex;
     }
   }
 
-  container.revision.elements = std::move(nextElements);
-  container.revision.elementIndexByKey = std::move(nextElementIndexByKey);
+  container.revision.rows = std::move(nextRows);
+  container.revision.rowIndexByKey = std::move(nextRowIndexByKey);
   // The rebuilt map holds true indices.
   container.revision.indexBias = 0;
   container.revision.hasDuplicateKeys = duplicates;
@@ -426,12 +426,12 @@ std::size_t reconcileRebuilding(Container& container, const std::vector<std::str
  */
 std::size_t reconcileMatching(Container& container, const std::vector<std::string>& nextKeys) {
   Revision& revision = container.revision;
-  std::vector<Element>& previousElements = revision.elements;
-  auto& map = revision.elementIndexByKey;
+  std::vector<Row>& previousRows = revision.rows;
+  auto& map = revision.rowIndexByKey;
   const std::size_t bias = revision.indexBias;
-  std::vector<bool> taken(previousElements.size(), false);
-  std::vector<Element> nextElements;
-  nextElements.reserve(nextKeys.size());
+  std::vector<bool> taken(previousRows.size(), false);
+  std::vector<Row> nextRows;
+  nextRows.reserve(nextKeys.size());
   reserveKeyMap(revision, nextKeys.size());
   std::size_t survivorCount = 0;
   bool duplicates = false;
@@ -441,17 +441,17 @@ std::size_t reconcileMatching(Container& container, const std::vector<std::strin
     auto entry = nextKey.empty() ? map.end() : map.find(nextKey);
     std::size_t stored = entry != map.end() ? entry->second - bias : UNDEFINED_INDEX;
     bool repeated = stored < nextIndex && nextKeys[stored] == nextKey;
-    bool survives = entry != map.end() && !repeated && stored < previousElements.size() &&
-      !taken[stored] && previousElements[stored].key == nextKey;
+    bool survives = entry != map.end() && !repeated && stored < previousRows.size() &&
+      !taken[stored] && previousRows[stored].key == nextKey;
     if (survives) {
       taken[stored] = true;
-      nextElements.push_back(std::move(previousElements[stored]));
+      nextRows.push_back(std::move(previousRows[stored]));
       survivorCount++;
     } else {
-      nextElements.emplace_back();
-      nextElements.back().key = nextKey;
+      nextRows.emplace_back();
+      nextRows.back().key = nextKey;
     }
-    nextElements.back().index = nextIndex;
+    nextRows.back().index = nextIndex;
     duplicates = duplicates || repeated;
     if (repeated || nextKey.empty()) {
       continue;
@@ -463,24 +463,24 @@ std::size_t reconcileMatching(Container& container, const std::vector<std::strin
     }
   }
 
-  for (std::size_t previousIndex = 0; previousIndex < previousElements.size(); ++previousIndex) {
-    if (!taken[previousIndex] && !previousElements[previousIndex].key.empty()) {
-      map.erase(previousElements[previousIndex].key);
+  for (std::size_t previousIndex = 0; previousIndex < previousRows.size(); ++previousIndex) {
+    if (!taken[previousIndex] && !previousRows[previousIndex].key.empty()) {
+      map.erase(previousRows[previousIndex].key);
     }
   }
-  revision.elements = std::move(nextElements);
+  revision.rows = std::move(nextRows);
   revision.hasDuplicateKeys = duplicates;
   return survivorCount;
 }
 }
 
-std::size_t Virtualizer::reconcileElements(
+std::size_t Virtualizer::reconcileRows(
   Container& container,
   const std::vector<std::string>& nextKeys,
   KeyEdit edit) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
-  std::vector<Element>& previousElements = container.revision.elements;
+  std::vector<Row>& previousRows = container.revision.rows;
 
   /*
    * Fast paths for edits at either end, like an append, loading older chat messages or
@@ -490,7 +490,7 @@ std::size_t Virtualizer::reconcileElements(
    * Rows are not renumbered here. The reflow from row 0 sets every index anyway, and nothing
    * reads the index before then.
    */
-  std::size_t previousCount = previousElements.size();
+  std::size_t previousCount = previousRows.size();
   // Each path returns the first row whose place changed.
   auto atEnds = [&](const KeyEnds* ends) {
     if (reconcileAppend(container, nextKeys, edit, ends)) {
@@ -508,7 +508,7 @@ std::size_t Virtualizer::reconcileElements(
   std::size_t changedFrom = edit.kind != KeyEditKind::Unknown ? atEnds(nullptr) : UNDEFINED_INDEX;
   KeyEnds ends;
   if (changedFrom == UNDEFINED_INDEX) {
-    ends = commonEnds(previousElements, nextKeys);
+    ends = commonEnds(previousRows, nextKeys);
     changedFrom = atEnds(&ends);
   }
   if (changedFrom != UNDEFINED_INDEX) {
@@ -540,8 +540,8 @@ std::size_t Virtualizer::reconcileElements(
    * again from the new rows. If some rows survived, the old average still fits.
    */
   if (survivorCount == 0) {
-    container.revision.averageElementWidth = 0.0;
-    container.revision.averageElementHeight = 0.0;
+    container.revision.averageRowWidth = 0.0;
+    container.revision.averageRowHeight = 0.0;
     container.revision.measuredRealCount = 0;
     container.revision.measuredRealTotalWidth = 0.0;
     container.revision.measuredRealTotalHeight = 0.0;

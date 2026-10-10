@@ -32,9 +32,9 @@ double dragAutoScrollOffset(
   return std::min(std::max(offset + delta, 0.0), std::max(0.0, maxOffset));
 }
 
-double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentExtent) {
+double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentSize) {
   double leading = touchContent - grabOffset;
-  return std::max(0.0, std::min(leading, std::max(0.0, contentExtent - extent)));
+  return std::max(0.0, std::min(leading, std::max(0.0, contentSize - extent)));
 }
 
 namespace {
@@ -229,7 +229,7 @@ CellFrame cellFrameAt(const DragCells& cells, std::size_t position) {
 
 }
 
-std::size_t dragGridInsertionPosition(
+std::size_t dragGridInsertionIndex(
   const DragCells& cells,
   const DragRow& held,
   std::size_t insertionIndex,
@@ -253,7 +253,7 @@ void dragGridShifts(
     });
 }
 
-std::size_t dragInsertionPosition(
+std::size_t dragInsertionIndex(
   const std::size_t* indices,
   const double* leadings,
   const double* extents,
@@ -328,18 +328,18 @@ DragOffset DragReorder::placeRow(
   double touchAlong,
   double touchCross,
   const DragRow& resting,
-  double contentExtent,
+  double contentSize,
   double crossExtent) {
   if (isGrid()) {
-    return placeCell(touchAlong, touchCross, resting, contentExtent, crossExtent);
+    return placeCell(touchAlong, touchCross, resting, contentSize, crossExtent);
   }
   DragOffset offset;
-  offset.leading = place(touchAlong, resting.leading, resting.extent, contentExtent);
+  offset.leading = place(touchAlong, resting.leading, resting.extent, contentSize);
   return offset;
 }
 
-double DragReorder::place(double touchContent, double restingLeading, double extent, double contentExtent) {
-  leading_ = dragHeldLeading(touchContent, grabOffset_, extent, contentExtent);
+double DragReorder::place(double touchContent, double restingLeading, double extent, double contentSize) {
+  leading_ = dragHeldLeading(touchContent, grabOffset_, extent, contentSize);
   center_ = leading_ + extent / 2.0;
   return leading_ - restingLeading;
 }
@@ -348,14 +348,14 @@ DragOffset DragReorder::placeCell(
   double touchContent,
   double touchCross,
   const DragRow& resting,
-  double contentExtent,
-  double crossContentExtent) {
+  double contentSize,
+  double crossContentSize) {
   heldResting_.leading = resting.leading;
   heldResting_.extent = resting.extent;
   heldResting_.crossLeading = resting.crossLeading;
   heldResting_.crossExtent = resting.crossExtent;
-  double translation = place(touchContent, resting.leading, resting.extent, contentExtent);
-  crossLeading_ = dragHeldLeading(touchCross, crossGrabOffset_, resting.crossExtent, crossContentExtent);
+  double translation = place(touchContent, resting.leading, resting.extent, contentSize);
+  crossLeading_ = dragHeldLeading(touchCross, crossGrabOffset_, resting.crossExtent, crossContentSize);
   crossCenter_ = crossLeading_ + resting.crossExtent / 2.0;
   return {translation, crossLeading_ - resting.crossLeading};
 }

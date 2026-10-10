@@ -172,7 +172,7 @@ void writePassResult(const sl::ListDriver& driver, const sl::PassResult& result,
   slots[PASS_OUT_REACHED_START] = result.reachedStart ? 1.0 : 0.0;
   slots[PASS_OUT_REACHED_END] = result.reachedEnd ? 1.0 : 0.0;
   slots[PASS_OUT_GEOMETRY] = static_cast<double>(driver.getGeometryVersion());
-  std::optional<sl::MountedRange> window = driver.getMeasuredWindow();
+  std::optional<sl::MountedRange> window = driver.getMeasuredRange();
   slots[PASS_OUT_WINDOW_LOW] = window ? static_cast<double>(window->low) : -1.0;
   slots[PASS_OUT_WINDOW_HIGH] = window ? static_cast<double>(window->high) : -1.0;
 }
@@ -188,7 +188,7 @@ void writeDragOffset(JNIEnv* env, const sl::DragOffset& offset, jdoubleArray out
 }
 
 bool validRow(const sl::ListDriver& driver, jint index) {
-  return index >= 0 && static_cast<std::size_t>(index) < driver.getCount();
+  return index >= 0 && static_cast<std::size_t>(index) < driver.getRowCount();
 }
 
 /*
@@ -328,7 +328,7 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
   jclass clazz = env->GetObjectClass(thiz);
   peer->measureItem = env->GetMethodID(clazz, "measureItem", "(ID)D");
   env->DeleteLocalRef(clazz);
-  peer->driver.setMeasureItem([peer](std::size_t index, const std::string&, double cross) {
+  peer->driver.setMeasureRow([peer](std::size_t index, const std::string&, double cross) {
     // A measure that threw leaves its exception pending. No JNI call may follow until runPasses returns.
     if (peer->env == nullptr || peer->target == nullptr || peer->env->ExceptionCheck()) {
       return 0.0;
@@ -347,16 +347,16 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSettings)(JNIEnv*, jclass, jl
   jdouble overscan, jdouble startReachedThreshold, jdouble endReachedThreshold, jint columns, jboolean inverted,
   jboolean followAppends, jboolean horizontal, jboolean snapToItem, jint snapAlignment) {
   sl::ListSettings settings;
-  settings.estimatedItemSize = estimatedItemSize;
+  settings.estimatedRowSize = estimatedItemSize;
   settings.overscan = overscan;
   settings.startReachedThreshold = startReachedThreshold;
   settings.endReachedThreshold = endReachedThreshold;
-  settings.columns = static_cast<std::size_t>(columns < 1 ? 1 : columns);
+  settings.numberOfColumns = static_cast<std::size_t>(columns < 1 ? 1 : columns);
   settings.inverted = inverted;
   settings.followAppends = followAppends;
   settings.horizontal = horizontal;
   settings.snapToItem = snapToItem;
-  settings.snapAlignment = snapAlignment;
+  settings.snapAlignment = static_cast<sl::SnapAlignment>(snapAlignment);
   peerOf(handle)->driver.setSettings(settings);
 }
 
@@ -418,7 +418,7 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeResetKeepingPosition)(JNIEnv*, j
 }
 
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeCount)(JNIEnv*, jclass, jlong handle) {
-  return static_cast<jint>(peerOf(handle)->driver.getCount());
+  return static_cast<jint>(peerOf(handle)->driver.getRowCount());
 }
 
 /*
@@ -490,7 +490,7 @@ JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeCopyStickyFrames)(JNIEnv* en
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeScrollToIndex)(
   JNIEnv*, jclass, jlong handle, jint index, jdouble viewPosition) {
   if (index >= 0) {
-    peerOf(handle)->driver.scrollToIndex(static_cast<std::size_t>(index), viewPosition);
+    peerOf(handle)->driver.scrollToRow(static_cast<std::size_t>(index), viewPosition);
   }
 }
 
@@ -747,7 +747,7 @@ JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeUpdatePrefetch)(JNIEnv* env
  * The row at the viewport start: its key, with the distance into it in out[0], or null.
  */
 JNIEXPORT jstring JNICALL SHADOWLIST_KIT_JNI(nativeAnchor)(JNIEnv* env, jclass, jlong handle, jdouble offset, jdoubleArray out) {
-  std::optional<sl::ListAnchor> anchor = peerOf(handle)->driver.getAnchor(offset);
+  std::optional<sl::AnchorState> anchor = peerOf(handle)->driver.getAnchorState(offset);
   if (!anchor) {
     return nullptr;
   }
@@ -758,7 +758,7 @@ JNIEXPORT jstring JNICALL SHADOWLIST_KIT_JNI(nativeAnchor)(JNIEnv* env, jclass, 
 
 JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeRestoreAnchor)(
   JNIEnv* env, jclass, jlong handle, jstring key, jdouble offset) {
-  return peerOf(handle)->driver.restoreAnchor({readString(env, key), offset}) ? JNI_TRUE : JNI_FALSE;
+  return peerOf(handle)->driver.restoreAnchorState({readString(env, key), offset}) ? JNI_TRUE : JNI_FALSE;
 }
 
 /*
@@ -842,7 +842,7 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeCaptureChange)(JNIEnv* env, jcla
  */
 JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeRemovedPosition)(
   JNIEnv* env, jclass, jlong handle, jstring key, jdoubleArray out) {
-  std::optional<sl::ScreenPoint> position = peerOf(handle)->changes.removedPosition(readString(env, key));
+  std::optional<sl::ScreenPoint> position = peerOf(handle)->changes.deletedPosition(readString(env, key));
   if (!position) {
     return JNI_FALSE;
   }
@@ -881,7 +881,7 @@ JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeInsertionPositions)(
   JNIEnv* env, jclass, jintArray indices, jint previousCount) {
   std::size_t count = static_cast<std::size_t>(std::max(previousCount, 0));
   std::vector<jint> positions;
-  for (std::size_t position : sl::insertionPositions(readIndices(env, indices), count)) {
+  for (std::size_t position : sl::insertionIndices(readIndices(env, indices), count)) {
     positions.push_back(static_cast<jint>(position));
   }
   return makeIntArray(env, positions);
@@ -891,7 +891,7 @@ JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeDeletionPositions)(
   JNIEnv* env, jclass, jintArray indices, jint previousCount) {
   std::size_t count = static_cast<std::size_t>(std::max(previousCount, 0));
   std::vector<jint> positions;
-  for (std::size_t position : sl::deletionPositions(readIndices(env, indices), count)) {
+  for (std::size_t position : sl::deletionIndices(readIndices(env, indices), count)) {
     positions.push_back(static_cast<jint>(position));
   }
   return makeIntArray(env, positions);

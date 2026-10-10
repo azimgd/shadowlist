@@ -50,7 +50,7 @@ struct Host {
 
   explicit Host(std::size_t count, ListSettings settings = {}) {
     driver.setSettings(settings);
-    driver.setMeasureItem([this](std::size_t, const std::string& key, double) {
+    driver.setMeasureRow([this](std::size_t, const std::string& key, double) {
       ++measures;
       return rowHeight(static_cast<std::size_t>(std::stoul(key.substr(1))));
     });
@@ -90,7 +90,7 @@ struct Host {
    * The first row whose bottom is below the offset, and how far its top sits from the offset.
    */
   std::pair<std::size_t, double> topRow() const {
-    for (std::size_t index = 0; index < driver.getCount(); ++index) {
+    for (std::size_t index = 0; index < driver.getRowCount(); ++index) {
       if (driver.getLeadingAt(index) + driver.getExtentAt(index) > offset) {
         return {index, driver.getLeadingAt(index) - offset};
       }
@@ -104,7 +104,7 @@ struct Host {
 TEST(list_driver_first_layout_measures_the_window_only) {
   Host host(1000);
   host.layout();
-  auto window = host.driver.getMeasuredWindow();
+  auto window = host.driver.getMeasuredRange();
   CHECK(window.has_value());
   CHECK_EQ(window->low, std::size_t{0});
   CHECK(host.measures > 0);
@@ -214,14 +214,14 @@ TEST(list_driver_key_edits_match_a_plain_list) {
     // The core takes the keys every few edits, with the end edit hint when there was one.
     if (round % 3 == 0) {
       host.layout();
-      CHECK_EQ(host.driver.getCount(), model.size());
+      CHECK_EQ(host.driver.getRowCount(), model.size());
       for (std::size_t index = 0; index < model.size(); ++index) {
         CHECK_EQ(host.driver.indexOfKey(model[index]), index);
       }
     }
   }
   host.settle();
-  CHECK_EQ(host.driver.getCount(), model.size());
+  CHECK_EQ(host.driver.getRowCount(), model.size());
 }
 
 /*
@@ -319,7 +319,7 @@ TEST(list_driver_replace_keys_splices_the_range) {
 TEST(list_driver_scroll_to_index_lands_on_the_row) {
   Host host(1000);
   host.settle();
-  host.driver.scrollToIndex(500, 0.0);
+  host.driver.scrollToRow(500, 0.0);
   host.settle();
   CHECK(!host.settling);
   CHECK_NEAR(host.driver.getLeadingAt(500), host.offset, 0.01);
@@ -350,7 +350,7 @@ TEST(list_driver_landing_sends_its_command_once) {
 TEST(list_driver_cancelled_landing_does_nothing) {
   Host host(100);
   host.settle();
-  host.driver.setLanding({ScrollLanding::Target::Index, 50, 0.0});
+  host.driver.setLanding({ScrollLanding::Target::Row, 50, 0.0});
   host.driver.cancelLanding();
   CHECK(!host.driver.land());
 }
@@ -400,7 +400,7 @@ TEST(list_driver_sticky_frames_pin_the_same_header_as_the_driver) {
   std::vector<std::size_t> rows = {0, 20, 40, 320, 350};
   auto leadingAt = [&](std::size_t at) { return frames[at * 2]; };
   for (double offset : {0.0, 500.0, host.driver.getLeadingAt(20) + 3.0, host.driver.getLeadingAt(40) - 2.0, 1e9}) {
-    std::size_t position = pinnedSectionPosition(rows.size(), offset, leadingAt);
+    std::size_t position = pinnedSectionIndex(rows.size(), offset, leadingAt);
     std::size_t active = host.driver.activeStickyIndex(offset);
     CHECK_EQ(position == UNDEFINED_INDEX ? UNDEFINED_INDEX : rows[position], active);
     if (position == UNDEFINED_INDEX) {
@@ -490,7 +490,7 @@ TEST(list_driver_visible_range_is_the_rows_on_screen) {
   CHECK_EQ(visible->low, host.topRow().first);
   CHECK(host.driver.getLeadingAt(visible->high) < host.offset + WINDOW_ALONG);
   CHECK(host.driver.getLeadingAt(visible->high) + host.driver.getExtentAt(visible->high) >= host.offset + WINDOW_ALONG);
-  auto window = host.driver.getMeasuredWindow();
+  auto window = host.driver.getMeasuredRange();
   CHECK(window->low < visible->low);
 }
 
@@ -562,7 +562,7 @@ TEST(list_driver_anchor_restores_the_row_partway_in) {
   host.settle();
   host.scrollTo(3000.0);
   host.settle();
-  auto anchor = host.driver.getAnchor(host.offset);
+  auto anchor = host.driver.getAnchorState(host.offset);
   CHECK(anchor.has_value());
   CHECK(anchor->offset >= 0.0);
   std::size_t row = host.driver.indexOfKey(anchor->key);
@@ -572,12 +572,12 @@ TEST(list_driver_anchor_restores_the_row_partway_in) {
   Host restored(1000);
   restored.driver.insertKeys({0, 1, 2}, {"k5000", "k5001", "k5002"});
   restored.settle();
-  CHECK(restored.driver.restoreAnchor(*anchor));
+  CHECK(restored.driver.restoreAnchorState(*anchor));
   restored.settle();
   std::size_t index = restored.driver.indexOfKey(anchor->key);
   CHECK_EQ(index, row + 3);
   CHECK_NEAR(restored.offset - restored.driver.getLeadingAt(index), anchor->offset, 0.01);
-  CHECK(!restored.driver.restoreAnchor({"missing", 0.0}));
+  CHECK(!restored.driver.restoreAnchorState({"missing", 0.0}));
 }
 
 TEST(list_driver_prefetches_window_rows_once_and_cancels_them_when_they_leave) {

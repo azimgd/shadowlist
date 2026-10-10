@@ -137,7 +137,7 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     return;
   }
   // An index past the end inserts at the end. The key is read where the row lands.
-  std::vector<std::size_t> inserted = insertionPositions(ShadowListKitIndices(indices), _driver.getKeyCount());
+  std::vector<std::size_t> inserted = insertionIndices(ShadowListKitIndices(indices), _driver.getKeyCount());
   std::vector<std::string> keys;
   keys.reserve(inserted.size());
   for (std::size_t index : inserted) {
@@ -166,7 +166,7 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     [self reloadData];
     return;
   }
-  std::vector<std::size_t> deleted = deletionPositions(ShadowListKitIndices(indices), _driver.getKeyCount());
+  std::vector<std::size_t> deleted = deletionIndices(ShadowListKitIndices(indices), _driver.getKeyCount());
   if (deleted.empty()) {
     return;
   }
@@ -396,8 +396,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   KeySplice splice = keySplice(previous, next);
   auto removedFrom = previous.begin() + (std::ptrdiff_t)splice.start;
   auto insertedFrom = next.begin() + (std::ptrdiff_t)splice.start;
-  [_changes captureRemoved:std::vector<std::string>(removedFrom, removedFrom + (std::ptrdiff_t)splice.removed)
-                  inserted:std::vector<std::string>(insertedFrom, insertedFrom + (std::ptrdiff_t)splice.added)];
+  [_changes captureRemoved:std::vector<std::string>(removedFrom, removedFrom + (std::ptrdiff_t)splice.deleted)
+                  inserted:std::vector<std::string>(insertedFrom, insertedFrom + (std::ptrdiff_t)splice.inserted)];
 }
 
 /*

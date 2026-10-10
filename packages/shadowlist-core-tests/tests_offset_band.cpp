@@ -26,7 +26,7 @@ namespace {
  */
 struct BandScenario {
   std::size_t rows = 200;
-  std::size_t columns = 1;
+  std::size_t numberOfColumns = 1;
   bool inverted = false;
   double overscan = 1.0;
   double startThreshold = 1.0;
@@ -40,7 +40,7 @@ double rowHeight(std::size_t index) {
 
 FrameInput bandInput(const BandScenario& scenario, const std::vector<std::string>& keys, double offset) {
   FrameInput input = inputFor(keys, offset);
-  input.columns = scenario.columns;
+  input.numberOfColumns = scenario.numberOfColumns;
   input.inverted = scenario.inverted;
   input.overscan = scenario.overscan;
   input.startReachedThreshold = scenario.startThreshold;
@@ -67,8 +67,8 @@ std::unique_ptr<Container> settledContainer(const BandScenario& scenario, Fired*
   std::vector<std::string> keys = keysFor(scenario.rows);
   Virtualizer::update(*container, bandInput(scenario, keys, 0.0));
   for (std::size_t index = 0; index < scenario.rows; ++index) {
-    double width = scenario.columns > 1 ? WINDOW_WIDTH / static_cast<double>(scenario.columns) : WINDOW_WIDTH;
-    Virtualizer::updateElementAtIndex(*container, index, {width, rowHeight(index)});
+    double width = scenario.numberOfColumns > 1 ? WINDOW_WIDTH / static_cast<double>(scenario.numberOfColumns) : WINDOW_WIDTH;
+    Virtualizer::updateRowAtIndex(*container, index, {width, rowHeight(index)});
   }
   FrameInput drag = bandInput(scenario, keys, scenario.offset);
   drag.userScrolled = true;
@@ -79,7 +79,7 @@ std::unique_ptr<Container> settledContainer(const BandScenario& scenario, Fired*
   Virtualizer::update(*container, rest);
 
   if (fired != nullptr) {
-    container->onVisibleIndicesChangeCallback = [fired](std::size_t, std::size_t) { fired->visible++; };
+    container->onMeasuredRangeChangeCallback = [fired](std::size_t, std::size_t) { fired->visible++; };
     container->onStartReachedCallback = [fired]() { fired->startReached++; };
     container->onEndReachedCallback = [fired]() { fired->endReached++; };
   }
@@ -90,7 +90,7 @@ std::unique_ptr<Container> settledContainer(const BandScenario& scenario, Fired*
  * What a frame at offset changes on a freshly settled copy of the scenario.
  */
 struct FrameOutcome {
-  std::pair<std::size_t, std::size_t> visible;
+  IndexRange visible;
   Fired fired;
   bool corrected = false;
   bool operation = false;
@@ -108,14 +108,14 @@ FrameOutcome frameAt(const BandScenario& scenario, double offset, bool gesture) 
   }
   Virtualizer::update(*container, input);
   FrameOutcome outcome;
-  outcome.visible = container->getVisibleIndices();
+  outcome.visible = container->getMeasuredRange();
   outcome.fired = fired;
-  outcome.corrected = container->containerOffsetCorrected;
+  outcome.corrected = container->offsetCorrected;
   outcome.operation = container->operation.has_value();
   return outcome;
 }
 
-bool changesSomething(const FrameOutcome& outcome, const std::pair<std::size_t, std::size_t>& baseline) {
+bool changesSomething(const FrameOutcome& outcome, const IndexRange& baseline) {
   return outcome.visible != baseline || outcome.fired.visible > 0 || outcome.fired.startReached > 0 ||
     outcome.fired.endReached > 0 || outcome.corrected || outcome.operation;
 }
@@ -129,7 +129,7 @@ void checkBandIsExact(const BandScenario& scenario) {
   OffsetBand band = container->computeOffsetBand();
   CHECK(!band.isEmpty());
   CHECK(band.contains(scenario.offset));
-  auto baseline = container->getVisibleIndices();
+  auto baseline = container->getMeasuredRange();
 
   const int samples = 24;
   for (int sample = 0; sample <= samples; ++sample) {
@@ -149,10 +149,10 @@ void checkBandIsExact(const BandScenario& scenario) {
    * The window event only carries the lowest and highest row. With several columns a row
    * inside that range can flip without changing either. There the band may end early.
    */
-  if (scenario.columns > 1) {
+  if (scenario.numberOfColumns > 1) {
     return;
   }
-  double totalSize = container->revision.totalContainerHeight;
+  double totalSize = container->revision.contentHeight;
   double maxOffset = std::max(0.0, totalSize - WINDOW_HEIGHT);
   if (band.high < maxOffset) {
     CHECK(changesSomething(frameAt(scenario, band.high + OFFSET_BAND_MARGIN + 0.01, true), baseline));
@@ -183,7 +183,7 @@ TEST(offset_band_is_exact_with_small_overscan) {
 
 TEST(offset_band_is_exact_in_a_multi_column_list) {
   BandScenario scenario;
-  scenario.columns = 3;
+  scenario.numberOfColumns = 3;
   scenario.rows = 300;
   // Off the integer grid, where a row edge plus the overscan can land exactly on the offset.
   scenario.offset = 2601.3;
@@ -231,7 +231,7 @@ TEST(offset_band_is_empty_while_a_scroll_command_runs) {
   auto container = settledContainer(scenario);
   CHECK(!container->computeOffsetBand().isEmpty());
   std::vector<std::string> keys = keysFor(scenario.rows);
-  container->scrollToIndex(150);
+  container->scrollToRow(150);
   CHECK(container->computeOffsetBand().isEmpty());
   Virtualizer::update(*container, bandInput(scenario, keys, scenario.offset));
   CHECK(container->operation.has_value());
@@ -245,7 +245,7 @@ TEST(offset_band_is_empty_while_a_prepend_is_held_in_place) {
   std::vector<std::string> prepended = keysFor(10, "p");
   prepended.insert(prepended.end(), keys.begin(), keys.end());
   Virtualizer::update(*container, bandInput(scenario, prepended, scenario.offset));
-  CHECK(container->containerOffsetCorrected);
+  CHECK(container->offsetCorrected);
   CHECK(container->computeOffsetBand().isEmpty());
 }
 
@@ -267,7 +267,7 @@ TEST(offset_band_is_empty_while_a_measured_size_waits_for_layout) {
   BandScenario scenario;
   auto container = settledContainer(scenario);
   CHECK(!container->computeOffsetBand().isEmpty());
-  container->markElementSizeDirty(3);
+  container->markRowSizeDirty(3);
   CHECK(container->computeOffsetBand().isEmpty());
 }
 
@@ -280,7 +280,7 @@ TEST(offset_band_survives_a_scroll_axis_window_resize) {
   auto container = settledContainer(scenario);
   std::vector<std::string> keys = keysFor(scenario.rows);
   FrameInput resized = bandInput(scenario, keys, scenario.offset);
-  resized.windowContainerHeight = WINDOW_HEIGHT - 300.0;
+  resized.windowHeight = WINDOW_HEIGHT - 300.0;
   Virtualizer::update(*container, resized);
   Virtualizer::update(*container, resized);
   CHECK(!container->computeOffsetBand().isEmpty());
@@ -291,7 +291,7 @@ TEST(offset_band_of_an_inverted_list_stops_before_the_bottom_pin) {
   scenario.inverted = true;
   scenario.offset = 6000.0;
   auto container = settledContainer(scenario);
-  double maxOffset = container->revision.totalContainerHeight - WINDOW_HEIGHT;
+  double maxOffset = container->revision.contentHeight - WINDOW_HEIGHT;
   CHECK(scenario.offset < maxOffset - INVERTED_FOLLOW_BAND - 200.0);
   OffsetBand band = container->computeOffsetBand();
   CHECK(!band.isEmpty());

@@ -79,7 +79,7 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
     element.key = key;
     [_rowElements setObject:element forKey:key];
   }
-  element.accessibilityFrameInContainerSpace = row < _driver.getCount() ? [self rowRect:row] : CGRectZero;
+  element.accessibilityFrameInContainerSpace = row < _driver.getRowCount() ? [self rowRect:row] : CGRectZero;
   return element;
 }
 
@@ -93,11 +93,11 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
   if (row == UNDEFINED_INDEX || row >= _driver.getKeyCount()) {
     return;
   }
-  if (row >= _driver.getCount()) {
+  if (row >= _driver.getRowCount()) {
     // The core has not placed the row yet. Let the next layout pass do it first.
     [self layoutIfNeeded];
     row = _driver.indexOfKey(ShadowListKitStdString(key));
-    if (row == UNDEFINED_INDEX || row >= _driver.getCount()) {
+    if (row == UNDEFINED_INDEX || row >= _driver.getRowCount()) {
       return;
     }
   }
@@ -141,7 +141,7 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
 
 - (BOOL)isRowOnScreen:(std::size_t)index
 {
-  if (index >= _driver.getCount()) {
+  if (index >= _driver.getRowCount()) {
     return NO;
   }
   CGRect rect = [self rowRect:index];

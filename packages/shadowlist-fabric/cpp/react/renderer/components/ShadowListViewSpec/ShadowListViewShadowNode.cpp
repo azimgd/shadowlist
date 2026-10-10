@@ -158,9 +158,9 @@ void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& co
        */
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
-        : core.findElementIndexByKey(elementViewProps->elementKey);
+        : core.indexOfKey(elementViewProps->elementKey);
       const auto elementViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(child.get());
-      if (elementViewNode != nullptr && elementIndex < core.getElementsSize()) {
+      if (elementViewNode != nullptr && elementIndex < core.getRowCount()) {
         slots.mountedElements.push_back({childIndex, elementIndex, elementViewNode});
         const auto& measuredSize = elementViewNode->getLayoutMetrics().frame.size;
         measuredRows.push_back({elementIndex, measuredSize.width, measuredSize.height,
@@ -219,7 +219,7 @@ void ShadowListViewShadowNode::placeElements(
    * final here, resolveStateUpdate below only reads it.
    */
   const auto& inputStateData = getStateData();
-  bool correcting = core.containerOffsetCorrected;
+  bool correcting = core.offsetCorrected;
   auto concealAck = static_cast<std::uint64_t>(inputStateData.concealGenerationAck_);
   std::size_t concealBeforeIndex = CONCEAL_UNSETTLED_ROWS
     ? azimgd::shadowlist::ConcealTracker<ShadowListViewGeometryCache::ConcealedProps>::hideBeforeIndex(
@@ -357,9 +357,9 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
 
   // Compare pointers. This stays cheap because the cache only takes a new one when the values changed.
   bool stickyChanged =
-    published.stickyHeaderIndices != nextStateData.stickyHeaderIndices_ ||
-    published.stickyHeaderOffsets != nextStateData.stickyHeaderOffsets_ ||
-    published.stickyHeaderSizes != nextStateData.stickyHeaderSizes_;
+    published.stickyIndices != nextStateData.stickyHeaderIndices_ ||
+    published.stickyOffsets != nextStateData.stickyHeaderOffsets_ ||
+    published.stickySizes != nextStateData.stickyHeaderSizes_;
   bool snapChanged = published.snapOffsets != nextStateData.snapOffsets_;
 
   double concealGeneration = concealed.getPublishedGeneration();
@@ -372,9 +372,9 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
   SL_LOG("layout: elementChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
     getChildren().size(), headerSize, footerSize,
     nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
-    stateUpdate.containerOffsetX, stateUpdate.containerOffsetY,
-    stateUpdate.totalContainerWidth, stateUpdate.totalContainerHeight,
-    stateUpdate.applyContainerOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
+    stateUpdate.offsetX, stateUpdate.offsetY,
+    stateUpdate.contentWidth, stateUpdate.contentHeight,
+    stateUpdate.applyOffset ? 1 : 0, stateUpdate.changed ? 1 : 0);
 
   // A new animated command's estimate, see ShadowListViewGeometryCache::animationSequence.
   bool animationChanged = nextStateData.animationTargetSequence_ != geometry.animationSequence;
@@ -389,9 +389,9 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
      * and the list never changes once published. Sharing it is safe.
      */
     if (stickyChanged) {
-      nextStateData.stickyHeaderIndices_ = published.stickyHeaderIndices;
-      nextStateData.stickyHeaderOffsets_ = published.stickyHeaderOffsets;
-      nextStateData.stickyHeaderSizes_ = published.stickyHeaderSizes;
+      nextStateData.stickyHeaderIndices_ = published.stickyIndices;
+      nextStateData.stickyHeaderOffsets_ = published.stickyOffsets;
+      nextStateData.stickyHeaderSizes_ = published.stickySizes;
     }
     if (snapChanged) {
       nextStateData.snapOffsets_ = published.snapOffsets;
@@ -409,8 +409,8 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
    * onContentSizeChange. Once per size for the whole list, not per clone, and only while JS
    * listens.
    */
-  double contentWidth = stateUpdate.totalContainerWidth;
-  double contentHeight = stateUpdate.totalContainerHeight;
+  double contentWidth = stateUpdate.contentWidth;
+  double contentHeight = stateUpdate.contentHeight;
   if (getConcreteProps().contentSizeEventEnabled &&
       (contentWidth != geometry.emittedContentWidth || contentHeight != geometry.emittedContentHeight)) {
     geometry.emittedContentWidth = contentWidth;
@@ -440,7 +440,7 @@ void ShadowListViewShadowNode::replaceChild(
       // Look up the index under the lock, since a stale child can arrive before the data catches up.
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
-        : containerManager_->findElementIndexByKey(elementViewProps->elementKey);
+        : containerManager_->indexOfKey(elementViewProps->elementKey);
       const auto elementViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(nextElementShadowNode.get());
       const auto elementViewNodeSize = elementViewNode
         ? elementViewNode->getLayoutMetrics().frame.size
@@ -451,10 +451,10 @@ void ShadowListViewShadowNode::replaceChild(
        * measure it from the real frame instead.
        */
       bool laidOut = (containerManager_->horizontal ? elementViewNodeSize.width : elementViewNodeSize.height) > 0.0;
-      if (elementIndex < containerManager_->getElementsSize() && elementViewNode && laidOut) {
-        bool firstMeasurement = !containerManager_->getElementAtIndex(elementIndex).measured;
+      if (elementIndex < containerManager_->getRowCount() && elementViewNode && laidOut) {
+        bool firstMeasurement = !containerManager_->getRowAtIndex(elementIndex).measured;
 
-        azimgd::shadowlist::Virtualizer::updateElementAtIndex(
+        azimgd::shadowlist::Virtualizer::updateRowAtIndex(
           *containerManager_,
           elementIndex,
           {.width = elementViewNodeSize.width, .height = elementViewNodeSize.height});

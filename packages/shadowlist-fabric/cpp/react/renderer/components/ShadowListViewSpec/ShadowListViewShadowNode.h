@@ -11,7 +11,7 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
-#include <shadowlist-core/host/ElementSizeSpec.hpp>
+#include <shadowlist-core/host/RowSizeSpec.hpp>
 #include <shadowlist-core/host/ListLayout.hpp>
 
 #include <memory>

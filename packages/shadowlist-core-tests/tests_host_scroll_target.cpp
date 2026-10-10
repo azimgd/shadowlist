@@ -64,15 +64,15 @@ TEST(command_target_stays_inside_the_scroll_range) {
 TEST(anchor_is_the_first_row_reaching_into_the_viewport) {
   Container core;
   layOut(core, 100, 1250.0);
-  auto anchor = anchorAt(core, core.getContainerOffset());
+  auto anchor = anchorStateAt(core, core.getOffset());
   CHECK(anchor.has_value());
   CHECK(anchor->key == "k12");
-  CHECK_NEAR(anchor->offset, core.getContainerOffset() - 1200.0, 0.01);
+  CHECK_NEAR(anchor->offset, core.getOffset() - 1200.0, 0.01);
 }
 
 TEST(anchor_is_empty_before_the_first_layout) {
   Container core;
-  CHECK(!anchorAt(core, 0.0).has_value());
+  CHECK(!anchorStateAt(core, 0.0).has_value());
 }
 
 TEST(page_scroll_moves_one_window_inside_the_content) {

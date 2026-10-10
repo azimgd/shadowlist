@@ -523,7 +523,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   } else if (retargetsScrollToTopJump) {
     // The view follows when the jump lands.
     _scrollToTopJumpY = action.offsetY;
-    _scrollToTopJumpToken = action.token;
+    _scrollToTopJumpToken = action.commitToken;
   } else if (action.kind == azimgd::shadowlist::MountAction::Kind::Write) {
     // A real move calls scrollViewDidScroll right away, which echoes the token.
     _scrollSync.willWrite(action);

@@ -241,7 +241,7 @@ JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeDragInsertionPosition)(
   auto* extents = leadings != nullptr ? static_cast<jdouble*>(env->GetPrimitiveArrayCritical(extentsArray, nullptr)) : nullptr;
   std::size_t position = sl::UNDEFINED_INDEX;
   if (leadings != nullptr && extents != nullptr) {
-    position = sl::dragInsertionPosition(
+    position = sl::dragInsertionIndex(
       indices.data(), leadings, extents, static_cast<std::size_t>(count), indexFromJint(originIndex), center);
   }
   if (extents != nullptr) {
@@ -310,7 +310,7 @@ JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeDragGridInsertionPosition)(
   held.extent = heldExtent;
   held.crossLeading = heldCrossLeading;
   held.crossExtent = heldCrossExtent;
-  return jintFromIndex(sl::dragGridInsertionPosition(cells, held, indexFromJint(insertionIndex), center, crossCenter));
+  return jintFromIndex(sl::dragGridInsertionIndex(cells, held, indexFromJint(insertionIndex), center, crossCenter));
 }
 
 JNIEXPORT void JNICALL SL_GEOMETRY_JNI(nativeDragGridShifts)(

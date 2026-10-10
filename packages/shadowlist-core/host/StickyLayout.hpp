@@ -63,7 +63,7 @@ StickyTranslations stickyTranslations(const StickyInput& input, StickyState& sta
  * decrease. Headers not placed yet can report infinity. Binary search.
  */
 template <typename LeadingAt>
-std::size_t pinnedSectionPosition(std::size_t count, double offset, LeadingAt leadingAt) {
+std::size_t pinnedSectionIndex(std::size_t count, double offset, LeadingAt leadingAt) {
   std::size_t found = UNDEFINED_INDEX;
   std::size_t low = 0;
   std::size_t high = count;

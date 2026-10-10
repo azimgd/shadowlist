@@ -335,7 +335,7 @@ TEST(scroll_sync_correction_moves_a_waiting_scroll_to_top_jump) {
   sync.endMount();
   CHECK(action.kind == MountAction::Kind::RetargetJump);
   CHECK_EQ(action.offsetY, 950.0);
-  CHECK_EQ(action.token, static_cast<std::uint64_t>(21));
+  CHECK_EQ(action.commitToken, static_cast<std::uint64_t>(21));
 
   // The jump applies the whole correction. A resend of the token only adds what's new.
 
@@ -427,7 +427,7 @@ TEST(scroll_sync_animated_command_animates_to_the_estimate_then_lands) {
   ScrollPatch command = sync.issueCommand({40.0, 0.5, -20.0, true}, 0.0, 0.0, false);
   CHECK(!command.offsetEnabled);
   CHECK(command.commandAnimated);
-  CHECK_EQ(command.commandRowOffset, -20.0);
+  CHECK_EQ(command.commandViewOffset, -20.0);
   CHECK_EQ(command.commandSequence, 1.0);
 
   // The state with the estimate mounts. The view animates there once.
@@ -459,7 +459,7 @@ TEST(scroll_sync_animated_command_animates_to_the_estimate_then_lands) {
   CHECK(!landing->commandAnimated);
   CHECK_EQ(landing->commandIndex, 40.0);
   CHECK_EQ(landing->commandViewPosition, 0.5);
-  CHECK_EQ(landing->commandRowOffset, -20.0);
+  CHECK_EQ(landing->commandViewOffset, -20.0);
   CHECK_EQ(landing->commandSequence, 2.0);
   CHECK(!sync.isLanding());
   CHECK(!sync.land(0.0, 3200.0).has_value());

@@ -41,16 +41,16 @@ constexpr std::size_t MAX_IN_PLACE_KEY_RUNS = 8;
  * List settings that change rarely. The host sends them again when a property changes.
  */
 struct ListSettings {
-  double estimatedItemSize = 120.0;
+  double estimatedRowSize = 120.0;
   double overscan = 1.0;
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
-  std::size_t columns = 1;
+  std::size_t numberOfColumns = 1;
   bool inverted = false;
   bool followAppends = false;
   bool horizontal = false;
   bool snapToItem = false;
-  int snapAlignment = 0;
+  SnapAlignment snapAlignment = SnapAlignment::Start;
 };
 
 /*
@@ -109,7 +109,7 @@ struct MountPlan {
  * an estimate. The core then lands exactly. A gesture cancels it.
  */
 struct ScrollLanding {
-  enum class Target { None, Index, Start, End };
+  enum class Target { None, Row, Start, End };
   Target target = Target::None;
   std::size_t index = 0;
   double viewPosition = 0.0;
@@ -126,7 +126,7 @@ public:
   /*
    * Measures a row along the scroll axis for the given cross size.
    */
-  using MeasureItem = std::function<double(std::size_t index, const std::string& key, double crossSize)>;
+  using MeasureRow = std::function<double(std::size_t index, const std::string& key, double crossSize)>;
 
   ListDriver();
 
@@ -138,7 +138,7 @@ public:
   ListDriver(ListDriver&&) = delete;
   ListDriver& operator=(ListDriver&&) = delete;
 
-  void setMeasureItem(MeasureItem measureItem);
+  void setMeasureRow(MeasureRow measureRow);
   void setSettings(const ListSettings& settings);
 
   /*
@@ -196,14 +196,14 @@ public:
   /*
    * Rows the core placed, which lags getKeyCount until the next layout.
    */
-  std::size_t getCount() const;
+  std::size_t getRowCount() const;
   std::uint64_t getGeometryVersion() const;
   double getContentAlong() const;
 
   /*
    * The rows the core keeps measured, or nothing before the first layout.
    */
-  std::optional<MountedRange> getMeasuredWindow() const;
+  std::optional<MountedRange> getMeasuredRange() const;
 
   /*
    * The rows overlapping the viewport, or nothing before the first layout.
@@ -256,7 +256,7 @@ public:
    */
   void stickyFrames(std::vector<double>& out) const;
 
-  void scrollToIndex(std::size_t index, double viewPosition, double rowOffset = 0.0);
+  void scrollToRow(std::size_t index, double viewPosition, double viewOffset = 0.0);
   void scrollToStart();
   void scrollToEnd();
   double nearestSnapOffset(double target) const;
@@ -264,12 +264,12 @@ public:
   /*
    * The row at the viewport start for an offset, or nothing before the first layout.
    */
-  std::optional<ListAnchor> getAnchor(double offset) const;
+  std::optional<AnchorState> getAnchorState(double offset) const;
 
   /*
    * Scroll the anchor's row back to where it sat. Returns false when no row has its key yet.
    */
-  bool restoreAnchor(const ListAnchor& anchor);
+  bool restoreAnchorState(const AnchorState& anchor);
 
   /*
    * Rows of the measured window that are not mounted get prefetched once, the core's window
@@ -328,7 +328,7 @@ public:
 private:
   void installCallbacks();
   void recordEdit(KeyEdit edit);
-  KeyEdit endEdit(std::size_t start, std::size_t removed, std::size_t added) const;
+  KeyEdit endEdit(std::size_t start, std::size_t deleted, std::size_t inserted) const;
   void insertKeysInPlace(std::vector<std::pair<std::size_t, std::string>>& inserted);
   void insertKeysRebuilding(std::vector<std::pair<std::size_t, std::string>>& inserted);
   FrameInput makeFrameInput(const PassInput& input, double offset, bool firstPass) const;
@@ -340,7 +340,7 @@ private:
   DragRow dragRowAt(std::size_t index) const;
 
   std::unique_ptr<Container> core_;
-  MeasureItem measureItem_;
+  MeasureRow measureRow_;
   ListSettings settings_;
   std::vector<std::string> keys_;
   std::vector<std::size_t> sticky_;

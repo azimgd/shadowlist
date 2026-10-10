@@ -21,7 +21,7 @@ struct ScrollPatch {
   double commandIndex = 0.0;
   double commandSequence = 0.0;
   double commandViewPosition = 0.0;
-  double commandRowOffset = 0.0;
+  double commandViewOffset = 0.0;
   bool commandAnimated = false;
   bool hasAnchorRequest = false;
   double anchorRequestSequence = 0.0;
@@ -32,14 +32,14 @@ struct ScrollPatch {
 };
 
 /*
- * A scroll command from the host: the row at index placed at viewPosition and moved rowOffset
+ * A scroll command from the host: the row at index placed at viewPosition and moved viewOffset
  * further along the scroll axis, or the end for SCROLL_TO_END_INDEX. An animated command first
  * animates to the core's estimate, then lands exactly with the same command.
  */
 struct ScrollCommand {
   double index = 0.0;
   double viewPosition = 0.0;
-  double rowOffset = 0.0;
+  double viewOffset = 0.0;
   bool animated = false;
 };
 
@@ -128,7 +128,7 @@ struct MountAction {
   Kind kind = Kind::None;
   double offsetX = 0.0;
   double offsetY = 0.0;
-  std::uint64_t token = 0;
+  std::uint64_t commitToken = 0;
 
   /*
    * The correction was added to the live offset instead of written as is.
@@ -403,7 +403,7 @@ private:
   double commandIndex_ = -2.0;
   double commandSequence_ = 0.0;
   double commandViewPosition_ = 0.0;
-  double commandRowOffset_ = 0.0;
+  double commandViewOffset_ = 0.0;
   bool commandAnimated_ = false;
 
   /*

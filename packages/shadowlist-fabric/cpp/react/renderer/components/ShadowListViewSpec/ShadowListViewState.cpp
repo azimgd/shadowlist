@@ -180,7 +180,7 @@ void ShadowListViewState::applyPatch(const azimgd::shadowlist::ScrollPatch& patc
     containerOffsetIndex_ = patch.commandIndex;
     containerOffsetIndexSequence_ = patch.commandSequence;
     containerOffsetIndexViewPosition_ = patch.commandViewPosition;
-    containerOffsetIndexRowOffset_ = patch.commandRowOffset;
+    containerOffsetIndexRowOffset_ = patch.commandViewOffset;
     containerOffsetIndexAnimated_ = patch.commandAnimated;
   }
   if (patch.hasAnchorRequest) {

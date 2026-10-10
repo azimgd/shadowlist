@@ -39,13 +39,13 @@ void ListDriver::installCallbacks() {
   core_->onEndReachedCallback = [this]() { reachedEnd_ = true; };
 }
 
-void ListDriver::setMeasureItem(MeasureItem measureItem) {
-  measureItem_ = std::move(measureItem);
+void ListDriver::setMeasureRow(MeasureRow measureRow) {
+  measureRow_ = std::move(measureRow);
 }
 
 void ListDriver::setSettings(const ListSettings& settings) {
   settings_ = settings;
-  settings_.columns = std::max<std::size_t>(1, settings.columns);
+  settings_.numberOfColumns = std::max<std::size_t>(1, settings.numberOfColumns);
 }
 
 void ListDriver::setStickyIndices(std::vector<std::size_t> sticky) {
@@ -75,8 +75,8 @@ void ListDriver::reloadKeys(std::vector<std::string> keys) {
   }
   auto first = keys.begin() + static_cast<std::ptrdiff_t>(splice.start);
   std::vector<std::string> middle(std::make_move_iterator(first),
-    std::make_move_iterator(first + static_cast<std::ptrdiff_t>(splice.added)));
-  replaceKeys(splice.start, splice.removed, std::move(middle));
+    std::make_move_iterator(first + static_cast<std::ptrdiff_t>(splice.inserted)));
+  replaceKeys(splice.start, splice.deleted, std::move(middle));
 }
 
 void ListDriver::replaceKeys(std::size_t start, std::size_t count, std::vector<std::string> keys) {
@@ -99,18 +99,18 @@ void ListDriver::replaceKeys(std::size_t start, std::size_t count, std::vector<s
 }
 
 /*
- * A splice that only adds or only removes keys at an end, as an edit the core can trust.
+ * A splice that only inserts or only deletes keys at an end, as an edit the core can trust.
  */
-KeyEdit ListDriver::endEdit(std::size_t start, std::size_t removed, std::size_t added) const {
+KeyEdit ListDriver::endEdit(std::size_t start, std::size_t deleted, std::size_t inserted) const {
   std::size_t size = keys_.size();
-  if (size == 0 || (removed > 0) == (added > 0) || removed == size) {
+  if (size == 0 || (deleted > 0) == (inserted > 0) || deleted == size) {
     return {};
   }
-  if (added > 0) {
-    return {start == 0 ? KeyEditKind::Prepend : start == size ? KeyEditKind::Append : KeyEditKind::Unknown, added};
+  if (inserted > 0) {
+    return {start == 0 ? KeyEditKind::Prepend : start == size ? KeyEditKind::Append : KeyEditKind::Unknown, inserted};
   }
-  return {start == 0 ? KeyEditKind::TrimStart : start + removed == size ? KeyEditKind::TrimEnd : KeyEditKind::Unknown,
-    removed};
+  return {start == 0 ? KeyEditKind::TrimStart : start + deleted == size ? KeyEditKind::TrimEnd : KeyEditKind::Unknown,
+    deleted};
 }
 
 void ListDriver::insertKeys(std::vector<std::size_t> indices, std::vector<std::string> keys) {
@@ -186,35 +186,35 @@ void ListDriver::insertKeysRebuilding(std::vector<std::pair<std::size_t, std::st
 }
 
 void ListDriver::deleteKeys(std::vector<std::size_t> indices) {
-  std::vector<std::size_t> removed = deletionPositions(std::move(indices), keys_.size());
-  if (removed.empty()) {
+  std::vector<std::size_t> deleted = deletionIndices(std::move(indices), keys_.size());
+  if (deleted.empty()) {
     return;
   }
-  std::size_t runs = countRuns(removed.size(), [&](std::size_t at) { return removed[at]; });
+  std::size_t runs = countRuns(deleted.size(), [&](std::size_t at) { return deleted[at]; });
   KeyEdit edit;
-  if (runs == 1 && removed.size() < keys_.size()) {
-    edit.kind = removed.front() == 0 ? KeyEditKind::TrimStart
-      : removed.back() + 1 == keys_.size() ? KeyEditKind::TrimEnd : KeyEditKind::Unknown;
-    edit.count = removed.size();
+  if (runs == 1 && deleted.size() < keys_.size()) {
+    edit.kind = deleted.front() == 0 ? KeyEditKind::TrimStart
+      : deleted.back() + 1 == keys_.size() ? KeyEditKind::TrimEnd : KeyEditKind::Unknown;
+    edit.count = deleted.size();
   }
   if (runs <= MAX_IN_PLACE_KEY_RUNS) {
     // Erase runs from the last one back, which keeps the earlier indices valid.
-    std::size_t last = removed.size();
+    std::size_t last = deleted.size();
     while (last > 0) {
       std::size_t first = last - 1;
-      while (first > 0 && removed[first - 1] + 1 == removed[first]) {
+      while (first > 0 && deleted[first - 1] + 1 == deleted[first]) {
         --first;
       }
-      keys_.erase(keys_.begin() + static_cast<std::ptrdiff_t>(removed[first]),
-        keys_.begin() + static_cast<std::ptrdiff_t>(removed[last - 1] + 1));
+      keys_.erase(keys_.begin() + static_cast<std::ptrdiff_t>(deleted[first]),
+        keys_.begin() + static_cast<std::ptrdiff_t>(deleted[last - 1] + 1));
       last = first;
     }
   } else {
     std::vector<std::string> next;
-    next.reserve(keys_.size() - removed.size());
+    next.reserve(keys_.size() - deleted.size());
     std::size_t position = 0;
     for (std::size_t index = 0; index < keys_.size(); ++index) {
-      if (position < removed.size() && removed[position] == index) {
+      if (position < deleted.size() && deleted[position] == index) {
         ++position;
         continue;
       }
@@ -238,24 +238,24 @@ FrameInput ListDriver::makeFrameInput(const PassInput& input, double offset, boo
   frame.keysRef = &keys_;
   frame.keysUnchanged = !keysChanged_;
   frame.keyEdit = keysChanged_ ? pendingEdit_ : KeyEdit{};
-  double cellCross = input.windowCross / static_cast<double>(settings_.columns);
+  double cellCross = input.windowCross / static_cast<double>(settings_.numberOfColumns);
   if (settings_.horizontal) {
-    frame.containerOffsetX = offset;
-    frame.windowContainerWidth = input.windowAlong;
-    frame.windowContainerHeight = input.windowCross;
-    frame.estimatedElementSize = {settings_.estimatedItemSize, cellCross};
+    frame.offsetX = offset;
+    frame.windowWidth = input.windowAlong;
+    frame.windowHeight = input.windowCross;
+    frame.estimatedRowSize = {settings_.estimatedRowSize, cellCross};
   } else {
-    frame.containerOffsetY = offset;
-    frame.windowContainerWidth = input.windowCross;
-    frame.windowContainerHeight = input.windowAlong;
-    frame.estimatedElementSize = {cellCross, settings_.estimatedItemSize};
+    frame.offsetY = offset;
+    frame.windowWidth = input.windowCross;
+    frame.windowHeight = input.windowAlong;
+    frame.estimatedRowSize = {cellCross, settings_.estimatedRowSize};
   }
   frame.headerSize = input.headerSize;
   frame.footerSize = input.footerSize;
   frame.inverted = settings_.inverted;
   frame.followAppends = settings_.followAppends;
   frame.horizontal = settings_.horizontal;
-  frame.columns = settings_.columns;
+  frame.numberOfColumns = settings_.numberOfColumns;
   frame.overscan = settings_.overscan;
   frame.startReachedThreshold = settings_.startReachedThreshold;
   frame.endReachedThreshold = settings_.endReachedThreshold;
@@ -280,10 +280,10 @@ PassResult ListDriver::runPasses(const PassInput& input) {
     bool measured = measureWindow(offset);
 
     ContainerStateUpdate update = core.resolveStateUpdate(horizontal ? offset : 0, horizontal ? 0 : offset,
-      core.revision.totalContainerWidth, core.revision.totalContainerHeight);
+      core.revision.contentWidth, core.revision.contentHeight);
     bool wrote = false;
-    if (update.applyContainerOffset) {
-      double target = clampOffset(horizontal ? update.containerOffsetX : update.containerOffsetY, input);
+    if (update.applyOffset) {
+      double target = clampOffset(horizontal ? update.offsetX : update.offsetY, input);
       if (update.commitToken != 0) {
         echoToken_ = update.commitToken;
       }
@@ -336,7 +336,7 @@ double ListDriver::clampOffset(double target, const PassInput& input) const {
 bool ListDriver::measureWindow(double offset) {
   Container& core = *core_;
   SizeBatch batch;
-  std::optional<MountedRange> window = getMeasuredWindow();
+  std::optional<MountedRange> window = getMeasuredRange();
   if (!window) {
     return batch.commit(core);
   }
@@ -353,14 +353,14 @@ bool ListDriver::measureWindow(double offset) {
 
 void ListDriver::measureIndex(std::size_t index, SizeBatch& batch) {
   Container& core = *core_;
-  const Element& element = core.revision.elements[index];
-  bool remeasure = !remeasureKeys_.empty() && remeasureKeys_.erase(element.key) > 0;
-  if ((element.measured && !remeasure) || !measureItem_) {
+  const Row& row = core.revision.rows[index];
+  bool remeasure = !remeasureKeys_.empty() && remeasureKeys_.erase(row.key) > 0;
+  if ((row.measured && !remeasure) || !measureRow_) {
     return;
   }
   bool horizontal = settings_.horizontal;
-  double cross = settings_.columns > 1 ? (horizontal ? element.height : element.width) : windowCross_;
-  double along = measureItem_(index, element.key, cross);
+  double cross = settings_.numberOfColumns > 1 ? (horizontal ? row.height : row.width) : windowCross_;
+  double along = measureRow_(index, row.key, cross);
   batch.apply(core, index, horizontal ? Size{along, cross} : Size{cross, along});
 }
 
@@ -369,11 +369,11 @@ void ListDriver::resetKeepingPosition() {
    * The row at the viewport start keeps how far the viewport is into it. An inverted list
    * resting at its end stays at the end.
    */
-  double offset = core_->getContainerOffset();
-  double windowAlong = core_->getWindowContainerSize();
+  double offset = core_->getOffset();
+  double windowAlong = core_->getWindowSize();
   bool holdEnd = settings_.inverted && getContentAlong() > windowAlong &&
     offset >= getContentAlong() - windowAlong - 1.0;
-  std::optional<ListAnchor> anchor = getAnchor(offset);
+  std::optional<AnchorState> anchor = getAnchorState(offset);
   core_ = std::make_unique<Container>();
   installCallbacks();
   recordEdit({});
@@ -383,12 +383,12 @@ void ListDriver::resetKeepingPosition() {
   if (holdEnd) {
     core_->scrollToEnd();
   } else if (anchor) {
-    restoreAnchor(*anchor);
+    restoreAnchorState(*anchor);
   }
 }
 
-std::size_t ListDriver::getCount() const {
-  return core_->revision.elements.size();
+std::size_t ListDriver::getRowCount() const {
+  return core_->revision.rows.size();
 }
 
 std::uint64_t ListDriver::getGeometryVersion() const {
@@ -396,57 +396,53 @@ std::uint64_t ListDriver::getGeometryVersion() const {
 }
 
 double ListDriver::getContentAlong() const {
-  return settings_.horizontal ? core_->revision.totalContainerWidth : core_->revision.totalContainerHeight;
+  return settings_.horizontal ? core_->revision.contentWidth : core_->revision.contentHeight;
 }
 
-std::optional<MountedRange> ListDriver::getMeasuredWindow() const {
+std::optional<MountedRange> ListDriver::getMeasuredRange() const {
   const Revision& revision = core_->revision;
-  std::size_t first = revision.measurementElementStartIndex;
-  std::size_t last = revision.measurementElementEndIndex;
-  if (revision.elements.empty() || first == UNDEFINED_INDEX || last == UNDEFINED_INDEX) {
+  if (revision.rows.empty() || revision.measuredLow == UNDEFINED_INDEX || revision.measuredHigh == UNDEFINED_INDEX) {
     return std::nullopt;
   }
-  std::size_t low = std::min(first, last);
-  std::size_t high = std::min(std::max(first, last), revision.elements.size() - 1);
-  return MountedRange{low, high};
+  return MountedRange{revision.measuredLow, std::min(revision.measuredHigh, revision.rows.size() - 1)};
 }
 
 std::optional<MountedRange> ListDriver::getVisibleRange() const {
-  // The core's visible indices are the measured window. These are the rows on screen.
-  auto visible = core_->getViewableIndices(ViewableRule{});
-  if (visible.first == UNDEFINED_INDEX || visible.second == UNDEFINED_INDEX) {
+  // The core's measured range holds the overscan too. These are the rows on screen.
+  IndexRange visible = core_->getViewableIndices(ViewableRule{});
+  if (visible.isEmpty()) {
     return std::nullopt;
   }
-  return MountedRange{std::min(visible.first, visible.second), std::max(visible.first, visible.second)};
+  return MountedRange{visible.low, visible.high};
 }
 
 RowRect ListDriver::getRowRect(std::size_t index) const {
-  const Element& element = core_->revision.elements[index];
-  if (settings_.columns > 1) {
-    return {element.offsetX, element.offsetY, element.width, element.height};
+  const Row& row = core_->revision.rows[index];
+  if (settings_.numberOfColumns > 1) {
+    return {row.offsetX, row.offsetY, row.width, row.height};
   }
   if (settings_.horizontal) {
-    return {element.offsetX, 0.0, element.width, windowCross_};
+    return {row.offsetX, 0.0, row.width, windowCross_};
   }
-  return {0.0, element.offsetY, windowCross_, element.height};
+  return {0.0, row.offsetY, windowCross_, row.height};
 }
 
 double ListDriver::getLeadingAt(std::size_t index) const {
-  const Element& element = core_->revision.elements[index];
-  return settings_.horizontal ? element.offsetX : element.offsetY;
+  const Row& row = core_->revision.rows[index];
+  return settings_.horizontal ? row.offsetX : row.offsetY;
 }
 
 double ListDriver::getExtentAt(std::size_t index) const {
-  const Element& element = core_->revision.elements[index];
-  return settings_.horizontal ? element.width : element.height;
+  const Row& row = core_->revision.rows[index];
+  return settings_.horizontal ? row.width : row.height;
 }
 
 double ListDriver::getFooterStart(double footerSize) const {
-  return core_->getFooterOffset(footerSize);
+  return core_->getFooterStart(footerSize);
 }
 
 std::size_t ListDriver::indexOfKey(const std::string& key) const {
-  return core_->findElementIndexByKey(key);
+  return core_->indexOfKey(key);
 }
 
 bool ListDriver::overlaps(std::size_t index, double viewLow, double viewHigh) const {
@@ -464,7 +460,7 @@ MountPlan ListDriver::planMount(
   plan.viewLow = offset - pad - leadingInset;
   plan.viewHigh = offset + windowAlong + pad + trailingInset;
   plan.sticky = activeStickyIndex(offset);
-  std::optional<MountedRange> window = getMeasuredWindow();
+  std::optional<MountedRange> window = getMeasuredRange();
   if (!window) {
     return plan;
   }
@@ -481,15 +477,15 @@ MountPlan ListDriver::planMount(
 }
 
 bool ListDriver::shouldMount(const MountPlan& plan, std::size_t index) const {
-  return settings_.columns == 1 || overlaps(index, plan.viewLow, plan.viewHigh);
+  return settings_.numberOfColumns == 1 || overlaps(index, plan.viewLow, plan.viewHigh);
 }
 
 /*
  * The shared search over the sorted sticky rows. Rows the core has not placed yet sort last.
  */
 std::size_t ListDriver::activeStickyIndex(double offset) const {
-  std::size_t rows = getCount();
-  std::size_t position = pinnedSectionPosition(sticky_.size(), offset, [&](std::size_t at) {
+  std::size_t rows = getRowCount();
+  std::size_t position = pinnedSectionIndex(sticky_.size(), offset, [&](std::size_t at) {
     std::size_t index = sticky_[at];
     return index < rows ? getLeadingAt(index) : std::numeric_limits<double>::infinity();
   });
@@ -497,12 +493,12 @@ std::size_t ListDriver::activeStickyIndex(double offset) const {
 }
 
 double ListDriver::stickyLeading(std::size_t active, double offset) const {
-  if (active >= getCount()) {
+  if (active >= getRowCount()) {
     return offset;
   }
   std::size_t index = active;
   auto next = std::upper_bound(sticky_.begin(), sticky_.end(), index);
-  bool hasNext = next != sticky_.end() && *next < getCount();
+  bool hasNext = next != sticky_.end() && *next < getRowCount();
   return pinnedSectionLeading(getLeadingAt(index), getExtentAt(index), offset, hasNext, hasNext ? getLeadingAt(*next) : 0.0);
 }
 
@@ -510,26 +506,26 @@ void ListDriver::stickyFrames(std::vector<double>& out) const {
   out.clear();
   out.reserve(sticky_.size() * 2);
   for (std::size_t index : sticky_) {
-    bool placed = index < getCount();
+    bool placed = index < getRowCount();
     out.push_back(placed ? getLeadingAt(index) : std::numeric_limits<double>::infinity());
     out.push_back(placed ? getExtentAt(index) : 0.0);
   }
 }
 
-void ListDriver::scrollToIndex(std::size_t index, double viewPosition, double rowOffset) {
-  core_->scrollToIndex(index, viewPosition, rowOffset);
+void ListDriver::scrollToRow(std::size_t index, double viewPosition, double viewOffset) {
+  core_->scrollToRow(index, viewPosition, viewOffset);
 }
 
-std::optional<ListAnchor> ListDriver::getAnchor(double offset) const {
-  return anchorAt(*core_, offset);
+std::optional<AnchorState> ListDriver::getAnchorState(double offset) const {
+  return anchorStateAt(*core_, offset);
 }
 
-bool ListDriver::restoreAnchor(const ListAnchor& anchor) {
+bool ListDriver::restoreAnchorState(const AnchorState& anchor) {
   auto found = std::find(keys_.begin(), keys_.end(), anchor.key);
   if (found == keys_.end()) {
     return false;
   }
-  core_->scrollToIndex(static_cast<std::size_t>(found - keys_.begin()), 0.0, anchor.offset);
+  core_->scrollToRow(static_cast<std::size_t>(found - keys_.begin()), 0.0, anchor.offset);
   return true;
 }
 
@@ -540,7 +536,7 @@ void ListDriver::updatePrefetch(
   std::vector<std::size_t>& cancel) {
   prefetch.clear();
   cancel.clear();
-  std::optional<MountedRange> window = getMeasuredWindow();
+  std::optional<MountedRange> window = getMeasuredRange();
   auto mounted = [&](std::size_t index) {
     return mountedLow != UNDEFINED_INDEX && index >= mountedLow && index <= mountedHigh;
   };
@@ -558,9 +554,9 @@ void ListDriver::updatePrefetch(
     }
   }
   if (window) {
-    const std::vector<Element>& elements = core_->revision.elements;
-    for (std::size_t index = window->low; index <= window->high && index < elements.size(); ++index) {
-      if (!mounted(index) && prefetched_.insert(elements[index].key).second) {
+    const std::vector<Row>& rows = core_->revision.rows;
+    for (std::size_t index = window->low; index <= window->high && index < rows.size(); ++index) {
+      if (!mounted(index) && prefetched_.insert(rows[index].key).second) {
         prefetch.push_back(index);
       }
     }
@@ -596,8 +592,8 @@ bool ListDriver::land() {
   ScrollLanding landing = landing_;
   landing_ = ScrollLanding{};
   switch (landing.target) {
-    case ScrollLanding::Target::Index:
-      core_->scrollToIndex(landing.index, landing.viewPosition);
+    case ScrollLanding::Target::Row:
+      core_->scrollToRow(landing.index, landing.viewPosition);
       return true;
     case ScrollLanding::Target::Start:
       core_->scrollToStart();
@@ -612,27 +608,27 @@ bool ListDriver::land() {
 }
 
 DragRow ListDriver::dragRowAt(std::size_t index) const {
-  const Element& element = core_->revision.elements[index];
+  const Row& placed = core_->revision.rows[index];
   bool horizontal = settings_.horizontal;
   DragRow row;
   row.index = index;
-  row.key = element.key;
-  row.leading = horizontal ? element.offsetX : element.offsetY;
-  row.extent = horizontal ? element.width : element.height;
-  if (settings_.columns > 1) {
-    row.crossLeading = horizontal ? element.offsetY : element.offsetX;
-    row.crossExtent = horizontal ? element.height : element.width;
+  row.key = placed.key;
+  row.leading = horizontal ? placed.offsetX : placed.offsetY;
+  row.extent = horizontal ? placed.width : placed.height;
+  if (settings_.numberOfColumns > 1) {
+    row.crossLeading = horizontal ? placed.offsetY : placed.offsetX;
+    row.crossExtent = horizontal ? placed.height : placed.width;
   }
   return row;
 }
 
 void ListDriver::dragBegin(std::size_t index, double touchAlong, double touchCross) {
-  if (index >= getCount()) {
+  if (index >= getRowCount()) {
     return;
   }
   DragRow resting = dragRowAt(index);
   heldKey_ = resting.key;
-  drag_.begin(resting, touchAlong, touchCross, settings_.columns);
+  drag_.begin(resting, touchAlong, touchCross, settings_.numberOfColumns);
 }
 
 void ListDriver::dragEnd() {
@@ -644,7 +640,7 @@ std::size_t ListDriver::getHeldIndex() const {
 }
 
 DragOffset ListDriver::placeHeld(std::size_t held, double touchAlong, double touchCross) {
-  if (held >= getCount()) {
+  if (held >= getRowCount()) {
     return DragOffset{};
   }
   // The held row may have moved in the data since the drag began.
@@ -657,7 +653,7 @@ void ListDriver::dragUpdateInsertion(const std::vector<std::size_t>& mounted) {
   std::vector<DragRow> rows;
   rows.reserve(mounted.size());
   for (std::size_t index : mounted) {
-    if (index < getCount() && index != held) {
+    if (index < getRowCount() && index != held) {
       rows.push_back(dragRowAt(index));
     }
   }

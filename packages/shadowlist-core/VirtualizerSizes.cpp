@@ -21,30 +21,30 @@ bool correctOffsetIfMoved(Container& container, double offset, double probe) {
 }
 
 /*
- * Move the running element correction and the captured anchor by the same delta.
+ * Move the running row correction and the captured anchor by the same delta.
  */
 void shiftAnchors(Container& container, double delta) {
-  if (container.operation && container.operation->target.mode == AnchorMode::Element) {
-    container.operation->target.subOffset += delta;
+  if (container.operation && container.operation->target.mode == AnchorMode::Row) {
+    container.operation->target.offset += delta;
   }
-  if (!container.anchor.key.empty() && container.anchor.mode == AnchorMode::Element) {
-    container.anchor.subOffset += delta;
+  if (!container.anchor.key.empty() && container.anchor.mode == AnchorMode::Row) {
+    container.anchor.offset += delta;
   }
 }
 }
 
-bool Virtualizer::applyElementSize(Container& container, std::size_t index, Size size) {
+bool Virtualizer::applyRowSize(Container& container, std::size_t index, Size size) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
-  if (index >= container.revision.elements.size()) {
+  if (index >= container.revision.rows.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  Element& nextElement = container.revision.elements[index];
+  Row& nextRow = container.revision.rows[index];
 
-  double previousWidth = nextElement.width;
-  double previousHeight = nextElement.height;
-  bool wasMeasured = nextElement.measured;
+  double previousWidth = nextRow.width;
+  double previousHeight = nextRow.height;
+  bool wasMeasured = nextRow.measured;
   bool dimensionsChanged = previousWidth != size.width || previousHeight != size.height;
 
   /*
@@ -56,25 +56,25 @@ bool Virtualizer::applyElementSize(Container& container, std::size_t index, Size
   }
 
   // On the anchor row's first measurement, remember how far its bottom edge moved.
-  if (!wasMeasured && dimensionsChanged && container.columns <= 1) {
+  if (!wasMeasured && dimensionsChanged && container.numberOfColumns <= 1) {
     const Anchor* compensationAnchor = container.getCompensationAnchor();
-    if (compensationAnchor != nullptr && !compensationAnchor->key.empty() && nextElement.key == compensationAnchor->key) {
+    if (compensationAnchor != nullptr && !compensationAnchor->key.empty() && nextRow.key == compensationAnchor->key) {
       container.anchorFirstMeasurementDelta += container.horizontal
         ? size.width - previousWidth
         : size.height - previousHeight;
     }
   }
 
-  nextElement.width = size.width;
-  nextElement.height = size.height;
-  nextElement.estimated = true;
-  nextElement.measured = true;
+  nextRow.width = size.width;
+  nextRow.height = size.height;
+  nextRow.estimated = true;
+  nextRow.measured = true;
 
   // A real measurement always replaces a prediction.
-  nextElement.predicted = false;
+  nextRow.predicted = false;
 
   // Limit the coming reflow without scheduling a second one in the layout pass.
-  container.noteElementSizeSpan(index);
+  container.noteRowSizeSpan(index);
 
   // Add to the running total for the average. A remeasure only adds the difference.
   if (wasMeasured) {
@@ -90,55 +90,55 @@ bool Virtualizer::applyElementSize(Container& container, std::size_t index, Size
   return dimensionsChanged;
 }
 
-std::size_t Virtualizer::applyPredictedElementSize(Container& container, const std::string& key, Size size) {
+std::size_t Virtualizer::applyPredictedRowSize(Container& container, const std::string& key, Size size) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
   if (key.empty()) {
     return UNDEFINED_INDEX;
   }
 
-  std::size_t index = container.findElementIndexByKey(key);
+  std::size_t index = container.indexOfKey(key);
 
   // The row doesn't exist yet, which is normal when measuring ahead. Save it for the next update.
-  if (index >= container.revision.elements.size()) {
+  if (index >= container.revision.rows.size()) {
     container.setPredictedSize(key, size);
     return UNDEFINED_INDEX;
   }
 
-  Element& nextElement = container.revision.elements[index];
+  Row& nextRow = container.revision.rows[index];
 
   // A real measurement always wins. Drop a late prediction so it can't come back later.
-  if (nextElement.measured) {
+  if (nextRow.measured) {
     return UNDEFINED_INDEX;
   }
 
-  bool dimensionsChanged = nextElement.width != size.width || nextElement.height != size.height;
+  bool dimensionsChanged = nextRow.width != size.width || nextRow.height != size.height;
 
-  nextElement.width = size.width;
-  nextElement.height = size.height;
-  nextElement.estimated = true;
-  nextElement.predicted = true;
+  nextRow.width = size.width;
+  nextRow.height = size.height;
+  nextRow.estimated = true;
+  nextRow.predicted = true;
 
   // Predictions stay out of the average, which only counts real measurements.
   if (!dimensionsChanged) {
     return UNDEFINED_INDEX;
   }
 
-  container.markElementSizeDirty(index);
+  container.markRowSizeDirty(index);
 
   return index;
 }
 
-void Virtualizer::commitElementSizes(Container& container, std::size_t fromIndex) {
+void Virtualizer::commitRowSizes(Container& container, std::size_t fromIndex) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
-  if (fromIndex >= container.revision.elements.size()) {
+  if (fromIndex >= container.revision.rows.size()) {
     return;
   }
 
   // Only this row and the ones after it move. The caller updates the total once per batch.
-  recomputeElementOffsets(container, fromIndex, container.elementsSizeDirtyToIndex);
-  container.elementsSizeDirtyToIndex = 0;
+  recomputeRowOffsets(container, fromIndex, container.rowSizeDirtyToIndex);
+  container.rowSizeDirtyToIndex = 0;
 
   /*
    * Keep the anchor row still while rows off screen get measured.
@@ -146,15 +146,15 @@ void Virtualizer::commitElementSizes(Container& container, std::size_t fromIndex
    */
   const Anchor* compensationAnchor = container.getCompensationAnchor();
   if (compensationAnchor != nullptr) {
-    double compensationDelta = compensationAnchor->subOffset;
-    std::size_t anchorIndex = container.findElementIndexByKey(compensationAnchor->key);
+    double compensationDelta = compensationAnchor->offset;
+    std::size_t anchorIndex = container.indexOfKey(compensationAnchor->key);
     if (anchorIndex != UNDEFINED_INDEX) {
       // A scroll to a key works its sub offset out from the view position, like resolveScroll does.
       if (container.operation && compensationAnchor == &container.operation->target) {
-        compensationDelta = resolveAnchorSubOffset(container, *container.operation, anchorIndex);
+        compensationDelta = resolveAnchorOffset(container, *container.operation, anchorIndex);
       }
       // Compare the target before clamping. A bounce at the top is left alone.
-      double rawAnchoredOffset = container.getElementOffset(anchorIndex) + compensationDelta;
+      double rawAnchoredOffset = container.getRowOffset(anchorIndex) + compensationDelta;
       /*
        * When the anchor row starts above the viewport, the reader sees its bottom part.
        * On its first measurement, hold its bottom edge so the size error lands off screen.
@@ -170,9 +170,9 @@ void Virtualizer::commitElementSizes(Container& container, std::size_t fromIndex
        * unclamped offset would apply the difference twice. A view already past the end is
        * in a bounce and is left alone.
        */
-      double windowSize = container.getWindowContainerSize();
-      double staleTotal = container.horizontal ? container.revision.totalContainerWidth
-                                               : container.revision.totalContainerHeight;
+      double windowSize = container.getWindowSize();
+      double staleTotal = container.horizontal ? container.revision.contentWidth
+                                               : container.revision.contentHeight;
       if (scrollAxisOffset(container) <= std::max(0.0, staleTotal - windowSize) + OFFSET_MOVED_THRESHOLD) {
         Size extent = tailExtent(container);
         double contentEnd = container.horizontal ? extent.width : extent.height;
@@ -200,13 +200,13 @@ void Virtualizer::commitElementSizes(Container& container, std::size_t fromIndex
      !container.invertedBottomReleased && !container.gestureActive && !container.operation);
   if (!followBottom && container.inverted && !container.invertedBottomReleased && !container.gestureActive &&
       !container.operation && !container.anchor.key.empty()) {
-    followBottom = isLastAnchorable(container, container.findElementIndexByKey(container.anchor.key));
+    followBottom = isLastAnchorable(container, container.indexOfKey(container.anchor.key));
   }
   if (followBottom) {
     Size extent = tailExtent(container);
     double contentEnd = container.horizontal ? extent.width : extent.height;
     double total = std::max(contentEnd, container.headerSize) + container.footerSize;
-    double bottom = std::max(0.0, total - container.getWindowContainerSize());
+    double bottom = std::max(0.0, total - container.getWindowSize());
     correctOffsetIfMoved(container, bottom, bottom);
   }
 }
@@ -215,7 +215,7 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
   double delta = container.headerSize - previousHeaderSize;
-  if (delta == 0.0 || container.revision.elements.empty()) {
+  if (delta == 0.0 || container.revision.rows.empty()) {
     return;
   }
 
@@ -225,16 +225,16 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
    * A running anchor correction already knows where the rows belong. Resolve it against
    * the reflowed rows. Its last written offset may be clamped and can't be trusted here.
    */
-  if (container.operation && container.operation->target.mode == AnchorMode::Element) {
-    std::size_t anchorIndex = container.findElementIndexByKey(container.operation->target.key);
+  if (container.operation && container.operation->target.mode == AnchorMode::Row) {
+    std::size_t anchorIndex = container.indexOfKey(container.operation->target.key);
     if (anchorIndex != UNDEFINED_INDEX) {
       // A scroll to a key works its sub offset out from the view position, like resolveScroll does.
-      double target = container.getElementOffset(anchorIndex) +
-        resolveAnchorSubOffset(container, *container.operation, anchorIndex);
+      double target = container.getRowOffset(anchorIndex) +
+        resolveAnchorOffset(container, *container.operation, anchorIndex);
       target = target < 0.0 ? 0.0 : target;
       SL_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f->%.1f resolved op=%llu",
         previousHeaderSize, container.headerSize, offset, target,
-        static_cast<unsigned long long>(container.operation->id));
+        static_cast<unsigned long long>(container.operation->commitToken));
       correctOffsetIfMoved(container, target, target);
       return;
     }
@@ -243,7 +243,7 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
   // The header was fully scrolled off. Every row on screen moved. Move the offset with them.
   SL_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f branch=%s anchorSub=%.1f",
     previousHeaderSize, container.headerSize, offset,
-    (offset > 0.0 && offset >= previousHeaderSize) ? "hold" : "push", container.anchor.subOffset);
+    (offset > 0.0 && offset >= previousHeaderSize) ? "hold" : "push", container.anchor.offset);
   if (offset > 0.0 && offset >= previousHeaderSize) {
     correctOffset(container, std::max(0.0, offset + delta));
     return;
@@ -259,8 +259,8 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
 void Virtualizer::applyWindowSizeChange(Container& container, double previousWindowSize) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
-  double windowSize = container.getWindowContainerSize();
-  if (!container.inverted || container.revision.elements.empty() ||
+  double windowSize = container.getWindowSize();
+  if (!container.inverted || container.revision.rows.empty() ||
       previousWindowSize <= 0.0 || windowSize <= 0.0 ||
       std::fabs(windowSize - previousWindowSize) < OFFSET_MOVED_THRESHOLD ||
       !container.invertedInitialized || container.invertedBottomReleased || container.gestureActive) {
@@ -268,7 +268,7 @@ void Virtualizer::applyWindowSizeChange(Container& container, double previousWin
   }
 
   // Judge against the old window, or a big shrink would look like the reader scrolled away.
-  double total = container.horizontal ? container.revision.totalContainerWidth : container.revision.totalContainerHeight;
+  double total = container.horizontal ? container.revision.contentWidth : container.revision.contentHeight;
   double offset = scrollAxisOffset(container);
   if (!atInvertedBottom(offset, total, previousWindowSize)) {
     return;
@@ -289,20 +289,20 @@ void Virtualizer::applyWindowSizeChange(Container& container, double previousWin
   shiftAnchors(container, bottom - offset);
 }
 
-void Virtualizer::updateElementAtIndex(Container& container, std::size_t index, Size size) {
+void Virtualizer::updateRowAtIndex(Container& container, std::size_t index, Size size) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
 #if SHADOWLIST_DEBUG_LOG
-  double tracePreviousTotal = container.horizontal ? container.revision.totalContainerWidth : container.revision.totalContainerHeight;
-  double tracePreviousSize = index < container.revision.elements.size()
-    ? (container.horizontal ? container.revision.elements[index].width : container.revision.elements[index].height)
+  double tracePreviousTotal = container.horizontal ? container.revision.contentWidth : container.revision.contentHeight;
+  double tracePreviousSize = index < container.revision.rows.size()
+    ? (container.horizontal ? container.revision.rows[index].width : container.revision.rows[index].height)
     : 0.0;
 #endif
-  if (applyElementSize(container, index, size)) {
-    commitElementSizes(container, index);
+  if (applyRowSize(container, index, size)) {
+    commitRowSizes(container, index);
     SL_LOG("  replaceChild size: index=%zu %.1f->%.1f total=%.1f corrected=%d anchor=%s",
       index, tracePreviousSize, container.horizontal ? size.width : size.height, tracePreviousTotal,
-      container.containerOffsetCorrected ? 1 : 0, container.anchor.key.c_str());
+      container.offsetCorrected ? 1 : 0, container.anchor.key.c_str());
   }
 }
 
@@ -318,26 +318,26 @@ void Virtualizer::invalidatePredictions(Container& container) {
   container.predictedSizes.clear();
 
   bool anyCleared = false;
-  for (Element& nextElement : container.revision.elements) {
-    if (!nextElement.predicted) {
+  for (Row& nextRow : container.revision.rows) {
+    if (!nextRow.predicted) {
       continue;
     }
 
-    nextElement.predicted = false;
+    nextRow.predicted = false;
     // Clear estimated too, or the row would keep its stale predicted size forever.
-    nextElement.estimated = false;
+    nextRow.estimated = false;
     anyCleared = true;
   }
 
   if (anyCleared) {
     /*
-     * Predicted rows go back to the fallback size. Only the sizing loop in layoutElements
+     * Predicted rows go back to the fallback size. Only the sizing loop in layoutRows
      * resets rows outside the window, and it skips itself while the fallback is unchanged.
      * Forget the last fallback to force it, then reflow the whole list.
      */
     container.previousFallbackWidth = -1.0;
     container.previousFallbackHeight = -1.0;
-    container.markElementSizeDirty(0);
+    container.markRowSizeDirty(0);
   }
 }
 
@@ -352,28 +352,28 @@ void Virtualizer::consumePredictions(Container& container) {
   }
 
   for (auto entry = container.predictedSizes.begin(); entry != container.predictedSizes.end();) {
-    std::size_t predictedIndex = container.revision.indexForKey(entry->first);
-    if (predictedIndex >= container.revision.elements.size()) {
+    std::size_t predictedIndex = container.revision.indexOfKey(entry->first);
+    if (predictedIndex >= container.revision.rows.size()) {
       ++entry;
       continue;
     }
 
-    Element& predictedElement = container.revision.elements[predictedIndex];
+    Row& predictedRow = container.revision.rows[predictedIndex];
 
     // A row already measured for real ignores the prediction, and the entry is dropped.
-    if (!predictedElement.measured &&
-        (predictedElement.width != entry->second.width || predictedElement.height != entry->second.height)) {
+    if (!predictedRow.measured &&
+        (predictedRow.width != entry->second.width || predictedRow.height != entry->second.height)) {
       SL_LOG("  prediction: index=%zu %.1f->%.1f estimated=%d",
-        predictedIndex, container.horizontal ? predictedElement.width : predictedElement.height,
-        container.horizontal ? entry->second.width : entry->second.height, predictedElement.estimated ? 1 : 0);
-      predictedElement.width = entry->second.width;
-      predictedElement.height = entry->second.height;
+        predictedIndex, container.horizontal ? predictedRow.width : predictedRow.height,
+        container.horizontal ? entry->second.width : entry->second.height, predictedRow.estimated ? 1 : 0);
+      predictedRow.width = entry->second.width;
+      predictedRow.height = entry->second.height;
       // The layout loop can't see this change. Mark it for a reflow.
-      container.markElementSizeDirty(predictedIndex);
+      container.markRowSizeDirty(predictedIndex);
     }
-    if (!predictedElement.measured) {
-      predictedElement.estimated = true;
-      predictedElement.predicted = true;
+    if (!predictedRow.measured) {
+      predictedRow.estimated = true;
+      predictedRow.predicted = true;
     }
 
     entry = container.predictedSizes.erase(entry);

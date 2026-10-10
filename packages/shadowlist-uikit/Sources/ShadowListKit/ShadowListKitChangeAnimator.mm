@@ -59,7 +59,7 @@ using namespace azimgd::shadowlist;
   if (cell.hidden) {
     return NO;
   }
-  std::optional<ScreenPoint> previous = _animation.removedPosition(key);
+  std::optional<ScreenPoint> previous = _animation.deletedPosition(key);
   if (!previous) {
     return NO;
   }

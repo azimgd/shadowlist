@@ -180,8 +180,8 @@ public:
     state.commitToken = commitToken_;
     state.userScrolled = userScrolled_;
     state.scrollPhase = scrollPhase_;
-    state.totalWidth = totalContainerWidth_;
-    state.totalHeight = totalContainerHeight_;
+    state.contentWidth = totalContainerWidth_;
+    state.contentHeight = totalContainerHeight_;
     return state;
   }
 
@@ -194,8 +194,8 @@ public:
     commitToken_ = state.commitToken;
     userScrolled_ = state.userScrolled;
     scrollPhase_ = state.scrollPhase;
-    totalContainerWidth_ = state.totalWidth;
-    totalContainerHeight_ = state.totalHeight;
+    totalContainerWidth_ = state.contentWidth;
+    totalContainerHeight_ = state.contentHeight;
   }
 
   /*
@@ -245,7 +245,7 @@ public:
       (!patch.hasCommand ||
        (containerOffsetIndex_ == patch.commandIndex && containerOffsetIndexSequence_ == patch.commandSequence &&
         containerOffsetIndexViewPosition_ == patch.commandViewPosition &&
-        containerOffsetIndexRowOffset_ == patch.commandRowOffset &&
+        containerOffsetIndexRowOffset_ == patch.commandViewOffset &&
         containerOffsetIndexAnimated_ == patch.commandAnimated)) &&
       (!patch.hasAnchorRequest || anchorRequestSequence_ == patch.anchorRequestSequence) &&
       (!patch.hasStartReachedEnabled || startReachedEnabled_ == patch.startReachedEnabled) &&

@@ -18,7 +18,7 @@ namespace azimgd::shadowlist {
  * knows it by, like a view tag.
  */
 struct MeasuredRow {
-  std::size_t elementIndex = 0;
+  std::size_t index = 0;
   double width = 0.0;
   double height = 0.0;
   std::uint64_t id = 0;
@@ -40,7 +40,7 @@ public:
   /*
    * Give the core one row's size. Returns whether it changed.
    */
-  bool apply(Container& core, std::size_t elementIndex, Size size);
+  bool apply(Container& core, std::size_t index, Size size);
 
   /*
    * Reflow from the lowest changed row and recompute the total size, which the footer and
@@ -74,7 +74,7 @@ struct RowFrame {
   bool setsWidth = false;
 };
 
-RowFrame rowFrame(const Container& core, std::size_t elementIndex, bool horizontal);
+RowFrame rowFrame(const Container& core, std::size_t index, bool horizontal);
 
 /*
  * Where each template sits along the scroll axis. The header and the section header overlay
@@ -101,9 +101,9 @@ public:
    */
   bool refresh(const Container& core);
 
-  std::shared_ptr<const std::vector<int>> stickyHeaderIndices;
-  std::shared_ptr<const std::vector<double>> stickyHeaderOffsets;
-  std::shared_ptr<const std::vector<double>> stickyHeaderSizes;
+  std::shared_ptr<const std::vector<int>> stickyIndices;
+  std::shared_ptr<const std::vector<double>> stickyOffsets;
+  std::shared_ptr<const std::vector<double>> stickySizes;
   std::shared_ptr<const std::vector<double>> snapOffsets;
 
 private:
@@ -112,7 +112,7 @@ private:
    */
   std::uint64_t geometryVersion_ = 0;
   bool snapToItem_ = false;
-  int snapAlignment_ = -1;
+  SnapAlignment snapAlignment_ = SnapAlignment::Start;
   bool inverted_ = false;
   bool horizontal_ = false;
   double windowSize_ = -1.0;
@@ -150,7 +150,7 @@ public:
     if (anchor == nullptr || anchor->key.empty()) {
       return 0;
     }
-    std::size_t anchorIndex = core.findElementIndexByKey(anchor->key);
+    std::size_t anchorIndex = core.indexOfKey(anchor->key);
     return anchorIndex == UNDEFINED_INDEX ? 0 : anchorIndex;
   }
 

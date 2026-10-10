@@ -177,7 +177,7 @@ std::string ShadowListKitStdString(NSString *string)
   self.alwaysBounceVertical = YES;
 
   __weak ShadowListKitListView *weakSelf = self;
-  _driver.setMeasureItem([weakSelf](std::size_t index, const std::string& key, double cross) -> double {
+  _driver.setMeasureRow([weakSelf](std::size_t index, const std::string& key, double cross) -> double {
     ShadowListKitListView *list = weakSelf;
     return list ? [list measureRow:(NSInteger)index key:key cross:(CGFloat)cross] : 0.0;
   });
@@ -535,16 +535,16 @@ std::string ShadowListKitStdString(NSString *string)
 - (ListSettings)listSettings
 {
   ListSettings settings;
-  settings.estimatedItemSize = _estimatedItemSize;
+  settings.estimatedRowSize = _estimatedItemSize;
   settings.overscan = _overscan;
   settings.startReachedThreshold = _startReachedThreshold;
   settings.endReachedThreshold = _endReachedThreshold;
-  settings.columns = (std::size_t)_numberOfColumns;
+  settings.numberOfColumns = (std::size_t)_numberOfColumns;
   settings.inverted = _inverted;
   settings.followAppends = _followAppends;
   settings.horizontal = _horizontal;
   settings.snapToItem = _snapToItem;
-  settings.snapAlignment = (int)_snapAlignment;
+  settings.snapAlignment = static_cast<SnapAlignment>(_snapAlignment);
   return settings;
 }
 
@@ -911,7 +911,7 @@ std::string ShadowListKitStdString(NSString *string)
  */
 - (void)mountCells
 {
-  if (!_driver.getMeasuredWindow()) {
+  if (!_driver.getMeasuredRange()) {
     [self unmountAll];
     return;
   }
@@ -967,7 +967,7 @@ std::string ShadowListKitStdString(NSString *string)
 
 - (void)mountRow:(std::size_t)index generation:(NSUInteger)generation
 {
-  if (index >= _driver.getCount() || index >= _driver.getKeyCount()) {
+  if (index >= _driver.getRowCount() || index >= _driver.getKeyCount()) {
     return;
   }
   const std::string& key = _driver.getKeyAt(index);
@@ -1034,7 +1034,7 @@ std::string ShadowListKitStdString(NSString *string)
 
 - (BOOL)keptAfterMeasure:(ShadowListKitListCell *)cell key:(const std::string&)key
 {
-  std::optional<MountedRange> window = _driver.getMeasuredWindow();
+  std::optional<MountedRange> window = _driver.getMeasuredRange();
   if (!window || cell.row == NSNotFound) {
     return NO;
   }
@@ -1166,7 +1166,7 @@ std::string ShadowListKitStdString(NSString *string)
 
 - (void)unpinCell:(ShadowListKitListCell *)cell
 {
-  if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getCount()) {
+  if (cell.row != NSNotFound && (std::size_t)cell.row < _driver.getRowCount()) {
     ShadowListKitPlace(cell, [self rowRect:(std::size_t)cell.row]);
   }
   cell.layer.zPosition = 0;
@@ -1370,7 +1370,7 @@ std::string ShadowListKitStdString(NSString *string)
 - (CGRect)rectForItemAtIndex:(NSInteger)index
 {
   NSInteger row = [self rowForItem:index];
-  if (row == NSNotFound || (std::size_t)row >= _driver.getCount()) {
+  if (row == NSNotFound || (std::size_t)row >= _driver.getRowCount()) {
     return CGRectNull;
   }
   return [self rowRect:(std::size_t)row];

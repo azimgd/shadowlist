@@ -11,30 +11,30 @@ namespace {
 /*
  * Reflow a single column. Built once per axis so the loop skips the orientation check.
  */
-template <double Element::*offset, double Element::*size, double Element::*crossOffset, double Element::*crossSize>
+template <double Row::*offset, double Row::*size, double Row::*crossOffset, double Row::*crossSize>
 void reflowSingleTrack(
-  Element* elements,
+  Row* rows,
   std::size_t fromIndex,
-  std::size_t elementsSize,
+  std::size_t rowCount,
   std::size_t changedThroughIndex,
   bool canStopEarly,
   double nextOffset,
   double& crossMax,
   bool& anyOffsetChanged) {
-  for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elementsSize; ++nextElementIndex) {
-    Element& nextElement = elements[nextElementIndex];
-    if (nextElement.index != nextElementIndex) {
-      nextElement.index = nextElementIndex;
-    } else if (canStopEarly && nextElementIndex > changedThroughIndex &&
-               nextElement.*offset == nextOffset) {
+  for (std::size_t nextRowIndex = fromIndex; nextRowIndex < rowCount; ++nextRowIndex) {
+    Row& nextRow = rows[nextRowIndex];
+    if (nextRow.index != nextRowIndex) {
+      nextRow.index = nextRowIndex;
+    } else if (canStopEarly && nextRowIndex > changedThroughIndex &&
+               nextRow.*offset == nextOffset) {
       break;
     }
 
-    anyOffsetChanged = anyOffsetChanged || nextElement.*offset != nextOffset;
-    nextElement.*offset = nextOffset;
-    nextOffset += nextElement.*size;
+    anyOffsetChanged = anyOffsetChanged || nextRow.*offset != nextOffset;
+    nextRow.*offset = nextOffset;
+    nextOffset += nextRow.*size;
 
-    double crossExtent = nextElement.*crossOffset + nextElement.*crossSize;
+    double crossExtent = nextRow.*crossOffset + nextRow.*crossSize;
     if (crossExtent > crossMax) {
       crossMax = crossExtent;
     }
@@ -44,15 +44,15 @@ void reflowSingleTrack(
 /*
  * Reflow several columns. Rows go to columns in turn and take the column's width.
  */
-template <double Element::*offset, double Element::*size, double Element::*crossOffset, double Element::*crossSize>
+template <double Row::*offset, double Row::*size, double Row::*crossOffset, double Row::*crossSize>
 void reflowTracks(
   Container& container,
   std::size_t fromIndex,
   double trackSize,
   double& crossMax,
   bool& anyOffsetChanged) {
-  std::vector<Element>& elements = container.revision.elements;
-  std::size_t columns = container.columns;
+  std::vector<Row>& rows = container.revision.rows;
+  std::size_t columns = container.numberOfColumns;
 
   // Columns start below the header.
   std::vector<double> trackSizes(columns, container.headerSize);
@@ -62,25 +62,25 @@ void reflowTracks(
    * within one row per column back.
    */
   for (std::size_t seedIndex = fromIndex; seedIndex-- > 0 && seedIndex + columns >= fromIndex;) {
-    const Element& seedElement = elements[seedIndex];
-    trackSizes[seedIndex % columns] = seedElement.*offset + seedElement.*size;
+    const Row& seedRow = rows[seedIndex];
+    trackSizes[seedIndex % columns] = seedRow.*offset + seedRow.*size;
   }
 
-  for (std::size_t nextElementIndex = fromIndex; nextElementIndex < elements.size(); ++nextElementIndex) {
-    Element& nextElement = elements[nextElementIndex];
-    nextElement.index = nextElementIndex;
+  for (std::size_t nextRowIndex = fromIndex; nextRowIndex < rows.size(); ++nextRowIndex) {
+    Row& nextRow = rows[nextRowIndex];
+    nextRow.index = nextRowIndex;
 
-    std::size_t trackIndex = nextElementIndex % columns;
+    std::size_t trackIndex = nextRowIndex % columns;
 
     // Set the width too. A reflow after the window size is known fixes it.
-    anyOffsetChanged = anyOffsetChanged || nextElement.*offset != trackSizes[trackIndex] ||
-      nextElement.*crossOffset != trackIndex * trackSize;
-    nextElement.*crossOffset = trackIndex * trackSize;
-    nextElement.*crossSize = trackSize;
-    nextElement.*offset = trackSizes[trackIndex];
-    trackSizes[trackIndex] += nextElement.*size;
+    anyOffsetChanged = anyOffsetChanged || nextRow.*offset != trackSizes[trackIndex] ||
+      nextRow.*crossOffset != trackIndex * trackSize;
+    nextRow.*crossOffset = trackIndex * trackSize;
+    nextRow.*crossSize = trackSize;
+    nextRow.*offset = trackSizes[trackIndex];
+    trackSizes[trackIndex] += nextRow.*size;
 
-    double crossExtent = nextElement.*crossOffset + nextElement.*crossSize;
+    double crossExtent = nextRow.*crossOffset + nextRow.*crossSize;
     if (crossExtent > crossMax) {
       crossMax = crossExtent;
     }
@@ -88,12 +88,12 @@ void reflowTracks(
 }
 }
 
-void Virtualizer::layoutElements(Container& container) {
-  std::size_t elementsSize = container.revision.elements.size();
+void Virtualizer::layoutRows(Container& container) {
+  std::size_t rowCount = container.revision.rows.size();
 
   double trackSize = container.horizontal
-    ? container.revision.windowContainerHeight / (container.columns > 0 ? container.columns : 1)
-    : container.revision.windowContainerWidth / (container.columns > 0 ? container.columns : 1);
+    ? container.revision.windowHeight / (container.numberOfColumns > 0 ? container.numberOfColumns : 1)
+    : container.revision.windowWidth / (container.numberOfColumns > 0 ? container.numberOfColumns : 1);
 
   // Unmeasured rows get the average size, or the estimate until there is an average.
   auto [fallbackWidth, fallbackHeight] = effectiveFallbackSize(container);
@@ -106,9 +106,9 @@ void Virtualizer::layoutElements(Container& container) {
   bool layoutParamsChanged =
     container.headerSize != container.previousLayoutHeaderSize ||
     (container.horizontal
-      ? container.revision.windowContainerHeight != container.previousLayoutWindowHeight
-      : container.revision.windowContainerWidth != container.previousLayoutWindowWidth) ||
-    container.columns != container.previousLayoutColumns ||
+      ? container.revision.windowHeight != container.previousLayoutWindowHeight
+      : container.revision.windowWidth != container.previousLayoutWindowWidth) ||
+    container.numberOfColumns != container.previousLayoutNumberOfColumns ||
     container.horizontal != container.previousLayoutHorizontal;
 
   /*
@@ -125,39 +125,39 @@ void Virtualizer::layoutElements(Container& container) {
    * removed row may have been the widest one, and only a full pass finds the new widest.
    */
   std::size_t structureFrom = UNDEFINED_INDEX;
-  if (container.elementsStructureDirty) {
-    double crossWindow = container.horizontal ? container.revision.windowContainerHeight
-                                              : container.revision.windowContainerWidth;
-    structureFrom = container.maxCrossAxisExtent > crossWindow ? 0 : container.elementsStructureDirtyFromIndex;
+  if (container.rowStructureDirty) {
+    double crossWindow = container.horizontal ? container.revision.windowHeight
+                                              : container.revision.windowWidth;
+    structureFrom = container.maxCrossAxisExtent > crossWindow ? 0 : container.rowStructureDirtyFromIndex;
   }
   bool fullSizing = fallbackDimensionsChanged || layoutParamsChanged;
-  std::size_t sizingFrom = fullSizing ? 0 : std::min(structureFrom, elementsSize);
+  std::size_t sizingFrom = fullSizing ? 0 : std::min(structureFrom, rowCount);
 
   bool anyNewlyEstimated = false;
 
-  if (fullSizing || container.elementsStructureDirty) {
-    if (container.columns > 1) {
-      double Element::*size = container.horizontal ? &Element::width : &Element::height;
-      double Element::*crossSize = container.horizontal ? &Element::height : &Element::width;
+  if (fullSizing || container.rowStructureDirty) {
+    if (container.numberOfColumns > 1) {
+      double Row::*size = container.horizontal ? &Row::width : &Row::height;
+      double Row::*crossSize = container.horizontal ? &Row::height : &Row::width;
       double fallbackSize = container.horizontal ? fallbackWidth : fallbackHeight;
-      for (std::size_t nextElementIndex = sizingFrom; nextElementIndex < elementsSize; ++nextElementIndex) {
-        Element& nextElement = container.revision.elements[nextElementIndex];
-        if (!nextElement.estimated && nextElement.*size != fallbackSize) {
-          nextElement.*size = fallbackSize;
+      for (std::size_t nextRowIndex = sizingFrom; nextRowIndex < rowCount; ++nextRowIndex) {
+        Row& nextRow = container.revision.rows[nextRowIndex];
+        if (!nextRow.estimated && nextRow.*size != fallbackSize) {
+          nextRow.*size = fallbackSize;
           anyNewlyEstimated = true;
         }
-        if (nextElement.*crossSize != trackSize) {
-          nextElement.*crossSize = trackSize;
+        if (nextRow.*crossSize != trackSize) {
+          nextRow.*crossSize = trackSize;
           anyNewlyEstimated = true;
         }
       }
     } else {
-      for (std::size_t nextElementIndex = sizingFrom; nextElementIndex < elementsSize; ++nextElementIndex) {
-        Element& nextElement = container.revision.elements[nextElementIndex];
-        if (!nextElement.estimated &&
-            (nextElement.width != fallbackWidth || nextElement.height != fallbackHeight)) {
-          nextElement.width = fallbackWidth;
-          nextElement.height = fallbackHeight;
+      for (std::size_t nextRowIndex = sizingFrom; nextRowIndex < rowCount; ++nextRowIndex) {
+        Row& nextRow = container.revision.rows[nextRowIndex];
+        if (!nextRow.estimated &&
+            (nextRow.width != fallbackWidth || nextRow.height != fallbackHeight)) {
+          nextRow.width = fallbackWidth;
+          nextRow.height = fallbackHeight;
           anyNewlyEstimated = true;
         }
       }
@@ -168,15 +168,15 @@ void Virtualizer::layoutElements(Container& container) {
   }
 
   // Recomputing offsets walks every row. Skip it unless a size, row or setting changed.
-  bool sizesDirty = container.elementsSizeDirtyFromIndex != UNDEFINED_INDEX;
+  bool sizesDirty = container.rowSizeDirtyFromIndex != UNDEFINED_INDEX;
 
-  if (anyNewlyEstimated || layoutParamsChanged || container.elementsStructureDirty || sizesDirty) {
+  if (anyNewlyEstimated || layoutParamsChanged || container.rowStructureDirty || sizesDirty) {
     /*
      * Reflow from the first row that moved. Setting or fallback changes can move anything.
      * They start at 0. A structure or size change only moves the rows after it. After a
      * structure change every later row may have a new index. Walk them all.
      */
-    std::size_t reflowFrom = std::min(structureFrom, container.elementsSizeDirtyFromIndex);
+    std::size_t reflowFrom = std::min(structureFrom, container.rowSizeDirtyFromIndex);
     if (anyNewlyEstimated) {
       reflowFrom = std::min(reflowFrom, sizingFrom);
     }
@@ -184,21 +184,21 @@ void Virtualizer::layoutElements(Container& container) {
       reflowFrom = 0;
     }
     std::size_t changedThroughIndex =
-      container.elementsStructureDirty ? UNDEFINED_INDEX : container.elementsSizeDirtyToIndex;
+      container.rowStructureDirty ? UNDEFINED_INDEX : container.rowSizeDirtyToIndex;
 
-    recomputeElementOffsets(container, reflowFrom, changedThroughIndex);
+    recomputeRowOffsets(container, reflowFrom, changedThroughIndex);
     container.previousLayoutHeaderSize = container.headerSize;
-    container.previousLayoutWindowWidth = container.revision.windowContainerWidth;
-    container.previousLayoutWindowHeight = container.revision.windowContainerHeight;
-    container.previousLayoutColumns = container.columns;
+    container.previousLayoutWindowWidth = container.revision.windowWidth;
+    container.previousLayoutWindowHeight = container.revision.windowHeight;
+    container.previousLayoutNumberOfColumns = container.numberOfColumns;
     container.previousLayoutHorizontal = container.horizontal;
-    container.elementsStructureDirty = false;
-    container.elementsSizeDirtyFromIndex = UNDEFINED_INDEX;
-    container.elementsSizeDirtyToIndex = 0;
+    container.rowStructureDirty = false;
+    container.rowSizeDirtyFromIndex = UNDEFINED_INDEX;
+    container.rowSizeDirtyToIndex = 0;
   }
 }
 
-void Virtualizer::recomputeElementOffsets(
+void Virtualizer::recomputeRowOffsets(
   Container& container,
   std::size_t fromIndex,
   std::size_t changedThroughIndex) {
@@ -211,25 +211,25 @@ void Virtualizer::recomputeElementOffsets(
    */
   bool anyOffsetChanged = false;
 
-  std::size_t elementsSize = container.revision.elements.size();
+  std::size_t rowCount = container.revision.rows.size();
 
   // A full pass rebuilds the widest extent. A partial pass can only grow it.
   double crossMax = fromIndex == 0 ? 0.0 : container.maxCrossAxisExtent;
 
-  if (fromIndex >= elementsSize) {
+  if (fromIndex >= rowCount) {
     container.maxCrossAxisExtent = crossMax;
     return;
   }
 
-  if (container.columns > 1) {
+  if (container.numberOfColumns > 1) {
     double trackSize = container.horizontal
-      ? container.revision.windowContainerHeight / container.columns
-      : container.revision.windowContainerWidth / container.columns;
+      ? container.revision.windowHeight / container.numberOfColumns
+      : container.revision.windowWidth / container.numberOfColumns;
     if (container.horizontal) {
-      reflowTracks<&Element::offsetX, &Element::width, &Element::offsetY, &Element::height>(
+      reflowTracks<&Row::offsetX, &Row::width, &Row::offsetY, &Row::height>(
         container, fromIndex, trackSize, crossMax, anyOffsetChanged);
     } else {
-      reflowTracks<&Element::offsetY, &Element::height, &Element::offsetX, &Element::width>(
+      reflowTracks<&Row::offsetY, &Row::height, &Row::offsetX, &Row::width>(
         container, fromIndex, trackSize, crossMax, anyOffsetChanged);
     }
   } else {
@@ -237,17 +237,17 @@ void Virtualizer::recomputeElementOffsets(
     double nextOffset = container.headerSize;
 
     if (fromIndex > 0) {
-      const Element& previousElement = container.revision.elements[fromIndex - 1];
+      const Row& previousRow = container.revision.rows[fromIndex - 1];
       nextOffset = container.horizontal
-        ? previousElement.offsetX + previousElement.width
-        : previousElement.offsetY + previousElement.height;
+        ? previousRow.offsetX + previousRow.width
+        : previousRow.offsetY + previousRow.height;
     }
 
     /*
      * This is the hottest loop in the core. The orientation check is kept out of it, and
      * a row's index is only written when it is stale, to avoid needless memory writes.
      */
-    Element* elements = container.revision.elements.data();
+    Row* rows = container.revision.rows.data();
 
     /*
      * Past the last changed row, stop at the first row already at the right offset.
@@ -258,11 +258,11 @@ void Virtualizer::recomputeElementOffsets(
     bool canStopEarly = fromIndex > 0 && changedThroughIndex != UNDEFINED_INDEX;
 
     if (container.horizontal) {
-      reflowSingleTrack<&Element::offsetX, &Element::width, &Element::offsetY, &Element::height>(
-        elements, fromIndex, elementsSize, changedThroughIndex, canStopEarly, nextOffset, crossMax, anyOffsetChanged);
+      reflowSingleTrack<&Row::offsetX, &Row::width, &Row::offsetY, &Row::height>(
+        rows, fromIndex, rowCount, changedThroughIndex, canStopEarly, nextOffset, crossMax, anyOffsetChanged);
     } else {
-      reflowSingleTrack<&Element::offsetY, &Element::height, &Element::offsetX, &Element::width>(
-        elements, fromIndex, elementsSize, changedThroughIndex, canStopEarly, nextOffset, crossMax, anyOffsetChanged);
+      reflowSingleTrack<&Row::offsetY, &Row::height, &Row::offsetX, &Row::width>(
+        rows, fromIndex, rowCount, changedThroughIndex, canStopEarly, nextOffset, crossMax, anyOffsetChanged);
     }
   }
 
@@ -273,7 +273,7 @@ void Virtualizer::recomputeElementOffsets(
   }
 }
 
-void Virtualizer::recomputeTotalSize(Container& container) {
+void Virtualizer::recomputeContentSize(Container& container) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
   // The content size is the furthest row edge. Row offsets already include the header.
@@ -285,13 +285,13 @@ void Virtualizer::recomputeTotalSize(Container& container) {
    * and cover any row measured wider than the window.
    */
   if (container.horizontal) {
-    container.revision.totalContainerWidth = std::max(extent.width, container.headerSize) + container.footerSize;
-    container.revision.totalContainerHeight =
-      std::max({extent.height, container.maxCrossAxisExtent, container.revision.windowContainerHeight});
+    container.revision.contentWidth = std::max(extent.width, container.headerSize) + container.footerSize;
+    container.revision.contentHeight =
+      std::max({extent.height, container.maxCrossAxisExtent, container.revision.windowHeight});
   } else {
-    container.revision.totalContainerHeight = std::max(extent.height, container.headerSize) + container.footerSize;
-    container.revision.totalContainerWidth =
-      std::max({extent.width, container.maxCrossAxisExtent, container.revision.windowContainerWidth});
+    container.revision.contentHeight = std::max(extent.height, container.headerSize) + container.footerSize;
+    container.revision.contentWidth =
+      std::max({extent.width, container.maxCrossAxisExtent, container.revision.windowWidth});
   }
 
   /*
@@ -301,12 +301,12 @@ void Virtualizer::recomputeTotalSize(Container& container) {
    * its scroll offset exactly.
    */
   if (container.revision.measuredRealCount > 0) {
-    if (container.revision.averageElementWidth == 0.0) {
-      container.revision.averageElementWidth =
+    if (container.revision.averageRowWidth == 0.0) {
+      container.revision.averageRowWidth =
         std::round(container.revision.measuredRealTotalWidth / container.revision.measuredRealCount);
     }
-    if (container.revision.averageElementHeight == 0.0) {
-      container.revision.averageElementHeight =
+    if (container.revision.averageRowHeight == 0.0) {
+      container.revision.averageRowHeight =
         std::round(container.revision.measuredRealTotalHeight / container.revision.measuredRealCount);
     }
   }

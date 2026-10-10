@@ -84,7 +84,7 @@ void writePatch(
   slots[OUT_COMMAND_VIEW_POSITION] = patch.commandViewPosition;
   env->SetDoubleArrayRegion(out, 0, OUT_ACTION_KIND, slots);
   jdouble more[OUT_SLOTS - OUT_COMMAND_ROW_OFFSET];
-  more[OUT_COMMAND_ROW_OFFSET - OUT_COMMAND_ROW_OFFSET] = patch.commandRowOffset;
+  more[OUT_COMMAND_ROW_OFFSET - OUT_COMMAND_ROW_OFFSET] = patch.commandViewOffset;
   more[OUT_COMMAND_ANIMATED - OUT_COMMAND_ROW_OFFSET] = patch.commandAnimated ? 1.0 : 0.0;
   more[OUT_HAS_ANCHOR_REQUEST - OUT_COMMAND_ROW_OFFSET] = patch.hasAnchorRequest ? 1.0 : 0.0;
   more[OUT_ANCHOR_REQUEST_SEQUENCE - OUT_COMMAND_ROW_OFFSET] = patch.anchorRequestSequence;
@@ -195,7 +195,7 @@ JNIEXPORT jint JNICALL SL_SCROLL_SYNC_JNI(nativeCorrection)(
   slots[OUT_ACTION_KIND - OUT_ACTION_KIND] = static_cast<double>(action.kind);
   slots[OUT_ACTION_X - OUT_ACTION_KIND] = action.offsetX;
   slots[OUT_ACTION_Y - OUT_ACTION_KIND] = action.offsetY;
-  slots[OUT_ACTION_TOKEN - OUT_ACTION_KIND] = static_cast<double>(action.token);
+  slots[OUT_ACTION_TOKEN - OUT_ACTION_KIND] = static_cast<double>(action.commitToken);
   slots[OUT_ACTION_SHIFTED - OUT_ACTION_KIND] = action.shifted ? 1.0 : 0.0;
   slots[OUT_ACTION_PRESERVE_MOMENTUM - OUT_ACTION_KIND] = action.preserveMomentum ? 1.0 : 0.0;
   env->SetDoubleArrayRegion(out, OUT_ACTION_KIND, OUT_COMMAND_ROW_OFFSET - OUT_ACTION_KIND, slots);
@@ -298,13 +298,13 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeIssueCommand)(
   jlong handle,
   jdouble index,
   jdouble viewPosition,
-  jdouble rowOffset,
+  jdouble viewOffset,
   jboolean animated,
   jdouble offsetX,
   jdouble offsetY,
   jboolean momentumYielded,
   jdoubleArray out) {
-  sl::ScrollCommand command{index, viewPosition, rowOffset, animated == JNI_TRUE};
+  sl::ScrollCommand command{index, viewPosition, viewOffset, animated == JNI_TRUE};
   auto patch = peerOf(handle)->sync.issueCommand(command, offsetX, offsetY, momentumYielded == JNI_TRUE);
   writePatch(env, out, patch, true, false);
 }
