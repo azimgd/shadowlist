@@ -683,6 +683,48 @@ TEST(inverted_bottom_pin_follows_growth_measured_between_frames) {
 }
 
 /*
+ * A scroll to an index in a grid lands on its row's track. Rows measured afterwards in another
+ * track must not pull the landed row away, even though the capture picked a row in that track.
+ */
+TEST(grid_scroll_to_index_keeps_the_landed_row_while_other_tracks_get_measured) {
+  Fixture fixture;
+  fixture.columns = 2;
+
+  std::vector<std::string> keys = keysFor(120);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  for (std::size_t index = 0; index < keys.size(); ++index) {
+    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH / 2.0, 100.0});
+  }
+  Virtualizer::commitElementSizes(container, 0);
+  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  // Row 41 sits in the second track, level with row 40 in the first.
+  container.scrollToIndex(41, 0.0);
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK(container.operation.has_value());
+  double target = container.revision.containerOffsetY;
+  CHECK_NEAR(target, offsetOf(container, 41), 0.001);
+  FrameInput echo = inputFor(keys, target, fixture);
+  echo.commitToken = container.operation->id;
+  Virtualizer::update(container, echo);
+  CHECK(!container.operation.has_value());
+
+  // The layout pass of the landing frame measures a row above in the first track taller.
+  Virtualizer::applyElementSize(container, 38, {WINDOW_WIDTH / 2.0, 300.0});
+  Virtualizer::commitElementSizes(container, 38);
+  Virtualizer::recomputeTotalSize(container);
+  CHECK_NEAR(offsetOf(container, 41) - container.revision.containerOffsetY, 0.0, 0.5);
+
+  for (int frame = 0; frame < 3; ++frame) {
+    FrameInput report = inputFor(keys, container.revision.containerOffsetY, fixture);
+    Virtualizer::update(container, report);
+    CHECK_NEAR(offsetOf(container, 41) - container.revision.containerOffsetY, 0.0, 0.5);
+  }
+}
+
+/*
  * A grid's tracks move on their own as rows above the screen get measured. The anchor must
  * stay on the row it already holds while that row is on screen, or each frame holds a
  * different track and the row the reader was on drifts.

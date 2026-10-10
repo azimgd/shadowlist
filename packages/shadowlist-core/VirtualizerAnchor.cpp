@@ -245,6 +245,17 @@ ScrollStep driveOperation(
           static_cast<std::ptrdiff_t>(container.operation->target.mode == AnchorMode::Element
             ? container.findElementIndexByKey(container.operation->target.key) : UNDEFINED_INDEX),
           target);
+        /*
+         * Grid tracks move apart as rows get measured, and one offset holds one track. Hold the
+         * track of the row the operation landed on, not the one the capture picked.
+         */
+        const std::string& landedKey = container.operation->target.key;
+        if (container.columns > 1 && container.operation->target.mode == AnchorMode::Element &&
+            container.isAnchorable(landedKey)) {
+          std::size_t landedIndex = container.findElementIndexByKey(landedKey);
+          container.anchor =
+            Anchor{landedKey, frame.currentOffset - container.getElementOffset(landedIndex), AnchorMode::Element};
+        }
         container.operation.reset();
         /*
          * A command that is already where it wants to be is done. Holding the old anchor
