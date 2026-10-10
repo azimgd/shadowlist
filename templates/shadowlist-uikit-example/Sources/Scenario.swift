@@ -16,8 +16,8 @@ enum Scenario {
   static func start(_ screen: ListScreen) {
     guard let name = UserDefaults.standard.string(forKey: "SLScenario") else { return }
     let list = screen.list!
-    if name == "animate" || name == "a11y", let slk = list.view as? ShadowListKitListView {
-      after(1.5) { name == "animate" ? checkAnimation(screen, slk) : checkAccessibility(slk) }
+    if name == "animate" || name == "a11y", let kitList = list.view as? ShadowListKitListView {
+      after(1.5) { name == "animate" ? checkAnimation(screen, kitList) : checkAccessibility(kitList) }
       return
     }
     if name == "cost" {
@@ -120,45 +120,46 @@ enum Scenario {
    * Logs the new row's alpha and a survivor's slide while the animation runs, then whether it
    * settled and how far the first visible row moved.
    */
-  private static func checkAnimation(_ screen: ListScreen, _ slk: ShadowListKitListView) {
+  private static func checkAnimation(_ screen: ListScreen, _ kitList: ShadowListKitListView) {
     let list = screen.list!
-    slk.animatesChanges = true
-    let first = slk.visibleRange.location
-    let topBefore = slk.cellForItem(at: first).map { $0.frame.minY - slk.contentOffset.y } ?? -1
-    let survivorBefore = slk.cellForItem(at: first + 2).map { $0.center.y - slk.contentOffset.y } ?? -1
+    kitList.animatesChanges = true
+    let first = kitList.visibleRange.location
+    let topBefore = kitList.cellForItem(at: first).map { $0.frame.minY - kitList.contentOffset.y } ?? -1
+    let survivorBefore = kitList.cellForItem(at: first + 2).map { $0.center.y - kitList.contentOffset.y } ?? -1
     var rows = list.rows
     rows.remove(at: first + 1)
     rows.insert(FeedRow(post: FeedPost(index: 900_000)), at: first + 2)
     list.setRows(rows, change: .update)
-    slk.layoutIfNeeded()
+    kitList.layoutIfNeeded()
     after(0.06) {
-      let inserted = slk.cellForItem(at: first + 2)
-      let survivor = slk.cellForItem(at: first + 1)
+      let inserted = kitList.cellForItem(at: first + 2)
+      let survivor = kitList.cellForItem(at: first + 1)
       let during: [String: Any] = [
         "insertedAlpha": Double(inserted?.layer.presentation()?.opacity ?? -1),
         "survivorSlideY": Double(survivor?.layer.presentation()?.affineTransform().ty ?? 0),
         "survivorScreenYBefore": Double(survivorBefore),
-        "survivorScreenYAfter": Double(survivor.map { $0.center.y - slk.contentOffset.y } ?? -1),
+        "survivorScreenYAfter": Double(survivor.map { $0.center.y - kitList.contentOffset.y } ?? -1),
       ]
       after(0.7) {
-        let settled = slk.visibleCells.allSatisfy { $0.alpha == 1 && $0.transform.isIdentity }
-        let topAfter = slk.cellForItem(at: first).map { $0.frame.minY - slk.contentOffset.y } ?? -1
+        let settled = kitList.visibleCells.allSatisfy { $0.alpha == 1 && $0.transform.isIdentity }
+        let topAfter = kitList.cellForItem(at: first).map { $0.frame.minY - kitList.contentOffset.y } ?? -1
         finish(["scenario": "animate", "during": during, "settled": settled, "firstRowMoved": Double(topAfter - topBefore)])
       }
     }
   }
 
-  private static func checkAccessibility(_ slk: ShadowListKitListView) {
-    let count = slk.accessibilityElementCount()
+  private static func checkAccessibility(_ kitList: ShadowListKitListView) {
+    let count = kitList.accessibilityElementCount()
     let target = 500
-    let element = slk.accessibilityElement(at: target) as? ShadowListKitListCell
+    // A row off screen is a proxy element, a row on screen its cell.
+    let element = kitList.accessibilityElement(at: target)
     var result: [String: Any] = ["scenario": "a11y", "elementCount": count]
-    result["elementRow"] = element?.index ?? -1
-    result["elementOnScreen"] = NSLocationInRange(target, slk.visibleRange)
-    result["indexOfElement"] = element.map { slk.index(ofAccessibilityElement: $0) } ?? -1
-    let before = slk.contentOffset.y
-    result["scrollHandled"] = slk.accessibilityScroll(.up)
-    result["pageScrolledBy"] = Double(slk.contentOffset.y - before)
+    result["elementIsCell"] = element is ShadowListKitListCell
+    result["elementOnScreen"] = NSLocationInRange(target, kitList.visibleRange)
+    result["indexOfElement"] = element.map { kitList.index(ofAccessibilityElement: $0) } ?? -1
+    let before = kitList.contentOffset.y
+    result["scrollHandled"] = kitList.accessibilityScroll(.up)
+    result["pageScrolledBy"] = Double(kitList.contentOffset.y - before)
     finish(result)
   }
 
