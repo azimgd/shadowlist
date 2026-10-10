@@ -59,7 +59,9 @@ final class ShadowListScrollSync {
   private final double[] mOut = new double[OUT_SLOTS];
   private boolean mHorizontal;
 
-  // The native Peer, 0 until first use and after destroy().
+  /*
+   * The native Peer, 0 until first use and after destroy().
+   */
   private long mHandle;
 
   /*
@@ -128,7 +130,7 @@ final class ShadowListScrollSync {
 
   /*
    * What the mounted correction does, ACTION_NONE, ACTION_WRITE or ACTION_ANIMATE. The target and flags are
-   * then in actionX() and the rest. Offsets and the range are in dp along both axes.
+   * then in getActionX() and the rest. Offsets and the range are in dp along both axes.
    */
   int correction(
     double offsetX, double offsetY, double minOffset, double maxOffset,
@@ -136,11 +138,11 @@ final class ShadowListScrollSync {
     return nativeCorrection(handle(), offsetX, offsetY, minOffset, maxOffset, touching, moving, ownsOffset, mOut);
   }
 
-  double actionX() {
+  double getActionX() {
     return mOut[OUT_ACTION_X];
   }
 
-  double actionY() {
+  double getActionY() {
     return mOut[OUT_ACTION_Y];
   }
 
@@ -165,20 +167,20 @@ final class ShadowListScrollSync {
 
   /*
    * One scroll callback in dp. Returns whether it must become a state update, which is then
-   * patchMap(). frameUserScrolled() tells whether the user moved the view.
+   * patchMap(). isFrameUserScrolled() tells whether the user moved the view.
    */
   boolean onScroll(double offsetX, double offsetY, int scrollPhase, boolean commitEveryFrame) {
     return nativeOnScroll(handle(), offsetX, offsetY, (double) scrollPhase, commitEveryFrame, mOut);
   }
 
-  boolean frameUserScrolled() {
+  boolean isFrameUserScrolled() {
     return mOut[OUT_FRAME_USER_SCROLLED] != 0.0;
   }
 
   /*
    * Whether the last frame ended an animated move of ours on its target.
    */
-  boolean frameLanded() {
+  boolean isFrameLanded() {
     return mOut[OUT_FRAME_LANDED] != 0.0;
   }
 
@@ -241,12 +243,12 @@ final class ShadowListScrollSync {
     nativeRequestAnchor(handle(), offsetX, offsetY, mOut);
   }
 
-  boolean currentUserScrolled() {
-    return nativeCurrentUserScrolled(handle());
+  boolean isCurrentUserScrolled() {
+    return nativeIsCurrentUserScrolled(handle());
   }
 
-  int currentScrollPhase() {
-    return (int) nativeCurrentScrollPhase(handle());
+  int getCurrentScrollPhase() {
+    return (int) nativeGetCurrentScrollPhase(handle());
   }
 
   /*
@@ -322,6 +324,6 @@ final class ShadowListScrollSync {
   private static native boolean nativeLand(long handle, double offsetX, double offsetY, double[] out);
   private static native boolean nativeIsLanding(long handle);
   private static native void nativeRequestAnchor(long handle, double offsetX, double offsetY, double[] out);
-  private static native boolean nativeCurrentUserScrolled(long handle);
-  private static native double nativeCurrentScrollPhase(long handle);
+  private static native boolean nativeIsCurrentUserScrolled(long handle);
+  private static native double nativeGetCurrentScrollPhase(long handle);
 }

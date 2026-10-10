@@ -13,7 +13,7 @@ import com.facebook.react.uimanager.PixelUtil;
  * Pins the header, footer and section header overlay. Runs on the UI thread on every
  * scroll tick, using the core state cached here.
  */
-class ShadowListStickyController {
+final class ShadowListStickyController {
   /*
    * Pinned views are lifted with Z. Never use bringToFront, it reorders the children and
    * breaks index based mounting.

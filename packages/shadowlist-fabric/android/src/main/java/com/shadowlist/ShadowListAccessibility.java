@@ -18,7 +18,7 @@ import java.util.HashMap;
  * The list tells accessibility services how many rows it holds, not only the mounted ones,
  * and offers page scrolls and scrolling to any row, like the native kit's list.
  */
-class ShadowListAccessibility extends AccessibilityDelegateCompat {
+final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   private final ShadowListView mView;
 
   /*

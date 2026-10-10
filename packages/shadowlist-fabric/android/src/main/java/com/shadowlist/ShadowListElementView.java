@@ -45,12 +45,68 @@ public class ShadowListElementView extends ViewGroup {
    */
   private int mElementIndex = 0;
 
-  // Copy of the elementKey prop. Drag to reorder sends it so JS can move the right item.
+  /*
+   * Copy of the elementKey prop. Drag to reorder sends it to JS, which moves the item by key.
+   */
   private String mElementKey = "";
 
   public ShadowListElementView(Context context) {
     super(context);
     init(context);
+  }
+
+  public ShadowListElementView(Context context, AttributeSet attrs) {
+    super(context, attrs);
+    init(context);
+  }
+
+  public ShadowListElementView(Context context, AttributeSet attrs, int defStyleAttr) {
+    super(context, attrs, defStyleAttr);
+    init(context);
+  }
+
+  private void init(Context context) {
+    mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
+    mTextPaint.setColor(Color.WHITE);
+    mTextPaint.setTextAlign(Paint.Align.CENTER);
+    mTextPaint.setTextSize(TypedValue.applyDimension(
+      TypedValue.COMPLEX_UNIT_SP, BUTTON_TEXT_SP, context.getResources().getDisplayMetrics()));
+    updateOutline();
+  }
+
+  /*
+   * A row that leaves the window closes. Its native swipe goes with it.
+   */
+  @Override
+  protected void onDetachedFromWindow() {
+    resetSwipe();
+    mSwipe.destroy();
+    if (mVelocityTracker != null) {
+      mVelocityTracker.recycle();
+      mVelocityTracker = null;
+    }
+    super.onDetachedFromWindow();
+  }
+
+  /*
+   * Drag to reorder lifts the held row with translationZ. Without a background the default
+   * outline casts an invisible shadow that the renderer still processes every frame. Drop
+   * the outline then. A row with a background keeps its outline and its lift shadow.
+   */
+  private void updateOutline() {
+    setOutlineProvider(getBackground() == null ? null : ViewOutlineProvider.BACKGROUND);
+  }
+
+  @Override
+  @SuppressWarnings("deprecation")
+  public void setBackgroundDrawable(@Nullable Drawable background) {
+    super.setBackgroundDrawable(background);
+    updateOutline();
+  }
+
+  @Override
+  protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+    // The core positions the children.
   }
 
   public void setElementIndex(int index) {
@@ -73,6 +129,14 @@ public class ShadowListElementView extends ViewGroup {
 
   private static final float BUTTON_TEXT_SP = 15f;
   private static final int DESTRUCTIVE_COLOR = Color.rgb(255, 59, 48);
+  private static final int DEFAULT_ACTION_COLOR = Color.rgb(142, 142, 147);
+  /*
+   * Slots of mSpans: the revealed gap's start and size, then a start and size per button.
+   */
+  private static final int SPAN_GAP_START = 0;
+  private static final int SPAN_GAP_SIZE = 1;
+  private static final int SPAN_FIRST_BUTTON = 2;
+  private static final int SPAN_BUTTON_STRIDE = 2;
 
   @Nullable private ReadableArray mLeadingSwipeActions = null;
   @Nullable private ReadableArray mTrailingSwipeActions = null;
@@ -87,11 +151,17 @@ public class ShadowListElementView extends ViewGroup {
   private float mDownX = 0f;
   private float mDownY = 0f;
   private boolean mSwipeTracking = false;
-  // The touch was taken from JS. It ends the native gesture on release.
+  /*
+   * The touch was taken from JS. It ends the native gesture on release.
+   */
   private boolean mSwipeTouchClaimed = false;
-  // The button under an open row's touch, or -1.
+  /*
+   * The button under an open row's touch, or -1.
+   */
   private int mButtonTouch = -1;
-  // The row slid all the way out and waits for its action's result.
+  /*
+   * The row slid all the way out and waits for its action's result.
+   */
   private boolean mSwipedOut = false;
 
   /*
@@ -100,7 +170,7 @@ public class ShadowListElementView extends ViewGroup {
    */
   private double[] mLeadingSizes = new double[0];
   private double[] mTrailingSizes = new double[0];
-  private double[] mSpans = new double[2];
+  private double[] mSpans = new double[SPAN_FIRST_BUTTON];
   private int mShownCount = 0;
   private boolean mShownLeading = false;
   private final Paint mButtonPaint = new Paint();
@@ -180,7 +250,9 @@ public class ShadowListElementView extends ViewGroup {
     return mSwipeOffset != 0f || mSwipeAnimator != null;
   }
 
-  // Whether the row slid all the way out and waits for its action.
+  /*
+   * Whether the row slid all the way out and waits for its action.
+   */
   boolean isSwipedOut() {
     return mSwipedOut;
   }
@@ -404,22 +476,25 @@ public class ShadowListElementView extends ViewGroup {
     mShownLeading = mSwipeOffset > 0f;
     double[] sizes = mShownLeading ? mLeadingSizes : mTrailingSizes;
     mShownCount = sizes.length;
-    if (mSpans.length < 2 + mShownCount * 2) {
-      mSpans = new double[2 + mShownCount * 2];
+    int spanCount = SPAN_FIRST_BUTTON + mShownCount * SPAN_BUTTON_STRIDE;
+    if (mSpans.length < spanCount) {
+      mSpans = new double[spanCount];
     }
     boolean full = mSwipe.isPastFullSwipe(mSwipeOffset);
     ShadowListSwipeReveal.buttonSpans(sizes, mShownCount, mSwipeOffset, full, getWidth(), mSpans);
   }
 
   private float buttonStart(int index) {
-    return (float) mSpans[2 + index * 2];
+    return (float) mSpans[SPAN_FIRST_BUTTON + index * SPAN_BUTTON_STRIDE];
   }
 
   private float buttonSize(int index) {
-    return (float) mSpans[3 + index * 2];
+    return (float) mSpans[SPAN_FIRST_BUTTON + index * SPAN_BUTTON_STRIDE + 1];
   }
 
-  // The shown button under x, or -1.
+  /*
+   * The shown button under x, or -1.
+   */
   private int buttonAt(float x) {
     for (int index = 0; index < mShownCount; index++) {
       float start = buttonStart(index);
@@ -437,12 +512,12 @@ public class ShadowListElementView extends ViewGroup {
   private void settleSwipe(float velocity) {
     double flingVelocity = ShadowListSwipeReveal.FLING_VELOCITY_DP * getResources().getDisplayMetrics().density;
     mSwipe.settle(mSwipeOffset, velocity, flingVelocity);
-    float target = (float) mSwipe.restOffset();
+    float target = (float) mSwipe.getRestOffset();
     if (!mSwipe.isRestFull()) {
       animateSwipe(target, null);
       return;
     }
-    boolean leading = mSwipe.restSide() == ShadowListSwipeReveal.SIDE_LEADING;
+    boolean leading = mSwipe.getRestSide() == ShadowListSwipeReveal.SIDE_LEADING;
     mSwipedOut = true;
     // The row stays out until JS closes it with closeFullSwipe, or the action removes it.
     animateSwipe(target, () -> dispatchSwipeAction(leading, 0, true));
@@ -540,8 +615,8 @@ public class ShadowListElementView extends ViewGroup {
       return;
     }
     float height = getHeight();
-    float gapStart = (float) mSpans[0];
-    float gap = (float) mSpans[1];
+    float gapStart = (float) mSpans[SPAN_GAP_START];
+    float gap = (float) mSpans[SPAN_GAP_SIZE];
     int saved = canvas.save();
     // Only the gap shows the buttons' color.
     canvas.clipRect(gapStart, 0f, gapStart + gap, height);
@@ -588,7 +663,7 @@ public class ShadowListElementView extends ViewGroup {
     if (action != null && action.hasKey("color") && !action.isNull("color")) {
       return (int) (long) action.getDouble("color");
     }
-    return actionFlag(actions, index, "destructive") ? DESTRUCTIVE_COLOR : Color.rgb(142, 142, 147);
+    return actionFlag(actions, index, "destructive") ? DESTRUCTIVE_COLOR : DEFAULT_ACTION_COLOR;
   }
 
   // endregion
@@ -650,7 +725,9 @@ public class ShadowListElementView extends ViewGroup {
 
   // region Accessibility
 
-  // Ids of the swipe and menu actions added to the row.
+  /*
+   * Ids of the swipe and menu actions added to the row.
+   */
   private final ArrayList<Integer> mAccessibilityActionIds = new ArrayList<>();
 
   /*
@@ -718,59 +795,5 @@ public class ShadowListElementView extends ViewGroup {
     if (mSwipeOffset != 0f || mSwipedOut) {
       tearDownSwipe();
     }
-  }
-
-  public ShadowListElementView(Context context, AttributeSet attrs) {
-    super(context, attrs);
-    init(context);
-  }
-
-  public ShadowListElementView(Context context, AttributeSet attrs, int defStyleAttr) {
-    super(context, attrs, defStyleAttr);
-    init(context);
-  }
-
-  private void init(Context context) {
-    mTouchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
-    mTextPaint.setColor(Color.WHITE);
-    mTextPaint.setTextAlign(Paint.Align.CENTER);
-    mTextPaint.setTextSize(TypedValue.applyDimension(
-      TypedValue.COMPLEX_UNIT_SP, BUTTON_TEXT_SP, context.getResources().getDisplayMetrics()));
-    updateOutline();
-  }
-
-  /*
-   * A row that leaves the window closes. Its native swipe goes with it.
-   */
-  @Override
-  protected void onDetachedFromWindow() {
-    resetSwipe();
-    mSwipe.destroy();
-    if (mVelocityTracker != null) {
-      mVelocityTracker.recycle();
-      mVelocityTracker = null;
-    }
-    super.onDetachedFromWindow();
-  }
-
-  /*
-   * Drag to reorder lifts the held row with translationZ. Without a background the default
-   * outline casts an invisible shadow that the renderer still processes every frame. Drop
-   * the outline then. A row with a background keeps its outline and its lift shadow.
-   */
-  private void updateOutline() {
-    setOutlineProvider(getBackground() == null ? null : ViewOutlineProvider.BACKGROUND);
-  }
-
-  @Override
-  @SuppressWarnings("deprecation")
-  public void setBackgroundDrawable(@Nullable Drawable background) {
-    super.setBackgroundDrawable(background);
-    updateOutline();
-  }
-
-  @Override
-  protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-    // The core positions the children.
   }
 }

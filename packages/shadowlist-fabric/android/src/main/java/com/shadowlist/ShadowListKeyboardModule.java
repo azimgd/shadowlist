@@ -77,7 +77,7 @@ public class ShadowListKeyboardModule extends NativeShadowListKeyboardSpec
       // No Activity yet. onHostResume will try again.
       return;
     }
-    // A recreated Activity has a new window. Let go of the old one first.
+    // A recreated Activity has a new window. Let go of the previous one first.
     detach();
     mObservedView = activity.getWindow().getDecorView();
     mCallback = new KeyboardInsetsCallback(this);

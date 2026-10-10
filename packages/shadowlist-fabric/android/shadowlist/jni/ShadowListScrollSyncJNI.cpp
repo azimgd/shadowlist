@@ -48,7 +48,7 @@ enum OutSlot {
 };
 
 /*
- * A view's ScrollSync, the live report it writes to, and the last correction it was told about.
+ * A view's ScrollSync, the live report it writes to, and its latest correction.
  */
 struct Peer {
   sl::ScrollSync sync;
@@ -191,14 +191,14 @@ JNIEXPORT jint JNICALL SL_SCROLL_SYNC_JNI(nativeCorrection)(
   motion.ownsOffset = ownsOffset == JNI_TRUE;
   peer->action = peer->sync.correction(motion);
   const auto& action = peer->action;
-  jdouble slots[OUT_SLOTS - OUT_ACTION_KIND];
-  slots[0] = static_cast<double>(action.kind);
-  slots[1] = action.offsetX;
-  slots[2] = action.offsetY;
-  slots[3] = static_cast<double>(action.token);
-  slots[4] = action.shifted ? 1.0 : 0.0;
-  slots[5] = action.preserveMomentum ? 1.0 : 0.0;
-  env->SetDoubleArrayRegion(out, OUT_ACTION_KIND, OUT_SLOTS - OUT_ACTION_KIND, slots);
+  jdouble slots[OUT_COMMAND_ROW_OFFSET - OUT_ACTION_KIND];
+  slots[OUT_ACTION_KIND - OUT_ACTION_KIND] = static_cast<double>(action.kind);
+  slots[OUT_ACTION_X - OUT_ACTION_KIND] = action.offsetX;
+  slots[OUT_ACTION_Y - OUT_ACTION_KIND] = action.offsetY;
+  slots[OUT_ACTION_TOKEN - OUT_ACTION_KIND] = static_cast<double>(action.token);
+  slots[OUT_ACTION_SHIFTED - OUT_ACTION_KIND] = action.shifted ? 1.0 : 0.0;
+  slots[OUT_ACTION_PRESERVE_MOMENTUM - OUT_ACTION_KIND] = action.preserveMomentum ? 1.0 : 0.0;
+  env->SetDoubleArrayRegion(out, OUT_ACTION_KIND, OUT_COMMAND_ROW_OFFSET - OUT_ACTION_KIND, slots);
   return static_cast<jint>(action.kind);
 }
 
@@ -233,8 +233,10 @@ JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeOnScroll)(
   if (report.needsCommit) {
     writePatch(env, out, report.patch, true, report.userScrolled, report.landed);
   } else {
-    jdouble slots[2] = {0.0, report.userScrolled ? 1.0 : 0.0};
-    env->SetDoubleArrayRegion(out, 0, 2, slots);
+    jdouble slots[OUT_OFFSET_X];
+    slots[OUT_COMMIT] = 0.0;
+    slots[OUT_FRAME_USER_SCROLLED] = report.userScrolled ? 1.0 : 0.0;
+    env->SetDoubleArrayRegion(out, OUT_COMMIT, OUT_OFFSET_X, slots);
     jdouble landed = report.landed ? 1.0 : 0.0;
     env->SetDoubleArrayRegion(out, OUT_FRAME_LANDED, 1, &landed);
   }
@@ -336,11 +338,11 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeRequestAnchor)(
   writePatch(env, out, peerOf(handle)->sync.requestAnchor(offsetX, offsetY), true, false);
 }
 
-JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeCurrentUserScrolled)(JNIEnv*, jclass, jlong handle) {
+JNIEXPORT jboolean JNICALL SL_SCROLL_SYNC_JNI(nativeIsCurrentUserScrolled)(JNIEnv*, jclass, jlong handle) {
   return peerOf(handle)->sync.isCurrentUserScrolled() ? JNI_TRUE : JNI_FALSE;
 }
 
-JNIEXPORT jdouble JNICALL SL_SCROLL_SYNC_JNI(nativeCurrentScrollPhase)(JNIEnv*, jclass, jlong handle) {
+JNIEXPORT jdouble JNICALL SL_SCROLL_SYNC_JNI(nativeGetCurrentScrollPhase)(JNIEnv*, jclass, jlong handle) {
   return peerOf(handle)->sync.getCurrentScrollPhase();
 }
 

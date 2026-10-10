@@ -65,7 +65,7 @@ jint jintFromIndex(std::size_t index) {
 }
 
 /*
- * Copies of the grid element arrays. They only grow. Drag frames reuse them.
+ * Copies of the grid cell arrays. They only grow. Drag frames reuse them.
  */
 struct GridScratch {
   std::vector<double> leadings;

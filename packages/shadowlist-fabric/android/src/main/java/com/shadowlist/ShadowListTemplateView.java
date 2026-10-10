@@ -11,13 +11,19 @@ import android.view.ViewParent;
 import androidx.annotation.Nullable;
 
 public class ShadowListTemplateView extends ViewGroup {
-  // Header, footer or empty. The list reads it to pin sticky templates.
+  /*
+   * Header, footer or empty. The list reads it to pin sticky templates.
+   */
   private String mTemplateType = "";
 
-  // Set by the list while mounted. Sticky pinning follows this view's frame.
+  /*
+   * Set by the list while mounted. Sticky pinning follows this view's frame.
+   */
   private @Nullable View.OnLayoutChangeListener mListLayoutListener = null;
 
-  // Set by the list while mounted. It finds its sticky views again when the type changes.
+  /*
+   * Set by the list while mounted. It finds its sticky views again when the type changes.
+   */
   private @Nullable Runnable mListTypeListener = null;
 
   public ShadowListTemplateView(Context context) {
