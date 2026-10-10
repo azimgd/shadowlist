@@ -11,7 +11,7 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
-#include <shadowlist-core/host/ElementSizeSpec.hpp>
+#include <shadowlist-core/host/RowSizeSpec.hpp>
 #include <shadowlist-core/host/ListLayout.hpp>
 
 #include <memory>
@@ -46,10 +46,14 @@ struct ShadowListViewGeometryCache {
   bool callbacksViewable = false;
   bool callbacksScroll = false;
   double callbacksScrollThrottle = 0.0;
-  // The scroll callback's throttle, for the trailing event once the list rests.
+  /*
+   * The scroll callback's throttle, for the trailing event once the list rests.
+   */
   std::shared_ptr<ShadowListScrollTracker> scrollTracker;
 
-  // viewableRules from these props, read for the core. Same pointer trick as the keys.
+  /*
+   * viewableRules from these props, read for the core. Same pointer trick as the keys.
+   */
   std::shared_ptr<const Props> viewableRulesProps;
   std::vector<azimgd::shadowlist::ViewableRule> viewableRules;
 
@@ -60,19 +64,25 @@ struct ShadowListViewGeometryCache {
   double animationSequence = 0.0;
   double animationOffset = 0.0;
 
-  // The newest anchor request answered with onAnchorState.
+  /*
+   * The newest anchor request answered with onAnchorState.
+   */
   double anchorRequestSequence = 0.0;
 
-  // The content size last sent with onContentSizeChange, or negative before the first.
+  /*
+   * The content size most recently sent with onContentSizeChange, or negative before the first.
+   */
   double emittedContentWidth = -1.0;
   double emittedContentHeight = -1.0;
 
-  // stickyIndices from these props, cleaned up for the core. Same pointer trick.
+  /*
+   * stickyIndices from these props, cleaned up for the core. Same pointer trick.
+   */
   std::shared_ptr<const Props> stickyIndicesProps;
   std::vector<std::size_t> stickyIndices;
 
   /*
-   * elementsSizeSpecs measured a few rows per commit, keyed by the props they came from.
+   * rowSizeSpecs measured a few rows per commit, keyed by the props they came from.
    * See azimgd::shadowlist::SizeSpecQueue.
    */
   azimgd::shadowlist::SizeSpecQueue sizeSpecs;
@@ -110,8 +120,8 @@ public:
 
   void layout(LayoutContext layoutContext) override;
   void replaceChild(
-    const ShadowNode& previousElementShadowNode,
-    const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
+    const ShadowNode& previousChildShadowNode,
+    const std::shared_ptr<const ShadowNode>& nextChildShadowNode,
     std::size_t suggestedIndex = SIZE_MAX) override;
 
   void setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager);
@@ -134,9 +144,9 @@ private:
    * Sort the children once. Rows keep their current core index and their layoutable node so
    * the passes below don't repeat the casts or the key lookup.
    */
-  struct MountedElement {
+  struct MountedRow {
     std::size_t childIndex;
-    std::size_t elementIndex;
+    std::size_t rowIndex;
     const YogaLayoutableShadowNode* node;
   };
 
@@ -157,8 +167,9 @@ private:
      */
     TemplateSlot emptySlot;
     double headerSize = 0.0;
+    double emptySize = 0.0;
     double footerSize = 0.0;
-    std::vector<MountedElement> mountedElements;
+    std::vector<MountedRow> mountedRows;
   };
 
   /*
@@ -170,9 +181,9 @@ private:
   /*
    * Moves each mounted row to the core's frame, hiding or showing unsettled rows.
    */
-  void placeElements(
+  void placeRows(
     azimgd::shadowlist::Container& core,
-    const std::vector<MountedElement>& mountedElements,
+    const std::vector<MountedRow>& mountedRows,
     bool horizontal,
     LayoutContext& layoutContext);
 
@@ -212,14 +223,16 @@ private:
 
   std::shared_ptr<azimgd::shadowlist::Container> containerManager_;
 
-  // Geometry from the core to publish, shared across this list's clones.
+  /*
+   * Geometry from the core to publish, shared across this list's clones.
+   */
   std::shared_ptr<ShadowListViewGeometryCache> geometryCache_;
 
   /*
    * Set while layout() writes its own frames into the tree. replaceChild then doesn't
    * report them as new measurements. Only used inside one single threaded layout pass.
    */
-  bool suppressElementSizeFeedback_ = false;
+  bool suppressRowSizeFeedback_ = false;
 
   /*
    * Rows measured for the first time in this layout cycle, which may get hidden.

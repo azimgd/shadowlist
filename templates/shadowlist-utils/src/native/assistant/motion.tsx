@@ -1,40 +1,48 @@
-import { useEffect, type ReactNode } from 'react';
-import type { StyleProp, TextStyle, ViewProps, ViewStyle } from 'react-native';
-import Animated, {
+import { useEffect, useRef, type ReactNode } from 'react';
+import {
+  Animated,
   Easing,
-  cancelAnimation,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+  type StyleProp,
+  type TextStyle,
+  type ViewProps,
+  type ViewStyle,
+} from 'react-native';
 
 const PULSE_MS = 600;
 
 /*
- * Fades opacity between 0.25 and 1 while mounted. It runs on the UI thread. A streaming
- * row that re-renders on every flush never restarts it.
+ * The native Animated driver sets opacity on the view directly. A Reanimated loop here
+ * committed the whole tree every frame, and with the dot inside a list row every commit
+ * ran the list's layout pass too.
  */
-function usePulseStyle(delay = 0) {
-  const progress = useSharedValue(0);
+function usePulseOpacity(delay = 0) {
+  const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    progress.value = withDelay(
-      delay,
-      withRepeat(
-        withTiming(1, {
-          duration: PULSE_MS,
-          easing: Easing.inOut(Easing.quad),
-        }),
-        -1,
-        true
-      )
-    );
-    return () => cancelAnimation(progress);
+    const pulse = Animated.sequence([
+      Animated.delay(delay),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(progress, {
+            toValue: 1,
+            duration: PULSE_MS,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(progress, {
+            toValue: 0,
+            duration: PULSE_MS,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ])
+      ),
+    ]);
+    pulse.start();
+    return () => pulse.stop();
   }, [delay, progress]);
 
-  return useAnimatedStyle(() => ({ opacity: 0.25 + progress.value * 0.75 }));
+  return progress.interpolate({ inputRange: [0, 1], outputRange: [0.25, 1] });
 }
 
 export const PulseView = ({
@@ -44,8 +52,8 @@ export const PulseView = ({
   delay?: number;
   style?: StyleProp<ViewStyle>;
 }) => {
-  const pulse = usePulseStyle(delay);
-  return <Animated.View style={[style, pulse]} />;
+  const opacity = usePulseOpacity(delay);
+  return <Animated.View style={[style, { opacity }]} />;
 };
 
 export const PulseText = ({
@@ -55,8 +63,8 @@ export const PulseText = ({
   style?: StyleProp<TextStyle>;
   children?: ReactNode;
 }) => {
-  const pulse = usePulseStyle();
-  return <Animated.Text style={[style, pulse]}>{children}</Animated.Text>;
+  const opacity = usePulseOpacity();
+  return <Animated.Text style={[style, { opacity }]}>{children}</Animated.Text>;
 };
 
 export type FadeScaleViewProps = ViewProps & {
@@ -64,25 +72,33 @@ export type FadeScaleViewProps = ViewProps & {
   duration: number;
 };
 
-/*
- * Fades and scales in when visible and out when not. It stays mounted either way.
- */
 export const FadeScaleView = ({
   visible,
   duration,
   style,
   ...props
 }: FadeScaleViewProps) => {
-  const progress = useSharedValue(visible ? 1 : 0);
+  const progress = useRef(new Animated.Value(visible ? 1 : 0)).current;
 
   useEffect(() => {
-    progress.value = withTiming(visible ? 1 : 0, { duration });
+    const fade = Animated.timing(progress, {
+      toValue: visible ? 1 : 0,
+      duration,
+      useNativeDriver: true,
+    });
+    fade.start();
+    return () => fade.stop();
   }, [visible, duration, progress]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    opacity: progress.value,
-    transform: [{ scale: 0.85 + progress.value * 0.15 }],
-  }));
+  const scale = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.85, 1],
+  });
 
-  return <Animated.View {...props} style={[style, animatedStyle]} />;
+  return (
+    <Animated.View
+      {...props}
+      style={[style, { opacity: progress, transform: [{ scale }] }]}
+    />
+  );
 };

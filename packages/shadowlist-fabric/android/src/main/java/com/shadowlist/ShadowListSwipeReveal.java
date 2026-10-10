@@ -20,7 +20,7 @@ final class ShadowListSwipeReveal {
   private static final int OUT_SLOTS = 3;
 
   /*
-   * Values of restSide(), matching SideValue in ShadowListSwipeJNI.cpp.
+   * Values of getRestSide(), matching SideValue in ShadowListSwipeJNI.cpp.
    */
   static final int SIDE_NONE = 0;
   static final int SIDE_LEADING = 1;
@@ -48,7 +48,9 @@ final class ShadowListSwipeReveal {
 
   private final double[] mOut = new double[OUT_SLOTS];
 
-  // The native Peer, 0 until first use and after destroy().
+  /*
+   * The native Peer, 0 until first use and after destroy().
+   */
   private long mHandle;
 
   /*
@@ -96,13 +98,13 @@ final class ShadowListSwipeReveal {
   }
 
   /*
-   * Where the row goes when let go. The result is restSide(), isRestFull() and restOffset().
+   * Where the row goes when let go. The result is getRestSide(), isRestFull() and getRestOffset().
    */
   void settle(double offset, double velocity, double flingVelocity) {
     nativeSettle(handle(), offset, velocity, flingVelocity, mOut);
   }
 
-  int restSide() {
+  int getRestSide() {
     return (int) mOut[OUT_SIDE];
   }
 
@@ -110,7 +112,7 @@ final class ShadowListSwipeReveal {
     return mOut[OUT_FULL] != 0.0;
   }
 
-  double restOffset() {
+  double getRestOffset() {
     return mOut[OUT_OFFSET];
   }
 

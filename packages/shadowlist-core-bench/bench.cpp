@@ -4,7 +4,7 @@
  * Drives the core the same way the Fabric integration does. A core change can be
  * compared before and after, here and on an Android device. See run.sh.
  * Keys are borrowed through keysRef, scroll frames set keysUnchanged, and mounted
- * sizes go through applyElementSize and then one commitElementSizes.
+ * sizes go through applyRowSize and then one commitRowSizes.
  *
  * Prints a TSV block and a readable table. Each scenario reports the median of its
  * timed batches. One slow batch can't skew the result.
@@ -29,15 +29,22 @@ using namespace azimgd::shadowlist;
 
 namespace {
 
-// Test geometry: a 390 by 840 screen with 120pt rows in one column.
+/*
+ * Test geometry: a 390 by 840 screen with 120pt rows in one column.
+ */
 constexpr double WINDOW_WIDTH = 390.0;
 constexpr double WINDOW_HEIGHT = 840.0;
 constexpr double ROW_HEIGHT = 120.0;
-// Card width for the horizontal carousel.
+
+/*
+ * Card width for the horizontal carousel.
+ */
 constexpr double CARD_WIDTH = 140.0;
 constexpr double OVERSCAN = 1.0;
 
-// Rows that fit on screen plus one screen of overscan on each side.
+/*
+ * Rows that fit on screen plus one screen of overscan on each side.
+ */
 constexpr std::size_t MOUNTED_ROWS =
   static_cast<std::size_t>((WINDOW_HEIGHT * (1.0 + 2.0 * OVERSCAN)) / ROW_HEIGHT);
 
@@ -51,13 +58,18 @@ struct Result {
   std::string scenario;
   std::size_t rows = 0;
   Timing timing;
-  // Lets a scenario report per frame instead of per operation.
+
+  /*
+   * Lets a scenario report per frame instead of per operation.
+   */
   const char* unit = "us/op";
 };
 
 std::vector<Result> results;
 
-// Write the address to a volatile so the optimizer can't throw the work away.
+/*
+ * Write the address to a volatile so the optimizer can't throw the work away.
+ */
 const void* volatile escapedObject = nullptr;
 
 template <typename T>
@@ -127,7 +139,9 @@ std::vector<std::string> makeLongKeys(std::size_t count) {
   return keys;
 }
 
-// Frames
+/*
+ * Frames
+ */
 
 /*
  * Build a frame that borrows keys. The keys must outlive every update that uses it.
@@ -135,12 +149,12 @@ std::vector<std::string> makeLongKeys(std::size_t count) {
 FrameInput makeInput(const std::vector<std::string>& keys, double offsetY) {
   FrameInput input;
   input.keysRef = &keys;
-  input.containerOffsetY = offsetY;
-  input.windowContainerWidth = WINDOW_WIDTH;
-  input.windowContainerHeight = WINDOW_HEIGHT;
+  input.offsetY = offsetY;
+  input.windowWidth = WINDOW_WIDTH;
+  input.windowHeight = WINDOW_HEIGHT;
   input.overscan = OVERSCAN;
-  input.columns = 1;
-  input.estimatedElementSize = {WINDOW_WIDTH, ROW_HEIGHT};
+  input.numberOfColumns = 1;
+  input.estimatedRowSize = {WINDOW_WIDTH, ROW_HEIGHT};
   return input;
 }
 
@@ -152,17 +166,17 @@ void stampFullyMeasured(Container& container, std::size_t count, double mainSize
   double width = horizontal ? mainSize : WINDOW_WIDTH;
   double height = horizontal ? WINDOW_HEIGHT : mainSize;
   for (std::size_t index = 0; index < count; ++index) {
-    Element& element = container.revision.elements[index];
-    element.width = width;
-    element.height = height;
-    element.estimated = true;
-    element.measured = true;
+    Row& row = container.revision.rows[index];
+    row.width = width;
+    row.height = height;
+    row.estimated = true;
+    row.measured = true;
   }
   container.revision.measuredRealCount = count;
   container.revision.measuredRealTotalWidth = width * static_cast<double>(count);
   container.revision.measuredRealTotalHeight = height * static_cast<double>(count);
-  Virtualizer::recomputeElementOffsets(container, 0);
-  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::recomputeRowOffsets(container, 0);
+  Virtualizer::recomputeContentSize(container);
 }
 
 /*
@@ -173,16 +187,18 @@ template <typename SizeFn>
 void feedWindowMeasurements(Container& container, std::size_t low, std::size_t high, SizeFn sizeOf) {
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = low; index <= high; ++index) {
-    if (Virtualizer::applyElementSize(container, index, sizeOf(index)) && index < lowestChanged) {
+    if (Virtualizer::applyRowSize(container, index, sizeOf(index)) && index < lowestChanged) {
       lowestChanged = index;
     }
   }
   if (lowestChanged != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(container, lowestChanged);
+    Virtualizer::commitRowSizes(container, lowestChanged);
   }
 }
 
-// Scenarios
+/*
+ * Scenarios
+ */
 
 /*
  * A normal scroll frame on a list where only the visited rows are measured,
@@ -245,7 +261,7 @@ void benchUnchangedMeasurements(
     [] {},
     [&](std::size_t) {
       for (std::size_t offset = 0; offset < count; ++offset) {
-        Virtualizer::updateElementAtIndex(container, startIndex + offset, {WINDOW_WIDTH, ROW_HEIGHT});
+        Virtualizer::updateRowAtIndex(container, startIndex + offset, {WINDOW_WIDTH, ROW_HEIGHT});
       }
     });
   record(label, rows, timing, "us/20-row batch");
@@ -301,7 +317,7 @@ void benchReconcile(const std::vector<std::string>& keys, std::size_t rows) {
     25, 7,
     [] {},
     [&](std::size_t op) {
-      Virtualizer::reconcileElements(container, (op % 2 == 0) ? grown : keys);
+      Virtualizer::reconcileRows(container, (op % 2 == 0) ? grown : keys);
     });
   record("reconcile alternating append-one/remove-one", rows, timing);
 }
@@ -343,7 +359,7 @@ void benchDeepPredictions(const std::vector<std::string>& keys, std::size_t rows
 }
 
 /*
- * The first update on a new container builds every Element.
+ * The first update on a new container builds every Row.
  */
 void benchColdUpdate(const std::vector<std::string>& keys, std::size_t rows) {
   std::vector<double> samples;
@@ -364,17 +380,17 @@ void benchColdUpdate(const std::vector<std::string>& keys, std::size_t rows) {
 }
 
 /*
- * Per row cost of a default Element. Debug ids are built lazily.
+ * Per row cost of a default Row. Debug ids are built lazily.
  */
-void benchElementConstruction(std::size_t rows) {
+void benchRowConstruction(std::size_t rows) {
   Timing timing = measure(
     5, 7,
     [] {},
     [&](std::size_t) {
-      std::vector<Element> elements(rows);
-      doNotOptimize(elements);
+      std::vector<Row> placed(rows);
+      doNotOptimize(placed);
     });
-  record("construct and destroy N default Elements", rows, timing);
+  record("construct and destroy N default Rows", rows, timing);
 }
 
 /*
@@ -383,10 +399,13 @@ void benchElementConstruction(std::size_t rows) {
  */
 
 struct FlingOptions {
-  std::size_t columns = 1;
+  std::size_t numberOfColumns = 1;
   bool horizontal = false;
   bool inverted = false;
-  // Pixels per frame. About 2600 per second at 60fps is a hard fling.
+
+  /*
+   * Pixels per frame. About 2600 per second at 60fps is a hard fling.
+   */
   double pixelsPerFrame = 44.0;
   double startOffset = 0.0;
   const char* label = "fling";
@@ -405,17 +424,17 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
    */
   auto frameInput = [&](double offset, bool first) {
     FrameInput input = makeInput(keys, 0.0);
-    input.columns = options.columns;
+    input.numberOfColumns = options.numberOfColumns;
     input.horizontal = options.horizontal;
     input.inverted = options.inverted;
     input.userScrolled = true;
     input.scrollPhase = ScrollPhase::Dragging;
     input.keysUnchanged = !first;
     if (options.horizontal) {
-      input.containerOffsetX = offset;
-      input.estimatedElementSize = {CARD_WIDTH, WINDOW_HEIGHT};
+      input.offsetX = offset;
+      input.estimatedRowSize = {CARD_WIDTH, WINDOW_HEIGHT};
     } else {
-      input.containerOffsetY = offset;
+      input.offsetY = offset;
     }
     return input;
   };
@@ -443,30 +462,30 @@ void benchFling(const std::vector<std::string>& keys, std::size_t rows, const Fl
        * Send back every mounted row's size, like Fabric's layout pass. During a fling
        * only the newly shown rows have changed.
        */
-      auto visible = container.getVisibleIndices();
-      if (visible.first == UNDEFINED_INDEX) {
+      auto visible = container.getMeasuredRange();
+      if (visible.low == UNDEFINED_INDEX) {
         return;
       }
-      std::size_t low = std::min(visible.first, visible.second);
-      std::size_t high = std::max(visible.first, visible.second);
-      high = std::min(high, low + MOUNTED_ROWS * options.columns);
+      std::size_t low = visible.low;
+      std::size_t high = visible.high;
+      high = std::min(high, low + MOUNTED_ROWS * options.numberOfColumns);
       for (std::size_t index = low; index <= high && index < rows; ++index) {
         /*
          * In a grid the column layout owns the cross axis width. Keep the core's value
          * and send back only the scroll axis size. A full width would fight the columns.
          */
-        const Element& element = container.getElementAtIndex(index);
+        const Row& row = container.getRowAtIndex(index);
         Size measured = options.horizontal
           ? Size{CARD_WIDTH, WINDOW_HEIGHT}
           : Size{WINDOW_WIDTH, ROW_HEIGHT};
-        if (options.columns > 1) {
+        if (options.numberOfColumns > 1) {
           if (options.horizontal) {
-            measured.height = element.height;
+            measured.height = row.height;
           } else {
-            measured.width = element.width;
+            measured.width = row.width;
           }
         }
-        Virtualizer::updateElementAtIndex(container, index, measured);
+        Virtualizer::updateRowAtIndex(container, index, measured);
         ++rowsTouched;
       }
     });
@@ -509,13 +528,13 @@ void benchScrollbarDrag(const std::vector<std::string>& keys, std::size_t rows, 
   auto reset = [&] {
     container = std::make_unique<Container>();
     Virtualizer::update(*container, makeInput(keys, 0.0));
-    auto firstWindow = container->getVisibleIndices();
-    if (firstWindow.first != UNDEFINED_INDEX) {
-      for (std::size_t index = firstWindow.first; index <= firstWindow.second && index < rows; ++index) {
-        Virtualizer::updateElementAtIndex(*container, index, {WINDOW_WIDTH, ROW_HEIGHT});
+    auto firstWindow = container->getMeasuredRange();
+    if (firstWindow.low != UNDEFINED_INDEX) {
+      for (std::size_t index = firstWindow.low; index <= firstWindow.high && index < rows; ++index) {
+        Virtualizer::updateRowAtIndex(*container, index, {WINDOW_WIDTH, ROW_HEIGHT});
       }
     }
-    double total = container->revision.totalContainerHeight;
+    double total = container->revision.contentHeight;
     step = total > WINDOW_HEIGHT ? (total - WINDOW_HEIGHT) / DRAG_FRAMES : 1.0;
     offset = 0.0;
   };
@@ -533,12 +552,12 @@ void benchScrollbarDrag(const std::vector<std::string>& keys, std::size_t rows, 
       input.keysUnchanged = true;
       Virtualizer::update(*container, input);
 
-      auto visible = container->getVisibleIndices();
-      if (visible.first == UNDEFINED_INDEX) {
+      auto visible = container->getMeasuredRange();
+      if (visible.low == UNDEFINED_INDEX) {
         return;
       }
-      std::size_t low = std::min(visible.first, visible.second);
-      std::size_t high = std::min(std::max(visible.first, visible.second), low + MOUNTED_ROWS);
+      std::size_t low = visible.low;
+      std::size_t high = std::min(visible.high, low + MOUNTED_ROWS);
       if (high >= rows) {
         high = rows - 1;
       }
@@ -581,7 +600,7 @@ void benchInvertedScrollToTop(const std::vector<std::string>& keys, std::size_t 
   Virtualizer::update(container, frameInput(0.0, false));
   primed = true;
   stampFullyMeasured(container, rows, ROW_HEIGHT);
-  double bottom = container.revision.totalContainerHeight - WINDOW_HEIGHT;
+  double bottom = container.revision.contentHeight - WINDOW_HEIGHT;
   Virtualizer::update(container, frameInput(bottom, true));
 
   Timing timing = measure(
@@ -623,11 +642,11 @@ void benchPrependWhileScrolled(const std::vector<std::string>& keys, std::size_t
 }
 
 /*
- * scrollToIndex into unmeasured rows, centered on screen. The correction runs for a few
+ * scrollToRow into unmeasured rows, centered on screen. The correction runs for a few
  * frames while rows around the target get measured, and finds its resting place again
- * on each one. See resolveAnchorSubOffset.
+ * on each one. See resolveAnchorOffset.
  */
-void benchScrollToIndexCentred(const std::vector<std::string>& keys, std::size_t rows) {
+void benchScrollToRowCentred(const std::vector<std::string>& keys, std::size_t rows) {
   const std::size_t target = rows * 3 / 5;
   Container container;
   Virtualizer::update(container, makeInput(keys, 0.0));
@@ -641,15 +660,15 @@ void benchScrollToIndexCentred(const std::vector<std::string>& keys, std::size_t
     4, 7,
     [] {},
     [&](std::size_t) {
-      container.requestScrollToIndex(
+      container.requestScrollToRow(
         static_cast<double>(target), static_cast<double>(++sequence), -2, 0.5);
       // Each settle frame mounts and measures the rows the correction moved to.
       for (int frame = 0; frame < 6; ++frame) {
-        Virtualizer::update(container, makeInput(keys, container.revision.containerOffsetY));
-        auto visible = container.getVisibleIndices();
-        if (visible.first != UNDEFINED_INDEX) {
-          std::size_t low = std::min(visible.first, visible.second);
-          std::size_t high = std::min(std::max(visible.first, visible.second), rows - 1);
+        Virtualizer::update(container, makeInput(keys, container.revision.offsetY));
+        auto visible = container.getMeasuredRange();
+        if (visible.low != UNDEFINED_INDEX) {
+          std::size_t low = visible.low;
+          std::size_t high = std::min(visible.high, rows - 1);
           feedWindowMeasurements(container, low, high, [](std::size_t index) {
             // Sizes far from the estimate. The resting place really has to move.
             return Size{WINDOW_WIDTH, index % 3 == 0 ? ROW_HEIGHT * 3.0 : ROW_HEIGHT};
@@ -658,7 +677,7 @@ void benchScrollToIndexCentred(const std::vector<std::string>& keys, std::size_t
       }
       doNotOptimize(container.revision);
     });
-  record("scrollToIndex centred, target unmeasured", rows, timing, "us/jump");
+  record("scrollToRow centred, target unmeasured", rows, timing, "us/jump");
 }
 
 /*
@@ -707,7 +726,7 @@ int main(int argc, char** argv) {
     benchSnapOffsets(shortKeys, rows);
     benchReconcile(shortKeys, rows);
     benchColdUpdate(shortKeys, rows);
-    benchElementConstruction(rows);
+    benchRowConstruction(rows);
 
     FlingOptions vertical;
     vertical.label = "FLING vertical single column";
@@ -724,7 +743,7 @@ int main(int argc, char** argv) {
     benchFling(shortKeys, rows, horizontal);
 
     FlingOptions grid;
-    grid.columns = 3;
+    grid.numberOfColumns = 3;
     grid.label = "FLING 3-column grid";
     benchFling(shortKeys, rows, grid);
 
@@ -736,7 +755,7 @@ int main(int argc, char** argv) {
     benchScrollbarDrag(shortKeys, rows, "DRAG scrollbar top to bottom");
     benchInvertedScrollToTop(shortKeys, rows);
     benchPrependWhileScrolled(shortKeys, rows);
-    benchScrollToIndexCentred(shortKeys, rows);
+    benchScrollToRowCentred(shortKeys, rows);
 
     std::printf("---------------------------------------------------------------------------------------\n");
   }

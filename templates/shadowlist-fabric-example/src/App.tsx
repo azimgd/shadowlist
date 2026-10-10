@@ -1,5 +1,6 @@
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useMemo } from 'react';
+import { Appearance, Platform, StatusBar, StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -12,10 +13,9 @@ import {
   createNativeStackNavigator,
   type NativeStackNavigationOptions,
 } from '@react-navigation/native-stack';
-import { cssColor, ThemeProvider } from 'shadowlist-utils/native';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { cssColor, ThemeProvider } from 'shadowlist-utils/native';
 import { queryClient } from './queries/queryClient';
-import { Appearance, Platform, StatusBar, StyleSheet } from 'react-native';
 import { network } from './api/network';
 import { launchSetting } from './launchSettings';
 import './jsFrameMonitor';

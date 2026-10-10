@@ -16,7 +16,7 @@ export interface EmptyStateProps {
 }
 
 /*
- * What a screen says before it has anything to show. It is read as one element.
+ * What a screen says before it has anything to show. It is read as one accessibility element.
  */
 export const EmptyState = memo(
   ({ icon, title, message, style }: EmptyStateProps) => {

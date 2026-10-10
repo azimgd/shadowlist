@@ -12,7 +12,7 @@ export interface ContactRowOptions {
 }
 
 /*
- * Stable while the callbacks are. ElementRenderer's per-row memoization keeps working.
+ * Stable while the callbacks are. CellRenderer's per-row memoization keeps working.
  */
 export function useContactRowRenderer({
   onPressItem,
@@ -22,9 +22,9 @@ export function useContactRowRenderer({
 }: ContactRowOptions) {
   const rowLabels = useLabels(defaultContactsLabels, labels);
   return useCallback(
-    ({ element }: { element: ContactItem }) => (
+    ({ item }: { item: ContactItem }) => (
       <ContactRow
-        item={element}
+        item={item}
         onPress={onPressItem}
         onDelete={onDelete}
         disclosureIndicator={disclosureIndicator}

@@ -57,7 +57,9 @@ final class ReorderRowView: RowView {
 
 struct SnapRow: Row {
   let index: Int
-  // A quarter of the screen, like the React Native card.
+  /*
+   * A quarter of the screen, like the React Native card.
+   */
   let height: CGFloat
   var key: String { "snap-\(index)" }
   var viewClass: RowView.Type { SnapCardView.self }

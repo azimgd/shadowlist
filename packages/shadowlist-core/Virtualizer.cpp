@@ -14,8 +14,8 @@ namespace azimgd::shadowlist {
  */
 namespace {
 [[maybe_unused]] const char* debugKeyAt(const Container& container, std::size_t index) {
-  if (index < container.revision.elements.size()) {
-    const std::string& key = container.revision.elements[index].key;
+  if (index < container.revision.rows.size()) {
+    const std::string& key = container.revision.rows[index].key;
     return key.empty() ? "(empty)" : key.c_str();
   }
   return "(oob)";
@@ -25,14 +25,14 @@ namespace {
  * Give a row the fallback size if it has none and widen the measured range to include it.
  * Returns false when there is no estimate to give it.
  */
-bool visitMeasuredElement(
+bool visitMeasuredRow(
   Container& container,
-  std::size_t nextElementIndex,
-  std::size_t& measuredMinIndex,
-  std::size_t& measuredMaxIndex) {
-  Element& nextElement = container.revision.elements[nextElementIndex];
+  std::size_t nextRowIndex,
+  std::size_t& measuredLow,
+  std::size_t& measuredHigh) {
+  Row& nextRow = container.revision.rows[nextRowIndex];
 
-  if (!nextElement.estimated) {
+  if (!nextRow.estimated) {
     auto [width, height] = effectiveFallbackSize(container);
 
     if (width == 0.0 && height == 0.0) {
@@ -44,20 +44,20 @@ bool visitMeasuredElement(
      * Only mark sizes dirty on a real change. Otherwise dragging the scroll indicator
      * would reflow the whole list on every frame.
      */
-    if (nextElement.width != width || nextElement.height != height) {
-      nextElement.width = width;
-      nextElement.height = height;
+    if (nextRow.width != width || nextRow.height != height) {
+      nextRow.width = width;
+      nextRow.height = height;
       // The size changed outside the layout loop. Make sure it reflows offsets.
-      container.markElementSizeDirty(nextElementIndex);
+      container.markRowSizeDirty(nextRowIndex);
     }
-    nextElement.estimated = true;
+    nextRow.estimated = true;
   }
 
-  if (measuredMinIndex == UNDEFINED_INDEX || nextElementIndex < measuredMinIndex) {
-    measuredMinIndex = nextElementIndex;
+  if (measuredLow == UNDEFINED_INDEX || nextRowIndex < measuredLow) {
+    measuredLow = nextRowIndex;
   }
-  if (measuredMaxIndex == UNDEFINED_INDEX || nextElementIndex > measuredMaxIndex) {
-    measuredMaxIndex = nextElementIndex;
+  if (measuredHigh == UNDEFINED_INDEX || nextRowIndex > measuredHigh) {
+    measuredHigh = nextRowIndex;
   }
   return true;
 }
@@ -69,59 +69,59 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   // The keys may be borrowed from the caller. They are only valid during this call.
   const std::vector<std::string>& inputKeys = input.getKeyList();
 
-  SL_LOG("update: keys=%zu prevElements=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d total=%.1f dirtyFrom=%zd enabled=%d corrected=%d coreOff=%.1f",
-    inputKeys.size(), container.revision.elements.size(),
-    input.containerOffsetX, input.containerOffsetY,
-    input.windowContainerWidth, input.windowContainerHeight,
-    input.inverted ? 1 : 0, input.columns, input.headerSize, input.footerSize,
+  SL_LOG("update: keys=%zu prevRows=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d total=%.1f dirtyFrom=%zd enabled=%d corrected=%d coreOff=%.1f",
+    inputKeys.size(), container.revision.rows.size(),
+    input.offsetX, input.offsetY,
+    input.windowWidth, input.windowHeight,
+    input.inverted ? 1 : 0, input.numberOfColumns, input.headerSize, input.footerSize,
     container.invertedInitialized ? 1 : 0,
-    container.horizontal ? container.revision.totalContainerWidth : container.revision.totalContainerHeight,
-    static_cast<std::ptrdiff_t>(container.elementsSizeDirtyFromIndex), input.containerOffsetEnabled ? 1 : 0,
-    container.containerOffsetCorrected ? 1 : 0, container.getContainerOffset());
+    container.horizontal ? container.revision.contentWidth : container.revision.contentHeight,
+    static_cast<std::ptrdiff_t>(container.rowSizeDirtyFromIndex), input.offsetEnabled ? 1 : 0,
+    container.offsetCorrected ? 1 : 0, container.getOffset());
 
-  // Remember the old header size so a change can be settled after the rows reflow.
+  // Keep the previous header size to settle a change after the rows reflow.
   double previousHeaderSize = container.headerSize;
   applyFrameInput(container, input);
 
-  double inputOffset = container.horizontal ? input.containerOffsetX : input.containerOffsetY;
+  double inputOffset = container.horizontal ? input.offsetX : input.offsetY;
 
   /*
    * An enabled offset is our own write coming back before the host applied it, not a host
    * report. It can't confirm the correction or count as gesture travel.
    */
-  bool coreOffsetWrite = input.containerOffsetEnabled;
+  bool coreOffsetWrite = input.offsetEnabled;
   bool gestureTakeover = applyGestureState(container, input, inputOffset, coreOffsetWrite);
   bool restingAtBottom = applyInvertedBottomPin(container, input, inputOffset, gestureTakeover);
   // Our own write is not where the host is. Don't record it.
   if (!coreOffsetWrite) {
-    container.lastReportedOffset = inputOffset;
+    container.previousReportedOffset = inputOffset;
   }
 
   // Capture the anchor row so the same content stays in view through the reconcile.
-  bool hadElementsBefore = !container.revision.elements.empty();
+  bool hadRowsBefore = !container.revision.rows.empty();
   captureAnchor(container, inputOffset);
 
   std::string anchorKey = container.anchor.key;
-  double anchorDelta = container.anchor.subOffset;
-  reconcileFrameKeys(container, input, inputKeys, inputOffset, restingAtBottom, hadElementsBefore, anchorKey, anchorDelta);
+  double anchorDelta = container.anchor.offset;
+  reconcileFrameKeys(container, input, inputKeys, inputOffset, restingAtBottom, hadRowsBefore, anchorKey, anchorDelta);
 
-  measureFrame(container, input, previousHeaderSize, hadElementsBefore, anchorKey, anchorDelta);
+  measureFrame(container, input, previousHeaderSize, hadRowsBefore, anchorKey, anchorDelta);
 
   // The commit token is just the running operation's id. No operation means no token.
   SL_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d token=%llu",
-    container.revision.containerOffsetX, container.revision.containerOffsetY,
-    container.containerOffsetCorrected ? 1 : 0, container.invertedInitialized ? 1 : 0,
-    static_cast<unsigned long long>(container.operation ? container.operation->id : 0));
+    container.revision.offsetX, container.revision.offsetY,
+    container.offsetCorrected ? 1 : 0, container.invertedInitialized ? 1 : 0,
+    static_cast<unsigned long long>(container.operation ? container.operation->commitToken : 0));
 
   if (container.gestureActive && container.operation) {
-    container.gestureOperationId = container.operation->id;
+    container.gestureCommitToken = container.operation->commitToken;
   }
 
   container.endRevision();
 }
 
 void Virtualizer::applyFrameInput(Container& container, const FrameInput& input) {
-  const std::vector<std::string>& inputNonAnchorableKeys = input.getNonAnchorableKeyList();
+  const std::vector<std::string>& inputNonAnchorKeys = input.getNonAnchorKeyList();
 
   // Flipping the list order moves the bottom. Start following the bottom again.
   if (container.inverted != input.inverted) {
@@ -130,7 +130,7 @@ void Virtualizer::applyFrameInput(Container& container, const FrameInput& input)
 
   container.inverted = input.inverted;
   container.horizontal = input.horizontal;
-  container.columns = input.columns;
+  container.numberOfColumns = input.numberOfColumns;
   container.overscan = input.overscan;
   container.headerSize = input.headerSize;
   container.footerSize = input.footerSize;
@@ -146,7 +146,7 @@ void Virtualizer::applyFrameInput(Container& container, const FrameInput& input)
   if (container.viewableRules != inputViewableRules) {
     container.viewableRules = inputViewableRules;
   }
-  container.estimatedElementSize = input.estimatedElementSize;
+  container.estimatedRowSize = input.estimatedRowSize;
   container.snapToItem = input.snapToItem;
   container.snapAlignment = input.snapAlignment;
 
@@ -154,13 +154,13 @@ void Virtualizer::applyFrameInput(Container& container, const FrameInput& input)
    * Decoration rows must never become the anchor. This runs before captureAnchor reads it,
    * and is rebuilt every frame so a row switching roles takes effect right away.
    */
-  if (!input.nonAnchorableKeysUnchanged &&
-      (container.nonAnchorableKeys.size() != inputNonAnchorableKeys.size() ||
-       !std::all_of(inputNonAnchorableKeys.begin(), inputNonAnchorableKeys.end(),
-         [&](const std::string& ignoredKey) { return container.nonAnchorableKeys.count(ignoredKey) != 0; }))) {
-    container.nonAnchorableKeys.clear();
-    for (const std::string& ignoredKey : inputNonAnchorableKeys) {
-      container.nonAnchorableKeys.insert(ignoredKey);
+  if (!input.nonAnchorKeysUnchanged &&
+      (container.nonAnchorKeys.size() != inputNonAnchorKeys.size() ||
+       !std::all_of(inputNonAnchorKeys.begin(), inputNonAnchorKeys.end(),
+         [&](const std::string& ignoredKey) { return container.nonAnchorKeys.count(ignoredKey) != 0; }))) {
+    container.nonAnchorKeys.clear();
+    for (const std::string& ignoredKey : inputNonAnchorKeys) {
+      container.nonAnchorKeys.insert(ignoredKey);
     }
   }
 }
@@ -172,7 +172,7 @@ bool Virtualizer::applyGestureState(
   bool coreOffsetWrite) {
   // A running correction survives while the offset has not moved. The user is not scrolling.
   bool userMovedOffset = !coreOffsetWrite &&
-    std::fabs(inputOffset - container.lastReportedOffset) >= OFFSET_MOVED_THRESHOLD;
+    std::fabs(inputOffset - container.previousReportedOffset) >= OFFSET_MOVED_THRESHOLD;
   /*
    * When the user takes over, drop any running correction and stop pinning to the bottom.
    * The host's gesture phase decides. userScrolled only counts with a real move. A stale
@@ -202,9 +202,9 @@ bool Virtualizer::applyGestureState(
    */
   bool maintainingAnchor = container.operation &&
     container.operation->type == OperationType::MaintainAnchor &&
-    container.operation->target.mode == AnchorMode::Element;
+    container.operation->target.mode == AnchorMode::Row;
   bool echoesOperation = container.operation && !coreOffsetWrite &&
-    input.commitToken == container.operation->id;
+    input.commitToken == container.operation->commitToken;
   /*
    * Scrolling reported before the host applies the correction moves its target along.
    * A correction started during a gesture keeps following after the frames go idle, since
@@ -212,12 +212,12 @@ bool Virtualizer::applyGestureState(
    * shorter content, are not followed.
    */
   if (maintainingAnchor && !echoesOperation && userMovedOffset &&
-      (gestureTakeover || container.operation->id == container.gestureOperationId)) {
-    container.operation->target.subOffset += inputOffset - container.lastReportedOffset;
+      (gestureTakeover || container.operation->commitToken == container.gestureCommitToken)) {
+    container.operation->target.offset += inputOffset - container.previousReportedOffset;
   }
   // A correction made during a gesture is done once the host reports it back while idle.
   if (maintainingAnchor && echoesOperation && !gestureTakeover &&
-      container.operation->id == container.gestureOperationId) {
+      container.operation->commitToken == container.gestureCommitToken) {
     container.operation.reset();
   }
   if (gestureTakeover) {
@@ -253,11 +253,11 @@ bool Virtualizer::applyInvertedBottomPin(
    * quietly pin the reader again.
    */
   if (container.inverted) {
-    double previousOffset = container.lastReportedOffset;
-    double bottomTotal = container.horizontal ? container.revision.totalContainerWidth
-                                               : container.revision.totalContainerHeight;
-    double bottomWindow = container.horizontal ? container.revision.windowContainerWidth
-                                                : container.revision.windowContainerHeight;
+    double previousOffset = container.previousReportedOffset;
+    double bottomTotal = container.horizontal ? container.revision.contentWidth
+                                               : container.revision.contentHeight;
+    double bottomWindow = container.horizontal ? container.revision.windowWidth
+                                                : container.revision.windowHeight;
     bool atBottom = atInvertedBottom(inputOffset, bottomTotal, bottomWindow);
     // Content that fits the window has no bottom to leave. A bounce must not release it.
     bool scrollable = bottomTotal > bottomWindow;
@@ -273,7 +273,7 @@ bool Virtualizer::applyInvertedBottomPin(
     }
 
     restingAtBottom = !gestureTakeover && !container.invertedBottomReleased &&
-      container.invertedInitialized && !container.revision.elements.empty() &&
+      container.invertedInitialized && !container.revision.rows.empty() &&
       bottomWindow > 0.0 && atBottom;
   }
   // resolveScroll reads this to hold the bottom while the list opens.
@@ -287,7 +287,7 @@ void Virtualizer::reconcileFrameKeys(
   const std::vector<std::string>& inputKeys,
   double inputOffset,
   bool restingAtBottom,
-  bool hadElementsBefore,
+  bool hadRowsBefore,
   std::string& anchorKey,
   double& anchorDelta) {
   /*
@@ -296,23 +296,23 @@ void Virtualizer::reconcileFrameKeys(
    */
 #if SHADOWLIST_DEBUG_LOG
   {
-    std::size_t previousSize = container.revision.elements.size();
+    std::size_t previousSize = container.revision.rows.size();
     std::size_t nextSize = inputKeys.size();
-    bool frontChanged = previousSize && nextSize && container.revision.elements.front().key != inputKeys.front();
+    bool frontChanged = previousSize && nextSize && container.revision.rows.front().key != inputKeys.front();
     if (previousSize != nextSize || frontChanged) {
       std::size_t previousFrontNextIndex = UNDEFINED_INDEX;
       if (previousSize) {
-        const std::string& previousFront = container.revision.elements.front().key;
-        for (std::size_t nextElementIndex = 0; nextElementIndex < nextSize; ++nextElementIndex) {
-          if (inputKeys[nextElementIndex] == previousFront) {
-            previousFrontNextIndex = nextElementIndex;
+        const std::string& previousFront = container.revision.rows.front().key;
+        for (std::size_t nextRowIndex = 0; nextRowIndex < nextSize; ++nextRowIndex) {
+          if (inputKeys[nextRowIndex] == previousFront) {
+            previousFrontNextIndex = nextRowIndex;
             break;
           }
         }
       }
       SL_LOG("  RECONCILE: size %zu->%zu front '%s'->'%s' oldFront@newIdx=%zd anchorKey=%s anchorDelta=%.1f",
         previousSize, nextSize,
-        previousSize ? container.revision.elements.front().key.c_str() : "(none)",
+        previousSize ? container.revision.rows.front().key.c_str() : "(none)",
         nextSize ? inputKeys.front().c_str() : "(none)",
         static_cast<std::ptrdiff_t>(previousFrontNextIndex), anchorKey.empty() ? "(none)" : anchorKey.c_str(), anchorDelta);
     }
@@ -323,10 +323,10 @@ void Virtualizer::reconcileFrameKeys(
    * Match the rows to the new keys. Most commits don't change the keys. Compare them
    * first and skip the rebuild, which is the main cost of each commit after a prepend.
    */
-  bool keysChanged = !input.keysUnchanged && container.revision.elements.size() != inputKeys.size();
+  bool keysChanged = !input.keysUnchanged && container.revision.rows.size() != inputKeys.size();
   if (!keysChanged && !input.keysUnchanged) {
-    for (std::size_t nextElementIndex = 0; nextElementIndex < inputKeys.size(); ++nextElementIndex) {
-      if (container.revision.elements[nextElementIndex].key != inputKeys[nextElementIndex]) {
+    for (std::size_t nextRowIndex = 0; nextRowIndex < inputKeys.size(); ++nextRowIndex) {
+      if (container.revision.rows[nextRowIndex].key != inputKeys[nextRowIndex]) {
         keysChanged = true;
         break;
       }
@@ -341,16 +341,16 @@ void Virtualizer::reconcileFrameKeys(
      * the end, which yields to a drag. A reply growing in place is not an append.
      */
     std::string previousLastKey = restingAtBottom && input.followAppends
-      ? container.revision.elements.back().key
+      ? container.revision.rows.back().key
       : std::string();
     std::vector<Anchor> fallbackAnchors = captureFallbackAnchors(container, inputOffset);
-    std::size_t survivors = reconcileElements(container, inputKeys, input.keyEdit);
+    std::size_t survivors = reconcileRows(container, inputKeys, input.keyEdit);
     /*
      * An inverted list whose rows were all replaced, like another conversation, opens on the
      * new bottom the way a fresh list does.
      */
-    if (container.inverted && hadElementsBefore && survivors == 0 && !container.revision.elements.empty()) {
-      SL_LOG("  inverted swap: %zu rows, pinning to the bottom again", container.revision.elements.size());
+    if (container.inverted && hadRowsBefore && survivors == 0 && !container.revision.rows.empty()) {
+      SL_LOG("  inverted swap: %zu rows, pinning to the bottom again", container.revision.rows.size());
       container.invertedInitialized = false;
       container.invertedBottomReleased = false;
       container.invertedOpeningPin = false;
@@ -363,20 +363,20 @@ void Virtualizer::reconcileFrameKeys(
      * The anchor row may have been removed, like a refresh that drops the top post while
      * adding new ones. Hold the next row that was on screen instead.
      */
-    if (!anchorKey.empty() && container.findElementIndexByKey(anchorKey) == UNDEFINED_INDEX) {
+    if (!anchorKey.empty() && container.indexOfKey(anchorKey) == UNDEFINED_INDEX) {
       for (const Anchor& candidate : fallbackAnchors) {
-        if (container.findElementIndexByKey(candidate.key) != UNDEFINED_INDEX) {
-          SL_LOG("  anchor fallback: %s -> %s sub=%.1f", anchorKey.c_str(), candidate.key.c_str(), candidate.subOffset);
+        if (container.indexOfKey(candidate.key) != UNDEFINED_INDEX) {
+          SL_LOG("  anchor fallback: %s -> %s sub=%.1f", anchorKey.c_str(), candidate.key.c_str(), candidate.offset);
           container.anchor = candidate;
           anchorKey = candidate.key;
-          anchorDelta = candidate.subOffset;
+          anchorDelta = candidate.offset;
           break;
         }
       }
     }
     if (!previousLastKey.empty()) {
-      std::size_t previousLastIndex = container.findElementIndexByKey(previousLastKey);
-      if (previousLastIndex != UNDEFINED_INDEX && previousLastIndex + 1 < container.revision.elements.size()) {
+      std::size_t previousLastIndex = container.indexOfKey(previousLastKey);
+      if (previousLastIndex != UNDEFINED_INDEX && previousLastIndex + 1 < container.revision.rows.size()) {
         container.pendingScrollToEnd = true;
       }
     }
@@ -387,7 +387,7 @@ void Virtualizer::measureFrame(
   Container& container,
   const FrameInput& input,
   double previousHeaderSize,
-  bool hadElementsBefore,
+  bool hadRowsBefore,
   const std::string& anchorKey,
   double anchorDelta) {
   /*
@@ -396,20 +396,20 @@ void Virtualizer::measureFrame(
    */
   consumePredictions(container);
 
-  container.revision.containerOffsetX = input.containerOffsetX;
-  container.revision.containerOffsetY = input.containerOffsetY;
-  double previousWindowSize = container.getWindowContainerSize();
-  container.revision.windowContainerWidth = input.windowContainerWidth;
-  container.revision.windowContainerHeight = input.windowContainerHeight;
+  container.revision.offsetX = input.offsetX;
+  container.revision.offsetY = input.offsetY;
+  double previousWindowSize = container.getWindowSize();
+  container.revision.windowWidth = input.windowWidth;
+  container.revision.windowHeight = input.windowHeight;
   /*
    * A window change that moves the offset, like an inverted list following its bottom as the
    * composer grows, is our own write and gets published even when nothing else corrects.
    */
-  double offsetBeforeWindow = container.getContainerOffset();
-  container.containerOffsetCorrected = false;
+  double offsetBeforeWindow = container.getOffset();
+  container.offsetCorrected = false;
   applyWindowSizeChange(container, previousWindowSize);
-  bool windowMovedOffset = container.containerOffsetCorrected && container.getContainerOffset() != offsetBeforeWindow;
-  anchorDelta = container.anchor.subOffset;
+  bool windowMovedOffset = container.offsetCorrected && container.getOffset() != offsetBeforeWindow;
+  anchorDelta = container.anchor.offset;
   measure(container);
 
   /*
@@ -418,90 +418,90 @@ void Virtualizer::measureFrame(
    * a running correction, and it is published even if nothing else corrects.
    */
   bool headerMovedOffset = false;
-  if (hadElementsBefore && container.headerSize != previousHeaderSize) {
-    double offsetBeforeHeader = container.getContainerOffset();
-    container.containerOffsetCorrected = false;
+  if (hadRowsBefore && container.headerSize != previousHeaderSize) {
+    double offsetBeforeHeader = container.getOffset();
+    container.offsetCorrected = false;
     applyHeaderSizeChange(container, previousHeaderSize);
-    anchorDelta = container.anchor.subOffset;
-    headerMovedOffset = container.containerOffsetCorrected && container.getContainerOffset() != offsetBeforeHeader;
+    anchorDelta = container.anchor.offset;
+    headerMovedOffset = container.offsetCorrected && container.getOffset() != offsetBeforeHeader;
     if (headerMovedOffset) {
       measure(container, true);
     }
   }
 
   SL_LOG("  measured: total=(%.1f,%.1f) offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] anchorKey=%s anchor@newIdx=%zd",
-    container.revision.totalContainerWidth, container.revision.totalContainerHeight,
-    container.revision.containerOffsetX, container.revision.containerOffsetY,
-    static_cast<std::ptrdiff_t>(container.getVisibleIndices().first),
-    static_cast<std::ptrdiff_t>(container.getVisibleIndices().second),
-    debugKeyAt(container, container.getVisibleIndices().first),
-    debugKeyAt(container, container.getVisibleIndices().second),
+    container.revision.contentWidth, container.revision.contentHeight,
+    container.revision.offsetX, container.revision.offsetY,
+    static_cast<std::ptrdiff_t>(container.getMeasuredRange().low),
+    static_cast<std::ptrdiff_t>(container.getMeasuredRange().high),
+    debugKeyAt(container, container.getMeasuredRange().low),
+    debugKeyAt(container, container.getMeasuredRange().high),
     anchorKey.empty() ? "(none)" : anchorKey.c_str(),
-    static_cast<std::ptrdiff_t>(anchorKey.empty() ? UNDEFINED_INDEX : container.findElementIndexByKey(anchorKey)));
+    static_cast<std::ptrdiff_t>(anchorKey.empty() ? UNDEFINED_INDEX : container.indexOfKey(anchorKey)));
 
   // Apply scroll corrections, and pick the window again if the offset moved.
-  bool offsetConfirmed = !input.containerOffsetEnabled && !headerMovedOffset && !windowMovedOffset;
-  bool scrollCorrected = resolveScroll(container, anchorKey, anchorDelta, hadElementsBefore, offsetConfirmed);
+  bool offsetConfirmed = !input.offsetEnabled && !headerMovedOffset && !windowMovedOffset;
+  bool scrollCorrected = resolveScroll(container, anchorKey, anchorDelta, hadRowsBefore, offsetConfirmed);
   if (headerMovedOffset || windowMovedOffset) {
-    container.containerOffsetCorrected = true;
+    container.offsetCorrected = true;
   }
   if (scrollCorrected) {
     measure(container, true);
     SL_LOG("  remeasured: offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] invInit=%d",
-      container.revision.containerOffsetX, container.revision.containerOffsetY,
-      static_cast<std::ptrdiff_t>(container.getVisibleIndices().first),
-      static_cast<std::ptrdiff_t>(container.getVisibleIndices().second),
-      debugKeyAt(container, container.getVisibleIndices().first),
-      debugKeyAt(container, container.getVisibleIndices().second),
+      container.revision.offsetX, container.revision.offsetY,
+      static_cast<std::ptrdiff_t>(container.getMeasuredRange().low),
+      static_cast<std::ptrdiff_t>(container.getMeasuredRange().high),
+      debugKeyAt(container, container.getMeasuredRange().low),
+      debugKeyAt(container, container.getMeasuredRange().high),
       container.invertedInitialized ? 1 : 0);
   }
 }
 
-void Virtualizer::measure(Container& container, bool windowFromOffset) {
+void Virtualizer::measure(Container& container, bool rangeFromOffset) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
   // Reset the measured range so it reflects only this pass.
-  container.revision.measurementElementStartIndex = UNDEFINED_INDEX;
-  container.revision.measurementElementEndIndex = UNDEFINED_INDEX;
+  container.revision.measuredLow = UNDEFINED_INDEX;
+  container.revision.measuredHigh = UNDEFINED_INDEX;
 
   /*
    * After an insert, remove or reorder, rows still hold their old offsets. Reflow first so
    * the window is chosen from real positions and no row that moved into view is left blank.
    * It also lets the window pass use its fast search instead of scanning every row.
    */
-  if (container.elementsStructureDirty) {
-    layoutElements(container);
+  if (container.rowStructureDirty) {
+    layoutRows(container);
   }
 
   // The first revision fills from the edge. After a correction, use the corrected offset.
-  if (!windowFromOffset && container.revisionCount == REVISION_COUNT_FIRST) {
+  if (!rangeFromOffset && container.revisionCount == REVISION_COUNT_FIRST) {
     measureFirstRevision(container);
   } else {
     measureNextRevision(container);
   }
 
-  layoutElements(container);
-  recomputeTotalSize(container);
+  layoutRows(container);
+  recomputeContentSize(container);
 }
 
 void Virtualizer::measureFirstRevision(Container& container) {
-  std::size_t elementsSize = container.revision.elements.size();
-  double windowSize = container.getWindowContainerSize();
-  double effectiveColumns = container.columns > 0 ? static_cast<double>(container.columns) : 1.0;
+  std::size_t rowCount = container.revision.rows.size();
+  double windowSize = container.getWindowSize();
+  double effectiveColumns = container.numberOfColumns > 0 ? static_cast<double>(container.numberOfColumns) : 1.0;
 
-  std::size_t measuredMinIndex = UNDEFINED_INDEX;
-  std::size_t measuredMaxIndex = UNDEFINED_INDEX;
+  std::size_t measuredLow = UNDEFINED_INDEX;
+  std::size_t measuredHigh = UNDEFINED_INDEX;
   double accumulated = 0.0;
 
   // Fill from the start, or from the end for an inverted list.
-  for (std::size_t iteration = 0; iteration < elementsSize; ++iteration) {
-    std::size_t nextElementIndex = container.inverted ? (elementsSize - 1 - iteration) : iteration;
-    if (!visitMeasuredElement(container, nextElementIndex, measuredMinIndex, measuredMaxIndex)) {
+  for (std::size_t iteration = 0; iteration < rowCount; ++iteration) {
+    std::size_t nextRowIndex = container.inverted ? (rowCount - 1 - iteration) : iteration;
+    if (!visitMeasuredRow(container, nextRowIndex, measuredLow, measuredHigh)) {
       continue;
     }
 
-    const Element& nextElement = container.revision.elements[nextElementIndex];
-    accumulated += container.horizontal ? nextElement.width : nextElement.height;
+    const Row& nextRow = container.revision.rows[nextRowIndex];
+    accumulated += container.horizontal ? nextRow.width : nextRow.height;
 
     // Stop once the window plus the overscan buffer is full, shared across columns.
     if (accumulated / effectiveColumns >= windowSize * (1.0 + container.overscan)) {
@@ -509,39 +509,39 @@ void Virtualizer::measureFirstRevision(Container& container) {
     }
   }
 
-  finalizeMeasurement(container, measuredMinIndex, measuredMaxIndex);
+  finalizeMeasurement(container, measuredLow, measuredHigh);
 }
 
 void Virtualizer::measureNextRevision(Container& container) {
-  std::size_t elementsSize = container.revision.elements.size();
-  double containerOffset = container.getContainerOffset();
-  double windowSize = container.getWindowContainerSize();
+  std::size_t rowCount = container.revision.rows.size();
+  double offset = container.getOffset();
+  double windowSize = container.getWindowSize();
 
   /*
    * Measure the window plus a buffer on each side so scrolling shows rows, not blanks.
    * Overscan counts in window heights. 1 means one window above and one below.
    */
   double overscanSize = windowSize * container.overscan;
-  double lowerBound = containerOffset - overscanSize;
-  double upperBound = containerOffset + windowSize + overscanSize;
+  double lowerBound = offset - overscanSize;
+  double upperBound = offset + windowSize + overscanSize;
 
-  std::size_t measuredMinIndex = UNDEFINED_INDEX;
-  std::size_t measuredMaxIndex = UNDEFINED_INDEX;
+  std::size_t measuredLow = UNDEFINED_INDEX;
+  std::size_t measuredHigh = UNDEFINED_INDEX;
 
   // Before a reflow, offsets may be stale and out of order. Scan every row instead.
-  bool geometryOrdered = !container.elementsStructureDirty;
+  bool geometryOrdered = !container.rowStructureDirty;
 
-  auto elementOffsetAt = [&](std::size_t index) {
-    const Element& element = container.revision.elements[index];
-    return container.horizontal ? element.offsetX : element.offsetY;
+  auto rowOffsetAt = [&](std::size_t index) {
+    const Row& row = container.revision.rows[index];
+    return container.horizontal ? row.offsetX : row.offsetY;
   };
-  auto elementSizeAt = [&](std::size_t index) {
-    const Element& element = container.revision.elements[index];
-    return container.horizontal ? element.width : element.height;
+  auto rowSizeAt = [&](std::size_t index) {
+    const Row& row = container.revision.rows[index];
+    return container.horizontal ? row.width : row.height;
   };
 
-  auto visit = [&](std::size_t nextElementIndex) {
-    visitMeasuredElement(container, nextElementIndex, measuredMinIndex, measuredMaxIndex);
+  auto visit = [&](std::size_t nextRowIndex) {
+    visitMeasuredRow(container, nextRowIndex, measuredLow, measuredHigh);
   };
 
   /*
@@ -550,11 +550,11 @@ void Virtualizer::measureNextRevision(Container& container) {
    */
   auto seekTrack = [&](std::size_t first, std::size_t step) {
     std::size_t low = 0;
-    std::size_t high = first < elementsSize ? (elementsSize - 1 - first) / step + 1 : 0;
+    std::size_t high = first < rowCount ? (rowCount - 1 - first) / step + 1 : 0;
     while (low < high) {
       std::size_t mid = low + (high - low) / 2;
       std::size_t index = first + mid * step;
-      if (elementOffsetAt(index) + elementSizeAt(index) <= lowerBound) {
+      if (rowOffsetAt(index) + rowSizeAt(index) <= lowerBound) {
         low = mid + 1;
       } else {
         high = mid;
@@ -563,55 +563,49 @@ void Virtualizer::measureNextRevision(Container& container) {
     return low;
   };
 
-  if (geometryOrdered && container.columns <= 1) {
-    for (std::size_t nextElementIndex = seekTrack(0, 1); nextElementIndex < elementsSize; ++nextElementIndex) {
-      if (elementOffsetAt(nextElementIndex) > upperBound) {
+  if (geometryOrdered && container.numberOfColumns <= 1) {
+    for (std::size_t nextRowIndex = seekTrack(0, 1); nextRowIndex < rowCount; ++nextRowIndex) {
+      if (rowOffsetAt(nextRowIndex) > upperBound) {
         break;
       }
-      visit(nextElementIndex);
+      visit(nextRowIndex);
     }
-  } else if (geometryOrdered && container.columns > 1) {
+  } else if (geometryOrdered && container.numberOfColumns > 1) {
     // Rows go to columns in turn. Each column is in order. Search each one separately.
-    for (std::size_t track = 0; track < container.columns && track < elementsSize; ++track) {
-      std::size_t stepsPast = seekTrack(track, container.columns);
-      for (std::size_t nextElementIndex = track + stepsPast * container.columns;
-           nextElementIndex < elementsSize;
-           nextElementIndex += container.columns) {
-        if (elementOffsetAt(nextElementIndex) > upperBound) {
+    for (std::size_t track = 0; track < container.numberOfColumns && track < rowCount; ++track) {
+      std::size_t stepsPast = seekTrack(track, container.numberOfColumns);
+      for (std::size_t nextRowIndex = track + stepsPast * container.numberOfColumns;
+           nextRowIndex < rowCount;
+           nextRowIndex += container.numberOfColumns) {
+        if (rowOffsetAt(nextRowIndex) > upperBound) {
           break;
         }
-        visit(nextElementIndex);
+        visit(nextRowIndex);
       }
     }
   } else {
     // Offsets are not in order yet. Check every row against the window.
-    for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
-      double elementOffset = elementOffsetAt(nextElementIndex);
-      double elementSize = elementSizeAt(nextElementIndex);
+    for (std::size_t nextRowIndex = 0; nextRowIndex < rowCount; ++nextRowIndex) {
+      double rowOffset = rowOffsetAt(nextRowIndex);
+      double rowSize = rowSizeAt(nextRowIndex);
 
       // A row that starts above the window but still overlaps it counts too.
-      if (elementOffset > upperBound || elementOffset + elementSize <= lowerBound) {
+      if (rowOffset > upperBound || rowOffset + rowSize <= lowerBound) {
         continue;
       }
-      visit(nextElementIndex);
+      visit(nextRowIndex);
     }
   }
 
-  finalizeMeasurement(container, measuredMinIndex, measuredMaxIndex);
+  finalizeMeasurement(container, measuredLow, measuredHigh);
 }
 
 void Virtualizer::finalizeMeasurement(
   Container& container,
-  std::size_t measuredMinIndex,
-  std::size_t measuredMaxIndex) {
-  // An inverted list runs backwards. Its start index is the higher one.
-  if (container.inverted) {
-    container.revision.measurementElementStartIndex = measuredMaxIndex;
-    container.revision.measurementElementEndIndex = measuredMinIndex;
-  } else {
-    container.revision.measurementElementStartIndex = measuredMinIndex;
-    container.revision.measurementElementEndIndex = measuredMaxIndex;
-  }
+  std::size_t measuredLow,
+  std::size_t measuredHigh) {
+  container.revision.measuredLow = measuredLow;
+  container.revision.measuredHigh = measuredHigh;
 }
 
 }

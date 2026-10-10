@@ -3,7 +3,7 @@ import {
   MAX_FOLLOWED_APPEND,
   grownMountedRange,
   initialMountedRange,
-  mountStepForWindow,
+  mountStepForRange,
   rangeToIndices,
   reportedMountedRange,
   shouldReseedFromOffsetIndex,
@@ -48,7 +48,7 @@ describe('initialMountedRange', () => {
     });
   });
 
-  it("seeds the window from the caller's overscanRows, not a fixed constant", () => {
+  it("seeds the mounted range from the caller's mountOverscanRows, not a fixed constant", () => {
     // A feed of full screen cards mounts one row ahead, not ten.
     expect(initialMountedRange(1000, 2, false, 400, 1)).toEqual({
       low: 399,
@@ -208,23 +208,23 @@ describe('stepMountedRange', () => {
   });
 });
 
-describe('mountStepForWindow', () => {
-  it('keeps the minimum step for a window of a few tall rows', () => {
-    expect(mountStepForWindow({ low: 10, high: 15 }, 2)).toBe(2);
+describe('mountStepForRange', () => {
+  it('keeps the minimum step for a measured range of a few tall rows', () => {
+    expect(mountStepForRange({ low: 10, high: 15 }, 2)).toBe(2);
   });
 
-  it('grows the pad by a quarter of a window full of short rows', () => {
-    // 36 short rows in the window, like a section list.
-    expect(mountStepForWindow({ low: 875, high: 910 }, 2)).toBe(9);
+  it('grows the pad by a quarter of a measured range full of short rows', () => {
+    // 36 short rows in the measured range, like a section list.
+    expect(mountStepForRange({ low: 875, high: 910 }, 2)).toBe(9);
   });
 
   it('reaches a ten row leading pad within a couple of steps on short rows', () => {
-    const window = { low: 875, high: 910 };
-    const step = mountStepForWindow(window, 2);
+    const measured = { low: 875, high: 910 };
+    const step = mountStepForRange(measured, 2);
     let range = { low: 875, high: 914 };
     const target = { low: 865, high: 914 };
-    range = stepMountedRange(range, target, window, step);
-    range = stepMountedRange(range, target, window, step);
+    range = stepMountedRange(range, target, measured, step);
+    range = stepMountedRange(range, target, measured, step);
     expect(range).toEqual(target);
   });
 });
@@ -330,6 +330,34 @@ describe('reportedMountedRange', () => {
     ).toBeNull();
   });
 
+  it('shrinks a range that rows inserted inside it made far bigger than the screen', () => {
+    expect(
+      reportedMountedRange(
+        { low: 0, high: 299 },
+        { low: 0, high: 12 },
+        { low: 0, high: 12 },
+        false,
+        300,
+        4,
+        10,
+        2
+      )
+    ).toEqual({ range: { low: 0, high: 16 }, target: { low: 0, high: 16 } });
+    // A followed tail burst inside the limit is kept.
+    expect(
+      reportedMountedRange(
+        { low: 140, high: 199 },
+        { low: 190, high: 199 },
+        { low: 189, high: 198 },
+        false,
+        200,
+        4,
+        10,
+        2
+      )
+    ).toBeNull();
+  });
+
   it('trims an inverted list at its tail and a range seeded around a target', () => {
     expect(
       reportedMountedRange(
@@ -357,7 +385,7 @@ describe('reportedMountedRange', () => {
     ).toEqual({ low: 396, high: 407 });
   });
 
-  it('mounts the screen now and paces the pad when the window is past the range', () => {
+  it('mounts the screen now and paces the pad when the measured range is past the mounted range', () => {
     expect(
       reportedMountedRange(
         { low: 0, high: 20 },

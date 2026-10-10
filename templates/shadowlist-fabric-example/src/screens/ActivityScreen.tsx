@@ -39,7 +39,7 @@ export const ActivityScreen = () => {
   const handleViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: { index: number }[] }) => {
       const range = getViewableRange(viewableItems);
-      setViewableLabel(range ? `${range.firstIndex}–${range.lastIndex}` : '—');
+      setViewableLabel(range ? `${range.low}–${range.high}` : '—');
     },
     []
   );

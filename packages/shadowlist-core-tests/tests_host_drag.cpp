@@ -103,9 +103,9 @@ TEST(drag_insertion_position_of_rows_arrays) {
   std::vector<std::size_t> indices{0, 1, 2, 4, UNDEFINED_INDEX, 5};
   std::vector<double> leadings{0.0, 100.0, 200.0, 400.0, 0.0, 500.0};
   std::vector<double> extents{100.0, 100.0, 100.0, 100.0, 100.0, 100.0};
-  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 560.0), std::size_t{5});
-  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 350.0), UNDEFINED_INDEX);
-  CHECK_EQ(dragInsertionPosition(indices.data(), leadings.data(), extents.data(), 6, 3, 140.0), std::size_t{1});
+  CHECK_EQ(dragInsertionIndex(indices.data(), leadings.data(), extents.data(), 6, 3, 560.0), std::size_t{5});
+  CHECK_EQ(dragInsertionIndex(indices.data(), leadings.data(), extents.data(), 6, 3, 350.0), UNDEFINED_INDEX);
+  CHECK_EQ(dragInsertionIndex(indices.data(), leadings.data(), extents.data(), 6, 3, 140.0), std::size_t{1});
 }
 
 TEST(drag_auto_scroll_speeds_up_toward_the_edges) {

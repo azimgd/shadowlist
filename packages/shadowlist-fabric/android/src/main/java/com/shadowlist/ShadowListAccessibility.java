@@ -18,7 +18,7 @@ import java.util.HashMap;
  * The list tells accessibility services how many rows it holds, not only the mounted ones,
  * and offers page scrolls and scrolling to any row, like the native kit's list.
  */
-class ShadowListAccessibility extends AccessibilityDelegateCompat {
+final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   private final ShadowListView mView;
 
   /*
@@ -56,7 +56,7 @@ class ShadowListAccessibility extends AccessibilityDelegateCompat {
   public void onInitializeAccessibilityEvent(View host, AccessibilityEvent event) {
     super.onInitializeAccessibilityEvent(host, event);
     event.setItemCount(getItemCount());
-    int[] visible = visibleItemRange();
+    int[] visible = visibleRange();
     if (visible != null) {
       event.setFromIndex(visible[0]);
       event.setToIndex(visible[1]);
@@ -136,7 +136,7 @@ class ShadowListAccessibility extends AccessibilityDelegateCompat {
    * looked up by key in the props' keys.
    */
   @Nullable
-  private int[] visibleItemRange() {
+  private int[] visibleRange() {
     if (mItemKeys == null) {
       return null;
     }
@@ -156,7 +156,7 @@ class ShadowListAccessibility extends AccessibilityDelegateCompat {
     int last = -1;
     for (int child = 0; child < content.getChildCount(); child++) {
       View view = content.getChildAt(child);
-      if (!(view instanceof ShadowListElementView)) {
+      if (!(view instanceof ShadowListCellView)) {
         continue;
       }
       int start = horizontal ? view.getLeft() : view.getTop();
@@ -164,7 +164,7 @@ class ShadowListAccessibility extends AccessibilityDelegateCompat {
       if (end <= low || start >= high) {
         continue;
       }
-      Integer index = mItemIndices.get(((ShadowListElementView) view).getElementKey());
+      Integer index = mItemIndices.get(((ShadowListCellView) view).getRowKey());
       if (index == null) {
         continue;
       }

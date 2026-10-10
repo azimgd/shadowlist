@@ -39,22 +39,24 @@ export const ReorderGridScreen = () => {
     ],
   ]);
 
-  const handleReorder = useCallback(
+  const handleMoveItem = useCallback(
     ({
-      from,
-      to,
+      sourceIndex,
+      destinationIndex,
       data: reordered,
     }: {
-      from: number;
-      to: number;
+      sourceIndex: number;
+      destinationIndex: number;
       data: ReorderTileItem[];
     }) => {
       haptics.drop();
       if (DEBUG) {
         const order = reordered.map((item) => item.label).join(',');
-        console.log(`[SLJ] reorder from=${from} to=${to} order=${order}`);
+        console.log(
+          `[SLJ] reorder from=${sourceIndex} to=${destinationIndex} order=${order}`
+        );
         setLastMove(
-          `Moved ${reordered[to]?.label} from ${from + 1} to ${to + 1}`
+          `Moved ${reordered[destinationIndex]?.label} from ${sourceIndex + 1} to ${destinationIndex + 1}`
         );
       }
       saveOrder(reordered);
@@ -86,7 +88,7 @@ export const ReorderGridScreen = () => {
         style={styles.list}
         numberOfColumns={3}
         tileAspectRatio={mixedSizes ? undefined : 1}
-        onReorder={handleReorder}
+        onMoveItem={handleMoveItem}
         ListHeaderComponent={header}
       />
     </View>

@@ -54,7 +54,7 @@ SectionOverlayPosition sectionOverlayPosition(
   SectionOverlayPosition result;
   offset = std::max(offset, 0.0);
   std::size_t active =
-    pinnedSectionPosition(count, offset, [offsets](std::size_t position) { return offsets[position]; });
+    pinnedSectionIndex(count, offset, [offsets](std::size_t position) { return offsets[position]; });
   if (active == UNDEFINED_INDEX) {
     return result;
   }

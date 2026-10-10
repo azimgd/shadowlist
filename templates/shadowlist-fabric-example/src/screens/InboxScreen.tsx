@@ -246,6 +246,11 @@ export const InboxScreen = () => {
         ListFooterComponent={
           <ListFooter text={`${data.length} messages, ${unread} unread`} />
         }
+        ListEmptyComponent={
+          <Text style={styles.empty} testID="inbox-empty">
+            No messages
+          </Text>
+        }
       />
       {editing ? (
         <View style={styles.toolbar}>
@@ -282,6 +287,12 @@ const useStyles = createStyles(({ colors, spacing, typography }) =>
       color: colors.secondaryLabel,
       paddingHorizontal: spacing.lg,
       paddingVertical: spacing.xs,
+    },
+    empty: {
+      ...typography.body,
+      color: colors.secondaryLabel,
+      textAlign: 'center',
+      paddingVertical: spacing.xl,
     },
     toolbar: {
       flexDirection: 'row',

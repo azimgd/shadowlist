@@ -18,14 +18,14 @@ const listRef = useRef<ShadowListCommands>(null);
 <ShadowList
   ref={listRef}
   data={photos}
-  renderElement={({ element }) => <Photo photo={element} />}
+  renderItem={({ item }) => <Photo photo={item} />}
   numberOfColumns={3}
   reorderEnabled
   snapToItem
   snapAlignment="start"
 />;
 
-listRef.current?.scrollToItem(42, 0.5);
+listRef.current?.scrollToIndex({ index: 42, viewPosition: 0.5 });
 ```
 
 ## UIKit

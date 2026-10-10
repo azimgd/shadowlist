@@ -9,20 +9,20 @@ import { defaultSnapLabels, type SnapLabels } from './labels';
 import { SnapCard } from './SnapCard';
 import type { SnapItem } from './types';
 
-type RenderSnapItem = NonNullable<ShadowListProps<SnapItem>['renderElement']>;
+type RenderSnapItem = NonNullable<ShadowListProps<SnapItem>['renderItem']>;
 
-export type SnapListProps = Omit<ShadowListProps<SnapItem>, 'renderElement'> & {
-  renderElement?: RenderSnapItem;
+export type SnapListProps = Omit<ShadowListProps<SnapItem>, 'renderItem'> & {
+  renderItem?: RenderSnapItem;
   onPressItem?: (item: SnapItem) => void;
   labels?: Partial<SnapLabels>;
 };
 
 export const SnapList = forwardRef<ShadowListCommands, SnapListProps>(
-  ({ renderElement, onPressItem, labels, ...props }, ref) => {
+  ({ renderItem, onPressItem, labels, ...props }, ref) => {
     const cardLabels = useLabels(defaultSnapLabels, labels);
     const renderCard = useCallback<RenderSnapItem>(
-      ({ element }) => (
-        <SnapCard item={element} onPress={onPressItem} labels={cardLabels} />
+      ({ item }) => (
+        <SnapCard item={item} onPress={onPressItem} labels={cardLabels} />
       ),
       [onPressItem, cardLabels]
     );
@@ -30,7 +30,7 @@ export const SnapList = forwardRef<ShadowListCommands, SnapListProps>(
       <ShadowList
         ref={ref}
         snapToItem
-        renderElement={renderElement ?? renderCard}
+        renderItem={renderItem ?? renderCard}
         {...props}
       />
     );

@@ -77,8 +77,8 @@ final class ShadowListGeometry {
   }
 
   /*
-   * The position in the arrays of the grid element the held one would drop at, or -1 for its
-   * own slot. Over no element it keeps insertionIndex.
+   * The position in the arrays of the grid cell the held one would drop at, or -1 for its
+   * own slot. Over no cell it keeps insertionIndex.
    */
   static int dragGridInsertionPosition(
     int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
@@ -89,7 +89,7 @@ final class ShadowListGeometry {
   }
 
   /*
-   * How far each grid element slides along and across the scroll axis to open the gap.
+   * How far each grid cell slides along and across the scroll axis to open the gap.
    */
   static void dragGridShifts(
     int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,

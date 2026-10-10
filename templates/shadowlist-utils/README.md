@@ -26,7 +26,10 @@ Metro and TypeScript (`"customConditions": ["react-native"]`) read the TypeScrip
 ```tsx
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { ShadowList } from 'shadowlist';
-import { shareInfiniteItemsById, useInfiniteListProps } from 'shadowlist-utils';
+import {
+  shareInfiniteItemsByKey,
+  useInfiniteListProps,
+} from 'shadowlist-utils';
 
 type Post = { id: string; text: string };
 type Page = { items: Post[]; nextCursor?: string };
@@ -38,7 +41,7 @@ export function FeedScreen() {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page: Page) => page.nextCursor,
     // Rows keep their identity when pages shift. Only new rows render.
-    structuralSharing: shareInfiniteItemsById,
+    structuralSharing: shareInfiniteItemsByKey,
   });
 
   const list = useInfiniteListProps(feed, {
@@ -54,7 +57,7 @@ export function FeedScreen() {
       onRefresh={list.onRefresh}
       onEndReached={list.onEndReached}
       onStartReached={list.onStartReached}
-      renderElement={({ element }) => <PostRow post={element} />}
+      renderItem={({ item }) => <PostRow post={item} />}
     />
   );
 }
@@ -82,8 +85,8 @@ React Query's own `fetchNextPage` and `refetch` resolve even when the request fa
 | `appendInfiniteItems(data, items)`                                                                                                          | Inserts rows at the bottom of the last page. Only correct while there is no next page.                                                                                                                                                                                                                                                                |
 | `upsertInfiniteItems(data, items)`                                                                                                          | Replaces rows whose `id` is already cached, wherever they are, and appends the rest like `appendInfiniteItems`. Never creates a duplicate key.                                                                                                                                                                                                        |
 | `trimInfinitePages(data, pageCount)`                                                                                                        | Keeps the first `pageCount` pages. Use it before a refetch so that pull-to-refresh sends one request instead of one per loaded page.                                                                                                                                                                                                                  |
-| `shareInfiniteItemsById(previous, next)`                                                                                                    | Structural sharing for infinite data (`structuralSharing` option). A row keeps its previous object when it is value-equal to the previous row with the same `id`, even if it moved.                                                                                                                                                                   |
-| `shareItemsById(previous, next)`                                                                                                            | Same as above, but also works on a plain array query (`useQuery`).                                                                                                                                                                                                                                                                                    |
+| `shareInfiniteItemsByKey(previous, next)`                                                                                                   | Structural sharing for infinite data (`structuralSharing` option). A row keeps its previous object when it is value-equal to the previous row with the same `id`, even if it moved.                                                                                                                                                                   |
+| `shareItemsByKey(previous, next)`                                                                                                           | Same as above, but also works on a plain array query (`useQuery`).                                                                                                                                                                                                                                                                                    |
 | Types: `ItemsPage<T>`, `InfinitePages<P>`, `InfiniteItem<D>`, `InfiniteListQuery<D>`, `InfiniteListProps<T>`, `UseInfiniteListPropsOptions` |                                                                                                                                                                                                                                                                                                                                                       |
 
 All edit helpers keep the identity of any page or row they don't change. They return `data` itself when nothing changed, and they pass `undefined` through.
@@ -109,17 +112,17 @@ useMutation({
 
 ### List state and scrolling
 
-| Export                                                                                                                                                                  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `useListController<T extends { id: string }>(options?)`                                                                                                                 | Holds local list state: `data`, `refreshing`, `loadingMore`, `loadingOlder`, `scrolling`. It returns handlers that are safe to call again while busy (`handleRefresh`, `handleEndReached`, `handleStartReached`, `handleScroll`, `handleViewableItemsChanged`), mutators (`setData`, `prepend`, `append`, `upsertItems(items)`, `updateItem(id, update)`, `removeItems(ids \| predicate)`) and manual `markers`. Options: `initialData`, `onRefresh`, `onEndReached`, `onStartReached`, `onScroll`, `onViewableItemsChanged`, `onError`, `scrollIdleMs` (default 150). |
-| `usePullToRefresh(refresh, { onError? })` → `{ refreshing, onRefresh }`                                                                                                 | Drives the pull-to-refresh control from any async function. `refresh` is read when called. It doesn't need to be stable.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `useScrollThreshold(thresholdDp)` → `{ isPastThreshold, onScroll }`                                                                                                     | Re-renders only when the scroll offset crosses the threshold, for example to hide a header or show a back-to-top button.                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `getViewableRange(viewableItems)` → `{ firstIndex, lastIndex } \| undefined`                                                                                            | Returns the index span of an `onViewableItemsChanged` payload. The payload doesn't need to be sorted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| Types: `UseListControllerOptions`, `ListController`, `ListMarkers`, `PullToRefresh`, `UsePullToRefreshOptions`, `ScrollThreshold`, `ScrollOffsetEvent`, `ViewableRange` |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Export                                                                                                                                                                  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useListController<ItemT>(options?)`                                                                                                                                    | Holds local list state: `data`, `refreshing`, `loadingMore`, `loadingOlder`, `scrolling`. It returns handlers that are safe to call again while busy (`handleRefresh`, `handleEndReached`, `handleStartReached`, `handleScroll`, `handleViewableItemsChanged`), mutators (`setItems`, `prependItems`, `appendItems`, `upsertItems(items)`, `updateItem(key, update)`, `removeItems(keys \| predicate)`) and manual `markers`. Options: `initialData`, `keyExtractor` (default reads `item.id`), `onRefresh`, `onEndReached`, `onStartReached`, `onScroll`, `onViewableItemsChanged`, `onError`, `scrollIdleMs` (default 150). |
+| `usePullToRefresh(refresh, { onError? })` → `{ refreshing, onRefresh }`                                                                                                 | Drives the pull-to-refresh control from any async function. `refresh` is read when called. It doesn't need to be stable.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `useScrollThreshold(thresholdDp)` → `{ isPastThreshold, onScroll }`                                                                                                     | Re-renders only when the scroll offset crosses the threshold, for example to hide a header or show a back-to-top button.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `getViewableRange(viewableItems)` → `{ low, high } \| undefined`                                                                                                        | Returns the index span of an `onViewableItemsChanged` payload. The payload doesn't need to be sorted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Types: `UseListControllerOptions`, `ListController`, `ListMarkers`, `PullToRefresh`, `UsePullToRefreshOptions`, `ScrollThreshold`, `ScrollOffsetEvent`, `ViewableRange` |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 
 ```tsx
 const list = useListController<Message>({
-  onStartReached: async () => list.prepend(await fetchOlder()),
+  onStartReached: async () => list.prependItems(await fetchOlder()),
   onError: reportError,
 });
 <ShadowList data={list.data} onStartReached={list.handleStartReached} ... />;
@@ -127,15 +130,15 @@ const list = useListController<Message>({
 
 ### Sections and trees
 
-| Export                                                                                                      | Description                                                                                                         |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `groupIntoSections(items, { getSectionTitle, compareSections?, compareItems? })` → `{ key, title, data }[]` | Groups a flat array into `SectionList` sections. Wrap the call in `useMemo`.                                        |
-| `collectExpandableIds(nodes, { getChildren, keyExtractor })` → `string[]`                                   | Returns the id of every node that has children, at any depth. Use it for a `TreeList` "Expand all" (`expandedIds`). |
-| Types: `ItemSection<T>`, `GroupIntoSectionsOptions<T>`, `CollectExpandableIdsOptions<N>`                    |                                                                                                                     |
+| Export                                                                                                      | Description                                                                                                           |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `groupIntoSections(items, { getSectionTitle, compareSections?, compareItems? })` → `{ key, title, data }[]` | Groups a flat array into `SectionList` sections. Wrap the call in `useMemo`.                                          |
+| `collectExpandableKeys(nodes, { getChildren, keyExtractor })` → `string[]`                                  | Returns the key of every node that has children, at any depth. Use it for a `TreeList` "Expand all" (`expandedKeys`). |
+| Types: `ItemSection<T>`, `GroupIntoSectionsOptions<T>`, `CollectExpandableKeysOptions<N>`                   |                                                                                                                       |
 
 ## Native kits
 
-Each kit is a namespace object, such as `Chat.List` and `Chat.Bubble`. Every `*.List` component wraps `ShadowList` (or `SectionList`, `TreeList` or `DraggableList`), accepts all of that component's props and forwards `ShadowListCommands` through `ref`. It also takes an optional `renderElement` that replaces the kit's default row.
+Each kit is a namespace object, such as `Chat.List` and `Chat.Bubble`. Every `*.List` component wraps `ShadowList` (or `SectionList`, `TreeList` or `DraggableList`), accepts all of that component's props and forwards `ShadowListCommands` through `ref`. It also takes an optional `renderItem` that replaces the kit's default row.
 
 ### Theming
 
@@ -266,8 +269,8 @@ export function ChatScreen() {
   const list = useInfiniteListProps(messages);
 
   const renderBubble = useCallback(
-    ({ element }: { element: ChatMessage }) => (
-      <Chat.Bubble message={element} caption="Delivered" />
+    ({ item }: { item: ChatMessage }) => (
+      <Chat.Bubble message={item} caption="Delivered" />
     ),
     []
   );
@@ -283,8 +286,8 @@ export function ChatScreen() {
         <Chat.List
           data={list.data}
           onStartReached={list.onStartReached}
-          renderElement={renderBubble}
-          getElementSizeSpec={getSizeSpec}
+          renderItem={renderBubble}
+          getItemSizeSpec={getSizeSpec}
         />
       </KeyboardView>
       <Chat.Input onSend={(text) => sendMessage(text)} />
@@ -331,7 +334,7 @@ export function AssistantScreen() {
         variants: [emptyTurn()],
         variantIndex: 0,
       };
-      list.append([{ id: newId(), role: 'user', text }, reply]);
+      list.appendItems([{ id: newId(), role: 'user', text }, reply]);
 
       const writer = createTurnWriter({
         store,
@@ -339,7 +342,7 @@ export function AssistantScreen() {
         onFinish: (turn) => {
           setStreaming(false);
           // Commit the final turn to data once. Remove it from the store after that render.
-          list.setData((previous) =>
+          list.setItems((previous) =>
             previous.map((m) =>
               m.id === reply.id && m.role === 'assistant'
                 ? { ...m, variants: [turn] }
@@ -426,11 +429,11 @@ Each of these is a single line of JSX. All of them accept every `ShadowList` pro
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | Feed     | `<Feed.List data={list.data} onEndReached={list.onEndReached} onPressItem={open} formatTime={fmt} />`                                                                                                                                                                                                                                                                            | `FeedItem { id, author, text?, images?, createdAt? }`                                  |
 | Activity | `<Activity.List data={list.data} onPressItem={open} />` (sticky header/footer, separators). Also `Activity.Row` and `Activity.Header({ title, subtitle?, actions? })`.                                                                                                                                                                                                           | `ActivityItem { id, actor, action, text?, createdAt, read? }`                          |
-| Nested   | `<ShadowList data={rows} renderElement={({ element }) => <Nested.Row item={element} onPressCard={open} />} />`. A row with a horizontal card list; there is no `Nested.List`.                                                                                                                                                                                                    | `NestedItem { id, title, cards: NestedCardItem[] }`                                    |
+| Nested   | `<ShadowList data={rows} renderItem={({ item }) => <Nested.Row item={item} onPressCard={open} />} />`. A row with a horizontal card list; there is no `Nested.List`.                                                                                                                                                                                                             | `NestedItem { id, title, cards: NestedCardItem[] }`                                    |
 | Masonry  | `<Masonry.List data={list.data} onPressItem={open} />` (3 columns by default)                                                                                                                                                                                                                                                                                                    | `MasonryItem { id, image: { uri, width, height, alt? }, title? }`                      |
 | Contacts | `<Contacts.List data={contacts} onPressItem={open} onDelete={remove} />`. `Contacts.SectionList` takes `sections` (see `groupIntoSections`). Passing `onDelete` enables swipe-to-delete.                                                                                                                                                                                         | `ContactItem { id, name, subtitle?, avatarUrl?, avatarColor? }`                        |
-| Reorder  | `<Reorder.List data={favorites} onReorder={({ data }) => save(data)} />` (built on `DraggableList`)                                                                                                                                                                                                                                                                              | `ContactItem`                                                                          |
-| Tree     | `<Tree.List data={tree} expandedIds={ids} onExpandedChange={setIds} onPressItem={openFile} />`                                                                                                                                                                                                                                                                                   | `TreeNode { id, name, children?, kind? }`                                              |
+| Reorder  | `<Reorder.List data={favorites} onMoveItem={({ data }) => save(data)} />` (built on `DraggableList`)                                                                                                                                                                                                                                                                             | `ContactItem`                                                                          |
+| Tree     | `<Tree.List data={tree} expandedKeys={keys} onExpandedChange={setKeys} onPressItem={openFile} />`                                                                                                                                                                                                                                                                                | `TreeNode { id, name, children?, kind? }`                                              |
 | Poll     | `<Poll.List poll={{ question, options, selectedId }} onVote={vote} />`. Takes `poll` instead of `data`.                                                                                                                                                                                                                                                                          | `PollOption { id, label, votes, icon? }`                                               |
 | Snap     | `<Snap.List data={cards} onPressItem={open} />` (`snapToItem`)                                                                                                                                                                                                                                                                                                                   | `SnapItem { id, title?, subtitle?, image?, color? }`                                   |
 | Inbox    | `<Inbox.List data={mail} onToggleRead={markRead} onToggleFlag={flag} onDelete={remove} editing={selecting} selectedKeys={keys} onSelectionChange={setKeys} />`. Native swipe actions (a full swipe runs the first; return a promise to keep the row out until it settles), a long press menu, selection while `editing`. iOS and Android swipe and menus; macOS keeps selection. | `InboxMessage { id, sender, subject, preview, receivedAt, read, flagged, avatarUrl? }` |

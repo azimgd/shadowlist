@@ -36,15 +36,16 @@ constexpr double OFFSET_BAND_MARGIN = 0.5;
 /*
  * Width and height we assume for a row until it is measured.
  */
-constexpr std::pair<double, double> DEFAULT_ESTIMATED_ELEMENT_SIZE = {120.0, 120.0};
+constexpr std::pair<double, double> DEFAULT_ESTIMATED_ROW_SIZE = {120.0, 120.0};
 
 /*
- * Sent as the scrollToIndex index to mean scroll to the end.
+ * Sent as the scrollToRow index to mean scroll to the end.
  */
 constexpr double SCROLL_TO_END_INDEX = -3.0;
 
 /*
- * Sent as the scrollToIndex index to mean scroll to the content offset carried as rowOffset.
+ * Sent as the scrollToRow index to mean scroll to a content offset. viewOffset then carries the
+ * absolute content offset instead of a distance past a row.
  */
 constexpr double SCROLL_TO_OFFSET_INDEX = -4.0;
 

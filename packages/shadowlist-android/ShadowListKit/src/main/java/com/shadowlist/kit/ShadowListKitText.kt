@@ -49,7 +49,7 @@ class ShadowListKitTextLayout private constructor(val layout: StaticLayout) {
 // region View
 
 /*
- * Draws an ShadowListKitTextLayout in textColor. Its size is the layout's size, which a row sets as its frame.
+ * Draws a ShadowListKitTextLayout in textColor. Its size is the layout's size, which a row sets as its frame.
  */
 class ShadowListKitTextView(context: Context) : View(context) {
   var textColor: Int = 0xFF000000.toInt()

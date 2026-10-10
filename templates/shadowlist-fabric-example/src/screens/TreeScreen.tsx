@@ -1,7 +1,7 @@
 import { useRef, useState, useMemo, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { type TreeListCommands } from 'shadowlist';
-import { collectExpandableIds } from 'shadowlist-utils';
+import { collectExpandableKeys } from 'shadowlist-utils';
 import {
   ListFooter,
   Tree,
@@ -29,20 +29,20 @@ const FileTree = ({ tree }: { tree: TreeNode[] }) => {
   const treeRef = useRef<TreeListCommands>(null);
   const styles = useStyles();
 
-  const allFolderIds = useMemo(
-    () => collectExpandableIds(tree, { getChildren, keyExtractor }),
+  const allFolderKeys = useMemo(
+    () => collectExpandableKeys(tree, { getChildren, keyExtractor }),
     [tree]
   );
 
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(
     () => new Set(tree.map(keyExtractor))
   );
 
   const expandAll = useCallback(
-    () => setExpandedIds(new Set(allFolderIds)),
-    [allFolderIds]
+    () => setExpandedKeys(new Set(allFolderKeys)),
+    [allFolderKeys]
   );
-  const collapseAll = useCallback(() => setExpandedIds(new Set()), []);
+  const collapseAll = useCallback(() => setExpandedKeys(new Set()), []);
 
   useHeaderMenu([
     [
@@ -59,8 +59,8 @@ const FileTree = ({ tree }: { tree: TreeNode[] }) => {
     ],
   ]);
 
-  const openCount = expandedIds.size;
-  const folderCount = allFolderIds.length;
+  const openCount = expandedKeys.size;
+  const folderCount = allFolderKeys.length;
   const footer = useMemo(
     () =>
       DEBUG ? (
@@ -77,8 +77,8 @@ const FileTree = ({ tree }: { tree: TreeNode[] }) => {
       <Tree.List
         ref={treeRef}
         data={tree}
-        expandedIds={expandedIds}
-        onExpandedChange={setExpandedIds}
+        expandedKeys={expandedKeys}
+        onExpandedChange={setExpandedKeys}
         style={styles.list}
         stickyFooter={DEBUG}
         ListFooterComponent={footer}

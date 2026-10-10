@@ -12,27 +12,27 @@ namespace {
 /*
  * Debug only. Looks up the key at an index so JS and native logs can be matched up.
  */
-[[maybe_unused]] const char* debugKeyAt(const std::vector<Element>& elements, std::size_t index) {
-  if (index < elements.size()) {
-    return elements[index].key.empty() ? "(empty)" : elements[index].key.c_str();
+[[maybe_unused]] const char* debugKeyAt(const std::vector<Row>& rows, std::size_t index) {
+  if (index < rows.size()) {
+    return rows[index].key.empty() ? "(empty)" : rows[index].key.c_str();
   }
   return "(oob)";
 }
 }
 
 void Container::endRevision() {
-  if (revision.elements.empty()) {
+  if (revision.rows.empty()) {
     revisionCount = REVISION_COUNT_FIRST;
   } else {
     revisionCount++;
   }
 
-  double containerOffset = getContainerOffset();
-  double windowSize = getWindowContainerSize();
-  double totalSize = horizontal ? revision.totalContainerWidth : revision.totalContainerHeight;
+  double offset = getOffset();
+  double windowSize = getWindowSize();
+  double totalSize = horizontal ? revision.contentWidth : revision.contentHeight;
 
-  bool reachingLowEdge = containerOffset <= windowSize * startReachedThreshold;
-  bool reachingHighEdge = containerOffset + windowSize >= totalSize - windowSize * endReachedThreshold;
+  bool reachingLowEdge = offset <= windowSize * startReachedThreshold;
+  bool reachingHighEdge = offset + windowSize >= totalSize - windowSize * endReachedThreshold;
 
   /*
    * Start is always row 0 and end the last row, even when inverted.
@@ -42,15 +42,18 @@ void Container::endRevision() {
   bool reachedEnd = reachingHighEdge;
   bool reachedStart = reachingLowEdge;
 
-  // A list shorter than the viewport touches both edges. Report only the end.
-  if (reachedStart && reachedEnd) {
+  /*
+   * A list shorter than the viewport touches both edges. Report only the end. A list that
+   * scrolls reports both, or a short chat scrolled to its top could never load older rows.
+   */
+  if (reachedStart && reachedEnd && totalSize <= windowSize) {
     reachedStart = false;
   }
 
   // New data means the edge is new too, even if the offset never moved.
-  std::size_t elementsSize = revision.elements.size();
-  if (elementsSize != previousReachedElementsSize_) {
-    previousReachedElementsSize_ = elementsSize;
+  std::size_t rowCount = revision.rows.size();
+  if (rowCount != previousReachedRowCount_) {
+    previousReachedRowCount_ = rowCount;
     previousReachedEnd_ = false;
     previousReachedStart_ = false;
   }
@@ -70,10 +73,10 @@ void Container::endRevision() {
   dispatchObservers();
 }
 
-void Container::scrollToIndex(std::size_t index, double viewPosition, double rowOffset) {
-  scrollToIndexTarget = index;
-  scrollToIndexViewPosition = viewPosition;
-  scrollToIndexRowOffset = rowOffset;
+void Container::scrollToRow(std::size_t index, double viewPosition, double viewOffset) {
+  scrollToRowTarget = index;
+  scrollToRowViewPosition = viewPosition;
+  scrollToRowViewOffset = viewOffset;
 }
 
 void Container::scrollToEnd() {
@@ -83,11 +86,11 @@ void Container::scrollToEnd() {
 void Container::scrollToStart() {
   pendingScrollToStart = true;
   pendingScrollToEnd = false;
-  scrollToIndexTarget = UNDEFINED_INDEX;
+  scrollToRowTarget = UNDEFINED_INDEX;
 }
 
 void Container::scrollToOffset(double offset) {
-  std::size_t count = getElementsSize();
+  std::size_t count = getRowCount();
   // A NaN offset matches no row and would carry NaN into the row offset. Treat it as the top.
   if (std::isnan(offset) || offset <= 0.0 || count == 0) {
     scrollToStart();
@@ -97,8 +100,8 @@ void Container::scrollToOffset(double offset) {
   std::size_t best = UNDEFINED_INDEX;
   double bestLeading = 0.0;
   for (std::size_t index = 0; index < count; ++index) {
-    double leading = getElementOffset(index);
-    if (leading + getElementSize(index) <= offset) {
+    double leading = getRowOffset(index);
+    if (leading + getRowSize(index) <= offset) {
       continue;
     }
     if (best == UNDEFINED_INDEX || leading < bestLeading) {
@@ -110,29 +113,29 @@ void Container::scrollToOffset(double offset) {
     scrollToEnd();
     return;
   }
-  scrollToIndex(best, 0.0, offset - bestLeading);
+  scrollToRow(best, 0.0, offset - bestLeading);
 }
 
-void Container::requestScrollToIndex(
+void Container::requestScrollToRow(
   double commandIndex,
   double commandSequence,
   int propIndex,
   double commandViewPosition,
-  double commandRowOffset) {
+  double commandViewOffset) {
   /*
    * The command wins over the prop. Each call bumps a counter. The same index can scroll
    * twice, and a lower sequence is an older state that must not run the command again.
    */
   bool fired = false;
-  if (commandSequence > previousScrollToIndexSequence_) {
+  if (commandSequence > previousScrollToRowSequence_) {
     SL_LOG("  scroll command: index=%.0f sequence=%.0f position=%.2f", commandIndex, commandSequence, commandViewPosition);
-    previousScrollToIndexSequence_ = commandSequence;
+    previousScrollToRowSequence_ = commandSequence;
     // scrollToEnd comes through the same command with SCROLL_TO_END_INDEX as the index.
     if (commandIndex == SCROLL_TO_END_INDEX) {
       scrollToEnd();
       fired = true;
     } else if (commandIndex == SCROLL_TO_OFFSET_INDEX) {
-      scrollToOffset(std::isfinite(commandRowOffset) ? commandRowOffset : 0.0);
+      scrollToOffset(std::isfinite(commandViewOffset) ? commandViewOffset : 0.0);
       fired = true;
     } else if (commandIndex >= 0.0 && std::isfinite(commandIndex) &&
                commandIndex < static_cast<double>(std::numeric_limits<std::size_t>::max())) {
@@ -140,63 +143,63 @@ void Container::requestScrollToIndex(
       double viewPosition = std::isfinite(commandViewPosition)
         ? std::min(1.0, std::max(0.0, commandViewPosition))
         : 0.0;
-      double rowOffset = std::isfinite(commandRowOffset) ? commandRowOffset : 0.0;
-      scrollToIndex(static_cast<std::size_t>(commandIndex), viewPosition, rowOffset);
+      double viewOffset = std::isfinite(commandViewOffset) ? commandViewOffset : 0.0;
+      scrollToRow(static_cast<std::size_t>(commandIndex), viewPosition, viewOffset);
       fired = true;
     }
   }
 
   // The prop only scrolls when its value changes. A negative value turns it off.
-  if (!fired && propIndex >= 0 && propIndex != previousScrollToIndexProp_) {
-    scrollToIndex(static_cast<std::size_t>(propIndex));
+  if (!fired && propIndex >= 0 && propIndex != previousScrollToRowProp_) {
+    scrollToRow(static_cast<std::size_t>(propIndex));
   }
-  previousScrollToIndexProp_ = propIndex;
+  previousScrollToRowProp_ = propIndex;
 }
 
 ContainerStateUpdate Container::resolveStateUpdate(
-  double previousContainerOffsetX,
-  double previousContainerOffsetY,
-  double previousTotalContainerWidth,
-  double previousTotalContainerHeight) const {
+  double previousOffsetX,
+  double previousOffsetY,
+  double previousContentWidth,
+  double previousContentHeight) const {
   ContainerStateUpdate update;
 
-  bool corrected = containerOffsetCorrected;
+  bool corrected = offsetCorrected;
   bool sizeChanged =
-    revision.totalContainerWidth != previousTotalContainerWidth ||
-    revision.totalContainerHeight != previousTotalContainerHeight;
+    revision.contentWidth != previousContentWidth ||
+    revision.contentHeight != previousContentHeight;
 
-  update.totalContainerWidth = revision.totalContainerWidth;
-  update.totalContainerHeight = revision.totalContainerHeight;
+  update.contentWidth = revision.contentWidth;
+  update.contentHeight = revision.contentHeight;
 
   // Use our offset only when we want to move the view. Otherwise keep the reported one so we don't fight the user.
   if (corrected) {
-    update.containerOffsetX = revision.containerOffsetX;
-    update.containerOffsetY = revision.containerOffsetY;
+    update.offsetX = revision.offsetX;
+    update.offsetY = revision.offsetY;
   } else {
-    update.containerOffsetX = previousContainerOffsetX;
-    update.containerOffsetY = previousContainerOffsetY;
+    update.offsetX = previousOffsetX;
+    update.offsetY = previousOffsetY;
   }
 
-  update.applyContainerOffset = corrected;
+  update.applyOffset = corrected;
   update.changed = corrected || sizeChanged;
 
   /*
-   * Send the operation id only when an operation moved the offset. The host sends it back.
+   * Send the commit token only when an operation moved the offset. The host sends it back.
    * Offset changes without an operation send 0.
    */
-  update.commitToken = (corrected && operation) ? operation->id : 0;
+  update.commitToken = (corrected && operation) ? operation->commitToken : 0;
 
   return update;
 }
 
-double Container::getFooterOffset(double footerExtent) const {
-  double totalSize = horizontal ? revision.totalContainerWidth : revision.totalContainerHeight;
-  return totalSize - footerExtent;
+double Container::getFooterStart(double footerSize) const {
+  double totalSize = horizontal ? revision.contentWidth : revision.contentHeight;
+  return totalSize - footerSize;
 }
 
 const std::vector<double>& Container::getSnapOffsets() const {
-  double windowSize = getWindowContainerSize();
-  double totalSize = horizontal ? revision.totalContainerWidth : revision.totalContainerHeight;
+  double windowSize = getWindowSize();
+  double totalSize = horizontal ? revision.contentWidth : revision.contentHeight;
 
   // Scrolling alone never changes the snap offsets. Reuse them unless the geometry or settings changed.
   if (snapCacheVersion_ == geometryVersion &&
@@ -222,8 +225,8 @@ const std::vector<double>& Container::getSnapOffsets() const {
     return snapOffsets;
   }
 
-  std::size_t elementsSize = revision.elements.size();
-  if (elementsSize == 0) {
+  std::size_t rowCount = revision.rows.size();
+  if (rowCount == 0) {
     return snapOffsets;
   }
 
@@ -233,22 +236,25 @@ const std::vector<double>& Container::getSnapOffsets() const {
   }
 
   /*
-   * One target per row, clamped to the scroll range. Rows near either end collapse onto
-   * the same value. Skip repeats.
+   * One target per row, clamped to the scroll range, plus both ends of the range. A header
+   * or footer can then still be scrolled into view. Rows near either end collapse onto the
+   * same value. Grid tracks are not in order. Sort and skip repeats.
    */
-  snapOffsets.reserve(elementsSize);
-  for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
-    const Element& nextElement = revision.elements[nextElementIndex];
-    double elementOffset = horizontal ? nextElement.offsetX : nextElement.offsetY;
-    double elementSize = horizontal ? nextElement.width : nextElement.height;
+  snapOffsets.reserve(rowCount + 2);
+  snapOffsets.push_back(0.0);
+  snapOffsets.push_back(maxOffset);
+  for (std::size_t nextRowIndex = 0; nextRowIndex < rowCount; ++nextRowIndex) {
+    const Row& nextRow = revision.rows[nextRowIndex];
+    double rowOffset = horizontal ? nextRow.offsetX : nextRow.offsetY;
+    double rowSize = horizontal ? nextRow.width : nextRow.height;
 
     double target;
-    if (snapAlignment == 1) {
-      target = elementOffset - (windowSize - elementSize) / 2.0;
-    } else if (snapAlignment == 2) {
-      target = elementOffset + elementSize - windowSize;
+    if (snapAlignment == SnapAlignment::Center) {
+      target = rowOffset - (windowSize - rowSize) / 2.0;
+    } else if (snapAlignment == SnapAlignment::End) {
+      target = rowOffset + rowSize - windowSize;
     } else {
-      target = elementOffset;
+      target = rowOffset;
     }
 
     if (target < 0.0) {
@@ -258,20 +264,25 @@ const std::vector<double>& Container::getSnapOffsets() const {
       target = maxOffset;
     }
 
-    if (snapOffsets.empty() || std::fabs(target - snapOffsets.back()) > OFFSET_MOVED_THRESHOLD) {
+    if (std::fabs(target - snapOffsets.back()) > OFFSET_MOVED_THRESHOLD) {
       snapOffsets.push_back(target);
     }
   }
 
+  std::sort(snapOffsets.begin(), snapOffsets.end());
+  snapOffsets.erase(
+    std::unique(snapOffsets.begin(), snapOffsets.end(),
+      [](double previous, double next) { return next - previous <= OFFSET_MOVED_THRESHOLD; }),
+    snapOffsets.end());
   return snapOffsets;
 }
 
-std::size_t Container::findElementIndexByKey(const std::string& key) const {
+std::size_t Container::indexOfKey(const std::string& key) const {
   if (key.empty()) {
     return UNDEFINED_INDEX;
   }
 
-  return revision.indexForKey(key);
+  return revision.indexOfKey(key);
 }
 
 bool Container::isAnchorable(const std::string& key) const {
@@ -279,38 +290,44 @@ bool Container::isAnchorable(const std::string& key) const {
     return false;
   }
   // With no keys excluded, every row can be the anchor.
-  return nonAnchorableKeys.empty() ||
-    nonAnchorableKeys.find(key) == nonAnchorableKeys.end();
+  return nonAnchorKeys.empty() ||
+    nonAnchorKeys.find(key) == nonAnchorKeys.end();
 }
 
 const Anchor* Container::getCompensationAnchor() const {
   if (!operation) {
     return &anchor;
   }
-  return operation->target.mode == AnchorMode::Element ? &operation->target : nullptr;
+  return operation->target.mode == AnchorMode::Row ? &operation->target : nullptr;
 }
 
 void Container::dispatchObservers() {
-  auto visibleIndices = getVisibleIndices();
-  if (onVisibleIndicesChangeCallback &&
-    (visibleIndices.first != previousVisibleStartIndex_ || visibleIndices.second != previousVisibleEndIndex_)) {
-    SL_LOG("  emit onVisibleIndicesChange(%zd, %zd) keys=[%s..%s]",
-      static_cast<std::ptrdiff_t>(visibleIndices.first), static_cast<std::ptrdiff_t>(visibleIndices.second),
-      debugKeyAt(revision.elements, visibleIndices.first),
-      debugKeyAt(revision.elements, visibleIndices.second));
-    onVisibleIndicesChangeCallback(visibleIndices.first, visibleIndices.second);
+  /*
+   * Before the host gives the viewport a size, the window holds only the row at the offset.
+   * Reporting that would unmount the rows the first frame shows.
+   */
+  if (getWindowSize() <= 0.0) {
+    return;
   }
-  previousVisibleStartIndex_ = visibleIndices.first;
-  previousVisibleEndIndex_ = visibleIndices.second;
+  IndexRange measured = getMeasuredRange();
+  if (onMeasuredRangeChangeCallback && (measured.low != previousMeasuredLow_ || measured.high != previousMeasuredHigh_)) {
+    SL_LOG("  emit onMeasuredRangeChange(%zd, %zd) keys=[%s..%s]",
+      static_cast<std::ptrdiff_t>(measured.low), static_cast<std::ptrdiff_t>(measured.high),
+      debugKeyAt(revision.rows, measured.low),
+      debugKeyAt(revision.rows, measured.high));
+    onMeasuredRangeChangeCallback(measured.low, measured.high);
+  }
+  previousMeasuredLow_ = measured.low;
+  previousMeasuredHigh_ = measured.high;
 
   // Only work out the viewable rows when someone listens, since it scans the window.
   if (onViewableIndicesChangeCallback) {
     std::vector<std::size_t> ranges;
     ranges.reserve(viewableRules.size() * 2);
     for (const auto& rule : viewableRules) {
-      auto viewableIndices = getViewableIndices(rule);
-      ranges.push_back(viewableIndices.first);
-      ranges.push_back(viewableIndices.second);
+      IndexRange viewable = getViewableIndices(rule);
+      ranges.push_back(viewable.low);
+      ranges.push_back(viewable.high);
     }
     if (ranges != previousViewableRanges_) {
       SL_LOG("  emit onViewableIndicesChange(%zd, %zd) rules=%zu",
@@ -322,54 +339,54 @@ void Container::dispatchObservers() {
     }
   }
 
-  double containerOffsetX = revision.containerOffsetX;
-  double containerOffsetY = revision.containerOffsetY;
+  double offsetX = revision.offsetX;
+  double offsetY = revision.offsetY;
   if (onScrollCallback &&
-    (!previousContainerOffsetValid_ || containerOffsetX != previousContainerOffsetX_ || containerOffsetY != previousContainerOffsetY_)) {
-    onScrollCallback(containerOffsetX, containerOffsetY);
+    (!previousOffsetValid_ || offsetX != previousOffsetX_ || offsetY != previousOffsetY_)) {
+    onScrollCallback(offsetX, offsetY);
   }
-  previousContainerOffsetX_ = containerOffsetX;
-  previousContainerOffsetY_ = containerOffsetY;
-  previousContainerOffsetValid_ = true;
+  previousOffsetX_ = offsetX;
+  previousOffsetY_ = offsetY;
+  previousOffsetValid_ = true;
 }
 
 bool Container::hasPendingCommand() const {
   return operation.has_value() || pendingScrollToEnd || pendingScrollToStart ||
-    scrollToIndexTarget != UNDEFINED_INDEX;
+    scrollToRowTarget != UNDEFINED_INDEX;
 }
 
 OffsetBand Container::computeOffsetBand() const {
   const OffsetBand empty;
-  const std::vector<Element>& elements = revision.elements;
-  std::size_t elementsSize = elements.size();
+  const std::vector<Row>& rows = revision.rows;
+  std::size_t rowCount = rows.size();
 
   // Before the first real frame the window fills from the edge, not from the offset.
-  if (elementsSize == 0 || revisionCount == REVISION_COUNT_FIRST) {
+  if (rowCount == 0 || revisionCount == REVISION_COUNT_FIRST) {
     return empty;
   }
 
   // Corrections and scroll commands settle over several frames.
-  if (hasPendingCommand() || containerOffsetCorrected) {
+  if (hasPendingCommand() || offsetCorrected) {
     return empty;
   }
 
   // Rows or sizes the next frame would still lay out. Positions are about to move.
-  if (elementsStructureDirty || elementsSizeDirtyFromIndex != UNDEFINED_INDEX) {
+  if (rowStructureDirty || rowSizeDirtyFromIndex != UNDEFINED_INDEX) {
     return empty;
   }
-  auto [estimatedWidth, estimatedHeight] = estimatedElementSize;
-  double fallbackWidth = revision.averageElementWidth > 0.0 ? revision.averageElementWidth : estimatedWidth;
-  double fallbackHeight = revision.averageElementHeight > 0.0 ? revision.averageElementHeight : estimatedHeight;
+  auto [estimatedWidth, estimatedHeight] = estimatedRowSize;
+  double fallbackWidth = revision.averageRowWidth > 0.0 ? revision.averageRowWidth : estimatedWidth;
+  double fallbackHeight = revision.averageRowHeight > 0.0 ? revision.averageRowHeight : estimatedHeight;
   /*
-   * Same inputs as the row reflow in layoutElements. The footer and the window size along the
+   * Same inputs as the row reflow in layoutRows. The footer and the window size along the
    * scroll axis never move rows, and the band is recomputed on the frame that changes them.
    */
   bool crossWindowChanged = horizontal
-    ? revision.windowContainerHeight != lastLayoutWindowHeight
-    : revision.windowContainerWidth != lastLayoutWindowWidth;
-  if (fallbackWidth != lastFallbackWidth || fallbackHeight != lastFallbackHeight ||
-      headerSize != lastLayoutHeaderSize || crossWindowChanged ||
-      columns != lastLayoutColumns || horizontal != lastLayoutHorizontal) {
+    ? revision.windowHeight != previousLayoutWindowHeight
+    : revision.windowWidth != previousLayoutWindowWidth;
+  if (fallbackWidth != previousFallbackWidth || fallbackHeight != previousFallbackHeight ||
+      headerSize != previousLayoutHeaderSize || crossWindowChanged ||
+      numberOfColumns != previousLayoutNumberOfColumns || horizontal != previousLayoutHorizontal) {
     return empty;
   }
 
@@ -383,14 +400,14 @@ OffsetBand Container::computeOffsetBand() const {
     return empty;
   }
 
-  double offset = getContainerOffset();
-  double windowSize = getWindowContainerSize();
-  double totalSize = horizontal ? revision.totalContainerWidth : revision.totalContainerHeight;
+  double offset = getOffset();
+  double windowSize = getWindowSize();
+  double totalSize = horizontal ? revision.contentWidth : revision.contentHeight;
   double maxOffset = std::max(0.0, totalSize - windowSize);
-  std::size_t measuredStart = revision.measurementElementStartIndex;
-  std::size_t measuredEnd = revision.measurementElementEndIndex;
-  if (!(windowSize > 0.0) || !std::isfinite(offset) || measuredStart == UNDEFINED_INDEX ||
-      measuredEnd == UNDEFINED_INDEX) {
+  std::size_t measuredLow = revision.measuredLow;
+  std::size_t measuredHigh = revision.measuredHigh;
+  if (!(windowSize > 0.0) || !std::isfinite(offset) || measuredLow == UNDEFINED_INDEX ||
+      measuredHigh == UNDEFINED_INDEX) {
     return empty;
   }
 
@@ -423,18 +440,16 @@ OffsetBand Container::computeOffsetBand() const {
    * at most a couple of columns outside the measured range.
    */
   double overscanSize = windowSize * overscan;
-  std::size_t columnCount = columns > 0 ? columns : 1;
+  std::size_t columnCount = numberOfColumns > 0 ? numberOfColumns : 1;
   std::size_t reach = 2 * columnCount + 2;
-  std::size_t lowIndex = std::min(measuredStart, measuredEnd);
-  std::size_t highIndex = std::max(measuredStart, measuredEnd);
-  std::size_t fromIndex = lowIndex > reach ? lowIndex - reach : 0;
-  std::size_t toIndex = std::min(elementsSize - 1, highIndex + reach);
+  std::size_t fromIndex = measuredLow > reach ? measuredLow - reach : 0;
+  std::size_t toIndex = std::min(rowCount - 1, measuredHigh + reach);
   for (std::size_t index = fromIndex; index <= toIndex; ++index) {
-    const Element& element = elements[index];
-    double elementStart = horizontal ? element.offsetX : element.offsetY;
-    double elementSize = horizontal ? element.width : element.height;
-    addFlip(elementStart - windowSize - overscanSize);
-    addFlip(elementStart + elementSize + overscanSize);
+    const Row& row = rows[index];
+    double rowStart = horizontal ? row.offsetX : row.offsetY;
+    double rowSize = horizontal ? row.width : row.height;
+    addFlip(rowStart - windowSize - overscanSize);
+    addFlip(rowStart + rowSize + overscanSize);
   }
 
   // The edge callbacks flip where they start and stop counting as reached.
@@ -455,59 +470,47 @@ OffsetBand Container::computeOffsetBand() const {
   return band;
 }
 
-const Element& Container::getElementAtIndex(std::size_t index) const {
-  if (index >= revision.elements.size()) {
+const Row& Container::getRowAtIndex(std::size_t index) const {
+  if (index >= revision.rows.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  return revision.elements[index];
+  return revision.rows[index];
 }
 
-std::size_t Container::getElementsSize() const {
-  return revision.elements.size();
+std::size_t Container::getRowCount() const {
+  return revision.rows.size();
 }
 
-std::pair<std::size_t, std::size_t> Container::getVisibleIndices() const {
-  std::size_t startIndex = revision.measurementElementStartIndex;
-  std::size_t endIndex = revision.measurementElementEndIndex;
+IndexRange Container::getMeasuredRange() const {
+  if (revision.measuredLow == UNDEFINED_INDEX || revision.measuredHigh == UNDEFINED_INDEX) {
+    return {};
+  }
+  return {revision.measuredLow, revision.measuredHigh};
+}
 
-  if (startIndex != UNDEFINED_INDEX && endIndex != UNDEFINED_INDEX) {
-    return {startIndex, endIndex};
+IndexRange Container::getViewableIndices(const ViewableRule& rule) const {
+  IndexRange measured = getMeasuredRange();
+  if (measured.isEmpty()) {
+    return {};
   }
 
-  return {UNDEFINED_INDEX, UNDEFINED_INDEX};
-}
-
-std::pair<std::size_t, std::size_t> Container::getViewableIndices(const ViewableRule& rule) const {
-  std::size_t measuredStartIndex = revision.measurementElementStartIndex;
-  std::size_t measuredEndIndex = revision.measurementElementEndIndex;
-
-  if (measuredStartIndex == UNDEFINED_INDEX || measuredEndIndex == UNDEFINED_INDEX) {
-    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
-  }
-
-  double viewportStart = getContainerOffset();
-  double windowSize = getWindowContainerSize();
+  double viewportStart = getOffset();
+  double windowSize = getWindowSize();
   double viewportEnd = viewportStart + windowSize;
 
-  // Inverted lists store the range backwards. Flip it.
-  std::size_t windowLow = inverted ? measuredEndIndex : measuredStartIndex;
-  std::size_t windowHigh = inverted ? measuredStartIndex : measuredEndIndex;
-
-  std::size_t firstViewable = UNDEFINED_INDEX;
-  std::size_t lastViewable = UNDEFINED_INDEX;
-
-  for (std::size_t nextElementIndex = windowLow; nextElementIndex <= windowHigh && nextElementIndex < revision.elements.size(); ++nextElementIndex) {
-    const Element& nextElement = revision.elements[nextElementIndex];
-    double elementStart = horizontal ? nextElement.offsetX : nextElement.offsetY;
-    double elementSize = horizontal ? nextElement.width : nextElement.height;
-    if (elementSize <= 0.0) {
+  IndexRange viewable;
+  for (std::size_t nextRowIndex = measured.low; nextRowIndex <= measured.high && nextRowIndex < revision.rows.size(); ++nextRowIndex) {
+    const Row& nextRow = revision.rows[nextRowIndex];
+    double rowStart = horizontal ? nextRow.offsetX : nextRow.offsetY;
+    double rowSize = horizontal ? nextRow.width : nextRow.height;
+    if (rowSize <= 0.0) {
       continue;
     }
-    double elementEnd = elementStart + elementSize;
+    double rowEnd = rowStart + rowSize;
 
-    double overlapStart = elementStart > viewportStart ? elementStart : viewportStart;
-    double overlapEnd = elementEnd < viewportEnd ? elementEnd : viewportEnd;
+    double overlapStart = rowStart > viewportStart ? rowStart : viewportStart;
+    double overlapEnd = rowEnd < viewportEnd ? rowEnd : viewportEnd;
     double visible = overlapEnd - overlapStart;
 
     /*
@@ -515,25 +518,16 @@ std::pair<std::size_t, std::size_t> Container::getViewableIndices(const Viewable
      * can still count as fully visible. Coverage compares against the viewport, and a row
      * fully on screen always counts.
      */
-    double referenceSize = rule.coverage ? windowSize : (elementSize < windowSize ? elementSize : windowSize);
-    bool fullyVisible = rule.coverage && visible >= elementSize;
+    double referenceSize = rule.coverage ? windowSize : (rowSize < windowSize ? rowSize : windowSize);
+    bool fullyVisible = rule.coverage && visible >= rowSize;
     if (visible > 0.0 && referenceSize > 0.0 && (fullyVisible || (visible / referenceSize) >= rule.threshold)) {
-      if (firstViewable == UNDEFINED_INDEX) {
-        firstViewable = nextElementIndex;
+      if (viewable.low == UNDEFINED_INDEX) {
+        viewable.low = nextRowIndex;
       }
-      lastViewable = nextElementIndex;
+      viewable.high = nextRowIndex;
     }
   }
-
-  if (firstViewable == UNDEFINED_INDEX) {
-    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
-  }
-
-  // Like getVisibleIndices, inverted lists report the higher index first.
-  if (inverted) {
-    return {lastViewable, firstViewable};
-  }
-  return {firstViewable, lastViewable};
+  return viewable;
 }
 
 void Container::setPredictedSize(const std::string& key, Size size) {
@@ -544,38 +538,38 @@ void Container::setPredictedSize(const std::string& key, Size size) {
 }
 
 bool Container::hasTrustedSize(std::size_t index) const {
-  if (index >= revision.elements.size()) {
+  if (index >= revision.rows.size()) {
     return false;
   }
 
-  const Element& nextElement = revision.elements[index];
-  return nextElement.measured || nextElement.predicted;
+  const Row& nextRow = revision.rows[index];
+  return nextRow.measured || nextRow.predicted;
 }
 
-double Container::getElementOffset(std::size_t index) const {
-  if (index >= revision.elements.size()) {
+double Container::getRowOffset(std::size_t index) const {
+  if (index >= revision.rows.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  const Element& nextElement = revision.elements[index];
-  return horizontal ? nextElement.offsetX : nextElement.offsetY;
+  const Row& nextRow = revision.rows[index];
+  return horizontal ? nextRow.offsetX : nextRow.offsetY;
 }
 
-double Container::getElementSize(std::size_t index) const {
-  if (index >= revision.elements.size()) {
+double Container::getRowSize(std::size_t index) const {
+  if (index >= revision.rows.size()) {
     throw InvalidOperationError("Index out of bounds");
   }
 
-  const Element& nextElement = revision.elements[index];
-  return horizontal ? nextElement.width : nextElement.height;
+  const Row& nextRow = revision.rows[index];
+  return horizontal ? nextRow.width : nextRow.height;
 }
 
-double Container::getContainerOffset() const {
-  return horizontal ? revision.containerOffsetX : revision.containerOffsetY;
+double Container::getOffset() const {
+  return horizontal ? revision.offsetX : revision.offsetY;
 }
 
-double Container::getWindowContainerSize() const {
-  return horizontal ? revision.windowContainerWidth : revision.windowContainerHeight;
+double Container::getWindowSize() const {
+  return horizontal ? revision.windowWidth : revision.windowHeight;
 }
 
 void Container::setEndReachedEnabled(bool enabled) {

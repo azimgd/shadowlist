@@ -23,28 +23,28 @@ function shallowEqualProps(a: unknown, b: unknown): boolean {
 }
 
 /*
- * Keeps the old element while the new one is the same component, key and props.
+ * Keeps the previous React element while the new one is the same component, key and props.
  *
- * Callers pass elements like the separator inline, which makes a new one every render. It
+ * Callers pass React elements like the separator inline, which makes a new one every render. It
  * sits inside every row. Each new one rebuilds all mounted rows. On a grouped list this
- * was the biggest source of row re-renders. The list handles it here.
+ * is the biggest source of row re-renders. The list handles it here.
  */
-export function useStableElement(
-  element: ReactElement | null
+export function useStableReactElement(
+  reactElement: ReactElement | null
 ): ReactElement | null {
   const previousRef = useRef<ReactElement | null>(null);
   const previous = previousRef.current;
 
-  if (element !== null && previous !== null && element !== previous) {
+  if (reactElement !== null && previous !== null && reactElement !== previous) {
     if (
-      element.type === previous.type &&
-      element.key === previous.key &&
-      shallowEqualProps(element.props, previous.props)
+      reactElement.type === previous.type &&
+      reactElement.key === previous.key &&
+      shallowEqualProps(reactElement.props, previous.props)
     ) {
       return previous;
     }
   }
 
-  previousRef.current = element;
-  return element;
+  previousRef.current = reactElement;
+  return reactElement;
 }

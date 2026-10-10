@@ -30,11 +30,11 @@ const PAGE_CARDS = 8;
  */
 const PERSISTENT_KEYS = [CAROUSEL_SHELF_ID];
 
-const renderRow = ({ element }: { element: ShelfRow }) =>
-  element.id === CAROUSEL_SHELF_ID ? (
-    <CarouselShelf item={element as CarouselShelfItem} />
+const renderRow = ({ item }: { item: ShelfRow }) =>
+  item.id === CAROUSEL_SHELF_ID ? (
+    <CarouselShelf item={item as CarouselShelfItem} />
   ) : (
-    <Nested.Row item={element as NestedItem} />
+    <Nested.Row item={item as NestedItem} />
   );
 
 export const NestedScreen = () => {
@@ -66,9 +66,10 @@ export const NestedScreen = () => {
       );
     },
     onScrollToRandom: () =>
-      shadowlistRef.current?.scrollToItem(
-        Math.floor(Math.random() * data.length)
-      ),
+      shadowlistRef.current?.scrollToIndex({
+        index: Math.floor(Math.random() * data.length),
+        animated: false,
+      }),
     prependLabel: 'Add Deals at Start',
     appendLabel: 'Add Deals at End',
   });
@@ -90,7 +91,7 @@ export const NestedScreen = () => {
         data={data}
         ref={shadowlistRef}
         style={styles.list}
-        renderElement={renderRow}
+        renderItem={renderRow}
         persistentKeys={PERSISTENT_KEYS}
         onEndReached={list.onEndReached}
         ListFooterComponent={footer}

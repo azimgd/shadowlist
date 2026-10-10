@@ -6,7 +6,6 @@
 
 #include <shadowlist-core/host/ChangeAnimation.hpp>
 
-#include <string>
 #include <vector>
 
 using namespace slt;
@@ -26,15 +25,15 @@ TEST(change_animation_key_removed_and_inserted_moves) {
   animation.capture({"a", "b"}, {"b", "c"});
   animation.recordPosition("a", {0, 0});
   animation.recordPosition("b", {0, 50});
-  CHECK(animation.removedPosition("a").has_value());
-  CHECK(!animation.removedPosition("b").has_value());
+  CHECK(animation.deletedPosition("a").has_value());
+  CHECK(!animation.deletedPosition("b").has_value());
 
   // Across two changes: removed by one, inserted by the next.
   ChangeAnimation split;
   split.capture({"x"}, {});
   split.recordPosition("x", {0, 10});
   split.capture({}, {"x"});
-  CHECK(!split.removedPosition("x").has_value());
+  CHECK(!split.deletedPosition("x").has_value());
   std::vector<ChangeStep> steps = split.run({"x"}, {{0, 30}});
   CHECK_EQ(steps.size(), std::size_t{1});
   CHECK(steps[0].kind == ChangeStepKind::Move);
@@ -44,7 +43,7 @@ TEST(change_animation_key_removed_and_inserted_moves) {
   ChangeAnimation brief;
   brief.capture({}, {"y"});
   brief.capture({"y"}, {});
-  CHECK(!brief.removedPosition("y").has_value());
+  CHECK(!brief.deletedPosition("y").has_value());
   CHECK(brief.run({}, {}).empty());
 }
 
@@ -54,8 +53,10 @@ TEST(change_animation_run_slides_inserts_and_carries) {
   animation.recordPosition("top", {0, 0});
   animation.recordPosition("gone", {0, 40});
   animation.recordPosition("below", {0, 80});
-  // After the layout: top stays, new sits where gone was, below moved down 10, then a row that
-  // was off screen.
+  /*
+   * After the layout: top stays, new sits where gone was, below moved down 10, then a row that
+   * was off screen.
+   */
   std::vector<ChangeStep> steps = animation.run(
     {"top", "new", "below", "offscreen"},
     {{0, 0}, {0, 40}, {0, 90}, {0, 140}});
@@ -70,7 +71,7 @@ TEST(change_animation_run_slides_inserts_and_carries) {
 
   // The run ends the animation.
   CHECK(!animation.isPending());
-  CHECK(!animation.removedPosition("gone").has_value());
+  CHECK(!animation.deletedPosition("gone").has_value());
   CHECK(animation.run({"top"}, {{0, 0}}).empty());
 }
 
@@ -78,11 +79,11 @@ TEST(change_animation_removed_row_fades_out_where_it_was) {
   ChangeAnimation animation;
   animation.capture({"gone"}, {});
   animation.recordPosition("gone", {12, 40});
-  std::optional<ScreenPoint> position = animation.removedPosition("gone");
+  std::optional<ScreenPoint> position = animation.deletedPosition("gone");
   CHECK(position.has_value());
   CHECK_NEAR(position->x, 12.0, 1e-9);
   CHECK_NEAR(position->y, 40.0, 1e-9);
   // A removed row that was not on screen has nowhere to fade out.
   animation.capture({"far"}, {});
-  CHECK(!animation.removedPosition("far").has_value());
+  CHECK(!animation.deletedPosition("far").has_value());
 }

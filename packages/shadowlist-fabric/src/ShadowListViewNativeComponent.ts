@@ -6,14 +6,14 @@ import {
   type ColorValue,
 } from 'react-native';
 
-export type OnVisibleIndicesChange = {
-  visibleStartIndex: CodegenTypes.Int32;
-  visibleEndIndex: CodegenTypes.Int32;
+export type OnMeasuredRangeChange = {
+  low: CodegenTypes.Int32;
+  high: CodegenTypes.Int32;
 };
 
 export type OnViewableIndicesChange = {
-  viewableStartIndex: CodegenTypes.Int32;
-  viewableEndIndex: CodegenTypes.Int32;
+  low: CodegenTypes.Int32;
+  high: CodegenTypes.Int32;
   ranges: CodegenTypes.Int32[];
 };
 
@@ -66,8 +66,8 @@ export type OnDragStart = {
 };
 
 export type OnDragEnd = {
-  fromKey: string;
-  toKey: string;
+  sourceKey: string;
+  destinationKey: string;
 };
 
 type ShadowListViewComponentType = ReturnType<
@@ -83,9 +83,9 @@ interface NativeCommands {
     viewRef: React.ElementRef<ShadowListViewComponentType>,
     enabled: boolean
   ) => void;
-  scrollToItem: (
+  scrollToRow: (
     viewRef: React.ElementRef<ShadowListViewComponentType>,
-    index: CodegenTypes.Int32,
+    row: CodegenTypes.Int32,
     viewPosition: CodegenTypes.Double,
     viewOffset: CodegenTypes.Double,
     animated: boolean
@@ -111,9 +111,9 @@ interface NativeCommands {
 }
 
 interface NativeProps extends ViewProps {
-  elementsAllKeys: string[];
-  elementsAnchorIgnoreKeys: string[];
-  elementsSizeSpecs?: CodegenTypes.WithDefault<string, ''>;
+  rowKeys: string[];
+  nonAnchorKeys: string[];
+  rowSizeSpecs?: CodegenTypes.WithDefault<string, ''>;
   inverted: boolean;
   followAppends?: CodegenTypes.WithDefault<boolean, false>;
   horizontal: boolean;
@@ -125,7 +125,7 @@ interface NativeProps extends ViewProps {
   stickyIndices: ReadonlyArray<CodegenTypes.Int32>;
   numberOfColumns: CodegenTypes.Int32;
   overscan: CodegenTypes.Double;
-  containerOffsetIndex: CodegenTypes.Int32;
+  scrollIndex: CodegenTypes.Int32;
   refreshEnabled: boolean;
   refreshing: boolean;
   refreshColor?: ColorValue;
@@ -148,9 +148,9 @@ interface NativeProps extends ViewProps {
     'none'
   >;
   nestedScrollEnabled?: CodegenTypes.WithDefault<boolean, false>;
-  refreshProgressViewOffset?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  progressViewOffset?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
   viewableEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
-  readonly onVisibleIndicesChange?: CodegenTypes.DirectEventHandler<OnVisibleIndicesChange>;
+  readonly onMeasuredRangeChange?: CodegenTypes.DirectEventHandler<OnMeasuredRangeChange>;
   readonly onViewableIndicesChange?: CodegenTypes.DirectEventHandler<OnViewableIndicesChange>;
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;
   readonly onEndReached?: CodegenTypes.DirectEventHandler<OnEndReached>;
@@ -171,7 +171,7 @@ export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({
   supportedCommands: [
     'setStartReachedEnabled',
     'setEndReachedEnabled',
-    'scrollToItem',
+    'scrollToRow',
     'scrollToOffset',
     'scrollToEnd',
     'flashScrollIndicators',

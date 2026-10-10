@@ -1,7 +1,7 @@
 #pragma once
 
 #include <shadowlist-core/Constants.hpp>
-#include <shadowlist-core/Element.hpp>
+#include <shadowlist-core/Row.hpp>
 
 #include <string>
 #include <unordered_map>
@@ -11,14 +11,14 @@ namespace azimgd::shadowlist {
 
 class Revision final {
 public:
-  std::vector<Element> elements;
+  std::vector<Row> rows;
 
   /*
    * Maps each key to its row index so anchors resolve without a scan. The first duplicate wins.
-   * Stored values include indexBias. Always use indexForKey and setIndexForKey. Reading
+   * Stored values include indexBias. Always use indexOfKey and setIndexOfKey. Reading
    * a value directly gives a wrong index, and rows end up taking other rows' sizes.
    */
-  std::unordered_map<std::string, std::size_t> elementIndexByKey;
+  std::unordered_map<std::string, std::size_t> rowIndexByKey;
 
   /*
    * Added to every stored index. A prepend only changes this number instead of every entry.
@@ -36,9 +36,9 @@ public:
   /*
    * Look up a key's row index, or UNDEFINED_INDEX when the key is missing.
    */
-  std::size_t indexForKey(const std::string& key) const {
-    auto entry = elementIndexByKey.find(key);
-    if (entry == elementIndexByKey.end()) {
+  std::size_t indexOfKey(const std::string& key) const {
+    auto entry = rowIndexByKey.find(key);
+    if (entry == rowIndexByKey.end()) {
       return UNDEFINED_INDEX;
     }
     return entry->second - indexBias;
@@ -47,24 +47,24 @@ public:
   /*
    * Store the key's index unless the key is already there. Returns true if it was new.
    */
-  bool setIndexForKey(const std::string& key, std::size_t index) {
-    return elementIndexByKey.emplace(key, index + indexBias).second;
+  bool setIndexOfKey(const std::string& key, std::size_t index) {
+    return rowIndexByKey.emplace(key, index + indexBias).second;
   }
 
-  double containerOffsetX = 0.0;
-  double containerOffsetY = 0.0;
+  double offsetX = 0.0;
+  double offsetY = 0.0;
 
   /*
    * Rows measured in this revision, UNDEFINED_INDEX until something is measured.
    */
-  std::size_t measurementElementStartIndex = UNDEFINED_INDEX;
-  std::size_t measurementElementEndIndex = UNDEFINED_INDEX;
+  std::size_t measuredLow = UNDEFINED_INDEX;
+  std::size_t measuredHigh = UNDEFINED_INDEX;
 
   /*
    * Average row size, frozen once from real measurements.
    */
-  double averageElementWidth = 0.0;
-  double averageElementHeight = 0.0;
+  double averageRowWidth = 0.0;
+  double averageRowHeight = 0.0;
 
   /*
    * Count and total size of the rows measured so far, used to compute the average.
@@ -76,14 +76,14 @@ public:
   /*
    * Size of the visible viewport.
    */
-  double windowContainerHeight = 0.0;
-  double windowContainerWidth = 0.0;
+  double windowHeight = 0.0;
+  double windowWidth = 0.0;
 
   /*
    * Full scrollable content size.
    */
-  double totalContainerHeight = 0.0;
-  double totalContainerWidth = 0.0;
+  double contentHeight = 0.0;
+  double contentWidth = 0.0;
 };
 
 }

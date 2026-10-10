@@ -1,11 +1,11 @@
 import {
   memo,
   useCallback,
-  type ComponentRef,
   useEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
+  type ComponentRef,
   type ComponentType,
   type ReactElement,
 } from 'react';
@@ -15,17 +15,17 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import ShadowListElementView, {
-  Commands as ElementCommands,
+import ShadowListCellView, {
+  Commands as CellCommands,
   type NativeMenuAction,
   type NativeSwipeAction,
   type OnContextMenuAction,
   type OnSwipeAction,
-} from '../ShadowListElementViewNativeComponent';
+} from '../ShadowListCellViewNativeComponent';
 import type {
   ContextMenu,
   ItemSeparatorProps,
-  RenderElementInfo,
+  RenderItemInfo,
   Separators,
   SwipeActionsConfiguration,
 } from '../types';
@@ -36,7 +36,7 @@ import type { SeparatorState, SeparatorStore } from './separators';
  * Per list row index state shared by every row. Rows keep their children across moves, and
  * the memo check below skips a row whose only change is its index, unless the row read it.
  * keyToIndex answers index reads made after render, like from a press handler, for rows
- * that skipped a move and still hold an old index. keys finds the row above a row.
+ * that skipped a move and still hold a stale index. keys finds the row above a row.
  */
 export interface RowIndexStore {
   keyToIndex: ReadonlyMap<string, number>;
@@ -56,46 +56,46 @@ export interface RowSelection {
   deselect: (key: string) => void;
 }
 
-type ItemInfo<ElementT> = { item: ElementT; index: number };
+type ItemInfo<ItemT> = { item: ItemT; index: number };
 
-interface ElementRendererProps<ElementT> {
-  element: ElementT;
+interface CellRendererProps<ItemT> {
+  item: ItemT;
   index: number;
   rowIndex: RowIndexStore;
-  elementKey: string;
+  rowKey: string;
   style: StyleProp<ViewStyle>;
-  renderElement: (info: RenderElementInfo<ElementT>) => ReactElement;
+  renderItem: (info: RenderItemInfo<ItemT>) => ReactElement;
   separator: ReactElement | null;
-  Separator: ComponentType<ItemSeparatorProps<ElementT>> | null;
-  trailingElement: ElementT | undefined;
+  Separator: ComponentType<ItemSeparatorProps<ItemT>> | null;
+  trailingItem: ItemT | undefined;
   separatorStore: SeparatorStore;
   selected: boolean;
   selection: RowSelection;
   leadingSwipeActionsForItem:
     | ((
-        info: ItemInfo<ElementT>
-      ) => SwipeActionsConfiguration<ElementT> | null | undefined)
+        info: ItemInfo<ItemT>
+      ) => SwipeActionsConfiguration<ItemT> | null | undefined)
     | undefined;
   trailingSwipeActionsForItem:
     | ((
-        info: ItemInfo<ElementT>
-      ) => SwipeActionsConfiguration<ElementT> | null | undefined)
+        info: ItemInfo<ItemT>
+      ) => SwipeActionsConfiguration<ItemT> | null | undefined)
     | undefined;
   contextMenuForItem:
-    | ((info: ItemInfo<ElementT>) => ContextMenu<ElementT> | null | undefined)
+    | ((info: ItemInfo<ItemT>) => ContextMenu<ItemT> | null | undefined)
     | undefined;
   nativeIndex: number;
-  onElementLayout?: (key: string, width: number, height: number) => void;
-  onElementRelease?: (key: string) => void;
+  onCellLayout?: (key: string, width: number, height: number) => void;
+  onCellRelease?: (key: string) => void;
 }
 
-interface RenderedChildren<ElementT> {
-  element: ElementT;
+interface RenderedChildren<ItemT> {
+  item: ItemT;
   index: number;
-  renderElement: ElementRendererProps<ElementT>['renderElement'];
+  renderItem: CellRendererProps<ItemT>['renderItem'];
   separator: ReactElement | null;
-  Separator: ElementRendererProps<ElementT>['Separator'];
-  trailingElement: ElementT | undefined;
+  Separator: CellRendererProps<ItemT>['Separator'];
+  trailingItem: ItemT | undefined;
   separatorState: SeparatorState;
   selected: boolean;
   readIndex: boolean;
@@ -104,21 +104,21 @@ interface RenderedChildren<ElementT> {
 
 /*
  * Props equal except maybe index, and the index only counts for a row that read it. A prepend
- * shifts every mounted row's index, and without this every row ran again just to hand the
- * same children back. Keep this in sync with ElementRendererProps.
+ * shifts every mounted row's index, and without this every row would run again just to hand the
+ * same children back. Keep this in sync with CellRendererProps.
  */
-function sameRowProps<ElementT>(
-  previous: ElementRendererProps<ElementT>,
-  next: ElementRendererProps<ElementT>
+function sameRowProps<ItemT>(
+  previous: CellRendererProps<ItemT>,
+  next: CellRendererProps<ItemT>
 ): boolean {
   return (
-    previous.element === next.element &&
-    previous.elementKey === next.elementKey &&
+    previous.item === next.item &&
+    previous.rowKey === next.rowKey &&
     previous.style === next.style &&
-    previous.renderElement === next.renderElement &&
+    previous.renderItem === next.renderItem &&
     previous.separator === next.separator &&
     previous.Separator === next.Separator &&
-    previous.trailingElement === next.trailingElement &&
+    previous.trailingItem === next.trailingItem &&
     previous.separatorStore === next.separatorStore &&
     previous.selected === next.selected &&
     previous.selection === next.selection &&
@@ -126,11 +126,10 @@ function sameRowProps<ElementT>(
     previous.trailingSwipeActionsForItem === next.trailingSwipeActionsForItem &&
     previous.contextMenuForItem === next.contextMenuForItem &&
     previous.nativeIndex === next.nativeIndex &&
-    previous.onElementLayout === next.onElementLayout &&
-    previous.onElementRelease === next.onElementRelease &&
+    previous.onCellLayout === next.onCellLayout &&
+    previous.onCellRelease === next.onCellRelease &&
     previous.rowIndex === next.rowIndex &&
-    (previous.index === next.index ||
-      !next.rowIndex.readers.has(next.elementKey))
+    (previous.index === next.index || !next.rowIndex.readers.has(next.rowKey))
   );
 }
 
@@ -150,45 +149,47 @@ function afterNextCommit(callback: () => void) {
  * Swipe action buttons for native, with the default colors of the native lists: red for a
  * destructive action and gray otherwise.
  */
-function nativeSwipeActions<ElementT>(
-  configuration: SwipeActionsConfiguration<ElementT> | null | undefined
+function nativeSwipeActions<ItemT>(
+  configuration: SwipeActionsConfiguration<ItemT> | null | undefined
 ): NativeSwipeAction[] | undefined {
   if (!configuration || configuration.actions.length === 0) return undefined;
   return configuration.actions.map((action) => {
-    const destructive = action.style === 'destructive';
-    const fallback = destructive ? '#FF3B30' : '#8E8E93';
-    const color = processColor(action.backgroundColor ?? fallback);
+    const style = action.style ?? 'normal';
+    const fallback = style === 'destructive' ? '#FF3B30' : '#8E8E93';
+    const backgroundColor = processColor(action.backgroundColor ?? fallback);
     return {
       title: action.title,
-      color:
-        typeof color === 'number' ? color : (processColor(fallback) as number),
-      destructive,
+      backgroundColor:
+        typeof backgroundColor === 'number'
+          ? backgroundColor
+          : (processColor(fallback) as number),
+      style,
     };
   });
 }
 
-function nativeMenuActions<ElementT>(
-  menu: ContextMenu<ElementT> | null | undefined
+function nativeMenuActions<ItemT>(
+  menu: ContextMenu<ItemT> | null | undefined
 ): NativeMenuAction[] | undefined {
   if (!menu || menu.actions.length === 0) return undefined;
   return menu.actions.map((action) => ({
     title: action.title,
-    destructive: action.style === 'destructive',
+    style: action.style ?? 'normal',
     disabled: action.disabled ?? false,
     systemImage: action.systemImage ?? '',
   }));
 }
 
-export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
-  element,
+export const CellRenderer = memo(function CellRendererInner<ItemT>({
+  item,
   index,
   rowIndex,
-  elementKey,
+  rowKey,
   style,
-  renderElement,
+  renderItem,
   separator,
   Separator,
-  trailingElement,
+  trailingItem,
   separatorStore,
   selected,
   selection,
@@ -196,32 +197,32 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
   trailingSwipeActionsForItem,
   contextMenuForItem,
   nativeIndex,
-  onElementLayout,
-  onElementRelease,
-}: ElementRendererProps<ElementT>) {
+  onCellLayout,
+  onCellRelease,
+}: CellRendererProps<ItemT>) {
   /*
    * This row's own separator, the one below it. Rows without a separator component never
    * subscribe.
    */
   const subscribe = useCallback(
-    (listener: () => void) => separatorStore.subscribe(elementKey, listener),
-    [separatorStore, elementKey]
+    (listener: () => void) => separatorStore.subscribe(rowKey, listener),
+    [separatorStore, rowKey]
   );
   const separatorState = useSyncExternalStore(
     Separator ? subscribe : NO_SUBSCRIPTION,
-    () => separatorStore.get(elementKey)
+    () => separatorStore.get(rowKey)
   );
 
   /*
    * The getter returns the row's current index and marks it as read, even after render, like
    * from a press handler. Such a row re-renders on its next move. A late read looks the key
-   * up, since a row that never read the index skips moves and its own index gets old.
+   * up, since a row that never read the index skips moves and its own index goes stale.
    */
   const indexRef = useRef(index);
   indexRef.current = index;
   const currentIndex = useCallback(
-    () => rowIndex.keyToIndex.get(elementKey) ?? indexRef.current,
-    [rowIndex, elementKey]
+    () => rowIndex.keyToIndex.get(rowKey) ?? indexRef.current,
+    [rowIndex, rowKey]
   );
 
   /*
@@ -232,47 +233,47 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
     const previousKey = () => rowIndex.keys[currentIndex() - 1];
     return {
       highlight: () => {
-        separatorStore.setHighlighted(elementKey, true);
+        separatorStore.setHighlighted(rowKey, true);
         const above = previousKey();
         if (above !== undefined) separatorStore.setHighlighted(above, true);
       },
       unhighlight: () => {
-        separatorStore.setHighlighted(elementKey, false);
+        separatorStore.setHighlighted(rowKey, false);
         const above = previousKey();
         if (above !== undefined) separatorStore.setHighlighted(above, false);
       },
       updateProps: (select, newProps) => {
-        const key = select === 'leading' ? previousKey() : elementKey;
+        const key = select === 'leading' ? previousKey() : rowKey;
         if (key !== undefined) separatorStore.updateProps(key, newProps);
       },
     };
-  }, [rowIndex, separatorStore, elementKey, currentIndex]);
+  }, [rowIndex, separatorStore, rowKey, currentIndex]);
 
   const select = useCallback(
-    () => selection.select(elementKey),
-    [selection, elementKey]
+    () => selection.select(rowKey),
+    [selection, rowKey]
   );
   const deselect = useCallback(
-    () => selection.deselect(elementKey),
-    [selection, elementKey]
+    () => selection.deselect(rowKey),
+    [selection, rowKey]
   );
 
   /*
    * Rebuild the row only when something it used changed. The index only counts if the last
-   * renderElement call read it. A prepend shifts every row's index but not its element. A
+   * renderItem call read it. A prepend shifts every row's index but not its item. A
    * row that never read the index can keep its children and React skips the subtree.
    * A renderer that does read the index, say for numbering, still re-renders when it moves.
    */
-  const renderedRef = useRef<RenderedChildren<ElementT> | null>(null);
+  const renderedRef = useRef<RenderedChildren<ItemT> | null>(null);
   const rendered = renderedRef.current;
   let children: ReactElement;
   if (
     rendered !== null &&
-    rendered.element === element &&
-    rendered.renderElement === renderElement &&
+    rendered.item === item &&
+    rendered.renderItem === renderItem &&
     rendered.separator === separator &&
     rendered.Separator === Separator &&
-    rendered.trailingElement === trailingElement &&
+    rendered.trailingItem === trailingItem &&
     rendered.separatorState === separatorState &&
     rendered.selected === selected &&
     (!rendered.readIndex || rendered.index === index)
@@ -282,30 +283,30 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
     countRowRender();
     if (rendered !== null && slTraceEnabled()) {
       slTrace(
-        `row-miss key=${elementKey} element=${rendered.element !== element ? 1 : 0}` +
-          ` render=${rendered.renderElement !== renderElement ? 1 : 0}` +
+        `row-miss key=${rowKey} item=${rendered.item !== item ? 1 : 0}` +
+          ` render=${rendered.renderItem !== renderItem ? 1 : 0}` +
           ` separator=${rendered.separator !== separator || rendered.Separator !== Separator || rendered.separatorState !== separatorState ? 1 : 0}` +
           ` index=${rendered.readIndex && rendered.index !== index ? 1 : 0}`
       );
     }
-    const next: RenderedChildren<ElementT> = {
-      element,
+    const next: RenderedChildren<ItemT> = {
+      item,
       index,
-      renderElement,
+      renderItem,
       separator,
       Separator,
-      trailingElement,
+      trailingItem,
       separatorState,
       selected,
       readIndex: false,
       children: null as unknown as ReactElement,
     };
     let rendering = true;
-    const content = renderElement({
-      element,
+    const content = renderItem({
+      item,
       get index() {
         next.readIndex = true;
-        rowIndex.readers.add(elementKey);
+        rowIndex.readers.add(rowKey);
         if (rendering) return indexRef.current;
         return currentIndex();
       },
@@ -320,8 +321,8 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
       rowSeparator = (
         <Separator
           highlighted={separatorState.highlighted}
-          leadingItem={element}
-          trailingItem={trailingElement}
+          leadingItem={item}
+          trailingItem={trailingItem}
           {...separatorState.props}
         />
       );
@@ -337,25 +338,23 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
   }
 
   /*
-   * Swipe actions and the context menu, asked once per element. Their handlers get the row's
+   * Swipe actions and the context menu, asked once per item. Their handlers get the row's
    * index when they run.
    */
   const leadingSwipe = useMemo(
-    () =>
-      leadingSwipeActionsForItem?.({ item: element, index: currentIndex() }),
+    () => leadingSwipeActionsForItem?.({ item, index: currentIndex() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [leadingSwipeActionsForItem, element]
+    [leadingSwipeActionsForItem, item]
   );
   const trailingSwipe = useMemo(
-    () =>
-      trailingSwipeActionsForItem?.({ item: element, index: currentIndex() }),
+    () => trailingSwipeActionsForItem?.({ item, index: currentIndex() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [trailingSwipeActionsForItem, element]
+    [trailingSwipeActionsForItem, item]
   );
   const menu = useMemo(
-    () => contextMenuForItem?.({ item: element, index: currentIndex() }),
+    () => contextMenuForItem?.({ item, index: currentIndex() }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [contextMenuForItem, element]
+    [contextMenuForItem, item]
   );
   const nativeLeading = useMemo(
     () => nativeSwipeActions(leadingSwipe),
@@ -367,9 +366,9 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
   );
   const nativeMenu = useMemo(() => nativeMenuActions(menu), [menu]);
 
-  const elementViewRef = useRef<ComponentRef<
-    typeof ShadowListElementView
-  > | null>(null);
+  const cellViewRef = useRef<ComponentRef<typeof ShadowListCellView> | null>(
+    null
+  );
   const mountedRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
@@ -390,41 +389,41 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
       let result: unknown;
       try {
         result = configuration?.actions[actionIndex]?.onPress({
-          item: element,
+          item,
           index: currentIndex(),
         });
       } finally {
         if (fullSwipe) {
           const closeFullSwipe = () =>
             afterNextCommit(() => {
-              const view = elementViewRef.current;
+              const view = cellViewRef.current;
               if (mountedRef.current && view) {
-                ElementCommands.closeFullSwipe(view);
+                CellCommands.closeFullSwipe(view);
               }
             });
           Promise.resolve(result).then(closeFullSwipe, closeFullSwipe);
         }
       }
     },
-    [leadingSwipe, trailingSwipe, element, currentIndex]
+    [leadingSwipe, trailingSwipe, item, currentIndex]
   );
 
   const handleContextMenuAction = useCallback(
     (event: { nativeEvent: OnContextMenuAction }) => {
       menu?.actions[event.nativeEvent.actionIndex]?.onPress({
-        item: element,
+        item,
         index: currentIndex(),
       });
     },
-    [menu, element, currentIndex]
+    [menu, item, currentIndex]
   );
 
   const handleLayout = useCallback(
     (event: LayoutChangeEvent) => {
       const { width, height } = event.nativeEvent.layout;
-      onElementLayout?.(elementKey, width, height);
+      onCellLayout?.(rowKey, width, height);
     },
-    [onElementLayout, elementKey]
+    [onCellLayout, rowKey]
   );
 
   /*
@@ -433,27 +432,27 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
    * adds it back.
    */
   useEffect(() => {
-    if (renderedRef.current?.readIndex) rowIndex.readers.add(elementKey);
+    if (renderedRef.current?.readIndex) rowIndex.readers.add(rowKey);
     return () => {
-      rowIndex.readers.delete(elementKey);
+      rowIndex.readers.delete(rowKey);
     };
-  }, [rowIndex, elementKey]);
+  }, [rowIndex, rowKey]);
 
   // Forget the row's size on unmount. If the key comes back it gets measured again.
   useEffect(() => {
-    if (!onElementRelease) return;
-    return () => onElementRelease(elementKey);
-  }, [onElementRelease, elementKey]);
+    if (!onCellRelease) return;
+    return () => onCellRelease(rowKey);
+  }, [onCellRelease, rowKey]);
 
   const hasSwipe = nativeLeading !== undefined || nativeTrailing !== undefined;
 
   return (
-    <ShadowListElementView
-      ref={elementViewRef}
+    <ShadowListCellView
+      ref={cellViewRef}
       index={nativeIndex}
-      elementKey={elementKey}
+      rowKey={rowKey}
       style={style}
-      onLayout={onElementLayout ? handleLayout : undefined}
+      onLayout={onCellLayout ? handleLayout : undefined}
       leadingSwipeActions={nativeLeading}
       trailingSwipeActions={nativeTrailing}
       leadingFullSwipe={
@@ -472,8 +471,6 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
       onContextMenuAction={nativeMenu ? handleContextMenuAction : undefined}
     >
       {children}
-    </ShadowListElementView>
+    </ShadowListCellView>
   );
-}, sameRowProps) as <ElementT>(
-  props: ElementRendererProps<ElementT>
-) => ReactElement;
+}, sameRowProps) as <ItemT>(props: CellRendererProps<ItemT>) => ReactElement;

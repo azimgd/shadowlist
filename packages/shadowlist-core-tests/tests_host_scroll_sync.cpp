@@ -155,6 +155,26 @@ TEST(scroll_sync_moving_view_shifts_by_the_unapplied_part) {
   CHECK_EQ(offset, 430.0);
 }
 
+/*
+ * Android mounts the same state again after the write moved the view. scrollToEnd landed one
+ * correction short when that second mount added it a second time.
+ */
+TEST(scroll_sync_written_correction_is_not_shifted_again) {
+  auto live = std::make_shared<LiveScroll>();
+  ScrollSync sync;
+  double offset = mountAndWrite(sync, correctionState(92.0, 100.0, 3), live, viewAt(100.0));
+  CHECK_EQ(offset, 92.0);
+
+  ViewMotion moving = viewAt(92.0);
+  moving.moving = true;
+  offset = mountAndWrite(sync, correctionState(92.0, 100.0, 3), live, moving);
+  CHECK_EQ(offset, 92.0);
+
+  // The same token retargeted from the same base moves only by the difference.
+  offset = mountAndWrite(sync, correctionState(110.0, 100.0, 3), live, viewAt(92.0));
+  CHECK_EQ(offset, 110.0);
+}
+
 TEST(scroll_sync_gesture_correction_shifts_after_the_motion_stops) {
   auto live = std::make_shared<LiveScroll>();
   ScrollSync sync;
@@ -315,7 +335,7 @@ TEST(scroll_sync_correction_moves_a_waiting_scroll_to_top_jump) {
   sync.endMount();
   CHECK(action.kind == MountAction::Kind::RetargetJump);
   CHECK_EQ(action.offsetY, 950.0);
-  CHECK_EQ(action.token, static_cast<std::uint64_t>(21));
+  CHECK_EQ(action.commitToken, static_cast<std::uint64_t>(21));
 
   // The jump applies the whole correction. A resend of the token only adds what's new.
 
@@ -407,7 +427,7 @@ TEST(scroll_sync_animated_command_animates_to_the_estimate_then_lands) {
   ScrollPatch command = sync.issueCommand({40.0, 0.5, -20.0, true}, 0.0, 0.0, false);
   CHECK(!command.offsetEnabled);
   CHECK(command.commandAnimated);
-  CHECK_EQ(command.commandRowOffset, -20.0);
+  CHECK_EQ(command.commandViewOffset, -20.0);
   CHECK_EQ(command.commandSequence, 1.0);
 
   // The state with the estimate mounts. The view animates there once.
@@ -439,7 +459,7 @@ TEST(scroll_sync_animated_command_animates_to_the_estimate_then_lands) {
   CHECK(!landing->commandAnimated);
   CHECK_EQ(landing->commandIndex, 40.0);
   CHECK_EQ(landing->commandViewPosition, 0.5);
-  CHECK_EQ(landing->commandRowOffset, -20.0);
+  CHECK_EQ(landing->commandViewOffset, -20.0);
   CHECK_EQ(landing->commandSequence, 2.0);
   CHECK(!sync.isLanding());
   CHECK(!sync.land(0.0, 3200.0).has_value());

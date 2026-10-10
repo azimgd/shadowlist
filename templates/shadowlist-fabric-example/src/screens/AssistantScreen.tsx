@@ -51,7 +51,7 @@ import {
  * The list data changes only when a reply starts and ends. Tokens go to a store that only the
  * streaming row reads. The list does no work per token. Tokens are batched into one flush
  * every STREAM_FLUSH_MS.
- * getElementSizeSpec sizes prompts exactly and returns null for replies. The streaming row is
+ * getItemSizeSpec sizes prompts exactly and returns null for replies. The streaming row is
  * always mounted. Its real size wins over any guess.
  * Following the stream is native. At the bottom, the rows near the newest one are marked as not
  * anchorable. The core keeps the newest row pinned as it grows, with no scroll per flush.
@@ -136,7 +136,7 @@ export const AssistantScreen = () => {
   const streamRef = useRef<ScriptPlayback | null>(null);
   /*
    * Keep finished turns in the store until their data commit renders. A store change renders at
-   * once but a timer's setData does not. Removing early would flash an empty reply for a frame.
+   * once but a timer's setItems does not. Removing early would flash an empty reply for a frame.
    */
   const settledIdsRef = useRef<string[]>([]);
 
@@ -175,11 +175,11 @@ export const AssistantScreen = () => {
     onStartReached: async () => {
       const page = historyPageRef.current;
       const history = await fetchHistoryPage(page);
-      list.prepend(history);
+      list.prependItems(history);
       historyPageRef.current = page + 1;
     },
   });
-  const { setData, append } = list;
+  const { setItems, appendItems } = list;
 
   const messagesRef = useRef(list.data);
   messagesRef.current = list.data;
@@ -245,7 +245,7 @@ export const AssistantScreen = () => {
             rewritingOlderRef.current = false;
             if (atEndRef.current) setFollowingNow(true);
           }
-          setData(updateReply(messageId, (reply) => withTurn(reply, turn)));
+          setItems(updateReply(messageId, (reply) => withTurn(reply, turn)));
         },
       });
       setStreaming(true);
@@ -253,7 +253,7 @@ export const AssistantScreen = () => {
         thinking: thinkingRef.current,
       });
     },
-    [store, setData, setFollowingNow]
+    [store, setItems, setFollowingNow]
   );
 
   /*
@@ -274,7 +274,7 @@ export const AssistantScreen = () => {
       const reply = buildReply(modelRef.current);
 
       if (replaceFromId) {
-        setData((previous) => {
+        setItems((previous) => {
           const index = previous.findIndex(
             (message) => message.id === replaceFromId
           );
@@ -283,14 +283,14 @@ export const AssistantScreen = () => {
         });
         setEditingId(null);
       } else {
-        append([userMessage, reply]);
+        appendItems([userMessage, reply]);
       }
 
       setFollowingNow(true);
       startReply(reply.id, prompt, 0);
       shadowlistRef.current?.scrollToEnd();
     },
-    [setData, append, setFollowingNow, startReply]
+    [setItems, appendItems, setFollowingNow, startReply]
   );
 
   const handleComposerSend = useCallback(
@@ -343,7 +343,7 @@ export const AssistantScreen = () => {
 
       releaseFollowingUnlessNewest(messageId);
 
-      setData(
+      setItems(
         updateReply(messageId, (current) => ({
           ...current,
           variants: [...current.variants, emptyTurn()],
@@ -356,7 +356,7 @@ export const AssistantScreen = () => {
         reply.variants.length
       );
     },
-    [setData, startReply, releaseFollowingUnlessNewest]
+    [setItems, startReply, releaseFollowingUnlessNewest]
   );
 
   const handleRetry = useCallback(
@@ -367,7 +367,7 @@ export const AssistantScreen = () => {
 
       releaseFollowingUnlessNewest(messageId);
 
-      setData(
+      setItems(
         updateReply(messageId, (current) => withTurn(current, emptyTurn()))
       );
       startReply(
@@ -376,12 +376,12 @@ export const AssistantScreen = () => {
         reply.variants.length
       );
     },
-    [setData, startReply, releaseFollowingUnlessNewest]
+    [setItems, startReply, releaseFollowingUnlessNewest]
   );
 
   const handleSelectVariant = useCallback(
     (messageId: string, variantIndex: number) =>
-      setData(
+      setItems(
         updateReply(messageId, (reply) => ({
           ...reply,
           variantIndex: Math.max(
@@ -390,18 +390,18 @@ export const AssistantScreen = () => {
           ),
         }))
       ),
-    [setData]
+    [setItems]
   );
 
   const handleFeedback = useCallback(
     (messageId: string, feedback: AssistantFeedback | undefined) => {
       const previous = findReply(messagesRef.current, messageId)?.feedback;
-      setData(updateReply(messageId, (reply) => ({ ...reply, feedback })));
+      setItems(updateReply(messageId, (reply) => ({ ...reply, feedback })));
       sendFeedback(
         { messageId, feedback },
         {
           onError: () =>
-            setData(
+            setItems(
               updateReply(messageId, (reply) => ({
                 ...reply,
                 feedback: previous,
@@ -410,7 +410,7 @@ export const AssistantScreen = () => {
         }
       );
     },
-    [setData, sendFeedback]
+    [setItems, sendFeedback]
   );
 
   const handleShare = useCallback((text: string) => {
@@ -437,7 +437,7 @@ export const AssistantScreen = () => {
 
   /*
    * A suggestion or follow-up chip is a new question, not the edit in the banner.
-   * Drop the pending edit first so the banner and its old draft go away.
+   * Drop the pending edit first so the banner and its draft go away.
    */
   const handleSelectPrompt = useCallback(
     (prompt: string) => {
@@ -502,9 +502,10 @@ export const AssistantScreen = () => {
       if (suggestion) handleSelectPrompt(suggestion.prompt);
     },
     onScrollToRandom: () =>
-      shadowlistRef.current?.scrollToItem(
-        Math.floor(Math.random() * data.length)
-      ),
+      shadowlistRef.current?.scrollToIndex({
+        index: Math.floor(Math.random() * data.length),
+        animated: false,
+      }),
     prependLabel: 'Load Earlier Messages',
     appendLabel: 'Send Next Suggestion',
   });

@@ -73,6 +73,8 @@ class Photo(index: Int) {
   val title = FixtureStrings.imageTitles[index % FixtureStrings.imageTitles.size]
   val url = Fixtures.imageUrl(index, 400)
 
-  // Height over width of the image.
+  /*
+   * Height over width of the image.
+   */
   val aspect = Math.round(400 * designHeights[index % designHeights.size] / 122f) / 400f
 }

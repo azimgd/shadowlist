@@ -12,18 +12,30 @@
 #include <ctime>
 #include <memory>
 
+#if SHADOWLIST_FRAME_TRACE_COMPILED && defined(__ANDROID__)
+#include <android/log.h>
+#include <sys/system_properties.h>
+#endif
+
 /*
- * JS side of the device trace, on in debug Apple builds run with SHADOWLIST_FRAME_TRACE=1.
+ * JS side of the device trace. Apple: debug builds run with SHADOWLIST_FRAME_TRACE=1, stdout,
+ * the same clock as CACurrentMediaTime. Android: trace builds with adb shell setprop
+ * log.tag.SLJ D, logcat tag SLJ, CLOCK_MONOTONIC like [SLC].
  * Installs globalThis.__shadowlistTrace, which prints an [SLJ] line with a timestamp.
- * It uses the same clock as CACurrentMediaTime. JS renders line up with native frames in the log.
+ * JS renders line up with native frames in the log.
  */
 namespace facebook::react::shadowlist::detail {
 
-#if SHADOWLIST_FRAME_TRACE_COMPILED && defined(__APPLE__)
+#if SHADOWLIST_FRAME_TRACE_COMPILED && (defined(__APPLE__) || defined(__ANDROID__))
 inline bool jsTraceEnabled() {
   static const bool enabled = [] {
+#if defined(__APPLE__)
     const char* value = std::getenv("SHADOWLIST_FRAME_TRACE");
     return value != nullptr && std::strcmp(value, "1") == 0;
+#else
+    char value[PROP_VALUE_MAX] = {0};
+    return __system_property_get("log.tag.SLJ", value) > 0 && (value[0] == 'D' || value[0] == 'V');
+#endif
   }();
   return enabled;
 }
@@ -49,8 +61,15 @@ inline void installJsTrace(const std::shared_ptr<const ContextContainer>& contex
       [](jsi::Runtime& runtime, const jsi::Value&, const jsi::Value* arguments, std::size_t count) -> jsi::Value {
         if (count > 0 && arguments[0].isString()) {
           auto message = arguments[0].getString(runtime).utf8(runtime);
+#if defined(__APPLE__)
           double seconds = static_cast<double>(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1e9;
           printf("[SLJ] t=%.4f %s\n", seconds, message.c_str());
+#else
+          timespec now{};
+          clock_gettime(CLOCK_MONOTONIC, &now);
+          __android_log_print(
+            ANDROID_LOG_INFO, "SLJ", "[SLJ] t=%.4f %s", now.tv_sec + now.tv_nsec / 1e9, message.c_str());
+#endif
         }
         return jsi::Value::undefined();
       });
@@ -70,10 +89,6 @@ inline void installJsTrace(const std::shared_ptr<const ContextContainer>&) {}
  * [SLJ]. Android: on with adb shell setprop log.tag.SLC D (apps can read log.tag.*), logcat tag SLC.
  */
 #if SHADOWLIST_FRAME_TRACE_COMPILED && (defined(__APPLE__) || defined(__ANDROID__))
-#if defined(__ANDROID__)
-#include <android/log.h>
-#include <sys/system_properties.h>
-#endif
 namespace facebook::react::shadowlist::detail {
 inline void traceCommit(int tag) {
 #if defined(__APPLE__)

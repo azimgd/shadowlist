@@ -1,36 +1,36 @@
 import type { SectionListData } from '../types';
 import { defaultKeyExtractor } from './helpers';
 
-type FlatRowType = 'sectionHeader' | 'element' | 'sectionFooter';
+type FlatRowType = 'sectionHeader' | 'item' | 'sectionFooter';
 
-export interface FlatRow<ElementT, SectionT> {
+export interface FlatRow<ItemT, SectionT> {
   id: string;
   type: FlatRowType;
   sectionIndex: number;
-  section?: SectionListData<ElementT, SectionT>;
-  element?: ElementT;
-  elementIndex?: number;
-  elementKey?: string;
+  section?: SectionListData<ItemT, SectionT>;
+  item?: ItemT;
+  itemIndex?: number;
+  rowKey?: string;
   isLastInSection?: boolean;
   isSectionBoundary?: boolean;
 }
 
 /*
  * Whether the row built for this position matches the mounted one. Compare everything the
- * row renders from, or a reused row would show old content.
+ * row renders from, or a reused row would show stale content.
  */
-function sameRow<ElementT, SectionT>(
-  previous: FlatRow<ElementT, SectionT> | undefined,
-  next: FlatRow<ElementT, SectionT>
-): previous is FlatRow<ElementT, SectionT> {
+function sameRow<ItemT, SectionT>(
+  previous: FlatRow<ItemT, SectionT> | undefined,
+  next: FlatRow<ItemT, SectionT>
+): previous is FlatRow<ItemT, SectionT> {
   return (
     previous !== undefined &&
     previous.type === next.type &&
     previous.sectionIndex === next.sectionIndex &&
     previous.section === next.section &&
-    previous.element === next.element &&
-    previous.elementIndex === next.elementIndex &&
-    previous.elementKey === next.elementKey &&
+    previous.item === next.item &&
+    previous.itemIndex === next.itemIndex &&
+    previous.rowKey === next.rowKey &&
     previous.isLastInSection === next.isLastInSection &&
     previous.isSectionBoundary === next.isSectionBoundary
   );
@@ -40,26 +40,26 @@ function sameRow<ElementT, SectionT>(
  * One section's rows from the last flatten, with everything they were built from. A section
  * that comes back unchanged reuses them without building a single row or id string.
  */
-export interface SectionRows<ElementT, SectionT> {
-  section: SectionListData<ElementT, SectionT>;
+export interface SectionRows<ItemT, SectionT> {
+  section: SectionListData<ItemT, SectionT>;
   sectionIndex: number;
-  keyExtractor: ((element: ElementT, index: number) => string) | undefined;
+  keyExtractor: ((item: ItemT, index: number) => string) | undefined;
   hasHeader: boolean;
   hasFooter: boolean;
   isLastSection: boolean;
-  rows: FlatRow<ElementT, SectionT>[];
-  elementStart: number;
+  rows: FlatRow<ItemT, SectionT>[];
+  itemStart: number;
 }
 
 /*
- * Whether cached rows still describe the section. The elements are compared one by one, not
+ * Whether cached rows still describe the section. The items are compared one by one, not
  * just the data array. A data array edited in place is still picked up.
  */
-function sectionUnchanged<ElementT, SectionT>(
-  cached: SectionRows<ElementT, SectionT> | undefined,
-  section: SectionListData<ElementT, SectionT>,
+function sectionUnchanged<ItemT, SectionT>(
+  cached: SectionRows<ItemT, SectionT> | undefined,
+  section: SectionListData<ItemT, SectionT>,
   sectionIndex: number,
-  keyExtractor: ((element: ElementT, index: number) => string) | undefined,
+  keyExtractor: ((item: ItemT, index: number) => string) | undefined,
   hasHeader: boolean,
   hasFooter: boolean,
   isLastSection: boolean
@@ -75,12 +75,11 @@ function sectionUnchanged<ElementT, SectionT>(
   ) {
     return false;
   }
-  const elements = section.data;
-  const elementCount =
-    cached.rows.length - cached.elementStart - (hasFooter ? 1 : 0);
-  if (elements.length !== elementCount) return false;
-  for (let index = 0; index < elementCount; index++) {
-    if (cached.rows[cached.elementStart + index]!.element !== elements[index]) {
+  const items = section.data;
+  const itemCount = cached.rows.length - cached.itemStart - (hasFooter ? 1 : 0);
+  if (items.length !== itemCount) return false;
+  for (let index = 0; index < itemCount; index++) {
+    if (cached.rows[cached.itemStart + index]!.item !== items[index]) {
       return false;
     }
   }
@@ -91,21 +90,21 @@ function sectionUnchanged<ElementT, SectionT>(
  * Sections to flat rows plus the sticky header positions. previousSections is the last
  * result's nextSections. Unchanged sections and rows keep their objects.
  */
-export function flattenSections<ElementT, SectionT>(
-  sections: ReadonlyArray<SectionListData<ElementT, SectionT>>,
-  keyExtractor: ((element: ElementT, index: number) => string) | undefined,
+export function flattenSections<ItemT, SectionT>(
+  sections: ReadonlyArray<SectionListData<ItemT, SectionT>>,
+  keyExtractor: ((item: ItemT, index: number) => string) | undefined,
   hasHeader: boolean,
   hasFooter: boolean,
   stickyEnabled: boolean,
-  previousSections: ReadonlyMap<string, SectionRows<ElementT, SectionT>>
+  previousSections: ReadonlyMap<string, SectionRows<ItemT, SectionT>>
 ): {
-  rows: FlatRow<ElementT, SectionT>[];
+  rows: FlatRow<ItemT, SectionT>[];
   stickyIndices: number[];
-  nextSections: Map<string, SectionRows<ElementT, SectionT>>;
+  nextSections: Map<string, SectionRows<ItemT, SectionT>>;
 } {
-  const rows: FlatRow<ElementT, SectionT>[] = [];
+  const rows: FlatRow<ItemT, SectionT>[] = [];
   const stickyIndices: number[] = [];
-  const nextSections = new Map<string, SectionRows<ElementT, SectionT>>();
+  const nextSections = new Map<string, SectionRows<ItemT, SectionT>>();
 
   sections.forEach((section, sectionIndex) => {
     const sectionKey = section.key ?? `section-${sectionIndex}`;
@@ -134,9 +133,9 @@ export function flattenSections<ElementT, SectionT>(
     }
 
     // Built lazily, only for a section that changed.
-    let previousRows: Map<string, FlatRow<ElementT, SectionT>> | null = null;
-    const sectionRows: FlatRow<ElementT, SectionT>[] = [];
-    const push = (row: FlatRow<ElementT, SectionT>) => {
+    let previousRows: Map<string, FlatRow<ItemT, SectionT>> | null = null;
+    const sectionRows: FlatRow<ItemT, SectionT>[] = [];
+    const push = (row: FlatRow<ItemT, SectionT>) => {
       if (previousRows === null) {
         previousRows = new Map();
         for (const previousRow of cached?.rows ?? []) {
@@ -158,20 +157,20 @@ export function flattenSections<ElementT, SectionT>(
       });
     }
 
-    const elementStart = sectionRows.length;
-    const lastElementIndex = section.data.length - 1;
-    section.data.forEach((element, elementIndex) => {
-      const elementKey = sectionKeyExtractor
-        ? sectionKeyExtractor(element, elementIndex)
-        : defaultKeyExtractor(element, elementIndex);
-      const isLastInSection = elementIndex === lastElementIndex;
+    const itemStart = sectionRows.length;
+    const lastItemIndex = section.data.length - 1;
+    section.data.forEach((item, itemIndex) => {
+      const rowKey = sectionKeyExtractor
+        ? sectionKeyExtractor(item, itemIndex)
+        : defaultKeyExtractor(item, itemIndex);
+      const isLastInSection = itemIndex === lastItemIndex;
       push({
-        id: `si:${sectionKey}:${elementKey}`,
-        type: 'element',
+        id: `si:${sectionKey}:${rowKey}`,
+        type: 'item',
         sectionIndex,
-        element,
-        elementIndex,
-        elementKey,
+        item,
+        itemIndex,
+        rowKey,
         isLastInSection,
         isSectionBoundary: isLastInSection && !hasFooter && !isLastSection,
       });
@@ -195,7 +194,7 @@ export function flattenSections<ElementT, SectionT>(
       hasFooter,
       isLastSection,
       rows: sectionRows,
-      elementStart,
+      itemStart,
     });
   });
 

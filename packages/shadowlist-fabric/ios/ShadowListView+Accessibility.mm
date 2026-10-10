@@ -76,7 +76,7 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
   }
   _pageAnnouncementPending = NO;
   const auto& props = *std::static_pointer_cast<const ShadowListViewProps>(_props);
-  const auto& keys = props.elementsAllKeys;
+  const auto& keys = props.rowKeys;
   if (_pageKeyIndicesProps != _props) {
     // The first row with a key wins, like a search from the start.
     _pageKeyIndices.clear();
@@ -93,7 +93,7 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
     if (subview.hidden || !CGRectIntersectsRect(subview.frame, visible)) {
       continue;
     }
-    NSString *key = [self keyOfElementView:subview];
+    NSString *key = [self keyOfCellView:subview];
     if (!key) {
       continue;
     }

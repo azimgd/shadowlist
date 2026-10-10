@@ -1,6 +1,9 @@
 #import "ShadowListMacScrollView.h"
 
 #if TARGET_OS_OSX
+/*
+ * How long a mouse wheel rests before its live scroll ends.
+ */
 static const NSTimeInterval SL_WHEEL_IDLE_DELAY = 0.15;
 
 @implementation ShadowListMacScrollView {

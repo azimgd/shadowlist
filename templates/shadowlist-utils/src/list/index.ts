@@ -9,9 +9,9 @@ export {
   trimInfinitePages,
 } from './infiniteItems';
 export {
-  shareItemsById,
-  shareInfiniteItemsById,
-} from './shareInfiniteItemsById';
+  shareItemsByKey,
+  shareInfiniteItemsByKey,
+} from './shareInfiniteItemsByKey';
 export { usePullToRefresh } from './usePullToRefresh';
 export type {
   PullToRefresh,
@@ -28,8 +28,8 @@ export type {
   ItemSection,
   GroupIntoSectionsOptions,
 } from './groupIntoSections';
-export { collectExpandableIds } from './collectExpandableIds';
-export type { CollectExpandableIdsOptions } from './collectExpandableIds';
+export { collectExpandableKeys } from './collectExpandableKeys';
+export type { CollectExpandableKeysOptions } from './collectExpandableKeys';
 export { useScrollThreshold } from './useScrollThreshold';
 export type { ScrollThreshold, ScrollOffsetEvent } from './useScrollThreshold';
 export { getViewableRange } from './getViewableRange';

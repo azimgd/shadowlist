@@ -14,7 +14,7 @@ type Section = SectionListData<Item, { title: string }>;
 type Row = FlatRow<Item, { title: string }>;
 
 /*
- * The flatten SectionList used before sections were cached: one pass over every element,
+ * The flatten SectionList used before sections were cached: one pass over every item,
  * reusing a row by id when all its fields match.
  */
 function referenceFlatten(
@@ -33,9 +33,9 @@ function referenceFlatten(
       previous.type === row.type &&
       previous.sectionIndex === row.sectionIndex &&
       previous.section === row.section &&
-      previous.element === row.element &&
-      previous.elementIndex === row.elementIndex &&
-      previous.elementKey === row.elementKey &&
+      previous.item === row.item &&
+      previous.itemIndex === row.itemIndex &&
+      previous.rowKey === row.rowKey &&
       previous.isLastInSection === row.isLastInSection &&
       previous.isSectionBoundary === row.isSectionBoundary;
     const final = same ? previous : row;
@@ -54,15 +54,15 @@ function referenceFlatten(
       });
     }
     const last = section.data.length - 1;
-    section.data.forEach((element, elementIndex) => {
-      const isLastInSection = elementIndex === last;
+    section.data.forEach((item, itemIndex) => {
+      const isLastInSection = itemIndex === last;
       push({
-        id: `si:${sectionKey}:${element.id}`,
-        type: 'element',
+        id: `si:${sectionKey}:${item.id}`,
+        type: 'item',
         sectionIndex,
-        element,
-        elementIndex,
-        elementKey: element.id,
+        item,
+        itemIndex,
+        rowKey: item.id,
         isLastInSection,
         isSectionBoundary:
           isLastInSection && !hasFooter && sectionIndex < sections.length - 1,

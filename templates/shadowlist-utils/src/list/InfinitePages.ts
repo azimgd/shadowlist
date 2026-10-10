@@ -7,7 +7,7 @@ export interface InfinitePages<PageT> {
   pageParams: unknown[];
 }
 
-/**
+/*
  * The row type inside an {@linkcode InfinitePages} value, like `Post` for
  * `InfiniteData<{ items: Post[]; nextCursor?: number }>`.
  */

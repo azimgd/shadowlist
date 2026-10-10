@@ -5,7 +5,7 @@ import {
   generateUniqueId,
 } from './common';
 
-export const ACTIVITY_ACTIONS = [
+const ACTIVITY_ACTIONS = [
   'started following you',
   'liked your trip photo',
   'tagged you in a check-in',

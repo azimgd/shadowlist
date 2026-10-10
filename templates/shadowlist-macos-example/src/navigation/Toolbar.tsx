@@ -10,7 +10,7 @@ import { EllipsisIcon } from '@example/icons';
 import type { MenuAction, MenuGroups } from './ToolbarMenu';
 import { useHover } from './useHover';
 
-export const TOOLBAR_HEIGHT = 38;
+const TOOLBAR_HEIGHT = 38;
 
 interface ToolbarButtonProps {
   label: string;

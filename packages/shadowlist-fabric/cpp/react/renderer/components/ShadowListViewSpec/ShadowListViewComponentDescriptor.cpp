@@ -7,7 +7,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
 
   // Debug trace, does nothing unless the app was launched with SHADOWLIST_FRAME_TRACE=1.
   if (!jsTraceInstalled_.exchange(true, std::memory_order_relaxed)) {
-    shadowlist::detail::installJsTrace(this->contextContainer_);
+    shadowlist::detail::installJsTrace(contextContainer_);
   }
 
   auto& shadowlistViewShadowNode = static_cast<ShadowListViewShadowNode&>(shadowNode);
@@ -53,7 +53,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   if (newerState) {
     SL_LOG("adopt: obsolete state rev=%zu -> newest rev=%zu off=(%.1f,%.1f)",
       adoptedState->getRevision(), newerState->getRevision(),
-      shadowlistViewStateData.containerOffsetX_, shadowlistViewStateData.containerOffsetY_);
+      shadowlistViewStateData.offsetX_, shadowlistViewStateData.offsetY_);
   }
   auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
@@ -82,16 +82,16 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    * Tell JS when a drag starts or ends. The platform view bumps the sequence only on pick
    * up and drop, since finger tracking stays native. Fire once per new sequence.
    */
-  if (shadowlistViewStateData.dragEventSequence_ != containerManager->lastDragEventSequence) {
-    containerManager->lastDragEventSequence = shadowlistViewStateData.dragEventSequence_;
-    const std::string& dragFromKey = shadowlistViewStateData.dragFromKey_;
-    const std::string& dragToKey = shadowlistViewStateData.dragToKey_;
+  if (shadowlistViewStateData.dragEventSequence_ != containerManager->previousDragEventSequence) {
+    containerManager->previousDragEventSequence = shadowlistViewStateData.dragEventSequence_;
+    const std::string& dragSourceKey = shadowlistViewStateData.dragSourceKey_;
+    const std::string& dragDestinationKey = shadowlistViewStateData.dragDestinationKey_;
     switch (static_cast<int>(shadowlistViewStateData.dragEventType_)) {
       case azimgd::shadowlist::DRAG_EVENT_START:
-        shadowlistViewEventEmitter.onDragStart({ .key = dragFromKey });
+        shadowlistViewEventEmitter.onDragStart({ .key = dragSourceKey });
         break;
       case azimgd::shadowlist::DRAG_EVENT_END:
-        shadowlistViewEventEmitter.onDragEnd({ .fromKey = dragFromKey, .toKey = dragToKey });
+        shadowlistViewEventEmitter.onDragEnd({ .sourceKey = dragSourceKey, .destinationKey = dragDestinationKey });
         break;
       default:
         break;
@@ -99,30 +99,30 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   }
 
   /*
-   * Handle a pending scrollToItem. The command writes its target into state and the
+   * Handle a pending scrollToRow. The command writes its target into state and the
    * prop gives the initial index. The core picks which wins and scrolls once per target.
    * An animated command only gets an estimate here, which the layout pass publishes. The
    * host animates there and sends the same command again without the animation.
    */
-  bool animatedCommand = shadowlistViewStateData.containerOffsetIndexAnimated_;
+  bool animatedCommand = shadowlistViewStateData.scrollIndexAnimated_;
   if (animatedCommand && callbacksCache &&
-      shadowlistViewStateData.containerOffsetIndexSequence_ > callbacksCache->animationSequence) {
+      shadowlistViewStateData.scrollIndexSequence_ > callbacksCache->animationSequence) {
     auto target = azimgd::shadowlist::commandTargetOffset(
       *containerManager,
-      shadowlistViewStateData.containerOffsetIndex_,
-      shadowlistViewStateData.containerOffsetIndexViewPosition_,
-      shadowlistViewStateData.containerOffsetIndexRowOffset_);
+      shadowlistViewStateData.scrollIndex_,
+      shadowlistViewStateData.scrollIndexViewPosition_,
+      shadowlistViewStateData.scrollIndexViewOffset_);
     if (target) {
-      callbacksCache->animationSequence = shadowlistViewStateData.containerOffsetIndexSequence_;
+      callbacksCache->animationSequence = shadowlistViewStateData.scrollIndexSequence_;
       callbacksCache->animationOffset = *target;
     }
   }
-  containerManager->requestScrollToIndex(
-    shadowlistViewStateData.containerOffsetIndex_,
-    animatedCommand ? 0.0 : shadowlistViewStateData.containerOffsetIndexSequence_,
-    shadowlistViewProps.containerOffsetIndex,
-    shadowlistViewStateData.containerOffsetIndexViewPosition_,
-    shadowlistViewStateData.containerOffsetIndexRowOffset_);
+  containerManager->requestScrollToRow(
+    shadowlistViewStateData.scrollIndex_,
+    animatedCommand ? 0.0 : shadowlistViewStateData.scrollIndexSequence_,
+    shadowlistViewProps.scrollIndex,
+    shadowlistViewStateData.scrollIndexViewPosition_,
+    shadowlistViewStateData.scrollIndexViewOffset_);
 
   /*
    * Answer an anchor request once, with the row at the viewport start of the offset this
@@ -130,9 +130,9 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    */
   if (callbacksCache && shadowlistViewStateData.anchorRequestSequence_ > callbacksCache->anchorRequestSequence) {
     callbacksCache->anchorRequestSequence = shadowlistViewStateData.anchorRequestSequence_;
-    double offset = shadowlistViewProps.horizontal ? shadowlistViewStateData.containerOffsetX_
-                                                   : shadowlistViewStateData.containerOffsetY_;
-    auto anchor = azimgd::shadowlist::anchorAt(*containerManager, offset);
+    double offset = shadowlistViewProps.horizontal ? shadowlistViewStateData.offsetX_
+                                                   : shadowlistViewStateData.offsetY_;
+    auto anchor = azimgd::shadowlist::anchorStateAt(*containerManager, offset);
     ShadowListViewEventEmitter::OnAnchorState event;
     event.found = anchor.has_value();
     event.key = anchor ? anchor->key : std::string();
@@ -145,25 +145,25 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    * Point the core at the props' keys instead of copying them. Props never change and
    * outlive this call. Copying cost milliseconds per commit on a large chat list.
    */
-  input.keysRef = &shadowlistViewProps.elementsAllKeys;
+  input.keysRef = &shadowlistViewProps.rowKeys;
   /*
    * Keys of decoration rows like date pills and dividers that the core must never use as
    * the anchor for keeping content in place. An empty list means any row can be the anchor.
    */
-  input.nonAnchorableKeysRef = &shadowlistViewProps.elementsAnchorIgnoreKeys;
+  input.nonAnchorKeysRef = &shadowlistViewProps.nonAnchorKeys;
 
   /*
    * A scroll keeps the same props. The same props pointer means the same keys.
-   * The cache holds the old props so the address can't be reused. This lets the core
+   * The cache holds the previous props so the address can't be reused. This lets the core
    * skip comparing every key on scroll frames.
    */
   auto geometryCache = shadowlistViewShadowNode.getGeometryCache();
   const auto& currentProps = shadowNode.getProps();
   input.keysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
   // The same props also mean the same anchor ignore keys.
-  input.nonAnchorableKeysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
-  input.windowContainerWidth = shadowlistViewLayoutMetrics.frame.size.width;
-  input.windowContainerHeight = shadowlistViewLayoutMetrics.frame.size.height;
+  input.nonAnchorKeysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
+  input.windowWidth = shadowlistViewLayoutMetrics.frame.size.width;
+  input.windowHeight = shadowlistViewLayoutMetrics.frame.size.height;
   // These are current because the layout pass writes the header and footer sizes into the core.
   input.headerSize = containerManager->headerSize;
   input.footerSize = containerManager->footerSize;
@@ -183,7 +183,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   input.inverted = shadowlistViewProps.inverted;
   input.followAppends = shadowlistViewProps.followAppends;
   input.horizontal = shadowlistViewProps.horizontal;
-  input.columns =
+  input.numberOfColumns =
     shadowlistViewProps.numberOfColumns > 0 ? static_cast<std::size_t>(shadowlistViewProps.numberOfColumns) : 1;
   input.overscan = shadowlistViewProps.overscan;
   input.startReachedThreshold = shadowlistViewProps.startReachedThreshold;
@@ -202,7 +202,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
     viewableRulesFromProps(shadowlistViewProps.viewableRules, input.viewableRules);
   }
   input.snapToItem = shadowlistViewProps.snapToItem;
-  input.snapAlignment = shadowlistViewProps.snapAlignment;
+  input.snapAlignment = static_cast<azimgd::shadowlist::SnapAlignment>(shadowlistViewProps.snapAlignment);
 
   // Offset, echoed token, user scroll flag and gesture phase, see applyHostScroll.
   azimgd::shadowlist::applyHostScroll(input, shadowlistViewStateData.scrollState());
@@ -211,7 +211,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    * Give the core predicted sizes before update(). This frame then picks its window from
    * real sizes instead of estimates.
    */
-  applyElementSizeSpecs(
+  applyRowSizeSpecs(
     shadowlistViewShadowNode,
     shadowlistViewProps,
     containerManager,
@@ -242,13 +242,13 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
      * size. Left alone, a fling can coast past the real end into blank space.
      */
     bool geometryStale =
-      shadowlistViewStateData.totalContainerWidth_ != containerManager->revision.totalContainerWidth ||
-      shadowlistViewStateData.totalContainerHeight_ != containerManager->revision.totalContainerHeight ||
+      shadowlistViewStateData.contentWidth_ != containerManager->revision.contentWidth ||
+      shadowlistViewStateData.contentHeight_ != containerManager->revision.contentHeight ||
       (geometryCache &&
        (geometryCache->published.snapOffsets != shadowlistViewStateData.snapOffsets_ ||
-        geometryCache->published.stickyHeaderIndices != shadowlistViewStateData.stickyHeaderIndices_ ||
-        geometryCache->published.stickyHeaderOffsets != shadowlistViewStateData.stickyHeaderOffsets_ ||
-        geometryCache->published.stickyHeaderSizes != shadowlistViewStateData.stickyHeaderSizes_ ||
+        geometryCache->published.stickyIndices != shadowlistViewStateData.stickyIndices_ ||
+        geometryCache->published.stickyOffsets != shadowlistViewStateData.stickyOffsets_ ||
+        geometryCache->published.stickySizes != shadowlistViewStateData.stickySizes_ ||
         geometryCache->animationSequence != shadowlistViewStateData.animationTargetSequence_));
     /*
      * The layout pass shows hidden rows again, and the host's echo usually comes in a plain
@@ -261,7 +261,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
      * new one. Otherwise the host would keep sending every frame, or skip frames it needs.
      */
     bool bandStale = !shadowListOffsetBandPublished(shadowlistViewStateData, shadowListOffsetBand(shadowlistViewShadowNode));
-    if (containerManager->containerOffsetCorrected || geometryStale || rowsConcealed || bandStale) {
+    if (containerManager->offsetCorrected || geometryStale || rowsConcealed || bandStale) {
       shadowlistViewShadowNode.dirtyLayout();
     }
     /*
@@ -287,8 +287,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
  * Events are not merged. When JS falls behind, like while dragging the scroll
  * indicator, the queue grows for the whole gesture. That backlog is the long freeze.
  * Events are sent as discrete. React renders each one synchronously. Dragging content
- * is fine, but the scroll indicator, a macOS scroller and iOS momentum frames all turned
- * into one blocking render per frame.
+ * is fine, but the scroll indicator, a macOS scroller and iOS momentum frames would each
+ * cost one blocking render per frame.
  * Event names stay the same either way.
  *
  * Merging only looks at the last event queued for this view. Sending several kinds of
@@ -302,7 +302,7 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
   /*
    * The callbacks hold the family's event emitter. They only need building again when
    * the emitter or the listened events change. Rebuilding five std::function objects on
-   * every commit, scroll frames included, was pure allocation.
+   * every commit, scroll frames included, is pure allocation.
    */
   const auto& callbacksCache = shadowlistViewShadowNode.getGeometryCache();
   const auto& eventEmitter = shadowlistViewShadowNode.getEventEmitter();
@@ -318,14 +318,14 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
     containerManager->onEndReachedCallback = [emitter]() -> void {
       emitter->onEndReached({});
     };
-    containerManager->onVisibleIndicesChangeCallback = [emitter](std::size_t startIndex, std::size_t endIndex) -> void {
-      int visibleStartIndex = static_cast<int>(startIndex);
-      int visibleEndIndex = static_cast<int>(endIndex);
-      emitter->dispatchUniqueEvent("visibleIndicesChange",
-        [visibleStartIndex, visibleEndIndex](jsi::Runtime& runtime) {
+    containerManager->onMeasuredRangeChangeCallback = [emitter](std::size_t low, std::size_t high) -> void {
+      int measuredLow = static_cast<int>(low);
+      int measuredHigh = static_cast<int>(high);
+      emitter->dispatchUniqueEvent("measuredRangeChange",
+        [measuredLow, measuredHigh](jsi::Runtime& runtime) {
           auto payload = jsi::Object(runtime);
-          payload.setProperty(runtime, "visibleStartIndex", visibleStartIndex);
-          payload.setProperty(runtime, "visibleEndIndex", visibleEndIndex);
+          payload.setProperty(runtime, "low", measuredLow);
+          payload.setProperty(runtime, "high", measuredHigh);
           return payload;
         });
     };
@@ -337,7 +337,7 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
     if (shadowlistViewProps.viewableEventEnabled) {
       /*
        * One range per viewability rule, two indices each and -1 for none. The first rule's
-       * range also goes out as viewableStartIndex and viewableEndIndex.
+       * range also goes out as low and high.
        */
       containerManager->onViewableIndicesChangeCallback = [emitter](const std::vector<std::size_t>& ranges) -> void {
         std::vector<int> indices;
@@ -348,8 +348,8 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
         emitter->dispatchUniqueEvent("viewableIndicesChange",
           [indices = std::move(indices)](jsi::Runtime& runtime) {
             auto payload = jsi::Object(runtime);
-            payload.setProperty(runtime, "viewableStartIndex", indices.size() >= 2 ? indices[0] : -1);
-            payload.setProperty(runtime, "viewableEndIndex", indices.size() >= 2 ? indices[1] : -1);
+            payload.setProperty(runtime, "low", indices.size() >= 2 ? indices[0] : -1);
+            payload.setProperty(runtime, "high", indices.size() >= 2 ? indices[1] : -1);
             auto ranges = jsi::Array(runtime, indices.size());
             for (std::size_t position = 0; position < indices.size(); ++position) {
               ranges.setValueAtIndex(runtime, position, indices[position]);
@@ -370,14 +370,14 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
        */
       auto tracker = std::make_shared<ShadowListScrollTracker>(shadowlistViewProps.scrollEventThrottle);
       containerManager->onScrollCallback = [emitter, tracker, containerManager](
-                                             double containerOffsetX, double containerOffsetY) -> void {
+                                             double offsetX, double offsetY) -> void {
         ShadowListScrollMetrics metrics;
-        metrics.offsetX = containerOffsetX;
-        metrics.offsetY = containerOffsetY;
-        metrics.contentWidth = containerManager->revision.totalContainerWidth;
-        metrics.contentHeight = containerManager->revision.totalContainerHeight;
-        metrics.viewportWidth = containerManager->revision.windowContainerWidth;
-        metrics.viewportHeight = containerManager->revision.windowContainerHeight;
+        metrics.offsetX = offsetX;
+        metrics.offsetY = offsetY;
+        metrics.contentWidth = containerManager->revision.contentWidth;
+        metrics.contentHeight = containerManager->revision.contentHeight;
+        metrics.viewportWidth = containerManager->revision.windowWidth;
+        metrics.viewportHeight = containerManager->revision.windowHeight;
         if (!tracker->track(metrics)) {
           return;
         }
@@ -420,12 +420,12 @@ bool ShadowListViewComponentDescriptor::adoptLiveScrollReport(
   const ShadowListViewState& stateData) {
   const auto& liveScroll = stateData.liveScroll_;
   ShadowListLiveScroll::Report report;
-  if (!liveScroll || !liveScroll->newerReport(stateData.hostSequence_, stateData.containerOffsetEnabled_, report)) {
+  if (!liveScroll || !liveScroll->newerReport(stateData.hostSequence_, stateData.offsetEnabled_, report)) {
     return false;
   }
   SL_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%llu phase=%.0f",
     static_cast<unsigned long long>(report.sequence), stateData.hostSequence_,
-    stateData.containerOffsetX_, stateData.containerOffsetY_, report.offsetX, report.offsetY,
+    stateData.offsetX_, stateData.offsetY_, report.offsetX, report.offsetY,
     static_cast<unsigned long long>(report.commitToken), report.scrollPhase);
   ShadowListViewState nextStateData = stateData;
   nextStateData.applyLiveReport(report);
@@ -433,7 +433,7 @@ bool ShadowListViewComponentDescriptor::adoptLiveScrollReport(
   return true;
 }
 
-void ShadowListViewComponentDescriptor::applyElementSizeSpecs(
+void ShadowListViewComponentDescriptor::applyRowSizeSpecs(
   ShadowListViewShadowNode& shadowlistViewShadowNode,
   const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps,
   azimgd::shadowlist::Container* containerManager,
@@ -441,7 +441,7 @@ void ShadowListViewComponentDescriptor::applyElementSizeSpecs(
   Float pointScaleFactor,
   SurfaceId surfaceId) const {
   const auto& geometryCache = shadowlistViewShadowNode.getGeometryCache();
-  if (!textLayoutManager_ || !geometryCache || shadowlistViewProps.elementsSizeSpecs.empty()) {
+  if (!textLayoutManager_ || !geometryCache || shadowlistViewProps.rowSizeSpecs.empty()) {
     return;
   }
   const auto& textLayoutManager = *textLayoutManager_;
@@ -449,9 +449,9 @@ void ShadowListViewComponentDescriptor::applyElementSizeSpecs(
     *containerManager,
     shadowlistViewShadowNode.getProps(),
     availableWidth,
-    [&]() { return parseElementSizeSpecs(shadowlistViewProps.elementsSizeSpecs); },
-    [&](const azimgd::shadowlist::ElementSizeSpec& spec, double width) {
-      return measureElementSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
+    [&]() { return parseRowSizeSpecs(shadowlistViewProps.rowSizeSpecs); },
+    [&](const azimgd::shadowlist::RowSizeSpec& spec, double width) {
+      return measureRowSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
     });
 }
 

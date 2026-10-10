@@ -13,7 +13,7 @@ public class ShadowListViewPackage implements ReactPackage {
   public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
     List<ViewManager> viewManagers = new ArrayList<>();
     viewManagers.add(new ShadowListViewManager());
-    viewManagers.add(new ShadowListElementViewManager());
+    viewManagers.add(new ShadowListCellViewManager());
     viewManagers.add(new ShadowListTemplateViewManager());
     return viewManagers;
   }

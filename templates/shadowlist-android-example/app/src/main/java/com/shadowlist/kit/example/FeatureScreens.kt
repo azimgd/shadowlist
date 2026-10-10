@@ -442,8 +442,7 @@ object FeatureScenario {
     result.put("selfSizedTall", list.rectForItem(0)?.height()?.div(density) ?: -1f)
     list.scrollToSection(5)
     relayout(list)
-    val top = list.scrollY + list.paddingTop
-    result.put("headerOffsetAfterScrollToSection", (list.rectForHeaderInSection(5)?.top ?: -1f) - top)
+    result.put("headerOffsetAfterScrollToSection", (list.rectForHeaderInSection(5)?.top ?: -1f) - list.scrollY)
     // Scroll into the section: its header stays pinned at the top.
     list.scrollBy(0, 120.dp)
     relayout(list)
@@ -502,7 +501,7 @@ object FeatureScenario {
     val count = screen.messages.size
     val swiped = screen.messages[2].id
     val row = list.rectForItem(2) ?: return report(result.put("error", "no row 2"))
-    val y = row.centerY() - list.scrollY
+    val y = row.centerY() + list.paddingTop - list.scrollY
     val startX = list.width - 40f
     script.down(startX, y)
     script.frames(20, { frame -> script.move(startX - (frame + 1) * list.width / 18f, y) }) {
@@ -522,7 +521,7 @@ object FeatureScenario {
     val list = screen.list
     val script = TouchScript(list)
     val row = list.rectForItem(1) ?: return report(result)
-    val y = row.centerY() - list.scrollY
+    val y = row.centerY() + list.paddingTop - list.scrollY
     script.down(40f, y)
     script.frames(8, { frame -> script.move(40f + (frame + 1) * 15.dpf, y) }) {
       script.up(40f + 120.dpf, y)
@@ -539,7 +538,7 @@ object FeatureScenario {
     val list = screen.list
     val script = TouchScript(list)
     val row = list.rectForItem(4) ?: return report(result)
-    val y = row.centerY() - list.scrollY
+    val y = row.centerY() + list.paddingTop - list.scrollY
     script.down(list.width / 2f, y)
     script.after(800) {
       script.up(list.width / 2f, y)
@@ -557,7 +556,11 @@ object FeatureScenario {
     script.frames(20, { frame -> script.move(list.width / 2f, 100.dpf + (frame + 1) * 12.dpf) }) {
       script.up(list.width / 2f, 340.dpf)
       result.put("refreshDelegateCalls", screen.refreshes)
+      var before: Map<String, Int> = emptyMap()
+      script.after(800) { before = visibleItems(list) }
       script.after(1500) {
+        val after = visibleItems(list)
+        result.put("refreshShift", before.entries.maxOfOrNull { (key, y) -> after[key]?.let { abs(it - y) } ?: 0 } ?: -1)
         result.put("refreshingAfterDone", list.refreshing)
         savedPlace(screen, result)
       }
@@ -596,7 +599,7 @@ object FeatureScenario {
   private fun anchorError(screen: InboxScreen, place: ShadowListKitAnchorState): Float {
     val list = screen.list
     val index = screen.messages.indexOfFirst { it.id == place.key }
-    val viewportTop = list.scrollY + list.paddingTop
+    val viewportTop = list.scrollY
     val top = list.rectForItem(index)?.top ?: return -1f
     return (viewportTop - top) - place.offset
   }
@@ -643,9 +646,9 @@ class CountingAnimator : ShadowListKitDefaultItemAnimator() {
     super.animateInsert(listView, cell)
   }
 
-  override fun animateRemoval(listView: ShadowListKitListView, cell: ShadowListKitListCell, completion: () -> Unit) {
+  override fun animateDelete(listView: ShadowListKitListView, cell: ShadowListKitListCell, completion: () -> Unit) {
     calls++
-    super.animateRemoval(listView, cell, completion)
+    super.animateDelete(listView, cell, completion)
   }
 
   override fun animateMove(listView: ShadowListKitListView, cell: ShadowListKitListCell, fromX: Float, fromY: Float) {

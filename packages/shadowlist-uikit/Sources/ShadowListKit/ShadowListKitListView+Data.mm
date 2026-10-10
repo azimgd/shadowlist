@@ -2,13 +2,13 @@
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListModels+Private.h"
 
+#include <shadowlist-core/host/KeyDiff.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
+
 #include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
-
-#include <shadowlist-core/host/KeyDiff.hpp>
-#include <shadowlist-core/host/ListUpdate.hpp>
 
 using namespace azimgd::shadowlist;
 
@@ -137,14 +137,14 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     return;
   }
   // An index past the end inserts at the end. The key is read where the row lands.
-  std::vector<std::size_t> inserted = insertionPositions(ShadowListKitIndices(indices), _driver.getKeyCount());
+  std::vector<std::size_t> inserted = insertionIndices(ShadowListKitIndices(indices), _driver.getKeyCount());
   std::vector<std::string> keys;
   keys.reserve(inserted.size());
   for (std::size_t index : inserted) {
     keys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)index]));
   }
   if (_animatesChanges) {
-    [_changes captureRemoved:{} inserted:keys];
+    [_changes captureDeleted:{} inserted:keys];
   }
   _driver.insertKeys(std::move(inserted), std::move(keys));
   _sections.setPlain(_driver.getKeyCount());
@@ -166,17 +166,17 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     [self reloadData];
     return;
   }
-  std::vector<std::size_t> deleted = deletionPositions(ShadowListKitIndices(indices), _driver.getKeyCount());
+  std::vector<std::size_t> deleted = deletionIndices(ShadowListKitIndices(indices), _driver.getKeyCount());
   if (deleted.empty()) {
     return;
   }
   if (_animatesChanges) {
-    std::vector<std::string> removed;
-    removed.reserve(deleted.size());
+    std::vector<std::string> deletedKeys;
+    deletedKeys.reserve(deleted.size());
     for (std::size_t index : deleted) {
-      removed.push_back(_driver.getKeyAt(index));
+      deletedKeys.push_back(_driver.getKeyAt(index));
     }
-    [_changes captureRemoved:removed inserted:{}];
+    [_changes captureDeleted:deletedKeys inserted:{}];
   }
   _driver.deleteKeys(std::move(deleted));
   _sections.setPlain(_driver.getKeyCount());
@@ -233,13 +233,13 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   [self structureChanged];
 }
 
-- (void)moveItemAtIndex:(NSInteger)index toIndex:(NSInteger)newIndex
+- (void)moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex
 {
-  if (index < 0 || newIndex < 0) {
+  if (sourceIndex < 0 || destinationIndex < 0) {
     return;
   }
   [self performBatchUpdates:^{
-    self->_batch.moved.push_back({(std::size_t)index, (std::size_t)newIndex});
+    self->_batch.moved.push_back({(std::size_t)sourceIndex, (std::size_t)destinationIndex});
   } completion:nil];
 }
 
@@ -387,27 +387,27 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 }
 
 /*
- * The keys a reload removes and adds, for the change animation: the changed middle between the
+ * The keys a reload deletes and inserts, for the change animation: the changed middle between the
  * unchanged rows at both ends. A key on both sides moved. Only computed when it runs.
  */
 - (void)captureChangeTo:(const std::vector<std::string>&)next
 {
   const std::vector<std::string>& previous = _driver.getKeys();
   KeySplice splice = keySplice(previous, next);
-  auto removedFrom = previous.begin() + (std::ptrdiff_t)splice.start;
+  auto deletedFrom = previous.begin() + (std::ptrdiff_t)splice.start;
   auto insertedFrom = next.begin() + (std::ptrdiff_t)splice.start;
-  [_changes captureRemoved:std::vector<std::string>(removedFrom, removedFrom + (std::ptrdiff_t)splice.removed)
-                  inserted:std::vector<std::string>(insertedFrom, insertedFrom + (std::ptrdiff_t)splice.added)];
+  [_changes captureDeleted:std::vector<std::string>(deletedFrom, deletedFrom + (std::ptrdiff_t)splice.deleted)
+                  inserted:std::vector<std::string>(insertedFrom, insertedFrom + (std::ptrdiff_t)splice.inserted)];
 }
 
 /*
- * The data changed. Sticky rows follow the sections, the selection drops removed rows and a
+ * The data changed. Sticky rows follow the sections, the selection drops deleted rows and a
  * waiting saved position lands once its row is there.
  */
 - (void)structureChanged
 {
   ++_structureVersion;
-  // An open row closes. One swiped all the way stays out while its removal runs.
+  // An open row closes. One swiped all the way stays out while its delete runs.
   if ([self isSwipeOpen] && ![self isSwipedOutCell:_swipeCell]) {
     [self closeSwipeAnimated:NO];
   }

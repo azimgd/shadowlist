@@ -10,7 +10,7 @@ struct Size {
   double height;
 };
 
-class Element final {
+class Row final {
 public:
   /*
    * The user's key, used to match rows across data updates.

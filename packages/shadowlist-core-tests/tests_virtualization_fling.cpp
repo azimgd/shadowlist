@@ -9,10 +9,8 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -53,9 +51,9 @@ FrameInput topEdgeReport(
  */
 FrameInput publishedCorrection(const Container& container, const FrameInput& report) {
   FrameInput input = report;
-  input.containerOffsetY = container.revision.containerOffsetY;
-  input.containerOffsetEnabled = true;
-  input.commitToken = container.operation ? container.operation->id : 0;
+  input.offsetY = container.revision.offsetY;
+  input.offsetEnabled = true;
+  input.commitToken = container.operation ? container.operation->commitToken : 0;
   return input;
 }
 
@@ -80,7 +78,7 @@ std::vector<std::string> prependedTo(const std::vector<std::string>& keys, const
  * How far below the top of the screen the row with this key starts.
  */
 double belowViewportTop(const Container& container, const std::string& key) {
-  return offsetOf(container, container.findElementIndexByKey(key)) - container.revision.containerOffsetY;
+  return offsetOf(container, container.indexOfKey(key)) - container.revision.offsetY;
 }
 
 /*
@@ -89,19 +87,19 @@ double belowViewportTop(const Container& container, const std::string& key) {
  */
 void mountRows(Container& container, const std::vector<std::string>& keys, double height) {
   for (const std::string& key : keys) {
-    Virtualizer::updateElementAtIndex(container, container.findElementIndexByKey(key), {WINDOW_WIDTH, 0.0});
+    Virtualizer::updateRowAtIndex(container, container.indexOfKey(key), {WINDOW_WIDTH, 0.0});
   }
   std::size_t lowestChangedIndex = UNDEFINED_INDEX;
   for (const std::string& key : keys) {
-    std::size_t index = container.findElementIndexByKey(key);
-    if (Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, height}) && index < lowestChangedIndex) {
+    std::size_t index = container.indexOfKey(key);
+    if (Virtualizer::applyRowSize(container, index, {WINDOW_WIDTH, height}) && index < lowestChangedIndex) {
       lowestChangedIndex = index;
     }
   }
   if (lowestChangedIndex != UNDEFINED_INDEX) {
-    Virtualizer::commitElementSizes(container, lowestChangedIndex);
+    Virtualizer::commitRowSizes(container, lowestChangedIndex);
   }
-  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::recomputeContentSize(container);
 }
 
 std::vector<std::string> keyRange(const std::vector<std::string>& keys, std::size_t from, std::size_t to) {
@@ -134,11 +132,11 @@ TEST(prepend_while_bouncing_at_the_top_edge_survives_its_own_offset_write) {
   Virtualizer::update(container, prepend);
   CHECK(container.operation.has_value());
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
-  std::uint64_t token = container.operation ? container.operation->id : 0;
+  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
 
   Virtualizer::update(container, publishedCorrection(container, prepend));
   CHECK(container.operation.has_value());
-  CHECK(container.containerOffsetCorrected);
+  CHECK(container.offsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
 
   // The bounce moves the view 12 pixels down to the edge before the host applies the offset.
@@ -149,11 +147,11 @@ TEST(prepend_while_bouncing_at_the_top_edge_survives_its_own_offset_write) {
   Virtualizer::update(container, publishedCorrection(container, spring));
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
 
-  double applied = container.revision.containerOffsetY;
+  double applied = container.revision.offsetY;
   Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Settling, token));
   CHECK(!container.operation.has_value());
   Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
-  CHECK(!container.containerOffsetCorrected);
+  CHECK(!container.offsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
   checkNoRowLost(container, "prepend while bouncing at the top edge");
 }
@@ -179,7 +177,7 @@ TEST(prepend_while_bouncing_holds_while_the_new_rows_measure_unlike_their_estima
   FrameInput prepend = topEdgeReport(grown, 0.0, fixture, ScrollPhase::Settling, 0);
   Virtualizer::update(container, prepend);
   Virtualizer::update(container, prepend);
-  std::uint64_t token = container.operation ? container.operation->id : 0;
+  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
   CHECK(token != 0);
   Virtualizer::update(container, publishedCorrection(container, prepend));
 
@@ -189,17 +187,17 @@ TEST(prepend_while_bouncing_holds_while_the_new_rows_measure_unlike_their_estima
   CHECK(container.operation.has_value());
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
 
-  double applied = container.revision.containerOffsetY;
+  double applied = container.revision.offsetY;
   Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Settling, token));
   CHECK(!container.operation.has_value());
 
   mountRows(container, keyRange(fresh, 5, 10), 60.0);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   Virtualizer::update(container, publishedCorrection(container, prepend));
-  double rest = container.revision.containerOffsetY;
+  double rest = container.revision.offsetY;
   Virtualizer::update(container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
   Virtualizer::update(container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
-  CHECK(!container.containerOffsetCorrected);
+  CHECK(!container.offsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   checkNoRowLost(container, "prepend while bouncing with remeasured rows");
 }
@@ -222,7 +220,7 @@ TEST(two_prepends_in_quick_succession_while_bouncing_hold_the_first_row) {
   FrameInput firstPrepend = topEdgeReport(first, 0.0, fixture, ScrollPhase::Settling, 0);
   Virtualizer::update(container, firstPrepend);
   Virtualizer::update(container, firstPrepend);
-  std::uint64_t token = container.operation ? container.operation->id : 0;
+  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
   CHECK(token != 0);
   Virtualizer::update(container, publishedCorrection(container, firstPrepend));
 
@@ -231,7 +229,7 @@ TEST(two_prepends_in_quick_succession_while_bouncing_hold_the_first_row) {
   Virtualizer::update(container, secondPrepend);
   Virtualizer::update(container, secondPrepend);
   CHECK(container.operation.has_value());
-  CHECK(container.operation && container.operation->id == token);
+  CHECK(container.operation && container.operation->commitToken == token);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   Virtualizer::update(container, publishedCorrection(container, secondPrepend));
 
@@ -241,11 +239,11 @@ TEST(two_prepends_in_quick_succession_while_bouncing_hold_the_first_row) {
   Virtualizer::update(container, publishedCorrection(container, secondPrepend));
   CHECK(container.operation.has_value());
 
-  double applied = container.revision.containerOffsetY;
+  double applied = container.revision.offsetY;
   Virtualizer::update(container, topEdgeReport(second, applied, fixture, ScrollPhase::Settling, token));
   CHECK(!container.operation.has_value());
   Virtualizer::update(container, topEdgeReport(second, applied, fixture, ScrollPhase::Idle, token));
-  CHECK(!container.containerOffsetCorrected);
+  CHECK(!container.offsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   checkNoRowLost(container, "two prepends in quick succession while bouncing");
 }
@@ -269,26 +267,26 @@ TEST(prepend_whose_bounce_ends_before_the_correction_lands_is_confirmed_by_its_e
   FrameInput prepend = topEdgeReport(grown, 16.0, fixture, ScrollPhase::Settling, 0);
   Virtualizer::update(container, prepend);
   Virtualizer::update(container, prepend);
-  std::uint64_t token = container.operation ? container.operation->id : 0;
+  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
   CHECK(token != 0);
-  double firstTarget = container.revision.containerOffsetY;
+  double firstTarget = container.revision.offsetY;
   Virtualizer::update(container, publishedCorrection(container, prepend));
 
   mountRows(container, keysFor(10, "fresh"), 150.0);
   Virtualizer::update(container, publishedCorrection(container, prepend));
-  double retarget = container.revision.containerOffsetY;
+  double retarget = container.revision.offsetY;
 
   // The host came to rest at the edge, 16 pixels past the report, and shifted by the correction.
   double echoed = 0.0 + (firstTarget - 16.0);
   Virtualizer::update(container, topEdgeReport(grown, echoed, fixture, ScrollPhase::Idle, token));
   CHECK(!container.operation.has_value());
-  CHECK(!container.containerOffsetCorrected);
+  CHECK(!container.offsetCorrected);
 
   // The updated target applies next and moves the view by the difference.
   double rest = echoed + (retarget - firstTarget);
   Virtualizer::update(container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
   Virtualizer::update(container, topEdgeReport(grown, rest, fixture, ScrollPhase::Idle, token));
-  CHECK(!container.containerOffsetCorrected);
+  CHECK(!container.offsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
   checkNoRowLost(container, "prepend whose bounce ends before the correction lands");
 }
@@ -311,21 +309,21 @@ TEST(prepend_while_bouncing_follows_the_idle_report_of_the_bounce_ending) {
   FrameInput prepend = topEdgeReport(grown, 24.0, fixture, ScrollPhase::Settling, 0);
   Virtualizer::update(container, prepend);
   Virtualizer::update(container, prepend);
-  std::uint64_t token = container.operation ? container.operation->id : 0;
+  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
   CHECK(token != 0);
   Virtualizer::update(container, publishedCorrection(container, prepend));
 
   FrameInput rested = topEdgeReport(grown, 0.0, fixture, ScrollPhase::Idle, 0);
   Virtualizer::update(container, rested);
   CHECK(container.operation.has_value());
-  CHECK(container.containerOffsetCorrected);
+  CHECK(container.offsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
 
-  double applied = container.revision.containerOffsetY;
+  double applied = container.revision.offsetY;
   Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
   CHECK(!container.operation.has_value());
   Virtualizer::update(container, topEdgeReport(grown, applied, fixture, ScrollPhase::Idle, token));
-  CHECK(!container.containerOffsetCorrected);
+  CHECK(!container.offsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), TOP_EDGE_HEADER, 0.5);
   checkNoRowLost(container, "prepend while bouncing with the bounce ending reported idle");
 }
@@ -352,25 +350,69 @@ TEST(prepend_after_a_pull_to_refresh_keeps_its_retarget_through_the_echo_of_the_
   refresh.userScrolled = true;
   Virtualizer::update(container, refresh);
   Virtualizer::update(container, refresh);
-  std::uint64_t token = container.operation ? container.operation->id : 0;
+  std::uint64_t token = container.operation ? container.operation->commitToken : 0;
   CHECK(token != 0);
-  double firstTarget = container.revision.containerOffsetY;
+  double firstTarget = container.revision.offsetY;
   Virtualizer::update(container, publishedCorrection(container, refresh));
 
   mountRows(container, keysFor(10, "fresh"), 60.0);
   Virtualizer::update(container, publishedCorrection(container, refresh));
-  double retarget = container.revision.containerOffsetY;
+  double retarget = container.revision.offsetY;
   CHECK(std::fabs(retarget - firstTarget) > 100.0);
 
   Virtualizer::update(container, topEdgeReport(grown, firstTarget, fixture, ScrollPhase::Idle, token));
   CHECK(container.operation.has_value());
-  CHECK(container.containerOffsetCorrected);
-  CHECK_NEAR(container.revision.containerOffsetY, retarget, 0.5);
+  CHECK(container.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, retarget, 0.5);
 
   Virtualizer::update(container, topEdgeReport(grown, retarget, fixture, ScrollPhase::Idle, token));
   Virtualizer::update(container, topEdgeReport(grown, retarget, fixture, ScrollPhase::Idle, token));
   CHECK(!container.operation.has_value());
-  CHECK(!container.containerOffsetCorrected);
+  CHECK(!container.offsetCorrected);
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   checkNoRowLost(container, "prepend after a pull-to-refresh with a retarget before the echo");
+}
+
+// Fling into the end of the list
+
+/*
+ * A fling lands on the end while the last rows are still estimates. They measure shorter and
+ * the end moves in. The layout pass's correction must stay inside the new scroll range. A
+ * write past it is clamped by the host, and the next correction would apply the gap again.
+ */
+TEST(fling_into_shorter_last_rows_keeps_the_correction_inside_the_range) {
+  Fixture fixture;
+  std::vector<std::string> keys = keysFor(100);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(90, ESTIMATED_ROW_HEIGHT));
+
+  double end = 100.0 * ESTIMATED_ROW_HEIGHT - WINDOW_HEIGHT;
+  FrameInput report = inputFor(keys, end, fixture);
+  report.userScrolled = true;
+  report.scrollPhase = ScrollPhase::Settling;
+  Virtualizer::update(container, report);
+  CHECK(!container.offsetCorrected);
+
+  // The layout pass measures the mounted rows near the end at a third of the estimate.
+  std::size_t lowest = UNDEFINED_INDEX;
+  for (std::size_t index = 90; index < 100; ++index) {
+    if (Virtualizer::applyRowSize(container, index, {WINDOW_WIDTH, 40.0}) && index < lowest) {
+      lowest = index;
+    }
+  }
+  Virtualizer::commitRowSizes(container, lowest);
+  Virtualizer::recomputeContentSize(container);
+
+  double newEnd = container.revision.contentHeight - WINDOW_HEIGHT;
+  CHECK_NEAR(newEnd, 90.0 * ESTIMATED_ROW_HEIGHT + 10.0 * 40.0 - WINDOW_HEIGHT, 0.001);
+  CHECK(container.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, newEnd, 0.001);
+
+  // The next frame finds the view at the end and has nothing left to correct.
+  FrameInput own = report;
+  own.offsetY = container.revision.offsetY;
+  own.offsetEnabled = true;
+  Virtualizer::update(container, own);
+  CHECK(!container.operation.has_value());
 }

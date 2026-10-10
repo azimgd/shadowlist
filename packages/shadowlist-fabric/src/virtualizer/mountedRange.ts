@@ -1,7 +1,7 @@
 import { SHADOWLIST_OVERSCAN } from './helpers';
 
 /*
- * The mounted range, low to high. Mounts overscanRows extra rows on each side of the screen
+ * The mounted range, low to high. Mounts mountOverscanRows extra rows on each side of the screen
  * and only re-renders when the screen leaves that range.
  */
 export interface MountedRange {
@@ -14,7 +14,7 @@ export function initialMountedRange(
   initial: number,
   inverted: boolean,
   offsetIndex: number,
-  overscanRows: number = SHADOWLIST_OVERSCAN,
+  mountOverscanRows: number = SHADOWLIST_OVERSCAN,
   viewPosition: number = 0
 ): MountedRange {
   if (size <= 0) return { low: -1, high: -1 };
@@ -29,7 +29,7 @@ export function initialMountedRange(
     const target = Math.min(offsetIndex, size - 1);
     const before = Math.round(viewPosition * initial);
     return {
-      low: Math.max(0, target - overscanRows - before),
+      low: Math.max(0, target - mountOverscanRows - before),
       high: Math.min(size - 1, target + (initial - before)),
     };
   }
@@ -71,7 +71,7 @@ export function rangeToIndices(range: MountedRange): number[] {
 }
 
 /*
- * Whether a new containerOffsetIndex should rebuild the mounted rows around it, instead of
+ * Whether a new scrollIndex should rebuild the mounted rows around it, instead of
  * where native last reported. A negative value means no target, and must not pull a reader
  * who scrolled away back to the start.
  */
@@ -83,16 +83,16 @@ export function shouldReseedFromOffsetIndex(
 }
 
 /*
- * One step from the mounted range toward the target: rows on screen (window) mount right
+ * One step from the mounted range toward the target: measured rows mount right
  * away, the overscan beyond them grows by at most step rows per end. Mounting a whole
- * overscan pad at once put ten or more new rows, each a fresh subtree, into one commit and
+ * overscan pad at once puts ten or more new rows, each a fresh subtree, into one commit and
  * one long frame on both threads. Shrinking is never paced. A target that doesn't overlap
- * the mounted rows, like after a jump, grows from the window instead.
+ * the mounted rows, like after a jump, grows from the measured range instead.
  */
 export function stepMountedRange(
   current: MountedRange,
   target: MountedRange,
-  window: MountedRange,
+  measured: MountedRange,
   step: number
 ): MountedRange {
   const disjoint =
@@ -100,28 +100,28 @@ export function stepMountedRange(
     current.high < 0 ||
     target.low > current.high ||
     target.high < current.low;
-  const base = disjoint ? window : current;
+  const base = disjoint ? measured : current;
   const low =
     target.low >= base.low
       ? target.low
-      : Math.max(target.low, Math.min(base.low - step, window.low));
+      : Math.max(target.low, Math.min(base.low - step, measured.low));
   const high =
     target.high <= base.high
       ? target.high
-      : Math.min(target.high, Math.max(base.high + step, window.high));
+      : Math.min(target.high, Math.max(base.high + step, measured.high));
   return { low, high };
 }
 
 /*
- * Overscan rows added per step, at least a quarter of the window so a fling over short rows
+ * Overscan rows added per step, at least a quarter of the measured range so a fling over short rows
  * still builds a leading pad within a few frames.
  */
-export function mountStepForWindow(
-  window: MountedRange,
+export function mountStepForRange(
+  measured: MountedRange,
   minimumStep: number
 ): number {
-  const windowCount = window.high - window.low + 1;
-  return Math.max(minimumStep, Math.ceil(windowCount / 4));
+  const measuredRows = measured.high - measured.low + 1;
+  return Math.max(minimumStep, Math.ceil(measuredRows / 4));
 }
 
 /*
@@ -140,12 +140,14 @@ export function grownMountedRange(
   lowAtStart: boolean,
   highAtEnd: boolean,
   size: number,
-  overscanRowsLeading: number,
+  mountOverscanRowsLeading: number,
   followTail: boolean
 ): MountedRange {
   const low = Math.min(lowIndex, highIndex);
   const high = Math.max(lowIndex, highIndex);
-  const grownLow = lowAtStart ? Math.max(0, low - overscanRowsLeading) : low;
+  const grownLow = lowAtStart
+    ? Math.max(0, low - mountOverscanRowsLeading)
+    : low;
   if (followTail && highAtEnd) {
     const tailHigh = size - 1;
     const tailLow = tailHigh - (high - low) - MAX_FOLLOWED_APPEND;
@@ -153,66 +155,73 @@ export function grownMountedRange(
   }
   return {
     low: grownLow,
-    high: highAtEnd ? Math.min(size - 1, high + overscanRowsLeading) : high,
+    high: highAtEnd
+      ? Math.min(size - 1, high + mountOverscanRowsLeading)
+      : high,
   };
 }
 
 /*
- * Where the mounted range should end up for a visible window, with the leading pad on the side
- * the window moved toward.
+ * Where the mounted range should end up for a measured range, with the leading pad on the side
+ * the measured range moved toward.
  */
 export function visibleTargetRange(
-  window: MountedRange,
-  previousWindow: MountedRange | null,
+  measured: MountedRange,
+  previousMeasured: MountedRange | null,
   size: number,
-  overscanRows: number,
-  overscanRowsLeading: number
+  mountOverscanRows: number,
+  mountOverscanRowsLeading: number
 ): MountedRange {
-  const movingForward = previousWindow
-    ? window.low > previousWindow.low
+  const movingForward = previousMeasured
+    ? measured.low > previousMeasured.low
     : false;
-  const movingBackward = previousWindow
-    ? window.low < previousWindow.low
+  const movingBackward = previousMeasured
+    ? measured.low < previousMeasured.low
     : false;
-  const lowPad = movingBackward ? overscanRowsLeading : overscanRows;
-  const highPad = movingForward ? overscanRowsLeading : overscanRows;
+  const lowPad = movingBackward ? mountOverscanRowsLeading : mountOverscanRows;
+  const highPad = movingForward ? mountOverscanRowsLeading : mountOverscanRows;
   return {
-    low: Math.max(0, window.low - lowPad),
-    high: Math.min(size - 1, window.high + highPad),
+    low: Math.max(0, measured.low - lowPad),
+    high: Math.min(size - 1, measured.high + highPad),
   };
 }
 
 /*
  * The next step and its target for a visible rows report, or null to keep the range. The
- * first report always steps, which trims the initial range guessed before layout.
+ * first report always steps, which trims the initial range guessed before layout. A range
+ * that holds the screen is kept unless rows inserted inside it made it far bigger than the
+ * target, like a tree expanding every folder. Then it shrinks to the target.
  */
 export function reportedMountedRange(
   current: MountedRange,
-  window: MountedRange,
-  previousWindow: MountedRange | null,
+  measured: MountedRange,
+  previousMeasured: MountedRange | null,
   firstReport: boolean,
   size: number,
-  overscanRows: number,
-  overscanRowsLeading: number,
+  mountOverscanRows: number,
+  mountOverscanRowsLeading: number,
   minimumStep: number
 ): { range: MountedRange; target: MountedRange } | null {
-  const holdsWindow =
+  const holdsMeasured =
     current.low >= 0 &&
-    window.low >= current.low &&
-    window.high <= current.high;
-  if (holdsWindow && !firstReport) return null;
+    measured.low >= current.low &&
+    measured.high <= current.high;
   const target = visibleTargetRange(
-    window,
-    previousWindow,
+    measured,
+    previousMeasured,
     size,
-    overscanRows,
-    overscanRowsLeading
+    mountOverscanRows,
+    mountOverscanRowsLeading
   );
+  const targetCount = target.high - target.low + 1;
+  const excess = current.high - current.low + 1 - targetCount;
+  const oversized = excess > Math.max(targetCount, MAX_FOLLOWED_APPEND);
+  if (holdsMeasured && !firstReport && !oversized) return null;
   const range = stepMountedRange(
     current,
     target,
-    window,
-    mountStepForWindow(window, minimumStep)
+    measured,
+    mountStepForRange(measured, minimumStep)
   );
   return { range, target };
 }

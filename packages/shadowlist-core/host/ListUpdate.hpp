@@ -21,26 +21,26 @@ namespace azimgd::shadowlist {
  * data. A position past the end goes at the end: the k-th insert of the change lands at most at
  * previousCount + k. Hosts read the new keys at these positions.
  */
-std::vector<std::size_t> insertionPositions(std::vector<std::size_t> indices, std::size_t previousCount);
+std::vector<std::size_t> insertionIndices(std::vector<std::size_t> indices, std::size_t previousCount);
 
 /*
  * Positions of rows deleted from the old data: sorted, each one once. Positions past the end
  * name no row and are dropped.
  */
-std::vector<std::size_t> deletionPositions(std::vector<std::size_t> indices, std::size_t previousCount);
+std::vector<std::size_t> deletionIndices(std::vector<std::size_t> indices, std::size_t previousCount);
 
 /*
- * Where two key lists differ: the keys between the unchanged rows at both ends. The removed
- * keys run from start in the previous list, the added keys from start in the next one. An edit
+ * Where two key lists differ: the keys between the unchanged rows at both ends. The deleted
+ * keys run from start in the previous list, the inserted keys from start in the next one. An edit
  * at one end, like a prepend, is one splice the core applies without comparing every key.
  */
 struct KeySplice {
   std::size_t start = 0;
-  std::size_t removed = 0;
-  std::size_t added = 0;
+  std::size_t deleted = 0;
+  std::size_t inserted = 0;
 
   bool isEmpty() const {
-    return removed == 0 && added == 0;
+    return deleted == 0 && inserted == 0;
   }
 };
 
@@ -65,7 +65,10 @@ std::vector<std::size_t> rowsOfKeys(
  * its own through readKey, called with its index in the next data.
  */
 template <typename ReadKey>
-std::vector<std::string> keysFromPlan(const BatchPlan& plan, const std::vector<std::string>& previous, ReadKey readKey) {
+std::vector<std::string> keysFromPlan(
+  const BatchPlan& plan,
+  const std::vector<std::string>& previous,
+  ReadKey readKey) {
   std::vector<std::string> next;
   next.reserve(plan.sources.size());
   for (std::size_t index = 0; index < plan.sources.size(); ++index) {

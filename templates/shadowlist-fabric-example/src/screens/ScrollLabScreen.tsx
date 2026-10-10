@@ -215,7 +215,7 @@ export const ScrollLabScreen = () => {
           const range = getViewableRange(viewableItems);
           setViewableLine(
             range
-              ? `${range.firstIndex}–${range.lastIndex} (+${changed.filter((token) => token.isViewable).length})`
+              ? `${range.low}–${range.high} (+${changed.filter((token) => token.isViewable).length})`
               : '—'
           );
         },
@@ -228,30 +228,28 @@ export const ScrollLabScreen = () => {
         },
         onViewableItemsChanged: ({ viewableItems }) => {
           const range = getViewableRange(viewableItems);
-          setCoveredLine(
-            range ? `${range.firstIndex}–${range.lastIndex}` : '—'
-          );
+          setCoveredLine(range ? `${range.low}–${range.high}` : '—');
         },
       },
     ],
     []
   );
 
-  const renderElement = useCallback(
-    ({ element }: { element: LabRow }) => (
+  const renderItem = useCallback(
+    ({ item }: { item: LabRow }) => (
       <Pressable
-        onPress={() => setPressedLine(`row ${element.index}`)}
+        onPress={() => setPressedLine(`row ${item.index}`)}
         style={({ pressed }) => [
           styles.row,
-          element.index % marked === 0 && styles.marked,
+          item.index % marked === 0 && styles.marked,
           pressed && styles.pressed,
         ]}
         accessibilityRole="button"
-        accessibilityLabel={`Row ${element.index}`}
+        accessibilityLabel={`Row ${item.index}`}
       >
-        <Text style={styles.rowTitle}>{`Row ${element.index}`}</Text>
-        <Text style={styles.rowText} numberOfLines={element.lines}>
-          {Array.from({ length: element.lines }, () => FILLER).join(' ')}
+        <Text style={styles.rowTitle}>{`Row ${item.index}`}</Text>
+        <Text style={styles.rowText} numberOfLines={item.lines}>
+          {Array.from({ length: item.lines }, () => FILLER).join(' ')}
         </Text>
       </Pressable>
     ),
@@ -305,7 +303,7 @@ export const ScrollLabScreen = () => {
         ref={listRef}
         data={ROWS}
         style={styles.list}
-        renderElement={renderElement}
+        renderItem={renderItem}
         extraData={marked}
         numberOfColumns={Number(columns)}
         columnWrapperStyle={columns === '2' ? COLUMN_WRAPPER : undefined}

@@ -41,9 +41,10 @@ interface ShadowListKitBenchProbe {
 class ShadowListKitBench private constructor(private val activity: Activity, intent: Intent) : Choreographer.FrameCallback {
   companion object {
     private const val TAG = "SLBENCH"
+    private const val EXIT_DELAY_MS = 300L
 
     /*
-     * Pause between two axis runs, which lets the last run's work settle.
+     * Pause between two axis runs, which lets the previous run's work settle.
      */
     private const val RUN_GAP_MS = 500L
 
@@ -73,7 +74,7 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
   private var directionX = 1
   private var directionY = 1
   private var legs = 0
-  private var lastFrame = 0L
+  private var previousFrame = 0L
   private var legStart = 0L
   private var travel = 0.0
   private var remainderX = 0.0
@@ -122,7 +123,7 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
     directionY = vertical?.let { if (it.canScrollVertically(1)) 1 else -1 } ?: 1
     directionX = horizontal?.let { if (it.canScrollHorizontally(1)) 1 else -1 } ?: 1
     legs = 0
-    lastFrame = 0L
+    previousFrame = 0L
     travel = 0.0
     remainderX = 0.0
     remainderY = 0.0
@@ -173,14 +174,14 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
   }
 
   override fun doFrame(frameTimeNanos: Long) {
-    if (lastFrame == 0L) {
-      lastFrame = frameTimeNanos
+    if (previousFrame == 0L) {
+      previousFrame = frameTimeNanos
       legStart = frameTimeNanos
       Choreographer.getInstance().postFrameCallback(this)
       return
     }
-    val interval = (frameTimeNanos - lastFrame) / 1e6
-    lastFrame = frameTimeNanos
+    val interval = (frameTimeNanos - previousFrame) / 1e6
+    previousFrame = frameTimeNanos
     intervals.add(interval)
     sample()
     // A leg ends when its time is up or every driven axis stopped at an edge.
@@ -276,7 +277,7 @@ class ShadowListKitBench private constructor(private val activity: Activity, int
       handler.postDelayed({ startRun() }, RUN_GAP_MS)
       return
     }
-    if (exit) handler.postDelayed({ activity.finishAndRemoveTask(); Process.killProcess(Process.myPid()) }, 300)
+    if (exit) handler.postDelayed({ activity.finishAndRemoveTask(); Process.killProcess(Process.myPid()) }, EXIT_DELAY_MS)
   }
 }
 

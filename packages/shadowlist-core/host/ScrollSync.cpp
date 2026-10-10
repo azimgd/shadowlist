@@ -35,7 +35,7 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
     action.kind = MountAction::Kind::RetargetJump;
     action.offsetX = state.offsetX;
     action.offsetY = state.offsetY;
-    action.token = token;
+    action.commitToken = token;
     if (token != 0) {
       shiftedToken_ = token;
       shiftedTokenDelta_ = target - base;
@@ -86,7 +86,13 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
     double delta = target - base;
     // The core resends the full correction until it is echoed. Shift only by what is left.
     if (token != 0) {
-      double unapplied = token == shiftedToken_ ? delta - shiftedTokenDelta_ : delta;
+      double applied = 0.0;
+      if (token == shiftedToken_) {
+        applied = shiftedTokenDelta_;
+      } else if (token == writtenToken_) {
+        applied = writtenTokenDelta_;
+      }
+      double unapplied = delta - applied;
       shiftedToken_ = token;
       shiftedTokenDelta_ = delta;
       delta = unapplied;
@@ -95,6 +101,13 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
       std::max(view.minOffset, view.maxOffset));
     offsetX = horizontal_ ? shifted : view.offsetX;
     offsetY = horizontal_ ? view.offsetY : shifted;
+  } else if (token != 0) {
+    /*
+     * The write applies the whole correction. A later mount of the same token that shifts,
+     * like Android mounting the state again once the write moved the view, adds only what is left.
+     */
+    writtenToken_ = token;
+    writtenTokenDelta_ = target - base;
   }
 
   /*
@@ -106,13 +119,13 @@ MountAction ScrollSync::correction(const ViewMotion& view) {
   action.kind = MountAction::Kind::Write;
   action.offsetX = offsetX;
   action.offsetY = offsetY;
-  action.token = token;
+  action.commitToken = token;
   action.shifted = shift;
   return action;
 }
 
 void ScrollSync::willWrite(const MountAction& action) {
-  arm(action.offsetX, action.offsetY, false, action.token, !action.shifted && options_.exactEcho);
+  arm(action.offsetX, action.offsetY, false, action.commitToken, !action.shifted && options_.exactEcho);
 }
 
 void ScrollSync::didWrite(bool moved) {
@@ -259,7 +272,7 @@ ScrollPatch ScrollSync::push(const LiveScroll::Report& report) {
     patch.commandIndex = commandIndex_;
     patch.commandSequence = commandSequence_;
     patch.commandViewPosition = commandViewPosition_;
-    patch.commandRowOffset = commandRowOffset_;
+    patch.commandViewOffset = commandViewOffset_;
     patch.commandAnimated = commandAnimated_;
   }
   if (anchorRequestSequence_ > 0) {
@@ -305,7 +318,7 @@ ScrollPatch ScrollSync::issueCommand(
   }
   commandIndex_ = command.index;
   commandViewPosition_ = command.viewPosition;
-  commandRowOffset_ = command.rowOffset;
+  commandViewOffset_ = command.viewOffset;
   commandAnimated_ = command.animated;
   commandSequence_ = std::max(mounted_.commandSequence, commandSequence_) + 1;
   ScrollPatch patch = momentumYielded ? livePatch(offsetX, offsetY, false, SCROLL_PHASE_IDLE)
@@ -327,7 +340,7 @@ std::optional<ScrollPatch> ScrollSync::land(double offsetX, double offsetY) {
     armedExact_ = false;
     armedToken_ = 0;
   }
-  ScrollCommand command{commandIndex_, commandViewPosition_, commandRowOffset_, false};
+  ScrollCommand command{commandIndex_, commandViewPosition_, commandViewOffset_, false};
   return issueCommand(command, offsetX, offsetY, true);
 }
 

@@ -17,7 +17,9 @@ abstract class ListScreen(val context: Context, val engine: Engine, inverted: Bo
   val list = ListController(context, engine, inverted, columns)
   override val view: View get() = list.backend.view
 
-  // Items generated so far. New ones continue the numbering.
+  /*
+   * Items generated so far. New ones continue the numbering.
+   */
   protected var generated = 0
 
   abstract override fun load()
@@ -124,7 +126,9 @@ class GalleryScreen(context: Context, engine: Engine) : ListScreen(context, engi
 object Routes {
   val names = listOf("Feed", "Chat", "SectionList", "Masonry")
 
-  // Feature screens, which always run on ShadowListKitListView.
+  /*
+   * Feature screens, which always run on ShadowListKitListView.
+   */
   val features = listOf("Reorder", "ReorderGrid", "Snap", "Horizontal", "Changes", "Collapsing", "Sections", "Inbox")
 
   fun make(name: String, context: Context, engine: Engine): Screen? = when (name) {
@@ -154,6 +158,9 @@ class MainActivity : Activity() {
     super.onCreate(savedInstanceState)
     Settings.read(intent)
     LaunchArgs.set(intent)
+    // The screens are light: dark status and navigation bar icons, or they vanish edge to edge.
+    @Suppress("DEPRECATION")
+    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
     val route = Settings.route
     val screen = route?.let { Routes.make(it, this, Settings.engine) }
     if (screen == null) {

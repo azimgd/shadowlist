@@ -1,28 +1,29 @@
-export interface CollectExpandableIdsOptions<NodeT> {
+export interface CollectExpandableKeysOptions<NodeT> {
   getChildren: (node: NodeT) => ReadonlyArray<NodeT> | undefined;
   keyExtractor: (node: NodeT) => string;
 }
 
-/**
- * The id of every node with at least one child, at any depth. Use it as `expandedIds` for
+/*
+ * The key of every node with at least one child, at any depth. Use it as `expandedKeys` for
  * an expand all action on a TreeList. It uses a loop. Deep trees can't overflow the stack.
  *
- * @example
- * setExpandedIds(new Set(collectExpandableIds(tree, { getChildren, keyExtractor })));
+ * For example:
+ *
+ *   setExpandedKeys(new Set(collectExpandableKeys(tree, { getChildren, keyExtractor })));
  */
-export function collectExpandableIds<NodeT>(
+export function collectExpandableKeys<NodeT>(
   nodes: ReadonlyArray<NodeT>,
-  { getChildren, keyExtractor }: CollectExpandableIdsOptions<NodeT>
+  { getChildren, keyExtractor }: CollectExpandableKeysOptions<NodeT>
 ): string[] {
-  const ids: string[] = [];
+  const keys: string[] = [];
   const stack = [...nodes];
   while (stack.length > 0) {
     const node = stack.pop()!;
     const children = getChildren(node);
     if (children && children.length > 0) {
-      ids.push(keyExtractor(node));
+      keys.push(keyExtractor(node));
       stack.push(...children);
     }
   }
-  return ids;
+  return keys;
 }

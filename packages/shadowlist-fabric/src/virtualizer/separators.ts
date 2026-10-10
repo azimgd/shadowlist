@@ -59,7 +59,7 @@ export class SeparatorStore {
 }
 
 /*
- * A separator is a component when it takes props. An element, or a function
+ * A separator is a component when it takes props. A React element, or a function
  * without parameters, renders once and every row shares it.
  */
 export function separatorComponentOf<PropsT>(

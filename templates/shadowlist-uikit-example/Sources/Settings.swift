@@ -5,13 +5,21 @@ import Foundation
  * -SLDebug 1. -SLEngine picks the list implementation.
  */
 enum Engine: String, CaseIterable {
-  // ShadowListKitListView with sizes from the precomputed layouts.
+  /*
+   * ShadowListKitListView with sizes from the precomputed layouts.
+   */
   case shadowlist = "sl"
-  // ShadowListKitListView measuring each row through its cell's sizeThatFits on the main thread.
+  /*
+   * ShadowListKitListView measuring each row through its cell's sizeThatFits on the main thread.
+   */
   case shadowlistAuto = "sl-auto"
-  // UITableView with heightForRowAt from the same precomputed layouts.
+  /*
+   * UITableView with heightForRowAt from the same precomputed layouts.
+   */
   case table = "table"
-  // UITableView with self-sizing rows and an estimated height.
+  /*
+   * UITableView with self-sizing rows and an estimated height.
+   */
   case tableAuto = "table-auto"
 
   var title: String {

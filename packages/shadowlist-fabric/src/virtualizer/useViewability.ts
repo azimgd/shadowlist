@@ -6,15 +6,15 @@ import type { MountedRange } from './mountedRange';
 import {
   activeStickyIndexFor,
   viewableRulesFor,
-  viewableWindow,
+  viewableRange,
   ViewabilityTracker,
 } from './viewability';
 
-interface UseViewabilityOptions<ElementT> {
-  data: ReadonlyArray<ElementT>;
+interface UseViewabilityOptions<ItemT> {
+  data: ReadonlyArray<ItemT>;
   keys: ReadonlyArray<string>;
   stickyIndices: ReadonlyArray<number> | undefined;
-  pairs: ReadonlyArray<ViewabilityConfigCallbackPair<ElementT>>;
+  pairs: ReadonlyArray<ViewabilityConfigCallbackPair<ItemT>>;
 }
 
 interface UseViewabilityResult {
@@ -32,21 +32,21 @@ interface UseViewabilityResult {
  * pinned. Both come from the native viewable ranges event, one range per rule. The first rule
  * is any overlap and picks the pinned header. The rest follow the configs in order.
  */
-export function useViewability<ElementT>({
+export function useViewability<ItemT>({
   data,
   keys,
   stickyIndices,
   pairs,
-}: UseViewabilityOptions<ElementT>): UseViewabilityResult {
+}: UseViewabilityOptions<ItemT>): UseViewabilityResult {
   const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
 
   const updateActiveStickyIndex = useCallback(
-    (windowLow: number) => {
+    (rangeLow: number) => {
       if (!stickyIndices || stickyIndices.length === 0) {
         setActiveStickyIndex((previous) => (previous === -1 ? previous : -1));
         return;
       }
-      const active = activeStickyIndexFor(stickyIndices, windowLow);
+      const active = activeStickyIndexFor(stickyIndices, rangeLow);
       setActiveStickyIndex((previous) =>
         previous === active ? previous : active
       );
@@ -74,7 +74,7 @@ export function useViewability<ElementT>({
    * One tracker per pair. A tracker keeps what it reported and its timer, and picks up a new
    * config or callback in place.
    */
-  const trackersRef = useRef<ViewabilityTracker<ElementT>[]>([]);
+  const trackersRef = useRef<ViewabilityTracker<ItemT>[]>([]);
   const trackers = trackersRef.current;
   while (trackers.length > pairs.length) trackers.pop()!.dispose();
   pairs.forEach((pair, position) => {
@@ -101,7 +101,7 @@ export function useViewability<ElementT>({
   dataRef.current = { data, keys };
   const buildViewableItems = useCallback((low: number, high: number) => {
     const { data: currentData, keys: currentKeys } = dataRef.current;
-    const viewableItems: ViewToken<ElementT>[] = [];
+    const viewableItems: ViewToken<ItemT>[] = [];
     for (let index = low; index <= high; index++) {
       const item = currentData[index];
       if (!item) continue;
@@ -116,13 +116,13 @@ export function useViewability<ElementT>({
   }, []);
 
   /*
-   * The last reported windows and the data length at that time. The effect below reuses them
+   * The last reported ranges and the data length at that time. The effect below reuses them
    * on a data change, and the length tells a plain reorder apart from an insert or remove.
    */
-  const windowsRef = useRef<{
-    windows: (MountedRange | null)[];
+  const viewableRangesRef = useRef<{
+    viewableRanges: (MountedRange | null)[];
     dataLength: number;
-  }>({ windows: [], dataLength: 0 });
+  }>({ viewableRanges: [], dataLength: 0 });
 
   const handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
     OnViewableIndicesChange,
@@ -131,20 +131,20 @@ export function useViewability<ElementT>({
     (event) => {
       const { ranges } = event.nativeEvent;
       // The sticky overlay shows the section of the top visible row.
-      const anyOverlap = viewableWindow(ranges[0] ?? -1, ranges[1] ?? -1);
+      const anyOverlap = viewableRange(ranges[0] ?? -1, ranges[1] ?? -1);
       if (anyOverlap) {
         updateActiveStickyIndex(anyOverlap.low);
       }
-      const windows: (MountedRange | null)[] = [];
+      const viewableRanges: (MountedRange | null)[] = [];
       trackersRef.current.forEach((tracker, position) => {
-        const start = ranges[2 + position * 2] ?? -1;
-        const end = ranges[3 + position * 2] ?? -1;
-        const window = viewableWindow(start, end);
-        windows.push(window);
-        tracker.update(window, buildViewableItems);
+        const low = ranges[2 + position * 2] ?? -1;
+        const high = ranges[3 + position * 2] ?? -1;
+        const range = viewableRange(low, high);
+        viewableRanges.push(range);
+        tracker.update(range, buildViewableItems);
       });
-      windowsRef.current = {
-        windows,
+      viewableRangesRef.current = {
+        viewableRanges,
         dataLength: dataRef.current.data.length,
       };
     },
@@ -156,18 +156,18 @@ export function useViewability<ElementT>({
    * event. Check again whenever data changes.
    */
   useEffect(() => {
-    const record = windowsRef.current;
+    const record = viewableRangesRef.current;
     /*
      * Only a change with the same length can be a plain reorder. An insert or remove shifts
-     * indices and the old range would report the wrong rows. Native sends a fixed event then.
+     * indices and the previous range would report the wrong rows. Native sends a fixed event then.
      */
     if (record.dataLength !== data.length) {
       record.dataLength = data.length;
       return;
     }
     trackersRef.current.forEach((tracker, position) => {
-      const window = record.windows[position];
-      if (window) tracker.update(window, buildViewableItems);
+      const range = record.viewableRanges[position];
+      if (range) tracker.update(range, buildViewableItems);
     });
   }, [data, buildViewableItems]);
 

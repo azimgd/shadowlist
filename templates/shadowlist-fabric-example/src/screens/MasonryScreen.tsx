@@ -20,9 +20,10 @@ export const MasonryScreen = () => {
     onPrepend: () => publishPhotos(10),
     onAppend: list.onEndReached,
     onScrollToRandom: () =>
-      shadowlistRef.current?.scrollToItem(
-        Math.floor(Math.random() * list.data.length)
-      ),
+      shadowlistRef.current?.scrollToIndex({
+        index: Math.floor(Math.random() * list.data.length),
+        animated: false,
+      }),
     prependLabel: 'Publish New Photos',
     appendLabel: 'Load More Photos',
   });
