@@ -175,7 +175,7 @@ export function useMountedRange({
 
   const mountedIndices = useMemo(() => {
     const current = resolveRange(mountedKeys);
-    if (commandSeed === null || mountedKeys === null) {
+    if (commandSeed === null) {
       return rangeToIndices(current);
     }
     const target = initialMountedRange(
@@ -186,7 +186,21 @@ export function useMountedRange({
       overscanRows,
       commandSeed.viewPosition
     );
-    return unionRangeIndices(current, target);
+    /*
+     * A list resting where it opened has had no report that changed its range. Its rows on
+     * screen are still the initial ones and stay mounted until the jump lands.
+     */
+    const onScreen =
+      mountedKeys === null
+        ? initialMountedRange(
+            keys.length,
+            initialElementsSize,
+            inverted,
+            containerOffsetIndex,
+            overscanRows
+          )
+        : current;
+    return unionRangeIndices(onScreen, target);
   }, [
     resolveRange,
     mountedKeys,
@@ -194,6 +208,7 @@ export function useMountedRange({
     keys.length,
     initialElementsSize,
     inverted,
+    containerOffsetIndex,
     overscanRows,
   ]);
 

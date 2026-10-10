@@ -141,6 +141,10 @@ export function useImperativeCommands(
         typeof offsetOrParams === 'number'
           ? { offset: offsetOrParams, animated: animated ?? true }
           : offsetOrParams;
+      // The start is the one offset whose rows are known. Mount them before the jump.
+      if (params.offset <= 0 && sourceRef.current.data.length > 0) {
+        sourceRef.current.seedAroundIndex(0, 0);
+      }
       Commands.scrollToOffset(
         viewRef.current,
         params.offset,
@@ -156,6 +160,11 @@ export function useImperativeCommands(
         typeof animatedOrParams === 'object'
           ? (animatedOrParams.animated ?? true)
           : (animatedOrParams ?? true);
+      // Mount the last rows first. A host that lands at once would show them blank.
+      const count = sourceRef.current.data.length;
+      if (count > 0) {
+        sourceRef.current.seedAroundIndex(count - 1, 1);
+      }
       Commands.scrollToEnd(viewRef.current, animated);
     };
 
