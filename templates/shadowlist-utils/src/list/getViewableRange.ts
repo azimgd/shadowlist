@@ -1,6 +1,6 @@
 export interface ViewableRange {
-  firstIndex: number;
-  lastIndex: number;
+  low: number;
+  high: number;
 }
 
 /*
@@ -18,11 +18,11 @@ export function getViewableRange(
   viewableItems: ReadonlyArray<{ index: number }>
 ): ViewableRange | undefined {
   if (viewableItems.length === 0) return undefined;
-  let firstIndex = Infinity;
-  let lastIndex = -Infinity;
+  let low = Infinity;
+  let high = -Infinity;
   for (const { index } of viewableItems) {
-    if (index < firstIndex) firstIndex = index;
-    if (index > lastIndex) lastIndex = index;
+    if (index < low) low = index;
+    if (index > high) high = index;
   }
-  return { firstIndex, lastIndex };
+  return { low, high };
 }

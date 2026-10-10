@@ -16,8 +16,8 @@ export interface TemplateListProps<R extends TemplateRow> {
   templates: TemplateMap<R>;
   horizontal?: boolean;
   style?: ViewStyle;
-  elementStyle?: ViewStyle;
-  initialElementsSize?: number;
+  itemStyle?: ViewStyle;
+  initialNumToRender?: number;
   testID?: string;
   accessibilityLabel?: string;
   accessibilityRole?: AccessibilityRole;
@@ -34,19 +34,19 @@ export const TemplateList = <R extends TemplateRow>({
   templates,
   horizontal = false,
   style,
-  elementStyle,
-  initialElementsSize = 56,
+  itemStyle,
+  initialNumToRender = 56,
   testID,
   accessibilityLabel,
   accessibilityRole,
   listRef,
 }: TemplateListProps<R>) => {
-  const renderElement = useCallback(
-    ({ element }: { element: R }) => {
+  const renderItem = useCallback(
+    ({ item }: { item: R }) => {
       const render = (
         templates as unknown as Record<string, (row: R) => ReactElement | null>
-      )[element.kind];
-      return render?.(element) ?? <></>;
+      )[item.kind];
+      return render?.(item) ?? <></>;
     },
     [templates]
   );
@@ -54,11 +54,11 @@ export const TemplateList = <R extends TemplateRow>({
     <ShadowList
       ref={listRef}
       data={data}
-      renderElement={renderElement}
+      renderItem={renderItem}
       horizontal={horizontal}
       style={style}
-      elementStyle={elementStyle}
-      initialElementsSize={initialElementsSize}
+      itemStyle={itemStyle}
+      initialNumToRender={initialNumToRender}
       testID={testID}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}

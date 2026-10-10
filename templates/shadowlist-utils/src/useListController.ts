@@ -15,11 +15,12 @@ const timers = globalThis as unknown as {
  */
 
 export interface UseListControllerOptions<
-  ElementT,
+  ItemT,
   ScrollEventT = unknown,
   ViewableInfoT = unknown,
 > {
-  initialData?: readonly ElementT[];
+  initialData?: readonly ItemT[];
+  keyExtractor?: (item: ItemT) => string;
   onRefresh?: () => void | Promise<void>;
   onEndReached?: () => void | Promise<void>;
   onStartReached?: () => void | Promise<void>;
@@ -29,53 +30,57 @@ export interface UseListControllerOptions<
   scrollIdleMs?: number;
 }
 
-interface ListState<ElementT> {
-  data: ElementT[];
+interface ListState<ItemT> {
+  data: ItemT[];
   refreshing: boolean;
   loadingMore: boolean;
   loadingOlder: boolean;
   scrolling: boolean;
 }
 
-type ListAction<ElementT> =
+type ListAction<ItemT> =
   | { type: 'refreshStarted' }
   | { type: 'refreshEnded' }
-  | { type: 'endReachStarted' }
-  | { type: 'endReachEnded' }
-  | { type: 'startReachStarted' }
-  | { type: 'startReachEnded' }
+  | { type: 'endReachedStarted' }
+  | { type: 'endReachedEnded' }
+  | { type: 'startReachedStarted' }
+  | { type: 'startReachedEnded' }
   | { type: 'scrollStarted' }
   | { type: 'scrollEnded' }
   | {
       type: 'itemsSet';
-      update: ElementT[] | ((previous: ElementT[]) => ElementT[]);
+      update: ItemT[] | ((previous: ItemT[]) => ItemT[]);
     }
-  | { type: 'itemsPrepended'; items: readonly ElementT[] }
-  | { type: 'itemsAppended'; items: readonly ElementT[] }
-  | { type: 'itemsUpserted'; items: readonly ElementT[] }
+  | { type: 'itemsPrepended'; items: readonly ItemT[] }
+  | { type: 'itemsAppended'; items: readonly ItemT[] }
+  | {
+      type: 'itemsUpserted';
+      items: readonly ItemT[];
+      keyExtractor: (item: ItemT) => string;
+    }
   | {
       type: 'itemsRemoved';
-      match: (element: ElementT, index: number) => boolean;
+      match: (item: ItemT, index: number) => boolean;
     };
 
 /* Flag actions return the same state when nothing changes. scrollStarted on every
  * scroll event doesn't re-render. */
-function listReducer<ElementT extends { id: string }>(
-  state: ListState<ElementT>,
-  action: ListAction<ElementT>
-): ListState<ElementT> {
+function listReducer<ItemT>(
+  state: ListState<ItemT>,
+  action: ListAction<ItemT>
+): ListState<ItemT> {
   switch (action.type) {
     case 'refreshStarted':
       return state.refreshing ? state : { ...state, refreshing: true };
     case 'refreshEnded':
       return state.refreshing ? { ...state, refreshing: false } : state;
-    case 'endReachStarted':
+    case 'endReachedStarted':
       return state.loadingMore ? state : { ...state, loadingMore: true };
-    case 'endReachEnded':
+    case 'endReachedEnded':
       return state.loadingMore ? { ...state, loadingMore: false } : state;
-    case 'startReachStarted':
+    case 'startReachedStarted':
       return state.loadingOlder ? state : { ...state, loadingOlder: true };
-    case 'startReachEnded':
+    case 'startReachedEnded':
       return state.loadingOlder ? { ...state, loadingOlder: false } : state;
     case 'scrollStarted':
       return state.scrolling ? state : { ...state, scrolling: true };
@@ -95,11 +100,15 @@ function listReducer<ElementT extends { id: string }>(
       return { ...state, data: [...state.data, ...action.items] };
     case 'itemsUpserted': {
       if (action.items.length === 0) return state;
-      const pending = new Map(action.items.map((item) => [item.id, item]));
-      const data = state.data.map((element) => {
-        const replacement = pending.get(element.id);
-        if (replacement === undefined) return element;
-        pending.delete(element.id);
+      const { keyExtractor } = action;
+      const pending = new Map(
+        action.items.map((item) => [keyExtractor(item), item])
+      );
+      const data = state.data.map((item) => {
+        const key = keyExtractor(item);
+        const replacement = pending.get(key);
+        if (replacement === undefined) return item;
+        pending.delete(key);
         return replacement;
       });
       return { ...state, data: [...data, ...pending.values()] };
@@ -107,9 +116,7 @@ function listReducer<ElementT extends { id: string }>(
     case 'itemsRemoved':
       return {
         ...state,
-        data: state.data.filter(
-          (element, index) => !action.match(element, index)
-        ),
+        data: state.data.filter((item, index) => !action.match(item, index)),
       };
     default:
       return state;
@@ -119,20 +126,20 @@ function listReducer<ElementT extends { id: string }>(
 export interface ListMarkers {
   refreshStarted: () => void;
   refreshEnded: () => void;
-  endReachStarted: () => void;
-  endReachEnded: () => void;
-  startReachStarted: () => void;
-  startReachEnded: () => void;
+  endReachedStarted: () => void;
+  endReachedEnded: () => void;
+  startReachedStarted: () => void;
+  startReachedEnded: () => void;
   scrollStarted: () => void;
   scrollEnded: () => void;
 }
 
 export interface ListController<
-  ElementT,
+  ItemT,
   ScrollEventT = unknown,
   ViewableInfoT = unknown,
 > {
-  data: ElementT[];
+  data: ItemT[];
   refreshing: boolean;
   loadingMore: boolean;
   loadingOlder: boolean;
@@ -144,31 +151,36 @@ export interface ListController<
   handleScroll: (event: ScrollEventT) => void;
   handleViewableItemsChanged: (info: ViewableInfoT) => void;
 
-  setData: (
-    update: ElementT[] | ((previous: ElementT[]) => ElementT[])
-  ) => void;
-  prepend: (items: readonly ElementT[]) => void;
-  append: (items: readonly ElementT[]) => void;
-  upsertItems: (items: readonly ElementT[]) => void;
-  updateItem: (id: string, update: (element: ElementT) => ElementT) => void;
+  setItems: (update: ItemT[] | ((previous: ItemT[]) => ItemT[])) => void;
+  prependItems: (items: readonly ItemT[]) => void;
+  appendItems: (items: readonly ItemT[]) => void;
+  upsertItems: (items: readonly ItemT[]) => void;
+  updateItem: (key: string, update: (item: ItemT) => ItemT) => void;
   removeItems: (
-    ids: readonly string[] | ((element: ElementT, index: number) => boolean)
+    keys: readonly string[] | ((item: ItemT, index: number) => boolean)
   ) => void;
 
   markers: ListMarkers;
 }
 
+/*
+ * The key of an item without a keyExtractor: its id.
+ */
+function defaultKeyExtractor(item: unknown): string {
+  return String((item as { id?: unknown }).id);
+}
+
 export function useListController<
-  ElementT extends { id: string },
+  ItemT,
   ScrollEventT = unknown,
   ViewableInfoT = unknown,
 >(
-  options: UseListControllerOptions<ElementT, ScrollEventT, ViewableInfoT> = {}
-): ListController<ElementT, ScrollEventT, ViewableInfoT> {
+  options: UseListControllerOptions<ItemT, ScrollEventT, ViewableInfoT> = {}
+): ListController<ItemT, ScrollEventT, ViewableInfoT> {
   const [state, dispatch] = useReducer(
-    listReducer<ElementT>,
+    listReducer<ItemT>,
     options.initialData,
-    (seed): ListState<ElementT> => ({
+    (seed): ListState<ItemT> => ({
       data: seed ? [...seed] : [],
       refreshing: false,
       loadingMore: false,
@@ -226,12 +238,12 @@ export function useListController<
   const handleEndReached = useCallback(() => {
     if (busyRef.current.end) return;
     busyRef.current.end = true;
-    dispatch({ type: 'endReachStarted' });
+    dispatch({ type: 'endReachedStarted' });
     run(
       () => optionsRef.current.onEndReached?.(),
       () => {
         busyRef.current.end = false;
-        dispatch({ type: 'endReachEnded' });
+        dispatch({ type: 'endReachedEnded' });
       }
     );
   }, [run]);
@@ -239,12 +251,12 @@ export function useListController<
   const handleStartReached = useCallback(() => {
     if (busyRef.current.start) return;
     busyRef.current.start = true;
-    dispatch({ type: 'startReachStarted' });
+    dispatch({ type: 'startReachedStarted' });
     run(
       () => optionsRef.current.onStartReached?.(),
       () => {
         busyRef.current.start = false;
-        dispatch({ type: 'startReachEnded' });
+        dispatch({ type: 'startReachedEnded' });
       }
     );
   }, [run]);
@@ -286,66 +298,71 @@ export function useListController<
     optionsRef.current.onViewableItemsChanged?.(info);
   }, []);
 
-  const setData = useCallback(
-    (update: ElementT[] | ((previous: ElementT[]) => ElementT[])) =>
+  const keyOf = useCallback(
+    (item: ItemT) =>
+      (optionsRef.current.keyExtractor ?? defaultKeyExtractor)(item),
+    []
+  );
+
+  const setItems = useCallback(
+    (update: ItemT[] | ((previous: ItemT[]) => ItemT[])) =>
       dispatch({ type: 'itemsSet', update }),
     []
   );
 
-  const prepend = useCallback(
-    (items: readonly ElementT[]) => dispatch({ type: 'itemsPrepended', items }),
+  const prependItems = useCallback(
+    (items: readonly ItemT[]) => dispatch({ type: 'itemsPrepended', items }),
     []
   );
 
-  const append = useCallback(
-    (items: readonly ElementT[]) => dispatch({ type: 'itemsAppended', items }),
+  const appendItems = useCallback(
+    (items: readonly ItemT[]) => dispatch({ type: 'itemsAppended', items }),
     []
   );
 
   const upsertItems = useCallback(
-    (items: readonly ElementT[]) => dispatch({ type: 'itemsUpserted', items }),
-    []
+    (items: readonly ItemT[]) =>
+      dispatch({ type: 'itemsUpserted', items, keyExtractor: keyOf }),
+    [keyOf]
   );
 
   const updateItem = useCallback(
-    (id: string, update: (element: ElementT) => ElementT) =>
+    (key: string, update: (item: ItemT) => ItemT) =>
       dispatch({
         type: 'itemsSet',
         update: (previous) => {
-          const index = previous.findIndex((element) => element.id === id);
+          const index = previous.findIndex((item) => keyOf(item) === key);
           if (index === -1) return previous;
           const next = [...previous];
           next[index] = update(previous[index]!);
           return next;
         },
       }),
-    []
+    [keyOf]
   );
 
   const removeItems = useCallback(
-    (
-      ids: readonly string[] | ((element: ElementT, index: number) => boolean)
-    ) => {
+    (keys: readonly string[] | ((item: ItemT, index: number) => boolean)) => {
       const match =
-        typeof ids === 'function'
-          ? ids
-          : ((): ((element: ElementT) => boolean) => {
-              const set = new Set(ids);
-              return (element: ElementT) => set.has(element.id);
+        typeof keys === 'function'
+          ? keys
+          : ((): ((item: ItemT) => boolean) => {
+              const set = new Set(keys);
+              return (item: ItemT) => set.has(keyOf(item));
             })();
       dispatch({ type: 'itemsRemoved', match });
     },
-    []
+    [keyOf]
   );
 
   const markers = useMemo<ListMarkers>(
     () => ({
       refreshStarted: () => dispatch({ type: 'refreshStarted' }),
       refreshEnded: () => dispatch({ type: 'refreshEnded' }),
-      endReachStarted: () => dispatch({ type: 'endReachStarted' }),
-      endReachEnded: () => dispatch({ type: 'endReachEnded' }),
-      startReachStarted: () => dispatch({ type: 'startReachStarted' }),
-      startReachEnded: () => dispatch({ type: 'startReachEnded' }),
+      endReachedStarted: () => dispatch({ type: 'endReachedStarted' }),
+      endReachedEnded: () => dispatch({ type: 'endReachedEnded' }),
+      startReachedStarted: () => dispatch({ type: 'startReachedStarted' }),
+      startReachedEnded: () => dispatch({ type: 'startReachedEnded' }),
       scrollStarted: () => {
         scrollingRef.current = true;
         dispatch({ type: 'scrollStarted' });
@@ -379,9 +396,9 @@ export function useListController<
     handleStartReached,
     handleScroll,
     handleViewableItemsChanged,
-    setData,
-    prepend,
-    append,
+    setItems,
+    prependItems,
+    appendItems,
     upsertItems,
     updateItem,
     removeItems,

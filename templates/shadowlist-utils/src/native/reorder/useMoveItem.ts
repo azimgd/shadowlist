@@ -1,8 +1,8 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
-type OnReorder<ItemT> = (info: {
-  from: number;
-  to: number;
+type OnMoveItem<ItemT> = (info: {
+  sourceIndex: number;
+  destinationIndex: number;
   data: ItemT[];
 }) => void;
 
@@ -12,27 +12,27 @@ type OnReorder<ItemT> = (info: {
  */
 export function useMoveItem<ItemT extends { id: string }>(
   data: ReadonlyArray<ItemT>,
-  onReorder: OnReorder<ItemT> | undefined
+  onMoveItem: OnMoveItem<ItemT> | undefined
 ) {
-  const latest = useRef({ data, onReorder });
+  const latest = useRef({ data, onMoveItem });
   useLayoutEffect(() => {
-    latest.current = { data, onReorder };
+    latest.current = { data, onMoveItem };
   });
 
-  return useCallback((id: string, offset: -1 | 1) => {
-    const { data: current, onReorder: reorder } = latest.current;
-    const from = current.findIndex((item) => item.id === id);
-    const to = from + offset;
+  return useCallback((key: string, offset: -1 | 1) => {
+    const { data: current, onMoveItem: moveItem } = latest.current;
+    const sourceIndex = current.findIndex((item) => item.id === key);
+    const destinationIndex = sourceIndex + offset;
     if (
-      reorder === undefined ||
-      from === -1 ||
-      to < 0 ||
-      to >= current.length
+      moveItem === undefined ||
+      sourceIndex === -1 ||
+      destinationIndex < 0 ||
+      destinationIndex >= current.length
     ) {
       return;
     }
     const next = [...current];
-    next.splice(to, 0, ...next.splice(from, 1));
-    reorder({ from, to, data: next });
+    next.splice(destinationIndex, 0, ...next.splice(sourceIndex, 1));
+    moveItem({ sourceIndex, destinationIndex, data: next });
   }, []);
 }

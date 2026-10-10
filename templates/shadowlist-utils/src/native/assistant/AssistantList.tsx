@@ -2,7 +2,7 @@ import { forwardRef, useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import {
   ShadowList,
-  type ElementSizeSpec,
+  type ItemSizeSpec,
   type ShadowListProps,
   type ShadowListCommands,
 } from 'shadowlist';
@@ -37,10 +37,10 @@ type ReplyHandlers = Pick<
 
 export type AssistantListProps = Omit<
   ShadowListProps<AssistantMessage>,
-  'renderElement'
+  'renderItem'
 > &
   ReplyHandlers & {
-    renderElement?: ShadowListProps<AssistantMessage>['renderElement'];
+    renderItem?: ShadowListProps<AssistantMessage>['renderItem'];
     store: AssistantStreamStore;
     streaming?: boolean;
     onEdit?: (messageId: string) => void;
@@ -50,7 +50,7 @@ export type AssistantListProps = Omit<
 export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
   (
     {
-      renderElement,
+      renderItem,
       store,
       streaming = false,
       onCopy,
@@ -77,11 +77,11 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
      * return null, since Markdown can't be described as one text run and a streaming reply
      * is mounted and measured for real anyway.
      */
-    const getElementSizeSpec = useCallback(
-      (element: AssistantMessage): ElementSizeSpec | null => {
-        switch (element.role) {
+    const getItemSizeSpec = useCallback(
+      (item: AssistantMessage): ItemSizeSpec | null => {
+        switch (item.role) {
           case 'user':
-            return getUserMessageSizeSpec(element, theme);
+            return getUserMessageSizeSpec(item, theme);
           case 'end':
             return { text: '', fixedHeight: ASSISTANT_END_MARKER_HEIGHT };
           default:
@@ -93,14 +93,14 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
 
     /*
      * Track the newest reply by id, not index. Loading earlier history shifts every index
-     * and would rebuild renderElement for rows that did not move. The id only changes when
+     * and would rebuild renderItem for rows that did not move. The id only changes when
      * a newer reply arrives, which is when the follow ups should move.
      */
     const latestId = data[data.length - 2]?.id;
 
     /*
      * Rows read busy and the newest reply from context, down in the buttons and follow ups
-     * that use them. In renderElement they would give it a new identity when a reply starts
+     * that use them. In renderItem they would give it a new identity when a reply starts
      * and again when it ends, rebuilding every mounted row both times.
      */
     const rowState = useMemo<AssistantRowState>(
@@ -109,15 +109,15 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
     );
 
     // Changes only when a handler or the labels change, never per reply or token.
-    const defaultRenderElement = useCallback<
-      NonNullable<ShadowListProps<AssistantMessage>['renderElement']>
+    const defaultRenderItem = useCallback<
+      NonNullable<ShadowListProps<AssistantMessage>['renderItem']>
     >(
-      ({ element }) => {
-        switch (element.role) {
+      ({ item }) => {
+        switch (item.role) {
           case 'user':
             return (
               <AssistantUserMessage
-                message={element}
+                message={item}
                 onCopy={onCopy}
                 onEdit={onEdit}
                 labels={l}
@@ -126,7 +126,7 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
           case 'assistant':
             return (
               <AssistantReplyMessage
-                message={element}
+                message={item}
                 store={store}
                 onCopy={onCopy}
                 onCopyCode={onCopyCode}
@@ -167,8 +167,8 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
           data={data}
           inverted
           followAppends
-          getElementSizeSpec={getElementSizeSpec}
-          renderElement={renderElement ?? defaultRenderElement}
+          getItemSizeSpec={getItemSizeSpec}
+          renderItem={renderItem ?? defaultRenderItem}
           {...props}
         />
       </AssistantRowStateContext.Provider>

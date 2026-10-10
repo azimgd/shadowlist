@@ -47,7 +47,7 @@ export interface InfiniteListProps<ItemT> {
  *       onEndReached={list.onEndReached}
  *       refreshing={list.refreshing}
  *       onRefresh={list.onRefresh}
- *       renderElement={renderPost}
+ *       renderItem={renderPost}
  *     />
  *   );
  */

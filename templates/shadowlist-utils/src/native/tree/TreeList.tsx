@@ -3,7 +3,7 @@ import {
   TreeList as ShadowListTreeList,
   type TreeListCommands,
   type TreeListProps as ShadowListTreeListProps,
-  type TreeListRenderElementInfo,
+  type TreeListRenderItemInfo,
 } from 'shadowlist';
 import { useLabels } from '../labels';
 import { defaultTreeLabels, type TreeLabels } from './labels';
@@ -14,11 +14,11 @@ type BaseProps = ShadowListTreeListProps<TreeNode>;
 
 export type TreeListProps = Omit<
   BaseProps,
-  'getChildren' | 'keyExtractor' | 'renderElement'
+  'getChildren' | 'keyExtractor' | 'renderItem'
 > & {
   getChildren?: BaseProps['getChildren'];
   keyExtractor?: BaseProps['keyExtractor'];
-  renderElement?: BaseProps['renderElement'];
+  renderItem?: BaseProps['renderItem'];
   onPressItem?: (item: TreeNode) => void;
   labels?: Partial<TreeLabels>;
 };
@@ -28,20 +28,20 @@ const getNodeKey = (node: TreeNode) => node.id;
 
 export const TreeList = forwardRef<TreeListCommands, TreeListProps>(
   (
-    { getChildren, keyExtractor, renderElement, onPressItem, labels, ...props },
+    { getChildren, keyExtractor, renderItem, onPressItem, labels, ...props },
     ref
   ) => {
     const rowLabels = useLabels(defaultTreeLabels, labels);
     const renderTreeRow = useCallback(
       ({
-        element,
+        item,
         indent,
         isExpanded,
         hasChildren,
         toggle,
-      }: TreeListRenderElementInfo<TreeNode>) => (
+      }: TreeListRenderItemInfo<TreeNode>) => (
         <TreeRow
-          item={element}
+          item={item}
           indent={indent}
           isExpanded={isExpanded}
           hasChildren={hasChildren}
@@ -58,7 +58,7 @@ export const TreeList = forwardRef<TreeListCommands, TreeListProps>(
         ref={ref}
         getChildren={getChildren ?? getNodeChildren}
         keyExtractor={keyExtractor ?? getNodeKey}
-        renderElement={renderElement ?? renderTreeRow}
+        renderItem={renderItem ?? renderTreeRow}
         {...props}
       />
     );
