@@ -29,15 +29,22 @@ using namespace azimgd::shadowlist;
 
 namespace {
 
-// Test geometry: a 390 by 840 screen with 120pt rows in one column.
+/*
+ * Test geometry: a 390 by 840 screen with 120pt rows in one column.
+ */
 constexpr double WINDOW_WIDTH = 390.0;
 constexpr double WINDOW_HEIGHT = 840.0;
 constexpr double ROW_HEIGHT = 120.0;
-// Card width for the horizontal carousel.
+
+/*
+ * Card width for the horizontal carousel.
+ */
 constexpr double CARD_WIDTH = 140.0;
 constexpr double OVERSCAN = 1.0;
 
-// Rows that fit on screen plus one screen of overscan on each side.
+/*
+ * Rows that fit on screen plus one screen of overscan on each side.
+ */
 constexpr std::size_t MOUNTED_ROWS =
   static_cast<std::size_t>((WINDOW_HEIGHT * (1.0 + 2.0 * OVERSCAN)) / ROW_HEIGHT);
 
@@ -51,13 +58,18 @@ struct Result {
   std::string scenario;
   std::size_t rows = 0;
   Timing timing;
-  // Lets a scenario report per frame instead of per operation.
+
+  /*
+   * Lets a scenario report per frame instead of per operation.
+   */
   const char* unit = "us/op";
 };
 
 std::vector<Result> results;
 
-// Write the address to a volatile so the optimizer can't throw the work away.
+/*
+ * Write the address to a volatile so the optimizer can't throw the work away.
+ */
 const void* volatile escapedObject = nullptr;
 
 template <typename T>
@@ -127,7 +139,9 @@ std::vector<std::string> makeLongKeys(std::size_t count) {
   return keys;
 }
 
-// Frames
+/*
+ * Frames
+ */
 
 /*
  * Build a frame that borrows keys. The keys must outlive every update that uses it.
@@ -182,7 +196,9 @@ void feedWindowMeasurements(Container& container, std::size_t low, std::size_t h
   }
 }
 
-// Scenarios
+/*
+ * Scenarios
+ */
 
 /*
  * A normal scroll frame on a list where only the visited rows are measured,
@@ -386,7 +402,10 @@ struct FlingOptions {
   std::size_t columns = 1;
   bool horizontal = false;
   bool inverted = false;
-  // Pixels per frame. About 2600 per second at 60fps is a hard fling.
+
+  /*
+   * Pixels per frame. About 2600 per second at 60fps is a hard fling.
+   */
   double pixelsPerFrame = 44.0;
   double startOffset = 0.0;
   const char* label = "fling";

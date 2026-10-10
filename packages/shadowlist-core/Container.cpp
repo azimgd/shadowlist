@@ -383,11 +383,11 @@ OffsetBand Container::computeOffsetBand() const {
    * scroll axis never move rows, and the band is recomputed on the frame that changes them.
    */
   bool crossWindowChanged = horizontal
-    ? revision.windowContainerHeight != lastLayoutWindowHeight
-    : revision.windowContainerWidth != lastLayoutWindowWidth;
-  if (fallbackWidth != lastFallbackWidth || fallbackHeight != lastFallbackHeight ||
-      headerSize != lastLayoutHeaderSize || crossWindowChanged ||
-      columns != lastLayoutColumns || horizontal != lastLayoutHorizontal) {
+    ? revision.windowContainerHeight != previousLayoutWindowHeight
+    : revision.windowContainerWidth != previousLayoutWindowWidth;
+  if (fallbackWidth != previousFallbackWidth || fallbackHeight != previousFallbackHeight ||
+      headerSize != previousLayoutHeaderSize || crossWindowChanged ||
+      columns != previousLayoutColumns || horizontal != previousLayoutHorizontal) {
     return empty;
   }
 

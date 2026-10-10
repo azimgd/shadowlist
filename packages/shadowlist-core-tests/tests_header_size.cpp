@@ -22,8 +22,8 @@ using namespace slt;
 
 namespace {
 
-const double SPINNER_HEADER = 127.0;
-const double PLAIN_HEADER = 79.0;
+constexpr double SPINNER_HEADER = 127.0;
+constexpr double PLAIN_HEADER = 79.0;
 
 FrameInput frame(const std::vector<std::string>& keys, double offset, double headerSize) {
   FrameInput input = inputFor(keys, offset);
@@ -31,19 +31,18 @@ FrameInput frame(const std::vector<std::string>& keys, double offset, double hea
   return input;
 }
 
-// Rows of a loaded history page, keyed older, measure this tall once laid out.
-const double OLDER_ROW_HEIGHT = 174.0;
+/*
+ * Rows of a loaded history page, keyed older, measure this tall once laid out.
+ */
+constexpr double OLDER_ROW_HEIGHT = 174.0;
 
 /*
  * How a layout pass treats the rows of a loaded page.
  */
 enum class OlderRows {
-  // Sized like every other row, at the estimate.
-  AtEstimate,
-  // Not mounted yet. The core gets no size for them.
-  Unmounted,
-  // Mounting in this pass, sized to zero first and then to their real size.
-  Mounting,
+  AtEstimate,  // Sized like every other row, at the estimate
+  Unmounted,   // Not mounted yet. The core gets no size for them
+  Mounting,    // Mounting in this pass, sized to zero first and then to their real size
 };
 
 bool isOlder(const Element& element) {
@@ -298,7 +297,9 @@ TEST(scroll_to_start_keeps_its_target_across_momentum_reports) {
   CHECK_NEAR(container.revision.containerOffsetY, 0.0, 0.5);
 }
 
-// A finger drag cancels a scrollToEnd, but momentum scrolling does not.
+/*
+ * A finger drag cancels a scrollToEnd, but momentum scrolling does not.
+ */
 TEST(scroll_to_end_yields_to_a_drag_but_not_to_momentum) {
   std::vector<std::string> keys = keysFor(40);
   Container container;

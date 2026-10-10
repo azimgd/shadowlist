@@ -40,7 +40,9 @@ std::vector<double> offsetsOf(const Container& container) {
 
 }
 
-// The batch must give exactly the same layout as sizing rows one by one.
+/*
+ * The batch must give exactly the same layout as sizing rows one by one.
+ */
 TEST(batched_measurement_matches_the_per_row_path) {
   std::vector<std::string> keys = keysFor(300);
   std::vector<double> heights = heightsFor(keys.size());
@@ -195,7 +197,9 @@ TEST(declaring_keys_unchanged_matches_revalidating_them) {
   CHECK(run(true) == run(false));
 }
 
-// Borrowing the caller's keys must behave exactly like handing the core a copy.
+/*
+ * Borrowing the caller's keys must behave exactly like handing the core a copy.
+ */
 TEST(borrowed_keys_behave_like_owned_keys) {
   std::vector<std::string> keys = keysFor(120);
 

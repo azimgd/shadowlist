@@ -29,7 +29,6 @@ import argparse
 import bisect
 import json
 import re
-import statistics
 import sys
 from collections import defaultdict
 

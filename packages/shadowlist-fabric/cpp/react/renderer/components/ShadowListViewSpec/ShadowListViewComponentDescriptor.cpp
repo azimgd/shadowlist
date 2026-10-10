@@ -82,8 +82,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    * Tell JS when a drag starts or ends. The platform view bumps the sequence only on pick
    * up and drop, since finger tracking stays native. Fire once per new sequence.
    */
-  if (shadowlistViewStateData.dragEventSequence_ != containerManager->lastDragEventSequence) {
-    containerManager->lastDragEventSequence = shadowlistViewStateData.dragEventSequence_;
+  if (shadowlistViewStateData.dragEventSequence_ != containerManager->previousDragEventSequence) {
+    containerManager->previousDragEventSequence = shadowlistViewStateData.dragEventSequence_;
     const std::string& dragFromKey = shadowlistViewStateData.dragFromKey_;
     const std::string& dragToKey = shadowlistViewStateData.dragToKey_;
     switch (static_cast<int>(shadowlistViewStateData.dragEventType_)) {

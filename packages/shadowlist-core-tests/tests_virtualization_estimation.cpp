@@ -13,7 +13,6 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -495,11 +494,11 @@ TEST(prepend_while_settling_keeps_visible_content_in_place) {
   CHECK_NEAR(container.revision.containerOffsetY, 5.0 + inserted, 1.0);
 
   /*
-   * The old first row was 37 pixels past the top, and two momentum frames moved the view up
+   * The previous first row was 37 pixels past the top, and two momentum frames moved the view up
    * 16 pixels each. It is now 5 pixels past it. The prepend moved nothing.
    */
-  std::size_t firstOld = container.findElementIndexByKey("k0");
-  CHECK_NEAR(container.revision.containerOffsetY - offsetOf(container, firstOld), 5.0, 1.0);
+  std::size_t previousFirst = container.findElementIndexByKey("k0");
+  CHECK_NEAR(container.revision.containerOffsetY - offsetOf(container, previousFirst), 5.0, 1.0);
   checkNoRowLost(container, "prepend while settling");
 }
 
@@ -666,7 +665,9 @@ TEST(inverted_list_at_the_bottom_keeps_it_when_the_viewport_resizes) {
   CHECK(!container.pendingScrollToEnd);
 }
 
-// The same resize for a reader who scrolled up moves nothing on screen.
+/*
+ * The same resize for a reader who scrolled up moves nothing on screen.
+ */
 TEST(inverted_list_scrolled_up_holds_when_the_viewport_resizes) {
   Fixture fixture;
   fixture.inverted = true;

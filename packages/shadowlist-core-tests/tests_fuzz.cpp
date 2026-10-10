@@ -34,7 +34,9 @@ namespace {
 constexpr double TOLERANCE = 1.0;
 constexpr int MAX_SETTLE_FRAMES = 24;
 
-// Set SLT_FUZZ_TRACE=<seed> to print every frame of that seed.
+/*
+ * Set SLT_FUZZ_TRACE=<seed> to print every frame of that seed.
+ */
 std::uint32_t traceSeed = [] {
   const char* value = std::getenv("SLT_FUZZ_TRACE");
   return value != nullptr ? static_cast<std::uint32_t>(std::strtoul(value, nullptr, 10)) : 0u;
@@ -57,13 +59,17 @@ struct SimHost {
   std::size_t mountPad = 4;
   std::size_t nextKey = 0;
 
-  // What the scroll view holds and reports.
+  /*
+   * What the scroll view holds and reports.
+   */
   double hostOffset = 0.0;
   std::uint64_t echoedToken = 0;
   ScrollPhase phase = ScrollPhase::Idle;
   bool userScrolled = false;
 
-  // The last state the host mounted, base included, and the view's own scroll protocol.
+  /*
+   * The last state the host mounted, base included, and the view's own scroll protocol.
+   */
   ScrollSync sync;
   double stateOffset = 0.0;
   double stateBase = 0.0;

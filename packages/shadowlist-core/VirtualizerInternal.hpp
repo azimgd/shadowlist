@@ -3,7 +3,6 @@
 #include <shadowlist-core/Virtualizer.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <utility>
 
 /*

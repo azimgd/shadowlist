@@ -22,7 +22,10 @@ namespace {
 
 constexpr double ROW_HEIGHT = 100.0;
 constexpr double START_THRESHOLD = 0.5;
-// A page of chat history, and how many frames the fetch takes to come back.
+
+/*
+ * A page of chat history, and how many frames the fetch takes to come back.
+ */
 constexpr std::size_t PAGE_ROWS = 60;
 constexpr int FETCH_FRAMES = 3;
 

@@ -8,12 +8,17 @@
 #include <string>
 #include <vector>
 
-// Fixture helpers shared by the core test files. Tests already use namespace slt.
+/*
+ * Fixture helpers shared by the core test files. Tests already use namespace slt.
+ */
 namespace slt {
 
 inline constexpr double WINDOW_WIDTH = 390.0;
 inline constexpr double WINDOW_HEIGHT = 840.0;
-// Size used for a row nobody has measured or predicted yet.
+
+/*
+ * Size used for a row nobody has measured or predicted yet.
+ */
 inline constexpr double ESTIMATED_ROW_HEIGHT = 120.0;
 
 inline std::vector<std::string> keysFor(std::size_t count, const std::string& prefix = "k") {

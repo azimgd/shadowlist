@@ -105,7 +105,9 @@ TEST(exact_predictions_eliminate_measurement_reflow) {
   CHECK(blindChanges > 300);
 }
 
-// Predictions must give the same layout the real sizes would.
+/*
+ * Predictions must give the same layout the real sizes would.
+ */
 TEST(predicted_geometry_matches_fully_measured_geometry) {
   std::vector<std::string> keys = keysFor(300);
   std::vector<double> heights = trueHeightsFor(keys.size());
@@ -149,7 +151,9 @@ TEST(total_size_is_exact_before_anything_is_measured) {
   CHECK_NEAR(container.revision.totalContainerHeight, expectedTotal, 0.001);
 }
 
-// A prediction queued before its row exists waits for it instead of being dropped.
+/*
+ * A prediction queued before its row exists waits for it instead of being dropped.
+ */
 TEST(a_prediction_staged_early_lands_when_its_row_arrives) {
   std::vector<std::string> keys = keysFor(10);
   Container container;
@@ -166,7 +170,9 @@ TEST(a_prediction_staged_early_lands_when_its_row_arrives) {
   CHECK_EQ(container.predictedSizes.size(), static_cast<std::size_t>(0));
 }
 
-// A prediction for an existing row applies right away and moves the rows after it.
+/*
+ * A prediction for an existing row applies right away and moves the rows after it.
+ */
 TEST(a_prediction_for_a_live_row_reflows_the_rows_after_it) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
@@ -255,7 +261,9 @@ TEST(predictions_stay_out_of_the_frozen_average) {
   CHECK(!container.revision.elements[freshIndex].predicted);
 }
 
-// A predicted or measured row has a trusted size, an estimated one does not.
+/*
+ * A predicted or measured row has a trusted size, an estimated one does not.
+ */
 TEST(only_predicted_or_measured_rows_carry_trusted_geometry) {
   std::vector<std::string> keys = keysFor(30);
   Container container;
@@ -374,7 +382,9 @@ TEST(a_prediction_staged_on_a_settled_list_lands_on_the_next_frame) {
   CHECK_NEAR(container.revision.elements[40].offsetY, offsetBefore + (400.0 - ESTIMATED_ROW_HEIGHT), 0.001);
 }
 
-// Same, when a scroll frame tells the core the keys did not change.
+/*
+ * Same, when a scroll frame tells the core the keys did not change.
+ */
 TEST(a_prediction_lands_even_when_the_keys_shortcut_is_engaged) {
   std::vector<std::string> keys = keysFor(60);
   Container container;
@@ -503,7 +513,9 @@ TEST(in_place_append_matches_a_full_rebuild) {
   CHECK_EQ(appended.revision.measuredRealCount, wholesale.revision.measuredRealCount);
 }
 
-// An appended duplicate key resolves to its first occurrence, same as a full rebuild.
+/*
+ * An appended duplicate key resolves to its first occurrence, same as a full rebuild.
+ */
 TEST(appending_a_duplicate_key_keeps_the_first_occurrence) {
   std::vector<std::string> keys = keysFor(20);
   Container container;
@@ -518,7 +530,9 @@ TEST(appending_a_duplicate_key_keeps_the_first_occurrence) {
   CHECK_EQ(container.revision.elements[20].key, std::string("k3"));
 }
 
-// A shorter or reordered key list must not be taken for an append.
+/*
+ * A shorter or reordered key list must not be taken for an append.
+ */
 TEST(append_fast_path_declines_non_append_shapes) {
   std::vector<std::string> keys = keysFor(50);
   Container container;
@@ -651,7 +665,9 @@ TEST(prepending_an_existing_key_still_resolves_to_the_first_occurrence) {
   }
 }
 
-// Keys still find their rows after several prepends in a row.
+/*
+ * Keys still find their rows after several prepends in a row.
+ */
 TEST(chained_prepends_keep_the_key_map_correct) {
   std::vector<std::string> keys = keysFor(60);
   Container container;

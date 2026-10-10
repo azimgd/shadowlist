@@ -166,9 +166,9 @@ public:
   std::vector<std::size_t> stickyIndices;
 
   /*
-   * Last drag event number sent to JS, to fire each drag event once. -1 means none yet.
+   * Previous drag event number sent to JS, to fire each drag event once. -1 means none yet.
    */
-  double lastDragEventSequence = -1.0;
+  double previousDragEventSequence = -1.0;
 
   /*
    * Scroll requests. resolveScroll turns each into an operation and clears it.
@@ -205,9 +205,9 @@ public:
   bool pendingScrollToStart = false;
 
   /*
-   * Last frame's total size, to tell when it stops changing.
+   * Previous frame's total size, to tell when it stops changing.
    */
-  double pendingScrollToEndLastTotal = -1.0;
+  double pendingScrollToEndPreviousTotal = -1.0;
 
   /*
    * Whether an inverted list has settled at the bottom. Until then it sticks to the bottom,
@@ -306,21 +306,21 @@ public:
   std::unordered_set<std::string> nonAnchorableKeys;
 
   /*
-   * Layout inputs from the last offset pass. layoutElements skips the pass when nothing changed.
+   * Layout inputs from the previous offset pass. layoutElements skips the pass when nothing changed.
    * Window sizes are here because column widths depend on them.
    */
-  double lastLayoutHeaderSize = -1.0;
-  double lastLayoutWindowWidth = -1.0;
-  double lastLayoutWindowHeight = -1.0;
-  std::size_t lastLayoutColumns = 0;
-  bool lastLayoutHorizontal = false;
+  double previousLayoutHeaderSize = -1.0;
+  double previousLayoutWindowWidth = -1.0;
+  double previousLayoutWindowHeight = -1.0;
+  std::size_t previousLayoutColumns = 0;
+  bool previousLayoutHorizontal = false;
 
   /*
-   * Size last given to unmeasured rows. While it and the layout stay the same, the sizing
+   * Size previously given to unmeasured rows. While it and the layout stay the same, the sizing
    * loop has nothing to do and is skipped. -1 forces the first pass.
    */
-  double lastFallbackWidth = -1.0;
-  double lastFallbackHeight = -1.0;
+  double previousFallbackWidth = -1.0;
+  double previousFallbackHeight = -1.0;
 
   /*
    * Bumped whenever row positions, sizes or the row list change. Snap offsets and sticky
@@ -381,11 +381,11 @@ public:
   double maxCrossAxisExtent = 0.0;
 
   /*
-   * Offset from the last host report. A user scroll only cancels a correction when this moves,
-   * so a stale userScrolled flag can't. Frames that carry our own offset write leave it alone,
+   * Offset from the previous host report. A user scroll only cancels a correction when this moves.
+   * A stale userScrolled flag can't. Frames that carry our own offset write leave it alone,
    * because the host is not there yet.
    */
-  double lastReportedOffset = 0.0;
+  double previousReportedOffset = 0.0;
 
   /*
    * Guards the Container, which really is shared across threads. In Fabric, shadow node clones

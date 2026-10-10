@@ -226,7 +226,7 @@ public:
   static void commitElementSizes(Container& container, std::size_t fromIndex);
 
   /*
-   * Handle a header size change after rows moved for it. Pass the old header size.
+   * Handle a header size change after rows moved for it. Pass the previous header size.
    * update calls it, and Fabric calls it from its layout pass too. An off screen header moves the
    * offset with it so the visible rows stay put. A visible header pushes the rows and the anchor
    * follows. Without this the content jumps for one frame.
@@ -234,7 +234,7 @@ public:
   static void applyHeaderSizeChange(Container& container, double previousHeaderSize);
 
   /*
-   * Handle a viewport size change. Call after setting the new size, passing the old one.
+   * Handle a viewport size change. Call after setting the new size, passing the previous one.
    * An inverted list at the bottom stays at the bottom. Otherwise a growing chat composer would
    * hide the newest messages and the list would stop following new ones.
    */

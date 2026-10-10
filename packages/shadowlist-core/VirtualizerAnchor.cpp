@@ -237,7 +237,7 @@ ScrollStep driveOperation(
        * last reported the target too. Without that, a resting list only sees its own writes
        * and republishes on every commit, about 500 times for one streaming reply.
        */
-      bool reportedAtTarget = std::fabs(container.lastReportedOffset - target) < OFFSET_ARRIVED_THRESHOLD;
+      bool reportedAtTarget = std::fabs(container.previousReportedOffset - target) < OFFSET_ARRIVED_THRESHOLD;
       if ((offsetConfirmed || reportedAtTarget) &&
           std::fabs(frame.currentOffset - target) < OFFSET_ARRIVED_THRESHOLD) {
         SL_LOG("  op arrived: type=%d key=%s index=%zd target=%.1f", static_cast<int>(container.operation->type),
@@ -489,8 +489,8 @@ bool Virtualizer::resolveScroll(
   }
 
   // Track the total every frame so step 2b can tell when the bottom stops growing.
-  frame.previousTotalForScrollToEnd = container.pendingScrollToEndLastTotal;
-  container.pendingScrollToEndLastTotal = frame.totalSize;
+  frame.previousTotalForScrollToEnd = container.pendingScrollToEndPreviousTotal;
+  container.pendingScrollToEndPreviousTotal = frame.totalSize;
 
   requestShrinkClamp(container, frame, anchorKey, anchorDelta, hadElementsBefore);
 

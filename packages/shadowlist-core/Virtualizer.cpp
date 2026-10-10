@@ -79,7 +79,7 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
     static_cast<std::ptrdiff_t>(container.elementsSizeDirtyFromIndex), input.containerOffsetEnabled ? 1 : 0,
     container.containerOffsetCorrected ? 1 : 0, container.getContainerOffset());
 
-  // Remember the old header size so a change can be settled after the rows reflow.
+  // Keep the previous header size to settle a change after the rows reflow.
   double previousHeaderSize = container.headerSize;
   applyFrameInput(container, input);
 
@@ -94,7 +94,7 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   bool restingAtBottom = applyInvertedBottomPin(container, input, inputOffset, gestureTakeover);
   // Our own write is not where the host is. Don't record it.
   if (!coreOffsetWrite) {
-    container.lastReportedOffset = inputOffset;
+    container.previousReportedOffset = inputOffset;
   }
 
   // Capture the anchor row so the same content stays in view through the reconcile.
@@ -172,7 +172,7 @@ bool Virtualizer::applyGestureState(
   bool coreOffsetWrite) {
   // A running correction survives while the offset has not moved. The user is not scrolling.
   bool userMovedOffset = !coreOffsetWrite &&
-    std::fabs(inputOffset - container.lastReportedOffset) >= OFFSET_MOVED_THRESHOLD;
+    std::fabs(inputOffset - container.previousReportedOffset) >= OFFSET_MOVED_THRESHOLD;
   /*
    * When the user takes over, drop any running correction and stop pinning to the bottom.
    * The host's gesture phase decides. userScrolled only counts with a real move. A stale
@@ -213,7 +213,7 @@ bool Virtualizer::applyGestureState(
    */
   if (maintainingAnchor && !echoesOperation && userMovedOffset &&
       (gestureTakeover || container.operation->id == container.gestureOperationId)) {
-    container.operation->target.subOffset += inputOffset - container.lastReportedOffset;
+    container.operation->target.subOffset += inputOffset - container.previousReportedOffset;
   }
   // A correction made during a gesture is done once the host reports it back while idle.
   if (maintainingAnchor && echoesOperation && !gestureTakeover &&
@@ -253,7 +253,7 @@ bool Virtualizer::applyInvertedBottomPin(
    * quietly pin the reader again.
    */
   if (container.inverted) {
-    double previousOffset = container.lastReportedOffset;
+    double previousOffset = container.previousReportedOffset;
     double bottomTotal = container.horizontal ? container.revision.totalContainerWidth
                                                : container.revision.totalContainerHeight;
     double bottomWindow = container.horizontal ? container.revision.windowContainerWidth

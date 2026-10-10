@@ -6,7 +6,6 @@
 
 #include <shadowlist-core/host/ChangeAnimation.hpp>
 
-#include <string>
 #include <vector>
 
 using namespace slt;
@@ -54,8 +53,10 @@ TEST(change_animation_run_slides_inserts_and_carries) {
   animation.recordPosition("top", {0, 0});
   animation.recordPosition("gone", {0, 40});
   animation.recordPosition("below", {0, 80});
-  // After the layout: top stays, new sits where gone was, below moved down 10, then a row that
-  // was off screen.
+  /*
+   * After the layout: top stays, new sits where gone was, below moved down 10, then a row that
+   * was off screen.
+   */
   std::vector<ChangeStep> steps = animation.run(
     {"top", "new", "below", "offscreen"},
     {{0, 0}, {0, 40}, {0, 90}, {0, 140}});

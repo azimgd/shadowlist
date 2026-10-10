@@ -65,7 +65,10 @@ std::vector<std::size_t> rowsOfKeys(
  * its own through readKey, called with its index in the next data.
  */
 template <typename ReadKey>
-std::vector<std::string> keysFromPlan(const BatchPlan& plan, const std::vector<std::string>& previous, ReadKey readKey) {
+std::vector<std::string> keysFromPlan(
+  const BatchPlan& plan,
+  const std::vector<std::string>& previous,
+  ReadKey readKey) {
   std::vector<std::string> next;
   next.reserve(plan.sources.size());
   for (std::size_t index = 0; index < plan.sources.size(); ++index) {

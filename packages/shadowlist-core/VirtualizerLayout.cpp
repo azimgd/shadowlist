@@ -104,12 +104,12 @@ void Virtualizer::layoutElements(Container& container) {
    * their width from the window's cross size. That one counts.
    */
   bool layoutParamsChanged =
-    container.headerSize != container.lastLayoutHeaderSize ||
+    container.headerSize != container.previousLayoutHeaderSize ||
     (container.horizontal
-      ? container.revision.windowContainerHeight != container.lastLayoutWindowHeight
-      : container.revision.windowContainerWidth != container.lastLayoutWindowWidth) ||
-    container.columns != container.lastLayoutColumns ||
-    container.horizontal != container.lastLayoutHorizontal;
+      ? container.revision.windowContainerHeight != container.previousLayoutWindowHeight
+      : container.revision.windowContainerWidth != container.previousLayoutWindowWidth) ||
+    container.columns != container.previousLayoutColumns ||
+    container.horizontal != container.previousLayoutHorizontal;
 
   /*
    * The sizing loop visits every row. Only run it when it can change something:
@@ -117,8 +117,8 @@ void Virtualizer::layoutElements(Container& container) {
    * would walk the whole list for nothing.
    */
   bool fallbackDimensionsChanged =
-    fallbackWidth != container.lastFallbackWidth ||
-    fallbackHeight != container.lastFallbackHeight;
+    fallbackWidth != container.previousFallbackWidth ||
+    fallbackHeight != container.previousFallbackHeight;
 
   /*
    * Rows before the first one a structure change touched kept their size and place. A
@@ -163,8 +163,8 @@ void Virtualizer::layoutElements(Container& container) {
       }
     }
 
-    container.lastFallbackWidth = fallbackWidth;
-    container.lastFallbackHeight = fallbackHeight;
+    container.previousFallbackWidth = fallbackWidth;
+    container.previousFallbackHeight = fallbackHeight;
   }
 
   // Recomputing offsets walks every row. Skip it unless a size, row or setting changed.
@@ -187,11 +187,11 @@ void Virtualizer::layoutElements(Container& container) {
       container.elementsStructureDirty ? UNDEFINED_INDEX : container.elementsSizeDirtyToIndex;
 
     recomputeElementOffsets(container, reflowFrom, changedThroughIndex);
-    container.lastLayoutHeaderSize = container.headerSize;
-    container.lastLayoutWindowWidth = container.revision.windowContainerWidth;
-    container.lastLayoutWindowHeight = container.revision.windowContainerHeight;
-    container.lastLayoutColumns = container.columns;
-    container.lastLayoutHorizontal = container.horizontal;
+    container.previousLayoutHeaderSize = container.headerSize;
+    container.previousLayoutWindowWidth = container.revision.windowContainerWidth;
+    container.previousLayoutWindowHeight = container.revision.windowContainerHeight;
+    container.previousLayoutColumns = container.columns;
+    container.previousLayoutHorizontal = container.horizontal;
     container.elementsStructureDirty = false;
     container.elementsSizeDirtyFromIndex = UNDEFINED_INDEX;
     container.elementsSizeDirtyToIndex = 0;

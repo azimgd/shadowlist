@@ -335,8 +335,8 @@ void Virtualizer::invalidatePredictions(Container& container) {
      * resets rows outside the window, and it skips itself while the fallback is unchanged.
      * Forget the last fallback to force it, then reflow the whole list.
      */
-    container.lastFallbackWidth = -1.0;
-    container.lastFallbackHeight = -1.0;
+    container.previousFallbackWidth = -1.0;
+    container.previousFallbackHeight = -1.0;
     container.markElementSizeDirty(0);
   }
 }

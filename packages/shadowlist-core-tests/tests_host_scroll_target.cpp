@@ -9,7 +9,6 @@
 #include <shadowlist-core/host/ListLayout.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
-#include <string>
 #include <vector>
 
 using namespace slt;

@@ -9,10 +9,8 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <set>
 #include <string>
 #include <vector>
 

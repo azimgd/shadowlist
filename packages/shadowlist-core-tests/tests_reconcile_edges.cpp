@@ -233,7 +233,7 @@ TEST(removing_the_widest_row_near_the_end_narrows_the_content) {
 
 /*
  * Random edits anywhere, with and without duplicate keys, against a plain model: the first
- * copy of a key finds its row and keeps the size of the key's first old row, every other
+ * copy of a key finds its row and keeps the size of the key's first previous row, every other
  * row starts unmeasured.
  */
 TEST(reconcile_random_edits_match_a_plain_model) {
@@ -268,10 +268,10 @@ TEST(reconcile_random_edits_match_a_plain_model) {
         nextKeys.push_back("n" + std::to_string(fresh++));
       }
 
-      // The model: sizes of each key's first old row.
-      std::unordered_map<std::string, std::pair<bool, double>> oldRows;
+      // The model: sizes of each key's first previous row.
+      std::unordered_map<std::string, std::pair<bool, double>> previousRows;
       for (const Element& element : container.revision.elements) {
-        oldRows.emplace(element.key, std::make_pair(element.measured, element.height));
+        previousRows.emplace(element.key, std::make_pair(element.measured, element.height));
       }
       Virtualizer::reconcileElements(container, nextKeys);
 
@@ -282,14 +282,14 @@ TEST(reconcile_random_edits_match_a_plain_model) {
         const Element& element = container.revision.elements[index];
         CHECK_EQ(element.key, nextKeys[index]);
         CHECK_EQ(container.findElementIndexByKey(nextKeys[index]), firstIndex[nextKeys[index]]);
-        auto old = oldRows.find(nextKeys[index]);
-        bool survivor = firstIndex[nextKeys[index]] == index && old != oldRows.end();
-        CHECK_EQ(element.measured, survivor && old->second.first);
-        if (survivor && old->second.first) {
-          CHECK_NEAR(element.height, old->second.second, 0.0001);
+        auto previous = previousRows.find(nextKeys[index]);
+        bool survivor = firstIndex[nextKeys[index]] == index && previous != previousRows.end();
+        CHECK_EQ(element.measured, survivor && previous->second.first);
+        if (survivor && previous->second.first) {
+          CHECK_NEAR(element.height, previous->second.second, 0.0001);
         }
       }
-      for (const auto& [key, row] : oldRows) {
+      for (const auto& [key, row] : previousRows) {
         if (firstIndex.find(key) == firstIndex.end()) {
           CHECK_EQ(container.findElementIndexByKey(key), UNDEFINED_INDEX);
         }
