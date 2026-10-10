@@ -294,3 +294,26 @@ TEST(scroll_to_index_view_position_survives_a_commit_before_the_window_is_measur
   CHECK_NEAR(container.revision.containerOffsetY,
     container.getElementOffset(target) - (WINDOW_HEIGHT - ROW_HEIGHT), 1.0);
 }
+
+/*
+ * Before the host gives the window a size, the window holds only the row at the offset. A
+ * visible rows report from that frame made the host unmount the rows its first frame showed.
+ */
+TEST(visible_rows_wait_for_the_window_size) {
+  std::vector<std::string> keys = keysFor(120, "m");
+  Container container;
+  std::vector<std::pair<std::size_t, std::size_t>> reports;
+  container.onVisibleIndicesChangeCallback = [&reports](std::size_t start, std::size_t end) {
+    reports.emplace_back(start, end);
+  };
+
+  FrameInput unmeasured = chatInput(keys, 0.0);
+  unmeasured.windowContainerHeight = 0.0;
+  Virtualizer::update(container, unmeasured);
+  CHECK(reports.empty());
+
+  Virtualizer::update(container, chatInput(keys, 0.0));
+  CHECK_EQ(reports.size(), static_cast<std::size_t>(1));
+  CHECK_EQ(reports[0].first, static_cast<std::size_t>(0));
+  CHECK(reports[0].second > static_cast<std::size_t>(0));
+}

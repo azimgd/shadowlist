@@ -302,6 +302,13 @@ const Anchor* Container::getCompensationAnchor() const {
 }
 
 void Container::dispatchObservers() {
+  /*
+   * Before the host gives the viewport a size, the window holds only the row at the offset.
+   * Reporting that would unmount the rows the first frame shows.
+   */
+  if (getWindowContainerSize() <= 0.0) {
+    return;
+  }
   auto visibleIndices = getVisibleIndices();
   if (onVisibleIndicesChangeCallback &&
     (visibleIndices.first != previousVisibleStartIndex_ || visibleIndices.second != previousVisibleEndIndex_)) {
