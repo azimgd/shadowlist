@@ -330,6 +330,34 @@ describe('reportedMountedRange', () => {
     ).toBeNull();
   });
 
+  it('shrinks a range that rows inserted inside it made far bigger than the screen', () => {
+    expect(
+      reportedMountedRange(
+        { low: 0, high: 299 },
+        { low: 0, high: 12 },
+        { low: 0, high: 12 },
+        false,
+        300,
+        4,
+        10,
+        2
+      )
+    ).toEqual({ range: { low: 0, high: 16 }, target: { low: 0, high: 16 } });
+    // A followed tail burst inside the limit is kept.
+    expect(
+      reportedMountedRange(
+        { low: 140, high: 199 },
+        { low: 190, high: 199 },
+        { low: 189, high: 198 },
+        false,
+        200,
+        4,
+        10,
+        2
+      )
+    ).toBeNull();
+  });
+
   it('trims an inverted list at its tail and a range seeded around a target', () => {
     expect(
       reportedMountedRange(

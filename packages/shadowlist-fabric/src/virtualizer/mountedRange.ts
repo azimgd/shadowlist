@@ -184,7 +184,9 @@ export function visibleTargetRange(
 
 /*
  * The next step and its target for a visible rows report, or null to keep the range. The
- * first report always steps, which trims the initial range guessed before layout.
+ * first report always steps, which trims the initial range guessed before layout. A range
+ * that holds the screen is kept unless rows inserted inside it made it far bigger than the
+ * target, like a tree expanding every folder. Then it shrinks to the target.
  */
 export function reportedMountedRange(
   current: MountedRange,
@@ -200,7 +202,6 @@ export function reportedMountedRange(
     current.low >= 0 &&
     window.low >= current.low &&
     window.high <= current.high;
-  if (holdsWindow && !firstReport) return null;
   const target = visibleTargetRange(
     window,
     previousWindow,
@@ -208,6 +209,10 @@ export function reportedMountedRange(
     overscanRows,
     overscanRowsLeading
   );
+  const targetCount = target.high - target.low + 1;
+  const excess = current.high - current.low + 1 - targetCount;
+  const oversized = excess > Math.max(targetCount, MAX_FOLLOWED_APPEND);
+  if (holdsWindow && !firstReport && !oversized) return null;
   const range = stepMountedRange(
     current,
     target,
