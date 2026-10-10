@@ -125,7 +125,7 @@ One word per concept in every language: `previous` (not `prev`, `old`, `last`), 
 
 ## Comments
 
-Comments are short narration of what happens, not explanations of how. A comment longer than one line, or any comment above a declaration, is a `/* */` block with one `*` per line. A one-line comment inside a body stays `//`. Interface and type blocks carry no comments: TypeScript `interface` and `type` bodies and Objective-C `@interface` blocks list members only. The class doc goes in one block above the `@interface`. Delete a comment when the code already says it. Avoid the "X, so Y" pattern in comments and docs: split it into two sentences, write "Y because X", or drop the clause.
+Comments are short narration of what happens, not explanations of how. A comment longer than one line, or any comment above a declaration, is a `/* */` block with one `*` per line. A one-line comment inside a body stays `//`. Interface and type blocks carry no comments: TypeScript `interface` and `type` bodies and Objective-C `@interface` blocks list members only. The class doc goes in one block above the `@interface`. Contracts the user implements, Objective-C `@protocol` and Kotlin `interface` bodies such as the data source and delegate, keep one block above each method. Delete a comment when the code already says it. Avoid the "X, so Y" pattern in comments and docs: split it into two sentences, write "Y because X", or drop the clause.
 
 ## Structure
 
