@@ -503,7 +503,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     ? _scrollView.contentSize.width - _scrollView.contentView.bounds.size.width
     : _scrollView.contentSize.height - _scrollView.contentView.bounds.size.height);
   motion.touching = macPhase == ShadowListMacScrollPhaseTracking;
-  motion.moving = macPhase == ShadowListMacScrollPhaseMomentum;
+  // Fingers on the trackpad move the view like a UIKit drag. A correction shifts the live offset.
+  motion.moving = macPhase != ShadowListMacScrollPhaseIdle;
 #endif
   motion.ownsOffset = _dragging || _dragDropPending;
   motion.jumpPending = _scrollToTopJumpPending;
@@ -517,13 +518,6 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _scrollToTopJumpY = action.offsetY;
     _scrollToTopJumpToken = action.token;
   } else if (action.kind == azimgd::shadowlist::MountAction::Kind::Write) {
-#if TARGET_OS_OSX
-    // Shifting would not help. A plain write never keeps a fling on macOS.
-    if (action.shifted) {
-      action.offsetX = nextStateData.containerOffsetX_;
-      action.offsetY = nextStateData.containerOffsetY_;
-    }
-#endif
     // A real move calls scrollViewDidScroll right away, which echoes the token.
     _scrollSync.willWrite(action);
     _scrollView.contentOffset = CGPointMake(action.offsetX, action.offsetY);
@@ -739,6 +733,15 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
       if (oldData.holdsPatch(patch)) {
         return nullptr;
       }
+#if TARGET_OS_OSX
+      /*
+       * macOS would lose the correction to such a report. On iOS the case happens during flings.
+       * The next mount shifts the correction from the live offset and nothing jumps.
+       */
+      if (oldData.awaitsMountBefore(patch)) {
+        return nullptr;
+      }
+#endif
       auto nextData = std::make_shared<ShadowListStateData>(oldData);
       nextData->applyPatch(patch);
       return nextData;

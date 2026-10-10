@@ -216,6 +216,18 @@ public:
   void applyPatch(const azimgd::shadowlist::ScrollPatch& patch);
 
   /*
+   * Whether this state holds an offset correction the host has not mounted and the patch
+   * is only a scroll report taken before it. Applying it would drop the correction and the
+   * content would jump. The rows the correction hides are not acknowledged by the report yet.
+   * The host reports again once it mounts this state.
+   */
+  bool awaitsMountBefore(const azimgd::shadowlist::ScrollPatch& patch) const {
+    return containerOffsetEnabled_ && concealGeneration_ > patch.report.concealGenerationAck &&
+      !patch.offsetEnabled && !patch.hasCommand && !patch.hasAnchorRequest &&
+      !patch.hasStartReachedEnabled && !patch.hasEndReachedEnabled;
+  }
+
+  /*
    * Whether this state already holds all of a patch and the update can be dropped. Only when
    * nothing waits on the host: a state with an offset to apply or hidden rows needs its report
    * even if it repeats, since each commit moves those along.
