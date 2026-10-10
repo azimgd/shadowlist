@@ -557,7 +557,11 @@ object FeatureScenario {
     script.frames(20, { frame -> script.move(list.width / 2f, 100.dpf + (frame + 1) * 12.dpf) }) {
       script.up(list.width / 2f, 340.dpf)
       result.put("refreshDelegateCalls", screen.refreshes)
+      var before: Map<String, Int> = emptyMap()
+      script.after(800) { before = visibleItems(list) }
       script.after(1500) {
+        val after = visibleItems(list)
+        result.put("refreshShift", before.entries.maxOfOrNull { (key, y) -> after[key]?.let { abs(it - y) } ?: 0 } ?: -1)
         result.put("refreshingAfterDone", list.refreshing)
         savedPlace(screen, result)
       }
