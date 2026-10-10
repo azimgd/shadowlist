@@ -335,6 +335,12 @@ public:
   bool elementsStructureDirty = true;
 
   /*
+   * First row an insert, remove or reorder touched. Rows before it kept their place, and the
+   * next layout only reflows from here. Valid while elementsStructureDirty is set.
+   */
+  std::size_t elementsStructureDirtyFromIndex = 0;
+
+  /*
    * Lowest row whose size changed outside layoutElements, or UNDEFINED_INDEX.
    * A size change only moves rows after it. The next layout starts here instead of at row 0.
    */

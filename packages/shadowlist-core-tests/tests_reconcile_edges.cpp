@@ -159,6 +159,79 @@ TEST(reconcile_small_prepends_do_not_rehash_the_key_map_each_time) {
 }
 
 /*
+ * An edit inside the list keeps the rows before and after it with their sizes, and every
+ * lookup right, whichever side gets renumbered and with a bias from earlier prepends.
+ * Survivors are counted, and a key repeated outside the edit falls back to the full match.
+ */
+TEST(reconcile_edits_in_the_middle_keep_rows_sizes_and_lookups) {
+  std::vector<std::string> keys = keysFor(200);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  measureAll(container);
+
+  auto apply = [&](const std::vector<std::string>& next, std::size_t survivors) {
+    CHECK_EQ(Virtualizer::reconcileElements(container, next), survivors);
+    Virtualizer::update(container, inputFor(next, 0.0));
+    checkRows(container, next);
+    keys = next;
+  };
+
+  // A prepend puts a bias on the key map first.
+  std::vector<std::string> next = {"p0", "p1", "p2"};
+  next.insert(next.end(), keys.begin(), keys.end());
+  apply(next, 200);
+  measureAll(container);
+
+  // Inserts near the end renumber the rows after them, near the start the rows before them.
+  next = keys;
+  next.insert(next.end() - 5, {"late0", "late1"});
+  apply(next, 203);
+  next = keys;
+  next.insert(next.begin() + 4, "early");
+  apply(next, 205);
+
+  // A remove, a replace, and two rows swapped near each other.
+  next = keys;
+  next.erase(next.begin() + 100, next.begin() + 103);
+  apply(next, 203);
+  next = keys;
+  next[50] = "swapped-in";
+  apply(next, 202);
+  next = keys;
+  std::swap(next[60], next[63]);
+  apply(next, 203);
+  measureAll(container);
+
+  // A key from outside the edit inserted again is a duplicate.
+  next = keys;
+  next.insert(next.begin() + 120, keys[10]);
+  CHECK_EQ(Virtualizer::reconcileElements(container, next), static_cast<std::size_t>(203));
+  CHECK(container.revision.hasDuplicateKeys);
+  CHECK_EQ(container.findElementIndexByKey(keys[10]), static_cast<std::size_t>(10));
+  CHECK(!container.revision.elements[120].measured);
+}
+
+/*
+ * A layout after an edit reflows only from the edit. Removing the one row wider than the
+ * window still brings the content width back to the window.
+ */
+TEST(removing_the_widest_row_near_the_end_narrows_the_content) {
+  std::vector<std::string> keys = keysFor(100);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  measureAll(container);
+  Virtualizer::updateElementAtIndex(container, 95, {WINDOW_WIDTH * 2.0, 80.0});
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  CHECK_NEAR(container.revision.totalContainerWidth, WINDOW_WIDTH * 2.0, 0.001);
+
+  std::vector<std::string> next = keys;
+  next.erase(next.begin() + 95);
+  Virtualizer::update(container, inputFor(next, 0.0));
+  CHECK_NEAR(container.revision.totalContainerWidth, WINDOW_WIDTH, 0.001);
+  checkRows(container, next);
+}
+
+/*
  * Random edits anywhere, with and without duplicate keys, against a plain model: the first
  * copy of a key finds its row and keeps the size of the key's first old row, every other
  * row starts unmeasured.

@@ -120,14 +120,27 @@ void Virtualizer::layoutElements(Container& container) {
     fallbackWidth != container.lastFallbackWidth ||
     fallbackHeight != container.lastFallbackHeight;
 
+  /*
+   * Rows before the first one a structure change touched kept their size and place. A
+   * removed row may have been the widest one, and only a full pass finds the new widest.
+   */
+  std::size_t structureFrom = UNDEFINED_INDEX;
+  if (container.elementsStructureDirty) {
+    double crossWindow = container.horizontal ? container.revision.windowContainerHeight
+                                              : container.revision.windowContainerWidth;
+    structureFrom = container.maxCrossAxisExtent > crossWindow ? 0 : container.elementsStructureDirtyFromIndex;
+  }
+  bool fullSizing = fallbackDimensionsChanged || layoutParamsChanged;
+  std::size_t sizingFrom = fullSizing ? 0 : std::min(structureFrom, elementsSize);
+
   bool anyNewlyEstimated = false;
 
-  if (fallbackDimensionsChanged || layoutParamsChanged || container.elementsStructureDirty) {
+  if (fullSizing || container.elementsStructureDirty) {
     if (container.columns > 1) {
       double Element::*size = container.horizontal ? &Element::width : &Element::height;
       double Element::*crossSize = container.horizontal ? &Element::height : &Element::width;
       double fallbackSize = container.horizontal ? fallbackWidth : fallbackHeight;
-      for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
+      for (std::size_t nextElementIndex = sizingFrom; nextElementIndex < elementsSize; ++nextElementIndex) {
         Element& nextElement = container.revision.elements[nextElementIndex];
         if (!nextElement.estimated && nextElement.*size != fallbackSize) {
           nextElement.*size = fallbackSize;
@@ -139,7 +152,7 @@ void Virtualizer::layoutElements(Container& container) {
         }
       }
     } else {
-      for (std::size_t nextElementIndex = 0; nextElementIndex < elementsSize; ++nextElementIndex) {
+      for (std::size_t nextElementIndex = sizingFrom; nextElementIndex < elementsSize; ++nextElementIndex) {
         Element& nextElement = container.revision.elements[nextElementIndex];
         if (!nextElement.estimated &&
             (nextElement.width != fallbackWidth || nextElement.height != fallbackHeight)) {
@@ -159,15 +172,21 @@ void Virtualizer::layoutElements(Container& container) {
 
   if (anyNewlyEstimated || layoutParamsChanged || container.elementsStructureDirty || sizesDirty) {
     /*
-     * Reflow from the first row that moved. Row, setting or fallback changes can move
-     * anything. They start at 0. A size change only moves the rows after it.
+     * Reflow from the first row that moved. Setting or fallback changes can move anything.
+     * They start at 0. A structure or size change only moves the rows after it. After a
+     * structure change every later row may have a new index. Walk them all.
      */
-    std::size_t reflowFrom =
-      (anyNewlyEstimated || layoutParamsChanged || container.elementsStructureDirty)
-        ? 0
-        : container.elementsSizeDirtyFromIndex;
+    std::size_t reflowFrom = std::min(structureFrom, container.elementsSizeDirtyFromIndex);
+    if (anyNewlyEstimated) {
+      reflowFrom = std::min(reflowFrom, sizingFrom);
+    }
+    if (layoutParamsChanged) {
+      reflowFrom = 0;
+    }
+    std::size_t changedThroughIndex =
+      container.elementsStructureDirty ? UNDEFINED_INDEX : container.elementsSizeDirtyToIndex;
 
-    recomputeElementOffsets(container, reflowFrom, container.elementsSizeDirtyToIndex);
+    recomputeElementOffsets(container, reflowFrom, changedThroughIndex);
     container.lastLayoutHeaderSize = container.headerSize;
     container.lastLayoutWindowWidth = container.revision.windowContainerWidth;
     container.lastLayoutWindowHeight = container.revision.windowContainerHeight;

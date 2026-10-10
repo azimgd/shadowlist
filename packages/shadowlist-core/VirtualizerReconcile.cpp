@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <mutex>
+#include <string_view>
 #include <unordered_map>
 
 namespace azimgd::shadowlist {
@@ -61,6 +62,38 @@ bool vouchedFor(const KeyEdit& edit, KeyEditKind kind, std::size_t count) {
 }
 
 /*
+ * Flag a structure change for the next layout, from the first row whose place changed.
+ */
+void markStructureDirty(Container& container, std::size_t fromIndex) {
+  container.elementsStructureDirtyFromIndex = container.elementsStructureDirty
+    ? std::min(container.elementsStructureDirtyFromIndex, fromIndex)
+    : fromIndex;
+  container.elementsStructureDirty = true;
+}
+
+/*
+ * How many keys the old rows and the new keys share at the start and at the end. The two
+ * never overlap. One pass of comparisons serves every path below.
+ */
+struct KeyEnds {
+  std::size_t prefix = 0;
+  std::size_t suffix = 0;
+};
+
+KeyEnds commonEnds(const std::vector<Element>& rows, const std::vector<std::string>& nextKeys) {
+  KeyEnds ends;
+  std::size_t shorter = std::min(rows.size(), nextKeys.size());
+  while (ends.prefix < shorter && rows[ends.prefix].key == nextKeys[ends.prefix]) {
+    ++ends.prefix;
+  }
+  while (ends.suffix < shorter - ends.prefix &&
+         rows[rows.size() - 1 - ends.suffix].key == nextKeys[nextKeys.size() - 1 - ends.suffix]) {
+    ++ends.suffix;
+  }
+  return ends;
+}
+
+/*
  * Drop the key map entries of rows first to first + count, before the rows go away.
  * Only valid without duplicate keys, where every row owns its entry.
  */
@@ -74,14 +107,20 @@ void eraseRowKeys(Revision& revision, std::size_t first, std::size_t count) {
  * The new keys are the old rows with rows added at the end. Every old index holds.
  * Returns whether it applied.
  */
-bool reconcileAppend(Container& container, const std::vector<std::string>& nextKeys, const KeyEdit& edit) {
+bool reconcileAppend(
+  Container& container,
+  const std::vector<std::string>& nextKeys,
+  const KeyEdit& edit,
+  const KeyEnds* ends) {
   Revision& revision = container.revision;
   std::vector<Element>& rows = revision.elements;
   if (rows.empty() || nextKeys.size() <= rows.size()) {
     return false;
   }
   bool vouched = vouchedFor(edit, KeyEditKind::Append, nextKeys.size() - rows.size());
-  if (!keysMatchRows(rows, 0, nextKeys, 0, rows.size(), vouched)) {
+  bool matched = ends != nullptr ? ends->prefix >= rows.size()
+                                 : keysMatchRows(rows, 0, nextKeys, 0, rows.size(), vouched);
+  if (!matched) {
     return false;
   }
   // No exact reserve here. It would move every row on each small append.
@@ -102,7 +141,11 @@ bool reconcileAppend(Container& container, const std::vector<std::string>& nextK
  * The new keys are the old rows with new keys added at the start, none of them already
  * present. Every old index grows by the same count, which the bias absorbs.
  */
-bool reconcilePrepend(Container& container, const std::vector<std::string>& nextKeys, const KeyEdit& edit) {
+bool reconcilePrepend(
+  Container& container,
+  const std::vector<std::string>& nextKeys,
+  const KeyEdit& edit,
+  const KeyEnds* ends) {
   Revision& revision = container.revision;
   std::vector<Element>& rows = revision.elements;
   if (rows.empty() || nextKeys.size() <= rows.size()) {
@@ -110,7 +153,9 @@ bool reconcilePrepend(Container& container, const std::vector<std::string>& next
   }
   std::size_t prependCount = nextKeys.size() - rows.size();
   bool vouched = vouchedFor(edit, KeyEditKind::Prepend, prependCount);
-  if (!keysMatchRows(rows, 0, nextKeys, prependCount, rows.size(), vouched)) {
+  bool matched = ends != nullptr ? ends->suffix >= rows.size()
+                                 : keysMatchRows(rows, 0, nextKeys, prependCount, rows.size(), vouched);
+  if (!matched) {
     return false;
   }
   // A prepended key that already exists takes the slow path. It is rare.
@@ -134,14 +179,20 @@ bool reconcilePrepend(Container& container, const std::vector<std::string>& next
 /*
  * The new keys are the old rows with rows removed from the end. Survivors keep their index.
  */
-bool reconcileTrimEnd(Container& container, const std::vector<std::string>& nextKeys, const KeyEdit& edit) {
+bool reconcileTrimEnd(
+  Container& container,
+  const std::vector<std::string>& nextKeys,
+  const KeyEdit& edit,
+  const KeyEnds* ends) {
   Revision& revision = container.revision;
   std::vector<Element>& rows = revision.elements;
   if (revision.hasDuplicateKeys || nextKeys.empty() || nextKeys.size() >= rows.size()) {
     return false;
   }
   bool vouched = vouchedFor(edit, KeyEditKind::TrimEnd, rows.size() - nextKeys.size());
-  if (!keysMatchRows(rows, 0, nextKeys, 0, nextKeys.size(), vouched)) {
+  bool matched = ends != nullptr ? ends->prefix >= nextKeys.size()
+                                 : keysMatchRows(rows, 0, nextKeys, 0, nextKeys.size(), vouched);
+  if (!matched) {
     return false;
   }
   eraseRowKeys(revision, nextKeys.size(), rows.size() - nextKeys.size());
@@ -153,7 +204,11 @@ bool reconcileTrimEnd(Container& container, const std::vector<std::string>& next
  * The new keys are the old rows with rows removed from the start. Every survivor's index
  * drops by the same count, which the bias absorbs.
  */
-bool reconcileTrimStart(Container& container, const std::vector<std::string>& nextKeys, const KeyEdit& edit) {
+bool reconcileTrimStart(
+  Container& container,
+  const std::vector<std::string>& nextKeys,
+  const KeyEdit& edit,
+  const KeyEnds* ends) {
   Revision& revision = container.revision;
   std::vector<Element>& rows = revision.elements;
   if (revision.hasDuplicateKeys || nextKeys.empty() || nextKeys.size() >= rows.size()) {
@@ -161,12 +216,134 @@ bool reconcileTrimStart(Container& container, const std::vector<std::string>& ne
   }
   std::size_t trimCount = rows.size() - nextKeys.size();
   bool vouched = vouchedFor(edit, KeyEditKind::TrimStart, trimCount);
-  if (!keysMatchRows(rows, trimCount, nextKeys, 0, nextKeys.size(), vouched)) {
+  bool matched = ends != nullptr ? ends->suffix >= nextKeys.size()
+                                 : keysMatchRows(rows, trimCount, nextKeys, 0, nextKeys.size(), vouched);
+  if (!matched) {
     return false;
   }
   eraseRowKeys(revision, 0, trimCount);
   rows.erase(rows.begin(), rows.begin() + static_cast<std::ptrdiff_t>(trimCount));
   revision.indexBias += trimCount;
+  return true;
+}
+
+/*
+ * The new keys are the old rows with one stretch in the middle changed, like a row inserted,
+ * removed or replaced, or a few rows moved near each other. The rows before and after the
+ * stretch keep their sizes and their place. Only the stretch goes through the key map, and
+ * whichever side is shorter has its map entries renumbered. The bias moves the other side.
+ * Without duplicate keys only, since a key repeated elsewhere needs the full match.
+ * Returns whether it applied, and how many old rows survived.
+ */
+bool reconcileSplice(
+  Container& container,
+  const std::vector<std::string>& nextKeys,
+  const KeyEnds& ends,
+  std::size_t& survivorCount) {
+  Revision& revision = container.revision;
+  std::vector<Element>& rows = revision.elements;
+  std::size_t previousCount = rows.size();
+  std::size_t nextCount = nextKeys.size();
+  if (revision.hasDuplicateKeys || previousCount == 0 || nextCount == 0) {
+    return false;
+  }
+  std::size_t prefix = ends.prefix;
+  std::size_t suffix = ends.suffix;
+  // Nothing in common at either end is a swap or a reorder. The full match handles it.
+  if (prefix + suffix == 0) {
+    return false;
+  }
+
+  auto& map = revision.elementIndexByKey;
+  const std::size_t bias = revision.indexBias;
+  std::size_t previousMiddleEnd = previousCount - suffix;
+  std::size_t nextMiddleEnd = nextCount - suffix;
+
+  /*
+   * Find each new middle key's old row before changing anything. A key held by a row before
+   * or after the stretch, or twice in the stretch, is a duplicate and takes the full match.
+   */
+  std::vector<std::size_t> sources(nextMiddleEnd - prefix, UNDEFINED_INDEX);
+  std::vector<bool> taken(previousMiddleEnd - prefix, false);
+  std::unordered_map<std::string_view, std::size_t> fresh;
+  for (std::size_t nextIndex = prefix; nextIndex < nextMiddleEnd; ++nextIndex) {
+    const std::string& nextKey = nextKeys[nextIndex];
+    if (nextKey.empty()) {
+      continue;
+    }
+    std::size_t stored = revision.indexForKey(nextKey);
+    if (stored == UNDEFINED_INDEX) {
+      if (!fresh.emplace(nextKey, nextIndex).second) {
+        return false;
+      }
+      continue;
+    }
+    if (stored < prefix || stored >= previousMiddleEnd || rows[stored].key != nextKey || taken[stored - prefix]) {
+      return false;
+    }
+    taken[stored - prefix] = true;
+    sources[nextIndex - prefix] = stored;
+  }
+
+  // Build the new stretch from the old rows it keeps and new rows for the rest.
+  std::vector<Element> middle(nextMiddleEnd - prefix);
+  survivorCount = prefix + suffix;
+  for (std::size_t position = 0; position < middle.size(); ++position) {
+    std::size_t source = sources[position];
+    if (source != UNDEFINED_INDEX) {
+      middle[position] = std::move(rows[source]);
+      ++survivorCount;
+    } else {
+      middle[position].key = nextKeys[prefix + position];
+    }
+  }
+  for (std::size_t previousIndex = prefix; previousIndex < previousMiddleEnd; ++previousIndex) {
+    if (!taken[previousIndex - prefix] && !rows[previousIndex].key.empty()) {
+      map.erase(rows[previousIndex].key);
+    }
+  }
+
+  /*
+   * Rows after the stretch move by the change in count. Renumber the shorter side. Moving
+   * the bias renumbers the rows after the stretch, and the rows before it are put back.
+   */
+  std::ptrdiff_t delta = static_cast<std::ptrdiff_t>(nextCount) - static_cast<std::ptrdiff_t>(previousCount);
+  std::size_t nextBias = bias;
+  if (delta != 0) {
+    if (suffix <= prefix) {
+      for (std::size_t index = previousMiddleEnd; index < previousCount; ++index) {
+        if (!rows[index].key.empty()) {
+          map[rows[index].key] += static_cast<std::size_t>(delta);
+        }
+      }
+    } else {
+      nextBias = bias - static_cast<std::size_t>(delta);
+      for (std::size_t index = 0; index < prefix; ++index) {
+        if (!rows[index].key.empty()) {
+          map[rows[index].key] -= static_cast<std::size_t>(delta);
+        }
+      }
+    }
+  }
+  revision.indexBias = nextBias;
+
+  // Shift the rows after the stretch once, then move the new stretch into place.
+  if (delta > 0) {
+    rows.insert(rows.begin() + static_cast<std::ptrdiff_t>(previousMiddleEnd), static_cast<std::size_t>(delta),
+      Element{});
+  } else if (delta < 0) {
+    rows.erase(rows.begin() + static_cast<std::ptrdiff_t>(nextMiddleEnd),
+      rows.begin() + static_cast<std::ptrdiff_t>(previousMiddleEnd));
+  }
+  std::move(middle.begin(), middle.end(), rows.begin() + static_cast<std::ptrdiff_t>(prefix));
+  reserveKeyMap(revision, nextCount);
+  for (std::size_t nextIndex = prefix; nextIndex < nextMiddleEnd; ++nextIndex) {
+    const std::string& nextKey = nextKeys[nextIndex];
+    if (nextKey.empty()) {
+      continue;
+    }
+    map[nextKey] = nextIndex + nextBias;
+  }
   return true;
 }
 
@@ -314,26 +491,49 @@ std::size_t Virtualizer::reconcileElements(
    * reads the index before then.
    */
   std::size_t previousCount = previousElements.size();
-  bool grew = reconcileAppend(container, nextKeys, edit) || reconcilePrepend(container, nextKeys, edit);
-  bool shrank = !grew && (reconcileTrimEnd(container, nextKeys, edit) || reconcileTrimStart(container, nextKeys, edit));
-  if (grew || shrank) {
+  // Each path returns the first row whose place changed.
+  auto atEnds = [&](const KeyEnds* ends) {
+    if (reconcileAppend(container, nextKeys, edit, ends)) {
+      return previousCount;
+    }
+    if (reconcileTrimEnd(container, nextKeys, edit, ends)) {
+      return nextKeys.size();
+    }
+    if (reconcilePrepend(container, nextKeys, edit, ends) || reconcileTrimStart(container, nextKeys, edit, ends)) {
+      return static_cast<std::size_t>(0);
+    }
+    return UNDEFINED_INDEX;
+  };
+  // A host that vouched for the edit skips the comparisons. Otherwise compare each end once.
+  std::size_t changedFrom = edit.kind != KeyEditKind::Unknown ? atEnds(nullptr) : UNDEFINED_INDEX;
+  KeyEnds ends;
+  if (changedFrom == UNDEFINED_INDEX) {
+    ends = commonEnds(previousElements, nextKeys);
+    changedFrom = atEnds(&ends);
+  }
+  if (changedFrom != UNDEFINED_INDEX) {
     container.geometryVersion++;
-    container.elementsStructureDirty = true;
+    markStructureDirty(container, changedFrom);
     return std::min(previousCount, nextKeys.size());
   }
   /*
    * Any other change matches every new key to its old row. Without duplicate keys the key
    * map is updated in place. With them the map is rebuilt to find which copy takes a row.
    */
-  std::size_t survivorCount = container.revision.hasDuplicateKeys
-    ? reconcileRebuilding(container, nextKeys)
-    : reconcileMatching(container, nextKeys);
+  std::size_t survivorCount = 0;
+  changedFrom = ends.prefix;
+  if (!reconcileSplice(container, nextKeys, ends, survivorCount)) {
+    changedFrom = 0;
+    survivorCount = container.revision.hasDuplicateKeys
+      ? reconcileRebuilding(container, nextKeys)
+      : reconcileMatching(container, nextKeys);
+  }
 
   // Rows moved. Any geometry derived from the old list is stale.
   container.geometryVersion++;
 
   // Rows were added, removed or moved. The next layout must recompute offsets.
-  container.elementsStructureDirty = true;
+  markStructureDirty(container, changedFrom);
 
   /*
    * No row survived. The whole dataset was swapped. Reset the average so it is taken
