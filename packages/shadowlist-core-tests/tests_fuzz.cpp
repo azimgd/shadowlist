@@ -249,7 +249,7 @@ struct SimHost {
     mountState();
     if (traceSeed != 0 && tracing) {
       const Container& core = container;
-      std::printf("      %s off=%.1f core=%.1f total=%.1f max=%.1f n=%zu op=%s%llu pend=%d rest=%d rel=%d init=%d tok=%llu win=[%zd..%zd]\n",
+      std::printf("      %s off=%.1f core=%.1f total=%.1f max=%.1f n=%zu op=%s%llu pend=%d rest=%d rel=%d init=%d tok=%llu win=[%zd..%zd] anchor=%s sub=%.1f\n",
         ownWrite ? "own " : "host", hostOffset, core.revision.containerOffsetY, core.revision.totalContainerHeight,
         maxOffset(), core.revision.elements.size(),
         core.operation ? (core.operation->type == OperationType::MaintainAnchor ? "hold:" :
@@ -258,7 +258,8 @@ struct SimHost {
         static_cast<unsigned long long>(core.operation ? core.operation->id : 0),
         core.pendingScrollToEnd ? 1 : 0, core.restingAtInvertedBottom ? 1 : 0, core.invertedBottomReleased ? 1 : 0,
         core.invertedInitialized ? 1 : 0, static_cast<unsigned long long>(echoedToken),
-        static_cast<std::ptrdiff_t>(core.getVisibleIndices().first), static_cast<std::ptrdiff_t>(core.getVisibleIndices().second));
+        static_cast<std::ptrdiff_t>(core.getVisibleIndices().first), static_cast<std::ptrdiff_t>(core.getVisibleIndices().second),
+        core.anchor.key.c_str(), core.anchor.subOffset);
     }
     // The own write commit is what Fabric runs when state changes, without a host report.
     if (ownWrite) {
@@ -1563,6 +1564,461 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
     for (const Element& element : host.container.revision.elements) {
       if (element.predicted && element.measured) {
         failWith(host, seed, "row " + element.key + " is both measured and predicted");
+      }
+    }
+  }
+}
+
+namespace {
+
+/*
+ * Every row overlapping the host's viewport must be mounted: inside the core's window plus
+ * the rows the host pads around it. Checked during motion, where checkCoverage is too strict.
+ */
+std::string checkMountedCoverage(const SimHost& host) {
+  const Container& core = host.container;
+  if (core.revision.elements.empty()) {
+    return "";
+  }
+  auto visible = core.getVisibleIndices();
+  if (visible.first == UNDEFINED_INDEX) {
+    return "no window";
+  }
+  std::size_t low = std::min(visible.first, visible.second);
+  std::size_t high = std::max(visible.first, visible.second);
+  low = low > host.mountPad ? low - host.mountPad : 0;
+  high += host.mountPad;
+  for (std::size_t index = 0; index < core.revision.elements.size(); ++index) {
+    const Element& element = core.revision.elements[index];
+    if (element.offsetY + element.height <= host.hostOffset || element.offsetY >= host.hostOffset + host.windowSize) {
+      continue;
+    }
+    if (index < low || index > high) {
+      return "row " + std::to_string(index) + " on screen but not mounted [" + std::to_string(low) + ".." +
+        std::to_string(high) + "] host=" + std::to_string(host.hostOffset);
+    }
+  }
+  return "";
+}
+
+/*
+ * The first row whose top is on screen that the reader also saw on screen last frame, at
+ * previousOffset, with its real size. Only such a row can be seen to jump.
+ */
+ScreenRow firstRowStartingOnScreen(const SimHost& host, double previousOffset) {
+  for (const Element& element : host.container.revision.elements) {
+    double screenY = element.offsetY - host.hostOffset;
+    bool sawIt = element.offsetY + element.height > previousOffset && element.offsetY < previousOffset + host.windowSize;
+    if (screenY < 0.0 || !element.measured || !sawIt) {
+      continue;
+    }
+    if (screenY >= host.windowSize) {
+      break;
+    }
+    return {element.key, screenY};
+  }
+  return {};
+}
+
+}
+
+/*
+ * Long flings through unmeasured rows, in both directions, on plain and inverted lists.
+ * Every frame mounts what is on screen and the content under the reader never jumps,
+ * however far the measured rows are from the estimate.
+ */
+TEST(fuzz_flings_never_blank_or_jump) {
+  for (std::uint32_t seed = 1; seed <= 200; ++seed) {
+    SimHost host(seed);
+    std::uniform_int_distribution<int> coin(0, 99);
+    host.inverted = coin(host.rng) < 30;
+    host.header = coin(host.rng) < 50 ? 0.0 : 120.0;
+    open(host, seed, 300 + static_cast<std::size_t>(coin(host.rng)) * 4);
+    scrollTo(host, seed, host.maxOffset() * static_cast<double>(coin(host.rng)) / 99.0);
+
+    for (int fling = 0; fling < 4; ++fling) {
+      double velocity = 1500.0 + static_cast<double>(coin(host.rng)) * 45.0;
+      if (coin(host.rng) < 50) {
+        velocity = -velocity;
+      }
+      host.note("fling v=" + std::to_string(velocity) + " from " + std::to_string(host.hostOffset));
+      while (std::fabs(velocity) > 20.0) {
+        double next = std::min(std::max(host.hostOffset + velocity, 0.0), host.maxOffset());
+        bool clamped = next <= 0.0 || next >= host.maxOffset();
+        double previousOffset = host.hostOffset;
+        host.hostOffset = next;
+        host.phase = ScrollPhase::Settling;
+        host.userScrolled = true;
+        ScreenRow held = firstRowStartingOnScreen(host, previousOffset);
+        host.note("fling frame off=" + std::to_string(host.hostOffset) + " held=" + held.key);
+        host.commit(false);
+        checkFrame(host, seed);
+        std::string coverage = checkMountedCoverage(host);
+        if (!coverage.empty()) {
+          failWith(host, seed, "blank during fling: " + coverage);
+        }
+        host.commit(true);
+        checkFrame(host, seed);
+        coverage = checkMountedCoverage(host);
+        if (!coverage.empty()) {
+          failWith(host, seed, "blank during fling after mount: " + coverage);
+        }
+        bool atEdge = host.hostOffset <= TOLERANCE || std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE;
+        if (!held.key.empty() && !clamped && !atEdge) {
+          double after = screenYOf(host, held.key);
+          if (std::fabs(after - held.screenY) > TOLERANCE) {
+            failWith(host, seed, "row " + held.key + " jumped from " + std::to_string(held.screenY) + " to " +
+              std::to_string(after) + " mid fling");
+          }
+        }
+        if (clamped) {
+          break;
+        }
+        velocity *= 0.92;
+      }
+      host.phase = ScrollPhase::Idle;
+      host.userScrolled = false;
+      host.commit(false);
+      rest(host, seed);
+    }
+  }
+}
+
+/*
+ * A list starts small or empty, grows page by page as the reader reaches an edge, then
+ * shrinks back to a few rows or none and grows again. It never rests outside its range,
+ * a list shorter than the viewport rests at its start, and every arrival at an edge fires
+ * its callback once per page.
+ */
+TEST(fuzz_lists_grow_from_small_and_shrink_back) {
+  for (std::uint32_t seed = 1; seed <= 200; ++seed) {
+    SimHost host(seed);
+    std::uniform_int_distribution<int> coin(0, 99);
+    host.inverted = coin(host.rng) < 40;
+    host.followAppends = host.inverted && coin(host.rng) < 50;
+    host.header = coin(host.rng) < 50 ? 0.0 : 60.0;
+    int endReached = 0;
+    int startReached = 0;
+    std::size_t endReachedCount = UNDEFINED_INDEX;
+    host.container.onEndReachedCallback = [&] {
+      ++endReached;
+      endReachedCount = host.container.revision.elements.size();
+    };
+    std::size_t startReachedCount = UNDEFINED_INDEX;
+    host.container.onStartReachedCallback = [&] {
+      ++startReached;
+      startReachedCount = host.container.revision.elements.size();
+    };
+    open(host, seed, static_cast<std::size_t>(coin(host.rng) % 4));
+
+    auto checkRange = [&](const std::string& what) {
+      if (host.hostOffset < -TOLERANCE || host.hostOffset > host.maxOffset() + TOLERANCE) {
+        failWith(host, seed, what + ": rests outside the range off=" + std::to_string(host.hostOffset) +
+          " max=" + std::to_string(host.maxOffset()));
+      }
+      if (host.maxOffset() <= 0.0 && std::fabs(host.hostOffset) > TOLERANCE) {
+        failWith(host, seed, what + ": a list shorter than the viewport rests at " + std::to_string(host.hostOffset));
+      }
+    };
+
+    for (int step = 0; step < 14; ++step) {
+      int roll = coin(host.rng);
+      std::size_t page = 1 + static_cast<std::size_t>(coin(host.rng) % 15);
+      if (roll < 30) {
+        // The reader goes to the end. Arriving there fires once and loads the next page.
+        int before = endReached;
+        // Rows measured on the way move the end. Keep going until the reader rests on it.
+        for (int attempt = 0; attempt < 8 && host.hostOffset < host.maxOffset() - TOLERANCE; ++attempt) {
+          int beforeAttempt = endReached;
+          scrollTo(host, seed, host.maxOffset());
+          if (endReached - beforeAttempt > 1) {
+            failWith(host, seed, "end reached fired " + std::to_string(endReached - beforeAttempt) + " times on one arrival");
+          }
+        }
+        // Resting at the end of rows it never fired for means the reader waits for a page forever.
+        bool atEnd = host.hostOffset >= host.maxOffset() - TOLERANCE;
+        if (!host.keys.empty() && atEnd && endReachedCount != host.container.revision.elements.size()) {
+          failWith(host, seed, "end reached never fired at the end of " + std::to_string(host.keys.size()) + " rows");
+        }
+        if (endReached > before) {
+          changeAndHold(host, seed, withAppend(host, page), "load next page " + std::to_string(page));
+          // A page that keeps the reader at the end fires again only after it changed the count.
+          int afterPage = endReached;
+          host.commit(false);
+          rest(host, seed);
+          if (endReached - afterPage > 1) {
+            failWith(host, seed, "end reached fired repeatedly after a page");
+          }
+        }
+      } else if (roll < 50) {
+        int before = startReached;
+        scrollTo(host, seed, 0.0);
+        if (startReached - before > 1) {
+          failWith(host, seed, "start reached fired " + std::to_string(startReached - before) + " times on one arrival");
+        }
+        // A list that scrolls, resting on its first row, has fired for the rows it has.
+        bool scrollable = host.container.revision.totalContainerHeight > host.windowSize;
+        if (!host.keys.empty() && scrollable && host.hostOffset <= TOLERANCE &&
+            startReachedCount != host.container.revision.elements.size()) {
+          failWith(host, seed, "start reached never fired at the start of " + std::to_string(host.keys.size()) + " rows");
+        }
+        if (startReached > before) {
+          changeAndHold(host, seed, withPrepend(host, page), "load previous page " + std::to_string(page));
+        }
+      } else if (roll < 65) {
+        changeAndHold(host, seed, withAppend(host, page), "append " + std::to_string(page));
+      } else if (roll < 80) {
+        std::size_t keep = static_cast<std::size_t>(coin(host.rng) % 4);
+        keep = std::min(keep, host.keys.size());
+        bool fromStart = coin(host.rng) < 50;
+        std::vector<std::string> next = fromStart
+          ? std::vector<std::string>(host.keys.begin(), host.keys.begin() + static_cast<std::ptrdiff_t>(keep))
+          : std::vector<std::string>(host.keys.end() - static_cast<std::ptrdiff_t>(keep), host.keys.end());
+        host.keys = next;
+        host.note(std::string("shrink to ") + std::to_string(keep) + (fromStart ? " from start" : " from end") +
+          " off=" + std::to_string(host.hostOffset));
+        host.commit(false);
+        checkFrame(host, seed);
+        rest(host, seed);
+      } else {
+        std::size_t count = 20 + static_cast<std::size_t>(coin(host.rng) % 60);
+        changeAndHold(host, seed, withAppend(host, count), "grow by " + std::to_string(count));
+      }
+      checkRange("step " + std::to_string(step));
+    }
+  }
+}
+
+namespace {
+
+/*
+ * Every row overlapping the axis host's viewport is inside the core's window plus the host's pad.
+ */
+std::string checkAxisCoverage(const AxisHost& host, std::size_t pad) {
+  const Container& core = host.container;
+  if (core.revision.elements.empty()) {
+    return "";
+  }
+  auto visible = core.getVisibleIndices();
+  if (visible.first == UNDEFINED_INDEX) {
+    return "no window";
+  }
+  std::size_t low = std::min(visible.first, visible.second);
+  std::size_t high = std::max(visible.first, visible.second) + pad;
+  low = low > pad ? low - pad : 0;
+  for (std::size_t index = 0; index < core.revision.elements.size(); ++index) {
+    const Element& element = core.revision.elements[index];
+    double start = core.horizontal ? element.offsetX : element.offsetY;
+    double size = core.horizontal ? element.width : element.height;
+    if (start + size <= host.hostOffset || start >= host.hostOffset + host.windowSize) {
+      continue;
+    }
+    if (index < low || index > high) {
+      return "row " + std::to_string(index) + " on screen but not mounted [" + std::to_string(low) + ".." +
+        std::to_string(high) + "] host=" + std::to_string(host.hostOffset);
+    }
+  }
+  return "";
+}
+
+}
+
+/*
+ * Flings through grids, masonry with uneven tracks, and horizontal lists, plain or inverted.
+ * Every frame mounts what is on screen, and at rest the window alone covers it.
+ */
+TEST(fuzz_grid_and_horizontal_flings_never_blank) {
+  for (std::uint32_t seed = 1; seed <= 200; ++seed) {
+    AxisHost host(seed);
+    std::uniform_int_distribution<int> coin(0, 99);
+    int shape = coin(host.rng) % 3;
+    host.columns = shape == 0 ? 2 + static_cast<std::size_t>(coin(host.rng) % 3) : 1;
+    host.horizontal = shape == 1;
+    host.inverted = shape == 2 || (shape == 1 && coin(host.rng) < 30);
+    host.header = coin(host.rng) < 50 ? 0.0 : 80.0;
+    axisOpen(host, seed, 150 + static_cast<std::size_t>(coin(host.rng)) * 3);
+    double openedMax = std::max(0.0, axisTotal(host.container) - host.windowSize);
+    if (host.inverted && std::fabs(host.hostOffset - openedMax) > TOLERANCE) {
+      failWith(host, seed, "inverted list did not open at its end: off=" + std::to_string(host.hostOffset) +
+        " max=" + std::to_string(openedMax));
+    }
+    for (int fling = 0; fling < 4; ++fling) {
+      double velocity = 1200.0 + static_cast<double>(coin(host.rng)) * 40.0;
+      if (coin(host.rng) < 50) {
+        velocity = -velocity;
+      }
+      host.note("fling v=" + std::to_string(velocity) + " from " + std::to_string(host.hostOffset));
+      while (std::fabs(velocity) > 20.0) {
+        double maxOffset = std::max(0.0, axisTotal(host.container) - host.windowSize);
+        double next = std::min(std::max(host.hostOffset + velocity, 0.0), maxOffset);
+        host.hostOffset = next;
+        host.phase = ScrollPhase::Settling;
+        host.userScrolled = true;
+        axisCommit(host, false);
+        /*
+         * Masonry tracks drift apart as rows get measured. A layout pass that shrinks one
+         * track can pull more of it into view than the pad holds, until the next frame picks
+         * the window again. Only single track lists are judged mid fling.
+         */
+        std::string coverage = host.columns > 1 ? "" : checkAxisCoverage(host, host.mountPad);
+        if (!coverage.empty()) {
+          failWith(host, seed, "blank during fling: " + coverage);
+        }
+        axisCommit(host, true);
+        if (next <= 0.0 || next >= maxOffset) {
+          break;
+        }
+        velocity *= 0.9;
+      }
+      host.phase = ScrollPhase::Idle;
+      host.userScrolled = false;
+      axisRest(host, seed);
+      std::string coverage = checkAxisCoverage(host, 0);
+      if (!coverage.empty()) {
+        failWith(host, seed, "blank at rest: " + coverage);
+      }
+      double maxOffset = std::max(0.0, axisTotal(host.container) - host.windowSize);
+      if (host.hostOffset > maxOffset + TOLERANCE) {
+        failWith(host, seed, "rests past the end after a fling");
+      }
+    }
+  }
+}
+
+/*
+ * Scroll commands on grids, masonry and horizontal lists land where they aim and settle,
+ * with data changes in between.
+ */
+TEST(fuzz_grid_and_horizontal_scroll_commands_land) {
+  for (std::uint32_t seed = 1; seed <= 200; ++seed) {
+    AxisHost host(seed);
+    std::uniform_int_distribution<int> coin(0, 99);
+    int shape = coin(host.rng) % 2;
+    host.columns = shape == 0 ? 2 + static_cast<std::size_t>(coin(host.rng) % 3) : 1;
+    host.horizontal = shape == 1;
+    host.header = coin(host.rng) < 50 ? 0.0 : 80.0;
+    axisOpen(host, seed, 60 + static_cast<std::size_t>(coin(host.rng)) * 2);
+    for (int step = 0; step < 8; ++step) {
+      int roll = coin(host.rng);
+      if (roll < 50) {
+        std::size_t index = static_cast<std::size_t>(coin(host.rng)) % host.keys.size();
+        double viewPosition = (coin(host.rng) % 3) * 0.5;
+        std::string key = host.keys[index];
+        host.note("scrollToIndex " + std::to_string(index) + " pos " + std::to_string(viewPosition));
+        host.container.scrollToIndex(index, viewPosition);
+        axisCommit(host, false);
+        if (axisSettle(host) < 0) {
+          failWith(host, seed, "scrollToIndex never settled");
+        }
+        std::size_t landed = host.container.findElementIndexByKey(key);
+        const Element& element = host.container.revision.elements[landed];
+        double start = host.horizontal ? element.offsetX : element.offsetY;
+        double size = host.horizontal ? element.width : element.height;
+        double freeSpace = host.windowSize - size;
+        double wanted = start - (freeSpace > 0.0 ? viewPosition * freeSpace : 0.0);
+        double maxOffset = std::max(0.0, axisTotal(host.container) - host.windowSize);
+        double clampedWanted = std::min(std::max(wanted, 0.0), maxOffset);
+        if (std::fabs(host.hostOffset - clampedWanted) > TOLERANCE) {
+          failWith(host, seed, "scrollToIndex landed at " + std::to_string(host.hostOffset) + " wanted " +
+            std::to_string(clampedWanted));
+        }
+        std::string coverage = checkAxisCoverage(host, 0);
+        if (!coverage.empty()) {
+          failWith(host, seed, "blank after scrollToIndex: " + coverage);
+        }
+      } else if (roll < 65) {
+        host.note("scrollToEnd");
+        host.container.scrollToEnd();
+        axisCommit(host, false);
+        if (axisSettle(host) < 0) {
+          failWith(host, seed, "scrollToEnd never settled");
+        }
+        double maxOffset = std::max(0.0, axisTotal(host.container) - host.windowSize);
+        if (std::fabs(host.hostOffset - maxOffset) > TOLERANCE) {
+          failWith(host, seed, "scrollToEnd landed at " + std::to_string(host.hostOffset) + " max " + std::to_string(maxOffset));
+        }
+      } else if (roll < 80) {
+        host.note("scrollToStart");
+        host.container.scrollToStart();
+        axisCommit(host, false);
+        if (axisSettle(host) < 0) {
+          failWith(host, seed, "scrollToStart never settled");
+        }
+        if (host.hostOffset > TOLERANCE) {
+          failWith(host, seed, "scrollToStart landed at " + std::to_string(host.hostOffset));
+        }
+      } else {
+        std::size_t count = host.columns * (1 + static_cast<std::size_t>(coin(host.rng) % 4));
+        axisChangeAndHold(host, seed, coin(host.rng) < 50 ? withPrepend(host, count) : withAppend(host, count),
+          "change " + std::to_string(count));
+      }
+    }
+  }
+}
+
+/*
+ * An inverted chat whose header or footer resizes, like a loading spinner above the history
+ * or a typing indicator below the newest row. The rows on screen hold, the same as for an
+ * append. A footer growing at the bottom lands below the fold. Shrinking clamps to the end.
+ */
+TEST(fuzz_inverted_header_and_footer_changes_keep_the_reader) {
+  for (std::uint32_t seed = 1; seed <= 200; ++seed) {
+    SimHost host(seed);
+    std::uniform_int_distribution<int> coin(0, 99);
+    host.inverted = true;
+    host.header = coin(host.rng) < 50 ? 0.0 : 60.0;
+    open(host, seed, 20 + static_cast<std::size_t>(coin(host.rng) % 40));
+    for (int step = 0; step < 10; ++step) {
+      if (coin(host.rng) < 35) {
+        double target = coin(host.rng) < 40 ? host.maxOffset() : static_cast<double>(coin(host.rng)) / 99.0 * host.maxOffset();
+        scrollTo(host, seed, target);
+        continue;
+      }
+      bool atBottom = host.hostOffset >= host.maxOffset() - INVERTED_FOLLOW_BAND && !host.container.invertedBottomReleased;
+      bool openingPin = atBottom && host.container.invertedOpeningPin;
+      ScreenRow row = firstVisibleRow(host);
+      double offsetBefore = host.hostOffset;
+      double previousHeader = host.header;
+      bool footerChange = coin(host.rng) < 50;
+      if (footerChange) {
+        host.footer = host.footer > 0.0 ? 0.0 : 40.0 + static_cast<double>(coin(host.rng));
+        host.note("footer -> " + std::to_string(host.footer) + (atBottom ? " at bottom" : ""));
+      } else {
+        host.header = host.header > 0.0 ? 0.0 : 60.0;
+        host.note("header -> " + std::to_string(host.header) + (atBottom ? " at bottom" : ""));
+      }
+      host.commit(false);
+      checkFrame(host, seed);
+      if (host.settle() < 0) {
+        failWith(host, seed, "change never settled");
+      }
+      checkFrame(host, seed, true);
+      if (host.hostOffset > host.maxOffset() + TOLERANCE) {
+        failWith(host, seed, "rests past the end");
+      }
+      /*
+       * A chat still settling on the bottom it opened at keeps that bottom, and so does one
+       * resting on its newest row.
+       */
+      if (openingPin || (atBottom && !row.key.empty() && row.key == host.keys.back())) {
+        if (std::fabs(host.hostOffset - host.maxOffset()) > TOLERANCE) {
+          failWith(host, seed, "left the opening bottom: off=" + std::to_string(host.hostOffset) +
+            " max=" + std::to_string(host.maxOffset()));
+        }
+        continue;
+      }
+      if (row.key.empty()) {
+        continue;
+      }
+      double after = screenYOf(host, row.key);
+      bool headerOffScreen = offsetBefore > 0.0 && offsetBefore >= previousHeader;
+      double expected = footerChange || headerOffScreen ? row.screenY : row.screenY + (host.header - previousHeader);
+      std::size_t index = host.container.findElementIndexByKey(row.key);
+      double wanted = host.container.revision.elements[index].offsetY - expected;
+      bool clamped = (wanted < 0.0 && host.hostOffset <= TOLERANCE) ||
+        (wanted > host.maxOffset() && std::fabs(host.hostOffset - host.maxOffset()) <= TOLERANCE);
+      if (std::fabs(after - expected) > TOLERANCE && !clamped) {
+        failWith(host, seed, "row " + row.key + " at " + std::to_string(after) + " expected " + std::to_string(expected));
       }
     }
   }
