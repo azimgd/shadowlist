@@ -36,7 +36,7 @@ Four nouns, the same in every layer:
 - `cell`: the view that shows a row (`ShadowListKitListCell`, Fabric `ShadowListCellView`).
 - `key`: stable identity of an item or row. Never `id`.
 
-Every platform uses the same word for each concept and only changes the shape to fit its language. Fabric keeps React Native's name where FlatList, SectionList or ScrollView define one (`renderItem`, `initialNumToRender`, `scrollToIndex`, `ListHeaderComponent`).
+Every platform uses the same word for each concept and only changes the shape to fit its language. Fabric keeps React Native's name where FlatList, SectionList or ScrollView define one (`renderItem`, `initialNumToRender`, `scrollToIndex`, `ListHeaderComponent`). `shadowlist-wasm` uses the Kotlin column for the parts it has.
 
 | Concept                | Word                       | Objective-C                                                                                       | Kotlin                                                                                  | Fabric (JS)                                                                                                      |
 | ---------------------- | -------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
