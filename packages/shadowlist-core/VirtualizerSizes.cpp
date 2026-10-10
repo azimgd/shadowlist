@@ -149,6 +149,10 @@ void Virtualizer::commitElementSizes(Container& container, std::size_t fromIndex
     double compensationDelta = compensationAnchor->subOffset;
     std::size_t anchorIndex = container.findElementIndexByKey(compensationAnchor->key);
     if (anchorIndex != UNDEFINED_INDEX) {
+      // A scroll to a key works its sub offset out from the view position, like resolveScroll does.
+      if (container.operation && compensationAnchor == &container.operation->target) {
+        compensationDelta = resolveAnchorSubOffset(container, *container.operation, anchorIndex);
+      }
       // Compare the target before clamping. A bounce at the top is left alone.
       double rawAnchoredOffset = container.getElementOffset(anchorIndex) + compensationDelta;
       /*

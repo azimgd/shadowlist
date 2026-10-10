@@ -421,3 +421,32 @@ TEST(header_change_during_a_scroll_to_index_keeps_the_view_position) {
   Virtualizer::applyHeaderSizeChange(container, previousHeader);
   CHECK_NEAR(offsetOf(container, 30) - container.revision.containerOffsetY, (WINDOW_HEIGHT - 100.0) / 2.0, 1.0);
 }
+
+/*
+ * Rows measured while a scroll to an index that rests the row mid screen is landing keep it
+ * mid screen. A jump with no animation lands before the rows around the target are measured.
+ */
+TEST(rows_measured_during_a_scroll_to_index_keep_the_view_position) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  FrameInput input = inputFor(keys, 0.0);
+  Virtualizer::update(container, input);
+  for (std::size_t index = 0; index < keys.size(); ++index) {
+    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, 100.0});
+  }
+  Virtualizer::commitElementSizes(container, 0);
+  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::update(container, input);
+
+  container.scrollToIndex(30, 0.5);
+  Virtualizer::update(container, input);
+  CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
+  double resting = (WINDOW_HEIGHT - 100.0) / 2.0;
+  CHECK_NEAR(offsetOf(container, 30) - container.revision.containerOffsetY, resting, 1.0);
+
+  // A row above the target measures taller while the command is still in flight.
+  Virtualizer::applyElementSize(container, 28, {WINDOW_WIDTH, 160.0});
+  Virtualizer::commitElementSizes(container, 28);
+  Virtualizer::recomputeTotalSize(container);
+  CHECK_NEAR(offsetOf(container, 30) - container.revision.containerOffsetY, resting, 1.0);
+}
