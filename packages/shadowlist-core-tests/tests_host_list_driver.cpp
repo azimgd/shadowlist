@@ -471,11 +471,38 @@ TEST(list_driver_reset_keeps_the_first_visible_row) {
   host.settle();
   host.scrollTo(5000.0);
   host.settle();
-  std::size_t first = host.driver.getVisibleRange()->low;
+  auto before = host.topRow();
+  CHECK_EQ(host.driver.getVisibleRange()->low, before.first);
   host.driver.resetKeepingPosition();
   host.settle();
-  CHECK_EQ(host.topRow().first, first);
-  CHECK_NEAR(host.driver.getLeadingAt(first), host.offset, 0.01);
+  auto after = host.topRow();
+  CHECK_EQ(after.first, before.first);
+  CHECK_NEAR(after.second, before.second, 0.01);
+}
+
+TEST(list_driver_visible_range_is_the_rows_on_screen) {
+  Host host(1000);
+  host.settle();
+  host.scrollTo(5000.0);
+  host.settle();
+  auto visible = host.driver.getVisibleRange();
+  CHECK(visible.has_value());
+  CHECK_EQ(visible->low, host.topRow().first);
+  CHECK(host.driver.getLeadingAt(visible->high) < host.offset + WINDOW_ALONG);
+  CHECK(host.driver.getLeadingAt(visible->high) + host.driver.getExtentAt(visible->high) >= host.offset + WINDOW_ALONG);
+  auto window = host.driver.getMeasuredWindow();
+  CHECK(window->low < visible->low);
+}
+
+TEST(list_driver_reset_keeps_an_inverted_list_at_its_end) {
+  ListSettings settings;
+  settings.inverted = true;
+  Host host(1000, settings);
+  host.settle();
+  CHECK_NEAR(host.offset, host.content - WINDOW_ALONG, 0.5);
+  host.driver.resetKeepingPosition();
+  host.settle();
+  CHECK_NEAR(host.offset, host.content - WINDOW_ALONG, 0.5);
 }
 
 TEST(list_driver_row_rect_spans_the_cross_axis) {

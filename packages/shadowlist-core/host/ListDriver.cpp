@@ -365,15 +365,25 @@ void ListDriver::measureIndex(std::size_t index, SizeBatch& batch) {
 }
 
 void ListDriver::resetKeepingPosition() {
-  std::optional<MountedRange> visible = getVisibleRange();
+  /*
+   * The row at the viewport start keeps how far the viewport is into it. An inverted list
+   * resting at its end stays at the end.
+   */
+  double offset = core_->getContainerOffset();
+  double windowAlong = core_->getWindowContainerSize();
+  bool holdEnd = settings_.inverted && getContentAlong() > windowAlong &&
+    offset >= getContentAlong() - windowAlong - 1.0;
+  std::optional<ListAnchor> anchor = getAnchor(offset);
   core_ = std::make_unique<Container>();
   installCallbacks();
   recordEdit({});
   remeasureKeys_.clear();
   echoToken_ = 0;
   settlingLayouts_ = 0;
-  if (visible && visible->low < keys_.size()) {
-    core_->scrollToIndex(visible->low, 0);
+  if (holdEnd) {
+    core_->scrollToEnd();
+  } else if (anchor) {
+    restoreAnchor(*anchor);
   }
 }
 
@@ -402,7 +412,8 @@ std::optional<MountedRange> ListDriver::getMeasuredWindow() const {
 }
 
 std::optional<MountedRange> ListDriver::getVisibleRange() const {
-  auto visible = core_->getVisibleIndices();
+  // The core's visible indices are the measured window. These are the rows on screen.
+  auto visible = core_->getViewableIndices(ViewableRule{});
   if (visible.first == UNDEFINED_INDEX || visible.second == UNDEFINED_INDEX) {
     return std::nullopt;
   }
