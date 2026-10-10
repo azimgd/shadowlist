@@ -573,7 +573,9 @@ std::string ShadowListKitStdString(NSString *string)
 
 - (void)recycleCell:(ShadowListKitListCell *)cell
 {
-  NSInteger index = cell.index;
+  // A cell only measured was never displayed.
+  NSInteger index = cell.mountGeneration != 0 ? cell.index : NSNotFound;
+  cell.mountGeneration = 0;
   [self swipeCellWillRecycle:cell];
   [cell.layer removeAllAnimations];
   cell.alpha = 1;
@@ -1014,6 +1016,11 @@ std::string ShadowListKitStdString(NSString *string)
 {
   for (auto entry = _mounted.begin(); entry != _mounted.end();) {
     if (entry->second.mountGeneration != generation) {
+      // A cell measured ahead keeps its configuration until its row comes into view.
+      if (entry->second.mountGeneration == 0 && [self keptAfterMeasure:entry->second key:entry->first]) {
+        ++entry;
+        continue;
+      }
       // A removed row's cell fades out first, then goes back to the pool. One swiped out does not.
       if ([self isSwipedOutCell:entry->second] || ![_changes fadeOutKey:entry->first cell:entry->second]) {
         [self recycleCell:entry->second];
@@ -1023,6 +1030,16 @@ std::string ShadowListKitStdString(NSString *string)
       ++entry;
     }
   }
+}
+
+- (BOOL)keptAfterMeasure:(ShadowListKitListCell *)cell key:(const std::string&)key
+{
+  std::optional<MountedRange> window = _driver.getMeasuredWindow();
+  if (!window || cell.row == NSNotFound) {
+    return NO;
+  }
+  std::size_t row = (std::size_t)cell.row;
+  return row >= window->low && row <= window->high && row < _driver.getKeyCount() && _driver.getKeyAt(row) == key;
 }
 
 - (void)unmountAll
