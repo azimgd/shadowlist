@@ -112,6 +112,10 @@ std::string ShadowListKitStdString(NSString *string)
 
   BOOL _inLayoutPass;
   /*
+   * Set while the pass after a clamp to the end runs.
+   */
+  BOOL _clampingPass;
+  /*
    * A settle frame waits for the next display frame, at most one at a time.
    */
   BOOL _settleScheduled;
@@ -804,6 +808,18 @@ std::string ShadowListKitStdString(NSString *string)
 - (void)applyPassResult:(const PassResult&)result
 {
   [self applyContentSize:(CGFloat)result.contentAlong];
+  /*
+   * Content that shrank under a resting view clamps it to the new end. The core leaves that
+   * to the host for inverted lists. It runs again on the clamped offset before the frame is
+   * drawn. A drag or a bounce past the end is left to the scroll view.
+   */
+  if (result.offset > [self maxOffset] + 0.5 && [self scrollPhase] == ScrollPhase::Idle && !_clampingPass) {
+    [self writeOffset:[self maxOffset] byUser:NO];
+    _clampingPass = YES;
+    [self runPasses];
+    _clampingPass = NO;
+    return;
+  }
   if (std::fabs(result.offset - [self offset]) >= 0.01) {
     [self writeOffset:result.offset byUser:NO];
   }
