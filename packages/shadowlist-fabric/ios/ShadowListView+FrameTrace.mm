@@ -7,9 +7,9 @@ using namespace facebook::react;
 /*
  * Run right after Core Animation commits, which uses order 2000000, to see the final frame.
  */
-static const CFIndex SLF_TRACE_OBSERVER_ORDER = 2000001;
+static const CFIndex SL_FRAME_TRACE_OBSERVER_ORDER = 2000001;
 
-static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivity activity, void *info)
+static void SLFrameTraceCallback(CFRunLoopObserverRef, CFRunLoopActivity, void *info)
 {
   [(__bridge ShadowListView *)info traceFrame];
 }
@@ -24,7 +24,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
   if (SLFrameTraceEnabled()) {
     CFRunLoopObserverContext context = {0, (__bridge void *)self, NULL, NULL, NULL};
     _frameTraceObserver = CFRunLoopObserverCreate(
-      kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, true, SLF_TRACE_OBSERVER_ORDER,
+      kCFAllocatorDefault, kCFRunLoopBeforeWaiting | kCFRunLoopExit, true, SL_FRAME_TRACE_OBSERVER_ORDER,
       SLFrameTraceCallback, &context);
     CFRunLoopAddObserver(CFRunLoopGetMain(), _frameTraceObserver, kCFRunLoopCommonModes);
   }
@@ -102,10 +102,10 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef observer, CFRunLoopActivit
     footer ? leading(footer.frame) - offset : -1.0, footer ? extent(footer.frame) : 0.0,
     overlayVisible ? leading(overlay.frame) - offset : -1.0, overlayVisible ? extent(overlay.frame) : 0.0,
     _scrollingToTop ? 1 : 0, _scrollToTopJumpPending ? 1 : 0, rowsDescription];
-  if ([signature isEqualToString:_frameTraceLast]) {
+  if ([signature isEqualToString:_previousFrameTrace]) {
     return;
   }
-  _frameTraceLast = signature;
+  _previousFrameTrace = signature;
   SLF_TRACE("frame %s", signature.UTF8String);
 }
 

@@ -11,8 +11,14 @@
    * after the last. One user unmounting never cuts off another.
    */
   NSInteger _enabledCount;
-  CGFloat _current;       // Last height we sent, in dp.
-  CGFloat _targetHeight;  // Full keyboard height for the running transition, in dp.
+  /*
+   * The height sent most recently, in dp.
+   */
+  CGFloat _currentHeight;
+  /*
+   * The full keyboard height for the running transition, in dp.
+   */
+  CGFloat _targetHeight;
 #if !TARGET_OS_OSX
   CADisplayLink *_displayLink;
   CFTimeInterval _animationStart;
@@ -169,7 +175,7 @@ RCT_EXPORT_MODULE()
   }
 
   // Animate from the current height to the new one over the reported duration.
-  _animationFrom = _current;
+  _animationFrom = _currentHeight;
   _animationTo = height;
   _animationDuration = duration;
   _animationStart = CACurrentMediaTime();
@@ -214,7 +220,7 @@ RCT_EXPORT_MODULE()
 
 - (void)emitHeight:(CGFloat)height
 {
-  _current = height;
+  _currentHeight = height;
   CGFloat progress = _targetHeight > 0 ? MIN(1.0, MAX(0.0, height / _targetHeight)) : 0.0;
   [self emitOnKeyboardMove:@{ @"height" : @(height), @"progress" : @(progress) }];
 }

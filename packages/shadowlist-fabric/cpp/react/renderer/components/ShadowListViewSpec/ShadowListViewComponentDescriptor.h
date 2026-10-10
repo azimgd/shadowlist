@@ -29,7 +29,7 @@ public:
      * React Native's Paragraph descriptor, if built after us, shares our measure cache.
      * Doing it later at measure time would be too late. See getSharedTextLayoutManager.
      */
-    textLayoutManager_(getSharedTextLayoutManager(this->contextContainer_)) {};
+    textLayoutManager_(getSharedTextLayoutManager(contextContainer_)) {}
 
   /*
    * Counts commits for the perf suite. Layout only clones are skipped.

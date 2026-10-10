@@ -10,12 +10,11 @@ namespace facebook::react {
 class ShadowListElementViewComponentDescriptor final : public ConcreteComponentDescriptor<ShadowListElementViewShadowNode> {
 public:
   ShadowListElementViewComponentDescriptor(const ComponentDescriptorParameters& parameters) :
-    ConcreteComponentDescriptor<ShadowListElementViewShadowNode>(parameters) {
-  };
+    ConcreteComponentDescriptor<ShadowListElementViewShadowNode>(parameters) {}
 
   void adopt(ShadowNode& shadowNode) const override {
     ConcreteComponentDescriptor::adopt(shadowNode);
-  };
+  }
 };
 
 void ShadowListElementViewSpec_registerComponentDescriptorsFromCodegen(

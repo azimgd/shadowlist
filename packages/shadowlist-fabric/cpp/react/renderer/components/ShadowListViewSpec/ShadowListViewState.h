@@ -54,7 +54,8 @@ using ShadowListLiveScroll = azimgd::shadowlist::LiveScroll;
 #define SHADOWLIST_IMMEDIATE_STATE 0
 #endif
 
-namespace shadowlist_detail {
+namespace shadowlist::detail {
+
 /*
  * A compiled default that an environment variable set to 0 or 1 can flip.
  */
@@ -71,17 +72,18 @@ inline bool switchFromEnvironment(const char* name, bool compiledDefault) {
   }
   return compiledDefault;
 }
+
 }
 
 inline bool shadowListScrollBandEnabled() {
   static const bool enabled =
-    shadowlist_detail::switchFromEnvironment("SHADOWLIST_SCROLL_BAND", SHADOWLIST_SCROLL_BAND != 0);
+    shadowlist::detail::switchFromEnvironment("SHADOWLIST_SCROLL_BAND", SHADOWLIST_SCROLL_BAND != 0);
   return enabled;
 }
 
 inline bool shadowListImmediateStateEnabled() {
   static const bool enabled =
-    shadowlist_detail::switchFromEnvironment("SHADOWLIST_IMMEDIATE_STATE", SHADOWLIST_IMMEDIATE_STATE != 0);
+    shadowlist::detail::switchFromEnvironment("SHADOWLIST_IMMEDIATE_STATE", SHADOWLIST_IMMEDIATE_STATE != 0);
   return enabled;
 }
 
@@ -328,7 +330,7 @@ public:
    *
    * These lists are held by pointer on purpose. State gets copied every commit, every
    * layout and every iOS scroll frame, but the lists change only when rows move. Copying
-   * snap offsets by value meant copying a 100k entry vector several times a frame.
+   * snap offsets by value would copy a 100k entry vector several times a frame.
    * A shared pointer makes a copy cheap and makes the change check a pointer compare.
    *
    * A null pointer means empty, and readers must treat both the same. Nothing changes a

@@ -1,5 +1,3 @@
-#include <TargetConditionals.h>
-#import <QuartzCore/QuartzCore.h>
 #import "ShadowListView.h"
 #import "ShadowListView+Private.h"
 #import "ShadowListElementView.h"
@@ -7,11 +5,21 @@
 #import "ShadowListViewComponentDescriptor.h"
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
 
+#import <QuartzCore/QuartzCore.h>
+#include <TargetConditionals.h>
+
 using namespace facebook::react;
 
 /*
- * Long press and drag to reorder rows.
+ * How long the dropped row takes to slide into its place.
  */
+static const NSTimeInterval SL_DROP_SETTLE_DURATION = 0.18;
+
+/*
+ * How long a drop waits for its reorder to land before it settles anyway.
+ */
+static const NSTimeInterval SL_DROP_SETTLE_TIMEOUT = 0.3;
+
 /*
  * Give the lifted row's shadow an explicit shape. Without one, Core Animation renders the
  * row offscreen every frame to find its outline. Only rebuilt when the size changes.
@@ -52,6 +60,9 @@ static NSInteger SLViewIndex(std::size_t index)
   return index == azimgd::shadowlist::UNDEFINED_INDEX ? NSNotFound : (NSInteger)index;
 }
 
+/*
+ * Long press and drag to reorder rows.
+ */
 @implementation ShadowListView (DragReorder)
 
 #pragma mark - Drag gesture
@@ -170,7 +181,7 @@ static NSInteger SLViewIndex(std::size_t index)
     return;
   }
 
-  // Clear anything left over from the last drag.
+  // Clear anything left over from the previous drag.
   _dragDropPending = NO;
   _droppedView = nil;
   [self clearDragTransforms];
@@ -202,7 +213,7 @@ static NSInteger SLViewIndex(std::size_t index)
   NSString *originKey = SLDragKey(_drag.getOriginKey());
   [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_START fromKey:originKey toKey:originKey];
 
-  // A scripted pickup can arrive while a drag runs. Its old link would keep this view alive.
+  // A scripted pickup can arrive while a drag runs. Its previous link would keep this view alive.
   [_dragDisplayLink invalidate];
   _dragDisplayLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
@@ -349,7 +360,7 @@ static NSInteger SLViewIndex(std::size_t index)
   CABasicAnimation *settle = [CABasicAnimation animationWithKeyPath:@"transform"];
   settle.fromValue = [NSValue valueWithCATransform3D:released];
   settle.toValue = [NSValue valueWithCATransform3D:CATransform3DIdentity];
-  settle.duration = 0.18;
+  settle.duration = SL_DROP_SETTLE_DURATION;
   settle.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
   __weak ShadowListView *weakSelf = self;
   __weak RCTUIView *weakView = view;
@@ -368,7 +379,7 @@ static NSInteger SLViewIndex(std::size_t index)
   [CATransaction commit];
 #else
   __weak ShadowListView *weakSelf = self;
-  [UIView animateWithDuration:0.18
+  [UIView animateWithDuration:SL_DROP_SETTLE_DURATION
                         delay:0.0
                       options:UIViewAnimationOptionCurveEaseOut
                    animations:^{
@@ -454,12 +465,12 @@ static NSInteger SLViewIndex(std::size_t index)
     [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
     /*
-     * Fallback if the reorder never lands. The token stops an old timer from
+     * Fallback if the reorder never lands. The token stops a previous timer from
      * clearing a newer drop.
      */
     NSInteger settleToken = ++_dropSettleToken;
     __weak ShadowListView *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_DROP_SETTLE_TIMEOUT * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
       ShadowListView *strongSelf = weakSelf;
       if (strongSelf && settleToken == strongSelf->_dropSettleToken &&
           strongSelf->_dragDropPending && !strongSelf->_dragging) {
@@ -517,14 +528,14 @@ static NSInteger SLViewIndex(std::size_t index)
     [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:originKey toKey:originKey];
     _inMountObserver = wasInMountObserver;
   }
-  [self teardownDrag];
+  [self tearDownDrag];
 }
 
 /*
  * Stop everything without a reorder or an end event. Used directly only on recycle, where
- * the state belongs to the old list.
+ * the state belongs to the previous list.
  */
-- (void)teardownDrag
+- (void)tearDownDrag
 {
   [_dragDisplayLink invalidate];
   _dragDisplayLink = nil;

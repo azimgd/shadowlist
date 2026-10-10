@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <vector>
 
+NS_ASSUME_NONNULL_BEGIN
+
 /*
  * Raise a subview above its siblings. UIKit reorders the subviews. AppKit cannot.
  * On macOS we set the layer's z position instead. Higher wins and the default is 0.
@@ -90,13 +92,23 @@ static inline BOOL SLFrameTraceEnabled(void)
  * viewport and says which rows show.
  */
 @interface ShadowListScrollView : UIScrollView
-@property (nonatomic, weak) ShadowListView *listView;
+@property (nonatomic, weak, nullable) ShadowListView *listView;
 @end
 #endif
 
 /*
  * State and methods shared by the ShadowListView categories. Objective-C++ only.
  * Gesture and display-link adapters keep drag geometry shared across Apple platforms.
+ *
+ * _scrollEnabled and the fields after it mirror the ScrollView props. A drag turns scrolling
+ * off for its run and gives back _scrollEnabled. _endDragVelocity is the velocity UIKit gave
+ * the end of the latest drag, for onScrollEndDrag, in points per millisecond.
+ * _landCommandSequence is the sequence of the newest command that lands an animated one, 0
+ * once a mounted state carries it. The animation's momentum end waits for that state, which
+ * holds the exact offset. _pageAnnouncementPending holds a VoiceOver page scroll until its
+ * rows mount, and _pageKeyIndices maps row keys to indices for it, built once per props.
+ * On macOS _macDragEnded and _macMomentum track whether the live scroll's fingers lifted
+ * and whether momentum followed.
  */
 @interface ShadowListView () <RCTUIScrollViewDelegate> {
 @package
@@ -155,25 +167,17 @@ static inline BOOL SLFrameTraceEnabled(void)
   CGFloat _scrollToTopJumpY;
   uint64_t _scrollToTopJumpToken;
 
-  /*
-   * ScrollView props. A drag turns scrolling off for its run and gives back _scrollEnabled.
-   */
   BOOL _scrollEnabled;
   BOOL _scrollsToTop;
   CGFloat _decelerationRate;
   CGFloat _refreshProgressViewOffset;
-  // The velocity UIKit gave the end of the last drag, for onScrollEndDrag. Points per millisecond.
   CGPoint _endDragVelocity;
   double _landCommandSequence;
   BOOL _momentumEndAfterLand;
   BOOL _pageAnnouncementPending;
-  // Row index by key for the page announcement, built for these props.
   facebook::react::Props::Shared _pageKeyIndicesProps;
   std::unordered_map<std::string, NSInteger> _pageKeyIndices;
 #if TARGET_OS_OSX
-  /*
-   * The live scroll's fingers lifted, and whether momentum followed.
-   */
   BOOL _macDragEnded;
   BOOL _macMomentum;
 #endif
@@ -196,19 +200,19 @@ static inline BOOL SLFrameTraceEnabled(void)
 
 #if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
   CFRunLoopObserverRef _frameTraceObserver;
-  NSString *_frameTraceLast;
+  NSString *_previousFrameTrace;
 #endif
 }
 
-- (NSInteger)indexOfElementView:(RCTUIView *)view;
+- (NSInteger)indexOfElementView:(nullable RCTUIView *)view;
 
-- (NSString *)keyOfElementView:(RCTUIView *)view;
+- (nullable NSString *)keyOfElementView:(nullable RCTUIView *)view;
 
 - (void)commitStatePatch:(const azimgd::shadowlist::ScrollPatch&)patch;
 - (azimgd::shadowlist::ScrollPatch)livePatch;
 - (void)clearUserScrolled;
 
-- (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey;
+- (void)commitDragEventType:(int)type fromKey:(nullable NSString *)fromKey toKey:(nullable NSString *)toKey;
 
 @end
 
@@ -225,11 +229,11 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (void)applyDragShuffle;
 - (void)clearDragTransforms;
 - (void)cancelDrag;
-- (void)teardownDrag;
-- (void)settleDroppedView:(RCTUIView *)view;
+- (void)tearDownDrag;
+- (void)settleDroppedView:(nullable RCTUIView *)view;
 
 - (void)applyDragAccessibilityActionsToView:(RCTUIView *)view;
-- (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up;
+- (BOOL)performAccessibilityMove:(nullable RCTUIView *)view up:(BOOL)up;
 
 @end
 
@@ -242,9 +246,9 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (BOOL)stopMomentum;
 #endif
 
-- (void)closeSwipeActionsExcept:(RCTUIView *)view;
+- (void)closeSwipeActionsExcept:(nullable RCTUIView *)view;
 #if !TARGET_OS_OSX
-- (BOOL)closeSwipeActionsForTouchInView:(UIView *)view;
+- (BOOL)closeSwipeActionsForTouchInView:(nullable UIView *)view;
 #endif
 
 @end
@@ -252,7 +256,7 @@ static inline BOOL SLFrameTraceEnabled(void)
 #if !TARGET_OS_OSX
 @interface ShadowListView (Refresh)
 
-- (void)applyRefreshState:(BOOL)enabled refreshing:(BOOL)refreshing color:(UIColor *)color;
+- (void)applyRefreshState:(BOOL)enabled refreshing:(BOOL)refreshing color:(nullable UIColor *)color;
 - (void)scheduleRefreshSettle;
 - (void)applyRefreshProgressOffset;
 
@@ -283,3 +287,5 @@ static inline BOOL SLFrameTraceEnabled(void)
 
 @end
 #endif
+
+NS_ASSUME_NONNULL_END

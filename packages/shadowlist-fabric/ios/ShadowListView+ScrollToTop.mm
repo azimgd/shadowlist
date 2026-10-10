@@ -177,7 +177,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
 
 /*
  * One frame of the ease toward the top. The distance left comes from the live offset. A
- * core correction since the last frame just makes the rest of the trip longer or shorter.
+ * core correction since the previous frame just makes the rest of the trip longer or shorter.
  * Steps are capped, and a capped trip keeps going past the normal duration if needed.
  */
 - (void)scrollToTopTick
@@ -192,7 +192,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
     return;
   }
 
-  // The last frame reached the top. Finish.
+  // The previous frame reached the top. Finish.
   if (_scrollToTopProgress >= 1.0) {
     [self finishScrollToTop];
     return;

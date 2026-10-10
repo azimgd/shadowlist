@@ -48,6 +48,11 @@ static double SLScrollPhaseForMacPhase(ShadowListMacScrollPhase phase)
 #import <UIKit/UIGestureRecognizerSubclass.h>
 
 /*
+ * How long a press holds a row before the drag lifts it.
+ */
+static const NSTimeInterval SL_DRAG_PRESS_DURATION = 0.2;
+
+/*
  * A tap while the list is still coasting after a flick should stop the scroll, not press a row.
  * A tap while a row is swiped open closes it, not press another row.
  * RN's ScrollView does the same. We check this list and every scroll view around it at touch time.
@@ -77,9 +82,9 @@ static double SLScrollPhaseForMacPhase(ShadowListMacScrollPhase phase)
     // Wait until RN has seen the touch start. The cancel then reaches that press.
     __weak UIView *weakView = self.view;
     dispatch_async(dispatch_get_main_queue(), ^{
-      UIView *strong = weakView;
-      if (strong) {
-        SLCancelReactTouches(strong);
+      UIView *strongView = weakView;
+      if (strongView) {
+        SLCancelReactTouches(strongView);
       }
     });
   }
@@ -141,7 +146,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
     _scrollView.indicatorStyle = UIScrollViewIndicatorStyleWhite;
 #if defined(__IPHONE_26_0) && __IPHONE_OS_VERSION_MAX_ALLOWED >= __IPHONE_26_0
-    // iOS 26 sizes its edge fade from where the list sits, which left a faded band after the keyboard.
+    // iOS 26 sizes its edge fade from where the list sits, which leaves a faded band after the keyboard.
     if (@available(iOS 26.0, *)) {
       _scrollView.topEdgeEffect.hidden = YES;
       _scrollView.bottomEdgeEffect.hidden = YES;
@@ -164,7 +169,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     // Mouse pan on macOS, long press on iOS.
     _dragRecognizer = [[SLDragGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragGesture:)];
 #if !TARGET_OS_OSX
-    _dragRecognizer.minimumPressDuration = 0.2;
+    _dragRecognizer.minimumPressDuration = SL_DRAG_PRESS_DURATION;
 #endif
     _dragRecognizer.enabled = NO;
 #if TARGET_OS_OSX
@@ -291,12 +296,12 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _pageAnnouncementPending = NO;
   _pageKeyIndicesProps.reset();
   _pageKeyIndices.clear();
-  [self teardownDrag];
+  [self tearDownDrag];
   _dragRecognizer.enabled = NO;
   /*
-   * A recycled view must not pass its old scroll position or state to the next list.
+   * A recycled view must not pass its previous scroll position or state to the next list.
    * Reset _state before moving the offset. setContentOffset reports a scroll right away,
-   * which would otherwise reach the old list as a fake user scroll to the top.
+   * which would otherwise reach the previous list as a fake user scroll to the top.
    */
 #if !TARGET_OS_OSX
   [self cancelScrollToTop];
@@ -304,11 +309,11 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   [(ShadowListMacScrollView *)_scrollView resetScroll];
 #endif
   _state.reset();
-  // The live report and the echo state belong to the old list.
+  // The live report and the echo state belong to the previous list.
   _scrollSync.reset();
   [_scrollView setContentOffset:CGPointZero animated:NO];
   /*
-   * Clear the old content size too. Sticky pinning runs on mount, before the new list's
+   * Clear the previous content size too. Sticky pinning runs on mount, before the new list's
    * first state lands, and would use the stale size.
    */
   _scrollView.contentSize = CGSizeZero;
@@ -321,7 +326,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 - (void)updateProps:(const Props::Shared&)props oldProps:(const Props::Shared&)oldProps
 {
   const auto& nextProps = *std::static_pointer_cast<const ShadowListViewProps>(props);
-  // _props still has the old props until super updateProps swaps them.
+  // _props still has the previous props until super updateProps swaps them.
   const auto& previousProps = *std::static_pointer_cast<const ShadowListViewProps>(_props);
   // Turning pinning on must raise the sticky views on the next pin.
   if (_stickyHeader != nextProps.stickyHeader || _stickyFooter != nextProps.stickyFooter ||
@@ -420,7 +425,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   /*
    * Copy the section header positions for pinning on each scroll. A null pointer means
    * empty, see ShadowListViewState. The core only publishes a new pointer when the values
-   * changed. Copy only then. Copying on every mount cost a full snap list per frame.
+   * changed. Copy only then. Copying on every mount would cost a full snap list per frame.
    */
   BOOL stickyGeometryChanged = NO;
   auto copyPublished = [&stickyGeometryChanged](auto& destination, auto& copiedFrom, const auto& published) {
@@ -452,8 +457,10 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     : CGSizeMake(0, nextStateData.totalContainerHeight_);
   CGRect contentFrame = CGRectMake(0, 0, nextStateData.totalContainerWidth_, nextStateData.totalContainerHeight_);
 #if TARGET_OS_OSX
-  // NSScrollView's contentSize is the document frame, not a separate scroll range.
-  // Writing zero across the axis would resize the document twice on every mount.
+  /*
+   * NSScrollView's contentSize is the document frame, not a separate scroll range.
+   * Writing zero across the axis would resize the document twice on every mount.
+   */
   contentSize = contentFrame.size;
 #endif
   BOOL contentSizeChanged = !CGSizeEqualToSize(_scrollView.contentSize, contentSize) ||
@@ -601,9 +608,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
    * Pull to refresh offsets are reported like any other. Rows prepended while the spinner
    * shows are placed against this offset. The core must know it, or the row the user
    * reads would move up by the spinner's height.
-   */
-
-  /*
+   *
    * The gesture phase, finger down, momentum or idle. It stays set between frames so the
    * core keeps the inverted bottom pin off while a finger rests on the list.
    * See Container::gestureActive. AppKit phases come from ShadowListMacScrollView.

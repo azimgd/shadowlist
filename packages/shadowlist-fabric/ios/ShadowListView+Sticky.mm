@@ -4,9 +4,6 @@
 #include <algorithm>
 
 /*
- * Sticky pinning for the header, footer and section-header overlay.
- */
-/*
  * Move a pinned view along the scroll axis. Skips the write when nothing changed, since
  * pinning runs several times per frame.
  */
@@ -30,6 +27,9 @@ static inline void SLSetHidden(RCTUIView *view, BOOL hidden)
   }
 }
 
+/*
+ * Sticky pinning for the header, footer and section-header overlay.
+ */
 @implementation ShadowListView (Sticky)
 
 /*

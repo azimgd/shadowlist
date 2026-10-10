@@ -7,7 +7,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
 
   // Debug trace, does nothing unless the app was launched with SHADOWLIST_FRAME_TRACE=1.
   if (!jsTraceInstalled_.exchange(true, std::memory_order_relaxed)) {
-    shadowlist::detail::installJsTrace(this->contextContainer_);
+    shadowlist::detail::installJsTrace(contextContainer_);
   }
 
   auto& shadowlistViewShadowNode = static_cast<ShadowListViewShadowNode&>(shadowNode);
@@ -154,7 +154,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
 
   /*
    * A scroll keeps the same props. The same props pointer means the same keys.
-   * The cache holds the old props so the address can't be reused. This lets the core
+   * The cache holds the previous props so the address can't be reused. This lets the core
    * skip comparing every key on scroll frames.
    */
   auto geometryCache = shadowlistViewShadowNode.getGeometryCache();
@@ -287,8 +287,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
  * Events are not merged. When JS falls behind, like while dragging the scroll
  * indicator, the queue grows for the whole gesture. That backlog is the long freeze.
  * Events are sent as discrete. React renders each one synchronously. Dragging content
- * is fine, but the scroll indicator, a macOS scroller and iOS momentum frames all turned
- * into one blocking render per frame.
+ * is fine, but the scroll indicator, a macOS scroller and iOS momentum frames would each
+ * cost one blocking render per frame.
  * Event names stay the same either way.
  *
  * Merging only looks at the last event queued for this view. Sending several kinds of
@@ -302,7 +302,7 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
   /*
    * The callbacks hold the family's event emitter. They only need building again when
    * the emitter or the listened events change. Rebuilding five std::function objects on
-   * every commit, scroll frames included, was pure allocation.
+   * every commit, scroll frames included, is pure allocation.
    */
   const auto& callbacksCache = shadowlistViewShadowNode.getGeometryCache();
   const auto& eventEmitter = shadowlistViewShadowNode.getEventEmitter();

@@ -17,6 +17,8 @@ using namespace facebook::react;
   RCTShadowListViewHandleCommand(self, commandName, args);
 }
 
+#pragma mark - Momentum
+
 /*
  * A scroll command replaces any running momentum, from scroll to top or a fling. Stop it so
  * its next frame cannot move the view off the core's offset. A finger on the list keeps its
@@ -48,6 +50,8 @@ using namespace facebook::react;
   return yielded;
 }
 #endif
+
+#pragma mark - State reports
 
 /*
  * Acknowledge a state that hides rows when no scroll report will, because its correction
@@ -86,8 +90,10 @@ using namespace facebook::react;
   [self commitStatePatch:patch];
 }
 
+#pragma mark - Scroll commands
+
 /*
- * Send a scroll command. The sequence always goes past the last one. The same index
+ * Send a scroll command. The sequence always goes past the previous one. The same index
  * still scrolls again, and the offset is marked as ours until the core applies it.
  * An animated command first gets the core's estimate, see animateCommandTo.
  */
@@ -218,6 +224,8 @@ using namespace facebook::react;
   }
 }
 
+#pragma mark - Swipe actions
+
 /*
  * Slide every swiped row back.
  */
@@ -263,6 +271,8 @@ using namespace facebook::react;
     }
   }
 }
+
+#pragma mark - Indicators and anchor
 
 - (void)flashScrollIndicators
 {

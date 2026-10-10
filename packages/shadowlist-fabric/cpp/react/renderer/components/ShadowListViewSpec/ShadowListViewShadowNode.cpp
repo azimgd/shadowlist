@@ -1,4 +1,5 @@
 #include "ShadowListViewShadowNode.h"
+
 #include "ShadowListOffsetBand.h"
 
 #include <folly/dynamic.h>
@@ -48,16 +49,16 @@ ShadowListViewShadowNode::ShadowListViewShadowNode(
   ConcreteViewShadowNode(sourceShadowNode, fragment) {
   // Share the source's core so every clone of a list uses one Container.
   const auto& source = static_cast<const ShadowListViewShadowNode&>(sourceShadowNode);
-  this->containerManager_ = source.containerManager_;
-  this->geometryCache_ = source.geometryCache_;
+  containerManager_ = source.containerManager_;
+  geometryCache_ = source.geometryCache_;
 }
 
 void ShadowListViewShadowNode::setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager) {
-  this->containerManager_ = containerManager;
+  containerManager_ = containerManager;
 }
 
 void ShadowListViewShadowNode::setGeometryCache(std::shared_ptr<ShadowListViewGeometryCache> geometryCache) {
-  this->geometryCache_ = geometryCache;
+  geometryCache_ = geometryCache;
 }
 
 bool ShadowListViewShadowNode::ownsLayoutableChild(const YogaLayoutableShadowNode& child) const {
@@ -66,7 +67,7 @@ bool ShadowListViewShadowNode::ownsLayoutableChild(const YogaLayoutableShadowNod
    * named through this class can, which is the plain C++ way to reach it.
    */
   constexpr auto yogaNodeMember = &ShadowListViewShadowNode::yogaNode_;
-  return (child.*yogaNodeMember).getOwner() == &this->yogaNode_;
+  return (child.*yogaNodeMember).getOwner() == &yogaNode_;
 }
 
 void ShadowListViewShadowNode::placeChild(
@@ -102,12 +103,12 @@ void ShadowListViewShadowNode::placeChild(
    * Pass the child index, or replaceChild searches the children for every row.
    * The first pass already took the sizes. Don't report the frame we just wrote.
    * That would fight the column layout in a multi column list.
-   * Keep the old child alive past this commit, see replacedChildren_.
+   * Keep the previous child alive past this commit, see replacedChildren_.
    */
-  this->replacedChildren_.push_back(child);
-  this->suppressElementSizeFeedback_ = true;
+  replacedChildren_.push_back(child);
+  suppressElementSizeFeedback_ = true;
   replaceChild(*child, nextChild, childIndex);
-  this->suppressElementSizeFeedback_ = false;
+  suppressElementSizeFeedback_ = false;
   if (layoutContext.affectedNodes != nullptr) {
     layoutContext.affectedNodes->push_back(nextChild.get());
   }
@@ -116,14 +117,14 @@ void ShadowListViewShadowNode::placeChild(
 void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   ConcreteViewShadowNode::layout(layoutContext);
 
-  if (!this->containerManager_ || !this->geometryCache_) {
+  if (!containerManager_ || !geometryCache_) {
     return;
   }
-  std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
-  auto& core = *this->containerManager_;
+  std::lock_guard<std::recursive_mutex> lock(containerManager_->coreMutex);
+  auto& core = *containerManager_;
 
   // The commit that held raw pointers to these children is long done. Let them go.
-  this->replacedChildren_.clear();
+  replacedChildren_.clear();
 
   /*
    * Find and measure the header, footer and empty templates.
@@ -139,7 +140,7 @@ void ShadowListViewShadowNode::layout(LayoutContext layoutContext) {
   placeTemplates(core, slots, horizontal, layoutContext);
   publishLayoutState(core, slots.headerSize, slots.footerSize);
 
-  this->firstMeasuredTags_.clear();
+  firstMeasuredTags_.clear();
 }
 
 void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& core, bool horizontal, LayoutSlots& slots) {
@@ -153,7 +154,7 @@ void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& co
     if (const auto elementViewProps = dynamic_cast<const ShadowListElementViewProps*>(childProps)) {
       /*
        * Look the row up by key, since a child committed before a prepend, insert or reorder
-       * has an old index. Skip it if the key is gone. Use the index only when there is no key.
+       * has a stale index. Skip it if the key is gone. Use the index only when there is no key.
        */
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
@@ -201,7 +202,7 @@ void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& co
   std::vector<std::uint64_t> firstMeasured;
   azimgd::shadowlist::applyMeasuredRows(core, measuredRows, horizontal, firstMeasured);
   for (auto tag : firstMeasured) {
-    this->firstMeasuredTags_.push_back(static_cast<Tag>(tag));
+    firstMeasuredTags_.push_back(static_cast<Tag>(tag));
   }
 }
 
@@ -210,7 +211,7 @@ void ShadowListViewShadowNode::placeElements(
   const std::vector<MountedElement>& mountedElements,
   bool horizontal,
   LayoutContext& layoutContext) {
-  auto& geometry = *this->geometryCache_;
+  auto& geometry = *geometryCache_;
   auto& concealed = geometry.concealedRows;
 
   /*
@@ -222,18 +223,18 @@ void ShadowListViewShadowNode::placeElements(
   auto concealAck = static_cast<std::uint64_t>(inputStateData.concealGenerationAck_);
   std::size_t concealBeforeIndex = CONCEAL_UNSETTLED_ROWS
     ? azimgd::shadowlist::ConcealTracker<ShadowListViewGeometryCache::ConcealedProps>::hideBeforeIndex(
-        core, correcting, !this->firstMeasuredTags_.empty())
+        core, correcting, !firstMeasuredTags_.empty())
     : 0;
   // Sorted. Each row below checks it with a binary search instead of a scan.
   if (concealBeforeIndex > 0) {
-    std::sort(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end());
+    std::sort(firstMeasuredTags_.begin(), firstMeasuredTags_.end());
   }
   concealed.beginPass();
   std::vector<std::uint64_t> stillConcealedTags;
 
   /*
    * Place each row where the core says. Only touch the rows that moved, the others still
-   * have the right frame. Cloning every row each scroll frame was a lot of wasted
+   * have the right frame. Cloning every row each scroll frame would waste a lot of
    * work, see placeChild.
    */
   for (const auto& mounted : mountedElements) {
@@ -270,7 +271,7 @@ void ShadowListViewShadowNode::placeElements(
         }
       }
     } else if (mounted.elementIndex < concealBeforeIndex &&
-               std::binary_search(this->firstMeasuredTags_.begin(), this->firstMeasuredTags_.end(), tag)) {
+               std::binary_search(firstMeasuredTags_.begin(), firstMeasuredTags_.end(), tag)) {
       auto concealedProps = concealedPropsForRow(*previousChild);
       if (concealedProps != nullptr) {
         [[maybe_unused]] auto generation = concealed.hide(static_cast<std::uint64_t>(tag), {previousChild->getProps(), concealedProps});
@@ -336,7 +337,7 @@ void ShadowListViewShadowNode::placeTemplates(
 }
 
 void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container& core, double headerSize, double footerSize) {
-  auto& geometry = *this->geometryCache_;
+  auto& geometry = *geometryCache_;
   auto& concealed = geometry.concealedRows;
 
   /*
@@ -421,27 +422,25 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
   }
 }
 
-
 void ShadowListViewShadowNode::replaceChild(
   const ShadowNode& previousElementShadowNode,
   const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
   std::size_t suggestedIndex) {
-
   /*
    * Send measured row sizes to the core. Look rows up by key, or a child behind a prepend
-   * would write its size onto whatever row now has its old index. Take the core lock,
+   * would write its size onto whatever row now has its previous index. Take the core lock,
    * since this can run at the same time as the commit phase.
    */
-  if (this->suppressElementSizeFeedback_) {
+  if (suppressElementSizeFeedback_) {
     // layout() already gave the core these sizes. Skip the frame it just wrote.
   } else if (const auto elementViewProps = dynamic_cast<const ShadowListElementViewProps*>(nextElementShadowNode->getProps().get())) {
-    if (this->containerManager_) {
-      std::lock_guard<std::recursive_mutex> lock(this->containerManager_->coreMutex);
+    if (containerManager_) {
+      std::lock_guard<std::recursive_mutex> lock(containerManager_->coreMutex);
 
       // Look up the index under the lock, since a stale child can arrive before the data catches up.
       std::size_t elementIndex = elementViewProps->elementKey.empty()
         ? static_cast<std::size_t>(elementViewProps->index)
-        : this->containerManager_->findElementIndexByKey(elementViewProps->elementKey);
+        : containerManager_->findElementIndexByKey(elementViewProps->elementKey);
       const auto elementViewNode = dynamic_cast<const YogaLayoutableShadowNode*>(nextElementShadowNode.get());
       const auto elementViewNodeSize = elementViewNode
         ? elementViewNode->getLayoutMetrics().frame.size
@@ -451,17 +450,17 @@ void ShadowListViewShadowNode::replaceChild(
        * row and the content under the reader would jump by its size. Let the layout pass
        * measure it from the real frame instead.
        */
-      bool laidOut = (this->containerManager_->horizontal ? elementViewNodeSize.width : elementViewNodeSize.height) > 0.0;
-      if (elementIndex < this->containerManager_->getElementsSize() && elementViewNode && laidOut) {
-        bool firstMeasurement = !this->containerManager_->getElementAtIndex(elementIndex).measured;
+      bool laidOut = (containerManager_->horizontal ? elementViewNodeSize.width : elementViewNodeSize.height) > 0.0;
+      if (elementIndex < containerManager_->getElementsSize() && elementViewNode && laidOut) {
+        bool firstMeasurement = !containerManager_->getElementAtIndex(elementIndex).measured;
 
         azimgd::shadowlist::Virtualizer::updateElementAtIndex(
-          *this->containerManager_,
+          *containerManager_,
           elementIndex,
           {.width = elementViewNodeSize.width, .height = elementViewNodeSize.height});
 
         if (firstMeasurement) {
-          this->firstMeasuredTags_.push_back(nextElementShadowNode->getTag());
+          firstMeasuredTags_.push_back(nextElementShadowNode->getTag());
         }
       }
     }

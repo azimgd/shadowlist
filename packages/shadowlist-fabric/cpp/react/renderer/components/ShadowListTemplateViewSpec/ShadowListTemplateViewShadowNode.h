@@ -8,9 +8,6 @@
 
 #include "ShadowListTemplateViewState.h"
 
-#include <shadowlist-core/Container.hpp>
-#include <shadowlist-core/Virtualizer.hpp>
-
 namespace facebook::react {
 
 JSI_EXPORT extern const char ShadowListTemplateViewComponentName[];
