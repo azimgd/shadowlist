@@ -6,9 +6,9 @@ export interface ShadowListKitModule {
   HEAP32: Int32Array;
   HEAPF64: Float64Array;
   HEAPU8: Uint8Array;
-  shadowListKitMeasureItem?: (
+  shadowListKitMeasureRow?: (
     handle: number,
-    index: number,
+    row: number,
     crossSize: number
   ) => number;
   _malloc(bytes: number): number;
@@ -17,11 +17,11 @@ export interface ShadowListKitModule {
   _ShadowListKitCore_nativeDestroy(handle: number): void;
   _ShadowListKitCore_nativeSetSettings(
     handle: number,
-    estimatedItemSize: number,
+    estimatedRowSize: number,
     overscan: number,
     startReachedThreshold: number,
     endReachedThreshold: number,
-    columns: number,
+    numberOfColumns: number,
     inverted: boolean,
     followAppends: boolean,
     horizontal: boolean,
@@ -61,7 +61,7 @@ export interface ShadowListKitModule {
   _ShadowListKitCore_nativePassSlots(handle: number): number;
   _ShadowListKitCore_nativeRunPasses(handle: number): void;
   _ShadowListKitCore_nativeResetKeepingPosition(handle: number): void;
-  _ShadowListKitCore_nativeCount(handle: number): number;
+  _ShadowListKitCore_nativeRowCount(handle: number): number;
   _ShadowListKitCore_nativeCopyRowRects(
     handle: number,
     low: number,
@@ -88,9 +88,9 @@ export interface ShadowListKitModule {
     out: number,
     capacity: number
   ): number;
-  _ShadowListKitCore_nativeScrollToIndex(
+  _ShadowListKitCore_nativeScrollToRow(
     handle: number,
-    index: number,
+    row: number,
     viewPosition: number
   ): void;
   _ShadowListKitCore_nativeScrollToStart(handle: number): void;
@@ -119,12 +119,12 @@ export interface ShadowListKitModule {
     low: number,
     high: number
   ): number;
-  _ShadowListKitCore_nativeAnchor(
+  _ShadowListKitCore_nativeAnchorState(
     handle: number,
     offset: number,
     out: number
   ): number;
-  _ShadowListKitCore_nativeRestoreAnchor(
+  _ShadowListKitCore_nativeRestoreAnchorState(
     handle: number,
     key: number,
     length: number,
@@ -149,12 +149,12 @@ export interface ShadowListKitModule {
     movedTo: number,
     movedCount: number
   ): number;
-  _ShadowListKitCore_nativeInsertionPositions(
+  _ShadowListKitCore_nativeInsertionIndices(
     indices: number,
     count: number,
     previousCount: number
   ): number;
-  _ShadowListKitCore_nativeDeletionPositions(
+  _ShadowListKitCore_nativeDeletionIndices(
     indices: number,
     count: number,
     previousCount: number

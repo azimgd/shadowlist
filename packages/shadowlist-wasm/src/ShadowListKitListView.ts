@@ -8,6 +8,10 @@ import { ShadowListKitListCell } from './ShadowListKitListCell.js';
 import type { ShadowListKitListChanges } from './ShadowListKitListChanges.js';
 import { ShadowListKitListData } from './ShadowListKitListData.js';
 import { ShadowListKitScrollGesture } from './ShadowListKitScrollGesture.js';
+import {
+  ShadowListKitSnapAlignment,
+  snapAlignmentOrdinal,
+} from './ShadowListKitSnapAlignment.js';
 import { ShadowListKitStickyPinning } from './ShadowListKitStickyPinning.js';
 
 /*
@@ -19,15 +23,15 @@ function wholePixels(size: number): number {
 }
 
 /*
- * What the list shows. keyForItem is a stable identity for the row. Sizes, cells and the
+ * What the list shows. keyForItem is a stable identity for the item. Sizes, cells and the
  * scroll position follow keys across reloadData. A prepend or an insert above keeps what is on
- * screen in place. A row whose content changed under the same key needs reloadItems.
+ * screen in place. An item whose content changed under the same key needs reloadItems.
  *
- * sizeForItem gives sizes without cells, like from a layout computed ahead. Otherwise every row
+ * sizeForItem gives sizes without cells, like from a layout computed ahead. Otherwise every item
  * is measured once through its cell. reconfigureCell updates a shown cell for a payload given to
- * reloadItems and returns true, or false to have the row reloaded in full instead.
+ * reloadItems and returns true, or false to have the item reloaded in full instead.
  * contentVersionForItem changes with an item's content, like a revision or a hash. applyChanges
- * reloads the rows whose value changed.
+ * reloads the items whose value changed.
  */
 export interface ShadowListKitListViewDataSource {
   numberOfItems(listView: ShadowListKitListView): number;
@@ -55,7 +59,7 @@ export interface ShadowListKitListViewDataSource {
 
 /*
  * Hears what the list does. didEndScrolling fires once the list came to rest after a scroll or
- * an animated command, on a row edge when snapToItem is set. didReachStart and didReachEnd fire
+ * an animated command, on an item edge when snapToItem is set. didReachStart and didReachEnd fire
  * when the scroll position came within startReachedThreshold or endReachedThreshold of an edge.
  */
 export interface ShadowListKitListViewDelegate {
@@ -77,8 +81,8 @@ export interface ShadowListKitListViewDelegate {
 
 /*
  * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
- * items are the ones in the core's measured window, an overscan past the viewport, that have no
- * cell yet. A prefetched item that leaves the window before it shows is cancelled.
+ * items are the ones in the core's measured range, an overscan past the viewport, that have
+ * no cell yet. A prefetched item that leaves the measured range before it shows is cancelled.
  */
 export interface ShadowListKitListViewPrefetchDataSource {
   prefetchItems(listView: ShadowListKitListView, indices: number[]): void;
@@ -90,8 +94,8 @@ export interface ShadowListKitListViewPrefetchDataSource {
 
 /*
  * A virtualized list on the shadowlist core, as the custom element <shadowlist-kit-list-view>.
- * Rows are placed by the core, which keeps the visible content still while rows are measured,
- * inserted or removed. Measurement, offset corrections and mounting all happen in one layout
+ * Items are placed by the core, which keeps the visible content still while items are measured,
+ * inserted or deleted. Measurement, offset corrections and mounting all happen in one layout
  * pass before the browser paints. A scroll frame that stays inside the core's offset band does
  * no core work at all. Sizes are in CSS pixels. The element needs a size from its styles.
  */
@@ -113,7 +117,8 @@ export class ShadowListKitListView extends HTMLElement {
     startReachedThreshold: 1,
     endReachedThreshold: 1,
     snapToItem: false,
-    snapAlignment: 0,
+    snapAlignment:
+      ShadowListKitSnapAlignment.START as ShadowListKitSnapAlignment,
     stickyIndices: [] as number[],
     headerView: null as HTMLElement | null,
     footerView: null as HTMLElement | null,
@@ -166,10 +171,10 @@ export class ShadowListKitListView extends HTMLElement {
   /*
    * The rows the core keeps measured and their frames, four values each.
    */
-  private windowLow = -1;
-  private windowHigh = -1;
-  private windowFrames = new Float64Array(256);
-  private windowGeometry = -1;
+  private measuredLow = -1;
+  private measuredHigh = -1;
+  private measuredFrames = new Float64Array(256);
+  private measuredGeometry = -1;
   private readonly scratchFrame = new Float64Array(4);
 
   /*
@@ -188,12 +193,12 @@ export class ShadowListKitListView extends HTMLElement {
   /*
    * Geometry the core last ran with.
    */
-  windowAlong = 0;
-  windowCross = 0;
+  private windowAlong = 0;
+  private windowCross = 0;
   private headerSize = 0;
   private footerSize = 0;
   private templatesChanged = true;
-  contentAlong = 0;
+  private contentAlong = 0;
 
   /*
    * The last offset seen, to tell the reader's scrolling from our own writes.
@@ -255,7 +260,7 @@ export class ShadowListKitListView extends HTMLElement {
      * The browser drops the scroll position of a removed element. A list moved in the page
      * lands on the same row when it connects again.
      */
-    const anchor = this.coreOrNull?.anchor(this.previousOffset);
+    const anchor = this.coreOrNull?.anchorState(this.previousOffset);
     if (anchor && !this.pendingAnchor) {
       this.pendingAnchor = new ShadowListKitAnchorState(
         anchor.key,
@@ -274,7 +279,7 @@ export class ShadowListKitListView extends HTMLElement {
     return this.horizontal ? this.scrollLeft : this.scrollTop;
   }
 
-  get maxOffset(): number {
+  private get maxOffset(): number {
     return Math.max(0, this.contentAlong - this.windowAlong);
   }
 
@@ -296,9 +301,9 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * One step of an animated scroll, laid out right away.
+   * One step of an animated scroll, laid out right away. Only the scroll gesture calls it.
    */
-  scrollToOffset(value: number): void {
+  scrollStep(value: number): void {
     this.writeOffset(Math.min(Math.max(value, 0), this.maxOffset));
     this.layoutPass();
   }
@@ -331,7 +336,7 @@ export class ShadowListKitListView extends HTMLElement {
 
   /*
    * A chat style list that opens at its end and keeps the end in view while the reader is
-   * there. Rows stay in data order, oldest first.
+   * there. Items stay in data order, oldest first.
    */
   get inverted(): boolean {
     return this.properties.inverted;
@@ -342,8 +347,8 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * With inverted, rows appended while the reader rests at the end scroll into view, like an
-   * assistant reply. Off by default, which keeps the visible rows in place.
+   * With inverted, items appended while the reader rests at the end scroll into view, like an
+   * assistant reply. Off by default, which keeps the visible items in place.
    */
   get followAppends(): boolean {
     return this.properties.followAppends;
@@ -363,8 +368,8 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Columns of a grid. Row i goes into column i % numberOfColumns and each column stacks its
-   * own rows.
+   * Columns of a grid. Item i goes into column i % numberOfColumns and each column stacks its
+   * own items.
    */
   get numberOfColumns(): number {
     return this.properties.numberOfColumns;
@@ -375,7 +380,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Size along the scroll axis assumed for rows not measured yet, in CSS pixels.
+   * Size along the scroll axis assumed for items not measured yet, in CSS pixels.
    */
   get estimatedItemSize(): number {
     return this.properties.estimatedItemSize;
@@ -386,7 +391,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * How far past the viewport rows are measured, in viewport sizes. Default 1.
+   * How far past the viewport items are measured, in viewport sizes. Default 1.
    */
   get overscan(): number {
     return this.properties.overscan;
@@ -427,7 +432,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Rest the scroll position on a row edge. Alignment 0 start, 1 center, 2 end.
+   * Rest the scroll position on an item edge, the one snapAlignment names.
    */
   get snapToItem(): boolean {
     return this.properties.snapToItem;
@@ -437,10 +442,10 @@ export class ShadowListKitListView extends HTMLElement {
     this.sendSettings();
   }
 
-  get snapAlignment(): number {
+  get snapAlignment(): ShadowListKitSnapAlignment {
     return this.properties.snapAlignment;
   }
-  set snapAlignment(value: number) {
+  set snapAlignment(value: ShadowListKitSnapAlignment) {
     this.properties.snapAlignment = value;
     this.sendSettings();
   }
@@ -458,7 +463,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Elements before the first row and after the last. Their size along the scroll axis is
+   * Elements before the first item and after the last. Their size along the scroll axis is
    * their natural size at the list's cross size, followed as it changes.
    */
   get headerView(): HTMLElement | null {
@@ -505,7 +510,7 @@ export class ShadowListKitListView extends HTMLElement {
       properties.followAppends,
       properties.horizontal,
       properties.snapToItem,
-      properties.snapAlignment
+      snapAlignmentOrdinal(properties.snapAlignment)
     );
   }
 
@@ -515,7 +520,7 @@ export class ShadowListKitListView extends HTMLElement {
    */
   private createCore(): ShadowListKitCore {
     const created = new ShadowListKitCore((row, crossSize) =>
-      this.measureItem(row, crossSize)
+      this.measureRow(row, crossSize)
     );
     this.coreOrNull = created;
     this.applySettings(created);
@@ -525,9 +530,9 @@ export class ShadowListKitListView extends HTMLElement {
     if (this.keys.length > 0) {
       created.replaceKeys(0, 0, this.keys, 0, this.keys.length);
     }
-    this.windowLow = -1;
-    this.windowHigh = -1;
-    this.windowGeometry = -1;
+    this.measuredLow = -1;
+    this.measuredHigh = -1;
+    this.measuredGeometry = -1;
     this.stickyPinning.invalidateFrames();
     this.bandLow = 1;
     this.bandHigh = 0;
@@ -564,7 +569,7 @@ export class ShadowListKitListView extends HTMLElement {
   /*
    * Run the core on the next animation frame even inside the band.
    */
-  invalidateFrame(): void {
+  private invalidateFrame(): void {
     this.needsFrame = true;
     if (this.frameScheduled) return;
     this.frameScheduled = true;
@@ -591,19 +596,19 @@ export class ShadowListKitListView extends HTMLElement {
     }
     const factory = this.cellFactories.get(identifier);
     const created = factory ? factory() : new ShadowListKitListCell(identifier);
-    this.content.append(created.element);
+    this.content.append(created.view);
     return created as T;
   }
 
   recycleCell(cell: ShadowListKitListCell): void {
     const index = cell.index;
-    cell.element.style.visibility = 'hidden';
+    cell.view.style.visibility = 'hidden';
     this.stickyPinning.release(cell);
     cell.index = ShadowListKitListCell.NO_INDEX;
     if (index >= 0) this.delegate?.didEndDisplayingCell?.(this, cell, index);
     const identifier = cell.reuseIdentifier;
     if (identifier == null) {
-      cell.element.remove();
+      cell.view.remove();
       return;
     }
     let pool = this.reusePool.get(identifier);
@@ -619,8 +624,8 @@ export class ShadowListKitListView extends HTMLElement {
    */
   private makeCell(row: number): ShadowListKitListCell {
     const cell = this.dataSource!.cellForItem(this, row);
-    if (cell.element.parentNode !== this.content) {
-      this.content.append(cell.element);
+    if (cell.view.parentNode !== this.content) {
+      this.content.append(cell.view);
     }
     cell.index = row;
     return cell;
@@ -637,7 +642,7 @@ export class ShadowListKitListView extends HTMLElement {
   /*
    * The mounted cell of a row, or null.
    */
-  mountedCell(row: number): ShadowListKitListCell | null {
+  private mountedCell(row: number): ShadowListKitListCell | null {
     const key = this.keys[row];
     return key === undefined ? null : (this.mounted.get(key) ?? null);
   }
@@ -647,16 +652,16 @@ export class ShadowListKitListView extends HTMLElement {
   // region Data
 
   /*
-   * Read the row count and keys again. Rows keep their sizes and cells by key, and the visible
-   * content stays in place. Cells of surviving keys are not configured again. Only the keys
-   * between the unchanged rows at both ends go to the core.
+   * Read the item count and keys again. Items keep their sizes and cells by key, and the
+   * visible content stays in place. Cells of surviving keys are not configured again.
+   * Only the keys between the unchanged items at both ends go to the core.
    */
   reloadData(): void {
     this.data.reloadData();
   }
 
   /*
-   * Rows were inserted at these positions of the new data, which the data source already
+   * Items were inserted at these positions of the new data, which the data source already
    * reflects. Only the new keys are read. An insert past the end goes at the end.
    */
   insertItems(indices: ReadonlyArray<number>): void {
@@ -664,41 +669,44 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Rows were deleted at these positions of the old data. A delete past the end is dropped.
+   * Items were deleted at these positions of the old data. A delete past the end is dropped.
    */
   deleteItems(indices: ReadonlyArray<number>): void {
     this.data.deleteItems(indices);
   }
 
   /*
-   * The rows' content changed under the same keys. Visible cells are configured again and every
-   * listed row is measured again. With a payload the data source's reconfigureCell can update a
-   * shown cell instead.
+   * The items' content changed under the same keys. Visible cells are configured again and
+   * every listed item is measured again. With a payload the data source's reconfigureCell can
+   * update a shown cell instead.
    */
   reloadItems(indices: ReadonlyArray<number>, payload: unknown = null): void {
     this.data.reloadItems(indices, payload);
   }
 
   /*
-   * An item moved, after the data source reflects it.
+   * The item at sourceIndex moved to destinationIndex, after the data source reflects it.
    */
-  moveItem(index: number, newIndex: number): void {
-    this.data.moveItem(index, newIndex);
+  moveItem(sourceIndex: number, destinationIndex: number): void {
+    this.data.moveItem(sourceIndex, destinationIndex);
   }
 
   /*
    * Inserts, deletes, moves and reloads made in updates land together in one layout. Deletes,
    * reloads and move sources are indices in the data before, inserts and move destinations in
-   * the data after. A batch that does not add up reloads everything. completion runs once the
-   * change is laid out.
+   * the data after. A batch that does not add up reloads everything. completion gets finished
+   * once the change is laid out.
    */
-  performBatchUpdates(updates: () => void, completion?: () => void): void {
+  performBatchUpdates(
+    updates: () => void,
+    completion?: (finished: boolean) => void
+  ): void {
     this.data.performBatchUpdates(updates, completion);
   }
 
   /*
    * The data source already shows the new data. Read every key, work out the inserts, deletes
-   * and moves against the keys held with the core's diffKeys, reload the rows whose content
+   * and moves against the keys held with the core's diffKeys, reload the items whose content
    * version changed, and return what changed.
    */
   applyChanges(): ShadowListKitListChanges {
@@ -739,7 +747,7 @@ export class ShadowListKitListView extends HTMLElement {
    * One pass runs the core when the offset left the band, then mounts. Everything lands before
    * the browser paints.
    */
-  layoutPass(): void {
+  private layoutPass(): void {
     if (this.inLayoutPass || !this.isConnected || !isShadowListKitLoaded()) {
       return;
     }
@@ -834,7 +842,7 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Run the core until the window is measured and any correction landed. Everything happens
+   * Run the core until the measured range has sizes and any correction landed. Everything happens
    * before the browser paints. The reader never sees an estimate or a correction.
    */
   private runPasses(): void {
@@ -872,34 +880,34 @@ export class ShadowListKitListView extends HTMLElement {
     this.reachedStart ||= pass[ShadowListKitCore.PASS_OUT_REACHED_START] !== 0;
     this.reachedEnd ||= pass[ShadowListKitCore.PASS_OUT_REACHED_END] !== 0;
     this.frameGeometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]!;
-    this.copyWindow(pass);
+    this.copyMeasured(pass);
     // A correction waits for one more report on the next animation frame.
     if (pass[ShadowListKitCore.PASS_OUT_SETTLING] !== 0) this.invalidateFrame();
   }
 
   /*
-   * Keep the window's frames on this side. Mount passes inside the band read only these.
+   * Keep the measured range's frames on this side. Mount passes inside the band read only these.
    */
-  private copyWindow(pass: Float64Array): void {
-    const low = pass[ShadowListKitCore.PASS_OUT_WINDOW_LOW]!;
-    const high = pass[ShadowListKitCore.PASS_OUT_WINDOW_HIGH]!;
+  private copyMeasured(pass: Float64Array): void {
+    const low = pass[ShadowListKitCore.PASS_OUT_MEASURED_LOW]!;
+    const high = pass[ShadowListKitCore.PASS_OUT_MEASURED_HIGH]!;
     const geometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]!;
     if (
-      low === this.windowLow &&
-      high === this.windowHigh &&
-      geometry === this.windowGeometry
+      low === this.measuredLow &&
+      high === this.measuredHigh &&
+      geometry === this.measuredGeometry
     ) {
       return;
     }
-    this.windowLow = low;
-    this.windowHigh = high;
-    this.windowGeometry = geometry;
+    this.measuredLow = low;
+    this.measuredHigh = high;
+    this.measuredGeometry = geometry;
     if (low < 0) return;
     const needed = (high - low + 1) * 4;
-    if (this.windowFrames.length < needed) {
-      this.windowFrames = new Float64Array(needed * 2);
+    if (this.measuredFrames.length < needed) {
+      this.measuredFrames = new Float64Array(needed * 2);
     }
-    this.core.copyRowRects(low, high, this.windowFrames);
+    this.core.copyRowRects(low, high, this.measuredFrames);
   }
 
   /*
@@ -910,13 +918,13 @@ export class ShadowListKitListView extends HTMLElement {
    */
   private resetKeepingPosition(): void {
     const core = this.core;
-    const anchor = core.anchor(this.offset);
+    const anchor = core.anchorState(this.offset);
     core.resetKeepingPosition();
-    if (anchor) core.restoreAnchor(anchor.key, anchor.offset);
+    if (anchor) core.restoreAnchorState(anchor.key, anchor.offset);
     for (const cell of this.mounted.values()) cell.resetPlacement();
-    this.windowLow = -1;
-    this.windowHigh = -1;
-    this.windowGeometry = -1;
+    this.measuredLow = -1;
+    this.measuredHigh = -1;
+    this.measuredGeometry = -1;
     this.bandLow = 1;
     this.bandHigh = 0;
     this.needsFrame = true;
@@ -928,23 +936,23 @@ export class ShadowListKitListView extends HTMLElement {
 
   // region Mounting
 
-  private windowLeading(index: number): number {
-    const at = (index - this.windowLow) * 4;
+  private measuredLeading(index: number): number {
+    const at = (index - this.measuredLow) * 4;
     return this.horizontal
-      ? this.windowFrames[at]!
-      : this.windowFrames[at + 1]!;
+      ? this.measuredFrames[at]!
+      : this.measuredFrames[at + 1]!;
   }
 
-  private windowExtent(index: number): number {
-    const at = (index - this.windowLow) * 4;
+  private measuredExtent(index: number): number {
+    const at = (index - this.measuredLow) * 4;
     return this.horizontal
-      ? this.windowFrames[at + 2]!
-      : this.windowFrames[at + 3]!;
+      ? this.measuredFrames[at + 2]!
+      : this.measuredFrames[at + 3]!;
   }
 
   private overlaps(index: number, viewLow: number, viewHigh: number): boolean {
-    const start = this.windowLeading(index);
-    return start + this.windowExtent(index) > viewLow && start < viewHigh;
+    const start = this.measuredLeading(index);
+    return start + this.measuredExtent(index) > viewLow && start < viewHigh;
   }
 
   /*
@@ -954,10 +962,10 @@ export class ShadowListKitListView extends HTMLElement {
    * The core test list_driver_mount_plan_reaches_into_the_insets holds the rule this matches.
    *
    * The browser scrolls on its own thread and can show the next step before this pass lands.
-   * Ahead of the scroll the range reaches two of the last steps, up to the measured window.
+   * Ahead of the scroll the range reaches two of the last steps, up to the measured range.
    */
   private mountCells(): void {
-    if (this.windowLow < 0 || this.keys.length === 0) {
+    if (this.measuredLow < 0 || this.keys.length === 0) {
       this.unmountAll();
       return;
     }
@@ -970,7 +978,7 @@ export class ShadowListKitListView extends HTMLElement {
     const viewHigh = offset + this.windowAlong + (step > 0 ? lead : pad);
     let low = -1;
     let high = -1;
-    for (let index = this.windowLow; index <= this.windowHigh; ++index) {
+    for (let index = this.measuredLow; index <= this.measuredHigh; ++index) {
       if (!this.overlaps(index, viewLow, viewHigh)) continue;
       if (low < 0) low = index;
       high = index;
@@ -991,7 +999,7 @@ export class ShadowListKitListView extends HTMLElement {
       low !== this.mountedLow ||
       high !== this.mountedHigh ||
       sticky !== this.mountedSticky ||
-      this.windowGeometry !== this.mountedGeometry ||
+      this.measuredGeometry !== this.mountedGeometry ||
       this.structureVersion !== this.mountedStructure
     );
   }
@@ -1000,7 +1008,7 @@ export class ShadowListKitListView extends HTMLElement {
     this.mountedLow = low;
     this.mountedHigh = high;
     this.mountedSticky = sticky;
-    this.mountedGeometry = this.windowGeometry;
+    this.mountedGeometry = this.measuredGeometry;
     this.mountedStructure = this.structureVersion;
   }
 
@@ -1043,7 +1051,7 @@ export class ShadowListKitListView extends HTMLElement {
     this.placeCell(cell, index);
     this.applyAccessibility(cell);
     if (appearing) {
-      cell.element.style.visibility = '';
+      cell.view.style.visibility = '';
       this.delegate?.willDisplayCell?.(this, cell, index);
     }
   }
@@ -1064,16 +1072,16 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * The row's frame from the window copy, or from the core for rows outside it.
+   * The row's frame from the measured range copy, or from the core for rows outside it.
    */
   private rowRect(index: number, out: Float64Array): boolean {
     if (
-      this.windowLow >= 0 &&
-      index >= this.windowLow &&
-      index <= this.windowHigh
+      this.measuredLow >= 0 &&
+      index >= this.measuredLow &&
+      index <= this.measuredHigh
     ) {
-      const at = (index - this.windowLow) * 4;
-      out.set(this.windowFrames.subarray(at, at + 4));
+      const at = (index - this.measuredLow) * 4;
+      out.set(this.measuredFrames.subarray(at, at + 4));
       return true;
     }
     return this.core.rowRect(index, out);
@@ -1106,7 +1114,7 @@ export class ShadowListKitListView extends HTMLElement {
     w: number,
     h: number
   ): void {
-    const style = cell.element.style;
+    const style = cell.view.style;
     if (cell.placedWidth !== w || cell.placedHeight !== h) {
       style.width = `${w}px`;
       style.height = `${h}px`;
@@ -1125,7 +1133,7 @@ export class ShadowListKitListView extends HTMLElement {
   // region Prefetching
 
   /*
-   * Tell the prefetch data source about items the measured window brought in that have no cell
+   * Tell the prefetch data source about items the measured range brought in that have no cell
    * yet, and the ones that left it unseen. One wasm call per mount pass, none on band frames.
    */
   private prefetchAround(low: number, high: number): void {
@@ -1149,9 +1157,9 @@ export class ShadowListKitListView extends HTMLElement {
   // region Measurement
 
   /*
-   * Called by the core for every row in its window that has no size yet.
+   * Called by the core for every row in its measured range that has no size yet.
    */
-  private measureItem(row: number, crossSize: number): number {
+  private measureRow(row: number, crossSize: number): number {
     const sizing = this.dataSource?.sizeForItem;
     if (sizing) {
       return wholePixels(sizing.call(this.dataSource, this, row, crossSize));
@@ -1173,15 +1181,15 @@ export class ShadowListKitListView extends HTMLElement {
       this.mounted.set(key, cell);
     }
     cell.resetPlacement();
-    const style = cell.element.style;
+    const style = cell.view.style;
     if (this.horizontal) {
       style.height = `${cross}px`;
       style.width = 'max-content';
-      return wholePixels(cell.element.getBoundingClientRect().width);
+      return wholePixels(cell.view.getBoundingClientRect().width);
     }
     style.width = `${cross}px`;
     style.height = '';
-    return wholePixels(cell.element.getBoundingClientRect().height);
+    return wholePixels(cell.view.getBoundingClientRect().height);
   }
 
   // endregion
@@ -1262,8 +1270,8 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * The item's frame in the content, the same space as the cells' frames. Estimated when the
-   * row was not measured yet.
+   * The item's frame in content coordinates: from the start of the content, header included,
+   * without the list's scroll offset. Estimated when the item was not measured yet.
    */
   rectForItem(index: number): DOMRect | null {
     if (index < 0 || index >= this.keys.length) return null;
@@ -1277,17 +1285,17 @@ export class ShadowListKitListView extends HTMLElement {
   // region Saved position
 
   /*
-   * The row at the viewport start by key and how far the viewport is into it, or null before
+   * The item at the viewport start by key and how far the viewport is into it, or null before
    * the first layout.
    */
   get anchorState(): ShadowListKitAnchorState | null {
-    const anchor = this.coreOrNull?.anchor(this.offset);
+    const anchor = this.coreOrNull?.anchorState(this.offset);
     if (!anchor) return this.pendingAnchor;
     return new ShadowListKitAnchorState(anchor.key, anchor.offset);
   }
 
   /*
-   * Land the saved row the same distance in again, now or once a reload brings its key.
+   * Land the saved item the same distance in again, now or once a reload brings its key.
    */
   restoreAnchorState(state: ShadowListKitAnchorState): void {
     this.pendingAnchor = state;
@@ -1297,7 +1305,7 @@ export class ShadowListKitListView extends HTMLElement {
   private restorePendingAnchor(): void {
     const state = this.pendingAnchor;
     if (!state || this.keys.length === 0 || !isShadowListKitLoaded()) return;
-    if (!this.core.restoreAnchor(state.key, state.offset)) return;
+    if (!this.core.restoreAnchorState(state.key, state.offset)) return;
     this.pendingAnchor = null;
     this.stopScrolling();
     this.runCommandNow();
@@ -1311,15 +1319,15 @@ export class ShadowListKitListView extends HTMLElement {
    * A cell reads as an item of the whole list, like "item 12 of 1000".
    */
   private applyAccessibility(cell: ShadowListKitListCell): void {
-    const element = cell.element;
-    if (!element.getAttribute('role')) element.setAttribute('role', 'listitem');
+    const view = cell.view;
+    if (!view.getAttribute('role')) view.setAttribute('role', 'listitem');
     const position = String(cell.index + 1);
     const size = String(this.itemCount);
-    if (element.getAttribute('aria-posinset') !== position) {
-      element.setAttribute('aria-posinset', position);
+    if (view.getAttribute('aria-posinset') !== position) {
+      view.setAttribute('aria-posinset', position);
     }
-    if (element.getAttribute('aria-setsize') !== size) {
-      element.setAttribute('aria-setsize', size);
+    if (view.getAttribute('aria-setsize') !== size) {
+      view.setAttribute('aria-setsize', size);
     }
   }
 
@@ -1329,7 +1337,7 @@ export class ShadowListKitListView extends HTMLElement {
 
   /*
    * Bring an item into view. viewPosition is where it rests in the viewport, from 0 at the start
-   * to 1 at the end. The core keeps correcting until the row lands, even across estimates.
+   * to 1 at the end. The core keeps correcting until the item lands, even across estimates.
    */
   scrollToItem(index: number, viewPosition = 0, animated = false): void {
     if (index < 0 || index >= this.keys.length) return;
@@ -1344,14 +1352,14 @@ export class ShadowListKitListView extends HTMLElement {
       // Animate to the estimate, then let the core land exactly when the animation ends.
       this.animateCommand(
         target,
-        ShadowListKitCore.LANDING_INDEX,
+        ShadowListKitCore.LANDING_ROW,
         index,
         viewPosition
       );
       return;
     }
     this.stopScrolling();
-    this.core.scrollToIndex(index, viewPosition);
+    this.core.scrollToRow(index, viewPosition);
     this.runCommandNow();
   }
 

@@ -37,8 +37,8 @@ export function loadShadowListKit(options?: {
   locateFile?: (path: string, scriptDirectory: string) => string;
 }): Promise<void> {
   loading ??= createShadowListKitModule(options).then((loaded) => {
-    loaded.shadowListKitMeasureItem = (handle, index, crossSize) =>
-      cores.get(handle)?.deref()?.measureItem(index, crossSize) ?? 0;
+    loaded.shadowListKitMeasureRow = (handle, row, crossSize) =>
+      cores.get(handle)?.deref()?.measureRow(row, crossSize) ?? 0;
     wasmModule = loaded;
   });
   return loading;
@@ -176,8 +176,8 @@ export class ShadowListKitCore {
   static readonly PASS_OUT_REACHED_START = 13;
   static readonly PASS_OUT_REACHED_END = 14;
   static readonly PASS_OUT_GEOMETRY = 15;
-  static readonly PASS_OUT_WINDOW_LOW = 16;
-  static readonly PASS_OUT_WINDOW_HIGH = 17;
+  static readonly PASS_OUT_MEASURED_LOW = 16;
+  static readonly PASS_OUT_MEASURED_HIGH = 17;
   static readonly PASS_SLOTS = 18;
 
   /*
@@ -190,7 +190,7 @@ export class ShadowListKitCore {
   /*
    * Where an animated scroll command lands, the same as the core's ScrollLanding::Target.
    */
-  static readonly LANDING_INDEX = 1;
+  static readonly LANDING_ROW = 1;
   static readonly LANDING_START = 2;
   static readonly LANDING_END = 3;
 
@@ -284,17 +284,17 @@ export class ShadowListKitCore {
   }
 
   /*
-   * The core's insertionPositions and deletionPositions: sorted, each once, an insert past the
+   * The core's insertionIndices and deletionIndices: sorted, each once, an insert past the
    * end at the end, a delete past the end dropped. Negative indices name no row.
    */
-  static insertionPositions(
+  static insertionIndices(
     indices: ReadonlyArray<number>,
     previousCount: number
   ): Int32Array {
     const at = reserve(indices.length * 4);
     putInts(at, indices);
     return takeInts(
-      wasm()._ShadowListKitCore_nativeInsertionPositions(
+      wasm()._ShadowListKitCore_nativeInsertionIndices(
         at,
         indices.length,
         previousCount
@@ -302,14 +302,14 @@ export class ShadowListKitCore {
     );
   }
 
-  static deletionPositions(
+  static deletionIndices(
     indices: ReadonlyArray<number>,
     previousCount: number
   ): Int32Array {
     const at = reserve(indices.length * 4);
     putInts(at, indices);
     return takeInts(
-      wasm()._ShadowListKitCore_nativeDeletionPositions(
+      wasm()._ShadowListKitCore_nativeDeletionIndices(
         at,
         indices.length,
         previousCount
@@ -333,7 +333,7 @@ export class ShadowListKitCore {
   private readonly passSlots: number;
 
   constructor(
-    private readonly measure: (index: number, crossSize: number) => number
+    private readonly measure: (row: number, crossSize: number) => number
   ) {
     this.handle = wasm()._ShadowListKitCore_nativeCreate();
     this.passSlots = wasm()._ShadowListKitCore_nativePassSlots(this.handle);
@@ -342,10 +342,10 @@ export class ShadowListKitCore {
   }
 
   /*
-   * Called by the driver during runPasses for every row in the window that has no size yet.
+   * Called by the driver during runPasses for every row in the measured range that has no size yet.
    */
-  measureItem(index: number, crossSize: number): number {
-    return this.measure(index, crossSize);
+  measureRow(row: number, crossSize: number): number {
+    return this.measure(row, crossSize);
   }
 
   /*
@@ -360,11 +360,11 @@ export class ShadowListKitCore {
   }
 
   setSettings(
-    estimatedItemSize: number,
+    estimatedRowSize: number,
     overscan: number,
     startReachedThreshold: number,
     endReachedThreshold: number,
-    columns: number,
+    numberOfColumns: number,
     inverted: boolean,
     followAppends: boolean,
     horizontal: boolean,
@@ -373,11 +373,11 @@ export class ShadowListKitCore {
   ): void {
     wasm()._ShadowListKitCore_nativeSetSettings(
       this.handle,
-      estimatedItemSize,
+      estimatedRowSize,
       overscan,
       startReachedThreshold,
       endReachedThreshold,
-      columns,
+      numberOfColumns,
       inverted,
       followAppends,
       horizontal,
@@ -452,7 +452,8 @@ export class ShadowListKitCore {
   }
 
   /*
-   * Run the core with the inputs in pass until the window is measured and corrections landed.
+   * Run the core with the inputs in pass until every row of the measured range has a size and
+   * corrections landed.
    * Measuring can grow the heap. The outputs are read from the heap as it is after the call.
    */
   runPasses(): void {
@@ -473,8 +474,8 @@ export class ShadowListKitCore {
     wasm()._ShadowListKitCore_nativeResetKeepingPosition(this.handle);
   }
 
-  get count(): number {
-    return wasm()._ShadowListKitCore_nativeCount(this.handle);
+  get rowCount(): number {
+    return wasm()._ShadowListKitCore_nativeRowCount(this.handle);
   }
 
   /*
@@ -533,12 +534,8 @@ export class ShadowListKitCore {
     return true;
   }
 
-  scrollToIndex(index: number, viewPosition: number): void {
-    wasm()._ShadowListKitCore_nativeScrollToIndex(
-      this.handle,
-      index,
-      viewPosition
-    );
+  scrollToRow(row: number, viewPosition: number): void {
+    wasm()._ShadowListKitCore_nativeScrollToRow(this.handle, row, viewPosition);
   }
 
   scrollToStart(): void {
@@ -606,9 +603,9 @@ export class ShadowListKitCore {
   /*
    * The key of the row at the viewport start and the distance into it, or null.
    */
-  anchor(offset: number): { key: string; offset: number } | null {
+  anchorState(offset: number): { key: string; offset: number } | null {
     const at = reserve(ShadowListKitCore.ANCHOR_SLOTS * 8);
-    const pointer = wasm()._ShadowListKitCore_nativeAnchor(
+    const pointer = wasm()._ShadowListKitCore_nativeAnchorState(
       this.handle,
       offset,
       at
@@ -622,11 +619,11 @@ export class ShadowListKitCore {
     };
   }
 
-  restoreAnchor(key: string, offset: number): boolean {
+  restoreAnchorState(key: string, offset: number): boolean {
     const at = reserve(key.length * 3);
     const length = putKey(key, at);
     return (
-      wasm()._ShadowListKitCore_nativeRestoreAnchor(
+      wasm()._ShadowListKitCore_nativeRestoreAnchorState(
         this.handle,
         at,
         length,

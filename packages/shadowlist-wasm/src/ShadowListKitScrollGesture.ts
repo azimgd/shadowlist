@@ -220,7 +220,7 @@ export class ShadowListKitScrollGesture {
     const eased = 1 - Math.pow(1 - progress, 3);
     const target = this.animationTarget?.() ?? Number.NaN;
     if (!Number.isNaN(target)) this.animationTo = target;
-    this.list.scrollToOffset(
+    this.list.scrollStep(
       this.animationFrom + (this.animationTo - this.animationFrom) * eased
     );
     if (progress < 1) {

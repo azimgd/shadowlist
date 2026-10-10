@@ -21,7 +21,7 @@ export class FeedCell extends ShadowListKitListCell {
 
   constructor() {
     super(FeedCell.IDENTIFIER);
-    this.element.className = 'feed-cell';
+    this.view.className = 'feed-cell';
     this.avatar.className = 'avatar';
     this.name.className = 'name';
     this.meta.className = 'meta';
@@ -31,7 +31,7 @@ export class FeedCell extends ShadowListKitListCell {
     const titles = document.createElement('div');
     titles.append(this.name, this.meta);
     header.append(this.avatar, titles);
-    this.element.append(header, this.text);
+    this.view.append(header, this.text);
   }
 
   configure(post: FeedPost): void {
@@ -53,13 +53,13 @@ export class ChatCell extends ShadowListKitListCell {
 
   constructor() {
     super(ChatCell.IDENTIFIER);
-    this.element.className = 'chat-cell';
+    this.view.className = 'chat-cell';
     this.bubble.className = 'bubble';
-    this.element.append(this.bubble);
+    this.view.append(this.bubble);
   }
 
   configure(message: ChatMessage): void {
-    this.element.classList.toggle('own', message.isOwn);
+    this.view.classList.toggle('own', message.isOwn);
     this.bubble.textContent = message.isOwn
       ? message.text
       : `${message.name}: ${message.text}`;
@@ -74,12 +74,12 @@ export class TileCell extends ShadowListKitListCell {
 
   constructor() {
     super(TileCell.IDENTIFIER);
-    this.element.className = 'tile-cell';
+    this.view.className = 'tile-cell';
   }
 
   configure(tile: Tile, index: number): void {
-    this.element.style.background = tile.color;
-    this.element.textContent = `${index} · ${tile.title}`;
+    this.view.style.background = tile.color;
+    this.view.textContent = `${index} · ${tile.title}`;
   }
 }
 
@@ -91,10 +91,10 @@ export class HeaderCell extends ShadowListKitListCell {
 
   constructor() {
     super(HeaderCell.IDENTIFIER);
-    this.element.className = 'header-cell';
+    this.view.className = 'header-cell';
   }
 
   configure(title: string): void {
-    this.element.textContent = title;
+    this.view.textContent = title;
   }
 }

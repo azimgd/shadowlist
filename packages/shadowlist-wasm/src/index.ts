@@ -11,3 +11,4 @@ export {
   type ShadowListKitListViewDelegate,
   type ShadowListKitListViewPrefetchDataSource,
 } from './ShadowListKitListView.js';
+export { ShadowListKitSnapAlignment } from './ShadowListKitSnapAlignment.js';

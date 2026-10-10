@@ -25,23 +25,23 @@ function laidOutCore(
   count: number,
   offset = 0,
   settings: {
-    estimatedItemSize?: number;
-    columns?: number;
+    estimatedRowSize?: number;
+    numberOfColumns?: number;
     inverted?: boolean;
     snapToItem?: boolean;
   } = {}
 ) {
   const measured: number[] = [];
-  const core = new ShadowListKitCore((index) => {
-    measured.push(index);
+  const core = new ShadowListKitCore((row) => {
+    measured.push(row);
     return ROW_SIZE;
   });
   core.setSettings(
-    settings.estimatedItemSize ?? 100,
+    settings.estimatedRowSize ?? 100,
     1,
     1,
     1,
-    settings.columns ?? 1,
+    settings.numberOfColumns ?? 1,
     settings.inverted ?? false,
     false,
     false,
@@ -63,16 +63,18 @@ function runPasses(core: ShadowListKitCore, offset: number): Float64Array {
   return core.pass;
 }
 
-test('a layout measures the window and reports the content size', () => {
+test('a layout measures the rows in range and reports the content size', () => {
   const { core, measured } = laidOutCore(100);
   const pass = core.pass;
-  assert.equal(core.count, 100);
+  assert.equal(core.rowCount, 100);
   assert.ok(measured.includes(0));
   assert.ok(measured.length < 100);
   assert.equal(pass[ShadowListKitCore.PASS_OUT_OFFSET], 0);
   assert.ok(pass[ShadowListKitCore.PASS_OUT_CONTENT] > WINDOW);
-  assert.equal(pass[ShadowListKitCore.PASS_OUT_WINDOW_LOW], 0);
-  assert.ok(pass[ShadowListKitCore.PASS_OUT_WINDOW_HIGH] >= WINDOW / ROW_SIZE);
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_MEASURED_LOW], 0);
+  assert.ok(
+    pass[ShadowListKitCore.PASS_OUT_MEASURED_HIGH] >= WINDOW / ROW_SIZE
+  );
   core.destroy();
 });
 
@@ -99,12 +101,12 @@ test('row rects follow the measured sizes', () => {
 
 test('a prepend keeps the visible row in place', () => {
   const { core, rows } = laidOutCore(100, 1000);
-  const anchor = core.anchor(1000);
+  const anchor = core.anchorState(1000);
   assert.equal(anchor?.key, rows[20]);
   core.replaceKeys(0, 0, keys(10, 'new'), 0, 10);
   const pass = runPasses(core, 1000);
   const offset = pass[ShadowListKitCore.PASS_OUT_OFFSET];
-  assert.equal(core.anchor(offset!)?.key, rows[20]);
+  assert.equal(core.anchorState(offset!)?.key, rows[20]);
   assert.equal(core.indexOfKey(rows[20]), 30);
   core.destroy();
 });
@@ -118,9 +120,9 @@ test('an inverted list opens at its end', () => {
   core.destroy();
 });
 
-test('scroll to index lands the row at the viewport start', () => {
+test('scroll to row lands the row at the viewport start', () => {
   const { core } = laidOutCore(100);
-  core.scrollToIndex(40, 0);
+  core.scrollToRow(40, 0);
   const pass = runPasses(core, 0);
   assert.equal(pass[ShadowListKitCore.PASS_OUT_OFFSET], 40 * ROW_SIZE);
   core.destroy();
@@ -131,7 +133,7 @@ test('keys survive non ascii text', () => {
   core.replaceKeys(1, 1, ['ключ-🙂'], 0, 1);
   runPasses(core, 0);
   assert.equal(core.indexOfKey('ключ-🙂'), 1);
-  assert.equal(core.restoreAnchor('ключ-🙂', 0), true);
+  assert.equal(core.restoreAnchorState('ключ-🙂', 0), true);
   core.destroy();
 });
 
@@ -140,7 +142,7 @@ test('insert and delete keys change the count', () => {
   core.insertKeys([0, 5], ['a', 'b']);
   core.deleteKeys([2]);
   runPasses(core, 0);
-  assert.equal(core.count, 11);
+  assert.equal(core.rowCount, 11);
   assert.equal(core.indexOfKey('a'), 0);
   assert.equal(core.indexOfKey('b'), 4);
   core.destroy();
@@ -189,13 +191,13 @@ test('plan batch keeps rows and marks inserts', () => {
   assert.equal(ShadowListKitCore.planBatch(3, 5, [], [0], [], []), null);
 });
 
-test('insertion and deletion positions are sorted and clipped', () => {
+test('insertion and deletion indices are sorted and clipped', () => {
   assert.deepEqual(
-    Array.from(ShadowListKitCore.insertionPositions([9, 1, 1], 3)),
+    Array.from(ShadowListKitCore.insertionIndices([9, 1, 1], 3)),
     [1, 4]
   );
   assert.deepEqual(
-    Array.from(ShadowListKitCore.deletionPositions([5, 2, 0, 2], 3)),
+    Array.from(ShadowListKitCore.deletionIndices([5, 2, 0, 2], 3)),
     [0, 2]
   );
 });
@@ -210,17 +212,17 @@ test('a measure that calls into the core keeps the pass slots', () => {
   const rows = keys(50);
   core.replaceKeys(0, 0, rows, 0, rows.length);
   const pass = runPasses(core, 0);
-  assert.equal(pass[ShadowListKitCore.PASS_OUT_WINDOW_LOW], 0);
+  assert.equal(pass[ShadowListKitCore.PASS_OUT_MEASURED_LOW], 0);
   assert.equal(pass[ShadowListKitCore.PASS_OUT_CONTENT], 50 * ROW_SIZE);
   core.destroy();
 });
 
-test('the visible range is the rows on screen, not the measured window', () => {
+test('the visible range is the rows on screen, not the measured range', () => {
   const { core } = laidOutCore(100, 1000);
   // The first pass corrected the offset to measured rows. Rows 20 to 29 fill the viewport at 1000.
   runPasses(core, 1000);
   assert.deepEqual(core.visibleRange(), { low: 20, high: 29 });
-  assert.ok(core.pass[ShadowListKitCore.PASS_OUT_WINDOW_LOW]! < 20);
+  assert.ok(core.pass[ShadowListKitCore.PASS_OUT_MEASURED_LOW]! < 20);
   core.destroy();
 });
 
@@ -230,7 +232,7 @@ test('a reset keeps how far the viewport is into its first row', () => {
   core.resetKeepingPosition();
   const pass = runPasses(core, 1020);
   const offset = pass[ShadowListKitCore.PASS_OUT_OFFSET]!;
-  assert.deepEqual(core.anchor(offset), { key: rows[20], offset: 20 });
+  assert.deepEqual(core.anchorState(offset), { key: rows[20], offset: 20 });
   core.destroy();
 });
 

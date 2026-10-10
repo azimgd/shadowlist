@@ -1,12 +1,12 @@
 /*
- * A row view. Subclasses build their content into element. The list sets the element's size
- * along the cross axis and measures its size along the scroll axis once, then places it at an
- * exact frame. A row whose content changed size needs reloadItems.
+ * The view that shows an item. Subclasses build their content into view. The list sets the
+ * view's size along the cross axis and measures its size along the scroll axis once, then places
+ * it at an exact frame. An item whose content changed size needs reloadItems.
  */
 export class ShadowListKitListCell {
   static readonly NO_INDEX = -1;
 
-  readonly element: HTMLDivElement;
+  readonly view: HTMLDivElement;
 
   /*
    * The item the cell shows, or NO_INDEX while it waits in the reuse pool. Set by the list.
@@ -20,7 +20,7 @@ export class ShadowListKitListCell {
   mountGeneration = 0;
 
   /*
-   * The frame the list placed the element at, which lets a cell that did not move skip its
+   * The frame the list placed the view at, which lets a cell that did not move skip its
    * style writes.
    */
   placedX = Number.NaN;
@@ -29,8 +29,8 @@ export class ShadowListKitListCell {
   placedHeight = Number.NaN;
 
   constructor(readonly reuseIdentifier: string | null = null) {
-    this.element = document.createElement('div');
-    const style = this.element.style;
+    this.view = document.createElement('div');
+    const style = this.view.style;
     style.position = 'absolute';
     style.left = '0';
     style.top = '0';

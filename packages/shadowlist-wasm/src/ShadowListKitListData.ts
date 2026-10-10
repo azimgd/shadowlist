@@ -104,7 +104,7 @@ export class ShadowListKitListData {
     if (!source) return;
     // An index past the end inserts at the end. The key is read where the row lands.
     const sorted = Array.from(
-      ShadowListKitCore.insertionPositions(indices, this.keys.length)
+      ShadowListKitCore.insertionIndices(indices, this.keys.length)
     );
     if (sorted.length === 0) return;
     const inserted = sorted.map((index) => source.keyForItem(this.list, index));
@@ -121,7 +121,7 @@ export class ShadowListKitListData {
       return;
     }
     const sorted = Array.from(
-      ShadowListKitCore.deletionPositions(indices, this.keys.length)
+      ShadowListKitCore.deletionIndices(indices, this.keys.length)
     );
     if (sorted.length === 0) return;
     // Runs go last to first, which keeps the earlier indices valid.
@@ -167,15 +167,18 @@ export class ShadowListKitListData {
     this.list.structureChanged();
   }
 
-  moveItem(index: number, newIndex: number): void {
-    if (index < 0 || newIndex < 0) return;
+  moveItem(sourceIndex: number, destinationIndex: number): void {
+    if (sourceIndex < 0 || destinationIndex < 0) return;
     this.performBatchUpdates(() => {
-      this.batchMovedFrom.push(index);
-      this.batchMovedTo.push(newIndex);
+      this.batchMovedFrom.push(sourceIndex);
+      this.batchMovedTo.push(destinationIndex);
     });
   }
 
-  performBatchUpdates(updates: () => void, completion?: () => void): void {
+  performBatchUpdates(
+    updates: () => void,
+    completion?: (finished: boolean) => void
+  ): void {
     ++this.batchDepth;
     try {
       updates();
@@ -185,7 +188,7 @@ export class ShadowListKitListData {
     if (this.batchDepth === 0) this.commitBatch();
     if (!completion) return;
     this.list.runCommandNow();
-    completion();
+    completion(true);
   }
 
   /*

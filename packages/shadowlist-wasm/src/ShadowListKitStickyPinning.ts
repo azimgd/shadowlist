@@ -145,8 +145,8 @@ export class ShadowListKitStickyPinning {
     style.width = `${horizontal ? span : w}px`;
     style.height = `${horizontal ? h : span}px`;
     if (cell.placedWidth !== w || cell.placedHeight !== h) {
-      cell.element.style.width = `${w}px`;
-      cell.element.style.height = `${h}px`;
+      cell.view.style.width = `${w}px`;
+      cell.view.style.height = `${h}px`;
     }
     cell.placedX = x;
     cell.placedY = y;
@@ -162,9 +162,9 @@ export class ShadowListKitStickyPinning {
     const known = this.sections.get(cell);
     if (known) return known;
     const section = this.spareSections.pop() ?? makeSection();
-    cell.element.replaceWith(section);
-    section.append(cell.element);
-    const style = cell.element.style;
+    cell.view.replaceWith(section);
+    section.append(cell.view);
+    const style = cell.view.style;
     style.position = 'sticky';
     style.transform = '';
     style.pointerEvents = 'auto';
@@ -180,8 +180,8 @@ export class ShadowListKitStickyPinning {
     const section = this.sections.get(cell);
     if (!section) return;
     this.sections.delete(cell);
-    section.replaceWith(cell.element);
-    const style = cell.element.style;
+    section.replaceWith(cell.view);
+    const style = cell.view.style;
     style.position = 'absolute';
     style.pointerEvents = '';
     cell.resetPlacement();

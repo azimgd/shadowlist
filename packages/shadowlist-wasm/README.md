@@ -2,7 +2,7 @@
 
 A virtualized list for the browser, written in TypeScript on the shadowlist core in C++ compiled to WebAssembly.
 `ShadowListKitListView` is a custom element, `<shadowlist-kit-list-view>`, with a data source. The visible content
-stays still while rows are measured, inserted above or removed. Rows have stable keys.
+stays still while items are measured, inserted above or deleted. Items have stable keys.
 
 ## Install
 
@@ -31,7 +31,7 @@ class PostCell extends ShadowListKitListCell {
   }
 
   configure(post: Post): void {
-    this.element.textContent = post.text;
+    this.view.textContent = post.text;
   }
 }
 
@@ -57,25 +57,27 @@ list.reloadData();
 
 The data source gives `numberOfItems`, `keyForItem` and `cellForItem`, and optionally `sizeForItem` for sizes
 without cells, `reconfigureCell` for payload reloads and `contentVersionForItem` for `applyChanges`. Without
-`sizeForItem` every row is measured once through its cell's element at the list's cross size. The delegate has
+`sizeForItem` every item is measured once through its cell's view at the list's cross size. The delegate has
 `willDisplayCell`, `didEndDisplayingCell`, `didScroll`, `didEndScrolling`, `didReachStart` and `didReachEnd`, all
 optional. `prefetchDataSource` hears `prefetchItems` and `cancelPrefetchingForItems`.
 
 Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`,
-`mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `stickyIndices`,
-`headerView`, `footerView`. Data: `reloadData`, `insertItems`, `deleteItems`, `reloadItems(indices, payload)`,
-`moveItem`, `performBatchUpdates`, `applyChanges`. Queries and commands: `cellForItem`, `visibleCells`,
-`visibleRange`, `rectForItem`, `contentSize`, `anchorState`, `scrollToItem`, `scrollToStart`, `scrollToEnd`,
-`restoreAnchorState`. Sizes are in CSS pixels.
+`mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`
+(`ShadowListKitSnapAlignment.START`, `CENTER` or `END`, the strings `'start'`, `'center'` and `'end'`),
+`stickyIndices`, `headerView`, `footerView`. Data: `reloadData`, `insertItems`, `deleteItems`,
+`reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates(updates, completion)`
+with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`, `visibleCells`, `visibleRange`,
+`rectForItem` (content coordinates, header included), `contentSize`, `anchorState`, `scrollToItem`, `scrollToStart`,
+`scrollToEnd`, `restoreAnchorState`. Sizes are in CSS pixels.
 
 - Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data before,
   inserts and move destinations in the data after. A batch that does not add up reloads everything. `applyChanges`
-  diffs every key with the core's `diffKeys`, reloads rows whose `contentVersionForItem` changed since the last
+  diffs every key with the core's `diffKeys`, reloads items whose `contentVersionForItem` changed since the last
   reload, and returns a `ShadowListKitListChanges`.
-- A cell's element is placed at an exact frame. A row whose content changed size needs `reloadItems`, which
+- A cell's `view` is placed at an exact frame. An item whose content changed size needs `reloadItems`, which
   measures it again.
 - The list needs a size from its styles. Only the scroll axis scrolls, and the scrollbar gutter stays reserved.
-- Masonry is round robin: row `i` goes in column `i % numberOfColumns`.
+- Masonry is round robin: item `i` goes in column `i % numberOfColumns`.
 - The core loads on its own when a list connects before `loadShadowListKit` was called.
 
 The view's own behavior:
@@ -85,7 +87,7 @@ The view's own behavior:
 - The browser's scroll anchoring is off on the list (`overflow-anchor: none`). The core keeps the content in place.
 - Sticky rows stick with CSS `position: sticky`. Each mounted sticky row sits in a section element that runs to
   the next sticky row, which pushes it away. The browser pins it on the thread that scrolls.
-- `snapToItem` moves to the nearest row edge once the list came to rest.
+- `snapToItem` moves to the nearest item edge once the list came to rest.
 - Animated scroll commands step once per animation frame. A wheel or a touch stops them.
 - The core is created when the list lays out and destroyed when it disconnects. A list never connected leaves its
   core to a `FinalizationRegistry`.
@@ -129,4 +131,5 @@ console on every pass.
 | `src/ShadowListKitListData.ts`                                                               | Keys, reloads, inserts, deletes, batches and `applyChanges`.                                |
 | `src/ShadowListKitScrollGesture.ts`                                                          | The scroll phase from browser events, animated commands and the snap.                       |
 | `src/ShadowListKitStickyPinning.ts`                                                          | Pins the active sticky row.                                                                 |
-| `src/ShadowListKitListCell.ts`, `ShadowListKitAnchorState.ts`, `ShadowListKitListChanges.ts` | Row base class and public value types.                                                      |
+| `src/ShadowListKitListCell.ts`, `ShadowListKitAnchorState.ts`, `ShadowListKitListChanges.ts` | Cell base class and public value types.                                                     |
+| `src/ShadowListKitSnapAlignment.ts`                                                          | `snapAlignment` values, in the core's `SnapAlignment` order.                                |
