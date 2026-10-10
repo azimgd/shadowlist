@@ -92,7 +92,9 @@ final class LayoutCache {
   private let queue = DispatchQueue(label: "layout.prefetch", qos: .userInitiated)
   private var generation = 0
 
-  // Set by the cost scenario while it times updates. Prefetch work would compete with them.
+  /*
+   * Set by the cost scenario while it times updates. Prefetch work would compete with them.
+   */
   var prefetchPaused = false
 
   func layout(_ row: Row, width: CGFloat) -> RowLayout {
@@ -507,7 +509,9 @@ final class ChatRowView: RowView {
 
 struct ContactRow: Row {
   let contact: Contact
-  // Rows other than the last in a section are followed by a separator strip.
+  /*
+   * Rows other than the last in a section are followed by a separator strip.
+   */
   let separatorBelow: Bool
   var key: String { contact.id }
   var viewClass: RowView.Type { ContactRowView.self }

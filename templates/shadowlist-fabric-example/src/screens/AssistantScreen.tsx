@@ -437,7 +437,7 @@ export const AssistantScreen = () => {
 
   /*
    * A suggestion or follow-up chip is a new question, not the edit in the banner.
-   * Drop the pending edit first so the banner and its old draft go away.
+   * Drop the pending edit first so the banner and its draft go away.
    */
   const handleSelectPrompt = useCallback(
     (prompt: string) => {

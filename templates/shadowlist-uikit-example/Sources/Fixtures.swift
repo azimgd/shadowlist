@@ -114,7 +114,9 @@ struct Photo {
   let id: String
   let title: String
   let url: URL
-  // Height over width of the image.
+  /*
+   * Height over width of the image.
+   */
   let aspect: CGFloat
 
   init(index: Int) {

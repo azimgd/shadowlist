@@ -17,7 +17,9 @@ abstract class ListScreen(val context: Context, val engine: Engine, inverted: Bo
   val list = ListController(context, engine, inverted, columns)
   override val view: View get() = list.backend.view
 
-  // Items generated so far. New ones continue the numbering.
+  /*
+   * Items generated so far. New ones continue the numbering.
+   */
   protected var generated = 0
 
   abstract override fun load()
@@ -124,7 +126,9 @@ class GalleryScreen(context: Context, engine: Engine) : ListScreen(context, engi
 object Routes {
   val names = listOf("Feed", "Chat", "SectionList", "Masonry")
 
-  // Feature screens, which always run on ShadowListKitListView.
+  /*
+   * Feature screens, which always run on ShadowListKitListView.
+   */
   val features = listOf("Reorder", "ReorderGrid", "Snap", "Horizontal", "Changes", "Collapsing", "Sections", "Inbox")
 
   fun make(name: String, context: Context, engine: Engine): Screen? = when (name) {

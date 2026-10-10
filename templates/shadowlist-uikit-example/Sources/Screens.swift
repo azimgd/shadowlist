@@ -225,7 +225,7 @@ final class ChatScreen: ListScreen {
     FakeNetwork.reply { [weak self] in
       guard let self else { return }
       let start = max(0, self.firstLoaded - Self.pageSize)
-      // Numbered outward from the old top row, which means walking the page bottom up.
+      // Numbered outward from the previous top row, which means walking the page bottom up.
       let page = self.all[start..<self.firstLoaded].reversed().map { self.numbered($0, prepended: true) }.reversed()
       self.messages = Array(page) + self.messages
       let added = self.firstLoaded - start

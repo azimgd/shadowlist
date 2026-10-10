@@ -4,7 +4,7 @@ import { Collection } from './Collection';
 import { request, type RequestSignal } from './network';
 import { listCount } from '../launchSettings';
 
-export type InsertPosition = 'start' | 'end';
+type InsertPosition = 'start' | 'end';
 
 let generatedCount = 0;
 const generateContacts = (count: number) =>

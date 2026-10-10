@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Animated } from 'react-native';
-import { useSafeAreaInsets } from '../internal/safeAreaInsets';
 import { useKeyboardAnimation } from 'shadowlist';
+import { useSafeAreaInsets } from '../internal/safeAreaInsets';
 
 export interface UseKeyboardLiftOptions {
   gap?: number;

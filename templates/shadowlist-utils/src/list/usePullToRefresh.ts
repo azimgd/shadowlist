@@ -9,7 +9,7 @@ export interface PullToRefresh {
   onRefresh: () => void;
 }
 
-/**
+/*
  * Drives a pull to refresh control from any async refresh, such as a query's `refetch`.
  *
  * Use this instead of a query's `isRefetching`. That flag is also true for background
@@ -17,10 +17,11 @@ export interface PullToRefresh {
  *
  * `refresh` and `onError` are read at call time. They do not need to be stable.
  *
- * @example
- * const poll = useQuery(pollQuery);
- * const { refreshing, onRefresh } = usePullToRefresh(poll.refetch);
- * <ShadowList refreshing={refreshing} onRefresh={onRefresh} ... />
+ * For example:
+ *
+ *   const poll = useQuery(pollQuery);
+ *   const { refreshing, onRefresh } = usePullToRefresh(poll.refetch);
+ *   <ShadowList refreshing={refreshing} onRefresh={onRefresh} ... />
  */
 export function usePullToRefresh(
   refresh: () => Promise<unknown>,

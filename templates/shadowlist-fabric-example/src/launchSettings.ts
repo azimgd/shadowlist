@@ -32,7 +32,7 @@ export const DEBUG = launchSetting('SLDebug') === '1';
  * data sources seed and serve the first page with this many rows. 1000 by default; SLCount N
  * overrides it for benchmark runs.
  */
-export const DEFAULT_LIST_COUNT = 1000;
+const DEFAULT_LIST_COUNT = 1000;
 
 export const listCount: number = (() => {
   const count = Number(launchSetting('SLCount'));

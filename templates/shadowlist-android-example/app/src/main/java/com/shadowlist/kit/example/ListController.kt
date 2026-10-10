@@ -39,7 +39,9 @@ interface ListBackend {
 class ListController(context: Context, engine: Engine, inverted: Boolean = false, columns: Int = 1) {
   val layouts = LayoutCache()
   private val columnWidth = Resources.getSystem().displayMetrics.widthPixels / columns
-  // Whether row views get layouts computed ahead off the UI thread.
+  /*
+   * Whether row views get layouts computed ahead off the UI thread.
+   */
   val precomputed = !engine.selfSizing
 
   val backend: ListBackend = if (engine.isShadowList) {
@@ -51,8 +53,10 @@ class ListController(context: Context, engine: Engine, inverted: Boolean = false
   var rows: List<Row> = emptyList()
     private set
 
-  // How long the last backend update took on the UI thread, for the cost scenario.
-  var lastUpdateNanos = 0L
+  /*
+   * How long the previous backend update took on the UI thread, for the cost scenario.
+   */
+  var previousUpdateNanos = 0L
     private set
 
   fun setRows(rows: List<Row>, change: RowChange) {
@@ -60,7 +64,7 @@ class ListController(context: Context, engine: Engine, inverted: Boolean = false
     if (precomputed) layouts.prefetch(rows, columnWidth, if (rows.isEmpty()) 0 else rows.size - 1)
     val start = System.nanoTime()
     backend.setRows(rows, change)
-    lastUpdateNanos = System.nanoTime() - start
+    previousUpdateNanos = System.nanoTime() - start
   }
 
   /*

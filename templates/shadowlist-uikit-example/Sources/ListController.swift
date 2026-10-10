@@ -56,7 +56,9 @@ final class ListController: NSObject {
     didSet { backend.stickyIndicesChanged() }
   }
 
-  // Called after a dragged row was dropped and rows already holds the new order.
+  /*
+   * Called after a dragged row was dropped and rows already holds the new order.
+   */
   var onMove: ((Int, Int) -> Void)?
 
   var reorderEnabled = false {
@@ -78,7 +80,9 @@ final class ListController: NSObject {
     return columns > 1 ? floor(width / CGFloat(columns)) : width
   }
 
-  // How long the last backend update took on the main thread, for the cost scenario.
+  /*
+   * How long the last backend update took on the main thread, for the cost scenario.
+   */
   private(set) var lastUpdateSeconds: CFTimeInterval = 0
 
   func setRows(_ rows: [Row], change: RowChange) {
@@ -334,7 +338,9 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
   private var startReachedArmed = true
   private var endReachedArmed = true
 
-  // Sections when the list has sticky headers: the header row and the rows under it.
+  /*
+   * Sections when the list has sticky headers: the header row and the rows under it.
+   */
   private var sections: [(header: Int?, rows: Range<Int>)] = []
 
   init(controller: ListController, inverted: Bool) {
@@ -360,7 +366,9 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
 
   var scrollView: UIScrollView { table }
 
-  // Reordering through UITableView's own drag and drop, started by touch and hold.
+  /*
+   * Reordering through UITableView's own drag and drop, started by touch and hold.
+   */
   var reorderEnabled = false {
     didSet {
       table.dragInteractionEnabled = reorderEnabled

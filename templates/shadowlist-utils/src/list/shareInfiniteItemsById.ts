@@ -105,7 +105,7 @@ function shareArrayById(
   return changed ? items : previous;
 }
 
-/**
+/*
  * Structural sharing by `id` for a plain list query or an infinite one. Pass it as the
  * React Query `structuralSharing` option.
  *
@@ -115,7 +115,7 @@ function shareArrayById(
  * new object and re-renders all mounted rows. Here a row equal to the previous row with the
  * same id keeps its identity wherever it moved.
  *
- * @see {@linkcode shareInfiniteItemsById} for the infinite-data-only version.
+ * shareInfiniteItemsById is the version for infinite data only.
  */
 export function shareItemsById<DataT>(previous: unknown, next: DataT): DataT {
   if (Array.isArray(previous) && Array.isArray(next)) {
@@ -124,7 +124,7 @@ export function shareItemsById<DataT>(previous: unknown, next: DataT): DataT {
   return shareInfiniteItemsById(previous, next);
 }
 
-/**
+/*
  * Structural sharing for infinite data that matches rows by `id` instead of position.
  * Pass it as the React Query `structuralSharing` option.
  *
@@ -132,8 +132,8 @@ export function shareItemsById<DataT>(previous: unknown, next: DataT): DataT {
  *
  * The default, replaceEqualDeep, compares arrays index by index. A prepend shifts every
  * later row. Each comes back as a new object and every mounted row re-renders. Here a
- * row equal to the previous row with the same id keeps the old object, an unchanged page
- * keeps the old page, and unchanged data comes back as the previous value. Nothing
+ * row equal to the previous row with the same id keeps its previous object, an unchanged page
+ * keeps its previous page, and unchanged data comes back as the previous value. Nothing
  * re-renders.
  *
  * Rows without an `id` and values that are not infinite data pass through unshared.

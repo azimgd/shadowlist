@@ -48,7 +48,9 @@ class Scenario private constructor(private val screen: ListScreen, private val e
 
   private val handler = Handler(Looper.getMainLooper())
 
-  // Updates of each kind the cost scenario times, --es SLCostRuns.
+  /*
+   * Updates of each kind the cost scenario times, --es SLCostRuns.
+   */
   private var costRuns = 15
   private val view: View get() = screen.view
 
@@ -106,7 +108,7 @@ class Scenario private constructor(private val screen: ListScreen, private val e
     val layoutStart = SystemClock.elapsedRealtimeNanos()
     forceLayout()
     val end = SystemClock.elapsedRealtimeNanos()
-    val list = screen.list.lastUpdateNanos + (end - layoutStart)
+    val list = screen.list.previousUpdateNanos + (end - layoutStart)
     return Pair(list / 1e6, (end - start) / 1e6)
   }
 

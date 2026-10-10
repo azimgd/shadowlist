@@ -37,11 +37,15 @@ object Settings {
   var images: Boolean = true
     private set
 
-  // SLPadding N: list padding in dp, kept clear of rows at rest like content insets.
+  /*
+   * SLPadding N: list padding in dp, kept clear of rows at rest like content insets.
+   */
   var padding: Int = 0
     private set
 
-  // SLAnimate 1: ShadowListKitListView animates inserts and deletes.
+  /*
+   * SLAnimate 1: ShadowListKitListView animates inserts and deletes.
+   */
   var animate: Boolean = false
     private set
 
