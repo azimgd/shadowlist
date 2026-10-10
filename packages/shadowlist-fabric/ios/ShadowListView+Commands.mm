@@ -212,6 +212,7 @@ using namespace facebook::react;
   }
   if (auto patch = _scrollSync.land(_scrollView.contentOffset.x, _scrollView.contentOffset.y)) {
     SLF_TRACE("ev=cmd-land off=%.1f,%.1f", _scrollView.contentOffset.x, _scrollView.contentOffset.y);
+    _landCommandSequence = patch->commandSequence;
     [self commitStatePatch:*patch];
   }
 }

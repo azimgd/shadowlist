@@ -164,7 +164,8 @@ static inline BOOL SLFrameTraceEnabled(void)
   CGFloat _refreshProgressViewOffset;
   // The velocity UIKit gave the end of the last drag, for onScrollEndDrag. Points per millisecond.
   CGPoint _endDragVelocity;
-  // A VoiceOver page scroll waits for its rows before it says which rows show.
+  double _landCommandSequence;
+  BOOL _momentumEndAfterLand;
   BOOL _pageAnnouncementPending;
   // Row index by key for the page announcement, built for these props.
   facebook::react::Props::Shared _pageKeyIndicesProps;

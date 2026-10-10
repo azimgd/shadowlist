@@ -286,6 +286,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _reorderEnabled = NO;
   _numberOfColumns = 1;
   _endDragVelocity = CGPointZero;
+  _landCommandSequence = 0;
+  _momentumEndAfterLand = NO;
   _pageAnnouncementPending = NO;
   _pageKeyIndicesProps.reset();
   _pageKeyIndices.clear();
@@ -569,6 +571,12 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   }
   _scrollSync.endMount();
   _inStateUpdate = NO;
+
+  // The landing command mounted and wrote its exact offset. The animation ends here.
+  if (_landCommandSequence > 0 && nextStateData.mountedScroll().commandSequence >= _landCommandSequence) {
+    _landCommandSequence = 0;
+    [self emitMomentumEndAfterLand];
+  }
 }
 
 - (void)finalizeUpdates:(RNComponentViewUpdateMask)updateMask
@@ -840,6 +848,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 {
   // A swipe that began on a row is a scroll, not a press on that row.
   SLCancelReactTouches(self);
+  // An animation still waiting for its landing ends before the drag begins.
+  [self emitMomentumEndAfterLand];
   // An open row closes when the list scrolls.
   [self closeSwipeActionsExcept:nil];
   [self emitScrollEvent:"scrollBeginDrag" velocity:CGPointZero];
@@ -879,6 +889,11 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 - (void)scrollViewDidEndScrollingAnimation:(UIScrollView *)scrollView
 {
   [self landAnimatedCommand];
+  // JS hears the offset the command lands on, not the estimate the animation ended at.
+  if (_landCommandSequence > 0) {
+    _momentumEndAfterLand = YES;
+    return;
+  }
   [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
 }
 
@@ -965,6 +980,18 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 }
 
 #pragma mark - Scroll events
+
+/*
+ * The momentum end an animated command held back until its landing mounted.
+ */
+- (void)emitMomentumEndAfterLand
+{
+  if (!_momentumEndAfterLand) {
+    return;
+  }
+  _momentumEndAfterLand = NO;
+  [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
+}
 
 /*
  * Send a drag or momentum event with the same payload as onScroll.
