@@ -1,6 +1,6 @@
 # ShadowList
 
-Virtualized lists for React Native, UIKit and Android views. Layout, virtualization and scroll position live in a shared C++ core.
+Virtualized lists for React Native, UIKit, Android views and the web. Layout, virtualization and scroll position live in a shared C++ core.
 
 ## React Native
 
@@ -85,6 +85,29 @@ class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKi
 }
 ```
 
+## Web
+
+[`shadowlist-wasm`](packages/shadowlist-wasm) is a custom element, `<shadowlist-kit-list-view>`, on the core compiled
+to WebAssembly. It has the same data source as the native kits. Build it with `./build.sh` and Emscripten.
+
+```ts
+await loadShadowListKit();
+
+const list = new ShadowListKitListView();
+list.registerCell('post', () => new PostCell());
+list.dataSource = {
+  numberOfItems: () => posts.length,
+  keyForItem: (_, index) => posts[index].id,
+  cellForItem: (listView, index) => {
+    const cell = listView.dequeueReusableCell<PostCell>('post');
+    cell.configure(posts[index]);
+    return cell;
+  },
+};
+document.body.append(list);
+list.reloadData();
+```
+
 ## Repo layout
 
 ```text
@@ -94,11 +117,13 @@ packages/shadowlist-core-bench        Core micro-benchmarks and device metrics s
 packages/shadowlist-fabric            React Native (Fabric) package
 packages/shadowlist-uikit             UIKit list (ShadowListKit)
 packages/shadowlist-android           Android list (ShadowListKit, Kotlin)
+packages/shadowlist-wasm              Web list (ShadowListKit, TypeScript on the core in WebAssembly)
 templates/shadowlist-utils            List helpers, hooks and React Native list kits
 templates/shadowlist-fabric-example   React Native example app for iOS and Android
 templates/shadowlist-macos-example    React Native macOS example app (shares screens through .macos variants)
 templates/shadowlist-uikit-example    UIKit example app (xcodegen)
 templates/shadowlist-android-example  Android example app (Gradle)
+templates/shadowlist-web-example      Web example app (static page)
 ```
 
 ## Example apps
@@ -113,6 +138,7 @@ Run `yarn install` at the repo root first.
 | React Native macOS   | `yarn workspace shadowlist-macos-example pods && yarn workspace shadowlist-macos-example macos`         |
 | UIKit                | `cd templates/shadowlist-uikit-example && ./build.sh sim <simulator-udid>` (or `./build.sh device any`) |
 | Android              | `cd templates/shadowlist-android-example && ./gradlew :app:assembleRelease`                             |
+| Web                  | `cd templates/shadowlist-web-example && npm run build && npm start`                                     |
 
 The React Native iOS example runs `pod install` on its own.
 
@@ -124,5 +150,6 @@ iOS reads launch arguments (`-SLRoute Chat`). Android reads intent extras
 - `SLLatency a,b`, `SLSendFailureRate 0.5` and `SLNetLog 1` for the fake network.
 - iOS `-SLEngineFlags NO` turns the engine flags off.
 
-The UIKit and Android examples document their flags in their package READMEs:
-[UIKit](packages/shadowlist-uikit/README.md#example-app) and [Android](packages/shadowlist-android/README.md#example-app).
+The UIKit, Android and web examples document their flags in their package READMEs:
+[UIKit](packages/shadowlist-uikit/README.md#example-app), [Android](packages/shadowlist-android/README.md#example-app)
+and [web](packages/shadowlist-wasm/README.md#example-app).

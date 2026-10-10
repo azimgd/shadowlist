@@ -1,0 +1,48 @@
+{
+  "name": "shadowlist-wasm",
+  "version": "0.9.0",
+  "description": "A virtualized list for the web, laid out by the shared shadowlist C++ core compiled to WebAssembly.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "cpp",
+    "!dist/tsconfig.tsbuildinfo"
+  ],
+  "sideEffects": [
+    "./dist/ShadowListKitListView.js",
+    "./dist/index.js"
+  ],
+  "scripts": {
+    "build": "./build.sh",
+    "test": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "list",
+    "virtualized-list",
+    "webassembly",
+    "wasm",
+    "web-components"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/azimgd/shadowlist.git",
+    "directory": "packages/shadowlist-wasm"
+  },
+  "author": "azimgd <me@azimgd.com> (https://github.com/azimgd)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/azimgd/shadowlist/issues"
+  },
+  "homepage": "https://github.com/azimgd/shadowlist#readme"
+}

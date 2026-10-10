@@ -1,6 +1,6 @@
 # Code style
 
-One rule set for `shadowlist-core`, `shadowlist-fabric`, `shadowlist-uikit`, `shadowlist-android` and the apps in `templates/`. Where a language has its own idiom the table says so. Everything else is the same in every language.
+One rule set for `shadowlist-core`, `shadowlist-fabric`, `shadowlist-uikit`, `shadowlist-android`, `shadowlist-wasm` and the apps in `templates/`. Where a language has its own idiom the table says so. Everything else is the same in every language.
 
 ## Naming
 
@@ -21,6 +21,7 @@ Class prefixes say which package a type lives in. Objective-C has one global nam
 | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `shadowlist-fabric`                      | `ShadowList` for classes, `SL` for file-local helpers, macros and constants (`SL_SCROLL_TO_TOP_DURATION`)       |
 | `shadowlist-uikit`, `shadowlist-android` | `ShadowListKit` for everything, including the Bench apps and constants (`SHADOWLIST_KIT_LIFT_DURATION`)         |
+| `shadowlist-wasm`                        | `ShadowListKit` for classes and the wasm exports (`ShadowListKitCore_nativeRunPasses`)                          |
 | `shadowlist-core`                        | namespace `azimgd::shadowlist`, no prefix. File-local helpers go in an anonymous namespace                      |
 | Runtime flags                            | `SL` + `PascalCase` (`-SLRoute`, `-SLEngine`, `-SLBench`, `SLCount`). One name on every platform. Never renamed |
 
@@ -121,6 +122,8 @@ Every platform uses the same word for each concept and only changes the shape to
 ## Kits
 
 `shadowlist-uikit` and `shadowlist-android` are one design in two languages. A change in one kit lands in the other in the same change with the same names, or the change notes why not.
+
+`shadowlist-wasm` is the same design in TypeScript for the parts it has. Its classes, sections and helpers carry the Android kit's names, and `cpp/ShadowListKitCoreWasm.cpp` follows the JNI rules: a `Peer` found with `peerOf(handle)`, `native*` entry points in one `extern "C"` block behind `SHADOWLIST_KIT_WASM(name)`, and slot enums mirrored in `ShadowListKitCore.ts`. TypeScript marks sections with `// region Name` and `// endregion`.
 
 - `ShadowListKitListView` sections come in this order on both: Axis, Properties, Cells, Data, Sections, Layout, Mounting, Prefetching, Measurement, Separators, Events, Selection, Scroll events, Queries, Saved position, Accessibility, Scroll commands.
 - iOS puts Data, Sections, Selection, Saved position with Scroll commands, Accessibility, Drag, and swipe actions with menus in category files (`ShadowListKitListView+Data.mm`, `+Sections`, `+Selection`, `+Commands`, `+Accessibility`, `+Drag`, `+Actions`). Android keeps them as regions of `ShadowListKitListView.kt` or in its controllers (`ShadowListKitDragController`, `ShadowListKitSwipeController`).

@@ -1,0 +1,10 @@
+{
+  "name": "shadowlist-web-example",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "../../packages/shadowlist-wasm/build.sh && ../../node_modules/.bin/tsc -b",
+    "start": "python3 -m http.server 8080 --directory ../.."
+  }
+}

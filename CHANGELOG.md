@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### ShadowListKit for the web
+
+- New `shadowlist-wasm` package: `ShadowListKitListView`, the custom element `<shadowlist-kit-list-view>`, on the
+  core compiled to WebAssembly with Emscripten. Keys, measurement through cells or `sizeForItem`, reloads, inserts,
+  deletes, batches, `applyChanges`, inverted lists, grids, horizontal lists, sticky rows, header and footer views,
+  prefetching, snapping, saved positions and scroll commands.
+- `templates/shadowlist-web-example` shows Feed, Chat, Masonry, Horizontal and Sticky screens.
+
 ## 0.9.0
 
 ### ShadowListKit (iOS and Android)

@@ -55,8 +55,9 @@ constexpr double SCROLL_TO_OFFSET_INDEX = -4.0;
  * The [SL] debug log prints on every pass. It is off unless the build defines
  * SHADOWLIST_DEBUG_LOG=1. Each host has a switch: SHADOWLIST_DEBUG_LOG=1 pod install for
  * the Fabric pod, -DSHADOWLIST_DEBUG_LOG=1 for the CMake builds (the Fabric Android library
- * and the core tests), -PshadowlistDebugLog for ShadowListKit on Android and a
- * GCC_PREPROCESSOR_DEFINITIONS entry for ShadowListKit on iOS.
+ * and the core tests), -PshadowlistDebugLog for ShadowListKit on Android, a
+ * GCC_PREPROCESSOR_DEFINITIONS entry for ShadowListKit on iOS and SHADOWLIST_DEBUG_LOG=1 ./build.sh
+ * for ShadowListKit on the web.
  */
 #ifndef SHADOWLIST_DEBUG_LOG
 #define SHADOWLIST_DEBUG_LOG 0
