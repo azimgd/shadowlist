@@ -1691,7 +1691,16 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun animateCommand(target: Int, landing: Int, index: Int = 0, viewPosition: Double = 0.0) {
     core.setLanding(landing, index, viewPosition)
-    gesture.animateTo(target)
+    gesture.animateTo(target) {
+      when (landing) {
+        ShadowListKitCore.LANDING_START -> 0
+        ShadowListKitCore.LANDING_END -> maxOffset
+        else -> {
+          val current = core.animatedTargetOffset(index, viewPosition, windowAlong.toDouble(), maxOffset.toDouble())
+          if (current.isNaN()) target else current.roundToInt()
+        }
+      }
+    }
   }
 
   /*
