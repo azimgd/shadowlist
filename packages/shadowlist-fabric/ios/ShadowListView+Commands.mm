@@ -128,14 +128,15 @@ using namespace facebook::react;
 #endif
   /*
    * An animated scroll goes through the core like scrollToItem. UIKit's own animation would
-   * stop at the first correction a row measured on the way sends.
+   * stop at the first correction a row measured on the way sends. Where commands land at once
+   * the core still lands it, in a commit after the rows JS mounted for it.
    */
-  if (animated && [self animatesCommands] && _state) {
+  if (animated && _state) {
     SLF_TRACE("ev=cmd-scroll-to-offset offset=%.1f", offset);
     azimgd::shadowlist::ScrollCommand command;
     command.index = azimgd::shadowlist::SCROLL_TO_OFFSET_INDEX;
     command.rowOffset = offset;
-    command.animated = YES;
+    command.animated = [self animatesCommands];
     [self commitScrollCommand:command];
     return;
   }

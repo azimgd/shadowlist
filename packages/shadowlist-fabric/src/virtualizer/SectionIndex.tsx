@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import {
+  Platform,
   StyleSheet,
   Text,
   View,
@@ -12,6 +13,15 @@ interface SectionIndexProps {
   titles: ReadonlyArray<string>;
   onSelect: (index: number) => void;
 }
+
+/*
+ * On macOS a plain view ignores the click that activates its window and lets a click drag
+ * the window. The index takes clicks like a Pressable does.
+ */
+const INDEX_PLATFORM_PROPS =
+  Platform.OS === 'macos'
+    ? ({ acceptsFirstMouse: true, mouseDownCanMoveWindow: false } as object)
+    : null;
 
 /*
  * The section index along the trailing edge, like UITableView's and the native lists'.
@@ -65,6 +75,7 @@ export function SectionIndex({ titles, onSelect }: SectionIndexProps) {
 
   return (
     <View
+      {...INDEX_PLATFORM_PROPS}
       style={styles.index}
       onStartShouldSetResponder={() => true}
       onMoveShouldSetResponder={() => true}
