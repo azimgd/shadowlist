@@ -2,13 +2,13 @@
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListModels+Private.h"
 
+#include <shadowlist-core/host/KeyDiff.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
+
 #include <optional>
 #include <string>
 #include <unordered_set>
 #include <vector>
-
-#include <shadowlist-core/host/KeyDiff.hpp>
-#include <shadowlist-core/host/ListUpdate.hpp>
 
 using namespace azimgd::shadowlist;
 

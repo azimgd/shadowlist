@@ -1,8 +1,6 @@
 #import <ShadowListKit/ShadowListKitListView.h>
+#import "ShadowListKitListCell+Private.h"
 
-#include <string>
-#include <unordered_map>
-#include <vector>
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
@@ -10,7 +8,9 @@
 #include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
-#import "ShadowListKitListCell+Private.h"
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -174,7 +174,8 @@ extern const char ShadowListKitListViewSelectionLink;
 /*
  * Swipe actions and context menus. installActionGestures runs once at init. layoutSwipe keeps
  * the actions under the swiped row after a layout pass. closeSwipeAnimated: closes an open row.
- * swipeCellWillRecycle: drops the swipe of a cell going back to the pool. showMenuForCell:atPoint: shows a held row's menu.
+ * swipeCellWillRecycle: drops the swipe of a cell going back to the pool.
+ * showMenuForCell:atPoint: shows a held row's menu.
  */
 @interface ShadowListKitListView (Actions) <UIContextMenuInteractionDelegate, UIEditMenuInteractionDelegate>
 

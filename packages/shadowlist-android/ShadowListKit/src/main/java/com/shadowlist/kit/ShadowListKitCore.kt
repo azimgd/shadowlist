@@ -88,7 +88,7 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
     const val SWIPE_SIDE_TRAILING = 2
 
     /*
-     * Slots of constants, the same as the core's ConstantSlot in the JNI.
+     * Slots of constants, the same as ConstantSlot in the JNI.
      */
     private const val CONSTANT_SWIPE_FLING_VELOCITY = 0
     private const val CONSTANT_SWIPE_SETTLE_DURATION_MS = 1

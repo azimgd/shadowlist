@@ -319,6 +319,8 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 
 @end
 
+#pragma mark - Testing
+
 @implementation ShadowListKitListView (Testing)
 
 - (void)shadowListKit_beginDragAtPoint:(CGPoint)point

@@ -98,7 +98,7 @@ std::string ShadowListKitStdString(NSString *string)
    * for it. While the scroll view rests there, the core is told the exact offset and rows are
    * drawn shifted by the difference, which keeps the content where the core holds it. The
    * leading inset of that moment counts too. A refresh control that ends changes the inset
-   * without moving the content offset, and the old exact offset is then wrong by the change.
+   * without moving the content offset, and the exact offset written before is then wrong by the change.
    */
   double _exactOffset;
   CGFloat _writtenAlong;

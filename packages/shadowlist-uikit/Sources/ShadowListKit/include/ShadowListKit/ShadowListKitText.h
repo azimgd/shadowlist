@@ -29,7 +29,7 @@ NS_SWIFT_SENDABLE
 @end
 
 /*
- * Shows an ShadowListKitTextLayout. It draws the lines it is given and never measures text itself.
+ * Shows a ShadowListKitTextLayout. It draws the lines it is given and never measures text itself.
  * With displaysAsynchronously the lines are drawn into a bitmap on a background queue and the
  * view shows it when ready, leaving the main thread only the hand over of the bitmap.
  */

@@ -32,8 +32,8 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
     _swipePan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(handleSwipePan:)];
     /*
      * The list decides in gestureRecognizerShouldBegin whether a pan swipes a row. UIKit asks
-     * it only through the delegate. Without one the pan began on vertical drags too and the
-     * scroll view never scrolled.
+     * it only through the delegate. Without one the pan would begin on vertical drags too and
+     * the scroll view would never scroll.
      */
     _swipePan.delegate = (id<UIGestureRecognizerDelegate>)self;
     [self addGestureRecognizer:_swipePan];
@@ -128,7 +128,7 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
       if (!_swipeCell) {
         return;
       }
-      [self unhighlightCellsForSwipe];
+      [self unhighlightSwipeCell];
       _swipe.begin(_swipe.getSpec(), _swipeOffset);
       break;
     }
@@ -172,7 +172,7 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
   [self settleSwipeTo:_swipe.settle(_swipeOffset, velocity, SWIPE_FLING_VELOCITY)];
 }
 
-- (void)unhighlightCellsForSwipe
+- (void)unhighlightSwipeCell
 {
   if (_swipeCell.isHighlighted) {
     [_swipeCell setHighlighted:NO animated:NO];

@@ -1,10 +1,10 @@
 #import "Internal/ShadowListKitChangeAnimator.h"
 #import "Internal/ShadowListKitListView+Private.h"
 
+#include <shadowlist-core/host/ChangeAnimation.hpp>
+
 #include <algorithm>
 #include <optional>
-
-#include <shadowlist-core/host/ChangeAnimation.hpp>
 
 using namespace azimgd::shadowlist;
 

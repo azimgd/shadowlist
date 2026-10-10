@@ -1729,7 +1729,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Drag
 
   /*
-   * A hold on any row lifts it, the one swiped open too. The open row closes, the same as on iOS.
+   * A hold on any row lifts it, the one swiped open too. The open row closes.
    */
   internal fun beginDragAt(x: Float, y: Float): Boolean =
     reorderEnabled && !editingState && drag.begin(x, y)
