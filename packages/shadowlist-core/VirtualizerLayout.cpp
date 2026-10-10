@@ -2,6 +2,7 @@
 #include <shadowlist-core/VirtualizerInternal.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <mutex>
 
 namespace azimgd::shadowlist {
@@ -276,16 +277,18 @@ void Virtualizer::recomputeTotalSize(Container& container) {
 
   /*
    * Freeze the average once, from the first real measurements. Unmeasured rows then keep
-   * a stable size and the visible content can be held in place.
+   * a stable size and the visible content can be held in place. The average is whole. A host
+   * that measures in whole pixels then only ever sees whole corrections, which it can apply to
+   * its scroll offset exactly.
    */
   if (container.revision.measuredRealCount > 0) {
     if (container.revision.averageElementWidth == 0.0) {
       container.revision.averageElementWidth =
-        container.revision.measuredRealTotalWidth / container.revision.measuredRealCount;
+        std::round(container.revision.measuredRealTotalWidth / container.revision.measuredRealCount);
     }
     if (container.revision.averageElementHeight == 0.0) {
       container.revision.averageElementHeight =
-        container.revision.measuredRealTotalHeight / container.revision.measuredRealCount;
+        std::round(container.revision.measuredRealTotalHeight / container.revision.measuredRealCount);
     }
   }
 }

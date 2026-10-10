@@ -247,6 +247,32 @@ TEST(unmeasured_rows_track_the_current_fallback_size) {
   CHECK_NEAR(offsetOf(container, 499), lastOffsetBefore, 0.001);
 }
 
+TEST(the_frozen_average_is_a_whole_size_and_corrections_stay_whole) {
+  Fixture fixture;
+  fixture.estimatedHeight = 120.0;
+
+  std::vector<std::string> keys = keysFor(500);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  // Three rows of 100, 101 and 101 average 100.67. The frozen average rounds to 101.
+  Virtualizer::updateElementAtIndex(container, 0, {WINDOW_WIDTH, 100.0});
+  Virtualizer::updateElementAtIndex(container, 1, {WINDOW_WIDTH, 101.0});
+  Virtualizer::updateElementAtIndex(container, 2, {WINDOW_WIDTH, 101.0});
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK_NEAR(container.revision.averageElementHeight, 101.0, 0.001);
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+
+  // Every row edge is whole. A whole measurement then moves the rows after it by a whole amount.
+  for (std::size_t index = 0; index < 500; ++index) {
+    CHECK_NEAR(offsetOf(container, index), std::round(offsetOf(container, index)), 0.0001);
+  }
+  double before = offsetOf(container, 300);
+  Virtualizer::updateElementAtIndex(container, 250, {WINDOW_WIDTH, 87.0});
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  CHECK_NEAR(offsetOf(container, 300) - before, -14.0, 0.0001);
+}
+
 TEST(newly_inserted_rows_get_a_fallback_size_immediately) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(100);
