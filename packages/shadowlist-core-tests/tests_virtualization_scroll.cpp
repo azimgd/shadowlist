@@ -561,6 +561,46 @@ TEST(inverted_list_reports_end_at_the_bottom_and_start_at_the_top) {
 }
 
 /*
+ * A chat a little taller than the viewport has both edge zones overlap. Scrolled to its top it
+ * still fires onStartReached, or its older rows could never load. A chat shorter than the
+ * viewport reports only the end.
+ */
+TEST(short_scrollable_inverted_chat_fires_start_at_its_top) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  std::vector<std::string> keys = keysFor(12);
+  Container container;
+  int startReached = 0;
+  int endReached = 0;
+  container.onStartReachedCallback = [&]() { startReached++; };
+  container.onEndReachedCallback = [&]() { endReached++; };
+
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  settleAtBottom(container, keys, fixture);
+  CHECK(endReached >= 1);
+
+  FrameInput top = inputFor(keys, 0.0, fixture);
+  top.userScrolled = true;
+  Virtualizer::update(container, top);
+  Virtualizer::update(container, top);
+  CHECK(startReached >= 1);
+
+  std::vector<std::string> fewKeys = keysFor(3, "few");
+  Container shortContainer;
+  int shortStart = 0;
+  int shortEnd = 0;
+  shortContainer.onStartReachedCallback = [&]() { shortStart++; };
+  shortContainer.onEndReachedCallback = [&]() { shortEnd++; };
+  Virtualizer::update(shortContainer, inputFor(fewKeys, 0.0, fixture));
+  measureRows(shortContainer, std::vector<double>(fewKeys.size(), 100.0));
+  settleAtBottom(shortContainer, fewKeys, fixture);
+  CHECK(shortEnd >= 1);
+  CHECK_EQ(shortStart, 0);
+}
+
+/*
  * A slow drag away from the bottom starts inside INVERTED_FOLLOW_BAND, where the list still
  * follows the bottom. While the finger is down, including commits between touch frames, the
  * list must not pull the view back. Lifting inside the band hands the view back to the bottom.

@@ -42,8 +42,11 @@ void Container::endRevision() {
   bool reachedEnd = reachingHighEdge;
   bool reachedStart = reachingLowEdge;
 
-  // A list shorter than the viewport touches both edges. Report only the end.
-  if (reachedStart && reachedEnd) {
+  /*
+   * A list shorter than the viewport touches both edges. Report only the end. A list that
+   * scrolls reports both, or a short chat scrolled to its top could never load older rows.
+   */
+  if (reachedStart && reachedEnd && totalSize <= windowSize) {
     reachedStart = false;
   }
 
