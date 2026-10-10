@@ -56,7 +56,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   public void onInitializeAccessibilityEvent(View host, AccessibilityEvent event) {
     super.onInitializeAccessibilityEvent(host, event);
     event.setItemCount(getItemCount());
-    int[] visible = visibleItemRange();
+    int[] visible = visibleRange();
     if (visible != null) {
       event.setFromIndex(visible[0]);
       event.setToIndex(visible[1]);
@@ -136,7 +136,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
    * looked up by key in the props' keys.
    */
   @Nullable
-  private int[] visibleItemRange() {
+  private int[] visibleRange() {
     if (mItemKeys == null) {
       return null;
     }
