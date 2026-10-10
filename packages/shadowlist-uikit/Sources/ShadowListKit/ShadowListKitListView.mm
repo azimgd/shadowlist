@@ -169,6 +169,8 @@ std::string ShadowListKitStdString(NSString *string)
   _allowsSelection = YES;
   _separatorColor = UIColor.separatorColor;
   _separatorInsetStart = 16;
+  // Like UITableView. A list shorter than the viewport still gets the safe area inset and bounces.
+  self.alwaysBounceVertical = YES;
 
   __weak ShadowListKitListView *weakSelf = self;
   _driver.setMeasureItem([weakSelf](std::size_t index, const std::string& key, double cross) -> double {
@@ -340,6 +342,10 @@ std::string ShadowListKitStdString(NSString *string)
 
 - (void)setHorizontal:(BOOL)horizontal
 {
+  if (horizontal != _horizontal) {
+    self.alwaysBounceVertical = !horizontal;
+    self.alwaysBounceHorizontal = horizontal;
+  }
   _horizontal = horizontal;
   [self invalidateFrame];
 }
@@ -662,6 +668,15 @@ std::string ShadowListKitStdString(NSString *string)
   [super layoutSubviews];
   [self layoutPass];
   _inLayoutSubviews = NO;
+}
+
+/*
+ * Safe area, bar and keyboard insets change the viewport without a layout pass of their own.
+ */
+- (void)adjustedContentInsetDidChange
+{
+  [super adjustedContentInsetDidChange];
+  [self invalidateFrame];
 }
 
 /*
