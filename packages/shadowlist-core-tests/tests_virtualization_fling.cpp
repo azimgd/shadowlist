@@ -374,3 +374,47 @@ TEST(prepend_after_a_pull_to_refresh_keeps_its_retarget_through_the_echo_of_the_
   CHECK_NEAR(belowViewportTop(container, "k0"), firstRowBelowTop, 0.5);
   checkNoRowLost(container, "prepend after a pull-to-refresh with a retarget before the echo");
 }
+
+// Fling into the end of the list
+
+/*
+ * A fling lands on the end while the last rows are still estimates. They measure shorter and
+ * the end moves in. The layout pass's correction must stay inside the new scroll range. A
+ * write past it is clamped by the host, and the next correction would apply the gap again.
+ */
+TEST(fling_into_shorter_last_rows_keeps_the_correction_inside_the_range) {
+  Fixture fixture;
+  std::vector<std::string> keys = keysFor(100);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(90, ESTIMATED_ROW_HEIGHT));
+
+  double end = 100.0 * ESTIMATED_ROW_HEIGHT - WINDOW_HEIGHT;
+  FrameInput report = inputFor(keys, end, fixture);
+  report.userScrolled = true;
+  report.scrollPhase = ScrollPhase::Settling;
+  Virtualizer::update(container, report);
+  CHECK(!container.containerOffsetCorrected);
+
+  // The layout pass measures the mounted rows near the end at a third of the estimate.
+  std::size_t lowest = UNDEFINED_INDEX;
+  for (std::size_t index = 90; index < 100; ++index) {
+    if (Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, 40.0}) && index < lowest) {
+      lowest = index;
+    }
+  }
+  Virtualizer::commitElementSizes(container, lowest);
+  Virtualizer::recomputeTotalSize(container);
+
+  double newEnd = container.revision.totalContainerHeight - WINDOW_HEIGHT;
+  CHECK_NEAR(newEnd, 90.0 * ESTIMATED_ROW_HEIGHT + 10.0 * 40.0 - WINDOW_HEIGHT, 0.001);
+  CHECK(container.containerOffsetCorrected);
+  CHECK_NEAR(container.revision.containerOffsetY, newEnd, 0.001);
+
+  // The next frame finds the view at the end and has nothing left to correct.
+  FrameInput own = report;
+  own.containerOffsetY = container.revision.containerOffsetY;
+  own.containerOffsetEnabled = true;
+  Virtualizer::update(container, own);
+  CHECK(!container.operation.has_value());
+}

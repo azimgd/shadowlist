@@ -158,11 +158,23 @@ void Virtualizer::commitElementSizes(Container& container, std::size_t fromIndex
       if (compensationDelta > 0.0) {
         rawAnchoredOffset += container.anchorFirstMeasurementDelta;
       }
-      /*
-       * Only clamp at zero. The total is stale while measuring. Clamping the top end
-       * would yank the anchor. resolveScroll clamps it next frame.
-       */
       double anchoredOffset = rawAnchoredOffset < 0.0 ? 0.0 : rawAnchoredOffset;
+      /*
+       * Clamp the top end against the reflowed rows, since the stored total is stale here.
+       * Rows near the end that measure shorter than their estimate pull the end in. A host
+       * clamps a write past it, and a later correction that shifts a moving view from the
+       * unclamped offset would apply the difference twice. A view already past the end is
+       * in a bounce and is left alone.
+       */
+      double windowSize = container.getWindowContainerSize();
+      double staleTotal = container.horizontal ? container.revision.totalContainerWidth
+                                               : container.revision.totalContainerHeight;
+      if (scrollAxisOffset(container) <= std::max(0.0, staleTotal - windowSize) + OFFSET_MOVED_THRESHOLD) {
+        Size extent = tailExtent(container);
+        double contentEnd = container.horizontal ? extent.width : extent.height;
+        double total = std::max(contentEnd, container.headerSize) + container.footerSize;
+        anchoredOffset = std::min(anchoredOffset, std::max(0.0, total - windowSize));
+      }
       correctOffsetIfMoved(container, anchoredOffset, rawAnchoredOffset);
     }
   }
