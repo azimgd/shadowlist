@@ -154,6 +154,9 @@ class MainActivity : Activity() {
     super.onCreate(savedInstanceState)
     Settings.read(intent)
     LaunchArgs.set(intent)
+    // The screens are light: dark status and navigation bar icons, or they vanish edge to edge.
+    @Suppress("DEPRECATION")
+    window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
     val route = Settings.route
     val screen = route?.let { Routes.make(it, this, Settings.engine) }
     if (screen == null) {
