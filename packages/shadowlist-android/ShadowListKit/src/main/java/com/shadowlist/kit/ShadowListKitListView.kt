@@ -622,7 +622,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   internal fun recycleCell(cell: ShadowListKitListCell) {
-    val index = cell.index
+    // A cell only measured was never displayed.
+    val index = if (cell.mountGeneration != 0L) cell.index else ShadowListKitListCell.NO_INDEX
+    cell.mountGeneration = 0L
     swipe.cellWillRecycle(cell)
     drag.cellWillRecycle(cell)
     cell.animate().cancel()
@@ -1122,12 +1124,17 @@ open class ShadowListKitListView @JvmOverloads constructor(
       val entry = entries.next()
       val cell = entry.value
       if (cell.mountGeneration != generation) {
+        // A cell measured ahead keeps its configuration until its row comes into view.
+        if (cell.mountGeneration == 0L && keptAfterMeasure(cell, entry.key)) continue
         entries.remove()
         // A removed row's cell fades out first, then goes back to the pool. One swiped out does not.
         if (swipe.isSwipedOut(cell) || !changes.fadeOut(entry.key, cell)) recycleCell(cell)
       }
     }
   }
+
+  private fun keptAfterMeasure(cell: ShadowListKitListCell, key: String): Boolean =
+    windowLow >= 0 && cell.row in windowLow..windowHigh && keys.getOrNull(cell.row) == key
 
   private fun unmountAll() {
     for (cell in mounted.values) recycleCell(cell)
