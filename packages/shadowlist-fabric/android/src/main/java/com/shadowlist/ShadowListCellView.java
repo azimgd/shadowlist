@@ -38,29 +38,29 @@ import com.facebook.react.uimanager.events.NativeGestureUtil;
 
 import java.util.ArrayList;
 
-public class ShadowListElementView extends ViewGroup {
+public class ShadowListCellView extends ViewGroup {
   /*
    * Copy of the index prop. Starts at the prop default, since a props diff leaves out
    * values equal to the default and index 0 would never arrive.
    */
-  private int mElementIndex = 0;
+  private int mRowIndex = 0;
 
   /*
-   * Copy of the elementKey prop. Drag to reorder sends it to JS, which moves the item by key.
+   * Copy of the rowKey prop. Drag to reorder sends it to JS, which moves the item by key.
    */
-  private String mElementKey = "";
+  private String mRowKey = "";
 
-  public ShadowListElementView(Context context) {
+  public ShadowListCellView(Context context) {
     super(context);
     init(context);
   }
 
-  public ShadowListElementView(Context context, AttributeSet attrs) {
+  public ShadowListCellView(Context context, AttributeSet attrs) {
     super(context, attrs);
     init(context);
   }
 
-  public ShadowListElementView(Context context, AttributeSet attrs, int defStyleAttr) {
+  public ShadowListCellView(Context context, AttributeSet attrs, int defStyleAttr) {
     super(context, attrs, defStyleAttr);
     init(context);
   }
@@ -109,20 +109,20 @@ public class ShadowListElementView extends ViewGroup {
     // The core positions the children.
   }
 
-  public void setElementIndex(int index) {
-    mElementIndex = index;
+  public void setRowIndex(int index) {
+    mRowIndex = index;
   }
 
-  public int getElementIndex() {
-    return mElementIndex;
+  public int getRowIndex() {
+    return mRowIndex;
   }
 
-  public void setElementKey(String key) {
-    mElementKey = key != null ? key : "";
+  public void setRowKey(String key) {
+    mRowKey = key != null ? key : "";
   }
 
-  public String getElementKey() {
-    return mElementKey;
+  public String getRowKey() {
+    return mRowKey;
   }
 
   // region Swipe actions
@@ -654,16 +654,21 @@ public class ShadowListElementView extends ViewGroup {
     return action != null && action.hasKey(key) && action.getBoolean(key);
   }
 
+  private static boolean actionDestructive(@Nullable ReadableArray actions, int index) {
+    ReadableMap action = actions != null ? actions.getMap(index) : null;
+    return action != null && action.hasKey("style") && "destructive".equals(action.getString("style"));
+  }
+
   /*
    * The processed ARGB color. A missing one falls back to red for a destructive action and
    * gray otherwise.
    */
   private static int actionColor(@Nullable ReadableArray actions, int index) {
     ReadableMap action = actions != null ? actions.getMap(index) : null;
-    if (action != null && action.hasKey("color") && !action.isNull("color")) {
-      return (int) (long) action.getDouble("color");
+    if (action != null && action.hasKey("backgroundColor") && !action.isNull("backgroundColor")) {
+      return (int) (long) action.getDouble("backgroundColor");
     }
-    return actionFlag(actions, index, "destructive") ? DESTRUCTIVE_COLOR : DEFAULT_ACTION_COLOR;
+    return actionDestructive(actions, index) ? DESTRUCTIVE_COLOR : DEFAULT_ACTION_COLOR;
   }
 
   // endregion
@@ -695,7 +700,7 @@ public class ShadowListElementView extends ViewGroup {
     Menu menu = popup.getMenu();
     for (int index = 0; index < count; index++) {
       CharSequence title = actionTitle(mContextMenuActions, index);
-      if (actionFlag(mContextMenuActions, index, "destructive")) {
+      if (actionDestructive(mContextMenuActions, index)) {
         SpannableString tinted = new SpannableString(title);
         tinted.setSpan(new ForegroundColorSpan(DESTRUCTIVE_COLOR), 0, tinted.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         title = tinted;
@@ -778,8 +783,8 @@ public class ShadowListElementView extends ViewGroup {
    * Clear what a previous mount left behind before the view is reused.
    */
   void resetForRecycle() {
-    mElementIndex = 0;
-    mElementKey = "";
+    mRowIndex = 0;
+    mRowKey = "";
     resetSwipe();
     removeAllViews();
     ViewParent parent = getParent();

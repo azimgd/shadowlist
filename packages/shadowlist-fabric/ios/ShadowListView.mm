@@ -1,6 +1,6 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Private.h"
-#import "ShadowListElementView.h"
+#import "ShadowListCellView.h"
 #import "ShadowListMacScrollView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
@@ -196,7 +196,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 
 - (void)mountChildComponentView:(RCTUIView<RCTComponentViewProtocol> *)childComponentView index:(NSInteger)index
 {
-  if ([childComponentView conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+  if ([childComponentView conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
     [_contentView insertSubview:childComponentView atIndex:index];
     /*
      * The new row may sit above the sticky views, and during a drag above the dragged row
@@ -281,12 +281,12 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _overlayOrderDirty = YES;
   _mountNeedsSticky = NO;
   _mountNeedsDragShuffle = NO;
-  _stickyHeaderIndices.clear();
-  _stickyHeaderOffsets.clear();
-  _stickyHeaderSizes.clear();
-  _copiedStickyHeaderIndices.reset();
-  _copiedStickyHeaderOffsets.reset();
-  _copiedStickyHeaderSizes.reset();
+  _stickyIndices.clear();
+  _stickyOffsets.clear();
+  _stickySizes.clear();
+  _copiedStickyIndices.reset();
+  _copiedStickyOffsets.reset();
+  _copiedStickySizes.reset();
   _copiedSnapOffsets.reset();
   _reorderEnabled = NO;
   _numberOfColumns = 1;
@@ -357,7 +357,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
    */
   if (previousProps.reorderEnabled != nextProps.reorderEnabled) {
     for (RCTUIView *subview in _contentView.subviews) {
-      if ([subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+      if ([subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
         [self applyDragAccessibilityActionsToView:subview];
       }
     }
@@ -393,7 +393,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _scrollView.showsHorizontalScrollIndicator = props.showsHorizontalScrollIndicator;
   _scrollsToTop = props.scrollsToTop;
   _decelerationRate = props.decelerationRate;
-  _refreshProgressViewOffset = props.refreshProgressViewOffset;
+  _progressViewOffset = props.progressViewOffset;
 #if !TARGET_OS_OSX
   _scrollView.bounces = props.bounces;
   _scrollView.scrollsToTop = props.scrollsToTop;
@@ -440,9 +440,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
       destination.clear();
     }
   };
-  copyPublished(_stickyHeaderIndices, _copiedStickyHeaderIndices, nextStateData.stickyHeaderIndices_);
-  copyPublished(_stickyHeaderOffsets, _copiedStickyHeaderOffsets, nextStateData.stickyHeaderOffsets_);
-  copyPublished(_stickyHeaderSizes, _copiedStickyHeaderSizes, nextStateData.stickyHeaderSizes_);
+  copyPublished(_stickyIndices, _copiedStickyIndices, nextStateData.stickyIndices_);
+  copyPublished(_stickyOffsets, _copiedStickyOffsets, nextStateData.stickyOffsets_);
+  copyPublished(_stickySizes, _copiedStickySizes, nextStateData.stickySizes_);
   copyPublished(_snapOffsets, _copiedSnapOffsets, nextStateData.snapOffsets_);
 
   __unused CGFloat traceBeforeY = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
@@ -453,9 +453,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
    * Write only on a change. Most mounts keep the size, and each write costs UIKit a layout.
    */
   CGSize contentSize = _horizontal
-    ? CGSizeMake(nextStateData.totalContainerWidth_, 0)
-    : CGSizeMake(0, nextStateData.totalContainerHeight_);
-  CGRect contentFrame = CGRectMake(0, 0, nextStateData.totalContainerWidth_, nextStateData.totalContainerHeight_);
+    ? CGSizeMake(nextStateData.contentWidth_, 0)
+    : CGSizeMake(0, nextStateData.contentHeight_);
+  CGRect contentFrame = CGRectMake(0, 0, nextStateData.contentWidth_, nextStateData.contentHeight_);
 #if TARGET_OS_OSX
   /*
    * NSScrollView's contentSize is the document frame, not a separate scroll range.
@@ -478,9 +478,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   CGPoint offsetBeforeCorrection = _scrollView.contentOffset;
 
   SL_LOG("mm.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
-    nextStateData.totalContainerWidth_, nextStateData.totalContainerHeight_,
-    nextStateData.containerOffsetEnabled_ ? 1 : 0,
-    nextStateData.containerOffsetX_, nextStateData.containerOffsetY_,
+    nextStateData.contentWidth_, nextStateData.contentHeight_,
+    nextStateData.offsetEnabled_ ? 1 : 0,
+    nextStateData.offsetX_, nextStateData.offsetY_,
     _scrollView.contentOffset.x, _scrollView.contentOffset.y);
 
   /*
@@ -541,11 +541,11 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   }
 
   SLF_TRACE("ev=state cs=%.1f->%.1f off=%.1f->%.1f enabled=%d core=%.1f base=%.1f token=%llu user=%d phase=%.0f stt=%d jumpPending=%d retarget=%d conceal=%.0f",
-    traceBeforeHeight, _horizontal ? nextStateData.totalContainerWidth_ : nextStateData.totalContainerHeight_,
+    traceBeforeHeight, _horizontal ? nextStateData.contentWidth_ : nextStateData.contentHeight_,
     traceBeforeY, _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y,
-    nextStateData.containerOffsetEnabled_ ? 1 : 0,
-    _horizontal ? nextStateData.containerOffsetX_ : nextStateData.containerOffsetY_,
-    _horizontal ? nextStateData.containerOffsetBaseX_ : nextStateData.containerOffsetBaseY_,
+    nextStateData.offsetEnabled_ ? 1 : 0,
+    _horizontal ? nextStateData.offsetX_ : nextStateData.offsetY_,
+    _horizontal ? nextStateData.offsetBaseX_ : nextStateData.offsetBaseY_,
     (unsigned long long)nextStateData.commitToken_,
     nextStateData.userScrolled_ ? 1 : 0, nextStateData.scrollPhase_, _scrollingToTop ? 1 : 0,
     _scrollToTopJumpPending ? 1 : 0, retargetsScrollToTopJump ? 1 : 0, nextStateData.concealGeneration_);
@@ -773,7 +773,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   }
 }
 
-- (void)commitDragEventType:(int)type fromKey:(NSString *)fromKey toKey:(NSString *)toKey
+- (void)commitDragEventType:(int)type sourceKey:(NSString *)sourceKey destinationKey:(NSString *)destinationKey
 {
   if (!_state) {
     return;
@@ -782,17 +782,17 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   BOOL userScrolled = type != azimgd::shadowlist::DRAG_EVENT_END;
   auto patch = _scrollSync.livePatch(
     _scrollView.contentOffset.x, _scrollView.contentOffset.y, userScrolled, _scrollSync.getCurrentScrollPhase());
-  std::string dragFromKey = fromKey ? std::string(fromKey.UTF8String) : std::string();
-  std::string dragToKey = toKey ? std::string(toKey.UTF8String) : std::string();
+  std::string dragSourceKey = sourceKey ? std::string(sourceKey.UTF8String) : std::string();
+  std::string dragDestinationKey = destinationKey ? std::string(destinationKey.UTF8String) : std::string();
   // The sequence goes past the newest state's. Each event fires once.
   _state->updateState(
-    [patch, type, dragFromKey, dragToKey](const ShadowListStateData& oldData) -> StateData::Shared {
+    [patch, type, dragSourceKey, dragDestinationKey](const ShadowListStateData& oldData) -> StateData::Shared {
       auto nextData = std::make_shared<ShadowListStateData>(oldData);
       nextData->applyPatch(patch);
       nextData->dragEventSequence_ = oldData.dragEventSequence_ + 1;
       nextData->dragEventType_ = (double)type;
-      nextData->dragFromKey_ = dragFromKey;
-      nextData->dragToKey_ = dragToKey;
+      nextData->dragSourceKey_ = dragSourceKey;
+      nextData->dragDestinationKey_ = dragDestinationKey;
       return nextData;
     },
     [self stateUpdateMode]);
@@ -961,30 +961,30 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 }
 #endif // !TARGET_OS_OSX
 
-#pragma mark - Element helpers
+#pragma mark - Cell helpers
 
-- (NSInteger)indexOfElementView:(RCTUIView *)view
+- (NSInteger)indexOfCellView:(RCTUIView *)view
 {
-  if (![view conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+  if (![view conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
     return NSNotFound;
   }
-  auto props = std::static_pointer_cast<const ShadowListElementViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
+  auto props = std::static_pointer_cast<const ShadowListCellViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
   if (!props) {
     return NSNotFound;
   }
   return (NSInteger)props->index;
 }
 
-- (NSString *)keyOfElementView:(RCTUIView *)view
+- (NSString *)keyOfCellView:(RCTUIView *)view
 {
-  if (![view conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+  if (![view conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
     return nil;
   }
-  auto props = std::static_pointer_cast<const ShadowListElementViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
+  auto props = std::static_pointer_cast<const ShadowListCellViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
   if (!props) {
     return nil;
   }
-  return [NSString stringWithUTF8String:props->elementKey.c_str()];
+  return [NSString stringWithUTF8String:props->rowKey.c_str()];
 }
 
 #pragma mark - Scroll events

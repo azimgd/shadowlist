@@ -1,5 +1,5 @@
 #pragma once
 
-#include "ShadowListElementViewComponentDescriptor.h"
+#include "ShadowListCellViewComponentDescriptor.h"
 #include "ShadowListTemplateViewComponentDescriptor.h"
 #include "ShadowListViewComponentDescriptor.h"

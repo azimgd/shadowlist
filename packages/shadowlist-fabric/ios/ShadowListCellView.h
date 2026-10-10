@@ -12,7 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
  * showing its swipe actions. swipedOut is a row slid all the way out by a full swipe, waiting for
  * its removal.
  */
-@interface ShadowListElementView : RCTViewComponentView
+@interface ShadowListCellView : RCTViewComponentView
 @property (nonatomic, copy, nullable) NSArray<SLAccessibilityCustomAction *> *nativeAccessibilityActions;
 @property (nonatomic, readonly, getter=isSwipeOpen) BOOL swipeOpen;
 @property (nonatomic, readonly, getter=isSwipedOut) BOOL swipedOut;

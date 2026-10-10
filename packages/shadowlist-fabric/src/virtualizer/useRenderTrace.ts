@@ -9,13 +9,13 @@ import {
   takeRowRenderCount,
 } from './helpers';
 
-interface UseRenderTraceOptions<ElementT> {
+interface UseRenderTraceOptions<ItemT> {
   startRef: { current: number };
   viewRef: { current: ComponentRef<typeof ShadowListView> | null };
-  data: ReadonlyArray<ElementT>;
+  data: ReadonlyArray<ItemT>;
   renderIndices: ReadonlyArray<number>;
   refreshing: boolean;
-  keyExtractor: (element: ElementT, index: number) => string;
+  keyExtractor: (item: ItemT, index: number) => string;
 }
 
 /*
@@ -34,15 +34,15 @@ export function useRenderTraceStart(): { current: number } {
  * Device trace only. One render line per commit with the mounted rows, the rows rendered
  * since the last line, the render time and how data changed.
  */
-export function useRenderTrace<ElementT>({
+export function useRenderTrace<ItemT>({
   startRef,
   viewRef,
   data,
   renderIndices,
   refreshing,
   keyExtractor,
-}: UseRenderTraceOptions<ElementT>): void {
-  const traceDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
+}: UseRenderTraceOptions<ItemT>): void {
+  const traceDataRef = useRef<ReadonlyArray<ItemT> | null>(null);
   useLayoutEffect(() => {
     if (!slTraceEnabled()) return;
     const previousData = traceDataRef.current;

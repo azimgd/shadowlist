@@ -6,32 +6,25 @@ import type {
 } from '../types';
 
 /*
- * The viewable window from native's start and end, low to high, or null when nothing is
- * viewable. Inverted lists report start after end.
+ * The viewable range from native's low and high, or null when nothing is viewable.
  */
-export function viewableWindow(
-  startIndex: number,
-  endIndex: number
-): MountedRange | null {
-  if (startIndex === -1 || endIndex === -1) return null;
-  return {
-    low: Math.min(startIndex, endIndex),
-    high: Math.max(startIndex, endIndex),
-  };
+export function viewableRange(low: number, high: number): MountedRange | null {
+  if (low === -1 || high === -1) return null;
+  return { low, high };
 }
 
 /*
- * The section header the sticky overlay shows for a window starting at windowLow: the last
+ * The section header the sticky overlay shows for a range starting at rangeLow: the last
  * sticky index at or above it, or -1. Indices are ascending.
  */
 export function activeStickyIndexFor(
   stickyIndices: ReadonlyArray<number> | undefined,
-  windowLow: number
+  rangeLow: number
 ): number {
   let active = -1;
   if (!stickyIndices) return active;
   for (const stickyIndex of stickyIndices) {
-    if (stickyIndex <= windowLow) active = stickyIndex;
+    if (stickyIndex <= rangeLow) active = stickyIndex;
     else break;
   }
   return active;
@@ -73,37 +66,37 @@ const DEFAULT_TIMERS: ViewabilityTimers = {
  * before recordInteraction. With minimumViewTime the rows must stay viewable that long. Each
  * change starts the wait again, and the rows viewable when it ends are reported.
  */
-export class ViewabilityTracker<ElementT> {
-  private reported: ViewToken<ElementT>[] = [];
-  private window: MountedRange | null = null;
+export class ViewabilityTracker<ItemT> {
+  private reported: ViewToken<ItemT>[] = [];
+  private range: MountedRange | null = null;
   private interacted = false;
   private timer: unknown = null;
 
   constructor(
     public config: ViewabilityConfig,
     public onViewableItemsChanged:
-      | ((info: ViewableItemsChangedInfo<ElementT>) => void)
+      | ((info: ViewableItemsChangedInfo<ItemT>) => void)
       | null
       | undefined,
     private readonly timers: ViewabilityTimers = DEFAULT_TIMERS
   ) {}
 
   recordInteraction(
-    build: (low: number, high: number) => ViewToken<ElementT>[]
+    build: (low: number, high: number) => ViewToken<ItemT>[]
   ): void {
     if (this.interacted) return;
     this.interacted = true;
-    this.update(this.window, build);
+    this.update(this.range, build);
   }
 
   /*
-   * The viewable window changed, or the rows in it did.
+   * The viewable range changed, or the rows in it did.
    */
   update(
-    window: MountedRange | null,
-    build: (low: number, high: number) => ViewToken<ElementT>[]
+    range: MountedRange | null,
+    build: (low: number, high: number) => ViewToken<ItemT>[]
   ): void {
-    this.window = window;
+    this.range = range;
     if (this.config.waitForInteraction && !this.interacted) return;
     const wait = this.config.minimumViewTime ?? 0;
     if (wait <= 0) {
@@ -122,15 +115,13 @@ export class ViewabilityTracker<ElementT> {
     this.timer = null;
   }
 
-  private emit(
-    build: (low: number, high: number) => ViewToken<ElementT>[]
-  ): void {
-    const viewableItems = this.window
-      ? build(this.window.low, this.window.high)
+  private emit(build: (low: number, high: number) => ViewToken<ItemT>[]): void {
+    const viewableItems = this.range
+      ? build(this.range.low, this.range.high)
       : [];
     const currentKeys = new Set(viewableItems.map((token) => token.key));
     const previousKeys = new Set(this.reported.map((token) => token.key));
-    const changed: ViewToken<ElementT>[] = [
+    const changed: ViewToken<ItemT>[] = [
       ...viewableItems.filter((token) => !previousKeys.has(token.key)),
       ...this.reported
         .filter((token) => !currentKeys.has(token.key))

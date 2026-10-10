@@ -10,11 +10,11 @@ describe('package root', () => {
     expect(shadowlist.KeyboardView).toBeDefined();
     expect(typeof shadowlist.useKeyboardAnimation).toBe('function');
     expect(shadowlist.ShadowListView).toBeDefined();
-    expect(shadowlist.ShadowListElementView).toBeDefined();
+    expect(shadowlist.ShadowListCellView).toBeDefined();
     expect(shadowlist.ShadowListTemplateView).toBeDefined();
   });
 
   it('exports the native view commands', () => {
-    expect(typeof shadowlist.Commands.scrollToItem).toBe('function');
+    expect(typeof shadowlist.Commands.scrollToRow).toBe('function');
   });
 });

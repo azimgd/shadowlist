@@ -80,23 +80,23 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "elementsAllKeys")
-  public void setElementsAllKeys(ShadowListView view, @Nullable ReadableArray elementsAllKeys) {
+  @ReactProp(name = "rowKeys")
+  public void setRowKeys(ShadowListView view, @Nullable ReadableArray rowKeys) {
     // The core reads this prop. The view only counts rows for accessibility.
-    view.setItemKeys(elementsAllKeys);
+    view.setItemKeys(rowKeys);
   }
 
   @Override
-  @ReactProp(name = "elementsAnchorIgnoreKeys")
-  public void setElementsAnchorIgnoreKeys(
-      ShadowListView view, @Nullable ReadableArray elementsAnchorIgnoreKeys) {
+  @ReactProp(name = "nonAnchorKeys")
+  public void setNonAnchorKeys(
+      ShadowListView view, @Nullable ReadableArray nonAnchorKeys) {
     // Only the core reads this prop.
   }
 
   @Override
-  @ReactProp(name = "elementsSizeSpecs")
-  public void setElementsSizeSpecs(
-      ShadowListView view, @Nullable String elementsSizeSpecs) {
+  @ReactProp(name = "rowSizeSpecs")
+  public void setRowSizeSpecs(
+      ShadowListView view, @Nullable String rowSizeSpecs) {
     // Only the core reads this prop.
   }
 
@@ -172,8 +172,8 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "containerOffsetIndex")
-  public void setContainerOffsetIndex(ShadowListView view, int containerOffsetIndex) {
+  @ReactProp(name = "scrollIndex")
+  public void setScrollIndex(ShadowListView view, int scrollIndex) {
     // Only the core reads this prop.
   }
 
@@ -300,9 +300,9 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  @ReactProp(name = "refreshProgressViewOffset")
-  public void setRefreshProgressViewOffset(ShadowListView view, double refreshProgressViewOffset) {
-    view.setRefreshProgressViewOffset(refreshProgressViewOffset);
+  @ReactProp(name = "progressViewOffset")
+  public void setProgressViewOffset(ShadowListView view, double progressViewOffset) {
+    view.setProgressViewOffset(progressViewOffset);
   }
 
   @Override
@@ -336,8 +336,8 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
-  public void scrollToItem(ShadowListView view, int index, double viewPosition, double viewOffset, boolean animated) {
-    view.scrollToItem(index, viewPosition, viewOffset, animated);
+  public void scrollToRow(ShadowListView view, int row, double viewPosition, double viewOffset, boolean animated) {
+    view.scrollToRow(row, viewPosition, viewOffset, animated);
   }
 
   @Override

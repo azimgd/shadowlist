@@ -115,7 +115,7 @@ static const CFTimeInterval SL_SCROLL_TO_TOP_JUMP_MAX_WAIT = 0.5;
   std::vector<std::pair<CGFloat, CGFloat>> spans;
   for (UIView *subview in _contentView.subviews) {
     if (subview.hidden ||
-        !([subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)] ||
+        !([subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)] ||
           [subview conformsToProtocol:@protocol(RCTShadowListTemplateViewViewProtocol)])) {
       continue;
     }

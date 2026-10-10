@@ -53,7 +53,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   if (newerState) {
     SL_LOG("adopt: obsolete state rev=%zu -> newest rev=%zu off=(%.1f,%.1f)",
       adoptedState->getRevision(), newerState->getRevision(),
-      shadowlistViewStateData.containerOffsetX_, shadowlistViewStateData.containerOffsetY_);
+      shadowlistViewStateData.offsetX_, shadowlistViewStateData.offsetY_);
   }
   auto shadowlistViewLayoutMetrics = static_cast<YogaLayoutableShadowNode&>(shadowNode).getLayoutMetrics();
 
@@ -84,14 +84,14 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    */
   if (shadowlistViewStateData.dragEventSequence_ != containerManager->previousDragEventSequence) {
     containerManager->previousDragEventSequence = shadowlistViewStateData.dragEventSequence_;
-    const std::string& dragFromKey = shadowlistViewStateData.dragFromKey_;
-    const std::string& dragToKey = shadowlistViewStateData.dragToKey_;
+    const std::string& dragSourceKey = shadowlistViewStateData.dragSourceKey_;
+    const std::string& dragDestinationKey = shadowlistViewStateData.dragDestinationKey_;
     switch (static_cast<int>(shadowlistViewStateData.dragEventType_)) {
       case azimgd::shadowlist::DRAG_EVENT_START:
-        shadowlistViewEventEmitter.onDragStart({ .key = dragFromKey });
+        shadowlistViewEventEmitter.onDragStart({ .key = dragSourceKey });
         break;
       case azimgd::shadowlist::DRAG_EVENT_END:
-        shadowlistViewEventEmitter.onDragEnd({ .fromKey = dragFromKey, .toKey = dragToKey });
+        shadowlistViewEventEmitter.onDragEnd({ .sourceKey = dragSourceKey, .destinationKey = dragDestinationKey });
         break;
       default:
         break;
@@ -99,30 +99,30 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   }
 
   /*
-   * Handle a pending scrollToItem. The command writes its target into state and the
+   * Handle a pending scrollToRow. The command writes its target into state and the
    * prop gives the initial index. The core picks which wins and scrolls once per target.
    * An animated command only gets an estimate here, which the layout pass publishes. The
    * host animates there and sends the same command again without the animation.
    */
-  bool animatedCommand = shadowlistViewStateData.containerOffsetIndexAnimated_;
+  bool animatedCommand = shadowlistViewStateData.scrollIndexAnimated_;
   if (animatedCommand && callbacksCache &&
-      shadowlistViewStateData.containerOffsetIndexSequence_ > callbacksCache->animationSequence) {
+      shadowlistViewStateData.scrollIndexSequence_ > callbacksCache->animationSequence) {
     auto target = azimgd::shadowlist::commandTargetOffset(
       *containerManager,
-      shadowlistViewStateData.containerOffsetIndex_,
-      shadowlistViewStateData.containerOffsetIndexViewPosition_,
-      shadowlistViewStateData.containerOffsetIndexRowOffset_);
+      shadowlistViewStateData.scrollIndex_,
+      shadowlistViewStateData.scrollIndexViewPosition_,
+      shadowlistViewStateData.scrollIndexViewOffset_);
     if (target) {
-      callbacksCache->animationSequence = shadowlistViewStateData.containerOffsetIndexSequence_;
+      callbacksCache->animationSequence = shadowlistViewStateData.scrollIndexSequence_;
       callbacksCache->animationOffset = *target;
     }
   }
   containerManager->requestScrollToRow(
-    shadowlistViewStateData.containerOffsetIndex_,
-    animatedCommand ? 0.0 : shadowlistViewStateData.containerOffsetIndexSequence_,
-    shadowlistViewProps.containerOffsetIndex,
-    shadowlistViewStateData.containerOffsetIndexViewPosition_,
-    shadowlistViewStateData.containerOffsetIndexRowOffset_);
+    shadowlistViewStateData.scrollIndex_,
+    animatedCommand ? 0.0 : shadowlistViewStateData.scrollIndexSequence_,
+    shadowlistViewProps.scrollIndex,
+    shadowlistViewStateData.scrollIndexViewPosition_,
+    shadowlistViewStateData.scrollIndexViewOffset_);
 
   /*
    * Answer an anchor request once, with the row at the viewport start of the offset this
@@ -130,8 +130,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    */
   if (callbacksCache && shadowlistViewStateData.anchorRequestSequence_ > callbacksCache->anchorRequestSequence) {
     callbacksCache->anchorRequestSequence = shadowlistViewStateData.anchorRequestSequence_;
-    double offset = shadowlistViewProps.horizontal ? shadowlistViewStateData.containerOffsetX_
-                                                   : shadowlistViewStateData.containerOffsetY_;
+    double offset = shadowlistViewProps.horizontal ? shadowlistViewStateData.offsetX_
+                                                   : shadowlistViewStateData.offsetY_;
     auto anchor = azimgd::shadowlist::anchorStateAt(*containerManager, offset);
     ShadowListViewEventEmitter::OnAnchorState event;
     event.found = anchor.has_value();
@@ -145,12 +145,12 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    * Point the core at the props' keys instead of copying them. Props never change and
    * outlive this call. Copying cost milliseconds per commit on a large chat list.
    */
-  input.keysRef = &shadowlistViewProps.elementsAllKeys;
+  input.keysRef = &shadowlistViewProps.rowKeys;
   /*
    * Keys of decoration rows like date pills and dividers that the core must never use as
    * the anchor for keeping content in place. An empty list means any row can be the anchor.
    */
-  input.nonAnchorKeysRef = &shadowlistViewProps.elementsAnchorIgnoreKeys;
+  input.nonAnchorKeysRef = &shadowlistViewProps.nonAnchorKeys;
 
   /*
    * A scroll keeps the same props. The same props pointer means the same keys.
@@ -211,7 +211,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    * Give the core predicted sizes before update(). This frame then picks its window from
    * real sizes instead of estimates.
    */
-  applyElementSizeSpecs(
+  applyRowSizeSpecs(
     shadowlistViewShadowNode,
     shadowlistViewProps,
     containerManager,
@@ -242,13 +242,13 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
      * size. Left alone, a fling can coast past the real end into blank space.
      */
     bool geometryStale =
-      shadowlistViewStateData.totalContainerWidth_ != containerManager->revision.contentWidth ||
-      shadowlistViewStateData.totalContainerHeight_ != containerManager->revision.contentHeight ||
+      shadowlistViewStateData.contentWidth_ != containerManager->revision.contentWidth ||
+      shadowlistViewStateData.contentHeight_ != containerManager->revision.contentHeight ||
       (geometryCache &&
        (geometryCache->published.snapOffsets != shadowlistViewStateData.snapOffsets_ ||
-        geometryCache->published.stickyIndices != shadowlistViewStateData.stickyHeaderIndices_ ||
-        geometryCache->published.stickyOffsets != shadowlistViewStateData.stickyHeaderOffsets_ ||
-        geometryCache->published.stickySizes != shadowlistViewStateData.stickyHeaderSizes_ ||
+        geometryCache->published.stickyIndices != shadowlistViewStateData.stickyIndices_ ||
+        geometryCache->published.stickyOffsets != shadowlistViewStateData.stickyOffsets_ ||
+        geometryCache->published.stickySizes != shadowlistViewStateData.stickySizes_ ||
         geometryCache->animationSequence != shadowlistViewStateData.animationTargetSequence_));
     /*
      * The layout pass shows hidden rows again, and the host's echo usually comes in a plain
@@ -319,13 +319,13 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
       emitter->onEndReached({});
     };
     containerManager->onMeasuredRangeChangeCallback = [emitter](std::size_t low, std::size_t high) -> void {
-      int visibleStartIndex = static_cast<int>(low);
-      int visibleEndIndex = static_cast<int>(high);
-      emitter->dispatchUniqueEvent("visibleIndicesChange",
-        [visibleStartIndex, visibleEndIndex](jsi::Runtime& runtime) {
+      int measuredLow = static_cast<int>(low);
+      int measuredHigh = static_cast<int>(high);
+      emitter->dispatchUniqueEvent("measuredRangeChange",
+        [measuredLow, measuredHigh](jsi::Runtime& runtime) {
           auto payload = jsi::Object(runtime);
-          payload.setProperty(runtime, "visibleStartIndex", visibleStartIndex);
-          payload.setProperty(runtime, "visibleEndIndex", visibleEndIndex);
+          payload.setProperty(runtime, "low", measuredLow);
+          payload.setProperty(runtime, "high", measuredHigh);
           return payload;
         });
     };
@@ -337,7 +337,7 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
     if (shadowlistViewProps.viewableEventEnabled) {
       /*
        * One range per viewability rule, two indices each and -1 for none. The first rule's
-       * range also goes out as viewableStartIndex and viewableEndIndex.
+       * range also goes out as low and high.
        */
       containerManager->onViewableIndicesChangeCallback = [emitter](const std::vector<std::size_t>& ranges) -> void {
         std::vector<int> indices;
@@ -348,8 +348,8 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
         emitter->dispatchUniqueEvent("viewableIndicesChange",
           [indices = std::move(indices)](jsi::Runtime& runtime) {
             auto payload = jsi::Object(runtime);
-            payload.setProperty(runtime, "viewableStartIndex", indices.size() >= 2 ? indices[0] : -1);
-            payload.setProperty(runtime, "viewableEndIndex", indices.size() >= 2 ? indices[1] : -1);
+            payload.setProperty(runtime, "low", indices.size() >= 2 ? indices[0] : -1);
+            payload.setProperty(runtime, "high", indices.size() >= 2 ? indices[1] : -1);
             auto ranges = jsi::Array(runtime, indices.size());
             for (std::size_t position = 0; position < indices.size(); ++position) {
               ranges.setValueAtIndex(runtime, position, indices[position]);
@@ -370,10 +370,10 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
        */
       auto tracker = std::make_shared<ShadowListScrollTracker>(shadowlistViewProps.scrollEventThrottle);
       containerManager->onScrollCallback = [emitter, tracker, containerManager](
-                                             double containerOffsetX, double containerOffsetY) -> void {
+                                             double offsetX, double offsetY) -> void {
         ShadowListScrollMetrics metrics;
-        metrics.offsetX = containerOffsetX;
-        metrics.offsetY = containerOffsetY;
+        metrics.offsetX = offsetX;
+        metrics.offsetY = offsetY;
         metrics.contentWidth = containerManager->revision.contentWidth;
         metrics.contentHeight = containerManager->revision.contentHeight;
         metrics.viewportWidth = containerManager->revision.windowWidth;
@@ -420,12 +420,12 @@ bool ShadowListViewComponentDescriptor::adoptLiveScrollReport(
   const ShadowListViewState& stateData) {
   const auto& liveScroll = stateData.liveScroll_;
   ShadowListLiveScroll::Report report;
-  if (!liveScroll || !liveScroll->newerReport(stateData.hostSequence_, stateData.containerOffsetEnabled_, report)) {
+  if (!liveScroll || !liveScroll->newerReport(stateData.hostSequence_, stateData.offsetEnabled_, report)) {
     return false;
   }
   SL_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%llu phase=%.0f",
     static_cast<unsigned long long>(report.sequence), stateData.hostSequence_,
-    stateData.containerOffsetX_, stateData.containerOffsetY_, report.offsetX, report.offsetY,
+    stateData.offsetX_, stateData.offsetY_, report.offsetX, report.offsetY,
     static_cast<unsigned long long>(report.commitToken), report.scrollPhase);
   ShadowListViewState nextStateData = stateData;
   nextStateData.applyLiveReport(report);
@@ -433,7 +433,7 @@ bool ShadowListViewComponentDescriptor::adoptLiveScrollReport(
   return true;
 }
 
-void ShadowListViewComponentDescriptor::applyElementSizeSpecs(
+void ShadowListViewComponentDescriptor::applyRowSizeSpecs(
   ShadowListViewShadowNode& shadowlistViewShadowNode,
   const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps,
   azimgd::shadowlist::Container* containerManager,
@@ -441,7 +441,7 @@ void ShadowListViewComponentDescriptor::applyElementSizeSpecs(
   Float pointScaleFactor,
   SurfaceId surfaceId) const {
   const auto& geometryCache = shadowlistViewShadowNode.getGeometryCache();
-  if (!textLayoutManager_ || !geometryCache || shadowlistViewProps.elementsSizeSpecs.empty()) {
+  if (!textLayoutManager_ || !geometryCache || shadowlistViewProps.rowSizeSpecs.empty()) {
     return;
   }
   const auto& textLayoutManager = *textLayoutManager_;
@@ -449,9 +449,9 @@ void ShadowListViewComponentDescriptor::applyElementSizeSpecs(
     *containerManager,
     shadowlistViewShadowNode.getProps(),
     availableWidth,
-    [&]() { return parseElementSizeSpecs(shadowlistViewProps.elementsSizeSpecs); },
+    [&]() { return parseRowSizeSpecs(shadowlistViewProps.rowSizeSpecs); },
     [&](const azimgd::shadowlist::RowSizeSpec& spec, double width) {
-      return measureElementSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
+      return measureRowSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
     });
 }
 

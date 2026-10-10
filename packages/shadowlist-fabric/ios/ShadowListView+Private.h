@@ -139,13 +139,13 @@ static inline BOOL SLFrameTraceEnabled(void)
   __weak RCTUIView *_stickyHeaderView;
   __weak RCTUIView *_stickyFooterView;
 
-  std::vector<int> _stickyHeaderIndices;
-  std::vector<double> _stickyHeaderOffsets;
-  std::vector<double> _stickyHeaderSizes;
+  std::vector<int> _stickyIndices;
+  std::vector<double> _stickyOffsets;
+  std::vector<double> _stickySizes;
   __weak RCTUIView *_sectionHeaderOverlay;
-  std::shared_ptr<const std::vector<int>> _copiedStickyHeaderIndices;
-  std::shared_ptr<const std::vector<facebook::react::Float>> _copiedStickyHeaderOffsets;
-  std::shared_ptr<const std::vector<facebook::react::Float>> _copiedStickyHeaderSizes;
+  std::shared_ptr<const std::vector<int>> _copiedStickyIndices;
+  std::shared_ptr<const std::vector<facebook::react::Float>> _copiedStickyOffsets;
+  std::shared_ptr<const std::vector<facebook::react::Float>> _copiedStickySizes;
   std::shared_ptr<const std::vector<facebook::react::Float>> _copiedSnapOffsets;
 
   azimgd::shadowlist::ScrollSync _scrollSync;
@@ -170,7 +170,7 @@ static inline BOOL SLFrameTraceEnabled(void)
   BOOL _scrollEnabled;
   BOOL _scrollsToTop;
   CGFloat _decelerationRate;
-  CGFloat _refreshProgressViewOffset;
+  CGFloat _progressViewOffset;
   CGPoint _endDragVelocity;
   double _landCommandSequence;
   BOOL _momentumEndAfterLand;
@@ -204,15 +204,15 @@ static inline BOOL SLFrameTraceEnabled(void)
 #endif
 }
 
-- (NSInteger)indexOfElementView:(nullable RCTUIView *)view;
+- (NSInteger)indexOfCellView:(nullable RCTUIView *)view;
 
-- (nullable NSString *)keyOfElementView:(nullable RCTUIView *)view;
+- (nullable NSString *)keyOfCellView:(nullable RCTUIView *)view;
 
 - (void)commitStatePatch:(const azimgd::shadowlist::ScrollPatch&)patch;
 - (azimgd::shadowlist::ScrollPatch)livePatch;
 - (void)clearUserScrolled;
 
-- (void)commitDragEventType:(int)type fromKey:(nullable NSString *)fromKey toKey:(nullable NSString *)toKey;
+- (void)commitDragEventType:(int)type sourceKey:(nullable NSString *)sourceKey destinationKey:(nullable NSString *)destinationKey;
 
 @end
 

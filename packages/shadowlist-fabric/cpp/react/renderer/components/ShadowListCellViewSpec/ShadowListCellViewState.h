@@ -7,6 +7,6 @@
 
 namespace facebook::react {
 
-using ShadowListElementViewState = StateData;
+using ShadowListCellViewState = StateData;
 
 }

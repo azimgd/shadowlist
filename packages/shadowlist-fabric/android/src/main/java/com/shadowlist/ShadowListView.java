@@ -55,11 +55,12 @@ public class ShadowListView extends FrameLayout {
   private static final int SCROLL_PHASE_DRAGGING = 1;
   private static final int SCROLL_PHASE_SETTLING = 2;
   /*
-   * The scrollToItem index that means the end, matching SCROLL_TO_END_INDEX in Constants.hpp.
+   * The scrollToRow row that means the end, matching SCROLL_TO_END_INDEX in Constants.hpp.
    */
   private static final double SCROLL_TO_END_INDEX = -3.0;
   /*
-   * The scrollToItem index that means the offset in rowOffset, matching SCROLL_TO_OFFSET_INDEX.
+   * The scrollToRow row that means the absolute offset carried in viewOffset, matching
+   * SCROLL_TO_OFFSET_INDEX.
    */
   private static final double SCROLL_TO_OFFSET_INDEX = -4.0;
 
@@ -109,7 +110,7 @@ public class ShadowListView extends FrameLayout {
   /*
    * The row swiped open, or null. Only one row is open at a time.
    */
-  @Nullable private ShadowListElementView mSwipedRow = null;
+  @Nullable private ShadowListCellView mSwipedRow = null;
   /*
    * This touch closed the open row. It presses nothing but may still scroll.
    */
@@ -192,7 +193,7 @@ public class ShadowListView extends FrameLayout {
   private boolean mBounces = true;
   private double mDecelerationRate = 0;
   private boolean mNestedScrollEnabled = false;
-  private double mRefreshProgressViewOffset = 0;
+  private double mProgressViewOffset = 0;
 
   /*
    * Drag and momentum events. A drag begins on the first frame a finger moves the list.
@@ -327,7 +328,7 @@ public class ShadowListView extends FrameLayout {
       if (mRefreshColor != null) {
         mRefreshLayout.setColorSchemeColors(mRefreshColor);
       }
-      applyRefreshProgressViewOffset();
+      applyProgressViewOffset();
       mRefreshLayout.addView(mScrollView, new ViewGroup.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
       addView(mRefreshLayout, new FrameLayout.LayoutParams(
@@ -444,22 +445,22 @@ public class ShadowListView extends FrameLayout {
     applyScrollViewProps();
   }
 
-  public void setRefreshProgressViewOffset(double offset) {
-    mRefreshProgressViewOffset = offset;
-    applyRefreshProgressViewOffset();
+  public void setProgressViewOffset(double offset) {
+    mProgressViewOffset = offset;
+    applyProgressViewOffset();
   }
 
   /*
    * Start the spinner at the offset and pull it to REFRESH_CIRCLE_TARGET_DP below, like
    * React Native's progressViewOffset. 0 keeps the default.
    */
-  private void applyRefreshProgressViewOffset() {
-    if (mRefreshLayout == null || mRefreshProgressViewOffset == 0) {
+  private void applyProgressViewOffset() {
+    if (mRefreshLayout == null || mProgressViewOffset == 0) {
       return;
     }
     int diameter = mRefreshLayout.getProgressCircleDiameter();
-    int start = Math.round(PixelUtil.toPixelFromDIP((float) mRefreshProgressViewOffset)) - diameter;
-    int end = Math.round(PixelUtil.toPixelFromDIP((float) mRefreshProgressViewOffset + REFRESH_CIRCLE_TARGET_DP));
+    int start = Math.round(PixelUtil.toPixelFromDIP((float) mProgressViewOffset)) - diameter;
+    int end = Math.round(PixelUtil.toPixelFromDIP((float) mProgressViewOffset + REFRESH_CIRCLE_TARGET_DP));
     mRefreshLayout.setProgressViewOffset(false, start, end);
   }
 
@@ -586,7 +587,7 @@ public class ShadowListView extends FrameLayout {
    * Rows and templates go into the content view inside the scroll view.
    */
   public void addContentView(View child, int index) {
-    if (child instanceof ShadowListElementView) {
+    if (child instanceof ShadowListCellView) {
       mContentView.addView(child, index);
       // Pin again so sticky views stay above the new row.
       mStickyController.applyStickyTransforms();
@@ -929,15 +930,15 @@ public class ShadowListView extends FrameLayout {
   /*
    * A row starts swiping. Any other open row closes.
    */
-  void swipeRowOpened(ShadowListElementView row) {
-    ShadowListElementView previous = mSwipedRow;
+  void swipeRowOpened(ShadowListCellView row) {
+    ShadowListCellView previous = mSwipedRow;
     mSwipedRow = row;
     if (previous != null && previous != row) {
       previous.closeSwipeActions(false);
     }
   }
 
-  void swipeRowClosed(ShadowListElementView row) {
+  void swipeRowClosed(ShadowListCellView row) {
     if (mSwipedRow == row) {
       mSwipedRow = null;
     }
@@ -949,13 +950,13 @@ public class ShadowListView extends FrameLayout {
    */
   private void closeSwipedRowOutside(MotionEvent event) {
     mSwipeClosingTouch = false;
-    ShadowListElementView row = mSwipedRow;
+    ShadowListCellView row = mSwipedRow;
     if (row == null || row.isSwipedOut()) {
       return;
     }
     float contentX = event.getX() + mScrollView.getScrollX();
     float contentY = event.getY() + mScrollView.getScrollY();
-    if (mDragController.elementViewAtContentPoint(contentX, contentY) == row) {
+    if (mDragController.cellViewAtContentPoint(contentX, contentY) == row) {
       return;
     }
     row.closeSwipeActions(true);
@@ -973,8 +974,8 @@ public class ShadowListView extends FrameLayout {
   public void closeSwipeActions() {
     for (int child = 0; child < mContentView.getChildCount(); child++) {
       View view = mContentView.getChildAt(child);
-      if (view instanceof ShadowListElementView) {
-        ((ShadowListElementView) view).closeSwipeActions(true);
+      if (view instanceof ShadowListCellView) {
+        ((ShadowListCellView) view).closeSwipeActions(true);
       }
     }
   }
@@ -993,7 +994,7 @@ public class ShadowListView extends FrameLayout {
     }
     float contentX = event.getX() + mScrollView.getScrollX();
     float contentY = event.getY() + mScrollView.getScrollY();
-    ShadowListElementView row = mDragController.elementViewAtContentPoint(contentX, contentY);
+    ShadowListCellView row = mDragController.cellViewAtContentPoint(contentX, contentY);
     if (row != null) {
       row.showRowMenu(event);
     }
@@ -1083,11 +1084,11 @@ public class ShadowListView extends FrameLayout {
         mapBuffer.getDouble(STATE_BAND_LOW), mapBuffer.getDouble(STATE_BAND_HIGH)));
     }
 
-    float totalContainerWidth = (float) mapBuffer.getDouble(STATE_TOTAL_WIDTH);
-    float totalContainerHeight = (float) mapBuffer.getDouble(STATE_TOTAL_HEIGHT);
+    float contentWidth = (float) mapBuffer.getDouble(STATE_TOTAL_WIDTH);
+    float contentHeight = (float) mapBuffer.getDouble(STATE_TOTAL_HEIGHT);
 
-    int newContentWidth = (int) PixelUtil.toPixelFromDIP(totalContainerWidth);
-    int newContentHeight = (int) PixelUtil.toPixelFromDIP(totalContainerHeight);
+    int newContentWidth = (int) PixelUtil.toPixelFromDIP(contentWidth);
+    int newContentHeight = (int) PixelUtil.toPixelFromDIP(contentHeight);
 
     // Skip the layout call when the size is the same, which it is on most mounts.
     if (mContentView.getLeft() != 0 || mContentView.getTop() != 0
@@ -1156,7 +1157,7 @@ public class ShadowListView extends FrameLayout {
   /*
    * Send a drag event with the live offset, like a scroll report.
    */
-  void dispatchDragEvent(int type, String fromKey, String toKey, double sequence) {
+  void dispatchDragEvent(int type, String sourceKey, String destinationKey, double sequence) {
     if (mState == null) {
       return;
     }
@@ -1165,10 +1166,10 @@ public class ShadowListView extends FrameLayout {
     WritableMap map = mSync.patchMap();
     map.putDouble("dragEventSequence", sequence);
     map.putDouble("dragEventType", type);
-    map.putString("dragFromKey", fromKey != null ? fromKey : "");
-    map.putString("dragToKey", toKey != null ? toKey : "");
+    map.putString("dragSourceKey", sourceKey != null ? sourceKey : "");
+    map.putString("dragDestinationKey", destinationKey != null ? destinationKey : "");
     if (DEBUG_LOG) {
-      slLog("java.drag dispatch type=" + type + " from=" + fromKey + " to=" + toKey);
+      slLog("java.drag dispatch type=" + type + " from=" + sourceKey + " to=" + destinationKey);
     }
     mState.updateState(map);
   }
@@ -1223,31 +1224,31 @@ public class ShadowListView extends FrameLayout {
    * and the core lets the drag cancel the command. An animated command first gets the core's
    * estimate, see animateCommandTo.
    */
-  void issueScrollCommand(double index, double viewPosition, double rowOffset, boolean animated) {
+  void issueScrollCommand(double row, double viewPosition, double viewOffset, boolean animated) {
     boolean yielded = !mTouching;
     if (yielded) {
       stopMomentum();
     }
     removeCallbacks(mLandingRunnable);
-    mSync.issueCommand(index, viewPosition, rowOffset, animated, liveOffsetX(), liveOffsetY(), yielded);
+    mSync.issueCommand(row, viewPosition, viewOffset, animated, liveOffsetX(), liveOffsetY(), yielded);
     if (DEBUG_LOG) {
-      slLog("java.cmd scroll: index=" + index + " viewPosition=" + viewPosition + " animated=" + animated);
+      slLog("java.cmd scroll: index=" + row + " viewPosition=" + viewPosition + " animated=" + animated);
     }
     mState.updateState(mSync.patchMap());
   }
 
-  public void scrollToItem(int index, double viewPosition, double viewOffset, boolean animated) {
+  public void scrollToRow(int row, double viewPosition, double viewOffset, boolean animated) {
     if (mState == null) {
       return;
     }
-    // The core moves the resting offset by rowOffset. viewOffset moves the other way.
-    double rowOffset = Double.isNaN(viewOffset) || Double.isInfinite(viewOffset) ? 0 : -viewOffset;
-    issueScrollCommand((double) index, viewPosition, rowOffset, animated);
+    // The core rests the row viewOffset past its view position. React Native's viewOffset moves the other way.
+    double coreViewOffset = Double.isNaN(viewOffset) || Double.isInfinite(viewOffset) ? 0 : -viewOffset;
+    issueScrollCommand((double) row, viewPosition, coreViewOffset, animated);
   }
 
   public void scrollToOffset(double offset, boolean animated) {
     /*
-     * An animated scroll goes through the core like scrollToItem. A smooth scroll would stop at
+     * An animated scroll goes through the core like scrollToRow. A smooth scroll would stop at
      * the first correction a row measured on the way sends.
      */
     if (animated && mState != null) {

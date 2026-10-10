@@ -13,7 +13,7 @@ import {
 import ShadowList from './ShadowList';
 import type {
   ItemSeparatorProps,
-  RenderElementInfo,
+  RenderItemInfo,
   ShadowListCommands,
   TreeListProps,
   TreeListCommands,
@@ -23,12 +23,12 @@ import { forwardedCommands } from './virtualizer';
 /*
  * TreeList sits on top of ShadowList, like SectionList does for sections. It flattens the
  * nodes whose parents are all expanded into one list and skips collapsed branches. Rows
- * are keyed by node id so they survive an expand or collapse.
+ * are keyed by node key so they survive an expand or collapse.
  */
 
-interface TreeFlatRow<ElementT> {
+interface TreeFlatRow<ItemT> {
   id: string;
-  element: ElementT;
+  item: ItemT;
   depth: number;
   hasChildren: boolean;
   isExpanded: boolean;
@@ -38,13 +38,13 @@ interface TreeFlatRow<ElementT> {
  * Whether the row built for this position matches the mounted one. Everything renderRow
  * reads has to match, or a reused row would show stale content.
  */
-function sameRow<ElementT>(
-  previous: TreeFlatRow<ElementT> | undefined,
-  next: TreeFlatRow<ElementT>
-): previous is TreeFlatRow<ElementT> {
+function sameRow<ItemT>(
+  previous: TreeFlatRow<ItemT> | undefined,
+  next: TreeFlatRow<ItemT>
+): previous is TreeFlatRow<ItemT> {
   return (
     previous !== undefined &&
-    previous.element === next.element &&
+    previous.item === next.item &&
     previous.depth === next.depth &&
     previous.hasChildren === next.hasChildren &&
     previous.isExpanded === next.isExpanded
@@ -52,37 +52,39 @@ function sameRow<ElementT>(
 }
 
 function toSet(
-  ids: ReadonlyArray<string> | ReadonlySet<string> | undefined
+  keys: ReadonlyArray<string> | ReadonlySet<string> | undefined
 ): Set<string> {
-  if (!ids) return new Set();
-  return ids instanceof Set ? new Set(ids) : new Set(ids as Iterable<string>);
+  if (!keys) return new Set();
+  return keys instanceof Set
+    ? new Set(keys)
+    : new Set(keys as Iterable<string>);
 }
 
-function TreeListInner<ElementT>(
+function TreeListInner<ItemT>(
   {
     data,
     getChildren,
     keyExtractor,
-    renderElement,
-    expandedIds,
-    initialExpandedIds,
+    renderItem,
+    expandedKeys,
+    initialExpandedKeys,
     onExpandedChange,
     indentWidth = 16,
-    getElementSizeSpec,
+    getItemSizeSpec,
     ItemSeparatorComponent,
     ...rest
-  }: TreeListProps<ElementT>,
+  }: TreeListProps<ItemT>,
   ref: Ref<TreeListCommands>
 ) {
   const innerRef = useRef<ShadowListCommands>(null);
 
-  const isControlled = expandedIds !== undefined;
+  const isControlled = expandedKeys !== undefined;
   const [internalExpanded, setInternalExpanded] = useState<Set<string>>(() =>
-    toSet(initialExpandedIds)
+    toSet(initialExpandedKeys)
   );
   const expandedSet = useMemo(
-    () => (isControlled ? toSet(expandedIds) : internalExpanded),
-    [isControlled, expandedIds, internalExpanded]
+    () => (isControlled ? toSet(expandedKeys) : internalExpanded),
+    [isControlled, expandedKeys, internalExpanded]
   );
 
   // Mirror the expanded set in a ref so two toggles in the same tick don't overwrite each other.
@@ -93,32 +95,32 @@ function TreeListInner<ElementT>(
    * Rows from the last flatten, by id. An unchanged row keeps its previous object. The list
    * mounts rows by identity. Without this an expand or collapse re-renders every row.
    */
-  const previousRowsRef = useRef<Map<string, TreeFlatRow<ElementT>>>(new Map());
+  const previousRowsRef = useRef<Map<string, TreeFlatRow<ItemT>>>(new Map());
 
   const { data: rows, indexByKey } = useMemo(() => {
-    const flat: TreeFlatRow<ElementT>[] = [];
+    const flat: TreeFlatRow<ItemT>[] = [];
     const byKey = new Map<string, number>();
     const previousRows = previousRowsRef.current;
-    const nextRows = new Map<string, TreeFlatRow<ElementT>>();
+    const nextRows = new Map<string, TreeFlatRow<ItemT>>();
 
     interface Frame {
-      element: ElementT;
+      item: ItemT;
       depth: number;
     }
     const stack: Frame[] = [];
     for (let index = data.length - 1; index >= 0; index--) {
-      stack.push({ element: data[index] as ElementT, depth: 0 });
+      stack.push({ item: data[index] as ItemT, depth: 0 });
     }
 
     while (stack.length > 0) {
-      const { element, depth } = stack.pop() as Frame;
-      const id = keyExtractor(element);
-      const children = getChildren(element);
+      const { item, depth } = stack.pop() as Frame;
+      const id = keyExtractor(item);
+      const children = getChildren(item);
       const hasChildren = !!children && children.length > 0;
       const isExpanded = hasChildren && expandedSet.has(id);
 
       byKey.set(id, flat.length);
-      const row = { id, element, depth, hasChildren, isExpanded };
+      const row = { id, item, depth, hasChildren, isExpanded };
       const previousRow = previousRows.get(id);
       const finalRow = sameRow(previousRow, row) ? previousRow : row;
       nextRows.set(id, finalRow);
@@ -127,7 +129,7 @@ function TreeListInner<ElementT>(
       if (isExpanded && children) {
         for (let index = children.length - 1; index >= 0; index--) {
           stack.push({
-            element: children[index] as ElementT,
+            item: children[index] as ItemT,
             depth: depth + 1,
           });
         }
@@ -146,11 +148,11 @@ function TreeListInner<ElementT>(
   const onExpandedChangeRef = useRef(onExpandedChange);
   onExpandedChangeRef.current = onExpandedChange;
 
-  const toggleId = useCallback(
-    (id: string) => {
+  const toggleKey = useCallback(
+    (key: string) => {
       const next = new Set(expandedRef.current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       expandedRef.current = next;
       if (!isControlled) setInternalExpanded(next);
       onExpandedChangeRef.current?.(next);
@@ -162,10 +164,10 @@ function TreeListInner<ElementT>(
     ref,
     () => ({
       ...forwardedCommands(innerRef),
-      scrollToNode: (id: string, viewPosition?: number) => {
-        const index = indexByKey.get(id);
+      scrollToNode: (key: string, viewPosition?: number) => {
+        const index = indexByKey.get(key);
         if (index !== undefined) {
-          innerRef.current?.scrollToItem(index, viewPosition);
+          innerRef.current?.scrollToIndex({ index, viewPosition });
         }
       },
     }),
@@ -173,7 +175,7 @@ function TreeListInner<ElementT>(
   );
 
   /*
-   * A separator component gets the nodes on both sides, not the flattened rows. An element
+   * A separator component gets the nodes on both sides, not the flattened rows. A React element
    * or a function without parameters goes through as is.
    */
   const rowSeparator = useMemo(() => {
@@ -186,35 +188,35 @@ function TreeListInner<ElementT>(
       return ItemSeparatorComponent;
     }
     const Separator = ItemSeparatorComponent as ComponentType<
-      ItemSeparatorProps<ElementT>
+      ItemSeparatorProps<ItemT>
     >;
     return function TreeRowSeparator({
       highlighted,
       leadingItem,
       trailingItem,
       ...separatorProps
-    }: ItemSeparatorProps<TreeFlatRow<ElementT>>) {
+    }: ItemSeparatorProps<TreeFlatRow<ItemT>>) {
       return (
         <Separator
           {...separatorProps}
           highlighted={highlighted}
-          leadingItem={leadingItem.element}
-          trailingItem={trailingItem?.element}
+          leadingItem={leadingItem.item}
+          trailingItem={trailingItem?.item}
         />
       );
     };
   }, [ItemSeparatorComponent]);
 
   /*
-   * Pass one row to renderElement with its depth, indent, expanded state and a toggle.
+   * Pass one row to renderItem with its depth, indent, expanded state and a toggle.
    * index is a getter because the list only re-renders a moved row if it read the index.
    * Reading it here would re-render every row below an expand.
    */
   const renderRow = useCallback(
-    (info: RenderElementInfo<TreeFlatRow<ElementT>>) => {
-      const row = info.element;
-      return renderElement({
-        element: row.element,
+    (info: RenderItemInfo<TreeFlatRow<ItemT>>) => {
+      const row = info.item;
+      return renderItem({
+        item: row.item,
         get index() {
           return info.index;
         },
@@ -222,20 +224,20 @@ function TreeListInner<ElementT>(
         isExpanded: row.isExpanded,
         hasChildren: row.hasChildren,
         indent: row.depth * indentWidth,
-        toggle: () => toggleId(row.id),
+        toggle: () => toggleKey(row.id),
         separators: info.separators,
       });
     },
-    [renderElement, indentWidth, toggleId]
+    [renderItem, indentWidth, toggleKey]
   );
 
   const getRowSizeSpec = useMemo(
     () =>
-      getElementSizeSpec
-        ? (row: TreeFlatRow<ElementT>, index: number) =>
-            getElementSizeSpec(row.element, index, row.depth)
+      getItemSizeSpec
+        ? (row: TreeFlatRow<ItemT>, index: number) =>
+            getItemSizeSpec(row.item, index, row.depth)
         : undefined,
-    [getElementSizeSpec]
+    [getItemSizeSpec]
   );
 
   return (
@@ -244,14 +246,14 @@ function TreeListInner<ElementT>(
       ref={innerRef}
       data={rows}
       ItemSeparatorComponent={rowSeparator as never}
-      renderElement={renderRow}
-      getElementSizeSpec={getRowSizeSpec}
+      renderItem={renderRow}
+      getItemSizeSpec={getRowSizeSpec}
     />
   );
 }
 
-const TreeList = forwardRef(TreeListInner) as <ElementT>(
-  props: TreeListProps<ElementT> & { ref?: Ref<TreeListCommands> }
+const TreeList = forwardRef(TreeListInner) as <ItemT>(
+  props: TreeListProps<ItemT> & { ref?: Ref<TreeListCommands> }
 ) => ReactElement;
 
 export default TreeList;

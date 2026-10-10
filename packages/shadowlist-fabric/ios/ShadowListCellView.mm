@@ -1,7 +1,7 @@
-#import "ShadowListElementView.h"
+#import "ShadowListCellView.h"
 #import "ShadowListView+Private.h"
 
-#import "ShadowListElementViewComponentDescriptor.h"
+#import "ShadowListCellViewComponentDescriptor.h"
 #import <react/renderer/components/ShadowListViewSpec/EventEmitters.h>
 #import <react/renderer/components/ShadowListViewSpec/Props.h>
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
@@ -44,8 +44,8 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
     return false;
   }
   for (std::size_t index = 0; index < a.size(); ++index) {
-    if (a[index].title != b[index].title || a[index].color != b[index].color ||
-        a[index].destructive != b[index].destructive) {
+    if (a[index].title != b[index].title || a[index].backgroundColor != b[index].backgroundColor ||
+        a[index].style != b[index].style) {
       return false;
     }
   }
@@ -71,17 +71,17 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
   std::vector<SwipeSpan> _spans;
 }
 
-- (instancetype)initWithProps:(const ShadowListElementViewProps&)props
+- (instancetype)initWithProps:(const ShadowListCellViewProps&)props
 {
   if (self = [super initWithFrame:CGRectZero]) {
     self.clipsToBounds = YES;
     NSMutableArray<UIButton *> *leading = [NSMutableArray array];
     for (const auto& action : props.leadingSwipeActions) {
-      [leading addObject:[self buttonWithTitle:action.title color:action.color leading:YES widths:_leadingWidths]];
+      [leading addObject:[self buttonWithTitle:action.title color:action.backgroundColor leading:YES widths:_leadingWidths]];
     }
     NSMutableArray<UIButton *> *trailing = [NSMutableArray array];
     for (const auto& action : props.trailingSwipeActions) {
-      [trailing addObject:[self buttonWithTitle:action.title color:action.color leading:NO widths:_trailingWidths]];
+      [trailing addObject:[self buttonWithTitle:action.title color:action.backgroundColor leading:NO widths:_trailingWidths]];
     }
     _leadingButtons = leading;
     _trailingButtons = trailing;
@@ -170,12 +170,12 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 
 @end
 
-@interface ShadowListElementView () <RCTShadowListElementViewViewProtocol,
+@interface ShadowListCellView () <RCTShadowListCellViewViewProtocol,
                                      UIGestureRecognizerDelegate,
                                      UIContextMenuInteractionDelegate>
 @end
 #else
-@interface ShadowListElementView () <RCTShadowListElementViewViewProtocol>
+@interface ShadowListCellView () <RCTShadowListCellViewViewProtocol>
 @end
 #endif
 
@@ -186,7 +186,7 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
  * row's menu through UIContextMenuInteraction, unless the list can be reordered. The hold then
  * lifts the row. Both are iOS only.
  */
-@implementation ShadowListElementView {
+@implementation ShadowListCellView {
   RCTUIView *_contentView;
 #if !TARGET_OS_OSX
   UIPanGestureRecognizer *_swipePan;
@@ -202,13 +202,13 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
 {
-  return concreteComponentDescriptorProvider<ShadowListElementViewComponentDescriptor>();
+  return concreteComponentDescriptorProvider<ShadowListCellViewComponentDescriptor>();
 }
 
 - (instancetype)initWithFrame:(CGRect)frame
 {
   if (self = [super initWithFrame:frame]) {
-    static const auto defaultProps = std::make_shared<const ShadowListElementViewProps>();
+    static const auto defaultProps = std::make_shared<const ShadowListCellViewProps>();
     _props = defaultProps;
 
     _contentView = [RCTUIView new];
@@ -261,8 +261,8 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 {
   [super updateProps:props oldProps:oldProps];
 #if !TARGET_OS_OSX
-  const auto& next = *std::static_pointer_cast<const ShadowListElementViewProps>(props);
-  auto previous = std::static_pointer_cast<const ShadowListElementViewProps>(oldProps);
+  const auto& next = *std::static_pointer_cast<const ShadowListCellViewProps>(props);
+  auto previous = std::static_pointer_cast<const ShadowListCellViewProps>(oldProps);
   BOOL hasSwipeActions = !next.leadingSwipeActions.empty() || !next.trailingSwipeActions.empty();
   BOOL swipeActionsChanged = !previous || !SLSameSwipeActions(previous->leadingSwipeActions, next.leadingSwipeActions) ||
     !SLSameSwipeActions(previous->trailingSwipeActions, next.trailingSwipeActions) ||
@@ -342,10 +342,10 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 /*
  * For VoiceOver, each swipe action is a custom action on the row.
  */
-- (void)updateSwipeAccessibilityActions:(const ShadowListElementViewProps&)props
+- (void)updateSwipeAccessibilityActions:(const ShadowListCellViewProps&)props
 {
   NSMutableArray<UIAccessibilityCustomAction *> *actions = [NSMutableArray array];
-  __weak ShadowListElementView *weakSelf = self;
+  __weak ShadowListCellView *weakSelf = self;
   auto add = [&](const std::string& title, BOOL leading, NSInteger index) {
     NSString *name = [NSString stringWithUTF8String:title.c_str()] ?: @"";
     [actions addObject:[[UIAccessibilityCustomAction alloc] initWithName:name
@@ -411,9 +411,9 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
   return nil;
 }
 
-- (const ShadowListElementViewProps&)elementProps
+- (const ShadowListCellViewProps&)cellProps
 {
-  return *std::static_pointer_cast<const ShadowListElementViewProps>(_props);
+  return *std::static_pointer_cast<const ShadowListCellViewProps>(_props);
 }
 
 - (void)emitSwipeActionLeading:(BOOL)leading index:(NSInteger)index full:(BOOL)full
@@ -421,7 +421,7 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
   if (!_eventEmitter) {
     return;
   }
-  std::static_pointer_cast<const ShadowListElementViewEventEmitter>(_eventEmitter)
+  std::static_pointer_cast<const ShadowListCellViewEventEmitter>(_eventEmitter)
     ->onSwipeAction({.leading = (bool)leading, .actionIndex = (int)index, .fullSwipe = (bool)full});
 }
 
@@ -446,7 +446,7 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
   if (_swipeActionsView) {
     return YES;
   }
-  const auto& props = [self elementProps];
+  const auto& props = [self cellProps];
   return velocity.x > 0 ? !props.leadingSwipeActions.empty() : !props.trailingSwipeActions.empty();
 }
 
@@ -545,12 +545,12 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
  */
 - (void)openActions
 {
-  const auto& props = [self elementProps];
+  const auto& props = [self cellProps];
   if (props.leadingSwipeActions.empty() && props.trailingSwipeActions.empty()) {
     return;
   }
   ShadowListSwipeActionsView *view = [[ShadowListSwipeActionsView alloc] initWithProps:props];
-  __weak ShadowListElementView *weakSelf = self;
+  __weak ShadowListCellView *weakSelf = self;
   view.onAction = ^(BOOL leading, NSInteger index) {
     [weakSelf performSwipeActionLeading:leading index:index];
   };
@@ -629,7 +629,7 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 - (UIContextMenuConfiguration *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
                         configurationForMenuAtLocation:(CGPoint)location
 {
-  const auto& props = [self elementProps];
+  const auto& props = [self cellProps];
   ShadowListView *list = [self listView];
   // A list that can be reordered lifts the row on the hold.
   if (props.contextMenuActions.empty() || _swipeActionsView || !_eventEmitter ||
@@ -637,7 +637,7 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
     return nil;
   }
   // The menu reports to the row it opened on, even if this view is recycled meanwhile.
-  auto emitter = std::static_pointer_cast<const ShadowListElementViewEventEmitter>(_eventEmitter);
+  auto emitter = std::static_pointer_cast<const ShadowListCellViewEventEmitter>(_eventEmitter);
   NSMutableArray<UIMenuElement *> *children = [NSMutableArray array];
   for (std::size_t index = 0; index < props.contextMenuActions.size(); ++index) {
     const auto& item = props.contextMenuActions[index];
@@ -652,7 +652,7 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
                                            emitter->onContextMenuAction({.actionIndex = actionIndex});
                                          }];
     UIMenuElementAttributes attributes = 0;
-    if (item.destructive) {
+    if (item.style == "destructive") {
       attributes |= UIMenuElementAttributesDestructive;
     }
     if (item.disabled) {
@@ -683,7 +683,7 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
 {
-  RCTShadowListElementViewHandleCommand(self, commandName, args);
+  RCTShadowListCellViewHandleCommand(self, commandName, args);
 }
 
 /*
@@ -708,9 +708,9 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
   [childComponentView removeFromSuperview];
 }
 
-Class<RCTComponentViewProtocol> ShadowListElementViewCls(void)
+Class<RCTComponentViewProtocol> ShadowListCellViewCls(void)
 {
-  return ShadowListElementView.class;
+  return ShadowListCellView.class;
 }
 
 @end

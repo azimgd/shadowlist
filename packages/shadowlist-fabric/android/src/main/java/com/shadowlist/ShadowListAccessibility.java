@@ -156,7 +156,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
     int last = -1;
     for (int child = 0; child < content.getChildCount(); child++) {
       View view = content.getChildAt(child);
-      if (!(view instanceof ShadowListElementView)) {
+      if (!(view instanceof ShadowListCellView)) {
         continue;
       }
       int start = horizontal ? view.getLeft() : view.getTop();
@@ -164,7 +164,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
       if (end <= low || start >= high) {
         continue;
       }
-      Integer index = mItemIndices.get(((ShadowListElementView) view).getElementKey());
+      Integer index = mItemIndices.get(((ShadowListCellView) view).getRowKey());
       if (index == null) {
         continue;
       }

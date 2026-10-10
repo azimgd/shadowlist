@@ -46,7 +46,7 @@ final class ShadowListDragController {
 
   private boolean mReorderEnabled = false;
   private boolean mDragging = false;
-  @Nullable private ShadowListElementView mDraggedView = null;
+  @Nullable private ShadowListCellView mDraggedView = null;
   /*
    * Where the row was picked up and where the gap is now. These move the views on screen.
    * JS gets the keys below instead.
@@ -74,7 +74,7 @@ final class ShadowListDragController {
    * After a drop, keep the rows shifted until the reorder lands.
    */
   private boolean mDragDropPending = false;
-  @Nullable private ShadowListElementView mDroppedView = null;
+  @Nullable private ShadowListCellView mDroppedView = null;
   private int mDropInsertionIndex = -1;
   /*
    * Leading edge of the held row on the latest frame. Saved on drop so the row can animate
@@ -115,7 +115,7 @@ final class ShadowListDragController {
   private double[] mRowCrossLeadings = new double[0];
   private double[] mRowCrossExtents = new double[0];
   private double[] mRowCrossShifts = new double[0];
-  private ShadowListElementView[] mRowViews = new ShadowListElementView[0];
+  private ShadowListCellView[] mRowViews = new ShadowListCellView[0];
 
   ShadowListDragController(ShadowListView view, Context context) {
     mView = view;
@@ -150,7 +150,7 @@ final class ShadowListDragController {
   /*
    * The held row, or null when nothing is being dragged.
    */
-  @Nullable ShadowListElementView getDraggedView() {
+  @Nullable ShadowListCellView getDraggedView() {
     return mDraggedView;
   }
 
@@ -219,17 +219,17 @@ final class ShadowListDragController {
   /*
    * The topmost row whose resting frame contains the point.
    */
-  @Nullable ShadowListElementView elementViewAtContentPoint(float contentX, float contentY) {
+  @Nullable ShadowListCellView cellViewAtContentPoint(float contentX, float contentY) {
     ViewGroup contentView = mView.getContentView();
-    ShadowListElementView result = null;
+    ShadowListCellView result = null;
     for (int i = 0; i < contentView.getChildCount(); i++) {
       View child = contentView.getChildAt(i);
-      if (!(child instanceof ShadowListElementView)) {
+      if (!(child instanceof ShadowListCellView)) {
         continue;
       }
       if (contentX >= child.getLeft() && contentX < child.getRight()
           && contentY >= child.getTop() && contentY < child.getBottom()) {
-        result = (ShadowListElementView) child;
+        result = (ShadowListCellView) child;
       }
     }
     return result;
@@ -243,11 +243,11 @@ final class ShadowListDragController {
     float contentX = event.getX() + scrollX;
     float contentY = event.getY() + scrollY;
 
-    ShadowListElementView view = elementViewAtContentPoint(contentX, contentY);
+    ShadowListCellView view = cellViewAtContentPoint(contentX, contentY);
     if (view == null) {
       return;
     }
-    int index = view.getElementIndex();
+    int index = view.getRowIndex();
     if (index < 0) {
       return;
     }
@@ -267,7 +267,7 @@ final class ShadowListDragController {
     mDraggedView = view;
     mDragOriginIndex = index;
     mDragInsertionIndex = index;
-    mDragOriginKey = view.getElementKey();
+    mDragOriginKey = view.getRowKey();
     mDragInsertionKey = mDragOriginKey;
 
     float restingLeading = horizontal ? view.getLeft() : view.getTop();
@@ -378,7 +378,7 @@ final class ShadowListDragController {
     mDraggedView.setTranslationY(horizontal ? crossTranslation : translation);
 
     // The held row's key can change with the data too, and the drop names it by key.
-    String liveKey = mDraggedView.getElementKey();
+    String liveKey = mDraggedView.getRowKey();
     if (liveKey != null && !liveKey.isEmpty()) {
       mDragOriginKey = liveKey;
     }
@@ -398,7 +398,7 @@ final class ShadowListDragController {
       mDragInsertionKey = mDragOriginKey;
     } else {
       mDragInsertionIndex = mRowIndices[position];
-      mDragInsertionKey = mRowViews[position].getElementKey();
+      mDragInsertionKey = mRowViews[position].getRowKey();
     }
     shuffleCollectedRows();
   }
@@ -409,7 +409,7 @@ final class ShadowListDragController {
    */
   private int currentDragOriginIndex() {
     if (mDraggedView != null) {
-      int liveIndex = mDraggedView.getElementIndex();
+      int liveIndex = mDraggedView.getRowIndex();
       if (liveIndex >= 0) {
         return liveIndex;
       }
@@ -432,25 +432,25 @@ final class ShadowListDragController {
       mRowCrossLeadings = new double[childCount];
       mRowCrossExtents = new double[childCount];
       mRowCrossShifts = new double[childCount];
-      mRowViews = new ShadowListElementView[childCount];
+      mRowViews = new ShadowListCellView[childCount];
     }
     int count = 0;
     for (int i = 0; i < childCount; i++) {
       View child = contentView.getChildAt(i);
-      if (!(child instanceof ShadowListElementView) || child == mDraggedView) {
+      if (!(child instanceof ShadowListCellView) || child == mDraggedView) {
         continue;
       }
-      ShadowListElementView elementChild = (ShadowListElementView) child;
-      int elementIndex = elementChild.getElementIndex();
-      if (elementIndex < 0) {
+      ShadowListCellView cellChild = (ShadowListCellView) child;
+      int rowIndex = cellChild.getRowIndex();
+      if (rowIndex < 0) {
         continue;
       }
-      mRowIndices[count] = elementIndex;
+      mRowIndices[count] = rowIndex;
       mRowLeadings[count] = horizontal ? child.getLeft() : child.getTop();
       mRowExtents[count] = horizontal ? child.getWidth() : child.getHeight();
       mRowCrossLeadings[count] = horizontal ? child.getTop() : child.getLeft();
       mRowCrossExtents[count] = horizontal ? child.getHeight() : child.getWidth();
-      mRowViews[count] = elementChild;
+      mRowViews[count] = cellChild;
       count++;
     }
     // Drop views left from a longer frame so they can be freed.
@@ -476,7 +476,7 @@ final class ShadowListDragController {
     }
     boolean horizontal = mView.isHorizontal();
     if (mNumberOfColumns > 1 && mDraggedView != null) {
-      ShadowListElementView held = mDraggedView;
+      ShadowListCellView held = mDraggedView;
       ShadowListGeometry.dragGridShifts(
         mRowIndices, mRowLeadings, mRowExtents, mRowCrossLeadings, mRowCrossExtents, mRowCount,
         currentDragOriginIndex(),
@@ -508,7 +508,7 @@ final class ShadowListDragController {
     ViewGroup contentView = mView.getContentView();
     for (int i = 0; i < contentView.getChildCount(); i++) {
       View child = contentView.getChildAt(i);
-      if (!(child instanceof ShadowListElementView)) {
+      if (!(child instanceof ShadowListCellView)) {
         continue;
       }
       child.setTranslationX(0f);
@@ -530,7 +530,7 @@ final class ShadowListDragController {
 
     int from = currentDragOriginIndex();
     int to = mDragInsertionIndex;
-    ShadowListElementView view = mDraggedView;
+    ShadowListCellView view = mDraggedView;
     mDropReleaseLeading = mDragLeading;
     mDropReleaseCrossLeading = mDragCrossLeading;
     mDragging = false;
@@ -575,8 +575,8 @@ final class ShadowListDragController {
             mDroppedView = null;
             return;
           }
-          if (mDroppedView.getElementIndex() == mDropInsertionIndex) {
-            ShadowListElementView view = mDroppedView;
+          if (mDroppedView.getRowIndex() == mDropInsertionIndex) {
+            ShadowListCellView view = mDroppedView;
             mDragDropPending = false;
             mDroppedView = null;
             settleDroppedView(view);
@@ -599,13 +599,13 @@ final class ShadowListDragController {
    * The reorder has landed. The other rows are already in place. Reset them at once
    * and animate the dropped row from where it was let go.
    */
-  private void settleDroppedView(ShadowListElementView view) {
+  private void settleDroppedView(ShadowListCellView view) {
     ViewGroup contentView = mView.getContentView();
     boolean horizontal = mView.isHorizontal();
 
     for (int i = 0; i < contentView.getChildCount(); i++) {
       View child = contentView.getChildAt(i);
-      if (!(child instanceof ShadowListElementView) || child == view) {
+      if (!(child instanceof ShadowListCellView) || child == view) {
         continue;
       }
       child.setTranslationX(0f);
@@ -674,7 +674,7 @@ final class ShadowListDragController {
     tearDownDrag();
   }
 
-  private void dispatchDragEvent(int type, String fromKey, String toKey) {
+  private void dispatchDragEvent(int type, String sourceKey, String destinationKey) {
     StateWrapper state = mView.getStateWrapper();
     if (state == null) {
       return;
@@ -685,7 +685,7 @@ final class ShadowListDragController {
       sequence = currentStateData.getDouble("dragEventSequence") + 1;
     }
     // Like every host update, the event carries the live offset and the latest scroll command.
-    mView.dispatchDragEvent(type, fromKey, toKey, sequence);
+    mView.dispatchDragEvent(type, sourceKey, destinationKey, sequence);
   }
 
   // endregion

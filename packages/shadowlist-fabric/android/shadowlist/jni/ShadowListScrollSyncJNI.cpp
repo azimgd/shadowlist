@@ -39,7 +39,7 @@ enum OutSlot {
   OUT_ACTION_TOKEN,
   OUT_ACTION_SHIFTED,
   OUT_ACTION_PRESERVE_MOMENTUM,
-  OUT_COMMAND_ROW_OFFSET,
+  OUT_COMMAND_VIEW_OFFSET,
   OUT_COMMAND_ANIMATED,
   OUT_HAS_ANCHOR_REQUEST,
   OUT_ANCHOR_REQUEST_SEQUENCE,
@@ -83,13 +83,13 @@ void writePatch(
   slots[OUT_COMMAND_SEQUENCE] = patch.commandSequence;
   slots[OUT_COMMAND_VIEW_POSITION] = patch.commandViewPosition;
   env->SetDoubleArrayRegion(out, 0, OUT_ACTION_KIND, slots);
-  jdouble more[OUT_SLOTS - OUT_COMMAND_ROW_OFFSET];
-  more[OUT_COMMAND_ROW_OFFSET - OUT_COMMAND_ROW_OFFSET] = patch.commandViewOffset;
-  more[OUT_COMMAND_ANIMATED - OUT_COMMAND_ROW_OFFSET] = patch.commandAnimated ? 1.0 : 0.0;
-  more[OUT_HAS_ANCHOR_REQUEST - OUT_COMMAND_ROW_OFFSET] = patch.hasAnchorRequest ? 1.0 : 0.0;
-  more[OUT_ANCHOR_REQUEST_SEQUENCE - OUT_COMMAND_ROW_OFFSET] = patch.anchorRequestSequence;
-  more[OUT_FRAME_LANDED - OUT_COMMAND_ROW_OFFSET] = frameLanded ? 1.0 : 0.0;
-  env->SetDoubleArrayRegion(out, OUT_COMMAND_ROW_OFFSET, OUT_SLOTS - OUT_COMMAND_ROW_OFFSET, more);
+  jdouble more[OUT_SLOTS - OUT_COMMAND_VIEW_OFFSET];
+  more[OUT_COMMAND_VIEW_OFFSET - OUT_COMMAND_VIEW_OFFSET] = patch.commandViewOffset;
+  more[OUT_COMMAND_ANIMATED - OUT_COMMAND_VIEW_OFFSET] = patch.commandAnimated ? 1.0 : 0.0;
+  more[OUT_HAS_ANCHOR_REQUEST - OUT_COMMAND_VIEW_OFFSET] = patch.hasAnchorRequest ? 1.0 : 0.0;
+  more[OUT_ANCHOR_REQUEST_SEQUENCE - OUT_COMMAND_VIEW_OFFSET] = patch.anchorRequestSequence;
+  more[OUT_FRAME_LANDED - OUT_COMMAND_VIEW_OFFSET] = frameLanded ? 1.0 : 0.0;
+  env->SetDoubleArrayRegion(out, OUT_COMMAND_VIEW_OFFSET, OUT_SLOTS - OUT_COMMAND_VIEW_OFFSET, more);
 }
 
 }
@@ -191,14 +191,14 @@ JNIEXPORT jint JNICALL SL_SCROLL_SYNC_JNI(nativeCorrection)(
   motion.ownsOffset = ownsOffset == JNI_TRUE;
   peer->action = peer->sync.correction(motion);
   const auto& action = peer->action;
-  jdouble slots[OUT_COMMAND_ROW_OFFSET - OUT_ACTION_KIND];
+  jdouble slots[OUT_COMMAND_VIEW_OFFSET - OUT_ACTION_KIND];
   slots[OUT_ACTION_KIND - OUT_ACTION_KIND] = static_cast<double>(action.kind);
   slots[OUT_ACTION_X - OUT_ACTION_KIND] = action.offsetX;
   slots[OUT_ACTION_Y - OUT_ACTION_KIND] = action.offsetY;
   slots[OUT_ACTION_TOKEN - OUT_ACTION_KIND] = static_cast<double>(action.commitToken);
   slots[OUT_ACTION_SHIFTED - OUT_ACTION_KIND] = action.shifted ? 1.0 : 0.0;
   slots[OUT_ACTION_PRESERVE_MOMENTUM - OUT_ACTION_KIND] = action.preserveMomentum ? 1.0 : 0.0;
-  env->SetDoubleArrayRegion(out, OUT_ACTION_KIND, OUT_COMMAND_ROW_OFFSET - OUT_ACTION_KIND, slots);
+  env->SetDoubleArrayRegion(out, OUT_ACTION_KIND, OUT_COMMAND_VIEW_OFFSET - OUT_ACTION_KIND, slots);
   return static_cast<jint>(action.kind);
 }
 

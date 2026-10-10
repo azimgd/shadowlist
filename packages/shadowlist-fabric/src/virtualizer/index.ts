@@ -10,17 +10,17 @@ export {
 } from './helpers';
 export { initialMountedRange, type MountedRange } from './mountedRange';
 export {
-  ElementRenderer,
+  CellRenderer,
   createRowIndexStore,
   type RowIndexStore,
-} from './ElementRenderer';
-export { useStableElement } from './useStableElement';
+} from './CellRenderer';
+export { useStableReactElement } from './useStableReactElement';
 export { useMountedRange } from './useMountedRange';
 export { useRefreshDefer } from './useRefreshDefer';
 export { useDragReorder } from './useDragReorder';
 export { usePersistentKeys } from './usePersistentKeys';
 export { useViewability } from './useViewability';
-export { useElementSizeSpecs } from './useElementSizeSpecs';
+export { useRowSizeSpecs } from './useRowSizeSpecs';
 export { useRowSelection } from './useRowSelection';
 export { usePrefetch } from './usePrefetch';
 export { useAnchorState } from './useAnchorState';

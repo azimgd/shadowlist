@@ -93,8 +93,8 @@ inline bool shadowListImmediateStateEnabled() {
  * the same numbers.
  */
 namespace ShadowListStateKey {
-constexpr MapBuffer::Key TOTAL_WIDTH = 0;
-constexpr MapBuffer::Key TOTAL_HEIGHT = 1;
+constexpr MapBuffer::Key CONTENT_WIDTH = 0;
+constexpr MapBuffer::Key CONTENT_HEIGHT = 1;
 constexpr MapBuffer::Key OFFSET_ENABLED = 2;
 constexpr MapBuffer::Key OFFSET_X = 3;
 constexpr MapBuffer::Key OFFSET_Y = 4;
@@ -120,36 +120,36 @@ public:
   ShadowListViewState() = default;
 
   ShadowListViewState(
-    double windowContainerHeight,
-    double windowContainerWidth,
-    double containerOffsetY,
-    double containerOffsetX,
-    double containerOffsetIndex,
-    double containerOffsetIndexSequence,
-    double totalContainerHeight,
-    double totalContainerWidth,
+    double windowHeight,
+    double windowWidth,
+    double offsetY,
+    double offsetX,
+    double scrollIndex,
+    double scrollIndexSequence,
+    double contentHeight,
+    double contentWidth,
     bool startReachedEnabled,
     bool endReachedEnabled,
-    bool containerOffsetEnabled,
+    bool offsetEnabled,
     double dragEventSequence,
     double dragEventType,
-    std::string dragFromKey,
-    std::string dragToKey) :
-    windowContainerHeight_(windowContainerHeight),
-    windowContainerWidth_(windowContainerWidth),
-    containerOffsetY_(containerOffsetY),
-    containerOffsetX_(containerOffsetX),
-    containerOffsetIndex_(containerOffsetIndex),
-    containerOffsetIndexSequence_(containerOffsetIndexSequence),
-    totalContainerHeight_(totalContainerHeight),
-    totalContainerWidth_(totalContainerWidth),
+    std::string dragSourceKey,
+    std::string dragDestinationKey) :
+    windowHeight_(windowHeight),
+    windowWidth_(windowWidth),
+    offsetY_(offsetY),
+    offsetX_(offsetX),
+    scrollIndex_(scrollIndex),
+    scrollIndexSequence_(scrollIndexSequence),
+    contentHeight_(contentHeight),
+    contentWidth_(contentWidth),
     startReachedEnabled_(startReachedEnabled),
     endReachedEnabled_(endReachedEnabled),
-    containerOffsetEnabled_(containerOffsetEnabled),
+    offsetEnabled_(offsetEnabled),
     dragEventSequence_(dragEventSequence),
     dragEventType_(dragEventType),
-    dragFromKey_(std::move(dragFromKey)),
-    dragToKey_(std::move(dragToKey)) {}
+    dragSourceKey_(std::move(dragSourceKey)),
+    dragDestinationKey_(std::move(dragDestinationKey)) {}
 
 #ifdef ANDROID
   ShadowListViewState(const ShadowListViewState& previousState, folly::dynamic data);
@@ -172,39 +172,39 @@ public:
    */
   azimgd::shadowlist::ListScrollState scrollState() const {
     azimgd::shadowlist::ListScrollState state;
-    state.offsetX = containerOffsetX_;
-    state.offsetY = containerOffsetY_;
-    state.offsetEnabled = containerOffsetEnabled_;
-    state.baseX = containerOffsetBaseX_;
-    state.baseY = containerOffsetBaseY_;
+    state.offsetX = offsetX_;
+    state.offsetY = offsetY_;
+    state.offsetEnabled = offsetEnabled_;
+    state.baseX = offsetBaseX_;
+    state.baseY = offsetBaseY_;
     state.commitToken = commitToken_;
     state.userScrolled = userScrolled_;
     state.scrollPhase = scrollPhase_;
-    state.contentWidth = totalContainerWidth_;
-    state.contentHeight = totalContainerHeight_;
+    state.contentWidth = contentWidth_;
+    state.contentHeight = contentHeight_;
     return state;
   }
 
   void setScrollState(const azimgd::shadowlist::ListScrollState& state) {
-    containerOffsetX_ = state.offsetX;
-    containerOffsetY_ = state.offsetY;
-    containerOffsetEnabled_ = state.offsetEnabled;
-    containerOffsetBaseX_ = state.baseX;
-    containerOffsetBaseY_ = state.baseY;
+    offsetX_ = state.offsetX;
+    offsetY_ = state.offsetY;
+    offsetEnabled_ = state.offsetEnabled;
+    offsetBaseX_ = state.baseX;
+    offsetBaseY_ = state.baseY;
     commitToken_ = state.commitToken;
     userScrolled_ = state.userScrolled;
     scrollPhase_ = state.scrollPhase;
-    totalContainerWidth_ = state.contentWidth;
-    totalContainerHeight_ = state.contentHeight;
+    contentWidth_ = state.contentWidth;
+    contentHeight_ = state.contentHeight;
   }
 
   /*
    * Take a live report over the host owned fields.
    */
   void applyLiveReport(const ShadowListLiveScroll::Report& report) {
-    containerOffsetX_ = report.offsetX;
-    containerOffsetY_ = report.offsetY;
-    containerOffsetEnabled_ = false;
+    offsetX_ = report.offsetX;
+    offsetY_ = report.offsetY;
+    offsetEnabled_ = false;
     commitToken_ = report.commitToken;
     concealGenerationAck_ = report.concealGenerationAck;
     userScrolled_ = report.userScrolled;
@@ -224,7 +224,7 @@ public:
    * The host reports again once it mounts this state.
    */
   bool awaitsMountBefore(const azimgd::shadowlist::ScrollPatch& patch) const {
-    return containerOffsetEnabled_ && concealGeneration_ > patch.report.concealGenerationAck &&
+    return offsetEnabled_ && concealGeneration_ > patch.report.concealGenerationAck &&
       !patch.offsetEnabled && !patch.hasCommand && !patch.hasAnchorRequest &&
       !patch.hasStartReachedEnabled && !patch.hasEndReachedEnabled;
   }
@@ -236,17 +236,17 @@ public:
    */
   bool holdsPatch(const azimgd::shadowlist::ScrollPatch& patch) const {
     const auto& report = patch.report;
-    if (containerOffsetEnabled_ || patch.offsetEnabled || concealGeneration_ != 0.0) {
+    if (offsetEnabled_ || patch.offsetEnabled || concealGeneration_ != 0.0) {
       return false;
     }
-    return containerOffsetX_ == report.offsetX && containerOffsetY_ == report.offsetY &&
+    return offsetX_ == report.offsetX && offsetY_ == report.offsetY &&
       commitToken_ == report.commitToken && concealGenerationAck_ == report.concealGenerationAck &&
       userScrolled_ == report.userScrolled && scrollPhase_ == report.scrollPhase &&
       (!patch.hasCommand ||
-       (containerOffsetIndex_ == patch.commandIndex && containerOffsetIndexSequence_ == patch.commandSequence &&
-        containerOffsetIndexViewPosition_ == patch.commandViewPosition &&
-        containerOffsetIndexRowOffset_ == patch.commandViewOffset &&
-        containerOffsetIndexAnimated_ == patch.commandAnimated)) &&
+       (scrollIndex_ == patch.commandIndex && scrollIndexSequence_ == patch.commandSequence &&
+        scrollIndexViewPosition_ == patch.commandViewPosition &&
+        scrollIndexViewOffset_ == patch.commandViewOffset &&
+        scrollIndexAnimated_ == patch.commandAnimated)) &&
       (!patch.hasAnchorRequest || anchorRequestSequence_ == patch.anchorRequestSequence) &&
       (!patch.hasStartReachedEnabled || startReachedEnabled_ == patch.startReachedEnabled) &&
       (!patch.hasEndReachedEnabled || endReachedEnabled_ == patch.endReachedEnabled);
@@ -257,17 +257,17 @@ public:
    */
   azimgd::shadowlist::MountedScroll mountedScroll() const {
     azimgd::shadowlist::MountedScroll mounted;
-    mounted.offsetEnabled = containerOffsetEnabled_;
-    mounted.offsetX = containerOffsetX_;
-    mounted.offsetY = containerOffsetY_;
-    mounted.baseX = containerOffsetBaseX_;
-    mounted.baseY = containerOffsetBaseY_;
+    mounted.offsetEnabled = offsetEnabled_;
+    mounted.offsetX = offsetX_;
+    mounted.offsetY = offsetY_;
+    mounted.baseX = offsetBaseX_;
+    mounted.baseY = offsetBaseY_;
     mounted.commitToken = commitToken_;
     mounted.userScrolled = userScrolled_;
     mounted.scrollPhase = scrollPhase_;
     mounted.concealGeneration = concealGeneration_;
     mounted.concealGenerationAck = concealGenerationAck_;
-    mounted.commandSequence = containerOffsetIndexSequence_;
+    mounted.commandSequence = scrollIndexSequence_;
     mounted.animationSequence = animationTargetSequence_;
     mounted.animationOffset = animationTargetOffset_;
     mounted.band.low = offsetBandLow_;
@@ -275,22 +275,22 @@ public:
     return mounted;
   }
 
-  double windowContainerHeight_{0.0};
-  double windowContainerWidth_{0.0};
-  double containerOffsetY_{0.0};
-  double containerOffsetX_{0.0};
-  double containerOffsetIndex_{-2.0};
-  double containerOffsetIndexSequence_{0.0};
+  double windowHeight_{0.0};
+  double windowWidth_{0.0};
+  double offsetY_{0.0};
+  double offsetX_{0.0};
+  double scrollIndex_{-2.0};
+  double scrollIndexSequence_{0.0};
   /*
-   * Where scrollToItem places its row in the viewport: 0 start, 0.5 center, 1 end.
-   * The platform views carry it along with containerOffsetIndex_.
+   * Where scrollToRow places its row in the viewport: 0 start, 0.5 center, 1 end.
+   * The platform views carry it along with scrollIndex_.
    */
-  double containerOffsetIndexViewPosition_{0.0};
-  double totalContainerHeight_{0.0};
-  double totalContainerWidth_{0.0};
+  double scrollIndexViewPosition_{0.0};
+  double contentHeight_{0.0};
+  double contentWidth_{0.0};
   bool startReachedEnabled_{true};
   bool endReachedEnabled_{true};
-  bool containerOffsetEnabled_{false};
+  bool offsetEnabled_{false};
 
   /*
    * Drag to reorder. The platform view writes these as the gesture goes, and the
@@ -303,8 +303,8 @@ public:
    */
   double dragEventSequence_{0.0};
   double dragEventType_{0.0};
-  std::string dragFromKey_{};
-  std::string dragToKey_{};
+  std::string dragSourceKey_{};
+  std::string dragDestinationKey_{};
 
   /*
    * True when this offset came from the user scrolling, false when it is the resting
@@ -336,9 +336,9 @@ public:
    * A null pointer means empty, and readers must treat both the same. Nothing changes a
    * list after it is published. Sharing it across copies and threads is safe.
    */
-  std::shared_ptr<const std::vector<int>> stickyHeaderIndices_{};
-  std::shared_ptr<const std::vector<double>> stickyHeaderOffsets_{};
-  std::shared_ptr<const std::vector<double>> stickyHeaderSizes_{};
+  std::shared_ptr<const std::vector<int>> stickyIndices_{};
+  std::shared_ptr<const std::vector<double>> stickyOffsets_{};
+  std::shared_ptr<const std::vector<double>> stickySizes_{};
 
   /*
    * Snap points along the scroll axis from the layout pass, empty unless snapToItem is
@@ -361,11 +361,11 @@ public:
    * report it was built on, and a moving view has gone further by then. Writing the
    * absolute offset would make the content jump. While the view moves, both hosts add the
    * delta to the live offset instead, and also for an operation correction made from a
-   * gesture report. Only meaningful when containerOffsetEnabled_ is set. Host reports
+   * gesture report. Only meaningful when offsetEnabled_ is set. Host reports
    * carry the mounted value. Keep it after commitToken_ to match the Android init order.
    */
-  double containerOffsetBaseX_{0.0};
-  double containerOffsetBaseY_{0.0};
+  double offsetBaseX_{0.0};
+  double offsetBaseY_{0.0};
 
   /*
    * Handshake for hiding rows, see ShadowListViewGeometryCache::concealedRows.
@@ -373,7 +373,7 @@ public:
    * hidden. The host echoes back the generation of the state it mounted, which proves the
    * offset correction the hide waits for is on screen. The layout pass copies the echo
    * through untouched so it never claims more than the host mounted.
-   * Keep these after containerOffsetBaseY_ to match the Android constructor's init order.
+   * Keep these after offsetBaseY_ to match the Android constructor's init order.
    */
   double concealGeneration_{0.0};
   double concealGenerationAck_{0.0};
@@ -404,8 +404,8 @@ public:
    * whether it animates to the core's estimate first. Keep these after liveScroll_ to match
    * the Android constructor's init order.
    */
-  double containerOffsetIndexRowOffset_{0.0};
-  bool containerOffsetIndexAnimated_{false};
+  double scrollIndexViewOffset_{0.0};
+  bool scrollIndexAnimated_{false};
 
   /*
    * Where the core estimates the newest animated command lands along the scroll axis, and its

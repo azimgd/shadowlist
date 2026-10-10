@@ -1,6 +1,6 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Private.h"
-#import "ShadowListElementView.h"
+#import "ShadowListCellView.h"
 #import "ShadowListMacScrollView.h"
 
 #include <cmath>
@@ -107,15 +107,15 @@ using namespace facebook::react;
     command, _scrollView.contentOffset.x, _scrollView.contentOffset.y, yielded)];
 }
 
-- (void)scrollToItem:(NSInteger)index viewPosition:(double)viewPosition viewOffset:(double)viewOffset animated:(BOOL)animated
+- (void)scrollToRow:(NSInteger)row viewPosition:(double)viewPosition viewOffset:(double)viewOffset animated:(BOOL)animated
 {
   if (!_state) {
     return;
   }
 
-  SLF_TRACE("ev=cmd-scroll-to-index index=%ld viewPosition=%.2f animated=%d", (long)index, viewPosition, animated ? 1 : 0);
+  SLF_TRACE("ev=cmd-scroll-to-index index=%ld viewPosition=%.2f animated=%d", (long)row, viewPosition, animated ? 1 : 0);
   azimgd::shadowlist::ScrollCommand command;
-  command.index = (double)index;
+  command.index = (double)row;
   command.viewPosition = viewPosition;
   // The core rests the row viewOffset past its view position. React Native's viewOffset moves the other way.
   command.viewOffset = std::isfinite(viewOffset) ? -viewOffset : 0.0;
@@ -133,7 +133,7 @@ using namespace facebook::react;
   [self cancelScrollToTop];
 #endif
   /*
-   * An animated scroll goes through the core like scrollToItem. UIKit's own animation would
+   * An animated scroll goes through the core like scrollToRow. UIKit's own animation would
    * stop at the first correction a row measured on the way sends. Where commands land at once
    * the core still lands it, in a commit after the rows JS mounted for it.
    */
@@ -141,6 +141,7 @@ using namespace facebook::react;
     SLF_TRACE("ev=cmd-scroll-to-offset offset=%.1f", offset);
     azimgd::shadowlist::ScrollCommand command;
     command.index = azimgd::shadowlist::SCROLL_TO_OFFSET_INDEX;
+    // With SCROLL_TO_OFFSET_INDEX, viewOffset carries the absolute offset.
     command.viewOffset = offset;
     command.animated = [self animatesCommands];
     [self commitScrollCommand:command];
@@ -232,8 +233,8 @@ using namespace facebook::react;
 - (void)closeSwipeActions
 {
   for (RCTUIView *subview in _contentView.subviews) {
-    if ([subview isKindOfClass:[ShadowListElementView class]]) {
-      [(ShadowListElementView *)subview closeSwipeActionsAnimated:YES];
+    if ([subview isKindOfClass:[ShadowListCellView class]]) {
+      [(ShadowListCellView *)subview closeSwipeActionsAnimated:YES];
     }
   }
 }
@@ -246,12 +247,12 @@ using namespace facebook::react;
 {
   BOOL closed = NO;
   for (RCTUIView *subview in _contentView.subviews) {
-    if (![subview isKindOfClass:[ShadowListElementView class]]) {
+    if (![subview isKindOfClass:[ShadowListCellView class]]) {
       continue;
     }
-    ShadowListElementView *elementView = (ShadowListElementView *)subview;
-    if (elementView.isSwipeOpen && !elementView.isSwipedOut && ![view isDescendantOfView:elementView]) {
-      [elementView closeSwipeActionsAnimated:YES];
+    ShadowListCellView *cellView = (ShadowListCellView *)subview;
+    if (cellView.isSwipeOpen && !cellView.isSwipedOut && ![view isDescendantOfView:cellView]) {
+      [cellView closeSwipeActionsAnimated:YES];
       closed = YES;
     }
   }
@@ -265,9 +266,9 @@ using namespace facebook::react;
 - (void)closeSwipeActionsExcept:(RCTUIView *)view
 {
   for (RCTUIView *subview in _contentView.subviews) {
-    if (subview != view && [subview isKindOfClass:[ShadowListElementView class]] &&
-        ![(ShadowListElementView *)subview isSwipedOut]) {
-      [(ShadowListElementView *)subview closeSwipeActionsAnimated:YES];
+    if (subview != view && [subview isKindOfClass:[ShadowListCellView class]] &&
+        ![(ShadowListCellView *)subview isSwipedOut]) {
+      [(ShadowListCellView *)subview closeSwipeActionsAnimated:YES];
     }
   }
 }

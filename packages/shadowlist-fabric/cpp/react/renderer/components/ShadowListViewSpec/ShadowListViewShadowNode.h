@@ -82,7 +82,7 @@ struct ShadowListViewGeometryCache {
   std::vector<std::size_t> stickyIndices;
 
   /*
-   * elementsSizeSpecs measured a few rows per commit, keyed by the props they came from.
+   * rowSizeSpecs measured a few rows per commit, keyed by the props they came from.
    * See azimgd::shadowlist::SizeSpecQueue.
    */
   azimgd::shadowlist::SizeSpecQueue sizeSpecs;
@@ -120,8 +120,8 @@ public:
 
   void layout(LayoutContext layoutContext) override;
   void replaceChild(
-    const ShadowNode& previousElementShadowNode,
-    const std::shared_ptr<const ShadowNode>& nextElementShadowNode,
+    const ShadowNode& previousChildShadowNode,
+    const std::shared_ptr<const ShadowNode>& nextChildShadowNode,
     std::size_t suggestedIndex = SIZE_MAX) override;
 
   void setContainerManager(std::shared_ptr<azimgd::shadowlist::Container> containerManager);
@@ -144,9 +144,9 @@ private:
    * Sort the children once. Rows keep their current core index and their layoutable node so
    * the passes below don't repeat the casts or the key lookup.
    */
-  struct MountedElement {
+  struct MountedRow {
     std::size_t childIndex;
-    std::size_t elementIndex;
+    std::size_t rowIndex;
     const YogaLayoutableShadowNode* node;
   };
 
@@ -169,7 +169,7 @@ private:
     double headerSize = 0.0;
     double emptySize = 0.0;
     double footerSize = 0.0;
-    std::vector<MountedElement> mountedElements;
+    std::vector<MountedRow> mountedRows;
   };
 
   /*
@@ -181,9 +181,9 @@ private:
   /*
    * Moves each mounted row to the core's frame, hiding or showing unsettled rows.
    */
-  void placeElements(
+  void placeRows(
     azimgd::shadowlist::Container& core,
-    const std::vector<MountedElement>& mountedElements,
+    const std::vector<MountedRow>& mountedRows,
     bool horizontal,
     LayoutContext& layoutContext);
 
@@ -232,7 +232,7 @@ private:
    * Set while layout() writes its own frames into the tree. replaceChild then doesn't
    * report them as new measurements. Only used inside one single threaded layout pass.
    */
-  bool suppressElementSizeFeedback_ = false;
+  bool suppressRowSizeFeedback_ = false;
 
   /*
    * Rows measured for the first time in this layout cycle, which may get hidden.

@@ -67,10 +67,10 @@ private:
   static bool adoptLiveScrollReport(ShadowListViewShadowNode& listShadowNode, const ShadowListViewState& stateData);
 
   /*
-   * Turn elementsSizeSpecs into predicted sizes for the core, a few rows per commit.
+   * Turn rowSizeSpecs into predicted sizes for the core, a few rows per commit.
    * See azimgd::shadowlist::SizeSpecQueue.
    */
-  void applyElementSizeSpecs(
+  void applyRowSizeSpecs(
     ShadowListViewShadowNode& shadowlistViewShadowNode,
     const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps,
     azimgd::shadowlist::Container* containerManager,

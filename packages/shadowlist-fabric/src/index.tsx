@@ -11,7 +11,7 @@ export type {
 } from './keyboard';
 
 export { default as ShadowListView } from './ShadowListViewNativeComponent';
-export { default as ShadowListElementView } from './ShadowListElementViewNativeComponent';
+export { default as ShadowListCellView } from './ShadowListCellViewNativeComponent';
 export { default as ShadowListTemplateView } from './ShadowListTemplateViewNativeComponent';
 
 export * from './ShadowList';

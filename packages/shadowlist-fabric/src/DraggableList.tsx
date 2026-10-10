@@ -4,18 +4,18 @@ import type { ShadowListProps, ShadowListCommands } from './types';
 
 /*
  * A ShadowList with reorderEnabled on by default. Long press a row to pick it up and
- * drag it. onReorder gets the reordered data when you drop. Save it to your state,
+ * drag it. onMoveItem gets the reordered data when you drop. Save it to your state,
  * or the row snaps back. Pass reorderEnabled={false} to pause dragging.
  */
-function DraggableListInner<ElementT>(
-  { reorderEnabled = true, ...props }: ShadowListProps<ElementT>,
+function DraggableListInner<ItemT>(
+  { reorderEnabled = true, ...props }: ShadowListProps<ItemT>,
   ref: Ref<ShadowListCommands>
 ) {
   return <ShadowList ref={ref} reorderEnabled={reorderEnabled} {...props} />;
 }
 
-const DraggableList = forwardRef(DraggableListInner) as <ElementT>(
-  props: ShadowListProps<ElementT> & { ref?: Ref<ShadowListCommands> }
+const DraggableList = forwardRef(DraggableListInner) as <ItemT>(
+  props: ShadowListProps<ItemT> & { ref?: Ref<ShadowListCommands> }
 ) => ReactElement;
 
 export default DraggableList;

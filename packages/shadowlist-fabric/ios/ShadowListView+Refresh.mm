@@ -156,7 +156,7 @@ static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
   if (!_refreshControl) {
     return;
   }
-  CGFloat offset = _refreshProgressViewOffset;
+  CGFloat offset = _progressViewOffset;
   if ((_stickyHeader || _autoHideHeader) && _stickyHeaderView) {
     offset += _stickyHeaderView.frame.size.height;
   }

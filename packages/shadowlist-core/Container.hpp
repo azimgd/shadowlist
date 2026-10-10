@@ -600,7 +600,7 @@ private:
   double previousScrollToRowSequence_ = 0.0;
 
   /*
-   * Last containerOffsetIndex prop handled. The prop only scrolls when its value changes.
+   * Last scrollIndex prop handled. The prop only scrolls when its value changes.
    */
   int previousScrollToRowProp_ = -1;
 };

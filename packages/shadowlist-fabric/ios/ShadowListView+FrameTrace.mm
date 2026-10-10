@@ -59,7 +59,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef, CFRunLoopActivity, void *
   };
   NSMutableArray<UIView *> *rows = [NSMutableArray array];
   for (UIView *subview in _contentView.subviews) {
-    if (subview.hidden || ![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+    if (subview.hidden || ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
       continue;
     }
     CGRect frame = subview.frame;
@@ -75,7 +75,7 @@ static void SLFrameTraceCallback(CFRunLoopObserverRef, CFRunLoopActivity, void *
   }];
   NSMutableString *rowsDescription = [NSMutableString string];
   for (UIView *row in rows) {
-    NSString *key = [self keyOfElementView:row] ?: @"?";
+    NSString *key = [self keyOfCellView:row] ?: @"?";
     if (key.length > 8) {
       key = [key substringFromIndex:key.length - 8];
     }

@@ -112,11 +112,11 @@ inline std::string optionalString(const folly::dynamic& object, const char* name
 }
 
 /*
- * Parses the elementsSizeSpecs prop. It is a JSON string so its shape can grow without
+ * Parses the rowSizeSpecs prop. It is a JSON string so its shape can grow without
  * changing the native spec. Bad input just gives fewer specs and those rows fall back to
  * estimates, never a thrown error.
  */
-inline std::vector<azimgd::shadowlist::RowSizeSpec> parseElementSizeSpecs(const std::string& json) {
+inline std::vector<azimgd::shadowlist::RowSizeSpec> parseRowSizeSpecs(const std::string& json) {
   std::vector<azimgd::shadowlist::RowSizeSpec> specs;
   if (json.empty()) {
     return specs;
@@ -176,7 +176,7 @@ inline std::vector<azimgd::shadowlist::RowSizeSpec> parseElementSizeSpecs(const 
  * Measures one spec into the row size the core should use.
  * Text wraps in the list width minus the spec's insets, with no height limit.
  */
-inline azimgd::shadowlist::Size measureElementSizeSpec(
+inline azimgd::shadowlist::Size measureRowSizeSpec(
   const TextLayoutManager& textLayoutManager,
   const azimgd::shadowlist::RowSizeSpec& spec,
   double availableWidth,

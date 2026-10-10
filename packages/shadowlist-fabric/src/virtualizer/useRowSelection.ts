@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RowSelection } from './ElementRenderer';
+import type { RowSelection } from './CellRenderer';
 import { deselectKey, retainKeys, selectKey } from './selection';
 
 /*
