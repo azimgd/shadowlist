@@ -1,5 +1,4 @@
-import type { Ref, ReactElement } from 'react';
-import { forwardRef } from 'react';
+import { forwardRef, type Ref, type ReactElement } from 'react';
 import ShadowList from './ShadowList';
 import type { ShadowListProps, ShadowListCommands } from './types';
 

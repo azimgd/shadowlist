@@ -290,7 +290,7 @@ export function useMountedRange({
    * The last visible range native reported. It gives the scroll direction next time. A
    * ref, since it must never cause a render and only the updater below reads it.
    */
-  const lastWindowRef = useRef<{ low: number; high: number } | null>(null);
+  const previousWindowRef = useRef<{ low: number; high: number } | null>(null);
 
   const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
     OnVisibleIndicesChange,
@@ -304,8 +304,8 @@ export function useMountedRange({
       const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
       if (windowLow < 0 || windowHigh >= keys.length) return;
 
-      const lastWindow = lastWindowRef.current;
-      lastWindowRef.current = { low: windowLow, high: windowHigh };
+      const previousWindow = previousWindowRef.current;
+      previousWindowRef.current = { low: windowLow, high: windowHigh };
       // The scroll landed. Returning the same value skips the re-render.
       setCommandSeed((previous) => (previous === null ? previous : null));
       if (slTraceEnabled()) {
@@ -318,7 +318,7 @@ export function useMountedRange({
         const reported = reportedMountedRange(
           current,
           window,
-          lastWindow,
+          previousWindow,
           previous === null,
           keys.length,
           overscanRows,

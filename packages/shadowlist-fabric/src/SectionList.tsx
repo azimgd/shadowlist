@@ -1,10 +1,12 @@
-import type { ComponentType, Ref, ReactElement } from 'react';
 import {
   useMemo,
   useCallback,
   useImperativeHandle,
   useRef,
   forwardRef,
+  type ComponentType,
+  type Ref,
+  type ReactElement,
 } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import ShadowList from './ShadowList';
@@ -76,7 +78,7 @@ function toRowIds<ElementT, SectionT>(
       ids.push(row.id);
     }
   }
-  // The same ids keep the old array. Native gets no new prop.
+  // The same ids keep the previous array. Native gets no new prop.
   if (
     previous !== undefined &&
     previous.length === ids.length &&
@@ -113,7 +115,7 @@ function SectionListInner<ElementT, SectionT = object>(
   sectionsRef.current = sections;
 
   /*
-   * Rows from the last flatten, per section key. An unchanged row keeps its old object.
+   * Rows from the last flatten, per section key. An unchanged row keeps its previous object.
    * The list mounts rows by identity. Without this any change to sections re-renders
    * every row. An unchanged section is reused whole.
    */
@@ -301,8 +303,8 @@ function SectionListInner<ElementT, SectionT = object>(
       }
 
       /*
-       * Shared separator elements go inline, like before separator components. With a
-       * component RowSeparator renders them instead.
+       * Shared separator elements go inline. With a separator component, RowSeparator
+       * renders them instead.
        */
       const inlineSeparators = RowSeparator === null;
 

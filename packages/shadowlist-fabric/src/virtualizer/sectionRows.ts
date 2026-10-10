@@ -17,7 +17,7 @@ export interface FlatRow<ElementT, SectionT> {
 
 /*
  * Whether the row built for this position matches the mounted one. Compare everything the
- * row renders from, or a reused row would show old content.
+ * row renders from, or a reused row would show stale content.
  */
 function sameRow<ElementT, SectionT>(
   previous: FlatRow<ElementT, SectionT> | undefined,

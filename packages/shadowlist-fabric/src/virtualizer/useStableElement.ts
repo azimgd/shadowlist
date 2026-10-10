@@ -23,11 +23,11 @@ function shallowEqualProps(a: unknown, b: unknown): boolean {
 }
 
 /*
- * Keeps the old element while the new one is the same component, key and props.
+ * Keeps the previous element while the new one is the same component, key and props.
  *
  * Callers pass elements like the separator inline, which makes a new one every render. It
  * sits inside every row. Each new one rebuilds all mounted rows. On a grouped list this
- * was the biggest source of row re-renders. The list handles it here.
+ * is the biggest source of row re-renders. The list handles it here.
  */
 export function useStableElement(
   element: ReactElement | null

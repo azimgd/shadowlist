@@ -1,11 +1,11 @@
 import {
   memo,
   useCallback,
-  type ComponentRef,
   useEffect,
   useMemo,
   useRef,
   useSyncExternalStore,
+  type ComponentRef,
   type ComponentType,
   type ReactElement,
 } from 'react';
@@ -36,7 +36,7 @@ import type { SeparatorState, SeparatorStore } from './separators';
  * Per list row index state shared by every row. Rows keep their children across moves, and
  * the memo check below skips a row whose only change is its index, unless the row read it.
  * keyToIndex answers index reads made after render, like from a press handler, for rows
- * that skipped a move and still hold an old index. keys finds the row above a row.
+ * that skipped a move and still hold a stale index. keys finds the row above a row.
  */
 export interface RowIndexStore {
   keyToIndex: ReadonlyMap<string, number>;
@@ -104,7 +104,7 @@ interface RenderedChildren<ElementT> {
 
 /*
  * Props equal except maybe index, and the index only counts for a row that read it. A prepend
- * shifts every mounted row's index, and without this every row ran again just to hand the
+ * shifts every mounted row's index, and without this every row would run again just to hand the
  * same children back. Keep this in sync with ElementRendererProps.
  */
 function sameRowProps<ElementT>(
@@ -215,7 +215,7 @@ export const ElementRenderer = memo(function ElementRendererInner<ElementT>({
   /*
    * The getter returns the row's current index and marks it as read, even after render, like
    * from a press handler. Such a row re-renders on its next move. A late read looks the key
-   * up, since a row that never read the index skips moves and its own index gets old.
+   * up, since a row that never read the index skips moves and its own index goes stale.
    */
   const indexRef = useRef(index);
   indexRef.current = index;

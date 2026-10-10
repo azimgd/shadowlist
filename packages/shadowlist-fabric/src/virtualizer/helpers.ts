@@ -1,6 +1,8 @@
 import type { ReactElement } from 'react';
 
-// Default extra rows mounted on each side of the screen. See overscanRows for how to pick one.
+/*
+ * Default extra rows mounted on each side of the screen. See overscanRows for how to pick one.
+ */
 export const SHADOWLIST_OVERSCAN = 4;
 
 /*
@@ -11,7 +13,9 @@ export const SHADOWLIST_OVERSCAN = 4;
  */
 export const SHADOWLIST_OVERSCAN_LEADING = 10;
 
-// Maps snapAlignment to the native enum value.
+/*
+ * Maps snapAlignment to the native enum value.
+ */
 export const SNAP_ALIGNMENT = { start: 0, center: 1, end: 2 } as const;
 
 /*
@@ -42,7 +46,9 @@ export function slTraceNow(): number {
   );
 }
 
-// Rows rendered since the last commit trace line. All lists share this counter.
+/*
+ * Rows rendered since the last commit trace line. All lists share this counter.
+ */
 let rowRenderCount = 0;
 
 export function countRowRender(): void {
@@ -89,8 +95,8 @@ export function renderComponent(
 }
 
 /*
- * How next differs from previous at the edges. pre counts rows added before the old first
- * row, app after the old last row, and mid in between, negative for removals. replace means
+ * How next differs from previous at the edges. pre counts rows added before the previous
+ * first row, app after the previous last row, and mid in between, negative for removals. replace means
  * an edge row is gone.
  */
 export function describeDataChange<ElementT>(

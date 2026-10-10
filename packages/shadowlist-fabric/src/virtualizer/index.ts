@@ -2,27 +2,17 @@ export {
   SHADOWLIST_OVERSCAN,
   SHADOWLIST_OVERSCAN_LEADING,
   SNAP_ALIGNMENT,
-  arrayMove,
   slTrace,
   slTraceEnabled,
-  slTraceNow,
-  takeRowRenderCount,
   nativeTagOf,
-  describeDataChange,
   defaultKeyExtractor,
   renderComponent,
 } from './helpers';
-export {
-  initialMountedRange,
-  rangeToIndices,
-  shouldReseedFromOffsetIndex,
-  type MountedRange,
-} from './mountedRange';
+export { initialMountedRange, type MountedRange } from './mountedRange';
 export {
   ElementRenderer,
   createRowIndexStore,
   type RowIndexStore,
-  type RowSelection,
 } from './ElementRenderer';
 export { useStableElement } from './useStableElement';
 export { useMountedRange } from './useMountedRange';

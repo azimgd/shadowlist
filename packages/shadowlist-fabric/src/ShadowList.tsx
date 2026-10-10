@@ -283,7 +283,7 @@ function ShadowListInner<ElementT>(
       followAppends,
       containerOffsetIndex,
       overscanRows,
-      // Never mount fewer rows ahead during a fling than at rest, that's where rows are needed most.
+      // Never mount fewer rows ahead during a fling than at rest. A fling needs them most.
       overscanRowsLeading: Math.max(overscanRows, overscanRowsLeading),
     });
 
@@ -542,7 +542,7 @@ function ShadowListInner<ElementT>(
 
   /*
    * The separator is inside every row. An inline element would rebuild every mounted
-   * row on each caller render. useStableElement keeps the old one while it looks the same.
+   * row on each caller render. useStableElement keeps the previous one while it looks the same.
    * A separator component renders per row with its own props instead.
    */
   const SeparatorComponent = separatorComponentOf(ItemSeparatorComponent);

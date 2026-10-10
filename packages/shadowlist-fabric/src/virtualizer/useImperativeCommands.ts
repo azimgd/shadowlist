@@ -39,7 +39,9 @@ interface CommandSourceRef {
   current: CommandSource;
 }
 
-// Returned when a list doesn't track sizes. Callers always get a map.
+/*
+ * Returned when a list doesn't track sizes. Callers always get a map.
+ */
 const EMPTY_SIZES: ReadonlyMap<string, number> = new Map();
 
 function clampViewPosition(viewPosition: number | undefined): number {

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RowSelection } from './ElementRenderer';
 import { deselectKey, retainKeys, selectKey } from './selection';
 
-// The empty selection, one array shared by every list.
+/*
+ * The empty selection, one array shared by every list.
+ */
 const NO_KEYS: ReadonlyArray<string> = [];
 
 interface SelectionState {

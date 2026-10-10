@@ -41,7 +41,7 @@ export function useRefreshDefer<ElementT>({
   const previousRefreshingRef = useRef(refreshing);
   /*
    * The data the last commit showed. Kept in a ref, not state. A normal data change
-   * renders once. Setting state here during render made React run the whole list twice.
+   * renders once. Setting state here during render would make React run the whole list twice.
    */
   const shownDataRef = useRef(dataProp);
   const [, forceRender] = useReducer((count: number) => count + 1, 0);
@@ -86,7 +86,6 @@ export function useRefreshDefer<ElementT>({
   /*
    * Fallback in case onRefreshSettle never comes. Release the held data shortly after the
    * refresh ends. On iOS the settle event fires first. This does nothing there.
-
    */
   const previousRefreshingForFallbackRef = useRef(refreshing);
   useEffect(() => {

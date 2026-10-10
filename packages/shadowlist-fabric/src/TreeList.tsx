@@ -1,4 +1,3 @@
-import type { ComponentType, Ref, ReactElement } from 'react';
 import {
   isValidElement,
   useMemo,
@@ -7,6 +6,9 @@ import {
   useCallback,
   useImperativeHandle,
   forwardRef,
+  type ComponentType,
+  type Ref,
+  type ReactElement,
 } from 'react';
 import ShadowList from './ShadowList';
 import type {
@@ -34,7 +36,7 @@ interface TreeFlatRow<ElementT> {
 
 /*
  * Whether the row built for this position matches the mounted one. Everything renderRow
- * reads has to match, or a reused row would show old content.
+ * reads has to match, or a reused row would show stale content.
  */
 function sameRow<ElementT>(
   previous: TreeFlatRow<ElementT> | undefined,
@@ -88,7 +90,7 @@ function TreeListInner<ElementT>(
   expandedRef.current = expandedSet;
 
   /*
-   * Rows from the last flatten, by id. An unchanged row keeps its old object. The list
+   * Rows from the last flatten, by id. An unchanged row keeps its previous object. The list
    * mounts rows by identity. Without this an expand or collapse re-renders every row.
    */
   const previousRowsRef = useRef<Map<string, TreeFlatRow<ElementT>>>(new Map());

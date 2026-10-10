@@ -30,7 +30,7 @@ const EDGE_MARGIN = 24;
  * screen before React renders them.
  *
  * We send the whole range, not just what changed. A width change like a rotation makes
- * every old height wrong, and native has to measure again from the prop alone. The edge
+ * every measured height wrong, and native has to measure again from the prop alone. The edge
  * margin above keeps this off the scroll path.
  *
  * Returns an empty string without getElementSizeSpec, which turns the feature off on both sides.

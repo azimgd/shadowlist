@@ -85,7 +85,7 @@ export function shouldReseedFromOffsetIndex(
 /*
  * One step from the mounted range toward the target: rows on screen (window) mount right
  * away, the overscan beyond them grows by at most step rows per end. Mounting a whole
- * overscan pad at once put ten or more new rows, each a fresh subtree, into one commit and
+ * overscan pad at once puts ten or more new rows, each a fresh subtree, into one commit and
  * one long frame on both threads. Shrinking is never paced. A target that doesn't overlap
  * the mounted rows, like after a jump, grows from the window instead.
  */

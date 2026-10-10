@@ -159,7 +159,7 @@ export function useViewability<ElementT>({
     const record = windowsRef.current;
     /*
      * Only a change with the same length can be a plain reorder. An insert or remove shifts
-     * indices and the old range would report the wrong rows. Native sends a fixed event then.
+     * indices and the previous range would report the wrong rows. Native sends a fixed event then.
      */
     if (record.dataLength !== data.length) {
       record.dataLength = data.length;
