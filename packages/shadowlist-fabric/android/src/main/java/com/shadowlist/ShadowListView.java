@@ -186,6 +186,15 @@ public class ShadowListView extends FrameLayout {
   private boolean mMomentumEventSent = false;
   private int mFlingVelocity = 0;
 
+  /*
+   * The offset of the previous scroll callback. React Native's scroll view calls
+   * onScrollChanged twice for some frames of its animations and flings. The repeat moves
+   * nothing. Counted as a user scroll it would cancel an animated command that landed on the
+   * first one.
+   */
+  private int mPreviousScrollX = Integer.MIN_VALUE;
+  private int mPreviousScrollY = Integer.MIN_VALUE;
+
   // Row count, visible rows and scroll actions for accessibility services.
   private final ShadowListAccessibility mAccessibility = new ShadowListAccessibility(this);
 
@@ -239,6 +248,8 @@ public class ShadowListView extends FrameLayout {
    */
   private void installScrollView(boolean horizontal) {
     mContentView.setCullAxis(horizontal);
+    mPreviousScrollX = Integer.MIN_VALUE;
+    mPreviousScrollY = Integer.MIN_VALUE;
     if (mScrollView != null) {
       mScrollView.removeView(mContentView);
       if (mRefreshLayout != null) {
@@ -509,6 +520,11 @@ public class ShadowListView extends FrameLayout {
   }
 
   void handleInnerScroll(int scrollX, int scrollY) {
+    if (scrollX == mPreviousScrollX && scrollY == mPreviousScrollY) {
+      return;
+    }
+    mPreviousScrollX = scrollX;
+    mPreviousScrollY = scrollY;
     // Rows move in and out of the drawn window, see ShadowListInnerScrollView.ContentContainer.
     mContentView.invalidate();
     if (mTouching && !mDragEventSent) {
