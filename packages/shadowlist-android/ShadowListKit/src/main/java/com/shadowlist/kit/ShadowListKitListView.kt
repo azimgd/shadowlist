@@ -29,13 +29,13 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /*
- * A virtualized list on the shadowlist core. Rows are placed by the core, which keeps the
- * visible content still while rows are measured, inserted or removed. Measurement, offset
+ * A virtualized list on the shadowlist core. Items are placed by the core, which keeps the
+ * visible content still while items are measured, inserted or deleted. Measurement, offset
  * corrections and mounting all happen in one layout pass on the UI thread. A scroll frame
  * that stays inside the core's offset band does no core work at all. Sizes are in pixels.
  *
  * Item indices are the public indices. In a list with sections the core places rows: section
- * headers, items and section footers. The list converts between the two at its edges.
+ * header rows, items and section footer rows. The list converts between the two at its edges.
  */
 open class ShadowListKitListView @JvmOverloads constructor(
   context: Context,
@@ -46,9 +46,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
     fun numberOfItems(listView: ShadowListKitListView): Int
 
     /*
-     * A stable identity for the row. Sizes, cells and the scroll position follow keys across
+     * A stable identity for the item. Sizes, cells and the scroll position follow keys across
      * reloadData. A prepend or an insert above keeps what is on screen in place.
-     * A row whose content changed under the same key needs reloadItems.
+     * An item whose content changed under the same key needs reloadItems.
      */
     fun keyForItem(listView: ShadowListKitListView, index: Int): String
 
@@ -56,14 +56,14 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
     /*
      * Update a shown cell for a payload given to reloadItems without a new cell. Return false
-     * to have the row reloaded in full instead.
+     * to have the item reloaded in full instead.
      */
     fun reconfigureCell(listView: ShadowListKitListView, cell: ShadowListKitListCell, index: Int, payload: Any?): Boolean = false
   }
 
   /*
-   * Implemented by a data source that knows row sizes without a view, like from a layout
-   * precomputed off the UI thread. Otherwise every row is measured once through its cell.
+   * Implemented by a data source that knows item sizes without a view, like from a layout
+   * precomputed off the UI thread. Otherwise every item is measured once through its cell.
    */
   interface Sizing {
     fun sizeForItem(listView: ShadowListKitListView, index: Int, crossSize: Int): Int
@@ -95,7 +95,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Implemented by a data source whose items change content under the same key. The value
-   * changes with the content, like a revision or a hash. applyChanges reloads the rows whose
+   * changes with the content, like a revision or a hash. applyChanges reloads the items whose
    * value changed.
    */
   interface ContentVersions {
@@ -104,8 +104,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
-   * items are the ones in the core's measured window, an overscan past the viewport, that have
-   * no cell yet. A prefetched item that leaves the window before it shows is cancelled.
+   * items are the ones in the core's measured range, an overscan past the viewport, that have
+   * no cell yet. A prefetched item that leaves the measured range before it shows is cancelled.
    */
   interface PrefetchDataSource {
     fun prefetchItems(listView: ShadowListKitListView, indices: IntArray)
@@ -122,19 +122,19 @@ open class ShadowListKitListView @JvmOverloads constructor(
     fun didScroll(listView: ShadowListKitListView) {}
 
     /*
-     * The list came to rest after a touch, a fling or an animated scroll, on a row edge when
+     * The list came to rest after a touch, a fling or an animated scroll, on an item edge when
      * snapToItem is set.
      */
     fun didEndScrolling(listView: ShadowListKitListView) {}
 
     /*
-     * Whether a row can be picked up when reorderEnabled is set. Every row can by default.
+     * Whether an item can be picked up when reorderEnabled is set. Every item can by default.
      */
     fun canMoveItem(listView: ShadowListKitListView, index: Int): Boolean = true
 
     /*
-     * A held row was dropped at another index. Move the item in the data, the list reads the
-     * data again right after and keeps the dropped row where it was let go.
+     * A held item was dropped at another index. Move the item in the data. The list reads the
+     * data again right after and keeps the dropped item where it was let go.
      */
     fun moveItem(listView: ShadowListKitListView, sourceIndex: Int, destinationIndex: Int) {}
 
@@ -145,13 +145,13 @@ open class ShadowListKitListView @JvmOverloads constructor(
     fun didReachEnd(listView: ShadowListKitListView) {}
 
     /*
-     * Actions behind a row swiped from its leading or trailing side, or null for none.
+     * Actions behind an item swiped from its leading or trailing side, or null for none.
      */
     fun leadingSwipeActionsForItem(listView: ShadowListKitListView, index: Int): ShadowListKitSwipeActionsConfiguration? = null
     fun trailingSwipeActionsForItem(listView: ShadowListKitListView, index: Int): ShadowListKitSwipeActionsConfiguration? = null
 
     /*
-     * Fill the menu for touching and holding a row and return true, or false for none. A row
+     * Fill the menu for touching and holding an item and return true, or false for none. An item
      * that can also be reordered lifts on the hold. Letting go without moving it shows the menu.
      */
     fun contextMenuForItem(listView: ShadowListKitListView, index: Int, menu: Menu): Boolean = false
@@ -174,14 +174,14 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * A chat style list that opens at its end and keeps the end in view while the reader is
-   * there. Rows stay in data order, oldest first.
+   * there. Items stay in data order, oldest first.
    */
   var inverted = false
     set(value) { field = value; sendSettings() }
 
   /*
-   * With inverted, rows appended while the reader rests at the end scroll into view, like an
-   * assistant reply. Off by default, which keeps the visible rows in place.
+   * With inverted, items appended while the reader rests at the end scroll into view, like an
+   * assistant reply. Off by default, which keeps the visible items in place.
    */
   var followAppends = false
     set(value) { field = value; sendSettings() }
@@ -190,20 +190,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = value; sendSettings() }
 
   /*
-   * Columns of a grid. Row i goes into column i % numberOfColumns and each column stacks its
-   * own rows. Section headers take a column slot like any row, full width rows are not supported.
+   * Columns of a grid. Item i goes into column i % numberOfColumns and each column stacks its
+   * own items. Section header rows take a column slot like any item. Full width rows are not
+   * supported.
    */
   var numberOfColumns = 1
     set(value) { field = max(1, value); sendSettings() }
 
   /*
-   * Size along the scroll axis assumed for rows not measured yet, in pixels.
+   * Size along the scroll axis assumed for items not measured yet, in pixels.
    */
   var estimatedItemSize = 120 * resources.displayMetrics.density
     set(value) { field = value; sendSettings() }
 
   /*
-   * How far past the viewport rows are measured, in viewport sizes. Default 1.
+   * How far past the viewport items are measured, in viewport sizes. Default 1.
    */
   var overscan = 1.0
     set(value) { field = value; sendSettings() }
@@ -223,24 +224,24 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = value; sendSettings() }
 
   /*
-   * Rest the scroll position on a row edge. Alignment 0 start, 1 center, 2 end.
+   * Rest the scroll position on an item edge, the one snapAlignment names.
    */
   var snapToItem = false
     set(value) { field = value; sendSettings() }
-  var snapAlignment = 0
+  var snapAlignment = ShadowListKitSnapAlignment.START
     set(value) { field = value; sendSettings() }
 
   /*
-   * Touch and hold a row, then drag it to a new place. Other rows slide aside, and the list
-   * scrolls when the row is held near an edge. Works in grids too. In a list with sections a
-   * row stays in its section.
+   * Touch and hold an item, then drag it to a new place. Other items slide aside, and the list
+   * scrolls when the item is held near an edge. Works in grids too. In a list with sections an
+   * item stays in its section.
    */
   var reorderEnabled = false
 
   /*
    * Animate insertItems, deleteItems, reloadData, batches and applyChanges through itemAnimator:
-   * new rows fade in, removed rows fade out and rows that stay slide from where they were to
-   * where they are. The visible content stays anchored the same as without animations. Off by
+   * inserted items fade in, deleted items fade out and items that stay slide from where they were
+   * to where they are. The visible content stays anchored the same as without animations. Off by
    * default.
    */
   var animatesChanges = false
@@ -268,7 +269,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     }
 
   /*
-   * Views before the first row and after the last. Their size along the scroll axis comes
+   * Views before the first item and after the last. Their size along the scroll axis comes
    * from measuring with an unspecified size. Call requestLayout on the list after one changes.
    */
   var headerView: View? = null
@@ -277,8 +278,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { replaceTemplate(field, value); field = value }
 
   /*
-   * A tap selects a row when allowsSelection is set, the default. A tap on a selected row of a
-   * list with allowsMultipleSelection deselects it. Selection follows keys.
+   * A tap selects an item when allowsSelection is set, the default. A tap on a selected item of
+   * a list with allowsMultipleSelection deselects it. Selection follows keys.
    */
   var allowsSelection = true
     set(value) {
@@ -388,10 +389,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
   /*
    * The rows the core keeps measured and their frames, four values each.
    */
-  private var windowLow = -1
-  private var windowHigh = -1
-  private var windowFrames = DoubleArray(256)
-  private var windowGeometry = -1.0
+  private var measuredLow = -1
+  private var measuredHigh = -1
+  private var measuredFrames = DoubleArray(256)
+  private var measuredGeometry = -1.0
   private val scratchFrame = DoubleArray(4)
 
   /*
@@ -537,7 +538,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun applySettings(target: ShadowListKitCore) {
     target.setSettings(estimatedItemSize.toDouble(), overscan, startReachedThreshold, endReachedThreshold,
-      numberOfColumns, inverted, followAppends, horizontal, snapToItem, snapAlignment)
+      numberOfColumns, inverted, followAppends, horizontal, snapToItem, snapAlignment.ordinal)
   }
 
   /*
@@ -545,15 +546,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * output here is dropped and the next layout pass runs it.
    */
   private fun createCore(): ShadowListKitCore {
-    val created = ShadowListKitCore(::measureItem)
+    val created = ShadowListKitCore(::measureRow)
     coreOrNull = created
     applySettings(created)
     if (stickyPinning.stickyRows.isNotEmpty()) created.setStickyIndices(stickyPinning.stickyRows)
     created.setSections(data.itemCount, data.sectionCounts, data.sectionFlags)
     if (keys.isNotEmpty()) created.replaceKeys(0, 0, keys, 0, keys.size)
-    windowLow = -1
-    windowHigh = -1
-    windowGeometry = -1.0
+    measuredLow = -1
+    measuredHigh = -1
+    measuredGeometry = -1.0
     stickyPinning.invalidateFrames()
     bandLow = 1.0
     bandHigh = 0.0
@@ -688,42 +689,42 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Data
 
   /*
-   * Read the row count and keys again. Rows keep their sizes and cells by key, and the
+   * Read the item count and keys again. Items keep their sizes and cells by key, and the
    * visible content stays in place. Cells of surviving keys are not configured again.
-   * Only the keys between the unchanged rows at both ends go to the core.
+   * Only the keys between the unchanged items at both ends go to the core.
    */
   fun reloadData() = data.reloadData()
 
   /*
-   * Rows were inserted at these positions of the new data, which the data source already
+   * Items were inserted at these positions of the new data, which the data source already
    * reflects. Only the new keys are read. A list with sections reads everything again. An
    * insert past the end goes at the end.
    */
   fun insertItems(indices: IntArray) = data.insertItems(indices)
 
   /*
-   * Rows were deleted at these positions of the old data. A delete past the end is dropped.
+   * Items were deleted at these positions of the old data. A delete past the end is dropped.
    */
   fun deleteItems(indices: IntArray) = data.deleteItems(indices)
 
   /*
-   * The rows' content changed under the same keys. Visible cells are configured again and
-   * every listed row is measured again. With a payload the data source's reconfigureCell can
+   * The items' content changed under the same keys. Visible cells are configured again and
+   * every listed item is measured again. With a payload the data source's reconfigureCell can
    * update a shown cell instead.
    */
   @JvmOverloads
   fun reloadItems(indices: IntArray, payload: Any? = null) = data.reloadItems(indices, payload)
 
   /*
-   * An item moved, after the data source reflects it.
+   * The item at sourceIndex moved to destinationIndex, after the data source reflects it.
    */
-  fun moveItem(index: Int, newIndex: Int) = data.moveItem(index, newIndex)
+  fun moveItem(sourceIndex: Int, destinationIndex: Int) = data.moveItem(sourceIndex, destinationIndex)
 
   /*
    * Inserts, deletes, moves and reloads made in updates land together in one layout and one
    * animation. Deletes, reloads and move sources are indices in the data before, inserts and
-   * move destinations in the data after. A batch that does not add
-   * up reloads everything. completion runs once the change animation ended.
+   * move destinations in the data after. A batch that does not add up reloads everything.
+   * completion gets finished once the change animation ended.
    */
   @JvmOverloads
   fun performBatchUpdates(updates: () -> Unit, completion: ((finished: Boolean) -> Unit)? = null) =
@@ -731,21 +732,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * The data source already shows the new data. Read every key, work out the inserts, deletes
-   * and moves against the keys held with the core's diffKeys, reload the rows whose content
+   * and moves against the keys held with the core's diffKeys, reload the items whose content
    * version changed, and return what changed. Animates like any change with animatesChanges.
    */
   fun applyChanges(): ShadowListKitListChanges = data.applyChanges()
 
   /*
-   * The data changed. Sticky rows follow the sections, the selection drops removed rows and a
+   * The data changed. Sticky rows follow the sections, the selection drops deleted rows and a
    * waiting saved position lands once its row is there.
    */
   internal fun structureChanged() {
     ++structureVersion
-    // An open row closes. One swiped all the way stays out while its removal runs.
+    // An open row closes. One swiped all the way stays out while its delete runs.
     swipe.cell?.let { if (!swipe.isSwipedOut(it)) swipe.close(false) }
     if (stickyIndices.isNotEmpty() || stickySectionHeaders) updateStickyRows()
-    selection.dropRemovedKeys(keys)
+    selection.dropDeletedKeys(keys)
     restorePendingAnchor()
     invalidateFrame()
   }
@@ -785,11 +786,16 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   /*
-   * The frame of a section's header in the list's scrolled coordinates, or null.
+   * The frame of a section's header or footer in content coordinates, or null without one.
    */
   fun rectForHeaderInSection(section: Int): RectF? {
     if (!isSectioned) return null
     return rowRectF(core.headerRow(section))
+  }
+
+  fun rectForFooterInSection(section: Int): RectF? {
+    if (!isSectioned) return null
+    return rowRectF(core.footerRow(section))
   }
 
   fun scrollToSection(section: Int, animated: Boolean = false) {
@@ -918,7 +924,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   /*
-   * Run the core until the window is measured and any correction landed. Everything happens
+   * Run the core until the measured range has sizes and any correction landed. Everything happens
    * before the frame is drawn. The reader never sees an estimate or a correction.
    */
   private fun runPasses() {
@@ -960,25 +966,25 @@ open class ShadowListKitListView @JvmOverloads constructor(
     reachedStart = reachedStart || pass[ShadowListKitCore.PASS_OUT_REACHED_START] != 0.0
     reachedEnd = reachedEnd || pass[ShadowListKitCore.PASS_OUT_REACHED_END] != 0.0
     frameGeometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]
-    copyWindow(pass)
+    copyMeasured(pass)
     if (pass[ShadowListKitCore.PASS_OUT_SETTLING] != 0.0) scheduleSettleFrame()
   }
 
   /*
-   * Keep the window's frames on this side. Mount passes inside the band read only these.
+   * Keep the measured range's frames on this side. Mount passes inside the band read only these.
    */
-  private fun copyWindow(pass: DoubleArray) {
-    val low = pass[ShadowListKitCore.PASS_OUT_WINDOW_LOW].toInt()
-    val high = pass[ShadowListKitCore.PASS_OUT_WINDOW_HIGH].toInt()
+  private fun copyMeasured(pass: DoubleArray) {
+    val low = pass[ShadowListKitCore.PASS_OUT_MEASURED_LOW].toInt()
+    val high = pass[ShadowListKitCore.PASS_OUT_MEASURED_HIGH].toInt()
     val geometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]
-    if (low == windowLow && high == windowHigh && geometry == windowGeometry) return
-    windowLow = low
-    windowHigh = high
-    windowGeometry = geometry
+    if (low == measuredLow && high == measuredHigh && geometry == measuredGeometry) return
+    measuredLow = low
+    measuredHigh = high
+    measuredGeometry = geometry
     if (low < 0) return
     val needed = (high - low + 1) * 4
-    if (windowFrames.size < needed) windowFrames = DoubleArray(needed * 2)
-    core.copyRowRects(low, high, windowFrames)
+    if (measuredFrames.size < needed) measuredFrames = DoubleArray(needed * 2)
+    core.copyRowRects(low, high, measuredFrames)
   }
 
   /*
@@ -1000,9 +1006,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   private fun resetKeepingPosition() {
     core.resetKeepingPosition()
-    windowLow = -1
-    windowHigh = -1
-    windowGeometry = -1.0
+    measuredLow = -1
+    measuredHigh = -1
+    measuredGeometry = -1.0
     bandLow = 1.0
     bandHigh = 0.0
     needsFrame = true
@@ -1013,19 +1019,19 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   // region Mounting
 
-  private fun windowLeading(index: Int): Double {
-    val at = (index - windowLow) * 4
-    return if (horizontal) windowFrames[at] else windowFrames[at + 1]
+  private fun measuredLeading(index: Int): Double {
+    val at = (index - measuredLow) * 4
+    return if (horizontal) measuredFrames[at] else measuredFrames[at + 1]
   }
 
-  private fun windowExtent(index: Int): Double {
-    val at = (index - windowLow) * 4
-    return if (horizontal) windowFrames[at + 2] else windowFrames[at + 3]
+  private fun measuredExtent(index: Int): Double {
+    val at = (index - measuredLow) * 4
+    return if (horizontal) measuredFrames[at + 2] else measuredFrames[at + 3]
   }
 
   private fun overlaps(index: Int, viewLow: Double, viewHigh: Double): Boolean {
-    val start = windowLeading(index)
-    return start + windowExtent(index) > viewLow && start < viewHigh
+    val start = measuredLeading(index)
+    return start + measuredExtent(index) > viewLow && start < viewHigh
   }
 
   /*
@@ -1036,7 +1042,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * holds the rule this matches.
    */
   private fun mountCells() {
-    if (windowLow < 0 || keys.isEmpty()) {
+    if (measuredLow < 0 || keys.isEmpty()) {
       unmountAll()
       return
     }
@@ -1046,7 +1052,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val viewHigh = offset + windowAlong + pad + trailingPadding
     var low = -1
     var high = -1
-    for (index in windowLow..windowHigh) {
+    for (index in measuredLow..measuredHigh) {
       if (!overlaps(index, viewLow, viewHigh)) continue
       if (low < 0) low = index
       high = index
@@ -1064,13 +1070,13 @@ open class ShadowListKitListView @JvmOverloads constructor(
    */
   private fun mountNeeded(low: Int, high: Int, sticky: Int): Boolean =
     low != mountedLow || high != mountedHigh || sticky != mountedSticky ||
-      windowGeometry != mountedGeometry || structureVersion != mountedStructure || hasHeldRow
+      measuredGeometry != mountedGeometry || structureVersion != mountedStructure || hasHeldRow
 
   private fun recordMount(low: Int, high: Int, sticky: Int) {
     mountedLow = low
     mountedHigh = high
     mountedSticky = sticky
-    mountedGeometry = windowGeometry
+    mountedGeometry = measuredGeometry
     mountedStructure = structureVersion
   }
 
@@ -1127,14 +1133,14 @@ open class ShadowListKitListView @JvmOverloads constructor(
         // A cell measured ahead keeps its configuration until its row comes into view.
         if (cell.mountGeneration == 0L && keptAfterMeasure(cell, entry.key)) continue
         entries.remove()
-        // A removed row's cell fades out first, then goes back to the pool. One swiped out does not.
+        // A deleted row's cell fades out first, then goes back to the pool. One swiped out does not.
         if (swipe.isSwipedOut(cell) || !changes.fadeOut(entry.key, cell)) recycleCell(cell)
       }
     }
   }
 
   private fun keptAfterMeasure(cell: ShadowListKitListCell, key: String): Boolean =
-    windowLow >= 0 && cell.row in windowLow..windowHigh && keys.getOrNull(cell.row) == key
+    measuredLow >= 0 && cell.row in measuredLow..measuredHigh && keys.getOrNull(cell.row) == key
 
   private fun unmountAll() {
     for (cell in mounted.values) recycleCell(cell)
@@ -1144,11 +1150,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   /*
-   * The row's frame from the window copy, or from the core for rows outside it.
+   * The row's frame from the measured copy, or from the core for rows outside it.
    */
   private fun rowRect(index: Int, out: DoubleArray): Boolean {
-    if (index in windowLow..windowHigh && windowLow >= 0) {
-      System.arraycopy(windowFrames, (index - windowLow) * 4, out, 0, 4)
+    if (index in measuredLow..measuredHigh && measuredLow >= 0) {
+      System.arraycopy(measuredFrames, (index - measuredLow) * 4, out, 0, 4)
       return true
     }
     return core.rowRect(index, out)
@@ -1195,7 +1201,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Prefetching
 
   /*
-   * Tell the prefetch data source about items the measured window brought in that have no cell
+   * Tell the prefetch data source about items the measured range brought in that have no cell
    * yet, and the ones that left it unseen. One JNI call per mount pass, none on band frames.
    */
   private fun prefetchAround(low: Int, high: Int) {
@@ -1214,9 +1220,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Measurement
 
   /*
-   * Called by the core for every row in its window that has no size yet.
+   * Called by the core for every row in its measured range that has no size yet.
    */
-  private fun measureItem(row: Int, crossSize: Double): Double {
+  private fun measureRow(row: Int, crossSize: Double): Double {
     val cross = crossSize.roundToInt()
     val item = itemForRow(row)
     if (item >= 0) {
@@ -1550,19 +1556,20 @@ open class ShadowListKitListView @JvmOverloads constructor(
   val contentSize: Int get() = contentAlong
 
   /*
-   * The items among the rows overlapping the viewport, low to high, or null before the first layout.
+   * The items overlapping the viewport, low to high, or null before the first layout. Section
+   * header and footer rows do not count.
    */
   val visibleRange: IntRange?
     get() {
       // A list without a core has not laid out. Asking would create a peer only to answer null.
-      val packed = liveCore?.visibleItemRange() ?: return null
+      val packed = liveCore?.visibleRange() ?: return null
       if (packed < 0) return null
       return (packed shr 32).toInt()..(packed and 0xffffffffL).toInt()
     }
 
   /*
-   * The item's frame in the list's scrolled coordinates, the same space as the cells' frames,
-   * padding included. Estimated when the row was not measured yet.
+   * The item's frame in content coordinates: from the start of the content, header included,
+   * without the list's padding or scroll offset. Estimated when the item was not measured yet.
    */
   fun rectForItem(index: Int): RectF? = rowRectF(rowForItem(index))
 
@@ -1570,8 +1577,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     if (row < 0) return null
     val out = DoubleArray(4)
     if (!core.rowRect(row, out)) return null
-    val left = (out[0] + paddingLeft).toFloat()
-    val top = (out[1] + paddingTop).toFloat()
+    val left = out[0].toFloat()
+    val top = out[1].toFloat()
     return RectF(left, top, left + out[2].toFloat(), top + out[3].toFloat())
   }
 
@@ -1580,19 +1587,19 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Saved position
 
   /*
-   * The row at the viewport start by key and how far the viewport is into it, or null before
+   * The item at the viewport start by key and how far the viewport is into it, or null before
    * the first layout.
    */
   val anchorState: ShadowListKitAnchorState?
     get() {
       val current = coreOrNull ?: return pendingAnchor
       val out = DoubleArray(1)
-      val key = current.anchor(offset.toDouble(), out) ?: return pendingAnchor
+      val key = current.anchorState(offset.toDouble(), out) ?: return pendingAnchor
       return ShadowListKitAnchorState(key, out[0].toFloat())
     }
 
   /*
-   * Land the saved row the same distance in again, now or once a reload brings its key.
+   * Land the saved item the same distance in again, now or once a reload brings its key.
    */
   fun restoreAnchorState(state: ShadowListKitAnchorState) {
     pendingAnchor = state
@@ -1601,7 +1608,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun restorePendingAnchor() {
     val state = pendingAnchor ?: return
-    if (keys.isEmpty() || !core.restoreAnchor(state.key, state.offset.toDouble())) return
+    if (keys.isEmpty() || !core.restoreAnchorState(state.key, state.offset.toDouble())) return
     pendingAnchor = null
     stopScrolling()
     runCommandNow()
@@ -1652,7 +1659,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Bring an item into view. viewPosition is where it rests in the viewport, from 0 at the start
-   * to 1 at the end. The core keeps correcting until the row lands, even across estimates.
+   * to 1 at the end. The core keeps correcting until the item lands, even across estimates.
    */
   fun scrollToItem(index: Int, viewPosition: Double = 0.0, animated: Boolean = false) {
     val row = rowForItem(index)
@@ -1665,11 +1672,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
       else Double.NaN
     if (!target.isNaN()) {
       // Animate to the estimate, then let the core land exactly when the animation ends.
-      animateCommand(target.roundToInt(), ShadowListKitCore.LANDING_INDEX, row, viewPosition)
+      animateCommand(target.roundToInt(), ShadowListKitCore.LANDING_ROW, row, viewPosition)
       return
     }
     stopScrolling()
-    core.scrollToIndex(row, viewPosition)
+    core.scrollToRow(row, viewPosition)
     runCommandNow()
   }
 

@@ -7,7 +7,7 @@ import kotlin.math.max
  * The shadowlist core behind one list, through the core's ListDriver in C++. Every call runs
  * on the UI thread. Pass values go in and out through arrays this object reuses.
  */
-internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Double) -> Double) {
+internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Double) -> Double) {
   companion object {
     init {
       System.loadLibrary("shadowlistkit")
@@ -34,8 +34,8 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
     const val PASS_OUT_REACHED_START = 13
     const val PASS_OUT_REACHED_END = 14
     const val PASS_OUT_GEOMETRY = 15
-    const val PASS_OUT_WINDOW_LOW = 16
-    const val PASS_OUT_WINDOW_HIGH = 17
+    const val PASS_OUT_MEASURED_LOW = 16
+    const val PASS_OUT_MEASURED_HIGH = 17
     const val PASS_SLOTS = 18
 
     /*
@@ -48,7 +48,7 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
     /*
      * Where an animated scroll command lands, the same as the core's ScrollLanding::Target.
      */
-    const val LANDING_INDEX = 1
+    const val LANDING_ROW = 1
     const val LANDING_START = 2
     const val LANDING_END = 3
 
@@ -134,8 +134,8 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
 
     @JvmStatic private external fun nativeDestroy(handle: Long)
     @JvmStatic private external fun nativeSetSettings(
-      handle: Long, estimatedItemSize: Double, overscan: Double, startReachedThreshold: Double,
-      endReachedThreshold: Double, columns: Int, inverted: Boolean, followAppends: Boolean, horizontal: Boolean,
+      handle: Long, estimatedRowSize: Double, overscan: Double, startReachedThreshold: Double,
+      endReachedThreshold: Double, numberOfColumns: Int, inverted: Boolean, followAppends: Boolean, horizontal: Boolean,
       snapToItem: Boolean, snapAlignment: Int)
     @JvmStatic private external fun nativeSetStickyIndices(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeReplaceKeys(handle: Long, start: Int, count: Int, packed: CharArray, ends: IntArray)
@@ -143,14 +143,14 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
     @JvmStatic private external fun nativeDeleteKeys(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeMarkRemeasure(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeResetKeepingPosition(handle: Long)
-    @JvmStatic private external fun nativeCount(handle: Long): Int
+    @JvmStatic private external fun nativeRowCount(handle: Long): Int
     @JvmStatic private external fun nativeCopyRowRects(handle: Long, low: Int, high: Int, out: DoubleArray)
     @JvmStatic private external fun nativeRowRect(handle: Long, index: Int, out: DoubleArray): Boolean
     @JvmStatic private external fun nativeFooterStart(handle: Long, footerSize: Double): Double
-    @JvmStatic private external fun nativeVisibleItemRange(handle: Long): Long
+    @JvmStatic private external fun nativeVisibleRange(handle: Long): Long
     @JvmStatic private external fun nativeIndexOfKey(handle: Long, key: String): Int
     @JvmStatic private external fun nativeCopyStickyFrames(handle: Long, out: DoubleArray): Boolean
-    @JvmStatic private external fun nativeScrollToIndex(handle: Long, index: Int, viewPosition: Double)
+    @JvmStatic private external fun nativeScrollToRow(handle: Long, row: Int, viewPosition: Double)
     @JvmStatic private external fun nativeScrollToStart(handle: Long)
     @JvmStatic private external fun nativeScrollToEnd(handle: Long)
     @JvmStatic private external fun nativeNearestSnapOffset(handle: Long, target: Double): Double
@@ -177,27 +177,28 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
     @JvmStatic private external fun nativeSectionForItem(handle: Long, item: Int): Int
     @JvmStatic private external fun nativeFirstItemInSection(handle: Long, section: Int): Int
     @JvmStatic private external fun nativeHeaderRow(handle: Long, section: Int): Int
+    @JvmStatic private external fun nativeFooterRow(handle: Long, section: Int): Int
     @JvmStatic private external fun nativeFirstRowInSection(handle: Long, section: Int): Int
     @JvmStatic private external fun nativePlaceOfRow(handle: Long, row: Int): Int
     @JvmStatic private external fun nativeStickyRows(handle: Long, items: IntArray, sectionHeaders: Boolean): IntArray
     @JvmStatic private external fun nativeEdgeRowKeys(
       handle: Long, sectionKeys: Array<String?>, firstItemKeys: Array<String>): Array<String>
     @JvmStatic private external fun nativeUpdatePrefetch(handle: Long, low: Int, high: Int): IntArray
-    @JvmStatic private external fun nativeAnchor(handle: Long, offset: Double, out: DoubleArray): String?
-    @JvmStatic private external fun nativeRestoreAnchor(handle: Long, key: String, offset: Double): Boolean
+    @JvmStatic private external fun nativeAnchorState(handle: Long, offset: Double, out: DoubleArray): String?
+    @JvmStatic private external fun nativeRestoreAnchorState(handle: Long, key: String, offset: Double): Boolean
     @JvmStatic private external fun nativeDiffKeys(
       previousPacked: CharArray, previousEnds: IntArray, nextPacked: CharArray, nextEnds: IntArray): IntArray
     @JvmStatic private external fun nativePlanBatch(
       previousCount: Int, nextCount: Int, deleted: IntArray, inserted: IntArray, movedFrom: IntArray, movedTo: IntArray,
     ): IntArray?
     @JvmStatic private external fun nativeCaptureChange(
-      handle: Long, removedPacked: CharArray, removedEnds: IntArray, insertedPacked: CharArray, insertedEnds: IntArray,
+      handle: Long, deletedPacked: CharArray, deletedEnds: IntArray, insertedPacked: CharArray, insertedEnds: IntArray,
       mountedPacked: CharArray, mountedEnds: IntArray, mountedPositions: DoubleArray)
-    @JvmStatic private external fun nativeRemovedPosition(handle: Long, key: String, out: DoubleArray): Boolean
+    @JvmStatic private external fun nativeDeletedPosition(handle: Long, key: String, out: DoubleArray): Boolean
     @JvmStatic private external fun nativeRunChange(
       handle: Long, keysPacked: CharArray, keysEnds: IntArray, positions: DoubleArray): DoubleArray?
-    @JvmStatic private external fun nativeInsertionPositions(indices: IntArray, previousCount: Int): IntArray
-    @JvmStatic private external fun nativeDeletionPositions(indices: IntArray, previousCount: Int): IntArray
+    @JvmStatic private external fun nativeInsertionIndices(indices: IntArray, previousCount: Int): IntArray
+    @JvmStatic private external fun nativeDeletionIndices(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeConstants(): DoubleArray
     @JvmStatic private external fun nativePageScrollTarget(
       offset: Double, windowAlong: Double, maxOffset: Double, direction: Int): Double
@@ -250,11 +251,11 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
     ): IntArray? = nativePlanBatch(previousCount, nextCount, deleted, inserted, movedFrom, movedTo)
 
     /*
-     * The core's insertionPositions and deletionPositions: sorted, each once, an insert past the
+     * The core's insertionIndices and deletionIndices: sorted, each once, an insert past the
      * end at the end, a delete past the end dropped. Negative indices name no row.
      */
-    fun insertionPositions(indices: IntArray, previousCount: Int): IntArray = nativeInsertionPositions(indices, previousCount)
-    fun deletionPositions(indices: IntArray, previousCount: Int): IntArray = nativeDeletionPositions(indices, previousCount)
+    fun insertionIndices(indices: IntArray, previousCount: Int): IntArray = nativeInsertionIndices(indices, previousCount)
+    fun deletionIndices(indices: IntArray, previousCount: Int): IntArray = nativeDeletionIndices(indices, previousCount)
 
     /*
      * The core's swipeButtonSize: the title's fitted size with room around it, at least the
@@ -313,12 +314,12 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
   private external fun nativeRunPasses(handle: Long, io: DoubleArray)
 
   /*
-   * Called by the driver during runPasses for every row in the window that has no size yet.
+   * Called by the driver during runPasses for every row in the measured range that has no size yet.
    * Only JNI calls it. Keep stops R8 in a minified app from removing or renaming it.
    */
   @Keep
   @Suppress("unused")
-  private fun measureItem(index: Int, crossSize: Double): Double = measure(index, crossSize)
+  private fun measureRow(row: Int, crossSize: Double): Double = measure(row, crossSize)
 
   /*
    * Free the native peer. The core is unusable after this.
@@ -331,10 +332,10 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
   }
 
   fun setSettings(
-    estimatedItemSize: Double, overscan: Double, startReachedThreshold: Double, endReachedThreshold: Double,
-    columns: Int, inverted: Boolean, followAppends: Boolean, horizontal: Boolean, snapToItem: Boolean,
+    estimatedRowSize: Double, overscan: Double, startReachedThreshold: Double, endReachedThreshold: Double,
+    numberOfColumns: Int, inverted: Boolean, followAppends: Boolean, horizontal: Boolean, snapToItem: Boolean,
     snapAlignment: Int,
-  ) = nativeSetSettings(handle, estimatedItemSize, overscan, startReachedThreshold, endReachedThreshold, columns,
+  ) = nativeSetSettings(handle, estimatedRowSize, overscan, startReachedThreshold, endReachedThreshold, numberOfColumns,
     inverted, followAppends, horizontal, snapToItem, snapAlignment)
 
   fun setStickyIndices(indices: IntArray) = nativeSetStickyIndices(handle, indices)
@@ -375,12 +376,13 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
   fun markRemeasure(indices: IntArray) = nativeMarkRemeasure(handle, indices)
 
   /*
-   * Run the core with the inputs in pass until the window is measured and corrections landed.
+   * Run the core with the inputs in pass until every row of the measured range has a size and
+   * corrections landed.
    */
   fun runPasses() = nativeRunPasses(handle, pass)
 
   fun resetKeepingPosition() = nativeResetKeepingPosition(handle)
-  val count: Int get() = nativeCount(handle)
+  val rowCount: Int get() = nativeRowCount(handle)
   fun copyRowRects(low: Int, high: Int, out: DoubleArray) = nativeCopyRowRects(handle, low, high, out)
   fun rowRect(index: Int, out: DoubleArray): Boolean = nativeRowRect(handle, index, out)
   fun footerStart(footerSize: Double): Double = nativeFooterStart(handle, footerSize)
@@ -388,11 +390,11 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
   /*
    * The items among the visible rows as low shl 32 or high, or -1 when none shows.
    */
-  fun visibleItemRange(): Long = nativeVisibleItemRange(handle)
+  fun visibleRange(): Long = nativeVisibleRange(handle)
 
   fun indexOfKey(key: String): Int = nativeIndexOfKey(handle, key)
   fun copyStickyFrames(out: DoubleArray): Boolean = nativeCopyStickyFrames(handle, out)
-  fun scrollToIndex(index: Int, viewPosition: Double) = nativeScrollToIndex(handle, index, viewPosition)
+  fun scrollToRow(row: Int, viewPosition: Double) = nativeScrollToRow(handle, row, viewPosition)
   fun scrollToStart() = nativeScrollToStart(handle)
   fun scrollToEnd() = nativeScrollToEnd(handle)
   fun nearestSnapOffset(target: Double): Double = nativeNearestSnapOffset(handle, target)
@@ -441,6 +443,7 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
   fun sectionForItem(item: Int): Int = nativeSectionForItem(handle, item)
   fun firstItemInSection(section: Int): Int = nativeFirstItemInSection(handle, section)
   fun headerRow(section: Int): Int = nativeHeaderRow(handle, section)
+  fun footerRow(section: Int): Int = nativeFooterRow(handle, section)
   fun firstRowInSection(section: Int): Int = nativeFirstRowInSection(handle, section)
 
   /*
@@ -469,25 +472,25 @@ internal class ShadowListKitCore(private val measure: (index: Int, crossSize: Do
   /*
    * The key of the row at the viewport start, with the distance into it in out[0], or null.
    */
-  fun anchor(offset: Double, out: DoubleArray): String? = nativeAnchor(handle, offset, out)
-  fun restoreAnchor(key: String, offset: Double): Boolean = nativeRestoreAnchor(handle, key, offset)
+  fun anchorState(offset: Double, out: DoubleArray): String? = nativeAnchorState(handle, offset, out)
+  fun restoreAnchorState(key: String, offset: Double): Boolean = nativeRestoreAnchorState(handle, key, offset)
 
   /*
    * The core's ChangeAnimation: a change about to reach the core, with the mounted rows and
    * where they show as x, y pairs. They are recorded when the change starts an animation.
    */
-  fun captureChange(removed: List<String>, inserted: List<String>, mounted: List<String>, positions: DoubleArray) {
-    val (removedPacked, removedEnds) = packed(removed)
+  fun captureChange(deleted: List<String>, inserted: List<String>, mounted: List<String>, positions: DoubleArray) {
+    val (deletedPacked, deletedEnds) = packed(deleted)
     val (insertedPacked, insertedEnds) = packed(inserted)
     val (mountedPacked, mountedEnds) = packed(mounted)
-    nativeCaptureChange(handle, removedPacked, removedEnds, insertedPacked, insertedEnds, mountedPacked, mountedEnds,
+    nativeCaptureChange(handle, deletedPacked, deletedEnds, insertedPacked, insertedEnds, mountedPacked, mountedEnds,
       positions)
   }
 
   /*
-   * Where a removed row showed before the change into out, or false when it does not fade out.
+   * Where a deleted row showed before the change into out, or false when it does not fade out.
    */
-  fun removedPosition(key: String, out: DoubleArray): Boolean = nativeRemovedPosition(handle, key, out)
+  fun deletedPosition(key: String, out: DoubleArray): Boolean = nativeDeletedPosition(handle, key, out)
 
   /*
    * The animation of the mounted rows, low to high, CHANGE_STEP_SLOTS values each, or null

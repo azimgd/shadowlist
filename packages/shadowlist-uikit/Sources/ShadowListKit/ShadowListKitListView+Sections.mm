@@ -70,6 +70,15 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
   return [self rowRect:row];
 }
 
+- (CGRect)rectForFooterInSection:(NSInteger)section
+{
+  std::size_t row = section < 0 ? UNDEFINED_INDEX : _sections.footerRow((std::size_t)section);
+  if (row == UNDEFINED_INDEX || row >= _driver.getRowCount()) {
+    return CGRectNull;
+  }
+  return [self rowRect:row];
+}
+
 - (void)scrollToSection:(NSInteger)section animated:(BOOL)animated
 {
   std::size_t row = section < 0 ? UNDEFINED_INDEX : _sections.firstRowInSection((std::size_t)section);

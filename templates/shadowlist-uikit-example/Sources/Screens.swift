@@ -67,7 +67,7 @@ class ListScreen: UIViewController {
     let append = UIAction(title: appendTitle, image: UIImage(systemName: "arrow.down.to.line")) { [weak self] _ in self?.appendRows() }
     let random = UIAction(title: "Jump to Random Item", image: UIImage(systemName: "scope")) { [weak self] _ in
       guard let self, !self.list.rows.isEmpty else { return }
-      self.list.scrollToIndex(Int.random(in: 0..<self.list.rows.count), animated: false)
+      self.list.scrollToItem(at: Int.random(in: 0..<self.list.rows.count), animated: false)
     }
     let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis"), menu: UIMenu(options: .displayInline, children: [prepend, append, random]))
     var items = [more]
@@ -371,7 +371,7 @@ final class DirectoryScreen: ListScreen {
     ])
     rail.onSelect = { [weak self] section in
       guard let self, section < self.headerIndices.count else { return }
-      self.list.scrollToIndex(self.headerIndices[section], animated: false)
+      self.list.scrollToItem(at: self.headerIndices[section], animated: false)
     }
     let seed = generate(Settings.count)
     FakeNetwork.reply { [weak self] in

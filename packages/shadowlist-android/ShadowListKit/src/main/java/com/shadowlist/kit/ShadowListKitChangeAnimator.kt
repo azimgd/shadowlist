@@ -5,7 +5,7 @@ import android.view.View
 /*
  * The insert and delete animations of a list with animatesChanges. A data change records
  * where every mounted row is on screen. After the layout pass that applies it, rows that stay
- * slide from there to their new place, new rows fade in and removed rows fade out where they
+ * slide from there to their new place, inserted rows fade in and deleted rows fade out where they
  * were. The core anchors the content as usual: rows that hold still on screen do not move.
  * The core's ChangeAnimation decides what each row does. It is called once per change, never
  * on a scroll frame.
@@ -15,13 +15,13 @@ internal class ShadowListKitChangeAnimator(private val list: ShadowListKitListVi
    * A change was captured and waits for the layout pass. Saves the core call on other passes.
    */
   private var pending = false
-  private val removedOut = DoubleArray(2)
+  private val deletedOut = DoubleArray(2)
 
   /*
    * A change is about to reach the core. Several changes before one layout add up, and the
    * first one records the screen.
    */
-  fun capture(removed: List<String>, inserted: List<String>) {
+  fun capture(deleted: List<String>, inserted: List<String>) {
     if (!list.isLaidOut || list.hasHeldRow) return
     val core = list.liveCore ?: return
     val keys = ArrayList<String>(list.mounted.size)
@@ -32,7 +32,7 @@ internal class ShadowListKitChangeAnimator(private val list: ShadowListKitListVi
       positions[keys.size * 2 + 1] = screenTop(cell).toDouble()
       keys.add(key)
     }
-    core.captureChange(removed, inserted, keys, positions.copyOf(keys.size * 2))
+    core.captureChange(deleted, inserted, keys, positions.copyOf(keys.size * 2))
     pending = true
   }
 
@@ -43,17 +43,17 @@ internal class ShadowListKitChangeAnimator(private val list: ShadowListKitListVi
   private fun screenTop(cell: ShadowListKitListCell): Float = cell.top + cell.translationY - list.scrollY
 
   /*
-   * Keep a removed row's cell on screen where it was and fade it out. Returns false when the
+   * Keep a deleted row's cell on screen where it was and fade it out. Returns false when the
    * cell should go back to the pool right away.
    */
   fun fadeOut(key: String, cell: ShadowListKitListCell): Boolean {
     if (!pending || cell.visibility != View.VISIBLE) return false
     val core = list.liveCore ?: return false
-    if (!core.removedPosition(key, removedOut)) return false
+    if (!core.deletedPosition(key, deletedOut)) return false
     cell.animate().cancel()
-    cell.translationX = removedOut[0].toFloat() - (cell.left - list.scrollX)
-    cell.translationY = removedOut[1].toFloat() - (cell.top - list.scrollY)
-    list.itemAnimator.animateRemoval(list, cell) { list.recycleCell(cell) }
+    cell.translationX = deletedOut[0].toFloat() - (cell.left - list.scrollX)
+    cell.translationY = deletedOut[1].toFloat() - (cell.top - list.scrollY)
+    list.itemAnimator.animateDelete(list, cell) { list.recycleCell(cell) }
     return true
   }
 

@@ -56,12 +56,12 @@ final class FeedController: UIViewController, ShadowListKitListViewDataSource {
 The header, `ShadowListKitListView.h`, documents every member.
 
 - Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns` (round robin), `estimatedItemSize`,
-  `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`,
+  `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment` (`ShadowListKitSnapAlignment`),
   `reorderEnabled`, `animatesChanges`, `itemAnimator`, `stickyIndices`, `stickySectionHeaders`, `headerView`,
-  `footerView`. Delegate `listViewDidReachStart:` and `listViewDidReachEnd:`. Every row is an accessibility
-  element, and VoiceOver page scrolls move past the mounted rows.
+  `footerView`. Delegate `listViewDidReachStart:` and `listViewDidReachEnd:`. Every item is an accessibility
+  element, and VoiceOver page scrolls move past the mounted items.
 - Data source: `numberOfItemsInListView:`, `listView:keyForItemAtIndex:`, `listView:cellForItemAtIndex:`, optional
-  `listView:sizeForItemAtIndex:crossSize:`. Without sizes every row is measured through its cell's `sizeThatFits:`,
+  `listView:sizeForItemAtIndex:crossSize:`. Without sizes every item is measured through its cell's `sizeThatFits:`,
   which fits a cell's Auto Layout constraints unless the cell overrides it.
 - Sections: `numberOfSectionsInListView:` and `listView:numberOfItemsInSection:` group the items. Item indices still
   run across all sections. `listView:titleForHeaderInSection:` and `...FooterInSection:` decide which sections have a
@@ -69,13 +69,13 @@ The header, `ShadowListKitListView.h`, documents every member.
   `listView:sizeForHeaderInSection:crossSize:` or measuring. `listView:keyForSection:` defaults to the key of the
   section's first item. `sectionIndexTitlesForListView:` adds the index. `stickySectionHeaders` pins them.
   `numberOfSections`, `sectionForItemAtIndex:`, `firstItemIndexInSection:`, `rectForHeaderInSection:`,
-  `scrollToSection:animated:`. A list with sections reads its sections and keys again on every change, like
-  `reloadData`. A dragged row stays in its section.
+  `rectForFooterInSection:`, `scrollToSection:animated:`. A list with sections reads its sections and keys again on every change, like
+  `reloadData`. A dragged item stays in its section.
 - Changes: `reloadData`, `insertItemsAtIndices:`, `deleteItemsAtIndices:`, `reloadItemsAtIndices:`,
   `reloadItemsAtIndices:payload:` with the data source's `listView:reconfigureCell:atIndex:payload:`,
-  `moveItemAtIndex:toIndex:`, `performBatchUpdates:completion:` (UITableView's index rules, planned by the core's
+  `moveItemAtIndex:toIndex:` (source and destination index), `performBatchUpdates:completion:` (UITableView's index rules, planned by the core's
   `planBatch`; a batch that does not add up reloads everything) and `applyChanges`, which diffs every key with the
-  core's `diffKeys`, reloads rows whose `listView:contentVersionForItemAtIndex:` changed and returns a
+  core's `diffKeys`, reloads items whose `listView:contentVersionForItemAtIndex:` changed and returns a
   `ShadowListKitListChanges`. With `animatesChanges` all of them animate through `itemAnimator`, a `ShadowListKitItemAnimator`
   (`ShadowListKitDefaultItemAnimator` by default).
 - Selection: `allowsSelection` (on), `allowsMultipleSelection`, `selectedIndices`, `selectItemAtIndex:animated:`,
@@ -85,9 +85,9 @@ The header, `ShadowListKitListView.h`, documents every member.
   `ShadowListKitSwipeActionsConfiguration` of `ShadowListKitSwipeAction`s. A full swipe performs the first action, like swipe to
   dismiss. `closeSwipeActionsAnimated:`. Off while editing.
 - Context menus: delegate `listView:contextMenuForItemAtIndex:` returns a `UIMenu`, shown through
-  `UIContextMenuInteraction`. A row that can also be reordered lifts on the hold, and letting it go in place shows
+  `UIContextMenuInteraction`. An item that can also be reordered lifts on the hold, and letting it go in place shows
   the menu through `UIEditMenuInteraction`.
-- Prefetching: `prefetchDataSource` hears `listView:prefetchItemsAtIndices:` for items the core's measured window
+- Prefetching: `prefetchDataSource` hears `listView:prefetchItemsAtIndices:` for items the core's measured range
   brought in without a cell, and `listView:cancelPrefetchingForItemsAtIndices:` for ones that left it unseen.
 - Pull to refresh: `refreshEnabled`, `refreshing`, delegate `listViewDidBeginRefreshing:`.
 - Separators: `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`,
@@ -95,7 +95,7 @@ The header, `ShadowListKitListView.h`, documents every member.
 - Saved position: `anchorState` (`ShadowListKitAnchorState`, the key at the viewport start and the distance into it) and
   `restoreAnchorState:`, which lands now or once a reload brings the key. UIKit state restoration saves it.
 
-Masonry is round robin: row `i` goes in column `i % numberOfColumns`. Full width rows in a grid and the
+Masonry is round robin: item `i` goes in column `i % numberOfColumns`. Full width rows in a grid and the
 accessibility rotor are not supported.
 
 ## Example app
@@ -155,7 +155,7 @@ xcrun simctl launch --console-pty <udid> shadowlist.uikit.example -SLRoute Secti
 ```
 
 - `prepend`, `append`: rest mid list, change the data, report how far visible rows moved.
-- `jump`: scrollToIndex to a far row, report where it lands.
+- `jump`: scrollToItem to a far item, report where it lands.
 - `cost`: main thread time of one update plus its layout, with the layout prefetch finished
   and paused. `prependMs`/`appendMs` count the list's own work, the `*TotalMs` fields add the
   screen building its rows. `-SLCostRuns N` sets the updates of each kind.

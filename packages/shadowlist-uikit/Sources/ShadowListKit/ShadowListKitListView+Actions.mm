@@ -244,7 +244,7 @@ static const NSTimeInterval SHADOWLIST_KIT_SWIPE_DURATION = SWIPE_SETTLE_DURATIO
 }
 
 /*
- * Run an action. Its completion closes the row, unless the action removed it.
+ * Run an action. Its completion closes the row, unless the action deleted it.
  */
 - (void)performSwipeAction:(ShadowListKitSwipeAction *)action
 {

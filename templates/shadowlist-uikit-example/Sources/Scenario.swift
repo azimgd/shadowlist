@@ -7,7 +7,7 @@ import UIKit
  *
  *   prepend  scroll into the list, add rows at the start, measure how far visible rows moved
  *   append   same with rows added at the end
- *   jump     scrollToIndex to a far row, measure where it lands against the top of the viewport
+ *   jump     scrollToItem to a far item, measure where it lands against the top of the viewport
  *   cost     main thread time of one data update plus its layout, see measureUpdateCost
  *   animate  Feed with animatesChanges: remove a visible row and add one, log the animation
  *   a11y     what VoiceOver sees: element count, a far row, a page scroll
@@ -38,7 +38,7 @@ enum Scenario {
         switch name {
         case "prepend": screen.prependRows()
         case "append": screen.appendRows()
-        case "jump": list.scrollToIndex(list.rows.count * 3 / 4, animated: false)
+        case "jump": list.scrollToItem(at: list.rows.count * 3 / 4, animated: false)
         default: break
         }
         after(1.0) {

@@ -101,8 +101,8 @@ final class ListController: NSObject {
     backend.reloadRow(at: index)
   }
 
-  func scrollToIndex(_ index: Int, animated: Bool) {
-    backend.scrollToIndex(index, animated: animated)
+  func scrollToItem(at index: Int, animated: Bool) {
+    backend.scrollToItem(at: index, animated: animated)
   }
 
   func scrollToEnd(animated: Bool) {
@@ -126,7 +126,7 @@ protocol ListBackend: AnyObject {
   func rowsChanged(_ change: RowChange)
   func reloadRow(at index: Int)
   func stickyIndicesChanged()
-  func scrollToIndex(_ index: Int, animated: Bool)
+  func scrollToItem(at index: Int, animated: Bool)
   func scrollToEnd(animated: Bool)
 }
 
@@ -218,7 +218,7 @@ final class ShadowListBackend: NSObject, ListBackend, ShadowListKitListViewDataS
     list.stickyIndices = IndexSet(controller.stickyIndices)
   }
 
-  func scrollToIndex(_ index: Int, animated: Bool) {
+  func scrollToItem(at index: Int, animated: Bool) {
     list.scrollToItem(at: index, viewPosition: 0, animated: animated)
   }
 
@@ -512,7 +512,7 @@ final class TableBackend: NSObject, ListBackend, UITableViewDataSource, UITableV
     return IndexPath(row: sections[section].rows.count - 1, section: section)
   }
 
-  func scrollToIndex(_ index: Int, animated: Bool) {
+  func scrollToItem(at index: Int, animated: Bool) {
     guard let path = indexPath(index) else { return }
     if path.row == NSNotFound {
       table.scrollToRow(at: IndexPath(row: NSNotFound, section: path.section), at: .top, animated: animated)
@@ -719,7 +719,7 @@ final class CollectionBackend: NSObject, ListBackend, UICollectionViewDataSource
 
   func stickyIndicesChanged() {}
 
-  func scrollToIndex(_ index: Int, animated: Bool) {
+  func scrollToItem(at index: Int, animated: Bool) {
     collection.scrollToItem(at: IndexPath(item: index, section: 0), at: .top, animated: animated)
   }
 

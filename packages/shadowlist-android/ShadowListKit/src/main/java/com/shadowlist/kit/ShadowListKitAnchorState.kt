@@ -4,8 +4,8 @@ import android.os.Parcel
 import android.os.Parcelable
 
 /*
- * A scroll position that survives data changes: the key of the row at the viewport start and
- * how far the viewport start is past that row's leading edge, in pixels.
+ * A scroll position that survives data changes: the key of the item at the viewport start and
+ * how far the viewport start is past that item's leading edge, in pixels.
  */
 class ShadowListKitAnchorState(val key: String, val offset: Float) : Parcelable {
   override fun writeToParcel(parcel: Parcel, flags: Int) {

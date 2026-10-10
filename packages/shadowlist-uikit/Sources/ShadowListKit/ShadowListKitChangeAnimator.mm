@@ -34,13 +34,13 @@ using namespace azimgd::shadowlist;
   return {x, y};
 }
 
-- (void)captureRemoved:(const std::vector<std::string>&)removed inserted:(const std::vector<std::string>&)inserted
+- (void)captureDeleted:(const std::vector<std::string>&)deleted inserted:(const std::vector<std::string>&)inserted
 {
   ShadowListKitListView *list = _list;
   if (!list || !list.window || [list hasHeldRow]) {
     return;
   }
-  if (_animation.capture(removed, inserted)) {
+  if (_animation.capture(deleted, inserted)) {
     [self recordScreenOf:list];
   }
 }
@@ -72,7 +72,7 @@ using namespace azimgd::shadowlist;
   cell.transform = CGAffineTransformIdentity;
   cell.center = CGPointMake(previous->x + offset.x + size.width / 2, previous->y + offset.y + size.height / 2);
   __weak ShadowListKitListView *weakList = list;
-  [list.itemAnimator listView:list animateRemovalOfCell:cell completion:^{
+  [list.itemAnimator listView:list animateDeleteOfCell:cell completion:^{
     [weakList recycleCell:cell];
   }];
   return YES;

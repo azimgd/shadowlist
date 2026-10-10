@@ -177,9 +177,9 @@ std::string ShadowListKitStdString(NSString *string)
   self.alwaysBounceVertical = YES;
 
   __weak ShadowListKitListView *weakSelf = self;
-  _driver.setMeasureRow([weakSelf](std::size_t index, const std::string& key, double cross) -> double {
+  _driver.setMeasureRow([weakSelf](std::size_t row, const std::string& key, double cross) -> double {
     ShadowListKitListView *list = weakSelf;
-    return list ? [list measureRow:(NSInteger)index key:key cross:(CGFloat)cross] : 0.0;
+    return list ? [list measureRow:(NSInteger)row key:key cross:(CGFloat)cross] : 0.0;
   });
 
   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
@@ -783,7 +783,7 @@ std::string ShadowListKitStdString(NSString *string)
 }
 
 /*
- * Run the core until the window is measured and any correction landed. Everything happens
+ * Run the core until the measured range has sizes and any correction landed. Everything happens
  * before the frame is drawn. The reader never sees an estimate or a correction.
  */
 - (void)runPasses
@@ -1021,7 +1021,7 @@ std::string ShadowListKitStdString(NSString *string)
         ++entry;
         continue;
       }
-      // A removed row's cell fades out first, then goes back to the pool. One swiped out does not.
+      // A deleted row's cell fades out first, then goes back to the pool. One swiped out does not.
       if ([self isSwipedOutCell:entry->second] || ![_changes fadeOutKey:entry->first cell:entry->second]) {
         [self recycleCell:entry->second];
       }
@@ -1034,12 +1034,12 @@ std::string ShadowListKitStdString(NSString *string)
 
 - (BOOL)keptAfterMeasure:(ShadowListKitListCell *)cell key:(const std::string&)key
 {
-  std::optional<MountedRange> window = _driver.getMeasuredRange();
-  if (!window || cell.row == NSNotFound) {
+  std::optional<MountedRange> measured = _driver.getMeasuredRange();
+  if (!measured || cell.row == NSNotFound) {
     return NO;
   }
   std::size_t row = (std::size_t)cell.row;
-  return row >= window->low && row <= window->high && row < _driver.getKeyCount() && _driver.getKeyAt(row) == key;
+  return row >= measured->low && row <= measured->high && row < _driver.getKeyCount() && _driver.getKeyAt(row) == key;
 }
 
 - (void)unmountAll
@@ -1056,7 +1056,7 @@ std::string ShadowListKitStdString(NSString *string)
 #pragma mark - Prefetching
 
 /*
- * Tell the prefetch data source about items the measured window brought in that have no cell
+ * Tell the prefetch data source about items the measured range brought in that have no cell
  * yet, and the ones that left it unseen.
  */
 - (void)prefetchAround:(const MountPlan&)plan
@@ -1088,7 +1088,7 @@ std::string ShadowListKitStdString(NSString *string)
 #pragma mark - Measurement
 
 /*
- * Called by the core for every row in its window that has no size yet. Reads the size from
+ * Called by the core for every row in its measured range that has no size yet. Reads the size from
  * the data source or measures the row through its cell.
  */
 - (CGFloat)measureRow:(NSInteger)row key:(const std::string&)key cross:(CGFloat)cross

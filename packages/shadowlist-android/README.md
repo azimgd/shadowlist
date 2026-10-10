@@ -52,7 +52,7 @@ class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKi
 ## API
 
 `DataSource` gives `numberOfItems`, `keyForItem` and `cellForItem`, and `reconfigureCell` for payload reloads. A data
-source that also implements `Sizing` gives sizes without views. Otherwise every row is measured through its cell.
+source that also implements `Sizing` gives sizes without views. Otherwise every item is measured through its cell.
 The `Delegate` has `willDisplayCell`, `didEndDisplayingCell`, `didSelectItem`, `didDeselectItem`, `shouldSelectItem`,
 `shouldHighlightItem`, `didScroll`, `didEndScrolling`, `canMoveItem`, `moveItem`, `didReachStart`, `didReachEnd`,
 `leadingSwipeActionsForItem`, `trailingSwipeActionsForItem`, `contextMenuForItem`, `showsSeparatorAfterItem` and
@@ -60,32 +60,33 @@ The `Delegate` has `willDisplayCell`, `didEndDisplayingCell`, `didSelectItem`, `
 
 Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`,
 `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`,
-`snapAlignment`, `reorderEnabled`, `animatesChanges`, `itemAnimator`, `stickyIndices`, `stickySectionHeaders`,
+`snapAlignment` (`ShadowListKitSnapAlignment`), `reorderEnabled`, `animatesChanges`, `itemAnimator`, `stickyIndices`, `stickySectionHeaders`,
 `headerView`, `footerView`, `prefetchDataSource`, `allowsSelection`, `allowsMultipleSelection`, `editing`,
 `refreshEnabled`, `refreshing`, `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`,
 `separatorThickness`. Data: `reloadData`, `insertItems`, `deleteItems`, `reloadItems(indices, payload)`,
-`moveItem`, `performBatchUpdates`, `applyChanges`. Selection: `selectedIndices`, `selectItem`, `deselectItem`,
+`moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates`, `applyChanges`. Selection: `selectedIndices`, `selectItem`, `deselectItem`,
 `setEditing`. Queries and commands: `cellForItem`, `visibleCells`, `visibleRange`, `rectForItem`, `contentSize`,
-`numberOfSections`, `sectionForItem`, `firstItemIndexInSection`, `rectForHeaderInSection`, `anchorState`,
+`numberOfSections`, `sectionForItem`, `firstItemIndexInSection`, `rectForHeaderInSection`, `rectForFooterInSection`, `anchorState`,
 `scrollToItem`, `scrollToSection`, `scrollToStart`, `scrollToEnd`, `restoreAnchorState`, `closeSwipeActions`,
-`addItemDecoration`. Sizes are in pixels.
+`addItemDecoration`. Sizes are in pixels. `rectForItem` and the section rects are in content coordinates,
+without the padding or the scroll offset.
 
 - Sections: a data source that implements `Sections` groups its items. Item indices still run across all
   sections. A section has a header or footer when `titleForHeaderInSection` or `titleForFooterInSection` returns a
   title, shown in a plain cell unless `cellForHeaderInSection` gives one. `sectionIndexTitles` adds the index along
-  the trailing edge. A list with sections reads its sections and keys again on every change, and a dragged row
+  the trailing edge. A list with sections reads its sections and keys again on every change, and a dragged item
   stays in its section.
 - Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data
   before, inserts and move destinations in the data after. A batch that does not add up
-  reloads everything. `applyChanges` diffs every key with the core's `diffKeys`, reloads rows whose
+  reloads everything. `applyChanges` diffs every key with the core's `diffKeys`, reloads items whose
   `ContentVersions.contentVersionForItem` changed since the last reload, and returns a `ShadowListKitListChanges`.
-- `itemAnimator` (a `ShadowListKitItemAnimator`, `ShadowListKitDefaultItemAnimator` by default) animates inserts, removals
+- `itemAnimator` (a `ShadowListKitItemAnimator`, `ShadowListKitDefaultItemAnimator` by default) animates inserts, deletes
   and moves.
 - Swipe actions: a `ShadowListKitSwipeActionsConfiguration` of `ShadowListKitSwipeAction`s per side. A full swipe runs
   the first action. Off while editing.
-- Context menus: `contextMenuForItem` fills a `PopupMenu`'s menu on a hold. A row that can also be reordered lifts
+- Context menus: `contextMenuForItem` fills a `PopupMenu`'s menu on a hold. An item that can also be reordered lifts
   on the hold, and letting it go in place shows the menu.
-- Prefetching: `PrefetchDataSource.prefetchItems` for items the core's measured window brought in without a cell,
+- Prefetching: `PrefetchDataSource.prefetchItems` for items the core's measured range brought in without a cell,
   `cancelPrefetchingForItems` for ones that left it unseen.
 - Pull to refresh draws its own spinner over the rows, without a SwipeRefreshLayout dependency.
 - Separators draw after each item's cell, which keeps a pinned header above them. `ShadowListKitItemDecoration` draws
@@ -94,11 +95,11 @@ Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estim
 - The saved position goes into `onSaveInstanceState` as a `ShadowListKitAnchorState` when the list has an id, and lands
   again once the data has its key.
 
-Masonry is round robin: row `i` goes in column `i % numberOfColumns`. Full width rows in a grid are not supported.
+Masonry is round robin: item `i` goes in column `i % numberOfColumns`. Full width rows in a grid are not supported.
 
 The view's own behavior:
 
-- Padding works like content insets. The core's window is the padded area, rows start inside
+- Padding works like content insets. The core's viewport is the padded area, rows start inside
   the padding, sticky headers pin below the top padding, and with `clipToPadding = false` rows
   scroll under it.
 - The edge effect (a stretch on Android 12 and later, a glow before) shows when a drag pulls
@@ -107,9 +108,9 @@ The view's own behavior:
   takes its share of drags and flings first.
 - Accessibility: the list reports `CollectionInfo` for all rows and each cell its
   `CollectionItemInfo`. Page scrolls forward and backward and scroll to position work for rows
-  that are not mounted, which lets TalkBack move past the mounted window.
-- `animatesChanges`: inserted rows fade in, removed rows fade out where they were, and rows that
-  stay slide to their new place.
+  that are not mounted, which lets TalkBack move past the mounted rows.
+- `animatesChanges`: inserted items fade in, deleted items fade out where they were, and items
+  that stay slide to their new place.
 
 ## Example app
 

@@ -5,15 +5,15 @@ NS_ASSUME_NONNULL_BEGIN
 @class ShadowListKitListView;
 
 /*
- * A row view. Subclasses lay out their subviews by hand in layoutSubviews and report their
+ * The view that shows an item. Subclasses lay out their subviews by hand in layoutSubviews and report their
  * height in sizeThatFits:. Without an override, sizeThatFits: fits the cell's Auto Layout
  * constraints to the given width, which makes a cell built with constraints self-sizing. index is
  * the item the cell shows, or NSNotFound while it waits in the reuse pool and for a section
  * header or footer. prepareForReuse is called before the cell is handed out again by
  * dequeueReusableCellWithIdentifier:.
  *
- * The list sets highlighted while a finger rests on a selectable row, selected for selected rows
- * and editing while the list is editing. Override the animated setters to show them. They are
+ * The list sets highlighted while a finger rests on a selectable item, selected for selected
+ * items and editing while the list is editing. Override the animated setters to show them. They are
  * called only when the value changes.
  */
 @interface ShadowListKitListCell : UIView
@@ -40,9 +40,19 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 };
 
 /*
- * A button shown behind a swiped row. The handler runs when the button is tapped or the row is
- * swiped all the way. Call completion with whether the action was performed. The row then
- * closes, unless the action removed it.
+ * Which edge of an item a snapped scroll position lines up with the viewport. The order
+ * matches the core's SnapAlignment.
+ */
+typedef NS_ENUM(NSInteger, ShadowListKitSnapAlignment) {
+  ShadowListKitSnapAlignmentStart,
+  ShadowListKitSnapAlignmentCenter,
+  ShadowListKitSnapAlignmentEnd,
+};
+
+/*
+ * A button shown behind a swiped item. The handler runs when the button is tapped or the item
+ * is swiped all the way. Call completion with whether the action was performed. The item then
+ * closes, unless the action deleted it.
  */
 @interface ShadowListKitSwipeAction : NSObject
 
@@ -59,8 +69,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 @end
 
 /*
- * The actions of one side of a row. The first action is nearest the edge. With
- * performsFirstActionWithFullSwipe, the default, swiping the row all the way performs it, like
+ * The actions of one side of an item. The first action is nearest the edge. With
+ * performsFirstActionWithFullSwipe, the default, swiping the item all the way performs it, like
  * swipe to dismiss.
  */
 @interface ShadowListKitSwipeActionsConfiguration : NSObject
@@ -73,8 +83,8 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 @end
 
 /*
- * A scroll position that survives data changes: the key of the row at the viewport start and
- * how far the viewport start is past that row's leading edge.
+ * A scroll position that survives data changes: the key of the item at the viewport start and
+ * how far the viewport start is past that item's leading edge.
  */
 @interface ShadowListKitAnchorState : NSObject <NSSecureCoding>
 
@@ -106,23 +116,23 @@ typedef NS_ENUM(NSInteger, ShadowListKitSwipeActionStyle) {
 @end
 
 /*
- * Animates rows for animatesChanges. The list works out which rows came, went and moved, places
- * them and calls these to animate. animateRemovalOfCell: must call completion when it ends, which
- * gives the cell back to the reuse pool. animateMoveOfCell: gets a cell already at its new place,
- * and offset is where it showed before, relative to that place.
+ * Animates items for animatesChanges. The list works out which items were inserted, deleted and
+ * moved, places them and calls these to animate. animateDeleteOfCell: must call completion when
+ * it ends, which gives the cell back to the reuse pool. animateMoveOfCell: gets a cell already at
+ * its new place, and offset is where it showed before, relative to that place.
  */
 NS_SWIFT_UI_ACTOR
 @protocol ShadowListKitItemAnimator <NSObject>
 
 - (void)listView:(ShadowListKitListView *)listView animateInsertOfCell:(ShadowListKitListCell *)cell NS_SWIFT_NAME(listView(_:animateInsertOf:));
-- (void)listView:(ShadowListKitListView *)listView animateRemovalOfCell:(ShadowListKitListCell *)cell completion:(void (^)(void))completion NS_SWIFT_NAME(listView(_:animateRemovalOf:completion:));
+- (void)listView:(ShadowListKitListView *)listView animateDeleteOfCell:(ShadowListKitListCell *)cell completion:(void (^)(void))completion NS_SWIFT_NAME(listView(_:animateDeleteOf:completion:));
 - (void)listView:(ShadowListKitListView *)listView animateMoveOfCell:(ShadowListKitListCell *)cell fromOffset:(CGPoint)offset NS_SWIFT_NAME(listView(_:animateMoveOf:fromOffset:));
 
 @end
 
 /*
- * The animator a list starts with: new rows fade in, removed rows fade out and rows that stay
- * slide, for duration seconds.
+ * The animator a list starts with: inserted items fade in, deleted items fade out and items
+ * that stay slide, for duration seconds.
  */
 @interface ShadowListKitDefaultItemAnimator : NSObject <ShadowListKitItemAnimator>
 
@@ -132,8 +142,8 @@ NS_SWIFT_UI_ACTOR
 
 /*
  * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
- * items are the ones in the core's measured window, an overscan past the viewport, that have no
- * cell yet. A prefetched item that leaves the window before it shows is cancelled.
+ * items are the ones in the core's measured range, an overscan past the viewport, that have no
+ * cell yet. A prefetched item that leaves that range before it shows is cancelled.
  */
 NS_SWIFT_UI_ACTOR
 @protocol ShadowListKitListViewPrefetchDataSource <NSObject>
@@ -152,9 +162,9 @@ NS_SWIFT_UI_ACTOR
 - (NSInteger)numberOfItemsInListView:(ShadowListKitListView *)listView;
 
 /*
- * A stable identity for the row. Sizes, cells and the scroll position follow keys across
+ * A stable identity for the item. Sizes, cells and the scroll position follow keys across
  * reloadData. A prepend or an insert above keeps what is on screen in place.
- * A row whose content changed under the same key needs reloadItemsAtIndices:.
+ * An item whose content changed under the same key needs reloadItemsAtIndices:.
  */
 - (NSString *)listView:(ShadowListKitListView *)listView keyForItemAtIndex:(NSInteger)index;
 
@@ -163,9 +173,9 @@ NS_SWIFT_UI_ACTOR
 @optional
 
 /*
- * The row's size along the scroll axis for the given cross size. Implement it when sizes are
+ * The item's size along the scroll axis for the given cross size. Implement it when sizes are
  * known without a view, like from a layout precomputed off the main thread. Otherwise every
- * row is measured once through a sizing cell's sizeThatFits:.
+ * item is measured once through a sizing cell's sizeThatFits:.
  */
 - (CGFloat)listView:(ShadowListKitListView *)listView sizeForItemAtIndex:(NSInteger)index crossSize:(CGFloat)crossSize;
 
@@ -198,7 +208,7 @@ NS_SWIFT_UI_ACTOR
 
 /*
  * Update a shown cell for a payload given to reloadItemsAtIndices:payload: without a new cell.
- * Return NO to have the row reloaded in full instead.
+ * Return NO to have the item reloaded in full instead.
  */
 - (BOOL)listView:(ShadowListKitListView *)listView
   reconfigureCell:(ShadowListKitListCell *)cell
@@ -208,7 +218,7 @@ NS_SWIFT_UI_ACTOR
 
 /*
  * A value that changes when the item's content changes under the same key, like a revision or
- * a hash. applyChanges reloads the rows whose value changed.
+ * a hash. applyChanges reloads the items whose value changed.
  */
 - (NSInteger)listView:(ShadowListKitListView *)listView contentVersionForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contentVersionForItemAt:));
 
@@ -227,7 +237,7 @@ NS_SWIFT_UI_ACTOR
 - (BOOL)listView:(ShadowListKitListView *)listView shouldHighlightItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:shouldHighlightItemAt:));
 
 /*
- * Actions behind a row swiped from its leading or trailing side, or nil for none.
+ * Actions behind an item swiped from its leading or trailing side, or nil for none.
  */
 - (nullable ShadowListKitSwipeActionsConfiguration *)listView:(ShadowListKitListView *)listView
                   leadingSwipeActionsForItemAtIndex:(NSInteger)index
@@ -237,8 +247,8 @@ NS_SWIFT_UI_ACTOR
     NS_SWIFT_NAME(listView(_:trailingSwipeActionsForItemAt:));
 
 /*
- * The menu for touching and holding a row, or nil for none. A row that can also be reordered
- * lifts on the hold. Letting go without moving it shows the menu.
+ * The menu for touching and holding an item, or nil for none. An item that can also be
+ * reordered lifts on the hold. Letting go without moving it shows the menu.
  */
 - (nullable UIMenu *)listView:(ShadowListKitListView *)listView contextMenuForItemAtIndex:(NSInteger)index NS_SWIFT_NAME(listView(_:contextMenuForItemAt:));
 
@@ -254,13 +264,13 @@ NS_SWIFT_UI_ACTOR
 - (void)listViewDidBeginRefreshing:(ShadowListKitListView *)listView;
 
 /*
- * Whether a row can be picked up when reorderEnabled is set. Every row can by default.
+ * Whether an item can be picked up when reorderEnabled is set. Every item can by default.
  */
 - (BOOL)listView:(ShadowListKitListView *)listView canMoveItemAtIndex:(NSInteger)index;
 
 /*
- * A held row was dropped at another index. Move the item in the data, the list reads the
- * data again right after and keeps the dropped row where it was let go.
+ * A held item was dropped at another index. Move the item in the data. The list reads the
+ * data again right after and keeps the dropped item where it was let go.
  */
 - (void)listView:(ShadowListKitListView *)listView moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
 
@@ -273,55 +283,56 @@ NS_SWIFT_UI_ACTOR
 @end
 
 /*
- * A virtualized list on the shadowlist core. Rows are placed by the core, which keeps the
- * visible content still while rows are measured, inserted or removed. Measurement, offset
+ * A virtualized list on the shadowlist core. Items are placed by the core, which keeps the
+ * visible content still while items are measured, inserted or deleted. Measurement, offset
  * corrections and mounting all happen in one layout pass on the main thread. A scroll frame
  * that stays inside the core's offset band does no core work at all.
  *
  * Layout:
  * - inverted: a chat style list that opens at its end and keeps the end in view while the
- *   reader is there. Rows stay in data order, oldest first.
- * - followAppends: with inverted, rows appended while the reader rests at the end scroll into
- *   view, like an assistant reply. Off by default, which keeps the visible rows in place.
- * - numberOfColumns: columns of a grid. Row i goes into column i % numberOfColumns and each
- *   column stacks its own rows.
- * - estimatedItemSize: size along the scroll axis assumed for rows not measured yet.
- * - overscan: how far past the viewport rows are measured, in viewport sizes. Default 1.
+ *   reader is there. Items stay in data order, oldest first.
+ * - followAppends: with inverted, items appended while the reader rests at the end scroll into
+ *   view, like an assistant reply. Off by default, which keeps the visible items in place.
+ * - numberOfColumns: columns of a grid. Item i goes into column i % numberOfColumns and each
+ *   column stacks its own items.
+ * - estimatedItemSize: size along the scroll axis assumed for items not measured yet.
+ * - overscan: how far past the viewport items are measured, in viewport sizes. Default 1.
  * - mountOverscan: how far past the viewport cells are mounted, in viewport sizes. Default 0.5.
  * - startReachedThreshold, endReachedThreshold: distances to an edge, in viewport sizes, that
  *   fire the reached callbacks. Default 1.
- * - snapToItem, snapAlignment: rest the scroll position on a row edge. Alignment 0 start,
- *   1 center, 2 end.
- * - reorderEnabled: touch and hold a row, then drag it to a new place. Other rows slide aside,
- *   and the list scrolls when the row is held near an edge. Works in grids too.
- * - animatesChanges: animate insertItemsAtIndices:, deleteItemsAtIndices: and reloadData. New
- *   rows fade in, removed rows fade out and rows that stay slide from where they were to where
- *   they are. The visible content stays anchored the same as without animations. Off by
- *   default.
+ * - snapToItem, snapAlignment: rest the scroll position on the item edge snapAlignment names.
+ * - reorderEnabled: touch and hold an item, then drag it to a new place. Other items slide
+ *   aside, and the list scrolls when the item is held near an edge. Works in grids too.
+ * - animatesChanges: animate insertItemsAtIndices:, deleteItemsAtIndices: and reloadData.
+ *   Inserted items fade in, deleted items fade out and items that stay slide from where they
+ *   were to where they are. The visible content stays anchored the same as without animations.
+ *   Off by default.
  * - stickyIndices: items that stick to the top of the viewport once scrolled past.
  *   stickySectionHeaders does the same for every section header.
- * - headerView, footerView: views before the first row and after the last. Their size along
+ * - headerView, footerView: views before the first item and after the last. Their size along
  *   the scroll axis comes from sizeThatFits:. Call setNeedsLayout on the list after one changes
  *   size.
  *
  * Data:
- * - reloadData reads the row count and keys again. Rows keep their sizes and cells by key, and
- *   the visible content stays in place. Cells of surviving keys are not configured again.
- * - insertItemsAtIndices: and deleteItemsAtIndices: tell the list rows were inserted or
+ * - reloadData reads the item count and keys again. Items keep their sizes and cells by key,
+ *   and the visible content stays in place. Cells of surviving keys are not configured again.
+ * - insertItemsAtIndices: and deleteItemsAtIndices: tell the list items were inserted or
  *   deleted, after the data source already reflects it. Only the changed keys are read. A
  *   prepend to a long list costs the same as to a short one. Indices of an insert are
  *   positions in the new data, of a delete positions in the old data. An insert past the end
  *   goes at the end and a delete past the end is dropped.
- * - reloadItemsAtIndices: the rows' content changed under the same keys. Visible cells are
- *   configured again and every listed row is measured again. With a payload, the data source's
+ * - reloadItemsAtIndices: the items' content changed under the same keys. Visible cells are
+ *   configured again and every listed item is measured again. With a payload, the data source's
  *   listView:reconfigureCell:atIndex:payload: can update the shown cell instead.
- * - moveItemAtIndex:toIndex: an item moved, after the data source reflects it.
+ * - moveItemAtIndex:toIndex: the item at sourceIndex moved to destinationIndex, after the data
+ *   source reflects it.
  * - performBatchUpdates:completion: inserts, deletes, moves and reloads made in the block land
  *   together in one layout and one animation, the way UITableView takes them: deletes, reloads
  *   and move sources are indices in the data before, inserts and move destinations in the data
- *   after. A batch that does not add up reloads everything.
+ *   after. A batch that does not add up reloads everything. completion gets finished once the
+ *   change animation ended.
  * - applyChanges reads every key, works out the inserts, deletes and moves against the keys the
- *   list holds, reloads rows whose content version changed, and returns what it found.
+ *   list holds, reloads items whose content version changed, and returns what it found.
  * - In a list with sections every change reads the sections and keys again, like reloadData.
  *
  * Pull to refresh: refreshEnabled adds a UIRefreshControl the list owns. refreshing shows it
@@ -333,28 +344,31 @@ NS_SWIFT_UI_ACTOR
  * itemAnimator animates the changes of animatesChanges.
  *
  * Sections: see the data source. sectionForItemAtIndex:, firstItemIndexInSection:,
- * rectForHeaderInSection: and scrollToSection:animated: work in sections. A grid places section
- * headers in a column slot like any row, full width rows are not supported.
+ * rectForHeaderInSection:, rectForFooterInSection: and scrollToSection:animated: work in
+ * sections. A grid places section header rows in a column slot like any item. Full width rows
+ * are not supported.
  *
- * Swipe actions and menus come from the delegate. Swiping a row across the scroll axis shows its
- * actions, touching and holding it shows its menu. closeSwipeActionsAnimated: closes an open row.
+ * Swipe actions and menus come from the delegate. Swiping an item across the scroll axis shows
+ * its actions, touching and holding it shows its menu. closeSwipeActionsAnimated: closes an
+ * open item.
  *
- * Selection: a tap selects a row when allowsSelection is set, the default. A tap on a selected
- * row of a list with allowsMultipleSelection deselects it. selectItemAtIndex:animated: and
- * deselectItemAtIndex:animated: change it without delegate calls. Selection follows keys.
+ * Selection: a tap selects an item when allowsSelection is set, the default. A tap on a
+ * selected item of a list with allowsMultipleSelection deselects it. selectItemAtIndex:animated:
+ * and deselectItemAtIndex:animated: change it without delegate calls. Selection follows keys.
  * editing is passed to the cells and turns swipe actions off.
  *
- * Saving the position: anchorState is the row at the viewport start by key, and
- * restoreAnchorState: lands that row the same distance in again, now or once a reload brings
+ * Saving the position: anchorState is the item at the viewport start by key, and
+ * restoreAnchorState: lands that item the same distance in again, now or once a reload brings
  * its key. The list saves it with UIKit state restoration when it has a restorationIdentifier.
  *
  * Geometry:
- * - visibleRange: the rows overlapping the viewport, low to high.
- * - rectForItemAtIndex: the row's frame in content coordinates, estimated when it was not
- *   measured yet.
- * - scrollToItemAtIndex:viewPosition:animated: brings a row into view. viewPosition is where it
- *   rests in the viewport, from 0 at the start to 1 at the end. The core keeps correcting until
- *   the row lands, even across estimates.
+ * - visibleRange: the items overlapping the viewport, low to high.
+ * - rectForItemAtIndex: the item's frame in content coordinates: from the start of the content,
+ *   headerView included, without the content insets or the scroll offset. Estimated when the
+ *   item was not measured yet. The section rects use the same space.
+ * - scrollToItemAtIndex:viewPosition:animated: brings an item into view. viewPosition is where
+ *   it rests in the viewport, from 0 at the start to 1 at the end. The core keeps correcting
+ *   until the item lands, even across estimates.
  */
 @interface ShadowListKitListView : UIScrollView
 
@@ -371,7 +385,7 @@ NS_SWIFT_UI_ACTOR
 @property (nonatomic) CGFloat startReachedThreshold;
 @property (nonatomic) CGFloat endReachedThreshold;
 @property (nonatomic) BOOL snapToItem;
-@property (nonatomic) NSInteger snapAlignment;
+@property (nonatomic) ShadowListKitSnapAlignment snapAlignment;
 @property (nonatomic) BOOL reorderEnabled;
 @property (nonatomic) BOOL animatesChanges;
 @property (nonatomic, copy, nullable) NSIndexSet *stickyIndices;
@@ -407,7 +421,7 @@ NS_SWIFT_UI_ACTOR
 - (void)deleteItemsAtIndices:(NSIndexSet *)indices;
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices;
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices payload:(nullable id)payload;
-- (void)moveItemAtIndex:(NSInteger)index toIndex:(NSInteger)newIndex;
+- (void)moveItemAtIndex:(NSInteger)sourceIndex toIndex:(NSInteger)destinationIndex;
 - (void)performBatchUpdates:(void (NS_NOESCAPE ^_Nullable)(void))updates completion:(void (^_Nullable)(BOOL finished))completion;
 - (ShadowListKitListChanges *)applyChanges;
 
@@ -420,6 +434,7 @@ NS_SWIFT_UI_ACTOR
 - (NSInteger)sectionForItemAtIndex:(NSInteger)index;
 - (NSInteger)firstItemIndexInSection:(NSInteger)section NS_SWIFT_NAME(firstItemIndexInSection(_:));
 - (CGRect)rectForHeaderInSection:(NSInteger)section;
+- (CGRect)rectForFooterInSection:(NSInteger)section;
 - (void)scrollToSection:(NSInteger)section animated:(BOOL)animated NS_SWIFT_NAME(scrollToSection(_:animated:));
 
 - (nullable __kindof ShadowListKitListCell *)cellForItemAtIndex:(NSInteger)index;

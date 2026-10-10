@@ -30,7 +30,7 @@ interface ListBackend {
   fun setRows(rows: List<Row>, change: RowChange)
   fun setStickyIndices(indices: IntArray)
   fun setFooter(footer: View?)
-  fun scrollToIndex(index: Int, animated: Boolean)
+  fun scrollToItem(index: Int, animated: Boolean)
 }
 
 /*
@@ -141,7 +141,7 @@ private class ShadowListBackend(
     list.footerView = footer
   }
 
-  override fun scrollToIndex(index: Int, animated: Boolean) = list.scrollToItem(index, 0.0, animated)
+  override fun scrollToItem(index: Int, animated: Boolean) = list.scrollToItem(index, 0.0, animated)
 }
 
 // endregion
@@ -234,7 +234,7 @@ private class RecyclerBackend(
     this.footer = footer
   }
 
-  override fun scrollToIndex(index: Int, animated: Boolean) {
+  override fun scrollToItem(index: Int, animated: Boolean) {
     if (animated) recycler.smoothScrollToPosition(index) else recycler.scrollToPosition(index)
   }
 

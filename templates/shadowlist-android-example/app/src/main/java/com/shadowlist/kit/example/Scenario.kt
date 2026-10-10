@@ -230,7 +230,7 @@ private class EdgeChecks(private val screen: ListScreen, private val done: (JSON
    * screen moved.
    */
   private fun shiftAt(index: Int, change: () -> Unit, next: () -> Unit) {
-    screen.list.backend.scrollToIndex(index, false)
+    screen.list.backend.scrollToItem(index, false)
     handler.postDelayed({ shift(change, next) }, 700)
   }
 
@@ -256,7 +256,7 @@ private class EdgeChecks(private val screen: ListScreen, private val done: (JSON
    * Fling toward the end from the middle, prepend and append on the way, and let it come to rest.
    */
   private fun flingWithChanges(next: () -> Unit) {
-    screen.list.backend.scrollToIndex(screen.list.rows.size / 2, false)
+    screen.list.backend.scrollToItem(screen.list.rows.size / 2, false)
     handler.postDelayed({
       resetMonitor()
       val script = TouchScript(view)
@@ -319,7 +319,7 @@ private class EdgeChecks(private val screen: ListScreen, private val done: (JSON
    * at the top stays at the top.
    */
   private fun resize(next: () -> Unit) {
-    screen.list.backend.scrollToIndex(screen.list.rows.size / 2, false)
+    screen.list.backend.scrollToItem(screen.list.rows.size / 2, false)
     handler.postDelayed({
       val top = visibleRowsOf(view).minByOrNull { it.value } ?: return@postDelayed next()
       val width = view.width
@@ -347,7 +347,7 @@ private class EdgeChecks(private val screen: ListScreen, private val done: (JSON
     val window = list.height - list.paddingTop - list.paddingBottom
     fun centerError(index: Int): Int {
       val rect = list.rectForItem(index) ?: return Int.MAX_VALUE
-      return abs((rect.centerY() - list.scrollY - list.paddingTop - window / 2f).toInt())
+      return abs((rect.centerY() - list.scrollY - window / 2f).toInt())
     }
     list.scrollToItem(middle, 0.5, animated = true)
     handler.postDelayed({

@@ -195,7 +195,7 @@ extern const char ShadowListKitListViewSelectionLink;
 
 /*
  * Data changes. structureChanged runs after every change: sticky rows follow the sections, the
- * selection drops removed rows and a waiting saved position lands.
+ * selection drops deleted rows and a waiting saved position lands.
  */
 @interface ShadowListKitListView (Data)
 
