@@ -438,6 +438,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private var reachedStart = false
   private var reachedEnd = false
 
+  /*
+   * Set while the pass after a clamp to the end runs.
+   */
+  private var clampingPass = false
+
   private var editingState = false
 
   private var pendingAnchor: ShadowListKitAnchorState? = null
@@ -936,6 +941,17 @@ open class ShadowListKitListView @JvmOverloads constructor(
   private fun applyPassResult(pass: DoubleArray) {
     contentAlong = pass[ShadowListKitCore.PASS_OUT_CONTENT].roundToInt()
     val target = pass[ShadowListKitCore.PASS_OUT_OFFSET].roundToInt()
+    /*
+     * Content that shrank under a resting view clamps it to the new end, like a scroll view's
+     * content size write. The core runs again on the clamped offset before the frame is drawn.
+     */
+    if (target > maxOffset && !gesture.isTracking && !clampingPass) {
+      writeOffset(maxOffset)
+      clampingPass = true
+      runPasses()
+      clampingPass = false
+      return
+    }
     if (target != offset) writeOffset(target)
     bandLow = pass[ShadowListKitCore.PASS_OUT_BAND_LOW]
     bandHigh = pass[ShadowListKitCore.PASS_OUT_BAND_HIGH]
