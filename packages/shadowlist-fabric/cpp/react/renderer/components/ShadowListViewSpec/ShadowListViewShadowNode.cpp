@@ -182,6 +182,7 @@ void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& co
         slots.headerSize = templateViewNodeSize;
       } else if (templateProps->templateType == "empty") {
         slots.emptySlot = {templateViewNode, childIndex};
+        slots.emptySize = templateViewNodeSize;
       } else if (templateProps->templateType == "footer") {
         slots.footerSlot = {templateViewNode, childIndex};
         slots.footerSize = templateViewNodeSize;
@@ -191,7 +192,12 @@ void ShadowListViewShadowNode::measureChildren(azimgd::shadowlist::Container& co
 
   // Header, footer and window into the core, then every mounted row's size in one reflow.
   const auto& windowFrameSize = getLayoutMetrics().frame.size;
-  azimgd::shadowlist::applyLayoutInputs(core, slots.headerSize, slots.footerSize, windowFrameSize.width, windowFrameSize.height);
+  /*
+   * The empty template sits after the header and only mounts without rows. The core counts it
+   * with the header so the footer goes below it and the content size holds it.
+   */
+  azimgd::shadowlist::applyLayoutInputs(
+    core, slots.headerSize + slots.emptySize, slots.footerSize, windowFrameSize.width, windowFrameSize.height);
   std::vector<std::uint64_t> firstMeasured;
   azimgd::shadowlist::applyMeasuredRows(core, measuredRows, horizontal, firstMeasured);
   for (auto tag : firstMeasured) {

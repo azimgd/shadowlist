@@ -157,6 +157,7 @@ private:
      */
     TemplateSlot emptySlot;
     double headerSize = 0.0;
+    double emptySize = 0.0;
     double footerSize = 0.0;
     std::vector<MountedElement> mountedElements;
   };
