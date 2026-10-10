@@ -40,7 +40,7 @@ export const listCount: number = (() => {
 })();
 
 /*
- * SLOverscan N sets overscanRows and overscanRowsLeading on Feed and Chat for benchmark runs.
+ * SLOverscan N sets mountOverscanRows and mountOverscanRowsLeading on Feed and Chat for benchmark runs.
  * Unset keeps the library default.
  */
 const overscanSetting = Number(launchSetting('SLOverscan'));

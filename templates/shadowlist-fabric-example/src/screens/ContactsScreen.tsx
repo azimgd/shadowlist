@@ -20,9 +20,10 @@ export const ContactsScreen = () => {
     onPrepend: () => addContacts({ count: 10, position: 'start' }),
     onAppend: () => addContacts({ count: 10, position: 'end' }),
     onScrollToRandom: () =>
-      shadowlistRef.current?.scrollToItem(
-        Math.floor(Math.random() * (contacts.data?.length ?? 0))
-      ),
+      shadowlistRef.current?.scrollToIndex({
+        index: Math.floor(Math.random() * (contacts.data?.length ?? 0)),
+        animated: false,
+      }),
     prependLabel: 'Add Companions to Top',
     appendLabel: 'Add Companions to Bottom',
   });

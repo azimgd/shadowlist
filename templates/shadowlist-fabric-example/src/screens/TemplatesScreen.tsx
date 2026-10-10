@@ -298,8 +298,8 @@ export const TemplatesScreen = () => {
           data={SHELF}
           templates={SHELF_TEMPLATES}
           style={styles.shelf}
-          elementStyle={styles.shelfElement}
-          initialElementsSize={96}
+          itemStyle={styles.shelfElement}
+          initialNumToRender={96}
           accessibilityLabel="Destinations"
         />
       </TemplatesSection>

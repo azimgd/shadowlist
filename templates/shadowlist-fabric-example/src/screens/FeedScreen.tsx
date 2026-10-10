@@ -26,9 +26,10 @@ export const FeedScreen = () => {
       onPrepend: () => publishPosts(PUBLISH_COUNT),
       onAppend: list.onEndReached,
       onScrollToRandom: () =>
-        shadowlistRef.current?.scrollToItem(
-          Math.floor(Math.random() * list.data.length)
-        ),
+        shadowlistRef.current?.scrollToIndex({
+          index: Math.floor(Math.random() * list.data.length),
+          animated: false,
+        }),
       prependLabel: 'Publish New Posts',
       appendLabel: 'Load More Posts',
     },
@@ -67,8 +68,8 @@ export const FeedScreen = () => {
         refreshColor={colors.secondaryLabel}
         onEndReached={list.onEndReached}
         ListFooterComponent={footer}
-        overscanRows={benchOverscan}
-        overscanRowsLeading={benchOverscan}
+        mountOverscanRows={benchOverscan}
+        mountOverscanRowsLeading={benchOverscan}
       />
     </View>
   );

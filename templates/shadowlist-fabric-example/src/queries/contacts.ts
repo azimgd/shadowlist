@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { shareItemsById } from 'shadowlist-utils';
+import { shareItemsByKey } from 'shadowlist-utils';
 import type { ContactItem } from 'shadowlist-utils/native';
 import {
   createContacts,
@@ -23,7 +23,7 @@ export const useContactsQuery = () =>
      * Rows keep their identity when contacts are added or removed around them. Only changed
      * rows re-render. The default sharing matches rows by position.
      */
-    structuralSharing: shareItemsById,
+    structuralSharing: shareItemsByKey,
   });
 
 export function useAddContacts() {
