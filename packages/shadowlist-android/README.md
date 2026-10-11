@@ -1,8 +1,7 @@
 # ShadowListKit for Android
 
-A virtualized list for Android views, written in Kotlin on the shadowlist core in C++.
-`ShadowListKitListView` is a `ViewGroup` with a data source. The visible content stays
-still while rows are measured, inserted above, removed or regrouped. Rows have stable keys.
+ShadowListKit is the Android package: ShadowListKitListView, a ViewGroup with a data source.
+It is written in Kotlin on the shared C++ core.
 
 ## Install
 
@@ -22,9 +21,14 @@ dependencies {
 }
 ```
 
-- Android API 24 or newer and Java 17.
-- The AAR ships `libshadowlistkit.so` with the C++ runtime linked statically, aligned for 16 KB pages.
+### Requirements
 
+| Dependency | Version         |
+| ---------- | --------------- |
+| Android    | API 24 or newer |
+| Java       | 17 or newer     |
+
+The AAR ships `libshadowlistkit.so` with the C++ runtime linked statically, aligned for 16 KB pages.
 `./gradlew :ShadowListKit:publishToMavenLocal` installs the current checkout as
 `io.github.azimgd:shadowlist-kit` with `VERSION_NAME` from `ShadowListKit/gradle.properties`.
 
@@ -51,70 +55,41 @@ class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKi
 
 ## API
 
-`DataSource` gives `numberOfItems`, `keyForItem` and `cellForItem`, and `reconfigureCell` for payload reloads. A data
-source that also implements `Sizing` gives sizes without views. Otherwise every item is measured through its cell.
-The `Delegate` has `willDisplayCell`, `didEndDisplayingCell`, `didSelectItem`, `didDeselectItem`, `shouldSelectItem`,
-`shouldHighlightItem`, `didScroll`, `didEndScrolling`, `canMoveItem`, `moveItem`, `didReachStart`, `didReachEnd`,
-`leadingSwipeActionsForItem`, `trailingSwipeActionsForItem`, `contextMenuForItem`, `showsSeparatorAfterItem` and
-`didBeginRefreshing`, all with defaults.
+Sizes are in pixels. `rectForItem` and the section rects are in content coordinates, without the padding or the scroll
+offset.
 
-Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`,
-`overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`,
-`snapAlignment` (`ShadowListKitSnapAlignment`), `reorderEnabled`, `animatesChanges`, `itemAnimator`, `stickyIndices`, `stickySectionHeaders`,
-`headerView`, `footerView`, `prefetchDataSource`, `allowsSelection`, `allowsMultipleSelection`, `editing`,
-`refreshEnabled`, `refreshing`, `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`,
-`separatorThickness`. Data: `reloadData`, `insertItems`, `deleteItems`, `reloadItems(indices, payload)`,
-`moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates`, `applyChanges`. Selection: `selectedIndices`, `selectItem`, `deselectItem`,
-`setEditing`. Queries and commands: `cellForItem`, `visibleCells`, `visibleRange`, `rectForItem`, `contentSize`,
-`numberOfSections`, `sectionForItem`, `firstItemIndexInSection`, `rectForHeaderInSection`, `rectForFooterInSection`, `anchorState`,
-`scrollToItem`, `scrollToSection`, `scrollToStart`, `scrollToEnd`, `restoreAnchorState`, `closeSwipeActions`,
-`addItemDecoration`. Sizes are in pixels. `rectForItem` and the section rects are in content coordinates,
-without the padding or the scroll offset.
-
-- Sections: a data source that implements `Sections` groups its items. Item indices still run across all
-  sections. A section has a header or footer when `titleForHeaderInSection` or `titleForFooterInSection` returns a
-  title, shown in a plain cell unless `cellForHeaderInSection` gives one. `sectionIndexTitles` adds the index along
-  the trailing edge. A list with sections reads its sections and keys again on every change, and a dragged item
-  stays in its section.
-- Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data
-  before, inserts and move destinations in the data after. A batch that does not add up
-  reloads everything. `applyChanges` diffs every key with the core's `diffKeys`, reloads items whose
-  `ContentVersions.contentVersionForItem` changed since the last reload, and returns a `ShadowListKitListChanges`.
-- `itemAnimator` (a `ShadowListKitItemAnimator`, `ShadowListKitDefaultItemAnimator` by default) animates inserts, deletes
-  and moves.
-- Swipe actions: a `ShadowListKitSwipeActionsConfiguration` of `ShadowListKitSwipeAction`s per side. A full swipe runs
-  the first action. Off while editing.
-- Context menus: `contextMenuForItem` fills a `PopupMenu`'s menu on a hold. An item that can also be reordered lifts
-  on the hold, and letting it go in place shows the menu.
-- Prefetching: `PrefetchDataSource.prefetchItems` for items the core's measured range brought in without a cell,
-  `cancelPrefetchingForItems` for ones that left it unseen.
-- Pull to refresh draws its own spinner over the rows, without a SwipeRefreshLayout dependency.
-- Separators draw after each item's cell, which keeps a pinned header above them. `ShadowListKitItemDecoration` draws
-  below or above the rows, like RecyclerView's ItemDecoration without item offsets.
-- Selection survives detach and is kept by key.
-- The saved position goes into `onSaveInstanceState` as a `ShadowListKitAnchorState` when the list has an id, and lands
-  again once the data has its key.
+| Area            | Members                                                                                                                                                                                                                                                                                                                                                                      | Notes                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Properties      | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment` (`ShadowListKitSnapAlignment`), `reorderEnabled`, `animatesChanges`, `itemAnimator`, `stickyIndices`, `stickySectionHeaders`, `headerView`, `footerView`, `prefetchDataSource` | `numberOfColumns` is round robin.                                                                                                                                                                                                                                                                                                                                                                                  |
+| Data source     | `DataSource`: `numberOfItems`, `keyForItem`, `cellForItem`, `reconfigureCell`                                                                                                                                                                                                                                                                                                | `reconfigureCell` is for payload reloads. A data source that also implements `Sizing` gives sizes without views. Otherwise every item is measured through its cell.                                                                                                                                                                                                                                                |
+| Delegate        | `willDisplayCell`, `didEndDisplayingCell`, `didSelectItem`, `didDeselectItem`, `shouldSelectItem`, `shouldHighlightItem`, `didScroll`, `didEndScrolling`, `canMoveItem`, `moveItem`, `didReachStart`, `didReachEnd`, `leadingSwipeActionsForItem`, `trailingSwipeActionsForItem`, `contextMenuForItem`, `showsSeparatorAfterItem`, `didBeginRefreshing`                      | All with defaults.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Sections        | `Sections`: `titleForHeaderInSection`, `titleForFooterInSection`, `cellForHeaderInSection`, `sectionIndexTitles`; `numberOfSections`, `sectionForItem`, `firstItemIndexInSection`, `rectForHeaderInSection`, `rectForFooterInSection`, `scrollToSection`                                                                                                                     | Item indices still run across all sections. A title decides which sections have a header or footer, shown in a plain cell unless a cell is given. `sectionIndexTitles` adds the index along the trailing edge. A list with sections reads its sections and keys again on every change, and a dragged item stays in its section.                                                                                    |
+| Changes         | `reloadData`, `insertItems`, `deleteItems`, `reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates`, `applyChanges`                                                                                                                                                                                                                | Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data before, inserts and move destinations in the data after. A batch that does not add up reloads everything. `applyChanges` diffs every key with the core's `diffKeys`, reloads items whose `ContentVersions.contentVersionForItem` changed since the last reload, and returns a `ShadowListKitListChanges`. |
+| Animations      | `animatesChanges`, `itemAnimator`                                                                                                                                                                                                                                                                                                                                            | `itemAnimator` (a `ShadowListKitItemAnimator`, `ShadowListKitDefaultItemAnimator` by default) animates inserts, deletes and moves. Inserted items fade in, deleted items fade out where they were, and items that stay slide to their new place.                                                                                                                                                                   |
+| Selection       | `allowsSelection`, `allowsMultipleSelection`, `editing`, `selectedIndices`, `selectItem`, `deselectItem`, `setEditing`                                                                                                                                                                                                                                                       | Selection survives detach and is kept by key.                                                                                                                                                                                                                                                                                                                                                                      |
+| Swipe actions   | `leadingSwipeActionsForItem`, `trailingSwipeActionsForItem`, `closeSwipeActions`                                                                                                                                                                                                                                                                                             | A `ShadowListKitSwipeActionsConfiguration` of `ShadowListKitSwipeAction`s per side. A full swipe runs the first action. Off while editing.                                                                                                                                                                                                                                                                         |
+| Context menus   | `contextMenuForItem`                                                                                                                                                                                                                                                                                                                                                         | Fills a `PopupMenu`'s menu on a hold. An item that can also be reordered lifts on the hold, and letting it go in place shows the menu.                                                                                                                                                                                                                                                                             |
+| Prefetching     | `PrefetchDataSource`: `prefetchItems`, `cancelPrefetchingForItems`                                                                                                                                                                                                                                                                                                           | Hears about items the core's measured range brought in without a cell, and ones that left it unseen.                                                                                                                                                                                                                                                                                                               |
+| Pull to refresh | `refreshEnabled`, `refreshing`, delegate `didBeginRefreshing`                                                                                                                                                                                                                                                                                                                | Draws its own spinner over the rows, without a SwipeRefreshLayout dependency.                                                                                                                                                                                                                                                                                                                                      |
+| Separators      | `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`, `separatorThickness`, `addItemDecoration`                                                                                                                                                                                                                                                   | Separators draw after each item's cell, which keeps a pinned header above them. `ShadowListKitItemDecoration` draws below or above the rows, like RecyclerView's ItemDecoration without item offsets.                                                                                                                                                                                                              |
+| Queries         | `cellForItem`, `visibleCells`, `visibleRange`, `rectForItem`, `contentSize`                                                                                                                                                                                                                                                                                                  |                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Scrolling       | `scrollToItem`, `scrollToStart`, `scrollToEnd`                                                                                                                                                                                                                                                                                                                               |                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Saved position  | `anchorState`, `restoreAnchorState`                                                                                                                                                                                                                                                                                                                                          | The saved position goes into `onSaveInstanceState` as a `ShadowListKitAnchorState` when the list has an id, and lands again once the data has its key.                                                                                                                                                                                                                                                             |
 
 Masonry is round robin: item `i` goes in column `i % numberOfColumns`. Full width rows in a grid are not supported.
 
-The view's own behavior:
+### View behavior
 
-- Padding works like content insets. The core's viewport is the padded area, rows start inside
-  the padding, sticky headers pin below the top padding, and with `clipToPadding = false` rows
-  scroll under it.
-- The edge effect (a stretch on Android 12 and later, a glow before) shows when a drag pulls
-  past an end or a fling hits one, along the scroll axis, following `overScrollMode`.
-- It is a `NestedScrollingChild3`. Inside a `CoordinatorLayout` a collapsing `AppBarLayout`
-  takes its share of drags and flings first.
-- Accessibility: the list reports `CollectionInfo` for all rows and each cell its
-  `CollectionItemInfo`. Page scrolls forward and backward and scroll to position work for rows
-  that are not mounted, which lets TalkBack move past the mounted rows.
-- `animatesChanges`: inserted items fade in, deleted items fade out where they were, and items
-  that stay slide to their new place.
+| Behavior         | Details                                                                                                                                                                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Padding          | Works like content insets. The core's viewport is the padded area, rows start inside the padding, sticky headers pin below the top padding, and with `clipToPadding = false` rows scroll under it.                                  |
+| Edge effect      | A stretch on Android 12 and later, a glow before. Shows when a drag pulls past an end or a fling hits one, along the scroll axis, following `overScrollMode`.                                                                       |
+| Nested scrolling | It is a `NestedScrollingChild3`. Inside a `CoordinatorLayout` a collapsing `AppBarLayout` takes its share of drags and flings first.                                                                                                |
+| Accessibility    | The list reports `CollectionInfo` for all rows and each cell its `CollectionItemInfo`. Page scrolls forward and backward and scroll to position work for rows that are not mounted, which lets TalkBack move past the mounted rows. |
 
 ## Example app
 
-The example app lives in [`templates/shadowlist-android-example`](../../templates/shadowlist-android-example). From the repo root:
+The example app lives in `templates/shadowlist-android-example`. From the repo root:
 
 ```sh
 cd templates/shadowlist-android-example
@@ -143,10 +118,15 @@ All engines show the same row views. RecyclerView uses `LinearLayoutManager` (wi
 `stackFromEnd` for chat), `StaggeredGridLayoutManager` for the gallery, stable ids, its default
 prefetch, and the usual item decoration for sticky headers.
 
+See more: [Example apps](../../README.md#example-apps)
+
 ## Debug log
 
-The core's `[SL]` log is off by default. Build the module from a checkout with `-PshadowlistDebugLog`
-to compile it in and read it with `adb logcat -s SL`. It prints on every pass.
+The core's `[SL]` log is off by default. It prints on every pass.
+
+| Platform | How to turn it on                                                                                               |
+| -------- | --------------------------------------------------------------------------------------------------------------- |
+| Android  | Build the module from a checkout with `-PshadowlistDebugLog` to compile it in. Read it with `adb logcat -s SL`. |
 
 ## Benchmarks
 
@@ -173,19 +153,18 @@ adb shell am start -S -n shadowlist.android.example/com.shadowlist.kit.example.M
 adb logcat -s SLSCENARIO SLAUTODRAG
 ```
 
-- `prepend`, `append`: rest mid list, change the data, report how far visible rows moved.
-- `cost`: UI thread time of one update plus a synchronous layout, with the layout prefetch
-  finished and paused. `prependMs`/`appendMs` count the list's own work (the update call and
-  the layout), the `*TotalMs` fields add the screen building its rows. `SLCostRuns N` sets the
-  updates of each kind. Compile the apps with `adb shell cmd package compile -m speed -f <pkg>`
-  first. Interpreted code doubles the numbers and their noise.
-- `a11y` on a list screen: the collection info, the actions and two accessibility scrolls.
-- `snap` (Snap), `horizontal` (Horizontal), `animate` (Changes), `nested` (Collapsing): the
-  feature checks, each through synthesized touches or the public API.
-- `SLAutoDrag 1` (Reorder, ReorderGrid): touch and hold the second row, drag it and log the
-  order before and after.
-- `sections` (Sections) and `features` (Inbox): the feature screens' checks, one `SLSCENARIO` JSON line each. The
-  Inbox one swipes, holds and pulls with synthesized touches and saves the position through `saveHierarchyState`.
+| Scenario            | Route                    | What it checks                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepend`, `append` | any                      | Rest mid list, change the data, report how far visible rows moved.                                                                                                                                                                                                                                                                                                                                                                  |
+| `cost`              | any                      | UI thread time of one update plus a synchronous layout, with the layout prefetch finished and paused. `prependMs`/`appendMs` count the list's own work (the update call and the layout), the `*TotalMs` fields add the screen building its rows. `SLCostRuns N` sets the updates of each kind. Compile the apps with `adb shell cmd package compile -m speed -f <pkg>` first. Interpreted code doubles the numbers and their noise. |
+| `a11y`              | any list screen          | The collection info, the actions and two accessibility scrolls.                                                                                                                                                                                                                                                                                                                                                                     |
+| `snap`              | `Snap`                   | Feature check through synthesized touches or the public API.                                                                                                                                                                                                                                                                                                                                                                        |
+| `horizontal`        | `Horizontal`             | Feature check through synthesized touches or the public API.                                                                                                                                                                                                                                                                                                                                                                        |
+| `animate`           | `Changes`                | Feature check through synthesized touches or the public API.                                                                                                                                                                                                                                                                                                                                                                        |
+| `nested`            | `Collapsing`             | Feature check through synthesized touches or the public API.                                                                                                                                                                                                                                                                                                                                                                        |
+| `sections`          | `Sections`               | The feature screen's checks, one `SLSCENARIO` JSON line.                                                                                                                                                                                                                                                                                                                                                                            |
+| `features`          | `Inbox`                  | The feature screen's checks, one `SLSCENARIO` JSON line. Swipes, holds and pulls with synthesized touches and saves the position through `saveHierarchyState`.                                                                                                                                                                                                                                                                      |
+| `SLAutoDrag 1`      | `Reorder`, `ReorderGrid` | Touch and hold the second row, drag it and log the order before and after.                                                                                                                                                                                                                                                                                                                                                          |
 
 ## Source layout
 

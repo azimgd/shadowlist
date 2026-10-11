@@ -1,12 +1,11 @@
 # ShadowList
 
-Virtualized lists for React Native, UIKit and Android views. Layout, virtualization and scroll position live in a shared C++ core.
+Virtualized lists for React Native, UIKit and Android views, on a shared C++ core.
 
 ## React Native
 
-[`shadowlist`](packages/shadowlist-fabric) gives Fabric apps `ShadowList`, `SectionList`, `TreeList` and `DraggableList`.
-`ShadowList` runs on iOS, Android and macOS. [`shadowlist-utils`](templates/shadowlist-utils)
-adds hooks and ready-made chat, feed and other list kits.
+ShadowList is the React Native Fabric package: the ShadowList, SectionList, TreeList and DraggableList components.
+shadowlist-utils adds hooks and ready-made list kits.
 
 ```sh
 yarn add shadowlist
@@ -28,10 +27,12 @@ const listRef = useRef<ShadowListCommands>(null);
 listRef.current?.scrollToIndex({ index: 42, viewPosition: 0.5 });
 ```
 
+See more: [ShadowList](packages/shadowlist-fabric/README.md), [shadowlist-utils](templates/shadowlist-utils/README.md)
+
 ## UIKit
 
-[`ShadowListKit`](packages/shadowlist-uikit) is a `UIScrollView` subclass with a UITableView-like data source. The visible content stays still while rows are measured, inserted above or removed. Install it with Swift
-Package Manager or CocoaPods.
+ShadowListKit is the UIKit package: ShadowListKitListView, a UIScrollView with a UITableView-like data source.
+Install it with Swift Package Manager or CocoaPods.
 
 ```swift
 import ShadowListKit
@@ -60,11 +61,12 @@ final class FeedController: UIViewController, ShadowListKitListViewDataSource {
 }
 ```
 
+See more: [ShadowListKit for UIKit](packages/shadowlist-uikit/README.md)
+
 ## Android
 
-[`ShadowListKit`](packages/shadowlist-android) is a Kotlin `ViewGroup` with a data source. The visible
-content stays still while rows are measured, inserted above, removed or regrouped. Install it from Maven Central or
-JitPack.
+ShadowListKit is the Android package: ShadowListKitListView, a ViewGroup with a data source.
+Install it from Maven Central or JitPack.
 
 ```kotlin
 class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKitListView.DataSource {
@@ -85,21 +87,23 @@ class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKi
 }
 ```
 
+See more: [ShadowListKit for Android](packages/shadowlist-android/README.md)
+
 ## Repo layout
 
-```text
-packages/shadowlist-core              Shared C++ core
-packages/shadowlist-core-tests        Core integration and perf tests
-packages/shadowlist-core-bench        Core micro-benchmarks and device metrics scripts
-packages/shadowlist-fabric            React Native (Fabric) package
-packages/shadowlist-uikit             UIKit list (ShadowListKit)
-packages/shadowlist-android           Android list (ShadowListKit, Kotlin)
-templates/shadowlist-utils            List helpers, hooks and React Native list kits
-templates/shadowlist-fabric-example   React Native example app for iOS and Android
-templates/shadowlist-macos-example    React Native macOS example app (shares screens through .macos variants)
-templates/shadowlist-uikit-example    UIKit example app (xcodegen)
-templates/shadowlist-android-example  Android example app (Gradle)
-```
+| Path                                   | Contents                                                                  |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| `packages/shadowlist-core`             | Shared C++ core                                                           |
+| `packages/shadowlist-core-tests`       | Core integration and perf tests                                           |
+| `packages/shadowlist-core-bench`       | Core micro-benchmarks and device metrics scripts                          |
+| `packages/shadowlist-fabric`           | React Native Fabric package (ShadowList)                                  |
+| `packages/shadowlist-uikit`            | UIKit list (ShadowListKit)                                                |
+| `packages/shadowlist-android`          | Android list (ShadowListKit, Kotlin)                                      |
+| `templates/shadowlist-utils`           | List helpers, hooks and React Native list kits                            |
+| `templates/shadowlist-fabric-example`  | React Native example app for iOS and Android                              |
+| `templates/shadowlist-macos-example`   | React Native macOS example app (shares screens through `.macos` variants) |
+| `templates/shadowlist-uikit-example`   | UIKit example app (xcodegen)                                              |
+| `templates/shadowlist-android-example` | Android example app (Gradle)                                              |
 
 ## Example apps
 
@@ -119,10 +123,16 @@ The React Native iOS example runs `pod install` on its own.
 iOS reads launch arguments (`-SLRoute Chat`). Android reads intent extras
 (`adb shell am start -n shadowlist.example/.MainActivity --es SLRoute Chat`). The React Native examples take:
 
-- `SLRoute <screen>`, `SLCount N` (start size), `SLTheme light|dark` and `SLOverscan N`.
-- `SLDebug 1` for debug buttons, captions and status lines.
-- `SLLatency a,b`, `SLSendFailureRate 0.5` and `SLNetLog 1` for the fake network.
-- iOS `-SLEngineFlags NO` turns the engine flags off.
+| Flag                                                   | What it does                                |
+| ------------------------------------------------------ | ------------------------------------------- |
+| `SLRoute <screen>`                                     | Screen to open                              |
+| `SLCount N`                                            | Start size of the list                      |
+| `SLTheme light\|dark`                                  | Color scheme                                |
+| `SLOverscan N`                                         | `overscan` of the lists                     |
+| `SLDebug 1`                                            | Debug buttons, captions and status lines    |
+| `SLLatency a,b`, `SLSendFailureRate 0.5`, `SLNetLog 1` | Fake network latency, send failures and log |
+| `-SLEngineFlags NO`                                    | iOS only: turns the engine flags off        |
 
-The UIKit and Android examples document their flags in their package READMEs:
-[UIKit](packages/shadowlist-uikit/README.md#example-app) and [Android](packages/shadowlist-android/README.md#example-app).
+The UIKit and Android examples document their flags in their package READMEs.
+
+See more: [UIKit example app](packages/shadowlist-uikit/README.md#example-app), [Android example app](packages/shadowlist-android/README.md#example-app)

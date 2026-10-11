@@ -1,8 +1,9 @@
 # shadowlist-utils
 
-Hooks, data helpers and ready-made list kits for [`shadowlist`](https://github.com/azimgd/shadowlist).
-`shadowlist-utils` has the plain hooks and helpers. `shadowlist-utils/native` has themed UI kits for feeds, chats,
-assistants, inboxes and more.
+shadowlist-utils is the hooks and list kits package for ShadowList: plain hooks and helpers, and themed UI kits in
+shadowlist-utils/native.
+
+See more: [ShadowList](https://github.com/azimgd/shadowlist)
 
 ## Install
 
@@ -12,10 +13,23 @@ yarn add shadowlist shadowlist-utils
 yarn add react-native-gesture-handler react-native-reanimated react-native-safe-area-context
 ```
 
-- `react` 18.2 or newer and `react-native` 0.74 or newer with the New Architecture (Fabric).
-- `shadowlist-utils/native` needs the three peers above. Add the Reanimated Babel plugin and wrap the app in
-  `GestureHandlerRootView` and `SafeAreaProvider`.
-- The infinite query helpers work on `@tanstack/react-query` data. It is not a dependency.
+### Requirements
+
+| Dependency   | Version                         |
+| ------------ | ------------------------------- |
+| ShadowList   | Any                             |
+| React        | 18.2 or newer                   |
+| React Native | 0.74 or newer, New Architecture |
+
+| Peer dependency                | Needed by                        |
+| ------------------------------ | -------------------------------- |
+| react-native-gesture-handler   | shadowlist-utils/native          |
+| react-native-reanimated        | shadowlist-utils/native          |
+| react-native-safe-area-context | shadowlist-utils/native          |
+| @tanstack/react-query          | Infinite query helpers, optional |
+
+shadowlist-utils/native needs the Reanimated Babel plugin and the app wrapped in `GestureHandlerRootView` and
+`SafeAreaProvider`.
 
 An app outside this repo can depend on a checkout with `"shadowlist-utils": "file:../shadowlist/templates/shadowlist-utils"`.
 Metro and TypeScript (`"customConditions": ["react-native"]`) read the TypeScript source. Add the folder to Metro's
@@ -69,7 +83,13 @@ Pages must have the shape `{ items: Item[] }`. Rows are matched by `id`.
 
 ### Error handling (`onError`)
 
-`useListController`, `usePullToRefresh` and `useInfiniteListProps` each take an `onError` option. It receives a synchronous throw or a rejected promise from the callback you passed in (`onRefresh` / `onEndReached` / `onStartReached`, `refresh`, or a page fetch). Without `onError`, the rejection is left **unhandled**. In both cases the loading flag (`refreshing`, `loadingMore`, `loadingOlder`) and the re-entrancy guard reset. The list never gets stuck in a loading state.
+`useListController`, `usePullToRefresh` and `useInfiniteListProps` each take an `onError` option.
+
+| Case              | What happens                                                                                                                                                         |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| With `onError`    | It receives a synchronous throw or a rejected promise from the callback you passed in (`onRefresh` / `onEndReached` / `onStartReached`, `refresh`, or a page fetch). |
+| Without `onError` | The rejection is left **unhandled**.                                                                                                                                 |
+| Both              | The loading flag (`refreshing`, `loadingMore`, `loadingOlder`) and the re-entrancy guard reset. The list never gets stuck in a loading state.                        |
 
 React Query's own `fetchNextPage` and `refetch` resolve even when the request fails, and the error ends up on the query. So `onError` matters mostly when you pass a custom `refresh` or your own fetchers.
 
@@ -130,15 +150,15 @@ const list = useListController<Message>({
 
 ### Sections and trees
 
-| Export                                                                                                      | Description                                                                                                           |
-| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `groupIntoSections(items, { getSectionTitle, compareSections?, compareItems? })` → `{ key, title, data }[]` | Groups a flat array into `SectionList` sections. Wrap the call in `useMemo`.                                          |
-| `collectExpandableKeys(nodes, { getChildren, keyExtractor })` → `string[]`                                  | Returns the key of every node that has children, at any depth. Use it for a `TreeList` "Expand all" (`expandedKeys`). |
-| Types: `ItemSection<T>`, `GroupIntoSectionsOptions<T>`, `CollectExpandableKeysOptions<N>`                   |                                                                                                                       |
+| Export                                                                                                      | Description                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `groupIntoSections(items, { getSectionTitle, compareSections?, compareItems? })` → `{ key, title, data }[]` | Groups a flat array into SectionList sections. Wrap the call in `useMemo`.                                          |
+| `collectExpandableKeys(nodes, { getChildren, keyExtractor })` → `string[]`                                  | Returns the key of every node that has children, at any depth. Use it for a TreeList "Expand all" (`expandedKeys`). |
+| Types: `ItemSection<T>`, `GroupIntoSectionsOptions<T>`, `CollectExpandableKeysOptions<N>`                   |                                                                                                                     |
 
 ## Native kits
 
-Each kit is a namespace object, such as `Chat.List` and `Chat.Bubble`. Every `*.List` component wraps `ShadowList` (or `SectionList`, `TreeList` or `DraggableList`), accepts all of that component's props and forwards `ShadowListCommands` through `ref`. It also takes an optional `renderItem` that replaces the kit's default row.
+Each kit is a namespace object, such as `Chat.List` and `Chat.Bubble`. Every `*.List` component wraps ShadowList (or SectionList, TreeList or DraggableList), accepts all of that component's props and forwards `ShadowListCommands` through `ref`. It also takes an optional `renderItem` that replaces the kit's default row.
 
 ### Theming
 
@@ -184,21 +204,26 @@ const LABELS = { placeholder: 'Nachricht', send: 'Senden' }; // module scope or 
 ```
 
 Merged labels keep the same identity while their values don't change. An inline object won't re-render memoized rows.
-Related exports: `useLabels(defaults, overrides)`, `formatRelativeTime(date, labels, nowMs?)` and `RelativeTimeLabels`.
+
+| Export                                     | Description                                     |
+| ------------------------------------------ | ----------------------------------------------- |
+| `useLabels(defaults, overrides)`           | Merges a `Partial` of labels into the defaults. |
+| `formatRelativeTime(date, labels, nowMs?)` | Formats a relative time with the given labels.  |
+| Types: `RelativeTimeLabels`                |                                                 |
 
 ### Primitives
 
-| Export                                                                                                                                                                                                                                     | Description                                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
-| `Avatar({ name, uri?, color?, size? })`                                                                                                                                                                                                    | Shows initials, with the image on top when `uri` is set. The color is derived from `name`.           |
-| `Spinner({ size?, color?, labels? })`, `defaultSpinnerLabels`                                                                                                                                                                              | Centered activity indicator.                                                                         |
-| `ListHeader({ title, subtitle? })`, `ListFooter({ text })`                                                                                                                                                                                 | Header and footer blocks for lists.                                                                  |
-| `SectionHeader({ title, count? })`, `ItemSeparator({ highlighted? })`                                                                                                                                                                      | Section header and separator line.                                                                   |
-| `TemplateList({ data, templates, horizontal?, listRef? })` (`TemplateRow`, `TemplateMap`)                                                                                                                                                  | A `ShadowList` of mixed rows. Each row has a `kind`, and `templates` maps each kind to its renderer. |
-| `useLargeText(threshold = 1.3)`                                                                                                                                                                                                            | True at accessibility text sizes. Shares one `Dimensions` listener across callers.                   |
-| `useKeyboardVisible()`                                                                                                                                                                                                                     | True while the keyboard is on screen.                                                                |
-| `useKeyboardLift({ gap? })`                                                                                                                                                                                                                | Returns an animated `translateY` that lifts a composer above the keyboard.                           |
-| Icons: `ChevronIcon`, `FolderIcon`, `DocIcon`, `GripIcon`, `ArrowUpIcon`, `PlusIcon`, `CloseIcon`, `StopIcon`, `CheckIcon`, `CopyIcon`, `RetryIcon`, `ShareIcon`, `SparkleIcon`, `PencilIcon`, `SearchIcon` (`IconProps`, `IconComponent`) |                                                                                                      |
+| Export                                                                                                                                                                                                                                     | Description                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `Avatar({ name, uri?, color?, size? })`                                                                                                                                                                                                    | Shows initials, with the image on top when `uri` is set. The color is derived from `name`.         |
+| `Spinner({ size?, color?, labels? })`, `defaultSpinnerLabels`                                                                                                                                                                              | Centered activity indicator.                                                                       |
+| `ListHeader({ title, subtitle? })`, `ListFooter({ text })`                                                                                                                                                                                 | Header and footer blocks for lists.                                                                |
+| `SectionHeader({ title, count? })`, `ItemSeparator({ highlighted? })`                                                                                                                                                                      | Section header and separator line.                                                                 |
+| `TemplateList({ data, templates, horizontal?, listRef? })` (`TemplateRow`, `TemplateMap`)                                                                                                                                                  | A ShadowList of mixed rows. Each row has a `kind`, and `templates` maps each kind to its renderer. |
+| `useLargeText(threshold = 1.3)`                                                                                                                                                                                                            | True at accessibility text sizes. Shares one `Dimensions` listener across callers.                 |
+| `useKeyboardVisible()`                                                                                                                                                                                                                     | True while the keyboard is on screen.                                                              |
+| `useKeyboardLift({ gap? })`                                                                                                                                                                                                                | Returns an animated `translateY` that lifts a composer above the keyboard.                         |
+| Icons: `ChevronIcon`, `FolderIcon`, `DocIcon`, `GripIcon`, `ArrowUpIcon`, `PlusIcon`, `CloseIcon`, `StopIcon`, `CheckIcon`, `CopyIcon`, `RetryIcon`, `ShareIcon`, `SparkleIcon`, `PencilIcon`, `SearchIcon` (`IconProps`, `IconComponent`) |                                                                                                    |
 
 ### Controls
 
@@ -296,7 +321,15 @@ export function ChatScreen() {
 }
 ```
 
-`ChatMessage` is `{ id, author: { id, name, avatarUrl?, avatarColor? }, isOwn, text?, images?, createdAt?, status? }`. `status` (`'sending' | 'sent' | 'delivered' | 'read' | 'failed'`) is for the reader's own messages: `'sending'` dims the bubble without changing its height, and `'failed'` adds a "Not delivered. Tap to retry." line that calls `onRetry(message)` (`Chat.Bubble`) or `onRetryMessage` (`Chat.List`). `getChatMessageSizeSpec` counts that line. `onLongPress` / `onLongPressMessage` handle long presses on a bubble. Exports: `Chat.List` / `Bubble` / `Input`, `defaultChatLabels`, `getChatMessageSizeSpec`, and the types `ChatListProps`, `ChatBubbleProps`, `ChatInputProps`, `ChatLabels`, `ChatMessageSizeSpecOptions`, `ChatAuthor`, `ChatMessage`, `ChatMessageStatus`.
+| Export                                                                                                                                     | Description                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Chat.List`                                                                                                                                | Inverted list of bubbles. `onRetryMessage` and `onLongPressMessage` handle a failed message and long presses.                                                                                                                                                                                                                     |
+| `Chat.Bubble`                                                                                                                              | One message. `onRetry(message)` and `onLongPress` handle a failed message and long presses.                                                                                                                                                                                                                                       |
+| `Chat.Input`                                                                                                                               | The composer.                                                                                                                                                                                                                                                                                                                     |
+| `getChatMessageSizeSpec`                                                                                                                   | Predicts a text bubble's height, the failed line included.                                                                                                                                                                                                                                                                        |
+| `defaultChatLabels`                                                                                                                        |                                                                                                                                                                                                                                                                                                                                   |
+| `ChatMessage`                                                                                                                              | `{ id, author: { id, name, avatarUrl?, avatarColor? }, isOwn, text?, images?, createdAt?, status? }`. `status` (`'sending' \| 'sent' \| 'delivered' \| 'read' \| 'failed'`) is for the reader's own messages: `'sending'` dims the bubble without changing its height, and `'failed'` adds a "Not delivered. Tap to retry." line. |
+| Types: `ChatListProps`, `ChatBubbleProps`, `ChatInputProps`, `ChatLabels`, `ChatMessageSizeSpecOptions`, `ChatAuthor`, `ChatMessageStatus` |                                                                                                                                                                                                                                                                                                                                   |
 
 ### Assistant (streaming AI chat)
 
@@ -423,7 +456,7 @@ onOpenLink={(url) => (url.startsWith('myapp://trip/') ? openTrip(url) : openUrl(
 
 ### Other kits
 
-Each of these is a single line of JSX. All of them accept every `ShadowList` prop.
+Each of these is a single line of JSX. All of them accept every ShadowList prop.
 
 | Kit      | Example                                                                                                                                                                                                                                                                                                                                                                          | Row type                                                                               |
 | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -432,7 +465,7 @@ Each of these is a single line of JSX. All of them accept every `ShadowList` pro
 | Nested   | `<ShadowList data={rows} renderItem={({ item }) => <Nested.Row item={item} onPressCard={open} />} />`. A row with a horizontal card list; there is no `Nested.List`.                                                                                                                                                                                                             | `NestedItem { id, title, cards: NestedCardItem[] }`                                    |
 | Masonry  | `<Masonry.List data={list.data} onPressItem={open} />` (3 columns by default)                                                                                                                                                                                                                                                                                                    | `MasonryItem { id, image: { uri, width, height, alt? }, title? }`                      |
 | Contacts | `<Contacts.List data={contacts} onPressItem={open} onDelete={remove} />`. `Contacts.SectionList` takes `sections` (see `groupIntoSections`). Passing `onDelete` enables swipe-to-delete.                                                                                                                                                                                         | `ContactItem { id, name, subtitle?, avatarUrl?, avatarColor? }`                        |
-| Reorder  | `<Reorder.List data={favorites} onMoveItem={({ data }) => save(data)} />` (built on `DraggableList`)                                                                                                                                                                                                                                                                             | `ContactItem`                                                                          |
+| Reorder  | `<Reorder.List data={favorites} onMoveItem={({ data }) => save(data)} />` (built on DraggableList)                                                                                                                                                                                                                                                                               | `ContactItem`                                                                          |
 | Tree     | `<Tree.List data={tree} expandedKeys={keys} onExpandedChange={setKeys} onPressItem={openFile} />`                                                                                                                                                                                                                                                                                | `TreeNode { id, name, children?, kind? }`                                              |
 | Poll     | `<Poll.List poll={{ question, options, selectedId }} onVote={vote} />`. Takes `poll` instead of `data`.                                                                                                                                                                                                                                                                          | `PollOption { id, label, votes, icon? }`                                               |
 | Snap     | `<Snap.List data={cards} onPressItem={open} />` (`snapToItem`)                                                                                                                                                                                                                                                                                                                   | `SnapItem { id, title?, subtitle?, image?, color? }`                                   |
@@ -442,6 +475,8 @@ Each kit also exports its row or card component, a `default<Kit>Labels` object, 
 
 ## Example app
 
-The React Native example in [`templates/shadowlist-fabric-example`](../shadowlist-fabric-example) has screens built on
-these kits. `TemplatesScreen.tsx` shows every control, `Grouped` and `Form` component on one page, and
-`AssistantScreen.tsx` the full assistant setup. See [Example apps](../../README.md#example-apps) to run it.
+The React Native example in `templates/shadowlist-fabric-example` has screens built on these kits.
+`TemplatesScreen.tsx` shows every control, `Grouped` and `Form` component on one page, and `AssistantScreen.tsx` the
+full assistant setup.
+
+See more: [Example apps](../../README.md#example-apps)

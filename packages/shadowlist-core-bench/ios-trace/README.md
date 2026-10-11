@@ -1,7 +1,7 @@
 # iOS device trace
 
-Scripted scenarios on a simulator, traced frame by frame, reduced to findings: whether the
-content jumped, went blank or stuttered, and what the list did at that moment.
+ios-trace is the iOS frame trace tool: scripted simulator scenarios, traced frame by frame and reduced to findings.
+A finding says whether the content jumped, went blank or stuttered, and what the list did at that moment.
 
 ## Run one
 
@@ -56,7 +56,7 @@ rejects the gesture.
 
 `analyze.py <log>` prints per-list counters, then a timeline. `!!` marks an unexplained finding.
 
-| kind            | meaning                                                                                   |
+| Kind            | Meaning                                                                                   |
 | --------------- | ----------------------------------------------------------------------------------------- |
 | `idle-shift`    | visible rows moved while nothing was driving the list: the jump a reader sees             |
 | `reversal`      | content flipped direction for one frame (jitter), or moved backwards during scroll-to-top |
@@ -76,8 +76,13 @@ correction reaches its target (type 0 MVCP, 1 scrollToIndex, 2 scrollToStart, 3 
 Per list it also reports `host:` corrections (how often the core moved the view), `js:` render
 count, `jsms` (JS commit time) and `mountms` (render to the frame that showed it).
 
-Useful flags: `--window 12.3:12.8` prints the raw lines of that stretch, `--blank-pt`,
-`--min-shift`, `--timeline`, `--json`.
+| Flag                 | What it does                                |
+| -------------------- | ------------------------------------------- |
+| `--window 12.3:12.8` | Prints the raw lines of that stretch        |
+| `--blank-pt`         | Smallest uncovered span reported as `blank` |
+| `--min-shift`        | Smallest idle shift reported, in points     |
+| `--timeline N`       | Most timeline lines printed (150)           |
+| `--json <path>`      | Also writes the report as JSON there        |
 
 ## Release trace build
 
@@ -99,4 +104,4 @@ same override. Its JS is bundled. Metro edits do not reach it until the next bui
 same flings through adb (Android) for Feed, Chat, SectionList and Masonry at 50, 200 and 1000
 rows (`SLCount` launch setting), `RUNS` times each, and writes `results/perf/<label>/<platform>/`
 with a `summary.md`. `../perf.py compare <a> <b>` diffs two labels. Step files may use `{FLINGS}`, `{BACK}` and `{HALF}`, which run.sh fills from `$FLINGS`.
-`[SLC] t= commit list=<tag>` lines count Fabric commits of a list (trace builds only).
+`[SLC] t= commit list=<tag>` lines count React Native Fabric commits of a list (trace builds only).
