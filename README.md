@@ -3,12 +3,13 @@
 Virtualized lists for React Native, UIKit and Android views, on a shared C++ core.
 
 An **item** is your data, a **row** is a layout entry (including section headers/footers), a **cell** is its mounted
-view, and a **key** is its stable identity across updates.
+view, and a **key** is its stable identity across updates. Sizes, cells, selection and the scroll position follow
+keys, and inserts, deletes and size changes keep the visible content still.
 
 ## React Native
 
 ShadowList is the React Native Fabric package: the ShadowList, SectionList, TreeList and DraggableList components.
-shadowlist-utils adds hooks and ready-made list kits.
+ShadowListUtils (`shadowlist-utils` on npm) adds hooks and prebuilt list kits.
 
 ```sh
 yarn add shadowlist
@@ -30,11 +31,11 @@ const listRef = useRef<ShadowListCommands>(null);
 listRef.current?.scrollToIndex({ index: 42, viewPosition: 0.5 });
 ```
 
-See more: [ShadowList](packages/shadowlist-fabric/README.md), [shadowlist-utils](templates/shadowlist-utils/README.md)
+See more: [ShadowList](packages/shadowlist-fabric/README.md), [ShadowListUtils](templates/shadowlist-utils/README.md)
 
 ## UIKit
 
-ShadowListKit is the UIKit package: ShadowListKitListView, a UIScrollView with a UITableView-like data source.
+ShadowListKit is the UIKit package: ShadowListKitListView, a UIScrollView with a data source like UITableView's.
 Install it with Swift Package Manager or CocoaPods.
 
 ```swift
@@ -100,15 +101,15 @@ See more: [ShadowListKit for Android](packages/shadowlist-android/README.md)
 | --- | --- |
 | `packages/shadowlist-core` | Shared C++ core |
 | `packages/shadowlist-core-tests` | Core integration and perf tests |
-| `packages/shadowlist-core-bench` | Core micro-benchmarks, device metrics and [iOS simulator traces](packages/shadowlist-core-bench/ios-trace/README.md) |
-| `packages/shadowlist-fabric` | React Native Fabric package (ShadowList) |
-| `packages/shadowlist-uikit` | UIKit list (ShadowListKit) |
-| `packages/shadowlist-android` | Android list (ShadowListKit, Kotlin) |
+| `packages/shadowlist-core-bench` | Core microbenchmarks, device metrics |
+| `packages/shadowlist-fabric` | React Native Fabric package |
+| `packages/shadowlist-uikit` | UIKit list |
+| `packages/shadowlist-android` | Android list |
 | `templates/shadowlist-utils` | List helpers, hooks and React Native list kits |
 | `templates/shadowlist-fabric-example` | React Native example app for iOS and Android |
-| `templates/shadowlist-macos-example` | React Native macOS example app (shares screens through `.macos` variants) |
-| `templates/shadowlist-uikit-example` | UIKit example app (xcodegen) |
-| `templates/shadowlist-android-example` | Android example app (Gradle) |
+| `templates/shadowlist-macos-example` | React Native macOS example app |
+| `templates/shadowlist-uikit-example` | UIKit example app |
+| `templates/shadowlist-android-example` | Android example app |
 
 ## Example apps
 
@@ -123,24 +124,21 @@ Run `yarn install` at the repo root first.
 | UIKit | `cd templates/shadowlist-uikit-example && ./build.sh sim <simulator-udid>` (or `./build.sh device any`) |
 | Android | `cd templates/shadowlist-android-example && ./gradlew :app:assembleRelease` |
 
-The React Native iOS example runs `pod install` on its own.
+## Debug log
 
-iOS reads launch arguments (`-SLRoute Chat`). Android reads intent extras
-(`adb shell am start -n shadowlist.example/.MainActivity --es SLRoute Chat`). The React Native examples take:
+The C++ core can log every layout pass with an `[SL]` prefix. It is off by default, in debug builds too.
 
-| Flag | What it does |
+| Package | How to turn it on |
 | --- | --- |
-| `SLRoute <screen>` | Screen to open |
-| `SLCount N` | Start size of the list |
-| `SLTheme light\|dark` | Color scheme |
-| `SLOverscan N` | `overscan` of the lists |
-| `SLDebug 1` | Debug buttons, captions and status lines |
-| `SLLatency a,b`, `SLSendFailureRate 0.5`, `SLNetLog 1` | Fake network latency, send failures and log |
-| `-SLEngineFlags NO` | iOS only: turns the engine flags off |
+| React Native iOS and macOS | `SHADOWLIST_DEBUG_LOG=1 pod install`, then rebuild. The lines show in the Xcode console. |
+| React Native Android | `arguments "-DSHADOWLIST_DEBUG_LOG=1"` in the app's `externalNativeBuild.cmake` block, then rebuild. |
+| UIKit | The example's `build.sh` with `SHADOWLIST_DEBUG_LOG=1`. |
+| Android | Build the module with `-PshadowlistDebugLog`. |
 
-The UIKit and Android examples document their flags in their package READMEs.
+On Android read it with `adb logcat -s SL`.
 
-See more: [UIKit example app](packages/shadowlist-uikit/README.md#example-app), [Android example app](packages/shadowlist-android/README.md#example-app)
+## Benchmarks
 
-`yarn docs:check` checks README links, declared requirements and the standalone TypeScript examples against source.
-Full application examples are covered by `yarn typecheck`.
+`packages/shadowlist-core-bench` holds the core microbenchmarks. The UIKit and Android packages ship a scroll
+benchmark in `Bench/`: `Bench/bench.sh` drives the example at a constant speed, and `Bench/summarize.py` reads the
+results.

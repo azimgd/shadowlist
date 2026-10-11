@@ -1,9 +1,9 @@
-# shadowlist-utils
+# ShadowListUtils
 
-Hooks and helpers for [ShadowList](../../packages/shadowlist-fabric/README.md), plus themed React Native list kits.
+ShadowListUtils is the hooks and helpers package for [ShadowList](../../packages/shadowlist-fabric/README.md), plus
+themed React Native list kits. Install it from npm as `shadowlist-utils`.
 
-Contents: [Install](#install) · [Usage](#usage) · [Essential behavior](#essential-behavior) ·
-[API](#api) · [Native kits](#native-kits) · [Example apps](#example-apps)
+Contents: [Install](#install) · [Usage](#usage) · [API](#api) · [Native kits](#native-kits)
 
 ## Install
 
@@ -15,12 +15,12 @@ Choose the import that fits your use case:
 
 | Import | Includes | Extra dependencies |
 | --- | --- | --- |
-| `shadowlist-utils` | List state, paging, scrolling, grouping and tree helpers | No UI-kit peers; React Query v5 is optional for the query examples |
-| `shadowlist-utils/native` | Themes, controls, Chat, Assistant and other kits | iOS/Android: gesture-handler, Reanimated and safe-area-context |
+| `shadowlist-utils` | List state, paging, scrolling, grouping and tree helpers | No UI kit peers; React Query v5 is optional for the query examples |
+| `shadowlist-utils/native` | Themes, controls, Chat, Assistant and other kits | iOS/Android: Gesture Handler, Reanimated and Safe Area Context |
 
 ### Requirements
 
-These are the effective requirements with the current ShadowList release; utils declares broader peer ranges.
+These are the effective requirements with the current ShadowList release; ShadowListUtils declares broader peer ranges.
 
 | Dependency | Requirement |
 | --- | --- |
@@ -38,7 +38,7 @@ Use `react-native-worklets/plugin` last in the Babel plugins and wrap the app in
 `SafeAreaProvider`. See the tested [Babel configuration](../shadowlist-fabric-example/babel.config.js).
 The root helpers do not need these wrappers.
 
-macOS uses source `.macos` variants without those UI-kit peers; see the
+macOS uses source `.macos` variants without those UI kit peers; see the
 [macOS Metro configuration](../shadowlist-macos-example/metro.config.js). Pull to refresh, snapping and keyboard
 avoidance are unavailable on macOS; Inbox keeps selection but has no swipe actions or menus.
 
@@ -81,17 +81,6 @@ Install `@tanstack/react-query` for this example and render it inside a `QueryCl
 See [FeedScreen](../shadowlist-fabric-example/src/screens/FeedScreen.tsx) and its
 [query setup](../shadowlist-fabric-example/src/queries/feed.ts) for loading/error UI and cache updates.
 
-## Essential behavior
-
-An **item** is your data, a **row** is a layout entry, a **cell** is its mounted view, and a **key** is its stable
-identity. Pages have the shape `{ items: Item[] }`; query edit helpers match items by unique `id`.
-Inverted chat data stays oldest first. Reorder callbacks must save their returned data to your state.
-
-`useListController`, `usePullToRefresh` and `useInfiniteListProps` accept `onError` for synchronous throws and rejected
-promises from your refresh/page callbacks. Without it, rejections remain unhandled. Loading flags and re-entrancy
-guards reset in either case. React Query normally stores fetch errors on the query instead of rejecting, so render
-its error state too.
-
 ## API
 
 The tables cover common exports. Full types and signatures are linked from the
@@ -100,7 +89,7 @@ The tables cover common exports. Full types and signatures are linked from the
 ### Infinite queries
 
 `useInfiniteListProps` memoizes data, defaults refresh to `query.refetch`, and exposes stable edge handlers. They
-ignore calls while fetching or when no page remains. `refreshing` tracks pull-to-refresh only, not background fetches.
+ignore calls while fetching or when no page remains. `refreshing` tracks pull to refresh only, not background fetches.
 
 | Export | Description |
 | --- | --- |
@@ -111,13 +100,13 @@ ignore calls while fetching or when no page remains. `refreshing` tracks pull-to
 | `prependInfiniteItems(data, items)` | Inserts rows at the top of the first page. Only correct while that page is the true start of the list. |
 | `appendInfiniteItems(data, items)` | Inserts rows at the bottom of the last page. Only correct while there is no next page. |
 | `upsertInfiniteItems(data, items)` | Replaces rows whose `id` is already cached, wherever they are, and appends the rest like `appendInfiniteItems`. Never creates a duplicate key. |
-| `trimInfinitePages(data, pageCount)` | Keeps the first `pageCount` pages. Use it before a refetch so that pull-to-refresh sends one request instead of one per loaded page. |
-| `shareInfiniteItemsByKey(previous, next)` | Structural sharing for infinite data (`structuralSharing` option). A row keeps its previous object when it is value-equal to the previous row with the same `id`, even if it moved. |
+| `trimInfinitePages(data, pageCount)` | Keeps the first `pageCount` pages. Use it before a refetch so that pull to refresh sends one request instead of one per loaded page. |
+| `shareInfiniteItemsByKey(previous, next)` | Structural sharing for infinite data (`structuralSharing` option). A row keeps its previous object when it equals the previous row by value with the same `id`, even if it moved. |
 | `shareItemsByKey(previous, next)` | Same as above, but also works on a plain array query (`useQuery`). |
 
 All edit helpers keep the identity of any page or row they don't change. They return `data` itself when nothing changed, and they pass `undefined` through.
 
-Use edit helpers inside `queryClient.setQueryData`. For optimistic updates and failed-message retries, see
+Use edit helpers inside `queryClient.setQueryData`. For optimistic updates and retries of failed messages, see
 [chat mutations](../shadowlist-fabric-example/src/queries/chat.ts).
 
 ### List state and scrolling
@@ -130,8 +119,8 @@ set loading/scrolling flags manually. See [controller types](src/useListControll
 | Export | Description |
 | --- | --- |
 | `useListController<ItemT>(options?)` | Local list state, edit methods and handlers that guard concurrent loads. |
-| `usePullToRefresh(refresh, { onError? })` → `{ refreshing, onRefresh }` | Drives the pull-to-refresh control from any async function. `refresh` is read when called. It doesn't need to be stable. |
-| `useScrollThreshold(thresholdDp)` → `{ isPastThreshold, onScroll }` | Re-renders only when the scroll offset crosses the threshold, for example to hide a header or show a back-to-top button. |
+| `usePullToRefresh(refresh, { onError? })` → `{ refreshing, onRefresh }` | Drives the pull to refresh control from any async function. `refresh` is read when called. It doesn't need to be stable. |
+| `useScrollThreshold(thresholdDp)` → `{ isPastThreshold, onScroll }` | Renders again only when the scroll offset crosses the threshold, for example to hide a header or show a button that scrolls back to the top. |
 | `getViewableRange(viewableItems)` → `{ low, high } \| undefined` | Returns the index span of an `onViewableItemsChanged` payload. The payload doesn't need to be sorted. |
 
 For local data, connect `data`, `handleRefresh`, `handleStartReached` and `handleEndReached` from
@@ -173,18 +162,18 @@ Overrides merge deeply; arrays such as `avatarPalette` are replaced. Styles are 
 | `useTheme()` | Returns the current [Theme](src/native/theme/Theme.ts). |
 | `createTheme(base, overrides)` | Applies partial overrides to a base theme. |
 | `createStyles(factory)` → `useStyles` | Builds a hook that creates styles from the theme and caches them per theme object. |
-| `lightTheme`, `darkTheme` | Built-in themes. |
+| `lightTheme`, `darkTheme` | The included themes. |
 
 ### Labels (i18n)
 
-All user-visible and accessibility strings come from a `labels` prop. You pass a `Partial` of the kit's labels type, and anything you leave out falls back to the English defaults (`defaultChatLabels`, `defaultFeedLabels`, `defaultAssistantLabels` and so on). Some labels are functions, for example `minutes: (n) => \`${n} min\``.
+All visible and accessibility strings come from a `labels` prop. You pass a `Partial` of the kit's labels type, and anything you leave out falls back to the English defaults (`defaultChatLabels`, `defaultFeedLabels`, `defaultAssistantLabels` and so on). Some labels are functions, for example `minutes: (n) => \`${n} min\``.
 
 ```tsx
 const LABELS = { placeholder: 'Nachricht', send: 'Senden' }; // module scope or useMemo
 <Chat.Input onSend={send} labels={LABELS} />;
 ```
 
-Merged labels keep the same identity while their values don't change. An inline object won't re-render memoized rows.
+Merged labels keep the same identity while their values don't change. An inline object won't render memoized rows again.
 
 | Export | Description |
 | --- | --- |
@@ -212,7 +201,7 @@ See [native exports](src/native/index.ts) for icons and their prop types.
 | --- | --- |
 | `PillButton({ label, onPress, variant?, disabled? })` | `primary`, `tinted`, `plain` or `destructive` pill. |
 | `IconButton({ icon, onPress, accessibilityLabel })` | Round tinted button around a glyph. |
-| `DashedButton({ label, onPress, disabled? })` | Full-width dashed outline that adds one more of something. |
+| `DashedButton({ label, onPress, disabled? })` | Dashed outline across the full width that adds one more of something. |
 | `Chip({ label, onPress, variant?, mono? })`, `ChipRow` | Shortcut chips in a row that wraps. |
 | `ChoiceChip({ label, tint, selected, onPress })` | One choice in its own color, ringed and ticked when selected. |
 | `SearchField({ value, onChange, icon?, labels? })` | Filled search box. `defaultSearchFieldLabels`. |
@@ -225,7 +214,7 @@ See [native exports](src/native/index.ts) for icons and their prop types.
 
 ### Grouped and Form
 
-Inset-grouped cards, as iOS Settings draws them. Metrics come from `theme.grouped`. Cards paint `colors.groupedCell`. Put them on a page of `colors.groupedBackground`.
+Inset grouped cards, as iOS Settings draws them. Metrics come from `theme.grouped`. Cards paint `colors.groupedCell`. Put them on a page of `colors.groupedBackground`.
 
 ```tsx
 <Grouped.Section title="Account">
@@ -246,14 +235,14 @@ See [TemplatesScreen](../shadowlist-fabric-example/src/screens/TemplatesScreen.t
 | `Grouped.Card`, `Grouped.Caption({ title })`, `Grouped.Section({ title? })` | A card, the uppercase caption over it, and the two together. |
 | `Grouped.Row({ title, subtitle?, leading?, trailing?, chevron?, separated?, onLongPress?, longPressLabel?, testID? })` | A row that leads somewhere. The long press is also a screen reader action. |
 | `Grouped.Separator({ inset? })` | Hairline that starts at `inset`, the row inset by default. |
-| `Form.Card`, `Form.Row({ label, stacked? })` | A form card that draws its own separators, and a label-and-value row. Large text stacks the label. |
+| `Form.Card`, `Form.Row({ label, stacked? })` | A form card that draws its own separators, and a row with a label and a value. Large text stacks the label. |
 | `Form.Input({ value, onChange, numeric?, accessibilityLabel })`, `Form.Value({ text })` | A row's field, aligned to the trailing edge, and a value it shows but does not take. |
-| `Form.Button({ label, onPress, destructive? })` | Full-width button in a card of its own. |
+| `Form.Button({ label, onPress, destructive? })` | Button across the full width, in a card of its own. |
 
 ### Chat
 
-`Chat.List` is inverted, takes messages oldest first and predicts text-bubble sizes. This minimal screen uses
-application-owned messages and a send callback:
+`Chat.List` is inverted, takes messages oldest first and predicts the sizes of text bubbles. This minimal screen uses
+messages the app owns and a send callback:
 
 ```tsx
 import { View } from 'react-native';
@@ -273,7 +262,7 @@ export function ChatScreen({ messages, send }: {
 ```
 
 `Chat.List` handles `onRetryMessage` and `onLongPressMessage`; `Chat.Bubble` offers `onRetry(message)` and
-`onLongPress`. Own-message status is `sending`, `sent`, `delivered`, `read` or `failed`; failed messages add a retry
+`onLongPress`. The status of your own messages is `sending`, `sent`, `delivered`, `read` or `failed`; failed messages add a retry
 line. If you replace the row, supply a matching `getChatMessageSizeSpec`, including any caption.
 See [ChatScreen](../shadowlist-fabric-example/src/screens/ChatScreen.tsx) for paging, keyboard space, captions and retry.
 [Chat types](src/native/chat/types.ts) define messages, authors and statuses.
@@ -303,9 +292,9 @@ transport as well as finishing the writer when stopping a reply.
 | --- | --- |
 | `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks |
 | `Assistant.Composer` | Send/Stop, attachments and editing; ref supports `setDraft`, `clearDraft`, `focus` |
-| `createStreamStore`, `useStreamingTurn` | Store lifecycle and per-message subscription |
+| `createStreamStore`, `useStreamingTurn` | Store lifecycle and a subscription for each message |
 | `createTurnWriter` | Batched thinking/content, tool calls, completion, failure and stop |
-| `emptyTurn`, `ASSISTANT_END_MARKER`, `ASSISTANT_END_ID` | Initial turn and end-of-list tracking |
+| `emptyTurn`, `ASSISTANT_END_MARKER`, `ASSISTANT_END_ID` | Initial turn and tracking the end of the list |
 
 `Assistant.ReplyMessage`, `Assistant.UserMessage`, `Assistant.Markdown` and the other building blocks support custom
 rows. See [Assistant exports](src/native/assistant/index.ts) and [writer methods](src/native/assistant/turnWriter.ts)
@@ -334,19 +323,9 @@ custom handler before opening them.
 | `Activity.List` | `ActivityItem[]`; sticky header/footer and separators | [ActivityScreen](../shadowlist-fabric-example/src/screens/ActivityScreen.tsx) |
 | `Nested.Row` | `NestedItem` with horizontal cards | [NestedScreen](../shadowlist-fabric-example/src/screens/NestedScreen.tsx) |
 | `Masonry.List` | `MasonryItem[]`; three columns by default | [MasonryScreen](../shadowlist-fabric-example/src/screens/MasonryScreen.tsx) |
-| `Contacts.List`, `Contacts.SectionList` | `ContactItem[]` or sections; `onDelete` enables swipe-to-delete | [ContactsScreen](../shadowlist-fabric-example/src/screens/ContactsScreen.tsx) |
+| `Contacts.List`, `Contacts.SectionList` | `ContactItem[]` or sections; `onDelete` enables swipe to delete | [ContactsScreen](../shadowlist-fabric-example/src/screens/ContactsScreen.tsx) |
 | `Reorder.List` | `ContactItem[]`; save `onMoveItem` data | [ReorderScreen](../shadowlist-fabric-example/src/screens/ReorderScreen.tsx) |
 | `Tree.List` | `TreeNode[]`; controlled expansion via `expandedKeys` / `onExpandedChange` | [TreeScreen](../shadowlist-fabric-example/src/screens/TreeScreen.tsx) |
 | `Poll.List` | `poll: { question, options, selectedId }` and `onVote` | [PollListProps](src/native/poll/PollList.tsx) |
 | `Snap.List` | `SnapItem[]`; `snapToItem` | [SnapScreen](../shadowlist-fabric-example/src/screens/SnapScreen.tsx) |
 | `Inbox.List` | `InboxMessage[]`; read/flag/delete and controlled selection | [InboxScreen](../shadowlist-fabric-example/src/screens/InboxScreen.tsx) |
-
-Inbox swipes and menus run on iOS/Android. Full swipes run the first action; return a promise to keep the row revealed
-until it settles. `editing` enables selection. macOS keeps selection only.
-Kits export row/card components, `default<Kit>Labels`, label types and prop types; follow the
-[native exports](src/native/index.ts) for the full input schemas.
-
-## Example apps
-
-[TemplatesScreen](../shadowlist-fabric-example/src/screens/TemplatesScreen.tsx) shows controls, Grouped and Form.
-See [example app commands](../../README.md#example-apps) and [native debug logging](../../packages/shadowlist-fabric/README.md#debug-log).

@@ -146,7 +146,7 @@ Use named constants, never bare numbers for event types or slots. Enums mirrored
 ## Repo
 
 - Edit `packages/shadowlist-core` only, never its mirror in `shadowlist-fabric`.
-- Example apps, demo screens and `shadowlist-utils` live in `templates/`.
+- Example apps, demo screens and ShadowListUtils live in `templates/`.
 - Commits are a single conventional line such as `fix:` or `refactor:`.
 
 ## Checklist before you finish

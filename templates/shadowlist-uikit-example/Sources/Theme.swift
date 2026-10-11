@@ -2,7 +2,7 @@ import ShadowListKit
 import UIKit
 
 /*
- * The example's design tokens, the same values as shadowlist-utils' light and dark themes.
+ * The example's design tokens, the same values as ShadowListUtils' light and dark themes.
  */
 enum Theme {
   static func dynamic(_ light: UInt32, _ dark: UInt32, _ lightAlpha: CGFloat = 1, _ darkAlpha: CGFloat = 1) -> UIColor {

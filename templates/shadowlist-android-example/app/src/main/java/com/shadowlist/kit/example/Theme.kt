@@ -16,7 +16,7 @@ val Number.dp: Int get() = (toFloat() * density).roundToInt()
 val Number.dpf: Float get() = toFloat() * density
 
 /*
- * The example's design tokens, the light values of shadowlist-utils' theme and the UIKit example.
+ * The example's design tokens, the light values of ShadowListUtils' theme and the UIKit example.
  */
 object Theme {
   const val background = 0xFFFFFFFF.toInt()

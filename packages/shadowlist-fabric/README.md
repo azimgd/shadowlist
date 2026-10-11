@@ -18,7 +18,7 @@ cd ios && pod install
 | `react-native` | `>=0.83.0`, New Architecture |
 | iOS | React Native's minimum |
 | Android | API 24 or newer |
-| macOS | 11 or newer, react-native-macos |
+| macOS | 11 or newer, `react-native-macos` |
 
 Autolinking picks up the pod on iOS and macOS and the CMake build on Android. The C++ core ships inside the package.
 macOS has no pull to refresh, `snapToItem` or keyboard avoidance.
@@ -41,13 +41,6 @@ const listRef = useRef<ShadowListCommands>(null);
 listRef.current?.scrollToIndex({ index: 42, viewPosition: 0.5 });
 ```
 
-## Essential behavior
-
-An item is data, a row is a layout entry, a cell is its mounted view, and a key is stable identity. Use unique,
-stable keys to preserve rows across updates; the default `keyExtractor` reads `id` and falls back to the index.
-Index keys follow positions, so prepending items shifts the visible content. Inverted data stays oldest first.
-Save the returned `data` from `onMoveItem` to your state or the row snaps back.
-
 ## API
 
 The tables summarize the API; [types.ts](src/types.ts) has full props and commands.
@@ -59,7 +52,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | Prop | Default | What it does |
 | --- | --- | --- |
 | `renderItem({ item, index, separators, selected, select, deselect })` |  | Renders a row. |
-| `keyExtractor` | `id`, then index | Matches items across updates; see key behavior above. |
+| `keyExtractor` | `id`, then index | Matches items across updates. Use unique, stable keys: index keys follow positions, so a prepend shifts the visible content. |
 | `getItemSizeSpec(item, index)` |  | Returns an `ItemSizeSpec`: a row's text with its font and insets, or a `fixedHeight`. Native then sizes rows near the screen before React renders them. |
 | `measureLookaheadRows` | 48 | How many rows past the mounted ones get their size spec sent to native. |
 | `initialScrollIndex` |  | The row the list opens at. Read on mount only. |
@@ -74,7 +67,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `stickyIndices`, `renderStickyHeaderOverlay(index)` |  | Rows that pin to the top while their section scrolls, and an optional overlay drawn for the pinned row. |
 | `stickyHeader`, `stickyFooter` | false | Pin `ListHeaderComponent` or `ListFooterComponent` to its edge. |
 | `autoHideHeader`, `autoHideFooter` | false | A pinned header or footer slides out while the user scrolls further into the list and slides back when they scroll the other way, like a hiding toolbar. |
-| `reorderEnabled` | false | Touch and hold to drag; report moves through `onMoveItem`. DraggableList enables it by default. |
+| `reorderEnabled` | false | Touch and hold to drag. `onMoveItem` reports a move; save its `data` to your state or the row snaps back. DraggableList enables it by default. |
 | `snapToItem` | false | Rest on a row edge. |
 | `snapAlignment` | `'start'` | Snap to `'start'`, `'center'` or `'end'`. |
 | `overscan` | 1 | How far past the viewport native measures and places rows, in viewport sizes. |
@@ -123,8 +116,8 @@ macOS lands right away without the animation.
 | `closeSwipeActions()` | Closes every row. |
 | `contextMenuForItem` | Return a menu title and actions; see [menu types](src/types.ts). |
 
-Swipe actions work on vertical lists. A full swipe performs the first action; a promise-returning `onPress` keeps the
-row revealed until the promise settles, then a surviving row slides back. Menus use `UIMenu` on iOS and a long-press
+Swipe actions work on vertical lists. A full swipe performs the first action. An `onPress` that returns a promise keeps the
+row revealed until the promise settles, then a surviving row slides back. Menus use `UIMenu` on iOS and a long press
 popup on Android. With `reorderEnabled`, that long press starts dragging and shows no menu.
 
 ### Prefetching and saved position
@@ -143,25 +136,3 @@ popup on Android. With `reorderEnabled`, that long press starts dragging and sho
 | `scrollToSection(section, animated?)` | Lands on a section's first row. |
 | `sectionIndexTitles`, `sectionForSectionIndexTitle(title, index)` | Shows an index along the trailing edge and maps a title to a section. |
 | `ItemSeparatorComponent`, `SectionSeparatorComponent` | `ItemSeparatorComponent` gets `section` too. `SectionSeparatorComponent` gets `leadingSection` and `trailingSection`. |
-
-### Accessibility
-
-| Platform | Behavior |
-| --- | --- |
-| iOS | A VoiceOver three finger swipe moves one screen and says which rows show. |
-| Android | The list reports its row count as `CollectionInfo`, the shown rows with scroll events, and offers page scrolls and scrolling to any row. |
-
-## Example app
-
-The React Native example runs on iOS, Android and macOS.
-
-See more: [Example apps](../../README.md#example-apps)
-
-## Debug log
-
-The C++ core can log every layout pass with an `[SL]` prefix. It is off by default, in debug builds too.
-
-| Platform | How to turn it on |
-| --- | --- |
-| iOS and macOS | Run `SHADOWLIST_DEBUG_LOG=1 pod install`, then rebuild. A plain `pod install` turns it off again. The lines show in the Xcode console. |
-| Android | Pass `arguments "-DSHADOWLIST_DEBUG_LOG=1"` in the app's `android.defaultConfig.externalNativeBuild.cmake` block, then rebuild. Read it with `adb logcat -s SL`. Building with `-PshadowlistDebugLog` also turns on the library's Java `[SL]` trace through `BuildConfig`. |

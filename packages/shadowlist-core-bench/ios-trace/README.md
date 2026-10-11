@@ -28,7 +28,7 @@ xcrun simctl bootstatus "$UDID" -b
 ```
 
 Choose the same simulator in both lists. Step coordinates assume an iPhone 16 Pro (402×874pt); adapt them for other
-sizes. Export `UDID` and `DEVICE` in each terminal used for tracing. The hard-coded defaults in `run.sh` (`sl-iosfix`)
+sizes. Export `UDID` and `DEVICE` in each terminal used for tracing. The default values in `run.sh` (`sl-iosfix`)
 and `perf-suite.sh` (`sl-bench`) refer to the author's local simulators.
 
 Still in `templates/shadowlist-fabric-example/ios`, build Release with tracing compiled in and install it:
@@ -42,7 +42,7 @@ xcrun simctl install "$UDID" build/dd-release/Build/Products/Release-iphonesimul
 ```
 
 Release bundles JavaScript and keeps `[SLF]`, `[SLJ]` and `[SLC]`. Rebuild and reinstall after JS changes; use Release
-for timing comparisons. For Debug, use `-configuration Debug`, a separate derived-data directory and its
+for timing comparisons. For Debug, use `-configuration Debug`, a separate DerivedData directory and its
 `Debug-iphonesimulator` app, then keep `yarn workspace shadowlist-example start` running from the repo root.
 
 ## Run one
@@ -55,17 +55,17 @@ cd packages/shadowlist-core-bench/ios-trace
 ```
 
 `./run.sh <scenario> [label]` accepts a name from [scenarios](scenarios) or a path to a step file; the label defaults
-to `run`. It launches with `SHADOWLIST_FRAME_TRACE=1`, drives steps with agent-device and prints the analyzer summary.
+to `run`. It launches with `SHADOWLIST_FRAME_TRACE=1`, drives steps with `agent-device` and prints the analyzer summary.
 The log lands in `../results/ios-trace/<label>.<scenario>.log` (gitignored), markers in `<log>.marks` and JSON in
 `<log>.json`. Reusing a label/scenario overwrites those files.
 
 | Override | Purpose |
 | --- | --- |
-| `UDID`, `DEVICE` | simctl identifier and matching agent-device simulator name |
-| `SESSION` | Agent-device session; defaults to `sltrace-$DEVICE` |
+| `UDID`, `DEVICE` | simctl identifier and matching `agent-device` simulator name |
+| `SESSION` | `agent-device` session; defaults to `sltrace-$DEVICE` |
 | `LAUNCH_ARGS` | Extra app arguments, e.g. `"-SLCount 1000 -SLLatency 0,0"` |
 | `OUT_DIR`, `LOG` | Output directory or exact log path; `LOG` takes precedence |
-| `AD` | Agent-device executable path |
+| `AD` | `agent-device` executable path |
 | `FLINGS`, `BACK`, `HALF` | Step placeholders; defaults are 12, three quarters of `FLINGS`, and half of `FLINGS` |
 
 For example: `LAUNCH_ARGS="-SLCount 1000" FLINGS=8 ./run.sh perf-chat my-label`.
@@ -86,14 +86,14 @@ repeat N <step>       run a step N times
 ad <args...>          any other agent-device command in the session (e.g. ad orientation landscape)
 ```
 
-Keep coordinates inside the screen or agent-device rejects the gesture. `{FLINGS}`, `{BACK}` and `{HALF}` in a step
+Keep coordinates inside the screen or `agent-device` rejects the gesture. `{FLINGS}`, `{BACK}` and `{HALF}` in a step
 expand from the environment overrides above.
 
 ## Reading the trace
 
 - `[SLF] ... id=<listTag> frame ax=<v|h> inv= off= cs= vp= ins= ph= ref= hdr=<screenY>+<h> stt= jump= rows=[ key@screenY+height ]`
   one line per committed frame whose picture changed; positions are along the scroll axis,
-  `ph` is 0 idle / 1 finger / 2 momentum / 3 scroll-to-top, `~` marks a concealed row.
+  `ph` is 0 idle / 1 finger / 2 momentum / 3 scroll to top, `~` marks a concealed row.
 - `[SLF] ... ev=state|drag-begin|drag-end|decel-end|stt-*|refresh-*|cmd-scroll-to-index` — every
   place the host moved the view or published state. `enabled=1` means the core wrote an offset.
 - `[SLJ] ... render|vis|vis apply|reached|refresh|row-miss` — the JS side, printed natively
@@ -106,18 +106,18 @@ expand from the environment overrides above.
 
 ## Findings
 
-`python3 analyze.py <log>` prints per-list counters, then a timeline. `!!` marks an unexplained finding.
+`python3 analyze.py <log>` prints counters for each list, then a timeline. `!!` marks an unexplained finding.
 
 | Kind | Meaning |
 | --- | --- |
 | `idle-shift` | visible rows moved while nothing was driving the list: the jump a reader sees |
-| `reversal` | content flipped direction for one frame (jitter), or moved backwards during scroll-to-top |
+| `reversal` | content flipped direction for one frame (jitter), or moved backwards during a scroll to top |
 | `reflow` | rows moved relative to each other with nothing before them resizing |
 | `blank` | uncovered span in the viewport (default >= 120pt) |
 | `discontinuity` | consecutive frames share no rows |
 
 Expected cases are tagged `(explained)`: a fast fling, an inverted list pinned to its bottom
-as messages arrive, the scroll-to-top jump, a host scroll command (`scrollToIndex` /
+as messages arrive, the scroll to top jump, a host scroll command (`scrollToIndex` /
 `scrollToEnd`), an overscroll settling, the refresh inset.
 
 Builds with the core log also log the core's corrections: `[SL]   op arrived: type= key= index=` when a
@@ -148,4 +148,4 @@ From `packages/shadowlist-core-bench/ios-trace`, with the same exported simulato
 The suite runs Feed, Chat, SectionList and Masonry at 50, 200 and 1000 items, three runs each. Override `SCREENS`,
 `COUNTS`, `RUNS` or `FLINGS` to narrow it. Reports land in `../results/perf/<label>/ios/`, including `summary.md`.
 `[SLC] t= commit list=<tag>` counts React Native Fabric commits in trace builds. The suite also accepts `android`
-for adb-driven flings; see the [script prerequisites and options](../perf-suite.sh).
+for flings driven through adb; see the [script prerequisites and options](../perf-suite.sh).
