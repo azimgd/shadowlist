@@ -18,9 +18,9 @@ final class ShadowListInnerScrollView {
 
   /*
    * Draws only the children that reach into the scroll viewport. Overscan rows stay mounted
-   * so a fling finds them ready, but drawing them anyway made the render thread sync and draw
-   * every mounted row each frame (about 2.5 ms a frame on a feed with the default overscan).
-   * The host invalidates this on every scroll, which only re-records this list of children.
+   * for a fling to find them ready. Drawing them too would make the render thread sync and
+   * draw every mounted row each frame. The host invalidates this on every scroll, which only
+   * re-records this list of children.
    */
   static final class ContentContainer extends ViewGroup {
     private int mDrawLow = Integer.MIN_VALUE;

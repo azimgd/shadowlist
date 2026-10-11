@@ -32,7 +32,7 @@ async function writeToThread(
   messages: ChatMessage[]
 ) {
   /*
-   * A history page still loading was built from the old pages and would overwrite this write
+   * A history page still loading was built from the previous pages and would overwrite this write
    * when it lands. Cancel it first, and the next start reached event loads it again.
    */
   await queryClient.cancelQueries({ queryKey: messagesKey });

@@ -23,8 +23,7 @@ struct ShadowListScrollMetrics {
 
 /*
  * The payload React Native's ScrollView sends for onScroll and the drag and momentum events,
- * plus contentOffsetX and contentOffsetY from earlier versions of this list. The list has no
- * insets and no zoom.
+ * plus the flat contentOffsetX and contentOffsetY. The list has no insets and no zoom.
  */
 inline jsi::Object shadowListScrollPayload(jsi::Runtime& runtime, const ShadowListScrollMetrics& metrics) {
   auto point = [&runtime](double x, double y) {

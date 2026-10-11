@@ -1,7 +1,7 @@
 #pragma once
 
 #include <shadowlist-core/Constants.hpp>
-#include <shadowlist-core/Element.hpp>
+#include <shadowlist-core/Row.hpp>
 #include <shadowlist-core/Operation.hpp>
 #include <shadowlist-core/Revision.hpp>
 
@@ -28,12 +28,12 @@ struct ContainerStateUpdate {
   /*
    * Move the scroll view to the offset below. When false, leave it alone so we don't fight the user.
    */
-  bool applyContainerOffset = false;
+  bool applyOffset = false;
 
-  double containerOffsetX = 0.0;
-  double containerOffsetY = 0.0;
-  double totalContainerWidth = 0.0;
-  double totalContainerHeight = 0.0;
+  double offsetX = 0.0;
+  double offsetY = 0.0;
+  double contentWidth = 0.0;
+  double contentHeight = 0.0;
 
   /*
    * Id of the operation that moved the offset, or 0. The host sends it back so we know the write was ours.
@@ -43,8 +43,8 @@ struct ContainerStateUpdate {
 
 /*
  * A range of scroll offsets, along the scroll axis, the host can move through without
- * sending the core a new frame. Inside it the core would pick the same window, fire no
- * edge or visible rows callback, and start no correction.
+ * sending the core a new frame. Inside it the core would pick the same measured range, fire
+ * no edge or measured range callback, and start no correction.
  * Empty when the core needs every frame, like while a correction runs. The empty default
  * has low above high. A host that never got a band sends every frame.
  */
@@ -75,12 +75,41 @@ struct ViewableRule {
   }
 };
 
+/*
+ * Which edge of a row a snap offset lines up with the viewport.
+ */
+enum class SnapAlignment {
+  Start = 0,
+  Center = 1,
+  End = 2,
+};
+
+/*
+ * An inclusive range of row indices, low to high. UNDEFINED_INDEX for both means empty.
+ */
+struct IndexRange {
+  std::size_t low = UNDEFINED_INDEX;
+  std::size_t high = UNDEFINED_INDEX;
+
+  bool isEmpty() const {
+    return low == UNDEFINED_INDEX || high == UNDEFINED_INDEX;
+  }
+
+  bool operator==(const IndexRange& other) const {
+    return low == other.low && high == other.high;
+  }
+
+  bool operator!=(const IndexRange& other) const {
+    return !(*this == other);
+  }
+};
+
 class Container final {
 public:
   /*
    * Width and height used for rows not measured yet.
    */
-  std::pair<double, double> estimatedElementSize = DEFAULT_ESTIMATED_ELEMENT_SIZE;
+  std::pair<double, double> estimatedRowSize = DEFAULT_ESTIMATED_ROW_SIZE;
 
   /*
    * Called when the user scrolls near the end.
@@ -93,9 +122,9 @@ public:
   std::function<void()> onStartReachedCallback;
 
   /*
-   * Called with the start and end index when the visible rows change.
+   * Called with the low and high index when the measured range changes.
    */
-  std::function<void(std::size_t, std::size_t)> onVisibleIndicesChangeCallback;
+  std::function<void(std::size_t, std::size_t)> onMeasuredRangeChangeCallback;
 
   /*
    * Called with the x and y offset when the scroll offset changes.
@@ -103,7 +132,7 @@ public:
   std::function<void(double, double)> onScrollCallback;
 
   /*
-   * Called when the viewable rows of any viewable rule change, with a start and an end index
+   * Called when the viewable rows of any viewable rule change, with a low and a high index
    * per rule in rule order. A rule with no viewable row has UNDEFINED_INDEX for both.
    */
   std::function<void(const std::vector<std::size_t>&)> onViewableIndicesChangeCallback;
@@ -124,7 +153,7 @@ public:
 
   bool horizontal = false;
 
-  std::size_t columns = 1;
+  std::size_t numberOfColumns = 1;
 
   /*
    * How far past the viewport to measure and mount rows on each side, in viewport sizes.
@@ -133,11 +162,10 @@ public:
   double overscan = 1.0;
 
   /*
-   * Snap the resting scroll position to a row edge.
-   * snapAlignment picks the edge: 0 start, 1 center, 2 end.
+   * Snap the resting scroll position to a row edge. snapAlignment picks the edge.
    */
   bool snapToItem = false;
-  int snapAlignment = 0;
+  SnapAlignment snapAlignment = SnapAlignment::Start;
 
   /*
    * How close to an edge, in viewport sizes, before onStartReached or onEndReached fires.
@@ -166,9 +194,9 @@ public:
   std::vector<std::size_t> stickyIndices;
 
   /*
-   * Last drag event number sent to JS, to fire each drag event once. -1 means none yet.
+   * Previous drag event number sent to JS, to fire each drag event once. -1 means none yet.
    */
-  double lastDragEventSequence = -1.0;
+  double previousDragEventSequence = -1.0;
 
   /*
    * Scroll requests. resolveScroll turns each into an operation and clears it.
@@ -176,21 +204,21 @@ public:
    */
 
   /*
-   * Pending scrollToIndex target, or UNDEFINED_INDEX when there is none.
+   * Pending scrollToRow target, or UNDEFINED_INDEX when there is none.
    */
-  std::size_t scrollToIndexTarget = UNDEFINED_INDEX;
+  std::size_t scrollToRowTarget = UNDEFINED_INDEX;
 
   /*
    * Where the target row rests in the viewport, 0 top, 0.5 middle, 1 bottom.
    * A row taller than the viewport always lands at the top.
    */
-  double scrollToIndexViewPosition = 0.0;
+  double scrollToRowViewPosition = 0.0;
 
   /*
    * A fixed distance the target row rests past its view position, like a saved scroll
    * position that sat partway into a row.
    */
-  double scrollToIndexRowOffset = 0.0;
+  double scrollToRowViewOffset = 0.0;
 
   /*
    * Set while scrollToEnd closes in on the bottom as rows get measured.
@@ -205,9 +233,9 @@ public:
   bool pendingScrollToStart = false;
 
   /*
-   * Last frame's total size, to tell when it stops changing.
+   * Previous frame's total size, to tell when it stops changing.
    */
-  double pendingScrollToEndLastTotal = -1.0;
+  double pendingScrollToEndPreviousTotal = -1.0;
 
   /*
    * Whether an inverted list has settled at the bottom. Until then it sticks to the bottom,
@@ -236,7 +264,7 @@ public:
    * counts as done even after the motion stops. Otherwise we would push the view to a target
    * that ignores how far the finger moved.
    */
-  std::uint64_t gestureOperationId = 0;
+  std::uint64_t gestureCommitToken = 0;
 
   /*
    * Set while an inverted list is still settling on the bottom it opened at, until the first
@@ -253,8 +281,8 @@ public:
 
   /*
    * How much the anchor row grew, or shrank if negative, on its first real measurement.
-   * That row usually sits across the top edge. commitElementSizes takes the change above
-   * the viewport instead of moving the rows below. Set by applyElementSize and reset on commit.
+   * That row usually sits across the top edge. commitRowSizes takes the change above
+   * the viewport instead of moving the rows below. Set by applyRowSize and reset on commit.
    */
   double anchorFirstMeasurementDelta = 0.0;
 
@@ -266,7 +294,7 @@ public:
    * True when this frame made an offset the host should apply. Reset at the start of each
    * resolveScroll. It does not say whether a correction is running, operation does that.
    */
-  bool containerOffsetCorrected = false;
+  bool offsetCorrected = false;
 
   /*
    * The row at the top of the viewport and how far we are scrolled into it.
@@ -276,14 +304,14 @@ public:
 
   /*
    * The running offset correction, if any. Its id goes to the host as the commit token.
-   * End corrections hold the end edge. Keeping content in place and scrollToIndex hold a row by key.
+   * End corrections hold the end edge. Keeping content in place and scrollToRow hold a row by key.
    */
   std::optional<Operation> operation = std::nullopt;
 
   /*
    * Next operation id. Starts at 1 because 0 means no operation, a report from the host.
    */
-  std::uint64_t nextOperationId = 1;
+  std::uint64_t nextCommitToken = 1;
 
   /*
    * Sizes the host measured ahead of time, by key, before the row was ever rendered.
@@ -295,7 +323,7 @@ public:
 
   /*
    * Save an early size for a key. Fine for keys not in the list yet, it waits for a later update.
-   * To apply it to a row that already exists, use Virtualizer::applyPredictedElementSize.
+   * To apply it to a row that already exists, use Virtualizer::applyPredictedRowSize.
    */
   void setPredictedSize(const std::string& key, Size size);
 
@@ -303,24 +331,24 @@ public:
    * Keys never used as the anchor, like date pills or unread dividers whose keys come and go.
    * The anchor picks the nearest real content row instead. Empty means any row can be the anchor.
    */
-  std::unordered_set<std::string> nonAnchorableKeys;
+  std::unordered_set<std::string> nonAnchorKeys;
 
   /*
-   * Layout inputs from the last offset pass. layoutElements skips the pass when nothing changed.
+   * Layout inputs from the previous offset pass. layoutRows skips the pass when nothing changed.
    * Window sizes are here because column widths depend on them.
    */
-  double lastLayoutHeaderSize = -1.0;
-  double lastLayoutWindowWidth = -1.0;
-  double lastLayoutWindowHeight = -1.0;
-  std::size_t lastLayoutColumns = 0;
-  bool lastLayoutHorizontal = false;
+  double previousLayoutHeaderSize = -1.0;
+  double previousLayoutWindowWidth = -1.0;
+  double previousLayoutWindowHeight = -1.0;
+  std::size_t previousLayoutNumberOfColumns = 0;
+  bool previousLayoutHorizontal = false;
 
   /*
-   * Size last given to unmeasured rows. While it and the layout stay the same, the sizing
+   * Size previously given to unmeasured rows. While it and the layout stay the same, the sizing
    * loop has nothing to do and is skipped. -1 forces the first pass.
    */
-  double lastFallbackWidth = -1.0;
-  double lastFallbackHeight = -1.0;
+  double previousFallbackWidth = -1.0;
+  double previousFallbackHeight = -1.0;
 
   /*
    * Bumped whenever row positions, sizes or the row list change. Snap offsets and sticky
@@ -332,39 +360,45 @@ public:
    * Set on any insert, remove or reorder, since positions shift even without size changes.
    * Starts true so the first layout always runs.
    */
-  bool elementsStructureDirty = true;
+  bool rowStructureDirty = true;
 
   /*
-   * Lowest row whose size changed outside layoutElements, or UNDEFINED_INDEX.
+   * First row an insert, remove or reorder touched. Rows before it kept their place, and the
+   * next layout only reflows from here. Valid while rowStructureDirty is set.
+   */
+  std::size_t rowStructureDirtyFromIndex = 0;
+
+  /*
+   * Lowest row whose size changed outside layoutRows, or UNDEFINED_INDEX.
    * A size change only moves rows after it. The next layout starts here instead of at row 0.
    */
-  std::size_t elementsSizeDirtyFromIndex = UNDEFINED_INDEX;
+  std::size_t rowSizeDirtyFromIndex = UNDEFINED_INDEX;
 
   /*
    * Highest row whose size changed. Past it, once the new offsets match the old ones, the walk can stop.
    * Both ends are needed. Offsets can match by chance between two changed rows, and stopping
    * there would leave the later rows wrong.
    */
-  std::size_t elementsSizeDirtyToIndex = 0;
+  std::size_t rowSizeDirtyToIndex = 0;
 
   /*
    * Mark a size change the next layout must reflow. A caller that reflows it itself must use
-   * noteElementSizeSpan instead, or the work is done twice.
+   * noteRowSizeSpan instead, or the work is done twice.
    */
-  void markElementSizeDirty(std::size_t index) {
-    if (index < elementsSizeDirtyFromIndex) {
-      elementsSizeDirtyFromIndex = index;
+  void markRowSizeDirty(std::size_t index) {
+    if (index < rowSizeDirtyFromIndex) {
+      rowSizeDirtyFromIndex = index;
     }
-    noteElementSizeSpan(index);
+    noteRowSizeSpan(index);
   }
 
   /*
    * Widen the changed range without scheduling a layout reflow.
-   * Used by batched sizes, where commitElementSizes reflows once and only needs to know where to stop.
+   * Used by batched sizes, where commitRowSizes reflows once and only needs to know where to stop.
    */
-  void noteElementSizeSpan(std::size_t index) {
-    if (index > elementsSizeDirtyToIndex) {
-      elementsSizeDirtyToIndex = index;
+  void noteRowSizeSpan(std::size_t index) {
+    if (index > rowSizeDirtyToIndex) {
+      rowSizeDirtyToIndex = index;
     }
   }
 
@@ -375,11 +409,11 @@ public:
   double maxCrossAxisExtent = 0.0;
 
   /*
-   * Offset from the last host report. A user scroll only cancels a correction when this moves,
-   * so a stale userScrolled flag can't. Frames that carry our own offset write leave it alone,
+   * Offset from the previous host report. A user scroll only cancels a correction when this moves.
+   * A stale userScrolled flag can't. Frames that carry our own offset write leave it alone,
    * because the host is not there yet.
    */
-  double lastReportedOffset = 0.0;
+  double previousReportedOffset = 0.0;
 
   /*
    * Guards the Container, which really is shared across threads. In Fabric, shadow node clones
@@ -396,28 +430,28 @@ public:
    */
   void endRevision();
 
-  const Element& getElementAtIndex(std::size_t index) const;
+  const Row& getRowAtIndex(std::size_t index) const;
 
   /*
    * These follow the scroll axis, using x and width when horizontal, y and height otherwise.
    */
-  double getElementOffset(std::size_t index) const;
-  double getElementSize(std::size_t index) const;
-  double getContainerOffset() const;
-  double getWindowContainerSize() const;
+  double getRowOffset(std::size_t index) const;
+  double getRowSize(std::size_t index) const;
+  double getOffset() const;
+  double getWindowSize() const;
 
-  std::size_t getElementsSize() const;
-
-  /*
-   * Visible rows, or UNDEFINED_INDEX for both before the first layout.
-   */
-  std::pair<std::size_t, std::size_t> getVisibleIndices() const;
+  std::size_t getRowCount() const;
 
   /*
-   * Rows the rule calls viewable, or UNDEFINED_INDEX for both when none. Inverted lists
-   * return a start greater than the end.
+   * The measured rows, the visible ones plus the overscan, or UNDEFINED_INDEX for both before
+   * the first layout.
    */
-  std::pair<std::size_t, std::size_t> getViewableIndices(const ViewableRule& rule = {}) const;
+  IndexRange getMeasuredRange() const;
+
+  /*
+   * Rows the rule calls viewable, or UNDEFINED_INDEX for both when none.
+   */
+  IndexRange getViewableIndices(const ViewableRule& rule = {}) const;
 
   /*
    * Whether the row's size can be trusted, either measured natively or predicted by the host.
@@ -428,10 +462,10 @@ public:
   void setStartReachedEnabled(bool enabled);
 
   /*
-   * Ask to scroll the row at index into view. Handled on the next measurement. rowOffset
+   * Ask to scroll the row at index into view. Handled on the next measurement. viewOffset
    * moves the resting offset that much further past the row's view position.
    */
-  void scrollToIndex(std::size_t index, double viewPosition = 0.0, double rowOffset = 0.0);
+  void scrollToRow(std::size_t index, double viewPosition = 0.0, double viewOffset = 0.0);
 
   /*
    * Ask to scroll to the end, following the bottom as rows get measured.
@@ -450,31 +484,31 @@ public:
   void scrollToOffset(double offset);
 
   /*
-   * Turn the scrollToIndex command or prop into a request. The command runs once per call,
+   * Turn the scrollToRow command or prop into a request. The command runs once per call,
    * the prop runs when its value changes. A negative index means none, and the command wins.
-   * commandRowOffset is the command's rowOffset, see scrollToIndex. With SCROLL_TO_OFFSET_INDEX
+   * commandViewOffset is the command's viewOffset, see scrollToRow. With SCROLL_TO_OFFSET_INDEX
    * it is a content offset instead, which lands as the row there and how far into it.
    */
-  void requestScrollToIndex(
+  void requestScrollToRow(
     double commandIndex,
     double commandSequence,
     int propIndex,
     double commandViewPosition = 0.0,
-    double commandRowOffset = 0.0);
+    double commandViewOffset = 0.0);
 
   /*
    * Work out what to send to the scroll view this frame, given what it has now.
    */
   ContainerStateUpdate resolveStateUpdate(
-    double previousContainerOffsetX,
-    double previousContainerOffsetY,
-    double previousTotalContainerWidth,
-    double previousTotalContainerHeight) const;
+    double previousOffsetX,
+    double previousOffsetY,
+    double previousContentWidth,
+    double previousContentHeight) const;
 
   /*
    * Where the footer sits along the scroll axis, right after the content.
    */
-  double getFooterOffset(double footerExtent) const;
+  double getFooterStart(double footerSize) const;
 
   /*
    * Sorted offsets where scrolling can come to rest with a row aligned by snapAlignment.
@@ -486,10 +520,10 @@ public:
   /*
    * Index of the row with this key, or UNDEFINED_INDEX.
    */
-  std::size_t findElementIndexByKey(const std::string& key) const;
+  std::size_t indexOfKey(const std::string& key) const;
 
   /*
-   * Whether a key can be the anchor. Empty keys and keys in nonAnchorableKeys cannot.
+   * Whether a key can be the anchor. Empty keys and keys in nonAnchorKeys cannot.
    */
   bool isAnchorable(const std::string& key) const;
 
@@ -501,7 +535,7 @@ public:
   const Anchor* getCompensationAnchor() const;
 
   /*
-   * Fire the visible rows and scroll callbacks, but only when their values changed.
+   * Fire the measured range, viewable and scroll callbacks, but only when their values changed.
    */
   void dispatchObservers();
 
@@ -511,7 +545,7 @@ public:
    * still has work that needs frames: a running or pending correction, a scroll command,
    * rows or sizes not laid out yet, the inverted opening pin, and scroll, viewable or
    * sticky listeners, which need every offset. Otherwise the band ends where a row enters
-   * or leaves the window, where an edge callback or the inverted bottom pin would flip,
+   * or leaves the measured range, where an edge callback or the inverted bottom pin would flip,
    * and at both ends of the scroll range. Each of those ends is pulled in by a margin. A
    * host rounding its offset still sends the frame that crosses it.
    */
@@ -529,16 +563,16 @@ private:
   mutable std::vector<double> snapOffsetsCache_;
   mutable std::uint64_t snapCacheVersion_ = 0;
   mutable bool snapCacheSnapToItem_ = false;
-  mutable int snapCacheAlignment_ = -1;
+  mutable SnapAlignment snapCacheAlignment_ = SnapAlignment::Start;
   mutable double snapCacheWindowSize_ = -1.0;
   mutable double snapCacheTotalSize_ = -1.0;
   mutable bool snapCacheHorizontal_ = false;
 
   /*
-   * Last visible range sent. Only changes are sent.
+   * Last measured range sent. Only changes are sent.
    */
-  std::size_t previousVisibleStartIndex_ = UNDEFINED_INDEX;
-  std::size_t previousVisibleEndIndex_ = UNDEFINED_INDEX;
+  std::size_t previousMeasuredLow_ = UNDEFINED_INDEX;
+  std::size_t previousMeasuredHigh_ = UNDEFINED_INDEX;
 
   /*
    * Last viewable ranges sent, two indices per rule. Only changes are sent.
@@ -551,24 +585,24 @@ private:
    */
   bool previousReachedStart_ = false;
   bool previousReachedEnd_ = false;
-  std::size_t previousReachedElementsSize_ = UNDEFINED_INDEX;
+  std::size_t previousReachedRowCount_ = UNDEFINED_INDEX;
 
   /*
    * Last offset sent to onScroll. Only changes are sent.
    */
-  double previousContainerOffsetX_ = 0.0;
-  double previousContainerOffsetY_ = 0.0;
-  bool previousContainerOffsetValid_ = false;
+  double previousOffsetX_ = 0.0;
+  double previousOffsetY_ = 0.0;
+  bool previousOffsetValid_ = false;
 
   /*
-   * Last scrollToIndex command number handled. The same index can still scroll again.
+   * Last scrollToRow command number handled. The same index can still scroll again.
    */
-  double previousScrollToIndexSequence_ = 0.0;
+  double previousScrollToRowSequence_ = 0.0;
 
   /*
-   * Last containerOffsetIndex prop handled. The prop only scrolls when its value changes.
+   * Last scrollIndex prop handled. The prop only scrolls when its value changes.
    */
-  int previousScrollToIndexProp_ = -1;
+  int previousScrollToRowProp_ = -1;
 };
 
 }

@@ -29,11 +29,11 @@ double heightAt(std::size_t index) {
  */
 void checkSingleTrack(const Container& container) {
   double expected = container.headerSize;
-  for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
-    const Element& element = container.revision.elements[index];
-    CHECK_NEAR(element.offsetY, expected, 0.0001);
-    CHECK_EQ(element.index, index);
-    expected += element.height;
+  for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
+    const Row& row = container.revision.rows[index];
+    CHECK_NEAR(row.offsetY, expected, 0.0001);
+    CHECK_EQ(row.index, index);
+    expected += row.height;
   }
 }
 
@@ -49,20 +49,20 @@ TEST(a_scroll_axis_window_resize_keeps_every_row_in_place) {
 
   // Measure a first screen, then scroll and resize the window along the scroll axis.
   for (std::size_t index = 0; index < 20; ++index) {
-    Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, heightAt(index)});
+    Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH, heightAt(index)});
   }
   double heights[] = {600.0, 840.0, 512.0, 840.0, 700.0};
   double offset = 0.0;
   for (double windowHeight : heights) {
     offset += 900.0;
-    input.containerOffsetY = offset;
-    input.windowContainerHeight = windowHeight;
+    input.offsetY = offset;
+    input.windowHeight = windowHeight;
     Virtualizer::update(container, input);
-    auto [start, end] = container.getVisibleIndices();
-    for (std::size_t index = start; index <= end && index < keys.size(); ++index) {
-      Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, heightAt(index)});
+    IndexRange measured = container.getMeasuredRange();
+    for (std::size_t index = measured.low; index <= measured.high && index < keys.size(); ++index) {
+      Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH, heightAt(index)});
     }
-    Virtualizer::recomputeTotalSize(container);
+    Virtualizer::recomputeContentSize(container);
     checkSingleTrack(container);
   }
 }
@@ -74,25 +74,25 @@ TEST(a_scroll_axis_resize_from_the_layout_pass_keeps_every_row_in_place) {
   input.headerSize = 30.0;
   Virtualizer::update(container, input);
   for (std::size_t index = 0; index < 12; ++index) {
-    Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, heightAt(index)});
+    Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH, heightAt(index)});
   }
-  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::recomputeContentSize(container);
 
   /*
    * Like the Fabric layout pass: it writes the new window height straight into the core
    * and only reflows when the header or the cross size changed. The next update() then
    * sees the new height and must not need a reflow either.
    */
-  double previousWindowSize = container.getWindowContainerSize();
-  container.revision.windowContainerHeight = 500.0;
+  double previousWindowSize = container.getWindowSize();
+  container.revision.windowHeight = 500.0;
   Virtualizer::applyWindowSizeChange(container, previousWindowSize);
-  input.windowContainerHeight = 500.0;
+  input.windowHeight = 500.0;
   Virtualizer::update(container, input);
   checkSingleTrack(container);
 
   // A row resized after that still moves every row below it.
-  Virtualizer::updateElementAtIndex(container, 3, {WINDOW_WIDTH, 333.0});
-  Virtualizer::recomputeTotalSize(container);
+  Virtualizer::updateRowAtIndex(container, 3, {WINDOW_WIDTH, 333.0});
+  Virtualizer::recomputeContentSize(container);
   checkSingleTrack(container);
 }
 
@@ -101,35 +101,35 @@ TEST(a_header_change_still_reflows_after_a_scroll_axis_resize) {
   Container container;
   FrameInput input = inputFor(keys, 0.0);
   Virtualizer::update(container, input);
-  input.windowContainerHeight = 600.0;
+  input.windowHeight = 600.0;
   Virtualizer::update(container, input);
   input.headerSize = 90.0;
   Virtualizer::update(container, input);
   checkSingleTrack(container);
-  CHECK_NEAR(container.revision.elements[0].offsetY, 90.0, 0.0001);
+  CHECK_NEAR(container.revision.rows[0].offsetY, 90.0, 0.0001);
 }
 
 TEST(a_cross_axis_resize_still_reflows_columns) {
   std::vector<std::string> keys = keysFor(40);
   Container container;
   FrameInput input = inputFor(keys, 0.0);
-  input.columns = 2;
+  input.numberOfColumns = 2;
   Virtualizer::update(container, input);
-  CHECK_NEAR(container.revision.elements[1].width, WINDOW_WIDTH / 2.0, 0.0001);
+  CHECK_NEAR(container.revision.rows[1].width, WINDOW_WIDTH / 2.0, 0.0001);
 
   // Only the height changes. The columns keep their width.
-  input.windowContainerHeight = 500.0;
+  input.windowHeight = 500.0;
   Virtualizer::update(container, input);
-  CHECK_NEAR(container.revision.elements[1].width, WINDOW_WIDTH / 2.0, 0.0001);
-  CHECK_NEAR(container.revision.elements[1].offsetX, WINDOW_WIDTH / 2.0, 0.0001);
+  CHECK_NEAR(container.revision.rows[1].width, WINDOW_WIDTH / 2.0, 0.0001);
+  CHECK_NEAR(container.revision.rows[1].offsetX, WINDOW_WIDTH / 2.0, 0.0001);
 
   // A wider window widens the columns.
-  input.windowContainerWidth = 600.0;
+  input.windowWidth = 600.0;
   Virtualizer::update(container, input);
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    const Element& element = container.revision.elements[index];
-    CHECK_NEAR(element.width, 300.0, 0.0001);
-    CHECK_NEAR(element.offsetX, (index % 2) * 300.0, 0.0001);
+    const Row& row = container.revision.rows[index];
+    CHECK_NEAR(row.width, 300.0, 0.0001);
+    CHECK_NEAR(row.offsetX, (index % 2) * 300.0, 0.0001);
   }
 }
 
@@ -138,22 +138,22 @@ TEST(a_horizontal_list_treats_height_as_the_cross_axis) {
   Container container;
   FrameInput input = inputFor(keys, 0.0);
   input.horizontal = true;
-  input.columns = 2;
-  input.estimatedElementSize = {150.0, 100.0};
+  input.numberOfColumns = 2;
+  input.estimatedRowSize = {150.0, 100.0};
   Virtualizer::update(container, input);
-  CHECK_NEAR(container.revision.elements[1].height, WINDOW_HEIGHT / 2.0, 0.0001);
+  CHECK_NEAR(container.revision.rows[1].height, WINDOW_HEIGHT / 2.0, 0.0001);
 
   // A new width is along the scroll axis and changes no track.
-  input.windowContainerWidth = 300.0;
+  input.windowWidth = 300.0;
   Virtualizer::update(container, input);
-  CHECK_NEAR(container.revision.elements[1].height, WINDOW_HEIGHT / 2.0, 0.0001);
+  CHECK_NEAR(container.revision.rows[1].height, WINDOW_HEIGHT / 2.0, 0.0001);
 
-  input.windowContainerHeight = 400.0;
+  input.windowHeight = 400.0;
   Virtualizer::update(container, input);
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    const Element& element = container.revision.elements[index];
-    CHECK_NEAR(element.height, 200.0, 0.0001);
-    CHECK_NEAR(element.offsetY, (index % 2) * 200.0, 0.0001);
+    const Row& row = container.revision.rows[index];
+    CHECK_NEAR(row.height, 200.0, 0.0001);
+    CHECK_NEAR(row.offsetY, (index % 2) * 200.0, 0.0001);
   }
 }
 
@@ -188,22 +188,22 @@ TEST(unchanged_anchor_ignore_keys_keep_the_set_the_core_already_has) {
   std::vector<std::string> ignored = {"k0", "k1"};
   Container container;
   FrameInput input = inputFor(keys, 0.0);
-  input.nonAnchorableKeysRef = &ignored;
+  input.nonAnchorKeysRef = &ignored;
   Virtualizer::update(container, input);
   CHECK(!container.isAnchorable("k0"));
   CHECK(!container.isAnchorable("k1"));
   CHECK(container.isAnchorable("k2"));
 
   // The host vouches the keys are the ones it sent before. The set stays as it is.
-  input.nonAnchorableKeysUnchanged = true;
+  input.nonAnchorKeysUnchanged = true;
   Virtualizer::update(container, input);
   CHECK(!container.isAnchorable("k0"));
-  CHECK_EQ(container.nonAnchorableKeys.size(), static_cast<std::size_t>(2));
+  CHECK_EQ(container.nonAnchorKeys.size(), static_cast<std::size_t>(2));
 
   // New keys without that promise replace the set.
   std::vector<std::string> nextIgnored = {"k2"};
-  input.nonAnchorableKeysRef = &nextIgnored;
-  input.nonAnchorableKeysUnchanged = false;
+  input.nonAnchorKeysRef = &nextIgnored;
+  input.nonAnchorKeysUnchanged = false;
   Virtualizer::update(container, input);
   CHECK(container.isAnchorable("k0"));
   CHECK(!container.isAnchorable("k2"));
@@ -221,29 +221,29 @@ TEST(a_window_resize_through_update_publishes_the_bottom_follow) {
   input.inverted = true;
   Virtualizer::update(container, input);
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, 100.0});
+    Virtualizer::applyRowSize(container, index, {WINDOW_WIDTH, 100.0});
   }
-  Virtualizer::commitElementSizes(container, 0);
-  Virtualizer::recomputeTotalSize(container);
-  double offset = container.revision.containerOffsetY;
+  Virtualizer::commitRowSizes(container, 0);
+  Virtualizer::recomputeContentSize(container);
+  double offset = container.revision.offsetY;
   for (int frame = 0; frame < 6; ++frame) {
     input = inputFor(keys, offset);
     input.inverted = true;
     Virtualizer::update(container, input);
-    offset = container.revision.containerOffsetY;
+    offset = container.revision.offsetY;
   }
-  double bottom = container.revision.totalContainerHeight - WINDOW_HEIGHT;
+  double bottom = container.revision.contentHeight - WINDOW_HEIGHT;
   CHECK_NEAR(offset, bottom, 1.0);
 
   // The composer grows by 300 and the host reports the same offset with the smaller window.
   input = inputFor(keys, offset);
   input.inverted = true;
-  input.windowContainerHeight = WINDOW_HEIGHT - 300.0;
+  input.windowHeight = WINDOW_HEIGHT - 300.0;
   Virtualizer::update(container, input);
-  CHECK(container.containerOffsetCorrected);
-  CHECK_NEAR(container.revision.containerOffsetY, bottom + 300.0, 1.0);
+  CHECK(container.offsetCorrected);
+  CHECK_NEAR(container.revision.offsetY, bottom + 300.0, 1.0);
   ContainerStateUpdate state = container.resolveStateUpdate(offset, offset,
-    container.revision.totalContainerWidth, container.revision.totalContainerHeight);
-  CHECK(state.applyContainerOffset);
-  CHECK_NEAR(state.containerOffsetY, bottom + 300.0, 1.0);
+    container.revision.contentWidth, container.revision.contentHeight);
+  CHECK(state.applyOffset);
+  CHECK_NEAR(state.offsetY, bottom + 300.0, 1.0);
 }

@@ -88,10 +88,10 @@ export const ChatScreen = () => {
   );
 
   const renderBubble = useCallback(
-    ({ element }: { element: ChatMessage }) => (
+    ({ item }: { item: ChatMessage }) => (
       <Chat.Bubble
-        message={element}
-        caption={DEBUG ? labelOf(element.id) : undefined}
+        message={item}
+        caption={DEBUG ? labelOf(item.id) : undefined}
         onRetry={handleRetry}
       />
     ),
@@ -112,9 +112,10 @@ export const ChatScreen = () => {
     onPrepend: list.onStartReached,
     onAppend: () => simulateIncomingMessages(INCOMING_COUNT),
     onScrollToRandom: () =>
-      shadowlistRef.current?.scrollToItem(
-        Math.floor(Math.random() * list.data.length)
-      ),
+      shadowlistRef.current?.scrollToIndex({
+        index: Math.floor(Math.random() * list.data.length),
+        animated: false,
+      }),
     prependLabel: 'Load Earlier Messages',
     appendLabel: 'Simulate Incoming Messages',
   });
@@ -150,13 +151,13 @@ export const ChatScreen = () => {
             data={list.data}
             ref={shadowlistRef}
             style={styles.list}
-            renderElement={renderBubble}
-            getElementSizeSpec={getSizeSpec}
+            renderItem={renderBubble}
+            getItemSizeSpec={getSizeSpec}
             onStartReached={list.onStartReached}
             ListHeaderComponent={header}
             ListFooterComponent={footer}
-            overscanRows={benchOverscan}
-            overscanRowsLeading={benchOverscan}
+            mountOverscanRows={benchOverscan}
+            mountOverscanRowsLeading={benchOverscan}
           />
         </KeyboardView>
         <Chat.Input onSend={handleSendMessage} labels={INPUT_LABELS} />

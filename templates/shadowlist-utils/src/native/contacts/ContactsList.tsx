@@ -12,16 +12,16 @@ import {
 
 export type ContactsListProps = Omit<
   ShadowListProps<ContactItem>,
-  'renderElement'
+  'renderItem'
 > &
   ContactRowOptions & {
-    renderElement?: ShadowListProps<ContactItem>['renderElement'];
+    renderItem?: ShadowListProps<ContactItem>['renderItem'];
   };
 
 export const ContactsList = forwardRef<ShadowListCommands, ContactsListProps>(
   (
     {
-      renderElement,
+      renderItem,
       onPressItem,
       onDelete,
       disclosureIndicator,
@@ -39,7 +39,7 @@ export const ContactsList = forwardRef<ShadowListCommands, ContactsListProps>(
     return (
       <ShadowList
         ref={ref}
-        renderElement={renderElement ?? renderContactRow}
+        renderItem={renderItem ?? renderContactRow}
         {...props}
       />
     );

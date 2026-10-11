@@ -6,11 +6,11 @@
 namespace azimgd::shadowlist {
 
 /*
- * What an anchor holds on to. Element holds a row by key. EndEdge holds the end of the
+ * What an anchor holds on to. Row holds a row by key. EndEdge holds the end of the
  * content for the inverted bottom pin and scrollToEnd, and ignores the key.
  */
 enum class AnchorMode {
-  Element,
+  Row,
   EndEdge,
 };
 
@@ -21,8 +21,8 @@ enum class AnchorMode {
  */
 struct Anchor {
   std::string key = "";
-  double subOffset = 0.0;
-  AnchorMode mode = AnchorMode::Element;
+  double offset = 0.0;
+  AnchorMode mode = AnchorMode::Row;
 };
 
 /*
@@ -40,7 +40,7 @@ enum class ScrollPhase {
  */
 enum class OperationType {
   MaintainAnchor,  // Keep the visible content in place across a data update
-  ScrollToKey,     // scrollToIndex, turned into a key when requested
+  ScrollToKey,     // scrollToRow, turned into a key when requested
   ScrollToStart,   // Hold the first row at its offset from the top
   ScrollToEnd,     // Keep closing in on the real bottom as rows get measured
   BottomPin,       // First bottom pin of an inverted list, dropped once the user drags
@@ -48,12 +48,12 @@ enum class OperationType {
 };
 
 /*
- * One running offset correction. The id is stamped on every offset write it makes and stays
- * the same while it settles over several frames. The host sends it back with the next scroll
- * report. That tells our own writes apart. A new type or anchor key gets a new id.
+ * One running offset correction. Its commit token is stamped on every offset write it makes and
+ * stays the same while it settles over several frames. The host sends it back with the next
+ * scroll report. That tells our own writes apart. A new type or anchor key gets a new token.
  */
 struct Operation {
-  std::uint64_t id = 0;
+  std::uint64_t commitToken = 0;
   OperationType type = OperationType::MaintainAnchor;
   Anchor target = {};
 
@@ -66,7 +66,7 @@ struct Operation {
   /*
    * For ScrollToKey, a fixed distance the row rests past its view position.
    */
-  double rowOffset = 0.0;
+  double viewOffset = 0.0;
 };
 
 }

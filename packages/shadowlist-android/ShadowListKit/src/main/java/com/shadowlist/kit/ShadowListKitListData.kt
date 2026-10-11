@@ -180,7 +180,7 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val start = commonPrefix(keys, next)
     val end = commonSuffix(keys, next, start)
     if (start < keys.size || start < next.size) {
-      if (list.animatesChanges) list.changes.capture(removed = keys.subList(start, keys.size - end), inserted = next.subList(start, next.size - end))
+      if (list.animatesChanges) list.changes.capture(deleted = keys.subList(start, keys.size - end), inserted = next.subList(start, next.size - end))
       list.liveCore?.replaceKeys(start, keys.size - start - end, next, start, next.size - end)
     }
     spareKeys = keys
@@ -198,10 +198,10 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     }
     val source = list.dataSource ?: return
     // An index past the end inserts at the end. The key is read where the row lands.
-    val sorted = ShadowListKitCore.insertionPositions(indices, keys.size)
+    val sorted = ShadowListKitCore.insertionIndices(indices, keys.size)
     if (sorted.isEmpty()) return
     val inserted = Array(sorted.size) { source.keyForItem(list, sorted[it]) }
-    if (list.animatesChanges) list.changes.capture(removed = emptyList(), inserted = inserted.asList())
+    if (list.animatesChanges) list.changes.capture(deleted = emptyList(), inserted = inserted.asList())
     forEachRun(sorted) { first, last -> keys.addAll(sorted[first], inserted.asList().subList(first, last + 1)) }
     list.liveCore?.insertKeys(sorted, inserted)
     setPlainSections(keys.size)
@@ -217,9 +217,9 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
       reloadData()
       return
     }
-    val sorted = ShadowListKitCore.deletionPositions(indices, keys.size)
+    val sorted = ShadowListKitCore.deletionIndices(indices, keys.size)
     if (sorted.isEmpty()) return
-    if (list.animatesChanges) list.changes.capture(removed = sorted.map { keys[it] }, inserted = emptyList())
+    if (list.animatesChanges) list.changes.capture(deleted = sorted.map { keys[it] }, inserted = emptyList())
     // Runs go last to first, which keeps the earlier indices valid.
     val runs = ArrayList<IntArray>()
     forEachRun(sorted) { first, last -> runs.add(intArrayOf(sorted[first], sorted[last])) }
@@ -252,11 +252,11 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     list.structureChanged()
   }
 
-  fun moveItem(index: Int, newIndex: Int) {
-    if (index < 0 || newIndex < 0) return
+  fun moveItem(sourceIndex: Int, destinationIndex: Int) {
+    if (sourceIndex < 0 || destinationIndex < 0) return
     performBatchUpdates({
-      batchMovedFrom.add(index)
-      batchMovedTo.add(newIndex)
+      batchMovedFrom.add(sourceIndex)
+      batchMovedTo.add(destinationIndex)
     })
   }
 

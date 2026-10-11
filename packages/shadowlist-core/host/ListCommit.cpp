@@ -17,9 +17,9 @@ ScrollPhase scrollPhaseFromReport(double scrollPhase) {
 }
 
 void applyHostScroll(FrameInput& input, const ListScrollState& state) {
-  input.containerOffsetX = state.offsetX;
-  input.containerOffsetY = state.offsetY;
-  input.containerOffsetEnabled = state.offsetEnabled;
+  input.offsetX = state.offsetX;
+  input.offsetY = state.offsetY;
+  input.offsetEnabled = state.offsetEnabled;
   // A real user scroll drops any pending correction so the user isn't snapped back.
   input.userScrolled = state.userScrolled;
   // The phase lasts across reports, see Container::gestureActive.
@@ -38,11 +38,11 @@ bool publishStateUpdate(ListScrollState& state, const ContainerStateUpdate& upda
     state.baseX = state.offsetX;
     state.baseY = state.offsetY;
   }
-  state.offsetX = update.containerOffsetX;
-  state.offsetY = update.containerOffsetY;
-  state.totalWidth = update.totalContainerWidth;
-  state.totalHeight = update.totalContainerHeight;
-  state.offsetEnabled = update.applyContainerOffset;
+  state.offsetX = update.offsetX;
+  state.offsetY = update.offsetY;
+  state.contentWidth = update.contentWidth;
+  state.contentHeight = update.contentHeight;
+  state.offsetEnabled = update.applyOffset;
   // 0 when no offset was written.
   state.commitToken = update.commitToken;
   return true;

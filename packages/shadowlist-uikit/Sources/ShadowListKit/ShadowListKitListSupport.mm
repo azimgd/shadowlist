@@ -20,7 +20,7 @@ NSString *const SHADOWLIST_KIT_SECTION_FOOTER_IDENTIFIER = @"ShadowListKitSectio
 
 @end
 
-#pragma mark - Section header cell
+#pragma mark - Section title cell
 
 @implementation ShadowListKitSectionTitleCell
 

@@ -6,17 +6,18 @@ import {
 } from 'react-native';
 
 /*
- * A swipe action button. color is a processed color, see processColor.
+ * A swipe action button. backgroundColor is a processed color, see processColor. style is
+ * 'normal' or 'destructive'.
  */
 export type NativeSwipeAction = Readonly<{
   title: string;
-  color: CodegenTypes.Double;
-  destructive: boolean;
+  backgroundColor: CodegenTypes.Double;
+  style: string;
 }>;
 
 export type NativeMenuAction = Readonly<{
   title: string;
-  destructive: boolean;
+  style: string;
   disabled: boolean;
   systemImage: string;
 }>;
@@ -33,7 +34,7 @@ export type OnContextMenuAction = {
 
 interface NativeProps extends ViewProps {
   index: CodegenTypes.Int32;
-  elementKey?: string;
+  rowKey?: string;
   leadingSwipeActions?: ReadonlyArray<NativeSwipeAction>;
   trailingSwipeActions?: ReadonlyArray<NativeSwipeAction>;
   leadingFullSwipe?: CodegenTypes.WithDefault<boolean, true>;
@@ -44,13 +45,13 @@ interface NativeProps extends ViewProps {
   readonly onContextMenuAction?: CodegenTypes.DirectEventHandler<OnContextMenuAction>;
 }
 
-type ShadowListElementViewComponentType = ReturnType<
+type ShadowListCellViewComponentType = ReturnType<
   typeof codegenNativeComponent<NativeProps>
 >;
 
 interface NativeCommands {
   closeFullSwipe: (
-    viewRef: React.ElementRef<ShadowListElementViewComponentType>
+    viewRef: React.ElementRef<ShadowListCellViewComponentType>
   ) => void;
 }
 
@@ -58,4 +59,4 @@ export const Commands = codegenNativeCommands<NativeCommands>({
   supportedCommands: ['closeFullSwipe'],
 });
 
-export default codegenNativeComponent<NativeProps>('ShadowListElementView');
+export default codegenNativeComponent<NativeProps>('ShadowListCellView');

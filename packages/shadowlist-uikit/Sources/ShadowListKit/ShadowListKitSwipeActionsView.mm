@@ -1,9 +1,9 @@
 #import "Internal/ShadowListKitSwipeActionsView.h"
 
+#include <shadowlist-core/host/SwipeReveal.hpp>
+
 #include <numeric>
 #include <vector>
-
-#include <shadowlist-core/host/SwipeReveal.hpp>
 
 using namespace azimgd::shadowlist;
 

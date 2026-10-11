@@ -55,7 +55,7 @@ static double ShadowListKitBenchFootprintMB(void)
   BOOL _drivesX;
   BOOL _drivesY;
   CADisplayLink *_link;
-  CFTimeInterval _last;
+  CFTimeInterval _previousTick;
   CFTimeInterval _legStart;
   double _speed;
   double _seconds;
@@ -229,7 +229,7 @@ static double ShadowListKitBenchFootprintMB(void)
   _positionY = _vertical.contentOffset.y;
   _directionX = _horizontal ? [self directionOf:_horizontal alongX:YES] : 1;
   _directionY = _vertical ? [self directionOf:_vertical alongX:NO] : 1;
-  _last = 0;
+  _previousTick = 0;
   _legs = 0;
   _frame = 0;
   _travel = 0;
@@ -267,8 +267,10 @@ static double ShadowListKitBenchFootprintMB(void)
    direction:(int)direction
     interval:(CFTimeInterval)interval
 {
-  // The list may have moved its offset in its own layout since the last frame, like a
-  // correction or an item window move. Continue from there.
+  /*
+   * The list may have moved its offset in its own layout since the previous frame, like a
+   * correction or an item window move. Continue from there.
+   */
   CGFloat current = alongX ? scrollView.contentOffset.x : scrollView.contentOffset.y;
   if (fabs(current - *position) >= 1) {
     *position = current;
@@ -299,13 +301,13 @@ static double ShadowListKitBenchFootprintMB(void)
 - (void)tick:(CADisplayLink *)link
 {
   CFTimeInterval now = link.timestamp;
-  if (_last == 0) {
-    _last = now;
+  if (_previousTick == 0) {
+    _previousTick = now;
     _legStart = now;
     return;
   }
-  CFTimeInterval interval = now - _last;
-  _last = now;
+  CFTimeInterval interval = now - _previousTick;
+  _previousTick = now;
   [_intervals addObject:@(interval)];
   ++_frame;
 

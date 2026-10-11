@@ -22,25 +22,28 @@ namespace {
 
 constexpr double ROW_HEIGHT = 100.0;
 constexpr double START_THRESHOLD = 0.5;
-// A page of chat history, and how many frames the fetch takes to come back.
+
+/*
+ * A page of chat history, and how many frames the fetch takes to come back.
+ */
 constexpr std::size_t PAGE_ROWS = 60;
 constexpr int FETCH_FRAMES = 3;
 
 void measureAll(Container& container, std::size_t count) {
   for (std::size_t index = 0; index < count; ++index) {
-    Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, ROW_HEIGHT});
+    Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH, ROW_HEIGHT});
   }
 }
 
 FrameInput chatInput(const std::vector<std::string>& keys, double offset) {
   FrameInput input;
   input.keys = keys;
-  input.windowContainerWidth = WINDOW_WIDTH;
-  input.windowContainerHeight = WINDOW_HEIGHT;
-  input.columns = 1;
+  input.windowWidth = WINDOW_WIDTH;
+  input.windowHeight = WINDOW_HEIGHT;
+  input.numberOfColumns = 1;
   input.overscan = 1.0;
-  input.estimatedElementSize = {WINDOW_WIDTH, ROW_HEIGHT};
-  input.containerOffsetY = offset;
+  input.estimatedRowSize = {WINDOW_WIDTH, ROW_HEIGHT};
+  input.offsetY = offset;
   input.startReachedThreshold = START_THRESHOLD;
   input.endReachedThreshold = 0.1;
   return input;
@@ -71,7 +74,7 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
   measureAll(container, keys.size());
 
   // Start at the newest message, like the chat does.
-  double bottom = container.revision.totalContainerHeight - WINDOW_HEIGHT;
+  double bottom = container.revision.contentHeight - WINDOW_HEIGHT;
   FrameInput settle = chatInput(keys, bottom);
   Virtualizer::update(container, settle);
 
@@ -84,13 +87,13 @@ int flingUpCountingPages(int frames, double pixelsPerFrame, bool busyConsumer) {
       pagesDelivered++;
       fetchInFlight = false;
       // Commit the new page at the offset the core last settled on.
-      FrameInput commit = chatInput(keys, container.revision.containerOffsetY);
+      FrameInput commit = chatInput(keys, container.revision.offsetY);
       Virtualizer::update(container, commit);
       measureAll(container, keys.size());
-      Virtualizer::update(container, chatInput(keys, container.revision.containerOffsetY));
+      Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
     }
 
-    double offset = container.revision.containerOffsetY - pixelsPerFrame;
+    double offset = container.revision.offsetY - pixelsPerFrame;
     if (offset < 0.0) offset = 0.0;
     FrameInput input = chatInput(keys, offset);
     input.userScrolled = true;
@@ -126,7 +129,7 @@ TEST(upward_fling_keeps_paging_when_a_request_lands_mid_fetch) {
 }
 
 /*
- * scrollToIndex can place the row anywhere on screen, not only at the top. A chat jumping
+ * scrollToRow can place the row anywhere on screen, not only at the top. A chat jumping
  * to a quoted message wants it centered with its context around it.
  */
 TEST(scroll_to_index_places_the_row_at_the_requested_view_position) {
@@ -140,26 +143,26 @@ TEST(scroll_to_index_places_the_row_at_the_requested_view_position) {
   const std::size_t target = 60;
   auto settle = [&]() {
     for (int frame = 0; frame < 6; ++frame) {
-      Virtualizer::update(container, chatInput(keys, container.revision.containerOffsetY));
+      Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
     }
-    return container.revision.containerOffsetY;
+    return container.revision.offsetY;
   };
 
   // 0 is the default and puts the row's top at the top of the screen.
-  container.requestScrollToIndex(static_cast<double>(target), 1.0, -2, 0.0);
+  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 0.0);
   double atStart = settle();
-  CHECK_NEAR(atStart, container.getElementOffset(target), 1.0);
+  CHECK_NEAR(atStart, container.getRowOffset(target), 1.0);
 
   // 0.5 centers it, with half the free space above it.
-  container.requestScrollToIndex(static_cast<double>(target), 2.0, -2, 0.5);
+  container.requestScrollToRow(static_cast<double>(target), 2.0, -2, 0.5);
   double centred = settle();
   double freeSpace = WINDOW_HEIGHT - ROW_HEIGHT;
-  CHECK_NEAR(centred, container.getElementOffset(target) - freeSpace * 0.5, 1.0);
+  CHECK_NEAR(centred, container.getRowOffset(target) - freeSpace * 0.5, 1.0);
 
   // 1 puts the row's bottom at the bottom of the screen.
-  container.requestScrollToIndex(static_cast<double>(target), 3.0, -2, 1.0);
+  container.requestScrollToRow(static_cast<double>(target), 3.0, -2, 1.0);
   double atEnd = settle();
-  CHECK_NEAR(atEnd, container.getElementOffset(target) - freeSpace, 1.0);
+  CHECK_NEAR(atEnd, container.getRowOffset(target) - freeSpace, 1.0);
 }
 
 /*
@@ -175,11 +178,11 @@ TEST(scroll_command_row_offset_moves_the_resting_offset) {
   Virtualizer::update(container, chatInput(keys, 0.0));
 
   const std::size_t target = 60;
-  container.requestScrollToIndex(static_cast<double>(target), 1.0, -2, 0.0, -40.0);
+  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 0.0, -40.0);
   for (int frame = 0; frame < 6; ++frame) {
-    Virtualizer::update(container, chatInput(keys, container.revision.containerOffsetY));
+    Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
   }
-  CHECK_NEAR(container.revision.containerOffsetY, container.getElementOffset(target) - 40.0, 1.0);
+  CHECK_NEAR(container.revision.offsetY, container.getRowOffset(target) - 40.0, 1.0);
 }
 
 /*
@@ -196,19 +199,19 @@ TEST(scroll_to_offset_command_lands_on_the_offset) {
 
   auto settle = [&]() {
     for (int frame = 0; frame < 6; ++frame) {
-      Virtualizer::update(container, chatInput(keys, container.revision.containerOffsetY));
+      Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
     }
-    return container.revision.containerOffsetY;
+    return container.revision.offsetY;
   };
 
-  container.requestScrollToIndex(SCROLL_TO_OFFSET_INDEX, 1.0, -2, 0.0, 2345.0);
+  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 1.0, -2, 0.0, 2345.0);
   CHECK_NEAR(settle(), 2345.0, 1.0);
 
-  container.requestScrollToIndex(SCROLL_TO_OFFSET_INDEX, 2.0, -2, 0.0, -50.0);
+  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 2.0, -2, 0.0, -50.0);
   CHECK_NEAR(settle(), 0.0, 1.0);
 
-  container.requestScrollToIndex(SCROLL_TO_OFFSET_INDEX, 3.0, -2, 0.0, 1.0e9);
-  double total = container.revision.totalContainerHeight;
+  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 3.0, -2, 0.0, 1.0e9);
+  double total = container.revision.contentHeight;
   CHECK_NEAR(settle(), total - WINDOW_HEIGHT, 1.0);
 }
 
@@ -227,18 +230,18 @@ TEST(scroll_to_index_clamps_a_view_position_outside_the_viewport) {
   const std::size_t target = 60;
   auto settle = [&]() {
     for (int frame = 0; frame < 6; ++frame) {
-      Virtualizer::update(container, chatInput(keys, container.revision.containerOffsetY));
+      Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
     }
-    return container.revision.containerOffsetY;
+    return container.revision.offsetY;
   };
 
-  container.requestScrollToIndex(static_cast<double>(target), 1.0, -2, 4.0);
+  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 4.0);
   double clampedHigh = settle();
-  CHECK_NEAR(clampedHigh, container.getElementOffset(target) - (WINDOW_HEIGHT - ROW_HEIGHT), 1.0);
+  CHECK_NEAR(clampedHigh, container.getRowOffset(target) - (WINDOW_HEIGHT - ROW_HEIGHT), 1.0);
 
-  container.requestScrollToIndex(static_cast<double>(target), 2.0, -2, -3.0);
+  container.requestScrollToRow(static_cast<double>(target), 2.0, -2, -3.0);
   double clampedLow = settle();
-  CHECK_NEAR(clampedLow, container.getElementOffset(target), 1.0);
+  CHECK_NEAR(clampedLow, container.getRowOffset(target), 1.0);
 }
 
 /*
@@ -257,17 +260,17 @@ TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
   measureAll(container, 10);
   Virtualizer::update(container, chatInput(keys, 0.0));
 
-  container.requestScrollToIndex(static_cast<double>(target), 1.0, -2, 0.5);
+  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 0.5);
 
   for (int frame = 0; frame < 8; ++frame) {
-    Virtualizer::update(container, chatInput(keys, container.revision.containerOffsetY));
+    Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
     // Once mounted, the target reports a size far from the estimate.
-    Virtualizer::updateElementAtIndex(container, target, {WINDOW_WIDTH, TALL_ROW});
+    Virtualizer::updateRowAtIndex(container, target, {WINDOW_WIDTH, TALL_ROW});
   }
 
   double freeSpace = WINDOW_HEIGHT - TALL_ROW;
-  CHECK_NEAR(container.revision.containerOffsetY,
-    container.getElementOffset(target) - freeSpace * 0.5, 1.0);
+  CHECK_NEAR(container.revision.offsetY,
+    container.getRowOffset(target) - freeSpace * 0.5, 1.0);
 }
 
 /*
@@ -280,17 +283,40 @@ TEST(scroll_to_index_view_position_survives_a_commit_before_the_window_is_measur
   Container container;
 
   FrameInput unmeasured = chatInput(keys, 0.0);
-  unmeasured.windowContainerHeight = 0.0;
+  unmeasured.windowHeight = 0.0;
   Virtualizer::update(container, unmeasured);
 
-  container.requestScrollToIndex(static_cast<double>(target), 1.0, -2, 1.0);
+  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 1.0);
   Virtualizer::update(container, unmeasured);
 
   measureAll(container, keys.size());
   for (int frame = 0; frame < 6; ++frame) {
-    Virtualizer::update(container, chatInput(keys, container.revision.containerOffsetY));
+    Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
   }
 
-  CHECK_NEAR(container.revision.containerOffsetY,
-    container.getElementOffset(target) - (WINDOW_HEIGHT - ROW_HEIGHT), 1.0);
+  CHECK_NEAR(container.revision.offsetY,
+    container.getRowOffset(target) - (WINDOW_HEIGHT - ROW_HEIGHT), 1.0);
+}
+
+/*
+ * Before the host gives the window a size, the window holds only the row at the offset. A
+ * visible rows report from that frame made the host unmount the rows its first frame showed.
+ */
+TEST(visible_rows_wait_for_the_window_size) {
+  std::vector<std::string> keys = keysFor(120, "m");
+  Container container;
+  std::vector<std::pair<std::size_t, std::size_t>> reports;
+  container.onMeasuredRangeChangeCallback = [&reports](std::size_t start, std::size_t end) {
+    reports.emplace_back(start, end);
+  };
+
+  FrameInput unmeasured = chatInput(keys, 0.0);
+  unmeasured.windowHeight = 0.0;
+  Virtualizer::update(container, unmeasured);
+  CHECK(reports.empty());
+
+  Virtualizer::update(container, chatInput(keys, 0.0));
+  CHECK_EQ(reports.size(), static_cast<std::size_t>(1));
+  CHECK_EQ(reports[0].first, static_cast<std::size_t>(0));
+  CHECK(reports[0].second > static_cast<std::size_t>(0));
 }

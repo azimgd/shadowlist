@@ -24,12 +24,12 @@ namespace {
  * A container with keys whose rows are all measured with a height that follows the key.
  */
 void measureAll(Container& container) {
-  for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
-    const std::string& key = container.revision.elements[index].key;
+  for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
+    const std::string& key = container.revision.rows[index].key;
     double height = 60.0 + static_cast<double>(std::hash<std::string>{}(key) % 100);
-    Virtualizer::applyElementSize(container, index, {WINDOW_WIDTH, height});
+    Virtualizer::applyRowSize(container, index, {WINDOW_WIDTH, height});
   }
-  Virtualizer::commitElementSizes(container, 0);
+  Virtualizer::commitRowSizes(container, 0);
 }
 
 /*
@@ -37,19 +37,19 @@ void measureAll(Container& container) {
  * follow their keys.
  */
 void checkRows(const Container& container, const std::vector<std::string>& keys) {
-  CHECK_EQ(container.revision.elements.size(), keys.size());
+  CHECK_EQ(container.revision.rows.size(), keys.size());
   double expected = container.headerSize;
   for (std::size_t index = 0; index < keys.size(); ++index) {
-    const Element& element = container.revision.elements[index];
-    CHECK_EQ(element.key, keys[index]);
-    CHECK_EQ(container.findElementIndexByKey(keys[index]), index);
-    CHECK_EQ(element.index, index);
-    CHECK_NEAR(element.offsetY, expected, 0.0001);
-    if (element.measured) {
-      double height = 60.0 + static_cast<double>(std::hash<std::string>{}(element.key) % 100);
-      CHECK_NEAR(element.height, height, 0.0001);
+    const Row& row = container.revision.rows[index];
+    CHECK_EQ(row.key, keys[index]);
+    CHECK_EQ(container.indexOfKey(keys[index]), index);
+    CHECK_EQ(row.index, index);
+    CHECK_NEAR(row.offsetY, expected, 0.0001);
+    if (row.measured) {
+      double height = 60.0 + static_cast<double>(std::hash<std::string>{}(row.key) % 100);
+      CHECK_NEAR(row.height, height, 0.0001);
     }
-    expected += element.height;
+    expected += row.height;
   }
 }
 
@@ -66,10 +66,10 @@ TEST(reconcile_trim_end_keeps_rows_sizes_and_lookups) {
   measureAll(container);
 
   std::vector<std::string> trimmed = slice(keys, 0, 150);
-  CHECK_EQ(Virtualizer::reconcileElements(container, trimmed), static_cast<std::size_t>(150));
+  CHECK_EQ(Virtualizer::reconcileRows(container, trimmed), static_cast<std::size_t>(150));
   Virtualizer::update(container, inputFor(trimmed, 0.0));
   checkRows(container, trimmed);
-  CHECK_EQ(container.findElementIndexByKey("k170"), UNDEFINED_INDEX);
+  CHECK_EQ(container.indexOfKey("k170"), UNDEFINED_INDEX);
 }
 
 TEST(reconcile_trim_start_keeps_rows_sizes_and_lookups) {
@@ -79,10 +79,10 @@ TEST(reconcile_trim_start_keeps_rows_sizes_and_lookups) {
   measureAll(container);
 
   std::vector<std::string> trimmed = slice(keys, 30, 200);
-  CHECK_EQ(Virtualizer::reconcileElements(container, trimmed), static_cast<std::size_t>(170));
+  CHECK_EQ(Virtualizer::reconcileRows(container, trimmed), static_cast<std::size_t>(170));
   Virtualizer::update(container, inputFor(trimmed, 0.0));
   checkRows(container, trimmed);
-  CHECK_EQ(container.findElementIndexByKey("k10"), UNDEFINED_INDEX);
+  CHECK_EQ(container.indexOfKey("k10"), UNDEFINED_INDEX);
 }
 
 TEST(reconcile_edits_at_both_ends_in_turn_keep_lookups_right) {
@@ -126,7 +126,7 @@ TEST(reconcile_trim_with_duplicate_keys_hands_the_key_to_the_survivor) {
   // Row 2 goes with the trim. Its key's other copy at 40 now owns the lookup.
   std::vector<std::string> trimmed = slice(keys, 5, 50);
   Virtualizer::update(container, inputFor(trimmed, 0.0));
-  CHECK_EQ(container.findElementIndexByKey(keys[2]), static_cast<std::size_t>(35));
+  CHECK_EQ(container.indexOfKey(keys[2]), static_cast<std::size_t>(35));
   CHECK(!container.revision.hasDuplicateKeys);
 }
 
@@ -138,7 +138,7 @@ TEST(reconcile_appended_duplicate_marks_the_map) {
   keys.push_back("k3");
   Virtualizer::update(container, inputFor(keys, 0.0));
   CHECK(container.revision.hasDuplicateKeys);
-  CHECK_EQ(container.findElementIndexByKey("k3"), static_cast<std::size_t>(3));
+  CHECK_EQ(container.indexOfKey("k3"), static_cast<std::size_t>(3));
 }
 
 TEST(reconcile_small_prepends_do_not_rehash_the_key_map_each_time) {
@@ -147,20 +147,93 @@ TEST(reconcile_small_prepends_do_not_rehash_the_key_map_each_time) {
   Virtualizer::update(container, inputFor(keys, 0.0));
   std::size_t rehashes = 0;
   for (int round = 0; round < 100; ++round) {
-    std::size_t buckets = container.revision.elementIndexByKey.bucket_count();
+    std::size_t buckets = container.revision.rowIndexByKey.bucket_count();
     std::vector<std::string> next = keysFor(10, "p" + std::to_string(round) + "-");
     next.insert(next.end(), keys.begin(), keys.end());
     keys = std::move(next);
     Virtualizer::update(container, inputFor(keys, 0.0));
-    rehashes += container.revision.elementIndexByKey.bucket_count() != buckets ? 1 : 0;
+    rehashes += container.revision.rowIndexByKey.bucket_count() != buckets ? 1 : 0;
   }
   CHECK(rehashes <= 3);
   checkRows(container, keys);
 }
 
 /*
+ * An edit inside the list keeps the rows before and after it with their sizes, and every
+ * lookup right, whichever side gets renumbered and with a bias from earlier prepends.
+ * Survivors are counted, and a key repeated outside the edit falls back to the full match.
+ */
+TEST(reconcile_edits_in_the_middle_keep_rows_sizes_and_lookups) {
+  std::vector<std::string> keys = keysFor(200);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  measureAll(container);
+
+  auto apply = [&](const std::vector<std::string>& next, std::size_t survivors) {
+    CHECK_EQ(Virtualizer::reconcileRows(container, next), survivors);
+    Virtualizer::update(container, inputFor(next, 0.0));
+    checkRows(container, next);
+    keys = next;
+  };
+
+  // A prepend puts a bias on the key map first.
+  std::vector<std::string> next = {"p0", "p1", "p2"};
+  next.insert(next.end(), keys.begin(), keys.end());
+  apply(next, 200);
+  measureAll(container);
+
+  // Inserts near the end renumber the rows after them, near the start the rows before them.
+  next = keys;
+  next.insert(next.end() - 5, {"late0", "late1"});
+  apply(next, 203);
+  next = keys;
+  next.insert(next.begin() + 4, "early");
+  apply(next, 205);
+
+  // A remove, a replace, and two rows swapped near each other.
+  next = keys;
+  next.erase(next.begin() + 100, next.begin() + 103);
+  apply(next, 203);
+  next = keys;
+  next[50] = "swapped-in";
+  apply(next, 202);
+  next = keys;
+  std::swap(next[60], next[63]);
+  apply(next, 203);
+  measureAll(container);
+
+  // A key from outside the edit inserted again is a duplicate.
+  next = keys;
+  next.insert(next.begin() + 120, keys[10]);
+  CHECK_EQ(Virtualizer::reconcileRows(container, next), static_cast<std::size_t>(203));
+  CHECK(container.revision.hasDuplicateKeys);
+  CHECK_EQ(container.indexOfKey(keys[10]), static_cast<std::size_t>(10));
+  CHECK(!container.revision.rows[120].measured);
+}
+
+/*
+ * A layout after an edit reflows only from the edit. Removing the one row wider than the
+ * window still brings the content width back to the window.
+ */
+TEST(removing_the_widest_row_near_the_end_narrows_the_content) {
+  std::vector<std::string> keys = keysFor(100);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  measureAll(container);
+  Virtualizer::updateRowAtIndex(container, 95, {WINDOW_WIDTH * 2.0, 80.0});
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  CHECK_NEAR(container.revision.contentWidth, WINDOW_WIDTH * 2.0, 0.001);
+
+  std::vector<std::string> next = keys;
+  next.erase(next.begin() + 95);
+  Virtualizer::update(container, inputFor(next, 0.0));
+  CHECK_NEAR(container.revision.contentWidth, WINDOW_WIDTH, 0.001);
+  checkRows(container, next);
+}
+
+/*
  * Random edits anywhere, with and without duplicate keys, against a plain model: the first
- * copy of a key finds its row and keeps the size of the key's first old row, every other
+ * copy of a key finds its row and keeps the size of the key's first previous row, every other
  * row starts unmeasured.
  */
 TEST(reconcile_random_edits_match_a_plain_model) {
@@ -195,30 +268,30 @@ TEST(reconcile_random_edits_match_a_plain_model) {
         nextKeys.push_back("n" + std::to_string(fresh++));
       }
 
-      // The model: sizes of each key's first old row.
-      std::unordered_map<std::string, std::pair<bool, double>> oldRows;
-      for (const Element& element : container.revision.elements) {
-        oldRows.emplace(element.key, std::make_pair(element.measured, element.height));
+      // The model: sizes of each key's first previous row.
+      std::unordered_map<std::string, std::pair<bool, double>> previousRows;
+      for (const Row& row : container.revision.rows) {
+        previousRows.emplace(row.key, std::make_pair(row.measured, row.height));
       }
-      Virtualizer::reconcileElements(container, nextKeys);
+      Virtualizer::reconcileRows(container, nextKeys);
 
       std::unordered_map<std::string, std::size_t> firstIndex;
       for (std::size_t index = 0; index < nextKeys.size(); ++index) firstIndex.emplace(nextKeys[index], index);
-      CHECK_EQ(container.revision.elements.size(), nextKeys.size());
+      CHECK_EQ(container.revision.rows.size(), nextKeys.size());
       for (std::size_t index = 0; index < nextKeys.size(); ++index) {
-        const Element& element = container.revision.elements[index];
-        CHECK_EQ(element.key, nextKeys[index]);
-        CHECK_EQ(container.findElementIndexByKey(nextKeys[index]), firstIndex[nextKeys[index]]);
-        auto old = oldRows.find(nextKeys[index]);
-        bool survivor = firstIndex[nextKeys[index]] == index && old != oldRows.end();
-        CHECK_EQ(element.measured, survivor && old->second.first);
-        if (survivor && old->second.first) {
-          CHECK_NEAR(element.height, old->second.second, 0.0001);
+        const Row& row = container.revision.rows[index];
+        CHECK_EQ(row.key, nextKeys[index]);
+        CHECK_EQ(container.indexOfKey(nextKeys[index]), firstIndex[nextKeys[index]]);
+        auto previous = previousRows.find(nextKeys[index]);
+        bool survivor = firstIndex[nextKeys[index]] == index && previous != previousRows.end();
+        CHECK_EQ(row.measured, survivor && previous->second.first);
+        if (survivor && previous->second.first) {
+          CHECK_NEAR(row.height, previous->second.second, 0.0001);
         }
       }
-      for (const auto& [key, row] : oldRows) {
+      for (const auto& [key, row] : previousRows) {
         if (firstIndex.find(key) == firstIndex.end()) {
-          CHECK_EQ(container.findElementIndexByKey(key), UNDEFINED_INDEX);
+          CHECK_EQ(container.indexOfKey(key), UNDEFINED_INDEX);
         }
       }
       keys = nextKeys;
@@ -239,18 +312,18 @@ TEST(reconcile_wrong_edit_hint_falls_back_to_comparing) {
   std::vector<std::string> appended = keys;
   appended.push_back("x1");
   appended.push_back("x2");
-  CHECK_EQ(Virtualizer::reconcileElements(container, appended, {KeyEditKind::Prepend, 2}), static_cast<std::size_t>(40));
+  CHECK_EQ(Virtualizer::reconcileRows(container, appended, {KeyEditKind::Prepend, 2}), static_cast<std::size_t>(40));
   Virtualizer::update(container, inputFor(appended, 0.0));
   checkRows(container, appended);
 
   std::vector<std::string> prepended = {"y1", "y2", "y3"};
   prepended.insert(prepended.end(), appended.begin(), appended.end());
-  CHECK_EQ(Virtualizer::reconcileElements(container, prepended, {KeyEditKind::Append, 3}), static_cast<std::size_t>(42));
+  CHECK_EQ(Virtualizer::reconcileRows(container, prepended, {KeyEditKind::Append, 3}), static_cast<std::size_t>(42));
   Virtualizer::update(container, inputFor(prepended, 0.0));
   checkRows(container, prepended);
 
   std::vector<std::string> trimmed = slice(prepended, 0, prepended.size() - 4);
-  CHECK_EQ(Virtualizer::reconcileElements(container, trimmed, {KeyEditKind::TrimStart, 4}), trimmed.size());
+  CHECK_EQ(Virtualizer::reconcileRows(container, trimmed, {KeyEditKind::TrimStart, 4}), trimmed.size());
   Virtualizer::update(container, inputFor(trimmed, 0.0));
   checkRows(container, trimmed);
 

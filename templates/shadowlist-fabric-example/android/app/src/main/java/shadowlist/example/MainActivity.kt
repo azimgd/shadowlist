@@ -10,7 +10,9 @@ class MainActivity : ReactActivity() {
 
   override fun getMainComponentName(): String = "ShadowListExample"
 
-  /** Keeps the SL* intent extras for JS, see [LaunchSettings]. */
+  /*
+   * Keeps the SL* intent extras for JS. LaunchSettings reads them.
+   */
   override fun onCreate(savedInstanceState: Bundle?) {
     LaunchSettings.capture(intent?.extras)
     super.onCreate(savedInstanceState)

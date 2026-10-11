@@ -8,16 +8,16 @@ import {
 import { Platform } from 'react-native';
 import { slTrace, slTraceEnabled } from './helpers';
 
-interface UseRefreshDeferOptions<ElementT> {
-  data: ReadonlyArray<ElementT>;
+interface UseRefreshDeferOptions<ItemT> {
+  data: ReadonlyArray<ItemT>;
   refreshing: boolean;
   onRefresh: (() => void) | undefined;
   inverted: boolean;
   horizontal: boolean;
 }
 
-interface UseRefreshDeferResult<ElementT> {
-  data: ReadonlyArray<ElementT>;
+interface UseRefreshDeferResult<ItemT> {
+  data: ReadonlyArray<ItemT>;
   handleRefreshSettle: () => void;
 }
 
@@ -26,22 +26,22 @@ interface UseRefreshDeferResult<ElementT> {
  * a normal prepend so the visible content stays in place. Other changes pass straight through.
  * Only for vertical, non inverted lists with onRefresh.
  */
-export function useRefreshDefer<ElementT>({
+export function useRefreshDefer<ItemT>({
   data: dataProp,
   refreshing,
   onRefresh,
   inverted,
   horizontal,
-}: UseRefreshDeferOptions<ElementT>): UseRefreshDeferResult<ElementT> {
+}: UseRefreshDeferOptions<ItemT>): UseRefreshDeferResult<ItemT> {
   const refreshDeferEnabled =
     Platform.OS !== 'macos' && !!onRefresh && !inverted && !horizontal;
 
   const refreshHoldingRef = useRef(false);
-  const refreshHeldDataRef = useRef<ReadonlyArray<ElementT> | null>(null);
+  const refreshHeldDataRef = useRef<ReadonlyArray<ItemT> | null>(null);
   const previousRefreshingRef = useRef(refreshing);
   /*
    * The data the last commit showed. Kept in a ref, not state. A normal data change
-   * renders once. Setting state here during render made React run the whole list twice.
+   * renders once. Setting state here during render would make React run the whole list twice.
    */
   const shownDataRef = useRef(dataProp);
   const [, forceRender] = useReducer((count: number) => count + 1, 0);
@@ -86,7 +86,6 @@ export function useRefreshDefer<ElementT>({
   /*
    * Fallback in case onRefreshSettle never comes. Release the held data shortly after the
    * refresh ends. On iOS the settle event fires first. This does nothing there.
-
    */
   const previousRefreshingForFallbackRef = useRef(refreshing);
   useEffect(() => {

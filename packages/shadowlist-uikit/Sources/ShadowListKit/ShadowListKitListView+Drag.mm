@@ -150,7 +150,7 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 - (ShadowListKitListCell *)movableCellAtPoint:(CGPoint)location
 {
   ShadowListKitListCell *cell = [self itemCellAtPoint:location];
-  if (!cell || (std::size_t)cell.row >= _driver.getCount() || _editing) {
+  if (!cell || (std::size_t)cell.row >= _driver.getRowCount() || _editing) {
     return nil;
   }
   if ([_userDelegate respondsToSelector:@selector(listView:canMoveItemAtIndex:)] &&
@@ -318,6 +318,8 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 }
 
 @end
+
+#pragma mark - Testing
 
 @implementation ShadowListKitListView (Testing)
 

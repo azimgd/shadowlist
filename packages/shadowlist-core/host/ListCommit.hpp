@@ -30,8 +30,8 @@ struct ListScrollState {
   std::uint64_t commitToken = 0;
   bool userScrolled = false;
   double scrollPhase = SCROLL_PHASE_IDLE;
-  double totalWidth = 0.0;
-  double totalHeight = 0.0;
+  double contentWidth = 0.0;
+  double contentHeight = 0.0;
 };
 
 /*

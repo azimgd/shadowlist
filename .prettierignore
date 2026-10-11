@@ -15,3 +15,5 @@ packages/shadowlist-uikit/build
 packages/shadowlist-uikit/results
 **/Pods
 .claude
+# README tables use compact Markdown; yarn docs:check validates their layout.
+**/README.md

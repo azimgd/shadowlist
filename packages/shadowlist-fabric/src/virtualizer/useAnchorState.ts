@@ -4,7 +4,7 @@ import ShadowListView, {
   type OnAnchorState,
 } from '../ShadowListViewNativeComponent';
 import type { AnchorState } from '../types';
-import type { RowIndexStore } from './ElementRenderer';
+import type { RowIndexStore } from './CellRenderer';
 
 /*
  * Longest wait for native to answer getAnchorState.
@@ -74,7 +74,7 @@ export function useAnchorState({
     }
     pendingAnchorRef.current = null;
     seedAroundIndex(index, 0);
-    Commands.scrollToItem(view, index, 0, -state.offset, false);
+    Commands.scrollToRow(view, index, 0, -state.offset, false);
   };
 
   // The pending anchor is restored by the latest render's restoreAnchorState.

@@ -18,7 +18,7 @@ inline azimgd::shadowlist::OffsetBand shadowListOffsetBand(const ShadowListViewS
     return {};
   }
   const auto& props = listShadowNode.getConcreteProps();
-  bool measuringSizeSpecs = !props.elementsSizeSpecs.empty() && !geometry->sizeSpecs.isFinished(listShadowNode.getProps());
+  bool measuringSizeSpecs = !props.rowSizeSpecs.empty() && !geometry->sizeSpecs.isFinished(listShadowNode.getProps());
   return azimgd::shadowlist::publishedOffsetBand(
     *core, shadowListScrollBandEnabled(), !geometry->concealedRows.isEmpty(), measuringSizeSpecs);
 }

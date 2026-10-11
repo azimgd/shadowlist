@@ -24,6 +24,11 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
     private const val COMMAND_DURATION_MS = 300L
     private const val SNAP_MIN_DURATION_MS = 200L
     private const val SNAP_MAX_DURATION_MS = 800L
+
+    /*
+     * The scroller runs from 0 to this for a command animation and only times it.
+     */
+    private const val COMMAND_PROGRESS = 1 shl 16
   }
 
   private val configuration = ViewConfiguration.get(list.context)
@@ -52,6 +57,14 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
    * The scroller runs an animated scroll command.
    */
   private var isAnimating = false
+
+  /*
+   * A command animation follows its target as rows get measured, and keeps the corrections
+   * the core makes on the way instead of undoing them on the next frame.
+   */
+  private var commandTarget: (() -> Int)? = null
+  private var commandFrom = 0
+  private var commandWritten = 0
 
   /*
    * A free fling hands its moves to a nested parent too. The scroller then runs unbounded and
@@ -331,21 +344,45 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
   /*
    * Animate to an offset for a scroll command. It ends in list.scrollingEnded.
    */
-  fun animateTo(target: Int) {
+  fun animateTo(target: Int, currentTarget: (() -> Int)? = null) {
     scroller.abortAnimation()
     endFlingSteps()
     isFlinging = false
     isAnimating = true
-    startScroll(list.offset, target, COMMAND_DURATION_MS)
+    commandTarget = currentTarget
+    if (currentTarget != null) {
+      commandFrom = list.offset
+      commandWritten = list.offset
+      startScroll(0, COMMAND_PROGRESS, COMMAND_DURATION_MS)
+    } else {
+      startScroll(list.offset, target, COMMAND_DURATION_MS)
+    }
     list.postInvalidateOnAnimation()
+  }
+
+  /*
+   * One frame of a command animation. A correction since the last frame moves the start
+   * with it, and the target is read again.
+   */
+  private fun stepCommand(progress: Int, target: () -> Int) {
+    commandFrom += list.offset - commandWritten
+    val fraction = progress.toDouble() / COMMAND_PROGRESS
+    val position = (commandFrom + (target() - commandFrom) * fraction).roundToInt()
+    if (position != list.offset) {
+      if (list.horizontal) list.scrollTo(position, 0) else list.scrollTo(0, position)
+    }
+    commandWritten = list.offset
   }
 
   fun computeScroll() {
     if (!isFlinging && !isAnimating) return
     if (scroller.computeScrollOffset()) {
       val position = if (list.horizontal) scroller.currX else scroller.currY
+      val command = if (isAnimating) commandTarget else null
       if (flingSteps) {
         stepFling(position)
+      } else if (command != null) {
+        stepCommand(position, command)
       } else if (position != list.offset) {
         if (list.horizontal) list.scrollTo(position, 0) else list.scrollTo(0, position)
       }
@@ -357,6 +394,7 @@ internal class ShadowListKitScrollGesture(private val list: ShadowListKitListVie
     endFlingSteps()
     isFlinging = false
     isAnimating = false
+    commandTarget = null
     list.scrollingEnded()
   }
 

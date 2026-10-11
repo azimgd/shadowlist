@@ -23,7 +23,7 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 
 - (ShadowListKitAnchorState *)anchorState
 {
-  std::optional<ListAnchor> anchor = _driver.getAnchor([self offset]);
+  std::optional<AnchorState> anchor = _driver.getAnchorState([self offset]);
   if (!anchor) {
     return _pendingAnchor;
   }
@@ -44,8 +44,8 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   if (!_pendingAnchor) {
     return;
   }
-  ListAnchor anchor{ShadowListKitStdString(_pendingAnchor.key), (double)_pendingAnchor.offset};
-  if (!_driver.restoreAnchor(anchor)) {
+  AnchorState anchor{ShadowListKitStdString(_pendingAnchor.key), (double)_pendingAnchor.offset};
+  if (!_driver.restoreAnchorState(anchor)) {
     return;
   }
   _pendingAnchor = nil;
@@ -87,14 +87,14 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   if (row >= _driver.getKeyCount()) {
     return;
   }
-  if (animated && row < _driver.getCount()) {
+  if (animated && row < _driver.getRowCount()) {
     // Animate to the estimate, then let the core land exactly when the animation ends.
     double target = _driver.animatedTargetOffset(row, viewPosition, _windowAlong, [self maxOffset]);
-    [self animateCommandTo:target landing:{ScrollLanding::Target::Index, row, viewPosition}];
+    [self animateCommandTo:target landing:{ScrollLanding::Target::Row, row, viewPosition}];
     return;
   }
   [self stopScrolling];
-  _driver.scrollToIndex(row, viewPosition);
+  _driver.scrollToRow(row, viewPosition);
   [self runCommandNow];
 }
 

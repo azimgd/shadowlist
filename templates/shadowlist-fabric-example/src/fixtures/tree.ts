@@ -1,7 +1,7 @@
 import type { TreeNode } from 'shadowlist-utils/native';
 import { generateUniqueId } from './common';
 
-export const FOLDER_NAMES = [
+const FOLDER_NAMES = [
   'trips',
   'boarding-passes',
   'flights',
@@ -16,7 +16,7 @@ export const FOLDER_NAMES = [
   'notes',
 ];
 
-export const FILE_EXTENSIONS = [
+const FILE_EXTENSIONS = [
   'pdf',
   'ics',
   'jpg',

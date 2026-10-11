@@ -60,11 +60,11 @@ TEST(mounted_range_steps_toward_the_target) {
   CHECK(sameRange(stepMountedRange({14, 30}, {14, 32}, {18, 21}, 2), 14, 32));
 }
 
-TEST(mounted_range_step_scales_with_the_window) {
-  CHECK_EQ(mountStepForWindow({10, 15}, 2), std::size_t{2});
-  CHECK_EQ(mountStepForWindow({875, 910}, 2), std::size_t{9});
+TEST(mounted_range_step_scales_with_the_measured_range) {
+  CHECK_EQ(mountStepForRange({10, 15}, 2), std::size_t{2});
+  CHECK_EQ(mountStepForRange({875, 910}, 2), std::size_t{9});
   MountedRange window{875, 910};
-  std::size_t step = mountStepForWindow(window, 2);
+  std::size_t step = mountStepForRange(window, 2);
   MountedRange range{875, 914};
   MountedRange target{865, 914};
   range = stepMountedRange(range, target, window, step);
@@ -111,11 +111,10 @@ TEST(mounted_range_first_report_trims_the_initial_range) {
   CHECK(sameRange(moved->target, 26, 43));
 }
 
-TEST(viewability_window_and_sticky_index) {
-  CHECK(viewableWindow(12, 4) == MountedRange({4, 12}));
-  CHECK(viewableWindow(4, 12) == MountedRange({4, 12}));
-  CHECK(!viewableWindow(UNDEFINED_INDEX, UNDEFINED_INDEX).has_value());
-  CHECK(!viewableWindow(3, UNDEFINED_INDEX).has_value());
+TEST(viewability_range_and_sticky_index) {
+  CHECK(viewableRange(4, 12) == MountedRange({4, 12}));
+  CHECK(!viewableRange(UNDEFINED_INDEX, UNDEFINED_INDEX).has_value());
+  CHECK(!viewableRange(3, UNDEFINED_INDEX).has_value());
 
   std::vector<std::size_t> headers{0, 10, 25};
   CHECK_EQ(activeStickyIndexFor(headers, 0), std::size_t{0});

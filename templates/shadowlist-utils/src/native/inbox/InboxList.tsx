@@ -2,7 +2,7 @@ import { forwardRef, useCallback } from 'react';
 import {
   ShadowList,
   type ContextMenu,
-  type RenderElementInfo,
+  type RenderItemInfo,
   type ShadowListCommands,
   type ShadowListProps,
   type SwipeActionsConfiguration,
@@ -23,7 +23,7 @@ type MessageAction = (item: InboxMessage) => void | Promise<unknown>;
 
 export type InboxListProps = Omit<
   ShadowListProps<InboxMessage>,
-  | 'renderElement'
+  | 'renderItem'
   | 'allowsMultipleSelection'
   | 'leadingSwipeActionsForItem'
   | 'trailingSwipeActionsForItem'
@@ -63,16 +63,16 @@ export const InboxList = forwardRef<ShadowListCommands, InboxListProps>(
     const { colors } = useTheme();
     const rowLabels = useLabels(defaultInboxLabels, labels);
 
-    const renderElement = useCallback(
+    const renderItem = useCallback(
       ({
-        element,
+        item,
         selected,
         select,
         deselect,
         separators,
-      }: RenderElementInfo<InboxMessage>) => (
+      }: RenderItemInfo<InboxMessage>) => (
         <InboxRow
-          item={element}
+          item={item}
           editing={editing}
           selected={selected}
           separators={separators}
@@ -179,7 +179,7 @@ export const InboxList = forwardRef<ShadowListCommands, InboxListProps>(
     return (
       <ShadowList
         ref={ref}
-        renderElement={renderElement}
+        renderItem={renderItem}
         ItemSeparatorComponent={ItemSeparator}
         allowsMultipleSelection={editing}
         leadingSwipeActionsForItem={leadingSwipeActionsForItem}

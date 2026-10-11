@@ -26,7 +26,7 @@ export type ContactsSectionListProps = SectionListProps<
   ContactRowOptions;
 
 /*
- * Kept at module scope. Every row includes the separator. A new element each render would
+ * Kept at module scope. Every row includes the separator. A new React element each render would
  * rebuild every mounted row.
  */
 const ITEM_SEPARATOR = <ItemSeparator />;
@@ -43,7 +43,7 @@ export const ContactsSectionList = forwardRef<
 >(
   (
     {
-      renderElement,
+      renderItem,
       onPressItem,
       onDelete,
       disclosureIndicator,
@@ -61,7 +61,7 @@ export const ContactsSectionList = forwardRef<
     return (
       <SectionList
         ref={ref}
-        renderElement={renderElement ?? renderContactRow}
+        renderItem={renderItem ?? renderContactRow}
         renderSectionHeader={renderContactSectionHeader}
         ItemSeparatorComponent={ITEM_SEPARATOR}
         {...props}

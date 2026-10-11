@@ -1,17 +1,21 @@
 import type { ReactElement } from 'react';
 
-// Default extra rows mounted on each side of the screen. See overscanRows for how to pick one.
+/*
+ * Default extra rows mounted on each side of the screen. See mountOverscanRows for how to pick one.
+ */
 export const SHADOWLIST_OVERSCAN = 4;
 
 /*
- * Default extra rows mounted ahead in the scroll direction, overridden by overscanRowsLeading.
+ * Default extra rows mounted ahead in the scroll direction, overridden by mountOverscanRowsLeading.
  * A blank cell in a fling is a row native reached before React mounted it. Rows ahead are
  * what help. Rows behind only cost render work. A fling mounts this many ahead and
  * SHADOWLIST_OVERSCAN behind, and a list at rest keeps SHADOWLIST_OVERSCAN on both sides.
  */
 export const SHADOWLIST_OVERSCAN_LEADING = 10;
 
-// Maps snapAlignment to the native enum value.
+/*
+ * Maps snapAlignment to the native enum value.
+ */
 export const SNAP_ALIGNMENT = { start: 0, center: 1, end: 2 } as const;
 
 /*
@@ -42,7 +46,9 @@ export function slTraceNow(): number {
   );
 }
 
-// Rows rendered since the last commit trace line. All lists share this counter.
+/*
+ * Rows rendered since the last commit trace line. All lists share this counter.
+ */
 let rowRenderCount = 0;
 
 export function countRowRender(): void {
@@ -63,14 +69,14 @@ export function nativeTagOf(instance: unknown): number {
 }
 
 /*
- * The key of a row when the list has no keyExtractor: the element's id when
+ * The key of a row when the list has no keyExtractor: the item's id when
  * it is a string or a number, and its index otherwise. An index key belongs to the position,
  * not the row. Rows inserted above the screen then change the keys of the rows on it, and the
  * list cannot keep them still. Give such data a keyExtractor.
  */
-export function defaultKeyExtractor(element: unknown, index: number): string {
-  if (typeof element === 'object' && element !== null) {
-    const id = (element as { id?: unknown }).id;
+export function defaultKeyExtractor(item: unknown, index: number): string {
+  if (typeof item === 'object' && item !== null) {
+    const id = (item as { id?: unknown }).id;
     if (typeof id === 'string' || typeof id === 'number') {
       return String(id);
     }
@@ -79,7 +85,7 @@ export function defaultKeyExtractor(element: unknown, index: number): string {
 }
 
 /*
- * The element of a slot prop that takes an element or a function returning one.
+ * The React element of a slot prop that takes one or a function returning one.
  */
 export function renderComponent(
   component: ReactElement | (() => ReactElement | null) | null | undefined
@@ -89,14 +95,14 @@ export function renderComponent(
 }
 
 /*
- * How next differs from previous at the edges. pre counts rows added before the old first
- * row, app after the old last row, and mid in between, negative for removals. replace means
+ * How next differs from previous at the edges. pre counts rows added before the previous
+ * first row, app after the previous last row, and mid in between, negative for removals. replace means
  * an edge row is gone.
  */
-export function describeDataChange<ElementT>(
-  previous: ReadonlyArray<ElementT> | null,
-  next: ReadonlyArray<ElementT>,
-  keyExtractor: (element: ElementT, index: number) => string
+export function describeDataChange<ItemT>(
+  previous: ReadonlyArray<ItemT> | null,
+  next: ReadonlyArray<ItemT>,
+  keyExtractor: (item: ItemT, index: number) => string
 ): string {
   if (previous === null) return `init:${next.length}`;
   if (previous.length === 0 || next.length === 0) {
@@ -122,13 +128,13 @@ export function describeDataChange<ElementT>(
 }
 
 /*
- * Move one element, returning a new array.
+ * Move one item, returning a new array.
  */
-export function arrayMove<ElementT>(
-  input: ReadonlyArray<ElementT>,
+export function arrayMove<ItemT>(
+  input: ReadonlyArray<ItemT>,
   from: number,
   to: number
-): ElementT[] {
+): ItemT[] {
   const next = input.slice();
   if (
     from < 0 ||
@@ -139,7 +145,7 @@ export function arrayMove<ElementT>(
   ) {
     return next;
   }
-  const moved = next.splice(from, 1)[0] as ElementT;
+  const moved = next.splice(from, 1)[0] as ItemT;
   next.splice(to, 0, moved);
   return next;
 }

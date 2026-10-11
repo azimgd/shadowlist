@@ -9,7 +9,7 @@ import android.view.MotionEvent
 /*
  * The section index along a vertical list's trailing edge, drawn over the rows. Touching or
  * sliding over a title scrolls to its section. Sizes and the title under a touch come from the
- * core's SectionIndex, shared with iOS.
+ * core's SectionIndex.
  */
 internal class ShadowListKitSectionIndex(private val list: ShadowListKitListView) {
   companion object {

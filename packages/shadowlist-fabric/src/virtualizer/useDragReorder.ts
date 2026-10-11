@@ -3,13 +3,17 @@ import type { CodegenTypes } from 'react-native';
 import type { OnDragStart, OnDragEnd } from '../ShadowListViewNativeComponent';
 import { arrayMove } from './helpers';
 
-interface UseDragReorderOptions<ElementT> {
-  data: ReadonlyArray<ElementT>;
+interface UseDragReorderOptions<ItemT> {
+  data: ReadonlyArray<ItemT>;
   keyToIndex: ReadonlyMap<string, number>;
   mountedIndices: number[];
   reorderEnabled: boolean;
-  onReorder:
-    | ((info: { from: number; to: number; data: ElementT[] }) => void)
+  onMoveItem:
+    | ((info: {
+        sourceIndex: number;
+        destinationIndex: number;
+        data: ItemT[];
+      }) => void)
     | undefined;
 }
 
@@ -21,15 +25,15 @@ interface UseDragReorderResult {
 
 /*
  * Drag to reorder. Keeps the dragged row mounted while it's off screen, and on drop moves
- * it in the array and passes the result to onReorder.
+ * it in the array and passes the result to onMoveItem.
  */
-export function useDragReorder<ElementT>({
+export function useDragReorder<ItemT>({
   data,
   keyToIndex,
   mountedIndices,
   reorderEnabled,
-  onReorder,
-}: UseDragReorderOptions<ElementT>): UseDragReorderResult {
+  onMoveItem,
+}: UseDragReorderOptions<ItemT>): UseDragReorderResult {
   /*
    * Find a key's current index in data, or -1 if it's gone. Native sends keys. A data
    * change during the drag still moves the right rows.
@@ -76,19 +80,23 @@ export function useDragReorder<ElementT>({
   const handleDragEnd: CodegenTypes.DirectEventHandler<OnDragEnd, never> =
     useCallback(
       (event) => {
-        const { fromKey, toKey } = event.nativeEvent;
+        const { sourceKey, destinationKey } = event.nativeEvent;
         setDraggingKey(null);
-        const fromIndex = indexOfKey(fromKey);
-        const toIndex = indexOfKey(toKey);
-        if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
-          onReorder?.({
-            from: fromIndex,
-            to: toIndex,
-            data: arrayMove(data, fromIndex, toIndex),
+        const sourceIndex = indexOfKey(sourceKey);
+        const destinationIndex = indexOfKey(destinationKey);
+        if (
+          sourceIndex !== -1 &&
+          destinationIndex !== -1 &&
+          sourceIndex !== destinationIndex
+        ) {
+          onMoveItem?.({
+            sourceIndex,
+            destinationIndex,
+            data: arrayMove(data, sourceIndex, destinationIndex),
           });
         }
       },
-      [data, onReorder, indexOfKey]
+      [data, onMoveItem, indexOfKey]
     );
 
   // Clear draggingKey if dragging is turned off mid drag, since the drop event may never come.

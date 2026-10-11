@@ -26,29 +26,30 @@ export interface InfiniteListProps<ItemT> {
   onStartReached: () => void;
 }
 
-/**
+/*
  * Connects an infinite query to a shadowlist list.
  *
  * - `data` is the flattened rows, memoized on the cache value. The list only gets a new
  *   array when a page really changed.
  * - `onEndReached` and `onStartReached` are stable and safe to call again and again. They do
  *   nothing when there is no page to load, while any fetch runs, since a page fetch racing
- *   a refetch would build on old pages, or while their own fetch is still pending.
+ *   a refetch would build on stale pages, or while their own fetch is still pending.
  * - `refreshing` is true only for pull to refresh, never for background refetches.
  *
- * @example
- * const feed = useInfiniteQuery(feedQuery);
- * const list = useInfiniteListProps(feed);
- * if (feed.data === undefined) return <Loading />;
- * return (
- *   <ShadowList
- *     data={list.data}
- *     onEndReached={list.onEndReached}
- *     refreshing={list.refreshing}
- *     onRefresh={list.onRefresh}
- *     renderElement={renderPost}
- *   />
- * );
+ * For example:
+ *
+ *   const feed = useInfiniteQuery(feedQuery);
+ *   const list = useInfiniteListProps(feed);
+ *   if (feed.data === undefined) return <Loading />;
+ *   return (
+ *     <ShadowList
+ *       data={list.data}
+ *       onEndReached={list.onEndReached}
+ *       refreshing={list.refreshing}
+ *       onRefresh={list.onRefresh}
+ *       renderItem={renderPost}
+ *     />
+ *   );
  */
 export function useInfiniteListProps<
   DataT extends InfinitePages<ItemsPage<unknown>>,

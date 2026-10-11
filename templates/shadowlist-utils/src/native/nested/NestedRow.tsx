@@ -19,15 +19,15 @@ export interface NestedRowProps {
   titleStyle?: StyleProp<TextStyle>;
 }
 
-type RenderCard = ShadowListProps<NestedCardItem>['renderElement'];
+type RenderCard = ShadowListProps<NestedCardItem>['renderItem'];
 
-const renderCard: RenderCard = ({ element }) => <NestedCard item={element} />;
+const renderCard: RenderCard = ({ item }) => <NestedCard item={item} />;
 
 export const NestedRow = memo(
   ({ item, onPressCard, style, titleStyle }: NestedRowProps) => {
     const styles = useStyles();
     const renderPressableCard = useCallback<RenderCard>(
-      ({ element: card }) => (
+      ({ item: card }) => (
         <NestedCard item={card} onPress={() => onPressCard?.(card, item)} />
       ),
       [onPressCard, item]
@@ -42,7 +42,7 @@ export const NestedRow = memo(
           data={item.cards}
           horizontal
           style={styles.list}
-          renderElement={
+          renderItem={
             onPressCard === undefined ? renderCard : renderPressableCard
           }
         />

@@ -35,7 +35,9 @@ import com.facebook.react.views.scroll.ReactScrollView;
  * classes, which use the accessors at the bottom.
  */
 public class ShadowListView extends FrameLayout {
-  // Trace logging for state sync, on with -PshadowlistDebugLog. Filter with adb logcat -s SL
+  /*
+   * Trace logging for state sync, on with -PshadowlistDebugLog. Filter with adb logcat -s SL
+   */
   static final boolean DEBUG_LOG = BuildConfig.SHADOWLIST_DEBUG_LOG;
   private static final String LOG_TAG = "SL";
 
@@ -53,11 +55,12 @@ public class ShadowListView extends FrameLayout {
   private static final int SCROLL_PHASE_DRAGGING = 1;
   private static final int SCROLL_PHASE_SETTLING = 2;
   /*
-   * The scrollToItem index that means the end, matching SCROLL_TO_END_INDEX in Constants.hpp.
+   * The scrollToRow row that means the end, matching SCROLL_TO_END_INDEX in Constants.hpp.
    */
   private static final double SCROLL_TO_END_INDEX = -3.0;
   /*
-   * The scrollToItem index that means the offset in rowOffset, matching SCROLL_TO_OFFSET_INDEX.
+   * The scrollToRow row that means the absolute offset carried in viewOffset, matching
+   * SCROLL_TO_OFFSET_INDEX.
    */
   private static final double SCROLL_TO_OFFSET_INDEX = -4.0;
 
@@ -107,7 +110,7 @@ public class ShadowListView extends FrameLayout {
   /*
    * The row swiped open, or null. Only one row is open at a time.
    */
-  @Nullable private ShadowListElementView mSwipedRow = null;
+  @Nullable private ShadowListCellView mSwipedRow = null;
   /*
    * This touch closed the open row. It presses nothing but may still scroll.
    */
@@ -116,7 +119,9 @@ public class ShadowListView extends FrameLayout {
    * This touch stopped a fling. It shows no context menu.
    */
   private boolean mTouchStoppedFling = false;
-  // A long press on a row shows its context menu, unless it belongs to drag to reorder.
+  /*
+   * A long press on a row shows its context menu, unless it belongs to drag to reorder.
+   */
   private final GestureDetector mMenuGestureDetector;
   /*
    * Grid columns from props, which drags move rows across.
@@ -128,10 +133,14 @@ public class ShadowListView extends FrameLayout {
    * its real position when the list size changes.
    */
   private final View.OnLayoutChangeListener mTemplateLayoutListener;
-  // A mounted template changed type. The sticky views must be found again.
+  /*
+   * A mounted template changed type. The sticky views must be found again.
+   */
   private final Runnable mTemplateTypeListener;
 
-  // The scroll axis. Changing it rebuilds the inner scroll view.
+  /*
+   * The scroll axis. Changing it rebuilds the inner scroll view.
+   */
   private boolean mHorizontal = false;
 
   /*
@@ -149,12 +158,14 @@ public class ShadowListView extends FrameLayout {
    */
   private boolean mSettling = false;
   private int mSettleStableFrames = 0;
-  private int mSettleLastScrollX = 0;
-  private int mSettleLastScrollY = 0;
+  private int mSettlePreviousScrollX = 0;
+  private int mSettlePreviousScrollY = 0;
   private static final long SETTLE_POLL_DELAY_MS = 20;
   private static final int SETTLE_STABLE_FRAMES = 3;
 
-  // Pull to refresh. Kept here so rebuilding the scroll view for a new axis restores it.
+  /*
+   * Pull to refresh. Rebuilding the scroll view for a new axis restores it from here.
+   */
   @Nullable private SwipeRefreshLayout mRefreshLayout = null;
   private boolean mRefreshEnabled = false;
   private boolean mRefreshing = false;
@@ -164,8 +175,14 @@ public class ShadowListView extends FrameLayout {
    * and the list is at rest.
    */
   private boolean mRefreshAwaitingSettle = false;
-  // The spinner takes about 200ms to hide. Check just after that, then poll until at rest.
+  /*
+   * The spinner takes about 200ms to hide. Check just after that, then poll until at rest.
+   */
   private static final long REFRESH_SETTLE_DELAY_MS = 250;
+  /*
+   * How long a lift waits for a fling, which snaps on its own, before it snaps in place.
+   */
+  private static final long SNAP_SETTLE_DELAY_MS = 40;
 
   /*
    * ScrollView props. A drag turns scrolling off for its run and gives back mScrollEnabled.
@@ -176,7 +193,7 @@ public class ShadowListView extends FrameLayout {
   private boolean mBounces = true;
   private double mDecelerationRate = 0;
   private boolean mNestedScrollEnabled = false;
-  private double mRefreshProgressViewOffset = 0;
+  private double mProgressViewOffset = 0;
 
   /*
    * Drag and momentum events. A drag begins on the first frame a finger moves the list.
@@ -186,7 +203,18 @@ public class ShadowListView extends FrameLayout {
   private boolean mMomentumEventSent = false;
   private int mFlingVelocity = 0;
 
-  // Row count, visible rows and scroll actions for accessibility services.
+  /*
+   * The offset of the previous scroll callback. React Native's scroll view calls
+   * onScrollChanged twice for some frames of its animations and flings. The repeat moves
+   * nothing. Counted as a user scroll it would cancel an animated command that landed on the
+   * first one.
+   */
+  private int mPreviousScrollX = Integer.MIN_VALUE;
+  private int mPreviousScrollY = Integer.MIN_VALUE;
+
+  /*
+   * Row count, visible rows and scroll actions for accessibility services.
+   */
   private final ShadowListAccessibility mAccessibility = new ShadowListAccessibility(this);
 
   /*
@@ -211,6 +239,8 @@ public class ShadowListView extends FrameLayout {
    * Core corrections are matched by cause, not by this tolerance.
    */
   private static final int PROGRAMMATIC_SCROLL_TOLERANCE_PX = 2;
+
+  // region Lifecycle
 
   public ShadowListView(Context context) {
     super(context);
@@ -239,6 +269,8 @@ public class ShadowListView extends FrameLayout {
    */
   private void installScrollView(boolean horizontal) {
     mContentView.setCullAxis(horizontal);
+    mPreviousScrollX = Integer.MIN_VALUE;
+    mPreviousScrollY = Integer.MIN_VALUE;
     if (mScrollView != null) {
       mScrollView.removeView(mContentView);
       if (mRefreshLayout != null) {
@@ -296,7 +328,7 @@ public class ShadowListView extends FrameLayout {
       if (mRefreshColor != null) {
         mRefreshLayout.setColorSchemeColors(mRefreshColor);
       }
-      applyRefreshProgressViewOffset();
+      applyProgressViewOffset();
       mRefreshLayout.addView(mScrollView, new ViewGroup.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
       addView(mRefreshLayout, new FrameLayout.LayoutParams(
@@ -307,7 +339,55 @@ public class ShadowListView extends FrameLayout {
     }
   }
 
-  // region ScrollView props
+  /*
+   * Reset drag and sticky state before this view is recycled.
+   */
+  void onDropInstance() {
+    /*
+     * Fabric has destroyed the state by now. The scrollTo below reports a scroll, and later
+     * frames of a list still animating out with its screen would too. Neither may reach it.
+     */
+    mState = null;
+    mDragController.teardown();
+    mStickyController.reset();
+    /*
+     * Don't pass the scroll position, content size, live report or list versions to the next
+     * list. Sticky pinning uses the content size and runs on mount, before the new list's
+     * state arrives. Same as prepareForRecycle on iOS.
+     */
+    mLiveHandle = 0;
+    mStickyVersion = -1;
+    mSnapVersion = -1;
+    mGeometryHandle = 0;
+    mRefreshAwaitingSettle = false;
+    removeCallbacks(mRefreshSettleRunnable);
+    removeCallbacks(mSnapSettleRunnable);
+    removeCallbacks(mLandingRunnable);
+    mDragEventSent = false;
+    mMomentumEventSent = false;
+    stopSettling();
+    mScrollView.scrollTo(0, 0);
+    mContentView.layout(0, 0, 0, 0);
+    /*
+     * Free the echo state last. A recycled view gets a fresh one on its next call. Stale echo
+     * state would make the next list's first real scroll get ignored.
+     */
+    mSync.destroy();
+  }
+
+  /*
+   * A detached list gets no frames to finish a drop. Its Choreographer settle loop would
+   * run every frame until the next attach, when the fallback queued on the view runs.
+   */
+  @Override
+  protected void onDetachedFromWindow() {
+    mDragController.teardown();
+    super.onDetachedFromWindow();
+  }
+
+  // endregion
+
+  // region Props
 
   /*
    * Apply the ScrollView props to the inner scroll view. A new axis builds a new one, which
@@ -365,22 +445,22 @@ public class ShadowListView extends FrameLayout {
     applyScrollViewProps();
   }
 
-  public void setRefreshProgressViewOffset(double offset) {
-    mRefreshProgressViewOffset = offset;
-    applyRefreshProgressViewOffset();
+  public void setProgressViewOffset(double offset) {
+    mProgressViewOffset = offset;
+    applyProgressViewOffset();
   }
 
   /*
    * Start the spinner at the offset and pull it to REFRESH_CIRCLE_TARGET_DP below, like
    * React Native's progressViewOffset. 0 keeps the default.
    */
-  private void applyRefreshProgressViewOffset() {
-    if (mRefreshLayout == null || mRefreshProgressViewOffset == 0) {
+  private void applyProgressViewOffset() {
+    if (mRefreshLayout == null || mProgressViewOffset == 0) {
       return;
     }
     int diameter = mRefreshLayout.getProgressCircleDiameter();
-    int start = Math.round(PixelUtil.toPixelFromDIP((float) mRefreshProgressViewOffset)) - diameter;
-    int end = Math.round(PixelUtil.toPixelFromDIP((float) mRefreshProgressViewOffset + REFRESH_CIRCLE_TARGET_DP));
+    int start = Math.round(PixelUtil.toPixelFromDIP((float) mProgressViewOffset)) - diameter;
+    int end = Math.round(PixelUtil.toPixelFromDIP((float) mProgressViewOffset + REFRESH_CIRCLE_TARGET_DP));
     mRefreshLayout.setProgressViewOffset(false, start, end);
   }
 
@@ -392,7 +472,46 @@ public class ShadowListView extends FrameLayout {
     mAccessibility.setItemKeys(keys);
   }
 
+  public void setSnapToItem(boolean snapToItem) {
+    mSnapToItem = snapToItem;
+  }
+
+  public void setReorderEnabled(boolean reorderEnabled) {
+    mDragController.setEnabled(reorderEnabled);
+  }
+
+  public void setNumberOfColumns(int numberOfColumns) {
+    mNumberOfColumns = Math.max(1, numberOfColumns);
+  }
+
+  public void setStickyHeader(boolean stickyHeader) {
+    mStickyController.setStickyHeader(stickyHeader);
+  }
+
+  public void setStickyFooter(boolean stickyFooter) {
+    mStickyController.setStickyFooter(stickyFooter);
+  }
+
+  public void setAutoHideHeader(boolean autoHideHeader) {
+    mStickyController.setAutoHideHeader(autoHideHeader);
+  }
+
+  public void setAutoHideFooter(boolean autoHideFooter) {
+    mStickyController.setAutoHideFooter(autoHideFooter);
+  }
+
+  public void setHorizontal(boolean horizontal) {
+    if (horizontal != mHorizontal) {
+      mHorizontal = horizontal;
+      mSync.setHorizontal(horizontal);
+      installScrollView(horizontal);
+    }
+    mStickyController.applyStickyTransforms();
+  }
+
   // endregion
+
+  // region Pull to refresh
 
   public void setRefreshEnabled(boolean enabled) {
     mRefreshEnabled = enabled;
@@ -460,11 +579,15 @@ public class ShadowListView extends FrameLayout {
     }
   }
 
+  // endregion
+
+  // region Mounting
+
   /*
    * Rows and templates go into the content view inside the scroll view.
    */
   public void addContentView(View child, int index) {
-    if (child instanceof ShadowListElementView) {
+    if (child instanceof ShadowListCellView) {
       mContentView.addView(child, index);
       // Pin again so sticky views stay above the new row.
       mStickyController.applyStickyTransforms();
@@ -508,20 +631,44 @@ public class ShadowListView extends FrameLayout {
     mContentView.removeViewAt(index);
   }
 
-  void handleInnerScroll(int scrollX, int scrollY) {
-    // Rows move in and out of the drawn window, see ShadowListInnerScrollView.ContentContainer.
-    mContentView.invalidate();
-    if (mTouching && !mDragEventSent) {
-      mDragEventSent = true;
-      // A scroll closes the open row. One swiped all the way stays out while its action runs.
-      if (mSwipedRow != null && !mSwipedRow.isSwipedOut()) {
-        mSwipedRow.closeSwipeActions(true);
-      }
-      emitScrollEvent(ShadowListScrollEvent.BEGIN_DRAG, 0, 0);
+  // endregion
+
+  // region Touch
+
+  @Override
+  public boolean dispatchTouchEvent(MotionEvent event) {
+    int action = event.getActionMasked();
+    if (action == MotionEvent.ACTION_DOWN) {
+      // Read before the inner scroll view sees the touch and stops the fling.
+      mTouchStoppedFling = mSettling;
+      closeSwipedRowOutside(event);
     }
-    // Only real user scrolls move the hiding header and footer.
-    boolean userScrolled = updateScrollState(scrollX, scrollY);
-    mStickyController.applyStickyTransforms(userScrolled);
+    mDragController.trackGesture(event);
+    if (!mDragController.isEnabled()) {
+      mMenuGestureDetector.onTouchEvent(event);
+    }
+    boolean handled = super.dispatchTouchEvent(event);
+    if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) && mSwipeClosingTouch) {
+      mSwipeClosingTouch = false;
+      NativeGestureUtil.notifyNativeGestureEnded(this, event);
+    }
+    return handled;
+  }
+
+  @Override
+  public boolean onInterceptTouchEvent(MotionEvent event) {
+    if (mDragController.onInterceptTouchEvent(event)) {
+      return true;
+    }
+    return super.onInterceptTouchEvent(event);
+  }
+
+  @Override
+  public boolean onTouchEvent(MotionEvent event) {
+    if (mDragController.onTouchEvent(event)) {
+      return true;
+    }
+    return super.onTouchEvent(event);
   }
 
   void handleInnerTouchDown() {
@@ -550,8 +697,8 @@ public class ShadowListView extends FrameLayout {
     mTouching = false;
     if (mSnapToItem && mSnapOffsetsPx.length > 0) {
       removeCallbacks(mSnapSettleRunnable);
-      // Wait a bit so a real fling, which snaps on its own, can cancel this first.
-      postDelayed(mSnapSettleRunnable, 40);
+      // A real fling cancels this before it runs.
+      postDelayed(mSnapSettleRunnable, SNAP_SETTLE_DELAY_MS);
     }
   }
 
@@ -574,13 +721,97 @@ public class ShadowListView extends FrameLayout {
     reportScrollPhase(mSettling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE);
   }
 
+  /*
+   * A drag turns scrolling off and back on. On never overrides the scrollEnabled prop.
+   */
+  void setInnerScrollEnabled(boolean enabled) {
+    boolean scrollEnabled = enabled && mScrollEnabled;
+    if (mScrollView instanceof ReactScrollView) {
+      ((ReactScrollView) mScrollView).setScrollEnabled(scrollEnabled);
+    } else if (mScrollView instanceof ReactHorizontalScrollView) {
+      ((ReactHorizontalScrollView) mScrollView).setScrollEnabled(scrollEnabled);
+    }
+  }
+
+  // endregion
+
+  // region Scrolling
+
+  void handleInnerScroll(int scrollX, int scrollY) {
+    if (scrollX == mPreviousScrollX && scrollY == mPreviousScrollY) {
+      return;
+    }
+    mPreviousScrollX = scrollX;
+    mPreviousScrollY = scrollY;
+    // Rows move in and out of the drawn window, see ShadowListInnerScrollView.ContentContainer.
+    mContentView.invalidate();
+    if (mTouching && !mDragEventSent) {
+      mDragEventSent = true;
+      // A scroll closes the open row. One swiped all the way stays out while its action runs.
+      if (mSwipedRow != null && !mSwipedRow.isSwipedOut()) {
+        mSwipedRow.closeSwipeActions(true);
+      }
+      emitScrollEvent(ShadowListScrollEvent.BEGIN_DRAG, 0, 0);
+    }
+    // Only real user scrolls move the hiding header and footer.
+    boolean userScrolled = updateScrollState(scrollX, scrollY);
+    mStickyController.applyStickyTransforms(userScrolled);
+  }
+
+  private boolean updateScrollState(int scrollX, int scrollY) {
+    if (mState == null) {
+      return false;
+    }
+
+    /*
+     * Finger down, momentum or idle. The core keeps an inverted list from pinning to the
+     * bottom until this is idle, see Container::gestureActive.
+     */
+    int scrollPhase = mTouching
+      ? SCROLL_PHASE_DRAGGING
+      : (mSettling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE);
+    double offsetX = PixelUtil.toDIPFromPixel(scrollX);
+    double offsetY = PixelUtil.toDIPFromPixel(scrollY);
+    // Pull to refresh and drag to reorder lean on every frame.
+    boolean commitEveryFrame = mRefreshing || mRefreshAwaitingSettle
+      || (mRefreshLayout != null && mRefreshLayout.isRefreshing())
+      || mDragController.isDragging() || mDragController.ownsScrollOffset();
+
+    /*
+     * Every frame goes into the live report. Only frames the core needs become a state
+     * update, which is a full commit. See ShadowListScrollSync.
+     */
+    boolean needsCommit = mSync.onScroll(offsetX, offsetY, scrollPhase, commitEveryFrame);
+    boolean userScrolled = mSync.isFrameUserScrolled();
+
+    if (DEBUG_LOG) {
+      slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f) userScrolled=%b phase=%d commit=%b",
+        offsetX, offsetY, userScrolled, scrollPhase, needsCommit));
+    }
+    if (needsCommit) {
+      mState.updateState(mSync.patchMap());
+    }
+    if (mSync.isFrameLanded() && mSync.isLanding()) {
+      landAnimatedCommand();
+    }
+    return userScrolled;
+  }
+
+  private double liveOffsetX() {
+    return PixelUtil.toDIPFromPixel(mScrollView.getScrollX());
+  }
+
+  private double liveOffsetY() {
+    return PixelUtil.toDIPFromPixel(mScrollView.getScrollY());
+  }
+
   void reportScrollPhase(int scrollPhase) {
     if (mState == null) {
       return;
     }
     /*
      * Going idle also ends the user scroll, like clearUserScrolled on iOS. Updates merge into
-     * the last state. Otherwise the old userScrolled flag sticks around and the core
+     * the current state. Otherwise a stale userScrolled flag sticks around and the core
      * mistakes its own correction for the user moving the list and drops it.
      */
     if (scrollPhase == SCROLL_PHASE_IDLE) {
@@ -589,7 +820,7 @@ public class ShadowListView extends FrameLayout {
       }
       return;
     }
-    mSync.livePatch(liveOffsetX(), liveOffsetY(), mSync.currentUserScrolled(), scrollPhase);
+    mSync.livePatch(liveOffsetX(), liveOffsetY(), mSync.isCurrentUserScrolled(), scrollPhase);
     mState.updateState(mSync.patchMap());
   }
 
@@ -600,8 +831,8 @@ public class ShadowListView extends FrameLayout {
     mFlingVelocity = velocity;
     mSettling = true;
     mSettleStableFrames = 0;
-    mSettleLastScrollX = mScrollView.getScrollX();
-    mSettleLastScrollY = mScrollView.getScrollY();
+    mSettlePreviousScrollX = mScrollView.getScrollX();
+    mSettlePreviousScrollY = mScrollView.getScrollY();
     removeCallbacks(mSettleRunnable);
     postOnAnimationDelayed(mSettleRunnable, SETTLE_POLL_DELAY_MS);
   }
@@ -619,9 +850,9 @@ public class ShadowListView extends FrameLayout {
       }
       int scrollX = mScrollView.getScrollX();
       int scrollY = mScrollView.getScrollY();
-      if (scrollX != mSettleLastScrollX || scrollY != mSettleLastScrollY) {
-        mSettleLastScrollX = scrollX;
-        mSettleLastScrollY = scrollY;
+      if (scrollX != mSettlePreviousScrollX || scrollY != mSettlePreviousScrollY) {
+        mSettlePreviousScrollX = scrollX;
+        mSettlePreviousScrollY = scrollY;
         mSettleStableFrames = 0;
       } else if (++mSettleStableFrames >= SETTLE_STABLE_FRAMES) {
         mSettling = false;
@@ -636,9 +867,9 @@ public class ShadowListView extends FrameLayout {
     }
   };
 
-  public void setSnapToItem(boolean snapToItem) {
-    mSnapToItem = snapToItem;
-  }
+  // endregion
+
+  // region Snapping
 
   /*
    * Predict where the fling lands and glide to the nearest snap offset.
@@ -692,111 +923,22 @@ public class ShadowListView extends FrameLayout {
     }
   };
 
-  public void setReorderEnabled(boolean reorderEnabled) {
-    mDragController.setEnabled(reorderEnabled);
-  }
-
-  public void setNumberOfColumns(int numberOfColumns) {
-    mNumberOfColumns = Math.max(1, numberOfColumns);
-  }
-
-  /*
-   * Reset drag and sticky state before this view is recycled.
-   */
-  void onDropInstance() {
-    /*
-     * Fabric has destroyed the state by now. The scrollTo below reports a scroll, and later
-     * frames of a list still animating out with its screen would too. Neither may reach it.
-     */
-    mState = null;
-    mDragController.teardown();
-    mStickyController.reset();
-    /*
-     * Don't pass the old scroll position or content size to the next list. Sticky pinning
-     * uses the content size and runs on mount, before the new list's state arrives.
-     * Same as prepareForRecycle on iOS.
-     */
-    // The live report and list versions belong to the old list.
-    mLiveHandle = 0;
-    mStickyVersion = -1;
-    mSnapVersion = -1;
-    mGeometryHandle = 0;
-    mRefreshAwaitingSettle = false;
-    removeCallbacks(mRefreshSettleRunnable);
-    removeCallbacks(mSnapSettleRunnable);
-    removeCallbacks(mLandingRunnable);
-    mDragEventSent = false;
-    mMomentumEventSent = false;
-    stopSettling();
-    mScrollView.scrollTo(0, 0);
-    mContentView.layout(0, 0, 0, 0);
-    /*
-     * Free the echo state last. A recycled view gets a fresh one on its next call. Old echo
-     * state would make the next list's first real scroll get ignored.
-     */
-    mSync.destroy();
-  }
-
-  /*
-   * A detached list gets no frames to finish a drop. Its Choreographer settle loop would
-   * run every frame until the next attach, when the fallback queued on the view runs.
-   */
-  @Override
-  protected void onDetachedFromWindow() {
-    mDragController.teardown();
-    super.onDetachedFromWindow();
-  }
-
-  @Override
-  public boolean dispatchTouchEvent(MotionEvent event) {
-    int action = event.getActionMasked();
-    if (action == MotionEvent.ACTION_DOWN) {
-      // Read before the inner scroll view sees the touch and stops the fling.
-      mTouchStoppedFling = mSettling;
-      closeSwipedRowOutside(event);
-    }
-    mDragController.trackGesture(event);
-    if (!mDragController.isEnabled()) {
-      mMenuGestureDetector.onTouchEvent(event);
-    }
-    boolean handled = super.dispatchTouchEvent(event);
-    if ((action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) && mSwipeClosingTouch) {
-      mSwipeClosingTouch = false;
-      NativeGestureUtil.notifyNativeGestureEnded(this, event);
-    }
-    return handled;
-  }
-
-  @Override
-  public boolean onInterceptTouchEvent(MotionEvent event) {
-    if (mDragController.onInterceptTouchEvent(event)) {
-      return true;
-    }
-    return super.onInterceptTouchEvent(event);
-  }
-
-  @Override
-  public boolean onTouchEvent(MotionEvent event) {
-    if (mDragController.onTouchEvent(event)) {
-      return true;
-    }
-    return super.onTouchEvent(event);
-  }
+  // endregion
 
   // region Swipe actions
 
   /*
    * A row starts swiping. Any other open row closes.
    */
-  void swipeRowOpened(ShadowListElementView row) {
-    ShadowListElementView previous = mSwipedRow;
+  void swipeRowOpened(ShadowListCellView row) {
+    ShadowListCellView previous = mSwipedRow;
     mSwipedRow = row;
     if (previous != null && previous != row) {
       previous.closeSwipeActions(false);
     }
   }
 
-  void swipeRowClosed(ShadowListElementView row) {
+  void swipeRowClosed(ShadowListCellView row) {
     if (mSwipedRow == row) {
       mSwipedRow = null;
     }
@@ -808,13 +950,13 @@ public class ShadowListView extends FrameLayout {
    */
   private void closeSwipedRowOutside(MotionEvent event) {
     mSwipeClosingTouch = false;
-    ShadowListElementView row = mSwipedRow;
+    ShadowListCellView row = mSwipedRow;
     if (row == null || row.isSwipedOut()) {
       return;
     }
     float contentX = event.getX() + mScrollView.getScrollX();
     float contentY = event.getY() + mScrollView.getScrollY();
-    if (mDragController.elementViewAtContentPoint(contentX, contentY) == row) {
+    if (mDragController.cellViewAtContentPoint(contentX, contentY) == row) {
       return;
     }
     row.closeSwipeActions(true);
@@ -824,6 +966,18 @@ public class ShadowListView extends FrameLayout {
 
   boolean isReorderDragging() {
     return mDragController.isDragging();
+  }
+
+  /*
+   * Slide every swiped row back.
+   */
+  public void closeSwipeActions() {
+    for (int child = 0; child < mContentView.getChildCount(); child++) {
+      View view = mContentView.getChildAt(child);
+      if (view instanceof ShadowListCellView) {
+        ((ShadowListCellView) view).closeSwipeActions(true);
+      }
+    }
   }
 
   // endregion
@@ -840,7 +994,7 @@ public class ShadowListView extends FrameLayout {
     }
     float contentX = event.getX() + mScrollView.getScrollX();
     float contentY = event.getY() + mScrollView.getScrollY();
-    ShadowListElementView row = mDragController.elementViewAtContentPoint(contentX, contentY);
+    ShadowListCellView row = mDragController.cellViewAtContentPoint(contentX, contentY);
     if (row != null) {
       row.showRowMenu(event);
     }
@@ -848,89 +1002,7 @@ public class ShadowListView extends FrameLayout {
 
   // endregion
 
-  /*
-   * A drag turns scrolling off and back on. On never overrides the scrollEnabled prop.
-   */
-  void setInnerScrollEnabled(boolean enabled) {
-    boolean scrollEnabled = enabled && mScrollEnabled;
-    if (mScrollView instanceof ReactScrollView) {
-      ((ReactScrollView) mScrollView).setScrollEnabled(scrollEnabled);
-    } else if (mScrollView instanceof ReactHorizontalScrollView) {
-      ((ReactHorizontalScrollView) mScrollView).setScrollEnabled(scrollEnabled);
-    }
-  }
-
-  public void setStickyHeader(boolean stickyHeader) {
-    mStickyController.setStickyHeader(stickyHeader);
-  }
-
-  public void setStickyFooter(boolean stickyFooter) {
-    mStickyController.setStickyFooter(stickyFooter);
-  }
-
-  public void setAutoHideHeader(boolean autoHideHeader) {
-    mStickyController.setAutoHideHeader(autoHideHeader);
-  }
-
-  public void setAutoHideFooter(boolean autoHideFooter) {
-    mStickyController.setAutoHideFooter(autoHideFooter);
-  }
-
-  public void setHorizontal(boolean horizontal) {
-    if (horizontal != mHorizontal) {
-      mHorizontal = horizontal;
-      mSync.setHorizontal(horizontal);
-      installScrollView(horizontal);
-    }
-    mStickyController.applyStickyTransforms();
-  }
-
-  private boolean updateScrollState(int scrollX, int scrollY) {
-    if (mState == null) {
-      return false;
-    }
-
-    /*
-     * Finger down, momentum or idle. The core keeps an inverted list from pinning to the
-     * bottom until this is idle, see Container::gestureActive.
-     */
-    int scrollPhase = mTouching
-      ? SCROLL_PHASE_DRAGGING
-      : (mSettling ? SCROLL_PHASE_SETTLING : SCROLL_PHASE_IDLE);
-    double offsetX = PixelUtil.toDIPFromPixel(scrollX);
-    double offsetY = PixelUtil.toDIPFromPixel(scrollY);
-    // Pull to refresh and drag to reorder lean on every frame.
-    boolean commitEveryFrame = mRefreshing || mRefreshAwaitingSettle
-      || (mRefreshLayout != null && mRefreshLayout.isRefreshing())
-      || mDragController.isDragging() || mDragController.ownsScrollOffset();
-
-    /*
-     * Every frame goes into the live report. Only frames the core needs become a state
-     * update, which is a full commit. See ShadowListScrollSync.
-     */
-    boolean needsCommit = mSync.onScroll(offsetX, offsetY, scrollPhase, commitEveryFrame);
-    boolean userScrolled = mSync.frameUserScrolled();
-
-    if (DEBUG_LOG) {
-      slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f) userScrolled=%b phase=%d commit=%b",
-        offsetX, offsetY, userScrolled, scrollPhase, needsCommit));
-    }
-    if (needsCommit) {
-      mState.updateState(mSync.patchMap());
-    }
-    if (mSync.frameLanded() && mSync.isLanding()) {
-      landAnimatedCommand();
-    }
-    return userScrolled;
-  }
-
-  private double liveOffsetX() {
-    return PixelUtil.toDIPFromPixel(mScrollView.getScrollX());
-  }
-
-  private double liveOffsetY() {
-    return PixelUtil.toDIPFromPixel(mScrollView.getScrollY());
-  }
+  // region State
 
   public void updateState(@Nullable StateWrapper stateWrapper) {
     mState = stateWrapper;
@@ -1012,11 +1084,11 @@ public class ShadowListView extends FrameLayout {
         mapBuffer.getDouble(STATE_BAND_LOW), mapBuffer.getDouble(STATE_BAND_HIGH)));
     }
 
-    float totalContainerWidth = (float) mapBuffer.getDouble(STATE_TOTAL_WIDTH);
-    float totalContainerHeight = (float) mapBuffer.getDouble(STATE_TOTAL_HEIGHT);
+    float contentWidth = (float) mapBuffer.getDouble(STATE_TOTAL_WIDTH);
+    float contentHeight = (float) mapBuffer.getDouble(STATE_TOTAL_HEIGHT);
 
-    int newContentWidth = (int) PixelUtil.toPixelFromDIP(totalContainerWidth);
-    int newContentHeight = (int) PixelUtil.toPixelFromDIP(totalContainerHeight);
+    int newContentWidth = (int) PixelUtil.toPixelFromDIP(contentWidth);
+    int newContentHeight = (int) PixelUtil.toPixelFromDIP(contentHeight);
 
     // Skip the layout call when the size is the same, which it is on most mounts.
     if (mContentView.getLeft() != 0 || mContentView.getTop() != 0
@@ -1054,21 +1126,21 @@ public class ShadowListView extends FrameLayout {
       PixelUtil.toDIPFromPixel(maxOffsetPx), mTouching, mTouching || mSettling,
       mDragController.ownsScrollOffset());
     if (action == ShadowListScrollSync.ACTION_ANIMATE) {
-      animateCommandTo(mSync.actionX(), mSync.actionY());
+      animateCommandTo(mSync.getActionX(), mSync.getActionY());
       return;
     }
     if (action != ShadowListScrollSync.ACTION_WRITE) {
       return;
     }
-    int appliedX = Math.round(PixelUtil.toPixelFromDIP((float) mSync.actionX()));
-    int appliedY = Math.round(PixelUtil.toPixelFromDIP((float) mSync.actionY()));
+    int appliedX = Math.round(PixelUtil.toPixelFromDIP((float) mSync.getActionX()));
+    int appliedY = Math.round(PixelUtil.toPixelFromDIP((float) mSync.getActionY()));
     // scrollTo calls onScrollChanged right away, which must know the move was ours.
     mSync.willWrite();
     /*
      * A plain scrollTo leaves the fling running, and its next tick writes its own position over
-     * ours. A prepend during a fling at the top lost its correction that way, as the bounce
-     * pulled the view back to 0. Rebuild the fling from the corrected offset instead, like
-     * React Native's maintainVisibleContentPosition does.
+     * ours. A prepend during a fling at the top would lose its correction as the bounce pulls
+     * the view back to 0. Rebuild the fling from the corrected offset instead, like React
+     * Native's maintainVisibleContentPosition does.
      */
     boolean preserveMomentum = mSync.actionPreservesMomentum();
     if (preserveMomentum && mScrollView instanceof ReactScrollView) {
@@ -1085,19 +1157,19 @@ public class ShadowListView extends FrameLayout {
   /*
    * Send a drag event with the live offset, like a scroll report.
    */
-  void dispatchDragEvent(int type, String fromKey, String toKey, double sequence) {
+  void dispatchDragEvent(int type, String sourceKey, String destinationKey, double sequence) {
     if (mState == null) {
       return;
     }
     // Keep core scroll corrections off during the drag. The end event turns them back on.
-    mSync.livePatch(liveOffsetX(), liveOffsetY(), type != ShadowListDragController.DRAG_EVENT_END, mSync.currentScrollPhase());
+    mSync.livePatch(liveOffsetX(), liveOffsetY(), type != ShadowListDragController.DRAG_EVENT_END, mSync.getCurrentScrollPhase());
     WritableMap map = mSync.patchMap();
     map.putDouble("dragEventSequence", sequence);
     map.putDouble("dragEventType", type);
-    map.putString("dragFromKey", fromKey != null ? fromKey : "");
-    map.putString("dragToKey", toKey != null ? toKey : "");
+    map.putString("dragSourceKey", sourceKey != null ? sourceKey : "");
+    map.putString("dragDestinationKey", destinationKey != null ? destinationKey : "");
     if (DEBUG_LOG) {
-      slLog("java.drag dispatch type=" + type + " from=" + fromKey + " to=" + toKey);
+      slLog("java.drag dispatch type=" + type + " from=" + sourceKey + " to=" + destinationKey);
     }
     mState.updateState(map);
   }
@@ -1128,6 +1200,10 @@ public class ShadowListView extends FrameLayout {
     mState.updateState(map);
   }
 
+  // endregion
+
+  // region Scroll commands
+
   /*
    * Stop a fling or snap and forget any scroll of ours still waiting for its echo.
    */
@@ -1148,31 +1224,31 @@ public class ShadowListView extends FrameLayout {
    * and the core lets the drag cancel the command. An animated command first gets the core's
    * estimate, see animateCommandTo.
    */
-  void issueScrollCommand(double index, double viewPosition, double rowOffset, boolean animated) {
+  void issueScrollCommand(double row, double viewPosition, double viewOffset, boolean animated) {
     boolean yielded = !mTouching;
     if (yielded) {
       stopMomentum();
     }
     removeCallbacks(mLandingRunnable);
-    mSync.issueCommand(index, viewPosition, rowOffset, animated, liveOffsetX(), liveOffsetY(), yielded);
+    mSync.issueCommand(row, viewPosition, viewOffset, animated, liveOffsetX(), liveOffsetY(), yielded);
     if (DEBUG_LOG) {
-      slLog("java.cmd scroll: index=" + index + " viewPosition=" + viewPosition + " animated=" + animated);
+      slLog("java.cmd scroll: index=" + row + " viewPosition=" + viewPosition + " animated=" + animated);
     }
     mState.updateState(mSync.patchMap());
   }
 
-  public void scrollToItem(int index, double viewPosition, double viewOffset, boolean animated) {
+  public void scrollToRow(int row, double viewPosition, double viewOffset, boolean animated) {
     if (mState == null) {
       return;
     }
-    // The core moves the resting offset by rowOffset. viewOffset moves the other way.
-    double rowOffset = Double.isNaN(viewOffset) || Double.isInfinite(viewOffset) ? 0 : -viewOffset;
-    issueScrollCommand((double) index, viewPosition, rowOffset, animated);
+    // The core rests the row viewOffset past its view position. React Native's viewOffset moves the other way.
+    double coreViewOffset = Double.isNaN(viewOffset) || Double.isInfinite(viewOffset) ? 0 : -viewOffset;
+    issueScrollCommand((double) row, viewPosition, coreViewOffset, animated);
   }
 
   public void scrollToOffset(double offset, boolean animated) {
     /*
-     * An animated scroll goes through the core like scrollToItem. A smooth scroll would stop at
+     * An animated scroll goes through the core like scrollToRow. A smooth scroll would stop at
      * the first correction a row measured on the way sends.
      */
     if (animated && mState != null) {
@@ -1255,18 +1331,6 @@ public class ShadowListView extends FrameLayout {
     }
   };
 
-  /*
-   * Slide every swiped row back.
-   */
-  public void closeSwipeActions() {
-    for (int child = 0; child < mContentView.getChildCount(); child++) {
-      View view = mContentView.getChildAt(child);
-      if (view instanceof ShadowListElementView) {
-        ((ShadowListElementView) view).closeSwipeActions(true);
-      }
-    }
-  }
-
   public void flashScrollIndicators() {
     if (mScrollView instanceof ReactScrollView) {
       ((ReactScrollView) mScrollView).flashScrollIndicators();
@@ -1285,6 +1349,10 @@ public class ShadowListView extends FrameLayout {
     mSync.requestAnchor(liveOffsetX(), liveOffsetY());
     mState.updateState(mSync.patchMap());
   }
+
+  // endregion
+
+  // region Scroll events
 
   /*
    * Send a drag or momentum event with the same payload as onScroll. Velocity is in dp per
@@ -1309,6 +1377,10 @@ public class ShadowListView extends FrameLayout {
       velocityX,
       velocityY));
   }
+
+  // endregion
+
+  // region Accessors
 
   /*
    * Used by the sticky and drag controllers and the accessibility delegate.
@@ -1336,4 +1408,6 @@ public class ShadowListView extends FrameLayout {
   @Nullable StateWrapper getStateWrapper() {
     return mState;
   }
+
+  // endregion
 }

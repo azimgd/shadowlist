@@ -1,10 +1,12 @@
-import type { ComponentType, Ref, ReactElement } from 'react';
 import {
   useMemo,
   useCallback,
   useImperativeHandle,
   useRef,
   forwardRef,
+  type ComponentType,
+  type Ref,
+  type ReactElement,
 } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import ShadowList from './ShadowList';
@@ -12,7 +14,7 @@ import {
   forwardedCommands,
   renderComponent,
   useInputTrace,
-  useStableElement,
+  useStableReactElement,
 } from './virtualizer';
 import {
   flattenSections,
@@ -26,7 +28,7 @@ import {
 import { SectionIndex } from './virtualizer/SectionIndex';
 import type {
   ItemSeparatorProps,
-  RenderElementInfo,
+  RenderItemInfo,
   SectionItemSeparatorProps,
   SectionListCommands,
   SectionListLocation,
@@ -36,7 +38,7 @@ import type {
 } from './types';
 
 /*
- * ShadowList renders one flat list. Each section becomes a header row, its elements,
+ * ShadowList renders one flat list. Each section becomes a header row, its items,
  * then a footer row. The header positions go into stickyIndices so native can pin them.
  */
 
@@ -44,7 +46,7 @@ import type {
  * The SectionList inputs that give the row renderer a new identity, for the device trace.
  */
 const SECTION_TRACE_NAMES = [
-  'renderElement',
+  'renderItem',
   'renderSectionHeader',
   'renderSectionFooter',
   'itemSeparator',
@@ -63,20 +65,20 @@ function sameIndices(
   );
 }
 
-function toRowIds<ElementT, SectionT>(
-  rows: ReadonlyArray<FlatRow<ElementT, SectionT>>,
-  elementKeys: ReadonlyArray<string> | undefined,
+function toRowIds<ItemT, SectionT>(
+  rows: ReadonlyArray<FlatRow<ItemT, SectionT>>,
+  rowKeys: ReadonlyArray<string> | undefined,
   previous: string[] | undefined
 ): string[] | undefined {
-  if (!elementKeys || elementKeys.length === 0) return undefined;
-  const keys = new Set(elementKeys);
+  if (!rowKeys || rowKeys.length === 0) return undefined;
+  const keys = new Set(rowKeys);
   const ids: string[] = [];
   for (const row of rows) {
-    if (row.elementKey !== undefined && keys.has(row.elementKey)) {
+    if (row.rowKey !== undefined && keys.has(row.rowKey)) {
       ids.push(row.id);
     }
   }
-  // The same ids keep the old array. Native gets no new prop.
+  // The same ids keep the previous array. Native gets no new prop.
   if (
     previous !== undefined &&
     previous.length === ids.length &&
@@ -87,10 +89,10 @@ function toRowIds<ElementT, SectionT>(
   return ids;
 }
 
-function SectionListInner<ElementT, SectionT = object>(
+function SectionListInner<ItemT, SectionT = object>(
   {
     sections,
-    renderElement,
+    renderItem,
     renderSectionHeader,
     renderSectionFooter,
     keyExtractor,
@@ -99,27 +101,27 @@ function SectionListInner<ElementT, SectionT = object>(
     sectionForSectionIndexTitle,
     ItemSeparatorComponent,
     SectionSeparatorComponent,
-    getElementSizeSpec,
+    getItemSizeSpec,
     nonAnchorKeys,
     persistentKeys,
     style,
     ...rest
-  }: SectionListProps<ElementT, SectionT>,
+  }: SectionListProps<ItemT, SectionT>,
   ref: Ref<SectionListCommands>
 ) {
   const innerRef = useRef<ShadowListCommands>(null);
-  // The current sections, read by the renderers below so element rows don't carry the section.
+  // The current sections, read by the renderers below so item rows don't carry the section.
   const sectionsRef = useRef(sections);
   sectionsRef.current = sections;
 
   /*
-   * Rows from the last flatten, per section key. An unchanged row keeps its old object.
+   * Rows from the last flatten, per section key. An unchanged row keeps its previous object.
    * The list mounts rows by identity. Without this any change to sections re-renders
    * every row. An unchanged section is reused whole.
    */
-  const previousSectionsRef = useRef<
-    Map<string, SectionRows<ElementT, SectionT>>
-  >(new Map());
+  const previousSectionsRef = useRef<Map<string, SectionRows<ItemT, SectionT>>>(
+    new Map()
+  );
   const previousIndicesRef = useRef<number[] | undefined>(undefined);
 
   const { data, stickyIndices } = useMemo(() => {
@@ -187,19 +189,19 @@ function SectionListInner<ElementT, SectionT = object>(
 
   const getRowSizeSpec = useMemo(
     () =>
-      getElementSizeSpec
-        ? (row: FlatRow<ElementT, SectionT>) => {
+      getItemSizeSpec
+        ? (row: FlatRow<ItemT, SectionT>) => {
             const section = sectionsRef.current[row.sectionIndex];
-            return row.type === 'element' && section
-              ? getElementSizeSpec(
-                  row.element as ElementT,
-                  row.elementIndex as number,
+            return row.type === 'item' && section
+              ? getItemSizeSpec(
+                  row.item as ItemT,
+                  row.itemIndex as number,
                   section
                 )
               : null;
           }
         : undefined,
-    [getElementSizeSpec]
+    [getItemSizeSpec]
   );
 
   const previousNonAnchorRef = useRef<string[] | undefined>(undefined);
@@ -216,26 +218,26 @@ function SectionListInner<ElementT, SectionT = object>(
   }, [data, persistentKeys]);
 
   /*
-   * Both separators go inside every row. An inline element would rebuild every mounted
+   * Both separators go inside every row. An inline React element would rebuild every mounted
    * row on each caller render. Separator components render per row with their own props.
    */
-  const elementSeparator = useStableElement(
+  const itemSeparator = useStableReactElement(
     useMemo(
       () => renderComponent(sharedSeparatorOf(ItemSeparatorComponent)),
       [ItemSeparatorComponent]
     )
   );
-  const sectionSeparator = useStableElement(
+  const sectionSeparator = useStableReactElement(
     useMemo(
       () => renderComponent(sharedSeparatorOf(SectionSeparatorComponent)),
       [SectionSeparatorComponent]
     )
   );
-  const ElementSeparatorType = separatorComponentOf<
-    SectionItemSeparatorProps<ElementT, SectionT>
+  const ItemSeparatorType = separatorComponentOf<
+    SectionItemSeparatorProps<ItemT, SectionT>
   >(ItemSeparatorComponent);
   const SectionSeparatorType = separatorComponentOf<
-    SectionSeparatorProps<ElementT, SectionT>
+    SectionSeparatorProps<ItemT, SectionT>
   >(SectionSeparatorComponent);
 
   /*
@@ -244,8 +246,8 @@ function SectionListInner<ElementT, SectionT = object>(
    * section, and nothing after a header.
    */
   const RowSeparator = useMemo(() => {
-    // Shared separator elements stay inline in the rows, which costs no component per row.
-    if (ElementSeparatorType === null && SectionSeparatorType === null) {
+    // Shared separator React elements stay inline in the rows, which costs no component per row.
+    if (ItemSeparatorType === null && SectionSeparatorType === null) {
       return null;
     }
     return function SectionRowSeparator({
@@ -253,7 +255,7 @@ function SectionListInner<ElementT, SectionT = object>(
       leadingItem: row,
       trailingItem: nextRow,
       ...separatorProps
-    }: ItemSeparatorProps<FlatRow<ElementT, SectionT>>) {
+    }: ItemSeparatorProps<FlatRow<ItemT, SectionT>>) {
       const allSections = sectionsRef.current;
       const section = row.section ?? allSections[row.sectionIndex];
       if (!section || row.type === 'sectionHeader') return null;
@@ -272,28 +274,28 @@ function SectionListInner<ElementT, SectionT = object>(
           />
         );
       }
-      if (row.type !== 'element' || row.isLastInSection) return null;
-      if (ElementSeparatorType === null) return elementSeparator;
+      if (row.type !== 'item' || row.isLastInSection) return null;
+      if (ItemSeparatorType === null) return itemSeparator;
       return (
-        <ElementSeparatorType
+        <ItemSeparatorType
           {...separatorProps}
           highlighted={highlighted}
-          leadingItem={row.element as ElementT}
-          trailingItem={nextRow?.element as ElementT | undefined}
+          leadingItem={row.item as ItemT}
+          trailingItem={nextRow?.item as ItemT | undefined}
           section={section}
         />
       );
-    } as ComponentType<ItemSeparatorProps<FlatRow<ElementT, SectionT>>>;
+    } as ComponentType<ItemSeparatorProps<FlatRow<ItemT, SectionT>>>;
   }, [
-    elementSeparator,
+    itemSeparator,
     sectionSeparator,
-    ElementSeparatorType,
+    ItemSeparatorType,
     SectionSeparatorType,
   ]);
 
   const renderRow = useCallback(
-    (info: RenderElementInfo<FlatRow<ElementT, SectionT>>) => {
-      const row = info.element;
+    (info: RenderItemInfo<FlatRow<ItemT, SectionT>>) => {
+      const row = info.item;
       const section = row.section ?? sectionsRef.current[row.sectionIndex];
 
       if (row.type === 'sectionHeader') {
@@ -301,8 +303,8 @@ function SectionListInner<ElementT, SectionT = object>(
       }
 
       /*
-       * Shared separator elements go inline, like before separator components. With a
-       * component RowSeparator renders them instead.
+       * Shared separator React elements go inline. With a separator component, RowSeparator
+       * renders them instead.
        */
       const inlineSeparators = RowSeparator === null;
 
@@ -317,12 +319,12 @@ function SectionListInner<ElementT, SectionT = object>(
         );
       }
 
-      const sectionRenderElement = section?.renderElement ?? renderElement;
+      const sectionRenderItem = section?.renderItem ?? renderItem;
       const content =
-        section && sectionRenderElement
-          ? (sectionRenderElement({
-              element: row.element as ElementT,
-              index: row.elementIndex as number,
+        section && sectionRenderItem
+          ? (sectionRenderItem({
+              item: row.item as ItemT,
+              index: row.itemIndex as number,
               section,
               separators: info.separators,
             }) ?? null)
@@ -332,7 +334,7 @@ function SectionListInner<ElementT, SectionT = object>(
       if (inlineSeparators && row.isSectionBoundary) {
         separator = sectionSeparator;
       } else if (inlineSeparators && !row.isLastInSection) {
-        separator = elementSeparator;
+        separator = itemSeparator;
       }
 
       return (
@@ -343,11 +345,11 @@ function SectionListInner<ElementT, SectionT = object>(
       );
     },
     [
-      renderElement,
+      renderItem,
       renderSectionHeader,
       renderSectionFooter,
       RowSeparator,
-      elementSeparator,
+      itemSeparator,
       sectionSeparator,
     ]
   );
@@ -419,10 +421,10 @@ function SectionListInner<ElementT, SectionT = object>(
   );
 
   useInputTrace('section-deps', SECTION_TRACE_NAMES, [
-    renderElement,
+    renderItem,
     renderSectionHeader,
     renderSectionFooter,
-    elementSeparator,
+    itemSeparator,
     sectionSeparator,
     data,
   ]);
@@ -433,11 +435,11 @@ function SectionListInner<ElementT, SectionT = object>(
       style={sectionIndexTitles?.length ? styles.fill : style}
       ref={innerRef}
       data={data}
-      renderElement={renderRow}
+      renderItem={renderRow}
       ItemSeparatorComponent={RowSeparator}
       stickyIndices={stickyIndices}
       renderStickyHeaderOverlay={renderStickyHeaderOverlay}
-      getElementSizeSpec={getRowSizeSpec}
+      getItemSizeSpec={getRowSizeSpec}
       nonAnchorKeys={rowNonAnchorKeys}
       persistentKeys={rowPersistentKeys}
     />
@@ -462,11 +464,8 @@ const styles = StyleSheet.create({
   },
 });
 
-const SectionList = forwardRef(SectionListInner) as <
-  ElementT,
-  SectionT = object,
->(
-  props: SectionListProps<ElementT, SectionT> & {
+const SectionList = forwardRef(SectionListInner) as <ItemT, SectionT = object>(
+  props: SectionListProps<ItemT, SectionT> & {
     ref?: Ref<SectionListCommands>;
   }
 ) => ReactElement;

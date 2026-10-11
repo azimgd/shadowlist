@@ -171,9 +171,9 @@ TEST(grid_shifts_of_cell_arrays) {
   DragCells cells{indices.data(), leadings.data(), extents.data(), crossLeadings.data(), crossExtents.data(), 5};
   DragRow held{1, "", 0.0, 100.0, 100.0, 100.0};
 
-  CHECK_EQ(dragGridInsertionPosition(cells, held, 1, 250.0, 50.0), std::size_t{3});
-  CHECK_EQ(dragGridInsertionPosition(cells, held, 4, 50.0, 150.0), UNDEFINED_INDEX);
-  CHECK_EQ(dragGridInsertionPosition(cells, held, 4, 900.0, 50.0), std::size_t{3});
+  CHECK_EQ(dragGridInsertionIndex(cells, held, 1, 250.0, 50.0), std::size_t{3});
+  CHECK_EQ(dragGridInsertionIndex(cells, held, 4, 50.0, 150.0), UNDEFINED_INDEX);
+  CHECK_EQ(dragGridInsertionIndex(cells, held, 4, 900.0, 50.0), std::size_t{3});
 
   std::vector<double> shifts(5, 7.0);
   std::vector<double> crossShifts(5, 7.0);
@@ -195,12 +195,12 @@ TEST(grid_masonry_preview_matches_the_core_layout_after_the_move) {
   const double heights[] = {100.0, 60.0, 140.0, 80.0, 120.0, 90.0, 70.0};
   auto layout = [&](Container& container, const std::vector<std::string>& order) {
     FrameInput input = inputFor(order, 0.0);
-    input.columns = 3;
-    input.windowContainerHeight = 4000.0;
+    input.numberOfColumns = 3;
+    input.windowHeight = 4000.0;
     Virtualizer::update(container, input);
     for (std::size_t index = 0; index < order.size(); ++index) {
       int number = std::stoi(order[index].substr(1));
-      Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH / 3.0, heights[number % 7]});
+      Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH / 3.0, heights[number % 7]});
     }
     Virtualizer::update(container, input);
   };
@@ -214,8 +214,8 @@ TEST(grid_masonry_preview_matches_the_core_layout_after_the_move) {
     std::vector<DragRow> rows;
     DragRow held;
     for (std::size_t index = 0; index < keys.size(); ++index) {
-      const Element& element = before.revision.elements[index];
-      DragRow row{index, keys[index], element.offsetY, element.height, element.offsetX, element.width};
+      const Row& placed = before.revision.rows[index];
+      DragRow row{index, keys[index], placed.offsetY, placed.height, placed.offsetX, placed.width};
       if (index == from) {
         held = row;
       } else {
@@ -245,7 +245,7 @@ TEST(grid_masonry_preview_matches_the_core_layout_after_the_move) {
     layout(after, moved);
 
     for (std::size_t position = 0; position < rows.size(); ++position) {
-      const Element& landed = after.revision.elements[after.findElementIndexByKey(rows[position].key)];
+      const Row& landed = after.revision.rows[after.indexOfKey(rows[position].key)];
       CHECK_NEAR(rows[position].leading + shifts[position], landed.offsetY, 1e-9);
       CHECK_NEAR(rows[position].crossLeading + crossShifts[position], landed.offsetX, 1e-9);
     }

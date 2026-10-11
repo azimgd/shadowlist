@@ -80,7 +80,7 @@ struct TextStyle {
       .paragraphStyle: paragraph,
       .foregroundColor: color,
     ]
-    // Centers the glyphs in the taller line. Measuring leaves it out, it shrinks every line there.
+    // Centers the glyphs in the taller line. Measuring leaves it out because it shrinks every line there.
     if !measuring {
       attributes[.baselineOffset] = (lineHeight - font.lineHeight) / 4
     }

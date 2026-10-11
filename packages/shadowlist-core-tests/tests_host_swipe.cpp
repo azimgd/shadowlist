@@ -104,8 +104,10 @@ TEST(swipe_buttons_past_a_full_swipe_leave_the_gap_to_the_first) {
 }
 
 TEST(swipe_button_edges_round_without_drifting) {
-  // Three buttons over 100 pixels: rounding each size alone gives 33 + 33 + 33. Rounding the
-  // edges keeps them touching and ending at the gap.
+  /*
+   * Three buttons over 100 pixels: rounding each size alone gives 33 + 33 + 33. Rounding the
+   * edges keeps them touching and ending at the gap.
+   */
   std::vector<SwipeSpan> spans;
   swipeButtonSpans({1.0, 1.0, 1.0}, 100.0, false, 300.0, spans);
   long previousEnd = 0;

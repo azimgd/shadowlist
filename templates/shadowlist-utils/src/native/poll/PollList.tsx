@@ -11,16 +11,14 @@ import { PollRow } from './PollRow';
 import { defaultPollLabels, type PollLabels } from './labels';
 import type { PollData, PollOption } from './types';
 
-type RenderPollOption = NonNullable<
-  ShadowListProps<PollOption>['renderElement']
->;
+type RenderPollOption = NonNullable<ShadowListProps<PollOption>['renderItem']>;
 
 export type PollListProps = Omit<
   ShadowListProps<PollOption>,
-  'data' | 'renderElement'
+  'data' | 'renderItem'
 > & {
   poll: PollData;
-  renderElement?: RenderPollOption;
+  renderItem?: RenderPollOption;
   onVote?: (optionId: string) => void;
   labels?: Partial<PollLabels>;
 };
@@ -29,7 +27,7 @@ export const PollList = forwardRef<ShadowListCommands, PollListProps>(
   (
     {
       poll,
-      renderElement,
+      renderItem,
       onVote,
       labels,
       ListHeaderComponent,
@@ -55,12 +53,12 @@ export const PollList = forwardRef<ShadowListCommands, PollListProps>(
 
     // Rows re-render only when the totals, selection, labels or onVote change.
     const renderOption = useCallback<RenderPollOption>(
-      ({ element }) => (
+      ({ item }) => (
         <PollRow
-          item={element}
+          item={item}
           totalVotes={totalVotes}
-          isLeading={element.id === leadingId}
-          isSelected={element.id === selectedId}
+          isLeading={item.id === leadingId}
+          isSelected={item.id === selectedId}
           onVote={onVote}
           labels={mergedLabels}
         />
@@ -95,7 +93,7 @@ export const PollList = forwardRef<ShadowListCommands, PollListProps>(
         stickyFooter
         ListHeaderComponent={header}
         ListFooterComponent={footer}
-        renderElement={renderElement ?? renderOption}
+        renderItem={renderItem ?? renderOption}
         {...props}
       />
     );

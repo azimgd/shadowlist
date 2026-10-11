@@ -4,11 +4,11 @@ import { Text, View } from 'react-native';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import ShadowList from '../ShadowList';
 import SectionList from '../SectionList';
-import type { RenderElementInfo } from '../types';
+import type { RenderItemInfo } from '../types';
 
 /*
  * Records every render of the native list and row views. A row view renders only when its
- * ElementRenderer ran, which happens when one of the row props changed identity.
+ * CellRenderer ran, which happens when one of the row props changed identity.
  */
 type MockProps = Record<string, unknown>;
 type MockHostComponent = ComponentType<MockProps>;
@@ -30,16 +30,16 @@ jest.mock('../ShadowListViewNativeComponent', () => {
   return { __esModule: true, ...actual, default: RecordingListView };
 });
 
-jest.mock('../ShadowListElementViewNativeComponent', () => {
+jest.mock('../ShadowListCellViewNativeComponent', () => {
   const actual = jest.requireActual<
-    typeof import('../ShadowListElementViewNativeComponent')
-  >('../ShadowListElementViewNativeComponent');
+    typeof import('../ShadowListCellViewNativeComponent')
+  >('../ShadowListCellViewNativeComponent');
   const Host = actual.default as unknown as MockHostComponent;
-  function RecordingElementView(props: MockProps) {
+  function RecordingCellView(props: MockProps) {
     mockRenders.rows++;
     return <Host {...props} />;
   }
-  return { __esModule: true, ...actual, default: RecordingElementView };
+  return { __esModule: true, ...actual, default: RecordingCellView };
 });
 
 interface Row {
@@ -52,11 +52,11 @@ const DATA: Row[] = Array.from({ length: 30 }, (_value, index) => ({
   title: `Row ${index}`,
 }));
 
-let elementRenders = 0;
+let itemRenders = 0;
 
-function renderRow({ element }: Pick<RenderElementInfo<Row>, 'element'>) {
-  elementRenders++;
-  return <Text>{element.title}</Text>;
+function renderRow({ item }: Pick<RenderItemInfo<Row>, 'item'>) {
+  itemRenders++;
+  return <Text>{item.title}</Text>;
 }
 
 function keyOf(row: Row) {
@@ -88,7 +88,7 @@ const renderStickyHeaderOverlay = () => <Text>Sticky</Text>;
 
 /*
  * Props that are equal on every render but may come back as new objects from a careless
- * parent: an inline separator element and an inline header element.
+ * parent: an inline separator React element and an inline header React element.
  */
 function ShadowListParent({ inlineElements }: { inlineElements: boolean }) {
   const [, setTick] = useState(0);
@@ -96,7 +96,7 @@ function ShadowListParent({ inlineElements }: { inlineElements: boolean }) {
   return (
     <ShadowList
       data={DATA}
-      renderElement={renderRow}
+      renderItem={renderRow}
       keyExtractor={keyOf}
       numberOfColumns={2}
       ItemSeparatorComponent={inlineElements ? <View /> : Separator}
@@ -109,7 +109,7 @@ function ShadowListParent({ inlineElements }: { inlineElements: boolean }) {
       trailingSwipeActionsForItem={swipeActions}
       contextMenuForItem={contextMenu}
       prefetchDataSource={prefetchDataSource}
-      trackElementSizes
+      trackItemSizes
       extraData={1}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
@@ -146,14 +146,14 @@ function SectionListParent({ inlineElements }: { inlineElements: boolean }) {
   return (
     <SectionList
       sections={SECTIONS}
-      renderElement={renderRow}
+      renderItem={renderRow}
       renderSectionHeader={renderSectionHeader}
       keyExtractor={keyOf}
       ItemSeparatorComponent={inlineElements ? <View /> : Separator}
       SectionSeparatorComponent={inlineElements ? <View /> : Separator}
       contentContainerStyle={contentContainerStyle}
       onRefresh={noop}
-      trackElementSizes
+      trackItemSizes
       onEndReached={noop}
     />
   );
@@ -162,9 +162,9 @@ function SectionListParent({ inlineElements }: { inlineElements: boolean }) {
 let rerenderParent = () => {};
 let renderer: ReactTestRenderer | null = null;
 
-async function mount(element: ReactElement) {
+async function mount(tree: ReactElement) {
   await act(async () => {
-    renderer = TestRenderer.create(element);
+    renderer = TestRenderer.create(tree);
   });
 }
 
@@ -185,7 +185,7 @@ function changedListProps(): string[] {
 
 async function expectStableRerender() {
   const rowsBefore = mockRenders.rows;
-  const elementsBefore = elementRenders;
+  const itemsBefore = itemRenders;
   const listBefore = mockRenders.list.length;
   await act(async () => {
     rerenderParent();
@@ -193,7 +193,7 @@ async function expectStableRerender() {
   expect(mockRenders.list.length).toBe(listBefore + 1);
   expect(changedListProps()).toEqual([]);
   expect(mockRenders.rows - rowsBefore).toBe(0);
-  expect(elementRenders - elementsBefore).toBe(0);
+  expect(itemRenders - itemsBefore).toBe(0);
 }
 
 afterEach(async () => {
@@ -203,27 +203,27 @@ afterEach(async () => {
   renderer = null;
   mockRenders.list = [];
   mockRenders.rows = 0;
-  elementRenders = 0;
+  itemRenders = 0;
 });
 
 describe('a parent re-render with unchanged props', () => {
   it.each([false, true])(
-    'leaves ShadowList rows alone (inline elements %s)',
+    'leaves ShadowList rows alone (inline React elements %s)',
     async (inlineElements) => {
       await mount(<ShadowListParent inlineElements={inlineElements} />);
       expect(mockRenders.rows).toBeGreaterThan(0);
-      expect(elementRenders).toBeGreaterThan(0);
+      expect(itemRenders).toBeGreaterThan(0);
       await expectStableRerender();
       await expectStableRerender();
     }
   );
 
   it.each([false, true])(
-    'leaves SectionList rows alone (inline elements %s)',
+    'leaves SectionList rows alone (inline React elements %s)',
     async (inlineElements) => {
       await mount(<SectionListParent inlineElements={inlineElements} />);
       expect(mockRenders.rows).toBeGreaterThan(0);
-      expect(elementRenders).toBeGreaterThan(0);
+      expect(itemRenders).toBeGreaterThan(0);
       await expectStableRerender();
       await expectStableRerender();
     }

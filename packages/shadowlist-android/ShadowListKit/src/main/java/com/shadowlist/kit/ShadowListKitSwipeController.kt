@@ -222,7 +222,7 @@ internal class ShadowListKitSwipeController(private val list: ShadowListKitListV
   }
 
   /*
-   * Run an action. Its completion closes the row, unless the action removed it.
+   * Run an action. Its completion closes the row, unless the action deleted it.
    */
   private fun perform(action: ShadowListKitSwipeAction) {
     val swiped = cell ?: return
@@ -323,7 +323,7 @@ internal class ShadowListKitSwipeActionsView(
         gravity = Gravity.CENTER
         maxLines = 1
         setBackgroundColor(action.shownColor)
-        action.icon?.let { setCompoundDrawablesWithIntrinsicBounds(null, it, null, null) }
+        action.image?.let { setCompoundDrawablesWithIntrinsicBounds(null, it, null, null) }
         contentDescription = action.title
         setOnClickListener { onAction(action) }
         addView(this)

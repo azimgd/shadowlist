@@ -25,7 +25,7 @@ describe('defaultKeyExtractor', () => {
 });
 
 describe('section rows without a keyExtractor', () => {
-  it('key elements by id and fall back to the index', () => {
+  it('key items by id and fall back to the index', () => {
     const data: ReadonlyArray<object> = [{ id: 'a' }, { title: 'b' }];
     const { rows } = flattenSections(
       [{ key: 's', data }],
@@ -43,17 +43,17 @@ describe('section rows without a keyExtractor', () => {
  * Compile time checks. tsc runs over the tests, and these assignments fail the typecheck
  * if the list types start to require an id again.
  */
-describe('element types', () => {
-  it('accept elements without an id', () => {
+describe('item types', () => {
+  it('accept items without an id', () => {
     type Message = { uuid: string; text: string };
     const withKeys: ShadowListProps<Message> = {
       data: [{ uuid: 'u1', text: 'hi' }],
-      renderElement: () => <View />,
+      renderItem: () => <View />,
       keyExtractor: (message) => message.uuid,
     };
     const withoutKeys: ShadowListProps<string> = {
       data: ['a', 'b'],
-      renderElement: ({ element }) => <View testID={element} />,
+      renderItem: ({ item }) => <View testID={item} />,
     };
     const sections: SectionListProps<Message> = {
       sections: [{ data: [{ uuid: 'u2', text: 'yo' }] }],

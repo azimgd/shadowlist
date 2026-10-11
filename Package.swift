@@ -2,7 +2,9 @@
 
 import PackageDescription
 
-// The core includes itself as <shadowlist-core/...>, which resolves from the packages folder.
+/*
+ * The core includes itself as <shadowlist-core/...>, which resolves from the packages folder.
+ */
 let package = Package(
   name: "ShadowListKit",
   platforms: [.iOS(.v16)],

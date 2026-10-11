@@ -8,12 +8,17 @@
 #include <string>
 #include <vector>
 
-// Fixture helpers shared by the core test files. Tests already use namespace slt.
+/*
+ * Fixture helpers shared by the core test files. Tests already use namespace slt.
+ */
 namespace slt {
 
 inline constexpr double WINDOW_WIDTH = 390.0;
 inline constexpr double WINDOW_HEIGHT = 840.0;
-// Size used for a row nobody has measured or predicted yet.
+
+/*
+ * Size used for a row nobody has measured or predicted yet.
+ */
 inline constexpr double ESTIMATED_ROW_HEIGHT = 120.0;
 
 inline std::vector<std::string> keysFor(std::size_t count, const std::string& prefix = "k") {
@@ -31,12 +36,12 @@ inline std::vector<std::string> keysFor(std::size_t count, const std::string& pr
 inline azimgd::shadowlist::FrameInput inputFor(const std::vector<std::string>& keys, double offset) {
   azimgd::shadowlist::FrameInput input;
   input.keys = keys;
-  input.windowContainerWidth = WINDOW_WIDTH;
-  input.windowContainerHeight = WINDOW_HEIGHT;
-  input.columns = 1;
+  input.windowWidth = WINDOW_WIDTH;
+  input.windowHeight = WINDOW_HEIGHT;
+  input.numberOfColumns = 1;
   input.overscan = 1.0;
-  input.estimatedElementSize = {WINDOW_WIDTH, ESTIMATED_ROW_HEIGHT};
-  input.containerOffsetY = offset;
+  input.estimatedRowSize = {WINDOW_WIDTH, ESTIMATED_ROW_HEIGHT};
+  input.offsetY = offset;
   return input;
 }
 
@@ -44,16 +49,16 @@ inline azimgd::shadowlist::FrameInput inputFor(const std::vector<std::string>& k
  * Position of a row along the scroll direction.
  */
 inline double offsetOf(const azimgd::shadowlist::Container& container, std::size_t index) {
-  const azimgd::shadowlist::Element& element = container.revision.elements[index];
-  return container.horizontal ? element.offsetX : element.offsetY;
+  const azimgd::shadowlist::Row& row = container.revision.rows[index];
+  return container.horizontal ? row.offsetX : row.offsetY;
 }
 
 /*
  * Size of a row along the scroll direction.
  */
 inline double sizeOf(const azimgd::shadowlist::Container& container, std::size_t index) {
-  const azimgd::shadowlist::Element& element = container.revision.elements[index];
-  return container.horizontal ? element.width : element.height;
+  const azimgd::shadowlist::Row& row = container.revision.rows[index];
+  return container.horizontal ? row.width : row.height;
 }
 
 /*
@@ -62,27 +67,27 @@ inline double sizeOf(const azimgd::shadowlist::Container& container, std::size_t
  */
 inline std::set<std::size_t> overlappingIndices(const azimgd::shadowlist::Container& container, double overscanUnits) {
   double windowSize = container.horizontal
-    ? container.revision.windowContainerWidth
-    : container.revision.windowContainerHeight;
+    ? container.revision.windowWidth
+    : container.revision.windowHeight;
   double offset = container.horizontal
-    ? container.revision.containerOffsetX
-    : container.revision.containerOffsetY;
+    ? container.revision.offsetX
+    : container.revision.offsetY;
   double bandSize = windowSize * overscanUnits;
   double lowerBound = offset - bandSize;
   double upperBound = offset + windowSize + bandSize;
 
   std::set<std::size_t> overlapping;
-  for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
-    double elementOffset = offsetOf(container, index);
-    double elementSize = sizeOf(container, index);
+  for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
+    double rowOffset = offsetOf(container, index);
+    double rowSize = sizeOf(container, index);
     /*
      * Count real overlap only. A row starting exactly on the far edge covers no pixels.
      * The core may include it or not.
      */
-    if (elementOffset >= upperBound) {
+    if (rowOffset >= upperBound) {
       continue;
     }
-    if (elementOffset + elementSize <= lowerBound) {
+    if (rowOffset + rowSize <= lowerBound) {
       continue;
     }
     overlapping.insert(index);

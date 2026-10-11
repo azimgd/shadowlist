@@ -1,4 +1,4 @@
-import type { ElementSizeSpec } from 'shadowlist';
+import type { ItemSizeSpec } from 'shadowlist';
 import type { Theme } from '../theme';
 import type { ChatMessage } from './types';
 
@@ -31,7 +31,7 @@ export function getChatMessageSizeSpec(
   message: ChatMessage,
   theme: Theme,
   { caption = false }: ChatMessageSizeSpecOptions = {}
-): ElementSizeSpec | null {
+): ItemSizeSpec | null {
   if (
     !message.text ||
     (message.images !== undefined && message.images.length > 0)

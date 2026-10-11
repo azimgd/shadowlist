@@ -11,14 +11,15 @@ export interface ScrollThreshold {
   onScroll: (event: ScrollOffsetEvent) => void;
 }
 
-/**
+/*
  * Tracks whether a list has scrolled past `thresholdDp`. Re-renders only when that flips,
  * not on every scroll event. Use it to hide a sticky header, show a back to top button, or
  * collapse a toolbar.
  *
- * @example
- * const { isPastThreshold, onScroll } = useScrollThreshold(220);
- * <ShadowList stickyHeader={!isPastThreshold} onScroll={onScroll} ... />
+ * For example:
+ *
+ *   const { isPastThreshold, onScroll } = useScrollThreshold(220);
+ *   <ShadowList stickyHeader={!isPastThreshold} onScroll={onScroll} ... />
  */
 export function useScrollThreshold(thresholdDp: number): ScrollThreshold {
   const thresholdRef = useRef(thresholdDp);

@@ -9,24 +9,24 @@ import { FeedRow, type FeedRowProps } from './FeedRow';
 import { defaultFeedLabels } from './labels';
 import type { FeedItem } from './types';
 
-type RenderFeedItem = NonNullable<ShadowListProps<FeedItem>['renderElement']>;
+type RenderFeedItem = NonNullable<ShadowListProps<FeedItem>['renderItem']>;
 
-export type FeedListProps = Omit<ShadowListProps<FeedItem>, 'renderElement'> &
+export type FeedListProps = Omit<ShadowListProps<FeedItem>, 'renderItem'> &
   Pick<FeedRowProps, 'onPressImage' | 'formatTime' | 'labels'> & {
-    renderElement?: RenderFeedItem;
+    renderItem?: RenderFeedItem;
     onPressItem?: (item: FeedItem) => void;
   };
 
 export const FeedList = forwardRef<ShadowListCommands, FeedListProps>(
   (
-    { renderElement, onPressItem, onPressImage, formatTime, labels, ...props },
+    { renderItem, onPressItem, onPressImage, formatTime, labels, ...props },
     ref
   ) => {
     const rowLabels = useLabels(defaultFeedLabels, labels);
     const renderRow = useCallback<RenderFeedItem>(
-      ({ element }) => (
+      ({ item }) => (
         <FeedRow
-          item={element}
+          item={item}
           onPress={onPressItem}
           onPressImage={onPressImage}
           formatTime={formatTime}
@@ -39,7 +39,7 @@ export const FeedList = forwardRef<ShadowListCommands, FeedListProps>(
       <ShadowList
         ref={ref}
         autoHideHeader
-        renderElement={renderElement ?? renderRow}
+        renderItem={renderItem ?? renderRow}
         {...props}
       />
     );

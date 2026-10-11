@@ -23,7 +23,7 @@ interface OrdinalRegistry {
   prependedCount: number;
 }
 
-export interface ItemOrdinals {
+interface ItemOrdinals {
   labelOf: (id: string) => string;
 }
 
@@ -115,7 +115,7 @@ function toOrdinalWord(word: string): string {
 
 const labelCache = new Map<string, string>();
 
-/**
+/*
  * The spelled out label for a position, like first item or five hundred thirty ninth item.
  * Rows numbered away from the start read prepended: first item.
  */
@@ -134,7 +134,7 @@ function formatOrdinalLabel(value: number, prepended = false): string {
   return label;
 }
 
-/**
+/*
  * Numbers each row of data once, in arrival order, and returns a stable labelOf. Safe to call
  * on every render, since only new rows are numbered and a prepend costs one pass over its page.
  */
@@ -175,8 +175,8 @@ export function useItemOrdinals<ItemT extends { id: string }>(
       });
     } else {
       /*
-       * Rows before the old head are a prepended page. Number them from the row nearest the head
-       * outwards. Each older page keeps counting where the last one stopped.
+       * Rows before the previous head are a prepended page. Number them from the row nearest the head
+       * outwards. Each older page keeps counting where the previous one stopped.
        */
       for (let index = headIndex - 1; index >= 0; index--) {
         const item = data[index]!;

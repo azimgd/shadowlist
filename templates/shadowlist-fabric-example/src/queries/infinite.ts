@@ -8,7 +8,7 @@ import {
 } from '@tanstack/react-query';
 import {
   prependInfiniteItems,
-  shareInfiniteItemsById,
+  shareInfiniteItemsByKey,
   trimInfinitePages,
 } from 'shadowlist-utils';
 import {
@@ -54,7 +54,7 @@ export function useCursorInfiniteQuery<ItemT>({
      * Rows keep their object identity when a prepend or a history page moves them. Only new
      * rows render. The default sharing matches rows by position.
      */
-    structuralSharing: shareInfiniteItemsById,
+    structuralSharing: shareInfiniteItemsByKey,
     // Set only when given, since an explicit undefined would override the client default.
     ...(staleTime === undefined ? {} : { staleTime }),
   });

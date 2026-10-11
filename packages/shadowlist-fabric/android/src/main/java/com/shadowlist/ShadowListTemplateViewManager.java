@@ -57,7 +57,7 @@ public class ShadowListTemplateViewManager extends ViewGroupManager<ShadowListTe
   protected ShadowListTemplateView prepareToRecycleView(
       @NonNull ThemedReactContext reactContext, @NonNull ShadowListTemplateView view) {
     // A template still animating out with its screen keeps its parent, see detachForRecycle.
-    if (!ShadowListElementViewManager.detachForRecycle(view)) {
+    if (!ShadowListCellViewManager.detachForRecycle(view)) {
       return null;
     }
     view.animate().cancel();

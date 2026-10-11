@@ -133,7 +133,7 @@ static const NSTimeInterval SHADOWLIST_KIT_CHANGE_DURATION = 0.25;
   }];
 }
 
-- (void)listView:(ShadowListKitListView *)listView animateRemovalOfCell:(ShadowListKitListCell *)cell completion:(void (^)(void))completion
+- (void)listView:(ShadowListKitListView *)listView animateDeleteOfCell:(ShadowListKitListCell *)cell completion:(void (^)(void))completion
 {
   [UIView animateWithDuration:_duration animations:^{
     cell.alpha = 0;

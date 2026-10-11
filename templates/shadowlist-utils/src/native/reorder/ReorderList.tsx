@@ -12,23 +12,23 @@ import { useMoveItem } from './useMoveItem';
 
 export type ReorderListProps = Omit<
   ShadowListProps<ContactItem>,
-  'renderElement'
+  'renderItem'
 > & {
-  renderElement?: ShadowListProps<ContactItem>['renderElement'];
+  renderItem?: ShadowListProps<ContactItem>['renderItem'];
   labels?: Partial<ReorderLabels>;
 };
 
 export const ReorderList = forwardRef<ShadowListCommands, ReorderListProps>(
-  ({ renderElement, labels, ...props }, ref) => {
+  ({ renderItem, labels, ...props }, ref) => {
     const rowLabels = useLabels(defaultReorderLabels, labels);
 
-    const moveRow = useMoveItem(props.data, props.onReorder);
+    const moveRow = useMoveItem(props.data, props.onMoveItem);
 
-    const canReorder = props.onReorder !== undefined;
+    const canReorder = props.onMoveItem !== undefined;
     const renderReorderRow = useCallback(
-      ({ element }: { element: ContactItem }) => (
+      ({ item }: { item: ContactItem }) => (
         <ReorderRow
-          item={element}
+          item={item}
           onMove={canReorder ? moveRow : undefined}
           labels={rowLabels}
         />
@@ -39,7 +39,7 @@ export const ReorderList = forwardRef<ShadowListCommands, ReorderListProps>(
     return (
       <DraggableList
         ref={ref}
-        renderElement={renderElement ?? renderReorderRow}
+        renderItem={renderItem ?? renderReorderRow}
         {...props}
       />
     );

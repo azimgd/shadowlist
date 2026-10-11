@@ -39,7 +39,7 @@ open class RowLayout(val width: Int, height: Int) {
 
 /*
  * The content of one row, shared by every list engine. The engines only differ in how they
- * host it and where its layout comes from. It is an ShadowListKitListCell, which RecyclerView hosts as
+ * host it and where its layout comes from. It is a ShadowListKitListCell, which RecyclerView hosts as
  * a plain FrameLayout.
  */
 abstract class RowView(context: Context, viewType: String) : ShadowListKitListCell(context, viewType) {
@@ -127,7 +127,9 @@ class LayoutCache {
   private val executor = Executors.newSingleThreadExecutor()
   private val generation = AtomicInteger()
 
-  // Set by the cost scenario while it times updates. Prefetch work would compete with them.
+  /*
+   * Set by the cost scenario while it times updates. Prefetch work would compete with them.
+   */
   @Volatile var prefetchPaused = false
 
   fun layout(row: Row, width: Int): RowLayout {

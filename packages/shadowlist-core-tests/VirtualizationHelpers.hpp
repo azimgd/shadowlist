@@ -19,7 +19,7 @@ namespace slt {
 using namespace azimgd::shadowlist;
 
 struct Fixture {
-  std::size_t columns = 1;
+  std::size_t numberOfColumns = 1;
   bool horizontal = false;
   bool inverted = false;
   bool followAppends = false;
@@ -31,32 +31,20 @@ struct Fixture {
 inline FrameInput inputFor(const std::vector<std::string>& keys, double offset, const Fixture& fixture) {
   FrameInput input;
   input.keys = keys;
-  input.windowContainerWidth = WINDOW_WIDTH;
-  input.windowContainerHeight = WINDOW_HEIGHT;
-  input.columns = fixture.columns;
+  input.windowWidth = WINDOW_WIDTH;
+  input.windowHeight = WINDOW_HEIGHT;
+  input.numberOfColumns = fixture.numberOfColumns;
   input.horizontal = fixture.horizontal;
   input.inverted = fixture.inverted;
   input.followAppends = fixture.followAppends;
   input.overscan = fixture.overscan;
-  input.estimatedElementSize = {fixture.estimatedWidth, fixture.estimatedHeight};
+  input.estimatedRowSize = {fixture.estimatedWidth, fixture.estimatedHeight};
   if (fixture.horizontal) {
-    input.containerOffsetX = offset;
+    input.offsetX = offset;
   } else {
-    input.containerOffsetY = offset;
+    input.offsetY = offset;
   }
   return input;
-}
-
-/*
- * The core reports its window as a first and last index, reversed for inverted lists.
- * Turn it into the ascending range the host would mount.
- */
-inline std::pair<std::size_t, std::size_t> reportedWindow(const Container& container) {
-  auto visible = container.getVisibleIndices();
-  if (visible.first == UNDEFINED_INDEX || visible.second == UNDEFINED_INDEX) {
-    return {UNDEFINED_INDEX, UNDEFINED_INDEX};
-  }
-  return {std::min(visible.first, visible.second), std::max(visible.first, visible.second)};
 }
 
 /*
@@ -64,21 +52,21 @@ inline std::pair<std::size_t, std::size_t> reportedWindow(const Container& conta
  */
 inline void checkNoRowLost(const Container& container, const std::string& context) {
   std::set<std::size_t> overlapping = overlappingIndices(container, container.overscan);
-  auto window = reportedWindow(container);
+  IndexRange measured = container.getMeasuredRange();
 
   if (overlapping.empty()) {
     return;
   }
 
-  if (window.first == UNDEFINED_INDEX) {
+  if (measured.low == UNDEFINED_INDEX) {
     fail(context + ": " + std::to_string(overlapping.size()) +
-      " rows overlap the viewport but the core reported no window");
+      " rows overlap the viewport but the core reported no measured range");
   }
   for (std::size_t index : overlapping) {
-    if (index < window.first || index > window.second) {
+    if (index < measured.low || index > measured.high) {
       fail(context + ": row " + std::to_string(index) +
-        " overlaps the viewport but is outside the reported window [" +
-        std::to_string(window.first) + ".." + std::to_string(window.second) + "]");
+        " overlaps the viewport but is outside the measured range [" +
+        std::to_string(measured.low) + ".." + std::to_string(measured.high) + "]");
     }
   }
 }
@@ -88,11 +76,11 @@ inline void checkNoRowLost(const Container& container, const std::string& contex
  * A reflow that skipped a row fails here.
  */
 inline void checkGeometryContiguous(const Container& container, const std::string& context) {
-  std::size_t columns = container.columns > 0 ? container.columns : 1;
+  std::size_t columns = container.numberOfColumns > 0 ? container.numberOfColumns : 1;
   double headerSize = container.headerSize;
 
   std::vector<double> trackEdges(columns, headerSize);
-  for (std::size_t index = 0; index < container.revision.elements.size(); ++index) {
+  for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
     std::size_t track = columns > 1 ? index % columns : 0;
     double expected = trackEdges[track];
     double actual = offsetOf(container, index);
@@ -109,7 +97,7 @@ inline void checkGeometryContiguous(const Container& container, const std::strin
  */
 inline void measureRows(Container& container, const std::vector<double>& heights) {
   for (std::size_t index = 0; index < heights.size(); ++index) {
-    Virtualizer::updateElementAtIndex(container, index, {WINDOW_WIDTH, heights[index]});
+    Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH, heights[index]});
   }
 }
 
@@ -139,13 +127,13 @@ inline double settleAtBottom(
   Container& container,
   const std::vector<std::string>& keys,
   const Fixture& fixture,
-  const std::vector<std::string>& nonAnchorable = {}) {
+  const std::vector<std::string>& nonAnchorKeys = {}) {
   double offset = 0.0;
   for (int frame = 0; frame < 8; ++frame) {
     FrameInput input = inputFor(keys, offset, fixture);
-    input.nonAnchorableKeys = nonAnchorable;
+    input.nonAnchorKeys = nonAnchorKeys;
     Virtualizer::update(container, input);
-    offset = container.revision.containerOffsetY;
+    offset = container.revision.offsetY;
   }
   return offset;
 }

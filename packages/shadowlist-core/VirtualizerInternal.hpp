@@ -3,7 +3,6 @@
 #include <shadowlist-core/Virtualizer.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <utility>
 
 /*
@@ -18,10 +17,10 @@ namespace azimgd::shadowlist {
  * would resize, reflow the rows after it, and a row pulled into range would miss a frame.
  */
 inline std::pair<double, double> effectiveFallbackSize(const Container& container) {
-  auto [estimatedWidth, estimatedHeight] = container.estimatedElementSize;
+  auto [estimatedWidth, estimatedHeight] = container.estimatedRowSize;
   return {
-    container.revision.averageElementWidth > 0.0 ? container.revision.averageElementWidth : estimatedWidth,
-    container.revision.averageElementHeight > 0.0 ? container.revision.averageElementHeight : estimatedHeight,
+    container.revision.averageRowWidth > 0.0 ? container.revision.averageRowWidth : estimatedWidth,
+    container.revision.averageRowHeight > 0.0 ? container.revision.averageRowHeight : estimatedHeight,
   };
 }
 
@@ -29,7 +28,7 @@ inline std::pair<double, double> effectiveFallbackSize(const Container& containe
  * Writable scroll offset along the scroll axis.
  */
 inline double& scrollAxisOffset(Container& container) {
-  return container.horizontal ? container.revision.containerOffsetX : container.revision.containerOffsetY;
+  return container.horizontal ? container.revision.offsetX : container.revision.offsetY;
 }
 
 /*
@@ -37,7 +36,7 @@ inline double& scrollAxisOffset(Container& container) {
  */
 inline void correctOffset(Container& container, double offset) {
   scrollAxisOffset(container) = offset;
-  container.containerOffsetCorrected = true;
+  container.offsetCorrected = true;
 }
 
 /*
@@ -51,8 +50,8 @@ inline bool atInvertedBottom(double offset, double total, double window) {
  * True when this is the newest content row, ignoring trailing decoration rows.
  */
 inline bool isLastAnchorable(const Container& container, std::size_t index) {
-  const std::vector<Element>& elements = container.revision.elements;
-  if (index >= elements.size() || !container.isAnchorable(elements[index].key)) {
+  const std::vector<Row>& rows = container.revision.rows;
+  if (index >= rows.size() || !container.isAnchorable(rows[index].key)) {
     return false;
   }
   /*
@@ -60,8 +59,8 @@ inline bool isLastAnchorable(const Container& container, std::size_t index) {
    * row. A forward walk from an anchor far up the list would visit every row, and this runs
    * on each measured row.
    */
-  for (std::size_t nextElementIndex = elements.size() - 1; nextElementIndex > index; --nextElementIndex) {
-    if (container.isAnchorable(elements[nextElementIndex].key)) {
+  for (std::size_t nextRowIndex = rows.size() - 1; nextRowIndex > index; --nextRowIndex) {
+    if (container.isAnchorable(rows[nextRowIndex].key)) {
       return false;
     }
   }
@@ -73,14 +72,14 @@ inline bool isLastAnchorable(const Container& container, std::size_t index) {
  * That is enough along the scroll axis. Across it, callers also use maxCrossAxisExtent.
  */
 inline Size tailExtent(const Container& container) {
-  const std::vector<Element>& elements = container.revision.elements;
-  std::size_t scanColumns = container.columns > 0 ? container.columns : 1;
-  std::size_t scanFrom = elements.size() > scanColumns ? elements.size() - scanColumns : 0;
+  const std::vector<Row>& rows = container.revision.rows;
+  std::size_t scanColumns = container.numberOfColumns > 0 ? container.numberOfColumns : 1;
+  std::size_t scanFrom = rows.size() > scanColumns ? rows.size() - scanColumns : 0;
   Size extent{0.0, 0.0};
-  for (std::size_t nextElementIndex = scanFrom; nextElementIndex < elements.size(); ++nextElementIndex) {
-    const Element& nextElement = elements[nextElementIndex];
-    extent.width = std::max(extent.width, nextElement.offsetX + nextElement.width);
-    extent.height = std::max(extent.height, nextElement.offsetY + nextElement.height);
+  for (std::size_t nextRowIndex = scanFrom; nextRowIndex < rows.size(); ++nextRowIndex) {
+    const Row& nextRow = rows[nextRowIndex];
+    extent.width = std::max(extent.width, nextRow.offsetX + nextRow.width);
+    extent.height = std::max(extent.height, nextRow.offsetY + nextRow.height);
   }
   return extent;
 }
@@ -91,12 +90,12 @@ inline Size tailExtent(const Container& container) {
  * out again each frame from the free space around the row. It stays right while the
  * row's size or the window size is still settling.
  */
-inline double resolveAnchorSubOffset(Container& container, const Operation& operation, std::size_t anchorIndex) {
+inline double resolveAnchorOffset(Container& container, const Operation& operation, std::size_t anchorIndex) {
   if (operation.type != OperationType::ScrollToKey) {
-    return operation.target.subOffset;
+    return operation.target.offset;
   }
-  double freeSpace = container.getWindowContainerSize() - container.getElementSize(anchorIndex);
-  return (freeSpace > 0.0 ? -operation.viewPosition * freeSpace : 0.0) + operation.rowOffset;
+  double freeSpace = container.getWindowSize() - container.getRowSize(anchorIndex);
+  return (freeSpace > 0.0 ? -operation.viewPosition * freeSpace : 0.0) + operation.viewOffset;
 }
 
 }

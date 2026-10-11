@@ -41,7 +41,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
-function idOf(item: unknown): unknown {
+function keyOf(item: unknown): unknown {
   return typeof item === 'object' && item !== null
     ? (item as { id?: unknown }).id
     : undefined;
@@ -77,22 +77,23 @@ function samePage(
 }
 
 /*
- * Shares rows of a plain query that has no pages, by id the same way.
+ * Shares rows of a plain query that has no pages, by key the same way.
  */
-function shareArrayById(
+function shareArrayByKey(
   previous: ReadonlyArray<unknown>,
   next: ReadonlyArray<unknown>
 ): ReadonlyArray<unknown> {
-  const previousById = new Map<unknown, unknown>();
+  const previousByKey = new Map<unknown, unknown>();
   for (const item of previous) {
-    const id = idOf(item);
-    if (id !== undefined && !previousById.has(id)) previousById.set(id, item);
+    const key = keyOf(item);
+    if (key !== undefined && !previousByKey.has(key))
+      previousByKey.set(key, item);
   }
 
   let changed = previous.length !== next.length;
   const items = next.map((item, index) => {
-    const id = idOf(item);
-    const previousItem = id === undefined ? undefined : previousById.get(id);
+    const key = keyOf(item);
+    const previousItem = key === undefined ? undefined : previousByKey.get(key);
     const shared =
       previousItem !== undefined &&
       previousItem !== item &&
@@ -105,56 +106,56 @@ function shareArrayById(
   return changed ? items : previous;
 }
 
-/**
- * Structural sharing by `id` for a plain list query or an infinite one. Pass it as the
+/*
+ * Structural sharing by key, the item's `id`, for a plain list query or an infinite one. Pass it as the
  * React Query `structuralSharing` option.
  *
- *   useQuery({ ..., structuralSharing: shareItemsById });
+ *   useQuery({ ..., structuralSharing: shareItemsByKey });
  *
  * The default matches arrays by position. One insert or removal gives every later row a
  * new object and re-renders all mounted rows. Here a row equal to the previous row with the
- * same id keeps its identity wherever it moved.
+ * same key keeps its identity wherever it moved.
  *
- * @see {@linkcode shareInfiniteItemsById} for the infinite-data-only version.
+ * shareInfiniteItemsByKey is the version for infinite data only.
  */
-export function shareItemsById<DataT>(previous: unknown, next: DataT): DataT {
+export function shareItemsByKey<DataT>(previous: unknown, next: DataT): DataT {
   if (Array.isArray(previous) && Array.isArray(next)) {
-    return shareArrayById(previous, next) as DataT;
+    return shareArrayByKey(previous, next) as DataT;
   }
-  return shareInfiniteItemsById(previous, next);
+  return shareInfiniteItemsByKey(previous, next);
 }
 
-/**
- * Structural sharing for infinite data that matches rows by `id` instead of position.
+/*
+ * Structural sharing for infinite data that matches rows by key, the item's `id`, instead of position.
  * Pass it as the React Query `structuralSharing` option.
  *
- *   useInfiniteQuery({ ..., structuralSharing: shareInfiniteItemsById });
+ *   useInfiniteQuery({ ..., structuralSharing: shareInfiniteItemsByKey });
  *
  * The default, replaceEqualDeep, compares arrays index by index. A prepend shifts every
  * later row. Each comes back as a new object and every mounted row re-renders. Here a
- * row equal to the previous row with the same id keeps the old object, an unchanged page
- * keeps the old page, and unchanged data comes back as the previous value. Nothing
+ * row equal to the previous row with the same key keeps its previous object, an unchanged page
+ * keeps its previous page, and unchanged data comes back as the previous value. Nothing
  * re-renders.
  *
- * Rows without an `id` and values that are not infinite data pass through unshared.
+ * Rows without an `id` key and values that are not infinite data pass through unshared.
  */
-export function shareInfiniteItemsById<DataT>(
+export function shareInfiniteItemsByKey<DataT>(
   previous: unknown,
   next: DataT
 ): DataT {
   if (!isInfinitePages(previous) || !isInfinitePages(next)) return next;
 
   const previousItems = new Map<unknown, unknown>();
-  const previousPagesByFirstId = new Map<unknown, ItemsPage<unknown>>();
+  const previousPagesByFirstKey = new Map<unknown, ItemsPage<unknown>>();
   for (const page of previous.pages) {
-    const firstId = idOf(page.items[0]);
-    if (firstId !== undefined && !previousPagesByFirstId.has(firstId)) {
-      previousPagesByFirstId.set(firstId, page);
+    const firstKey = keyOf(page.items[0]);
+    if (firstKey !== undefined && !previousPagesByFirstKey.has(firstKey)) {
+      previousPagesByFirstKey.set(firstKey, page);
     }
     for (const item of page.items) {
-      const id = idOf(item);
-      if (id !== undefined && !previousItems.has(id)) {
-        previousItems.set(id, item);
+      const key = keyOf(item);
+      if (key !== undefined && !previousItems.has(key)) {
+        previousItems.set(key, item);
       }
     }
   }
@@ -163,9 +164,9 @@ export function shareInfiniteItemsById<DataT>(
   const pages = next.pages.map((page, pageIndex) => {
     let itemsChanged = false;
     const items = page.items.map((item) => {
-      const id = idOf(item);
-      if (id === undefined) return item;
-      const previousItem = previousItems.get(id);
+      const key = keyOf(item);
+      if (key === undefined) return item;
+      const previousItem = previousItems.get(key);
       if (previousItem !== undefined && previousItem !== item) {
         if (deepEqual(previousItem, item)) {
           itemsChanged = true;
@@ -175,7 +176,7 @@ export function shareInfiniteItemsById<DataT>(
       return item;
     });
     const sharedItems = itemsChanged ? items : page.items;
-    const previousPage = previousPagesByFirstId.get(idOf(sharedItems[0]));
+    const previousPage = previousPagesByFirstKey.get(keyOf(sharedItems[0]));
     if (
       previousPage !== undefined &&
       samePage(previousPage, page, sharedItems)

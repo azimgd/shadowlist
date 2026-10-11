@@ -64,7 +64,16 @@ extern "C" const char ShadowListKitListViewSectionsLink = 0;
 - (CGRect)rectForHeaderInSection:(NSInteger)section
 {
   std::size_t row = section < 0 ? UNDEFINED_INDEX : _sections.headerRow((std::size_t)section);
-  if (row == UNDEFINED_INDEX || row >= _driver.getCount()) {
+  if (row == UNDEFINED_INDEX || row >= _driver.getRowCount()) {
+    return CGRectNull;
+  }
+  return [self rowRect:row];
+}
+
+- (CGRect)rectForFooterInSection:(NSInteger)section
+{
+  std::size_t row = section < 0 ? UNDEFINED_INDEX : _sections.footerRow((std::size_t)section);
+  if (row == UNDEFINED_INDEX || row >= _driver.getRowCount()) {
     return CGRectNull;
   }
   return [self rowRect:row];

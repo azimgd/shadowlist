@@ -12,18 +12,19 @@ export interface GroupIntoSectionsOptions<ItemT> {
 
 const byLocale = (a: string, b: string) => a.localeCompare(b);
 
-/**
+/*
  * Groups a flat array, already in server order, into the `sections` a SectionList takes.
  * Memoize the result on the input array, since new sections make the list rebuild its index.
  *
- * @example
- * const sections = useMemo(
- *   () =>
- *     groupIntoSections(contacts, {
- *       getSectionTitle: (contact) => contact.name.charAt(0).toUpperCase(),
- *     }),
- *   [contacts]
- * );
+ * For example:
+ *
+ *   const sections = useMemo(
+ *     () =>
+ *       groupIntoSections(contacts, {
+ *         getSectionTitle: (contact) => contact.name.charAt(0).toUpperCase(),
+ *       }),
+ *     [contacts]
+ *   );
  */
 export function groupIntoSections<ItemT>(
   items: ReadonlyArray<ItemT>,

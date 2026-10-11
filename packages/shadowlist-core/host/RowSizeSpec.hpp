@@ -13,9 +13,9 @@ namespace azimgd::shadowlist {
 
 /*
  * Describes a row's text before it renders. A host predicts its height with its own
- * text layout. Comes from the elementsSizeSpecs prop, a JSON array of these.
+ * text layout. Comes from the rowSizeSpecs prop, a JSON array of these.
  */
-struct ElementSizeSpec {
+struct RowSizeSpec {
   static constexpr double DEFAULT_FONT_SIZE = 14.0;
 
   std::string key;
@@ -89,7 +89,7 @@ public:
     }
     std::size_t measured = 0;
     while (cursor_ < specs_.size() && measured < BUDGET_PER_RUN) {
-      const ElementSizeSpec& spec = specs_[cursor_];
+      const RowSizeSpec& spec = specs_[cursor_];
       core.setPredictedSize(spec.key, measure(spec, width));
       ++cursor_;
       ++measured;
@@ -106,7 +106,7 @@ public:
 
 private:
   std::shared_ptr<const void> source_;
-  std::vector<ElementSizeSpec> specs_;
+  std::vector<RowSizeSpec> specs_;
   std::size_t cursor_ = 0;
   bool done_ = false;
 

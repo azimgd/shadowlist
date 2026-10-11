@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { shareItemsById } from 'shadowlist-utils';
+import { shareItemsByKey } from 'shadowlist-utils';
 import type { InboxMessage } from 'shadowlist-utils/native';
 import {
   deleteMessages,
@@ -14,7 +14,7 @@ export const useInboxQuery = () =>
   useQuery({
     queryKey: inboxKey,
     queryFn: ({ signal }) => fetchInbox(signal),
-    structuralSharing: shareItemsById,
+    structuralSharing: shareItemsByKey,
   });
 
 export function useReceiveMail() {

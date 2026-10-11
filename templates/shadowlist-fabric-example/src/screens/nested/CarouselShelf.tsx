@@ -19,9 +19,9 @@ export const CarouselShelf = memo(({ item }: { item: CarouselShelfItem }) => {
   const styles = useStyles();
 
   const renderCard = useCallback(
-    ({ element }: { element: CarouselCard }) => (
-      <View style={[styles.card, element.style]}>
-        <Text style={styles.cardLabel}>{element.label}</Text>
+    ({ item: card }: { item: CarouselCard }) => (
+      <View style={[styles.card, card.style]}>
+        <Text style={styles.cardLabel}>{card.label}</Text>
       </View>
     ),
     [styles]
@@ -45,7 +45,7 @@ export const CarouselShelf = memo(({ item }: { item: CarouselShelfItem }) => {
         data={item.cards}
         horizontal
         style={styles.list}
-        renderElement={renderCard}
+        renderItem={renderCard}
         ListHeaderComponent={header}
       />
     </View>

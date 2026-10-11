@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -41,8 +40,8 @@ struct ChangeStep {
 /*
  * What a list with animatesChanges animates. A data change records where every mounted row is
  * on screen. After the layout pass that applies it, rows that stay slide from there to their
- * new place, new rows fade in and removed rows fade out where they were. Several changes before
- * one layout add up and the first one records the screen. A key removed by one change and
+ * new place, new rows fade in and deleted rows fade out where they were. Several changes before
+ * one layout add up and the first one records the screen. A key deleted by one change and
  * inserted by another moved, and slides like any row that stays. The host owns the views and
  * the animations.
  */
@@ -52,17 +51,17 @@ public:
    * A change is about to reach the core. Returns whether it starts a new animation. The host
    * then records where every mounted row shows with recordPosition.
    */
-  bool capture(const std::vector<std::string>& removed, const std::vector<std::string>& inserted);
+  bool capture(const std::vector<std::string>& deleted, const std::vector<std::string>& inserted);
 
   void recordPosition(const std::string& key, ScreenPoint position);
 
   bool isPending() const { return pending_; }
 
   /*
-   * Where a removed row showed before the change, for its fade out, or nothing for a row that
+   * Where a deleted row showed before the change, for its fade out, or nothing for a row that
    * does not fade out.
    */
-  std::optional<ScreenPoint> removedPosition(const std::string& key) const;
+  std::optional<ScreenPoint> deletedPosition(const std::string& key) const;
 
   /*
    * The animation of every row mounted after the layout pass. keys and positions are the rows
@@ -75,7 +74,7 @@ private:
   bool pending_ = false;
   std::unordered_map<std::string, ScreenPoint> before_;
   std::unordered_set<std::string> inserted_;
-  std::unordered_set<std::string> removed_;
+  std::unordered_set<std::string> deleted_;
 };
 
 }

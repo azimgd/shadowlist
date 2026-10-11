@@ -1,17 +1,25 @@
-#include <TargetConditionals.h>
-#import <QuartzCore/QuartzCore.h>
 #import "ShadowListView.h"
 #import "ShadowListView+Private.h"
-#import "ShadowListElementView.h"
+#import "ShadowListCellView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
 
+#import <QuartzCore/QuartzCore.h>
+#include <TargetConditionals.h>
+
 using namespace facebook::react;
 
 /*
- * Long press and drag to reorder rows.
+ * How long the dropped row takes to slide into its place.
  */
+static const NSTimeInterval SL_DROP_SETTLE_DURATION = 0.18;
+
+/*
+ * How long a drop waits for its reorder to land before it settles anyway.
+ */
+static const NSTimeInterval SL_DROP_SETTLE_TIMEOUT = 0.3;
+
 /*
  * Give the lifted row's shadow an explicit shape. Without one, Core Animation renders the
  * row offscreen every frame to find its outline. Only rebuilt when the size changes.
@@ -52,6 +60,9 @@ static NSInteger SLViewIndex(std::size_t index)
   return index == azimgd::shadowlist::UNDEFINED_INDEX ? NSNotFound : (NSInteger)index;
 }
 
+/*
+ * Long press and drag to reorder rows.
+ */
 @implementation ShadowListView (DragReorder)
 
 #pragma mark - Drag gesture
@@ -76,7 +87,7 @@ static NSInteger SLViewIndex(std::size_t index)
 - (azimgd::shadowlist::DragRow)dragRowForView:(RCTUIView *)view index:(NSInteger)index
 {
   CGRect resting = [self restingFrameForView:view];
-  NSString *key = [self keyOfElementView:view];
+  NSString *key = [self keyOfCellView:view];
   return {
     SLCoreIndex(index),
     key ? std::string(key.UTF8String) : std::string(),
@@ -96,11 +107,11 @@ static NSInteger SLViewIndex(std::size_t index)
 /*
  * The topmost row under a point in the content.
  */
-- (RCTUIView *)elementViewAtContentPoint:(CGPoint)point
+- (RCTUIView *)cellViewAtContentPoint:(CGPoint)point
 {
   RCTUIView *result = nil;
   for (RCTUIView *subview in _contentView.subviews) {
-    if (![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+    if (![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
       continue;
     }
     if (CGRectContainsPoint([self restingFrameForView:subview], point)) {
@@ -164,13 +175,13 @@ static NSInteger SLViewIndex(std::size_t index)
 - (void)beginDragAtPoint:(CGPoint)location
 {
   CGPoint contentPoint = [self convertPoint:location toView:_contentView];
-  RCTUIView *view = [self elementViewAtContentPoint:contentPoint];
-  NSInteger index = [self indexOfElementView:view];
+  RCTUIView *view = [self cellViewAtContentPoint:contentPoint];
+  NSInteger index = [self indexOfCellView:view];
   if (!view || index == NSNotFound) {
     return;
   }
 
-  // Clear anything left over from the last drag.
+  // Clear anything left over from the previous drag.
   _dragDropPending = NO;
   _droppedView = nil;
   [self clearDragTransforms];
@@ -200,9 +211,9 @@ static NSInteger SLViewIndex(std::size_t index)
 
   // Tell the core a drag started so this row stays mounted when it scrolls off screen.
   NSString *originKey = SLDragKey(_drag.getOriginKey());
-  [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_START fromKey:originKey toKey:originKey];
+  [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_START sourceKey:originKey destinationKey:originKey];
 
-  // A scripted pickup can arrive while a drag runs. Its old link would keep this view alive.
+  // A scripted pickup can arrive while a drag runs. Its previous link would keep this view alive.
   [_dragDisplayLink invalidate];
   _dragDisplayLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
@@ -259,8 +270,8 @@ static NSInteger SLViewIndex(std::size_t index)
    * Read the dragged row's index and key again each time. A data change during the drag
    * can move them, and the drop math must use the current values, not the ones from pickup.
    */
-  NSInteger currentIndex = [self indexOfElementView:view];
-  NSString *currentKey = [self keyOfElementView:view];
+  NSInteger currentIndex = [self indexOfCellView:view];
+  NSString *currentKey = [self keyOfCellView:view];
   _drag.updateOrigin(SLCoreIndex(currentIndex), currentKey ? std::string(currentKey.UTF8String) : std::string());
 
   CGPoint touchContent = CGPointMake(
@@ -286,11 +297,11 @@ static NSInteger SLViewIndex(std::size_t index)
     if (subview == _draggedView) {
       continue;
     }
-    NSInteger elementIndex = [self indexOfElementView:subview];
-    if (elementIndex == NSNotFound) {
+    NSInteger rowIndex = [self indexOfCellView:subview];
+    if (rowIndex == NSNotFound) {
       continue;
     }
-    rows.push_back([self dragRowForView:subview index:elementIndex]);
+    rows.push_back([self dragRowForView:subview index:rowIndex]);
   }
   _drag.updateInsertion(rows);
   [self applyDragShuffle];
@@ -304,14 +315,14 @@ static NSInteger SLViewIndex(std::size_t index)
 {
   for (RCTUIView *subview in _contentView.subviews) {
     if (subview == _draggedView ||
-        ![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+        ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
       continue;
     }
-    NSInteger elementIndex = [self indexOfElementView:subview];
-    if (elementIndex == NSNotFound) {
+    NSInteger rowIndex = [self indexOfCellView:subview];
+    if (rowIndex == NSNotFound) {
       continue;
     }
-    subview.transform = [self dragTransformForOffset:_drag.offsetFor(SLCoreIndex(elementIndex))];
+    subview.transform = [self dragTransformForOffset:_drag.offsetFor(SLCoreIndex(rowIndex))];
   }
 }
 
@@ -327,7 +338,7 @@ static NSInteger SLViewIndex(std::size_t index)
   }
 
   for (RCTUIView *subview in _contentView.subviews) {
-    if (subview == view || ![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+    if (subview == view || ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
       continue;
     }
     subview.transform = CGAffineTransformIdentity;
@@ -349,7 +360,7 @@ static NSInteger SLViewIndex(std::size_t index)
   CABasicAnimation *settle = [CABasicAnimation animationWithKeyPath:@"transform"];
   settle.fromValue = [NSValue valueWithCATransform3D:released];
   settle.toValue = [NSValue valueWithCATransform3D:CATransform3DIdentity];
-  settle.duration = 0.18;
+  settle.duration = SL_DROP_SETTLE_DURATION;
   settle.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
   __weak ShadowListView *weakSelf = self;
   __weak RCTUIView *weakView = view;
@@ -368,7 +379,7 @@ static NSInteger SLViewIndex(std::size_t index)
   [CATransaction commit];
 #else
   __weak ShadowListView *weakSelf = self;
-  [UIView animateWithDuration:0.18
+  [UIView animateWithDuration:SL_DROP_SETTLE_DURATION
                         delay:0.0
                       options:UIViewAnimationOptionCurveEaseOut
                    animations:^{
@@ -395,7 +406,7 @@ static NSInteger SLViewIndex(std::size_t index)
 - (void)clearDragTransforms
 {
   for (RCTUIView *subview in _contentView.subviews) {
-    if (![subview conformsToProtocol:@protocol(RCTShadowListElementViewViewProtocol)]) {
+    if (![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
       continue;
     }
     // Stop any drop animation still running before a new pickup.
@@ -432,8 +443,8 @@ static NSInteger SLViewIndex(std::size_t index)
    * The indices below still drive the settle animation.
    */
   [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END
-                    fromKey:SLDragKey(_drag.getOriginKey())
-                      toKey:SLDragKey(_drag.getInsertionKey())];
+                    sourceKey:SLDragKey(_drag.getOriginKey())
+                      destinationKey:SLDragKey(_drag.getInsertionKey())];
 
   if (from == to || !view) {
     // Dropped where it started. No commit will come. Settle now.
@@ -454,12 +465,12 @@ static NSInteger SLViewIndex(std::size_t index)
     [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
     /*
-     * Fallback if the reorder never lands. The token stops an old timer from
+     * Fallback if the reorder never lands. The token stops a previous timer from
      * clearing a newer drop.
      */
     NSInteger settleToken = ++_dropSettleToken;
     __weak ShadowListView *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_DROP_SETTLE_TIMEOUT * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
       ShadowListView *strongSelf = weakSelf;
       if (strongSelf && settleToken == strongSelf->_dropSettleToken &&
           strongSelf->_dragDropPending && !strongSelf->_dragging) {
@@ -492,7 +503,7 @@ static NSInteger SLViewIndex(std::size_t index)
     _dropSettleLink = nil;
     return;
   }
-  if ([self indexOfElementView:_droppedView] == _dropInsertionIndex) {
+  if ([self indexOfCellView:_droppedView] == _dropInsertionIndex) {
     RCTUIView *view = _droppedView;
     _dragDropPending = NO;
     _droppedView = nil;
@@ -514,17 +525,17 @@ static NSInteger SLViewIndex(std::size_t index)
     NSString *originKey = SLDragKey(_drag.getOriginKey());
     BOOL wasInMountObserver = _inMountObserver;
     _inMountObserver = YES;
-    [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:originKey toKey:originKey];
+    [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END sourceKey:originKey destinationKey:originKey];
     _inMountObserver = wasInMountObserver;
   }
-  [self teardownDrag];
+  [self tearDownDrag];
 }
 
 /*
  * Stop everything without a reorder or an end event. Used directly only on recycle, where
- * the state belongs to the old list.
+ * the state belongs to the previous list.
  */
-- (void)teardownDrag
+- (void)tearDownDrag
 {
   [_dragDisplayLink invalidate];
   _dragDisplayLink = nil;
@@ -547,12 +558,12 @@ static NSInteger SLViewIndex(std::size_t index)
  */
 - (void)applyDragAccessibilityActionsToView:(RCTUIView *)view
 {
-  if (![view isKindOfClass:[ShadowListElementView class]]) {
+  if (![view isKindOfClass:[ShadowListCellView class]]) {
     return;
   }
-  ShadowListElementView *elementView = (ShadowListElementView *)view;
+  ShadowListCellView *cellView = (ShadowListCellView *)view;
   if (!_reorderEnabled) {
-    elementView.nativeAccessibilityActions = nil;
+    cellView.nativeAccessibilityActions = nil;
     return;
   }
 
@@ -581,7 +592,7 @@ static NSInteger SLViewIndex(std::size_t index)
        return [weakSelf performAccessibilityMove:weakView up:NO];
      }];
 #endif
-  elementView.nativeAccessibilityActions = @[ moveUp, moveDown ];
+  cellView.nativeAccessibilityActions = @[ moveUp, moveDown ];
 }
 
 /*
@@ -590,11 +601,11 @@ static NSInteger SLViewIndex(std::size_t index)
  */
 - (BOOL)performAccessibilityMove:(RCTUIView *)view up:(BOOL)up
 {
-  NSInteger index = [self indexOfElementView:view];
+  NSInteger index = [self indexOfCellView:view];
   if (index == NSNotFound) {
     return NO;
   }
-  NSString *key = [self keyOfElementView:view];
+  NSString *key = [self keyOfCellView:view];
   if (!key) {
     return NO;
   }
@@ -605,7 +616,7 @@ static NSInteger SLViewIndex(std::size_t index)
     if (subview == view) {
       continue;
     }
-    NSInteger subviewIndex = [self indexOfElementView:subview];
+    NSInteger subviewIndex = [self indexOfCellView:subview];
     if (subviewIndex == NSNotFound) {
       continue;
     }
@@ -618,12 +629,12 @@ static NSInteger SLViewIndex(std::size_t index)
   if (!neighbor) {
     return NO;
   }
-  NSString *neighborKey = [self keyOfElementView:neighbor];
+  NSString *neighborKey = [self keyOfCellView:neighbor];
   if (!neighborKey) {
     return NO;
   }
 
-  [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END fromKey:key toKey:neighborKey];
+  [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END sourceKey:key destinationKey:neighborKey];
   return YES;
 }
 

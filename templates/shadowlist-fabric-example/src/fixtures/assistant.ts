@@ -14,7 +14,7 @@ import { generateUniqueId } from './common';
  * playScript feeds it token by token into a turn writer, just like a real stream.
  */
 
-export interface AssistantScript {
+interface AssistantScript {
   thinking?: string;
   toolCalls?: {
     name: string;

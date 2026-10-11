@@ -2,7 +2,7 @@ import { createContext, useContext, type ReactElement } from 'react';
 
 /*
  * List wide state that rows show, like whether a reply is streaming. AssistantList provides
- * it here instead of through renderElement. A change re-renders only the small parts
+ * it here instead of through renderItem. A change re-renders only the small parts
  * below that read it, not every mounted row. Outside an AssistantList the defaults change
  * nothing.
  */

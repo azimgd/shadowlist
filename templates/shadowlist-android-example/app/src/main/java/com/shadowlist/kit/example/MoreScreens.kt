@@ -242,8 +242,8 @@ object AutoDrag {
     script.after(1500) {
       val before = names()
       val start = list.rectForItem(1) ?: return@after
-      val x = start.centerX() - list.scrollX
-      val y = start.centerY() - list.scrollY
+      val x = start.centerX() + list.paddingLeft - list.scrollX
+      val y = start.centerY() + list.paddingTop - list.scrollY
       val dx = if (columns > 1) start.width() else 0f
       val dy = if (columns > 1) start.height() * 2.2f else 67.dpf * 4.2f
       script.down(x, y)

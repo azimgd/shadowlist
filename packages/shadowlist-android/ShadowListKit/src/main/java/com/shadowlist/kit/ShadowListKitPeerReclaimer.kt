@@ -16,7 +16,9 @@ internal class ShadowListKitPeerReclaimer(private val free: (handle: Long) -> Un
 
   private val queue = ReferenceQueue<Any>()
 
-  // Holds the entries reachable until their peer is freed.
+  /*
+   * Holds the entries reachable until their peer is freed.
+   */
   private val entries = HashMap<Long, Entry>()
 
   /*

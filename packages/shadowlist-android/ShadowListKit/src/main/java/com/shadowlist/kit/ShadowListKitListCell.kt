@@ -6,12 +6,12 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.FrameLayout
 
 /*
- * A row view. Subclasses lay out their children by hand in onMeasure and onLayout for speed,
+ * The view that shows an item. Subclasses lay out their children by hand in onMeasure and onLayout for speed,
  * and report their height for an exact width with an unspecified height. Plain FrameLayout
  * children work too, they are only slower.
  *
- * The list calls setHighlighted while a finger rests on a selectable row, setSelected for
- * selected rows and setEditing while the list is editing, only when the value changes. Override
+ * The list calls setHighlighted while a finger rests on a selectable item, setSelected for
+ * selected items and setEditing while the list is editing, only when the value changes. Override
  * them to show it. Highlighted also sets the pressed state and selected the selected state, which
  * state list drawables follow.
  */

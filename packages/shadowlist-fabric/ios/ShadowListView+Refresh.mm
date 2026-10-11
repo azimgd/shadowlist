@@ -7,6 +7,16 @@ using namespace facebook::react;
 
 #if !TARGET_OS_OSX
 /*
+ * How long the spinner must stay still before onRefreshSettle fires.
+ */
+static const NSTimeInterval SL_REFRESH_SETTLE_DELAY = 0.25;
+
+/*
+ * How far a refresh started from code scrolls when the control has no height yet.
+ */
+static const CGFloat SL_REFRESH_REVEAL_FALLBACK = 60.0;
+
+/*
  * Pull to refresh. iOS only.
  */
 @implementation ShadowListView (Refresh)
@@ -73,7 +83,7 @@ using namespace facebook::react;
       // Scroll to show the spinner when refresh starts from code. A pull already shows it.
       if (!_dragging && !_dragDropPending && _scrollView.contentOffset.y >= 0) {
         CGFloat reveal = _refreshControl.frame.size.height > 0
-          ? _refreshControl.frame.size.height : 60.0;
+          ? _refreshControl.frame.size.height : SL_REFRESH_REVEAL_FALLBACK;
         [_scrollView setContentOffset:CGPointMake(_scrollView.contentOffset.x,
                                                   _scrollView.contentOffset.y - reveal)
                              animated:YES];
@@ -115,7 +125,7 @@ using namespace facebook::react;
   _refreshSettleToken += 1;
   NSInteger token = _refreshSettleToken;
   __weak ShadowListView *weakSelf = self;
-  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_REFRESH_SETTLE_DELAY * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
     ShadowListView *strongSelf = weakSelf;
     if (!strongSelf) {
       return;
@@ -146,7 +156,7 @@ using namespace facebook::react;
   if (!_refreshControl) {
     return;
   }
-  CGFloat offset = _refreshProgressViewOffset;
+  CGFloat offset = _progressViewOffset;
   if ((_stickyHeader || _autoHideHeader) && _stickyHeaderView) {
     offset += _stickyHeaderView.frame.size.height;
   }

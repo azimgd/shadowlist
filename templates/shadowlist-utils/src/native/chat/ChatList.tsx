@@ -12,14 +12,11 @@ import { getChatMessageSizeSpec } from './sizeSpec';
 import type { ChatMessage } from './types';
 
 type RenderChatMessage = NonNullable<
-  ShadowListProps<ChatMessage>['renderElement']
+  ShadowListProps<ChatMessage>['renderItem']
 >;
 
-export type ChatListProps = Omit<
-  ShadowListProps<ChatMessage>,
-  'renderElement'
-> & {
-  renderElement?: RenderChatMessage;
+export type ChatListProps = Omit<ShadowListProps<ChatMessage>, 'renderItem'> & {
+  renderItem?: RenderChatMessage;
   onRetryMessage?: (message: ChatMessage) => void;
   onLongPressMessage?: (message: ChatMessage) => void;
   labels?: Partial<ChatLabels>;
@@ -28,8 +25,8 @@ export type ChatListProps = Omit<
 export const ChatList = forwardRef<ShadowListCommands, ChatListProps>(
   (
     {
-      renderElement,
-      getElementSizeSpec,
+      renderItem,
+      getItemSizeSpec,
       onRetryMessage,
       onLongPressMessage,
       labels,
@@ -40,9 +37,9 @@ export const ChatList = forwardRef<ShadowListCommands, ChatListProps>(
     const theme = useTheme();
     const bubbleLabels = useLabels(defaultChatLabels, labels);
     const renderBubble = useCallback<RenderChatMessage>(
-      ({ element }) => (
+      ({ item }) => (
         <ChatBubble
-          message={element}
+          message={item}
           onRetry={onRetryMessage}
           onLongPress={onLongPressMessage}
           labels={bubbleLabels}
@@ -58,11 +55,11 @@ export const ChatList = forwardRef<ShadowListCommands, ChatListProps>(
       <ShadowList
         ref={ref}
         inverted
-        renderElement={renderElement ?? renderBubble}
+        renderItem={renderItem ?? renderBubble}
         // The default spec only fits the default bubble. A custom renderer brings its own.
-        getElementSizeSpec={
-          getElementSizeSpec ??
-          (renderElement === undefined ? getDefaultSizeSpec : undefined)
+        getItemSizeSpec={
+          getItemSizeSpec ??
+          (renderItem === undefined ? getDefaultSizeSpec : undefined)
         }
         {...props}
       />

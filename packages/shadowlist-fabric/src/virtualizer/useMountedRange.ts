@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnVisibleIndicesChange } from '../ShadowListViewNativeComponent';
+import type { OnMeasuredRangeChange } from '../ShadowListViewNativeComponent';
 import { slTrace, slTraceEnabled } from './helpers';
 import {
   grownMountedRange,
   initialMountedRange,
   rangeToIndices,
-  mountStepForWindow,
+  mountStepForRange,
   reportedMountedRange,
   shouldReseedFromOffsetIndex,
   stepMountedRange,
@@ -17,18 +17,18 @@ import {
 interface UseMountedRangeOptions {
   keys: ReadonlyArray<string>;
   keyToIndex: ReadonlyMap<string, number>;
-  initialElementsSize: number;
+  initialNumToRender: number;
   inverted: boolean;
   followAppends: boolean;
-  containerOffsetIndex: number;
-  overscanRows: number;
-  overscanRowsLeading: number;
+  scrollIndex: number;
+  mountOverscanRows: number;
+  mountOverscanRowsLeading: number;
 }
 
 interface UseMountedRangeResult {
   mountedIndices: number[];
-  handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
-    OnVisibleIndicesChange,
+  handleMeasuredRangeChange: CodegenTypes.DirectEventHandler<
+    OnMeasuredRangeChange,
     never
   >;
   seedAroundIndex: (index: number, viewPosition: number) => void;
@@ -55,8 +55,8 @@ const MOUNT_STEP_ROWS = 2;
 interface MountTarget {
   lowKey: string;
   highKey: string;
-  windowLowKey: string;
-  windowHighKey: string;
+  measuredLowKey: string;
+  measuredHighKey: string;
 }
 
 interface MountedKeys {
@@ -73,34 +73,30 @@ interface MountedKeys {
 export function useMountedRange({
   keys,
   keyToIndex,
-  initialElementsSize,
+  initialNumToRender,
   inverted,
   followAppends,
-  containerOffsetIndex,
-  overscanRows,
-  overscanRowsLeading,
+  scrollIndex,
+  mountOverscanRows,
+  mountOverscanRowsLeading,
 }: UseMountedRangeOptions): UseMountedRangeResult {
   /*
    * Null until native first reports what's visible. Until then the range comes from
-   * initialElementsSize, inverted and containerOffsetIndex.
+   * initialNumToRender, inverted and scrollIndex.
    */
   const [mountedKeys, setMountedKeys] = useState<MountedKeys | null>(null);
 
   /*
-   * containerOffsetIndex is the row the core scrolls to, and we mount around it. If we did
+   * scrollIndex is the row the core scrolls to, and we mount around it. If we did
    * that only on mount, a later change would scroll to rows React never mounted and the list
    * stayed blank until native reported again. That's common, for example a chat that finds
    * its first unread message after loading. So treat a change like a mount and rebuild the
    * range around the new target in the same commit that scrolls there.
    */
-  const [seededOffsetIndex, setSeededOffsetIndex] =
-    useState(containerOffsetIndex);
-  if (seededOffsetIndex !== containerOffsetIndex) {
-    const reseed = shouldReseedFromOffsetIndex(
-      seededOffsetIndex,
-      containerOffsetIndex
-    );
-    setSeededOffsetIndex(containerOffsetIndex);
+  const [seededScrollIndex, setSeededScrollIndex] = useState(scrollIndex);
+  if (seededScrollIndex !== scrollIndex) {
+    const reseed = shouldReseedFromOffsetIndex(seededScrollIndex, scrollIndex);
+    setSeededScrollIndex(scrollIndex);
     if (reseed) {
       setMountedKeys(null);
     }
@@ -109,7 +105,7 @@ export function useMountedRange({
   /*
    * Target of a scrollToItem call that hasn't landed yet. The prop always aligns to the
    * start, and the core prefers a command over the prop when a commit has both. So this wins
-   * over containerOffsetIndex and survives a prop change until native says the scroll landed.
+   * over scrollIndex and survives a prop change until native says the scroll landed.
    */
   const [commandSeed, setCommandSeed] = useState<SeedTarget | null>(null);
 
@@ -137,7 +133,7 @@ export function useMountedRange({
             edges.lowAtStart,
             edges.highAtEnd,
             keys.length,
-            overscanRowsLeading,
+            mountOverscanRowsLeading,
             inverted && followAppends
           );
         }
@@ -145,56 +141,71 @@ export function useMountedRange({
       if (commandSeed !== null) {
         return initialMountedRange(
           keys.length,
-          initialElementsSize,
+          initialNumToRender,
           inverted,
           commandSeed.index,
-          overscanRows,
+          mountOverscanRows,
           commandSeed.viewPosition
         );
       }
       return initialMountedRange(
         keys.length,
-        initialElementsSize,
+        initialNumToRender,
         inverted,
-        containerOffsetIndex,
-        overscanRows
+        scrollIndex,
+        mountOverscanRows
       );
     },
     [
       keyToIndex,
       keys.length,
-      initialElementsSize,
+      initialNumToRender,
       inverted,
       followAppends,
-      containerOffsetIndex,
+      scrollIndex,
       commandSeed,
-      overscanRows,
-      overscanRowsLeading,
+      mountOverscanRows,
+      mountOverscanRowsLeading,
     ]
   );
 
   const mountedIndices = useMemo(() => {
     const current = resolveRange(mountedKeys);
-    if (commandSeed === null || mountedKeys === null) {
+    if (commandSeed === null) {
       return rangeToIndices(current);
     }
     const target = initialMountedRange(
       keys.length,
-      initialElementsSize,
+      initialNumToRender,
       inverted,
       commandSeed.index,
-      overscanRows,
+      mountOverscanRows,
       commandSeed.viewPosition
     );
-    return unionRangeIndices(current, target);
+    /*
+     * A list resting where it opened has had no report that changed its range. Its rows on
+     * screen are still the initial ones and stay mounted until the jump lands.
+     */
+    const onScreen =
+      mountedKeys === null
+        ? initialMountedRange(
+            keys.length,
+            initialNumToRender,
+            inverted,
+            scrollIndex,
+            mountOverscanRows
+          )
+        : current;
+    return unionRangeIndices(onScreen, target);
   }, [
     resolveRange,
     mountedKeys,
     commandSeed,
     keys.length,
-    initialElementsSize,
+    initialNumToRender,
     inverted,
-    overscanRows,
+    scrollIndex,
+    mountOverscanRows,
   ]);
 
   /*
@@ -227,27 +238,27 @@ export function useMountedRange({
       if (target === null || previous === null) return previous;
       const low = latest.keyToIndex.get(target.lowKey);
       const high = latest.keyToIndex.get(target.highKey);
-      const windowLow = latest.keyToIndex.get(target.windowLowKey);
-      const windowHigh = latest.keyToIndex.get(target.windowHighKey);
+      const measuredLow = latest.keyToIndex.get(target.measuredLowKey);
+      const measuredHigh = latest.keyToIndex.get(target.measuredHighKey);
       if (
         low === undefined ||
         high === undefined ||
-        windowLow === undefined ||
-        windowHigh === undefined
+        measuredLow === undefined ||
+        measuredHigh === undefined
       ) {
         mountTargetRef.current = null;
         return previous;
       }
       const current = latest.resolveRange(previous);
-      const window = {
-        low: Math.min(windowLow, windowHigh),
-        high: Math.max(windowLow, windowHigh),
+      const measured = {
+        low: Math.min(measuredLow, measuredHigh),
+        high: Math.max(measuredLow, measuredHigh),
       };
       const next = stepMountedRange(
         current,
         { low, high },
-        window,
-        mountStepForWindow(window, MOUNT_STEP_ROWS)
+        measured,
+        mountStepForRange(measured, MOUNT_STEP_ROWS)
       );
       if (next.low === low && next.high === high) mountTargetRef.current = null;
       if (next.low === current.low && next.high === current.high)
@@ -275,39 +286,38 @@ export function useMountedRange({
    * The last visible range native reported. It gives the scroll direction next time. A
    * ref, since it must never cause a render and only the updater below reads it.
    */
-  const lastWindowRef = useRef<{ low: number; high: number } | null>(null);
+  const previousMeasuredRef = useRef<{ low: number; high: number } | null>(
+    null
+  );
 
-  const handleVisibleIndicesChange: CodegenTypes.DirectEventHandler<
-    OnVisibleIndicesChange,
+  const handleMeasuredRangeChange: CodegenTypes.DirectEventHandler<
+    OnMeasuredRangeChange,
     never
   > = useCallback(
     (event) => {
-      const { visibleStartIndex, visibleEndIndex } = event.nativeEvent;
-      if (visibleStartIndex === -1 || visibleEndIndex === -1) return;
-      // Inverted lists report start after end. Sort them.
-      const windowLow = Math.min(visibleStartIndex, visibleEndIndex);
-      const windowHigh = Math.max(visibleStartIndex, visibleEndIndex);
-      if (windowLow < 0 || windowHigh >= keys.length) return;
+      const { low: measuredLow, high: measuredHigh } = event.nativeEvent;
+      if (measuredLow < 0 || measuredHigh < measuredLow) return;
+      if (measuredHigh >= keys.length) return;
 
-      const lastWindow = lastWindowRef.current;
-      lastWindowRef.current = { low: windowLow, high: windowHigh };
+      const previousMeasured = previousMeasuredRef.current;
+      previousMeasuredRef.current = { low: measuredLow, high: measuredHigh };
       // The scroll landed. Returning the same value skips the re-render.
       setCommandSeed((previous) => (previous === null ? previous : null));
       if (slTraceEnabled()) {
-        slTrace(`vis win=${windowLow}..${windowHigh} n=${keys.length}`);
+        slTrace(`vis win=${measuredLow}..${measuredHigh} n=${keys.length}`);
       }
 
       setMountedKeys((previous) => {
         const current = resolveRange(previous);
-        const window = { low: windowLow, high: windowHigh };
+        const measured = { low: measuredLow, high: measuredHigh };
         const reported = reportedMountedRange(
           current,
-          window,
-          lastWindow,
+          measured,
+          previousMeasured,
           previous === null,
           keys.length,
-          overscanRows,
-          overscanRowsLeading,
+          mountOverscanRows,
+          mountOverscanRowsLeading,
           MOUNT_STEP_ROWS
         );
         // Already mounted. Skip the re-render.
@@ -320,8 +330,8 @@ export function useMountedRange({
             : {
                 lowKey: keys[targetLow]!,
                 highKey: keys[targetHigh]!,
-                windowLowKey: keys[windowLow]!,
-                windowHighKey: keys[windowHigh]!,
+                measuredLowKey: keys[measuredLow]!,
+                measuredHighKey: keys[measuredHigh]!,
               };
         const { lowKey, highKey, lowAtStart, highAtEnd } = keysOfRange(
           low,
@@ -344,8 +354,14 @@ export function useMountedRange({
         return { lowKey, highKey, lowAtStart, highAtEnd };
       });
     },
-    [keys, resolveRange, keysOfRange, overscanRows, overscanRowsLeading]
+    [
+      keys,
+      resolveRange,
+      keysOfRange,
+      mountOverscanRows,
+      mountOverscanRowsLeading,
+    ]
   );
 
-  return { mountedIndices, handleVisibleIndicesChange, seedAroundIndex };
+  return { mountedIndices, handleMeasuredRangeChange, seedAroundIndex };
 }

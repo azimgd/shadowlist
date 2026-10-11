@@ -474,7 +474,8 @@ enum FeatureScenario {
       let pinned = list.subviews.compactMap { $0 as? ShadowListKitListCell }.first { !$0.isHidden && $0.index == NSNotFound && $0.layer.zPosition == 1 }
       result["pinnedHeaderOffset"] = pinned.map { Double($0.frame.minY - viewportTop) } ?? NSNull()
       result["separators"] = list.visibleCells.filter { cell in cell.layer.sublayers?.contains { $0.zPosition == 1000 && !$0.isHidden } ?? false }.count
-      result["hasSectionIndex"] = list.subviews.contains { String(describing: type(of: $0)) == "ShadowListKitSectionIndexView" }
+      // The section index is the list's one adjustable subview that is not a cell.
+      result["hasSectionIndex"] = list.subviews.contains { !($0 is ShadowListKitListCell) && $0.accessibilityTraits.contains(.adjustable) }
       // Adding a traveller regroups the sections. Visible rows stay put.
       let before = visibleItems(list)
       screen.addTraveller()
@@ -622,9 +623,9 @@ final class CountingAnimator: ShadowListKitDefaultItemAnimator {
     super.listView(listView, animateInsertOf: cell)
   }
 
-  override func listView(_ listView: ShadowListKitListView, animateRemovalOf cell: ShadowListKitListCell, completion: @escaping () -> Void) {
+  override func listView(_ listView: ShadowListKitListView, animateDeleteOf cell: ShadowListKitListCell, completion: @escaping () -> Void) {
     calls += 1
-    super.listView(listView, animateRemovalOf: cell, completion: completion)
+    super.listView(listView, animateDeleteOf: cell, completion: completion)
   }
 
   override func listView(_ listView: ShadowListKitListView, animateMoveOf cell: ShadowListKitListCell, fromOffset offset: CGPoint) {

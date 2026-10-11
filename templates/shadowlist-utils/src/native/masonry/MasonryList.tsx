@@ -10,24 +10,24 @@ import { MasonryCard } from './MasonryCard';
 import type { MasonryItem } from './types';
 
 type RenderMasonryItem = NonNullable<
-  ShadowListProps<MasonryItem>['renderElement']
+  ShadowListProps<MasonryItem>['renderItem']
 >;
 
 export type MasonryListProps = Omit<
   ShadowListProps<MasonryItem>,
-  'renderElement'
+  'renderItem'
 > & {
-  renderElement?: RenderMasonryItem;
+  renderItem?: RenderMasonryItem;
   onPressItem?: (item: MasonryItem) => void;
   labels?: Partial<MasonryLabels>;
 };
 
 export const MasonryList = forwardRef<ShadowListCommands, MasonryListProps>(
-  ({ renderElement, onPressItem, labels, ...props }, ref) => {
+  ({ renderItem, onPressItem, labels, ...props }, ref) => {
     const cardLabels = useLabels(defaultMasonryLabels, labels);
     const renderCard = useCallback<RenderMasonryItem>(
-      ({ element }) => (
-        <MasonryCard item={element} onPress={onPressItem} labels={cardLabels} />
+      ({ item }) => (
+        <MasonryCard item={item} onPress={onPressItem} labels={cardLabels} />
       ),
       [onPressItem, cardLabels]
     );
@@ -35,7 +35,7 @@ export const MasonryList = forwardRef<ShadowListCommands, MasonryListProps>(
       <ShadowList
         ref={ref}
         numberOfColumns={3}
-        renderElement={renderElement ?? renderCard}
+        renderItem={renderItem ?? renderCard}
         {...props}
       />
     );

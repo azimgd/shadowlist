@@ -29,7 +29,6 @@ import argparse
 import bisect
 import json
 import re
-import statistics
 import sys
 from collections import defaultdict
 
@@ -165,9 +164,9 @@ def analyze_list(list_frames, list_events, blank_pt):
     motions = []
     discontinuities = 0
     gesture_times = [t for t, _, name, _, _ in list_events if name in ("drag-begin", "drag-end")]
-    # scrollToIndex and scrollToEnd move the list on purpose.
+    # scrollToIndex, scrollToEnd and scrollToOffset move the list on purpose.
     command_times = [t for t, _, name, _, _ in list_events
-                     if name in ("cmd-scroll-to-index", "cmd-scroll-to-end")]
+                     if name in ("cmd-scroll-to-index", "cmd-scroll-to-end", "cmd-scroll-to-offset")]
     stats = defaultdict(float)
     stats["frames"] = len(list_frames)
 
@@ -400,7 +399,7 @@ def print_report(report, frames, events, js, marks, timeline_limit):
     for t, list_id, name, fields, rest in events:
         if name in ("drag-begin", "drag-end", "decel-end", "stt-start", "stt-land", "stt-finish",
                     "refresh-pull", "refresh-prop", "refresh-settle", "cmd-scroll-to-index",
-                    "cmd-scroll-to-end"):
+                    "cmd-scroll-to-end", "cmd-scroll-to-offset"):
             items.append((t, f"[{list_id}] {rest}"))
     for t, kind, fields, body in js:
         if kind in ("reached start", "reached end", "refresh pull", "refresh hold", "refresh settle") or \

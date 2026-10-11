@@ -25,7 +25,7 @@ import type {
   ViewabilityConfigCallbackPair,
 } from './types';
 import {
-  ElementRenderer,
+  CellRenderer,
   SNAP_ALIGNMENT,
   SHADOWLIST_OVERSCAN,
   SHADOWLIST_OVERSCAN_LEADING,
@@ -35,8 +35,8 @@ import {
   usePersistentKeys,
   useViewability,
   useImperativeCommands,
-  useElementSizeSpecs,
-  useStableElement,
+  useRowSizeSpecs,
+  useStableReactElement,
   useRowSelection,
   usePrefetch,
   useAnchorState,
@@ -92,13 +92,13 @@ const DECELERATION_RATES = {
  * The JS side of the native ShadowListView. It mounts only the rows near the screen and
  * passes native scroll, drag and refresh events to the hooks below.
  */
-function ShadowListInner<ElementT>(
+function ShadowListInner<ItemT>(
   {
     data: dataProp,
-    renderElement,
+    renderItem,
     keyExtractor = defaultKeyExtractor,
     style,
-    elementStyle,
+    itemStyle,
     inverted = false,
     followAppends = false,
     horizontal = false,
@@ -107,26 +107,26 @@ function ShadowListInner<ElementT>(
     autoHideHeader = false,
     autoHideFooter = false,
     reorderEnabled = false,
-    onReorder,
+    onMoveItem,
     numberOfColumns = 1,
     overscan = 1,
-    overscanRows = SHADOWLIST_OVERSCAN,
-    overscanRowsLeading = SHADOWLIST_OVERSCAN_LEADING,
-    getElementSizeSpec,
+    mountOverscanRows = SHADOWLIST_OVERSCAN,
+    mountOverscanRowsLeading = SHADOWLIST_OVERSCAN_LEADING,
+    getItemSizeSpec,
     measureLookaheadRows = 48,
     persistentKeys,
     nonAnchorKeys,
     stickyIndices,
     renderStickyHeaderOverlay,
     initialScrollIndex,
-    containerOffsetIndex: containerOffsetIndexProp,
-    trackElementSizes = false,
+    scrollIndex: scrollIndexProp,
+    trackItemSizes = false,
     extraData,
     refreshing = false,
     onRefresh,
     refreshColor,
     progressViewOffset = 0,
-    initialElementsSize = 20,
+    initialNumToRender = 20,
     onStartReached,
     onEndReached,
     onStartReachedThreshold = 1,
@@ -175,7 +175,7 @@ function ShadowListInner<ElementT>(
     accessibilityRole,
     accessibilityHint,
     testID,
-  }: ShadowListProps<ElementT>,
+  }: ShadowListProps<ItemT>,
   ref: Ref<ShadowListCommands>
 ) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowListView> | null>(
@@ -185,12 +185,12 @@ function ShadowListInner<ElementT>(
   const traceRenderStartRef = useRenderTraceStart();
 
   /*
-   * initialScrollIndex only counts on mount. containerOffsetIndex scrolls
+   * initialScrollIndex only counts on mount. scrollIndex scrolls
    * whenever it changes and wins when both are set.
    */
   const [initialIndex] = useState(initialScrollIndex);
-  const containerOffsetIndex =
-    containerOffsetIndexProp ??
+  const scrollIndex =
+    scrollIndexProp ??
     (initialIndex != null && initialIndex >= 0 ? initialIndex : -2);
 
   const handleRefresh = useCallback(() => {
@@ -236,22 +236,21 @@ function ShadowListInner<ElementT>(
    * updates, and the hooks below share them. keyToIndex gives a key's first index. The
    * first copy of a duplicate wins, same as the core.
    * When the keys come out the same as last time, like an item edited in place, the previous
-   * array and map are returned. Then React sends no new elementsAllKeys prop to native (no
+   * array and map are returned. Then React sends no new rowKeys prop to native (no
    * deep compare, no conversion of every key) and the hooks below keyed on them don't rerun.
    */
   const keysCacheRef = useRef<{
-    elementsAllKeys: string[];
+    rowKeys: string[];
     keyToIndex: Map<string, number>;
   } | null>(null);
-  const { elementsAllKeys, keyToIndex } = useMemo(() => {
+  const { rowKeys, keyToIndex } = useMemo(() => {
     const previous = keysCacheRef.current;
     const keys = new Array<string>(data.length);
-    let same =
-      previous !== null && previous.elementsAllKeys.length === data.length;
+    let same = previous !== null && previous.rowKeys.length === data.length;
     for (let index = 0; index < data.length; index++) {
       const key = keyExtractor(data[index]!, index);
       keys[index] = key;
-      if (same && previous!.elementsAllKeys[index] !== key) same = false;
+      if (same && previous!.rowKeys[index] !== key) same = false;
     }
     if (same) return previous!;
     const map = new Map<string, number>();
@@ -259,7 +258,7 @@ function ShadowListInner<ElementT>(
       const key = keys[index]!;
       if (!map.has(key)) map.set(key, index);
     }
-    const next = { elementsAllKeys: keys, keyToIndex: map };
+    const next = { rowKeys: keys, keyToIndex: map };
     keysCacheRef.current = next;
     return next;
   }, [data, keyExtractor]);
@@ -272,19 +271,22 @@ function ShadowListInner<ElementT>(
   if (rowIndexRef.current === null) rowIndexRef.current = createRowIndexStore();
   const rowIndex = rowIndexRef.current;
   rowIndex.keyToIndex = keyToIndex;
-  rowIndex.keys = elementsAllKeys;
+  rowIndex.keys = rowKeys;
 
-  const { mountedIndices, handleVisibleIndicesChange, seedAroundIndex } =
+  const { mountedIndices, handleMeasuredRangeChange, seedAroundIndex } =
     useMountedRange({
-      keys: elementsAllKeys,
+      keys: rowKeys,
       keyToIndex,
-      initialElementsSize,
+      initialNumToRender,
       inverted,
       followAppends,
-      containerOffsetIndex,
-      overscanRows,
-      // Never mount fewer rows ahead during a fling than at rest, that's where rows are needed most.
-      overscanRowsLeading: Math.max(overscanRows, overscanRowsLeading),
+      scrollIndex,
+      mountOverscanRows,
+      // Never mount fewer rows ahead during a fling than at rest. A fling needs them most.
+      mountOverscanRowsLeading: Math.max(
+        mountOverscanRows,
+        mountOverscanRowsLeading
+      ),
     });
 
   const {
@@ -296,11 +298,11 @@ function ShadowListInner<ElementT>(
     keyToIndex,
     mountedIndices,
     reorderEnabled,
-    onReorder,
+    onMoveItem,
   });
 
   const renderIndices = usePersistentKeys({
-    keys: elementsAllKeys,
+    keys: rowKeys,
     persistentKeys,
     renderIndices: draggedIndices,
   });
@@ -309,7 +311,7 @@ function ShadowListInner<ElementT>(
    * One viewability pair per config, the single config and callback included.
    */
   const viewabilityPairs = useMemo<
-    ReadonlyArray<ViewabilityConfigCallbackPair<ElementT>>
+    ReadonlyArray<ViewabilityConfigCallbackPair<ItemT>>
   >(() => {
     if (viewabilityConfigCallbackPairs) return viewabilityConfigCallbackPairs;
     if (!onViewableItemsChanged) return [];
@@ -329,35 +331,35 @@ function ShadowListInner<ElementT>(
     recordInteraction,
   } = useViewability({
     data,
-    keys: elementsAllKeys,
+    keys: rowKeys,
     stickyIndices,
     pairs: viewabilityPairs,
   });
 
   /*
-   * Row sizes by key when trackElementSizes is on, null when off. A ref, since only
+   * Row sizes by key when trackItemSizes is on, null when off. A ref, since only
    * imperative calls read it.
    */
-  const elementSizesRef = useRef<Map<string, number> | null>(null);
-  if (trackElementSizes) {
-    if (elementSizesRef.current === null) elementSizesRef.current = new Map();
-  } else if (elementSizesRef.current !== null) {
+  const itemSizesRef = useRef<Map<string, number> | null>(null);
+  if (trackItemSizes) {
+    if (itemSizesRef.current === null) itemSizesRef.current = new Map();
+  } else if (itemSizesRef.current !== null) {
     /*
      * Tracking was turned off. Drop the map. The layout callbacks are gone too, and
      * nothing would keep it up to date.
      */
-    elementSizesRef.current = null;
+    itemSizesRef.current = null;
   }
 
-  const handleElementLayout = useCallback(
+  const handleCellLayout = useCallback(
     (key: string, width: number, height: number) => {
-      elementSizesRef.current?.set(key, horizontal ? width : height);
+      itemSizesRef.current?.set(key, horizontal ? width : height);
     },
     [horizontal]
   );
 
-  const handleElementRelease = useCallback((key: string) => {
-    elementSizesRef.current?.delete(key);
+  const handleCellRelease = useCallback((key: string) => {
+    itemSizesRef.current?.delete(key);
   }, []);
 
   const { selectedKeySet, selection, selectionStateRef } = useRowSelection({
@@ -368,7 +370,7 @@ function ShadowListInner<ElementT>(
   });
 
   usePrefetch({
-    keys: elementsAllKeys,
+    keys: rowKeys,
     keyToIndex,
     mountedIndices,
     prefetchDataSource,
@@ -410,11 +412,11 @@ function ShadowListInner<ElementT>(
     seedAroundIndex,
     recordInteraction,
     selectIndex: (index: number) => {
-      const key = elementsAllKeys[index];
+      const key = rowKeys[index];
       if (key !== undefined) selection.select(key);
     },
     deselectIndex: (index: number) => {
-      const key = elementsAllKeys[index];
+      const key = rowKeys[index];
       if (key !== undefined) selection.deselect(key);
     },
     getSelectedIndices: () =>
@@ -427,7 +429,7 @@ function ShadowListInner<ElementT>(
   useImperativeCommands(
     ref,
     shadowlistViewRef,
-    elementSizesRef,
+    itemSizesRef,
     commandSourceRef as { current: CommandSource }
   );
 
@@ -457,52 +459,52 @@ function ShadowListInner<ElementT>(
     ]
   );
 
-  const elementDimensionStyle = useMemo<ViewStyle>(() => {
+  const cellDimensionStyle = useMemo<ViewStyle>(() => {
     if (horizontal) {
       return numberOfColumns > 1
         ? { height: `${100 / numberOfColumns}%` }
-        : styles.elementHorizontal;
+        : styles.cellHorizontal;
     } else {
       return numberOfColumns > 1
         ? { width: `${100 / numberOfColumns}%` }
-        : styles.elementVertical;
+        : styles.cellVertical;
     }
   }, [horizontal, numberOfColumns]);
 
   /*
    * One row style per column. Columns differ only when they carry padding.
    */
-  const elementColumnStyles = useMemo<StyleProp<ViewStyle>[]>(() => {
-    const base: StyleProp<ViewStyle>[] = elementStyle
-      ? [styles.element, elementDimensionStyle, elementStyle]
-      : [styles.element, elementDimensionStyle];
+  const cellColumnStyles = useMemo<StyleProp<ViewStyle>[]>(() => {
+    const base: StyleProp<ViewStyle>[] = itemStyle
+      ? [styles.cell, cellDimensionStyle, itemStyle]
+      : [styles.cell, cellDimensionStyle];
     if (!columnPaddings) return [base];
     return columnPaddings.map((paddingStyle) => [...base, paddingStyle]);
-  }, [elementDimensionStyle, elementStyle, columnPaddings]);
+  }, [cellDimensionStyle, itemStyle, columnPaddings]);
 
   /*
    * Precomputed sizes for rows near the screen. Native knows their real heights before
-   * React renders them. Empty string when there is no getElementSizeSpec, which turns the
+   * React renders them. Empty string when there is no getItemSizeSpec, which turns the
    * feature off on both sides.
    */
-  const elementsSizeSpecs = useElementSizeSpecs({
+  const rowSizeSpecs = useRowSizeSpecs({
     data,
-    keys: elementsAllKeys,
-    getElementSizeSpec,
+    keys: rowKeys,
+    getItemSizeSpec,
     mountedIndices,
     lookaheadRows: measureLookaheadRows,
   });
 
   /*
    * extraData rebuilds every mounted row when it changes. The rows compare
-   * renderElement, and a new one makes them render again.
+   * renderItem, and a new one makes them render again.
    */
-  const renderElementWithExtraData = useMemo(
+  const renderItemWithExtraData = useMemo(
     () =>
       extraData === undefined
-        ? renderElement
-        : (info: Parameters<typeof renderElement>[0]) => renderElement(info),
-    [renderElement, extraData]
+        ? renderItem
+        : (info: Parameters<typeof renderItem>[0]) => renderItem(info),
+    [renderItem, extraData]
   );
 
   const header = useMemo(
@@ -541,12 +543,12 @@ function ShadowListInner<ElementT>(
   );
 
   /*
-   * The separator is inside every row. An inline element would rebuild every mounted
-   * row on each caller render. useStableElement keeps the old one while it looks the same.
+   * The separator is inside every row. An inline React element would rebuild every mounted
+   * row on each caller render. useStableReactElement keeps the previous one while it looks the same.
    * A separator component renders per row with its own props instead.
    */
   const SeparatorComponent = separatorComponentOf(ItemSeparatorComponent);
-  const separator = useStableElement(
+  const separator = useStableReactElement(
     useMemo(
       () => renderComponent(sharedSeparatorOf(ItemSeparatorComponent)),
       [ItemSeparatorComponent]
@@ -599,7 +601,7 @@ function ShadowListInner<ElementT>(
   });
 
   const viewableEventEnabled = viewabilityPairs.length > 0 || stickyEnabled;
-  const columns = elementColumnStyles.length;
+  const columns = cellColumnStyles.length;
 
   return (
     <ShadowListView
@@ -622,7 +624,7 @@ function ShadowListInner<ElementT>(
       onStartShouldSetResponderCapture={onStartShouldSetResponderCapture}
       onStartShouldSetResponder={onStartShouldSetResponder}
       onResponderRelease={onResponderRelease}
-      onVisibleIndicesChange={handleVisibleIndicesChange}
+      onMeasuredRangeChange={handleMeasuredRangeChange}
       onViewableIndicesChange={
         viewableEventEnabled ? handleViewableIndicesChange : undefined
       }
@@ -635,10 +637,10 @@ function ShadowListInner<ElementT>(
       scrollEventThrottle={scrollEventThrottle}
       viewableEventEnabled={viewableEventEnabled}
       viewableRules={viewableRules}
-      elementsAllKeys={elementsAllKeys}
+      rowKeys={rowKeys}
       // Codegen wants a string array. Native only reads it. A ReadonlyArray is fine.
-      elementsAnchorIgnoreKeys={(nonAnchorKeys ?? EMPTY_STRINGS) as string[]}
-      elementsSizeSpecs={elementsSizeSpecs}
+      nonAnchorKeys={(nonAnchorKeys ?? EMPTY_STRINGS) as string[]}
+      rowSizeSpecs={rowSizeSpecs}
       inverted={inverted}
       followAppends={followAppends}
       horizontal={horizontal}
@@ -649,11 +651,11 @@ function ShadowListInner<ElementT>(
       stickyIndices={stickyIndices ?? EMPTY_NUMBERS}
       numberOfColumns={numberOfColumns}
       overscan={overscan}
-      containerOffsetIndex={containerOffsetIndex}
+      scrollIndex={scrollIndex}
       refreshEnabled={!!onRefresh}
       refreshing={refreshing}
       refreshColor={refreshColor}
-      refreshProgressViewOffset={progressViewOffset}
+      progressViewOffset={progressViewOffset}
       startReachedThreshold={onStartReachedThreshold}
       endReachedThreshold={onEndReachedThreshold}
       snapToItem={snapToItem}
@@ -702,42 +704,38 @@ function ShadowListInner<ElementT>(
         </ShadowListTemplateView>
       ) : (
         renderIndices.map((index) => {
-          const element = data[index];
+          const item = data[index];
 
-          if (!element) return null;
+          if (!item) return null;
 
-          const elementKey = elementsAllKeys[index]!;
+          const rowKey = rowKeys[index]!;
           const last = index >= data.length - 1;
 
           return (
-            <ElementRenderer
-              key={elementKey}
-              element={element}
+            <CellRenderer
+              key={rowKey}
+              item={item}
               index={index}
               rowIndex={rowIndex}
-              elementKey={elementKey}
+              rowKey={rowKey}
               nativeIndex={reorderEnabled ? index : 0}
-              style={elementColumnStyles[columns > 1 ? index % columns : 0]}
-              renderElement={renderElementWithExtraData}
+              style={cellColumnStyles[columns > 1 ? index % columns : 0]}
+              renderItem={renderItemWithExtraData}
               separator={last ? null : separator}
               Separator={last ? null : SeparatorComponent}
-              trailingElement={
+              trailingItem={
                 last || SeparatorComponent === null
                   ? undefined
                   : data[index + 1]
               }
               separatorStore={separatorStore}
-              selected={selectedKeySet.has(elementKey)}
+              selected={selectedKeySet.has(rowKey)}
               selection={selection}
               leadingSwipeActionsForItem={leadingSwipeActionsForItem}
               trailingSwipeActionsForItem={trailingSwipeActionsForItem}
               contextMenuForItem={contextMenuForItem}
-              onElementLayout={
-                trackElementSizes ? handleElementLayout : undefined
-              }
-              onElementRelease={
-                trackElementSizes ? handleElementRelease : undefined
-              }
+              onCellLayout={trackItemSizes ? handleCellLayout : undefined}
+              onCellRelease={trackItemSizes ? handleCellRelease : undefined}
             />
           );
         })
@@ -770,19 +768,19 @@ const styles = StyleSheet.create({
   containerHorizontal: {
     flexDirection: 'row',
   },
-  element: {
+  cell: {
     position: 'absolute',
   },
-  elementVertical: {
+  cellVertical: {
     width: '100%',
   },
-  elementHorizontal: {
+  cellHorizontal: {
     height: '100%',
   },
 });
 
-const ShadowList = forwardRef(ShadowListInner) as <ElementT>(
-  props: ShadowListProps<ElementT> & { ref?: Ref<ShadowListCommands> }
+const ShadowList = forwardRef(ShadowListInner) as <ItemT>(
+  props: ShadowListProps<ItemT> & { ref?: Ref<ShadowListCommands> }
 ) => ReactElement;
 
 export default ShadowList;

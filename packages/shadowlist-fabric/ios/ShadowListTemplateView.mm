@@ -8,7 +8,6 @@
 using namespace facebook::react;
 
 @interface ShadowListTemplateView () <RCTShadowListTemplateViewViewProtocol>
-
 @end
 
 @implementation ShadowListTemplateView {
@@ -53,9 +52,9 @@ using namespace facebook::react;
 
 /*
  * Children sit where Yoga put them, padding included. The base view would also inset the
- * content view by the padding, which applied it twice.
+ * content view by the padding, which would apply it twice.
  */
-- (void)updateLayoutMetrics:(const LayoutMetrics &)layoutMetrics oldLayoutMetrics:(const LayoutMetrics &)oldLayoutMetrics
+- (void)updateLayoutMetrics:(const LayoutMetrics&)layoutMetrics oldLayoutMetrics:(const LayoutMetrics&)oldLayoutMetrics
 {
   [super updateLayoutMetrics:layoutMetrics oldLayoutMetrics:oldLayoutMetrics];
   _contentView.frame = CGRectMake(0, 0, layoutMetrics.frame.size.width, layoutMetrics.frame.size.height);

@@ -143,7 +143,7 @@ static dispatch_queue_t ShadowListKitTextRenderQueue(void)
   static dispatch_queue_t queue;
   static dispatch_once_t once;
   dispatch_once(&once, ^{
-    queue = dispatch_queue_create("slk.text.render", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0));
+    queue = dispatch_queue_create("com.shadowlist.kit.text.render", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, 0));
   });
   return queue;
 }

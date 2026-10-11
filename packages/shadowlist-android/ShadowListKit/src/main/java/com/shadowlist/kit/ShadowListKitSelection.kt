@@ -20,7 +20,7 @@ internal class ShadowListKitSelection(private val list: ShadowListKitListView) {
   /*
    * The data changed. Rows whose key is gone drop out of the selection.
    */
-  fun dropRemovedKeys(keys: List<String>) {
+  fun dropDeletedKeys(keys: List<String>) {
     if (selectedKeys.isNotEmpty()) selectedKeys.retainAll(HashSet(keys))
   }
 

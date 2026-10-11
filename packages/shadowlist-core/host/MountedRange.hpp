@@ -65,13 +65,13 @@ bool shouldReseedFromOffsetIndex(std::size_t previousOffsetIndex, std::size_t ne
 MountedRange stepMountedRange(
   const MountedRange& current,
   const MountedRange& target,
-  const MountedRange& window,
+  const MountedRange& measured,
   std::size_t step);
 
 /*
- * Overscan rows to add per step, a quarter of the window and at least minimumStep.
+ * Overscan rows to add per step, a quarter of the measured range and at least minimumStep.
  */
-std::size_t mountStepForWindow(const MountedRange& window, std::size_t minimumStep);
+std::size_t mountStepForRange(const MountedRange& measured, std::size_t minimumStep);
 
 /*
  * The range from its edge rows' current indices. A range at an edge of the data grows to take
@@ -87,12 +87,12 @@ MountedRange grownMountedRange(
   bool followTail);
 
 /*
- * Where the range should end up for a visible window: overscan on both sides, and the leading
- * pad ahead of the direction the window moved.
+ * Where the range should end up for a measured range: overscan on both sides, and the leading
+ * pad ahead of the direction the measured range moved.
  */
 MountedRange visibleTargetRange(
-  const MountedRange& window,
-  const std::optional<MountedRange>& previousWindow,
+  const MountedRange& measured,
+  const std::optional<MountedRange>& previousMeasured,
   std::size_t size,
   std::size_t overscanRows,
   std::size_t overscanRowsLeading);
@@ -107,29 +107,27 @@ struct ReportedRange {
 
 /*
  * What a visible rows report does to the range, or nothing to keep it. The first report always
- * trims the initial guess to the window plus overscan.
+ * trims the initial guess to the measured range plus overscan.
  */
 std::optional<ReportedRange> reportedMountedRange(
   const MountedRange& current,
-  const MountedRange& window,
-  const std::optional<MountedRange>& previousWindow,
+  const MountedRange& measured,
+  const std::optional<MountedRange>& previousMeasured,
   bool firstReport,
   std::size_t size,
   std::size_t overscanRows,
   std::size_t overscanRowsLeading,
   std::size_t minimumStep);
-
 /*
- * The viewable window from a host's start and end, low to high, or nothing when none is
- * viewable. Inverted lists report start after end.
+ * The viewable range from a host's low and high, or nothing when none is viewable.
  */
-std::optional<MountedRange> viewableWindow(std::size_t startIndex, std::size_t endIndex);
+std::optional<MountedRange> viewableRange(std::size_t low, std::size_t high);
 
 /*
- * The section header the sticky overlay shows for a window starting at windowLow: the last
+ * The section header the sticky overlay shows for a range starting at rangeLow: the last
  * sticky index at or above it, or UNDEFINED_INDEX. Indices are ascending.
  */
-std::size_t activeStickyIndexFor(const std::vector<std::size_t>& stickyHeaderIndices, std::size_t windowLow);
+std::size_t activeStickyIndexFor(const std::vector<std::size_t>& stickyIndices, std::size_t rangeLow);
 
 /*
  * What changed between two viewable key lists: keys that became viewable, in their order,

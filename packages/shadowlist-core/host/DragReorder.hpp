@@ -102,14 +102,14 @@ double dragAutoScrollOffset(
 /*
  * Where the held row's leading edge goes, following the finger and kept inside the content.
  */
-double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentExtent);
+double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentSize);
 
 /*
  * The position in rows of the row the held one would drop at, or UNDEFINED_INDEX to stay where
  * it started. It is the farthest row, counted from originIndex, whose midpoint the held row's
  * center has passed. Rows with an UNDEFINED_INDEX index are skipped.
  */
-std::size_t dragInsertionPosition(
+std::size_t dragInsertionIndex(
   const std::size_t* indices,
   const double* leadings,
   const double* extents,
@@ -128,7 +128,7 @@ double dragShift(std::size_t originIndex, std::size_t insertionIndex, double dra
  * for its own slot. The drop spot is the cell whose resting frame holds the held cell's center. Over its
  * own resting frame it goes back to the origin, and over no cell it keeps insertionIndex.
  */
-std::size_t dragGridInsertionPosition(
+std::size_t dragGridInsertionIndex(
   const DragCells& cells,
   const DragRow& held,
   std::size_t insertionIndex,
@@ -178,7 +178,7 @@ public:
     double touchAlong,
     double touchCross,
     const DragRow& resting,
-    double contentExtent,
+    double contentSize,
     double crossExtent);
 
   /*
@@ -190,7 +190,7 @@ public:
   /*
    * Move the held row under the finger and return its translation from its resting place.
    */
-  double place(double touchContent, double restingLeading, double extent, double contentExtent);
+  double place(double touchContent, double restingLeading, double extent, double contentSize);
 
   /*
    * Move the held grid cell under the finger, kept inside the content on both axes, and
@@ -200,8 +200,8 @@ public:
     double touchContent,
     double touchCross,
     const DragRow& resting,
-    double contentExtent,
-    double crossContentExtent);
+    double contentSize,
+    double crossContentSize);
 
   /*
    * Find the drop spot for the held row's current place among the other mounted rows.

@@ -7,7 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import type { ElementSizeSpec } from 'shadowlist';
+import type { ItemSizeSpec } from 'shadowlist';
 import { useLabels } from '../labels';
 import { createStyles, useTheme, type Theme } from '../theme';
 import { CopyIcon, PencilIcon } from '../icons';
@@ -43,7 +43,7 @@ const EMPTY_ATTACHMENTS: AssistantPrompt['attachments'] = [];
 export function getUserMessageSizeSpec(
   message: AssistantPrompt,
   theme: Theme
-): ElementSizeSpec | null {
+): ItemSizeSpec | null {
   if (!message.text || (message.attachments?.length ?? 0) > 0) return null;
 
   const { body } = theme.typography;

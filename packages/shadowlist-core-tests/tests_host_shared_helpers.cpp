@@ -61,7 +61,7 @@ TEST(pinned_section_leading_never_goes_above_its_place_and_is_pushed_up) {
   CHECK_NEAR(pinnedSectionLeading(100.0, 30.0, 50.0, false, 0.0), 100.0, 1e-9);
   CHECK_NEAR(pinnedSectionLeading(100.0, 30.0, 150.0, true, 400.0), 150.0, 1e-9);
   CHECK_NEAR(pinnedSectionLeading(100.0, 30.0, 390.0, true, 400.0), 370.0, 1e-9);
-  CHECK_EQ(pinnedSectionPosition(0, 10.0, [](std::size_t) { return 0.0; }), UNDEFINED_INDEX);
+  CHECK_EQ(pinnedSectionIndex(0, 10.0, [](std::size_t) { return 0.0; }), UNDEFINED_INDEX);
 }
 
 TEST(drag_begin_and_place_row_match_the_list_and_grid_calls) {

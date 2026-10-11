@@ -127,8 +127,8 @@
         "ShadowListView": {
           "className": "ShadowListView"
         },
-        "ShadowListElementView": {
-          "className": "ShadowListElementView"
+        "ShadowListCellView": {
+          "className": "ShadowListCellView"
         },
         "ShadowListTemplateView": {
           "className": "ShadowListTemplateView"

@@ -1,4 +1,4 @@
-import { collectExpandableIds } from '../collectExpandableIds';
+import { collectExpandableKeys } from '../collectExpandableKeys';
 import { getViewableRange } from '../getViewableRange';
 import { groupIntoSections } from '../groupIntoSections';
 
@@ -29,7 +29,7 @@ describe('groupIntoSections', () => {
   });
 });
 
-describe('collectExpandableIds', () => {
+describe('collectExpandableKeys', () => {
   it('returns every node with children, at any depth', () => {
     const tree: Node[] = [
       {
@@ -38,11 +38,11 @@ describe('collectExpandableIds', () => {
       },
       { id: 'empty', children: [] },
     ];
-    const ids = collectExpandableIds(tree, {
+    const keys = collectExpandableKeys(tree, {
       getChildren: (node) => node.children,
       keyExtractor: (node) => node.id,
     });
-    expect(ids.sort()).toEqual(['dir', 'root']);
+    expect(keys.sort()).toEqual(['dir', 'root']);
   });
 
   it('handles deep trees without recursion', () => {
@@ -50,11 +50,11 @@ describe('collectExpandableIds', () => {
     for (let depth = 0; depth < 50_000; depth++) {
       node = { id: `n${depth}`, children: [node] };
     }
-    const ids = collectExpandableIds([node], {
+    const keys = collectExpandableKeys([node], {
       getChildren: (n) => n.children,
       keyExtractor: (n) => n.id,
     });
-    expect(ids).toHaveLength(50_000);
+    expect(keys).toHaveLength(50_000);
   });
 });
 
@@ -67,8 +67,8 @@ describe('getViewableRange', () => {
     expect(
       getViewableRange([{ index: 7 }, { index: 2 }, { index: 5 }])
     ).toEqual({
-      firstIndex: 2,
-      lastIndex: 7,
+      low: 2,
+      high: 7,
     });
   });
 });

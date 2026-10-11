@@ -50,7 +50,9 @@ dependencies {
   api("androidx.core:core:1.13.1")
 }
 
-// JitPack publishes under its own group with the tag as the version.
+/*
+ * JitPack publishes under its own group with the tag as the version.
+ */
 val jitpack = System.getenv("JITPACK") == "true"
 
 mavenPublishing {

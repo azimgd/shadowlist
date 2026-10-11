@@ -24,7 +24,7 @@ file(GLOB LIB_CODEGEN_SRCS CONFIGURE_DEPENDS
 
 file(GLOB LIB_INCLUDES_SRCS CONFIGURE_DEPENDS
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListViewSpec/*.cpp
-  ${LIB_CPP_DIR}/react/renderer/components/ShadowListElementViewSpec/*.cpp
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowListCellViewSpec/*.cpp
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListTemplateViewSpec/*.cpp
 
   # The JNI peers of ShadowListScrollSync.java, ShadowListGeometry.java and ShadowListSwipeReveal.java.
@@ -46,7 +46,7 @@ target_include_directories(react_codegen_ShadowListViewSpec PUBLIC
   ${LIB_ROOT_DIR}/
 
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListViewSpec
-  ${LIB_CPP_DIR}/react/renderer/components/ShadowListElementViewSpec
+  ${LIB_CPP_DIR}/react/renderer/components/ShadowListCellViewSpec
   ${LIB_CPP_DIR}/react/renderer/components/ShadowListTemplateViewSpec
   ${LIB_JNI_DIR}/
 )

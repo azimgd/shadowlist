@@ -96,7 +96,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
 
   /*
    * A cell going back to the pool loses its shift. Reused for another row it must take that
-   * row's shift even when the target matches the old one.
+   * row's shift even when the target matches the previous one.
    */
   fun cellWillRecycle(cell: ShadowListKitListCell) {
     shiftTargets.remove(cell)
@@ -220,11 +220,11 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     cell.translationY = if (list.horizontal) cross else along
   }
 
-  private fun animateTranslation(cell: ShadowListKitListCell, along: Float, cross: Float, duration: Long) {
+  private fun animateTranslation(cell: ShadowListKitListCell, along: Float, cross: Float, durationMs: Long) {
     cell.animate()
       .translationX(if (list.horizontal) along else cross)
       .translationY(if (list.horizontal) cross else along)
-      .setDuration(duration).start()
+      .setDuration(durationMs).start()
   }
 
   /*

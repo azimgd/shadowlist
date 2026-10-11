@@ -16,8 +16,8 @@
 #include <react/renderer/textlayoutmanager/TextLayoutManager.h>
 #include <react/utils/ContextContainer.h>
 
-#include <shadowlist-core/Element.hpp>
-#include <shadowlist-core/host/ElementSizeSpec.hpp>
+#include <shadowlist-core/Row.hpp>
+#include <shadowlist-core/host/RowSizeSpec.hpp>
 
 #include <cmath>
 #include <limits>
@@ -112,12 +112,12 @@ inline std::string optionalString(const folly::dynamic& object, const char* name
 }
 
 /*
- * Parses the elementsSizeSpecs prop. It is a JSON string so its shape can grow without
+ * Parses the rowSizeSpecs prop. It is a JSON string so its shape can grow without
  * changing the native spec. Bad input just gives fewer specs and those rows fall back to
  * estimates, never a thrown error.
  */
-inline std::vector<azimgd::shadowlist::ElementSizeSpec> parseElementSizeSpecs(const std::string& json) {
-  std::vector<azimgd::shadowlist::ElementSizeSpec> specs;
+inline std::vector<azimgd::shadowlist::RowSizeSpec> parseRowSizeSpecs(const std::string& json) {
+  std::vector<azimgd::shadowlist::RowSizeSpec> specs;
   if (json.empty()) {
     return specs;
   }
@@ -139,7 +139,7 @@ inline std::vector<azimgd::shadowlist::ElementSizeSpec> parseElementSizeSpecs(co
       continue;
     }
 
-    azimgd::shadowlist::ElementSizeSpec spec;
+    azimgd::shadowlist::RowSizeSpec spec;
     spec.key = shadowlist::detail::optionalString(entry, "key");
     if (spec.key.empty()) {
       continue;
@@ -153,7 +153,7 @@ inline std::vector<azimgd::shadowlist::ElementSizeSpec> parseElementSizeSpecs(co
       spec.fontWeight = std::to_string(static_cast<int>(fontWeight->asDouble()));
     }
     spec.fontStyle = shadowlist::detail::optionalString(entry, "fontStyle");
-    spec.fontSize = shadowlist::detail::optionalDouble(entry, "fontSize", azimgd::shadowlist::ElementSizeSpec::DEFAULT_FONT_SIZE);
+    spec.fontSize = shadowlist::detail::optionalDouble(entry, "fontSize", azimgd::shadowlist::RowSizeSpec::DEFAULT_FONT_SIZE);
     spec.lineHeight = shadowlist::detail::optionalDouble(
       entry, "lineHeight", std::numeric_limits<double>::quiet_NaN());
     spec.letterSpacing = shadowlist::detail::optionalDouble(
@@ -176,9 +176,9 @@ inline std::vector<azimgd::shadowlist::ElementSizeSpec> parseElementSizeSpecs(co
  * Measures one spec into the row size the core should use.
  * Text wraps in the list width minus the spec's insets, with no height limit.
  */
-inline azimgd::shadowlist::Size measureElementSizeSpec(
+inline azimgd::shadowlist::Size measureRowSizeSpec(
   const TextLayoutManager& textLayoutManager,
-  const azimgd::shadowlist::ElementSizeSpec& spec,
+  const azimgd::shadowlist::RowSizeSpec& spec,
   double availableWidth,
   Float pointScaleFactor,
   SurfaceId surfaceId) {

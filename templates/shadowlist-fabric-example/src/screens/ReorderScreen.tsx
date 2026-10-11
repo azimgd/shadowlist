@@ -12,7 +12,7 @@ export const ReorderScreen = () => {
   const favorites = useFavoritesQuery();
   const { mutate: saveOrder } = useReorderFavorites();
 
-  const handleReorder = useCallback(
+  const handleMoveItem = useCallback(
     ({ data: reordered }: { data: ContactItem[] }) => {
       haptics.drop();
       saveOrder(reordered);
@@ -29,7 +29,7 @@ export const ReorderScreen = () => {
       <Reorder.List
         data={favorites.data}
         style={styles.list}
-        onReorder={handleReorder}
+        onMoveItem={handleMoveItem}
         ListHeaderComponent={
           <ListFooter
             text={`${HOLD_TO_DRAG} a traveller, then drag to change the order.`}

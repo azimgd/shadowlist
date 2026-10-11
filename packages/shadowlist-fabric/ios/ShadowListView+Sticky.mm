@@ -4,9 +4,6 @@
 #include <algorithm>
 
 /*
- * Sticky pinning for the header, footer and section-header overlay.
- */
-/*
  * Move a pinned view along the scroll axis. Skips the write when nothing changed, since
  * pinning runs several times per frame.
  */
@@ -30,6 +27,9 @@ static inline void SLSetHidden(RCTUIView *view, BOOL hidden)
   }
 }
 
+/*
+ * Sticky pinning for the header, footer and section-header overlay.
+ */
 @implementation ShadowListView (Sticky)
 
 /*
@@ -93,9 +93,9 @@ static inline void SLSetHidden(RCTUIView *view, BOOL hidden)
   }
 
   CGFloat axisOffset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
-  std::size_t count = std::min(_stickyHeaderOffsets.size(), _stickyHeaderSizes.size());
+  std::size_t count = std::min(_stickyOffsets.size(), _stickySizes.size());
   auto overlay = azimgd::shadowlist::sectionOverlayPosition(
-    _stickyHeaderOffsets.data(), _stickyHeaderSizes.data(), _stickyHeaderIndices.empty() ? 0 : count, axisOffset);
+    _stickyOffsets.data(), _stickySizes.data(), _stickyIndices.empty() ? 0 : count, axisOffset);
   if (!overlay.visible) {
     SLSetHidden(_sectionHeaderOverlay, YES);
     return;

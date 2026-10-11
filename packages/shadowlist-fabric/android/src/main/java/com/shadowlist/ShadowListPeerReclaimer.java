@@ -25,7 +25,9 @@ final class ShadowListPeerReclaimer {
   private final LongConsumer mFree;
   private final ReferenceQueue<Object> mQueue = new ReferenceQueue<>();
 
-  // Holds the entries reachable until their peer is freed.
+  /*
+   * Holds the entries reachable until their peer is freed.
+   */
   private final HashMap<Long, Entry> mEntries = new HashMap<>();
 
   ShadowListPeerReclaimer(LongConsumer free) {

@@ -12,9 +12,9 @@ import { useMoveItem } from './useMoveItem';
 
 export type ReorderGridProps = Omit<
   ShadowListProps<ReorderTileItem>,
-  'renderElement'
+  'renderItem'
 > & {
-  renderElement?: ShadowListProps<ReorderTileItem>['renderElement'];
+  renderItem?: ShadowListProps<ReorderTileItem>['renderItem'];
   tileAspectRatio?: number;
   labels?: Partial<ReorderLabels>;
 };
@@ -24,17 +24,17 @@ export type ReorderGridProps = Omit<
  */
 export const ReorderGrid = forwardRef<ShadowListCommands, ReorderGridProps>(
   (
-    { renderElement, tileAspectRatio, labels, numberOfColumns = 3, ...props },
+    { renderItem, tileAspectRatio, labels, numberOfColumns = 3, ...props },
     ref
   ) => {
     const tileLabels = useLabels(defaultReorderLabels, labels);
-    const moveItem = useMoveItem(props.data, props.onReorder);
+    const moveItem = useMoveItem(props.data, props.onMoveItem);
 
-    const canReorder = props.onReorder !== undefined;
+    const canReorder = props.onMoveItem !== undefined;
     const renderTile = useCallback(
-      ({ element }: { element: ReorderTileItem }) => (
+      ({ item }: { item: ReorderTileItem }) => (
         <ReorderTile
-          item={element}
+          item={item}
           onMove={canReorder ? moveItem : undefined}
           aspectRatio={tileAspectRatio}
           labels={tileLabels}
@@ -47,7 +47,7 @@ export const ReorderGrid = forwardRef<ShadowListCommands, ReorderGridProps>(
       <DraggableList
         ref={ref}
         numberOfColumns={numberOfColumns}
-        renderElement={renderElement ?? renderTile}
+        renderItem={renderItem ?? renderTile}
         {...props}
       />
     );

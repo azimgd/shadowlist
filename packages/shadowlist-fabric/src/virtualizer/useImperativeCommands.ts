@@ -13,7 +13,7 @@ interface ShadowListViewRef {
   current: ComponentRef<typeof ShadowListView> | null;
 }
 
-interface ElementSizesRef {
+interface ItemSizesRef {
   current: Map<string, number> | null;
 }
 
@@ -39,7 +39,9 @@ interface CommandSourceRef {
   current: CommandSource;
 }
 
-// Returned when a list doesn't track sizes. Callers always get a map.
+/*
+ * Returned when a list doesn't track sizes. Callers always get a map.
+ */
 const EMPTY_SIZES: ReadonlyMap<string, number> = new Map();
 
 function clampViewPosition(viewPosition: number | undefined): number {
@@ -48,13 +50,12 @@ function clampViewPosition(viewPosition: number | undefined): number {
 }
 
 /*
- * The ref commands, in positional and object forms. Positional scrollToItem does not animate
- * unless asked. The object forms animate by default.
+ * The ref commands. scrollToIndex and scrollToItem animate by default.
  */
 export function useImperativeCommands(
   ref: Ref<ShadowListCommands>,
   viewRef: ShadowListViewRef,
-  elementSizesRef: ElementSizesRef,
+  itemSizesRef: ItemSizesRef,
   sourceRef: CommandSourceRef
 ): void {
   useImperativeHandle(ref, () => {
@@ -72,7 +73,7 @@ export function useImperativeCommands(
       if (!viewRef.current) return;
       const position = clampViewPosition(viewPosition);
       sourceRef.current.seedAroundIndex(index, position);
-      Commands.scrollToItem(
+      Commands.scrollToRow(
         viewRef.current,
         index,
         position,
@@ -113,22 +114,14 @@ export function useImperativeCommands(
       );
     };
 
-    const scrollToItem = (
-      indexOrParams: number | ScrollToItemParams,
-      viewPosition?: number,
-      animated?: boolean
-    ) => {
-      if (typeof indexOrParams === 'number') {
-        scrollToRow(indexOrParams, viewPosition ?? 0, 0, animated ?? false);
-        return;
-      }
-      const index = sourceRef.current.data.indexOf(indexOrParams.item);
+    const scrollToItem = (params: ScrollToItemParams) => {
+      const index = sourceRef.current.data.indexOf(params.item);
       if (index < 0) return;
       scrollToRow(
         index,
-        indexOrParams.viewPosition ?? 0,
-        indexOrParams.viewOffset ?? 0,
-        indexOrParams.animated ?? true
+        params.viewPosition ?? 0,
+        params.viewOffset ?? 0,
+        params.animated ?? true
       );
     };
 
@@ -141,6 +134,10 @@ export function useImperativeCommands(
         typeof offsetOrParams === 'number'
           ? { offset: offsetOrParams, animated: animated ?? true }
           : offsetOrParams;
+      // The start is the one offset whose rows are known. Mount them before the jump.
+      if (params.offset <= 0 && sourceRef.current.data.length > 0) {
+        sourceRef.current.seedAroundIndex(0, 0);
+      }
       Commands.scrollToOffset(
         viewRef.current,
         params.offset,
@@ -156,6 +153,11 @@ export function useImperativeCommands(
         typeof animatedOrParams === 'object'
           ? (animatedOrParams.animated ?? true)
           : (animatedOrParams ?? true);
+      // Mount the last rows first. A host that lands at once would show them blank.
+      const count = sourceRef.current.data.length;
+      if (count > 0) {
+        sourceRef.current.seedAroundIndex(count - 1, 1);
+      }
       Commands.scrollToEnd(viewRef.current, animated);
     };
 
@@ -168,7 +170,7 @@ export function useImperativeCommands(
         if (!viewRef.current) return;
         Commands.setEndReachedEnabled(viewRef.current, enabled);
       },
-      scrollToItem: scrollToItem as ShadowListCommands['scrollToItem'],
+      scrollToItem,
       scrollToIndex,
       scrollToOffset: scrollToOffset as ShadowListCommands['scrollToOffset'],
       scrollToEnd: scrollToEnd as ShadowListCommands['scrollToEnd'],
@@ -187,8 +189,8 @@ export function useImperativeCommands(
         const tag = nativeTagOf(viewRef.current);
         return tag === -1 ? null : tag;
       },
-      getElementSize: (key: string) => elementSizesRef.current?.get(key),
-      getElementSizes: () => elementSizesRef.current ?? EMPTY_SIZES,
+      getItemSize: (key: string) => itemSizesRef.current?.get(key),
+      getItemSizes: () => itemSizesRef.current ?? EMPTY_SIZES,
       selectItem: (index: number) => sourceRef.current.selectIndex(index),
       deselectItem: (index: number) => sourceRef.current.deselectIndex(index),
       getSelectedIndices: () => sourceRef.current.getSelectedIndices(),
@@ -214,10 +216,7 @@ export function forwardedCommands(innerRef: {
       innerRef.current?.setStartReachedEnabled(enabled),
     setEndReachedEnabled: (enabled) =>
       innerRef.current?.setEndReachedEnabled(enabled),
-    scrollToItem: ((...args: [number, number?, boolean?]) =>
-      innerRef.current?.scrollToItem(
-        ...args
-      )) as ShadowListCommands['scrollToItem'],
+    scrollToItem: (params) => innerRef.current?.scrollToItem(params),
     scrollToIndex: (params) => innerRef.current?.scrollToIndex(params),
     scrollToOffset: ((...args: [number, boolean?]) =>
       innerRef.current?.scrollToOffset(
@@ -232,8 +231,8 @@ export function forwardedCommands(innerRef: {
     getNativeScrollRef: () => innerRef.current?.getNativeScrollRef() ?? null,
     getScrollResponder: () => innerRef.current?.getScrollResponder() ?? null,
     getScrollableNode: () => innerRef.current?.getScrollableNode() ?? null,
-    getElementSize: (key) => innerRef.current?.getElementSize(key),
-    getElementSizes: () => innerRef.current?.getElementSizes() ?? EMPTY_SIZES,
+    getItemSize: (key) => innerRef.current?.getItemSize(key),
+    getItemSizes: () => innerRef.current?.getItemSizes() ?? EMPTY_SIZES,
     selectItem: (index) => innerRef.current?.selectItem(index),
     deselectItem: (index) => innerRef.current?.deselectItem(index),
     getSelectedIndices: () => innerRef.current?.getSelectedIndices() ?? [],

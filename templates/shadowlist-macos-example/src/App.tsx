@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useTheme } from 'shadowlist-utils/native';
 import { queryClient } from '@example/queries/queryClient';
+import { ContactDetail } from '@example/screens/ContactDetail';
 import { EXAMPLES, type Route } from './routes';
 import {
   NavigationProvider,
@@ -17,7 +18,6 @@ import {
 import { Sidebar } from './navigation/Sidebar';
 import { MoreMenu, Toolbar } from './navigation/Toolbar';
 import { HomeScreen } from './screens/HomeScreen';
-import { ContactDetail } from '@example/screens/ContactDetail';
 
 const INITIAL_ROUTE: Route = { name: 'Home' };
 
