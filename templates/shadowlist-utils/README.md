@@ -1,35 +1,46 @@
 # shadowlist-utils
 
-shadowlist-utils is the hooks and list kits package for ShadowList: plain hooks and helpers, and themed UI kits in
-shadowlist-utils/native.
+Hooks and helpers for [ShadowList](../../packages/shadowlist-fabric/README.md), plus themed React Native list kits.
 
-See more: [ShadowList](https://github.com/azimgd/shadowlist)
+Contents: [Install](#install) · [Usage](#usage) · [Essential behavior](#essential-behavior) ·
+[API](#api) · [Native kits](#native-kits) · [Example apps](#example-apps)
 
 ## Install
 
 ```sh
 yarn add shadowlist shadowlist-utils
-# UI kits (shadowlist-utils/native):
-yarn add react-native-gesture-handler react-native-reanimated react-native-safe-area-context
 ```
+
+Choose the import that fits your use case:
+
+| Import | Includes | Extra dependencies |
+| --- | --- | --- |
+| `shadowlist-utils` | List state, paging, scrolling, grouping and tree helpers | No UI-kit peers; React Query v5 is optional for the query examples |
+| `shadowlist-utils/native` | Themes, controls, Chat, Assistant and other kits | iOS/Android: gesture-handler, Reanimated and safe-area-context |
 
 ### Requirements
 
-| Dependency   | Version                         |
-| ------------ | ------------------------------- |
-| ShadowList   | Any                             |
-| React        | 18.2 or newer                   |
-| React Native | 0.74 or newer, New Architecture |
+These are the effective requirements with the current ShadowList release; utils declares broader peer ranges.
 
-| Peer dependency                | Needed by                        |
-| ------------------------------ | -------------------------------- |
-| react-native-gesture-handler   | shadowlist-utils/native          |
-| react-native-reanimated        | shadowlist-utils/native          |
-| react-native-safe-area-context | shadowlist-utils/native          |
-| @tanstack/react-query          | Infinite query helpers, optional |
+| Dependency | Requirement |
+| --- | --- |
+| `shadowlist` | `*` (use its platform requirements) |
+| `react` | `>=19.2.0` |
+| `react-native` | `>=0.83.0`, New Architecture |
 
-shadowlist-utils/native needs the Reanimated Babel plugin and the app wrapped in `GestureHandlerRootView` and
-`SafeAreaProvider`.
+For iOS/Android kits with Reanimated 4, also install:
+
+```sh
+yarn add react-native-gesture-handler react-native-reanimated@^4 react-native-worklets react-native-safe-area-context
+```
+
+Use `react-native-worklets/plugin` last in the Babel plugins and wrap the app in `GestureHandlerRootView` and
+`SafeAreaProvider`. See the tested [Babel configuration](../shadowlist-fabric-example/babel.config.js).
+The root helpers do not need these wrappers.
+
+macOS uses source `.macos` variants without those UI-kit peers; see the
+[macOS Metro configuration](../shadowlist-macos-example/metro.config.js). Pull to refresh, snapping and keyboard
+avoidance are unavailable on macOS; Inbox keeps selection but has no swipe actions or menus.
 
 An app outside this repo can depend on a checkout with `"shadowlist-utils": "file:../shadowlist/templates/shadowlist-utils"`.
 Metro and TypeScript (`"customConditions": ["react-native"]`) read the TypeScript source. Add the folder to Metro's
@@ -39,160 +50,130 @@ Metro and TypeScript (`"customConditions": ["react-native"]`) read the TypeScrip
 
 ```tsx
 import { useInfiniteQuery } from '@tanstack/react-query';
+import { Text } from 'react-native';
 import { ShadowList } from 'shadowlist';
-import {
-  shareInfiniteItemsByKey,
-  useInfiniteListProps,
-} from 'shadowlist-utils';
+import { shareInfiniteItemsByKey, useInfiniteListProps } from 'shadowlist-utils';
 
 type Post = { id: string; text: string };
 type Page = { items: Post[]; nextCursor?: string };
 
-export function FeedScreen() {
+export function FeedScreen({ fetchPage }: { fetchPage: (cursor?: string) => Promise<Page> }) {
   const feed = useInfiniteQuery({
     queryKey: ['feed'],
-    queryFn: ({ pageParam }) => fetchFeedPage(pageParam), // resolves to Page
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (page: Page) => page.nextCursor,
-    // Rows keep their identity when pages shift. Only new rows render.
     structuralSharing: shareInfiniteItemsByKey,
   });
 
-  const list = useInfiniteListProps(feed, {
-    onError: (error) => console.warn('page load failed', error),
-  });
-
-  if (feed.data === undefined) return null;
+  const list = useInfiniteListProps(feed);
 
   return (
     <ShadowList
-      data={list.data}
-      refreshing={list.refreshing}
-      onRefresh={list.onRefresh}
-      onEndReached={list.onEndReached}
-      onStartReached={list.onStartReached}
-      renderItem={({ item }) => <PostRow post={item} />}
+      {...list}
+      renderItem={({ item }) => <Text>{item.text}</Text>}
     />
   );
 }
 ```
 
-Pages must have the shape `{ items: Item[] }`. Rows are matched by `id`.
+Install `@tanstack/react-query` for this example and render it inside a `QueryClientProvider`.
+See [FeedScreen](../shadowlist-fabric-example/src/screens/FeedScreen.tsx) and its
+[query setup](../shadowlist-fabric-example/src/queries/feed.ts) for loading/error UI and cache updates.
+
+## Essential behavior
+
+An **item** is your data, a **row** is a layout entry, a **cell** is its mounted view, and a **key** is its stable
+identity. Pages have the shape `{ items: Item[] }`; query edit helpers match items by unique `id`.
+Inverted chat data stays oldest first. Reorder callbacks must save their returned data to your state.
+
+`useListController`, `usePullToRefresh` and `useInfiniteListProps` accept `onError` for synchronous throws and rejected
+promises from your refresh/page callbacks. Without it, rejections remain unhandled. Loading flags and re-entrancy
+guards reset in either case. React Query normally stores fetch errors on the query instead of rejecting, so render
+its error state too.
 
 ## API
 
-### Error handling (`onError`)
-
-`useListController`, `usePullToRefresh` and `useInfiniteListProps` each take an `onError` option.
-
-| Case              | What happens                                                                                                                                                         |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| With `onError`    | It receives a synchronous throw or a rejected promise from the callback you passed in (`onRefresh` / `onEndReached` / `onStartReached`, `refresh`, or a page fetch). |
-| Without `onError` | The rejection is left **unhandled**.                                                                                                                                 |
-| Both              | The loading flag (`refreshing`, `loadingMore`, `loadingOlder`) and the re-entrancy guard reset. The list never gets stuck in a loading state.                        |
-
-React Query's own `fetchNextPage` and `refetch` resolve even when the request fails, and the error ends up on the query. So `onError` matters mostly when you pass a custom `refresh` or your own fetchers.
+The tables cover common exports. Full types and signatures are linked from the
+[root exports](src/index.ts) and [native exports](src/native/index.ts).
 
 ### Infinite queries
 
-| Export                                                                                                                                      | Description                                                                                                                                                                                                                                                                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `useInfiniteListProps(query, { refresh?, onError? })` → `{ data, refreshing, onRefresh, onEndReached, onStartReached }`                     | Connects an infinite query to a list. `data` is memoized on the cached value. The end and start handlers are stable and do nothing when there is no page to load, while any fetch is running, or while their own fetch is still pending. `refreshing` only tracks pull-to-refresh, never background refetches. `refresh` defaults to `query.refetch`. |
-| `flattenInfiniteItems(data)`                                                                                                                | Returns all rows of all loaded pages in order. While `data` is undefined it returns one shared empty array.                                                                                                                                                                                                                                           |
-| `updateInfiniteItems(data, update)`                                                                                                         | Replaces rows with `update(item)`. Return the same row to leave it unchanged.                                                                                                                                                                                                                                                                         |
-| `removeInfiniteItems(data, shouldRemove)`                                                                                                   | Removes every row that `shouldRemove` matches.                                                                                                                                                                                                                                                                                                        |
-| `prependInfiniteItems(data, items)`                                                                                                         | Inserts rows at the top of the first page. Only correct while that page is the true start of the list.                                                                                                                                                                                                                                                |
-| `appendInfiniteItems(data, items)`                                                                                                          | Inserts rows at the bottom of the last page. Only correct while there is no next page.                                                                                                                                                                                                                                                                |
-| `upsertInfiniteItems(data, items)`                                                                                                          | Replaces rows whose `id` is already cached, wherever they are, and appends the rest like `appendInfiniteItems`. Never creates a duplicate key.                                                                                                                                                                                                        |
-| `trimInfinitePages(data, pageCount)`                                                                                                        | Keeps the first `pageCount` pages. Use it before a refetch so that pull-to-refresh sends one request instead of one per loaded page.                                                                                                                                                                                                                  |
-| `shareInfiniteItemsByKey(previous, next)`                                                                                                   | Structural sharing for infinite data (`structuralSharing` option). A row keeps its previous object when it is value-equal to the previous row with the same `id`, even if it moved.                                                                                                                                                                   |
-| `shareItemsByKey(previous, next)`                                                                                                           | Same as above, but also works on a plain array query (`useQuery`).                                                                                                                                                                                                                                                                                    |
-| Types: `ItemsPage<T>`, `InfinitePages<P>`, `InfiniteItem<D>`, `InfiniteListQuery<D>`, `InfiniteListProps<T>`, `UseInfiniteListPropsOptions` |                                                                                                                                                                                                                                                                                                                                                       |
+`useInfiniteListProps` memoizes data, defaults refresh to `query.refetch`, and exposes stable edge handlers. They
+ignore calls while fetching or when no page remains. `refreshing` tracks pull-to-refresh only, not background fetches.
+
+| Export | Description |
+| --- | --- |
+| `useInfiniteListProps(query, { refresh?, onError? })` | Returns `data`, `refreshing`, `onRefresh`, `onEndReached`, `onStartReached`. |
+| `flattenInfiniteItems(data)` | Returns all rows of all loaded pages in order. While `data` is undefined it returns one shared empty array. |
+| `updateInfiniteItems(data, update)` | Replaces rows with `update(item)`. Return the same row to leave it unchanged. |
+| `removeInfiniteItems(data, shouldRemove)` | Removes every row that `shouldRemove` matches. |
+| `prependInfiniteItems(data, items)` | Inserts rows at the top of the first page. Only correct while that page is the true start of the list. |
+| `appendInfiniteItems(data, items)` | Inserts rows at the bottom of the last page. Only correct while there is no next page. |
+| `upsertInfiniteItems(data, items)` | Replaces rows whose `id` is already cached, wherever they are, and appends the rest like `appendInfiniteItems`. Never creates a duplicate key. |
+| `trimInfinitePages(data, pageCount)` | Keeps the first `pageCount` pages. Use it before a refetch so that pull-to-refresh sends one request instead of one per loaded page. |
+| `shareInfiniteItemsByKey(previous, next)` | Structural sharing for infinite data (`structuralSharing` option). A row keeps its previous object when it is value-equal to the previous row with the same `id`, even if it moved. |
+| `shareItemsByKey(previous, next)` | Same as above, but also works on a plain array query (`useQuery`). |
 
 All edit helpers keep the identity of any page or row they don't change. They return `data` itself when nothing changed, and they pass `undefined` through.
 
-Optimistic edits go through `setQueryData`:
-
-```ts
-import { upsertInfiniteItems } from 'shadowlist-utils';
-
-const write = (message: ChatMessage) =>
-  queryClient.setQueryData<ChatData>(['chat'], (data) =>
-    upsertInfiniteItems(data, [message])
-  );
-
-useMutation({
-  mutationFn: sendMessage,
-  onMutate: (message) => write({ ...message, status: 'sending' }),
-  onSuccess: (stored) => write(stored),
-  // Keep the bubble so the text isn't lost; Chat.Bubble offers a retry.
-  onError: (_error, message) => write({ ...message, status: 'failed' }),
-});
-```
+Use edit helpers inside `queryClient.setQueryData`. For optimistic updates and failed-message retries, see
+[chat mutations](../shadowlist-fabric-example/src/queries/chat.ts).
 
 ### List state and scrolling
 
-| Export                                                                                                                                                                  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `useListController<ItemT>(options?)`                                                                                                                                    | Holds local list state: `data`, `refreshing`, `loadingMore`, `loadingOlder`, `scrolling`. It returns handlers that are safe to call again while busy (`handleRefresh`, `handleEndReached`, `handleStartReached`, `handleScroll`, `handleViewableItemsChanged`), mutators (`setItems`, `prependItems`, `appendItems`, `upsertItems(items)`, `updateItem(key, update)`, `removeItems(keys \| predicate)`) and manual `markers`. Options: `initialData`, `keyExtractor` (default reads `item.id`), `onRefresh`, `onEndReached`, `onStartReached`, `onScroll`, `onViewableItemsChanged`, `onError`, `scrollIdleMs` (default 150). |
-| `usePullToRefresh(refresh, { onError? })` → `{ refreshing, onRefresh }`                                                                                                 | Drives the pull-to-refresh control from any async function. `refresh` is read when called. It doesn't need to be stable.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `useScrollThreshold(thresholdDp)` → `{ isPastThreshold, onScroll }`                                                                                                     | Re-renders only when the scroll offset crosses the threshold, for example to hide a header or show a back-to-top button.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `getViewableRange(viewableItems)` → `{ low, high } \| undefined`                                                                                                        | Returns the index span of an `onViewableItemsChanged` payload. The payload doesn't need to be sorted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Types: `UseListControllerOptions`, `ListController`, `ListMarkers`, `PullToRefresh`, `UsePullToRefreshOptions`, `ScrollThreshold`, `ScrollOffsetEvent`, `ViewableRange` |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+`useListController` holds local data, loading flags and scrolling state. Its options include initial data, a
+`keyExtractor` (default `item.id`), refresh/page/scroll callbacks, `onError` and `scrollIdleMs` (150 ms).
+Use `setItems`, `prependItems`, `appendItems`, `upsertItems`, `updateItem` and `removeItems` to edit data; `markers`
+set loading/scrolling flags manually. See [controller types](src/useListController.ts) for callback signatures.
 
-```tsx
-const list = useListController<Message>({
-  onStartReached: async () => list.prependItems(await fetchOlder()),
-  onError: reportError,
-});
-<ShadowList data={list.data} onStartReached={list.handleStartReached} ... />;
-```
+| Export | Description |
+| --- | --- |
+| `useListController<ItemT>(options?)` | Local list state, edit methods and handlers that guard concurrent loads. |
+| `usePullToRefresh(refresh, { onError? })` → `{ refreshing, onRefresh }` | Drives the pull-to-refresh control from any async function. `refresh` is read when called. It doesn't need to be stable. |
+| `useScrollThreshold(thresholdDp)` → `{ isPastThreshold, onScroll }` | Re-renders only when the scroll offset crosses the threshold, for example to hide a header or show a back-to-top button. |
+| `getViewableRange(viewableItems)` → `{ low, high } \| undefined` | Returns the index span of an `onViewableItemsChanged` payload. The payload doesn't need to be sorted. |
+
+For local data, connect `data`, `handleRefresh`, `handleStartReached` and `handleEndReached` from
+`useListController` to the corresponding list props. See
+[AssistantScreen](../shadowlist-fabric-example/src/screens/AssistantScreen.tsx) for local state.
 
 ### Sections and trees
 
-| Export                                                                                                      | Description                                                                                                         |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `groupIntoSections(items, { getSectionTitle, compareSections?, compareItems? })` → `{ key, title, data }[]` | Groups a flat array into SectionList sections. Wrap the call in `useMemo`.                                          |
-| `collectExpandableKeys(nodes, { getChildren, keyExtractor })` → `string[]`                                  | Returns the key of every node that has children, at any depth. Use it for a TreeList "Expand all" (`expandedKeys`). |
-| Types: `ItemSection<T>`, `GroupIntoSectionsOptions<T>`, `CollectExpandableKeysOptions<N>`                   |                                                                                                                     |
+| Export | Description |
+| --- | --- |
+| `groupIntoSections(items, { getSectionTitle, compareSections?, compareItems? })` → `{ key, title, data }[]` | Groups a flat array into SectionList sections. Wrap the call in `useMemo`. |
+| `collectExpandableKeys(nodes, { getChildren, keyExtractor })` → `string[]` | Returns the key of every node that has children, at any depth. Use it for a TreeList "Expand all" (`expandedKeys`). |
 
 ## Native kits
 
-Each kit is a namespace object, such as `Chat.List` and `Chat.Bubble`. Every `*.List` component wraps ShadowList (or SectionList, TreeList or DraggableList), accepts all of that component's props and forwards `ShadowListCommands` through `ref`. It also takes an optional `renderItem` that replaces the kit's default row.
+Import kits from `shadowlist-utils/native`, for example `Chat.List` and `Chat.Bubble`. Lists forward the props allowed
+by their exported `*ListProps` type and expose the underlying list commands through `ref` (`Tree.List` uses
+`TreeListCommands`). Most provide a default row that an optional `renderItem` can replace. `Poll.List` takes `poll`
+instead of `data`; `Contacts.SectionList` takes `sections`; `Nested.Row` has no list wrapper. `TemplateList` exposes
+its smaller prop set and a `listRef` prop.
 
 ### Theming
 
 ```tsx
-import {
-  ThemeProvider,
-  createTheme,
-  darkTheme,
-  lightTheme,
-  createStyles,
-} from 'shadowlist-utils/native';
+import { ThemeProvider, createTheme, darkTheme } from 'shadowlist-utils/native';
 
-const brandDark = createTheme(darkTheme, { colors: { accent: '#ff7a00' } });
-
-<ThemeProvider theme={scheme === 'dark' ? brandDark : lightTheme}>
-  <App />
-</ThemeProvider>;
-
-// Styles are cached per theme object.
-const useStyles = createStyles(({ colors, spacing }) =>
-  StyleSheet.create({
-    list: { flex: 1, backgroundColor: colors.background, padding: spacing.md },
-  })
-);
+const theme = createTheme(darkTheme, { colors: { accent: '#ff7a00' } });
+<ThemeProvider theme={theme}><App /></ThemeProvider>;
 ```
 
-| Export                                                                                                                                                                                                   | Description                                                                                                                                                                                                             |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ThemeProvider({ theme })`                                                                                                                                                                               | Provides a `Theme` to the tree. Without a provider, `useTheme` follows the system color scheme and switches between `lightTheme` and `darkTheme`. With a provider, choosing light or dark is up to you.                 |
-| `useTheme()`                                                                                                                                                                                             | Returns the current `Theme`: `colors`, `typography`, `fontSize`, `fontWeight`, `spacing`, `radius`, `fonts`, `grouped` (`inset`, `radius`, `rowInset`, `rowHeight` of inset-grouped cards), `rowInset` and `tapTarget`. |
-| `createTheme(base, overrides)`                                                                                                                                                                           | Deep-merges a `DeepPartial<Theme>` into a base theme. Arrays such as `avatarPalette` are replaced, not merged.                                                                                                          |
-| `createStyles(factory)` → `useStyles`                                                                                                                                                                    | Builds a hook that creates styles from the theme and caches them per theme object.                                                                                                                                      |
-| `lightTheme`, `darkTheme`                                                                                                                                                                                | Built-in themes.                                                                                                                                                                                                        |
-| Types: `Theme`, `ThemeColors`, `ThemeTextStyle`, `ThemeTypography`, `ThemeFontSize`, `ThemeFontWeight`, `ThemeSpacing`, `ThemeRadius`, `ThemeFonts`, `ThemeGrouped`, `DeepPartial`, `ThemeProviderProps` |                                                                                                                                                                                                                         |
+See [app theming](../shadowlist-fabric-example/src/appTheme.ts) for the full theme and cached `createStyles` setup.
+
+Without a provider, `useTheme` follows the system color scheme. With a provider, the app chooses its theme.
+Overrides merge deeply; arrays such as `avatarPalette` are replaced. Styles are cached per theme object.
+
+| Export | Description |
+| --- | --- |
+| `ThemeProvider({ theme })` | Provides a theme to the tree. |
+| `useTheme()` | Returns the current [Theme](src/native/theme/Theme.ts). |
+| `createTheme(base, overrides)` | Applies partial overrides to a base theme. |
+| `createStyles(factory)` → `useStyles` | Builds a hook that creates styles from the theme and caches them per theme object. |
+| `lightTheme`, `darkTheme` | Built-in themes. |
 
 ### Labels (i18n)
 
@@ -205,42 +186,42 @@ const LABELS = { placeholder: 'Nachricht', send: 'Senden' }; // module scope or 
 
 Merged labels keep the same identity while their values don't change. An inline object won't re-render memoized rows.
 
-| Export                                     | Description                                     |
-| ------------------------------------------ | ----------------------------------------------- |
-| `useLabels(defaults, overrides)`           | Merges a `Partial` of labels into the defaults. |
-| `formatRelativeTime(date, labels, nowMs?)` | Formats a relative time with the given labels.  |
-| Types: `RelativeTimeLabels`                |                                                 |
+| Export | Description |
+| --- | --- |
+| `useLabels(defaults, overrides)` | Merges a `Partial` of labels into the defaults. |
+| `formatRelativeTime(date, labels, nowMs?)` | Formats a relative time with the given labels. |
 
 ### Primitives
 
-| Export                                                                                                                                                                                                                                     | Description                                                                                        |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| `Avatar({ name, uri?, color?, size? })`                                                                                                                                                                                                    | Shows initials, with the image on top when `uri` is set. The color is derived from `name`.         |
-| `Spinner({ size?, color?, labels? })`, `defaultSpinnerLabels`                                                                                                                                                                              | Centered activity indicator.                                                                       |
-| `ListHeader({ title, subtitle? })`, `ListFooter({ text })`                                                                                                                                                                                 | Header and footer blocks for lists.                                                                |
-| `SectionHeader({ title, count? })`, `ItemSeparator({ highlighted? })`                                                                                                                                                                      | Section header and separator line.                                                                 |
-| `TemplateList({ data, templates, horizontal?, listRef? })` (`TemplateRow`, `TemplateMap`)                                                                                                                                                  | A ShadowList of mixed rows. Each row has a `kind`, and `templates` maps each kind to its renderer. |
-| `useLargeText(threshold = 1.3)`                                                                                                                                                                                                            | True at accessibility text sizes. Shares one `Dimensions` listener across callers.                 |
-| `useKeyboardVisible()`                                                                                                                                                                                                                     | True while the keyboard is on screen.                                                              |
-| `useKeyboardLift({ gap? })`                                                                                                                                                                                                                | Returns an animated `translateY` that lifts a composer above the keyboard.                         |
-| Icons: `ChevronIcon`, `FolderIcon`, `DocIcon`, `GripIcon`, `ArrowUpIcon`, `PlusIcon`, `CloseIcon`, `StopIcon`, `CheckIcon`, `CopyIcon`, `RetryIcon`, `ShareIcon`, `SparkleIcon`, `PencilIcon`, `SearchIcon` (`IconProps`, `IconComponent`) |                                                                                                    |
+| Export | Description |
+| --- | --- |
+| `Avatar({ name, uri?, color?, size? })` | Shows initials, with the image on top when `uri` is set. The color is derived from `name`. |
+| `Spinner({ size?, color?, labels? })`, `defaultSpinnerLabels` | Centered activity indicator. |
+| `ListHeader({ title, subtitle? })`, `ListFooter({ text })` | Header and footer blocks for lists. |
+| `SectionHeader({ title, count? })`, `ItemSeparator({ highlighted? })` | Section header and separator line. |
+| `TemplateList({ data, templates, horizontal?, listRef? })` (`TemplateRow`, `TemplateMap`) | A ShadowList of mixed rows. Each row has a `kind`, and `templates` maps each kind to its renderer. |
+| `useLargeText(threshold = 1.3)` | True at accessibility text sizes. Shares one `Dimensions` listener across callers. |
+| `useKeyboardVisible()` | True while the keyboard is on screen. |
+| `useKeyboardLift({ gap? })` | Returns an animated `translateY` that lifts a composer above the keyboard. |
+
+See [native exports](src/native/index.ts) for icons and their prop types.
 
 ### Controls
 
-| Export                                                           | Description                                                   |
-| ---------------------------------------------------------------- | ------------------------------------------------------------- |
-| `PillButton({ label, onPress, variant?, disabled? })`            | `primary`, `tinted`, `plain` or `destructive` pill.           |
-| `IconButton({ icon, onPress, accessibilityLabel })`              | Round tinted button around a glyph.                           |
-| `DashedButton({ label, onPress, disabled? })`                    | Full-width dashed outline that adds one more of something.    |
-| `Chip({ label, onPress, variant?, mono? })`, `ChipRow`           | Shortcut chips in a row that wraps.                           |
-| `ChoiceChip({ label, tint, selected, onPress })`                 | One choice in its own color, ringed and ticked when selected. |
-| `SearchField({ value, onChange, icon?, labels? })`               | Filled search box. `defaultSearchFieldLabels`.                |
-| `TextField({ value, onChange, placeholder?, multiline? })`       | Filled text box for a value typed verbatim.                   |
-| `Segmented({ options, value, onChange, size? })`                 | Drawn segmented control. `compact` sizes it to its labels.    |
-| `ProgressBar({ fraction, accessibilityLabel, color?, height? })` | Rounded bar with a progressbar role.                          |
-| `ProgressRing({ fraction, size?, strokeWidth?, color? })`        | Ring that fills clockwise. Hidden from screen readers.        |
-| `IndexBadge({ index })`                                          | Position in an ordered list.                                  |
-| `EmptyState({ icon?, title, message? })`                         | What a screen says before it has anything to show.            |
+| Export | Description |
+| --- | --- |
+| `PillButton({ label, onPress, variant?, disabled? })` | `primary`, `tinted`, `plain` or `destructive` pill. |
+| `IconButton({ icon, onPress, accessibilityLabel })` | Round tinted button around a glyph. |
+| `DashedButton({ label, onPress, disabled? })` | Full-width dashed outline that adds one more of something. |
+| `Chip({ label, onPress, variant?, mono? })`, `ChipRow` | Shortcut chips in a row that wraps. |
+| `ChoiceChip({ label, tint, selected, onPress })` | One choice in its own color, ringed and ticked when selected. |
+| `SearchField({ value, onChange, icon?, labels? })` | Filled search box. `defaultSearchFieldLabels`. |
+| `TextField({ value, onChange, placeholder?, multiline? })` | Filled text box for a value typed verbatim. |
+| `Segmented({ options, value, onChange, size? })` | Drawn segmented control. `compact` sizes it to its labels. |
+| `ProgressBar({ fraction, accessibilityLabel, color?, height? })` | Rounded bar with a progressbar role. |
+| `ProgressRing({ fraction, size?, strokeWidth?, color? })` | Ring that fills clockwise. Hidden from screen readers. |
+| `IndexBadge({ index })` | Position in an ordered list. |
+| `EmptyState({ icon?, title, message? })` | What a screen says before it has anything to show. |
 
 ### Grouped and Form
 
@@ -249,234 +230,123 @@ Inset-grouped cards, as iOS Settings draws them. Metrics come from `theme.groupe
 ```tsx
 <Grouped.Section title="Account">
   <Grouped.Row title="Plan" subtitle="Pro" onPress={openPlan} />
-  <Grouped.Row title="Sign Out" separated chevron={false} onPress={signOut} />
 </Grouped.Section>
 
 <Form.Card>
   <Form.Row label="Amount">
     <Form.Input numeric value={amount} onChange={setAmount} accessibilityLabel="Amount" />
   </Form.Row>
-  <Form.Row label="Total">
-    <Form.Value text={total} />
-  </Form.Row>
 </Form.Card>
-<Form.Button label="Remove item" destructive onPress={remove} />
 ```
 
-| Export                                                                                                                 | Description                                                                                        |
-| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `Grouped.Card`, `Grouped.Caption({ title })`, `Grouped.Section({ title? })`                                            | A card, the uppercase caption over it, and the two together.                                       |
-| `Grouped.Row({ title, subtitle?, leading?, trailing?, chevron?, separated?, onLongPress?, longPressLabel?, testID? })` | A row that leads somewhere. The long press is also a screen reader action.                         |
-| `Grouped.Separator({ inset? })`                                                                                        | Hairline that starts at `inset`, the row inset by default.                                         |
-| `Form.Card`, `Form.Row({ label, stacked? })`                                                                           | A form card that draws its own separators, and a label-and-value row. Large text stacks the label. |
-| `Form.Input({ value, onChange, numeric?, accessibilityLabel })`, `Form.Value({ text })`                                | A row's field, aligned to the trailing edge, and a value it shows but does not take.               |
-| `Form.Button({ label, onPress, destructive? })`                                                                        | Full-width button in a card of its own.                                                            |
+See [TemplatesScreen](../shadowlist-fabric-example/src/screens/TemplatesScreen.tsx) for imports, controls and handlers.
+
+| Export | Description |
+| --- | --- |
+| `Grouped.Card`, `Grouped.Caption({ title })`, `Grouped.Section({ title? })` | A card, the uppercase caption over it, and the two together. |
+| `Grouped.Row({ title, subtitle?, leading?, trailing?, chevron?, separated?, onLongPress?, longPressLabel?, testID? })` | A row that leads somewhere. The long press is also a screen reader action. |
+| `Grouped.Separator({ inset? })` | Hairline that starts at `inset`, the row inset by default. |
+| `Form.Card`, `Form.Row({ label, stacked? })` | A form card that draws its own separators, and a label-and-value row. Large text stacks the label. |
+| `Form.Input({ value, onChange, numeric?, accessibilityLabel })`, `Form.Value({ text })` | A row's field, aligned to the trailing edge, and a value it shows but does not take. |
+| `Form.Button({ label, onPress, destructive? })` | Full-width button in a card of its own. |
 
 ### Chat
 
-`Chat.List` is inverted and predicts the height of text bubbles with `getChatMessageSizeSpec`.
+`Chat.List` is inverted, takes messages oldest first and predicts text-bubble sizes. This minimal screen uses
+application-owned messages and a send callback:
 
 ```tsx
-import { KeyboardView } from 'shadowlist';
-import { useInfiniteListProps } from 'shadowlist-utils';
-import {
-  Chat,
-  getChatMessageSizeSpec,
-  useKeyboardLift,
-  useTheme,
-  type ChatMessage,
-} from 'shadowlist-utils/native';
+import { View } from 'react-native';
+import { Chat, type ChatMessage } from 'shadowlist-utils/native';
 
-export function ChatScreen() {
-  const theme = useTheme();
-  const lift = useKeyboardLift({ gap: 8 });
-  const messages = useChatMessagesQuery(); // infinite query, pages of { items: ChatMessage[] }
-  const list = useInfiniteListProps(messages);
-
-  const renderBubble = useCallback(
-    ({ item }: { item: ChatMessage }) => (
-      <Chat.Bubble message={item} caption="Delivered" />
-    ),
-    []
-  );
-  // A custom renderer brings its own size spec; include the caption line.
-  const getSizeSpec = useCallback(
-    (m: ChatMessage) => getChatMessageSizeSpec(m, theme, { caption: true }),
-    [theme]
-  );
-
+export function ChatScreen({ messages, send }: {
+  messages: ChatMessage[];
+  send: (text: string) => void;
+}) {
   return (
-    <Animated.View style={{ flex: 1, transform: [{ translateY: lift }] }}>
-      <KeyboardView style={{ flex: 1 }}>
-        <Chat.List
-          data={list.data}
-          onStartReached={list.onStartReached}
-          renderItem={renderBubble}
-          getItemSizeSpec={getSizeSpec}
-        />
-      </KeyboardView>
-      <Chat.Input onSend={(text) => sendMessage(text)} />
-    </Animated.View>
+    <View style={{ flex: 1 }}>
+      <Chat.List data={messages} />
+      <Chat.Input onSend={send} />
+    </View>
   );
 }
 ```
 
-| Export                                                                                                                                     | Description                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Chat.List`                                                                                                                                | Inverted list of bubbles. `onRetryMessage` and `onLongPressMessage` handle a failed message and long presses.                                                                                                                                                                                                                     |
-| `Chat.Bubble`                                                                                                                              | One message. `onRetry(message)` and `onLongPress` handle a failed message and long presses.                                                                                                                                                                                                                                       |
-| `Chat.Input`                                                                                                                               | The composer.                                                                                                                                                                                                                                                                                                                     |
-| `getChatMessageSizeSpec`                                                                                                                   | Predicts a text bubble's height, the failed line included.                                                                                                                                                                                                                                                                        |
-| `defaultChatLabels`                                                                                                                        |                                                                                                                                                                                                                                                                                                                                   |
-| `ChatMessage`                                                                                                                              | `{ id, author: { id, name, avatarUrl?, avatarColor? }, isOwn, text?, images?, createdAt?, status? }`. `status` (`'sending' \| 'sent' \| 'delivered' \| 'read' \| 'failed'`) is for the reader's own messages: `'sending'` dims the bubble without changing its height, and `'failed'` adds a "Not delivered. Tap to retry." line. |
-| Types: `ChatListProps`, `ChatBubbleProps`, `ChatInputProps`, `ChatLabels`, `ChatMessageSizeSpecOptions`, `ChatAuthor`, `ChatMessageStatus` |                                                                                                                                                                                                                                                                                                                                   |
+`Chat.List` handles `onRetryMessage` and `onLongPressMessage`; `Chat.Bubble` offers `onRetry(message)` and
+`onLongPress`. Own-message status is `sending`, `sent`, `delivered`, `read` or `failed`; failed messages add a retry
+line. If you replace the row, supply a matching `getChatMessageSizeSpec`, including any caption.
+See [ChatScreen](../shadowlist-fabric-example/src/screens/ChatScreen.tsx) for paging, keyboard space, captions and retry.
+[Chat types](src/native/chat/types.ts) define messages, authors and statuses.
 
 ### Assistant (streaming AI chat)
 
-The list's `data` changes only twice per reply: once when the reply starts and once when it finishes. In between, tokens go to a stream store that only the streaming row subscribes to. `createTurnWriter` batches tokens into one flush every `flushMs` (default 50 ms).
+During streaming, append a reply to `data` once, send tokens to `createTurnWriter`, then commit the final turn once.
+Only the streaming row subscribes to the store; tokens flush every `flushMs` (50 ms by default).
 
 ```tsx
-import { useListController } from 'shadowlist-utils';
-import {
-  Assistant,
-  ASSISTANT_END_MARKER,
-  createStreamStore,
-  createTurnWriter,
-  emptyTurn,
-  type AssistantMessage,
-  type AssistantReply,
-} from 'shadowlist-utils/native';
+import { useMemo } from 'react';
+import { Assistant, createStreamStore, type AssistantMessage } from 'shadowlist-utils/native';
 
-export function AssistantScreen() {
+export function AssistantHistory({ messages }: { messages: AssistantMessage[] }) {
   const store = useMemo(() => createStreamStore(), []);
-  const list = useListController<AssistantMessage>();
-  const [streaming, setStreaming] = useState(false);
-  const writerRef = useRef<ReturnType<typeof createTurnWriter> | null>(null);
-
-  // A 1pt end-marker row: "marker is viewable" means "the reader is at the bottom".
-  const data = useMemo(
-    () => (list.data.length ? [...list.data, ASSISTANT_END_MARKER] : []),
-    [list.data]
-  );
-
-  const send = useCallback(
-    (text: string) => {
-      const reply: AssistantReply = {
-        id: newId(),
-        role: 'assistant',
-        variants: [emptyTurn()],
-        variantIndex: 0,
-      };
-      list.appendItems([{ id: newId(), role: 'user', text }, reply]);
-
-      const writer = createTurnWriter({
-        store,
-        messageId: reply.id,
-        onFinish: (turn) => {
-          setStreaming(false);
-          // Commit the final turn to data once. Remove it from the store after that render.
-          list.setItems((previous) =>
-            previous.map((m) =>
-              m.id === reply.id && m.role === 'assistant'
-                ? { ...m, variants: [turn] }
-                : m
-            )
-          );
-        },
-      });
-      writerRef.current = writer;
-      setStreaming(true);
-
-      streamCompletion(text, {
-        onThinking: writer.appendThinking,
-        onToken: writer.appendContent,
-        onToolStart: (call) => writer.startToolCall(call), // returns the call id
-        onToolEnd: (id, output) => writer.completeToolCall(id, output),
-        onDone: (sources) => writer.complete({ sources }),
-        onError: (e) => writer.fail(String(e)),
-      });
-    },
-    [store, list]
-  );
-
-  return (
-    <>
-      <Assistant.List
-        data={data}
-        store={store}
-        streaming={streaming}
-        onStartReached={list.handleStartReached}
-        onCopy={Clipboard.setString}
-        onCopyCode={Clipboard.setString}
-        onRegenerate={regenerate}
-        onFeedback={sendFeedback}
-        onFollowUp={send}
-      />
-      <Assistant.Composer
-        streaming={streaming}
-        onSend={send}
-        onStop={() => writerRef.current?.stop()}
-      />
-    </>
-  );
+  return <Assistant.List data={messages} store={store} />;
 }
 ```
 
-| Export                                                                                                                                                                                                                                                                                                                                                          | Description                                                                                                                                                                                                                           |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Assistant.List`                                                                                                                                                                                                                                                                                                                                                | Takes `store` (required), `streaming`, and the reply callbacks `onCopy`, `onCopyCode`, `onShare`, `onRegenerate`, `onRetry`, `onSelectVariant`, `onFeedback`, `onFollowUp`, `onOpenLink` and `onEdit`, plus `labels`.                 |
-| `Assistant.Composer` (ref: `AssistantComposerHandle` with `setDraft` / `clearDraft` / `focus`)                                                                                                                                                                                                                                                                  | Has Send/Stop, attachments, a model pill, a thinking toggle and an editing banner.                                                                                                                                                    |
-| `Assistant.ReplyMessage`, `UserMessage`, `Markdown`, `Thinking`, `ToolCallCard`, `AttachmentChip`, `TypingIndicator`, `Empty`, `ScrollButton`, `ActionButton`                                                                                                                                                                                                   | Building blocks for custom rows and overlays.                                                                                                                                                                                         |
-| `createStreamStore()` → `AssistantStreamStore`                                                                                                                                                                                                                                                                                                                  | `subscribe` / `get` / `set` / `remove` for turns while they stream.                                                                                                                                                                   |
-| `useStreamingTurn(store, messageId)`                                                                                                                                                                                                                                                                                                                            | Subscribes a custom row to its own turn.                                                                                                                                                                                              |
-| `createTurnWriter({ store, messageId, flushMs?, onFinish? })` → `AssistantTurnWriter`                                                                                                                                                                                                                                                                           | Methods: `appendThinking`, `appendContent`, `startToolCall`, `completeToolCall`, `failToolCall`, `complete({ sources?, followUps? })`, `fail(error?)`, `stop()` and `isFinished`. Calls made after the turn has finished are ignored. |
-| `emptyTurn()`, `ASSISTANT_END_MARKER`, `ASSISTANT_END_ID`, `defaultAssistantLabels`                                                                                                                                                                                                                                                                             |                                                                                                                                                                                                                                       |
-| Types: `AssistantMessage` (`AssistantPrompt \| AssistantReply \| AssistantEndMarker`), `AssistantTurn` (streaming/done/stopped/failed), `AssistantToolCall` (running/done/failed/stopped), `AssistantSource`, `AssistantAttachment`, `AssistantFeedback`, `AssistantSuggestion`, `AssistantLabels`, `CreateTurnWriterOptions`, and `*Props` for every component |                                                                                                                                                                                                                                       |
+This renders saved messages. For streaming, follow
+[AssistantScreen](../shadowlist-fabric-example/src/screens/AssistantScreen.tsx): `startReply` commits in `onFinish`
+and queues the finished message id; the effect keyed by `list.data` then calls `store.remove(id)` **after the data
+commit**. Its unmount effect stops the active stream and clears timers. Keep the store stable and cancel the
+transport as well as finishing the writer when stopping a reply.
+
+| Export | Purpose |
+| --- | --- |
+| `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks |
+| `Assistant.Composer` | Send/Stop, attachments and editing; ref supports `setDraft`, `clearDraft`, `focus` |
+| `createStreamStore`, `useStreamingTurn` | Store lifecycle and per-message subscription |
+| `createTurnWriter` | Batched thinking/content, tool calls, completion, failure and stop |
+| `emptyTurn`, `ASSISTANT_END_MARKER`, `ASSISTANT_END_ID` | Initial turn and end-of-list tracking |
+
+`Assistant.ReplyMessage`, `Assistant.UserMessage`, `Assistant.Markdown` and the other building blocks support custom
+rows. See [Assistant exports](src/native/assistant/index.ts) and [writer methods](src/native/assistant/turnWriter.ts)
+for exact signatures. Calls after a writer finishes are ignored.
 
 #### Links in replies
 
-Markdown links and source cards in assistant replies come from model output. By default `Assistant.List`, `Assistant.ReplyMessage` and `Assistant.Markdown` open only `http:`, `https:` and `mailto:` URLs, and they ignore every other scheme (`tel:`, `sms:`, app deep links and so on). To allow more schemes, or to route links through an in-app browser or an allowlist, pass `onOpenLink`:
-
-```tsx
-<Assistant.List
-  onOpenLink={(url) => {
-    if (isTrustedUrl(url)) Linking.openURL(url);
-  }}
-  ...
-/>
-```
-
-When you pass `onOpenLink`, it replaces the default completely. To keep the default check for everything you don't handle yourself, fall back to the exported `openUrl`:
+Markdown links and source cards open only `http:`, `https:` and `mailto:` by default. `onOpenLink` replaces that
+behavior completely; use exported `openUrl` as the fallback when handling a custom scheme:
 
 ```tsx
 import { openUrl } from 'shadowlist-utils/native';
 
-onOpenLink={(url) => (url.startsWith('myapp://trip/') ? openTrip(url) : openUrl(url))}
+const onOpenLink = (url: string) =>
+  url.startsWith('myapp://trip/') ? openTrip(url) : openUrl(url);
 ```
+
+Pass this callback to `Assistant.List`, `Assistant.ReplyMessage` or `Assistant.Markdown`. Validate links in your
+custom handler before opening them.
 
 ### Other kits
 
-Each of these is a single line of JSX. All of them accept every ShadowList prop.
+| Kit | Input / behavior | Example / source |
+| --- | --- | --- |
+| `Feed.List` | `FeedItem[]`; posts and images | [FeedScreen](../shadowlist-fabric-example/src/screens/FeedScreen.tsx) |
+| `Activity.List` | `ActivityItem[]`; sticky header/footer and separators | [ActivityScreen](../shadowlist-fabric-example/src/screens/ActivityScreen.tsx) |
+| `Nested.Row` | `NestedItem` with horizontal cards | [NestedScreen](../shadowlist-fabric-example/src/screens/NestedScreen.tsx) |
+| `Masonry.List` | `MasonryItem[]`; three columns by default | [MasonryScreen](../shadowlist-fabric-example/src/screens/MasonryScreen.tsx) |
+| `Contacts.List`, `Contacts.SectionList` | `ContactItem[]` or sections; `onDelete` enables swipe-to-delete | [ContactsScreen](../shadowlist-fabric-example/src/screens/ContactsScreen.tsx) |
+| `Reorder.List` | `ContactItem[]`; save `onMoveItem` data | [ReorderScreen](../shadowlist-fabric-example/src/screens/ReorderScreen.tsx) |
+| `Tree.List` | `TreeNode[]`; controlled expansion via `expandedKeys` / `onExpandedChange` | [TreeScreen](../shadowlist-fabric-example/src/screens/TreeScreen.tsx) |
+| `Poll.List` | `poll: { question, options, selectedId }` and `onVote` | [PollListProps](src/native/poll/PollList.tsx) |
+| `Snap.List` | `SnapItem[]`; `snapToItem` | [SnapScreen](../shadowlist-fabric-example/src/screens/SnapScreen.tsx) |
+| `Inbox.List` | `InboxMessage[]`; read/flag/delete and controlled selection | [InboxScreen](../shadowlist-fabric-example/src/screens/InboxScreen.tsx) |
 
-| Kit      | Example                                                                                                                                                                                                                                                                                                                                                                          | Row type                                                                               |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Feed     | `<Feed.List data={list.data} onEndReached={list.onEndReached} onPressItem={open} formatTime={fmt} />`                                                                                                                                                                                                                                                                            | `FeedItem { id, author, text?, images?, createdAt? }`                                  |
-| Activity | `<Activity.List data={list.data} onPressItem={open} />` (sticky header/footer, separators). Also `Activity.Row` and `Activity.Header({ title, subtitle?, actions? })`.                                                                                                                                                                                                           | `ActivityItem { id, actor, action, text?, createdAt, read? }`                          |
-| Nested   | `<ShadowList data={rows} renderItem={({ item }) => <Nested.Row item={item} onPressCard={open} />} />`. A row with a horizontal card list; there is no `Nested.List`.                                                                                                                                                                                                             | `NestedItem { id, title, cards: NestedCardItem[] }`                                    |
-| Masonry  | `<Masonry.List data={list.data} onPressItem={open} />` (3 columns by default)                                                                                                                                                                                                                                                                                                    | `MasonryItem { id, image: { uri, width, height, alt? }, title? }`                      |
-| Contacts | `<Contacts.List data={contacts} onPressItem={open} onDelete={remove} />`. `Contacts.SectionList` takes `sections` (see `groupIntoSections`). Passing `onDelete` enables swipe-to-delete.                                                                                                                                                                                         | `ContactItem { id, name, subtitle?, avatarUrl?, avatarColor? }`                        |
-| Reorder  | `<Reorder.List data={favorites} onMoveItem={({ data }) => save(data)} />` (built on DraggableList)                                                                                                                                                                                                                                                                               | `ContactItem`                                                                          |
-| Tree     | `<Tree.List data={tree} expandedKeys={keys} onExpandedChange={setKeys} onPressItem={openFile} />`                                                                                                                                                                                                                                                                                | `TreeNode { id, name, children?, kind? }`                                              |
-| Poll     | `<Poll.List poll={{ question, options, selectedId }} onVote={vote} />`. Takes `poll` instead of `data`.                                                                                                                                                                                                                                                                          | `PollOption { id, label, votes, icon? }`                                               |
-| Snap     | `<Snap.List data={cards} onPressItem={open} />` (`snapToItem`)                                                                                                                                                                                                                                                                                                                   | `SnapItem { id, title?, subtitle?, image?, color? }`                                   |
-| Inbox    | `<Inbox.List data={mail} onToggleRead={markRead} onToggleFlag={flag} onDelete={remove} editing={selecting} selectedKeys={keys} onSelectionChange={setKeys} />`. Native swipe actions (a full swipe runs the first; return a promise to keep the row out until it settles), a long press menu, selection while `editing`. iOS and Android swipe and menus; macOS keeps selection. | `InboxMessage { id, sender, subject, preview, receivedAt, read, flagged, avatarUrl? }` |
+Inbox swipes and menus run on iOS/Android. Full swipes run the first action; return a promise to keep the row revealed
+until it settles. `editing` enables selection. macOS keeps selection only.
+Kits export row/card components, `default<Kit>Labels`, label types and prop types; follow the
+[native exports](src/native/index.ts) for the full input schemas.
 
-Each kit also exports its row or card component, a `default<Kit>Labels` object, a `<Kit>Labels` type and a `*Props` type for each component.
+## Example apps
 
-## Example app
-
-The React Native example in `templates/shadowlist-fabric-example` has screens built on these kits.
-`TemplatesScreen.tsx` shows every control, `Grouped` and `Form` component on one page, and `AssistantScreen.tsx` the
-full assistant setup.
-
-See more: [Example apps](../../README.md#example-apps)
+[TemplatesScreen](../shadowlist-fabric-example/src/screens/TemplatesScreen.tsx) shows controls, Grouped and Form.
+See [example app commands](../../README.md#example-apps) and [native debug logging](../../packages/shadowlist-fabric/README.md#debug-log).

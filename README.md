@@ -2,6 +2,9 @@
 
 Virtualized lists for React Native, UIKit and Android views, on a shared C++ core.
 
+An **item** is your data, a **row** is a layout entry (including section headers/footers), a **cell** is its mounted
+view, and a **key** is its stable identity across updates.
+
 ## React Native
 
 ShadowList is the React Native Fabric package: the ShadowList, SectionList, TreeList and DraggableList components.
@@ -47,6 +50,7 @@ final class FeedController: UIViewController, ShadowListKitListViewDataSource {
     list.dataSource = self
     list.register(PostCell.self, forCellReuseIdentifier: "post")
     view.addSubview(list)
+    list.reloadData()
   }
 
   func numberOfItems(in listView: ShadowListKitListView) -> Int { posts.count }
@@ -73,6 +77,7 @@ class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKi
   val list = ShadowListKitListView(context).also {
     it.registerCell("post") { ctx -> PostCell(ctx) }
     it.dataSource = this
+    it.reloadData()
   }
 
   override fun numberOfItems(listView: ShadowListKitListView) = posts.size
@@ -91,48 +96,51 @@ See more: [ShadowListKit for Android](packages/shadowlist-android/README.md)
 
 ## Repo layout
 
-| Path                                   | Contents                                                                  |
-| -------------------------------------- | ------------------------------------------------------------------------- |
-| `packages/shadowlist-core`             | Shared C++ core                                                           |
-| `packages/shadowlist-core-tests`       | Core integration and perf tests                                           |
-| `packages/shadowlist-core-bench`       | Core micro-benchmarks and device metrics scripts                          |
-| `packages/shadowlist-fabric`           | React Native Fabric package (ShadowList)                                  |
-| `packages/shadowlist-uikit`            | UIKit list (ShadowListKit)                                                |
-| `packages/shadowlist-android`          | Android list (ShadowListKit, Kotlin)                                      |
-| `templates/shadowlist-utils`           | List helpers, hooks and React Native list kits                            |
-| `templates/shadowlist-fabric-example`  | React Native example app for iOS and Android                              |
-| `templates/shadowlist-macos-example`   | React Native macOS example app (shares screens through `.macos` variants) |
-| `templates/shadowlist-uikit-example`   | UIKit example app (xcodegen)                                              |
-| `templates/shadowlist-android-example` | Android example app (Gradle)                                              |
+| Path | Contents |
+| --- | --- |
+| `packages/shadowlist-core` | Shared C++ core |
+| `packages/shadowlist-core-tests` | Core integration and perf tests |
+| `packages/shadowlist-core-bench` | Core micro-benchmarks, device metrics and [iOS simulator traces](packages/shadowlist-core-bench/ios-trace/README.md) |
+| `packages/shadowlist-fabric` | React Native Fabric package (ShadowList) |
+| `packages/shadowlist-uikit` | UIKit list (ShadowListKit) |
+| `packages/shadowlist-android` | Android list (ShadowListKit, Kotlin) |
+| `templates/shadowlist-utils` | List helpers, hooks and React Native list kits |
+| `templates/shadowlist-fabric-example` | React Native example app for iOS and Android |
+| `templates/shadowlist-macos-example` | React Native macOS example app (shares screens through `.macos` variants) |
+| `templates/shadowlist-uikit-example` | UIKit example app (xcodegen) |
+| `templates/shadowlist-android-example` | Android example app (Gradle) |
 
 ## Example apps
 
 The JS packages are workspaces of the repo root, and the apps build against the library sources in `packages/`.
 Run `yarn install` at the repo root first.
 
-| App                  | Command                                                                                                 |
-| -------------------- | ------------------------------------------------------------------------------------------------------- |
-| React Native iOS     | `yarn workspace shadowlist-example ios`                                                                 |
-| React Native Android | `yarn workspace shadowlist-example android`                                                             |
-| React Native macOS   | `yarn workspace shadowlist-macos-example pods && yarn workspace shadowlist-macos-example macos`         |
-| UIKit                | `cd templates/shadowlist-uikit-example && ./build.sh sim <simulator-udid>` (or `./build.sh device any`) |
-| Android              | `cd templates/shadowlist-android-example && ./gradlew :app:assembleRelease`                             |
+| App | Command |
+| --- | --- |
+| React Native iOS | `yarn workspace shadowlist-example ios` |
+| React Native Android | `yarn workspace shadowlist-example android` |
+| React Native macOS | `yarn workspace shadowlist-macos-example pods && yarn workspace shadowlist-macos-example macos` |
+| UIKit | `cd templates/shadowlist-uikit-example && ./build.sh sim <simulator-udid>` (or `./build.sh device any`) |
+| Android | `cd templates/shadowlist-android-example && ./gradlew :app:assembleRelease` |
 
 The React Native iOS example runs `pod install` on its own.
 
 iOS reads launch arguments (`-SLRoute Chat`). Android reads intent extras
 (`adb shell am start -n shadowlist.example/.MainActivity --es SLRoute Chat`). The React Native examples take:
 
-| Flag                                                   | What it does                                |
-| ------------------------------------------------------ | ------------------------------------------- |
-| `SLRoute <screen>`                                     | Screen to open                              |
-| `SLCount N`                                            | Start size of the list                      |
-| `SLTheme light\|dark`                                  | Color scheme                                |
-| `SLOverscan N`                                         | `overscan` of the lists                     |
-| `SLDebug 1`                                            | Debug buttons, captions and status lines    |
+| Flag | What it does |
+| --- | --- |
+| `SLRoute <screen>` | Screen to open |
+| `SLCount N` | Start size of the list |
+| `SLTheme light\|dark` | Color scheme |
+| `SLOverscan N` | `overscan` of the lists |
+| `SLDebug 1` | Debug buttons, captions and status lines |
 | `SLLatency a,b`, `SLSendFailureRate 0.5`, `SLNetLog 1` | Fake network latency, send failures and log |
-| `-SLEngineFlags NO`                                    | iOS only: turns the engine flags off        |
+| `-SLEngineFlags NO` | iOS only: turns the engine flags off |
 
 The UIKit and Android examples document their flags in their package READMEs.
 
 See more: [UIKit example app](packages/shadowlist-uikit/README.md#example-app), [Android example app](packages/shadowlist-android/README.md#example-app)
+
+`yarn docs:check` checks README links, declared requirements and the standalone TypeScript examples against source.
+Full application examples are covered by `yarn typecheck`.

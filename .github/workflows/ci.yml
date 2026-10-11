@@ -26,6 +26,9 @@ jobs:
       - name: Typecheck files
         run: yarn typecheck
 
+      - name: Check README links, requirements and examples
+        run: yarn docs:check
+
   test:
     runs-on: ubuntu-latest
     steps:

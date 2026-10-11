@@ -20,6 +20,7 @@
     "clean": "yarn workspace shadowlist run clean",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "docs:check": "node scripts/check-readmes.mjs",
     "release:fabric": "yarn workspace shadowlist npm publish --tolerate-republish"
   },
   "devDependencies": {
