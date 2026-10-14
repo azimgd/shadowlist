@@ -16,6 +16,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import ShadowListView, {
+  type OnAtEndChange,
   type OnContentSizeChange,
 } from './ShadowListViewNativeComponent';
 import ShadowListTemplateView from './ShadowListTemplateViewNativeComponent';
@@ -101,6 +102,7 @@ function ShadowListInner<ItemT>(
     itemStyle,
     inverted = false,
     followAppends = false,
+    onAtEndChange,
     horizontal = false,
     stickyHeader = false,
     stickyFooter = false,
@@ -201,11 +203,15 @@ function ShadowListInner<ItemT>(
   }, [onRefresh]);
 
   /*
-   * Wrap the edge reached handlers once. The trace then sees every native call and the
+   * Wrap the edge handlers once. The trace then sees every native call and the
    * handler doesn't change whenever the caller's does.
    */
-  const edgeHandlersRef = useRef({ onStartReached, onEndReached });
-  edgeHandlersRef.current = { onStartReached, onEndReached };
+  const edgeHandlersRef = useRef({
+    onStartReached,
+    onEndReached,
+    onAtEndChange,
+  });
+  edgeHandlersRef.current = { onStartReached, onEndReached, onAtEndChange };
   const handleStartReached = useCallback(() => {
     if (slTraceEnabled()) {
       slTrace(`reached start id=${nativeTagOf(shadowlistViewRef.current)}`);
@@ -218,6 +224,17 @@ function ShadowListInner<ItemT>(
     }
     edgeHandlersRef.current.onEndReached?.();
   }, []);
+  const handleAtEndChange = useCallback(
+    (event: { nativeEvent: OnAtEndChange }) => {
+      if (slTraceEnabled()) {
+        slTrace(
+          `at end ${event.nativeEvent.atEnd ? 1 : 0} id=${nativeTagOf(shadowlistViewRef.current)}`
+        );
+      }
+      edgeHandlersRef.current.onAtEndChange?.(event.nativeEvent.atEnd);
+    },
+    []
+  );
 
   /*
    * During a refresh, hold new data until the spinner is gone so rows don't jump under
@@ -671,6 +688,7 @@ function ShadowListInner<ItemT>(
       nestedScrollEnabled={nestedScrollEnabled}
       onStartReached={onStartReached ? handleStartReached : undefined}
       onEndReached={onEndReached ? handleEndReached : undefined}
+      onAtEndChange={onAtEndChange ? handleAtEndChange : undefined}
       onScroll={onScroll}
       onScrollBeginDrag={handleScrollBeginDrag}
       onScrollEndDrag={onScrollEndDrag}

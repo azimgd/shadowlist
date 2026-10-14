@@ -301,7 +301,7 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
   azimgd::shadowlist::Container* containerManager) {
   /*
    * The callbacks hold the family's event emitter. They only need building again when
-   * the emitter or the listened events change. Rebuilding five std::function objects on
+   * the emitter or the listened events change. Rebuilding six std::function objects on
    * every commit, scroll frames included, is pure allocation.
    */
   const auto& callbacksCache = shadowlistViewShadowNode.getGeometryCache();
@@ -317,6 +317,9 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
     };
     containerManager->onEndReachedCallback = [emitter]() -> void {
       emitter->onEndReached({});
+    };
+    containerManager->onAtEndChangeCallback = [emitter](bool atEnd) -> void {
+      emitter->onAtEndChange({atEnd});
     };
     containerManager->onMeasuredRangeChangeCallback = [emitter](std::size_t low, std::size_t high) -> void {
       int measuredLow = static_cast<int>(low);

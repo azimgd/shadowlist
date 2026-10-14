@@ -181,6 +181,7 @@ export interface ShadowListProps<ItemT> {
   testID?: string;
   inverted?: boolean;
   followAppends?: boolean;
+  onAtEndChange?: (atEnd: boolean) => void;
   horizontal?: boolean;
   stickyHeader?: boolean;
   stickyFooter?: boolean;
