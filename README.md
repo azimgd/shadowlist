@@ -1,6 +1,6 @@
 # ShadowList
 
-Virtualized lists for React Native, UIKit and Android views, on a shared C++ core.
+Virtualized lists for React Native, UIKit, Android views and the web, on a shared C++ core.
 
 An **item** is your data, a **row** is a layout entry (including section headers/footers), a **cell** is its mounted
 view, and a **key** is its stable identity across updates. Sizes, cells, selection and the scroll position follow
@@ -95,6 +95,29 @@ class FeedScreen(context: Context, private val posts: List<Post>) : ShadowListKi
 
 See more: [ShadowListKit for Android](packages/shadowlist-android/README.md)
 
+## Web
+
+[`shadowlist-wasm`](packages/shadowlist-wasm) is a custom element, `<shadowlist-kit-list-view>`, on the core compiled
+to WebAssembly. It has the same data source as the native kits. Build it with `./build.sh` and Emscripten.
+
+```ts
+await loadShadowListKit();
+
+const list = new ShadowListKitListView();
+list.registerCell('post', () => new PostCell());
+list.dataSource = {
+  numberOfItems: () => posts.length,
+  keyForItem: (_, index) => posts[index].id,
+  cellForItem: (listView, index) => {
+    const cell = listView.dequeueReusableCell<PostCell>('post');
+    cell.configure(posts[index]);
+    return cell;
+  },
+};
+document.body.append(list);
+list.reloadData();
+```
+
 ## Repo layout
 
 | Path | Contents |
@@ -105,11 +128,13 @@ See more: [ShadowListKit for Android](packages/shadowlist-android/README.md)
 | `packages/shadowlist-fabric` | React Native Fabric package |
 | `packages/shadowlist-uikit` | UIKit list |
 | `packages/shadowlist-android` | Android list |
+| `packages/shadowlist-wasm` | Web list, on the core in WebAssembly |
 | `templates/shadowlist-utils` | List helpers, hooks and React Native list kits |
 | `templates/shadowlist-fabric-example` | React Native example app for iOS and Android |
 | `templates/shadowlist-macos-example` | React Native macOS example app |
 | `templates/shadowlist-uikit-example` | UIKit example app |
 | `templates/shadowlist-android-example` | Android example app |
+| `templates/shadowlist-web-example` | Web example app |
 
 ## Example apps
 
@@ -123,6 +148,7 @@ Run `yarn install` at the repo root first.
 | React Native macOS | `yarn workspace shadowlist-macos-example pods && yarn workspace shadowlist-macos-example macos` |
 | UIKit | `cd templates/shadowlist-uikit-example && ./build.sh sim <simulator-udid>` (or `./build.sh device any`) |
 | Android | `cd templates/shadowlist-android-example && ./gradlew :app:assembleRelease` |
+| Web | `cd templates/shadowlist-web-example && npm run build && npm start` |
 
 ## Debug log
 
@@ -142,3 +168,5 @@ On Android read it with `adb logcat -s SL`.
 `packages/shadowlist-core-bench` holds the core microbenchmarks. The UIKit and Android packages ship a scroll
 benchmark in `Bench/`: `Bench/bench.sh` drives the example at a constant speed, and `Bench/summarize.py` reads the
 results.
+
+The web example documents its flags in [its package README](packages/shadowlist-wasm/README.md#example-app).

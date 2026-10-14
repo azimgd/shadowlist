@@ -1,0 +1,3 @@
+# CMake build output and the compiled package
+build/
+dist/

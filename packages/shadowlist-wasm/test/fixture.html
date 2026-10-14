@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ShadowListKit browser fixture</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font: 14px/1.4 sans-serif;
+      }
+      .list {
+        width: 400px;
+        height: 600px;
+      }
+      .row {
+        border-bottom: 1px solid #ccc;
+        padding: 0 8px;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      /*
+       * The page browser.test.ts drives. make() builds a list with rows of known sizes, the data
+       * helpers change it and events counts what the list reported.
+       */
+      import {
+        ShadowListKitListCell,
+        ShadowListKitListView,
+        loadShadowListKit,
+      } from '../dist/index.js';
+
+      await loadShadowListKit();
+
+      // Sizes by row id. window.sizes overrides some, for rows whose content grows.
+      window.sizes = new Map();
+      function rowSize(id) {
+        return window.sizes.get(id) ?? 30 + ((id * 37) % 7) * 20;
+      }
+
+      class RowCell extends ShadowListKitListCell {
+        constructor() {
+          super('row');
+          this.view.className = 'row';
+        }
+        configure(id, horizontal) {
+          this.view.textContent = `row ${id}`;
+          const size = `${rowSize(id)}px`;
+          // The content gives the size the list measures.
+          this.view.style.minHeight = horizontal ? '' : size;
+          this.view.style.minWidth = horizontal ? size : '';
+        }
+      }
+
+      class NestedCell extends ShadowListKitListCell {
+        constructor() {
+          super('nested');
+          this.view.className = 'row';
+          this.inner = window.make({
+            horizontal: true,
+            count: 50,
+            attach: false,
+          });
+          this.inner.style.width = '100%';
+          this.inner.style.height = '80px';
+          this.view.append(this.inner);
+        }
+      }
+
+      window.make = (options = {}) => {
+        const list = new ShadowListKitListView();
+        list.className = 'list';
+        const state = {
+          ids: Array.from({ length: options.count ?? 1000 }, (_, at) => at),
+          next: options.count ?? 1000,
+          first: 0,
+        };
+        const events = {
+          start: 0,
+          end: 0,
+          prefetched: [],
+          cancelled: [],
+          shown: 0,
+          hidden: 0,
+        };
+        list.inverted = !!options.inverted;
+        list.followAppends = !!options.followAppends;
+        list.horizontal = !!options.horizontal;
+        list.numberOfColumns = options.columns ?? 1;
+        list.estimatedItemSize = options.estimate ?? 120;
+        list.registerCell('row', () => new RowCell());
+        list.registerCell('nested', () => new NestedCell());
+        list.dataSource = {
+          numberOfItems: () => state.ids.length,
+          keyForItem: (_, index) => `k${state.ids[index]}`,
+          sizeForItem: options.sized
+            ? (_, index) => rowSize(state.ids[index])
+            : undefined,
+          cellForItem: (view, index) => {
+            if (options.nested && state.ids[index] % 5 === 0) {
+              return view.dequeueReusableCell('nested');
+            }
+            const cell = view.dequeueReusableCell('row');
+            cell.configure(state.ids[index], list.horizontal);
+            return cell;
+          },
+        };
+        list.delegate = {
+          didReachStart: () => ++events.start,
+          didReachEnd: () => ++events.end,
+          willDisplayCell: () => ++events.shown,
+          didEndDisplayingCell: () => ++events.hidden,
+        };
+        if (options.prefetch) {
+          list.prefetchDataSource = {
+            prefetchItems: (_, items) => events.prefetched.push(...items),
+            cancelPrefetchingForItems: (_, items) =>
+              events.cancelled.push(...items),
+          };
+        }
+        list.state = state;
+        list.events = events;
+        list.prependRows = (count) => {
+          state.first -= count;
+          state.ids = [
+            ...Array.from(
+              { length: count },
+              (_, at) => 100000 + state.first + at
+            ),
+            ...state.ids,
+          ];
+          list.insertItems(Array.from({ length: count }, (_, at) => at));
+        };
+        list.appendRows = (count) => {
+          const start = state.ids.length;
+          state.ids = [
+            ...state.ids,
+            ...Array.from({ length: count }, () => state.next++),
+          ];
+          list.insertItems(
+            Array.from({ length: count }, (_, at) => start + at)
+          );
+        };
+        list.removeFirstRows = (count) => {
+          state.ids = state.ids.slice(count);
+          list.deleteItems(Array.from({ length: count }, (_, at) => at));
+        };
+        list.removeLastRows = (count) => {
+          const start = state.ids.length - count;
+          state.ids = state.ids.slice(0, start);
+          list.deleteItems(
+            Array.from({ length: count }, (_, at) => start + at)
+          );
+        };
+        list.reloadData();
+        if (options.attach !== false) {
+          document.body.replaceChildren(list);
+          window.list = list;
+        }
+        return list;
+      };
+      /*
+       * Probes over window.list. Positions are on screen, relative to the viewport start along the
+       * scroll axis.
+       */
+      // Resolves once the frame painted, with the DOM the reader saw.
+      const painted = () =>
+        new Promise((resolve) =>
+          requestAnimationFrame(() => setTimeout(resolve, 0))
+        );
+      window.frames = async (count) => {
+        for (let frame = 0; frame < count; ++frame) await painted();
+      };
+      const along = (list) =>
+        list.horizontal ? list.clientWidth : list.clientHeight;
+      const offsetOf = (list) =>
+        list.horizontal ? list.scrollLeft : list.scrollTop;
+      const setOffset = (list, value) => {
+        if (list.horizontal) list.scrollLeft = value;
+        else list.scrollTop = value;
+      };
+      window.visible = (list = window.list) => {
+        const box = list.getBoundingClientRect();
+        const rows = [];
+        for (const [key, cell] of list.mounted) {
+          if (
+            cell.mountGeneration === 0 ||
+            cell.view.style.visibility === 'hidden'
+          )
+            continue;
+          const rect = cell.view.getBoundingClientRect();
+          const start = list.horizontal
+            ? rect.left - box.left
+            : rect.top - box.top;
+          const end = list.horizontal
+            ? rect.right - box.left
+            : rect.bottom - box.top;
+          const crossStart = list.horizontal
+            ? rect.top - box.top
+            : rect.left - box.left;
+          const crossEnd = list.horizontal
+            ? rect.bottom - box.top
+            : rect.right - box.left;
+          if (end > 0 && start < along(list)) {
+            rows.push({
+              key,
+              index: cell.index,
+              start,
+              end,
+              crossStart,
+              crossEnd,
+            });
+          }
+        }
+        return rows.sort((a, b) => a.index - b.index);
+      };
+      // Spans of the viewport no row covers, per column, up to the content end.
+      window.blanks = (list = window.list) => {
+        const rows = visible(list);
+        const box = list.getBoundingClientRect();
+        const templates = [list.headerView, list.footerView]
+          .filter(Boolean)
+          .map((view) => {
+            const rect = view.getBoundingClientRect();
+            return list.horizontal
+              ? [rect.left - box.left, rect.right - box.left]
+              : [rect.top - box.top, rect.bottom - box.top];
+          });
+        const cross = list.horizontal ? list.clientHeight : list.clientWidth;
+        const limit = Math.min(along(list), list.contentSize - offsetOf(list));
+        const found = [];
+        for (let column = 0; column < list.numberOfColumns; ++column) {
+          const probe = ((column + 0.5) * cross) / list.numberOfColumns;
+          const spans = rows
+            .filter((row) => row.crossStart <= probe && row.crossEnd >= probe)
+            .map((row) => [row.start, row.end])
+            .concat(templates)
+            .sort((a, b) => a[0] - b[0]);
+          let at = 0;
+          for (const [start, end] of spans) {
+            if (start > at + 1)
+              found.push([column, Math.round(at), Math.round(start)]);
+            at = Math.max(at, end);
+          }
+          // A masonry column ends above the content end, the longest column.
+          if (
+            at < limit - 1 &&
+            (list.numberOfColumns === 1 ||
+              list.visibleRange?.high < list.itemCount - list.numberOfColumns)
+          ) {
+            found.push([column, Math.round(at), Math.round(limit)]);
+          }
+        }
+        return found;
+      };
+      // The first row that starts inside the viewport.
+      window.anchor = (list = window.list) => {
+        const rows = visible(list);
+        return rows.find((row) => row.start >= -0.5) ?? rows[0] ?? null;
+      };
+      window.positionOf = (key, list = window.list) =>
+        visible(list).find((row) => row.key === key)?.start ?? null;
+      window.atEnd = (list = window.list) =>
+        Math.abs(
+          offsetOf(list) - Math.max(0, list.contentSize - along(list))
+        ) <= 1;
+      /*
+       * Runs action and follows the anchor row on every painted frame. Reports frames where it
+       * moved, went missing or the viewport showed a blank.
+       */
+      window.watch = async (action, count = 10, list = window.list) => {
+        const held = anchor(list);
+        await action();
+        const issues = [];
+        for (let frame = 0; frame < count; ++frame) {
+          await painted();
+          const position = positionOf(held.key, list);
+          const gaps = blanks(list);
+          if (
+            position === null ||
+            Math.abs(position - held.start) > 1 ||
+            gaps.length > 0
+          ) {
+            issues.push({
+              frame,
+              key: held.key,
+              from: held.start,
+              to: position,
+              gaps,
+            });
+          }
+        }
+        return issues;
+      };
+      /*
+       * Scrolls by each delta on its own frame like a reader. Rows on screen before a frame must
+       * move by exactly the delta. A core correction moves the offset, never the rows.
+       */
+      window.scrollRun = async (deltas, list = window.list) => {
+        const issues = [];
+        for (const [step, delta] of deltas.entries()) {
+          const before = new Map(
+            visible(list).map((row) => [row.key, row.start])
+          );
+          const from = offsetOf(list);
+          const target = Math.min(
+            Math.max(from + delta, 0),
+            Math.max(0, list.contentSize - along(list))
+          );
+          setOffset(list, target);
+          await painted();
+          const gaps = blanks(list);
+          if (gaps.length > 0) issues.push({ step, gaps });
+          const shared = visible(list).find(
+            (row) =>
+              before.has(row.key) && !list.stickyIndices.includes(row.index)
+          );
+          if (
+            shared &&
+            Math.abs(before.get(shared.key) - shared.start - (target - from)) >
+              1.5
+          ) {
+            issues.push({
+              step,
+              key: shared.key,
+              moved: before.get(shared.key) - shared.start,
+              expected: target - from,
+            });
+          }
+        }
+        return issues;
+      };
+      window.random = (seed) => () => {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        return seed / 2147483648;
+      };
+      window.fixtureReady = true;
+    </script>
+  </body>
+</html>

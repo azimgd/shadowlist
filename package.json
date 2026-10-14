@@ -14,7 +14,7 @@
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p templates/shadowlist-fabric-example/tsconfig.json && tsc -p templates/shadowlist-utils/tsconfig.json && tsc -p templates/shadowlist-macos-example/tsconfig.json --noEmit",
+    "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p templates/shadowlist-fabric-example/tsconfig.json && tsc -p templates/shadowlist-utils/tsconfig.json && tsc -p templates/shadowlist-macos-example/tsconfig.json --noEmit && tsc -b templates/shadowlist-web-example",
     "test": "yarn workspace shadowlist run test && yarn workspace shadowlist-utils run test",
     "build": "yarn workspace shadowlist run prepare",
     "clean": "yarn workspace shadowlist run clean",
