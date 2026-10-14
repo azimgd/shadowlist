@@ -11,8 +11,12 @@ import {
 import { useLargeText } from '../hooks/useLargeText';
 import { ChevronIcon } from '../icons';
 import { createStyles, useTheme } from '../theme';
+import { GroupedActions, type GroupedActionsProps } from './GroupedActions';
 
-export interface GroupedRowProps {
+export interface GroupedRowProps extends Pick<
+  GroupedActionsProps,
+  'leadingSwipeActions' | 'trailingSwipeActions' | 'contextMenu'
+> {
   title: string;
   subtitle?: string;
   subtitleLines?: number;
@@ -30,7 +34,8 @@ export interface GroupedRowProps {
 }
 
 /*
- * A card row that leads somewhere: a title over a subtitle, then a chevron.
+ * A card row that leads somewhere: a title over a subtitle, then a chevron. Swipe actions or
+ * a menu put it in Grouped.Actions.
  */
 export const GroupedRow = memo(
   ({
@@ -48,6 +53,9 @@ export const GroupedRow = memo(
     accessibilityRole = 'button',
     style,
     testID,
+    leadingSwipeActions,
+    trailingSwipeActions,
+    contextMenu,
   }: GroupedRowProps) => {
     const styles = useStyles();
     const { colors } = useTheme();
@@ -67,7 +75,7 @@ export const GroupedRow = memo(
       },
       [onLongPress]
     );
-    return (
+    const row = (
       <Pressable
         testID={testID}
         accessibilityRole={accessibilityRole}
@@ -105,6 +113,18 @@ export const GroupedRow = memo(
           ) : null}
         </View>
       </Pressable>
+    );
+    if (!leadingSwipeActions && !trailingSwipeActions && !contextMenu) {
+      return row;
+    }
+    return (
+      <GroupedActions
+        leadingSwipeActions={leadingSwipeActions}
+        trailingSwipeActions={trailingSwipeActions}
+        contextMenu={contextMenu}
+      >
+        {row}
+      </GroupedActions>
     );
   }
 );
