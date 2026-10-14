@@ -1,6 +1,7 @@
 # ShadowList for React Native
 
-ShadowList is the React Native Fabric package: the ShadowList, SectionList, TreeList and DraggableList components.
+ShadowList is the React Native Fabric package: the ShadowList, SectionList, TreeList and DraggableList components, and
+ItemActionsView for a row outside a list.
 It runs on iOS, Android and macOS, on the shared C++ core.
 
 ## Install
@@ -116,10 +117,12 @@ macOS lands right away without the animation.
 | `leadingSwipeActionsForItem`, `trailingSwipeActionsForItem` | Return swipe actions and `performsFirstActionWithFullSwipe`; see [action types](src/types.ts). |
 | `closeSwipeActions()` | Closes every row. |
 | `contextMenuForItem` | Return a menu title and actions; see [menu types](src/types.ts). |
+| `ItemActionsView` | A view outside a list with a row's `leadingSwipeActions`, `trailingSwipeActions` and `contextMenu`. Handlers get its `item` and index -1. |
 
-Swipe actions work on vertical lists. A full swipe performs the first action. An `onPress` that returns a promise keeps the
-row revealed until the promise settles, then a surviving row slides back. Menus use `UIMenu` on iOS and a long press
-popup on Android. With `reorderEnabled`, that long press starts dragging and shows no menu.
+Swipe actions work on vertical lists and on iOS and Android. A full swipe performs the first action. An `onPress` that
+returns a promise keeps the row revealed until the promise settles, then a surviving row slides back. Menus use `UIMenu`
+on iOS, a long press popup on Android and a right click menu on macOS. With `reorderEnabled`, that long press starts
+dragging and shows no menu.
 
 ### Prefetching and saved position
 

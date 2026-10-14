@@ -1,4 +1,4 @@
-import type { ComponentType, ReactElement } from 'react';
+import type { ComponentType, ReactElement, ReactNode } from 'react';
 import type {
   ViewStyle,
   TextStyle,
@@ -6,6 +6,7 @@ import type {
   AccessibilityRole,
   StyleProp,
   Insets,
+  ViewProps,
 } from 'react-native';
 import type { OnScroll } from './ShadowListViewNativeComponent';
 
@@ -140,6 +141,14 @@ export interface ContextMenuAction<ItemT> {
 export interface ContextMenu<ItemT> {
   title?: string;
   actions: ReadonlyArray<ContextMenuAction<ItemT>>;
+}
+
+export interface ItemActionsViewProps<ItemT = undefined> extends ViewProps {
+  item?: ItemT;
+  leadingSwipeActions?: SwipeActionsConfiguration<ItemT> | null;
+  trailingSwipeActions?: SwipeActionsConfiguration<ItemT> | null;
+  contextMenu?: ContextMenu<ItemT> | null;
+  children?: ReactNode;
 }
 
 export interface PrefetchDataSource {

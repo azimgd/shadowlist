@@ -3,6 +3,7 @@ import type { ComponentType, ReactElement } from 'react';
 import { Platform, Text } from 'react-native';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import ShadowList from '../ShadowList';
+import ItemActionsView from '../ItemActionsView';
 
 /*
  * Records the props of every render of the native list and cell views.
@@ -103,5 +104,49 @@ describe('onAtEndChange', () => {
     await sendToList('onAtEndChange', { atEnd: false });
     await sendToList('onAtEndChange', { atEnd: true });
     expect(reports).toEqual([false, true]);
+  });
+});
+
+describe('ItemActionsView', () => {
+  it('runs swipe and menu actions with its item', async () => {
+    const swiped: string[] = [];
+    const chosen: Array<{ item: string | undefined; index: number }> = [];
+    await mount(
+      <ItemActionsView
+        item="record"
+        trailingSwipeActions={{
+          actions: [
+            {
+              title: 'Remove',
+              style: 'destructive',
+              onPress: ({ item }) => {
+                swiped.push(item);
+              },
+            },
+          ],
+        }}
+        contextMenu={{
+          title: 'Record',
+          actions: [{ title: 'Remove', onPress: (info) => chosen.push(info) }],
+        }}
+      >
+        <Text>Record</Text>
+      </ItemActionsView>
+    );
+    const cell = mockRenders.cells[mockRenders.cells.length - 1]!;
+    expect(cell.trailingSwipeActions).toEqual([
+      expect.objectContaining({ title: 'Remove', style: 'destructive' }),
+    ]);
+    expect(cell.contextMenuTitle).toBe('Record');
+    await act(async () => {
+      (cell.onSwipeAction as (event: unknown) => void)({
+        nativeEvent: { leading: false, actionIndex: 0, fullSwipe: false },
+      });
+      (cell.onContextMenuAction as (event: unknown) => void)({
+        nativeEvent: { actionIndex: 0 },
+      });
+    });
+    expect(swiped).toEqual(['record']);
+    expect(chosen).toEqual([{ item: 'record', index: -1 }]);
   });
 });
