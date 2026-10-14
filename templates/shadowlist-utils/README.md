@@ -291,7 +291,7 @@ transport as well as finishing the writer when stopping a reply.
 
 | Export | Purpose |
 | --- | --- |
-| `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks |
+| `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks. Keeps the end in view as replies arrive and grow, `onAtEndChange` reports a reader who scrolled away, and a drag dismisses the keyboard |
 | `Assistant.Composer` | Send/Stop, attachments and editing; ref supports `setDraft`, `clearDraft`, `focus` |
 | `createStreamStore`, `useStreamingTurn` | Store lifecycle and a subscription for each message |
 | `createTurnWriter` | Batched thinking/content, tool calls, completion, failure and stop |

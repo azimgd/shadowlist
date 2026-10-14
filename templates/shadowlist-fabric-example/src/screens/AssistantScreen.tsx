@@ -542,6 +542,8 @@ export const AssistantScreen = () => {
             store={store}
             style={styles.list}
             streaming={streaming}
+            // Rewriting an older reply stops following. The end then stays where it is.
+            followAppends={following}
             nonAnchorKeys={nonAnchorKeys}
             ListHeaderComponent={header}
             onStartReached={list.handleStartReached}
