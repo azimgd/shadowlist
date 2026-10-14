@@ -21,7 +21,7 @@ interface UseKeySelectionOptions<ItemT> {
   selection: RowSelection;
   canSelectIndex: (index: number) => boolean;
   onActivateItem: ((info: { item: ItemT; index: number }) => void) | undefined;
-  onScreenRef: { current: MountedRange | null };
+  visibleRangeRef: { current: MountedRange | null };
   seedAroundIndex: (index: number, viewPosition: number) => void;
   viewRef: ShadowListViewRef;
 }
@@ -51,7 +51,7 @@ export function useKeySelection<ItemT>({
   selection,
   canSelectIndex,
   onActivateItem,
-  onScreenRef,
+  visibleRangeRef,
   seedAroundIndex,
   viewRef,
 }: UseKeySelectionOptions<ItemT>): KeySelectionProps | null {
@@ -79,7 +79,7 @@ export function useKeySelection<ItemT>({
         if (nextKey === undefined) return;
         selection.selectOnly(nextKey);
         const view = viewRef.current;
-        if (view && needsScrollIntoView(next, onScreenRef.current)) {
+        if (view && needsScrollIntoView(next, visibleRangeRef.current)) {
           const viewPosition = step > 0 ? 1 : 0;
           seedAroundIndex(next, viewPosition);
           Commands.scrollToRow(view, next, viewPosition, 0, false);
@@ -95,7 +95,7 @@ export function useKeySelection<ItemT>({
       selectionStateRef,
       selection,
       canSelectIndex,
-      onScreenRef,
+      visibleRangeRef,
       seedAroundIndex,
       viewRef,
     ]

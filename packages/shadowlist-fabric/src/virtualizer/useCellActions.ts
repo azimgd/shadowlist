@@ -18,7 +18,7 @@ import type { ContextMenu, SwipeActionsConfiguration } from '../types';
 
 type CellViewRef = RefObject<ComponentRef<typeof ShadowListCellView> | null>;
 
-interface CellActionsOptions<ItemT> {
+interface UseCellActionsOptions<ItemT> {
   item: ItemT;
   currentIndex: () => number;
   leadingSwipe: SwipeActionsConfiguration<ItemT> | null | undefined;
@@ -99,7 +99,7 @@ export function useCellActions<ItemT>({
   trailingSwipe,
   menu,
   cellViewRef,
-}: CellActionsOptions<ItemT>): CellActionProps {
+}: UseCellActionsOptions<ItemT>): CellActionProps {
   const nativeLeading = useMemo(
     () => nativeSwipeActions(leadingSwipe),
     [leadingSwipe]

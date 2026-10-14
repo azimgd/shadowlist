@@ -350,7 +350,7 @@ function ShadowListInner<ItemT>(
     viewableRules,
     handleViewableIndicesChange,
     recordInteraction,
-    onScreenRef,
+    visibleRangeRef,
   } = useViewability({
     data,
     keys: rowKeys,
@@ -451,7 +451,7 @@ function ShadowListInner<ItemT>(
     selection,
     canSelectIndex,
     onActivateItem,
-    onScreenRef,
+    visibleRangeRef,
     seedAroundIndex,
     viewRef: shadowlistViewRef,
   });

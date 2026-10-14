@@ -30,12 +30,12 @@ export function nextSelectableIndex(
 }
 
 /*
- * Whether a row needs scrolling to come fully into view, given the rows any part of which is
- * on screen. The first and last of those may be cut off.
+ * Whether a row needs scrolling to come fully into view, given the visible rows. The first and
+ * last of those may be cut off.
  */
 export function needsScrollIntoView(
   index: number,
-  onScreen: MountedRange | null
+  visible: MountedRange | null
 ): boolean {
-  return onScreen === null || index <= onScreen.low || index >= onScreen.high;
+  return visible === null || index <= visible.low || index >= visible.high;
 }
