@@ -70,6 +70,15 @@ void Container::endRevision() {
   previousReachedEnd_ = reachedEnd;
   previousReachedStart_ = reachedStart;
 
+  // Only a scroll away from the bottom leaves the end. Content growth never does.
+  bool atEnd = !invertedBottomReleased;
+  if (atEnd != previousAtEnd_) {
+    previousAtEnd_ = atEnd;
+    if (onAtEndChangeCallback) {
+      onAtEndChangeCallback(atEnd);
+    }
+  }
+
   dispatchObservers();
 }
 

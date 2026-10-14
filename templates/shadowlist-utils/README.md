@@ -188,7 +188,7 @@ Merged labels keep the same identity while their values don't change. An inline 
 | `Spinner({ size?, color?, labels? })`, `defaultSpinnerLabels` | Centered activity indicator. |
 | `ListHeader({ title, subtitle? })`, `ListFooter({ text })` | Header and footer blocks for lists. |
 | `SectionHeader({ title, count? })`, `ItemSeparator({ highlighted? })` | Section header and separator line. |
-| `TemplateList({ data, templates, horizontal?, listRef? })` (`TemplateRow`, `TemplateMap`) | A ShadowList of mixed rows. Each row has a `kind`, and `templates` maps each kind to its renderer. |
+| `TemplateList({ data, templates, horizontal?, listRef? })` (`TemplateRow`, `TemplateMap`) | A ShadowList of mixed rows. Each row has a `kind`, and `templates` maps each kind to its renderer. Selection, keyboard selection, swipe actions, menus and `contentContainerStyle` pass through to the list. |
 | `useLargeText(threshold = 1.3)` | True at accessibility text sizes. Shares one `Dimensions` listener across callers. |
 | `useKeyboardVisible()` | True while the keyboard is on screen. |
 | `useKeyboardLift({ gap? })` | Returns an animated `translateY` that lifts a composer above the keyboard. |
@@ -233,7 +233,8 @@ See [TemplatesScreen](../shadowlist-fabric-example/src/screens/TemplatesScreen.t
 | Export | Description |
 | --- | --- |
 | `Grouped.Card`, `Grouped.Caption({ title })`, `Grouped.Section({ title? })` | A card, the uppercase caption over it, and the two together. |
-| `Grouped.Row({ title, subtitle?, leading?, trailing?, chevron?, separated?, onLongPress?, longPressLabel?, testID? })` | A row that leads somewhere. The long press is also a screen reader action. |
+| `Grouped.Row({ title, subtitle?, leading?, trailing?, chevron?, separated?, onLongPress?, longPressLabel?, testID? })` | A row that leads somewhere. The long press is also a screen reader action. Swipe actions and a menu work as in `Grouped.Actions`. |
+| `Grouped.Actions({ leadingSwipeActions?, trailingSwipeActions?, contextMenu? })` | Gives a custom card row the swipe actions and menu of a list row: a swipe on iOS and Android, a right click on macOS. A destructive action takes the theme's red. The row needs its own background. |
 | `Grouped.Separator({ inset? })` | Hairline that starts at `inset`, the row inset by default. |
 | `Form.Card`, `Form.Row({ label, stacked? })` | A form card that draws its own separators, and a row with a label and a value. Large text stacks the label. |
 | `Form.Input({ value, onChange, numeric?, accessibilityLabel })`, `Form.Value({ text })` | A row's field, aligned to the trailing edge, and a value it shows but does not take. |
@@ -290,7 +291,7 @@ transport as well as finishing the writer when stopping a reply.
 
 | Export | Purpose |
 | --- | --- |
-| `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks |
+| `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks. Keeps the end in view as replies arrive and grow, `onAtEndChange` reports a reader who scrolled away, and a drag dismisses the keyboard |
 | `Assistant.Composer` | Send/Stop, attachments and editing; ref supports `setDraft`, `clearDraft`, `focus` |
 | `createStreamStore`, `useStreamingTurn` | Store lifecycle and a subscription for each message |
 | `createTurnWriter` | Batched thinking/content, tool calls, completion, failure and stop |

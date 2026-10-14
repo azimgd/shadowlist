@@ -1,4 +1,4 @@
-import type { ComponentType, ReactElement } from 'react';
+import type { ComponentType, ReactElement, ReactNode } from 'react';
 import type {
   ViewStyle,
   TextStyle,
@@ -6,6 +6,7 @@ import type {
   AccessibilityRole,
   StyleProp,
   Insets,
+  ViewProps,
 } from 'react-native';
 import type { OnScroll } from './ShadowListViewNativeComponent';
 
@@ -142,6 +143,14 @@ export interface ContextMenu<ItemT> {
   actions: ReadonlyArray<ContextMenuAction<ItemT>>;
 }
 
+export interface ItemActionsViewProps<ItemT = undefined> extends ViewProps {
+  item?: ItemT;
+  leadingSwipeActions?: SwipeActionsConfiguration<ItemT> | null;
+  trailingSwipeActions?: SwipeActionsConfiguration<ItemT> | null;
+  contextMenu?: ContextMenu<ItemT> | null;
+  children?: ReactNode;
+}
+
 export interface PrefetchDataSource {
   prefetchItems: (indices: number[]) => void;
   cancelPrefetchingForItems?: (indices: number[]) => void;
@@ -181,6 +190,7 @@ export interface ShadowListProps<ItemT> {
   testID?: string;
   inverted?: boolean;
   followAppends?: boolean;
+  onAtEndChange?: (atEnd: boolean) => void;
   horizontal?: boolean;
   stickyHeader?: boolean;
   stickyFooter?: boolean;
@@ -247,6 +257,9 @@ export interface ShadowListProps<ItemT> {
   allowsMultipleSelection?: boolean;
   selectedKeys?: ReadonlyArray<string>;
   onSelectionChange?: (selectedKeys: string[]) => void;
+  shouldSelectItem?: (info: { item: ItemT; index: number }) => boolean;
+  enableSelectionOnKeyPress?: boolean;
+  onActivateItem?: (info: { item: ItemT; index: number }) => void;
   leadingSwipeActionsForItem?: (info: {
     item: ItemT;
     index: number;
@@ -319,6 +332,9 @@ export type ShadowListForwardedProps = Omit<
   | 'allowsMultipleSelection'
   | 'selectedKeys'
   | 'onSelectionChange'
+  | 'shouldSelectItem'
+  | 'enableSelectionOnKeyPress'
+  | 'onActivateItem'
   | 'leadingSwipeActionsForItem'
   | 'trailingSwipeActionsForItem'
   | 'contextMenuForItem'

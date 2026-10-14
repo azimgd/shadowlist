@@ -13,6 +13,7 @@ import android.text.Spanned;
 import android.text.style.ForegroundColorSpan;
 import android.util.AttributeSet;
 import android.util.TypedValue;
+import android.view.GestureDetector;
 import android.view.HapticFeedbackConstants;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -402,11 +403,12 @@ public class ShadowListCellView extends ViewGroup {
   }
 
   /*
-   * Swipes run across a vertical list, never during a drag to reorder.
+   * Swipes run across a vertical list, never during a drag to reorder. A cell outside a list
+   * swipes like a row of a vertical list.
    */
   private boolean canSwipe() {
     ShadowListView list = listView();
-    return list != null && !list.isHorizontal() && !list.isReorderDragging();
+    return list == null || (!list.isHorizontal() && !list.isReorderDragging());
   }
 
   private boolean hasSwipeActions() {
@@ -677,6 +679,34 @@ public class ShadowListCellView extends ViewGroup {
 
   @Nullable private String mContextMenuTitle = null;
   @Nullable private ReadableArray mContextMenuActions = null;
+
+  /*
+   * Long presses on a cell outside a list. A list watches for them itself.
+   */
+  @Nullable private GestureDetector mMenuGestureDetector = null;
+
+  /*
+   * A cell outside a list watches its own touches for the long press. Claiming the down keeps
+   * the rest of the gesture coming here. A lift or a parent's scroll then cancels the hold.
+   * React reads touches at its root and still gets them.
+   */
+  @Override
+  public boolean dispatchTouchEvent(MotionEvent event) {
+    boolean watchesMenu = actionCount(mContextMenuActions) > 0 && listView() == null;
+    if (watchesMenu) {
+      if (mMenuGestureDetector == null) {
+        mMenuGestureDetector = new GestureDetector(getContext(), new GestureDetector.SimpleOnGestureListener() {
+          @Override
+          public void onLongPress(MotionEvent longPress) {
+            showRowMenu(longPress);
+          }
+        });
+      }
+      mMenuGestureDetector.onTouchEvent(event);
+    }
+    boolean handled = super.dispatchTouchEvent(event);
+    return handled || (watchesMenu && event.getActionMasked() == MotionEvent.ACTION_DOWN);
+  }
 
   public void setContextMenuTitle(@Nullable String title) {
     mContextMenuTitle = title;

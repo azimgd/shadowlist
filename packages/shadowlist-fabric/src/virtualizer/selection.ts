@@ -15,6 +15,13 @@ export function selectKey(
   return multiple ? [...selected, key] : [key];
 }
 
+export function selectOnlyKey(
+  selected: ReadonlyArray<string>,
+  key: string
+): ReadonlyArray<string> {
+  return selected.length === 1 && selected[0] === key ? selected : [key];
+}
+
 export function deselectKey(
   selected: ReadonlyArray<string>,
   key: string

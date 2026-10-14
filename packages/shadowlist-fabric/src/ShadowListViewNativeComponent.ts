@@ -70,6 +70,10 @@ export type OnDragEnd = {
   destinationKey: string;
 };
 
+export type OnAtEndChange = {
+  atEnd: boolean;
+};
+
 type ShadowListViewComponentType = ReturnType<
   typeof codegenNativeComponent<NativeProps>
 >;
@@ -165,6 +169,7 @@ interface NativeProps extends ViewProps {
   readonly onRefreshSettle?: CodegenTypes.DirectEventHandler<OnRefreshSettle>;
   readonly onDragStart?: CodegenTypes.DirectEventHandler<OnDragStart>;
   readonly onDragEnd?: CodegenTypes.DirectEventHandler<OnDragEnd>;
+  readonly onAtEndChange?: CodegenTypes.DirectEventHandler<OnAtEndChange>;
 }
 
 export const Commands: NativeCommands = codegenNativeCommands<NativeCommands>({

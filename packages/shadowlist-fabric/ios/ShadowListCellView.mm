@@ -175,6 +175,38 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
                                      UIContextMenuInteractionDelegate>
 @end
 #else
+#pragma mark - Menu action
+
+/*
+ * The target of one menu item. It reports to the row the menu opened on, even if the cell is
+ * recycled meanwhile.
+ */
+@interface ShadowListMenuAction : NSObject
+- (instancetype)initWithEmitter:(std::shared_ptr<const ShadowListCellViewEventEmitter>)emitter index:(int)index;
+- (void)perform:(id)sender;
+@end
+
+@implementation ShadowListMenuAction {
+  std::shared_ptr<const ShadowListCellViewEventEmitter> _emitter;
+  int _index;
+}
+
+- (instancetype)initWithEmitter:(std::shared_ptr<const ShadowListCellViewEventEmitter>)emitter index:(int)index
+{
+  if (self = [super init]) {
+    _emitter = std::move(emitter);
+    _index = index;
+  }
+  return self;
+}
+
+- (void)perform:(id)sender
+{
+  _emitter->onContextMenuAction({.actionIndex = _index});
+}
+
+@end
+
 @interface ShadowListCellView () <RCTShadowListCellViewViewProtocol>
 @end
 #endif
@@ -184,7 +216,9 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
  * content and shows the action buttons behind it. SwipeReveal in the host layer decides how far
  * it follows and where it rests. Horizontal lists do not swipe. Touching and holding shows the
  * row's menu through UIContextMenuInteraction, unless the list can be reordered. The hold then
- * lifts the row. Both are iOS only.
+ * lifts the row. Swipes are iOS only. On macOS a right click shows the menu.
+ * A cell outside a list, ItemActionsView in JS, swipes and shows its menu like a row of a
+ * vertical list.
  */
 @implementation ShadowListCellView {
   RCTUIView *_contentView;
@@ -432,7 +466,7 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 - (BOOL)swipeTakesPan
 {
   ShadowListView *list = [self listView];
-  if (!list || list->_horizontal || list->_dragging) {
+  if (list && (list->_horizontal || list->_dragging)) {
     return NO;
   }
   CGPoint velocity = [_swipePan velocityInView:self];
@@ -676,6 +710,44 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 {
   // The hold is a menu, not a press on the row.
   SLCancelReactTouches(self);
+}
+#else
+#pragma mark - Context menu
+
+/*
+ * A right click shows the row's menu. A menu item holds its target weakly. The represented
+ * object keeps the target alive while the menu is up.
+ */
+- (NSMenu *)menuForEvent:(NSEvent *)event
+{
+  const auto& props = *std::static_pointer_cast<const ShadowListCellViewProps>(_props);
+  if (props.contextMenuActions.empty() || !_eventEmitter) {
+    return [super menuForEvent:event];
+  }
+  auto emitter = std::static_pointer_cast<const ShadowListCellViewEventEmitter>(_eventEmitter);
+  NSMenu *menu = [[NSMenu alloc] initWithTitle:[NSString stringWithUTF8String:props.contextMenuTitle.c_str()] ?: @""];
+  menu.autoenablesItems = NO;
+  for (std::size_t index = 0; index < props.contextMenuActions.size(); ++index) {
+    const auto& action = props.contextMenuActions[index];
+    NSString *title = [NSString stringWithUTF8String:action.title.c_str()] ?: @"";
+    ShadowListMenuAction *target = [[ShadowListMenuAction alloc] initWithEmitter:emitter index:(int)index];
+    NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:@selector(perform:) keyEquivalent:@""];
+    item.target = target;
+    item.representedObject = target;
+    item.enabled = !action.disabled;
+    if (!action.systemImage.empty()) {
+      item.image = [NSImage imageWithSystemSymbolName:[NSString stringWithUTF8String:action.systemImage.c_str()]
+                             accessibilityDescription:nil];
+    }
+    // A Mac menu has no destructive style. The title turns red like a destructive button.
+    if (action.style == "destructive") {
+      NSDictionary *attributes =
+        @{NSForegroundColorAttributeName : NSColor.systemRedColor, NSFontAttributeName : [NSFont menuFontOfSize:0]};
+      item.attributedTitle = [[NSAttributedString alloc] initWithString:title attributes:attributes];
+    }
+    [menu addItem:item];
+  }
+  return menu;
 }
 #endif
 

@@ -16,6 +16,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import ShadowListView, {
+  type OnAtEndChange,
   type OnContentSizeChange,
 } from './ShadowListViewNativeComponent';
 import ShadowListTemplateView from './ShadowListTemplateViewNativeComponent';
@@ -41,6 +42,7 @@ import {
   usePrefetch,
   useAnchorState,
   useKeyboardDismissResponder,
+  useKeySelection,
   useRenderTraceStart,
   useRenderTrace,
   slTrace,
@@ -101,6 +103,7 @@ function ShadowListInner<ItemT>(
     itemStyle,
     inverted = false,
     followAppends = false,
+    onAtEndChange,
     horizontal = false,
     stickyHeader = false,
     stickyFooter = false,
@@ -158,6 +161,9 @@ function ShadowListInner<ItemT>(
     allowsMultipleSelection = false,
     selectedKeys,
     onSelectionChange,
+    shouldSelectItem,
+    enableSelectionOnKeyPress = false,
+    onActivateItem,
     leadingSwipeActionsForItem,
     trailingSwipeActionsForItem,
     contextMenuForItem,
@@ -201,11 +207,15 @@ function ShadowListInner<ItemT>(
   }, [onRefresh]);
 
   /*
-   * Wrap the edge reached handlers once. The trace then sees every native call and the
+   * Wrap the edge handlers once. The trace then sees every native call and the
    * handler doesn't change whenever the caller's does.
    */
-  const edgeHandlersRef = useRef({ onStartReached, onEndReached });
-  edgeHandlersRef.current = { onStartReached, onEndReached };
+  const edgeHandlersRef = useRef({
+    onStartReached,
+    onEndReached,
+    onAtEndChange,
+  });
+  edgeHandlersRef.current = { onStartReached, onEndReached, onAtEndChange };
   const handleStartReached = useCallback(() => {
     if (slTraceEnabled()) {
       slTrace(`reached start id=${nativeTagOf(shadowlistViewRef.current)}`);
@@ -218,6 +228,17 @@ function ShadowListInner<ItemT>(
     }
     edgeHandlersRef.current.onEndReached?.();
   }, []);
+  const handleAtEndChange = useCallback(
+    (event: { nativeEvent: OnAtEndChange }) => {
+      if (slTraceEnabled()) {
+        slTrace(
+          `at end ${event.nativeEvent.atEnd ? 1 : 0} id=${nativeTagOf(shadowlistViewRef.current)}`
+        );
+      }
+      edgeHandlersRef.current.onAtEndChange?.(event.nativeEvent.atEnd);
+    },
+    []
+  );
 
   /*
    * During a refresh, hold new data until the spinner is gone so rows don't jump under
@@ -329,6 +350,7 @@ function ShadowListInner<ItemT>(
     viewableRules,
     handleViewableIndicesChange,
     recordInteraction,
+    visibleRangeRef,
   } = useViewability({
     data,
     keys: rowKeys,
@@ -351,22 +373,87 @@ function ShadowListInner<ItemT>(
     itemSizesRef.current = null;
   }
 
+  /*
+   * A horizontal list styled height: 'auto' takes the height of its tallest mounted row. Its
+   * rows keep their own height instead of filling the list's, and it drops the default flex.
+   */
+  const autoHeight =
+    horizontal &&
+    numberOfColumns === 1 &&
+    StyleSheet.flatten(style)?.height === 'auto';
+  const autoHeightRef = useRef(autoHeight);
+  autoHeightRef.current = autoHeight;
+  const rowHeightsRef = useRef(new Map<string, number>());
+  const [tallestRowHeight, setTallestRowHeight] = useState(0);
+  const measureTallestRow = useCallback(() => {
+    let tallest = 0;
+    for (const height of rowHeightsRef.current.values()) {
+      tallest = Math.max(tallest, height);
+    }
+    setTallestRowHeight(tallest);
+  }, []);
+
   const handleCellLayout = useCallback(
     (key: string, width: number, height: number) => {
       itemSizesRef.current?.set(key, horizontal ? width : height);
+      if (autoHeightRef.current) {
+        rowHeightsRef.current.set(key, height);
+        measureTallestRow();
+      }
     },
-    [horizontal]
+    [horizontal, measureTallestRow]
   );
 
-  const handleCellRelease = useCallback((key: string) => {
-    itemSizesRef.current?.delete(key);
+  const handleCellRelease = useCallback(
+    (key: string) => {
+      itemSizesRef.current?.delete(key);
+      if (rowHeightsRef.current.delete(key)) measureTallestRow();
+    },
+    [measureTallestRow]
+  );
+  const tracksCells = trackItemSizes || autoHeight;
+
+  /*
+   * shouldSelectItem by index and by key, read when a row asks to be selected.
+   */
+  const selectableRef = useRef({ data, keyToIndex, shouldSelectItem });
+  selectableRef.current = { data, keyToIndex, shouldSelectItem };
+  const canSelectIndex = useCallback((index: number) => {
+    const { data: currentData, shouldSelectItem: shouldSelect } =
+      selectableRef.current;
+    const item = currentData[index];
+    return item !== undefined && (shouldSelect?.({ item, index }) ?? true);
   }, []);
+  const canSelect = useCallback(
+    (key: string) => {
+      const index = selectableRef.current.keyToIndex.get(key);
+      return index !== undefined && canSelectIndex(index);
+    },
+    [canSelectIndex]
+  );
 
   const { selectedKeySet, selection, selectionStateRef } = useRowSelection({
     keyToIndex,
     selectedKeys,
     allowsMultipleSelection,
     onSelectionChange,
+    canSelect,
+  });
+
+  const keySelectionEnabled =
+    enableSelectionOnKeyPress && Platform.OS === 'macos';
+  const keySelectionProps = useKeySelection({
+    enabled: keySelectionEnabled,
+    data,
+    keys: rowKeys,
+    keyToIndex,
+    selectionStateRef,
+    selection,
+    canSelectIndex,
+    onActivateItem,
+    visibleRangeRef,
+    seedAroundIndex,
+    viewRef: shadowlistViewRef,
   });
 
   usePrefetch({
@@ -459,8 +546,9 @@ function ShadowListInner<ItemT>(
     ]
   );
 
-  const cellDimensionStyle = useMemo<ViewStyle>(() => {
+  const cellDimensionStyle = useMemo<StyleProp<ViewStyle>>(() => {
     if (horizontal) {
+      if (autoHeight) return null;
       return numberOfColumns > 1
         ? { height: `${100 / numberOfColumns}%` }
         : styles.cellHorizontal;
@@ -469,7 +557,7 @@ function ShadowListInner<ItemT>(
         ? { width: `${100 / numberOfColumns}%` }
         : styles.cellVertical;
     }
-  }, [horizontal, numberOfColumns]);
+  }, [horizontal, numberOfColumns, autoHeight]);
 
   /*
    * One row style per column. Columns differ only when they carry padding.
@@ -600,7 +688,8 @@ function ShadowListInner<ItemT>(
     keyExtractor,
   });
 
-  const viewableEventEnabled = viewabilityPairs.length > 0 || stickyEnabled;
+  const viewableEventEnabled =
+    viewabilityPairs.length > 0 || stickyEnabled || keySelectionEnabled;
   const columns = cellColumnStyles.length;
 
   return (
@@ -611,11 +700,11 @@ function ShadowListInner<ItemT>(
        * stretch across and a horizontal list would see a screen wide header. A row sizes them
        * by their content instead.
        */
-      style={[
-        styles.container,
-        style,
-        horizontal && styles.containerHorizontal,
-      ]}
+      style={
+        autoHeight
+          ? [style, styles.containerHorizontal, { height: tallestRowHeight }]
+          : [styles.container, style, horizontal && styles.containerHorizontal]
+      }
       accessible={accessible}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
@@ -671,6 +760,7 @@ function ShadowListInner<ItemT>(
       nestedScrollEnabled={nestedScrollEnabled}
       onStartReached={onStartReached ? handleStartReached : undefined}
       onEndReached={onEndReached ? handleEndReached : undefined}
+      onAtEndChange={onAtEndChange ? handleAtEndChange : undefined}
       onScroll={onScroll}
       onScrollBeginDrag={handleScrollBeginDrag}
       onScrollEndDrag={onScrollEndDrag}
@@ -685,6 +775,7 @@ function ShadowListInner<ItemT>(
       onRefreshSettle={onRefresh ? handleRefreshSettle : undefined}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      {...keySelectionProps}
     >
       {Boolean(header || padding.leading > 0 || ListHeaderComponentStyle) && (
         <ShadowListTemplateView
@@ -734,8 +825,8 @@ function ShadowListInner<ItemT>(
               leadingSwipeActionsForItem={leadingSwipeActionsForItem}
               trailingSwipeActionsForItem={trailingSwipeActionsForItem}
               contextMenuForItem={contextMenuForItem}
-              onCellLayout={trackItemSizes ? handleCellLayout : undefined}
-              onCellRelease={trackItemSizes ? handleCellRelease : undefined}
+              onCellLayout={tracksCells ? handleCellLayout : undefined}
+              onCellRelease={tracksCells ? handleCellRelease : undefined}
             />
           );
         })

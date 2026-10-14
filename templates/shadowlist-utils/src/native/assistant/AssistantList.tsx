@@ -47,6 +47,10 @@ export type AssistantListProps = Omit<
     labels?: Partial<AssistantLabels>;
   };
 
+/*
+ * The transcript. It opens on the newest message and keeps the end in view as replies arrive
+ * and grow, until the reader scrolls back. A drag puts the keyboard away.
+ */
 export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
   (
     {
@@ -167,6 +171,7 @@ export const AssistantList = forwardRef<ShadowListCommands, AssistantListProps>(
           data={data}
           inverted
           followAppends
+          keyboardDismissMode="on-drag"
           getItemSizeSpec={getItemSizeSpec}
           renderItem={renderItem ?? defaultRenderItem}
           {...props}

@@ -1,6 +1,7 @@
 # ShadowList for React Native
 
-ShadowList is the React Native Fabric package: the ShadowList, SectionList, TreeList and DraggableList components.
+ShadowList is the React Native Fabric package: the ShadowList, SectionList, TreeList and DraggableList components, and
+ItemActionsView for a row outside a list.
 It runs on iOS, Android and macOS, on the shared C++ core.
 
 ## Install
@@ -58,8 +59,9 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `initialScrollIndex` |  | The row the list opens at. Read on mount only. |
 | `extraData` |  | Rebuilds the mounted rows when it changes. |
 | `inverted` | false | Chat style list that opens at the end. Appended rows keep the visible content still. |
-| `followAppends` | false | Scroll along with appended rows while the list rests at its end. |
-| `horizontal` | false | Scroll along the x axis. |
+| `followAppends` | false | An inverted list resting at its end keeps it in view as rows are appended or grow in place, like a streaming reply. Scrolling away pauses it and coming back resumes it. |
+| `onAtEndChange(atEnd)` |  | Called when an inverted list leaves its end because the user scrolled away, and when it is back. Show a jump to the latest row while `atEnd` is false. |
+| `horizontal` | false | Scroll along the x axis. With `style={{ height: 'auto' }}` the list takes the height of its tallest mounted row and drops its default `flex: 1`. |
 | `numberOfColumns`, `columnWrapperStyle` | 1 | Grid columns. Rows go round robin, row `i` in column `i % numberOfColumns`. `columnWrapperStyle` takes `gap`, `columnGap` and horizontal padding. Each column keeps the same width. |
 | `ItemSeparatorComponent` |  | A component gets `highlighted`, `leadingItem` and `trailingItem`. A React element, or a function without parameters, renders once for every row. |
 | `ListHeaderComponentStyle`, `ListFooterComponentStyle` |  | Style for the header and footer. |
@@ -111,14 +113,18 @@ macOS lands right away without the animation.
 | Prop or command | What it does |
 | --- | --- |
 | `allowsMultipleSelection`, `selectedKeys` (controlled), `onSelectionChange` | A row reads `selected` and calls `select()` or `deselect()` from `renderItem`. A selection follows its rows by key, and a removed row leaves it. |
+| `shouldSelectItem({ item, index })` | Return false for rows that can't be selected, like headers. |
+| `enableSelectionOnKeyPress`, `onActivateItem({ item, index })` | macOS: a click gives the list the keyboard. Up and Down select the row above or below and scroll it into view. Return or Space activates the selected row. |
 | `selectItem(index)`, `deselectItem(index)`, `getSelectedIndices()` | Selection on the ref. |
 | `leadingSwipeActionsForItem`, `trailingSwipeActionsForItem` | Return swipe actions and `performsFirstActionWithFullSwipe`; see [action types](src/types.ts). |
 | `closeSwipeActions()` | Closes every row. |
 | `contextMenuForItem` | Return a menu title and actions; see [menu types](src/types.ts). |
+| `ItemActionsView` | A view outside a list with a row's `leadingSwipeActions`, `trailingSwipeActions` and `contextMenu`. Handlers get its `item` and index -1. |
 
-Swipe actions work on vertical lists. A full swipe performs the first action. An `onPress` that returns a promise keeps the
-row revealed until the promise settles, then a surviving row slides back. Menus use `UIMenu` on iOS and a long press
-popup on Android. With `reorderEnabled`, that long press starts dragging and shows no menu.
+Swipe actions work on vertical lists and on iOS and Android. A full swipe performs the first action. An `onPress` that
+returns a promise keeps the row revealed until the promise settles, then a surviving row slides back. Menus use `UIMenu`
+on iOS, a long press popup on Android and a right click menu on macOS. With `reorderEnabled`, that long press starts
+dragging and shows no menu.
 
 ### Prefetching and saved position
 

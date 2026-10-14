@@ -291,8 +291,9 @@ NS_SWIFT_UI_ACTOR
  * Layout:
  * - inverted: a chat style list that opens at its end and keeps the end in view while the
  *   reader is there. Items stay in data order, oldest first.
- * - followAppends: with inverted, items appended while the reader rests at the end scroll into
- *   view, like an assistant reply. Off by default, which keeps the visible items in place.
+ * - followAppends: with inverted, items appended or growing while the reader rests at the end
+ *   scroll into view, like an assistant reply. Off by default, which keeps the visible items in
+ *   place.
  * - numberOfColumns: columns of a grid. Item i goes into column i % numberOfColumns and each
  *   column stacks its own items.
  * - estimatedItemSize: size along the scroll axis assumed for items not measured yet.

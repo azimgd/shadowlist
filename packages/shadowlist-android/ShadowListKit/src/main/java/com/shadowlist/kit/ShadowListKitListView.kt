@@ -180,8 +180,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = value; sendSettings() }
 
   /*
-   * With inverted, items appended while the reader rests at the end scroll into view, like an
-   * assistant reply. Off by default, which keeps the visible items in place.
+   * With inverted, items appended or growing while the reader rests at the end scroll into
+   * view, like an assistant reply. Off by default, which keeps the visible items in place.
    */
   var followAppends = false
     set(value) { field = value; sendSettings() }

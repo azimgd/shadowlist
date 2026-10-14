@@ -68,6 +68,14 @@ inline bool isLastAnchorable(const Container& container, std::size_t index) {
 }
 
 /*
+ * True when an inverted list with followAppends rested at its bottom when this frame started.
+ * It then keeps the bottom as any row is inserted or grows in place, not only the newest.
+ */
+inline bool followsBottom(const Container& container) {
+  return container.inverted && container.followAppends && container.restingAtInvertedBottom;
+}
+
+/*
  * Furthest right and bottom edges of the content, read from the last row of each column.
  * That is enough along the scroll axis. Across it, callers also use maxCrossAxisExtent.
  */

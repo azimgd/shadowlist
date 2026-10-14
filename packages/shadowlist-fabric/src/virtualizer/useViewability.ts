@@ -25,6 +25,7 @@ interface UseViewabilityResult {
     never
   >;
   recordInteraction: () => void;
+  visibleRangeRef: { current: MountedRange | null };
 }
 
 /*
@@ -124,6 +125,11 @@ export function useViewability<ItemT>({
     dataLength: number;
   }>({ viewableRanges: [], dataLength: 0 });
 
+  /*
+   * The visible rows, any part of which is on screen, from the last report.
+   */
+  const visibleRangeRef = useRef<MountedRange | null>(null);
+
   const handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
     OnViewableIndicesChange,
     never
@@ -132,6 +138,7 @@ export function useViewability<ItemT>({
       const { ranges } = event.nativeEvent;
       // The sticky overlay shows the section of the top visible row.
       const anyOverlap = viewableRange(ranges[0] ?? -1, ranges[1] ?? -1);
+      visibleRangeRef.current = anyOverlap;
       if (anyOverlap) {
         updateActiveStickyIndex(anyOverlap.low);
       }
@@ -182,5 +189,6 @@ export function useViewability<ItemT>({
     viewableRules,
     handleViewableIndicesChange,
     recordInteraction,
+    visibleRangeRef,
   };
 }
