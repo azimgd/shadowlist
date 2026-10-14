@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,9 @@ import type { ChatMessage } from './types';
 export interface ChatBubbleProps {
   message: ChatMessage;
   caption?: string;
+  showsAuthor?: boolean;
+  renderText?: (text: string) => ReactNode;
+  children?: ReactNode;
   onRetry?: (message: ChatMessage) => void;
   onLongPress?: (message: ChatMessage) => void;
   labels?: Partial<ChatLabels>;
@@ -30,10 +33,18 @@ export interface ChatBubbleProps {
 const GRID_LIMIT = 4;
 const AVATAR_SIZE = 30;
 
+/*
+ * A message from someone else shows their name and avatar unless `showsAuthor` is false, as in
+ * the rest of a run from one author. The avatar's place stays empty and the bubbles line up.
+ * `renderText` draws the text as nested runs, and `children` draws under it inside the bubble.
+ */
 export const ChatBubble = memo(
   ({
     message,
     caption,
+    showsAuthor = true,
+    renderText,
+    children,
     onRetry,
     onLongPress,
     labels,
@@ -48,7 +59,8 @@ export const ChatBubble = memo(
 
     // Use a plain View unless there is a long press, since Pressable costs more per row.
     const BubbleView = onLongPress ? Pressable : View;
-    const bubble = text ? (
+    const hasContent = Boolean(text) || children != null;
+    const bubble = hasContent ? (
       <BubbleView
         onLongPress={onLongPress ? () => onLongPress(message) : undefined}
         accessibilityState={sending ? { busy: true } : undefined}
@@ -60,9 +72,12 @@ export const ChatBubble = memo(
           bubbleStyle,
         ]}
       >
-        <Text style={[styles.text, isOwn && styles.textOwn, textStyle]}>
-          {text}
-        </Text>
+        {text ? (
+          <Text style={[styles.text, isOwn && styles.textOwn, textStyle]}>
+            {renderText ? renderText(text) : text}
+          </Text>
+        ) : null}
+        {children}
         {caption ? (
           <Text
             style={[styles.captionInline, isOwn && styles.captionInlineOwn]}
@@ -116,7 +131,7 @@ export const ChatBubble = memo(
             </View>
           )}
           {bubble}
-          {caption && !text ? (
+          {caption && !hasContent ? (
             <Text
               style={[
                 styles.captionLine,
@@ -132,7 +147,9 @@ export const ChatBubble = memo(
     } else {
       content = (
         <View style={styles.bubbleColumn}>
-          {!isOwn && <Text style={styles.sender}>{message.author.name}</Text>}
+          {!isOwn && showsAuthor ? (
+            <Text style={styles.sender}>{message.author.name}</Text>
+          ) : null}
           {bubble}
           {failedLine}
         </View>
@@ -147,7 +164,7 @@ export const ChatBubble = memo(
           style,
         ]}
       >
-        {!isOwn && (
+        {!isOwn && showsAuthor ? (
           <Avatar
             name={message.author.name}
             uri={message.author.avatarUrl}
@@ -155,7 +172,10 @@ export const ChatBubble = memo(
             size={AVATAR_SIZE}
             style={styles.avatar}
           />
-        )}
+        ) : null}
+        {!isOwn && !showsAuthor ? (
+          <View style={[styles.avatar, styles.avatarSpace]} />
+        ) : null}
         {content}
       </View>
     );
@@ -179,6 +199,9 @@ const useStyles = createStyles(({ colors, typography, spacing, radius }) =>
     avatar: {
       marginRight: spacing.sm,
       marginBottom: spacing.xxs,
+    },
+    avatarSpace: {
+      width: AVATAR_SIZE,
     },
     bubbleColumn: {
       maxWidth: '75%',

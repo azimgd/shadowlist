@@ -9,7 +9,8 @@ import type { ChatMessage } from './types';
  *   container     paddingHorizontal spacing.md, paddingVertical spacing.xxs
  *   avatar        beside the column, not inside it. It narrows nothing
  *   bubbleColumn  maxWidth 75% of the container's content box
- *   sender        typography.caption line + spacing.xxs margin, on messages from others
+ *   sender        typography.caption line + spacing.xxs margin, on messages from others that
+ *                 show their author
  *   bubble        paddingHorizontal BUBBLE_PADDING_HORIZONTAL, paddingVertical spacing.sm
  *   text          typography.body
  *   caption       typography.caption line + spacing.xs margin, inside the bubble
@@ -22,15 +23,17 @@ export const BUBBLE_PADDING_HORIZONTAL = 14;
 
 export interface ChatMessageSizeSpecOptions {
   caption?: boolean;
+  showsAuthor?: boolean;
 }
 
 /*
- * Image messages are measured natively because their height comes from the images.
+ * Image messages are measured natively because their height comes from the images. This spec
+ * never counts a bubble's children. Return null for such a row and it is measured natively.
  */
 export function getChatMessageSizeSpec(
   message: ChatMessage,
   theme: Theme,
-  { caption = false }: ChatMessageSizeSpecOptions = {}
+  { caption = false, showsAuthor = true }: ChatMessageSizeSpecOptions = {}
 ): ItemSizeSpec | null {
   if (
     !message.text ||
@@ -55,7 +58,7 @@ export function getChatMessageSizeSpec(
     insetHeight:
       2 * spacing.xxs +
       2 * spacing.sm +
-      (message.isOwn ? 0 : senderHeight) +
+      (message.isOwn || !showsAuthor ? 0 : senderHeight) +
       (caption ? captionHeight : 0) +
       (message.status === 'failed' ? failedHeight : 0),
   };

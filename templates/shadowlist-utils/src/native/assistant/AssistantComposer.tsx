@@ -1,9 +1,11 @@
 import {
   forwardRef,
+  useCallback,
   useImperativeHandle,
   useRef,
   useState,
   type ComponentRef,
+  type ReactNode,
 } from 'react';
 import {
   View,
@@ -42,6 +44,8 @@ export interface AssistantComposerHandle {
 
 export interface AssistantComposerProps {
   onSend: (text: string, attachments: readonly AssistantAttachment[]) => void;
+  value?: string;
+  onChangeText?: (text: string) => void;
   streaming: boolean;
   onStop?: () => void;
   sendWhileStreaming?: boolean;
@@ -52,6 +56,7 @@ export interface AssistantComposerProps {
   onPressModel?: () => void;
   thinking?: boolean;
   onThinkingChange?: (enabled: boolean) => void;
+  accessory?: ReactNode;
   dictating?: boolean;
   onPressDictate?: () => void;
   editing?: boolean;
@@ -63,6 +68,11 @@ export interface AssistantComposerProps {
 
 const NO_ATTACHMENTS: readonly AssistantAttachment[] = [];
 
+/*
+ * The composer keeps its own draft unless `value` is passed. With `value` the draft is the
+ * caller's, and every change, a sent message and the handle's draft calls go through
+ * `onChangeText`. `accessory` sits in the toolbar after the model and thinking pills.
+ */
 export const AssistantComposer = forwardRef<
   AssistantComposerHandle,
   AssistantComposerProps
@@ -70,6 +80,8 @@ export const AssistantComposer = forwardRef<
   (
     {
       onSend,
+      value,
+      onChangeText,
       streaming,
       onStop,
       sendWhileStreaming = false,
@@ -80,6 +92,7 @@ export const AssistantComposer = forwardRef<
       onPressModel,
       thinking = false,
       onThinkingChange,
+      accessory,
       dictating = false,
       onPressDictate,
       editing = false,
@@ -96,10 +109,24 @@ export const AssistantComposer = forwardRef<
     const l = useLabels(defaultAssistantLabels, labels);
     const insets = useSafeAreaInsets();
     const inputRef = useRef<ComponentRef<typeof TextInput>>(null);
-    const [text, setText] = useState('');
+    const [uncontrolledText, setUncontrolledText] = useState('');
+    const isControlled = value !== undefined;
+    const text = isControlled ? value : uncontrolledText;
     // Mirrors text so getDraft reads the latest value without a new handle.
     const textRef = useRef(text);
     textRef.current = text;
+    // Read by setText through the handle, which is made once.
+    const onChangeTextRef = useRef(onChangeText);
+    onChangeTextRef.current = onChangeText;
+    const isControlledRef = useRef(isControlled);
+    isControlledRef.current = isControlled;
+
+    const setText = useCallback((nextText: string) => {
+      if (!isControlledRef.current) {
+        setUncontrolledText(nextText);
+      }
+      onChangeTextRef.current?.(nextText);
+    }, []);
 
     useImperativeHandle(
       ref,
@@ -115,7 +142,7 @@ export const AssistantComposer = forwardRef<
         },
         focus: () => inputRef.current?.focus(),
       }),
-      []
+      [setText]
     );
 
     const hasDraft = text.trim().length > 0 || attachments.length > 0;
@@ -243,6 +270,8 @@ export const AssistantComposer = forwardRef<
                 </Text>
               </Pressable>
             ) : null}
+
+            {accessory}
 
             <View style={styles.spacer} />
 

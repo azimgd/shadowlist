@@ -264,7 +264,10 @@ export function ChatScreen({ messages, send }: {
 
 `Chat.List` handles `onRetryMessage` and `onLongPressMessage`; `Chat.Bubble` offers `onRetry(message)` and
 `onLongPress`. The status of your own messages is `sending`, `sent`, `delivered`, `read` or `failed`; failed messages add a retry
-line. If you replace the row, supply a matching `getChatMessageSizeSpec`, including any caption.
+line. `showsAuthor={false}` hides the name and avatar of a message from someone else and keeps the avatar's place,
+for the rest of a run from one author. `renderText(text)` draws the text as nested runs, such as mentions, and
+`children` draw inside the bubble under the text. If you replace the row, supply a matching `getChatMessageSizeSpec`,
+including any caption and `showsAuthor`. A bubble with children is measured natively.
 See [ChatScreen](../shadowlist-fabric-example/src/screens/ChatScreen.tsx) for paging, keyboard space, captions and retry.
 [Chat types](src/native/chat/types.ts) define messages, authors and statuses.
 
@@ -292,7 +295,7 @@ transport as well as finishing the writer when stopping a reply.
 | Export | Purpose |
 | --- | --- |
 | `Assistant.List` | Message list; requires `store`, accepts `streaming` and reply callbacks. Keeps the end in view as replies arrive and grow, `onAtEndChange` reports a reader who scrolled away, and a drag dismisses the keyboard |
-| `Assistant.Composer` | Send/Stop, attachments and editing; ref supports `setDraft`, `clearDraft`, `focus` |
+| `Assistant.Composer` | Send/Stop, attachments and editing; ref supports `setDraft`, `clearDraft`, `focus`. Pass `value` and `onChangeText` to own the draft, and `accessory` for a control in its toolbar |
 | `createStreamStore`, `useStreamingTurn` | Store lifecycle and a subscription for each message |
 | `createTurnWriter` | Batched thinking/content, tool calls, completion, failure and stop |
 | `emptyTurn`, `ASSISTANT_END_MARKER`, `ASSISTANT_END_ID` | Initial turn and tracking the end of the list |

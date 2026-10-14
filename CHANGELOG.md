@@ -20,6 +20,8 @@
 - `TemplateList` passes selection, keyboard selection, swipe actions, menus and `contentContainerStyle` through to the list.
 - `Grouped.Actions`, and swipe actions and a menu on `Grouped.Row`.
 - `Assistant.List` dismisses the keyboard on drag.
+- `Chat.Bubble` takes `showsAuthor`, `renderText` and `children`, and `getChatMessageSizeSpec` takes `showsAuthor`.
+- `Assistant.Composer` takes a controlled `value` with `onChangeText`, and an `accessory` in its toolbar.
 
 ### ShadowListKit for the web
 
