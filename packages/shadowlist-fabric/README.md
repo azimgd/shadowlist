@@ -61,7 +61,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `inverted` | false | Chat style list that opens at the end. Appended rows keep the visible content still. |
 | `followAppends` | false | An inverted list resting at its end keeps it in view as rows are appended or grow in place, like a streaming reply. Scrolling away pauses it and coming back resumes it. |
 | `onAtEndChange(atEnd)` |  | Called when an inverted list leaves its end because the user scrolled away, and when it is back. Show a jump to the latest row while `atEnd` is false. |
-| `horizontal` | false | Scroll along the x axis. |
+| `horizontal` | false | Scroll along the x axis. With `style={{ height: 'auto' }}` the list takes the height of its tallest mounted row and drops its default `flex: 1`. |
 | `numberOfColumns`, `columnWrapperStyle` | 1 | Grid columns. Rows go round robin, row `i` in column `i % numberOfColumns`. `columnWrapperStyle` takes `gap`, `columnGap` and horizontal padding. Each column keeps the same width. |
 | `ItemSeparatorComponent` |  | A component gets `highlighted`, `leadingItem` and `trailingItem`. A React element, or a function without parameters, renders once for every row. |
 | `ListHeaderComponentStyle`, `ListFooterComponentStyle` |  | Style for the header and footer. |

@@ -197,6 +197,34 @@ describe('onAtEndChange', () => {
   });
 });
 
+describe('a horizontal list styled height auto', () => {
+  it('takes the height of its tallest mounted row', async () => {
+    await mount(
+      <ShadowList
+        data={DATA}
+        renderItem={renderRow}
+        horizontal
+        style={{ height: 'auto' }}
+      />
+    );
+    const cells = mockRenders.cells.slice(-DATA.length);
+    await act(async () => {
+      cells.forEach((cell, index) =>
+        (cell.onLayout as (event: unknown) => void)({
+          nativeEvent: {
+            layout: { x: 0, y: 0, width: 80, height: 40 + index },
+          },
+        })
+      );
+    });
+    expect(listProps().style).toEqual([
+      { height: 'auto' },
+      expect.objectContaining({ flexDirection: 'row' }),
+      { height: 40 + DATA.length - 1 },
+    ]);
+  });
+});
+
 describe('ItemActionsView', () => {
   it('runs swipe and menu actions with its item', async () => {
     const swiped: string[] = [];

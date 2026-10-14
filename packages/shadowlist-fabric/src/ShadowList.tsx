@@ -373,16 +373,45 @@ function ShadowListInner<ItemT>(
     itemSizesRef.current = null;
   }
 
+  /*
+   * A horizontal list styled height: 'auto' takes the height of its tallest mounted row. Its
+   * rows keep their own height instead of filling the list's, and it drops the default flex.
+   */
+  const autoHeight =
+    horizontal &&
+    numberOfColumns === 1 &&
+    StyleSheet.flatten(style)?.height === 'auto';
+  const autoHeightRef = useRef(autoHeight);
+  autoHeightRef.current = autoHeight;
+  const rowHeightsRef = useRef(new Map<string, number>());
+  const [tallestRowHeight, setTallestRowHeight] = useState(0);
+  const measureTallestRow = useCallback(() => {
+    let tallest = 0;
+    for (const height of rowHeightsRef.current.values()) {
+      tallest = Math.max(tallest, height);
+    }
+    setTallestRowHeight(tallest);
+  }, []);
+
   const handleCellLayout = useCallback(
     (key: string, width: number, height: number) => {
       itemSizesRef.current?.set(key, horizontal ? width : height);
+      if (autoHeightRef.current) {
+        rowHeightsRef.current.set(key, height);
+        measureTallestRow();
+      }
     },
-    [horizontal]
+    [horizontal, measureTallestRow]
   );
 
-  const handleCellRelease = useCallback((key: string) => {
-    itemSizesRef.current?.delete(key);
-  }, []);
+  const handleCellRelease = useCallback(
+    (key: string) => {
+      itemSizesRef.current?.delete(key);
+      if (rowHeightsRef.current.delete(key)) measureTallestRow();
+    },
+    [measureTallestRow]
+  );
+  const tracksCells = trackItemSizes || autoHeight;
 
   /*
    * shouldSelectItem by index and by key, read when a row asks to be selected.
@@ -517,8 +546,9 @@ function ShadowListInner<ItemT>(
     ]
   );
 
-  const cellDimensionStyle = useMemo<ViewStyle>(() => {
+  const cellDimensionStyle = useMemo<StyleProp<ViewStyle>>(() => {
     if (horizontal) {
+      if (autoHeight) return null;
       return numberOfColumns > 1
         ? { height: `${100 / numberOfColumns}%` }
         : styles.cellHorizontal;
@@ -527,7 +557,7 @@ function ShadowListInner<ItemT>(
         ? { width: `${100 / numberOfColumns}%` }
         : styles.cellVertical;
     }
-  }, [horizontal, numberOfColumns]);
+  }, [horizontal, numberOfColumns, autoHeight]);
 
   /*
    * One row style per column. Columns differ only when they carry padding.
@@ -670,11 +700,11 @@ function ShadowListInner<ItemT>(
        * stretch across and a horizontal list would see a screen wide header. A row sizes them
        * by their content instead.
        */
-      style={[
-        styles.container,
-        style,
-        horizontal && styles.containerHorizontal,
-      ]}
+      style={
+        autoHeight
+          ? [style, styles.containerHorizontal, { height: tallestRowHeight }]
+          : [styles.container, style, horizontal && styles.containerHorizontal]
+      }
       accessible={accessible}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={accessibilityRole}
@@ -795,8 +825,8 @@ function ShadowListInner<ItemT>(
               leadingSwipeActionsForItem={leadingSwipeActionsForItem}
               trailingSwipeActionsForItem={trailingSwipeActionsForItem}
               contextMenuForItem={contextMenuForItem}
-              onCellLayout={trackItemSizes ? handleCellLayout : undefined}
-              onCellRelease={trackItemSizes ? handleCellRelease : undefined}
+              onCellLayout={tracksCells ? handleCellLayout : undefined}
+              onCellRelease={tracksCells ? handleCellRelease : undefined}
             />
           );
         })
