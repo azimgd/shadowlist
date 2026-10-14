@@ -129,6 +129,7 @@ void Virtualizer::applyFrameInput(Container& container, const FrameInput& input)
   }
 
   container.inverted = input.inverted;
+  container.followAppends = input.followAppends;
   container.horizontal = input.horizontal;
   container.numberOfColumns = input.numberOfColumns;
   container.overscan = input.overscan;

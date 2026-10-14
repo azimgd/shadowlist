@@ -295,14 +295,15 @@ bool holdAnchor(
        * don't count as the newest row.
        * Not when the user has scrolled up, or the view gets pulled from under them. Not while
        * a finger is down either, or the content snaps back on every touch frame.
-       * A list still settling on the bottom it opened at always holds the bottom.
+       * A list still settling on the bottom it opened at always holds the bottom, and so does
+       * one with followAppends that rested there.
        */
       bool invertedBottomAnchor = false;
       if (container.inverted && !container.invertedBottomReleased && !container.gestureActive) {
         if (container.invertedOpeningPin && container.restingAtInvertedBottom) {
           invertedBottomAnchor = true;
         } else {
-          invertedBottomAnchor = isLastAnchorable(container, anchorIndex);
+          invertedBottomAnchor = isLastAnchorable(container, anchorIndex) || followsBottom(container);
         }
       }
       double rawAnchoredOffset = invertedBottomAnchor

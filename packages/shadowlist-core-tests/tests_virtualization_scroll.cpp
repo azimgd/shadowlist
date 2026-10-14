@@ -680,6 +680,115 @@ TEST(inverted_bottom_pin_follows_growth_measured_between_frames) {
 }
 
 /*
+ * Settle an inverted list on 19 rows of 100 and a 1 point end marker, then insert a reply
+ * before the marker the way a chat adds one. Returns the reply's index.
+ */
+static std::size_t settleWithReply(Container& container, std::vector<std::string>& keys, const Fixture& fixture) {
+  keys = keysFor(20);
+  std::vector<double> heights(keys.size(), 100.0);
+  heights.back() = 1.0;
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, heights);
+  settleAtBottom(container, keys, fixture);
+  keys.insert(keys.end() - 1, "reply");
+  std::size_t reply = keys.size() - 2;
+  double offset = container.revision.offsetY;
+  for (int frame = 0; frame < 6; ++frame) {
+    Virtualizer::update(container, inputFor(keys, offset, fixture));
+    if (frame == 0) {
+      Virtualizer::updateRowAtIndex(container, reply, {WINDOW_WIDTH, 100.0});
+    }
+    offset = container.revision.offsetY;
+  }
+  return reply;
+}
+
+/*
+ * With followAppends, a row inserted at the bottom and a reply growing in place keep the
+ * bottom in view, even when older rows fill the top of the screen and hold the anchor.
+ */
+TEST(inverted_list_with_follow_appends_follows_a_row_growing_in_place) {
+  Fixture fixture;
+  fixture.inverted = true;
+  fixture.followAppends = true;
+
+  Container container;
+  std::vector<std::string> keys;
+  std::size_t reply = settleWithReply(container, keys, fixture);
+  double bottom = container.revision.contentHeight - WINDOW_HEIGHT;
+  CHECK_NEAR(container.revision.offsetY, bottom, 1.0);
+  CHECK(!container.invertedOpeningPin);
+  CHECK(container.anchor.key != keys[reply]);
+
+  // The reply grows between frames, then again with frames after it.
+  Virtualizer::updateRowAtIndex(container, reply, {WINDOW_WIDTH, 160.0});
+  CHECK_NEAR(container.revision.offsetY, bottom + 60.0, 0.01);
+  Virtualizer::updateRowAtIndex(container, reply, {WINDOW_WIDTH, 240.0});
+  for (int frame = 0; frame < 4; ++frame) {
+    Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  }
+  CHECK_NEAR(container.revision.offsetY, bottom + 140.0, 1.0);
+
+  // A reader who scrolled away is left alone.
+  FrameInput away = inputFor(keys, container.revision.offsetY - 300.0, fixture);
+  away.userScrolled = true;
+  Virtualizer::update(container, away);
+  CHECK(container.invertedBottomReleased);
+  double parked = container.revision.offsetY;
+  Virtualizer::updateRowAtIndex(container, reply, {WINDOW_WIDTH, 320.0});
+  CHECK_NEAR(container.revision.offsetY, parked, 0.01);
+}
+
+/*
+ * Without followAppends the same growth keeps the rows on screen still, as before.
+ */
+TEST(inverted_list_without_follow_appends_holds_its_anchor_while_a_row_grows) {
+  Fixture fixture;
+  fixture.inverted = true;
+
+  Container container;
+  std::vector<std::string> keys;
+  std::size_t reply = settleWithReply(container, keys, fixture);
+  double resting = container.revision.offsetY;
+
+  Virtualizer::updateRowAtIndex(container, reply, {WINDOW_WIDTH, 160.0});
+  CHECK_NEAR(container.revision.offsetY, resting, 0.01);
+}
+
+/*
+ * The at end callback fires when the user scrolls an inverted list away from its bottom and
+ * again when they scroll back. Content growth alone never fires it.
+ */
+TEST(inverted_list_reports_leaving_and_returning_to_its_end) {
+  Fixture fixture;
+  fixture.inverted = true;
+  fixture.followAppends = true;
+
+  std::vector<std::string> keys = keysFor(20);
+  Container container;
+  std::vector<bool> reports;
+  container.onAtEndChangeCallback = [&reports](bool atEnd) { reports.push_back(atEnd); };
+  Virtualizer::update(container, inputFor(keys, 0.0, fixture));
+  measureRows(container, std::vector<double>(keys.size(), 100.0));
+  double bottom = settleAtBottom(container, keys, fixture);
+  Virtualizer::updateRowAtIndex(container, keys.size() - 1, {WINDOW_WIDTH, 300.0});
+  Virtualizer::update(container, inputFor(keys, container.revision.offsetY, fixture));
+  CHECK(reports.empty());
+
+  FrameInput away = inputFor(keys, bottom - 300.0, fixture);
+  away.userScrolled = true;
+  Virtualizer::update(container, away);
+  CHECK_EQ(reports.size(), std::size_t(1));
+  CHECK(!reports.back());
+
+  FrameInput back = inputFor(keys, container.revision.contentHeight - WINDOW_HEIGHT, fixture);
+  back.userScrolled = true;
+  Virtualizer::update(container, back);
+  CHECK_EQ(reports.size(), std::size_t(2));
+  CHECK(reports.back());
+}
+
+/*
  * A scroll to an index in a grid lands on its row's track. Rows measured afterwards in another
  * track must not pull the landed row away, even though the capture picked a row in that track.
  */

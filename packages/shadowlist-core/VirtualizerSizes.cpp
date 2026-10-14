@@ -192,7 +192,8 @@ void Virtualizer::commitRowSizes(Container& container, std::size_t fromIndex) {
    * comes from the reflowed rows.
    * A pending scroll to the end, or a list still settling on the bottom it opened at,
    * follows the bottom here too for the same reason, and so does a running correction aimed
-   * at the end, or the rows jitter for a frame as a message arrives.
+   * at the end, or the rows jitter for a frame as a message arrives. With followAppends any
+   * row growing under a reader resting at the bottom is followed.
    */
   bool endEdgeOperation = container.operation && container.operation->target.mode == AnchorMode::EndEdge;
   bool followBottom = container.pendingScrollToEnd || endEdgeOperation ||
@@ -200,7 +201,7 @@ void Virtualizer::commitRowSizes(Container& container, std::size_t fromIndex) {
      !container.invertedBottomReleased && !container.gestureActive && !container.operation);
   if (!followBottom && container.inverted && !container.invertedBottomReleased && !container.gestureActive &&
       !container.operation && !container.anchor.key.empty()) {
-    followBottom = isLastAnchorable(container, container.indexOfKey(container.anchor.key));
+    followBottom = isLastAnchorable(container, container.indexOfKey(container.anchor.key)) || followsBottom(container);
   }
   if (followBottom) {
     Size extent = tailExtent(container);

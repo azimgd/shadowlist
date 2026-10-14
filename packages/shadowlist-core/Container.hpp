@@ -138,6 +138,12 @@ public:
   std::function<void(const std::vector<std::size_t>&)> onViewableIndicesChangeCallback;
 
   /*
+   * Called when an inverted list leaves its end because the user scrolled away from the bottom,
+   * and when it is back at the end. A list starts at its end.
+   */
+  std::function<void(bool)> onAtEndChangeCallback;
+
+  /*
    * Turn the start and end reached callbacks on or off.
    */
   bool endReachedEnabled = true;
@@ -150,6 +156,12 @@ public:
    * An inverted list runs bottom to top.
    */
   bool inverted = false;
+
+  /*
+   * An inverted list resting at its bottom keeps the bottom in view as rows are appended or
+   * grow in place.
+   */
+  bool followAppends = false;
 
   bool horizontal = false;
 
@@ -586,6 +598,11 @@ private:
   bool previousReachedStart_ = false;
   bool previousReachedEnd_ = false;
   std::size_t previousReachedRowCount_ = UNDEFINED_INDEX;
+
+  /*
+   * Whether the list was at its end last time. Only changes are sent.
+   */
+  bool previousAtEnd_ = true;
 
   /*
    * Last offset sent to onScroll. Only changes are sent.
