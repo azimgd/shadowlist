@@ -14,6 +14,13 @@ using namespace facebook::react;
 
 - (void)handleCommand:(const NSString *)commandName args:(const NSArray *)args
 {
+#if TARGET_OS_OSX
+  // focus and blur go to the base view. A list with enableSelectionOnKeyPress takes the keyboard.
+  if ([commandName isEqualToString:@"focus"] || [commandName isEqualToString:@"blur"]) {
+    [super handleCommand:commandName args:args];
+    return;
+  }
+#endif
   RCTShadowListViewHandleCommand(self, commandName, args);
 }
 

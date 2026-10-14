@@ -4,6 +4,10 @@ import { Platform, Text } from 'react-native';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import ShadowList from '../ShadowList';
 import ItemActionsView from '../ItemActionsView';
+import {
+  needsScrollIntoView,
+  nextSelectableIndex,
+} from '../virtualizer/keySelection';
 
 /*
  * Records the props of every render of the native list and cell views.
@@ -87,6 +91,92 @@ afterEach(async () => {
   mockRenders.list = [];
   mockRenders.cells = [];
   Platform.OS = originalOS;
+});
+
+describe('nextSelectableIndex', () => {
+  const rowsOnly = (index: number) => !DATA[index]!.header;
+
+  it('starts at the first or last row that can be selected', () => {
+    expect(nextSelectableIndex(-1, 1, DATA.length, rowsOnly)).toBe(1);
+    expect(nextSelectableIndex(-1, -1, DATA.length, rowsOnly)).toBe(4);
+  });
+
+  it('skips rows that cannot be selected and stops at the ends', () => {
+    expect(nextSelectableIndex(2, 1, DATA.length, rowsOnly)).toBe(4);
+    expect(nextSelectableIndex(4, -1, DATA.length, rowsOnly)).toBe(2);
+    expect(nextSelectableIndex(1, -1, DATA.length, rowsOnly)).toBe(-1);
+    expect(nextSelectableIndex(4, 1, DATA.length, rowsOnly)).toBe(-1);
+  });
+});
+
+describe('needsScrollIntoView', () => {
+  it('scrolls for rows off screen or cut off at an edge', () => {
+    expect(needsScrollIntoView(5, null)).toBe(true);
+    expect(needsScrollIntoView(5, { low: 2, high: 8 })).toBe(false);
+    expect(needsScrollIntoView(2, { low: 2, high: 8 })).toBe(true);
+    expect(needsScrollIntoView(8, { low: 2, high: 8 })).toBe(true);
+    expect(needsScrollIntoView(12, { low: 2, high: 8 })).toBe(true);
+  });
+});
+
+describe('enableSelectionOnKeyPress', () => {
+  it('moves the selection with the arrows and activates it with Return on macOS', async () => {
+    Platform.OS = 'macos' as typeof Platform.OS;
+    const changes: string[][] = [];
+    const activated: string[] = [];
+    await mount(
+      <ShadowList
+        data={DATA}
+        renderItem={renderRow}
+        enableSelectionOnKeyPress
+        shouldSelectItem={({ item }) => !item.header}
+        onSelectionChange={(keys) => changes.push(keys)}
+        onActivateItem={({ item }) => activated.push(item.id)}
+      />
+    );
+    expect(listProps().focusable).toBe(true);
+    expect(listProps().viewableEventEnabled).toBe(true);
+
+    await sendToList('onKeyDown', { key: 'ArrowDown' });
+    await sendToList('onKeyDown', { key: 'ArrowDown' });
+    await sendToList('onKeyDown', { key: 'ArrowDown' });
+    expect(changes).toEqual([['a'], ['b'], ['c']]);
+
+    await sendToList('onKeyDown', { key: 'Enter' });
+    expect(activated).toEqual(['c']);
+  });
+
+  it('leaves the keyboard alone off macOS', async () => {
+    await mount(
+      <ShadowList
+        data={DATA}
+        renderItem={renderRow}
+        enableSelectionOnKeyPress
+      />
+    );
+    expect(listProps().focusable).toBeUndefined();
+    expect(listProps().onKeyDown).toBeUndefined();
+  });
+
+  it('keeps rows shouldSelectItem turns down out of the selection', async () => {
+    const changes: string[][] = [];
+    let selectHeader = () => {};
+    await mount(
+      <ShadowList
+        data={DATA}
+        renderItem={({ item, select }) => {
+          if (item.id === 'title') selectHeader = select;
+          return <Text>{item.id}</Text>;
+        }}
+        shouldSelectItem={({ item }) => !item.header}
+        onSelectionChange={(keys) => changes.push(keys)}
+      />
+    );
+    await act(async () => {
+      selectHeader();
+    });
+    expect(changes).toEqual([]);
+  });
 });
 
 describe('onAtEndChange', () => {

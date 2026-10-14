@@ -113,6 +113,8 @@ macOS lands right away without the animation.
 | Prop or command | What it does |
 | --- | --- |
 | `allowsMultipleSelection`, `selectedKeys` (controlled), `onSelectionChange` | A row reads `selected` and calls `select()` or `deselect()` from `renderItem`. A selection follows its rows by key, and a removed row leaves it. |
+| `shouldSelectItem({ item, index })` | Return false for rows that can't be selected, like headers. |
+| `enableSelectionOnKeyPress`, `onActivateItem({ item, index })` | macOS: a click gives the list the keyboard. Up and Down select the row above or below and scroll it into view. Return or Space activates the selected row. |
 | `selectItem(index)`, `deselectItem(index)`, `getSelectedIndices()` | Selection on the ref. |
 | `leadingSwipeActionsForItem`, `trailingSwipeActionsForItem` | Return swipe actions and `performsFirstActionWithFullSwipe`; see [action types](src/types.ts). |
 | `closeSwipeActions()` | Closes every row. |

@@ -39,11 +39,13 @@ export function createRowIndexStore(): RowIndexStore {
 }
 
 /*
- * What a row does when selected or deselected, shared by every row.
+ * What a row does when selected or deselected, shared by every row. selectOnly leaves the
+ * one row selected, like an arrow key does.
  */
 export interface RowSelection {
   select: (key: string) => void;
   deselect: (key: string) => void;
+  selectOnly: (key: string) => void;
 }
 
 type ItemInfo<ItemT> = { item: ItemT; index: number };

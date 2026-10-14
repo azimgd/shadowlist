@@ -42,6 +42,7 @@ import {
   usePrefetch,
   useAnchorState,
   useKeyboardDismissResponder,
+  useKeySelection,
   useRenderTraceStart,
   useRenderTrace,
   slTrace,
@@ -160,6 +161,9 @@ function ShadowListInner<ItemT>(
     allowsMultipleSelection = false,
     selectedKeys,
     onSelectionChange,
+    shouldSelectItem,
+    enableSelectionOnKeyPress = false,
+    onActivateItem,
     leadingSwipeActionsForItem,
     trailingSwipeActionsForItem,
     contextMenuForItem,
@@ -346,6 +350,7 @@ function ShadowListInner<ItemT>(
     viewableRules,
     handleViewableIndicesChange,
     recordInteraction,
+    onScreenRef,
   } = useViewability({
     data,
     keys: rowKeys,
@@ -379,11 +384,47 @@ function ShadowListInner<ItemT>(
     itemSizesRef.current?.delete(key);
   }, []);
 
+  /*
+   * shouldSelectItem by index and by key, read when a row asks to be selected.
+   */
+  const selectableRef = useRef({ data, keyToIndex, shouldSelectItem });
+  selectableRef.current = { data, keyToIndex, shouldSelectItem };
+  const canSelectIndex = useCallback((index: number) => {
+    const { data: currentData, shouldSelectItem: shouldSelect } =
+      selectableRef.current;
+    const item = currentData[index];
+    return item !== undefined && (shouldSelect?.({ item, index }) ?? true);
+  }, []);
+  const canSelect = useCallback(
+    (key: string) => {
+      const index = selectableRef.current.keyToIndex.get(key);
+      return index !== undefined && canSelectIndex(index);
+    },
+    [canSelectIndex]
+  );
+
   const { selectedKeySet, selection, selectionStateRef } = useRowSelection({
     keyToIndex,
     selectedKeys,
     allowsMultipleSelection,
     onSelectionChange,
+    canSelect,
+  });
+
+  const keySelectionEnabled =
+    enableSelectionOnKeyPress && Platform.OS === 'macos';
+  const keySelectionProps = useKeySelection({
+    enabled: keySelectionEnabled,
+    data,
+    keys: rowKeys,
+    keyToIndex,
+    selectionStateRef,
+    selection,
+    canSelectIndex,
+    onActivateItem,
+    onScreenRef,
+    seedAroundIndex,
+    viewRef: shadowlistViewRef,
   });
 
   usePrefetch({
@@ -617,7 +658,8 @@ function ShadowListInner<ItemT>(
     keyExtractor,
   });
 
-  const viewableEventEnabled = viewabilityPairs.length > 0 || stickyEnabled;
+  const viewableEventEnabled =
+    viewabilityPairs.length > 0 || stickyEnabled || keySelectionEnabled;
   const columns = cellColumnStyles.length;
 
   return (
@@ -703,6 +745,7 @@ function ShadowListInner<ItemT>(
       onRefreshSettle={onRefresh ? handleRefreshSettle : undefined}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      {...keySelectionProps}
     >
       {Boolean(header || padding.leading > 0 || ListHeaderComponentStyle) && (
         <ShadowListTemplateView

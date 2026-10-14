@@ -257,6 +257,9 @@ export interface ShadowListProps<ItemT> {
   allowsMultipleSelection?: boolean;
   selectedKeys?: ReadonlyArray<string>;
   onSelectionChange?: (selectedKeys: string[]) => void;
+  shouldSelectItem?: (info: { item: ItemT; index: number }) => boolean;
+  enableSelectionOnKeyPress?: boolean;
+  onActivateItem?: (info: { item: ItemT; index: number }) => void;
   leadingSwipeActionsForItem?: (info: {
     item: ItemT;
     index: number;
@@ -329,6 +332,9 @@ export type ShadowListForwardedProps = Omit<
   | 'allowsMultipleSelection'
   | 'selectedKeys'
   | 'onSelectionChange'
+  | 'shouldSelectItem'
+  | 'enableSelectionOnKeyPress'
+  | 'onActivateItem'
   | 'leadingSwipeActionsForItem'
   | 'trailingSwipeActionsForItem'
   | 'contextMenuForItem'
