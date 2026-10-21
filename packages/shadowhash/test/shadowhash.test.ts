@@ -50,6 +50,10 @@ test('a long text past the cap keeps its word count, breaks and about its letter
   const letters = (tokens: number[]) => tokens.reduce((sum, t) => sum + t, 0);
   assert.equal(count(shape.tokens), count(real.tokens));
   assert.equal(shape.tokens.length, real.tokens.length);
+  // The blank line between paragraphs stays a blank line, not two single breaks apart.
+  const blankLines = (tokens: number[]) =>
+    tokens.filter((t, i) => t === 0 && tokens[i + 1] === 0).length;
+  assert.equal(blankLines(shape.tokens), blankLines(real.tokens));
   assert.ok(
     Math.abs(letters(shape.tokens) - letters(real.tokens)) /
       letters(real.tokens) <
