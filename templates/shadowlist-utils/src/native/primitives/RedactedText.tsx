@@ -1,5 +1,12 @@
-import { memo } from 'react';
-import { StyleSheet, Text, type StyleProp, type TextStyle } from 'react-native';
+import { memo, useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextLayoutEvent,
+  type TextStyle,
+} from 'react-native';
 import { createStyles } from '../theme';
 
 export interface RedactedTextProps {
@@ -9,31 +16,49 @@ export interface RedactedTextProps {
   numberOfLines?: number;
 }
 
+// Share of a line's height the bar covers, centred, so the lines stay apart.
+const BAR_HEIGHT = 0.62;
+
 /*
- * Text drawn as one bar per word. The words are laid out in the real font, so the bars wrap
- * where text of the same word lengths would, and only the gaps between them show.
+ * Text drawn as one bar per line. The words are laid out in the real font and hidden, so the
+ * bars wrap where text of the same word lengths would, and a blank line stays blank.
  */
 export const RedactedText = memo(
   ({ children, style, numberOfLines }: RedactedTextProps) => {
     const styles = useStyles();
-    const parts = children.split(/(\s+)/);
+    const [lines, setLines] = useState<TextLayoutEvent['nativeEvent']['lines']>(
+      []
+    );
     return (
-      <Text
-        style={[style, styles.hidden]}
-        numberOfLines={numberOfLines}
+      <View
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
-        {parts.map((part, index) =>
-          index % 2 === 1 || part.length === 0 ? (
-            part
-          ) : (
-            <Text key={index} style={styles.word}>
-              {part}
-            </Text>
+        <Text
+          style={[style, styles.hidden]}
+          numberOfLines={numberOfLines}
+          onTextLayout={(event) => setLines(event.nativeEvent.lines)}
+        >
+          {children}
+        </Text>
+        {lines.map((line, index) =>
+          line.text.trim().length === 0 ? null : (
+            <View
+              key={index}
+              style={[
+                styles.bar,
+                {
+                  left: line.x,
+                  top: line.y + (line.height * (1 - BAR_HEIGHT)) / 2,
+                  width: line.width,
+                  height: line.height * BAR_HEIGHT,
+                  borderRadius: (line.height * BAR_HEIGHT) / 2,
+                },
+              ]}
+            />
           )
         )}
-      </Text>
+      </View>
     );
   }
 );
@@ -43,7 +68,8 @@ const useStyles = createStyles((theme) =>
     hidden: {
       color: 'transparent',
     },
-    word: {
+    bar: {
+      position: 'absolute',
       backgroundColor: theme.colors.fill,
     },
   })

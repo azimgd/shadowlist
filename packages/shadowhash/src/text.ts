@@ -80,8 +80,15 @@ export function writeText(
   if (rest.length === 0) return;
   const words = rest.filter((token) => token > 0);
   const letters = words.reduce((sum, token) => sum + token, 0);
+  // Breaks come in runs, one for a new line and two for a blank line between paragraphs.
+  const runs = rest.filter(
+    (token, index) => token === 0 && rest[index - 1] !== 0
+  ).length;
   writer.varint(words.length);
-  writer.varint(rest.length - words.length);
+  writer.varint(runs);
+  if (runs > 0) {
+    writer.byte(Math.round((rest.length - words.length) / runs));
+  }
   // Mean word length in sixteenths, up to 15.9 characters.
   writer.byte(
     Math.min(255, Math.round((letters / Math.max(1, words.length)) * 16))
@@ -112,16 +119,17 @@ export function readText(reader: ByteReader): TextShape | undefined {
   if (carry > 0) throw new InvalidHashError('a long word runs past the end');
   if (mode === Mode.WordsTruncated) {
     const words = reader.varint();
-    const breaks = reader.varint();
+    const runs = reader.varint();
+    const runLength = runs > 0 ? reader.byte() : 0;
     const mean = reader.byte() / 16;
-    // One break after every this many words, so the paragraphs come out evenly sized.
+    // One run of breaks after every this many words, so the paragraphs come out evenly sized.
     const every =
-      breaks > 0 ? Math.max(1, Math.floor(words / (breaks + 1))) : Infinity;
-    let placedBreaks = 0;
+      runs > 0 ? Math.max(1, Math.floor(words / (runs + 1))) : Infinity;
+    let placedRuns = 0;
     for (let index = 0; index < words; index++) {
-      if (index > 0 && index % every === 0 && placedBreaks < breaks) {
-        tokens.push(0);
-        placedBreaks++;
+      if (index > 0 && index % every === 0 && placedRuns < runs) {
+        for (let line = 0; line < runLength; line++) tokens.push(0);
+        placedRuns++;
       }
       tokens.push(
         Math.max(1, Math.round(mean + SPREAD[index % SPREAD.length]!))
@@ -141,8 +149,9 @@ export function decodeText(hash: string): TextShape | undefined {
   return readText(new ByteReader(hash));
 }
 
-// Letters of about the mean width in most proportional fonts, so lines fill as real words do.
-const LETTERS = 'etaoinshrdlucemo';
+// Letters about as wide on average as running text with its capitals and punctuation, so lines
+// fill and wrap as the real words do. Wider letters push a full last word onto a new line.
+const LETTERS = 'etaoinshrdluce';
 const WIDE_GLYPH = '口';
 
 /*
