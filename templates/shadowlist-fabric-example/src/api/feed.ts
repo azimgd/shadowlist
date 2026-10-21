@@ -1,8 +1,10 @@
+import type { HashEntry } from 'shadowhash';
 import type { FeedItem } from 'shadowlist-utils/native';
 import { generateFeedElement } from '../fixtures/feed';
 import { Collection, type CursorPage, type PageCursor } from './Collection';
 import { request, type RequestSignal } from './network';
 import { listCount } from '../launchSettings';
+import { hashFeedItem } from '../shadowhash/feedHash';
 
 const PAGE_SIZE = 20;
 /*
@@ -25,19 +27,37 @@ const posts = new Collection<FeedItem>({
 
 let headReads = 0;
 
+/*
+ * A page of posts with the hashes of the page after it, about 30 bytes a post, so the list can
+ * draw that page's rows at their real size while it loads.
+ */
+export interface FeedPage extends CursorPage<FeedItem> {
+  upcoming: HashEntry[];
+}
+
 export function fetchFeedPage(
   cursor: PageCursor | undefined,
   signal?: RequestSignal
-): Promise<CursorPage<FeedItem>> {
+): Promise<FeedPage> {
   return request(() => {
     // The first read of the head sees the seeded feed; every later one finds newer posts.
     if (cursor === undefined && headReads++ > 0) {
       posts.insertAtStart(generatePosts(NEW_POSTS_PER_REFRESH));
     }
-    return posts.page(cursor, {
+    const page = posts.page(cursor, {
       limit: cursor === undefined ? FIRST_PAGE_SIZE : PAGE_SIZE,
       from: 'start',
     });
+    const upcoming =
+      page.nextCursor === undefined
+        ? []
+        : posts
+            .page(
+              { after: page.nextCursor },
+              { limit: PAGE_SIZE, from: 'start' }
+            )
+            .items.map(hashFeedItem);
+    return { ...page, upcoming };
   }, signal);
 }
 

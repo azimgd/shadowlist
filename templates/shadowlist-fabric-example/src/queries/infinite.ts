@@ -27,23 +27,24 @@ export type CursorData<ItemT> = InfiniteData<
   PageCursor | undefined
 >;
 
-interface CursorInfiniteQueryOptions<ItemT> {
+interface CursorInfiniteQueryOptions<PageT extends CursorPage<unknown>> {
   queryKey: QueryKey;
   fetchPage: (
     cursor: PageCursor | undefined,
     signal: RequestSignal
-  ) => Promise<CursorPage<ItemT>>;
+  ) => Promise<PageT>;
   staleTime?: number;
 }
 
 /*
- * An infinite query over a CursorPage endpoint, pageable in both directions.
+ * An infinite query over a CursorPage endpoint, pageable in both directions. A page may carry
+ * more than its items, such as the feed's hashes of the page after it.
  */
-export function useCursorInfiniteQuery<ItemT>({
+export function useCursorInfiniteQuery<PageT extends CursorPage<unknown>>({
   queryKey,
   fetchPage,
   staleTime,
-}: CursorInfiniteQueryOptions<ItemT>) {
+}: CursorInfiniteQueryOptions<PageT>) {
   return useInfiniteQuery({
     queryKey,
     queryFn: ({ pageParam, signal }) => fetchPage(pageParam, signal),
