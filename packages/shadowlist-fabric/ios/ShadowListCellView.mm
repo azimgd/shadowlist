@@ -660,6 +660,11 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 
 #pragma mark - Context menu
 
+/*
+ * The menu showing cancels the press under the hold: UIKit cancels the touch for React Native's
+ * touch handler itself. The row does not cancel it as well. On iOS 26 that cancelled one touch
+ * twice, and the handler's touch registry assertion aborted a debug build.
+ */
 - (UIContextMenuConfiguration *)contextMenuInteraction:(UIContextMenuInteraction *)interaction
                         configurationForMenuAtLocation:(CGPoint)location
 {
@@ -704,13 +709,6 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
                                                   }];
 }
 
-- (void)contextMenuInteraction:(UIContextMenuInteraction *)interaction
-  willDisplayMenuForConfiguration:(UIContextMenuConfiguration *)configuration
-                         animator:(id<UIContextMenuInteractionAnimating>)animator
-{
-  // The hold is a menu, not a press on the row.
-  SLCancelReactTouches(self);
-}
 #else
 #pragma mark - Context menu
 

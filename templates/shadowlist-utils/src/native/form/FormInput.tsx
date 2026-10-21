@@ -8,14 +8,23 @@ export interface FormInputProps {
   onChange: (text: string) => void;
   placeholder?: string;
   numeric?: boolean;
-  keyboardType?: 'default' | 'decimal-pad' | 'numbers-and-punctuation';
-  autoCapitalize?: 'none' | 'sentences';
+  keyboardType?:
+    | 'default'
+    | 'decimal-pad'
+    | 'numbers-and-punctuation'
+    | 'email-address';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  autoCorrect?: boolean;
+  returnKeyType?: 'done' | 'next' | 'go' | 'search' | 'send';
+  onSubmitEditing?: () => void;
   accessibilityLabel: string;
 }
 
 /*
  * A form row's text field. It has no box of its own because the row is the box. It aligns to
- * the trailing edge like every other value, or to the leading one in a stacked row.
+ * the trailing edge like every other value, or to the leading one in a stacked row. Text is
+ * corrected and capitalized like a sentence unless it is numeric or says otherwise. An email
+ * address is neither.
  */
 export const FormInput = memo(
   ({
@@ -25,11 +34,16 @@ export const FormInput = memo(
     numeric = false,
     keyboardType,
     autoCapitalize,
+    autoCorrect,
+    returnKeyType,
+    onSubmitEditing,
     accessibilityLabel,
   }: FormInputProps) => {
     const styles = useStyles();
     const { colors } = useTheme();
     const stacked = useContext(FormRowStackedContext);
+    const isEmail = keyboardType === 'email-address';
+    const isLiteral = numeric || isEmail;
     return (
       <TextInput
         value={value}
@@ -37,8 +51,10 @@ export const FormInput = memo(
         placeholder={placeholder}
         placeholderTextColor={colors.tertiaryLabel}
         keyboardType={keyboardType ?? (numeric ? 'decimal-pad' : 'default')}
-        autoCapitalize={autoCapitalize ?? (numeric ? 'none' : 'sentences')}
-        autoCorrect={!numeric}
+        autoCapitalize={autoCapitalize ?? (isLiteral ? 'none' : 'sentences')}
+        autoCorrect={autoCorrect ?? !isLiteral}
+        returnKeyType={returnKeyType}
+        onSubmitEditing={onSubmitEditing}
         textAlign={stacked ? 'left' : 'right'}
         style={[styles.input, numeric && styles.numeric]}
         accessibilityLabel={accessibilityLabel}
