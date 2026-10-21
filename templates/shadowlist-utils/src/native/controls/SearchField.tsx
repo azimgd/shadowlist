@@ -42,7 +42,8 @@ export const SearchField = memo(
           style={styles.input}
           autoCorrect={false}
           autoCapitalize="none"
-          clearButtonMode="while-editing"
+          // A search that narrows a list can be cleared without focusing it first.
+          clearButtonMode="always"
           accessibilityLabel={placeholder}
         />
       </View>

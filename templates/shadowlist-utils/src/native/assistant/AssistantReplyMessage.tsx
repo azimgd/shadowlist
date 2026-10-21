@@ -202,24 +202,30 @@ export const AssistantReplyMessage = memo(
             <Text style={styles.errorText}>
               {turn.error || l.responseFailed}
             </Text>
-            <AssistantBusy busy={busy}>
-              {(disabled) => (
-                <Pressable
-                  onPress={() => onRetry?.(message.id)}
-                  disabled={disabled}
-                  accessibilityRole="button"
-                  accessibilityLabel={l.retry}
-                  accessibilityState={{ disabled }}
-                  style={({ pressed }) => [
-                    styles.retryButton,
-                    (pressed || disabled) && styles.pressed,
-                  ]}
-                >
-                  <RetryIcon size={16} color={colors.label} strokeWidth={1.6} />
-                  <Text style={styles.retryText}>{l.retry}</Text>
-                </Pressable>
-              )}
-            </AssistantBusy>
+            {onRetry ? (
+              <AssistantBusy busy={busy}>
+                {(disabled) => (
+                  <Pressable
+                    onPress={() => onRetry(message.id)}
+                    disabled={disabled}
+                    accessibilityRole="button"
+                    accessibilityLabel={l.retry}
+                    accessibilityState={{ disabled }}
+                    style={({ pressed }) => [
+                      styles.retryButton,
+                      (pressed || disabled) && styles.pressed,
+                    ]}
+                  >
+                    <RetryIcon
+                      size={16}
+                      color={colors.label}
+                      strokeWidth={1.6}
+                    />
+                    <Text style={styles.retryText}>{l.retry}</Text>
+                  </Pressable>
+                )}
+              </AssistantBusy>
+            ) : null}
           </View>
         ) : null}
 
