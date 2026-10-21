@@ -9,6 +9,15 @@ import {
 } from './common';
 
 const HOUR_MS = 60 * 60 * 1000;
+// A mean colour per photo, the kind a server keeps once it has decoded an upload.
+const IMAGE_COLORS = [
+  '#8a9bb0',
+  '#c2a27c',
+  '#6f8f72',
+  '#b07d6a',
+  '#7c86a8',
+  '#a8a07a',
+];
 
 export function generateFeedElement(index: number): FeedItem {
   const name = CHARACTER_NAMES[index % CHARACTER_NAMES.length]!;
@@ -19,6 +28,7 @@ export function generateFeedElement(index: number): FeedItem {
     return {
       uri: optimizeImageUrl(IMAGES[imageIndex]!, 800),
       alt: IMAGE_TITLES[imageIndex % IMAGE_TITLES.length],
+      color: IMAGE_COLORS[imageIndex % IMAGE_COLORS.length],
     };
   });
 
