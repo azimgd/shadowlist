@@ -628,3 +628,26 @@ TEST(list_driver_moved_key_keeps_its_size_and_the_top_row_holds) {
   CHECK_NEAR(host.driver.getLeadingAt(index) - host.offset, before.second, 0.01);
   CHECK_EQ(host.driver.indexOfKey(moved), std::size_t(2));
 }
+
+/*
+ * A grid's list loses rows and changes width while off screen. Back on screen, one layout drops
+ * the sizes (resetKeepingPosition) and must measure the rows at the offset, not at the top.
+ */
+TEST(list_driver_reset_measures_the_rows_at_the_offset_in_one_layout) {
+  ListSettings settings;
+  settings.estimatedRowSize = 30.0;
+  Host host(5003, settings);
+  host.driver.setMeasureRow([](std::size_t, const std::string&, double) { return 30.0; });
+  host.settle();
+  host.scrollTo(2714.0);
+  host.settle();
+  host.driver.reloadKeys(keysFrom(0, 3802));
+  host.driver.reloadKeys(keysFrom(0, 802));
+  host.driver.resetKeepingPosition();
+  host.layout();
+  auto window = host.driver.getMeasuredRange();
+  CHECK(window.has_value());
+  CHECK_NEAR(host.offset, 2714.0, 0.01);
+  CHECK(host.driver.getLeadingAt(window->low) <= host.offset);
+  CHECK(host.driver.getLeadingAt(window->high) + 30.0 >= host.offset + WINDOW_ALONG);
+}
