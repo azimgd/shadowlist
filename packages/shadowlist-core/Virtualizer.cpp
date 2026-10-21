@@ -446,7 +446,15 @@ void Virtualizer::measureFrame(
   if (headerMovedOffset || windowMovedOffset) {
     container.offsetCorrected = true;
   }
-  if (scrollCorrected) {
+  /*
+   * The first revision fills from the edge. A view that already rests away from it, like a
+   * list whose sizes were dropped (ListDriver::resetKeepingPosition) and whose anchor row
+   * lands right where the view is, needs the window at its offset, or no row shows there
+   * until the next layout.
+   */
+  bool restsAwayFromEdge = container.revisionCount == REVISION_COUNT_FIRST && !container.inverted &&
+    container.getOffset() > 0.0;
+  if (scrollCorrected || restsAwayFromEdge) {
     measure(container, true);
     SL_LOG("  remeasured: offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] invInit=%d",
       container.revision.offsetX, container.revision.offsetY,
