@@ -26,6 +26,11 @@ export interface TemplateListProps<R extends TemplateRow> extends Pick<
   | 'leadingSwipeActionsForItem'
   | 'trailingSwipeActionsForItem'
   | 'contextMenuForItem'
+  | 'persistentKeys'
+  | 'ListHeaderComponent'
+  | 'onScroll'
+  | 'scrollEventThrottle'
+  | 'keyboardDismissMode'
 > {
   data: ReadonlyArray<R>;
   templates: TemplateMap<R>;
