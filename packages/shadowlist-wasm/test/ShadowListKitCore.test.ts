@@ -102,12 +102,12 @@ test('row rects follow the measured sizes', () => {
 test('a prepend keeps the visible row in place', () => {
   const { core, rows } = laidOutCore(100, 1000);
   const anchor = core.anchorState(1000);
-  assert.equal(anchor?.key, rows[20]);
+  assert.equal(anchor?.key, rows[15]);
   core.replaceKeys(0, 0, keys(10, 'new'), 0, 10);
   const pass = runPasses(core, 1000);
   const offset = pass[ShadowListKitCore.PASS_OUT_OFFSET];
-  assert.equal(core.anchorState(offset!)?.key, rows[20]);
-  assert.equal(core.indexOfKey(rows[20]), 30);
+  assert.equal(core.anchorState(offset!)?.key, rows[15]);
+  assert.equal(core.indexOfKey(rows[15]), 25);
   core.destroy();
 });
 
@@ -219,10 +219,11 @@ test('a measure that calls into the core keeps the pass slots', () => {
 
 test('the visible range is the rows on screen, not the measured range', () => {
   const { core } = laidOutCore(100, 1000);
-  // The first pass corrected the offset to measured rows. Rows 20 to 29 fill the viewport at 1000.
+  // The first pass measures the rows at the offset. Rows 0 to 4 keep the estimate of 100 above
+  // them, so rows 15 to 24 fill the viewport at 1000.
   runPasses(core, 1000);
-  assert.deepEqual(core.visibleRange(), { low: 20, high: 29 });
-  assert.ok(core.pass[ShadowListKitCore.PASS_OUT_MEASURED_LOW]! < 20);
+  assert.deepEqual(core.visibleRange(), { low: 15, high: 24 });
+  assert.ok(core.pass[ShadowListKitCore.PASS_OUT_MEASURED_LOW]! < 15);
   core.destroy();
 });
 
@@ -232,7 +233,7 @@ test('a reset keeps how far the viewport is into its first row', () => {
   core.resetKeepingPosition();
   const pass = runPasses(core, 1020);
   const offset = pass[ShadowListKitCore.PASS_OUT_OFFSET]!;
-  assert.deepEqual(core.anchorState(offset), { key: rows[20], offset: 20 });
+  assert.deepEqual(core.anchorState(offset), { key: rows[15], offset: 20 });
   core.destroy();
 });
 
