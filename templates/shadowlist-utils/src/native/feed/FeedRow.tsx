@@ -13,8 +13,9 @@ import {
 import { formatRelativeTime } from '../formatRelativeTime';
 import { useLabels } from '../labels';
 import { Avatar } from '../primitives/Avatar';
+import { RedactedText } from '../primitives/RedactedText';
 import { useLargeText } from '../hooks/useLargeText';
-import { createStyles } from '../theme';
+import { createStyles, useTheme } from '../theme';
 import { defaultFeedLabels, type FeedLabels } from './labels';
 import type { FeedImage, FeedItem } from './types';
 
@@ -58,10 +59,11 @@ export const FeedRow = memo(
     textStyle,
   }: FeedRowProps) => {
     const styles = useStyles();
+    const { colors } = useTheme();
     const largeText = useLargeText();
     const lines = largeText ? undefined : 1;
     const l = useLabels(defaultFeedLabels, labels);
-    const { author, text, images, createdAt } = item;
+    const { author, text, images, createdAt, placeholder } = item;
     const hasImages = images !== undefined && images.length > 0;
     const date =
       createdAt === undefined
@@ -73,6 +75,13 @@ export const FeedRow = memo(
       index: number,
       frameStyle: StyleProp<ViewStyle>
     ) => {
+      const colorStyle =
+        image.color === undefined
+          ? undefined
+          : { backgroundColor: image.color };
+      if (placeholder) {
+        return <View key={index} style={[frameStyle, colorStyle]} />;
+      }
       const content = (
         <Image
           source={{ uri: image.uri }}
@@ -84,7 +93,7 @@ export const FeedRow = memo(
         return (
           <View
             key={index}
-            style={frameStyle}
+            style={[frameStyle, colorStyle]}
             accessible={image.alt !== undefined}
             accessibilityRole="image"
             accessibilityLabel={image.alt}
@@ -96,7 +105,7 @@ export const FeedRow = memo(
       return (
         <Pressable
           key={index}
-          style={frameStyle}
+          style={[frameStyle, colorStyle]}
           accessibilityRole="imagebutton"
           accessibilityLabel={image.alt ?? l.image}
           onPress={() => onPressImage(item, index)}
@@ -109,38 +118,63 @@ export const FeedRow = memo(
     const body = (
       <>
         <Avatar
-          name={author.name}
-          uri={author.avatarUrl}
-          color={author.avatarColor}
+          name={placeholder ? '' : author.name}
+          uri={placeholder ? undefined : author.avatarUrl}
+          color={placeholder ? colors.fill : author.avatarColor}
           style={[styles.avatar, avatarStyle]}
         />
         <View style={styles.content}>
-          <View style={[styles.header, largeText && styles.headerWrapped]}>
-            <Text style={styles.name} numberOfLines={lines}>
-              {author.name}
-            </Text>
-            {author.handle !== undefined && (
-              <Text style={styles.secondary} numberOfLines={lines}>
-                {author.handle}
+          {placeholder ? (
+            <View style={[styles.header, largeText && styles.headerWrapped]}>
+              <RedactedText style={styles.name} numberOfLines={lines}>
+                {author.name}
+              </RedactedText>
+              {author.handle !== undefined && (
+                <RedactedText style={styles.secondary} numberOfLines={lines}>
+                  {author.handle}
+                </RedactedText>
+              )}
+            </View>
+          ) : (
+            <View style={[styles.header, largeText && styles.headerWrapped]}>
+              <Text style={styles.name} numberOfLines={lines}>
+                {author.name}
               </Text>
-            )}
-            {date !== undefined && (
-              <Text style={styles.date} numberOfLines={lines}>
-                · {date}
-              </Text>
-            )}
-          </View>
-          {text !== undefined && text.length > 0 && (
-            <Text
-              style={[
-                styles.text,
-                hasImages && styles.textAboveImages,
-                textStyle,
-              ]}
-            >
-              {text}
-            </Text>
+              {author.handle !== undefined && (
+                <Text style={styles.secondary} numberOfLines={lines}>
+                  {author.handle}
+                </Text>
+              )}
+              {date !== undefined && (
+                <Text style={styles.date} numberOfLines={lines}>
+                  · {date}
+                </Text>
+              )}
+            </View>
           )}
+          {text !== undefined &&
+            text.length > 0 &&
+            (placeholder ? (
+              <RedactedText
+                style={[
+                  styles.text,
+                  hasImages && styles.textAboveImages,
+                  textStyle,
+                ]}
+              >
+                {text}
+              </RedactedText>
+            ) : (
+              <Text
+                style={[
+                  styles.text,
+                  hasImages && styles.textAboveImages,
+                  textStyle,
+                ]}
+              >
+                {text}
+              </Text>
+            ))}
           {hasImages &&
             images.length === 1 &&
             renderImage(images[0]!, 0, [
@@ -167,6 +201,18 @@ export const FeedRow = memo(
       </>
     );
 
+    if (placeholder) {
+      return (
+        <View
+          style={[styles.row, style]}
+          accessible
+          accessibilityState={{ busy: true }}
+          accessibilityLabel={l.loading}
+        >
+          {body}
+        </View>
+      );
+    }
     if (onPress === undefined) {
       return <View style={[styles.row, style]}>{body}</View>;
     }

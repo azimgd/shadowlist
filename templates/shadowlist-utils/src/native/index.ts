@@ -40,6 +40,8 @@ export type { SpinnerProps, SpinnerLabels } from './primitives/Spinner';
 export { ListHeader } from './primitives/ListHeader';
 export type { ListHeaderProps } from './primitives/ListHeader';
 export { ListFooter } from './primitives/ListFooter';
+export { RedactedText } from './primitives/RedactedText';
+export type { RedactedTextProps } from './primitives/RedactedText';
 export type { ListFooterProps } from './primitives/ListFooter';
 export { ItemSeparator } from './primitives/ItemSeparator';
 export type { ItemSeparatorProps } from './primitives/ItemSeparator';
