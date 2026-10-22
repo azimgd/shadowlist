@@ -28,8 +28,8 @@ const posts = new Collection<FeedItem>({
 let headReads = 0;
 
 /*
- * A page of posts with the hashes of the page after it, about 30 bytes a post, so the list can
- * draw that page's rows at their real size while it loads.
+ * A page of posts with the hashes of the page after it, about 30 bytes a post. The list draws
+ * that page's rows at their real size while it loads.
  */
 export interface FeedPage extends CursorPage<FeedItem> {
   upcoming: HashEntry[];

@@ -1,8 +1,10 @@
 import type { RelativeTimeLabels } from '../formatRelativeTime';
 
+/*
+ * loading is read for a placeholder row while its post loads.
+ */
 export interface FeedLabels extends RelativeTimeLabels {
   image: string;
-  // Read for a placeholder row while its post loads.
   loading: string;
 }
 

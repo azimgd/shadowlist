@@ -58,7 +58,7 @@ export const FeedScreen = () => {
     [feed.data, cached, upcoming, list.data]
   );
 
-  // The placeholders sit past the real end, so load the next page once the first one shows.
+  // The placeholders sit past the real end. The next page loads once the first one shows.
   const { onEndReached } = list;
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: ViewableItemsChangedInfo<FeedItem>) => {

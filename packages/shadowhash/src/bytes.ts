@@ -1,6 +1,6 @@
 /* eslint-disable no-bitwise */
 /*
- * The byte stream every hash is written into, and base64url without btoa or Buffer, so the same
+ * The byte stream every hash is written into, and base64url without btoa or Buffer. The same
  * code runs in Hermes, a browser and Node.
  */
 const ALPHABET =

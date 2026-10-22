@@ -4,8 +4,8 @@ import { readText, writeText, type TextOptions, type TextShape } from './text';
 
 /*
  * A feed post's hash: the author's name and handle lengths, the text's shape and each image's
- * aspect ratio and mean colour. 12 to 45 bytes a post, so a feed page
- * can carry the hashes of the page after it.
+ * aspect ratio and mean colour. A post takes 12 to 45 bytes, and a feed page can carry the
+ * hashes of the page after it.
  */
 export interface PostInput {
   author?: { name: string; handle?: string };
@@ -13,10 +13,12 @@ export interface PostInput {
   images?: ReadonlyArray<{ width?: number; height?: number; color?: string }>;
 }
 
+/*
+ * An image's aspectRatio is its width over height, undefined when the post did not know it. Its
+ * color is #rrggbb, rounded to 16 bits.
+ */
 export interface ImageShape {
-  // Width over height. Undefined when the post did not know it.
   aspectRatio?: number;
-  // #rrggbb, rounded to 16 bits.
   color?: string;
 }
 

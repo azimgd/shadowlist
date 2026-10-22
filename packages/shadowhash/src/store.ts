@@ -20,8 +20,10 @@ export interface HashStore {
   forget(listKey: string): void;
 }
 
+/*
+ * limit is the number of rows kept per list. A screen and a half is enough to cover a cold start.
+ */
 export interface HashStoreOptions {
-  // Rows kept per list. A screen and a half is enough to cover a cold start.
   limit?: number;
   prefix?: string;
 }
@@ -35,7 +37,7 @@ export function createHashStore(
 ): HashStore {
   return {
     remember(listKey, entries) {
-      // id and hash pairs flattened, so a 30 row list is one short JSON array.
+      // id and hash pairs flattened. A 30 row list is one short JSON array.
       const flat = entries
         .slice(0, limit)
         .flatMap(({ id, hash }) => [id, hash]);

@@ -44,7 +44,7 @@ nibble  0 line break, 1-14 word length, 15 = 14 more characters follow
 cut     remaining words, remaining breaks, mean word length in sixteenths
 ```
 
-Bytes are base64url, so a hash fits in JSON, a URL or a database column unescaped.
+Bytes are base64url. A hash fits in JSON, a URL or a database column unescaped.
 
 ## Caching on the device
 

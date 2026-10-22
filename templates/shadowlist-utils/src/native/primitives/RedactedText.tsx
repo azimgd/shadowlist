@@ -9,19 +9,22 @@ import {
 } from 'react-native';
 import { createStyles } from '../theme';
 
+/*
+ * children are the stand-in words, such as shadowhash's placeholderText. They are laid out but
+ * never shown.
+ */
 export interface RedactedTextProps {
-  // Stand-in words, such as shadowhash's placeholderText. Laid out but never shown.
   children: string;
   style?: StyleProp<TextStyle>;
   numberOfLines?: number;
 }
 
-// Share of a line's height the bar covers, centred, so the lines stay apart.
+// Share of a line's height the bar covers, centred to keep the lines apart.
 const BAR_HEIGHT = 0.62;
 
 /*
- * Text drawn as one bar per line. The words are laid out in the real font and hidden, so the
- * bars wrap where text of the same word lengths would, and a blank line stays blank.
+ * Text drawn as one bar per line. The words are laid out in the real font and hidden. The bars
+ * wrap where text of the same word lengths would, and a blank line stays blank.
  */
 export const RedactedText = memo(
   ({ children, style, numberOfLines }: RedactedTextProps) => {

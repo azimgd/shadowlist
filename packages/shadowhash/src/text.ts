@@ -3,17 +3,20 @@ import { ByteReader, ByteWriter, InvalidHashError } from './bytes';
 
 /*
  * The shape of a text without its words: the length of each word and where the paragraphs
- * break. No line breaks are stored, so each device wraps the placeholder at its own width with
- * its own font, and it wraps where the real text will.
+ * break. No line breaks are stored. Each device wraps the placeholder at its own width with its
+ * own font, and it wraps where the real text will. A words shape keeps word lengths in
+ * characters, 0 for a line break. Scripts without spaces between words, such as Chinese or
+ * Japanese, keep only a length.
  */
 export type TextShape =
-  // Word lengths in characters, 0 for a line break.
   | { kind: 'words'; tokens: number[] }
-  // Scripts without spaces between words, such as Chinese or Japanese, keep only a length.
   | { kind: 'chars'; length: number };
 
+/*
+ * maxNibbles is the number of nibbles kept word by word. Past them only the word count, break
+ * count and mean length are.
+ */
 export interface TextOptions {
-  // Nibbles kept word by word. Past them only the word count, break count and mean length are.
   maxNibbles?: number;
 }
 
@@ -36,7 +39,7 @@ export function measureText(text: string): TextShape {
 }
 
 /*
- * A word of length n as nibbles. 15 stands for 14 characters with more to follow, so a nibble
+ * A word of length n as nibbles. 15 stands for 14 characters with more to follow. A nibble
  * after a 15 is never 0 and never reads as a break.
  */
 function wordNibbles(length: number): number[] {
@@ -122,7 +125,7 @@ export function readText(reader: ByteReader): TextShape | undefined {
     const runs = reader.varint();
     const runLength = runs > 0 ? reader.byte() : 0;
     const mean = reader.byte() / 16;
-    // One run of breaks after every this many words, so the paragraphs come out evenly sized.
+    // One run of breaks after every this many words keeps the paragraphs evenly sized.
     const every =
       runs > 0 ? Math.max(1, Math.floor(words / (runs + 1))) : Infinity;
     let placedRuns = 0;
@@ -149,8 +152,10 @@ export function decodeText(hash: string): TextShape | undefined {
   return readText(new ByteReader(hash));
 }
 
-// Letters about as wide on average as running text with its capitals and punctuation, so lines
-// fill and wrap as the real words do. Wider letters push a full last word onto a new line.
+/*
+ * Letters about as wide on average as running text with its capitals and punctuation. Lines fill
+ * and wrap as the real words do. Wider letters push a full last word onto a new line.
+ */
 const LETTERS = 'etaoinshrdluce';
 const WIDE_GLYPH = '口';
 
