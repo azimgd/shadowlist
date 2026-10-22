@@ -122,6 +122,7 @@ export class ShadowListKitListView extends HTMLElement {
     stickyIndices: [] as number[],
     headerView: null as HTMLElement | null,
     footerView: null as HTMLElement | null,
+    contentCrossSize: 0,
   };
 
   /*
@@ -315,19 +316,28 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Only the scroll axis scrolls. The scrollbar gutter stays, which keeps the cross size from
-   * changing when the scrollbar shows. The content keeps its size along the axis. A list
-   * connected again would otherwise lose its scroll range, and a horizontal list its
-   * scrollbar and with it the cross size.
+   * The scroll axis scrolls, and the cross axis too when contentCrossSize is set. The scrollbar
+   * gutter stays, which keeps the cross size from changing when the scrollbar shows. The content
+   * keeps its size along the axis. A list connected again would otherwise lose its scroll range,
+   * and a horizontal list its scrollbar and with it the cross size.
    */
   private applyAxisStyles(): void {
     const style = this.style;
-    style.overflowX = this.horizontal ? 'auto' : 'hidden';
-    style.overflowY = this.horizontal ? 'hidden' : 'auto';
+    const crossScrolls = this.contentCrossSize > 0;
+    style.overflowX = this.horizontal || crossScrolls ? 'auto' : 'hidden';
+    style.overflowY = !this.horizontal || crossScrolls ? 'auto' : 'hidden';
     style.scrollbarGutter = 'stable';
     const along = this.contentAlong > 0 ? `${this.contentAlong}px` : '';
-    this.content.style.width = this.horizontal ? along : '100%';
-    this.content.style.height = this.horizontal ? '100%' : along;
+    const cross = crossScrolls ? `${this.contentCrossSize}px` : '100%';
+    this.content.style.width = this.horizontal ? along : cross;
+    this.content.style.height = this.horizontal ? cross : along;
+  }
+
+  /*
+   * The scroll offset across the axis, in CSS pixels. Zero unless contentCrossSize is set.
+   */
+  get crossOffset(): number {
+    return this.horizontal ? this.scrollTop : this.scrollLeft;
   }
 
   // endregion
@@ -466,6 +476,22 @@ export class ShadowListKitListView extends HTMLElement {
    * Elements before the first item and after the last. Their size along the scroll axis is
    * their natural size at the list's cross size, followed as it changes.
    */
+  /*
+   * The content's size across the scroll axis, in CSS pixels, or 0 for the list's own. A list
+   * whose rows are wider than it, like a grid's, scrolls across too: the rows are laid out at this
+   * size, and the browser scrolls both axes. didScroll fires for either.
+   */
+  get contentCrossSize(): number {
+    return this.properties.contentCrossSize;
+  }
+  set contentCrossSize(value: number) {
+    const size = Number.isFinite(value) && value > 0 ? Math.round(value) : 0;
+    if (this.properties.contentCrossSize === size) return;
+    this.properties.contentCrossSize = size;
+    this.applyAxisStyles();
+    this.invalidateFrame();
+  }
+
   get headerView(): HTMLElement | null {
     return this.properties.headerView;
   }
@@ -777,7 +803,12 @@ export class ShadowListKitListView extends HTMLElement {
    */
   private readGeometry(): boolean {
     const along = this.horizontal ? this.clientWidth : this.clientHeight;
-    const cross = this.horizontal ? this.clientHeight : this.clientWidth;
+    const cross =
+      this.contentCrossSize > 0
+        ? this.contentCrossSize
+        : this.horizontal
+          ? this.clientHeight
+          : this.clientWidth;
     if (cross !== this.windowCross && this.windowCross > 0) {
       this.resetKeepingPosition();
     }
@@ -1316,11 +1347,16 @@ export class ShadowListKitListView extends HTMLElement {
   // region Accessibility
 
   /*
-   * A cell reads as an item of the whole list, like "item 12 of 1000".
+   * A cell reads as an item of the whole list, like "item 12 of 1000". A list given another role
+   * before it connects, such as a grid's rowgroup, leaves its cells' roles and positions to the
+   * cells. A cell given its own role keeps it without the list's positions.
    */
   private applyAccessibility(cell: ShadowListKitListCell): void {
+    if (this.getAttribute('role') !== 'list') return;
     const view = cell.view;
-    if (!view.getAttribute('role')) view.setAttribute('role', 'listitem');
+    const role = view.getAttribute('role');
+    if (!role) view.setAttribute('role', 'listitem');
+    else if (role !== 'listitem') return;
     const position = String(cell.index + 1);
     const size = String(this.itemCount);
     if (view.getAttribute('aria-posinset') !== position) {

@@ -535,3 +535,38 @@ browserTest('prefetch hears items ahead of the mounted rows', async (tab) => {
   assert.ok(prefetch.first.length > 0);
   assert.ok(prefetch.first.every((index) => index > prefetch.mounted));
 });
+
+browserTest(
+  'cells read as items of the list unless the list has another role',
+  async (tab) => {
+    const roles = `(async () => {
+      await frames(3);
+      const cell = [...list.mounted.values()].find((at) => at.mountGeneration > 0);
+      return {
+        list: list.getAttribute('role'),
+        cell: cell.view.getAttribute('role'),
+        position: cell.view.getAttribute('aria-posinset'),
+        size: cell.view.getAttribute('aria-setsize'),
+        index: cell.index,
+      };
+    })()`;
+    await makeList(tab, '{ count: 50 }');
+    const list = await tab.evaluate<Record<string, unknown>>(roles);
+    assert.deepEqual(list, {
+      list: 'list',
+      cell: 'listitem',
+      position: String((list.index as number) + 1),
+      size: '50',
+      index: list.index,
+    });
+    await makeList(tab, "{ count: 50, role: 'rowgroup' }");
+    const grid = await tab.evaluate<Record<string, unknown>>(roles);
+    assert.deepEqual(grid, {
+      list: 'rowgroup',
+      cell: null,
+      position: null,
+      size: null,
+      index: grid.index,
+    });
+  }
+);

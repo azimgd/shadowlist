@@ -64,7 +64,7 @@ optional. `prefetchDataSource` hears `prefetchItems` and `cancelPrefetchingForIt
 Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`,
 `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`
 (`ShadowListKitSnapAlignment.START`, `CENTER` or `END`, the strings `'start'`, `'center'` and `'end'`),
-`stickyIndices`, `headerView`, `footerView`. Data: `reloadData`, `insertItems`, `deleteItems`,
+`stickyIndices`, `headerView`, `footerView`, `contentCrossSize`. Data: `reloadData`, `insertItems`, `deleteItems`,
 `reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates(updates, completion)`
 with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`, `visibleCells`, `visibleRange`,
 `rectForItem` (content coordinates, header included), `contentSize`, `anchorState`, `scrollToItem`, `scrollToStart`,
@@ -77,6 +77,8 @@ with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`
 - A cell's `view` is placed at an exact frame. An item whose content changed size needs `reloadItems`, which
   measures it again.
 - The list needs a size from its styles. Only the scroll axis scrolls, and the scrollbar gutter stays reserved.
+  `contentCrossSize` makes the content that wide (or tall, for a horizontal list) and lets the browser scroll across
+  too, as a grid's rows need. `crossOffset` reads that position, and `didScroll` fires for either axis.
 - Masonry is round robin: item `i` goes in column `i % numberOfColumns`.
 - The core loads on its own when a list connects before `loadShadowListKit` was called.
 
@@ -91,7 +93,7 @@ The view's own behavior:
 - Animated scroll commands step once per animation frame. A wheel or a touch stops them.
 - The core is created when the list lays out and destroyed when it disconnects. A list never connected leaves its
   core to a `FinalizationRegistry`.
-- Accessibility: the list has `role="list"`, each cell `role="listitem"` with `aria-posinset` and `aria-setsize`.
+- Accessibility: the list has `role="list"`, each cell `role="listitem"` with `aria-posinset` and `aria-setsize`. A list given another role before it connects, such as `rowgroup` in a grid, leaves its cells' roles and positions to the cells. A cell with its own role keeps it.
 
 Not in the web kit yet: sections, selection, drag reorder, swipe actions, context menus, pull to refresh, separators
 and change animations.
