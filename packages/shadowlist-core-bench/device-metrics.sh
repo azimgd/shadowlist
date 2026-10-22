@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+set -euo pipefail
 # Measure the example app on an Android device while it scrolls fast.
 #
 #   ./device-metrics.sh <label> <screen> [flings] [swipe_ms]
@@ -20,8 +20,6 @@
 #   SHOT_COUNT=90      screenshots to take; 0 skips blank cell sampling and only times frames
 #   VIEWPORT_TOP=0.16 VIEWPORT_BOTTOM=0.76
 #                      where the list sits, as fractions of screen height. Defaults fit Chat.
-#
-set -euo pipefail
 
 LABEL="${1:?usage: device-metrics.sh <label> <screen> [flings] [swipe_ms]}"
 SCREEN="${2:?usage: device-metrics.sh <label> <screen> [flings] [swipe_ms]}"

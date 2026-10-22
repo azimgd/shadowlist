@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+set -uo pipefail
 # Scroll benchmark across list engines. Each run appends one [SLBENCH] JSON line.
 #
 #   ./bench.sh <sim|device> <udid> <label>
@@ -14,8 +14,6 @@
 #   AXES=y                                   y, x or xy, comma separated. One result line per axis.
 #
 # Results: ../results/<label>/runs.jsonl, then ./summarize.py ../results/<label>/runs.jsonl
-#
-set -uo pipefail
 KIND="${1:?sim|device}"; UDID="${2:?udid}"; LABEL="${3:?label}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINES="${ENGINES:-sl table table-auto sl-auto}"

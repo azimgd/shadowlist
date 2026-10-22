@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+set -euo pipefail
 # Build and run the ShadowList core benchmark.
 #
 #   ./run.sh <label> [--quick]
@@ -10,8 +10,6 @@
 # Environment:
 #   ADB=adb                  adb command; may carry a serial, e.g. "adb -s emulator-5554"
 #   ANDROID_NDK_HOME=<path>  NDK to cross-compile with (default: newest under ANDROID_HOME)
-#
-set -euo pipefail
 
 LABEL="${1:?usage: run.sh <label> [--quick]}"
 shift || true

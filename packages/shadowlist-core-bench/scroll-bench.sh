@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+set -euo pipefail
 # Fling the benchmark screens the same way on every run and report frame times and CPU per screen.
 #
 #   ./scroll-bench.sh <ios|android> <label>
@@ -18,8 +18,6 @@
 #   OVERSCAN=<rows> (SLOverscan, overscanRows on Feed and Chat)
 #   iOS: UDID, IOS_FLING_SPEED=5000 (pt/s at the start of each in-app fling).  Android: ADB="adb -s emulator-5570", SHOT_COUNT=40,
 #            EMULATOR_AVD=sl_perf_android, OTHER_EMU_MAX=30 (other emulators' CPU %)
-#
-set -euo pipefail
 
 PLATFORM="${1:?usage: scroll-bench.sh <ios|android> <label>}"
 LABEL="${2:?usage: scroll-bench.sh <ios|android> <label>}"

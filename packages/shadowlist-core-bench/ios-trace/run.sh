@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+set -euo pipefail
 # Run one scenario on an iOS simulator with tracing on, then analyze the log.
 #
 #   ./run.sh <scenario-file|name> [label]
@@ -24,8 +24,6 @@
 # Also SESSION, OUT_DIR, AD for the agent-device command, LOG for the log path, and
 # LAUNCH_ARGS for extra launch arguments, e.g. "-SLCount 1000".
 # Prints the analyzer summary. The raw log is $OUT_DIR/<label>.<scenario>.log.
-#
-set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCENARIO="${1:?usage: run.sh <scenario> [label]}"
