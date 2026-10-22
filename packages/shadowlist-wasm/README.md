@@ -93,7 +93,7 @@ The view's own behavior:
 - Animated scroll commands step once per animation frame. A wheel or a touch stops them.
 - The core is created when the list lays out and destroyed when it disconnects. A list never connected leaves its
   core to a `FinalizationRegistry`.
-- Accessibility: the list has `role="list"`, each cell `role="listitem"` with `aria-posinset` and `aria-setsize`.
+- Accessibility: the list has `role="list"`, each cell `role="listitem"` with `aria-posinset` and `aria-setsize`. A list given another role before it connects, such as `rowgroup` in a grid, leaves its cells' roles and positions to the cells. A cell with its own role keeps it.
 
 Not in the web kit yet: sections, selection, drag reorder, swipe actions, context menus, pull to refresh, separators
 and change animations.
