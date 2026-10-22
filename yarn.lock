@@ -9317,6 +9317,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"shadowlist-wasm@workspace:packages/shadowlist-wasm":
+  version: 0.0.0-use.local
+  resolution: "shadowlist-wasm@workspace:packages/shadowlist-wasm"
+  languageName: unknown
+  linkType: soft
+
 "shadowlist@workspace:*, shadowlist@workspace:packages/shadowlist-fabric":
   version: 0.0.0-use.local
   resolution: "shadowlist@workspace:packages/shadowlist-fabric"
