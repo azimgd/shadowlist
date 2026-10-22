@@ -37,8 +37,7 @@
     "test": "jest",
     "clean": "del-cli android/build lib",
     "prepare": "node scripts/vendor-core.js && bob build",
-    "typecheck": "tsc",
-    "lint": "eslint \"**/*.{js,ts,tsx}\""
+    "typecheck": "tsc"
   },
   "keywords": [
     "react-native",
@@ -135,23 +134,5 @@
         }
       }
     }
-  },
-  "prettier": {
-    "quoteProps": "consistent",
-    "singleQuote": true,
-    "tabWidth": 2,
-    "trailingComma": "es5",
-    "useTabs": false
-  },
-  "create-react-native-library": {
-    "type": "fabric-view",
-    "languages": "kotlin-objc",
-    "tools": [
-      "eslint",
-      "jest",
-      "lefthook",
-      "release-it"
-    ],
-    "version": "0.62.0"
   }
 }

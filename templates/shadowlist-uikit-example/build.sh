@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build the example for a simulator or a device. Prints only errors and the result.
+set -uo pipefail
+# Builds the example for a simulator or a device. Prints only errors and the result.
 #   ./build.sh sim <udid> [Release|Debug]
 #   ./build.sh device <udid> [Release|Debug]
 # SHADOWLIST_DEBUG_LOG=1 ./build.sh ... compiles in the core's [SL] debug log.
-set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KIND="${1:?sim|device}"; UDID="${2:?udid}"; CONFIG="${3:-Release}"
 cd "$HERE" && xcodegen generate >/dev/null

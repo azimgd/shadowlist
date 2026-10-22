@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build the wasm core and the TypeScript into dist/. Prints only errors and the result.
+set -uo pipefail
+# Builds the wasm core and the TypeScript into dist/. Prints only errors and the result.
 #   ./build.sh [Release|Debug]
 # Emscripten comes from the PATH or from emsdk at $EMSDK (default ~/emsdk).
 # SHADOWLIST_DEBUG_LOG=1 ./build.sh compiles in the core's [SL] debug log.
-set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG="${1:-Release}"
 if ! command -v emcmake >/dev/null; then
