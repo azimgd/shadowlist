@@ -1,5 +1,5 @@
-import { describe, expect, it } from '@jest/globals';
 import { View } from 'react-native';
+import { describe, expect, it } from '@jest/globals';
 import { defaultKeyExtractor } from '../virtualizer/helpers';
 import { flattenSections } from '../virtualizer/sectionRows';
 import type { SectionListProps, ShadowListProps } from '../types';

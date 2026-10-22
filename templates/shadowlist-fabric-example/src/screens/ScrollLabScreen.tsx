@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import type {
-  AnchorState,
-  ScrollEvent,
-  ScrollToIndexFailedInfo,
-  ShadowListCommands,
-  ViewabilityConfigCallbackPair,
+import {
+  ShadowList,
+  type AnchorState,
+  type ScrollEvent,
+  type ScrollToIndexFailedInfo,
+  type ShadowListCommands,
+  type ViewabilityConfigCallbackPair,
 } from 'shadowlist';
-import { ShadowList } from 'shadowlist';
 import { getViewableRange } from 'shadowlist-utils';
 import {
   ItemSeparator,

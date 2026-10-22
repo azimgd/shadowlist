@@ -1,5 +1,8 @@
-import type { TurboModule, CodegenTypes } from 'react-native';
-import { TurboModuleRegistry } from 'react-native';
+import {
+  TurboModuleRegistry,
+  type CodegenTypes,
+  type TurboModule,
+} from 'react-native';
 
 /*
  * One frame of a keyboard animation, sent by native as it runs. All values are in dp.
