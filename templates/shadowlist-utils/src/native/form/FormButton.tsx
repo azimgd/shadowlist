@@ -6,6 +6,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { useLargeText } from '../hooks/useLargeText';
 import { createStyles } from '../theme';
 
 export interface FormButtonProps {
@@ -16,11 +17,13 @@ export interface FormButtonProps {
 }
 
 /*
- * A full-width button in a card of its own under a form, such as "Remove item".
+ * A full-width button in a card of its own under a form, such as "Remove item". At accessibility
+ * text sizes its label wraps to a second line instead of truncating.
  */
 export const FormButton = memo(
   ({ label, onPress, destructive = false, style }: FormButtonProps) => {
     const styles = useStyles();
+    const largeText = useLargeText();
     return (
       <Pressable
         accessibilityRole="button"
@@ -34,7 +37,7 @@ export const FormButton = memo(
       >
         <Text
           style={[styles.label, destructive && styles.destructive]}
-          numberOfLines={1}
+          numberOfLines={largeText ? 2 : 1}
         >
           {label}
         </Text>
@@ -48,6 +51,7 @@ const useStyles = createStyles(({ colors, typography, grouped, tapTarget }) =>
     button: {
       minHeight: tapTarget + 6,
       paddingHorizontal: grouped.rowInset,
+      paddingVertical: 8,
       borderRadius: grouped.radius,
       alignItems: 'center',
       justifyContent: 'center',
@@ -56,6 +60,7 @@ const useStyles = createStyles(({ colors, typography, grouped, tapTarget }) =>
     label: {
       ...typography.body,
       color: colors.accent,
+      textAlign: 'center',
     },
     destructive: {
       color: colors.red,
