@@ -16,7 +16,8 @@ export interface DashedButtonProps {
 }
 
 /*
- * A full-width dashed outline that adds one more of something: "Add sort".
+ * A full-width dashed outline that adds one more of something: "Add sort". It is at least a tap
+ * target high and grows with large text instead of clipping its label.
  */
 export const DashedButton = memo(
   ({ label, onPress, disabled = false, style }: DashedButtonProps) => {
@@ -44,7 +45,8 @@ export const DashedButton = memo(
 const useStyles = createStyles(({ colors, typography, tapTarget }) =>
   StyleSheet.create({
     button: {
-      height: tapTarget,
+      minHeight: tapTarget,
+      paddingVertical: 8,
       borderRadius: 10,
       borderWidth: 1,
       borderStyle: 'dashed',
@@ -57,6 +59,7 @@ const useStyles = createStyles(({ colors, typography, tapTarget }) =>
       ...typography.body,
       fontWeight: '500',
       color: colors.accent,
+      textAlign: 'center',
     },
     pressed: {
       opacity: 0.55,
