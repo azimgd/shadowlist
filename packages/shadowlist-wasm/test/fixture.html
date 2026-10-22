@@ -155,6 +155,7 @@
             Array.from({ length: count }, (_, at) => start + at)
           );
         };
+        if (options.role) list.setAttribute('role', options.role);
         list.reloadData();
         if (options.attach !== false) {
           document.body.replaceChildren(list);

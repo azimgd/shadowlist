@@ -1347,11 +1347,16 @@ export class ShadowListKitListView extends HTMLElement {
   // region Accessibility
 
   /*
-   * A cell reads as an item of the whole list, like "item 12 of 1000".
+   * A cell reads as an item of the whole list, like "item 12 of 1000". A list given another role
+   * before it connects, such as a grid's rowgroup, leaves its cells' roles and positions to the
+   * cells. A cell given its own role keeps it without the list's positions.
    */
   private applyAccessibility(cell: ShadowListKitListCell): void {
+    if (this.getAttribute('role') !== 'list') return;
     const view = cell.view;
-    if (!view.getAttribute('role')) view.setAttribute('role', 'listitem');
+    const role = view.getAttribute('role');
+    if (!role) view.setAttribute('role', 'listitem');
+    else if (role !== 'listitem') return;
     const position = String(cell.index + 1);
     const size = String(this.itemCount);
     if (view.getAttribute('aria-posinset') !== position) {
