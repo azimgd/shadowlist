@@ -17,10 +17,13 @@
     "react-native": "0.85.0",
     "react-native-gesture-handler": "3.0.0",
     "react-native-haptic-feedback": "3.0.0",
+    "react-native-mmkv": "4.2.0",
+    "react-native-nitro-modules": "0.37.1",
     "react-native-reanimated": "4.4.1",
     "react-native-safe-area-context": "5.8.0",
     "react-native-screens": "patch:react-native-screens@npm%3A4.25.2#~/.yarn/patches/react-native-screens-npm-4.25.2-0de6719d95.patch",
-    "react-native-worklets": "0.9.1"
+    "react-native-worklets": "0.9.1",
+    "shadowhash": "workspace:*"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
