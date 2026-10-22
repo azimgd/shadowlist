@@ -31,6 +31,8 @@ export interface TemplateListProps<R extends TemplateRow> extends Pick<
   | 'onScroll'
   | 'scrollEventThrottle'
   | 'keyboardDismissMode'
+  | 'showsHorizontalScrollIndicator'
+  | 'showsVerticalScrollIndicator'
 > {
   data: ReadonlyArray<R>;
   templates: TemplateMap<R>;
@@ -47,7 +49,8 @@ export interface TemplateListProps<R extends TemplateRow> extends Pick<
 /*
  * A ShadowList of mixed rows. Each row is a plain object with a `kind`, and `templates` maps
  * every kind to its renderer. A screen describes what it shows as data and defines each row
- * in one place. Selection, swipe actions and menus pass through to the list.
+ * in one place. Selection, swipe actions, menus and the scroll indicators pass through to the
+ * list.
  */
 export const TemplateList = <R extends TemplateRow>({
   data,
