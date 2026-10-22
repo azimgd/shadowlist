@@ -219,8 +219,10 @@ test('a measure that calls into the core keeps the pass slots', () => {
 
 test('the visible range is the rows on screen, not the measured range', () => {
   const { core } = laidOutCore(100, 1000);
-  // The first pass measures the rows at the offset. Rows 0 to 4 keep the estimate of 100 above
-  // them, so rows 15 to 24 fill the viewport at 1000.
+  /*
+   * The first pass measures the rows at the offset. Rows 0 to 4 keep the estimate of 100 above
+   * them, and rows 15 to 24 fill the viewport at 1000.
+   */
   runPasses(core, 1000);
   assert.deepEqual(core.visibleRange(), { low: 15, high: 24 });
   assert.ok(core.pass[ShadowListKitCore.PASS_OUT_MEASURED_LOW]! < 15);

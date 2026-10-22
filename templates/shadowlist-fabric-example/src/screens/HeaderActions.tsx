@@ -1,5 +1,10 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import type { ReactNode, RefObject } from 'react';
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {
   Modal,
   Platform,
@@ -9,14 +14,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type ParamListBase } from '@react-navigation/native';
 import type {
   NativeStackHeaderItem,
   NativeStackHeaderItemMenuAction,
   NativeStackHeaderItemMenuSubmenu,
   NativeStackNavigationProp,
 } from '@react-navigation/native-stack';
-import type { ParamListBase } from '@react-navigation/native';
 import {
   CheckIcon,
   ChevronIcon,

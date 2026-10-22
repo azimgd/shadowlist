@@ -112,8 +112,8 @@ Then open `http://localhost:8080/templates/shadowlist-web-example/?SLRoute=Chat&
 
 ## Tests
 
-`npm test` runs `test/ShadowListKitCore.test.ts` against `dist/` in Node 22 or newer, without a browser. Run
-`./build.sh` first.
+`yarn test:wasm` at the repo root (`npm test` here) runs `test/ShadowListKitCore.test.ts` against `dist/` in Node 22
+or newer, without a browser. Run `yarn build:wasm` (`./build.sh` here) first.
 
 ## Debug log
 

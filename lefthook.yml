@@ -2,10 +2,10 @@ pre-commit:
   parallel: true
   commands:
     lint:
-      glob: '*.{js,ts,tsx}'
+      glob: '*.{js,cjs,mjs,ts,tsx}'
       run: yarn eslint --no-warn-ignored --max-warnings 0 {staged_files}
     format:
-      glob: '*.{js,ts,tsx,json,md,yml,yaml}'
+      glob: '*.{js,cjs,mjs,ts,tsx,json,md,yml,yaml}'
       run: yarn prettier --check {staged_files}
 
 pre-push:

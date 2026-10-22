@@ -23,7 +23,7 @@
     "./dist/index.js"
   ],
   "scripts": {
-    "build": "./build.sh",
+    "build": "bash build.sh",
     "test": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

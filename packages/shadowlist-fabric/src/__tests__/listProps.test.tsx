@@ -1,6 +1,6 @@
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import type { ComponentType, ReactElement } from 'react';
 import { Platform, Text } from 'react-native';
+import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import ShadowList from '../ShadowList';
 import ItemActionsView from '../ItemActionsView';

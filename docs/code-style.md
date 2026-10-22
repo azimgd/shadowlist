@@ -142,11 +142,11 @@ Every platform uses the same word for each concept and only changes the shape to
 
 ## Comments
 
-Comments are short narration of what happens, not explanations of how. A comment longer than one line, or any comment above a declaration, is a `/* */` block with one `*` per line. A one-line comment inside a body stays `//`. Interface and type blocks carry no comments: TypeScript `interface` and `type` bodies and Objective-C `@interface` blocks list members only. The class doc goes in one block above the `@interface`. Contracts the user implements, Objective-C `@protocol` and Kotlin `interface` bodies such as the data source and delegate, keep one block above each method. Delete a comment when the code already says it. Avoid the "X, so Y" pattern in comments and docs: split it into two sentences, write "Y because X", or drop the clause.
+Comments are short narration of what happens, not explanations of how. A comment longer than one line, or any comment above a declaration, is a `/* */` block with one `*` per line. A one-line comment inside a body stays `//`. Interface and type blocks carry no comments: TypeScript `interface` and `type` bodies and Objective-C `@interface` blocks list members only. What a member means goes in the block above the declaration, and the class doc goes in one block above the `@interface`. Contracts the user implements, Objective-C `@protocol` and Kotlin `interface` bodies such as the data source and delegate, keep one block above each method. Delete a comment when the code already says it. Avoid the "X, so Y" pattern in comments and docs: split it into two sentences, write "Y because X", or drop the clause. No `--` or em dash asides: make the aside its own sentence or drop it.
 
 ## Structure
 
-New code follows the file and siblings it lives next to: include and import order, initializer style, file layout and export style. Shared logic goes in `packages/shadowlist-core/host`, and the iOS, Android and Fabric adapters call it rather than copying it. Unused code is deleted, not commented out.
+New code follows the file and siblings it lives next to: include and import order, initializer style, file layout and export style. TypeScript imports come in this order: `react`, `react-native`, other packages, then relative imports, with one import statement per module. `local/import-order` and `no-duplicate-imports` in `eslint.config.mjs` check it. Shared logic goes in `packages/shadowlist-core/host`, and the iOS, Android and Fabric adapters call it rather than copying it. Unused code is deleted, not commented out.
 
 Use named constants, never bare numbers for event types or slots. Enums mirrored across C++, Objective-C, Kotlin and Java, such as out slots and state keys, keep the same names and numbers. Removing a feature removes its docs, package entries, trace macros, includes and test helpers too.
 
@@ -163,4 +163,4 @@ Use named constants, never bare numbers for event types or slots. Enums mirrored
 - Fabric or JS changed: `yarn typecheck`, `yarn test` and `yarn lint` pass.
 - A new or renamed public word has its row in the Public API words table.
 - Comments follow the block rules and no `@interface` or TS `interface` / `type` body has one.
-- No "X, so Y" in new comments, docs or commit messages.
+- No "X, so Y" and no `--` asides in new comments, docs or commit messages.

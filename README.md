@@ -135,6 +135,7 @@ list.reloadData();
 | `templates/shadowlist-uikit-example` | UIKit example app |
 | `templates/shadowlist-android-example` | Android example app |
 | `templates/shadowlist-web-example` | Web example app |
+| `docs` | Code style |
 
 ## Example apps
 
@@ -170,3 +171,28 @@ benchmark in `Bench/`: `Bench/bench.sh` drives the example at a constant speed, 
 results.
 
 The web example documents its flags in [its package README](packages/shadowlist-wasm/README.md#example-app).
+
+## Development
+
+| Command | What it does |
+| --- | --- |
+| `yarn lint` | ESLint over the repo |
+| `yarn typecheck` | TypeScript for the library, the utils, the example apps and `shadowlist-wasm` |
+| `yarn test` | Jest for `shadowlist` and `shadowlist-utils` |
+| `yarn test:core` | Builds `packages/shadowlist-core-tests` with CMake and runs it with ctest |
+| `yarn build:wasm` | Builds `shadowlist-wasm` into its `dist/` with Emscripten |
+| `yarn test:wasm` | Node tests for `shadowlist-wasm`, after `yarn build:wasm` |
+| `yarn build` | Vendors the core into the package and builds it with bob |
+| `yarn clean` | Removes the package's build output |
+| `yarn format` | Prettier over the repo. `format:check` only checks. |
+| `yarn docs:check` | Checks README links, headings, compact tables, requirements and examples |
+
+Lefthook runs ESLint and Prettier on staged files before a commit and `yarn typecheck` before a push. CI runs lint,
+formatting, typecheck, the README checks, jest, the core tests, the WebAssembly tests and the native builds.
+
+## Docs
+
+| Doc | Contents |
+| --- | --- |
+| [Code style](docs/code-style.md) | Naming, comments and the checklist for every package |
+| [CHANGELOG.md](CHANGELOG.md) | Releases |
