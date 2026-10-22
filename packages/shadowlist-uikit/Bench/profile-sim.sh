@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
+set -uo pipefail
 # Sample the main thread of a simulator app during a bench run with macOS sample.
 #   ./profile-sim.sh <udid> <bundle> <out.txt> <launch args...>
-set -uo pipefail
 U="$1"; BUNDLE="$2"; OUT="$3"; shift 3
 PID=$(xcrun simctl launch --terminate-running-process "$U" "$BUNDLE" -SLBench 1 -SLBenchExit 1 -SLBenchDelay 3 "$@" | awk '{print $2}')
 sleep 3.3

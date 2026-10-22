@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+set -euo pipefail
 # Perf and correctness suite: aggressive flings on the benchmark screens at several list
 # sizes, on an iOS simulator or an Android device, with MVCP and virtualization checks.
 #
@@ -22,8 +22,6 @@
 #            (Debug, or Release with SHADOWLIST_FRAME_TRACE_COMPILED=1); Debug needs Metro.
 #   Android: ADB="adb -s emulator-5554" (or ANDROID_SERIAL), SHOT_COUNT=60, BACKGROUND=000000.
 #            [SLC] needs a debug build or a release built with -PshadowlistFrameTrace.
-#
-set -euo pipefail
 
 PLATFORM="${1:?usage: perf-suite.sh <ios|android> <label>}"
 LABEL="${2:?usage: perf-suite.sh <ios|android> <label>}"

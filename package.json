@@ -7,6 +7,7 @@
   "packageManager": "yarn@4.11.0",
   "workspaces": [
     "packages/shadowlist-fabric",
+    "packages/shadowlist-wasm",
     "templates/shadowlist-utils",
     "templates/shadowlist-fabric-example",
     "templates/shadowlist-macos-example"
@@ -16,8 +17,8 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc -p packages/shadowlist-fabric/tsconfig.json && tsc -p templates/shadowlist-fabric-example/tsconfig.json && tsc -p templates/shadowlist-utils/tsconfig.json && tsc -p templates/shadowlist-macos-example/tsconfig.json --noEmit && tsc -b templates/shadowlist-web-example",
     "test": "yarn workspace shadowlist run test && yarn workspace shadowlist-utils run test",
-    "test:wasm": "npm --prefix packages/shadowlist-wasm test",
-    "build:wasm": "packages/shadowlist-wasm/build.sh",
+    "test:wasm": "yarn workspace shadowlist-wasm run test",
+    "build:wasm": "yarn workspace shadowlist-wasm run build",
     "test:core": "cmake -S packages/shadowlist-core-tests -B packages/shadowlist-core-tests/build && cmake --build packages/shadowlist-core-tests/build && ctest --test-dir packages/shadowlist-core-tests/build --output-on-failure",
     "build": "yarn workspace shadowlist run prepare",
     "clean": "yarn workspace shadowlist run clean",

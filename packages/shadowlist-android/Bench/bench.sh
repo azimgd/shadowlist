@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#
+set -uo pipefail
 # Scroll benchmark across list engines on Android. Each run appends one SLBENCH JSON line.
 #
 #   ./bench.sh <label>                     (ANDROID_SERIAL picks the device)
@@ -16,8 +16,6 @@
 #   AXES=y                                   y, x or xy, comma separated. One result line per axis.
 #
 # Results: ../results/<label>/runs.jsonl, then ./summarize.py ../results/<label>/runs.jsonl
-#
-set -uo pipefail
 LABEL="${1:?label}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENGINES="${ENGINES:-sl recycler recycler-auto sl-auto}"
