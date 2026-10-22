@@ -64,7 +64,7 @@ optional. `prefetchDataSource` hears `prefetchItems` and `cancelPrefetchingForIt
 Properties: `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`,
 `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`
 (`ShadowListKitSnapAlignment.START`, `CENTER` or `END`, the strings `'start'`, `'center'` and `'end'`),
-`stickyIndices`, `headerView`, `footerView`. Data: `reloadData`, `insertItems`, `deleteItems`,
+`stickyIndices`, `headerView`, `footerView`, `contentCrossSize`. Data: `reloadData`, `insertItems`, `deleteItems`,
 `reloadItems(indices, payload)`, `moveItem(sourceIndex, destinationIndex)`, `performBatchUpdates(updates, completion)`
 with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`, `visibleCells`, `visibleRange`,
 `rectForItem` (content coordinates, header included), `contentSize`, `anchorState`, `scrollToItem`, `scrollToStart`,
@@ -77,6 +77,8 @@ with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`
 - A cell's `view` is placed at an exact frame. An item whose content changed size needs `reloadItems`, which
   measures it again.
 - The list needs a size from its styles. Only the scroll axis scrolls, and the scrollbar gutter stays reserved.
+  `contentCrossSize` makes the content that wide (or tall, for a horizontal list) and lets the browser scroll across
+  too, as a grid's rows need. `crossOffset` reads that position, and `didScroll` fires for either axis.
 - Masonry is round robin: item `i` goes in column `i % numberOfColumns`.
 - The core loads on its own when a list connects before `loadShadowListKit` was called.
 
