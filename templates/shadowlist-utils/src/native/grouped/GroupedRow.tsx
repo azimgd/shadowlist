@@ -35,7 +35,7 @@ export interface GroupedRowProps extends Pick<
 
 /*
  * A card row that leads somewhere: a title over a subtitle, then a chevron. Swipe actions or
- * a menu put it in Grouped.Actions. At accessibility text sizes the title wraps to two lines and
+ * a menu put it in Grouped.Actions. At accessibility text sizes the title wraps to three lines and
  * the subtitle to at least three, instead of truncating.
  */
 export const GroupedRow = memo(
@@ -99,7 +99,7 @@ export const GroupedRow = memo(
         {leading}
         <View style={[styles.body, separated && styles.separated]}>
           <View style={styles.text}>
-            <Text style={styles.title} numberOfLines={largeText ? 2 : 1}>
+            <Text style={styles.title} numberOfLines={largeText ? 3 : 1}>
               {title}
             </Text>
             {subtitle !== undefined ? (
