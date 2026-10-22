@@ -147,8 +147,10 @@ if (
   );
 }
 
-// Compile standalone exported examples in memory using the example app's dependency resolution.
-// Short JSX fragments rely on application variables; their complete linked screens run in yarn typecheck.
+/*
+ * Standalone exported examples compile in memory with the example app's dependency resolution.
+ * Short JSX fragments read the app's variables. Their complete linked screens run in yarn typecheck.
+ */
 const examples = new Map();
 for (const [file, source] of documents) {
   for (const match of source.matchAll(/^```tsx\n([\s\S]*?)^```/gm)) {
