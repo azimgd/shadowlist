@@ -570,3 +570,38 @@ browserTest(
     });
   }
 );
+
+browserTest(
+  'a batch lands as one change and applyChanges reloads changed versions',
+  async (tab) => {
+    await makeList(tab, '{ count: 20 }');
+    const result = await tab.evaluate<{
+      keys: string[];
+      reloaded: number[];
+      again: number[];
+    }>(`(async () => {
+      const ids = list.state.ids;
+      list.performBatchUpdates(() => {
+        // Delete row 1, move row 3 to the front, insert a new row at the end.
+        list.state.ids = [ids[3], ids[0], ids[2], ...ids.slice(4), 500];
+        list.deleteItems([1]);
+        list.moveItem(3, 0);
+        list.insertItems([19]);
+      });
+      await frames(2);
+      const keys = list.keys.slice(0, 4).concat(list.keys.slice(-1));
+      const versions = new Map(list.state.ids.map((id) => [id, 'v1']));
+      list.dataSource.contentVersionForItem = (_, index) =>
+        versions.get(list.state.ids[index]);
+      list.reloadData();
+      versions.set(list.state.ids[2], 'v2');
+      versions.set(list.state.ids[5], 7);
+      const reloaded = list.applyChanges().reloadedIndices;
+      const again = list.applyChanges().reloadedIndices;
+      return { keys, reloaded, again };
+    })()`);
+    assert.deepEqual(result.keys, ['k3', 'k0', 'k2', 'k4', 'k500']);
+    assert.deepEqual(result.reloaded, [2, 5]);
+    assert.deepEqual(result.again, []);
+  }
+);

@@ -77,8 +77,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 
 - (void)reloadData
 {
-  if (_batchDepth > 0) {
-    _batchNeedsReload = YES;
+  if (_batch.isCollecting()) {
+    _batch.markNeedsReload();
     return;
   }
   std::vector<std::string> keys = [self readRowKeys];
@@ -127,9 +127,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   if (indices.count == 0) {
     return;
   }
-  if (_batchDepth > 0) {
-    std::vector<std::size_t> inserted = ShadowListKitIndices(indices);
-    _batch.inserted.insert(_batch.inserted.end(), inserted.begin(), inserted.end());
+  if (_batch.isCollecting()) {
+    _batch.addInserted(ShadowListKitIndices(indices));
     return;
   }
   if ([self hasSections]) {
@@ -157,9 +156,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   if (indices.count == 0) {
     return;
   }
-  if (_batchDepth > 0) {
-    std::vector<std::size_t> deleted = ShadowListKitIndices(indices);
-    _batch.deleted.insert(_batch.deleted.end(), deleted.begin(), deleted.end());
+  if (_batch.isCollecting()) {
+    _batch.addDeleted(ShadowListKitIndices(indices));
     return;
   }
   if ([self hasSections]) {
@@ -191,9 +189,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 
 - (void)reloadItemsAtIndices:(NSIndexSet *)indices payload:(id)payload
 {
-  if (_batchDepth > 0) {
-    std::vector<std::size_t> reloaded = ShadowListKitIndices(indices);
-    _batch.reloaded.insert(_batch.reloaded.end(), reloaded.begin(), reloaded.end());
+  if (_batch.isCollecting()) {
+    _batch.addReloaded(ShadowListKitIndices(indices));
     _batchPayload = payload;
     return;
   }
@@ -239,18 +236,17 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     return;
   }
   [self performBatchUpdates:^{
-    self->_batch.moved.push_back({(std::size_t)sourceIndex, (std::size_t)destinationIndex});
+    self->_batch.addMoved((std::size_t)sourceIndex, (std::size_t)destinationIndex);
   } completion:nil];
 }
 
 - (void)performBatchUpdates:(void (NS_NOESCAPE ^)(void))updates completion:(void (^)(BOOL))completion
 {
-  ++_batchDepth;
+  _batch.begin();
   if (updates) {
     updates();
   }
-  --_batchDepth;
-  if (_batchDepth == 0) {
+  if (_batch.end()) {
     [self commitBatch];
   }
   if (!completion) {
@@ -276,15 +272,14 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
  */
 - (void)commitBatch
 {
-  BatchUpdate batch = std::move(_batch);
-  _batch = BatchUpdate{};
+  CollectedBatch collected = _batch.take();
   id payload = _batchPayload;
   _batchPayload = nil;
-  BOOL needsReload = _batchNeedsReload;
-  _batchNeedsReload = NO;
-  if (batch.isEmpty() && !needsReload) {
+  if (collected.isEmpty()) {
     return;
   }
+  const BatchUpdate& batch = collected.update;
+  BOOL needsReload = collected.needsReload;
   // The reloaded rows by key, from the data before.
   std::unordered_set<std::string> reloadedKeys = keysOfRows(_driver.getKeys(), [self rowsOfItems:batch.reloaded]);
   std::vector<std::string> next;
@@ -430,7 +425,7 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
  */
 - (void)layoutDataChange
 {
-  if (!self.window || _inLayoutSubviews || _batchDepth > 0) {
+  if (!self.window || _inLayoutSubviews || _batch.isCollecting()) {
     return;
   }
   [self layoutIfNeeded];

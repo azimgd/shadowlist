@@ -1,6 +1,8 @@
 #include <shadowlist-core/host/ListUpdate.hpp>
 
 #include <algorithm>
+#include <iterator>
+#include <utility>
 
 namespace azimgd::shadowlist {
 
@@ -68,25 +70,77 @@ std::vector<std::size_t> rowsOfKeys(
   return rows;
 }
 
-void ContentVersions::record(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions) {
-  versions_.clear();
-  versions_.reserve(itemKeys.size());
-  for (std::size_t item = 0; item < itemKeys.size() && item < versions.size(); ++item) {
-    versions_.emplace(itemKeys[item], versions[item]);
+bool BatchCollector::end() {
+  if (depth_ == 0) {
+    return false;
   }
+  return --depth_ == 0;
+}
+
+void BatchCollector::addDeleted(const std::vector<std::size_t>& indices) {
+  batch_.update.deleted.insert(batch_.update.deleted.end(), indices.begin(), indices.end());
+}
+
+void BatchCollector::addInserted(const std::vector<std::size_t>& indices) {
+  batch_.update.inserted.insert(batch_.update.inserted.end(), indices.begin(), indices.end());
+}
+
+void BatchCollector::addMoved(std::size_t from, std::size_t to) {
+  batch_.update.moved.push_back({from, to});
+}
+
+void BatchCollector::addReloaded(const std::vector<std::size_t>& indices) {
+  batch_.update.reloaded.insert(batch_.update.reloaded.end(), indices.begin(), indices.end());
+}
+
+CollectedBatch BatchCollector::take() {
+  CollectedBatch taken = std::move(batch_);
+  batch_ = CollectedBatch{};
+  return taken;
+}
+
+template <typename Changed>
+void ContentVersions::keep(
+  const std::vector<std::string>& itemKeys,
+  const std::vector<std::int64_t>& versions,
+  Changed changed) {
+  std::uint64_t round = ++round_;
+  std::size_t count = std::min(itemKeys.size(), versions.size());
+  std::size_t seen = 0;
+  versions_.reserve(count);
+  for (std::size_t item = 0; item < count; ++item) {
+    auto [entry, inserted] = versions_.try_emplace(itemKeys[item], Entry{versions[item], round});
+    if (inserted) {
+      ++seen;
+      continue;
+    }
+    // A key named twice keeps its first version.
+    if (entry->second.round == round) {
+      continue;
+    }
+    ++seen;
+    if (entry->second.version != versions[item]) {
+      changed(item);
+    }
+    entry->second = {versions[item], round};
+  }
+  if (seen == versions_.size()) {
+    return;
+  }
+  for (auto entry = versions_.begin(); entry != versions_.end();) {
+    entry = entry->second.round == round ? std::next(entry) : versions_.erase(entry);
+  }
+}
+
+void ContentVersions::record(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions) {
+  keep(itemKeys, versions, [](std::size_t) {});
 }
 
 std::vector<std::size_t> ContentVersions::update(
   const std::vector<std::string>& itemKeys,
   const std::vector<std::int64_t>& versions) {
   std::vector<std::size_t> changed;
-  for (std::size_t item = 0; item < itemKeys.size() && item < versions.size(); ++item) {
-    auto known = versions_.find(itemKeys[item]);
-    if (known != versions_.end() && known->second != versions[item]) {
-      changed.push_back(item);
-    }
-  }
-  record(itemKeys, versions);
+  keep(itemKeys, versions, [&](std::size_t item) { changed.push_back(item); });
   return changed;
 }
 

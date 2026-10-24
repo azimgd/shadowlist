@@ -1,6 +1,13 @@
 import type { ComponentType, ReactElement } from 'react';
 import { Platform, Text } from 'react-native';
-import { afterEach, describe, expect, it, jest } from '@jest/globals';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  jest,
+} from '@jest/globals';
 import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import ShadowList from '../ShadowList';
 import ItemActionsView from '../ItemActionsView';
@@ -8,6 +15,8 @@ import {
   needsScrollIntoView,
   nextSelectableIndex,
 } from '../virtualizer/keySelection';
+import { setShadowListStoreModule } from '../virtualizer/nativeStore';
+import { createFakeStoreModule } from '../__fixtures__/shadowListStore';
 
 /*
  * Records the props of every render of the native list and cell views.
@@ -124,6 +133,10 @@ describe('needsScrollIntoView', () => {
 });
 
 describe('enableSelectionOnKeyPress', () => {
+  // Selection lives in the native store, which these tests stand in for.
+  beforeEach(() => setShadowListStoreModule(createFakeStoreModule()));
+  afterEach(() => setShadowListStoreModule(undefined));
+
   it('moves the selection with the arrows and activates it with Return on macOS', async () => {
     Platform.OS = 'macos' as typeof Platform.OS;
     const changes: string[][] = [];

@@ -73,7 +73,9 @@ with `completion(finished)`, `applyChanges`. Queries and commands: `cellForItem`
 - Batches are planned by the core's `planBatch`: deletes, reloads and move sources are indices in the data before,
   inserts and move destinations in the data after. A batch that does not add up reloads everything. `applyChanges`
   diffs every key with the core's `diffKeys`, reloads items whose `contentVersionForItem` changed since the last
-  reload, and returns a `ShadowListKitListChanges`.
+  reload, and returns a `ShadowListKitListChanges`. The core's `BatchCollector` and `ContentVersions` hold the batch
+  and the versions. A number version compares as itself and a string version by a 64 bit hash. A batch made before
+  the core loaded reads everything again when it ends.
 - A cell's `view` is placed at an exact frame. An item whose content changed size needs `reloadItems`, which
   measures it again.
 - The list needs a size from its styles. Only the scroll axis scrolls, and the scrollbar gutter stays reserved.

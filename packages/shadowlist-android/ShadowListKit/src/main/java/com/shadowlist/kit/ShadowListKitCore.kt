@@ -188,9 +188,6 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     @JvmStatic private external fun nativeRestoreAnchorState(handle: Long, key: String, offset: Double): Boolean
     @JvmStatic private external fun nativeDiffKeys(
       previousPacked: CharArray, previousEnds: IntArray, nextPacked: CharArray, nextEnds: IntArray): IntArray
-    @JvmStatic private external fun nativePlanBatch(
-      previousCount: Int, nextCount: Int, deleted: IntArray, inserted: IntArray, movedFrom: IntArray, movedTo: IntArray,
-    ): IntArray?
     @JvmStatic private external fun nativeCaptureChange(
       handle: Long, deletedPacked: CharArray, deletedEnds: IntArray, insertedPacked: CharArray, insertedEnds: IntArray,
       mountedPacked: CharArray, mountedEnds: IntArray, mountedPositions: DoubleArray)
@@ -228,7 +225,10 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
       return nativeDiffKeys(previousPacked, previousEnds, nextPacked, nextEnds)
     }
 
-    private fun packed(keys: List<String>): Pair<CharArray, IntArray> {
+    /*
+     * Keys joined into one char array, with where each one ends, the way the JNI reads them.
+     */
+    internal fun packed(keys: List<String>): Pair<CharArray, IntArray> {
       var length = 0
       for (key in keys) length += key.length
       val chars = CharArray(length)
@@ -241,14 +241,6 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
       }
       return chars to ends
     }
-
-    /*
-     * The source of every row after a batch, a previous index or -1 for an insert, or null when
-     * the batch does not add up. See the core's planBatch.
-     */
-    fun planBatch(
-      previousCount: Int, nextCount: Int, deleted: IntArray, inserted: IntArray, movedFrom: IntArray, movedTo: IntArray,
-    ): IntArray? = nativePlanBatch(previousCount, nextCount, deleted, inserted, movedFrom, movedTo)
 
     /*
      * The core's insertionIndices and deletionIndices: sorted, each once, an insert past the

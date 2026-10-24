@@ -2,6 +2,7 @@
 
 #include <jsi/jsi.h>
 
+#include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/RowKeyStore.hpp>
 
 #include <cstdint>
@@ -30,6 +31,17 @@ namespace facebook::react::shadowlist {
  *   setSizeSpecs(store, version, keys, specs) -> undefined, specs being ItemSizeSpec objects for
  *     the rows of keys
  * A write fails when its base version is gone, and JS then writes everything.
+ *
+ * Each store also holds its list's selection, the core's ListSelection, so every host keeps one
+ * implementation of the selection rules. The calls that change it return the selected keys in
+ * the order they were selected, or null when nothing changed:
+ *   setSelection(store, keys, multiple) -> undefined, the keys JS holds now, like a controlled
+ *     selectedKeys
+ *   selectKey(store, key) -> keys or null, single selection deselecting every other row
+ *   selectOnlyKey(store, key) -> keys or null
+ *   deselectKey(store, key) -> keys or null
+ *   retainSelection(store, version) -> keys or null, dropping keys the version's rows lack
+ *   selectedIndices(store, version) -> rows of the selected keys, low to high
  */
 std::shared_ptr<azimgd::shadowlist::RowKeyStore> findRowKeyStore(std::int64_t id);
 

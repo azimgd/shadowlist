@@ -1,4 +1,8 @@
-import { ShadowListKitCore } from './ShadowListKitCore.js';
+import {
+  ShadowListKitCore,
+  ShadowListKitListState,
+  isShadowListKitLoaded,
+} from './ShadowListKitCore.js';
 import { ShadowListKitListChanges } from './ShadowListKitListChanges.js';
 import type { ShadowListKitListView } from './ShadowListKitListView.js';
 
@@ -14,21 +18,25 @@ export class ShadowListKitListData {
   keys: string[] = [];
 
   /*
-   * Changes collected by performBatchUpdates until its block returns.
+   * The changes performBatchUpdates collects and the content versions applyChanges compares,
+   * the core's BatchCollector and ContentVersions, which outlive the core. The payload of the
+   * last reload in a batch stays here.
    */
-  private batchDepth = 0;
-  private batchDeleted: number[] = [];
-  private batchInserted: number[] = [];
-  private batchMovedFrom: number[] = [];
-  private batchMovedTo: number[] = [];
-  private batchReloaded: number[] = [];
+  private readonly state = new ShadowListKitListState();
   private batchPayload: unknown = null;
-  private batchNeedsReload = false;
 
   /*
-   * The content version of every item applyChanges saw, by key.
+   * A batch that started before the core loaded. Nothing is laid out yet, so its changes are
+   * dropped and it reads everything again when its outermost block returns.
    */
-  private contentVersions = new Map<string, number | string>();
+  private unloadedBatch = false;
+
+  /*
+   * Whether changes go to the batch being collected instead of the data.
+   */
+  private get batching(): boolean {
+    return this.unloadedBatch || this.state.isBatching;
+  }
 
   constructor(private readonly list: ShadowListKitListView) {}
 
@@ -51,8 +59,8 @@ export class ShadowListKitListData {
   }
 
   reloadData(): void {
-    if (this.batchDepth > 0) {
-      this.batchNeedsReload = true;
+    if (this.batching) {
+      if (!this.unloadedBatch) this.state.batchNeedsReload();
       return;
     }
     if (!this.list.dataSource) return;
@@ -63,17 +71,21 @@ export class ShadowListKitListData {
   }
 
   /*
-   * The content version of every item now, which the next applyChanges compares against. The
-   * rules are the core's ContentVersions, see content_versions_report_items_whose_version_changed.
+   * The content version of every item now, which the next applyChanges compares against.
    */
   private recordContentVersions(items: ReadonlyArray<string>): void {
+    const versions = this.contentVersionsOf(items.length);
+    if (versions) this.state.recordContentVersions(items, versions);
+  }
+
+  private contentVersionsOf(count: number): (number | string)[] | null {
     const source = this.list.dataSource;
-    if (!source?.contentVersionForItem) return;
-    const versions = new Map<string, number | string>();
-    items.forEach((key, item) =>
-      versions.set(key, source.contentVersionForItem!(this.list, item))
-    );
-    this.contentVersions = versions;
+    if (!source?.contentVersionForItem) return null;
+    const versions = new Array<number | string>(count);
+    for (let item = 0; item < count; ++item) {
+      versions[item] = source.contentVersionForItem(this.list, item);
+    }
+    return versions;
   }
 
   /*
@@ -96,8 +108,8 @@ export class ShadowListKitListData {
   }
 
   insertItems(indices: ReadonlyArray<number>): void {
-    if (this.batchDepth > 0) {
-      this.batchInserted.push(...indices);
+    if (this.batching) {
+      if (!this.unloadedBatch) this.state.batchInserted(indices);
       return;
     }
     const source = this.list.dataSource;
@@ -116,8 +128,8 @@ export class ShadowListKitListData {
   }
 
   deleteItems(indices: ReadonlyArray<number>): void {
-    if (this.batchDepth > 0) {
-      this.batchDeleted.push(...indices);
+    if (this.batching) {
+      if (!this.unloadedBatch) this.state.batchDeleted(indices);
       return;
     }
     const sorted = Array.from(
@@ -137,8 +149,8 @@ export class ShadowListKitListData {
   }
 
   reloadItems(indices: ReadonlyArray<number>, payload: unknown = null): void {
-    if (this.batchDepth > 0) {
-      this.batchReloaded.push(...indices);
+    if (this.batching) {
+      if (!this.unloadedBatch) this.state.batchReloaded(indices);
       this.batchPayload = payload;
       return;
     }
@@ -170,8 +182,8 @@ export class ShadowListKitListData {
   moveItem(sourceIndex: number, destinationIndex: number): void {
     if (sourceIndex < 0 || destinationIndex < 0) return;
     this.performBatchUpdates(() => {
-      this.batchMovedFrom.push(sourceIndex);
-      this.batchMovedTo.push(destinationIndex);
+      if (!this.unloadedBatch)
+        this.state.batchMoved(sourceIndex, destinationIndex);
     });
   }
 
@@ -179,16 +191,34 @@ export class ShadowListKitListData {
     updates: () => void,
     completion?: (finished: boolean) => void
   ): void {
-    ++this.batchDepth;
-    try {
-      updates();
-    } finally {
-      --this.batchDepth;
+    if (this.unloadedBatch || !isShadowListKitLoaded()) {
+      this.performUnloadedBatch(updates);
+    } else {
+      this.state.beginBatch();
+      let outermost = false;
+      try {
+        updates();
+      } finally {
+        outermost = this.state.endBatch();
+      }
+      if (outermost) this.commitBatch();
     }
-    if (this.batchDepth === 0) this.commitBatch();
     if (!completion) return;
     this.list.runCommandNow();
     completion(true);
+  }
+
+  private performUnloadedBatch(updates: () => void): void {
+    const outermost = !this.unloadedBatch;
+    this.unloadedBatch = true;
+    try {
+      updates();
+    } finally {
+      if (outermost) this.unloadedBatch = false;
+    }
+    if (!outermost) return;
+    this.batchPayload = null;
+    this.reloadData();
   }
 
   /*
@@ -197,48 +227,23 @@ export class ShadowListKitListData {
    * everything again.
    */
   private commitBatch(): void {
-    const deleted = this.batchDeleted;
-    const inserted = this.batchInserted;
-    const movedFrom = this.batchMovedFrom;
-    const movedTo = this.batchMovedTo;
-    const reloaded = this.batchReloaded;
     const payload = this.batchPayload;
-    const needsReload = this.batchNeedsReload;
-    this.batchDeleted = [];
-    this.batchInserted = [];
-    this.batchMovedFrom = [];
-    this.batchMovedTo = [];
-    this.batchReloaded = [];
     this.batchPayload = null;
-    this.batchNeedsReload = false;
+    // The batch's reload flag, then the reloaded items.
+    const taken = this.state.takeBatch();
     const source = this.list.dataSource;
-    if (!source) return;
-    if (
-      deleted.length === 0 &&
-      inserted.length === 0 &&
-      movedFrom.length === 0 &&
-      reloaded.length === 0 &&
-      !needsReload
-    ) {
-      return;
-    }
+    if (!taken || !source) return;
+    const needsReload = taken[0] !== 0;
     // The reloaded rows by key, from the data before.
     const reloadedKeys = new Set<string>();
-    for (const item of reloaded) {
-      const key = this.keys[item];
+    for (let at = 1; at < taken.length; ++at) {
+      const key = this.keys[taken[at]!];
       if (key !== undefined) reloadedKeys.add(key);
     }
     let next: string[] | null = null;
     if (!needsReload) {
       const nextCount = Math.max(0, source.numberOfItems(this.list));
-      const plan = ShadowListKitCore.planBatch(
-        this.keys.length,
-        nextCount,
-        deleted,
-        inserted,
-        movedFrom,
-        movedTo
-      );
+      const plan = this.state.planTakenBatch(this.keys.length, nextCount);
       if (plan) {
         // The core's keysFromPlan: a kept row takes its key, an inserted one reads its own.
         next = Array.from(plan, (from, index) =>
@@ -285,21 +290,11 @@ export class ShadowListKitListData {
     const diff = ShadowListKitCore.diffKeys(previous, next);
 
     // Rows that stayed but whose content version changed get reloaded.
-    const reloaded: number[] = [];
-    const reloadedKeys = new Set<string>();
-    if (source.contentVersionForItem) {
-      const versions = new Map<string, number | string>();
-      next.forEach((key, item) => {
-        const version = source.contentVersionForItem!(this.list, item);
-        const known = this.contentVersions.get(key);
-        if (known !== undefined && known !== version) {
-          reloaded.push(item);
-          reloadedKeys.add(key);
-        }
-        versions.set(key, version);
-      });
-      this.contentVersions = versions;
-    }
+    const versions = this.contentVersionsOf(next.length);
+    const reloaded = versions
+      ? Array.from(this.state.updateContentVersions(next, versions))
+      : [];
+    const reloadedKeys = new Set(reloaded.map((item) => next[item]!));
 
     this.commitKeyChanges(next, reloadedKeys, null);
 

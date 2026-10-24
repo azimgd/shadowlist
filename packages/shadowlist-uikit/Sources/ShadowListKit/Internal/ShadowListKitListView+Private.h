@@ -79,8 +79,8 @@ extern const char ShadowListKitListViewSelectionLink;
  * data changes, and a mount pass runs again after one. _inLayoutSubviews is set while UIKit lays
  * the list out. A data change made then, like rows added from the reached callbacks, runs in the
  * layout UIKit already has pending. _sizesFromDataSource is whether the data source gives sizes,
- * read again on every reload. _batch* holds the changes performBatchUpdates:completion: collects
- * until its block returns. _contentVersions is the content version of every item applyChanges
+ * read again on every reload. _batch holds the changes performBatchUpdates:completion: collects
+ * until its block returns, and _batchPayload the payload of the last reload in it. _contentVersions is the content version of every item applyChanges
  * saw, by key.
  */
 @interface ShadowListKitListView () <UIScrollViewDelegate> {
@@ -133,9 +133,7 @@ extern const char ShadowListKitListViewSelectionLink;
   NSUInteger _structureVersion;
   BOOL _inLayoutSubviews;
   BOOL _sizesFromDataSource;
-  NSInteger _batchDepth;
-  azimgd::shadowlist::BatchUpdate _batch;
-  BOOL _batchNeedsReload;
+  azimgd::shadowlist::BatchCollector _batch;
   id _batchPayload;
   azimgd::shadowlist::ContentVersions _contentVersions;
 }

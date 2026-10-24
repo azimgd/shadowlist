@@ -1,8 +1,9 @@
 /*
  * A JS stand-in for the native ShadowListStore module in tests, with the same answers as
  * host/RowKeyStore for what the tests use: versions, splices against a base, sections with
- * reused rows and sticky headers, tree splices, hinted lookups and size specs. The C++ store
- * has its own tests in shadowlist-core-tests.
+ * reused rows and sticky headers, tree splices, hinted lookups, size specs and the selection.
+ * The C++ store and ListSelection have their own tests in shadowlist-core-tests, which these
+ * answers follow.
  */
 import type {
   NativeStoreHandle,
@@ -28,6 +29,8 @@ export interface FakeStore {
   id: number;
   versions: Map<number, FakeSnapshot>;
   specs: Map<number, { keys: string[]; specs: ItemSizeSpec[] }>;
+  selected: string[];
+  multiple: boolean;
 }
 
 export interface FakeStoreModule extends ShadowListStoreModule {
@@ -44,6 +47,12 @@ function plain(keys: string[]): FakeSnapshot {
     sectionRows: [],
     depths: [],
   };
+}
+
+function selectOnly(store: FakeStore, key: string): string[] | null {
+  if (store.selected.length === 1 && store.selected[0] === key) return null;
+  store.selected = [key];
+  return [key];
 }
 
 export function createFakeStoreModule(): FakeStoreModule {
@@ -64,6 +73,8 @@ export function createFakeStoreModule(): FakeStoreModule {
         id: stores.length + 1,
         versions: new Map(),
         specs: new Map(),
+        selected: [],
+        multiple: false,
       };
       stores.push(store);
       return store as unknown as NativeStoreHandle;
@@ -190,6 +201,46 @@ export function createFakeStoreModule(): FakeStoreModule {
         keys: [...keys],
         specs: [...specs],
       });
+    },
+    setSelection(handle, keys, multiple) {
+      calls.push(`setSelection ${keys.length} ${multiple}`);
+      const store = storeOf(handle);
+      store.selected = [...new Set(keys)];
+      store.multiple = multiple;
+    },
+    selectKey(handle, key) {
+      const store = storeOf(handle);
+      if (!store.multiple) return selectOnly(store, key);
+      if (store.selected.includes(key)) return null;
+      store.selected = [...store.selected, key];
+      return [...store.selected];
+    },
+    selectOnlyKey(handle, key) {
+      return selectOnly(storeOf(handle), key);
+    },
+    deselectKey(handle, key) {
+      const store = storeOf(handle);
+      if (!store.selected.includes(key)) return null;
+      store.selected = store.selected.filter((selected) => selected !== key);
+      return [...store.selected];
+    },
+    retainSelection(handle, version) {
+      calls.push(`retainSelection ${version}`);
+      const store = storeOf(handle);
+      const snapshot = store.versions.get(version);
+      if (!snapshot) return null;
+      const kept = store.selected.filter((key) => snapshot.keys.includes(key));
+      if (kept.length === store.selected.length) return null;
+      store.selected = kept;
+      return [...kept];
+    },
+    selectedIndices(handle, version) {
+      const snapshot = storeOf(handle).versions.get(version);
+      if (!snapshot) return [];
+      return storeOf(handle)
+        .selected.map((key) => snapshot.keys.indexOf(key))
+        .filter((index) => index >= 0)
+        .sort((a, b) => a - b);
     },
   } as FakeStoreModule;
   return module;

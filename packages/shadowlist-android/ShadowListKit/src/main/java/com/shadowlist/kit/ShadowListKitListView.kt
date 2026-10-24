@@ -289,6 +289,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   var allowsMultipleSelection = false
     set(value) {
       field = value
+      selection.setMultiple(value)
       if (!value && selection.count > 1) selection.clear()
     }
 
@@ -348,6 +349,10 @@ open class ShadowListKitListView @JvmOverloads constructor(
       nestedHelper = it
     }
 
+  /*
+   * The selection, the batch being collected and the content versions, kept across cores.
+   */
+  internal val state = ShadowListKitListState()
   internal val changes = ShadowListKitChangeAnimator(this)
   internal val gesture = ShadowListKitScrollGesture(this)
   private val drag = ShadowListKitDragController(this)

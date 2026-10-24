@@ -138,17 +138,6 @@ export interface ShadowListKitModule {
     nextEnds: number,
     nextCount: number
   ): number;
-  _ShadowListKitCore_nativePlanBatch(
-    previousCount: number,
-    nextCount: number,
-    deleted: number,
-    deletedCount: number,
-    inserted: number,
-    insertedCount: number,
-    movedFrom: number,
-    movedTo: number,
-    movedCount: number
-  ): number;
   _ShadowListKitCore_nativeInsertionIndices(
     indices: number,
     count: number,
@@ -158,6 +147,52 @@ export interface ShadowListKitModule {
     indices: number,
     count: number,
     previousCount: number
+  ): number;
+  _ShadowListKitListState_nativeCreate(): number;
+  _ShadowListKitListState_nativeDestroy(handle: number): void;
+  _ShadowListKitListState_nativeBeginBatch(handle: number): void;
+  _ShadowListKitListState_nativeEndBatch(handle: number): number;
+  _ShadowListKitListState_nativeIsBatching(handle: number): number;
+  _ShadowListKitListState_nativeBatchDeleted(
+    handle: number,
+    indices: number,
+    count: number
+  ): void;
+  _ShadowListKitListState_nativeBatchInserted(
+    handle: number,
+    indices: number,
+    count: number
+  ): void;
+  _ShadowListKitListState_nativeBatchMoved(
+    handle: number,
+    from: number,
+    to: number
+  ): void;
+  _ShadowListKitListState_nativeBatchReloaded(
+    handle: number,
+    indices: number,
+    count: number
+  ): void;
+  _ShadowListKitListState_nativeBatchNeedsReload(handle: number): void;
+  _ShadowListKitListState_nativeTakeBatch(handle: number): number;
+  _ShadowListKitListState_nativePlanTakenBatch(
+    handle: number,
+    previousCount: number,
+    nextCount: number
+  ): number;
+  _ShadowListKitListState_nativeRecordContentVersions(
+    handle: number,
+    packed: number,
+    ends: number,
+    count: number,
+    versions: number
+  ): void;
+  _ShadowListKitListState_nativeUpdateContentVersions(
+    handle: number,
+    packed: number,
+    ends: number,
+    count: number,
+    versions: number
   ): number;
 }
 

@@ -83,8 +83,63 @@ std::vector<std::string> keysFromPlan(
 }
 
 /*
+ * A batch performBatchUpdates collected, see BatchCollector. needsReload is a reloadData inside
+ * the batch, after which the host reads everything again.
+ */
+struct CollectedBatch {
+  BatchUpdate update;
+  bool needsReload = false;
+
+  bool isEmpty() const {
+    return update.isEmpty() && !needsReload;
+  }
+};
+
+/*
+ * The changes a native list's performBatchUpdates collects until its outermost block returns.
+ * Inserts, deletes, moves and reloads inside the block land here instead of reaching the data.
+ * Hosts read their payloads themselves. Every kit keeps one beside its core, and it outlives a
+ * core the kit drops and makes again.
+ */
+class BatchCollector final {
+public:
+  /*
+   * A block starts. Blocks nest.
+   */
+  void begin() { ++depth_; }
+
+  /*
+   * A block returned. Returns whether it was the outermost, after which the host takes the batch.
+   */
+  bool end();
+
+  /*
+   * Whether a block is running, which is when changes go here.
+   */
+  bool isCollecting() const { return depth_ > 0; }
+
+  void addDeleted(const std::vector<std::size_t>& indices);
+  void addInserted(const std::vector<std::size_t>& indices);
+  void addMoved(std::size_t from, std::size_t to);
+  void addReloaded(const std::vector<std::size_t>& indices);
+  void markNeedsReload() { batch_.needsReload = true; }
+
+  /*
+   * The changes collected, leaving none.
+   */
+  CollectedBatch take();
+
+private:
+  std::size_t depth_ = 0;
+  CollectedBatch batch_;
+};
+
+/*
  * The content version of every item by key, which applyChanges compares against to find the
- * items whose content changed under the same key.
+ * items whose content changed under the same key. Versions are int64. Hosts whose data sources
+ * may answer something else map it to one: the wasm kit hashes a string version to 64 bits, see
+ * versionHalves in its ShadowListKitCore.ts, and a change then goes unseen only if both versions
+ * hash the same.
  */
 class ContentVersions final {
 public:
@@ -102,7 +157,23 @@ public:
   bool isEmpty() const { return versions_.empty(); }
 
 private:
-  std::unordered_map<std::string, std::int64_t> versions_;
+  /*
+   * A kept version and the round that last saw its key. Entries are updated in place, and the
+   * keys a round did not see are swept after it, so data with the same keys allocates nothing.
+   */
+  struct Entry {
+    std::int64_t version = 0;
+    std::uint64_t round = 0;
+  };
+
+  /*
+   * Keep versions as a new round. Calls changed with each item whose kept version differs.
+   */
+  template <typename Changed>
+  void keep(const std::vector<std::string>& itemKeys, const std::vector<std::int64_t>& versions, Changed changed);
+
+  std::unordered_map<std::string, Entry> versions_;
+  std::uint64_t round_ = 0;
 };
 
 }

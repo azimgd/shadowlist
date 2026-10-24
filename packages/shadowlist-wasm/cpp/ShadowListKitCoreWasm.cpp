@@ -460,32 +460,6 @@ const std::int32_t* SHADOWLIST_KIT_WASM(nativeDiffKeys)(const char* previousPack
   return writeInts(packed);
 }
 
-/*
- * The source of every next row, a previous index or -1 for an insert, or null for a batch that
- * does not add up.
- */
-const std::int32_t* SHADOWLIST_KIT_WASM(nativePlanBatch)(std::int32_t previousCount, std::int32_t nextCount,
-  const std::int32_t* deleted, std::int32_t deletedCount, const std::int32_t* inserted, std::int32_t insertedCount,
-  const std::int32_t* movedFrom, const std::int32_t* movedTo, std::int32_t movedCount) {
-  sl::BatchUpdate batch;
-  batch.deleted = readIndices(deleted, deletedCount);
-  batch.inserted = readIndices(inserted, insertedCount);
-  std::vector<std::int32_t> from = readInts(movedFrom, movedCount);
-  std::vector<std::int32_t> to = readInts(movedTo, movedCount);
-  for (std::size_t at = 0; at < from.size() && at < to.size(); ++at) {
-    if (from[at] < 0 || to[at] < 0) {
-      return nullptr;
-    }
-    batch.moved.push_back({static_cast<std::size_t>(from[at]), static_cast<std::size_t>(to[at])});
-  }
-  std::optional<sl::BatchPlan> plan = sl::planBatch(static_cast<std::size_t>(std::max(previousCount, 0)),
-    static_cast<std::size_t>(std::max(nextCount, 0)), batch);
-  if (!plan) {
-    return nullptr;
-  }
-  return writeInts(intsFromIndices(plan->sources));
-}
-
 const std::int32_t* SHADOWLIST_KIT_WASM(nativeInsertionIndices)(
   const std::int32_t* indices, std::int32_t count, std::int32_t previousCount) {
   std::size_t previous = static_cast<std::size_t>(std::max(previousCount, 0));
@@ -496,6 +470,138 @@ const std::int32_t* SHADOWLIST_KIT_WASM(nativeDeletionIndices)(
   const std::int32_t* indices, std::int32_t count, std::int32_t previousCount) {
   std::size_t previous = static_cast<std::size_t>(std::max(previousCount, 0));
   return writeInts(intsFromIndices(sl::deletionIndices(readIndices(indices, count), previous)));
+}
+
+}
+
+/*
+ * The wasm side of ShadowListKitListState in ShadowListKitCore.ts: the batch being collected and
+ * the content versions of one list, which outlive the core the list drops on disconnect.
+ */
+namespace {
+
+struct StatePeer {
+  sl::BatchCollector batch;
+  sl::CollectedBatch taken;
+  sl::ContentVersions versions;
+};
+
+StatePeer* statePeerOf(std::uintptr_t handle) {
+  return reinterpret_cast<StatePeer*>(handle);
+}
+
+/*
+ * Versions as pairs of 32 bit halves, high then low, see ShadowListKitListState.versionHalves.
+ */
+std::vector<std::int64_t> readVersions(const std::int32_t* halves, std::int32_t count) {
+  std::vector<std::int64_t> versions;
+  if (halves == nullptr || count <= 0) {
+    return versions;
+  }
+  versions.reserve(static_cast<std::size_t>(count));
+  for (std::int32_t at = 0; at < count; ++at) {
+    std::uint64_t high = static_cast<std::uint32_t>(halves[at * 2]);
+    std::uint64_t low = static_cast<std::uint32_t>(halves[at * 2 + 1]);
+    versions.push_back(static_cast<std::int64_t>((high << 32) | low));
+  }
+  return versions;
+}
+
+}
+
+#define SHADOWLIST_KIT_STATE_WASM(name) EMSCRIPTEN_KEEPALIVE ShadowListKitListState_##name
+
+extern "C" {
+
+std::uintptr_t SHADOWLIST_KIT_STATE_WASM(nativeCreate)() {
+  return reinterpret_cast<std::uintptr_t>(new StatePeer());
+}
+
+void SHADOWLIST_KIT_STATE_WASM(nativeDestroy)(std::uintptr_t handle) {
+  delete statePeerOf(handle);
+}
+
+void SHADOWLIST_KIT_STATE_WASM(nativeBeginBatch)(std::uintptr_t handle) {
+  statePeerOf(handle)->batch.begin();
+}
+
+bool SHADOWLIST_KIT_STATE_WASM(nativeEndBatch)(std::uintptr_t handle) {
+  return statePeerOf(handle)->batch.end();
+}
+
+bool SHADOWLIST_KIT_STATE_WASM(nativeIsBatching)(std::uintptr_t handle) {
+  return statePeerOf(handle)->batch.isCollecting();
+}
+
+void SHADOWLIST_KIT_STATE_WASM(nativeBatchDeleted)(std::uintptr_t handle, const std::int32_t* indices, std::int32_t count) {
+  statePeerOf(handle)->batch.addDeleted(readIndices(indices, count));
+}
+
+void SHADOWLIST_KIT_STATE_WASM(nativeBatchInserted)(std::uintptr_t handle, const std::int32_t* indices, std::int32_t count) {
+  statePeerOf(handle)->batch.addInserted(readIndices(indices, count));
+}
+
+void SHADOWLIST_KIT_STATE_WASM(nativeBatchMoved)(std::uintptr_t handle, std::int32_t from, std::int32_t to) {
+  if (from >= 0 && to >= 0) {
+    statePeerOf(handle)->batch.addMoved(static_cast<std::size_t>(from), static_cast<std::size_t>(to));
+  }
+}
+
+void SHADOWLIST_KIT_STATE_WASM(nativeBatchReloaded)(std::uintptr_t handle, const std::int32_t* indices, std::int32_t count) {
+  statePeerOf(handle)->batch.addReloaded(readIndices(indices, count));
+}
+
+void SHADOWLIST_KIT_STATE_WASM(nativeBatchNeedsReload)(std::uintptr_t handle) {
+  statePeerOf(handle)->batch.markNeedsReload();
+}
+
+/*
+ * Take the collected batch, kept for nativePlanTakenBatch. Returns null for an empty batch,
+ * otherwise whether it needs a reload, 1 or 0, then the reloaded items.
+ */
+const std::int32_t* SHADOWLIST_KIT_STATE_WASM(nativeTakeBatch)(std::uintptr_t handle) {
+  StatePeer* peer = statePeerOf(handle);
+  peer->taken = peer->batch.take();
+  if (peer->taken.isEmpty()) {
+    return nullptr;
+  }
+  std::vector<std::int32_t> packed;
+  packed.reserve(peer->taken.update.reloaded.size() + 1);
+  packed.push_back(peer->taken.needsReload ? 1 : 0);
+  for (std::size_t item : peer->taken.update.reloaded) {
+    packed.push_back(static_cast<std::int32_t>(item));
+  }
+  return writeInts(packed);
+}
+
+/*
+ * The core's planBatch over the batch nativeTakeBatch took: the source of every next row, a
+ * previous index or -1 for an insert, or null for a batch that does not add up.
+ */
+const std::int32_t* SHADOWLIST_KIT_STATE_WASM(nativePlanTakenBatch)(
+  std::uintptr_t handle, std::int32_t previousCount, std::int32_t nextCount) {
+  StatePeer* peer = statePeerOf(handle);
+  std::optional<sl::BatchPlan> plan = sl::planBatch(static_cast<std::size_t>(std::max(previousCount, 0)),
+    static_cast<std::size_t>(std::max(nextCount, 0)), peer->taken.update);
+  peer->taken = sl::CollectedBatch{};
+  if (!plan) {
+    return nullptr;
+  }
+  return writeInts(intsFromIndices(plan->sources));
+}
+
+void SHADOWLIST_KIT_STATE_WASM(nativeRecordContentVersions)(std::uintptr_t handle, const char* packed,
+  const std::int32_t* ends, std::int32_t count, const std::int32_t* versions) {
+  statePeerOf(handle)->versions.record(readPackedKeys(packed, ends, count), readVersions(versions, count));
+}
+
+/*
+ * The items whose content version changed, low to high. The new versions are kept.
+ */
+const std::int32_t* SHADOWLIST_KIT_STATE_WASM(nativeUpdateContentVersions)(std::uintptr_t handle, const char* packed,
+  const std::int32_t* ends, std::int32_t count, const std::int32_t* versions) {
+  return writeInts(intsFromIndices(
+    statePeerOf(handle)->versions.update(readPackedKeys(packed, ends, count), readVersions(versions, count))));
 }
 
 }

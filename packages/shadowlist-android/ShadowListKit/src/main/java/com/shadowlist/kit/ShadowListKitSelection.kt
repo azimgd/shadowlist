@@ -3,85 +3,70 @@ package com.shadowlist.kit
 import android.view.ViewConfiguration
 
 /*
- * Selected rows by key and the highlight under a resting finger. The same rules as the core's
- * ListSelection, kept here because the selection outlives the core, which is dropped on detach.
+ * Taps that select rows and the highlight under a resting finger. The selected keys are the
+ * core's ListSelection in the list's ShadowListKitListState, which outlives the core the list
+ * drops on detach. This shows its changes on the mounted cells and tells the delegate.
  */
 internal class ShadowListKitSelection(private val list: ShadowListKitListView) {
-  private val selectedKeys = LinkedHashSet<String>()
+  private val state get() = list.state
   private var highlightedCell: ShadowListKitListCell? = null
   private val highlightRunnable = Runnable { highlightPending() }
   private var highlightX = 0f
   private var highlightY = 0f
 
-  val count: Int get() = selectedKeys.size
+  val count: Int get() = state.selectedCount
 
-  fun isSelected(key: String): Boolean = key in selectedKeys
+  fun isSelected(key: String): Boolean = state.isSelected(key)
+
+  fun setMultiple(multiple: Boolean) = state.setMultipleSelection(multiple)
 
   /*
    * The data changed. Rows whose key is gone drop out of the selection.
    */
-  fun dropDeletedKeys(keys: List<String>) {
-    if (selectedKeys.isNotEmpty()) selectedKeys.retainAll(HashSet(keys))
-  }
+  fun dropDeletedKeys(keys: List<String>) = state.retainSelection(keys)
 
   /*
-   * A tap on a row. Multiple selection toggles it, single selection moves to it. The rules of
-   * the core's ListSelection.tap, see selection_tap_selects_moves_and_toggles. The selection
-   * stays here because every cell bind reads it.
+   * A tap on a row, by the core's ListSelection.tap. Multiple selection toggles it, single
+   * selection moves to it.
    */
   fun userSelected(cell: ShadowListKitListCell) {
     val index = cell.index
     val key = list.keys.getOrNull(cell.row) ?: return
-    if (list.allowsMultipleSelection && key in selectedKeys) {
-      selectedKeys.remove(key)
-      cell.setSelected(false, true)
-      list.delegate?.didDeselectItem(list, index)
-      return
-    }
-    if (list.delegate?.shouldSelectItem(list, index) == false) return
-    if (!list.allowsMultipleSelection) {
-      for (previous in selectedKeys.toList()) {
-        if (previous == key) continue
-        selectedKeys.remove(previous)
-        list.mounted[previous]?.setSelected(false, true)
-        val previousIndex = list.keys.indexOf(previous).let(list::itemForRow)
-        if (previousIndex >= 0) list.delegate?.didDeselectItem(list, previousIndex)
+    val tap = state.tap(key) { list.delegate?.shouldSelectItem(list, index) != false }
+    when (tap.outcome) {
+      ShadowListKitListState.TAP_TOGGLED_OFF -> {
+        cell.setSelected(false, true)
+        list.delegate?.didDeselectItem(list, index)
+      }
+      ShadowListKitListState.TAP_SELECTED -> {
+        for (previous in tap.deselected) {
+          list.mounted[previous]?.setSelected(false, true)
+          val previousIndex = list.keys.indexOf(previous).let(list::itemForRow)
+          if (previousIndex >= 0) list.delegate?.didDeselectItem(list, previousIndex)
+        }
+        if (!cell.isSelected) cell.setSelected(true, true)
+        list.delegate?.didSelectItem(list, index)
       }
     }
-    selectedKeys.add(key)
-    if (!cell.isSelected) cell.setSelected(true, true)
-    list.delegate?.didSelectItem(list, index)
   }
 
   val selectedIndices: IntArray
-    get() {
-      if (selectedKeys.isEmpty()) return IntArray(0)
-      val items = ArrayList<Int>()
-      for ((row, key) in list.keys.withIndex()) {
-        if (key in selectedKeys) list.itemForRow(row).takeIf { it >= 0 }?.let(items::add)
-      }
-      return items.toIntArray()
-    }
+    get() = state.selectedRows(list.keys).map(list::itemForRow).filter { it >= 0 }.toIntArray()
 
   fun selectItem(index: Int, animated: Boolean) {
     val key = list.keys.getOrNull(list.rowForItem(index)) ?: return
     if (!list.allowsSelection) return
-    if (!list.allowsMultipleSelection) {
-      for (previous in selectedKeys) if (previous != key) list.mounted[previous]?.setSelected(false, animated)
-      selectedKeys.clear()
-    }
-    selectedKeys.add(key)
+    for (previous in state.select(key)) list.mounted[previous]?.setSelected(false, animated)
     list.mounted[key]?.let { if (!it.isSelected) it.setSelected(true, animated) }
   }
 
   fun deselectItem(index: Int, animated: Boolean) {
     val key = list.keys.getOrNull(list.rowForItem(index)) ?: return
-    if (selectedKeys.remove(key)) list.mounted[key]?.setSelected(false, animated)
+    if (state.deselect(key)) list.mounted[key]?.setSelected(false, animated)
   }
 
   fun clear() {
-    for (key in selectedKeys) list.mounted[key]?.setSelected(false, false)
-    selectedKeys.clear()
+    for (key in state.clearSelection()) list.mounted[key]?.setSelected(false, false)
   }
 
   /*

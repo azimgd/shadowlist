@@ -20,6 +20,13 @@ const reclaimer = new FinalizationRegistry<number>((handle) => {
 });
 
 /*
+ * Frees the peer of a list state once its list is collected. A list has no call that ends it.
+ */
+const stateReclaimer = new FinalizationRegistry<number>((handle) => {
+  wasmModule?._ShadowListKitListState_nativeDestroy(handle);
+});
+
+/*
  * A heap area every call writes its inputs to and reads its outputs from. Grown as needed and
  * reused. The wasm side copies inputs when a call starts.
  */
@@ -246,41 +253,6 @@ export class ShadowListKitCore {
       if (!counts.has(position)) diff[position]! += start;
     }
     return diff;
-  }
-
-  /*
-   * The source of every row after a batch, a previous index or -1 for an insert, or null when
-   * the batch does not add up. See the core's planBatch.
-   */
-  static planBatch(
-    previousCount: number,
-    nextCount: number,
-    deleted: ReadonlyArray<number>,
-    inserted: ReadonlyArray<number>,
-    movedFrom: ReadonlyArray<number>,
-    movedTo: ReadonlyArray<number>
-  ): Int32Array | null {
-    const moves = Math.min(movedFrom.length, movedTo.length);
-    const at = reserve((deleted.length + inserted.length + moves * 2) * 4 + 32);
-    const insertedAt = at + align(deleted.length * 4);
-    const fromAt = insertedAt + align(inserted.length * 4);
-    const toAt = fromAt + align(moves * 4);
-    putInts(at, deleted);
-    putInts(insertedAt, inserted);
-    putInts(fromAt, movedFrom.slice(0, moves));
-    putInts(toAt, movedTo.slice(0, moves));
-    const pointer = wasm()._ShadowListKitCore_nativePlanBatch(
-      previousCount,
-      nextCount,
-      at,
-      deleted.length,
-      insertedAt,
-      inserted.length,
-      fromAt,
-      toAt,
-      moves
-    );
-    return pointer === 0 ? null : takeInts(pointer);
   }
 
   /*
@@ -630,5 +602,212 @@ export class ShadowListKitCore {
         offset
       ) !== 0
     );
+  }
+}
+
+/*
+ * One version as the 32 bit halves of an int64, high then low, the type the core's
+ * ContentVersions compares. A safe integer is itself. Another number is its float64 bits. A
+ * string is two different 32 bit hashes of its UTF-16 units, FNV-1a and a shifted variant, so a
+ * change between two strings goes unseen only when both hashes collide.
+ */
+const versionBits = new Float64Array(1);
+const versionWords = new Int32Array(versionBits.buffer);
+
+/* eslint-disable no-bitwise -- the string hash works on 32 bit words. */
+function versionHalves(
+  version: number | string,
+  out: Int32Array,
+  at: number
+): void {
+  if (typeof version === 'string') {
+    let high = 0x811c9dc5;
+    let low = 0x050c5d1f;
+    for (let index = 0; index < version.length; ++index) {
+      const unit = version.charCodeAt(index);
+      high = Math.imul(high ^ unit, 0x01000193);
+      low = Math.imul(low ^ unit, 0x01000193) ^ (low >>> 15);
+    }
+    out[at] = high;
+    out[at + 1] = low;
+  } else if (Number.isSafeInteger(version)) {
+    const high = Math.floor(version / 0x100000000);
+    out[at] = high;
+    out[at + 1] = version - high * 0x100000000;
+  } else {
+    versionBits[0] = version;
+    out[at] = versionWords[1]!;
+    out[at + 1] = versionWords[0]!;
+  }
+}
+/* eslint-enable no-bitwise */
+
+/*
+ * What a list keeps across the cores it makes and drops: the batch performBatchUpdates collects
+ * and the content versions applyChanges compares, the core's BatchCollector and ContentVersions
+ * in C++. The list drops its core on disconnect, and this lives as long as the list. The peer is
+ * made on first use, which needs the module loaded. Versions recorded before that wait here.
+ */
+export class ShadowListKitListState {
+  private peer = 0;
+  private pendingRecord: {
+    keys: ReadonlyArray<string>;
+    versions: ReadonlyArray<number | string>;
+  } | null = null;
+
+  private get handle(): number {
+    if (this.peer === 0) {
+      this.peer = wasm()._ShadowListKitListState_nativeCreate();
+      stateReclaimer.register(this, this.peer);
+    }
+    return this.peer;
+  }
+
+  /*
+   * performBatchUpdates' block starts and returns. endBatch returns whether it was the
+   * outermost, after which the batch is taken.
+   */
+  beginBatch(): void {
+    wasm()._ShadowListKitListState_nativeBeginBatch(this.handle);
+  }
+
+  endBatch(): boolean {
+    return wasm()._ShadowListKitListState_nativeEndBatch(this.handle) !== 0;
+  }
+
+  get isBatching(): boolean {
+    return (
+      this.peer !== 0 &&
+      wasm()._ShadowListKitListState_nativeIsBatching(this.peer) !== 0
+    );
+  }
+
+  batchDeleted(indices: ReadonlyArray<number>): void {
+    const handle = this.handle;
+    const at = reserve(indices.length * 4);
+    putInts(at, indices);
+    wasm()._ShadowListKitListState_nativeBatchDeleted(
+      handle,
+      at,
+      indices.length
+    );
+  }
+
+  batchInserted(indices: ReadonlyArray<number>): void {
+    const handle = this.handle;
+    const at = reserve(indices.length * 4);
+    putInts(at, indices);
+    wasm()._ShadowListKitListState_nativeBatchInserted(
+      handle,
+      at,
+      indices.length
+    );
+  }
+
+  batchMoved(from: number, to: number): void {
+    wasm()._ShadowListKitListState_nativeBatchMoved(this.handle, from, to);
+  }
+
+  batchReloaded(indices: ReadonlyArray<number>): void {
+    const handle = this.handle;
+    const at = reserve(indices.length * 4);
+    putInts(at, indices);
+    wasm()._ShadowListKitListState_nativeBatchReloaded(
+      handle,
+      at,
+      indices.length
+    );
+  }
+
+  batchNeedsReload(): void {
+    wasm()._ShadowListKitListState_nativeBatchNeedsReload(this.handle);
+  }
+
+  /*
+   * Take the collected batch: null when it is empty, otherwise whether it needs a reload (1 or
+   * 0) then the reloaded items. planTakenBatch plans it once.
+   */
+  takeBatch(): Int32Array | null {
+    const pointer = wasm()._ShadowListKitListState_nativeTakeBatch(this.handle);
+    return pointer === 0 ? null : takeInts(pointer);
+  }
+
+  /*
+   * The source of every row after the taken batch, a previous index or -1 for an insert, or
+   * null when the batch does not add up. See the core's planBatch.
+   */
+  planTakenBatch(previousCount: number, nextCount: number): Int32Array | null {
+    const pointer = wasm()._ShadowListKitListState_nativePlanTakenBatch(
+      this.handle,
+      previousCount,
+      nextCount
+    );
+    return pointer === 0 ? null : takeInts(pointer);
+  }
+
+  /*
+   * Forget every version and keep these, one per item key.
+   */
+  recordContentVersions(
+    keys: ReadonlyArray<string>,
+    versions: ReadonlyArray<number | string>
+  ): void {
+    if (!isShadowListKitLoaded()) {
+      this.pendingRecord = { keys, versions };
+      return;
+    }
+    this.pendingRecord = null;
+    const handle = this.handle;
+    const { at, ends, packed } = this.packVersions(keys, versions);
+    wasm()._ShadowListKitListState_nativeRecordContentVersions(
+      handle,
+      packed,
+      ends,
+      keys.length,
+      at
+    );
+  }
+
+  /*
+   * The items whose version changed under the same key, low to high. The new versions are kept.
+   */
+  updateContentVersions(
+    keys: ReadonlyArray<string>,
+    versions: ReadonlyArray<number | string>
+  ): Int32Array {
+    if (this.pendingRecord) {
+      this.recordContentVersions(
+        this.pendingRecord.keys,
+        this.pendingRecord.versions
+      );
+    }
+    const handle = this.handle;
+    const { at, ends, packed } = this.packVersions(keys, versions);
+    return takeInts(
+      wasm()._ShadowListKitListState_nativeUpdateContentVersions(
+        handle,
+        packed,
+        ends,
+        keys.length,
+        at
+      )
+    );
+  }
+
+  /*
+   * The versions as halves, then the keys packed after them.
+   */
+  private packVersions(
+    keys: ReadonlyArray<string>,
+    versions: ReadonlyArray<number | string>
+  ): { at: number; ends: number; packed: number } {
+    const halves = align(keys.length * 8);
+    const at = reserve(halves + packedBytes(keys, 0, keys.length));
+    const heap = wasm().HEAP32;
+    for (let item = 0; item < keys.length; ++item) {
+      versionHalves(versions[item] ?? 0, heap, at / 4 + item * 2);
+    }
+    const { ends, packed } = pack(keys, 0, keys.length, at + halves);
+    return { at, ends, packed };
   }
 }

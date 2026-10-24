@@ -6,6 +6,7 @@ import { before, test } from 'node:test';
 
 import {
   ShadowListKitCore,
+  ShadowListKitListState,
   loadShadowListKit,
 } from '../dist/ShadowListKitCore.js';
 
@@ -183,12 +184,52 @@ test('diff keys reports indices in the whole lists past unchanged ends', () => {
   );
 });
 
-test('plan batch keeps rows and marks inserts', () => {
-  assert.deepEqual(
-    Array.from(ShadowListKitCore.planBatch(3, 3, [1], [0], [], [])!),
-    [-1, 0, 2]
+test('a list state collects a batch until the outermost block and plans it', () => {
+  const state = new ShadowListKitListState();
+  assert.equal(state.isBatching, false);
+  assert.equal(state.takeBatch(), null);
+  state.beginBatch();
+  state.batchDeleted([1]);
+  state.beginBatch();
+  state.batchInserted([0, -3]);
+  state.batchReloaded([2]);
+  assert.equal(state.endBatch(), false);
+  assert.equal(state.isBatching, true);
+  assert.equal(state.endBatch(), true);
+  assert.deepEqual(Array.from(state.takeBatch()!), [0, 2]);
+  assert.deepEqual(Array.from(state.planTakenBatch(3, 3)!), [-1, 0, 2]);
+  // A taken batch plans once, and a batch that does not add up plans to null.
+  state.beginBatch();
+  state.batchInserted([0]);
+  state.endBatch();
+  state.takeBatch();
+  assert.equal(state.planTakenBatch(3, 5), null);
+  state.beginBatch();
+  state.batchNeedsReload();
+  state.endBatch();
+  assert.deepEqual(Array.from(state.takeBatch()!), [1]);
+});
+
+test('a list state reloads items whose number or string version changed', () => {
+  const state = new ShadowListKitListState();
+  state.recordContentVersions(
+    ['a', 'b', 'c', 'd', 'e'],
+    [1, 'v1', -1, 0.5, 2 ** 40]
   );
-  assert.equal(ShadowListKitCore.planBatch(3, 5, [], [0], [], []), null);
+  assert.deepEqual(
+    Array.from(
+      state.updateContentVersions(
+        ['e', 'd', 'c', 'b', 'a', 'new'],
+        [2 ** 40 + 1, 0.5, -1, 'v2', '1', 7]
+      )
+    ),
+    [0, 3, 4]
+  );
+  // The new versions are kept, and the same versions again change nothing.
+  assert.deepEqual(
+    Array.from(state.updateContentVersions(['b', 'new'], ['v2', 7])),
+    []
+  );
 });
 
 test('insertion and deletion indices are sorted and clipped', () => {

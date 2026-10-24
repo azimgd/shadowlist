@@ -1,4 +1,4 @@
-import type { ComponentType, ReactElement } from 'react';
+import { createRef, type ComponentType, type ReactElement } from 'react';
 import { Pressable, Text } from 'react-native';
 import {
   afterEach,
@@ -12,6 +12,7 @@ import TestRenderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import ShadowList from '../ShadowList';
 import SectionList from '../SectionList';
 import TreeList from '../TreeList';
+import type { ShadowListCommands } from '../types';
 import { setShadowListStoreModule } from '../virtualizer/nativeStore';
 import {
   buildTreeSource,
@@ -421,4 +422,108 @@ describe('tree sources', () => {
       }
     });
   }
+});
+
+describe('selection through the native store', () => {
+  /*
+   * The rows' select and deselect from the newest render, and the keys they showed selected.
+   */
+  const rowActions = new Map<
+    string,
+    { select: () => void; deselect: () => void }
+  >();
+  let shownSelected: string[] = [];
+  function renderSelectable({
+    item,
+    selected,
+    select,
+    deselect,
+  }: {
+    item: Row;
+    selected: boolean;
+    select: () => void;
+    deselect: () => void;
+  }) {
+    rowActions.set(item.id, { select, deselect });
+    if (selected) shownSelected.push(item.id);
+    return <Text>{item.id}</Text>;
+  }
+
+  async function rowAction(name: string, action: 'select' | 'deselect') {
+    shownSelected = [];
+    await act(async () => {
+      rowActions.get(name)![action]();
+    });
+  }
+
+  it('moves a single selection, toggles nothing and reports the keys in order', async () => {
+    const changes: string[][] = [];
+    await mount(
+      <ShadowList
+        data={MANY.slice(0, 10)}
+        keyExtractor={keyOf}
+        renderItem={renderSelectable}
+        onSelectionChange={(keys) => changes.push(keys)}
+      />
+    );
+    await rowAction('r1', 'select');
+    await rowAction('r2', 'select');
+    // The same row again changes nothing.
+    await rowAction('r2', 'select');
+    expect(changes).toEqual([['r1'], ['r2']]);
+    expect(shownSelected).toEqual([]);
+    await rowAction('r2', 'deselect');
+    expect(changes).toEqual([['r1'], ['r2'], []]);
+  });
+
+  it('adds to a multiple selection and drops deleted rows', async () => {
+    const changes: string[][] = [];
+    const ref = createRef<ShadowListCommands>();
+    const tree = (data: Row[]) => (
+      <ShadowList
+        ref={ref}
+        data={data}
+        keyExtractor={keyOf}
+        renderItem={renderSelectable}
+        allowsMultipleSelection
+        onSelectionChange={(keys) => changes.push(keys)}
+      />
+    );
+    await mount(tree(MANY.slice(0, 10)));
+    await rowAction('r5', 'select');
+    await rowAction('r2', 'select');
+    expect(changes).toEqual([['r5'], ['r5', 'r2']]);
+    expect(ref.current!.getSelectedIndices()).toEqual([2, 5]);
+    // r5 is deleted. Native drops it from the selection and reports the change.
+    await update(tree([...MANY.slice(0, 5), ...MANY.slice(6, 10)]));
+    expect(changes[changes.length - 1]).toEqual(['r2']);
+    expect(module.calls).toContain(
+      `retainSelection ${listProps().keysVersion}`
+    );
+    expect(ref.current!.getSelectedIndices()).toEqual([2]);
+  });
+
+  it('starts from a controlled selectedKeys each time the parent changes it', async () => {
+    const changes: string[][] = [];
+    const tree = (selectedKeys: string[]) => (
+      <ShadowList
+        data={MANY.slice(0, 10)}
+        keyExtractor={keyOf}
+        renderItem={renderSelectable}
+        allowsMultipleSelection
+        selectedKeys={selectedKeys}
+        onSelectionChange={(keys) => changes.push(keys)}
+      />
+    );
+    await mount(tree(['r1']));
+    await rowAction('r3', 'select');
+    expect(changes).toEqual([['r1', 'r3']]);
+    // The parent kept its own keys and later chose others. The next change starts from those.
+    await update(tree(['r7']));
+    await rowAction('r4', 'select');
+    expect(changes).toEqual([
+      ['r1', 'r3'],
+      ['r7', 'r4'],
+    ]);
+  });
 });

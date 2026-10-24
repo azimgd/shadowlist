@@ -71,6 +71,20 @@ export interface ShadowListStoreModule extends TurboModule {
     keys: ReadonlyArray<string>,
     specs: ReadonlyArray<ItemSizeSpec>
   ): void;
+  /*
+   * The list's selection, the core's ListSelection kept with the store. The calls that change
+   * it return the selected keys in the order they were selected, or null when nothing changed.
+   */
+  setSelection(
+    store: NativeStoreHandle,
+    keys: ReadonlyArray<string>,
+    multiple: boolean
+  ): void;
+  selectKey(store: NativeStoreHandle, key: string): string[] | null;
+  selectOnlyKey(store: NativeStoreHandle, key: string): string[] | null;
+  deselectKey(store: NativeStoreHandle, key: string): string[] | null;
+  retainSelection(store: NativeStoreHandle, version: number): string[] | null;
+  selectedIndices(store: NativeStoreHandle, version: number): number[];
 }
 
 /*

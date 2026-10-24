@@ -42,7 +42,8 @@ std::int64_t registerStore(const std::shared_ptr<sl::RowKeyStore>& store) {
 }
 
 /*
- * What JS holds for its store. The store lives while JS or a node family holds it.
+ * What JS holds for its store. The store lives while JS or a node family holds it. The list's
+ * selection lives here too, read and written only by JS, see the selection functions.
  */
 class StoreHandle final : public jsi::HostObject {
 public:
@@ -54,9 +55,10 @@ public:
 
   const std::shared_ptr<sl::RowKeyStore> store;
   const std::int64_t id;
+  sl::ListSelection selection;
 };
 
-std::shared_ptr<sl::RowKeyStore> storeOf(jsi::Runtime& runtime, const jsi::Value& value) {
+std::shared_ptr<StoreHandle> handleOf(jsi::Runtime& runtime, const jsi::Value& value) {
   if (!value.isObject()) {
     throw jsi::JSError(runtime, "ShadowListStore: expected a store");
   }
@@ -64,7 +66,11 @@ std::shared_ptr<sl::RowKeyStore> storeOf(jsi::Runtime& runtime, const jsi::Value
   if (!object.isHostObject<StoreHandle>(runtime)) {
     throw jsi::JSError(runtime, "ShadowListStore: expected a store");
   }
-  return object.getHostObject<StoreHandle>(runtime)->store;
+  return object.getHostObject<StoreHandle>(runtime);
+}
+
+std::shared_ptr<sl::RowKeyStore> storeOf(jsi::Runtime& runtime, const jsi::Value& value) {
+  return handleOf(runtime, value)->store;
 }
 
 std::uint64_t versionOf(const jsi::Value& value) {
@@ -126,6 +132,14 @@ std::vector<sl::TreeRow> treeRowsOf(jsi::Runtime& runtime, const jsi::Value* arg
     rows[row].expanded = (rowFlags & 2) != 0;
   }
   return rows;
+}
+
+jsi::Array stringArrayOf(jsi::Runtime& runtime, const std::vector<std::string>& strings) {
+  jsi::Array array(runtime, strings.size());
+  for (std::size_t position = 0; position < strings.size(); ++position) {
+    array.setValueAtIndex(runtime, position, jsi::String::createFromUtf8(runtime, strings[position]));
+  }
+  return array;
 }
 
 double optionalNumber(jsi::Runtime& runtime, const jsi::Object& object, const char* name, double fallback) {
@@ -287,6 +301,95 @@ jsi::Value setSizeSpecs(jsi::Runtime& runtime, const jsi::Value* args, size_t co
   return jsi::Value::undefined();
 }
 
+/*
+ * The selected keys after a change, or null when nothing changed.
+ */
+jsi::Value selectionResult(jsi::Runtime& runtime, const sl::ListSelection& selection, bool changed) {
+  return changed ? jsi::Value(runtime, stringArrayOf(runtime, selection.getKeys())) : jsi::Value::null();
+}
+
+std::string keyOf(jsi::Runtime& runtime, const jsi::Value& value) {
+  return value.isString() ? value.getString(runtime).utf8(runtime) : std::string();
+}
+
+jsi::Value setSelection(jsi::Runtime& runtime, const jsi::Value* args, size_t count) {
+  if (count < 3) {
+    return jsi::Value::undefined();
+  }
+  sl::ListSelection& selection = handleOf(runtime, args[0])->selection;
+  selection.setMultiple(args[2].isBool() && args[2].getBool());
+  selection.setKeys(stringsOf(runtime, args[1]));
+  return jsi::Value::undefined();
+}
+
+jsi::Value selectKey(jsi::Runtime& runtime, const jsi::Value* args, size_t count) {
+  if (count < 2 || !args[1].isString()) {
+    return jsi::Value::null();
+  }
+  sl::ListSelection& selection = handleOf(runtime, args[0])->selection;
+  std::vector<std::string> deselected;
+  return selectionResult(runtime, selection, selection.select(keyOf(runtime, args[1]), deselected));
+}
+
+jsi::Value selectOnlyKey(jsi::Runtime& runtime, const jsi::Value* args, size_t count) {
+  if (count < 2 || !args[1].isString()) {
+    return jsi::Value::null();
+  }
+  sl::ListSelection& selection = handleOf(runtime, args[0])->selection;
+  std::vector<std::string> deselected;
+  return selectionResult(runtime, selection, selection.selectOnly(keyOf(runtime, args[1]), deselected));
+}
+
+jsi::Value deselectKey(jsi::Runtime& runtime, const jsi::Value* args, size_t count) {
+  if (count < 2 || !args[1].isString()) {
+    return jsi::Value::null();
+  }
+  sl::ListSelection& selection = handleOf(runtime, args[0])->selection;
+  return selectionResult(runtime, selection, selection.deselect(keyOf(runtime, args[1])));
+}
+
+/*
+ * Drop the selected keys the version's rows no longer have. Each selected key is looked up in
+ * the version's index, so this costs the selection's size once the index exists.
+ */
+jsi::Value retainSelection(jsi::Runtime& runtime, const jsi::Value* args, size_t count) {
+  if (count < 2) {
+    return jsi::Value::null();
+  }
+  auto handle = handleOf(runtime, args[0]);
+  if (handle->selection.isEmpty()) {
+    return jsi::Value::null();
+  }
+  auto snapshot = handle->store->snapshot(versionOf(args[1]));
+  if (!snapshot) {
+    return jsi::Value::null();
+  }
+  bool changed = handle->selection.retainWhere(
+    [&](const std::string& key) { return snapshot->indexOfKey(key) != sl::UNDEFINED_INDEX; });
+  return selectionResult(runtime, handle->selection, changed);
+}
+
+/*
+ * The rows of the selected keys in the version, low to high.
+ */
+jsi::Value selectedIndices(jsi::Runtime& runtime, const jsi::Value* args, size_t count) {
+  if (count < 2) {
+    return jsi::Array(runtime, 0);
+  }
+  auto handle = handleOf(runtime, args[0]);
+  auto snapshot = handle->selection.isEmpty() ? nullptr : handle->store->snapshot(versionOf(args[1]));
+  if (!snapshot) {
+    return jsi::Array(runtime, 0);
+  }
+  std::vector<std::size_t> rows = handle->selection.indicesWhere(
+    [&](const std::string& key) { return snapshot->indexOfKey(key); }, sl::UNDEFINED_INDEX);
+  jsi::Array array(runtime, rows.size());
+  for (std::size_t position = 0; position < rows.size(); ++position) {
+    array.setValueAtIndex(runtime, position, static_cast<double>(rows[position]));
+  }
+  return array;
+}
+
 const Entry ENTRIES[] = {
   {"createStore", 0, createStore},
   {"setKeys", 3, setKeys},
@@ -297,6 +400,12 @@ const Entry ENTRIES[] = {
   {"collapseTree", 4, collapseTree},
   {"indexOfKey", 4, indexOfKey},
   {"setSizeSpecs", 4, setSizeSpecs},
+  {"setSelection", 3, setSelection},
+  {"selectKey", 2, selectKey},
+  {"selectOnlyKey", 2, selectOnlyKey},
+  {"deselectKey", 2, deselectKey},
+  {"retainSelection", 2, retainSelection},
+  {"selectedIndices", 2, selectedIndices},
 };
 
 jsi::Function functionOf(jsi::Runtime& runtime, const Entry& entry) {

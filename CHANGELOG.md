@@ -12,10 +12,12 @@
 - A horizontal list styled `height: 'auto'` takes the height of its tallest mounted row.
 - Native decides which rows mount, paces the overscan on display frames, and works out viewable items, the pinned section header and prefetching in the shared C++ core. JS only applies the result. The props and callbacks of the lists are the same. The raw `ShadowListView` native component sends `onMountedRangeChange`, `onViewabilityChange` and `onPrefetchChange` instead of `onMeasuredRangeChange` and `onViewableIndicesChange`.
 - Row keys, section and tree rows and row size specs no longer travel as props. Each list writes them by version into a native key store through the new `ShadowListStore` C++ TurboModule, only what changed, and native builds the row keys of sections and trees, the sticky section headers, and the key lookups. SectionList and TreeList only build the rows that mount, and a tree expand or collapse splices only the toggled node's rows. The props and callbacks of the lists are the same. The raw `ShadowListView` takes `keysStore`, `keysVersion` and `sizeSpecsVersion`, and keeps `rowKeys` (now optional), `rowSizeSpecs` and `stickyIndices` only for when the module is missing. `onMountedRangeChange` also carries `lowIndex` and `highIndex`. SectionList row keys follow the core's scheme (`\x1fh:`, `\x1fi:`, `\x1ff:` with the section key) instead of `sh:`, `si:` and `sf:`.
+- The selection is the core's `ListSelection`, kept with the list's native store and changed through `ShadowListStore`, the same rules UIKit and the Android kit use. `onSelectionChange` reports keys in the order they were selected. A removed row leaves the selection with native looking up only the selected keys. Without the module, rows show `selectedKeys` and taps change nothing.
 
 ### ShadowListKit (iOS and Android)
 
 - `followAppends` also keeps items growing at the end in view.
+- Android keeps the selection, the batch `performBatchUpdates` collects and the content versions in the core's `ListSelection`, `BatchCollector` and `ContentVersions` through the JNI, beside the core and outliving it. UIKit takes its batches from `BatchCollector` too.
 
 ### ShadowListUtils
 

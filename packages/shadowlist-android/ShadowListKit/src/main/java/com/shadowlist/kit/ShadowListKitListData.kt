@@ -45,21 +45,12 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   private var sectionItemKeys: List<String>? = null
 
   /*
-   * Changes collected by performBatchUpdates until its block returns.
+   * The changes performBatchUpdates collects and the content versions applyChanges compares
+   * live in the list's state, the core's BatchCollector and ContentVersions, which outlive the
+   * core. The payload of the last reload in a batch stays here.
    */
-  private var batchDepth = 0
-  private val batchDeleted = ArrayList<Int>()
-  private val batchInserted = ArrayList<Int>()
-  private val batchMovedFrom = ArrayList<Int>()
-  private val batchMovedTo = ArrayList<Int>()
-  private val batchReloaded = ArrayList<Int>()
+  private val state get() = list.state
   private var batchPayload: Any? = null
-  private var batchNeedsReload = false
-
-  /*
-   * The content version of every item applyChanges saw, by key.
-   */
-  private var contentVersions = HashMap<String, Long>()
 
   /*
    * Read the sections and every key into next and return the item keys. A list with sections
@@ -148,8 +139,8 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   }
 
   fun reloadData() {
-    if (batchDepth > 0) {
-      batchNeedsReload = true
+    if (state.isBatching) {
+      state.batchNeedsReload()
       return
     }
     if (list.dataSource == null) return
@@ -161,16 +152,15 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   }
 
   /*
-   * The content version of every item now, which the next applyChanges compares against. The
-   * versions outlive the core, which is dropped on detach. The rules are the core's
-   * ContentVersions, see content_versions_report_items_whose_version_changed.
+   * The content version of every item now, which the next applyChanges compares against.
    */
   private fun recordContentVersions(items: List<String>) {
     val versioned = list.dataSource as? ContentVersions ?: return
-    val versions = HashMap<String, Long>(items.size * 2)
-    for ((item, key) in items.withIndex()) versions[key] = versioned.contentVersionForItem(list, item)
-    contentVersions = versions
+    state.recordContentVersions(items, contentVersionsOf(versioned, items.size))
   }
+
+  private fun contentVersionsOf(versioned: ContentVersions, count: Int): LongArray =
+    LongArray(count) { versioned.contentVersionForItem(list, it) }
 
   /*
    * The core's keySplice over the key list kept here, which needs no copy of the keys into the
@@ -188,8 +178,8 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   }
 
   fun insertItems(indices: IntArray) {
-    if (batchDepth > 0) {
-      batchInserted.addAll(indices.asList())
+    if (state.isBatching) {
+      state.batchInserted(indices)
       return
     }
     if (list.dataSource is Sections) {
@@ -209,8 +199,8 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   }
 
   fun deleteItems(indices: IntArray) {
-    if (batchDepth > 0) {
-      batchDeleted.addAll(indices.asList())
+    if (state.isBatching) {
+      state.batchDeleted(indices)
       return
     }
     if (list.dataSource is Sections) {
@@ -230,8 +220,8 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
   }
 
   fun reloadItems(indices: IntArray, payload: Any? = null) {
-    if (batchDepth > 0) {
-      batchReloaded.addAll(indices.asList())
+    if (state.isBatching) {
+      state.batchReloaded(indices)
       batchPayload = payload
       return
     }
@@ -254,20 +244,18 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
 
   fun moveItem(sourceIndex: Int, destinationIndex: Int) {
     if (sourceIndex < 0 || destinationIndex < 0) return
-    performBatchUpdates({
-      batchMovedFrom.add(sourceIndex)
-      batchMovedTo.add(destinationIndex)
-    })
+    performBatchUpdates({ state.batchMoved(sourceIndex, destinationIndex) })
   }
 
   fun performBatchUpdates(updates: () -> Unit, completion: ((finished: Boolean) -> Unit)? = null) {
-    ++batchDepth
+    state.beginBatch()
+    var outermost = false
     try {
       updates()
     } finally {
-      --batchDepth
+      outermost = state.endBatch()
     }
-    if (batchDepth == 0) commitBatch()
+    if (outermost) commitBatch()
     if (completion == null) return
     val wait = if (list.animatesChanges && list.isAttachedToWindow) (list.itemAnimator as? ShadowListKitDefaultItemAnimator)?.durationMs ?: 0L else 0L
     list.runCommandNow()
@@ -280,31 +268,21 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
    * not add up, reads everything again.
    */
   private fun commitBatch() {
-    val deleted = batchDeleted.toIntArray()
-    val inserted = batchInserted.toIntArray()
-    val movedFrom = batchMovedFrom.toIntArray()
-    val movedTo = batchMovedTo.toIntArray()
-    val reloaded = batchReloaded.toIntArray()
     val payload = batchPayload
-    val needsReload = batchNeedsReload
-    batchDeleted.clear()
-    batchInserted.clear()
-    batchMovedFrom.clear()
-    batchMovedTo.clear()
-    batchReloaded.clear()
     batchPayload = null
-    batchNeedsReload = false
+    // The batch's reload flag, then the reloaded items.
+    val taken = state.takeBatch() ?: return
     val source = list.dataSource ?: return
-    if (deleted.isEmpty() && inserted.isEmpty() && movedFrom.isEmpty() && reloaded.isEmpty() && !needsReload) return
+    val needsReload = taken[0] != 0
     // The reloaded rows by key, from the data before.
     val reloadedKeys = HashSet<String>()
-    for (item in reloaded) keys.getOrNull(list.rowForItem(item))?.let(reloadedKeys::add)
+    for (at in 1 until taken.size) keys.getOrNull(list.rowForItem(taken[at]))?.let(reloadedKeys::add)
     val next = spareKeys
     next.clear()
     var planned = false
     if (source !is Sections && !needsReload) {
       val nextCount = max(0, source.numberOfItems(list))
-      val plan = ShadowListKitCore.planBatch(keys.size, nextCount, deleted, inserted, movedFrom, movedTo)
+      val plan = state.planTakenBatch(keys.size, nextCount)
       if (plan != null) {
         next.ensureCapacity(plan.size)
         // The core's keysFromPlan: a kept row takes its key, an inserted one reads its own.
@@ -346,22 +324,11 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val diff = ShadowListKitCore.diffKeys(previousItems, nextItems)
 
     // Rows that stayed but whose content version changed get reloaded.
-    val reloaded = ArrayList<Int>()
-    val reloadedKeys = HashSet<String>()
     val versioned = list.dataSource as? ContentVersions
-    if (versioned != null) {
-      val versions = HashMap<String, Long>(nextItems.size * 2)
-      for ((item, key) in nextItems.withIndex()) {
-        val version = versioned.contentVersionForItem(list, item)
-        val known = contentVersions[key]
-        if (known != null && known != version) {
-          reloaded.add(item)
-          reloadedKeys.add(key)
-        }
-        versions[key] = version
-      }
-      contentVersions = versions
-    }
+    val reloaded =
+      if (versioned != null) state.updateContentVersions(nextItems, contentVersionsOf(versioned, nextItems.size)) else IntArray(0)
+    val reloadedKeys = HashSet<String>(reloaded.size * 2)
+    for (item in reloaded) reloadedKeys.add(nextItems[item])
 
     commitKeyChanges(next, reloadedKeys, null, reloadsSectionIndex = true)
 
@@ -373,7 +340,7 @@ internal class ShadowListKitListData(private val list: ShadowListKitListView) {
     val moves = diff[at]
     val movedFrom = IntArray(moves) { diff[at + 1 + it * 2] }
     val movedTo = IntArray(moves) { diff[at + 2 + it * 2] }
-    return ShadowListKitListChanges(deleted, inserted, movedFrom, movedTo, reloaded.toIntArray())
+    return ShadowListKitListChanges(deleted, inserted, movedFrom, movedTo, reloaded)
   }
 
   /*

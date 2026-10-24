@@ -5,12 +5,6 @@ import {
 } from '../virtualizer/viewability';
 import { mergeSortedIndices } from '../virtualizer/helpers';
 import {
-  deselectKey,
-  retainKeys,
-  selectKey,
-  selectedIndices,
-} from '../virtualizer/selection';
-import {
   contentPadding,
   crossPadding,
   footerPaddingStyles,
@@ -18,10 +12,6 @@ import {
   rowPaddingStyles,
 } from '../virtualizer/contentPadding';
 import { SeparatorStore } from '../virtualizer/separators';
-
-const keys = ['a', 'b', 'c', 'd', 'e', 'f'];
-const keyToIndex = new Map(keys.map((key, index) => [key, index]));
-const indexOfKey = (key: string) => keyToIndex.get(key) ?? -1;
 
 describe('viewableRulesFor', () => {
   it('starts with any overlap and adds one rule per config', () => {
@@ -57,23 +47,6 @@ describe('mergeSortedIndices', () => {
       0, 4, 5, 6, 7, 40,
     ]);
     expect(mergeSortedIndices([], [2])).toEqual([2]);
-  });
-});
-
-describe('selection', () => {
-  it('replaces a single selection and adds to a multiple one', () => {
-    expect(selectKey(['a'], 'b', false)).toEqual(['b']);
-    expect(selectKey(['a'], 'b', true)).toEqual(['a', 'b']);
-    const same = ['a'];
-    expect(selectKey(same, 'a', false)).toBe(same);
-    expect(deselectKey(['a', 'b'], 'a')).toEqual(['b']);
-  });
-
-  it('drops removed rows and reports indices low to high', () => {
-    const selected = ['c', 'a'];
-    expect(retainKeys(selected, indexOfKey)).toBe(selected);
-    expect(retainKeys(['a', 'gone'], indexOfKey)).toEqual(['a']);
-    expect(selectedIndices(selected, indexOfKey)).toEqual([0, 2]);
   });
 });
 

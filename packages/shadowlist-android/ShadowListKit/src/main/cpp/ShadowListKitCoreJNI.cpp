@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <utility>
@@ -17,6 +18,7 @@
 #include <shadowlist-core/host/KeyDiff.hpp>
 #include <shadowlist-core/host/ListDriver.hpp>
 #include <shadowlist-core/host/ListSections.hpp>
+#include <shadowlist-core/host/ListSelection.hpp>
 #include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 #include <shadowlist-core/host/SectionIndex.hpp>
@@ -260,6 +262,30 @@ jintArray makeIntArray(JNIEnv* env, const std::vector<jint>& values) {
     env->SetIntArrayRegion(array, 0, static_cast<jsize>(values.size()), values.data());
   }
   return array;
+}
+
+jobjectArray makeStringArray(JNIEnv* env, const std::vector<std::string>& values) {
+  jclass stringClass = env->FindClass("java/lang/String");
+  jobjectArray array = env->NewObjectArray(static_cast<jsize>(values.size()), stringClass, nullptr);
+  for (std::size_t at = 0; array != nullptr && at < values.size(); ++at) {
+    jstring value = env->NewStringUTF(values[at].c_str());
+    if (value == nullptr) {
+      break;
+    }
+    env->SetObjectArrayElement(array, static_cast<jsize>(at), value);
+    env->DeleteLocalRef(value);
+  }
+  env->DeleteLocalRef(stringClass);
+  return array;
+}
+
+std::vector<jint> jintsFromIndices(const std::vector<std::size_t>& indices) {
+  std::vector<jint> values;
+  values.reserve(indices.size());
+  for (std::size_t index : indices) {
+    values.push_back(static_cast<jint>(index));
+  }
+  return values;
 }
 
 /*
@@ -708,19 +734,7 @@ JNIEXPORT jobjectArray JNICALL SHADOWLIST_KIT_JNI(nativeEdgeRowKeys)(
       env->DeleteLocalRef(first);
     }
   }
-  std::vector<std::string> edges = peerOf(handle)->sections.edgeRowKeys(given, firsts);
-  jclass stringClass = env->FindClass("java/lang/String");
-  jobjectArray array = env->NewObjectArray(static_cast<jsize>(edges.size()), stringClass, nullptr);
-  for (std::size_t at = 0; array != nullptr && at < edges.size(); ++at) {
-    jstring key = env->NewStringUTF(edges[at].c_str());
-    if (key == nullptr) {
-      break;
-    }
-    env->SetObjectArrayElement(array, static_cast<jsize>(at), key);
-    env->DeleteLocalRef(key);
-  }
-  env->DeleteLocalRef(stringClass);
-  return array;
+  return makeStringArray(env, peerOf(handle)->sections.edgeRowKeys(given, firsts));
 }
 
 /*
@@ -788,36 +802,6 @@ JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeDiffKeys)(JNIEnv* env, jcla
     packed.push_back(static_cast<jint>(move.to));
   }
   return makeIntArray(env, packed);
-}
-
-/*
- * The source of every next row, a previous index or -1 for an insert, or null for a batch that
- * does not add up.
- */
-JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativePlanBatch)(JNIEnv* env, jclass, jint previousCount, jint nextCount,
-  jintArray deleted, jintArray inserted, jintArray movedFrom, jintArray movedTo) {
-  sl::BatchUpdate batch;
-  batch.deleted = readIndices(env, deleted);
-  batch.inserted = readIndices(env, inserted);
-  std::vector<jint> from = readInts(env, movedFrom);
-  std::vector<jint> to = readInts(env, movedTo);
-  for (std::size_t at = 0; at < from.size() && at < to.size(); ++at) {
-    if (from[at] < 0 || to[at] < 0) {
-      return nullptr;
-    }
-    batch.moved.push_back({static_cast<std::size_t>(from[at]), static_cast<std::size_t>(to[at])});
-  }
-  std::optional<sl::BatchPlan> plan = sl::planBatch(static_cast<std::size_t>(std::max(previousCount, 0)),
-    static_cast<std::size_t>(std::max(nextCount, 0)), batch);
-  if (!plan) {
-    return nullptr;
-  }
-  std::vector<jint> sources;
-  sources.reserve(plan->sources.size());
-  for (std::size_t source : plan->sources) {
-    sources.push_back(jintFromIndex(source));
-  }
-  return makeIntArray(env, sources);
 }
 
 /*
@@ -994,6 +978,222 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSwipeSettle)(
   slots[SWIPE_OUT_FULL] = rest.full ? 1.0 : 0.0;
   slots[SWIPE_OUT_OFFSET] = rest.offset;
   env->SetDoubleArrayRegion(io, SWIPE_OUT_SIDE, SWIPE_SLOTS - SWIPE_OUT_SIDE, slots + SWIPE_OUT_SIDE);
+}
+
+}
+
+/*
+ * JNI side of com.shadowlist.kit.ShadowListKitListState: the selection, the batch being collected
+ * and the content versions of one list, which outlive the core the list drops on detach.
+ */
+namespace {
+
+struct StatePeer {
+  sl::ListSelection selection;
+  sl::BatchCollector batch;
+  sl::CollectedBatch taken;
+  sl::ContentVersions versions;
+};
+
+StatePeer* statePeerOf(jlong handle) {
+  return reinterpret_cast<StatePeer*>(handle);
+}
+
+std::vector<std::int64_t> readLongs(JNIEnv* env, jlongArray array) {
+  if (array == nullptr) {
+    return {};
+  }
+  jsize length = env->GetArrayLength(array);
+  std::vector<jlong> values(static_cast<std::size_t>(length));
+  env->GetLongArrayRegion(array, 0, length, values.data());
+  return std::vector<std::int64_t>(values.begin(), values.end());
+}
+
+/*
+ * Values of a tap's out[0], ShadowListKitListState.TAP_* in Kotlin.
+ */
+enum TapOutcome {
+  TAP_NOTHING = 0,
+  TAP_SELECTED,
+  TAP_TOGGLED_OFF,
+};
+
+}
+
+#define SHADOWLIST_KIT_STATE_JNI(name) Java_com_shadowlist_kit_ShadowListKitListState_##name
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL SHADOWLIST_KIT_STATE_JNI(nativeCreate)(JNIEnv*, jclass) {
+  return reinterpret_cast<jlong>(new StatePeer());
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeDestroy)(JNIEnv*, jclass, jlong handle) {
+  delete statePeerOf(handle);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeSetMultipleSelection)(JNIEnv*, jclass, jlong handle, jboolean multiple) {
+  statePeerOf(handle)->selection.setMultiple(multiple == JNI_TRUE);
+}
+
+JNIEXPORT jint JNICALL SHADOWLIST_KIT_STATE_JNI(nativeSelectedCount)(JNIEnv*, jclass, jlong handle) {
+  return static_cast<jint>(statePeerOf(handle)->selection.getCount());
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_STATE_JNI(nativeIsSelected)(JNIEnv* env, jclass, jlong handle, jstring key) {
+  return statePeerOf(handle)->selection.contains(readString(env, key)) ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Select a row. Returns the rows this deselected.
+ */
+JNIEXPORT jobjectArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeSelect)(JNIEnv* env, jclass, jlong handle, jstring key) {
+  std::vector<std::string> deselected;
+  statePeerOf(handle)->selection.select(readString(env, key), deselected);
+  return makeStringArray(env, deselected);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_STATE_JNI(nativeDeselect)(JNIEnv* env, jclass, jlong handle, jstring key) {
+  return statePeerOf(handle)->selection.deselect(readString(env, key)) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jobjectArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeClearSelection)(JNIEnv* env, jclass, jlong handle) {
+  std::vector<std::string> deselected;
+  statePeerOf(handle)->selection.clear(deselected);
+  return makeStringArray(env, deselected);
+}
+
+/*
+ * The core's ListSelection.tap. shouldSelect is a ShadowListKitListState.ShouldSelect, asked
+ * only before a row gets selected. out[0] gets a TAP_* outcome. Returns the rows this deselected.
+ */
+JNIEXPORT jobjectArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeTap)(
+  JNIEnv* env, jclass, jlong handle, jstring key, jobject shouldSelect, jintArray out) {
+  sl::SelectionTap tap = statePeerOf(handle)->selection.tap(readString(env, key), [&] {
+    jclass clazz = env->GetObjectClass(shouldSelect);
+    jmethodID method = env->GetMethodID(clazz, "shouldSelect", "()Z");
+    env->DeleteLocalRef(clazz);
+    jboolean answer = env->CallBooleanMethod(shouldSelect, method);
+    // A callback that threw selects nothing, and its exception reaches Kotlin when this returns.
+    return !env->ExceptionCheck() && answer == JNI_TRUE;
+  });
+  jint outcome = tap.toggledOff ? TAP_TOGGLED_OFF : tap.selected ? TAP_SELECTED : TAP_NOTHING;
+  if (env->ExceptionCheck()) {
+    return nullptr;
+  }
+  env->SetIntArrayRegion(out, 0, 1, &outcome);
+  return makeStringArray(env, tap.deselected);
+}
+
+/*
+ * Drop the selected keys the joined keys no longer have.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeRetainSelection)(
+  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
+  sl::ListSelection& selection = statePeerOf(handle)->selection;
+  if (!selection.isEmpty()) {
+    selection.retainKeys(readPackedKeys(env, packed, ends));
+  }
+}
+
+/*
+ * The positions of the selected keys among the joined keys, low to high.
+ */
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeSelectedRows)(
+  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
+  const sl::ListSelection& selection = statePeerOf(handle)->selection;
+  if (selection.isEmpty()) {
+    return env->NewIntArray(0);
+  }
+  return makeIntArray(env, jintsFromIndices(selection.indicesIn(readPackedKeys(env, packed, ends))));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeBeginBatch)(JNIEnv*, jclass, jlong handle) {
+  statePeerOf(handle)->batch.begin();
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_STATE_JNI(nativeEndBatch)(JNIEnv*, jclass, jlong handle) {
+  return statePeerOf(handle)->batch.end() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_STATE_JNI(nativeIsBatching)(JNIEnv*, jclass, jlong handle) {
+  return statePeerOf(handle)->batch.isCollecting() ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeBatchDeleted)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
+  statePeerOf(handle)->batch.addDeleted(readIndices(env, indices));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeBatchInserted)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
+  statePeerOf(handle)->batch.addInserted(readIndices(env, indices));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeBatchMoved)(JNIEnv*, jclass, jlong handle, jint from, jint to) {
+  if (from >= 0 && to >= 0) {
+    statePeerOf(handle)->batch.addMoved(static_cast<std::size_t>(from), static_cast<std::size_t>(to));
+  }
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeBatchReloaded)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
+  statePeerOf(handle)->batch.addReloaded(readIndices(env, indices));
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeBatchNeedsReload)(JNIEnv*, jclass, jlong handle) {
+  statePeerOf(handle)->batch.markNeedsReload();
+}
+
+/*
+ * Take the collected batch, kept for nativePlanTakenBatch. Returns null for an empty batch,
+ * otherwise whether it needs a reload, 1 or 0, then the reloaded items.
+ */
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeTakeBatch)(JNIEnv* env, jclass, jlong handle) {
+  StatePeer* peer = statePeerOf(handle);
+  peer->taken = peer->batch.take();
+  if (peer->taken.isEmpty()) {
+    return nullptr;
+  }
+  std::vector<jint> packed;
+  packed.reserve(peer->taken.update.reloaded.size() + 1);
+  packed.push_back(peer->taken.needsReload ? 1 : 0);
+  for (std::size_t item : peer->taken.update.reloaded) {
+    packed.push_back(static_cast<jint>(item));
+  }
+  return makeIntArray(env, packed);
+}
+
+/*
+ * The core's planBatch over the batch nativeTakeBatch took: the source of every next row, a
+ * previous index or -1 for an insert, or null for a batch that does not add up.
+ */
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativePlanTakenBatch)(
+  JNIEnv* env, jclass, jlong handle, jint previousCount, jint nextCount) {
+  StatePeer* peer = statePeerOf(handle);
+  std::optional<sl::BatchPlan> plan = sl::planBatch(static_cast<std::size_t>(std::max(previousCount, 0)),
+    static_cast<std::size_t>(std::max(nextCount, 0)), peer->taken.update);
+  peer->taken = sl::CollectedBatch{};
+  if (!plan) {
+    return nullptr;
+  }
+  std::vector<jint> sources;
+  sources.reserve(plan->sources.size());
+  for (std::size_t source : plan->sources) {
+    sources.push_back(jintFromIndex(source));
+  }
+  return makeIntArray(env, sources);
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeRecordContentVersions)(
+  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends, jlongArray versions) {
+  statePeerOf(handle)->versions.record(readPackedKeys(env, packed, ends), readLongs(env, versions));
+}
+
+/*
+ * The items whose content version changed, low to high. The new versions are kept.
+ */
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeUpdateContentVersions)(
+  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends, jlongArray versions) {
+  return makeIntArray(env,
+    jintsFromIndices(statePeerOf(handle)->versions.update(readPackedKeys(env, packed, ends), readLongs(env, versions))));
 }
 
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <unordered_set>
@@ -19,9 +20,12 @@ struct SelectionTap {
 };
 
 /*
- * The selected rows of a list, held by key. A selection follows its rows across inserts and
- * moves, and a removed row leaves it. With single selection, selecting a row deselects the one
- * selected before.
+ * The selected rows of a list, held by key in the order they were selected. A selection follows
+ * its rows across inserts and moves, and a removed row leaves it. With single selection,
+ * selecting a row deselects every other one.
+ *
+ * Every host keeps its selection here: UIKit and the Android kit beside their core, which they
+ * drop and make again, and Fabric's JS through the ShadowListStore module, one per list store.
  */
 class ListSelection final {
 public:
@@ -29,10 +33,16 @@ public:
   bool isMultiple() const { return multiple_; }
 
   /*
-   * Select a row. Rows this deselects, the previous one under single selection, are added to
-   * deselected. Returns whether the row was not selected before.
+   * Select a row. Under single selection every other row is deselected and added to deselected.
+   * Returns whether the selection changed.
    */
   bool select(const std::string& key, std::vector<std::string>& deselected);
+
+  /*
+   * Select a row and deselect every other one, under either mode. Returns whether the selection
+   * changed.
+   */
+  bool selectOnly(const std::string& key, std::vector<std::string>& deselected);
 
   /*
    * Returns whether the row was selected.
@@ -65,9 +75,20 @@ public:
    */
   void clear(std::vector<std::string>& deselected);
 
-  bool contains(const std::string& key) const { return keys_.count(key) > 0; }
+  /*
+   * Take these keys as the selection, in this order, each once. Returns whether it changed.
+   * Under single selection a host may still hand more than one, as Fabric's selectedKeys can.
+   */
+  bool setKeys(const std::vector<std::string>& keys);
+
+  bool contains(const std::string& key) const { return set_.count(key) > 0; }
   bool isEmpty() const { return keys_.empty(); }
   std::size_t getCount() const { return keys_.size(); }
+
+  /*
+   * The selected keys in the order they were selected.
+   */
+  const std::vector<std::string>& getKeys() const { return keys_; }
 
   /*
    * Positions of the selected keys in keys, low to high.
@@ -75,13 +96,53 @@ public:
   std::vector<std::size_t> indicesIn(const std::vector<std::string>& keys) const;
 
   /*
-   * Drop the selected keys that keys no longer has.
+   * Positions of the selected keys that indexOf finds, low to high. indexOf returns a key's row,
+   * or a value of at least notFound for a key the data does not have.
    */
-  void retainKeys(const std::vector<std::string>& keys);
+  template <typename IndexOf>
+  std::vector<std::size_t> indicesWhere(IndexOf indexOf, std::size_t notFound) const {
+    std::vector<std::size_t> indices;
+    indices.reserve(keys_.size());
+    for (const std::string& key : keys_) {
+      std::size_t index = indexOf(key);
+      if (index < notFound) {
+        indices.push_back(index);
+      }
+    }
+    std::sort(indices.begin(), indices.end());
+    return indices;
+  }
+
+  /*
+   * Drop the selected keys that keys no longer has. Returns whether any was dropped.
+   */
+  bool retainKeys(const std::vector<std::string>& keys);
+
+  /*
+   * Drop the selected keys keep turns down. Only the selected keys are asked, so a lookup that
+   * answers in constant time keeps this proportional to the selection, not the data. Returns
+   * whether any was dropped.
+   */
+  template <typename Keep>
+  bool retainWhere(Keep keep) {
+    auto end = std::remove_if(keys_.begin(), keys_.end(), [&](const std::string& key) {
+      if (keep(key)) {
+        return false;
+      }
+      set_.erase(key);
+      return true;
+    });
+    if (end == keys_.end()) {
+      return false;
+    }
+    keys_.erase(end, keys_.end());
+    return true;
+  }
 
 private:
   bool multiple_ = false;
-  std::unordered_set<std::string> keys_;
+  std::vector<std::string> keys_;
+  std::unordered_set<std::string> set_;
 };
 
 }

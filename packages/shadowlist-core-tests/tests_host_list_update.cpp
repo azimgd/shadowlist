@@ -122,8 +122,8 @@ TEST(keys_from_plan_keep_old_keys_and_read_new_ones) {
 }
 
 /*
- * ShadowListKitListView.applyChanges on Android keeps its versions in a map that outlives the core. It
- * reloads by the same rule.
+ * applyChanges on every kit. UIKit, the Android kit and the wasm kit keep their versions here,
+ * beside the core and outliving it.
  */
 TEST(content_versions_report_items_whose_version_changed) {
   ContentVersions versions;
@@ -135,4 +135,63 @@ TEST(content_versions_report_items_whose_version_changed) {
   // The new versions are kept: the same data again changes nothing.
   CHECK(versions.update({"c", "a", "b", "d"}, {1, 1, 2, 5}).empty());
   CHECK(versions.update({"d"}, {6}) == (Indices{0}));
+  // Keys the data dropped are forgotten: a comes back with nothing to compare.
+  CHECK(versions.update({"a", "d"}, {9, 6}).empty());
+  CHECK(versions.update({"a", "d"}, {9, 7}) == (Indices{1}));
+  // A key named twice keeps its first version.
+  CHECK(versions.update({"a", "a"}, {9, 3}).empty());
+  CHECK(versions.update({"a"}, {9}).empty());
+}
+
+/*
+ * performBatchUpdates on every kit: changes inside nested blocks collect until the outermost
+ * returns, and the batch taken plans the same as one built by hand.
+ */
+TEST(batch_collector_collects_until_the_outermost_block_returns) {
+  BatchCollector collector;
+  CHECK(!collector.isCollecting());
+  CHECK(!collector.end());
+  collector.begin();
+  collector.addDeleted({4, 1});
+  collector.begin();
+  collector.addInserted({0});
+  collector.addMoved(2, 3);
+  collector.addReloaded({5});
+  CHECK(!collector.end());
+  CHECK(collector.isCollecting());
+  collector.addInserted({5});
+  CHECK(collector.end());
+  CHECK(!collector.isCollecting());
+
+  CollectedBatch batch = collector.take();
+  CHECK(!batch.isEmpty() && !batch.needsReload);
+  CHECK(batch.update.deleted == (Indices{4, 1}));
+  CHECK(batch.update.inserted == (Indices{0, 5}));
+  CHECK_EQ(batch.update.moved.size(), std::size_t(1));
+  CHECK(batch.update.moved[0].from == 2 && batch.update.moved[0].to == 3);
+  CHECK(batch.update.reloaded == (Indices{5}));
+  // Taking leaves nothing behind.
+  CHECK(collector.take().isEmpty());
+
+  BatchUpdate byHand;
+  byHand.deleted = {4, 1};
+  byHand.inserted = {0, 5};
+  byHand.moved = {{2, 3}};
+  std::optional<BatchPlan> collected = planBatch(6, 6, batch.update);
+  std::optional<BatchPlan> built = planBatch(6, 6, byHand);
+  CHECK(collected.has_value() && built.has_value());
+  CHECK(collected->sources == built->sources);
+}
+
+/*
+ * A reloadData inside a batch makes the host read everything again, even with nothing else in it.
+ */
+TEST(batch_collector_keeps_a_reload_inside_the_batch) {
+  BatchCollector collector;
+  collector.begin();
+  collector.markNeedsReload();
+  CHECK(collector.end());
+  CollectedBatch batch = collector.take();
+  CHECK(batch.needsReload && batch.update.isEmpty() && !batch.isEmpty());
+  CHECK(!collector.take().needsReload);
 }

@@ -56,7 +56,6 @@ import {
 } from './virtualizer';
 import { useListStore, type ListStore } from './virtualizer/nativeStore';
 import { usePlainSource, type RowSource } from './virtualizer/rowSource';
-import { selectedIndices } from './virtualizer/selection';
 import {
   SeparatorStore,
   separatorComponentOf,
@@ -420,13 +419,15 @@ function ShadowListBaseInner<ItemT>(
     [canSelectIndex]
   );
 
-  const { selectedKeySet, selection, selectionStateRef } = useRowSelection({
-    source,
-    selectedKeys,
-    allowsMultipleSelection,
-    onSelectionChange,
-    canSelect,
-  });
+  const { selectedKeySet, selection, selectionStateRef, selectedIndices } =
+    useRowSelection({
+      source,
+      store,
+      selectedKeys,
+      allowsMultipleSelection,
+      onSelectionChange,
+      canSelect,
+    });
 
   const keySelectionEnabled =
     enableSelectionOnKeyPress && Platform.OS === 'macos';
@@ -488,10 +489,7 @@ function ShadowListBaseInner<ItemT>(
       const key = source.keyAt(index);
       if (key !== undefined) selection.deselect(key);
     },
-    getSelectedIndices: () =>
-      selectedIndices(selectionStateRef.current.keys, (key) =>
-        rowIndex.source.indexOfKey(key)
-      ),
+    getSelectedIndices: selectedIndices,
     requestAnchorState,
     restoreAnchorState,
   };
