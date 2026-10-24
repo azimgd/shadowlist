@@ -6,15 +6,41 @@ import {
   type ColorValue,
 } from 'react-native';
 
-export type OnMeasuredRangeChange = {
-  low: CodegenTypes.Int32;
-  high: CodegenTypes.Int32;
+/*
+ * The next rows to mount, by the keys at both ends. Sequence and generation go back to native in
+ * the mountedSequence and mountedGeneration props once applied. A landed event only says a
+ * scroll command's rows can unmount.
+ */
+export type OnMountedRangeChange = {
+  lowKey: string;
+  highKey: string;
+  lowAtStart: boolean;
+  highAtEnd: boolean;
+  sequence: CodegenTypes.Double;
+  generation: CodegenTypes.Double;
+  landed: boolean;
 };
 
-export type OnViewableIndicesChange = {
-  low: CodegenTypes.Int32;
-  high: CodegenTypes.Int32;
-  ranges: CodegenTypes.Int32[];
+/*
+ * The pinned section header, the visible rows and, for each viewability config that changed,
+ * every viewable key in order and the keys that became viewable or stopped. Codegen only takes
+ * an inline object type for an array of objects.
+ */
+export type OnViewabilityChange = {
+  activeStickyIndex: CodegenTypes.Int32;
+  visibleLow: CodegenTypes.Int32;
+  visibleHigh: CodegenTypes.Int32;
+  changes: {
+    config: CodegenTypes.Int32;
+    viewableKeys: string[];
+    addedKeys: string[];
+    removedKeys: string[];
+  }[];
+};
+
+export type OnPrefetchChange = {
+  prefetch: CodegenTypes.Int32[];
+  cancel: CodegenTypes.Int32[];
 };
 
 export type OnStartReached = {};
@@ -154,8 +180,20 @@ interface NativeProps extends ViewProps {
   nestedScrollEnabled?: CodegenTypes.WithDefault<boolean, false>;
   progressViewOffset?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
   viewableEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
-  readonly onMeasuredRangeChange?: CodegenTypes.DirectEventHandler<OnMeasuredRangeChange>;
-  readonly onViewableIndicesChange?: CodegenTypes.DirectEventHandler<OnViewableIndicesChange>;
+  viewableTimings?: ReadonlyArray<CodegenTypes.Double>;
+  viewabilityInteracted?: CodegenTypes.WithDefault<boolean, false>;
+  visibleRangeEventEnabled?: CodegenTypes.WithDefault<boolean, false>;
+  mountedLow?: CodegenTypes.WithDefault<CodegenTypes.Int32, -1>;
+  mountedHigh?: CodegenTypes.WithDefault<CodegenTypes.Int32, -1>;
+  mountedSequence?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  mountedGeneration?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  seedPending?: CodegenTypes.WithDefault<boolean, false>;
+  mountOverscanRows?: CodegenTypes.WithDefault<CodegenTypes.Int32, 4>;
+  mountOverscanRowsLeading?: CodegenTypes.WithDefault<CodegenTypes.Int32, 10>;
+  prefetchRows?: CodegenTypes.WithDefault<CodegenTypes.Int32, 0>;
+  readonly onMountedRangeChange?: CodegenTypes.DirectEventHandler<OnMountedRangeChange>;
+  readonly onViewabilityChange?: CodegenTypes.DirectEventHandler<OnViewabilityChange>;
+  readonly onPrefetchChange?: CodegenTypes.DirectEventHandler<OnPrefetchChange>;
   readonly onStartReached?: CodegenTypes.DirectEventHandler<OnStartReached>;
   readonly onEndReached?: CodegenTypes.DirectEventHandler<OnEndReached>;
   readonly onScroll?: CodegenTypes.DirectEventHandler<OnScroll>;

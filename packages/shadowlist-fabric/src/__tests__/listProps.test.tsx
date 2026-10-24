@@ -57,6 +57,10 @@ const DATA: Row[] = [
   { id: 'c' },
 ];
 
+function keyOf(row: Row) {
+  return row.id;
+}
+
 function renderRow({ item }: { item: Row }) {
   return <Text>{item.id}</Text>;
 }
@@ -194,6 +198,166 @@ describe('onAtEndChange', () => {
     await sendToList('onAtEndChange', { atEnd: false });
     await sendToList('onAtEndChange', { atEnd: true });
     expect(reports).toEqual([false, true]);
+  });
+});
+
+const MANY: Row[] = Array.from({ length: 200 }, (_, index) => ({
+  id: `r${index}`,
+}));
+
+function mountedCellKeys(): string[] {
+  const latest = listProps();
+  const children = (latest.children as unknown[]).flat(2) as {
+    props?: { rowKey?: string };
+  }[];
+  return children
+    .map((child) => child?.props?.rowKey)
+    .filter((key): key is string => typeof key === 'string');
+}
+
+describe('the mounted range from native', () => {
+  it('mounts the range native sends and tells native it applied it', async () => {
+    await mount(
+      <ShadowList data={MANY} renderItem={renderRow} keyExtractor={keyOf} />
+    );
+    expect(listProps()).toMatchObject({
+      mountedLow: 0,
+      mountedHigh: 20,
+      mountedSequence: 0,
+      mountedGeneration: 0,
+      seedPending: false,
+      mountOverscanRows: 4,
+      mountOverscanRowsLeading: 10,
+    });
+    await sendToList('onMountedRangeChange', {
+      lowKey: 'r30',
+      highKey: 'r45',
+      lowAtStart: false,
+      highAtEnd: false,
+      sequence: 3,
+      generation: 0,
+      landed: false,
+    });
+    expect(listProps()).toMatchObject({
+      mountedLow: 30,
+      mountedHigh: 45,
+      mountedSequence: 3,
+    });
+    const keys = mountedCellKeys();
+    expect(keys[0]).toBe('r30');
+    expect(keys[keys.length - 1]).toBe('r45');
+  });
+
+  it('drops a range built before a new scroll target rebuilt the rows', async () => {
+    const tree = (scrollIndex: number | undefined) => (
+      <ShadowList
+        data={MANY}
+        renderItem={renderRow}
+        keyExtractor={keyOf}
+        scrollIndex={scrollIndex}
+      />
+    );
+    await mount(tree(undefined));
+    await act(async () => {
+      renderer!.update(tree(100));
+    });
+    expect(listProps()).toMatchObject({
+      mountedLow: 96,
+      mountedGeneration: 1,
+      mountedSequence: 0,
+    });
+    await sendToList('onMountedRangeChange', {
+      lowKey: 'r0',
+      highKey: 'r8',
+      lowAtStart: true,
+      highAtEnd: false,
+      sequence: 1,
+      generation: 0,
+      landed: false,
+    });
+    expect(listProps()).toMatchObject({ mountedLow: 96, mountedSequence: 0 });
+  });
+});
+
+describe('viewability and prefetch from native', () => {
+  it('turns changed keys into tokens and pins the section header native picks', async () => {
+    const reports: { viewable: string[]; changed: [string, boolean][] }[] = [];
+    await mount(
+      <ShadowList
+        data={MANY}
+        renderItem={renderRow}
+        keyExtractor={keyOf}
+        viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+        onViewableItemsChanged={({ viewableItems, changed }) =>
+          reports.push({
+            viewable: viewableItems.map((token) => token.key),
+            changed: changed.map((token) => [token.key, token.isViewable]),
+          })
+        }
+      />
+    );
+    expect(listProps()).toMatchObject({
+      viewableEventEnabled: true,
+      viewableRules: [0, 0, 0.5, 0],
+      viewableTimings: [0, 0],
+    });
+    const change = (
+      viewableKeys: string[],
+      added: string[],
+      removed: string[]
+    ) => ({
+      activeStickyIndex: -1,
+      visibleLow: 0,
+      visibleHigh: 3,
+      changes: [
+        { config: 0, viewableKeys, addedKeys: added, removedKeys: removed },
+      ],
+    });
+    await sendToList(
+      'onViewabilityChange',
+      change(['r0', 'r1'], ['r0', 'r1'], [])
+    );
+    await sendToList(
+      'onViewabilityChange',
+      change(['r1', 'r2'], ['r2'], ['r0'])
+    );
+    expect(reports).toEqual([
+      {
+        viewable: ['r0', 'r1'],
+        changed: [
+          ['r0', true],
+          ['r1', true],
+        ],
+      },
+      {
+        viewable: ['r1', 'r2'],
+        changed: [
+          ['r2', true],
+          ['r0', false],
+        ],
+      },
+    ]);
+  });
+
+  it('passes native prefetch reports to the data source', async () => {
+    const prefetched: number[][] = [];
+    const cancelled: number[][] = [];
+    await mount(
+      <ShadowList
+        data={MANY}
+        renderItem={renderRow}
+        keyExtractor={keyOf}
+        prefetchDataSource={{
+          prefetchItems: (indices) => prefetched.push(indices),
+          cancelPrefetchingForItems: (indices) => cancelled.push(indices),
+        }}
+        prefetchRows={5}
+      />
+    );
+    expect(listProps().prefetchRows).toBe(5);
+    await sendToList('onPrefetchChange', { prefetch: [21, 22], cancel: [3] });
+    expect(prefetched).toEqual([[21, 22]]);
+    expect(cancelled).toEqual([[3]]);
   });
 });
 

@@ -188,6 +188,12 @@ static inline BOOL SLFrameTraceEnabled(void)
   __weak RCTUIView *_draggedView;
   __weak RCTUIView *_droppedView;
   SLDisplayLink *_dropSettleLink;
+
+  /*
+   * Ticks the list's ShadowListMountDriver on display frames while it has a paced step or a
+   * viewability report waiting, see pokeMountDriver.
+   */
+  SLDisplayLink *_mountTickLink;
   BOOL _dragging;
   azimgd::shadowlist::DragReorder _drag;
   CGPoint _dragTouchInViewport;
@@ -213,6 +219,9 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (void)clearUserScrolled;
 
 - (void)commitDragEventType:(int)type sourceKey:(nullable NSString *)sourceKey destinationKey:(nullable NSString *)destinationKey;
+
+- (void)pokeMountDriver;
+- (void)stopMountTicks;
 
 @end
 

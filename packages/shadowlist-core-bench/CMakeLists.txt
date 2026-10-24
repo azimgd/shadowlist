@@ -21,3 +21,8 @@ target_include_directories(shadowlist_core_bench PRIVATE
 
 find_package(Threads REQUIRED)
 target_link_libraries(shadowlist_core_bench PRIVATE Threads::Threads)
+
+# The mounted range, viewability and prefetch work of Fabric's mount driver over a scroll trace.
+add_executable(shadowlist_mount_bench ${SHADOWLIST_CORE_SOURCES} ${CMAKE_CURRENT_SOURCE_DIR}/mount_bench.cpp)
+target_compile_definitions(shadowlist_mount_bench PRIVATE SHADOWLIST_DEBUG_LOG=0)
+target_include_directories(shadowlist_mount_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)

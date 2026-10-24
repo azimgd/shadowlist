@@ -5,6 +5,7 @@
 #include <shadowlist-core/host/DragReorder.hpp>
 #include <shadowlist-core/host/ListLayout.hpp>
 #include <shadowlist-core/host/MountedRange.hpp>
+#include <shadowlist-core/host/Prefetch.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
 #include <cstddef>
@@ -345,7 +346,7 @@ private:
   std::vector<std::string> keys_;
   std::vector<std::size_t> sticky_;
   std::unordered_set<std::string> remeasureKeys_;
-  std::unordered_set<std::string> prefetched_;
+  PrefetchTracker prefetch_;
   ScrollLanding landing_;
   DragReorder drag_;
   std::string heldKey_;

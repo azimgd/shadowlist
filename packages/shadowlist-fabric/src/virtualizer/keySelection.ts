@@ -1,4 +1,4 @@
-import type { MountedRange } from './mountedRange';
+import type { MountedRange } from './useMountedRange';
 
 /*
  * The keys a list with enableSelectionOnKeyPress takes from the keyboard.

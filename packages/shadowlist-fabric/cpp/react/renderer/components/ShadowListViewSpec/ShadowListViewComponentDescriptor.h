@@ -3,6 +3,7 @@
 #include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
 #include <react/renderer/core/ConcreteComponentDescriptor.h>
 
+#include "ShadowListMountDriver.h"
 #include "ShadowListOffsetBand.h"
 #include "ShadowListScrollEvent.h"
 #include "ShadowListTextMeasurer.h"
@@ -52,7 +53,8 @@ private:
   static void applyEventCallbacks(
     ShadowListViewShadowNode& shadowlistViewShadowNode,
     const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps,
-    azimgd::shadowlist::Container* containerManager);
+    azimgd::shadowlist::Container* containerManager,
+    const std::shared_ptr<ShadowListMountDriver>& mountDriver);
 
   static void viewableRulesFromProps(
     const std::vector<double>& values,

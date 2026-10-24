@@ -534,34 +534,14 @@ void ListDriver::updatePrefetch(
   std::size_t mountedHigh,
   std::vector<std::size_t>& prefetch,
   std::vector<std::size_t>& cancel) {
-  prefetch.clear();
-  cancel.clear();
-  std::optional<MountedRange> window = getMeasuredRange();
-  auto mounted = [&](std::size_t index) {
-    return mountedLow != UNDEFINED_INDEX && index >= mountedLow && index <= mountedHigh;
-  };
-  auto inWindow = [&](std::size_t index) { return window && index >= window->low && index <= window->high; };
-  // Rows prefetched earlier: shown now, gone, or out of the window.
-  for (auto entry = prefetched_.begin(); entry != prefetched_.end();) {
-    std::size_t index = indexOfKey(*entry);
-    if (index == UNDEFINED_INDEX || mounted(index)) {
-      entry = prefetched_.erase(entry);
-    } else if (!inWindow(index)) {
-      cancel.push_back(index);
-      entry = prefetched_.erase(entry);
-    } else {
-      ++entry;
-    }
+  std::optional<MountedRange> mounted;
+  if (mountedLow != UNDEFINED_INDEX) {
+    mounted = MountedRange{mountedLow, mountedHigh};
   }
-  if (window) {
-    const std::vector<Row>& rows = core_->revision.rows;
-    for (std::size_t index = window->low; index <= window->high && index < rows.size(); ++index) {
-      if (!mounted(index) && prefetched_.insert(rows[index].key).second) {
-        prefetch.push_back(index);
-      }
-    }
-  }
-  std::sort(cancel.begin(), cancel.end());
+  const std::vector<Row>& rows = core_->revision.rows;
+  prefetch_.update(mounted, getMeasuredRange(), rows.size(),
+    [&](std::size_t index) -> const std::string& { return rows[index].key; },
+    [&](const std::string& key) { return indexOfKey(key); }, prefetch, cancel);
 }
 
 void ListDriver::scrollToStart() {

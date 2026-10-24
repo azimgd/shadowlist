@@ -12,6 +12,7 @@
 #import <React/RCTConversions.h>
 #import <React/RCTMountingTransactionObserving.h>
 
+#include "ShadowListMountDriver.h"
 #include "ShadowListScrollEvent.h"
 
 #include <shadowlist-core/host/Snap.hpp>
@@ -297,6 +298,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _pageKeyIndicesProps.reset();
   _pageKeyIndices.clear();
   [self tearDownDrag];
+  [self stopMountTicks];
   _dragRecognizer.enabled = NO;
   /*
    * A recycled view must not pass its previous scroll position or state to the next list.
@@ -578,12 +580,49 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _landCommandSequence = 0;
     [self emitMomentumEndAfterLand];
   }
+  [self pokeMountDriver];
 }
 
 - (void)finalizeUpdates:(RNComponentViewUpdateMask)updateMask
 {
   [super finalizeUpdates:updateMask];
   [self applyStickyTransforms:NO];
+  // A commit that applied a range mounts with new props. Its next step goes on the next frame.
+  [self pokeMountDriver];
+}
+
+#pragma mark - Mount driver
+
+/*
+ * Every commit that leaves work for a display frame mounts here with new props or a new state:
+ * a mounted range applied with more overscan to step in, or a viewability report waiting for
+ * minimumViewTime. Tick until the driver has nothing left, see ShadowListMountDriver.
+ */
+- (void)pokeMountDriver
+{
+  if (_mountTickLink || !_state) {
+    return;
+  }
+  const auto& driver = _state->getData().mountDriver_;
+  if (!driver || !driver->needsTick()) {
+    return;
+  }
+  _mountTickLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(mountTick)];
+  [_mountTickLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+}
+
+- (void)mountTick
+{
+  std::shared_ptr<facebook::react::ShadowListMountDriver> driver = _state ? _state->getData().mountDriver_ : nullptr;
+  if (!driver || !driver->tick()) {
+    [self stopMountTicks];
+  }
+}
+
+- (void)stopMountTicks
+{
+  [_mountTickLink invalidate];
+  _mountTickLink = nil;
 }
 
 #pragma mark - RCTUIScrollViewDelegate

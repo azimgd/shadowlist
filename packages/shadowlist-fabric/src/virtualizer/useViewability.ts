@@ -1,27 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnViewableIndicesChange } from '../ShadowListViewNativeComponent';
+import type { OnViewabilityChange } from '../ShadowListViewNativeComponent';
 import type { ViewabilityConfigCallbackPair, ViewToken } from '../types';
-import type { MountedRange } from './mountedRange';
-import {
-  activeStickyIndexFor,
-  viewableRulesFor,
-  viewableRange,
-  ViewabilityTracker,
-} from './viewability';
+import type { MountedRange } from './useMountedRange';
+import { viewableRulesFor, viewableTimingsFor } from './viewability';
 
 interface UseViewabilityOptions<ItemT> {
   data: ReadonlyArray<ItemT>;
-  keys: ReadonlyArray<string>;
-  stickyIndices: ReadonlyArray<number> | undefined;
+  keyToIndex: ReadonlyMap<string, number>;
   pairs: ReadonlyArray<ViewabilityConfigCallbackPair<ItemT>>;
 }
 
 interface UseViewabilityResult {
   activeStickyIndex: number;
   viewableRules: number[];
-  handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
-    OnViewableIndicesChange,
+  viewableTimings: number[];
+  viewabilityInteracted: boolean;
+  handleViewabilityChange: CodegenTypes.DirectEventHandler<
+    OnViewabilityChange,
     never
   >;
   recordInteraction: () => void;
@@ -29,165 +25,120 @@ interface UseViewabilityResult {
 }
 
 /*
- * Tracks which items are viewable for each viewability config, and which section header is
- * pinned. Both come from the native viewable ranges event, one range per rule. The first rule
- * is any overlap and picks the pinned header. The rest follow the configs in order.
+ * Turns native's viewability reports into the callbacks' tokens. Native works out which keys
+ * became viewable or stopped for each config, waits out minimumViewTime and
+ * waitForInteraction, and picks the pinned section header. This hook only looks the keys up in
+ * the data and calls back.
  */
 export function useViewability<ItemT>({
   data,
-  keys,
-  stickyIndices,
+  keyToIndex,
   pairs,
 }: UseViewabilityOptions<ItemT>): UseViewabilityResult {
   const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
 
-  const updateActiveStickyIndex = useCallback(
-    (rangeLow: number) => {
-      if (!stickyIndices || stickyIndices.length === 0) {
-        setActiveStickyIndex((previous) => (previous === -1 ? previous : -1));
-        return;
-      }
-      const active = activeStickyIndexFor(stickyIndices, rangeLow);
-      setActiveStickyIndex((previous) =>
-        previous === active ? previous : active
-      );
-    },
-    [stickyIndices]
-  );
-
   /*
-   * The rules only change with the thresholds. The same numbers keep the same array, and
-   * native gets no new prop.
+   * The rules and timings only change with the configs' numbers. The same numbers keep the
+   * same arrays, and native gets no new prop.
    */
-  const rulesSignature = pairs
+  const configsSignature = pairs
     .map(
-      (pair) =>
-        `${pair.viewabilityConfig.itemVisiblePercentThreshold ?? ''}:${pair.viewabilityConfig.viewAreaCoveragePercentThreshold ?? ''}`
+      ({ viewabilityConfig: config }) =>
+        `${config.itemVisiblePercentThreshold ?? ''}:${config.viewAreaCoveragePercentThreshold ?? ''}:${config.minimumViewTime ?? ''}:${config.waitForInteraction ? 1 : 0}`
     )
     .join(',');
-  const viewableRules = useMemo(
-    () => viewableRulesFor(pairs.map((pair) => pair.viewabilityConfig)),
+  const { viewableRules, viewableTimings } = useMemo(() => {
+    const configs = pairs.map((pair) => pair.viewabilityConfig);
+    return {
+      viewableRules: viewableRulesFor(configs),
+      viewableTimings: viewableTimingsFor(configs),
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rulesSignature]
-  );
+  }, [configsSignature]);
+
+  const latestRef = useRef({ data, keyToIndex, pairs });
+  latestRef.current = { data, keyToIndex, pairs };
 
   /*
-   * One tracker per pair. A tracker keeps what it reported and its timer, and picks up a new
-   * config or callback in place.
+   * The tokens each config reported last, by key. A row that stops being viewable is reported
+   * with the token it had, flagged not viewable.
    */
-  const trackersRef = useRef<ViewabilityTracker<ItemT>[]>([]);
-  const trackers = trackersRef.current;
-  while (trackers.length > pairs.length) trackers.pop()!.dispose();
-  pairs.forEach((pair, position) => {
-    const tracker = trackers[position];
-    if (tracker) {
-      tracker.config = pair.viewabilityConfig;
-      tracker.onViewableItemsChanged = pair.onViewableItemsChanged;
-    } else {
-      trackers.push(
-        new ViewabilityTracker(
-          pair.viewabilityConfig,
-          pair.onViewableItemsChanged
-        )
-      );
-    }
-  });
-  useEffect(
-    () => () => trackersRef.current.forEach((tracker) => tracker.dispose()),
-    []
-  );
-
-  // Builds the tokens for a range. The native callback and the data effect both use it.
-  const dataRef = useRef({ data, keys });
-  dataRef.current = { data, keys };
-  const buildViewableItems = useCallback((low: number, high: number) => {
-    const { data: currentData, keys: currentKeys } = dataRef.current;
-    const viewableItems: ViewToken<ItemT>[] = [];
-    for (let index = low; index <= high; index++) {
-      const item = currentData[index];
-      if (!item) continue;
-      viewableItems.push({
-        item,
-        index,
-        key: currentKeys[index]!,
-        isViewable: true,
-      });
-    }
-    return viewableItems;
-  }, []);
-
-  /*
-   * The last reported ranges and the data length at that time. The effect below reuses them
-   * on a data change, and the length tells a plain reorder apart from an insert or remove.
-   */
-  const viewableRangesRef = useRef<{
-    viewableRanges: (MountedRange | null)[];
-    dataLength: number;
-  }>({ viewableRanges: [], dataLength: 0 });
+  const reportedRef = useRef<Map<string, ViewToken<ItemT>>[]>([]);
 
   /*
    * The visible rows, any part of which is on screen, from the last report.
    */
   const visibleRangeRef = useRef<MountedRange | null>(null);
 
-  const handleViewableIndicesChange: CodegenTypes.DirectEventHandler<
-    OnViewableIndicesChange,
+  const handleViewabilityChange: CodegenTypes.DirectEventHandler<
+    OnViewabilityChange,
     never
-  > = useCallback(
-    (event) => {
-      const { ranges } = event.nativeEvent;
-      // The sticky overlay shows the section of the top visible row.
-      const anyOverlap = viewableRange(ranges[0] ?? -1, ranges[1] ?? -1);
-      visibleRangeRef.current = anyOverlap;
-      if (anyOverlap) {
-        updateActiveStickyIndex(anyOverlap.low);
+  > = useCallback((event) => {
+    const {
+      activeStickyIndex: active,
+      visibleLow,
+      visibleHigh,
+      changes,
+    } = event.nativeEvent;
+    visibleRangeRef.current =
+      visibleLow >= 0 && visibleHigh >= visibleLow
+        ? { low: visibleLow, high: visibleHigh }
+        : null;
+    setActiveStickyIndex((previous) =>
+      previous === active ? previous : active
+    );
+    const { data: currentData, keyToIndex: currentKeyToIndex } =
+      latestRef.current;
+    for (const change of changes) {
+      const pair = latestRef.current.pairs[change.config];
+      if (!pair) continue;
+      const previous =
+        reportedRef.current[change.config] ??
+        new Map<string, ViewToken<ItemT>>();
+      const reported = new Map<string, ViewToken<ItemT>>();
+      const viewableItems: ViewToken<ItemT>[] = [];
+      for (const key of change.viewableKeys) {
+        const index = currentKeyToIndex.get(key);
+        const item = index === undefined ? undefined : currentData[index];
+        if (index === undefined || item === undefined) continue;
+        const token = { item, index, key, isViewable: true };
+        viewableItems.push(token);
+        reported.set(key, token);
       }
-      const viewableRanges: (MountedRange | null)[] = [];
-      trackersRef.current.forEach((tracker, position) => {
-        const low = ranges[2 + position * 2] ?? -1;
-        const high = ranges[3 + position * 2] ?? -1;
-        const range = viewableRange(low, high);
-        viewableRanges.push(range);
-        tracker.update(range, buildViewableItems);
-      });
-      viewableRangesRef.current = {
-        viewableRanges,
-        dataLength: dataRef.current.data.length,
-      };
-    },
-    [updateActiveStickyIndex, buildViewableItems]
-  );
+      const changed: ViewToken<ItemT>[] = [];
+      for (const key of change.addedKeys) {
+        const token = reported.get(key);
+        if (token) changed.push(token);
+      }
+      for (const key of change.removedKeys) {
+        const token = previous.get(key);
+        if (token) changed.push({ ...token, isViewable: false });
+      }
+      reportedRef.current[change.config] = reported;
+      if (changed.length > 0) {
+        pair.onViewableItemsChanged?.({ viewableItems, changed });
+      }
+    }
+  }, []);
 
   /*
-   * A reorder can change which items sit in the visible range without native sending a new
-   * event. Check again whenever data changes.
+   * Tells native once. Only a config with waitForInteraction needs it, and the others skip the
+   * render it costs.
    */
-  useEffect(() => {
-    const record = viewableRangesRef.current;
-    /*
-     * Only a change with the same length can be a plain reorder. An insert or remove shifts
-     * indices and the previous range would report the wrong rows. Native sends a fixed event then.
-     */
-    if (record.dataLength !== data.length) {
-      record.dataLength = data.length;
-      return;
-    }
-    trackersRef.current.forEach((tracker, position) => {
-      const range = record.viewableRanges[position];
-      if (range) tracker.update(range, buildViewableItems);
-    });
-  }, [data, buildViewableItems]);
-
+  const [viewabilityInteracted, setViewabilityInteracted] = useState(false);
   const recordInteraction = useCallback(() => {
-    trackersRef.current.forEach((tracker) =>
-      tracker.recordInteraction(buildViewableItems)
+    const waits = latestRef.current.pairs.some(
+      (pair) => pair.viewabilityConfig.waitForInteraction
     );
-  }, [buildViewableItems]);
+    if (waits) setViewabilityInteracted(true);
+  }, []);
 
   return {
     activeStickyIndex,
     viewableRules,
-    handleViewableIndicesChange,
+    viewableTimings,
+    viewabilityInteracted,
+    handleViewabilityChange,
     recordInteraction,
     visibleRangeRef,
   };

@@ -66,7 +66,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    */
   std::lock_guard<std::recursive_mutex> coreLock(containerManager->coreMutex);
 
-  applyEventCallbacks(shadowlistViewShadowNode, shadowlistViewProps, containerManager);
+  const auto& mountDriver = shadowlistViewStateData.mountDriver_;
+  applyEventCallbacks(shadowlistViewShadowNode, shadowlistViewProps, containerManager, mountDriver);
 
   const auto& callbacksCache = shadowlistViewShadowNode.getGeometryCache();
   const auto& eventEmitter = shadowNode.getEventEmitter();
@@ -219,9 +220,24 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
     shadowlistViewLayoutMetrics.pointScaleFactor,
     shadowNode.getSurfaceId());
 
+  /*
+   * The mounted range, viewability and prefetch take this commit's props, then the core's
+   * reports during update, see ShadowListMountDriver.
+   */
+  if (mountDriver) {
+    mountDriver->beginCommit(
+      shadowlistViewProps,
+      std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteEventEmitter>(eventEmitter),
+      !input.keysUnchanged);
+  }
+
   // If the core throws, skip the frame instead of failing the commit. The next frame recovers.
   try {
     azimgd::shadowlist::Virtualizer::update(*containerManager, input);
+    if (mountDriver) {
+      mountDriver->endCommit(
+        *containerManager, shadowlistViewProps, geometryCache ? geometryCache->stickyIndices : input.stickyIndices);
+    }
     /*
      * The list came to rest with a scroll event still held back by scrollEventThrottle.
      * Send it now. JS would otherwise keep an offset from before the scroll stopped.
@@ -281,9 +297,10 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
 /*
  * Pass core events to the event emitter. The core already drops repeats.
  *
- * The three per frame events below skip the generated emitter methods and use
- * dispatchUniqueEvent, which marks them unique and continuous, like React Native's own
- * ScrollView scroll event. The generated methods cause two problems:
+ * The per frame scroll event below, and the mount driver's mounted range event, skip the
+ * generated emitter methods and use dispatchUniqueEvent, which marks them unique and
+ * continuous, like React Native's own ScrollView scroll event. The generated methods cause
+ * two problems:
  * Events are not merged. When JS falls behind, like while dragging the scroll
  * indicator, the queue grows for the whole gesture. That backlog is the long freeze.
  * Events are sent as discrete. React renders each one synchronously. Dragging content
@@ -292,13 +309,14 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
  * Event names stay the same either way.
  *
  * Merging only looks at the last event queued for this view. Sending several kinds of
- * event per frame defeats it. That's another reason scroll and viewable only fire when
+ * event per frame defeats it. That's another reason scroll and viewability only fire when
  * someone listens.
  */
 void ShadowListViewComponentDescriptor::applyEventCallbacks(
   ShadowListViewShadowNode& shadowlistViewShadowNode,
   const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps,
-  azimgd::shadowlist::Container* containerManager) {
+  azimgd::shadowlist::Container* containerManager,
+  const std::shared_ptr<ShadowListMountDriver>& mountDriver) {
   /*
    * The callbacks hold the family's event emitter. They only need building again when
    * the emitter or the listened events change. Rebuilding six std::function objects on
@@ -321,45 +339,26 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
     containerManager->onAtEndChangeCallback = [emitter](bool atEnd) -> void {
       emitter->onAtEndChange({atEnd});
     };
-    containerManager->onMeasuredRangeChangeCallback = [emitter](std::size_t low, std::size_t high) -> void {
-      int measuredLow = static_cast<int>(low);
-      int measuredHigh = static_cast<int>(high);
-      emitter->dispatchUniqueEvent("measuredRangeChange",
-        [measuredLow, measuredHigh](jsi::Runtime& runtime) {
-          auto payload = jsi::Object(runtime);
-          payload.setProperty(runtime, "low", measuredLow);
-          payload.setProperty(runtime, "high", measuredHigh);
-          return payload;
-        });
+    /*
+     * The measured and viewable rows go to the mount driver, which sends JS the rows to mount
+     * and the viewability changes, not the raw ranges. The driver belongs to the node family
+     * like the emitter, so it never changes under these callbacks.
+     */
+    containerManager->onMeasuredRangeChangeCallback = [mountDriver](std::size_t low, std::size_t high) -> void {
+      if (mountDriver) {
+        mountDriver->reportMeasured(low, high);
+      }
     };
 
     /*
-     * Only track what JS listens to. Otherwise every frame pays for a viewable scan and
-     * an event that nobody handles.
+     * Only track what JS listens to. Otherwise every frame pays for a viewable scan nobody
+     * reads. One range per viewability rule, two indices each.
      */
     if (shadowlistViewProps.viewableEventEnabled) {
-      /*
-       * One range per viewability rule, two indices each and -1 for none. The first rule's
-       * range also goes out as low and high.
-       */
-      containerManager->onViewableIndicesChangeCallback = [emitter](const std::vector<std::size_t>& ranges) -> void {
-        std::vector<int> indices;
-        indices.reserve(ranges.size());
-        for (auto index : ranges) {
-          indices.push_back(index == azimgd::shadowlist::UNDEFINED_INDEX ? -1 : static_cast<int>(index));
+      containerManager->onViewableIndicesChangeCallback = [mountDriver](const std::vector<std::size_t>& ranges) -> void {
+        if (mountDriver) {
+          mountDriver->reportViewable(ranges);
         }
-        emitter->dispatchUniqueEvent("viewableIndicesChange",
-          [indices = std::move(indices)](jsi::Runtime& runtime) {
-            auto payload = jsi::Object(runtime);
-            payload.setProperty(runtime, "low", indices.size() >= 2 ? indices[0] : -1);
-            payload.setProperty(runtime, "high", indices.size() >= 2 ? indices[1] : -1);
-            auto ranges = jsi::Array(runtime, indices.size());
-            for (std::size_t position = 0; position < indices.size(); ++position) {
-              ranges.setValueAtIndex(runtime, position, indices[position]);
-            }
-            payload.setProperty(runtime, "ranges", ranges);
-            return payload;
-          });
       };
     } else {
       containerManager->onViewableIndicesChangeCallback = nullptr;

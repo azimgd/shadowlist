@@ -294,21 +294,28 @@ function ShadowListInner<ItemT>(
   rowIndex.keyToIndex = keyToIndex;
   rowIndex.keys = rowKeys;
 
-  const { mountedIndices, handleMeasuredRangeChange, seedAroundIndex } =
-    useMountedRange({
-      keys: rowKeys,
-      keyToIndex,
-      initialNumToRender,
-      inverted,
-      followAppends,
-      scrollIndex,
-      mountOverscanRows,
-      // Never mount fewer rows ahead during a fling than at rest. A fling needs them most.
-      mountOverscanRowsLeading: Math.max(
-        mountOverscanRows,
-        mountOverscanRowsLeading
-      ),
-    });
+  /*
+   * Never mount fewer rows ahead during a fling than at rest. A fling needs them most.
+   */
+  const mountOverscanRowsAhead = Math.max(
+    mountOverscanRows,
+    mountOverscanRowsLeading
+  );
+  const {
+    mountedIndices,
+    mountedRangeProps,
+    handleMountedRangeChange,
+    seedAroundIndex,
+  } = useMountedRange({
+    keys: rowKeys,
+    keyToIndex,
+    initialNumToRender,
+    inverted,
+    followAppends,
+    scrollIndex,
+    mountOverscanRows,
+    mountOverscanRowsLeading: mountOverscanRowsAhead,
+  });
 
   const {
     renderIndices: draggedIndices,
@@ -348,13 +355,14 @@ function ShadowListInner<ItemT>(
   const {
     activeStickyIndex,
     viewableRules,
-    handleViewableIndicesChange,
+    viewableTimings,
+    viewabilityInteracted,
+    handleViewabilityChange,
     recordInteraction,
     visibleRangeRef,
   } = useViewability({
     data,
-    keys: rowKeys,
-    stickyIndices,
+    keyToIndex,
     pairs: viewabilityPairs,
   });
 
@@ -456,10 +464,7 @@ function ShadowListInner<ItemT>(
     viewRef: shadowlistViewRef,
   });
 
-  usePrefetch({
-    keys: rowKeys,
-    keyToIndex,
-    mountedIndices,
+  const { nativePrefetchRows, handlePrefetchChange } = usePrefetch({
     prefetchDataSource,
     prefetchRows,
   });
@@ -713,10 +718,15 @@ function ShadowListInner<ItemT>(
       onStartShouldSetResponderCapture={onStartShouldSetResponderCapture}
       onStartShouldSetResponder={onStartShouldSetResponder}
       onResponderRelease={onResponderRelease}
-      onMeasuredRangeChange={handleMeasuredRangeChange}
-      onViewableIndicesChange={
-        viewableEventEnabled ? handleViewableIndicesChange : undefined
+      onMountedRangeChange={handleMountedRangeChange}
+      {...mountedRangeProps}
+      mountOverscanRows={mountOverscanRows}
+      mountOverscanRowsLeading={mountOverscanRowsAhead}
+      onViewabilityChange={
+        viewableEventEnabled ? handleViewabilityChange : undefined
       }
+      prefetchRows={nativePrefetchRows}
+      onPrefetchChange={handlePrefetchChange}
       /*
        * An undefined handler drops the JS listener, but the core would still send the event
        * every frame. These flags turn that work off, leaving one event per frame that Fabric
@@ -726,6 +736,9 @@ function ShadowListInner<ItemT>(
       scrollEventThrottle={scrollEventThrottle}
       viewableEventEnabled={viewableEventEnabled}
       viewableRules={viewableRules}
+      viewableTimings={viewableTimings}
+      viewabilityInteracted={viewabilityInteracted}
+      visibleRangeEventEnabled={keySelectionEnabled}
       rowKeys={rowKeys}
       // Codegen wants a string array. Native only reads it. A ReadonlyArray is fine.
       nonAnchorKeys={(nonAnchorKeys ?? EMPTY_STRINGS) as string[]}

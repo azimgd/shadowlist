@@ -86,6 +86,7 @@ public class ShadowListView extends FrameLayout {
   private static final int STATE_CONCEAL_GENERATION = 17;
   private static final int STATE_ANIMATION_SEQUENCE = 18;
   private static final int STATE_ANIMATION_OFFSET = 19;
+  private static final int STATE_MOUNT_HANDLE = 20;
 
   private @Nullable StateWrapper mState = null;
 
@@ -97,6 +98,11 @@ public class ShadowListView extends FrameLayout {
   private long mStickyVersion = -1;
   private long mSnapVersion = -1;
   private long mGeometryHandle = 0;
+
+  /*
+   * Ticks the list's mount driver on frames, see ShadowListMountTicker.
+   */
+  private final ShadowListMountTicker mMountTicker = new ShadowListMountTicker();
 
   /*
    * Live reports, which frames commit, the echo of core corrections and scroll commands.
@@ -356,6 +362,7 @@ public class ShadowListView extends FrameLayout {
      * state arrives. Same as prepareForRecycle on iOS.
      */
     mLiveHandle = 0;
+    mMountTicker.setHandle(0);
     mStickyVersion = -1;
     mSnapVersion = -1;
     mGeometryHandle = 0;
@@ -1022,6 +1029,7 @@ public class ShadowListView extends FrameLayout {
     }
 
     mLiveHandle = mapBuffer.getLong(STATE_LIVE_HANDLE);
+    mMountTicker.setHandle(mapBuffer.getLong(STATE_MOUNT_HANDLE));
     boolean offsetEnabled = mapBuffer.getBoolean(STATE_OFFSET_ENABLED);
     mSync.beginMount(
       mLiveHandle,
@@ -1044,6 +1052,16 @@ public class ShadowListView extends FrameLayout {
     } finally {
       mSync.endMount();
     }
+    pokeMountTicker();
+  }
+
+  /*
+   * Every commit that leaves work for a frame mounts with new props or a new state: a mounted
+   * range applied with more overscan to step in, or a viewability report waiting for
+   * minimumViewTime.
+   */
+  void pokeMountTicker() {
+    mMountTicker.poke();
   }
 
   private void applyMountedState(ReadableMapBuffer mapBuffer, boolean offsetEnabled) {

@@ -32,6 +32,12 @@ using azimgd::shadowlist::SCROLL_PHASE_SETTLING;
 using ShadowListLiveScroll = azimgd::shadowlist::LiveScroll;
 
 /*
+ * See ShadowListMountDriver.h. Made through a function so this header stays light.
+ */
+class ShadowListMountDriver;
+std::shared_ptr<ShadowListMountDriver> makeShadowListMountDriver();
+
+/*
  * Build switches for the scroll state path. Both can be A/B tested on one build with the
  * environment variables below, read once at launch.
  *
@@ -112,6 +118,7 @@ constexpr MapBuffer::Key LIVE_HANDLE = 16;
 constexpr MapBuffer::Key CONCEAL_GENERATION = 17;
 constexpr MapBuffer::Key ANIMATION_SEQUENCE = 18;
 constexpr MapBuffer::Key ANIMATION_OFFSET = 19;
+constexpr MapBuffer::Key MOUNT_HANDLE = 20;
 }
 #endif
 
@@ -420,6 +427,13 @@ public:
    * once per new value with onAnchorState.
    */
   double anchorRequestSequence_{0.0};
+
+  /*
+   * The mounted range, viewability and prefetch of this list, worked out natively and ticked by
+   * the host on display frames. Made once with the list's first state and shared by every copy
+   * after that, like liveScroll_. Keep it last to match the Android constructor's init order.
+   */
+  std::shared_ptr<ShadowListMountDriver> mountDriver_{makeShadowListMountDriver()};
 };
 
 }

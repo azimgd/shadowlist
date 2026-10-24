@@ -3,7 +3,6 @@
 #include <shadowlist-core/host/StickyLayout.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <unordered_set>
 
 namespace azimgd::shadowlist {
@@ -19,72 +18,12 @@ std::size_t subtractClamped(std::size_t value, std::size_t amount) {
 
 }
 
-MountedRange initialMountedRange(
-  std::size_t size,
-  std::size_t initial,
-  bool inverted,
-  std::size_t offsetIndex,
-  std::size_t overscanRows,
-  double viewPosition) {
-  if (size == 0) {
-    return {};
-  }
-  if (offsetIndex != UNDEFINED_INDEX) {
-    std::size_t target = std::min(offsetIndex, size - 1);
-    // Math.round in JS rounds halves up.
-    double rounded = std::floor(viewPosition * static_cast<double>(initial) + 0.5);
-    std::size_t before = std::min(initial, static_cast<std::size_t>(std::max(0.0, rounded)));
-    return {subtractClamped(target, overscanRows + before), std::min(size - 1, target + (initial - before))};
-  }
-  if (inverted) {
-    return {subtractClamped(size, initial), size - 1};
-  }
-  return {0, std::min(initial, size - 1)};
-}
-
-std::vector<std::size_t> rangeToIndices(const MountedRange& range) {
-  std::vector<std::size_t> indices;
-  if (range.low == UNDEFINED_INDEX || range.high == UNDEFINED_INDEX || range.low > range.high) {
-    return indices;
-  }
-  indices.reserve(range.high - range.low + 1);
-  for (std::size_t index = range.low; index <= range.high; ++index) {
-    indices.push_back(index);
-  }
-  return indices;
-}
-
-std::vector<std::size_t> unionRangeIndices(const MountedRange& first, const MountedRange& second) {
-  std::vector<std::size_t> firstIndices = rangeToIndices(first);
-  std::vector<std::size_t> secondIndices = rangeToIndices(second);
-  if (firstIndices.empty()) {
-    return secondIndices;
-  }
-  if (secondIndices.empty()) {
-    return firstIndices;
-  }
-  const MountedRange& lower = first.low <= second.low ? first : second;
-  const MountedRange& upper = first.low <= second.low ? second : first;
-  if (upper.low <= lower.high + 1) {
-    return rangeToIndices({lower.low, std::max(lower.high, upper.high)});
-  }
-  std::vector<std::size_t> indices = rangeToIndices(lower);
-  std::vector<std::size_t> upperIndices = rangeToIndices(upper);
-  indices.insert(indices.end(), upperIndices.begin(), upperIndices.end());
-  return indices;
-}
-
-bool shouldReseedFromOffsetIndex(std::size_t previousOffsetIndex, std::size_t nextOffsetIndex) {
-  return nextOffsetIndex != previousOffsetIndex && nextOffsetIndex != UNDEFINED_INDEX;
-}
-
 MountedRange stepMountedRange(
   const MountedRange& current,
   const MountedRange& target,
   const MountedRange& measured,
   std::size_t step) {
-  bool disjoint = current.low == UNDEFINED_INDEX || current.high == UNDEFINED_INDEX || target.low > current.high ||
-    target.high < current.low;
+  bool disjoint = current.isEmpty() || target.low > current.high || target.high < current.low;
   const MountedRange& base = disjoint ? measured : current;
   std::size_t low = target.low >= base.low
     ? target.low
@@ -98,28 +37,6 @@ MountedRange stepMountedRange(
 std::size_t mountStepForRange(const MountedRange& measured, std::size_t minimumStep) {
   std::size_t measuredRows = measured.high - measured.low + 1;
   return std::max(minimumStep, (measuredRows + 3) / 4);
-}
-
-MountedRange grownMountedRange(
-  std::size_t lowIndex,
-  std::size_t highIndex,
-  bool lowAtStart,
-  bool highAtEnd,
-  std::size_t size,
-  std::size_t overscanRowsLeading,
-  bool followTail) {
-  if (size == 0) {
-    return {};
-  }
-  std::size_t low = std::min(lowIndex, highIndex);
-  std::size_t high = std::max(lowIndex, highIndex);
-  std::size_t grownLow = lowAtStart ? subtractClamped(low, overscanRowsLeading) : low;
-  if (followTail && highAtEnd) {
-    std::size_t tailHigh = size - 1;
-    std::size_t tailLow = subtractClamped(tailHigh, (high - low) + MAX_FOLLOWED_APPEND);
-    return {std::max(grownLow, tailLow), tailHigh};
-  }
-  return {grownLow, highAtEnd ? std::min(size - 1, high + overscanRowsLeading) : high};
 }
 
 MountedRange visibleTargetRange(
@@ -147,20 +64,26 @@ std::optional<ReportedRange> reportedMountedRange(
   std::size_t overscanRows,
   std::size_t overscanRowsLeading,
   std::size_t minimumStep) {
-  bool holdsMeasured = current.low != UNDEFINED_INDEX && measured.low >= current.low && measured.high <= current.high;
-  if (holdsMeasured && !firstReport) {
-    return std::nullopt;
-  }
+  bool holdsMeasured = !current.isEmpty() && measured.low >= current.low && measured.high <= current.high;
   MountedRange target = visibleTargetRange(measured, previousMeasured, size, overscanRows, overscanRowsLeading);
+  if (holdsMeasured && !firstReport) {
+    std::size_t targetCount = target.high - target.low + 1;
+    std::size_t currentCount = current.high - current.low + 1;
+    bool oversized = currentCount > targetCount && currentCount - targetCount > std::max(targetCount, MAX_FOLLOWED_APPEND);
+    if (!oversized) {
+      return std::nullopt;
+    }
+  }
   MountedRange range = stepMountedRange(current, target, measured, mountStepForRange(measured, minimumStep));
   return ReportedRange{range, target};
 }
 
 std::optional<MountedRange> viewableRange(std::size_t low, std::size_t high) {
-  if (low == UNDEFINED_INDEX || high == UNDEFINED_INDEX) {
+  MountedRange range{low, high};
+  if (range.isEmpty()) {
     return std::nullopt;
   }
-  return MountedRange{low, high};
+  return range;
 }
 
 std::size_t activeStickyIndexFor(const std::vector<std::size_t>& stickyIndices, std::size_t rangeLow) {

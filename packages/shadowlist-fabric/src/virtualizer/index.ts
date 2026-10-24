@@ -8,14 +8,17 @@ export {
   defaultKeyExtractor,
   renderComponent,
 } from './helpers';
-export { initialMountedRange, type MountedRange } from './mountedRange';
 export {
   CellRenderer,
   createRowIndexStore,
   type RowIndexStore,
 } from './CellRenderer';
 export { useStableReactElement } from './useStableReactElement';
-export { useMountedRange } from './useMountedRange';
+export {
+  useMountedRange,
+  initialMountedRange,
+  type MountedRange,
+} from './useMountedRange';
 export { useRefreshDefer } from './useRefreshDefer';
 export { useDragReorder } from './useDragReorder';
 export { usePersistentKeys } from './usePersistentKeys';

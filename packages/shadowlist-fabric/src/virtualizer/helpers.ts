@@ -149,3 +149,35 @@ export function arrayMove<ItemT>(
   next.splice(to, 0, moved);
   return next;
 }
+
+/*
+ * Sorted indices plus extra sorted indices, without duplicates, in one pass. Returns indices
+ * itself when it already holds every extra one, so a memo keyed on it keeps its value.
+ */
+export function mergeSortedIndices(
+  indices: number[],
+  extra: ReadonlyArray<number>
+): number[] {
+  let missing = false;
+  let position = 0;
+  for (const index of extra) {
+    while (position < indices.length && indices[position]! < index) position++;
+    if (indices[position] !== index) {
+      missing = true;
+      break;
+    }
+  }
+  if (!missing) return indices;
+  const merged: number[] = [];
+  let left = 0;
+  let right = 0;
+  while (left < indices.length || right < extra.length) {
+    const next =
+      right >= extra.length ||
+      (left < indices.length && indices[left]! <= extra[right]!)
+        ? indices[left++]!
+        : extra[right++]!;
+    if (merged[merged.length - 1] !== next) merged.push(next);
+  }
+  return merged;
+}

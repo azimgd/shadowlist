@@ -1,9 +1,9 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import {
-  ViewabilityTracker,
   viewableRulesFor,
+  viewableTimingsFor,
 } from '../virtualizer/viewability';
-import { PrefetchTracker, prefetchWindow } from '../virtualizer/prefetch';
+import { mergeSortedIndices } from '../virtualizer/helpers';
 import {
   deselectKey,
   retainKeys,
@@ -18,17 +18,9 @@ import {
   rowPaddingStyles,
 } from '../virtualizer/contentPadding';
 import { SeparatorStore } from '../virtualizer/separators';
-import type { ViewToken } from '../types';
 
 const keys = ['a', 'b', 'c', 'd', 'e', 'f'];
 const keyToIndex = new Map(keys.map((key, index) => [key, index]));
-const build = (low: number, high: number): ViewToken<string>[] =>
-  keys.slice(low, high + 1).map((key, offset) => ({
-    item: key,
-    key,
-    index: low + offset,
-    isViewable: true,
-  }));
 
 describe('viewableRulesFor', () => {
   it('starts with any overlap and adds one rule per config', () => {
@@ -42,89 +34,28 @@ describe('viewableRulesFor', () => {
   });
 });
 
-describe('ViewabilityTracker', () => {
-  it('reports changes by key', () => {
-    const callback = jest.fn();
-    const tracker = new ViewabilityTracker<string>({}, callback);
-    tracker.update({ low: 0, high: 1 }, build);
-    tracker.update({ low: 0, high: 1 }, build);
-    tracker.update({ low: 1, high: 2 }, build);
-    expect(callback).toHaveBeenCalledTimes(2);
-    const last = callback.mock.calls[1]![0] as {
-      changed: ViewToken<string>[];
-    };
-    expect(last.changed.map((token) => [token.key, token.isViewable])).toEqual([
-      ['c', true],
-      ['a', false],
-    ]);
-  });
-
-  it('waits for an interaction', () => {
-    const callback = jest.fn();
-    const tracker = new ViewabilityTracker<string>(
-      { waitForInteraction: true },
-      callback
-    );
-    tracker.update({ low: 0, high: 1 }, build);
-    expect(callback).not.toHaveBeenCalled();
-    tracker.recordInteraction(build);
-    expect(callback).toHaveBeenCalledTimes(1);
-  });
-
-  it('reports only after the minimum view time', () => {
-    const callbacks: (() => void)[] = [];
-    const timers = {
-      setTimeout: (callback: () => void) => callbacks.push(callback),
-      clearTimeout: () => {
-        callbacks.length = 0;
-      },
-    };
-    const callback = jest.fn();
-    const tracker = new ViewabilityTracker<string>(
-      { minimumViewTime: 100 },
-      callback,
-      timers
-    );
-    tracker.update({ low: 0, high: 1 }, build);
-    tracker.update({ low: 2, high: 3 }, build);
-    expect(callback).not.toHaveBeenCalled();
-    callbacks.forEach((fire) => fire());
-    expect(callback).toHaveBeenCalledTimes(1);
-    const info = callback.mock.calls[0]![0] as {
-      viewableItems: ViewToken<string>[];
-    };
-    expect(info.viewableItems.map((token) => token.key)).toEqual(['c', 'd']);
+describe('viewableTimingsFor', () => {
+  it('sends minimumViewTime and waitForInteraction per config', () => {
+    expect(viewableTimingsFor([])).toEqual([]);
+    expect(
+      viewableTimingsFor([
+        { minimumViewTime: 250 },
+        { waitForInteraction: true },
+        { minimumViewTime: -5 },
+      ])
+    ).toEqual([250, 0, 0, 1, 0, 0]);
   });
 });
 
-describe('PrefetchTracker', () => {
-  it('prefetches unmounted rows once and cancels the ones that leave', () => {
-    const tracker = new PrefetchTracker();
-    const first = tracker.update(
-      keys,
-      keyToIndex,
-      { low: 0, high: 1 },
-      {
-        low: 0,
-        high: 3,
-      }
-    );
-    expect(first).toEqual({ prefetch: [2, 3], cancel: [] });
-    expect(
-      tracker.update(keys, keyToIndex, { low: 0, high: 1 }, { low: 0, high: 3 })
-    ).toEqual({ prefetch: [], cancel: [] });
-    // Row 2 mounted, row 3 left the window unseen.
-    expect(
-      tracker.update(keys, keyToIndex, { low: 1, high: 2 }, { low: 1, high: 2 })
-    ).toEqual({ prefetch: [], cancel: [3] });
-  });
-
-  it('builds the window around the mounted rows', () => {
-    expect(prefetchWindow({ low: 3, high: 5 }, 2, 7)).toEqual({
-      low: 1,
-      high: 6,
-    });
-    expect(prefetchWindow(null, 2, 7)).toBeNull();
+describe('mergeSortedIndices', () => {
+  it('adds the missing rows in order and keeps the array when none is missing', () => {
+    const mounted = [4, 5, 6, 7];
+    expect(mergeSortedIndices(mounted, [])).toBe(mounted);
+    expect(mergeSortedIndices(mounted, [5, 7])).toBe(mounted);
+    expect(mergeSortedIndices(mounted, [0, 6, 40])).toEqual([
+      0, 4, 5, 6, 7, 40,
+    ]);
+    expect(mergeSortedIndices([], [2])).toEqual([2]);
   });
 });
 

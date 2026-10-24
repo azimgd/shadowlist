@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { mergeSortedIndices } from './helpers';
 
 interface UsePersistentKeysOptions {
   keys: ReadonlyArray<string>;
@@ -27,17 +28,8 @@ export function usePersistentKeys({
   }, [keys, persistentKeys]);
 
   // Add these rows to the rendered set, sorted and without duplicates.
-  return useMemo(() => {
-    if (persistentIndices.length === 0) return renderIndices;
-    const merged = new Set(renderIndices);
-    let changed = false;
-    for (const index of persistentIndices) {
-      if (!merged.has(index)) {
-        merged.add(index);
-        changed = true;
-      }
-    }
-    if (!changed) return renderIndices;
-    return Array.from(merged).sort((a, b) => a - b);
-  }, [renderIndices, persistentIndices]);
+  return useMemo(
+    () => mergeSortedIndices(renderIndices, persistentIndices),
+    [renderIndices, persistentIndices]
+  );
 }

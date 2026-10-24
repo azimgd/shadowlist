@@ -6,7 +6,7 @@ import {
   needsScrollIntoView,
   nextSelectableIndex,
 } from './keySelection';
-import type { MountedRange } from './mountedRange';
+import type { MountedRange } from './useMountedRange';
 
 interface ShadowListViewRef {
   current: ComponentRef<typeof ShadowListView> | null;

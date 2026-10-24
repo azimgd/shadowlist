@@ -324,6 +324,62 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
+  @ReactProp(name = "viewableTimings")
+  public void setViewableTimings(ShadowListView view, @Nullable ReadableArray viewableTimings) {
+    // Only the mount driver reads these props, in the component descriptor.
+  }
+
+  @Override
+  @ReactProp(name = "viewabilityInteracted")
+  public void setViewabilityInteracted(ShadowListView view, boolean viewabilityInteracted) {}
+
+  @Override
+  @ReactProp(name = "visibleRangeEventEnabled")
+  public void setVisibleRangeEventEnabled(ShadowListView view, boolean visibleRangeEventEnabled) {}
+
+  @Override
+  @ReactProp(name = "mountedLow", defaultInt = -1)
+  public void setMountedLow(ShadowListView view, int mountedLow) {}
+
+  @Override
+  @ReactProp(name = "mountedHigh", defaultInt = -1)
+  public void setMountedHigh(ShadowListView view, int mountedHigh) {}
+
+  @Override
+  @ReactProp(name = "mountedSequence")
+  public void setMountedSequence(ShadowListView view, double mountedSequence) {}
+
+  @Override
+  @ReactProp(name = "mountedGeneration")
+  public void setMountedGeneration(ShadowListView view, double mountedGeneration) {}
+
+  @Override
+  @ReactProp(name = "seedPending")
+  public void setSeedPending(ShadowListView view, boolean seedPending) {}
+
+  @Override
+  @ReactProp(name = "mountOverscanRows", defaultInt = 4)
+  public void setMountOverscanRows(ShadowListView view, int mountOverscanRows) {}
+
+  @Override
+  @ReactProp(name = "mountOverscanRowsLeading", defaultInt = 10)
+  public void setMountOverscanRowsLeading(ShadowListView view, int mountOverscanRowsLeading) {}
+
+  @Override
+  @ReactProp(name = "prefetchRows")
+  public void setPrefetchRows(ShadowListView view, int prefetchRows) {}
+
+  /*
+   * A commit that applied a mounted range lands here with its props. Its next step goes on the
+   * next frame.
+   */
+  @Override
+  protected void onAfterUpdateTransaction(@NonNull ShadowListView view) {
+    super.onAfterUpdateTransaction(view);
+    view.pokeMountTicker();
+  }
+
+  @Override
   @ReactProp(name = "snapToItem")
   public void setSnapToItem(ShadowListView view, boolean snapToItem) {
     view.setSnapToItem(snapToItem);

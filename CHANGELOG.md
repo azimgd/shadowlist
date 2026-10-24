@@ -10,6 +10,7 @@
 - macOS: `contextMenuForItem` opens on a right click, and `enableSelectionOnKeyPress` with `onActivateItem` selects and activates rows from the keyboard.
 - `shouldSelectItem` keeps rows like headers out of the selection.
 - A horizontal list styled `height: 'auto'` takes the height of its tallest mounted row.
+- Native decides which rows mount, paces the overscan on display frames, and works out viewable items, the pinned section header and prefetching in the shared C++ core. JS only applies the result. The props and callbacks of the lists are the same. The raw `ShadowListView` native component sends `onMountedRangeChange`, `onViewabilityChange` and `onPrefetchChange` instead of `onMeasuredRangeChange` and `onViewableIndicesChange`.
 
 ### ShadowListKit (iOS and Android)
 

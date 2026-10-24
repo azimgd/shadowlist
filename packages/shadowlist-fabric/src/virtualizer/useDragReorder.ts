@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
 import type { OnDragStart, OnDragEnd } from '../ShadowListViewNativeComponent';
-import { arrayMove } from './helpers';
+import { arrayMove, mergeSortedIndices } from './helpers';
 
 interface UseDragReorderOptions<ItemT> {
   data: ReadonlyArray<ItemT>;
@@ -59,14 +59,10 @@ export function useDragReorder<ItemT>({
 
   // Add the dragged row to the rendered set so it stays mounted.
   const renderIndices = useMemo(() => {
-    if (
-      draggingIndex < 0 ||
-      draggingIndex >= data.length ||
-      mountedIndices.includes(draggingIndex)
-    ) {
+    if (draggingIndex < 0 || draggingIndex >= data.length) {
       return mountedIndices;
     }
-    return [...mountedIndices, draggingIndex].sort((a, b) => a - b);
+    return mergeSortedIndices(mountedIndices, [draggingIndex]);
   }, [mountedIndices, draggingIndex, data.length]);
 
   // On pickup, keep the row mounted. The data order doesn't change yet.

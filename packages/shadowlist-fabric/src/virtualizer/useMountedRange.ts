@@ -1,18 +1,128 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
-import type { OnMeasuredRangeChange } from '../ShadowListViewNativeComponent';
-import { slTrace, slTraceEnabled } from './helpers';
-import {
-  grownMountedRange,
-  initialMountedRange,
-  rangeToIndices,
-  mountStepForRange,
-  reportedMountedRange,
-  shouldReseedFromOffsetIndex,
-  stepMountedRange,
-  unionRangeIndices,
-  type MountedRange,
-} from './mountedRange';
+import type { OnMountedRangeChange } from '../ShadowListViewNativeComponent';
+import { SHADOWLIST_OVERSCAN, slTrace, slTraceEnabled } from './helpers';
+
+/*
+ * A range of rows, low to high. Mounts mountOverscanRows extra rows on each side of the screen
+ * and only re-renders when the screen leaves that range.
+ */
+export interface MountedRange {
+  low: number;
+  high: number;
+}
+
+export function initialMountedRange(
+  size: number,
+  initial: number,
+  inverted: boolean,
+  offsetIndex: number,
+  mountOverscanRows: number = SHADOWLIST_OVERSCAN,
+  viewPosition: number = 0
+): MountedRange {
+  if (size <= 0) return { low: -1, high: -1 };
+  /*
+   * With a starting target, mount around it so it doesn't flash blank. It wins over the
+   * inverted list's bottom start.
+   * viewPosition decides which side of the target is on screen. Aligned to the start the
+   * rows after it fill the screen, centered or at the end the rows before it. Split the
+   * mounted rows the same way.
+   */
+  if (offsetIndex >= 0) {
+    const target = Math.min(offsetIndex, size - 1);
+    const before = Math.round(viewPosition * initial);
+    return {
+      low: Math.max(0, target - mountOverscanRows - before),
+      high: Math.min(size - 1, target + (initial - before)),
+    };
+  }
+  if (inverted) {
+    return { low: Math.max(0, size - initial), high: size - 1 };
+  }
+  return { low: 0, high: Math.min(initial, size - 1) };
+}
+
+export function rangeToIndices(range: MountedRange): number[] {
+  if (range.low < 0 || range.high < 0 || range.low > range.high) return [];
+  const indices: number[] = [];
+  for (let index = range.low; index <= range.high; index++) indices.push(index);
+  return indices;
+}
+
+/*
+ * Indices of both ranges, sorted and without duplicates. While a scroll command is on its
+ * way, mount the rows around its target and keep the rows still on screen. Native jumps a
+ * frame or more later, and unmounting the visible rows early would show a blank screen.
+ */
+export function unionRangeIndices(
+  first: MountedRange,
+  second: MountedRange
+): number[] {
+  const firstIndices = rangeToIndices(first);
+  const secondIndices = rangeToIndices(second);
+  if (firstIndices.length === 0) return secondIndices;
+  if (secondIndices.length === 0) return firstIndices;
+  const [lower, upper] =
+    first.low <= second.low ? [first, second] : [second, first];
+  if (upper.low <= lower.high + 1) {
+    return rangeToIndices({
+      low: lower.low,
+      high: Math.max(lower.high, upper.high),
+    });
+  }
+  return [...rangeToIndices(lower), ...rangeToIndices(upper)];
+}
+
+/*
+ * Whether a new scrollIndex should rebuild the mounted rows around it, instead of
+ * where native last reported. A negative value means no target, and must not pull a reader
+ * who scrolled away back to the start.
+ */
+export function shouldReseedFromOffsetIndex(
+  previousOffsetIndex: number,
+  nextOffsetIndex: number
+): boolean {
+  return nextOffsetIndex !== previousOffsetIndex && nextOffsetIndex >= 0;
+}
+
+/*
+ * How many appended rows an inverted list at its end mounts on top of its range. A bigger
+ * burst, like a reconnect syncing hundreds of messages, moves the range to the tail instead.
+ * MAX_FOLLOWED_APPEND in host/MountedRange.hpp is the same number.
+ */
+export const MAX_FOLLOWED_APPEND = 50;
+
+/*
+ * The mounted range from its edge rows' current indices. A range at an edge of the data grows
+ * by up to the leading pad to take rows added past it, and a followed tail takes every append.
+ * This runs in the render that brings the new data, so new rows at an edge mount with it.
+ */
+export function grownMountedRange(
+  lowIndex: number,
+  highIndex: number,
+  lowAtStart: boolean,
+  highAtEnd: boolean,
+  size: number,
+  mountOverscanRowsLeading: number,
+  followTail: boolean
+): MountedRange {
+  const low = Math.min(lowIndex, highIndex);
+  const high = Math.max(lowIndex, highIndex);
+  const grownLow = lowAtStart
+    ? Math.max(0, low - mountOverscanRowsLeading)
+    : low;
+  if (followTail && highAtEnd) {
+    const tailHigh = size - 1;
+    const tailLow = tailHigh - (high - low) - MAX_FOLLOWED_APPEND;
+    return { low: Math.max(grownLow, tailLow), high: tailHigh };
+  }
+  return {
+    low: grownLow,
+    high: highAtEnd
+      ? Math.min(size - 1, high + mountOverscanRowsLeading)
+      : high,
+  };
+}
 
 interface UseMountedRangeOptions {
   keys: ReadonlyArray<string>;
@@ -25,10 +135,22 @@ interface UseMountedRangeOptions {
   mountOverscanRowsLeading: number;
 }
 
+/*
+ * The props that tell native what is mounted, see ShadowListMountDriver.
+ */
+interface MountedRangeProps {
+  mountedLow: number;
+  mountedHigh: number;
+  mountedSequence: number;
+  mountedGeneration: number;
+  seedPending: boolean;
+}
+
 interface UseMountedRangeResult {
   mountedIndices: number[];
-  handleMeasuredRangeChange: CodegenTypes.DirectEventHandler<
-    OnMeasuredRangeChange,
+  mountedRangeProps: MountedRangeProps;
+  handleMountedRangeChange: CodegenTypes.DirectEventHandler<
+    OnMountedRangeChange,
     never
   >;
   seedAroundIndex: (index: number, viewPosition: number) => void;
@@ -43,32 +165,22 @@ interface SeedTarget {
 }
 
 /*
- * New overscan rows mounted per end per frame, see stepMountedRange. Rows on screen always
- * mount in the same commit.
+ * The range native sent last, by its edge keys, and the sequence that tells native it was
+ * applied.
  */
-const MOUNT_STEP_ROWS = 2;
-
-/*
- * Where the last report wants the range to end up, and what was on screen then, by key so a
- * data change between steps keeps pointing at the same rows.
- */
-interface MountTarget {
-  lowKey: string;
-  highKey: string;
-  measuredLowKey: string;
-  measuredHighKey: string;
-}
-
 interface MountedKeys {
   lowKey: string;
   highKey: string;
   lowAtStart: boolean;
   highAtEnd: boolean;
+  sequence: number;
 }
 
 /*
- * Decides which rows are mounted and moves that range along with what native reports as
- * visible, plus overscan.
+ * Decides which rows are mounted. Native moves the range along with the visible rows, paces
+ * its overscan on display frames and sends each range by its edge keys. This hook applies it,
+ * and only works out what has to change in the same render: the initial range, the rows around
+ * a new scroll target, and how the edges grow with rows added past them.
  */
 export function useMountedRange({
   keys,
@@ -81,10 +193,16 @@ export function useMountedRange({
   mountOverscanRowsLeading,
 }: UseMountedRangeOptions): UseMountedRangeResult {
   /*
-   * Null until native first reports what's visible. Until then the range comes from
+   * Null until native first sends a range. Until then the range comes from
    * initialNumToRender, inverted and scrollIndex.
    */
   const [mountedKeys, setMountedKeys] = useState<MountedKeys | null>(null);
+
+  /*
+   * Goes up whenever this hook rebuilds the range itself. Native drops a range it built for an
+   * older one, and so does the handler below.
+   */
+  const [generation, setGeneration] = useState(0);
 
   /*
    * scrollIndex is the row the core scrolls to, and we mount around it. If we did
@@ -99,6 +217,7 @@ export function useMountedRange({
     setSeededScrollIndex(scrollIndex);
     if (reseed) {
       setMountedKeys(null);
+      setGeneration(generation + 1);
     }
   }
 
@@ -111,69 +230,64 @@ export function useMountedRange({
 
   /*
    * Keep the stored range. The rows on screen stay mounted next to the target's until the
-   * jump lands, then the next report replaces the range.
+   * jump lands, then the next range replaces them.
    */
   const seedAroundIndex = useCallback((index: number, viewPosition: number) => {
     setCommandSeed({ index, viewPosition });
   }, []);
 
   /*
-   * Turn the stored edge keys into an index range in the current data. Use the initial range
-   * before the first report, or when an edge row was deleted.
+   * The stored edge keys as an index range in the current data. The initial range before
+   * the first range from native, or when an edge row was deleted.
    */
-  const resolveRange = useCallback(
-    (edges: MountedKeys | null): MountedRange => {
-      if (edges !== null) {
-        const lowIndex = keyToIndex.get(edges.lowKey);
-        const highIndex = keyToIndex.get(edges.highKey);
-        if (lowIndex !== undefined && highIndex !== undefined) {
-          return grownMountedRange(
-            lowIndex,
-            highIndex,
-            edges.lowAtStart,
-            edges.highAtEnd,
-            keys.length,
-            mountOverscanRowsLeading,
-            inverted && followAppends
-          );
-        }
-      }
-      if (commandSeed !== null) {
-        return initialMountedRange(
+  const range = useMemo((): MountedRange => {
+    if (mountedKeys !== null) {
+      const lowIndex = keyToIndex.get(mountedKeys.lowKey);
+      const highIndex = keyToIndex.get(mountedKeys.highKey);
+      if (lowIndex !== undefined && highIndex !== undefined) {
+        return grownMountedRange(
+          lowIndex,
+          highIndex,
+          mountedKeys.lowAtStart,
+          mountedKeys.highAtEnd,
           keys.length,
-          initialNumToRender,
-          inverted,
-          commandSeed.index,
-          mountOverscanRows,
-          commandSeed.viewPosition
+          mountOverscanRowsLeading,
+          inverted && followAppends
         );
       }
+    }
+    if (commandSeed !== null) {
       return initialMountedRange(
         keys.length,
         initialNumToRender,
         inverted,
-        scrollIndex,
-        mountOverscanRows
+        commandSeed.index,
+        mountOverscanRows,
+        commandSeed.viewPosition
       );
-    },
-    [
-      keyToIndex,
+    }
+    return initialMountedRange(
       keys.length,
       initialNumToRender,
       inverted,
-      followAppends,
       scrollIndex,
-      commandSeed,
-      mountOverscanRows,
-      mountOverscanRowsLeading,
-    ]
-  );
+      mountOverscanRows
+    );
+  }, [
+    mountedKeys,
+    keyToIndex,
+    keys.length,
+    initialNumToRender,
+    inverted,
+    followAppends,
+    scrollIndex,
+    commandSeed,
+    mountOverscanRows,
+    mountOverscanRowsLeading,
+  ]);
 
   const mountedIndices = useMemo(() => {
-    const current = resolveRange(mountedKeys);
-    if (commandSeed === null) {
-      return rangeToIndices(current);
-    }
+    if (commandSeed === null) return rangeToIndices(range);
     const target = initialMountedRange(
       keys.length,
       initialNumToRender,
@@ -183,8 +297,8 @@ export function useMountedRange({
       commandSeed.viewPosition
     );
     /*
-     * A list resting where it opened has had no report that changed its range. Its rows on
-     * screen are still the initial ones and stay mounted until the jump lands.
+     * A list resting where it opened has had no range from native. Its rows on screen are
+     * still the initial ones and stay mounted until the jump lands.
      */
     const onScreen =
       mountedKeys === null
@@ -195,10 +309,10 @@ export function useMountedRange({
             scrollIndex,
             mountOverscanRows
           )
-        : current;
+        : range;
     return unionRangeIndices(onScreen, target);
   }, [
-    resolveRange,
+    range,
     mountedKeys,
     commandSeed,
     keys.length,
@@ -208,160 +322,41 @@ export function useMountedRange({
     mountOverscanRows,
   ]);
 
-  /*
-   * Mounted keys for an index range, with the edge flags the data change logic above reads.
-   */
-  const keysOfRange = useCallback(
-    (low: number, high: number): MountedKeys => ({
-      lowKey: keys[low]!,
-      highKey: keys[high]!,
-      lowAtStart: low === 0,
-      highAtEnd: high === keys.length - 1,
+  const mountedRangeProps = useMemo<MountedRangeProps>(
+    () => ({
+      mountedLow: range.low,
+      mountedHigh: range.high,
+      mountedSequence: mountedKeys?.sequence ?? 0,
+      mountedGeneration: generation,
+      seedPending: commandSeed !== null,
     }),
-    [keys]
+    [range, mountedKeys, generation, commandSeed]
   );
 
-  /*
-   * The range the last report asked for. Reports only come when the visible rows change.
-   * The steps between them are driven from here, one per frame, until the range gets there.
-   */
-  const mountTargetRef = useRef<MountTarget | null>(null);
-  const stepFrameRef = useRef<number | null>(null);
-  const latestRef = useRef({ keyToIndex, resolveRange, keysOfRange });
-  latestRef.current = { keyToIndex, resolveRange, keysOfRange };
+  const generationRef = useRef(generation);
+  generationRef.current = generation;
 
-  const stepTowardTarget = useCallback(() => {
-    stepFrameRef.current = null;
-    setMountedKeys((previous) => {
-      const target = mountTargetRef.current;
-      const latest = latestRef.current;
-      if (target === null || previous === null) return previous;
-      const low = latest.keyToIndex.get(target.lowKey);
-      const high = latest.keyToIndex.get(target.highKey);
-      const measuredLow = latest.keyToIndex.get(target.measuredLowKey);
-      const measuredHigh = latest.keyToIndex.get(target.measuredHighKey);
-      if (
-        low === undefined ||
-        high === undefined ||
-        measuredLow === undefined ||
-        measuredHigh === undefined
-      ) {
-        mountTargetRef.current = null;
-        return previous;
-      }
-      const current = latest.resolveRange(previous);
-      const measured = {
-        low: Math.min(measuredLow, measuredHigh),
-        high: Math.max(measuredLow, measuredHigh),
-      };
-      const next = stepMountedRange(
-        current,
-        { low, high },
-        measured,
-        mountStepForRange(measured, MOUNT_STEP_ROWS)
-      );
-      if (next.low === low && next.high === high) mountTargetRef.current = null;
-      if (next.low === current.low && next.high === current.high)
-        return previous;
-      return latest.keysOfRange(next.low, next.high);
-    });
+  const handleMountedRangeChange: CodegenTypes.DirectEventHandler<
+    OnMountedRangeChange,
+    never
+  > = useCallback((event) => {
+    const { lowKey, highKey, lowAtStart, highAtEnd, sequence, landed } =
+      event.nativeEvent;
+    // Built on a range this hook has since rebuilt.
+    if (event.nativeEvent.generation !== generationRef.current) return;
+    // The scroll landed. Returning the same value skips the re-render.
+    setCommandSeed((previous) => (previous === null ? previous : null));
+    if (landed) return;
+    if (slTraceEnabled()) {
+      slTrace(`vis apply keys=${lowKey}..${highKey} seq=${sequence}`);
+    }
+    setMountedKeys({ lowKey, highKey, lowAtStart, highAtEnd, sequence });
   }, []);
 
-  // After each commit, take the next step if the range isn't there yet.
-  useEffect(() => {
-    if (mountTargetRef.current === null || stepFrameRef.current !== null)
-      return;
-    stepFrameRef.current = requestAnimationFrame(stepTowardTarget);
-  });
-
-  useEffect(
-    () => () => {
-      if (stepFrameRef.current !== null)
-        cancelAnimationFrame(stepFrameRef.current);
-    },
-    []
-  );
-
-  /*
-   * The last visible range native reported. It gives the scroll direction next time. A
-   * ref, since it must never cause a render and only the updater below reads it.
-   */
-  const previousMeasuredRef = useRef<{ low: number; high: number } | null>(
-    null
-  );
-
-  const handleMeasuredRangeChange: CodegenTypes.DirectEventHandler<
-    OnMeasuredRangeChange,
-    never
-  > = useCallback(
-    (event) => {
-      const { low: measuredLow, high: measuredHigh } = event.nativeEvent;
-      if (measuredLow < 0 || measuredHigh < measuredLow) return;
-      if (measuredHigh >= keys.length) return;
-
-      const previousMeasured = previousMeasuredRef.current;
-      previousMeasuredRef.current = { low: measuredLow, high: measuredHigh };
-      // The scroll landed. Returning the same value skips the re-render.
-      setCommandSeed((previous) => (previous === null ? previous : null));
-      if (slTraceEnabled()) {
-        slTrace(`vis win=${measuredLow}..${measuredHigh} n=${keys.length}`);
-      }
-
-      setMountedKeys((previous) => {
-        const current = resolveRange(previous);
-        const measured = { low: measuredLow, high: measuredHigh };
-        const reported = reportedMountedRange(
-          current,
-          measured,
-          previousMeasured,
-          previous === null,
-          keys.length,
-          mountOverscanRows,
-          mountOverscanRowsLeading,
-          MOUNT_STEP_ROWS
-        );
-        // Already mounted. Skip the re-render.
-        if (reported === null) return previous;
-        const { low: targetLow, high: targetHigh } = reported.target;
-        const { low, high } = reported.range;
-        mountTargetRef.current =
-          low === targetLow && high === targetHigh
-            ? null
-            : {
-                lowKey: keys[targetLow]!,
-                highKey: keys[targetHigh]!,
-                measuredLowKey: keys[measuredLow]!,
-                measuredHighKey: keys[measuredHigh]!,
-              };
-        const { lowKey, highKey, lowAtStart, highAtEnd } = keysOfRange(
-          low,
-          high
-        );
-        if (
-          previous &&
-          previous.lowKey === lowKey &&
-          previous.highKey === highKey &&
-          previous.lowAtStart === lowAtStart &&
-          previous.highAtEnd === highAtEnd
-        ) {
-          return previous;
-        }
-        if (slTraceEnabled()) {
-          slTrace(
-            `vis apply range=${low}..${high} was=${current.low}..${current.high}`
-          );
-        }
-        return { lowKey, highKey, lowAtStart, highAtEnd };
-      });
-    },
-    [
-      keys,
-      resolveRange,
-      keysOfRange,
-      mountOverscanRows,
-      mountOverscanRowsLeading,
-    ]
-  );
-
-  return { mountedIndices, handleMeasuredRangeChange, seedAroundIndex };
+  return {
+    mountedIndices,
+    mountedRangeProps,
+    handleMountedRangeChange,
+    seedAroundIndex,
+  };
 }

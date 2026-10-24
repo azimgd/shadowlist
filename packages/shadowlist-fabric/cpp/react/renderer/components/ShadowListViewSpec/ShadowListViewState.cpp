@@ -1,5 +1,7 @@
 #include "ShadowListViewState.h"
 
+#include "ShadowListMountDriver.h"
+
 namespace facebook::react {
 
 #ifdef ANDROID
@@ -52,7 +54,9 @@ ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousStat
   // The estimate comes from the layout pass. Carry it over.
   animationTargetSequence_(previousState.animationTargetSequence_),
   animationTargetOffset_(previousState.animationTargetOffset_),
-  anchorRequestSequence_(data.count("anchorRequestSequence") ? data["anchorRequestSequence"].asDouble() : previousState.anchorRequestSequence_) {
+  anchorRequestSequence_(data.count("anchorRequestSequence") ? data["anchorRequestSequence"].asDouble() : previousState.anchorRequestSequence_),
+  // Made with the list's first state. Carry it over.
+  mountDriver_(previousState.mountDriver_) {
   if (data.count("stickyIndices") && data.count("stickyOffsets") && data.count("stickySizes")) {
     auto stickyIndices = std::make_shared<std::vector<int>>();
     auto stickyOffsets = std::make_shared<std::vector<double>>();
@@ -169,6 +173,10 @@ MapBuffer ShadowListViewState::getMapBuffer() const {
   builder.putDouble(ShadowListStateKey::CONCEAL_GENERATION, concealGeneration_);
   builder.putDouble(ShadowListStateKey::ANIMATION_SEQUENCE, animationTargetSequence_);
   builder.putDouble(ShadowListStateKey::ANIMATION_OFFSET, animationTargetOffset_);
+  if (mountDriver_) {
+    ShadowListMountDriver::registerHandle(mountDriver_);
+  }
+  builder.putLong(ShadowListStateKey::MOUNT_HANDLE, mountDriver_ ? mountDriver_->getHandle() : 0);
   return builder.build();
 }
 #endif
