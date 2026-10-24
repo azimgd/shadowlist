@@ -17,7 +17,7 @@ type FlatRowType = 'sectionHeader' | 'item' | 'sectionFooter';
  * One row SectionList renders. Built only for the rows asked about, which are the mounted ones.
  */
 export interface FlatRow<ItemT, SectionT> {
-  id: string;
+  key: string;
   type: FlatRowType;
   sectionIndex: number;
   section?: SectionListData<ItemT, SectionT>;
@@ -347,18 +347,18 @@ function sectionSource<ItemT, SectionT>(
   const itemAt = (row: number): FlatRow<ItemT, SectionT> | undefined => {
     const place = placeOf(row);
     if (place === null) return undefined;
-    const id = keyAt(row)!;
-    const existing = builtRows.get(id);
+    const key = keyAt(row)!;
+    const existing = builtRows.get(key);
     if (existing !== undefined) return existing;
     const { sectionIndex } = place;
     const section = sections[sectionIndex]!;
     const isLastSection = sectionIndex === sectionCount - 1;
     let next: FlatRow<ItemT, SectionT>;
     if (place.type === 'sectionHeader') {
-      next = { id, type: 'sectionHeader', section, sectionIndex };
+      next = { key, type: 'sectionHeader', section, sectionIndex };
     } else if (place.type === 'sectionFooter') {
       next = {
-        id,
+        key,
         type: 'sectionFooter',
         section,
         sectionIndex,
@@ -368,7 +368,7 @@ function sectionSource<ItemT, SectionT>(
       const entry = written[sectionIndex]!;
       const isLastInSection = place.itemIndex === entry.itemKeys.length - 1;
       next = {
-        id,
+        key,
         type: 'item',
         sectionIndex,
         item: section.data[place.itemIndex],
@@ -378,9 +378,9 @@ function sectionSource<ItemT, SectionT>(
         isSectionBoundary: isLastInSection && !hasFooter && !isLastSection,
       };
     }
-    const kept = previousRows?.get(id);
+    const kept = previousRows?.get(key);
     const result = sameRow(kept, next) ? kept : next;
-    builtRows.set(id, result);
+    builtRows.set(key, result);
     return result;
   };
 

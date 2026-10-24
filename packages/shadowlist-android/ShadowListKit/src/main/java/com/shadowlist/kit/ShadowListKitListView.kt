@@ -895,7 +895,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun trackUserScroll() {
     val current = offset
-    if (abs(current - previousOffset) < 1) return
+    if (abs(current - previousOffset) < ShadowListKitCore.OFFSET_MOVED_THRESHOLD) return
     if (scrollPhase() != ShadowListKitCore.PHASE_IDLE) userScrolled = true
     previousOffset = current
   }
@@ -1089,7 +1089,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     val generation = ++mountGeneration
     if (low >= 0) {
       for (index in low..high) {
-        // A masonry grid can hold rows inside the index range that are out of view.
+        // ListDriver::shouldMount. A masonry grid can hold rows inside the index range that are out of view.
         if (numberOfColumns > 1 && !overlaps(index, viewLow, viewHigh)) continue
         mountRow(index, generation)
       }

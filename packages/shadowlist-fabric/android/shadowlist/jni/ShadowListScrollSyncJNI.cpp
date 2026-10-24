@@ -79,7 +79,7 @@ void writePatch(
   slots[OUT_COMMIT_TOKEN] = static_cast<double>(patch.report.commitToken);
   slots[OUT_SEQUENCE] = static_cast<double>(patch.report.sequence);
   slots[OUT_HAS_COMMAND] = patch.hasCommand ? 1.0 : 0.0;
-  slots[OUT_COMMAND_INDEX] = patch.commandIndex;
+  slots[OUT_COMMAND_INDEX] = sl::scrollCommandIndexToDouble(patch.commandIndex);
   slots[OUT_COMMAND_SEQUENCE] = patch.commandSequence;
   slots[OUT_COMMAND_VIEW_POSITION] = patch.commandViewPosition;
   env->SetDoubleArrayRegion(out, 0, OUT_ACTION_KIND, slots);
@@ -304,7 +304,7 @@ JNIEXPORT void JNICALL SL_SCROLL_SYNC_JNI(nativeIssueCommand)(
   jdouble offsetY,
   jboolean momentumYielded,
   jdoubleArray out) {
-  sl::ScrollCommand command{index, viewPosition, viewOffset, animated == JNI_TRUE};
+  sl::ScrollCommand command{sl::scrollCommandIndexFromDouble(index), viewPosition, viewOffset, animated == JNI_TRUE};
   auto patch = peerOf(handle)->sync.issueCommand(command, offsetX, offsetY, momentumYielded == JNI_TRUE);
   writePatch(env, out, patch, true, false);
 }

@@ -165,16 +165,16 @@ void ShadowListMountDriver::endCommit(
         return range;
       };
       if (auto visible = rangeAt(0)) {
-        visibleLow_ = static_cast<int>(visible->low);
-        visibleHigh_ = static_cast<int>(visible->high);
-        int active = indexToInt(sl::activeStickyIndexFor(stickyIndices, visible->low));
+        visibleLow_ = visible->low;
+        visibleHigh_ = visible->high;
+        std::size_t active = sl::activeStickyIndexFor(stickyIndices, visible->low);
         if (active != activeStickyIndex_) {
           activeStickyIndex_ = active;
           outgoing.viewability = true;
         }
       } else {
-        visibleLow_ = -1;
-        visibleHigh_ = -1;
+        visibleLow_ = sl::UNDEFINED_INDEX;
+        visibleHigh_ = sl::UNDEFINED_INDEX;
       }
       if (props.visibleRangeEventEnabled) {
         outgoing.viewability = true;
@@ -204,7 +204,7 @@ void ShadowListMountDriver::endCommit(
     /*
      * Prefetch around the rows React mounts, once per new range or new data.
      */
-    int prefetchRows = std::max(0, props.prefetchRows);
+    std::size_t prefetchRows = sizeFromProp(props.prefetchRows, 0);
     if (prefetchRows != prefetchRows_) {
       prefetchRows_ = prefetchRows;
       prefetch_.clear();
@@ -221,7 +221,7 @@ void ShadowListMountDriver::endCommit(
       if (!mounted.isEmpty()) {
         mountedRows = mounted;
       }
-      prefetch_.update(mountedRows, sl::prefetchWindow(mountedRows, static_cast<std::size_t>(prefetchRows_), keys.size()),
+      prefetch_.update(mountedRows, sl::prefetchRange(mountedRows, prefetchRows_, keys.size()),
         keys.size(), [&keys](std::size_t index) -> const std::string& { return keys[index]; },
         [&core](const std::string& key) { return core.indexOfKey(key); }, outgoing.prefetch, outgoing.cancel);
     }
@@ -249,7 +249,7 @@ void ShadowListMountDriver::takeViewabilityReports(double now, Outgoing& outgoin
   for (std::size_t position = 0; position < trackers_.size(); ++position) {
     sl::ViewabilityReport report;
     if (trackers_[position].take(now, report)) {
-      outgoing.reports.emplace_back(static_cast<int>(position), std::move(report));
+      outgoing.reports.emplace_back(position, std::move(report));
       outgoing.viewability = true;
     }
   }
@@ -300,14 +300,14 @@ void ShadowListMountDriver::dispatch(Outgoing& outgoing) {
       [activeStickyIndex = outgoing.activeStickyIndex, visibleLow = outgoing.visibleLow,
        visibleHigh = outgoing.visibleHigh, reports = std::move(outgoing.reports)](jsi::Runtime& runtime) {
         auto payload = jsi::Object(runtime);
-        payload.setProperty(runtime, "activeStickyIndex", activeStickyIndex);
-        payload.setProperty(runtime, "visibleLow", visibleLow);
-        payload.setProperty(runtime, "visibleHigh", visibleHigh);
+        payload.setProperty(runtime, "activeStickyIndex", indexToInt(activeStickyIndex));
+        payload.setProperty(runtime, "visibleLow", indexToInt(visibleLow));
+        payload.setProperty(runtime, "visibleHigh", indexToInt(visibleHigh));
         auto changes = jsi::Array(runtime, reports.size());
         for (std::size_t position = 0; position < reports.size(); ++position) {
           const auto& [config, report] = reports[position];
           auto change = jsi::Object(runtime);
-          change.setProperty(runtime, "config", config);
+          change.setProperty(runtime, "config", static_cast<int>(config));
           change.setProperty(runtime, "viewableKeys", stringArray(runtime, report.viewable));
           change.setProperty(runtime, "addedKeys", stringArray(runtime, report.changes.added));
           change.setProperty(runtime, "removedKeys", stringArray(runtime, report.changes.removed));

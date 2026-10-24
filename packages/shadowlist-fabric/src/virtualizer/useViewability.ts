@@ -95,7 +95,7 @@ export function useViewability<ItemT>({
         new Map<string, ViewToken<ItemT>>();
       const reported = new Map<string, ViewToken<ItemT>>();
       const viewableItems: ViewToken<ItemT>[] = [];
-      // Viewable keys come in row order, so each one is looked for after the one before.
+      // Viewable keys come in row order. Each one is looked for after the one before.
       let hint = visibleLow;
       for (const key of change.viewableKeys) {
         const index = currentSource.indexOfKey(key, hint);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <utility>
@@ -41,13 +42,44 @@ constexpr std::pair<double, double> DEFAULT_ESTIMATED_ROW_SIZE = {120.0, 120.0};
 /*
  * Sent as the scrollToRow index to mean scroll to the end.
  */
-constexpr double SCROLL_TO_END_INDEX = -3.0;
+constexpr std::size_t SCROLL_TO_END_INDEX = UNDEFINED_INDEX - 1;
 
 /*
  * Sent as the scrollToRow index to mean scroll to a content offset. viewOffset then carries the
  * absolute content offset instead of a distance past a row.
  */
-constexpr double SCROLL_TO_OFFSET_INDEX = -4.0;
+constexpr std::size_t SCROLL_TO_OFFSET_INDEX = UNDEFINED_INDEX - 2;
+
+/*
+ * The scroll command index as the platforms carry it in a double: -3 for SCROLL_TO_END_INDEX,
+ * -4 for SCROLL_TO_OFFSET_INDEX and any other negative or non finite value for none.
+ */
+constexpr double SCROLL_TO_END_SLOT = -3.0;
+constexpr double SCROLL_TO_OFFSET_SLOT = -4.0;
+constexpr double SCROLL_TO_NONE_SLOT = -2.0;
+
+inline std::size_t scrollCommandIndexFromDouble(double index) {
+  if (index == SCROLL_TO_END_SLOT) {
+    return SCROLL_TO_END_INDEX;
+  }
+  if (index == SCROLL_TO_OFFSET_SLOT) {
+    return SCROLL_TO_OFFSET_INDEX;
+  }
+  if (!(index >= 0.0) || !std::isfinite(index) || index >= static_cast<double>(SCROLL_TO_OFFSET_INDEX)) {
+    return UNDEFINED_INDEX;
+  }
+  return static_cast<std::size_t>(index);
+}
+
+inline double scrollCommandIndexToDouble(std::size_t index) {
+  if (index == SCROLL_TO_END_INDEX) {
+    return SCROLL_TO_END_SLOT;
+  }
+  if (index == SCROLL_TO_OFFSET_INDEX) {
+    return SCROLL_TO_OFFSET_SLOT;
+  }
+  return index == UNDEFINED_INDEX ? SCROLL_TO_NONE_SLOT : static_cast<double>(index);
+}
 
 }
 
@@ -83,10 +115,10 @@ constexpr double SCROLL_TO_OFFSET_INDEX = -4.0;
  * The SL tag matches the Java side and one filter shows both.
  */
 #include <android/log.h>
-#define SL_LOG(...) __android_log_print(ANDROID_LOG_INFO, "SL", __VA_ARGS__)
+#define SHADOWLIST_LOG(...) __android_log_print(ANDROID_LOG_INFO, "SL", __VA_ARGS__)
 #else
-#define SL_LOG(...) do { printf("[SL] " __VA_ARGS__); printf("\n"); } while (0)
+#define SHADOWLIST_LOG(...) do { printf("[SL] " __VA_ARGS__); printf("\n"); } while (0)
 #endif
 #else
-#define SL_LOG(...) ((void)0)
+#define SHADOWLIST_LOG(...) ((void)0)
 #endif

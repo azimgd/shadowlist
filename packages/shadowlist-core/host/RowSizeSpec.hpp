@@ -55,7 +55,7 @@ struct RowSizeSpec {
 class SizeSpecQueue final {
 public:
   /*
-   * Text layouts per run. Small enough for a frame, big enough to finish a window in a couple.
+   * Text layouts per run. Small enough for a frame, big enough to finish a screen in a couple.
    */
   static constexpr std::size_t BUDGET_PER_RUN = 24;
 

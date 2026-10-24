@@ -156,7 +156,7 @@ export function arrayMove<ItemT>(
 
 /*
  * Sorted indices plus extra sorted indices, without duplicates, in one pass. Returns indices
- * itself when it already holds every extra one, so a memo keyed on it keeps its value.
+ * itself when it already holds every extra one. A memo keyed on it then keeps its value.
  */
 export function mergeSortedIndices(
   indices: number[],

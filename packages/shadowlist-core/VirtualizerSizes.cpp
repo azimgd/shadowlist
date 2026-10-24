@@ -233,7 +233,7 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
       double target = container.getRowOffset(anchorIndex) +
         resolveAnchorOffset(container, *container.operation, anchorIndex);
       target = target < 0.0 ? 0.0 : target;
-      SL_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f->%.1f resolved op=%llu",
+      SHADOWLIST_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f->%.1f resolved op=%llu",
         previousHeaderSize, container.headerSize, offset, target,
         static_cast<unsigned long long>(container.operation->commitToken));
       correctOffsetIfMoved(container, target, target);
@@ -242,7 +242,7 @@ void Virtualizer::applyHeaderSizeChange(Container& container, double previousHea
   }
 
   // The header was fully scrolled off. Every row on screen moved. Move the offset with them.
-  SL_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f branch=%s anchorSub=%.1f",
+  SHADOWLIST_LOG("  headerSizeChange: %.1f->%.1f offset=%.1f branch=%s anchorSub=%.1f",
     previousHeaderSize, container.headerSize, offset,
     (offset > 0.0 && offset >= previousHeaderSize) ? "hold" : "push", container.anchor.offset);
   if (offset > 0.0 && offset >= previousHeaderSize) {
@@ -281,7 +281,7 @@ void Virtualizer::applyWindowSizeChange(Container& container, double previousWin
    */
   container.pendingScrollToEnd = true;
   double bottom = std::max(0.0, total - windowSize);
-  SL_LOG("  windowSizeChange: %.1f->%.1f offset=%.1f->%.1f", previousWindowSize, windowSize, offset, bottom);
+  SHADOWLIST_LOG("  windowSizeChange: %.1f->%.1f offset=%.1f->%.1f", previousWindowSize, windowSize, offset, bottom);
   if (!correctOffsetIfMoved(container, bottom, bottom)) {
     return;
   }
@@ -301,7 +301,7 @@ void Virtualizer::updateRowAtIndex(Container& container, std::size_t index, Size
 #endif
   if (applyRowSize(container, index, size)) {
     commitRowSizes(container, index);
-    SL_LOG("  replaceChild size: index=%zu %.1f->%.1f total=%.1f corrected=%d anchor=%s",
+    SHADOWLIST_LOG("  replaceChild size: index=%zu %.1f->%.1f total=%.1f corrected=%d anchor=%s",
       index, tracePreviousSize, container.horizontal ? size.width : size.height, tracePreviousTotal,
       container.offsetCorrected ? 1 : 0, container.anchor.key.c_str());
   }
@@ -315,7 +315,7 @@ void Virtualizer::updateRowAtIndex(Container& container, std::size_t index, Size
 void Virtualizer::invalidatePredictions(Container& container) {
   std::lock_guard<std::recursive_mutex> lock(container.coreMutex);
 
-  SL_LOG("  invalidatePredictions: staged=%zu", container.predictedSizes.size());
+  SHADOWLIST_LOG("  invalidatePredictions: staged=%zu", container.predictedSizes.size());
   container.predictedSizes.clear();
 
   bool anyCleared = false;
@@ -333,7 +333,7 @@ void Virtualizer::invalidatePredictions(Container& container) {
   if (anyCleared) {
     /*
      * Predicted rows go back to the fallback size. Only the sizing loop in layoutRows
-     * resets rows outside the window, and it skips itself while the fallback is unchanged.
+     * resets rows outside the measured range, and it skips itself while the fallback is unchanged.
      * Forget the last fallback to force it, then reflow the whole list.
      */
     container.previousFallbackWidth = -1.0;
@@ -364,7 +364,7 @@ void Virtualizer::consumePredictions(Container& container) {
     // A row already measured for real ignores the prediction, and the entry is dropped.
     if (!predictedRow.measured &&
         (predictedRow.width != entry->second.width || predictedRow.height != entry->second.height)) {
-      SL_LOG("  prediction: index=%zu %.1f->%.1f estimated=%d",
+      SHADOWLIST_LOG("  prediction: index=%zu %.1f->%.1f estimated=%d",
         predictedIndex, container.horizontal ? predictedRow.width : predictedRow.height,
         container.horizontal ? entry->second.width : entry->second.height, predictedRow.estimated ? 1 : 0);
       predictedRow.width = entry->second.width;

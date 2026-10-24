@@ -98,6 +98,8 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     private const val CONSTANT_DRAG_DROP_DURATION_MS = 5
     private const val CONSTANT_SECTION_INDEX_TITLE_HEIGHT = 6
     private const val CONSTANT_SECTION_INDEX_WIDTH = 7
+    private const val CONSTANT_CHANGE_DURATION_MS = 8
+    private const val CONSTANT_OFFSET_MOVED_THRESHOLD = 9
 
     private val constants: DoubleArray by lazy { nativeConstants() }
 
@@ -120,6 +122,16 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
      */
     val SECTION_INDEX_TITLE_HEIGHT_DP: Double get() = constants[CONSTANT_SECTION_INDEX_TITLE_HEIGHT]
     val SECTION_INDEX_WIDTH_DP: Double get() = constants[CONSTANT_SECTION_INDEX_WIDTH]
+
+    /*
+     * The core's default change animation duration.
+     */
+    val CHANGE_DURATION_MS: Long get() = constants[CONSTANT_CHANGE_DURATION_MS].toLong()
+
+    /*
+     * The core's smallest offset change that counts as a real move, in pixels.
+     */
+    val OFFSET_MOVED_THRESHOLD: Double get() = constants[CONSTANT_OFFSET_MOVED_THRESHOLD]
 
     /*
      * Slots of a step from runChange, then the kinds in the order of the core's ChangeStepKind.

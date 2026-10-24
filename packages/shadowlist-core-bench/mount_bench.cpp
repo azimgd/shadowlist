@@ -330,7 +330,7 @@ Stats run(const Trace& trace, bool instrument, std::FILE* dump) {
       prefetchMounted = basis.range;
       start();
       std::optional<MountedRange> mounted = basis.range;
-      prefetch.update(mounted, prefetchWindow(mounted, PREFETCH_ROWS, keys.size()), keys.size(),
+      prefetch.update(mounted, prefetchRange(mounted, PREFETCH_ROWS, keys.size()), keys.size(),
         [&keys](std::size_t index) -> const std::string& { return keys[index]; }, indexOfKey, prefetchRows,
         cancelRows);
       stop(stats.prefetchUs);

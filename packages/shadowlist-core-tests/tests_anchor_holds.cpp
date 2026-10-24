@@ -393,7 +393,7 @@ TEST(an_older_command_sequence_does_not_run_the_scroll_command_again) {
   Virtualizer::update(container, report(keys, 0.0));
   layoutPass(container, HEADER, 0, 59, 100.0);
 
-  container.requestScrollToRow(30.0, 1.0, -2);
+  container.requestScrollToRow(30, 1.0, UNDEFINED_INDEX);
   Virtualizer::update(container, report(keys, 0.0));
   double target = container.revision.offsetY;
   CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
@@ -403,9 +403,9 @@ TEST(an_older_command_sequence_does_not_run_the_scroll_command_again) {
   CHECK(!container.operation);
 
   // A report built on the state before the command, then one built on the state after it.
-  container.requestScrollToRow(0.0, 0.0, -2);
+  container.requestScrollToRow(0, 0.0, UNDEFINED_INDEX);
   Virtualizer::update(container, report(keys, target));
-  container.requestScrollToRow(30.0, 1.0, -2);
+  container.requestScrollToRow(30, 1.0, UNDEFINED_INDEX);
   // The reader has scrolled away in the meantime.
   FrameInput away = report(keys, target + 400.0);
   away.userScrolled = true;
@@ -415,7 +415,7 @@ TEST(an_older_command_sequence_does_not_run_the_scroll_command_again) {
   CHECK_NEAR(container.revision.offsetY, target + 400.0, 0.5);
 
   // A newer sequence still runs, even for the same index.
-  container.requestScrollToRow(30.0, 2.0, -2);
+  container.requestScrollToRow(30, 2.0, UNDEFINED_INDEX);
   Virtualizer::update(container, report(keys, target + 400.0));
   CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
 }

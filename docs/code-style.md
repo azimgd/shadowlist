@@ -17,13 +17,13 @@ One rule set for `shadowlist-core`, `shadowlist-fabric`, `shadowlist-uikit`, `sh
 
 Class prefixes say which package a type lives in. Objective-C has one global namespace and the prefixes must never collide.
 
-| Package                                  | Prefix                                                                                                          |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `shadowlist-fabric`                      | `ShadowList` for classes, `SL` for file-local helpers, macros and constants (`SL_SCROLL_TO_TOP_DURATION`)       |
-| `shadowlist-uikit`, `shadowlist-android` | `ShadowListKit` for everything, including the Bench apps and constants (`SHADOWLIST_KIT_LIFT_DURATION`)         |
-| `shadowlist-wasm`                        | `ShadowListKit` for classes and the wasm exports (`ShadowListKitCore_nativeRunPasses`)                          |
-| `shadowlist-core`                        | namespace `azimgd::shadowlist`, no prefix. File-local helpers go in an anonymous namespace                      |
-| Runtime flags                            | `SL` + `PascalCase` (`-SLRoute`, `-SLEngine`, `-SLBench`, `SLCount`). One name on every platform. Never renamed |
+| Package                                  | Prefix                                                                                                                                                           |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shadowlist-fabric`                      | `ShadowList` for classes, `SL` for file-local helpers, macros and constants (`SL_SCROLL_TO_TOP_DURATION`)                                                        |
+| `shadowlist-uikit`, `shadowlist-android` | `ShadowListKit` for everything, including the Bench apps and constants (`SHADOWLIST_KIT_LIFT_DURATION`)                                                          |
+| `shadowlist-wasm`                        | `ShadowListKit` for classes and the wasm exports (`ShadowListKitCore_nativeRunPasses`)                                                                           |
+| `shadowlist-core`                        | namespace `azimgd::shadowlist`, no prefix. File-local helpers go in an anonymous namespace. Macros take `SHADOWLIST_` (`SHADOWLIST_LOG`, `SHADOWLIST_DEBUG_LOG`) |
+| Runtime flags                            | `SL` + `PascalCase` (`-SLRoute`, `-SLEngine`, `-SLBench`, `SLCount`). One name on every platform. Never renamed                                                  |
 
 One word per concept in every language: `previous` (not `prev`, `old`, `last`), `current`, `index`, `count`, `offset`, `low` / `high` for an inclusive index range, `delete` (not `remove`), `anchor` for what MVCP holds in place, and `xDp` / `xPx` for units. The plural is always `indices`, never `indexes`. Framework parameter names (`oldProps`, `oldScrollX`) and trace log keys stay as they are. A leading `_` marks an unused JS binding, and names local to a macro take a prefix such as `slt_a`. Visible means any pixel on screen, viewable means past the threshold, and measured means the core's measured range (visible plus overscan). `window` is the viewport size only, never a range of rows.
 
@@ -139,10 +139,12 @@ Every platform uses the same word for each concept and only changes the shape to
 - Other constants share names: iOS `SHADOWLIST_KIT_X` in seconds, Android `X_MS` in milliseconds.
 - Scroll commands call `stopScrolling` (stop momentum and cancel the landing) before they send the command to the core.
 - The same logic carries the same comment wording in both kits.
+- Android and the web plan mounts over the frames they copied from the core, the same rule as `ListDriver::planMount` and `ListDriver::shouldMount`, because a scroll frame there makes no JNI or wasm call. iOS calls the driver. The core test `list_driver_mount_plan_reaches_into_the_insets` holds the rule.
+- A saved position lands through `ListDriver::restoreAnchorState` in every kit, and waits while the data lacks its key. Then iOS invalidates the frame for UIKit's next layout, and Android and the web lay out right away through `runCommandNow`.
 
 ## Comments
 
-Comments are short narration of what happens, not explanations of how. A comment longer than one line, or any comment above a declaration, is a `/* */` block with one `*` per line. A one-line comment inside a body stays `//`. Interface and type blocks carry no comments: TypeScript `interface` and `type` bodies and Objective-C `@interface` blocks list members only. What a member means goes in the block above the declaration, and the class doc goes in one block above the `@interface`. Contracts the user implements, Objective-C `@protocol` and Kotlin `interface` bodies such as the data source and delegate, keep one block above each method. Delete a comment when the code already says it. Avoid the "X, so Y" pattern in comments and docs: split it into two sentences, write "Y because X", or drop the clause. No `--` or em dash asides: make the aside its own sentence or drop it.
+Comments are short narration of what happens, not explanations of how. A comment longer than one line, or any comment above a declaration, is a `/* */` block with one `*` per line. A one-line comment inside a body stays `//`. Interface and type blocks carry no comments: TypeScript `interface` and `type` bodies and Objective-C `@interface` blocks list members only. What a member means goes in the block above the declaration, and the class doc goes in one block above the `@interface`. Contracts the user implements, Objective-C `@protocol` and Kotlin `interface` bodies such as the data source and delegate, keep a block above each method that needs one. A method its name explains goes without, and related methods, like the section calls, share one block above the group. Delete a comment when the code already says it. Avoid the "X, so Y" pattern in comments and docs: split it into two sentences, write "Y because X", or drop the clause. No `--` or em dash asides: make the aside its own sentence or drop it.
 
 ## Structure
 
@@ -158,9 +160,11 @@ Use named constants, never bare numbers for event types or slots. Enums mirrored
 
 ## Checklist before you finish
 
-- Core changed: a new test, and `ctest` passes in `packages/shadowlist-core-tests`.
+- Core changed: a new test, and `yarn test:core` passes. CI runs the core tests under ThreadSanitizer too.
 - Kit changed: the other kit has the same change, and both kit example apps build.
+- Wasm changed: `yarn build:wasm` and `yarn test:wasm` pass.
 - Fabric or JS changed: `yarn typecheck`, `yarn test` and `yarn lint` pass.
+- Always: `yarn format:check` and `yarn docs:check` pass, as CI checks both.
 - A new or renamed public word has its row in the Public API words table.
 - Comments follow the block rules and no `@interface` or TS `interface` / `type` body has one.
 - No "X, so Y" and no `--` asides in new comments, docs or commit messages.

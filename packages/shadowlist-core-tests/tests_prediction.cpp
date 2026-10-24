@@ -419,7 +419,7 @@ TEST(invalidating_predictions_returns_rows_to_the_estimate) {
   CHECK(!container.revision.rows[0].predicted);
   CHECK(!container.hasTrustedSize(0));
 
-  // A row far outside the window drops its stale prediction too, not only the ones measure visits.
+  // A row far outside the measured range drops its stale prediction too, not only the ones measure visits.
   CHECK(std::fabs(container.revision.rows[40].height - 400.0) > 1.0);
   CHECK(!container.revision.rows[40].predicted);
 

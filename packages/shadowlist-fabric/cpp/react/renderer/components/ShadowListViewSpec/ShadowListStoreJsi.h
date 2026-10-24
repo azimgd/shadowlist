@@ -32,7 +32,7 @@ namespace facebook::react::shadowlist {
  *     the rows of keys
  * A write fails when its base version is gone, and JS then writes everything.
  *
- * Each store also holds its list's selection, the core's ListSelection, so every host keeps one
+ * Each store also holds its list's selection, the core's ListSelection. Every host keeps one
  * implementation of the selection rules. The calls that change it return the selected keys in
  * the order they were selected, or null when nothing changed:
  *   setSelection(store, keys, multiple) -> undefined, the keys JS holds now, like a controlled

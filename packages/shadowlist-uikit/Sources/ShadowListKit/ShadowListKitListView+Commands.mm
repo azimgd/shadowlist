@@ -21,6 +21,10 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
 
 #pragma mark - Saved position
 
+/*
+ * The item at the viewport start by key and how far the viewport is into it, or nil before
+ * the first layout.
+ */
 - (ShadowListKitAnchorState *)anchorState
 {
   std::optional<AnchorState> anchor = _driver.getAnchorState([self offset]);
@@ -30,6 +34,9 @@ extern "C" const char ShadowListKitListViewCommandsLink = 0;
   return [[ShadowListKitAnchorState alloc] initWithKey:ShadowListKitString(anchor->key) offset:(CGFloat)anchor->offset];
 }
 
+/*
+ * Land the saved item the same distance in again, now or once a reload brings its key.
+ */
 - (void)restoreAnchorState:(ShadowListKitAnchorState *)state
 {
   _pendingAnchor = state;

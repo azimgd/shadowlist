@@ -305,11 +305,11 @@ TEST(scroll_sync_commands_sequence_past_the_mounted_one) {
   sync.endMount();
   sync.onScroll(frameAt(10.0, SCROLL_PHASE_SETTLING));
 
-  ScrollPatch command = sync.issueCommand({40.0, 0.5, 0.0, false}, 0.0, 10.0, true);
+  ScrollPatch command = sync.issueCommand({40, 0.5, 0.0, false}, 0.0, 10.0, true);
   CHECK(command.offsetEnabled);
   CHECK(command.hasCommand);
   CHECK_EQ(command.commandSequence, 6.0);
-  CHECK_EQ(command.commandIndex, 40.0);
+  CHECK_EQ(command.commandIndex, std::size_t{40});
   CHECK_EQ(command.commandViewPosition, 0.5);
   CHECK_EQ(command.report.scrollPhase, SCROLL_PHASE_IDLE);
 
@@ -320,7 +320,7 @@ TEST(scroll_sync_commands_sequence_past_the_mounted_one) {
   CHECK(!report.offsetEnabled);
 
   // The mounted state is behind. The next command still goes past ours.
-  CHECK_EQ(sync.issueCommand({-3.0, 0.0, 0.0, false}, 0.0, 12.0, false).commandSequence, 7.0);
+  CHECK_EQ(sync.issueCommand({SCROLL_TO_END_INDEX, 0.0, 0.0, false}, 0.0, 12.0, false).commandSequence, 7.0);
 }
 
 TEST(scroll_sync_correction_moves_a_waiting_scroll_to_top_jump) {
@@ -424,7 +424,7 @@ TEST(scroll_sync_animated_command_animates_to_the_estimate_then_lands) {
   sync.beginMount(restingState(0.0), live);
   sync.endMount();
 
-  ScrollPatch command = sync.issueCommand({40.0, 0.5, -20.0, true}, 0.0, 0.0, false);
+  ScrollPatch command = sync.issueCommand({40, 0.5, -20.0, true}, 0.0, 0.0, false);
   CHECK(!command.offsetEnabled);
   CHECK(command.commandAnimated);
   CHECK_EQ(command.commandViewOffset, -20.0);
@@ -457,7 +457,7 @@ TEST(scroll_sync_animated_command_animates_to_the_estimate_then_lands) {
   CHECK(landing.has_value());
   CHECK(landing->offsetEnabled);
   CHECK(!landing->commandAnimated);
-  CHECK_EQ(landing->commandIndex, 40.0);
+  CHECK_EQ(landing->commandIndex, std::size_t{40});
   CHECK_EQ(landing->commandViewPosition, 0.5);
   CHECK_EQ(landing->commandViewOffset, -20.0);
   CHECK_EQ(landing->commandSequence, 2.0);
@@ -473,7 +473,7 @@ TEST(scroll_sync_a_finger_gives_an_animated_command_up) {
   ScrollSync sync;
   sync.beginMount(restingState(0.0), live);
   sync.endMount();
-  sync.issueCommand({40.0, 0.0, 0.0, true}, 0.0, 0.0, false);
+  sync.issueCommand({40, 0.0, 0.0, true}, 0.0, 0.0, false);
   sync.disarm();
 
   MountedScroll estimated = restingState(0.0);
@@ -496,7 +496,7 @@ TEST(scroll_sync_a_correction_waits_for_an_animated_command) {
   ScrollSync sync;
   sync.beginMount(restingState(0.0), live);
   sync.endMount();
-  sync.issueCommand({40.0, 0.0, 0.0, true}, 0.0, 0.0, false);
+  sync.issueCommand({40, 0.0, 0.0, true}, 0.0, 0.0, false);
   MountedScroll estimated = restingState(0.0);
   estimated.commandSequence = 1.0;
   estimated.animationSequence = 1.0;
@@ -524,7 +524,7 @@ TEST(scroll_sync_a_correction_write_keeps_a_waiting_animated_command) {
   ScrollSync sync;
   sync.beginMount(restingState(0.0), live);
   sync.endMount();
-  sync.issueCommand({40.0, 0.5, 0.0, true}, 0.0, 0.0, false);
+  sync.issueCommand({40, 0.5, 0.0, true}, 0.0, 0.0, false);
 
   // A correction from a commit made before the command mounts first and is written.
   CHECK_EQ(mountAndWrite(sync, correctionState(140.0, 100.0, 5), live, viewAt(100.0)), 140.0);

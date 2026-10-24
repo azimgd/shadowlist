@@ -9,7 +9,7 @@ namespace azimgd::shadowlist {
 
 /*
  * Debug only. Gives the key at an index so native and JS logs can be matched by content,
- * since an index points at different rows during a prepend. It is only used inside SL_LOG.
+ * since an index points at different rows during a prepend. It is only used inside SHADOWLIST_LOG.
  * It is marked maybe_unused to keep Android builds with -Werror=unused-function clean.
  */
 namespace {
@@ -69,7 +69,7 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   // The keys may be borrowed from the caller. They are only valid during this call.
   const std::vector<std::string>& inputKeys = input.getKeyList();
 
-  SL_LOG("update: keys=%zu prevRows=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d total=%.1f dirtyFrom=%zd enabled=%d corrected=%d coreOff=%.1f",
+  SHADOWLIST_LOG("update: keys=%zu prevRows=%zu off=(%.1f,%.1f) win=(%.1f,%.1f) inv=%d cols=%zu hdr=%.1f ftr=%.1f invInit=%d total=%.1f dirtyFrom=%zd enabled=%d corrected=%d coreOff=%.1f",
     inputKeys.size(), container.revision.rows.size(),
     input.offsetX, input.offsetY,
     input.windowWidth, input.windowHeight,
@@ -108,7 +108,7 @@ void Virtualizer::update(Container& container, const FrameInput& input) {
   measureFrame(container, input, previousHeaderSize, hadRowsBefore, anchorKey, anchorDelta);
 
   // The commit token is just the running operation's id. No operation means no token.
-  SL_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d token=%llu",
+  SHADOWLIST_LOG("  resolved: offset=(%.1f,%.1f) corrected=%d invInit=%d token=%llu",
     container.revision.offsetX, container.revision.offsetY,
     container.offsetCorrected ? 1 : 0, container.invertedInitialized ? 1 : 0,
     static_cast<unsigned long long>(container.operation ? container.operation->commitToken : 0));
@@ -311,7 +311,7 @@ void Virtualizer::reconcileFrameKeys(
           }
         }
       }
-      SL_LOG("  RECONCILE: size %zu->%zu front '%s'->'%s' oldFront@newIdx=%zd anchorKey=%s anchorDelta=%.1f",
+      SHADOWLIST_LOG("  RECONCILE: size %zu->%zu front '%s'->'%s' oldFront@newIdx=%zd anchorKey=%s anchorDelta=%.1f",
         previousSize, nextSize,
         previousSize ? container.revision.rows.front().key.c_str() : "(none)",
         nextSize ? inputKeys.front().c_str() : "(none)",
@@ -351,7 +351,7 @@ void Virtualizer::reconcileFrameKeys(
      * new bottom the way a fresh list does.
      */
     if (container.inverted && hadRowsBefore && survivors == 0 && !container.revision.rows.empty()) {
-      SL_LOG("  inverted swap: %zu rows, pinning to the bottom again", container.revision.rows.size());
+      SHADOWLIST_LOG("  inverted swap: %zu rows, pinning to the bottom again", container.revision.rows.size());
       container.invertedInitialized = false;
       container.invertedBottomReleased = false;
       container.invertedOpeningPin = false;
@@ -367,7 +367,7 @@ void Virtualizer::reconcileFrameKeys(
     if (!anchorKey.empty() && container.indexOfKey(anchorKey) == UNDEFINED_INDEX) {
       for (const Anchor& candidate : fallbackAnchors) {
         if (container.indexOfKey(candidate.key) != UNDEFINED_INDEX) {
-          SL_LOG("  anchor fallback: %s -> %s sub=%.1f", anchorKey.c_str(), candidate.key.c_str(), candidate.offset);
+          SHADOWLIST_LOG("  anchor fallback: %s -> %s sub=%.1f", anchorKey.c_str(), candidate.key.c_str(), candidate.offset);
           container.anchor = candidate;
           anchorKey = candidate.key;
           anchorDelta = candidate.offset;
@@ -393,7 +393,7 @@ void Virtualizer::measureFrame(
   double anchorDelta) {
   /*
    * Apply sizes the host predicted since the last frame. This runs after the reconcile to
-   * give new rows theirs, and before measure for the window to use the predicted sizes.
+   * give new rows theirs, and before measure for the measured range to use the predicted sizes.
    */
   consumePredictions(container);
 
@@ -430,7 +430,7 @@ void Virtualizer::measureFrame(
     }
   }
 
-  SL_LOG("  measured: total=(%.1f,%.1f) offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] anchorKey=%s anchor@newIdx=%zd",
+  SHADOWLIST_LOG("  measured: total=(%.1f,%.1f) offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] anchorKey=%s anchor@newIdx=%zd",
     container.revision.contentWidth, container.revision.contentHeight,
     container.revision.offsetX, container.revision.offsetY,
     static_cast<std::ptrdiff_t>(container.getMeasuredRange().low),
@@ -440,7 +440,7 @@ void Virtualizer::measureFrame(
     anchorKey.empty() ? "(none)" : anchorKey.c_str(),
     static_cast<std::ptrdiff_t>(anchorKey.empty() ? UNDEFINED_INDEX : container.indexOfKey(anchorKey)));
 
-  // Apply scroll corrections, and pick the window again if the offset moved.
+  // Apply scroll corrections, and pick the measured range again if the offset moved.
   bool offsetConfirmed = !input.offsetEnabled && !headerMovedOffset && !windowMovedOffset;
   bool scrollCorrected = resolveScroll(container, anchorKey, anchorDelta, hadRowsBefore, offsetConfirmed);
   if (headerMovedOffset || windowMovedOffset) {
@@ -449,14 +449,14 @@ void Virtualizer::measureFrame(
   /*
    * The first revision fills from the edge. A view that already rests away from it, like a
    * list whose sizes were dropped (ListDriver::resetKeepingPosition) and whose anchor row
-   * lands right where the view is, needs the window at its offset, or no row shows there
+   * lands right where the view is, needs the measured range at its offset, or no row shows there
    * until the next layout.
    */
   bool restsAwayFromEdge = container.revisionCount == REVISION_COUNT_FIRST && !container.inverted &&
     container.getOffset() > 0.0;
   if (scrollCorrected || restsAwayFromEdge) {
     measure(container, true);
-    SL_LOG("  remeasured: offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] invInit=%d",
+    SHADOWLIST_LOG("  remeasured: offset=(%.1f,%.1f) visible=[%zd..%zd] visKeys=[%s..%s] invInit=%d",
       container.revision.offsetX, container.revision.offsetY,
       static_cast<std::ptrdiff_t>(container.getMeasuredRange().low),
       static_cast<std::ptrdiff_t>(container.getMeasuredRange().high),
@@ -475,8 +475,8 @@ void Virtualizer::measure(Container& container, bool rangeFromOffset) {
 
   /*
    * After an insert, remove or reorder, rows still hold their old offsets. Reflow first so
-   * the window is chosen from real positions and no row that moved into view is left blank.
-   * It also lets the window pass use its fast search instead of scanning every row.
+   * the measured range is chosen from real positions and no row that moved into view is left blank.
+   * It also lets the measured range pass use its fast search instead of scanning every row.
    */
   if (container.rowStructureDirty) {
     layoutRows(container);

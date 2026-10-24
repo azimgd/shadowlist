@@ -18,7 +18,7 @@ interface ShadowListKitItemAnimator {
  */
 open class ShadowListKitDefaultItemAnimator : ShadowListKitItemAnimator {
   companion object {
-    const val CHANGE_DURATION_MS = 250L
+    val CHANGE_DURATION_MS: Long get() = ShadowListKitCore.CHANGE_DURATION_MS
   }
 
   var durationMs = CHANGE_DURATION_MS

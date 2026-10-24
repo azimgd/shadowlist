@@ -6,6 +6,11 @@ let wasmModule: ShadowListKitModule | null = null;
 let loading: Promise<void> | null = null;
 
 /*
+ * The core's OFFSET_MOVED_THRESHOLD, read once on load. A scroll frame makes no wasm call.
+ */
+let offsetMovedThreshold = 0;
+
+/*
  * The cores by handle, for the measure calls the wasm side makes. Weak, which lets a list
  * nobody holds be collected with its core.
  */
@@ -46,6 +51,8 @@ export function loadShadowListKit(options?: {
   loading ??= createShadowListKitModule(options).then((loaded) => {
     loaded.shadowListKitMeasureRow = (handle, row, crossSize) =>
       cores.get(handle)?.deref()?.measureRow(row, crossSize) ?? 0;
+    offsetMovedThreshold =
+      loaded._ShadowListKitCore_nativeOffsetMovedThreshold();
     wasmModule = loaded;
   });
   return loading;
@@ -207,6 +214,13 @@ export class ShadowListKitCore {
   static readonly ANCHOR_OFFSET = 0;
   static readonly ANCHOR_KEY_LENGTH = 1;
   static readonly ANCHOR_SLOTS = 2;
+
+  /*
+   * The smallest offset change that counts as a real move.
+   */
+  static get OFFSET_MOVED_THRESHOLD(): number {
+    return offsetMovedThreshold;
+  }
 
   /*
    * The diff of two key lists through the core's diffKeys, packed: the delete count and
@@ -608,7 +622,7 @@ export class ShadowListKitCore {
 /*
  * One version as the 32 bit halves of an int64, high then low, the type the core's
  * ContentVersions compares. A safe integer is itself. Another number is its float64 bits. A
- * string is two different 32 bit hashes of its UTF-16 units, FNV-1a and a shifted variant, so a
+ * string is two different 32 bit hashes of its UTF-16 units, FNV-1a and a shifted variant. A
  * change between two strings goes unseen only when both hashes collide.
  */
 const versionBits = new Float64Array(1);

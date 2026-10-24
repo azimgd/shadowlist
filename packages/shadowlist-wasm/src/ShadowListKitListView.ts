@@ -298,7 +298,10 @@ export class ShadowListKitListView extends HTMLElement {
    * Something other than the list moved it since the list last wrote or saw the offset.
    */
   get movedElsewhere(): boolean {
-    return Math.abs(this.offset - this.previousOffset) >= 1;
+    return (
+      Math.abs(this.offset - this.previousOffset) >=
+      ShadowListKitCore.OFFSET_MOVED_THRESHOLD
+    );
   }
 
   /*
@@ -760,7 +763,10 @@ export class ShadowListKitListView extends HTMLElement {
   // region Layout
 
   private onScroll = (): void => {
-    if (Math.abs(this.offset - this.previousOffset) >= 1) {
+    if (
+      Math.abs(this.offset - this.previousOffset) >=
+      ShadowListKitCore.OFFSET_MOVED_THRESHOLD
+    ) {
       // The page or the reader moved the list. An animation still running stops there.
       if (this.gesture.isAnimating) this.stopScrolling();
       this.gesture.userScrolled();
@@ -833,7 +839,12 @@ export class ShadowListKitListView extends HTMLElement {
 
   private trackUserScroll(): void {
     const current = this.offset;
-    if (Math.abs(current - this.previousOffset) < 1) return;
+    if (
+      Math.abs(current - this.previousOffset) <
+      ShadowListKitCore.OFFSET_MOVED_THRESHOLD
+    ) {
+      return;
+    }
     if (this.scrollPhase() !== ShadowListKitCore.PHASE_IDLE) {
       this.userScrolled = true;
     }
@@ -1053,7 +1064,7 @@ export class ShadowListKitListView extends HTMLElement {
     const generation = ++this.mountGeneration;
     if (low >= 0) {
       for (let index = low; index <= high; ++index) {
-        // A masonry grid can hold rows inside the index range that are out of view.
+        // ListDriver::shouldMount. A masonry grid can hold rows inside the index range that are out of view.
         if (
           this.numberOfColumns > 1 &&
           !this.overlaps(index, viewLow, viewHigh)

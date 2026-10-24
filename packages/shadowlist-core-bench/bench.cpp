@@ -184,7 +184,7 @@ void stampFullyMeasured(Container& container, std::size_t count, double mainSize
  * then reflow once from the first row that changed.
  */
 template <typename SizeFn>
-void feedWindowMeasurements(Container& container, std::size_t low, std::size_t high, SizeFn sizeOf) {
+void feedRangeMeasurements(Container& container, std::size_t low, std::size_t high, SizeFn sizeOf) {
   std::size_t lowestChanged = UNDEFINED_INDEX;
   for (std::size_t index = low; index <= high; ++index) {
     if (Virtualizer::applyRowSize(container, index, sizeOf(index)) && index < lowestChanged) {
@@ -528,9 +528,9 @@ void benchScrollbarDrag(const std::vector<std::string>& keys, std::size_t rows, 
   auto reset = [&] {
     container = std::make_unique<Container>();
     Virtualizer::update(*container, makeInput(keys, 0.0));
-    auto firstWindow = container->getMeasuredRange();
-    if (firstWindow.low != UNDEFINED_INDEX) {
-      for (std::size_t index = firstWindow.low; index <= firstWindow.high && index < rows; ++index) {
+    auto firstMeasured = container->getMeasuredRange();
+    if (firstMeasured.low != UNDEFINED_INDEX) {
+      for (std::size_t index = firstMeasured.low; index <= firstMeasured.high && index < rows; ++index) {
         Virtualizer::updateRowAtIndex(*container, index, {WINDOW_WIDTH, ROW_HEIGHT});
       }
     }
@@ -565,7 +565,7 @@ void benchScrollbarDrag(const std::vector<std::string>& keys, std::size_t rows, 
        * Real rows rarely match the estimate, and that difference shifts the rows after
        * them. Sending back the estimate itself would make this too easy.
        */
-      feedWindowMeasurements(*container, low, high, [](std::size_t index) {
+      feedRangeMeasurements(*container, low, high, [](std::size_t index) {
         return Size{WINDOW_WIDTH, ROW_HEIGHT + static_cast<double>(index % 9) * 3.0};
       });
       rowsTouched += high - low + 1;
@@ -651,7 +651,7 @@ void benchScrollToRowCentred(const std::vector<std::string>& keys, std::size_t r
   Container container;
   Virtualizer::update(container, makeInput(keys, 0.0));
   // Only the first screen is laid out. Every row past it is still an estimate.
-  feedWindowMeasurements(container, 0, std::min(MOUNTED_ROWS, rows - 1), [](std::size_t) {
+  feedRangeMeasurements(container, 0, std::min(MOUNTED_ROWS, rows - 1), [](std::size_t) {
     return Size{WINDOW_WIDTH, ROW_HEIGHT};
   });
 
@@ -660,8 +660,7 @@ void benchScrollToRowCentred(const std::vector<std::string>& keys, std::size_t r
     4, 7,
     [] {},
     [&](std::size_t) {
-      container.requestScrollToRow(
-        static_cast<double>(target), static_cast<double>(++sequence), -2, 0.5);
+      container.requestScrollToRow(target, static_cast<double>(++sequence), UNDEFINED_INDEX, 0.5);
       // Each settle frame mounts and measures the rows the correction moved to.
       for (int frame = 0; frame < 6; ++frame) {
         Virtualizer::update(container, makeInput(keys, container.revision.offsetY));
@@ -669,7 +668,7 @@ void benchScrollToRowCentred(const std::vector<std::string>& keys, std::size_t r
         if (visible.low != UNDEFINED_INDEX) {
           std::size_t low = visible.low;
           std::size_t high = std::min(visible.high, rows - 1);
-          feedWindowMeasurements(container, low, high, [](std::size_t index) {
+          feedRangeMeasurements(container, low, high, [](std::size_t index) {
             // Sizes far from the estimate. The resting place really has to move.
             return Size{WINDOW_WIDTH, index % 3 == 0 ? ROW_HEIGHT * 3.0 : ROW_HEIGHT};
           });

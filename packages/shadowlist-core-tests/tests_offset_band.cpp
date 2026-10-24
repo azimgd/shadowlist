@@ -1,6 +1,6 @@
 /*
  * Offset band tests. The band is the range of offsets a host may scroll through without
- * sending the core a frame. Every offset inside it must give the same window, fire no
+ * sending the core a frame. Every offset inside it must give the same measured range, fire no
  * edge or visible rows callback and start no correction. Crossing its end must change
  * something, or the band is narrower than it needs to be.
  */
@@ -146,7 +146,7 @@ void checkBandIsExact(const BandScenario& scenario) {
   }
 
   /*
-   * The window event only carries the lowest and highest row. With several columns a row
+   * The visible range event only carries the lowest and highest row. With several columns a row
    * inside that range can flip without changing either. There the band may end early.
    */
   if (scenario.numberOfColumns > 1) {
@@ -169,7 +169,7 @@ TEST(offset_band_is_empty_before_the_first_frame) {
   CHECK(container.computeOffsetBand().isEmpty());
 }
 
-TEST(offset_band_keeps_the_window_for_every_offset_inside_it) {
+TEST(offset_band_keeps_the_measured_range_for_every_offset_inside_it) {
   BandScenario scenario;
   checkBandIsExact(scenario);
 }

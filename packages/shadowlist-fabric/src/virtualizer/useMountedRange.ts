@@ -95,7 +95,7 @@ export const MAX_FOLLOWED_APPEND = 50;
 /*
  * The mounted range from its edge rows' current indices. A range at an edge of the data grows
  * by up to the leading pad to take rows added past it, and a followed tail takes every append.
- * This runs in the render that brings the new data, so new rows at an edge mount with it.
+ * New rows at an edge mount with the new data because this runs in the render that brings it.
  */
 export function grownMountedRange(
   lowIndex: number,
@@ -250,7 +250,7 @@ export function useMountedRange({
     if (mountedKeys !== null) {
       /*
        * Where native had the edge rows is right while the data is the same, and close after
-       * most changes, so the lookup rarely leaves the rows around them.
+       * most changes. The lookup rarely leaves the rows around them.
        */
       const lowIndex = indexOfKey(mountedKeys.lowKey, mountedKeys.lowIndex);
       const highIndex = indexOfKey(mountedKeys.highKey, mountedKeys.highIndex);

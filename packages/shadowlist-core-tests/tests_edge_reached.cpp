@@ -149,18 +149,18 @@ TEST(scroll_to_index_places_the_row_at_the_requested_view_position) {
   };
 
   // 0 is the default and puts the row's top at the top of the screen.
-  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 0.0);
+  container.requestScrollToRow(target, 1.0, UNDEFINED_INDEX, 0.0);
   double atStart = settle();
   CHECK_NEAR(atStart, container.getRowOffset(target), 1.0);
 
   // 0.5 centers it, with half the free space above it.
-  container.requestScrollToRow(static_cast<double>(target), 2.0, -2, 0.5);
+  container.requestScrollToRow(target, 2.0, UNDEFINED_INDEX, 0.5);
   double centred = settle();
   double freeSpace = WINDOW_HEIGHT - ROW_HEIGHT;
   CHECK_NEAR(centred, container.getRowOffset(target) - freeSpace * 0.5, 1.0);
 
   // 1 puts the row's bottom at the bottom of the screen.
-  container.requestScrollToRow(static_cast<double>(target), 3.0, -2, 1.0);
+  container.requestScrollToRow(target, 3.0, UNDEFINED_INDEX, 1.0);
   double atEnd = settle();
   CHECK_NEAR(atEnd, container.getRowOffset(target) - freeSpace, 1.0);
 }
@@ -178,7 +178,7 @@ TEST(scroll_command_row_offset_moves_the_resting_offset) {
   Virtualizer::update(container, chatInput(keys, 0.0));
 
   const std::size_t target = 60;
-  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 0.0, -40.0);
+  container.requestScrollToRow(target, 1.0, UNDEFINED_INDEX, 0.0, -40.0);
   for (int frame = 0; frame < 6; ++frame) {
     Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
   }
@@ -204,13 +204,13 @@ TEST(scroll_to_offset_command_lands_on_the_offset) {
     return container.revision.offsetY;
   };
 
-  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 1.0, -2, 0.0, 2345.0);
+  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 1.0, UNDEFINED_INDEX, 0.0, 2345.0);
   CHECK_NEAR(settle(), 2345.0, 1.0);
 
-  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 2.0, -2, 0.0, -50.0);
+  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 2.0, UNDEFINED_INDEX, 0.0, -50.0);
   CHECK_NEAR(settle(), 0.0, 1.0);
 
-  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 3.0, -2, 0.0, 1.0e9);
+  container.requestScrollToRow(SCROLL_TO_OFFSET_INDEX, 3.0, UNDEFINED_INDEX, 0.0, 1.0e9);
   double total = container.revision.contentHeight;
   CHECK_NEAR(settle(), total - WINDOW_HEIGHT, 1.0);
 }
@@ -235,11 +235,11 @@ TEST(scroll_to_index_clamps_a_view_position_outside_the_viewport) {
     return container.revision.offsetY;
   };
 
-  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 4.0);
+  container.requestScrollToRow(target, 1.0, UNDEFINED_INDEX, 4.0);
   double clampedHigh = settle();
   CHECK_NEAR(clampedHigh, container.getRowOffset(target) - (WINDOW_HEIGHT - ROW_HEIGHT), 1.0);
 
-  container.requestScrollToRow(static_cast<double>(target), 2.0, -2, -3.0);
+  container.requestScrollToRow(target, 2.0, UNDEFINED_INDEX, -3.0);
   double clampedLow = settle();
   CHECK_NEAR(clampedLow, container.getRowOffset(target), 1.0);
 }
@@ -260,7 +260,7 @@ TEST(scroll_to_index_view_position_converges_as_the_target_is_measured) {
   measureAll(container, 10);
   Virtualizer::update(container, chatInput(keys, 0.0));
 
-  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 0.5);
+  container.requestScrollToRow(target, 1.0, UNDEFINED_INDEX, 0.5);
 
   for (int frame = 0; frame < 8; ++frame) {
     Virtualizer::update(container, chatInput(keys, container.revision.offsetY));
@@ -286,7 +286,7 @@ TEST(scroll_to_index_view_position_survives_a_commit_before_the_window_is_measur
   unmeasured.windowHeight = 0.0;
   Virtualizer::update(container, unmeasured);
 
-  container.requestScrollToRow(static_cast<double>(target), 1.0, -2, 1.0);
+  container.requestScrollToRow(target, 1.0, UNDEFINED_INDEX, 1.0);
   Virtualizer::update(container, unmeasured);
 
   measureAll(container, keys.size());
@@ -299,7 +299,7 @@ TEST(scroll_to_index_view_position_survives_a_commit_before_the_window_is_measur
 }
 
 /*
- * Before the host gives the window a size, the window holds only the row at the offset. A
+ * Before the host gives the window a size, the measured range holds only the row at the offset. A
  * visible rows report from that frame made the host unmount the rows its first frame showed.
  */
 TEST(visible_rows_wait_for_the_window_size) {

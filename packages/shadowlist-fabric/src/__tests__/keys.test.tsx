@@ -39,7 +39,7 @@ describe('section rows without a keyExtractor', () => {
       { hasHeader: false, hasFooter: false, stickyEnabled: false },
       null
     );
-    expect(rowsOf(source).map((row) => row.id)).toEqual([
+    expect(rowsOf(source).map((row) => row.key)).toEqual([
       itemRowKey('s', 'a'),
       itemRowKey('s', '1'),
     ]);

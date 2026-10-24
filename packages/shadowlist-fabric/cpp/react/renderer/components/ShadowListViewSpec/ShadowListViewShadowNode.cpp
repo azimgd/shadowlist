@@ -257,7 +257,7 @@ void ShadowListViewShadowNode::placeRows(
         settled = props.concealedProps == nullptr;
       }
       if (settled) {
-        SL_LOG("  reveal: tag=%d gen=%llu ack=%llu passes=%zu correcting=%d",
+        SHADOWLIST_LOG("  reveal: tag=%d gen=%llu ack=%llu passes=%zu correcting=%d",
           tag, static_cast<unsigned long long>(row->generation), static_cast<unsigned long long>(concealAck),
           row->layoutPasses, correcting ? 1 : 0);
         if (props.concealedProps != nullptr && previousChild->getProps() == props.concealedProps) {
@@ -275,7 +275,7 @@ void ShadowListViewShadowNode::placeRows(
       auto concealedProps = concealedPropsForRow(*previousChild);
       if (concealedProps != nullptr) {
         [[maybe_unused]] auto generation = concealed.hide(static_cast<std::uint64_t>(tag), {previousChild->getProps(), concealedProps});
-        SL_LOG("  conceal: tag=%d index=%zu anchorIndex=%zu gen=%llu",
+        SHADOWLIST_LOG("  conceal: tag=%d index=%zu anchorIndex=%zu gen=%llu",
           tag, mounted.rowIndex, concealBeforeIndex, static_cast<unsigned long long>(generation));
         stillConcealedTags.push_back(static_cast<std::uint64_t>(tag));
         nextProps = std::move(concealedProps);
@@ -369,7 +369,7 @@ void ShadowListViewShadowNode::publishLayoutState(azimgd::shadowlist::Container&
   auto offsetBand = shadowListOffsetBand(*this);
   bool bandChanged = !shadowListOffsetBandPublished(nextStateData, offsetBand);
 
-  SL_LOG("layout: cellChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
+  SHADOWLIST_LOG("layout: cellChildren=%zu hdr=%.1f ftr=%.1f stateOffset=(%.1f,%.1f) coreOffset=(%.1f,%.1f) total=(%.1f,%.1f) applyOffset=%d changed=%d",
     getChildren().size(), headerSize, footerSize,
     nextStateData.offsetX_, nextStateData.offsetY_,
     stateUpdate.offsetX, stateUpdate.offsetY,

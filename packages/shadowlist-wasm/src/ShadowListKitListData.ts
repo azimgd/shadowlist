@@ -26,8 +26,8 @@ export class ShadowListKitListData {
   private batchPayload: unknown = null;
 
   /*
-   * A batch that started before the core loaded. Nothing is laid out yet, so its changes are
-   * dropped and it reads everything again when its outermost block returns.
+   * A batch that started before the core loaded. Its changes are dropped because nothing is
+   * laid out yet, and it reads everything again when its outermost block returns.
    */
   private unloadedBatch = false;
 

@@ -1,3 +1,5 @@
+#pragma once
+
 #import <ShadowListKit/ShadowListKitListView.h>
 #import "ShadowListKitListCell+Private.h"
 

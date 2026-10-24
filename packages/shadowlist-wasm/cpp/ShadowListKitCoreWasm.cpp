@@ -315,6 +315,10 @@ double SHADOWLIST_KIT_WASM(nativeFooterStart)(std::uintptr_t handle, double foot
   return peerOf(handle)->driver.getFooterStart(footerSize);
 }
 
+double SHADOWLIST_KIT_WASM(nativeOffsetMovedThreshold)() {
+  return sl::OFFSET_MOVED_THRESHOLD;
+}
+
 /*
  * The rows overlapping the viewport, low and high into out. Returns false before the first layout.
  */

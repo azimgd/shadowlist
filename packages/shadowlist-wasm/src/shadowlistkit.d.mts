@@ -77,6 +77,7 @@ export interface ShadowListKitModule {
     handle: number,
     footerSize: number
   ): number;
+  _ShadowListKitCore_nativeOffsetMovedThreshold(): number;
   _ShadowListKitCore_nativeVisibleRange(handle: number, out: number): number;
   _ShadowListKitCore_nativeIndexOfKey(
     handle: number,

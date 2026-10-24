@@ -18,9 +18,9 @@
 using namespace slt;
 using namespace azimgd::shadowlist;
 
-// Window selection
+// Measured range selection
 
-TEST(window_covers_every_overlapping_row_single_column) {
+TEST(measured_range_covers_every_overlapping_row_single_column) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(600);
   Container container;
@@ -34,7 +34,7 @@ TEST(window_covers_every_overlapping_row_single_column) {
   }
 }
 
-TEST(window_covers_every_overlapping_row_horizontal) {
+TEST(measured_range_covers_every_overlapping_row_horizontal) {
   Fixture fixture;
   fixture.horizontal = true;
   fixture.estimatedWidth = 140.0;
@@ -55,7 +55,7 @@ TEST(window_covers_every_overlapping_row_horizontal) {
   }
 }
 
-TEST(window_covers_every_overlapping_row_inverted) {
+TEST(measured_range_covers_every_overlapping_row_inverted) {
   Fixture fixture;
   fixture.inverted = true;
 
@@ -75,7 +75,7 @@ TEST(window_covers_every_overlapping_row_inverted) {
  * The hard case for a search: grid columns that grow at very different rates. Rows near
  * each other on screen have indices far apart.
  */
-TEST(window_covers_every_overlapping_row_skewed_columns) {
+TEST(measured_range_covers_every_overlapping_row_skewed_columns) {
   Fixture fixture;
   fixture.numberOfColumns = 3;
 
@@ -100,7 +100,7 @@ TEST(window_covers_every_overlapping_row_skewed_columns) {
  * A row that starts above the window but still covers it must stay mounted. Checking only
  * where rows start would drop it and leave a gap.
  */
-TEST(window_keeps_row_straddling_the_lower_bound) {
+TEST(measured_range_keeps_row_straddling_the_lower_bound) {
   Fixture fixture;
   fixture.overscan = 0.0;
 
@@ -122,7 +122,7 @@ TEST(window_keeps_row_straddling_the_lower_bound) {
   checkNoRowLost(container, "straddling row");
 }
 
-TEST(window_is_correct_on_the_frame_a_reorder_lands) {
+TEST(measured_range_is_correct_on_the_frame_a_reorder_lands) {
   Fixture fixture;
   std::vector<std::string> keys = keysFor(300);
   Container container;

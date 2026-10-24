@@ -42,7 +42,7 @@ struct ShadowListViewGeometryCache {
   /*
    * The list's key store when JS keeps the row keys there instead of in rowKeys, found once by
    * the keysStore prop's id, and the version of keys the core last took in. A snapshot never
-   * changes, so the same pointer means the same keys whatever else the props changed. See
+   * changes. The same pointer means the same keys whatever else the props changed. See
    * ShadowListStoreJsi.h.
    */
   std::int64_t keysStoreId = 0;

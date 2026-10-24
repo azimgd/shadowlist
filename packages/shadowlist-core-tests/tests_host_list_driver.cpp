@@ -101,12 +101,12 @@ struct Host {
 
 }
 
-TEST(list_driver_first_layout_measures_the_window_only) {
+TEST(list_driver_first_layout_measures_only_the_rows_near_the_viewport) {
   Host host(1000);
   host.layout();
-  auto window = host.driver.getMeasuredRange();
-  CHECK(window.has_value());
-  CHECK_EQ(window->low, std::size_t{0});
+  auto measured = host.driver.getMeasuredRange();
+  CHECK(measured.has_value());
+  CHECK_EQ(measured->low, std::size_t{0});
   CHECK(host.measures > 0);
   CHECK(host.measures < 100);
   CHECK_EQ(host.driver.getExtentAt(0), rowHeight(0));
@@ -413,7 +413,7 @@ TEST(list_driver_sticky_frames_pin_the_same_header_as_the_driver) {
   }
 }
 
-TEST(list_driver_pinned_header_far_above_the_window_is_measured) {
+TEST(list_driver_pinned_header_far_above_the_viewport_is_measured) {
   Host host(1000);
   host.driver.setStickyIndices({0});
   host.settle();
@@ -490,8 +490,8 @@ TEST(list_driver_visible_range_is_the_rows_on_screen) {
   CHECK_EQ(visible->low, host.topRow().first);
   CHECK(host.driver.getLeadingAt(visible->high) < host.offset + WINDOW_ALONG);
   CHECK(host.driver.getLeadingAt(visible->high) + host.driver.getExtentAt(visible->high) >= host.offset + WINDOW_ALONG);
-  auto window = host.driver.getMeasuredRange();
-  CHECK(window->low < visible->low);
+  auto measured = host.driver.getMeasuredRange();
+  CHECK(measured->low < visible->low);
 }
 
 TEST(list_driver_reset_keeps_an_inverted_list_at_its_end) {
@@ -580,7 +580,7 @@ TEST(list_driver_anchor_restores_the_row_partway_in) {
   CHECK(!restored.driver.restoreAnchorState({"missing", 0.0}));
 }
 
-TEST(list_driver_prefetches_window_rows_once_and_cancels_them_when_they_leave) {
+TEST(list_driver_prefetches_measured_rows_once_and_cancels_them_when_they_leave) {
   Host host(1000);
   host.settle();
   std::vector<std::size_t> prefetch;
@@ -645,9 +645,9 @@ TEST(list_driver_reset_measures_the_rows_at_the_offset_in_one_layout) {
   host.driver.reloadKeys(keysFrom(0, 802));
   host.driver.resetKeepingPosition();
   host.layout();
-  auto window = host.driver.getMeasuredRange();
-  CHECK(window.has_value());
+  auto measured = host.driver.getMeasuredRange();
+  CHECK(measured.has_value());
   CHECK_NEAR(host.offset, 2714.0, 0.01);
-  CHECK(host.driver.getLeadingAt(window->low) <= host.offset);
-  CHECK(host.driver.getLeadingAt(window->high) + 30.0 >= host.offset + WINDOW_ALONG);
+  CHECK(host.driver.getLeadingAt(measured->low) <= host.offset);
+  CHECK(host.driver.getLeadingAt(measured->high) + 30.0 >= host.offset + WINDOW_ALONG);
 }

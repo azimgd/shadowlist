@@ -18,6 +18,13 @@
 
 - `followAppends` also keeps items growing at the end in view.
 - Android keeps the selection, the batch `performBatchUpdates` collects and the content versions in the core's `ListSelection`, `BatchCollector` and `ContentVersions` through the JNI, beside the core and outliving it. UIKit takes its batches from `BatchCollector` too.
+- The default change animation duration is the core's `CHANGE_DURATION_MS` in both kits. On Android `ShadowListKitDefaultItemAnimator.CHANGE_DURATION_MS` is a `val` read from the core instead of a `const val`, still 250 ms.
+- Android and the web count a scroll as the user's from the core's `OFFSET_MOVED_THRESHOLD` (0.5) instead of a bare 1, like iOS. Android offsets are whole pixels and behave the same. The web now notices moves from half a pixel.
+
+### Core (C++)
+
+- Scroll command and prop indices are `std::size_t` with `UNDEFINED_INDEX` for none: `ScrollCommand::index`, `ScrollPatch::commandIndex`, `Container::requestScrollToRow` and `commandTargetOffset`. `SCROLL_TO_END_INDEX` and `SCROLL_TO_OFFSET_INDEX` are `std::size_t` sentinels. The platforms still carry -3 and -4 in a double and convert with `scrollCommandIndexFromDouble` and `scrollCommandIndexToDouble`.
+- `prefetchWindow` is `prefetchRange`, and the debug log macro `SL_LOG` is `SHADOWLIST_LOG`.
 
 ### ShadowListUtils
 

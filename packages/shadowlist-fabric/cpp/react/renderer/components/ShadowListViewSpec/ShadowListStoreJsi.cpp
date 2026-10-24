@@ -350,7 +350,7 @@ jsi::Value deselectKey(jsi::Runtime& runtime, const jsi::Value* args, size_t cou
 
 /*
  * Drop the selected keys the version's rows no longer have. Each selected key is looked up in
- * the version's index, so this costs the selection's size once the index exists.
+ * the version's index. Once the index exists this costs the selection's size.
  */
 jsi::Value retainSelection(jsi::Runtime& runtime, const jsi::Value* args, size_t count) {
   if (count < 2) {

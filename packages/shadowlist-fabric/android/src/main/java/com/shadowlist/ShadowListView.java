@@ -55,12 +55,12 @@ public class ShadowListView extends FrameLayout {
   private static final int SCROLL_PHASE_DRAGGING = 1;
   private static final int SCROLL_PHASE_SETTLING = 2;
   /*
-   * The scrollToRow row that means the end, matching SCROLL_TO_END_INDEX in Constants.hpp.
+   * The scrollToRow row that means the end, matching SCROLL_TO_END_SLOT in Constants.hpp.
    */
   private static final double SCROLL_TO_END_INDEX = -3.0;
   /*
    * The scrollToRow row that means the absolute offset carried in viewOffset, matching
-   * SCROLL_TO_OFFSET_INDEX.
+   * SCROLL_TO_OFFSET_SLOT.
    */
   private static final double SCROLL_TO_OFFSET_INDEX = -4.0;
 

@@ -497,14 +497,14 @@ public:
 
   /*
    * Turn the scrollToRow command or prop into a request. The command runs once per call,
-   * the prop runs when its value changes. A negative index means none, and the command wins.
+   * the prop runs when its value changes. UNDEFINED_INDEX means none, and the command wins.
    * commandViewOffset is the command's viewOffset, see scrollToRow. With SCROLL_TO_OFFSET_INDEX
    * it is a content offset instead, which lands as the row there and how far into it.
    */
   void requestScrollToRow(
-    double commandIndex,
+    std::size_t commandIndex,
     double commandSequence,
-    int propIndex,
+    std::size_t propIndex,
     double commandViewPosition = 0.0,
     double commandViewOffset = 0.0);
 
@@ -619,7 +619,7 @@ private:
   /*
    * Last scrollIndex prop handled. The prop only scrolls when its value changes.
    */
-  int previousScrollToRowProp_ = -1;
+  std::size_t previousScrollToRowProp_ = UNDEFINED_INDEX;
 };
 
 }

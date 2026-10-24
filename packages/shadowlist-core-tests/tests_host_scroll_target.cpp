@@ -9,6 +9,7 @@
 #include <shadowlist-core/host/ListLayout.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
+#include <limits>
 #include <vector>
 
 using namespace slt;
@@ -38,12 +39,12 @@ void layOut(Container& core, std::size_t count, double offset) {
 TEST(command_target_places_the_row_at_its_view_position) {
   Container core;
   layOut(core, 100, 0.0);
-  auto start = commandTargetOffset(core, 30.0, 0.0, 0.0);
+  auto start = commandTargetOffset(core, 30, 0.0, 0.0);
   CHECK(start.has_value());
   CHECK_NEAR(*start, 3000.0, 0.01);
-  auto centred = commandTargetOffset(core, 30.0, 0.5, 0.0);
+  auto centred = commandTargetOffset(core, 30, 0.5, 0.0);
   CHECK_NEAR(*centred, 3000.0 - (WINDOW_HEIGHT - ROW_HEIGHT) * 0.5, 0.01);
-  auto moved = commandTargetOffset(core, 30.0, 0.0, -24.0);
+  auto moved = commandTargetOffset(core, 30, 0.0, -24.0);
   CHECK_NEAR(*moved, 2976.0, 0.01);
 }
 
@@ -51,14 +52,30 @@ TEST(command_target_stays_inside_the_scroll_range) {
   Container core;
   layOut(core, 100, 0.0);
   double maxOffset = 100 * ROW_HEIGHT - WINDOW_HEIGHT;
-  CHECK_NEAR(*commandTargetOffset(core, 99.0, 0.0, 0.0), maxOffset, 0.01);
-  CHECK_NEAR(*commandTargetOffset(core, 0.0, 0.0, -50.0), 0.0, 0.01);
+  CHECK_NEAR(*commandTargetOffset(core, 99, 0.0, 0.0), maxOffset, 0.01);
+  CHECK_NEAR(*commandTargetOffset(core, 0, 0.0, -50.0), 0.0, 0.01);
   CHECK_NEAR(*commandTargetOffset(core, SCROLL_TO_END_INDEX, 0.0, 0.0), maxOffset, 0.01);
   CHECK_NEAR(*commandTargetOffset(core, SCROLL_TO_OFFSET_INDEX, 0.0, 1234.0), 1234.0, 0.01);
   CHECK_NEAR(*commandTargetOffset(core, SCROLL_TO_OFFSET_INDEX, 0.0, 1.0e9), maxOffset, 0.01);
   CHECK_NEAR(*commandTargetOffset(core, SCROLL_TO_OFFSET_INDEX, 0.0, -10.0), 0.0, 0.01);
-  CHECK(!commandTargetOffset(core, 100.0, 0.0, 0.0).has_value());
-  CHECK(!commandTargetOffset(core, -1.0, 0.0, 0.0).has_value());
+  CHECK(!commandTargetOffset(core, 100, 0.0, 0.0).has_value());
+  CHECK(!commandTargetOffset(core, UNDEFINED_INDEX, 0.0, 0.0).has_value());
+}
+
+TEST(a_platform_command_index_converts_to_an_index_and_back) {
+  CHECK_EQ(scrollCommandIndexFromDouble(40.0), std::size_t{40});
+  CHECK_EQ(scrollCommandIndexFromDouble(40.7), std::size_t{40});
+  CHECK_EQ(scrollCommandIndexFromDouble(-3.0), SCROLL_TO_END_INDEX);
+  CHECK_EQ(scrollCommandIndexFromDouble(-4.0), SCROLL_TO_OFFSET_INDEX);
+  CHECK_EQ(scrollCommandIndexFromDouble(-1.0), UNDEFINED_INDEX);
+  CHECK_EQ(scrollCommandIndexFromDouble(-2.0), UNDEFINED_INDEX);
+  CHECK_EQ(scrollCommandIndexFromDouble(std::numeric_limits<double>::quiet_NaN()), UNDEFINED_INDEX);
+  CHECK_EQ(scrollCommandIndexFromDouble(std::numeric_limits<double>::infinity()), UNDEFINED_INDEX);
+  CHECK_EQ(scrollCommandIndexFromDouble(1.0e30), UNDEFINED_INDEX);
+  CHECK_EQ(scrollCommandIndexToDouble(40), 40.0);
+  CHECK_EQ(scrollCommandIndexToDouble(SCROLL_TO_END_INDEX), -3.0);
+  CHECK_EQ(scrollCommandIndexToDouble(SCROLL_TO_OFFSET_INDEX), -4.0);
+  CHECK_EQ(scrollCommandIndexToDouble(UNDEFINED_INDEX), -2.0);
 }
 
 TEST(anchor_is_the_first_row_reaching_into_the_viewport) {

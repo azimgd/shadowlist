@@ -159,7 +159,7 @@ public:
 private:
   /*
    * A kept version and the round that last saw its key. Entries are updated in place, and the
-   * keys a round did not see are swept after it, so data with the same keys allocates nothing.
+   * keys a round did not see are swept after it. Data with the same keys allocates nothing.
    */
   struct Entry {
     std::int64_t version = 0;

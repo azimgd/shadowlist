@@ -10,7 +10,7 @@ import { findKeyNear, lookUpKey, NO_KEYS, type RowSource } from './rowSource';
  * One row TreeList renders. Built only for the rows asked about, which are the mounted ones.
  */
 export interface TreeFlatRow<ItemT> {
-  id: string;
+  key: string;
   item: ItemT;
   depth: number;
   hasChildren: boolean;
@@ -345,18 +345,18 @@ function treeSource<ItemT>(
     count,
     itemAt(row) {
       if (row < 0 || row >= count) return undefined;
-      const id = keyAt(row)!;
-      const existing = builtRows.get(id);
+      const key = keyAt(row)!;
+      const existing = builtRows.get(key);
       if (existing !== undefined) return existing;
       const rowMeta = meta[row]!;
       const next: TreeFlatRow<ItemT> = {
-        id,
+        key,
         item: items[row]!,
         depth: depthOf(rowMeta),
         hasChildren: hasChildrenOf(rowMeta),
         isExpanded: isExpandedOf(rowMeta),
       };
-      const kept = previousRows?.get(id);
+      const kept = previousRows?.get(key);
       const result =
         kept !== undefined &&
         kept.item === next.item &&
@@ -365,8 +365,8 @@ function treeSource<ItemT>(
         kept.isExpanded === next.isExpanded
           ? kept
           : next;
-      builtRows.set(id, result);
-      builtIndex.set(id, row);
+      builtRows.set(key, result);
+      builtIndex.set(key, row);
       return result;
     },
     keyAt,

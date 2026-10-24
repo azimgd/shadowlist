@@ -3,6 +3,7 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/host/LiveScroll.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -18,7 +19,7 @@ struct ScrollPatch {
   LiveScroll::Report report;
   bool offsetEnabled = false;
   bool hasCommand = false;
-  double commandIndex = 0.0;
+  std::size_t commandIndex = UNDEFINED_INDEX;
   double commandSequence = 0.0;
   double commandViewPosition = 0.0;
   double commandViewOffset = 0.0;
@@ -37,7 +38,7 @@ struct ScrollPatch {
  * animates to the core's estimate, then lands exactly with the same command.
  */
 struct ScrollCommand {
-  double index = 0.0;
+  std::size_t index = UNDEFINED_INDEX;
   double viewPosition = 0.0;
   double viewOffset = 0.0;
   bool animated = false;
@@ -400,7 +401,7 @@ private:
    * The newest scroll command, copied into every update so one built on a mounted state
    * without it can't overwrite it. The sequence is 0 until the first command.
    */
-  double commandIndex_ = -2.0;
+  std::size_t commandIndex_ = UNDEFINED_INDEX;
   double commandSequence_ = 0.0;
   double commandViewPosition_ = 0.0;
   double commandViewOffset_ = 0.0;

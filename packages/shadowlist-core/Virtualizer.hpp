@@ -300,7 +300,7 @@ private:
   static void consumePredictions(Container& container);
 
   /*
-   * First revision. Measure a window of rows from the edge of the list.
+   * First revision. Measure a range of rows from the edge of the list.
    */
   static void measureFirstRevision(Container& container);
 

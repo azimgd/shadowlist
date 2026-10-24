@@ -1,9 +1,11 @@
 #import "Internal/ShadowListKitListModels+Private.h"
 
+#include <shadowlist-core/host/ChangeAnimation.hpp>
+
 /*
  * Default duration of the change animations, in seconds.
  */
-static const NSTimeInterval SHADOWLIST_KIT_CHANGE_DURATION = 0.25;
+static const NSTimeInterval SHADOWLIST_KIT_CHANGE_DURATION = azimgd::shadowlist::CHANGE_DURATION_MS / 1000.0;
 
 #pragma mark - Swipe actions
 

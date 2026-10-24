@@ -6,6 +6,7 @@
 #include <shadowlist-core/host/LiveScroll.hpp>
 #include <shadowlist-core/host/ScrollSync.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -131,7 +132,7 @@ public:
     double windowWidth,
     double offsetY,
     double offsetX,
-    double scrollIndex,
+    std::size_t scrollIndex,
     double scrollIndexSequence,
     double contentHeight,
     double contentWidth,
@@ -286,7 +287,7 @@ public:
   double windowWidth_{0.0};
   double offsetY_{0.0};
   double offsetX_{0.0};
-  double scrollIndex_{-2.0};
+  std::size_t scrollIndex_{azimgd::shadowlist::UNDEFINED_INDEX};
   double scrollIndexSequence_{0.0};
   /*
    * Where scrollToRow places its row in the viewport: 0 start, 0.5 center, 1 end.

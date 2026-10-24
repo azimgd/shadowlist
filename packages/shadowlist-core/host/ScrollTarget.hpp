@@ -43,7 +43,7 @@ double rowTargetOffset(
  */
 std::optional<double> commandTargetOffset(
   const Container& core,
-  double commandIndex,
+  std::size_t commandIndex,
   double viewPosition,
   double viewOffset);
 

@@ -191,7 +191,7 @@ function TreeListInner<ItemT>(
         isExpanded: row.isExpanded,
         hasChildren: row.hasChildren,
         indent: row.depth * indentWidth,
-        toggle: () => toggleKey(row.id),
+        toggle: () => toggleKey(row.key),
         separators: info.separators,
       });
     },

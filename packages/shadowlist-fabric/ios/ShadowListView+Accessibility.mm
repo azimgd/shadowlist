@@ -49,7 +49,7 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
   CGFloat maxOffset = MAX(0.0, (_horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height) - viewport);
   CGFloat target = azimgd::shadowlist::pageScrollTarget(offset, viewport, maxOffset, forward ? 1 : -1);
-  if (fabs(target - offset) < 1.0) {
+  if (fabs(target - offset) < azimgd::shadowlist::OFFSET_ARRIVED_THRESHOLD) {
     return NO;
   }
   [self stopMomentum];

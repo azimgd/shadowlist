@@ -119,8 +119,8 @@ public:
   bool retainKeys(const std::vector<std::string>& keys);
 
   /*
-   * Drop the selected keys keep turns down. Only the selected keys are asked, so a lookup that
-   * answers in constant time keeps this proportional to the selection, not the data. Returns
+   * Drop the selected keys keep turns down. Only the selected keys are asked. A lookup that
+   * answers in constant time then keeps this proportional to the selection, not the data. Returns
    * whether any was dropped.
    */
   template <typename Keep>

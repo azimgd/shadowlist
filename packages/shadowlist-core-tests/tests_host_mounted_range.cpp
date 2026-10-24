@@ -35,12 +35,12 @@ TEST(mounted_range_steps_toward_the_target) {
 TEST(mounted_range_step_scales_with_the_measured_range) {
   CHECK_EQ(mountStepForRange({10, 15}, 2), std::size_t{2});
   CHECK_EQ(mountStepForRange({875, 910}, 2), std::size_t{9});
-  MountedRange window{875, 910};
-  std::size_t step = mountStepForRange(window, 2);
+  MountedRange measured{875, 910};
+  std::size_t step = mountStepForRange(measured, 2);
   MountedRange range{875, 914};
   MountedRange target{865, 914};
-  range = stepMountedRange(range, target, window, step);
-  range = stepMountedRange(range, target, window, step);
+  range = stepMountedRange(range, target, measured, step);
+  range = stepMountedRange(range, target, measured, step);
   CHECK(range == target);
 }
 
@@ -65,11 +65,11 @@ TEST(mounted_range_first_report_trims_the_initial_range) {
   // A start target keeps the rows around it.
   auto seeded = reportedMountedRange({396, 420}, {400, 403}, std::nullopt, true, 1000, 4, 10, 2);
   CHECK(sameRange(seeded->range, 396, 407));
-  // A window past the initial range mounts the screen now and paces the pad.
+  // A measured range past the initial range mounts the screen now and paces the pad.
   auto past = reportedMountedRange({0, 20}, {30, 33}, std::nullopt, true, 100, 4, 10, 2);
   CHECK(sameRange(past->range, 28, 35));
   CHECK(sameRange(past->target, 26, 37));
-  // A window outside the range moves it on any report.
+  // A measured range outside the mounted range moves it on any report.
   auto moved = reportedMountedRange({0, 20}, {30, 33}, MountedRange{20, 23}, false, 100, 4, 10, 2);
   CHECK(sameRange(moved->target, 26, 43));
 }
@@ -102,7 +102,7 @@ TEST(viewability_changes_by_key) {
   ViewableChanges changes = viewableChanges({"a", "b", "c"}, {"b", "c", "d", "e"});
   CHECK(changes.added == std::vector<std::string>({"d", "e"}));
   CHECK(changes.removed == std::vector<std::string>({"a"}));
-  // A reorder inside the window changes nothing.
+  // A reorder inside the measured range changes nothing.
   ViewableChanges reorder = viewableChanges({"a", "b"}, {"b", "a"});
   CHECK(reorder.added.empty());
   CHECK(reorder.removed.empty());
@@ -150,7 +150,7 @@ TEST(viewability_tracker_waits_for_minimum_view_time_and_interaction) {
   CHECK(report.viewable == std::vector<std::string>({"a"}));
 }
 
-TEST(prefetch_tracker_prefetches_window_rows_once_and_cancels_them) {
+TEST(prefetch_tracker_prefetches_range_rows_once_and_cancels_them) {
   std::vector<std::string> keys;
   std::unordered_map<std::string, std::size_t> indices;
   for (std::size_t index = 0; index < 100; ++index) {
@@ -166,20 +166,20 @@ TEST(prefetch_tracker_prefetches_window_rows_once_and_cancels_them) {
   std::vector<std::size_t> prefetch;
   std::vector<std::size_t> cancel;
   MountedRange mounted{10, 20};
-  tracker.update(mounted, prefetchWindow(mounted, 3, keys.size()), keys.size(), keyAt, indexOfKey, prefetch, cancel);
+  tracker.update(mounted, prefetchRange(mounted, 3, keys.size()), keys.size(), keyAt, indexOfKey, prefetch, cancel);
   CHECK(prefetch == std::vector<std::size_t>({7, 8, 9, 21, 22, 23}));
   CHECK(cancel.empty());
-  tracker.update(mounted, prefetchWindow(mounted, 3, keys.size()), keys.size(), keyAt, indexOfKey, prefetch, cancel);
+  tracker.update(mounted, prefetchRange(mounted, 3, keys.size()), keys.size(), keyAt, indexOfKey, prefetch, cancel);
   CHECK(prefetch.empty());
-  // Scrolled down: rows behind leave the window and are cancelled, mounted rows are dropped and
-  // a row still in the window is not prefetched twice.
+  // Scrolled down: rows behind leave the range and are cancelled, mounted rows are dropped and
+  // a row still in the range is not prefetched twice.
   MountedRange later{22, 32};
-  tracker.update(later, prefetchWindow(later, 3, keys.size()), keys.size(), keyAt, indexOfKey, prefetch, cancel);
+  tracker.update(later, prefetchRange(later, 3, keys.size()), keys.size(), keyAt, indexOfKey, prefetch, cancel);
   CHECK(prefetch == std::vector<std::size_t>({19, 20, 33, 34, 35}));
   CHECK(cancel == std::vector<std::size_t>({7, 8, 9}));
-  CHECK(!prefetchWindow(std::nullopt, 3, 100).has_value());
-  CHECK(!prefetchWindow(MountedRange{0, 5}, 0, 100).has_value());
-  CHECK(sameRange(*prefetchWindow(MountedRange{1, 98}, 3, 100), 0, 99));
+  CHECK(!prefetchRange(std::nullopt, 3, 100).has_value());
+  CHECK(!prefetchRange(MountedRange{0, 5}, 0, 100).has_value());
+  CHECK(sameRange(*prefetchRange(MountedRange{1, 98}, 3, 100), 0, 99));
 }
 
 namespace {

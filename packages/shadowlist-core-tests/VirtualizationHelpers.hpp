@@ -93,7 +93,7 @@ inline void checkGeometryContiguous(const Container& container, const std::strin
 }
 
 /*
- * Give every row a real, uneven size. Equal rows hide most window bugs.
+ * Give every row a real, uneven size. Equal rows hide most measured range bugs.
  */
 inline void measureRows(Container& container, const std::vector<double>& heights) {
   for (std::size_t index = 0; index < heights.size(); ++index) {

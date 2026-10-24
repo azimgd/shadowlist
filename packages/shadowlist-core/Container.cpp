@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 
 namespace azimgd::shadowlist {
 
@@ -126,9 +125,9 @@ void Container::scrollToOffset(double offset) {
 }
 
 void Container::requestScrollToRow(
-  double commandIndex,
+  std::size_t commandIndex,
   double commandSequence,
-  int propIndex,
+  std::size_t propIndex,
   double commandViewPosition,
   double commandViewOffset) {
   /*
@@ -137,7 +136,7 @@ void Container::requestScrollToRow(
    */
   bool fired = false;
   if (commandSequence > previousScrollToRowSequence_) {
-    SL_LOG("  scroll command: index=%.0f sequence=%.0f position=%.2f", commandIndex, commandSequence, commandViewPosition);
+    SHADOWLIST_LOG("  scroll command: index=%zu sequence=%.0f position=%.2f", commandIndex, commandSequence, commandViewPosition);
     previousScrollToRowSequence_ = commandSequence;
     // scrollToEnd comes through the same command with SCROLL_TO_END_INDEX as the index.
     if (commandIndex == SCROLL_TO_END_INDEX) {
@@ -146,21 +145,20 @@ void Container::requestScrollToRow(
     } else if (commandIndex == SCROLL_TO_OFFSET_INDEX) {
       scrollToOffset(std::isfinite(commandViewOffset) ? commandViewOffset : 0.0);
       fired = true;
-    } else if (commandIndex >= 0.0 && std::isfinite(commandIndex) &&
-               commandIndex < static_cast<double>(std::numeric_limits<std::size_t>::max())) {
+    } else if (commandIndex != UNDEFINED_INDEX) {
       // A missing position means the top. Anything else is clamped between 0 and 1 to keep the row on screen.
       double viewPosition = std::isfinite(commandViewPosition)
         ? std::min(1.0, std::max(0.0, commandViewPosition))
         : 0.0;
       double viewOffset = std::isfinite(commandViewOffset) ? commandViewOffset : 0.0;
-      scrollToRow(static_cast<std::size_t>(commandIndex), viewPosition, viewOffset);
+      scrollToRow(commandIndex, viewPosition, viewOffset);
       fired = true;
     }
   }
 
-  // The prop only scrolls when its value changes. A negative value turns it off.
-  if (!fired && propIndex >= 0 && propIndex != previousScrollToRowProp_) {
-    scrollToRow(static_cast<std::size_t>(propIndex));
+  // The prop only scrolls when its value changes. UNDEFINED_INDEX turns it off.
+  if (!fired && propIndex != UNDEFINED_INDEX && propIndex != previousScrollToRowProp_) {
+    scrollToRow(propIndex);
   }
   previousScrollToRowProp_ = propIndex;
 }
@@ -312,7 +310,7 @@ const Anchor* Container::getCompensationAnchor() const {
 
 void Container::dispatchObservers() {
   /*
-   * Before the host gives the viewport a size, the window holds only the row at the offset.
+   * Before the host gives the viewport a size, the measured range holds only the row at the offset.
    * Reporting that would unmount the rows the first frame shows.
    */
   if (getWindowSize() <= 0.0) {
@@ -320,7 +318,7 @@ void Container::dispatchObservers() {
   }
   IndexRange measured = getMeasuredRange();
   if (onMeasuredRangeChangeCallback && (measured.low != previousMeasuredLow_ || measured.high != previousMeasuredHigh_)) {
-    SL_LOG("  emit onMeasuredRangeChange(%zd, %zd) keys=[%s..%s]",
+    SHADOWLIST_LOG("  emit onMeasuredRangeChange(%zd, %zd) keys=[%s..%s]",
       static_cast<std::ptrdiff_t>(measured.low), static_cast<std::ptrdiff_t>(measured.high),
       debugKeyAt(revision.rows, measured.low),
       debugKeyAt(revision.rows, measured.high));
@@ -329,7 +327,7 @@ void Container::dispatchObservers() {
   previousMeasuredLow_ = measured.low;
   previousMeasuredHigh_ = measured.high;
 
-  // Only work out the viewable rows when someone listens, since it scans the window.
+  // Only work out the viewable rows when someone listens, since it scans the measured range.
   if (onViewableIndicesChangeCallback) {
     std::vector<std::size_t> ranges;
     ranges.reserve(viewableRules.size() * 2);
@@ -339,7 +337,7 @@ void Container::dispatchObservers() {
       ranges.push_back(viewable.high);
     }
     if (ranges != previousViewableRanges_) {
-      SL_LOG("  emit onViewableIndicesChange(%zd, %zd) rules=%zu",
+      SHADOWLIST_LOG("  emit onViewableIndicesChange(%zd, %zd) rules=%zu",
         static_cast<std::ptrdiff_t>(ranges.empty() ? UNDEFINED_INDEX : ranges[0]),
         static_cast<std::ptrdiff_t>(ranges.empty() ? UNDEFINED_INDEX : ranges[1]), viewableRules.size());
       previousViewableRanges_ = ranges;
@@ -369,7 +367,7 @@ OffsetBand Container::computeOffsetBand() const {
   const std::vector<Row>& rows = revision.rows;
   std::size_t rowCount = rows.size();
 
-  // Before the first real frame the window fills from the edge, not from the offset.
+  // Before the first real frame the measured range fills from the edge, not from the offset.
   if (rowCount == 0 || revisionCount == REVISION_COUNT_FIRST) {
     return empty;
   }
@@ -399,7 +397,7 @@ OffsetBand Container::computeOffsetBand() const {
     return empty;
   }
 
-  // These listeners need every offset, not just the window.
+  // These listeners need every offset, not just the measured range.
   if (onScrollCallback || onViewableIndicesChangeCallback || !stickyIndices.empty()) {
     return empty;
   }
@@ -443,9 +441,9 @@ OffsetBand Container::computeOffsetBand() const {
   };
 
   /*
-   * A row is in the window while it ends past offset minus the overscan and starts before
-   * the far edge plus the overscan. So it enters and leaves at these two offsets. Only rows
-   * near the window matter. Each column is in order. The nearest flips come from rows
+   * A row is in the measured range while it ends past offset minus the overscan and starts
+   * before the far edge plus the overscan. So it enters and leaves at these two offsets. Only
+   * rows near the measured range matter. Each column is in order. The nearest flips come from rows
    * at most a couple of columns outside the measured range.
    */
   double overscanSize = windowSize * overscan;

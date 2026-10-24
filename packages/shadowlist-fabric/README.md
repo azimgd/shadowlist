@@ -53,7 +53,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | Prop | Default | What it does |
 | --- | --- | --- |
 | `renderItem({ item, index, separators, selected, select, deselect })` |  | Renders a row. |
-| `keyExtractor` | `id`, then index | Matches items across updates. Use unique, stable keys: index keys follow positions, so a prepend shifts the visible content. |
+| `keyExtractor` | `id`, then index | Matches items across updates. Use unique, stable keys: index keys follow positions and a prepend shifts the visible content. |
 | `getItemSizeSpec(item, index)` |  | Returns an `ItemSizeSpec`: a row's text with its font and insets, or a `fixedHeight`. Native then sizes rows near the screen before React renders them. |
 | `measureLookaheadRows` | 48 | How many rows past the mounted ones get their size spec sent to native. |
 | `initialScrollIndex` |  | The row the list opens at. Read on mount only. |

@@ -12,10 +12,10 @@
 namespace azimgd::shadowlist {
 
 /*
- * Rows a host tells its app to load early. Rows of the window that are not mounted get
- * prefetched once. A prefetched row that leaves the window before it was mounted is cancelled.
- * Rows are held by key, so an edit moves them along, and reported by index, low to high.
- * ListDriver uses the core's measured window. Fabric uses the mounted rows plus prefetchRows.
+ * Rows a host tells its app to load early. Rows of the range that are not mounted get
+ * prefetched once. A prefetched row that leaves the range before it was mounted is cancelled.
+ * Rows are held by key and reported by index, low to high. An edit moves them along.
+ * ListDriver uses the core's measured range. Fabric uses the mounted rows plus prefetchRows.
  */
 class PrefetchTracker final {
 public:
@@ -26,7 +26,7 @@ public:
   template <typename KeyAt, typename IndexOfKey>
   void update(
     const std::optional<MountedRange>& mounted,
-    const std::optional<MountedRange>& window,
+    const std::optional<MountedRange>& range,
     std::size_t count,
     KeyAt keyAt,
     IndexOfKey indexOfKey,
@@ -37,21 +37,21 @@ public:
     auto isMounted = [&](std::size_t index) {
       return mounted && index >= mounted->low && index <= mounted->high;
     };
-    auto inWindow = [&](std::size_t index) { return window && index >= window->low && index <= window->high; };
-    // Rows prefetched earlier: shown now, gone, or out of the window.
+    auto inRange = [&](std::size_t index) { return range && index >= range->low && index <= range->high; };
+    // Rows prefetched earlier: shown now, gone, or out of the range.
     for (auto entry = prefetched_.begin(); entry != prefetched_.end();) {
       std::size_t index = indexOfKey(*entry);
       if (index == UNDEFINED_INDEX || isMounted(index)) {
         entry = prefetched_.erase(entry);
-      } else if (!inWindow(index)) {
+      } else if (!inRange(index)) {
         cancel.push_back(index);
         entry = prefetched_.erase(entry);
       } else {
         ++entry;
       }
     }
-    if (window) {
-      for (std::size_t index = window->low; index <= window->high && index < count; ++index) {
+    if (range) {
+      for (std::size_t index = range->low; index <= range->high && index < count; ++index) {
         if (!isMounted(index) && prefetched_.insert(keyAt(index)).second) {
           prefetch.push_back(index);
         }
@@ -69,9 +69,9 @@ private:
 };
 
 /*
- * The window to prefetch: the mounted rows plus rows on each side, or nothing without mounted
+ * The range to prefetch: the mounted rows plus rows on each side, or nothing without mounted
  * rows or prefetch rows.
  */
-std::optional<MountedRange> prefetchWindow(const std::optional<MountedRange>& mounted, std::size_t rows, std::size_t count);
+std::optional<MountedRange> prefetchRange(const std::optional<MountedRange>& mounted, std::size_t rows, std::size_t count);
 
 }

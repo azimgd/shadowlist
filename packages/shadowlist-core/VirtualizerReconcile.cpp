@@ -484,7 +484,7 @@ std::size_t Virtualizer::reconcileRows(
 
   /*
    * Fast paths for edits at either end, like an append, loading older chat messages or
-   * trimming a window of rows. Rebuilding the key map costs about 6ms at 100k rows, a dropped
+   * trimming a range of rows. Rebuilding the key map costs about 6ms at 100k rows, a dropped
    * frame. These keep the rows and the map in place. An empty list is a cold start and takes
    * the general path.
    * Rows are not renumbered here. The reflow from row 0 sets every index anyway, and nothing

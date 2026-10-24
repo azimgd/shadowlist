@@ -336,7 +336,7 @@ describe('tree sources', () => {
     expanded: ReadonlySet<string>,
     depth = 0,
     rows: {
-      id: string;
+      key: string;
       depth: number;
       hasChildren: boolean;
       isExpanded: boolean;
@@ -345,7 +345,7 @@ describe('tree sources', () => {
     for (const node of nodes) {
       const hasChildren = !!node.children && node.children.length > 0;
       const isExpanded = hasChildren && expanded.has(node.id);
-      rows.push({ id: node.id, depth, hasChildren, isExpanded });
+      rows.push({ key: node.id, depth, hasChildren, isExpanded });
       if (isExpanded) referenceRows(node.children!, expanded, depth + 1, rows);
     }
     return rows;
@@ -383,8 +383,8 @@ describe('tree sources', () => {
         );
         const rows = rowsOf(source);
         expect(
-          rows.map(({ id, depth, hasChildren, isExpanded }) => ({
-            id,
+          rows.map(({ key, depth, hasChildren, isExpanded }) => ({
+            key,
             depth,
             hasChildren,
             isExpanded,
@@ -393,14 +393,14 @@ describe('tree sources', () => {
         if (withStore) {
           expect(
             fake.stores[0]!.versions.get(source.keysVersion)!.keys
-          ).toEqual(rows.map((row) => row.id));
+          ).toEqual(rows.map((row) => row.key));
         } else {
-          expect(source.propKeys).toEqual(rows.map((row) => row.id));
+          expect(source.propKeys).toEqual(rows.map((row) => row.key));
         }
         // Unchanged rows keep their objects.
-        const before = new Map(previousRows.map((row) => [row.id, row]));
+        const before = new Map(previousRows.map((row) => [row.key, row]));
         for (const row of rows) {
-          const old = before.get(row.id);
+          const old = before.get(row.key);
           if (old && old.isExpanded === row.isExpanded) expect(row).toBe(old);
         }
         previousRows = rows;
@@ -410,8 +410,8 @@ describe('tree sources', () => {
         for (let toggle = 0; toggle < toggles; toggle++) {
           seed = (seed * 1103515245 + 12345) % 2147483648;
           const row = rows[seed % rows.length]!;
-          if (next.has(row.id)) next.delete(row.id);
-          else next.add(row.id);
+          if (next.has(row.key)) next.delete(row.key);
+          else next.add(row.key);
         }
         expanded = next;
       }

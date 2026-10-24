@@ -9,6 +9,11 @@
 namespace azimgd::shadowlist {
 
 /*
+ * How long the default change animations of both kits run, in milliseconds.
+ */
+constexpr double CHANGE_DURATION_MS = 250.0;
+
+/*
  * Where a row shows on screen: its leading corner, the top left in both kits, in host units.
  */
 struct ScreenPoint {

@@ -165,7 +165,7 @@ extern "C" const char ShadowListKitListViewAccessibilityLink = 0;
   }
   double offset = [self offset];
   double target = pageScrollTarget(offset, _windowAlong, [self maxOffset], forward ? 1 : -1);
-  if (std::fabs(target - offset) < 1) {
+  if (std::fabs(target - offset) < OFFSET_ARRIVED_THRESHOLD) {
     return NO;
   }
   [self stopScrolling];

@@ -122,7 +122,7 @@ using namespace facebook::react;
 
   SLF_TRACE("ev=cmd-scroll-to-index index=%ld viewPosition=%.2f animated=%d", (long)row, viewPosition, animated ? 1 : 0);
   azimgd::shadowlist::ScrollCommand command;
-  command.index = (double)row;
+  command.index = azimgd::shadowlist::scrollCommandIndexFromDouble((double)row);
   command.viewPosition = viewPosition;
   // The core rests the row viewOffset past its view position. React Native's viewOffset moves the other way.
   command.viewOffset = std::isfinite(viewOffset) ? -viewOffset : 0.0;

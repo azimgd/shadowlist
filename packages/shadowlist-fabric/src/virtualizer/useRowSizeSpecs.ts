@@ -58,14 +58,14 @@ export function useRowSizeSpecs<ItemT>({
    * The range last sent. It lives in a ref so the memo below depends on two numbers that
    * only change when the range is recut, not on mountedIndices, which changes every frame.
    */
-  const windowRef = useRef({ low: -1, high: -1 });
+  const rangeRef = useRef({ low: -1, high: -1 });
 
   if (mountedIndices.length > 0) {
     const first = mountedIndices[0]!;
     const last = mountedIndices[mountedIndices.length - 1]!;
     const mountedLow = Math.min(first, last);
     const mountedHigh = Math.max(first, last);
-    const published = windowRef.current;
+    const published = rangeRef.current;
 
     /*
      * Recut only when the mounted rows come within EDGE_MARGIN of the sent range's edge, or
@@ -77,14 +77,14 @@ export function useRowSizeSpecs<ItemT>({
       mountedHigh + EDGE_MARGIN > published.high;
 
     if (needsRecut) {
-      windowRef.current = {
+      rangeRef.current = {
         low: Math.max(0, mountedLow - lookaheadRows),
         high: mountedHigh + lookaheadRows,
       };
     }
   }
 
-  const { low, high } = windowRef.current;
+  const { low, high } = rangeRef.current;
 
   return useMemo(() => {
     if (!getItemSizeSpec || low < 0 || source.count === 0) {

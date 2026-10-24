@@ -13,7 +13,7 @@ namespace azimgd::shadowlist {
 /*
  * Size for a row that was never measured: the frozen average of real measurements once
  * there is one, otherwise the configured estimate.
- * Every pass uses this same value. If two passes disagreed, a row entering the window
+ * Every pass uses this same value. If two passes disagreed, a row entering the measured range
  * would resize, reflow the rows after it, and a row pulled into range would miss a frame.
  */
 inline std::pair<double, double> effectiveFallbackSize(const Container& container) {

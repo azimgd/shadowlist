@@ -23,7 +23,7 @@ type Row = FlatRow<Item, { title: string }>;
 
 /*
  * The flatten SectionList ran in JS before the rows moved to a source with native keys: one
- * pass over every item, reusing a row by id when all its fields match. Its keys now follow the
+ * pass over every item, reusing a row by key when all its fields match. Its keys now follow the
  * core's scheme, see sectionKeys.ts.
  */
 function referenceFlatten(
@@ -36,7 +36,7 @@ function referenceFlatten(
   const stickyIndices: number[] = [];
   const nextRows = new Map<string, Row>();
   const push = (row: Row) => {
-    const previous = previousRows.get(row.id);
+    const previous = previousRows.get(row.key);
     const same =
       previous !== undefined &&
       previous.type === row.type &&
@@ -48,7 +48,7 @@ function referenceFlatten(
       previous.isLastInSection === row.isLastInSection &&
       previous.isSectionBoundary === row.isSectionBoundary;
     const final = same ? previous : row;
-    nextRows.set(final.id, final);
+    nextRows.set(final.key, final);
     rows.push(final);
   };
   sections.forEach((section, sectionIndex) => {
@@ -56,7 +56,7 @@ function referenceFlatten(
     if (hasHeader) {
       stickyIndices.push(rows.length);
       push({
-        id: headerRowKey(sectionKey),
+        key: headerRowKey(sectionKey),
         type: 'sectionHeader',
         section,
         sectionIndex,
@@ -66,7 +66,7 @@ function referenceFlatten(
     section.data.forEach((item, itemIndex) => {
       const isLastInSection = itemIndex === last;
       push({
-        id: itemRowKey(sectionKey, item.id),
+        key: itemRowKey(sectionKey, item.id),
         type: 'item',
         sectionIndex,
         item,
@@ -79,7 +79,7 @@ function referenceFlatten(
     });
     if (hasFooter) {
       push({
-        id: footerRowKey(sectionKey),
+        key: footerRowKey(sectionKey),
         type: 'sectionFooter',
         section,
         sectionIndex,
@@ -166,11 +166,11 @@ describe('section sources', () => {
           const rows = rowsOf(source);
           expect(rows).toEqual(reference.rows);
           expect(rows.map((_, row) => source.keyAt(row))).toEqual(
-            reference.rows.map((row) => row.id)
+            reference.rows.map((row) => row.key)
           );
           if (withStore) {
             const written = module.stores[0]!.versions.get(source.keysVersion)!;
-            expect(written.keys).toEqual(reference.rows.map((row) => row.id));
+            expect(written.keys).toEqual(reference.rows.map((row) => row.key));
             expect(written.sticky).toEqual(
               hasHeader ? reference.stickyIndices : []
             );
@@ -178,7 +178,7 @@ describe('section sources', () => {
             expect(source.stickyIndices).toBeNull();
           } else {
             expect(source.propKeys).toEqual(
-              reference.rows.map((row) => row.id)
+              reference.rows.map((row) => row.key)
             );
             expect(source.stickyIndices ?? []).toEqual(
               hasHeader ? reference.stickyIndices : []
@@ -186,15 +186,15 @@ describe('section sources', () => {
           }
           // A row keeps its object exactly when the reference kept it.
           const kept = (list: Row[], before: Row[]) => {
-            const byId = new Map(before.map((row) => [row.id, row]));
-            return list.map((row) => byId.get(row.id) === row);
+            const byId = new Map(before.map((row) => [row.key, row]));
+            return list.map((row) => byId.get(row.key) === row);
           };
           expect(kept(rows, previousFlat)).toEqual(
             kept(reference.rows, previousReference)
           );
           // Every row is found by its key, near a hint or not.
           rows.forEach((row, index) => {
-            expect(source.indexOfKey(row.id, index + 3)).toBe(index);
+            expect(source.indexOfKey(row.key, index + 3)).toBe(index);
           });
 
           sections = next;

@@ -49,8 +49,8 @@ struct MountedBasis {
 };
 
 /*
- * A range for the renderer to mount. It goes by its edge keys, so a data change on the way
- * keeps the same rows. A landed message only says a report came while seedPending was set. It
+ * A range for the renderer to mount. It goes by its edge keys, which keeps the same rows across
+ * a data change on the way. A landed message only says a report came while seedPending was set. It
  * has sequence 0 and no range.
  */
 struct MountMessage {
@@ -67,7 +67,7 @@ struct MountMessage {
 /*
  * Moves the mounted range along with the measured rows for a host whose renderer mounts the
  * rows, like Fabric where React does. One range is in flight at a time. The driver sends it
- * and waits until a commit's basis carries its sequence, so a slow renderer never gets steps
+ * and waits until a commit's basis carries its sequence. A slow renderer never gets steps
  * stacked into one commit. A report sends at once. The overscan beyond the measured rows grows
  * one step per frame toward the target: after each applied range the host asks for the next
  * step on its next display frame, see takeStep. Not thread safe.

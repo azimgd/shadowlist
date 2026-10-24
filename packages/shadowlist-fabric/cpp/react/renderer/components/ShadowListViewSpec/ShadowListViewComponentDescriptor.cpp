@@ -51,7 +51,7 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   const auto& shadowlistViewStateData =
     tookLiveReport ? shadowlistViewShadowNode.getStateData() : shadowlistViewState.getData();
   if (newerState) {
-    SL_LOG("adopt: obsolete state rev=%zu -> newest rev=%zu off=(%.1f,%.1f)",
+    SHADOWLIST_LOG("adopt: obsolete state rev=%zu -> newest rev=%zu off=(%.1f,%.1f)",
       adoptedState->getRevision(), newerState->getRevision(),
       shadowlistViewStateData.offsetX_, shadowlistViewStateData.offsetY_);
   }
@@ -121,7 +121,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   containerManager->requestScrollToRow(
     shadowlistViewStateData.scrollIndex_,
     animatedCommand ? 0.0 : shadowlistViewStateData.scrollIndexSequence_,
-    shadowlistViewProps.scrollIndex,
+    shadowlistViewProps.scrollIndex < 0 ? azimgd::shadowlist::UNDEFINED_INDEX
+                                        : static_cast<std::size_t>(shadowlistViewProps.scrollIndex),
     shadowlistViewStateData.scrollIndexViewPosition_,
     shadowlistViewStateData.scrollIndexViewOffset_);
 
@@ -152,8 +153,8 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
 
   /*
    * Row keys. JS normally keeps them in the list's key store, and the props only name the version,
-   * see ShadowListStoreJsi.h. A snapshot never changes: the same one means the same keys, so a
-   * props change that leaves the keys alone, like the mounted range moving, costs no copy and no
+   * see ShadowListStoreJsi.h. A snapshot never changes: the same one means the same keys. A props
+   * change that leaves the keys alone, like the mounted range moving, costs no copy and no
    * comparison. Without a store the keys come in rowKeys. The core points at them instead of
    * copying, since props never change and outlive this call.
    */
@@ -365,8 +366,8 @@ void ShadowListViewComponentDescriptor::applyEventCallbacks(
     };
     /*
      * The measured and viewable rows go to the mount driver, which sends JS the rows to mount
-     * and the viewability changes, not the raw ranges. The driver belongs to the node family
-     * like the emitter, so it never changes under these callbacks.
+     * and the viewability changes, not the raw ranges. It never changes under these callbacks
+     * because it belongs to the node family like the emitter.
      */
     containerManager->onMeasuredRangeChangeCallback = [mountDriver](std::size_t low, std::size_t high) -> void {
       if (mountDriver) {
@@ -449,7 +450,7 @@ bool ShadowListViewComponentDescriptor::adoptLiveScrollReport(
   if (!liveScroll || !liveScroll->newerReport(stateData.hostSequence_, stateData.offsetEnabled_, report)) {
     return false;
   }
-  SL_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%llu phase=%.0f",
+  SHADOWLIST_LOG("adopt: live report seq=%llu over state seq=%.0f off=(%.1f,%.1f)->(%.1f,%.1f) token=%llu phase=%.0f",
     static_cast<unsigned long long>(report.sequence), stateData.hostSequence_,
     stateData.offsetX_, stateData.offsetY_, report.offsetX, report.offsetY,
     static_cast<unsigned long long>(report.commitToken), report.scrollPhase);
@@ -491,7 +492,7 @@ void ShadowListViewComponentDescriptor::applyRowSizeSpecs(
   }
   /*
    * Specs from the store are typed already. Their source is the version's specs, which a props
-   * change that leaves them alone keeps, so nothing is read or measured again.
+   * change that leaves them alone keeps. Nothing is read or measured again then.
    */
   std::shared_ptr<const std::vector<azimgd::shadowlist::RowSizeSpec>> storeSpecs;
   if (shadowlistViewProps.sizeSpecsVersion > 0 && geometryCache->keysStore &&

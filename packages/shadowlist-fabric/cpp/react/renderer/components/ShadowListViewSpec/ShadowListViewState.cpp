@@ -10,7 +10,9 @@ ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousStat
   windowWidth_(data.count("windowWidth") ? data["windowWidth"].getDouble() : previousState.windowWidth_),
   offsetY_(data.count("offsetY") ? data["offsetY"].getDouble() : previousState.offsetY_),
   offsetX_(data.count("offsetX") ? data["offsetX"].getDouble() : previousState.offsetX_),
-  scrollIndex_(data.count("scrollIndex") ? data["scrollIndex"].getDouble() : previousState.scrollIndex_),
+  scrollIndex_(data.count("scrollIndex")
+      ? azimgd::shadowlist::scrollCommandIndexFromDouble(data["scrollIndex"].getDouble())
+      : previousState.scrollIndex_),
   scrollIndexSequence_(data.count("scrollIndexSequence") ? data["scrollIndexSequence"].getDouble() : previousState.scrollIndexSequence_),
   scrollIndexViewPosition_(data.count("scrollIndexViewPosition") ? data["scrollIndexViewPosition"].getDouble() : previousState.scrollIndexViewPosition_),
   contentHeight_(data.count("contentHeight") ? data["contentHeight"].getDouble() : previousState.contentHeight_),
@@ -93,7 +95,7 @@ folly::dynamic ShadowListViewState::getDynamic() const {
   result["windowWidth"] = windowWidth_;
   result["offsetY"] = offsetY_;
   result["offsetX"] = offsetX_;
-  result["scrollIndex"] = scrollIndex_;
+  result["scrollIndex"] = azimgd::shadowlist::scrollCommandIndexToDouble(scrollIndex_);
   result["scrollIndexSequence"] = scrollIndexSequence_;
   result["scrollIndexViewPosition"] = scrollIndexViewPosition_;
   result["scrollIndexViewOffset"] = scrollIndexViewOffset_;

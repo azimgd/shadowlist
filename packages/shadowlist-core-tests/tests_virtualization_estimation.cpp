@@ -354,7 +354,7 @@ TEST(randomized_session_never_loses_a_row) {
    * that made the range. After a resize it is one frame behind, just like on device.
    * Only check the range when the host would have a fresh one.
    */
-  bool windowFresh = true;
+  bool rangeFresh = true;
 
   for (int step = 0; step < 400; ++step) {
     switch (nextRandom() % 5) {
@@ -365,7 +365,7 @@ TEST(randomized_session_never_loses_a_row) {
         input.userScrolled = true;
         input.scrollPhase = ScrollPhase::Dragging;
         Virtualizer::update(container, input);
-        windowFresh = true;
+        rangeFresh = true;
         break;
       }
       case 1: {  // measure a mounted row
@@ -376,7 +376,7 @@ TEST(randomized_session_never_loses_a_row) {
         double height = static_cast<double>(nextRandom() % 400);
         Virtualizer::updateRowAtIndex(container, index, {WINDOW_WIDTH, height});
         Virtualizer::recomputeContentSize(container);
-        windowFresh = false;
+        rangeFresh = false;
         break;
       }
       case 2: {  // insert a page somewhere
@@ -387,7 +387,7 @@ TEST(randomized_session_never_loses_a_row) {
         }
         keys.insert(keys.begin() + static_cast<std::ptrdiff_t>(at), inserted.begin(), inserted.end());
         Virtualizer::update(container, inputFor(keys, offset, fixture));
-        windowFresh = true;
+        rangeFresh = true;
         break;
       }
       case 3: {  // remove a page
@@ -397,7 +397,7 @@ TEST(randomized_session_never_loses_a_row) {
         std::size_t at = nextRandom() % (keys.size() - 10);
         keys.erase(keys.begin() + static_cast<std::ptrdiff_t>(at), keys.begin() + static_cast<std::ptrdiff_t>(at) + 8);
         Virtualizer::update(container, inputFor(keys, offset, fixture));
-        windowFresh = true;
+        rangeFresh = true;
         break;
       }
       default: {  // move a row
@@ -410,7 +410,7 @@ TEST(randomized_session_never_loses_a_row) {
         keys.erase(keys.begin() + static_cast<std::ptrdiff_t>(from));
         keys.insert(keys.begin() + static_cast<std::ptrdiff_t>(std::min(to, keys.size())), moved);
         Virtualizer::update(container, inputFor(keys, offset, fixture));
-        windowFresh = true;
+        rangeFresh = true;
         break;
       }
     }
@@ -418,7 +418,7 @@ TEST(randomized_session_never_loses_a_row) {
     std::string context = "randomized step " + std::to_string(step);
     CHECK_EQ(container.getRowCount(), keys.size());
     checkGeometryContiguous(container, context);
-    if (windowFresh) {
+    if (rangeFresh) {
       checkNoRowLost(container, context);
     }
   }
@@ -714,7 +714,7 @@ TEST(scroll_to_end_requested_during_momentum_lands_on_the_bottom) {
   Virtualizer::update(container, coasting);
 
   // The command arrives on top of the last momentum report.
-  container.requestScrollToRow(SCROLL_TO_END_INDEX, 1.0, -2);
+  container.requestScrollToRow(SCROLL_TO_END_INDEX, 1.0, UNDEFINED_INDEX);
   FrameInput command = inputFor(keys, 300.0, fixture);
   command.userScrolled = true;
   command.scrollPhase = ScrollPhase::Settling;
@@ -749,7 +749,7 @@ TEST(a_drag_cancels_a_scroll_command_but_momentum_does_not) {
   measureRows(container, std::vector<double>(keys.size(), 100.0));
   Virtualizer::update(container, inputFor(keys, 0.0, fixture));
 
-  container.requestScrollToRow(120.0, 1.0, -2);
+  container.requestScrollToRow(120, 1.0, UNDEFINED_INDEX);
   FrameInput command = inputFor(keys, 500.0, fixture);
   command.userScrolled = true;
   command.scrollPhase = ScrollPhase::Settling;

@@ -488,7 +488,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   }
   CGPoint offsetBeforeCorrection = _scrollView.contentOffset;
 
-  SL_LOG("mm.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
+  SHADOWLIST_LOG("mm.updateState: contentSize=(%.1f,%.1f) enabled=%d offset=(%.1f,%.1f) curOffset=(%.1f,%.1f)",
     nextStateData.contentWidth_, nextStateData.contentHeight_,
     nextStateData.offsetEnabled_ ? 1 : 0,
     nextStateData.offsetX_, nextStateData.offsetY_,
@@ -690,7 +690,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     return;
   }
 
-  SL_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f) userScrolled=%d token=%llu seq=%llu commit=%d",
+  SHADOWLIST_LOG("mm.scrollViewDidScroll: offset=(%.1f,%.1f) userScrolled=%d token=%llu seq=%llu commit=%d",
     scrollView.contentOffset.x, scrollView.contentOffset.y, userScrolled ? 1 : 0,
     (unsigned long long)_scrollSync.getEchoedToken(), (unsigned long long)report.patch.report.sequence,
     report.needsCommit ? 1 : 0);

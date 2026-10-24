@@ -21,7 +21,7 @@
 namespace azimgd::shadowlist {
 
 /*
- * Core passes per layout. Each pass measures the rows its window brought in or settles a
+ * Core passes per layout. Each pass measures the rows its measured range brought in or settles a
  * correction.
  */
 constexpr int MAX_CORE_PASSES_PER_LAYOUT = 4;
@@ -118,8 +118,8 @@ struct ScrollLanding {
 
 /*
  * The core driven the way a native list needs it. One synchronous layout runs update,
- * measure and correct until the window is measured and any correction landed. The host view
- * only mounts what the layout leaves in the window. It holds no platform types and is used
+ * measure and correct until the measured range is measured and any correction landed. The host
+ * view only mounts what the layout leaves in the measured range. It holds no platform types and is used
  * from one thread.
  */
 class ListDriver final {
@@ -176,7 +176,7 @@ public:
 
   /*
    * Rows whose content changed under the same key. They are measured again when they are next
-   * in the window.
+   * in the measured range.
    */
   void markRemeasure(const std::vector<std::size_t>& indices);
 
@@ -185,7 +185,7 @@ public:
   const std::string& getKeyAt(std::size_t index) const { return keys_[index]; }
 
   /*
-   * Run the core until the window is measured and any correction landed.
+   * Run the core until the measured range is measured and any correction landed.
    */
   PassResult runPasses(const PassInput& input);
 
@@ -273,8 +273,8 @@ public:
   bool restoreAnchorState(const AnchorState& anchor);
 
   /*
-   * Rows of the measured window that are not mounted get prefetched once, the core's window
-   * running an overscan ahead of the viewport. A prefetched row that leaves the window before
+   * Rows of the measured range that are not mounted get prefetched once, the measured range
+   * running an overscan ahead of the viewport. A prefetched row that leaves the range before
    * it was mounted is cancelled. Mounted is the range the host mounts, rows given as indices.
    * Results go into prefetch and cancel, low to high.
    */
@@ -333,7 +333,7 @@ private:
   void insertKeysInPlace(std::vector<std::pair<std::size_t, std::string>>& inserted);
   void insertKeysRebuilding(std::vector<std::pair<std::size_t, std::string>>& inserted);
   FrameInput makeFrameInput(const PassInput& input, double offset, bool firstPass) const;
-  bool measureWindow(double offset);
+  bool measureRange(double offset);
   void measureIndex(std::size_t index, SizeBatch& batch);
   PassResult finishPasses(double offset);
   double clampOffset(double target, const PassInput& input) const;

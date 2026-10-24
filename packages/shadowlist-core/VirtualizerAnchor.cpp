@@ -70,7 +70,7 @@ std::uint64_t operationId(Container& container, OperationType type, AnchorMode m
  */
 void requestFixed(Container& container, OperationType type) {
   if (container.operation && container.operation->type != type) {
-    SL_LOG("  op replaced: type=%d key=%s -> type=%d", static_cast<int>(container.operation->type),
+    SHADOWLIST_LOG("  op replaced: type=%d key=%s -> type=%d", static_cast<int>(container.operation->type),
       container.operation->target.key.c_str(), static_cast<int>(type));
   }
   container.operation =
@@ -89,7 +89,7 @@ void requestAnchor(
   double viewPosition = 0.0,
   double viewOffset = 0.0) {
   if (container.operation && (container.operation->type != type || container.operation->target.key != key)) {
-    SL_LOG("  op replaced: type=%d key=%s -> type=%d key=%s", static_cast<int>(container.operation->type),
+    SHADOWLIST_LOG("  op replaced: type=%d key=%s -> type=%d key=%s", static_cast<int>(container.operation->type),
       container.operation->target.key.c_str(), static_cast<int>(type), key.c_str());
   }
   container.operation =
@@ -240,7 +240,7 @@ ScrollStep driveOperation(
       bool reportedAtTarget = std::fabs(container.previousReportedOffset - target) < OFFSET_ARRIVED_THRESHOLD;
       if ((offsetConfirmed || reportedAtTarget) &&
           std::fabs(frame.currentOffset - target) < OFFSET_ARRIVED_THRESHOLD) {
-        SL_LOG("  op arrived: type=%d key=%s index=%zd target=%.1f", static_cast<int>(container.operation->type),
+        SHADOWLIST_LOG("  op arrived: type=%d key=%s index=%zd target=%.1f", static_cast<int>(container.operation->type),
           container.operation->target.key.c_str(),
           static_cast<std::ptrdiff_t>(container.operation->target.mode == AnchorMode::Row
             ? container.indexOfKey(container.operation->target.key) : UNDEFINED_INDEX),
@@ -265,7 +265,7 @@ ScrollStep driveOperation(
           return ScrollStep::Done;
         }
       } else {
-        // The offset moved. The caller picks the window again.
+        // The offset moved. The caller picks the measured range again.
         correctOffset(container, target);
         return ScrollStep::Corrected;
       }

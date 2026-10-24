@@ -14,8 +14,8 @@ namespace facebook::react {
 namespace {
 
 /*
- * The store functions as a TurboModule. They are synchronous and take only their arguments, so
- * the module hands out the plain JSI functions and keeps no state of its own.
+ * The store functions as a TurboModule. They are synchronous and take only their arguments. The
+ * module hands out the plain JSI functions and keeps no state of its own.
  */
 class ShadowListStoreModule final : public TurboModule {
 public:

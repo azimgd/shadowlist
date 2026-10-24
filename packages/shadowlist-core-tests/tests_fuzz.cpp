@@ -1,7 +1,7 @@
 /*
  * Randomized host simulation. A small model of the Fabric host drives the core through
  * random data changes, gestures, header and window changes and scroll commands, and checks
- * after every frame that the layout is consistent, the window covers the viewport, every
+ * after every frame that the layout is consistent, the measured range covers the viewport, every
  * correction settles, and the row the reader was looking at stays where it was.
  * Each test runs many seeds. A failure prints the seed and the steps that led to it. It
  * can be turned into a plain test.
@@ -323,7 +323,7 @@ std::string checkGeometry(const SimHost& host) {
 }
 
 /*
- * Every row that overlaps the viewport must be inside the measured window, or it is blank.
+ * Every row that overlaps the viewport must be inside the measured range, or it is blank.
  */
 std::string checkCoverage(const SimHost& host) {
   const Container& core = host.container;
@@ -341,10 +341,10 @@ std::string checkCoverage(const SimHost& host) {
       continue;
     }
     if (visible.low == UNDEFINED_INDEX) {
-      return "no window while row " + std::to_string(index) + " overlaps the viewport";
+      return "no measured range while row " + std::to_string(index) + " overlaps the viewport";
     }
     if (index < low || index > high) {
-      return "row " + std::to_string(index) + " overlaps the viewport outside window [" +
+      return "row " + std::to_string(index) + " overlaps the viewport outside the measured range [" +
         std::to_string(low) + ".." + std::to_string(high) + "] offset=" + std::to_string(offset);
     }
   }
@@ -405,9 +405,9 @@ void failWith(const SimHost& host, std::uint32_t seed, const std::string& what) 
 }
 
 /*
- * Geometry must hold after every frame. The window is only judged at rest, since a layout
+ * Geometry must hold after every frame. The measured range is only judged at rest, since a layout
  * pass that shrinks rows above the viewport moves rows into it before the next frame picks
- * the window again, and the mounted overscan covers that frame.
+ * the measured range again, and the mounted overscan covers that frame.
  */
 void checkFrame(const SimHost& host, std::uint32_t seed, bool atRest = false) {
   std::string geometry = checkGeometry(host);
@@ -1578,7 +1578,7 @@ TEST(fuzz_predicted_sizes_never_move_the_reader) {
 namespace {
 
 /*
- * Every row overlapping the host's viewport must be mounted: inside the core's window plus
+ * Every row overlapping the host's viewport must be mounted: inside the core's measured range plus
  * the rows the host pads around it. Checked during motion, where checkCoverage is too strict.
  */
 std::string checkMountedCoverage(const SimHost& host) {
@@ -1588,7 +1588,7 @@ std::string checkMountedCoverage(const SimHost& host) {
   }
   auto visible = core.getMeasuredRange();
   if (visible.low == UNDEFINED_INDEX) {
-    return "no window";
+    return "no measured range";
   }
   std::size_t low = visible.low;
   std::size_t high = visible.high;
@@ -1798,7 +1798,7 @@ TEST(fuzz_lists_grow_from_small_and_shrink_back) {
 namespace {
 
 /*
- * Every row overlapping the axis host's viewport is inside the core's window plus the host's pad.
+ * Every row overlapping the axis host's viewport is inside the core's measured range plus the host's pad.
  */
 std::string checkAxisCoverage(const AxisHost& host, std::size_t pad) {
   const Container& core = host.container;
@@ -1807,7 +1807,7 @@ std::string checkAxisCoverage(const AxisHost& host, std::size_t pad) {
   }
   auto visible = core.getMeasuredRange();
   if (visible.low == UNDEFINED_INDEX) {
-    return "no window";
+    return "no measured range";
   }
   std::size_t low = visible.low;
   std::size_t high = visible.high + pad;
@@ -1831,7 +1831,7 @@ std::string checkAxisCoverage(const AxisHost& host, std::size_t pad) {
 
 /*
  * Flings through grids, masonry with uneven tracks, and horizontal lists, plain or inverted.
- * Every frame mounts what is on screen, and at rest the window alone covers it.
+ * Every frame mounts what is on screen, and at rest the measured range alone covers it.
  */
 TEST(fuzz_grid_and_horizontal_flings_never_blank) {
   for (std::uint32_t seed = 1; seed <= 200; ++seed) {
@@ -1864,7 +1864,7 @@ TEST(fuzz_grid_and_horizontal_flings_never_blank) {
         /*
          * Masonry tracks drift apart as rows get measured. A layout pass that shrinks one
          * track can pull more of it into view than the pad holds, until the next frame picks
-         * the window again. Only single track lists are judged mid fling.
+         * the measured range again. Only single track lists are judged mid fling.
          */
         std::string coverage = host.numberOfColumns > 1 ? "" : checkAxisCoverage(host, host.mountPad);
         if (!coverage.empty()) {

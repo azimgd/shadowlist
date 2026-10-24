@@ -30,7 +30,7 @@ namespace facebook::react {
  * after a mount it calls needsTick, and while that is true tick on every display frame. A tick
  * sends the next paced step of the mounted range and the viewability reports whose
  * minimumViewTime passed. One driver is made with the list's first state and shared by every
- * copy, like ShadowListLiveScroll. Its own lock guards it, so a tick never waits on a commit.
+ * copy, like ShadowListLiveScroll. A tick never waits on a commit because its own lock guards it.
  */
 class ShadowListMountDriver final {
 public:
@@ -101,10 +101,10 @@ private:
     std::shared_ptr<const ShadowListViewEventEmitter> emitter;
     std::optional<azimgd::shadowlist::MountMessage> mount;
     bool viewability = false;
-    int activeStickyIndex = -1;
-    int visibleLow = -1;
-    int visibleHigh = -1;
-    std::vector<std::pair<int, azimgd::shadowlist::ViewabilityReport>> reports;
+    std::size_t activeStickyIndex = azimgd::shadowlist::UNDEFINED_INDEX;
+    std::size_t visibleLow = azimgd::shadowlist::UNDEFINED_INDEX;
+    std::size_t visibleHigh = azimgd::shadowlist::UNDEFINED_INDEX;
+    std::vector<std::pair<std::size_t, azimgd::shadowlist::ViewabilityReport>> reports;
     std::vector<std::size_t> prefetch;
     std::vector<std::size_t> cancel;
   };
@@ -127,14 +127,14 @@ private:
   std::vector<std::size_t> viewableRanges_;
   bool viewableDirty_ = false;
   bool interacted_ = false;
-  int activeStickyIndex_ = -1;
-  int visibleLow_ = -1;
-  int visibleHigh_ = -1;
+  std::size_t activeStickyIndex_ = azimgd::shadowlist::UNDEFINED_INDEX;
+  std::size_t visibleLow_ = azimgd::shadowlist::UNDEFINED_INDEX;
+  std::size_t visibleHigh_ = azimgd::shadowlist::UNDEFINED_INDEX;
   bool propsChanged_ = false;
 
   azimgd::shadowlist::PrefetchTracker prefetch_;
   azimgd::shadowlist::MountedRange prefetchMounted_;
-  int prefetchRows_ = 0;
+  std::size_t prefetchRows_ = 0;
 };
 
 }

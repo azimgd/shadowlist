@@ -277,7 +277,7 @@ PassResult ListDriver::runPasses(const PassInput& input) {
     keysChanged_ = false;
     pendingEdit_ = KeyEdit{};
     editsSinceUpdate_ = 0;
-    bool measured = measureWindow(offset);
+    bool measured = measureRange(offset);
 
     ContainerStateUpdate update = core.resolveStateUpdate(horizontal ? offset : 0, horizontal ? 0 : offset,
       core.revision.contentWidth, core.revision.contentHeight);
@@ -330,22 +330,22 @@ double ListDriver::clampOffset(double target, const PassInput& input) const {
 }
 
 /*
- * Give the core the size of every row in its window that has none yet, then reflow once.
+ * Give the core the size of every row in its measured range that has none yet, then reflow once.
  * Returns whether any size changed.
  */
-bool ListDriver::measureWindow(double offset) {
+bool ListDriver::measureRange(double offset) {
   Container& core = *core_;
   SizeBatch batch;
-  std::optional<MountedRange> window = getMeasuredRange();
-  if (!window) {
+  std::optional<MountedRange> measured = getMeasuredRange();
+  if (!measured) {
     return batch.commit(core);
   }
-  for (std::size_t index = window->low; index <= window->high; ++index) {
+  for (std::size_t index = measured->low; index <= measured->high; ++index) {
     measureIndex(index, batch);
   }
-  // The pinned section header needs its real size even when it sits far above the window.
+  // The pinned section header needs its real size even when it sits far above the measured range.
   std::size_t sticky = activeStickyIndex(offset);
-  if (sticky != UNDEFINED_INDEX && (sticky < window->low || sticky > window->high)) {
+  if (sticky != UNDEFINED_INDEX && (sticky < measured->low || sticky > measured->high)) {
     measureIndex(sticky, batch);
   }
   return batch.commit(core);
@@ -460,11 +460,11 @@ MountPlan ListDriver::planMount(
   plan.viewLow = offset - pad - leadingInset;
   plan.viewHigh = offset + windowAlong + pad + trailingInset;
   plan.sticky = activeStickyIndex(offset);
-  std::optional<MountedRange> window = getMeasuredRange();
-  if (!window) {
+  std::optional<MountedRange> measured = getMeasuredRange();
+  if (!measured) {
     return plan;
   }
-  for (std::size_t index = window->low; index <= window->high; ++index) {
+  for (std::size_t index = measured->low; index <= measured->high; ++index) {
     if (!overlaps(index, plan.viewLow, plan.viewHigh)) {
       continue;
     }

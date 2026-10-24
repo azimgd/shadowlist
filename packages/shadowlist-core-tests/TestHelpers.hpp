@@ -63,7 +63,7 @@ inline double sizeOf(const azimgd::shadowlist::Container& container, std::size_t
 
 /*
  * Every row that overlaps the screen plus overscanUnits screens on each side.
- * Done the slow and obvious way so window checks have something to compare against.
+ * Done the slow and obvious way so measured range checks have something to compare against.
  */
 inline std::set<std::size_t> overlappingIndices(const azimgd::shadowlist::Container& container, double overscanUnits) {
   double windowSize = container.horizontal
