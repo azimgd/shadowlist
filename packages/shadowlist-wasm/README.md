@@ -119,6 +119,13 @@ Then open `http://localhost:8080/templates/shadowlist-web-example/?SLRoute=Chat&
 `yarn test:wasm` at the repo root (`yarn workspace shadowlist-wasm run test`) runs `test/ShadowListKitCore.test.ts`
 against `dist/` in Node 22 or newer, without a browser. Run `yarn build:wasm` first.
 
+## Export names
+
+The wasm exports are `ShadowListKitCore_native*` and `ShadowListKitListState_*`, after the classes they serve. This is
+deliberate: `ShadowListKitCore.ts` mirrors Android's `ShadowListKitCore`, whose JNI functions carry the same
+`native*` names. A call reads the same on both hosts. shadowgrid-wasm names its exports `shadowgrid_*` in
+snake_case instead, as a C API for any host. Neither is meant to be renamed to the other.
+
 ## Debug log
 
 The core's `[SL]` log is off by default. `SHADOWLIST_DEBUG_LOG=1 ./build.sh` compiles it in and it prints to the

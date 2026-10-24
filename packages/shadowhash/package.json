@@ -16,7 +16,7 @@
   ],
   "scripts": {
     "test": "jest",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "keywords": [
     "placeholder",

@@ -34,7 +34,7 @@
     "clean": "rm -rf lib",
     "build": "bob build",
     "prepack": "bob build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest"
   },
   "keywords": [
