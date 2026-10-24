@@ -12,11 +12,7 @@ type ScrollBeginDragHandler = (event: ScrollEvent) => void;
 interface UseKeyboardDismissResponderOptions {
   keyboardDismissMode: 'none' | 'on-drag' | 'interactive';
   keyboardShouldPersistTaps:
-    | boolean
-    | 'always'
-    | 'never'
-    | 'handled'
-    | undefined;
+    boolean | 'always' | 'never' | 'handled' | undefined;
   onScrollBeginDrag: ScrollBeginDragHandler | undefined;
   recordInteraction: () => void;
 }
@@ -24,11 +20,9 @@ interface UseKeyboardDismissResponderOptions {
 interface UseKeyboardDismissResponderResult {
   handleScrollBeginDrag: ScrollBeginDragHandler;
   onStartShouldSetResponderCapture:
-    | ((event: GestureResponderEvent) => boolean)
-    | undefined;
+    ((event: GestureResponderEvent) => boolean) | undefined;
   onStartShouldSetResponder:
-    | ((event: GestureResponderEvent) => boolean)
-    | undefined;
+    ((event: GestureResponderEvent) => boolean) | undefined;
   onResponderRelease: (() => void) | undefined;
 }
 

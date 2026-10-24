@@ -39,8 +39,7 @@ export interface CellActionProps {
   contextMenuActions: NativeMenuAction[] | undefined;
   onSwipeAction: ((event: { nativeEvent: OnSwipeAction }) => void) | undefined;
   onContextMenuAction:
-    | ((event: { nativeEvent: OnContextMenuAction }) => void)
-    | undefined;
+    ((event: { nativeEvent: OnContextMenuAction }) => void) | undefined;
 }
 
 /*

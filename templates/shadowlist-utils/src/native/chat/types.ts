@@ -12,11 +12,7 @@ export interface ChatAuthor {
  * message can't be both sending and failed. Messages from others leave it unset.
  */
 export type ChatMessageStatus =
-  | 'sending'
-  | 'sent'
-  | 'delivered'
-  | 'read'
-  | 'failed';
+  'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 
 export interface ChatMessage {
   id: string;

@@ -14,8 +14,7 @@ interface UsePrefetchResult {
    */
   nativePrefetchRows: number;
   handlePrefetchChange:
-    | CodegenTypes.DirectEventHandler<OnPrefetchChange, never>
-    | undefined;
+    CodegenTypes.DirectEventHandler<OnPrefetchChange, never> | undefined;
 }
 
 /*

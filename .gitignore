@@ -21,6 +21,7 @@ coverage/
 
 # Benchmark output
 packages/shadowlist-core-bench/results/
+packages/shadowhash/bench/layout
 
 # OS
 .DS_Store

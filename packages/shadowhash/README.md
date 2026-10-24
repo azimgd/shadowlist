@@ -67,3 +67,9 @@ const store = createHashStore({
 
 The Feed screen in `templates/shadowlist-fabric-example` uses both: cached hashes on a cold start, and each page
 carries the hashes of the page after it so scrolling past the end shows rows of their real size.
+
+## Benchmarks
+
+`bench/run.sh` measures hash sizes and throughput over a 500-post corpus, and on macOS lays the placeholders out
+with CoreText against the real posts. At the feed's 15pt style a placeholder hits the real line count on 86% of
+posts and lands within one line on 99%, against 19% and 48% for a fixed three-line skeleton.

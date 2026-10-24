@@ -47,6 +47,9 @@ jobs:
       - name: Run utils unit tests
         run: yarn workspace shadowlist-utils run test --maxWorkers=2
 
+      - name: Run shadowhash unit tests
+        run: yarn workspace shadowhash run test --maxWorkers=2
+
   test-core:
     runs-on: ubuntu-latest
     defaults:

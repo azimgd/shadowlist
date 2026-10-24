@@ -25,7 +25,7 @@
   "scripts": {
     "build": "bash build.sh",
     "test": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "keywords": [
     "list",
