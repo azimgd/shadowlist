@@ -111,9 +111,7 @@ export interface AssistantEndMarker {
 }
 
 export type AssistantMessage =
-  | AssistantPrompt
-  | AssistantReply
-  | AssistantEndMarker;
+  AssistantPrompt | AssistantReply | AssistantEndMarker;
 
 export interface AssistantSuggestion {
   title: string;

@@ -85,9 +85,7 @@ export interface ViewableItemsChangedInfo<ItemT> {
 export interface ViewabilityConfigCallbackPair<ItemT> {
   viewabilityConfig: ViewabilityConfig;
   onViewableItemsChanged:
-    | ((info: ViewableItemsChangedInfo<ItemT>) => void)
-    | null
-    | undefined;
+    ((info: ViewableItemsChangedInfo<ItemT>) => void) | null | undefined;
 }
 
 /*
@@ -275,9 +273,7 @@ export interface ShadowListProps<ItemT> {
   prefetchDataSource?: PrefetchDataSource;
   prefetchRows?: number;
   ItemSeparatorComponent?:
-    | ReactElement
-    | ComponentType<ItemSeparatorProps<ItemT>>
-    | null;
+    ReactElement | ComponentType<ItemSeparatorProps<ItemT>> | null;
   ListHeaderComponent?: ReactElement | (() => ReactElement | null) | null;
   ListHeaderComponentStyle?: StyleProp<ViewStyle>;
   ListFooterComponent?: ReactElement | (() => ReactElement | null) | null;
@@ -392,9 +388,7 @@ export interface SectionListProps<ItemT, SectionT = object> extends Omit<
     | ComponentType<SectionItemSeparatorProps<ItemT, SectionT>>
     | null;
   SectionSeparatorComponent?:
-    | ReactElement
-    | ComponentType<SectionSeparatorProps<ItemT, SectionT>>
-    | null;
+    ReactElement | ComponentType<SectionSeparatorProps<ItemT, SectionT>> | null;
   getItemSizeSpec?: (
     item: ItemT,
     index: number,
@@ -440,7 +434,5 @@ export interface TreeListProps<ItemT> extends ShadowListForwardedProps {
     depth: number
   ) => ItemSizeSpec | null | undefined;
   ItemSeparatorComponent?:
-    | ReactElement
-    | ComponentType<ItemSeparatorProps<ItemT>>
-    | null;
+    ReactElement | ComponentType<ItemSeparatorProps<ItemT>> | null;
 }

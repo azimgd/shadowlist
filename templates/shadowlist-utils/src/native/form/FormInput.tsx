@@ -9,10 +9,7 @@ export interface FormInputProps {
   placeholder?: string;
   numeric?: boolean;
   keyboardType?:
-    | 'default'
-    | 'decimal-pad'
-    | 'numbers-and-punctuation'
-    | 'email-address';
+    'default' | 'decimal-pad' | 'numbers-and-punctuation' | 'email-address';
   autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
   autoCorrect?: boolean;
   returnKeyType?: 'done' | 'next' | 'go' | 'search' | 'send';
