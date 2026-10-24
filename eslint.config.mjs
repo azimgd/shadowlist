@@ -117,6 +117,7 @@ export default defineConfig([
       '**/metro.config.js',
       '**/react-native.config.js',
       'scripts/**/*.mjs',
+      'packages/shadowhash/bench/',
       'eslint.config.mjs',
       'templates/shadowlist-fabric-example/index.js',
       'templates/shadowlist-macos-example/index.js',
