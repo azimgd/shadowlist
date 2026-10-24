@@ -27,6 +27,13 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   @Nullable private ReadableArray mItemKeys = null;
   @Nullable private HashMap<String, Integer> mItemIndices = null;
 
+  /*
+   * The native key store JS keeps the keys in, and the version the props name, or 0 when the
+   * keys come in the rowKeys prop. See ShadowListKeys.
+   */
+  private long mKeysStore = 0;
+  private double mKeysVersion = 0;
+
   ShadowListAccessibility(ShadowListView view) {
     mView = view;
   }
@@ -34,6 +41,15 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   void setItemKeys(@Nullable ReadableArray keys) {
     mItemKeys = keys;
     mItemIndices = null;
+  }
+
+  void setKeysStore(long store, double version) {
+    mKeysStore = store;
+    mKeysVersion = version;
+  }
+
+  private boolean usesKeysStore() {
+    return mKeysStore > 0 && mKeysVersion > 0;
   }
 
   @Override
@@ -84,6 +100,9 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   }
 
   private int getItemCount() {
+    if (usesKeysStore()) {
+      return Math.max(0, ShadowListKeys.keyCount(mKeysStore, mKeysVersion));
+    }
     return mItemKeys != null ? mItemKeys.size() : 0;
   }
 
@@ -133,14 +152,15 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
 
   /*
    * The lowest and highest index of the mounted rows on screen, or null when none. Rows are
-   * looked up by key in the props' keys.
+   * looked up by key in the key store, or in the props' keys without one.
    */
   @Nullable
   private int[] visibleRange() {
-    if (mItemKeys == null) {
+    boolean fromStore = usesKeysStore();
+    if (!fromStore && mItemKeys == null) {
       return null;
     }
-    if (mItemIndices == null) {
+    if (!fromStore && mItemIndices == null) {
       HashMap<String, Integer> indices = new HashMap<>();
       for (int index = mItemKeys.size() - 1; index >= 0; index--) {
         indices.put(mItemKeys.getString(index), index);
@@ -164,8 +184,15 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
       if (end <= low || start >= high) {
         continue;
       }
-      Integer index = mItemIndices.get(((ShadowListCellView) view).getRowKey());
-      if (index == null) {
+      String rowKey = ((ShadowListCellView) view).getRowKey();
+      int index;
+      if (fromStore) {
+        index = rowKey != null ? ShadowListKeys.indexOfKey(mKeysStore, mKeysVersion, rowKey) : -1;
+      } else {
+        Integer found = mItemIndices.get(rowKey);
+        index = found != null ? found : -1;
+      }
+      if (index < 0) {
         continue;
       }
       first = first < 0 ? index : Math.min(first, index);

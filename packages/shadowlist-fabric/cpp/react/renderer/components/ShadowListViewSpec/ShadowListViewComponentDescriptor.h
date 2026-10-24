@@ -6,6 +6,7 @@
 #include "ShadowListMountDriver.h"
 #include "ShadowListOffsetBand.h"
 #include "ShadowListScrollEvent.h"
+#include "ShadowListStoreJsi.h"
 #include "ShadowListTextMeasurer.h"
 #include "ShadowListTrace.h"
 #include "ShadowListViewShadowNode.h"
@@ -56,6 +57,14 @@ private:
     azimgd::shadowlist::Container* containerManager,
     const std::shared_ptr<ShadowListMountDriver>& mountDriver);
 
+  /*
+   * The keys snapshot the props name in the list's key store, or null when the keys come in
+   * rowKeys. A version the store no longer has keeps the snapshot the core last took.
+   */
+  static std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> rowKeysSnapshot(
+    ShadowListViewGeometryCache* geometryCache,
+    const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps);
+
   static void viewableRulesFromProps(
     const std::vector<double>& values,
     std::vector<azimgd::shadowlist::ViewableRule>& rules);
@@ -69,7 +78,8 @@ private:
   static bool adoptLiveScrollReport(ShadowListViewShadowNode& listShadowNode, const ShadowListViewState& stateData);
 
   /*
-   * Turn rowSizeSpecs into predicted sizes for the core, a few rows per commit.
+   * Turn the row size specs into predicted sizes for the core, a few rows per commit: the
+   * store's specs of sizeSpecsVersion, or the rowSizeSpecs JSON without a store.
    * See azimgd::shadowlist::SizeSpecQueue.
    */
   void applyRowSizeSpecs(

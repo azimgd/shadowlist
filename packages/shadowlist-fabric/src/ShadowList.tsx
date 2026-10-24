@@ -54,6 +54,8 @@ import {
   type RowIndexStore,
   type CommandSource,
 } from './virtualizer';
+import { useListStore, type ListStore } from './virtualizer/nativeStore';
+import { usePlainSource, type RowSource } from './virtualizer/rowSource';
 import { selectedIndices } from './virtualizer/selection';
 import {
   SeparatorStore,
@@ -72,7 +74,7 @@ export { initialMountedRange, type MountedRange } from './virtualizer';
 
 /*
  * Shared empty arrays. An inline [] is a new object on every render, which forces a deep
- * props diff and skips the core's fast path for unchanged keys.
+ * props diff.
  */
 const EMPTY_STRINGS: ReadonlyArray<string> = [];
 const EMPTY_NUMBERS: ReadonlyArray<number> = [];
@@ -91,14 +93,26 @@ const DECELERATION_RATES = {
 };
 
 /*
+ * ShadowList's props with its rows given as a source instead of data. SectionList and TreeList
+ * render this with their own sources and never build an array of every row.
+ */
+export interface ShadowListBaseProps<ItemT> extends Omit<
+  ShadowListProps<ItemT>,
+  'data' | 'keyExtractor'
+> {
+  source: RowSource<ItemT>;
+  store: ListStore | null;
+}
+
+/*
  * The JS side of the native ShadowListView. It mounts only the rows near the screen and
  * passes native scroll, drag and refresh events to the hooks below.
  */
-function ShadowListInner<ItemT>(
+function ShadowListBaseInner<ItemT>(
   {
-    data: dataProp,
+    source: sourceProp,
+    store,
     renderItem,
-    keyExtractor = defaultKeyExtractor,
     style,
     itemStyle,
     inverted = false,
@@ -181,7 +195,7 @@ function ShadowListInner<ItemT>(
     accessibilityRole,
     accessibilityHint,
     testID,
-  }: ShadowListProps<ItemT>,
+  }: ShadowListBaseProps<ItemT>,
   ref: Ref<ShadowListCommands>
 ) {
   const shadowlistViewRef = useRef<ComponentRef<typeof ShadowListView> | null>(
@@ -242,47 +256,16 @@ function ShadowListInner<ItemT>(
 
   /*
    * During a refresh, hold new data until the spinner is gone so rows don't jump under
-   * the user. data is what we actually render.
+   * the user. source is what we actually render.
    */
-  const { data, handleRefreshSettle } = useRefreshDefer({
-    data: dataProp,
+  const { data: source, handleRefreshSettle } = useRefreshDefer({
+    data: sourceProp,
     refreshing,
     onRefresh,
     inverted,
     horizontal,
   });
-
-  /*
-   * Every row's key, built once per data change. Native uses them to follow rows across
-   * updates, and the hooks below share them. keyToIndex gives a key's first index. The
-   * first copy of a duplicate wins, same as the core.
-   * When the keys come out the same as last time, like an item edited in place, the previous
-   * array and map are returned. Then React sends no new rowKeys prop to native (no
-   * deep compare, no conversion of every key) and the hooks below keyed on them don't rerun.
-   */
-  const keysCacheRef = useRef<{
-    rowKeys: string[];
-    keyToIndex: Map<string, number>;
-  } | null>(null);
-  const { rowKeys, keyToIndex } = useMemo(() => {
-    const previous = keysCacheRef.current;
-    const keys = new Array<string>(data.length);
-    let same = previous !== null && previous.rowKeys.length === data.length;
-    for (let index = 0; index < data.length; index++) {
-      const key = keyExtractor(data[index]!, index);
-      keys[index] = key;
-      if (same && previous!.rowKeys[index] !== key) same = false;
-    }
-    if (same) return previous!;
-    const map = new Map<string, number>();
-    for (let index = 0; index < keys.length; index++) {
-      const key = keys[index]!;
-      if (!map.has(key)) map.set(key, index);
-    }
-    const next = { rowKeys: keys, keyToIndex: map };
-    keysCacheRef.current = next;
-    return next;
-  }, [data, keyExtractor]);
+  const rowCount = source.count;
 
   /*
    * Shared with every row. A row that skipped a move still answers a late index read.
@@ -291,8 +274,7 @@ function ShadowListInner<ItemT>(
   const rowIndexRef = useRef<RowIndexStore | null>(null);
   if (rowIndexRef.current === null) rowIndexRef.current = createRowIndexStore();
   const rowIndex = rowIndexRef.current;
-  rowIndex.keyToIndex = keyToIndex;
-  rowIndex.keys = rowKeys;
+  rowIndex.source = source;
 
   /*
    * Never mount fewer rows ahead during a fling than at rest. A fling needs them most.
@@ -307,8 +289,8 @@ function ShadowListInner<ItemT>(
     handleMountedRangeChange,
     seedAroundIndex,
   } = useMountedRange({
-    keys: rowKeys,
-    keyToIndex,
+    count: rowCount,
+    indexOfKey: source.indexOfKey,
     initialNumToRender,
     inverted,
     followAppends,
@@ -322,15 +304,14 @@ function ShadowListInner<ItemT>(
     handleDragStart,
     handleDragEnd,
   } = useDragReorder({
-    data,
-    keyToIndex,
+    source,
     mountedIndices,
     reorderEnabled,
     onMoveItem,
   });
 
   const renderIndices = usePersistentKeys({
-    keys: rowKeys,
+    source,
     persistentKeys,
     renderIndices: draggedIndices,
   });
@@ -361,8 +342,7 @@ function ShadowListInner<ItemT>(
     recordInteraction,
     visibleRangeRef,
   } = useViewability({
-    data,
-    keyToIndex,
+    source,
     pairs: viewabilityPairs,
   });
 
@@ -424,24 +404,24 @@ function ShadowListInner<ItemT>(
   /*
    * shouldSelectItem by index and by key, read when a row asks to be selected.
    */
-  const selectableRef = useRef({ data, keyToIndex, shouldSelectItem });
-  selectableRef.current = { data, keyToIndex, shouldSelectItem };
+  const selectableRef = useRef({ source, shouldSelectItem });
+  selectableRef.current = { source, shouldSelectItem };
   const canSelectIndex = useCallback((index: number) => {
-    const { data: currentData, shouldSelectItem: shouldSelect } =
+    const { source: currentSource, shouldSelectItem: shouldSelect } =
       selectableRef.current;
-    const item = currentData[index];
+    const item = currentSource.itemAt(index);
     return item !== undefined && (shouldSelect?.({ item, index }) ?? true);
   }, []);
   const canSelect = useCallback(
     (key: string) => {
-      const index = selectableRef.current.keyToIndex.get(key);
-      return index !== undefined && canSelectIndex(index);
+      const index = selectableRef.current.source.indexOfKey(key);
+      return index >= 0 && canSelectIndex(index);
     },
     [canSelectIndex]
   );
 
   const { selectedKeySet, selection, selectionStateRef } = useRowSelection({
-    keyToIndex,
+    source,
     selectedKeys,
     allowsMultipleSelection,
     onSelectionChange,
@@ -452,9 +432,7 @@ function ShadowListInner<ItemT>(
     enableSelectionOnKeyPress && Platform.OS === 'macos';
   const keySelectionProps = useKeySelection({
     enabled: keySelectionEnabled,
-    data,
-    keys: rowKeys,
-    keyToIndex,
+    source,
     selectionStateRef,
     selection,
     canSelectIndex,
@@ -489,30 +467,31 @@ function ShadowListInner<ItemT>(
   const { handleAnchorState, requestAnchorState, restoreAnchorState } =
     useAnchorState({
       viewRef: shadowlistViewRef,
-      rowIndex,
-      keyToIndex,
+      source,
       seedAroundIndex,
     });
 
   const commandSourceRef = useRef<CommandSource | null>(null);
   const commandSource: CommandSource = {
-    data,
-    keyToIndex,
+    count: rowCount,
+    indexOfItem: source.indexOfItem,
     highestMountedIndex: mountedHigh,
     contentLength: contentLengthRef.current,
     onScrollToIndexFailed,
     seedAroundIndex,
     recordInteraction,
     selectIndex: (index: number) => {
-      const key = rowKeys[index];
+      const key = source.keyAt(index);
       if (key !== undefined) selection.select(key);
     },
     deselectIndex: (index: number) => {
-      const key = rowKeys[index];
+      const key = source.keyAt(index);
       if (key !== undefined) selection.deselect(key);
     },
     getSelectedIndices: () =>
-      selectedIndices(selectionStateRef.current.keys, rowIndex.keyToIndex),
+      selectedIndices(selectionStateRef.current.keys, (key) =>
+        rowIndex.source.indexOfKey(key)
+      ),
     requestAnchorState,
     restoreAnchorState,
   };
@@ -577,15 +556,15 @@ function ShadowListInner<ItemT>(
 
   /*
    * Precomputed sizes for rows near the screen. Native knows their real heights before
-   * React renders them. Empty string when there is no getItemSizeSpec, which turns the
+   * React renders them. Nothing when there is no getItemSizeSpec, which turns the
    * feature off on both sides.
    */
-  const rowSizeSpecs = useRowSizeSpecs({
-    data,
-    keys: rowKeys,
+  const { rowSizeSpecs, sizeSpecsVersion } = useRowSizeSpecs({
+    source,
     getItemSizeSpec,
     mountedIndices,
     lookaheadRows: measureLookaheadRows,
+    store,
   });
 
   /*
@@ -653,8 +632,15 @@ function ShadowListInner<ItemT>(
   }
   const separatorStore = separatorStoreRef.current;
 
+  /*
+   * Rows that stick. A sectioned source has native work them out from its keys, and the prop
+   * stays empty. Otherwise they come from the source or the stickyIndices prop.
+   */
+  const stickyRows = source.nativeSticky
+    ? EMPTY_NUMBERS
+    : (source.stickyIndices ?? stickyIndices ?? EMPTY_NUMBERS);
   const stickyEnabled = Boolean(
-    stickyIndices && stickyIndices.length > 0 && renderStickyHeaderOverlay
+    (source.nativeSticky || stickyRows.length > 0) && renderStickyHeaderOverlay
   );
 
   const stickyOverlay = useMemo(
@@ -687,10 +673,9 @@ function ShadowListInner<ItemT>(
   useRenderTrace({
     startRef: traceRenderStartRef,
     viewRef: shadowlistViewRef,
-    data,
+    source,
     renderIndices,
     refreshing,
-    keyExtractor,
   });
 
   const viewableEventEnabled =
@@ -739,10 +724,13 @@ function ShadowListInner<ItemT>(
       viewableTimings={viewableTimings}
       viewabilityInteracted={viewabilityInteracted}
       visibleRangeEventEnabled={keySelectionEnabled}
-      rowKeys={rowKeys}
+      keysStore={store?.id ?? 0}
+      keysVersion={source.keysVersion}
       // Codegen wants a string array. Native only reads it. A ReadonlyArray is fine.
+      rowKeys={source.propKeys as string[]}
       nonAnchorKeys={(nonAnchorKeys ?? EMPTY_STRINGS) as string[]}
       rowSizeSpecs={rowSizeSpecs}
+      sizeSpecsVersion={sizeSpecsVersion}
       inverted={inverted}
       followAppends={followAppends}
       horizontal={horizontal}
@@ -750,7 +738,7 @@ function ShadowListInner<ItemT>(
       stickyFooter={stickyFooter}
       autoHideHeader={autoHideHeader}
       autoHideFooter={autoHideFooter}
-      stickyIndices={stickyIndices ?? EMPTY_NUMBERS}
+      stickyIndices={stickyRows as number[]}
       numberOfColumns={numberOfColumns}
       overscan={overscan}
       scrollIndex={scrollIndex}
@@ -802,18 +790,18 @@ function ShadowListInner<ItemT>(
           )}
         </ShadowListTemplateView>
       )}
-      {data.length === 0 && empty ? (
+      {rowCount === 0 && empty ? (
         <ShadowListTemplateView templateType="empty" style={crossPaddingStyle}>
           {empty}
         </ShadowListTemplateView>
       ) : (
         renderIndices.map((index) => {
-          const item = data[index];
+          const item = source.itemAt(index);
 
           if (!item) return null;
 
-          const rowKey = rowKeys[index]!;
-          const last = index >= data.length - 1;
+          const rowKey = source.keyAt(index)!;
+          const last = index >= rowCount - 1;
 
           return (
             <CellRenderer
@@ -830,7 +818,7 @@ function ShadowListInner<ItemT>(
               trailingItem={
                 last || SeparatorComponent === null
                   ? undefined
-                  : data[index + 1]
+                  : source.itemAt(index + 1)
               }
               separatorStore={separatorStore}
               selected={selectedKeySet.has(rowKey)}
@@ -882,6 +870,23 @@ const styles = StyleSheet.create({
     height: '100%',
   },
 });
+
+export const ShadowListBase = forwardRef(ShadowListBaseInner) as <ItemT>(
+  props: ShadowListBaseProps<ItemT> & { ref?: Ref<ShadowListCommands> }
+) => ReactElement;
+
+/*
+ * A list of data. Keys come from keyExtractor, and native gets them through the list's key
+ * store, only the ones that changed.
+ */
+function ShadowListInner<ItemT>(
+  { data, keyExtractor = defaultKeyExtractor, ...rest }: ShadowListProps<ItemT>,
+  ref: Ref<ShadowListCommands>
+) {
+  const store = useListStore();
+  const source = usePlainSource(data, keyExtractor, store);
+  return <ShadowListBase {...rest} ref={ref} source={source} store={store} />;
+}
 
 const ShadowList = forwardRef(ShadowListInner) as <ItemT>(
   props: ShadowListProps<ItemT> & { ref?: Ref<ShadowListCommands> }

@@ -124,9 +124,13 @@ export function grownMountedRange(
   };
 }
 
+/*
+ * count is the number of rows and indexOfKey a key lookup that takes where the key was as a
+ * hint.
+ */
 interface UseMountedRangeOptions {
-  keys: ReadonlyArray<string>;
-  keyToIndex: ReadonlyMap<string, number>;
+  count: number;
+  indexOfKey: (key: string, hint: number) => number;
   initialNumToRender: number;
   inverted: boolean;
   followAppends: boolean;
@@ -171,6 +175,8 @@ interface SeedTarget {
 interface MountedKeys {
   lowKey: string;
   highKey: string;
+  lowIndex: number;
+  highIndex: number;
   lowAtStart: boolean;
   highAtEnd: boolean;
   sequence: number;
@@ -183,8 +189,8 @@ interface MountedKeys {
  * a new scroll target, and how the edges grow with rows added past them.
  */
 export function useMountedRange({
-  keys,
-  keyToIndex,
+  count,
+  indexOfKey,
   initialNumToRender,
   inverted,
   followAppends,
@@ -242,15 +248,19 @@ export function useMountedRange({
    */
   const range = useMemo((): MountedRange => {
     if (mountedKeys !== null) {
-      const lowIndex = keyToIndex.get(mountedKeys.lowKey);
-      const highIndex = keyToIndex.get(mountedKeys.highKey);
-      if (lowIndex !== undefined && highIndex !== undefined) {
+      /*
+       * Where native had the edge rows is right while the data is the same, and close after
+       * most changes, so the lookup rarely leaves the rows around them.
+       */
+      const lowIndex = indexOfKey(mountedKeys.lowKey, mountedKeys.lowIndex);
+      const highIndex = indexOfKey(mountedKeys.highKey, mountedKeys.highIndex);
+      if (lowIndex >= 0 && highIndex >= 0) {
         return grownMountedRange(
           lowIndex,
           highIndex,
           mountedKeys.lowAtStart,
           mountedKeys.highAtEnd,
-          keys.length,
+          count,
           mountOverscanRowsLeading,
           inverted && followAppends
         );
@@ -258,7 +268,7 @@ export function useMountedRange({
     }
     if (commandSeed !== null) {
       return initialMountedRange(
-        keys.length,
+        count,
         initialNumToRender,
         inverted,
         commandSeed.index,
@@ -267,7 +277,7 @@ export function useMountedRange({
       );
     }
     return initialMountedRange(
-      keys.length,
+      count,
       initialNumToRender,
       inverted,
       scrollIndex,
@@ -275,8 +285,8 @@ export function useMountedRange({
     );
   }, [
     mountedKeys,
-    keyToIndex,
-    keys.length,
+    indexOfKey,
+    count,
     initialNumToRender,
     inverted,
     followAppends,
@@ -289,7 +299,7 @@ export function useMountedRange({
   const mountedIndices = useMemo(() => {
     if (commandSeed === null) return rangeToIndices(range);
     const target = initialMountedRange(
-      keys.length,
+      count,
       initialNumToRender,
       inverted,
       commandSeed.index,
@@ -303,7 +313,7 @@ export function useMountedRange({
     const onScreen =
       mountedKeys === null
         ? initialMountedRange(
-            keys.length,
+            count,
             initialNumToRender,
             inverted,
             scrollIndex,
@@ -315,7 +325,7 @@ export function useMountedRange({
     range,
     mountedKeys,
     commandSeed,
-    keys.length,
+    count,
     initialNumToRender,
     inverted,
     scrollIndex,
@@ -340,8 +350,16 @@ export function useMountedRange({
     OnMountedRangeChange,
     never
   > = useCallback((event) => {
-    const { lowKey, highKey, lowAtStart, highAtEnd, sequence, landed } =
-      event.nativeEvent;
+    const {
+      lowKey,
+      highKey,
+      lowIndex,
+      highIndex,
+      lowAtStart,
+      highAtEnd,
+      sequence,
+      landed,
+    } = event.nativeEvent;
     // Built on a range this hook has since rebuilt.
     if (event.nativeEvent.generation !== generationRef.current) return;
     // The scroll landed. Returning the same value skips the re-render.
@@ -350,7 +368,15 @@ export function useMountedRange({
     if (slTraceEnabled()) {
       slTrace(`vis apply keys=${lowKey}..${highKey} seq=${sequence}`);
     }
-    setMountedKeys({ lowKey, highKey, lowAtStart, highAtEnd, sequence });
+    setMountedKeys({
+      lowKey,
+      highKey,
+      lowIndex,
+      highIndex,
+      lowAtStart,
+      highAtEnd,
+      sequence,
+    });
   }, []);
 
   return {

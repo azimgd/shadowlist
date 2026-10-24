@@ -6,6 +6,7 @@ import {
   needsScrollIntoView,
   nextSelectableIndex,
 } from './keySelection';
+import type { RowSource } from './rowSource';
 import type { MountedRange } from './useMountedRange';
 
 interface ShadowListViewRef {
@@ -14,9 +15,7 @@ interface ShadowListViewRef {
 
 interface UseKeySelectionOptions<ItemT> {
   enabled: boolean;
-  data: ReadonlyArray<ItemT>;
-  keys: ReadonlyArray<string>;
-  keyToIndex: ReadonlyMap<string, number>;
+  source: RowSource<ItemT>;
   selectionStateRef: { current: { keys: ReadonlyArray<string> } };
   selection: RowSelection;
   canSelectIndex: (index: number) => boolean;
@@ -44,9 +43,7 @@ export interface KeySelectionProps {
  */
 export function useKeySelection<ItemT>({
   enabled,
-  data,
-  keys,
-  keyToIndex,
+  source: rowSource,
   selectionStateRef,
   selection,
   canSelectIndex,
@@ -55,27 +52,25 @@ export function useKeySelection<ItemT>({
   seedAroundIndex,
   viewRef,
 }: UseKeySelectionOptions<ItemT>): KeySelectionProps | null {
-  const sourceRef = useRef({ data, keys, keyToIndex, onActivateItem });
-  sourceRef.current = { data, keys, keyToIndex, onActivateItem };
+  const sourceRef = useRef({ rows: rowSource, onActivateItem });
+  sourceRef.current = { rows: rowSource, onActivateItem };
 
   const handleKeyDown = useCallback(
     (event: { nativeEvent: { key: string } }) => {
       const source = sourceRef.current;
       const selectedKey = selectionStateRef.current.keys[0];
       const current =
-        selectedKey === undefined
-          ? -1
-          : (source.keyToIndex.get(selectedKey) ?? -1);
+        selectedKey === undefined ? -1 : source.rows.indexOfKey(selectedKey);
       const { key } = event.nativeEvent;
       if (key === 'ArrowUp' || key === 'ArrowDown') {
         const step = key === 'ArrowUp' ? -1 : 1;
         const next = nextSelectableIndex(
           current,
           step,
-          source.data.length,
+          source.rows.count,
           canSelectIndex
         );
-        const nextKey = source.keys[next];
+        const nextKey = source.rows.keyAt(next);
         if (nextKey === undefined) return;
         selection.selectOnly(nextKey);
         const view = viewRef.current;
@@ -86,7 +81,7 @@ export function useKeySelection<ItemT>({
         }
         return;
       }
-      const item = source.data[current];
+      const item = source.rows.itemAt(current);
       if (item !== undefined) {
         source.onActivateItem?.({ item, index: current });
       }

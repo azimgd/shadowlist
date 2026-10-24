@@ -59,11 +59,13 @@ public:
   void reportViewable(const std::vector<std::size_t>& ranges);
 
   /*
-   * Finish the commit after the core's update and send what changed. stickyIndices are sorted.
+   * Finish the commit after the core's update and send what changed. keys are the rows the core
+   * took in, and stickyIndices are sorted.
    */
   void endCommit(
     const azimgd::shadowlist::Container& core,
     const ShadowListViewProps& props,
+    const std::vector<std::string>& keys,
     const std::vector<std::size_t>& stickyIndices);
 
   /*

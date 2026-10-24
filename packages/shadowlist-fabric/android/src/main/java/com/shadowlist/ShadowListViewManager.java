@@ -87,6 +87,24 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
+  @ReactProp(name = "keysStore")
+  public void setKeysStore(ShadowListView view, double keysStore) {
+    view.setKeysStore((long) keysStore);
+  }
+
+  @Override
+  @ReactProp(name = "keysVersion")
+  public void setKeysVersion(ShadowListView view, double keysVersion) {
+    view.setKeysVersion(keysVersion);
+  }
+
+  @Override
+  @ReactProp(name = "sizeSpecsVersion")
+  public void setSizeSpecsVersion(ShadowListView view, double sizeSpecsVersion) {
+    // Only the core reads this prop.
+  }
+
+  @Override
   @ReactProp(name = "nonAnchorKeys")
   public void setNonAnchorKeys(
       ShadowListView view, @Nullable ReadableArray nonAnchorKeys) {

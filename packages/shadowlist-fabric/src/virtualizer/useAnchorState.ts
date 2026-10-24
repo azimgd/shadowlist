@@ -4,7 +4,7 @@ import ShadowListView, {
   type OnAnchorState,
 } from '../ShadowListViewNativeComponent';
 import type { AnchorState } from '../types';
-import type { RowIndexStore } from './CellRenderer';
+import { keysIdentityOf, type RowSource } from './rowSource';
 
 /*
  * Longest wait for native to answer getAnchorState.
@@ -13,8 +13,7 @@ const ANCHOR_STATE_TIMEOUT_MS = 1000;
 
 interface UseAnchorStateOptions {
   viewRef: { current: ComponentRef<typeof ShadowListView> | null };
-  rowIndex: RowIndexStore;
-  keyToIndex: ReadonlyMap<string, number>;
+  source: RowSource<unknown>;
   seedAroundIndex: (index: number, viewPosition: number) => void;
 }
 
@@ -31,8 +30,7 @@ interface UseAnchorStateResult {
  */
 export function useAnchorState({
   viewRef,
-  rowIndex,
-  keyToIndex,
+  source,
   seedAroundIndex,
 }: UseAnchorStateOptions): UseAnchorStateResult {
   const anchorWaitersRef = useRef<((state: AnchorState | null) => void)[]>([]);
@@ -66,9 +64,9 @@ export function useAnchorState({
     });
 
   const restoreAnchorState = (state: AnchorState) => {
-    const index = rowIndex.keyToIndex.get(state.key);
+    const index = source.indexOfKey(state.key);
     const view = viewRef.current;
-    if (index === undefined || !view) {
+    if (index < 0 || !view) {
       pendingAnchorRef.current = state;
       return;
     }
@@ -80,12 +78,15 @@ export function useAnchorState({
   // The pending anchor is restored by the latest render's restoreAnchorState.
   const restoreAnchorStateRef = useRef(restoreAnchorState);
   restoreAnchorStateRef.current = restoreAnchorState;
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const keysIdentity = keysIdentityOf(source);
   useEffect(() => {
     const pending = pendingAnchorRef.current;
-    if (pending && keyToIndex.has(pending.key)) {
+    if (pending && sourceRef.current.indexOfKey(pending.key) >= 0) {
       restoreAnchorStateRef.current(pending);
     }
-  }, [keyToIndex]);
+  }, [keysIdentity]);
 
   return { handleAnchorState, requestAnchorState, restoreAnchorState };
 }

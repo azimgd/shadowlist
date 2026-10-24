@@ -3,11 +3,11 @@ import type { CodegenTypes } from 'react-native';
 import type { OnViewabilityChange } from '../ShadowListViewNativeComponent';
 import type { ViewabilityConfigCallbackPair, ViewToken } from '../types';
 import type { MountedRange } from './useMountedRange';
+import type { RowSource } from './rowSource';
 import { viewableRulesFor, viewableTimingsFor } from './viewability';
 
 interface UseViewabilityOptions<ItemT> {
-  data: ReadonlyArray<ItemT>;
-  keyToIndex: ReadonlyMap<string, number>;
+  source: RowSource<ItemT>;
   pairs: ReadonlyArray<ViewabilityConfigCallbackPair<ItemT>>;
 }
 
@@ -31,8 +31,7 @@ interface UseViewabilityResult {
  * the data and calls back.
  */
 export function useViewability<ItemT>({
-  data,
-  keyToIndex,
+  source,
   pairs,
 }: UseViewabilityOptions<ItemT>): UseViewabilityResult {
   const [activeStickyIndex, setActiveStickyIndex] = useState(-1);
@@ -56,8 +55,8 @@ export function useViewability<ItemT>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configsSignature]);
 
-  const latestRef = useRef({ data, keyToIndex, pairs });
-  latestRef.current = { data, keyToIndex, pairs };
+  const latestRef = useRef({ source, pairs });
+  latestRef.current = { source, pairs };
 
   /*
    * The tokens each config reported last, by key. A row that stops being viewable is reported
@@ -87,8 +86,7 @@ export function useViewability<ItemT>({
     setActiveStickyIndex((previous) =>
       previous === active ? previous : active
     );
-    const { data: currentData, keyToIndex: currentKeyToIndex } =
-      latestRef.current;
+    const currentSource = latestRef.current.source;
     for (const change of changes) {
       const pair = latestRef.current.pairs[change.config];
       if (!pair) continue;
@@ -97,10 +95,13 @@ export function useViewability<ItemT>({
         new Map<string, ViewToken<ItemT>>();
       const reported = new Map<string, ViewToken<ItemT>>();
       const viewableItems: ViewToken<ItemT>[] = [];
+      // Viewable keys come in row order, so each one is looked for after the one before.
+      let hint = visibleLow;
       for (const key of change.viewableKeys) {
-        const index = currentKeyToIndex.get(key);
-        const item = index === undefined ? undefined : currentData[index];
-        if (index === undefined || item === undefined) continue;
+        const index = currentSource.indexOfKey(key, hint);
+        const item = index < 0 ? undefined : currentSource.itemAt(index);
+        if (index < 0 || item === undefined) continue;
+        hint = index + 1;
         const token = { item, index, key, isViewable: true };
         viewableItems.push(token);
         reported.set(key, token);

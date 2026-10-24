@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type ComponentRef } from 'react';
 import type ShadowListView from '../ShadowListViewNativeComponent';
+import type { RowSource } from './rowSource';
 import {
   describeDataChange,
   nativeTagOf,
@@ -9,13 +10,12 @@ import {
   takeRowRenderCount,
 } from './helpers';
 
-interface UseRenderTraceOptions<ItemT> {
+interface UseRenderTraceOptions {
   startRef: { current: number };
   viewRef: { current: ComponentRef<typeof ShadowListView> | null };
-  data: ReadonlyArray<ItemT>;
+  source: RowSource<unknown>;
   renderIndices: ReadonlyArray<number>;
   refreshing: boolean;
-  keyExtractor: (item: ItemT, index: number) => string;
 }
 
 /*
@@ -34,28 +34,27 @@ export function useRenderTraceStart(): { current: number } {
  * Device trace only. One render line per commit with the mounted rows, the rows rendered
  * since the last line, the render time and how data changed.
  */
-export function useRenderTrace<ItemT>({
+export function useRenderTrace({
   startRef,
   viewRef,
-  data,
+  source,
   renderIndices,
   refreshing,
-  keyExtractor,
-}: UseRenderTraceOptions<ItemT>): void {
-  const traceDataRef = useRef<ReadonlyArray<ItemT> | null>(null);
+}: UseRenderTraceOptions): void {
+  const traceDataRef = useRef<RowSource<unknown> | null>(null);
   useLayoutEffect(() => {
     if (!slTraceEnabled()) return;
     const previousData = traceDataRef.current;
-    traceDataRef.current = data;
+    traceDataRef.current = source;
     const first = renderIndices[0] ?? -1;
     const last = renderIndices[renderIndices.length - 1] ?? -1;
     const elapsed = slTraceNow() - startRef.current;
     slTrace(
-      `render id=${nativeTagOf(viewRef.current)} n=${data.length}` +
+      `render id=${nativeTagOf(viewRef.current)} n=${source.count}` +
         ` mounted=${first}..${last} rows=${takeRowRenderCount()}` +
         ` jsms=${elapsed.toFixed(1)} refreshing=${refreshing ? 1 : 0}` +
-        (previousData !== data
-          ? ` data=${describeDataChange(previousData, data, keyExtractor)}`
+        (previousData !== source
+          ? ` data=${describeDataChange(previousData, source)}`
           : '')
     );
   });

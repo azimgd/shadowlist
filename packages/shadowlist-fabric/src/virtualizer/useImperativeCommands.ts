@@ -21,8 +21,8 @@ interface ItemSizesRef {
  * What the commands read at call time, refreshed on every render.
  */
 export interface CommandSource {
-  data: ReadonlyArray<unknown>;
-  keyToIndex: ReadonlyMap<string, number>;
+  count: number;
+  indexOfItem: (item: unknown) => number;
   highestMountedIndex: number;
   contentLength: number;
   onScrollToIndexFailed: ((info: ScrollToIndexFailedInfo) => void) | undefined;
@@ -85,12 +85,8 @@ export function useImperativeCommands(
     const scrollToIndex = (params: ScrollToIndexParams) => {
       const source = sourceRef.current;
       const { index } = params;
-      if (
-        !Number.isInteger(index) ||
-        index < 0 ||
-        index >= source.data.length
-      ) {
-        const count = source.data.length;
+      if (!Number.isInteger(index) || index < 0 || index >= source.count) {
+        const count = source.count;
         const info: ScrollToIndexFailedInfo = {
           index,
           highestMeasuredFrameIndex: source.highestMountedIndex,
@@ -115,7 +111,7 @@ export function useImperativeCommands(
     };
 
     const scrollToItem = (params: ScrollToItemParams) => {
-      const index = sourceRef.current.data.indexOf(params.item);
+      const index = sourceRef.current.indexOfItem(params.item);
       if (index < 0) return;
       scrollToRow(
         index,
@@ -135,7 +131,7 @@ export function useImperativeCommands(
           ? { offset: offsetOrParams, animated: animated ?? true }
           : offsetOrParams;
       // The start is the one offset whose rows are known. Mount them before the jump.
-      if (params.offset <= 0 && sourceRef.current.data.length > 0) {
+      if (params.offset <= 0 && sourceRef.current.count > 0) {
         sourceRef.current.seedAroundIndex(0, 0);
       }
       Commands.scrollToOffset(
@@ -154,7 +150,7 @@ export function useImperativeCommands(
           ? (animatedOrParams.animated ?? true)
           : (animatedOrParams ?? true);
       // Mount the last rows first. A host that lands at once would show them blank.
-      const count = sourceRef.current.data.length;
+      const count = sourceRef.current.count;
       if (count > 0) {
         sourceRef.current.seedAroundIndex(count - 1, 1);
       }

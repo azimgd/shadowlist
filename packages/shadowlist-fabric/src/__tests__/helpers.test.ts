@@ -21,6 +21,7 @@ import { SeparatorStore } from '../virtualizer/separators';
 
 const keys = ['a', 'b', 'c', 'd', 'e', 'f'];
 const keyToIndex = new Map(keys.map((key, index) => [key, index]));
+const indexOfKey = (key: string) => keyToIndex.get(key) ?? -1;
 
 describe('viewableRulesFor', () => {
   it('starts with any overlap and adds one rule per config', () => {
@@ -70,9 +71,9 @@ describe('selection', () => {
 
   it('drops removed rows and reports indices low to high', () => {
     const selected = ['c', 'a'];
-    expect(retainKeys(selected, keyToIndex)).toBe(selected);
-    expect(retainKeys(['a', 'gone'], keyToIndex)).toEqual(['a']);
-    expect(selectedIndices(selected, keyToIndex)).toEqual([0, 2]);
+    expect(retainKeys(selected, indexOfKey)).toBe(selected);
+    expect(retainKeys(['a', 'gone'], indexOfKey)).toEqual(['a']);
+    expect(selectedIndices(selected, indexOfKey)).toEqual([0, 2]);
   });
 });
 

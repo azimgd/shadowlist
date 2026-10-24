@@ -479,6 +479,23 @@ public class ShadowListView extends FrameLayout {
     mAccessibility.setItemKeys(keys);
   }
 
+  /*
+   * The native key store JS keeps the keys in and the version the props name, which replace
+   * the rowKeys prop when set. See ShadowListKeys.
+   */
+  private long mKeysStore = 0;
+  private double mKeysVersion = 0;
+
+  public void setKeysStore(long keysStore) {
+    mKeysStore = keysStore;
+    mAccessibility.setKeysStore(mKeysStore, mKeysVersion);
+  }
+
+  public void setKeysVersion(double keysVersion) {
+    mKeysVersion = keysVersion;
+    mAccessibility.setKeysStore(mKeysStore, mKeysVersion);
+  }
+
   public void setSnapToItem(boolean snapToItem) {
     mSnapToItem = snapToItem;
   }

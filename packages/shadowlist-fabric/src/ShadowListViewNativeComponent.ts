@@ -7,13 +7,16 @@ import {
 } from 'react-native';
 
 /*
- * The next rows to mount, by the keys at both ends. Sequence and generation go back to native in
- * the mountedSequence and mountedGeneration props once applied. A landed event only says a
- * scroll command's rows can unmount.
+ * The next rows to mount, by the keys at both ends. lowIndex and highIndex are where those rows
+ * were in the keys native had, a hint that saves JS a lookup while the data is unchanged.
+ * Sequence and generation go back to native in the mountedSequence and mountedGeneration props
+ * once applied. A landed event only says a scroll command's rows can unmount.
  */
 export type OnMountedRangeChange = {
   lowKey: string;
   highKey: string;
+  lowIndex: CodegenTypes.Int32;
+  highIndex: CodegenTypes.Int32;
   lowAtStart: boolean;
   highAtEnd: boolean;
   sequence: CodegenTypes.Double;
@@ -140,8 +143,18 @@ interface NativeCommands {
   ) => void;
 }
 
+/*
+ * The row keys live in the list's native key store, written through the ShadowListStore
+ * module: keysStore is the store's id and keysVersion the version this render wrote, see
+ * ShadowListStoreJsi.h. sizeSpecsVersion names the row size specs written there the same way.
+ * Without the module, keysStore is 0 and the keys come in rowKeys, the specs as JSON in
+ * rowSizeSpecs.
+ */
 interface NativeProps extends ViewProps {
-  rowKeys: string[];
+  keysStore?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  keysVersion?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  sizeSpecsVersion?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
+  rowKeys?: string[];
   nonAnchorKeys: string[];
   rowSizeSpecs?: CodegenTypes.WithDefault<string, ''>;
   inverted: boolean;

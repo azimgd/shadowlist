@@ -1,7 +1,12 @@
 import { View } from 'react-native';
 import { describe, expect, it } from '@jest/globals';
 import { defaultKeyExtractor } from '../virtualizer/helpers';
-import { flattenSections } from '../virtualizer/sectionRows';
+import {
+  buildSectionSource,
+  createSectionSourceState,
+  rowsOf,
+} from '../virtualizer/sectionSource';
+import { itemRowKey } from '../virtualizer/sectionKeys';
 import type { SectionListProps, ShadowListProps } from '../types';
 
 describe('defaultKeyExtractor', () => {
@@ -27,15 +32,17 @@ describe('defaultKeyExtractor', () => {
 describe('section rows without a keyExtractor', () => {
   it('key items by id and fall back to the index', () => {
     const data: ReadonlyArray<object> = [{ id: 'a' }, { title: 'b' }];
-    const { rows } = flattenSections(
+    const source = buildSectionSource(
+      createSectionSourceState<object, object>(),
       [{ key: 's', data }],
       undefined,
-      false,
-      false,
-      false,
-      new Map()
+      { hasHeader: false, hasFooter: false, stickyEnabled: false },
+      null
     );
-    expect(rows.map((row) => row.id)).toEqual(['si:s:a', 'si:s:1']);
+    expect(rowsOf(source).map((row) => row.id)).toEqual([
+      itemRowKey('s', 'a'),
+      itemRowKey('s', '1'),
+    ]);
   });
 });
 

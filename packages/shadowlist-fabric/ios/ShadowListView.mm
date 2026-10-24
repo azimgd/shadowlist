@@ -14,6 +14,7 @@
 
 #include "ShadowListMountDriver.h"
 #include "ShadowListScrollEvent.h"
+#include "ShadowListStoreModule.h"
 
 #include <shadowlist-core/host/Snap.hpp>
 
@@ -109,6 +110,14 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 @implementation ShadowListView
 
 #pragma mark - Lifecycle
+
+/*
+ * The ShadowListStore TurboModule has to be registered before JS first asks for it.
+ */
++ (void)load
+{
+  facebook::react::registerShadowListStoreModule();
+}
 
 + (ComponentDescriptorProvider)componentDescriptorProvider
 {

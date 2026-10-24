@@ -10,7 +10,7 @@ import {
   type Ref,
   type ReactElement,
 } from 'react';
-import ShadowList from './ShadowList';
+import { ShadowListBase } from './ShadowList';
 import type {
   ItemSeparatorProps,
   RenderItemInfo,
@@ -19,37 +19,22 @@ import type {
   TreeListCommands,
 } from './types';
 import { forwardedCommands } from './virtualizer';
+import { useListStore } from './virtualizer/nativeStore';
+import {
+  buildTreeSource,
+  createTreeSourceState,
+  type TreeFlatRow,
+  type TreeSourceState,
+  type TreeToggle,
+} from './virtualizer/treeSource';
 
 /*
  * TreeList sits on top of ShadowList, like SectionList does for sections. It flattens the
  * nodes whose parents are all expanded into one list and skips collapsed branches. Rows
- * are keyed by node key so they survive an expand or collapse.
+ * are keyed by node key so they survive an expand or collapse. An expand or collapse splices
+ * only the toggled node's rows, here and in native, which keeps the row keys, see
+ * treeSource.ts.
  */
-
-interface TreeFlatRow<ItemT> {
-  id: string;
-  item: ItemT;
-  depth: number;
-  hasChildren: boolean;
-  isExpanded: boolean;
-}
-
-/*
- * Whether the row built for this position matches the mounted one. Everything renderRow
- * reads has to match, or a reused row would show stale content.
- */
-function sameRow<ItemT>(
-  previous: TreeFlatRow<ItemT> | undefined,
-  next: TreeFlatRow<ItemT>
-): previous is TreeFlatRow<ItemT> {
-  return (
-    previous !== undefined &&
-    previous.item === next.item &&
-    previous.depth === next.depth &&
-    previous.hasChildren === next.hasChildren &&
-    previous.isExpanded === next.isExpanded
-  );
-}
 
 function toSet(
   keys: ReadonlyArray<string> | ReadonlySet<string> | undefined
@@ -92,54 +77,34 @@ function TreeListInner<ItemT>(
   expandedRef.current = expandedSet;
 
   /*
-   * Rows from the last flatten, by id. An unchanged row keeps its previous object. The list
-   * mounts rows by identity. Without this an expand or collapse re-renders every row.
+   * The visible rows, rebuilt for new data and spliced for an expand or collapse. Rows keep
+   * their objects while nothing they render from changed, since the list mounts rows by
+   * identity.
    */
-  const previousRowsRef = useRef<Map<string, TreeFlatRow<ItemT>>>(new Map());
-
-  const { data: rows, indexByKey } = useMemo(() => {
-    const flat: TreeFlatRow<ItemT>[] = [];
-    const byKey = new Map<string, number>();
-    const previousRows = previousRowsRef.current;
-    const nextRows = new Map<string, TreeFlatRow<ItemT>>();
-
-    interface Frame {
-      item: ItemT;
-      depth: number;
-    }
-    const stack: Frame[] = [];
-    for (let index = data.length - 1; index >= 0; index--) {
-      stack.push({ item: data[index] as ItemT, depth: 0 });
-    }
-
-    while (stack.length > 0) {
-      const { item, depth } = stack.pop() as Frame;
-      const id = keyExtractor(item);
-      const children = getChildren(item);
-      const hasChildren = !!children && children.length > 0;
-      const isExpanded = hasChildren && expandedSet.has(id);
-
-      byKey.set(id, flat.length);
-      const row = { id, item, depth, hasChildren, isExpanded };
-      const previousRow = previousRows.get(id);
-      const finalRow = sameRow(previousRow, row) ? previousRow : row;
-      nextRows.set(id, finalRow);
-      flat.push(finalRow);
-
-      if (isExpanded && children) {
-        for (let index = children.length - 1; index >= 0; index--) {
-          stack.push({
-            item: children[index] as ItemT,
-            depth: depth + 1,
-          });
-        }
-      }
-    }
-
-    previousRowsRef.current = nextRows;
-
-    return { data: flat, indexByKey: byKey };
-  }, [data, getChildren, keyExtractor, expandedSet]);
+  const store = useListStore();
+  const sourceStateRef = useRef<TreeSourceState<ItemT> | null>(null);
+  if (sourceStateRef.current === null) {
+    sourceStateRef.current = createTreeSourceState();
+  }
+  const sourceState = sourceStateRef.current;
+  /*
+   * The last toggle. The next flatten then knows which key changed. Without it, as when the
+   * caller controls expandedKeys, both sets are compared.
+   */
+  const toggleRef = useRef<TreeToggle | null>(null);
+  const source = useMemo(
+    () =>
+      buildTreeSource(
+        sourceState,
+        data,
+        getChildren,
+        keyExtractor,
+        expandedSet,
+        store,
+        toggleRef.current
+      ),
+    [sourceState, data, getChildren, keyExtractor, expandedSet, store]
+  );
 
   /*
    * Read through a ref. An inline onExpandedChange then doesn't give renderRow a new identity
@@ -150,10 +115,12 @@ function TreeListInner<ItemT>(
 
   const toggleKey = useCallback(
     (key: string) => {
-      const next = new Set(expandedRef.current);
+      const previous = expandedRef.current;
+      const next = new Set(previous);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       expandedRef.current = next;
+      toggleRef.current = { from: previous, to: next, key };
       if (!isControlled) setInternalExpanded(next);
       onExpandedChangeRef.current?.(next);
     },
@@ -165,13 +132,13 @@ function TreeListInner<ItemT>(
     () => ({
       ...forwardedCommands(innerRef),
       scrollToNode: (key: string, viewPosition?: number) => {
-        const index = indexByKey.get(key);
-        if (index !== undefined) {
+        const index = source.indexOfKey(key);
+        if (index >= 0) {
           innerRef.current?.scrollToIndex({ index, viewPosition });
         }
       },
     }),
-    [indexByKey]
+    [source]
   );
 
   /*
@@ -241,10 +208,11 @@ function TreeListInner<ItemT>(
   );
 
   return (
-    <ShadowList
+    <ShadowListBase
       {...rest}
       ref={innerRef}
-      data={rows}
+      source={source}
+      store={store}
       ItemSeparatorComponent={rowSeparator as never}
       renderItem={renderRow}
       getItemSizeSpec={getRowSizeSpec}

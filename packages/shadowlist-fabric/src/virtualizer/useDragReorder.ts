@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CodegenTypes } from 'react-native';
 import type { OnDragStart, OnDragEnd } from '../ShadowListViewNativeComponent';
 import { arrayMove, mergeSortedIndices } from './helpers';
+import type { RowSource } from './rowSource';
 
 interface UseDragReorderOptions<ItemT> {
-  data: ReadonlyArray<ItemT>;
-  keyToIndex: ReadonlyMap<string, number>;
+  source: RowSource<ItemT>;
   mountedIndices: number[];
   reorderEnabled: boolean;
   onMoveItem:
@@ -28,19 +28,18 @@ interface UseDragReorderResult {
  * it in the array and passes the result to onMoveItem.
  */
 export function useDragReorder<ItemT>({
-  data,
-  keyToIndex,
+  source,
   mountedIndices,
   reorderEnabled,
   onMoveItem,
 }: UseDragReorderOptions<ItemT>): UseDragReorderResult {
   /*
    * Find a key's current index in data, or -1 if it's gone. Native sends keys. A data
-   * change during the drag still moves the right rows.
+   * change during the drag still moves the right rows. Only runs while dragging.
    */
   const indexOfKey = useCallback(
-    (key: string) => keyToIndex.get(key) ?? -1,
-    [keyToIndex]
+    (key: string) => source.indexOfKey(key),
+    [source]
   );
   /*
    * Key of the dragged row, not its index. An insert or remove during the drag would make an
@@ -59,11 +58,11 @@ export function useDragReorder<ItemT>({
 
   // Add the dragged row to the rendered set so it stays mounted.
   const renderIndices = useMemo(() => {
-    if (draggingIndex < 0 || draggingIndex >= data.length) {
+    if (draggingIndex < 0 || draggingIndex >= source.count) {
       return mountedIndices;
     }
     return mergeSortedIndices(mountedIndices, [draggingIndex]);
-  }, [mountedIndices, draggingIndex, data.length]);
+  }, [mountedIndices, draggingIndex, source.count]);
 
   // On pickup, keep the row mounted. The data order doesn't change yet.
   const handleDragStart: CodegenTypes.DirectEventHandler<OnDragStart, never> =
@@ -88,11 +87,11 @@ export function useDragReorder<ItemT>({
           onMoveItem?.({
             sourceIndex,
             destinationIndex,
-            data: arrayMove(data, sourceIndex, destinationIndex),
+            data: arrayMove(source.data ?? [], sourceIndex, destinationIndex),
           });
         }
       },
-      [data, onMoveItem, indexOfKey]
+      [source, onMoveItem, indexOfKey]
     );
 
   // Clear draggingKey if dragging is turned off mid drag, since the drop event may never come.

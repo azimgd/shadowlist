@@ -9,18 +9,20 @@ import {
   type ReactElement,
 } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
-import ShadowList from './ShadowList';
+import { ShadowListBase } from './ShadowList';
 import {
   forwardedCommands,
   renderComponent,
   useInputTrace,
   useStableReactElement,
 } from './virtualizer';
+import { useListStore } from './virtualizer/nativeStore';
 import {
-  flattenSections,
+  buildSectionSource,
+  createSectionSourceState,
   type FlatRow,
-  type SectionRows,
-} from './virtualizer/sectionRows';
+  type SectionSourceState,
+} from './virtualizer/sectionSource';
 import {
   separatorComponentOf,
   sharedSeparatorOf,
@@ -39,7 +41,8 @@ import type {
 
 /*
  * ShadowList renders one flat list. Each section becomes a header row, its items,
- * then a footer row. The header positions go into stickyIndices so native can pin them.
+ * then a footer row. JS keys the items, and native builds the rows' keys and pins the
+ * headers, see sectionSource.ts. Rows are only built for the rows that mount.
  */
 
 /*
@@ -51,42 +54,22 @@ const SECTION_TRACE_NAMES = [
   'renderSectionFooter',
   'itemSeparator',
   'sectionSeparator',
-  'data',
+  'source',
 ];
 
-function sameIndices(
-  previous: number[] | undefined,
-  next: number[]
-): previous is number[] {
+/*
+ * The row keys of the items named by keys, keeping the previous array when they come out the
+ * same so native gets no new prop.
+ */
+function sameKeys(
+  previous: string[] | undefined,
+  next: string[]
+): previous is string[] {
   return (
     previous !== undefined &&
     previous.length === next.length &&
-    previous.every((value, index) => value === next[index])
+    previous.every((key, index) => key === next[index])
   );
-}
-
-function toRowIds<ItemT, SectionT>(
-  rows: ReadonlyArray<FlatRow<ItemT, SectionT>>,
-  rowKeys: ReadonlyArray<string> | undefined,
-  previous: string[] | undefined
-): string[] | undefined {
-  if (!rowKeys || rowKeys.length === 0) return undefined;
-  const keys = new Set(rowKeys);
-  const ids: string[] = [];
-  for (const row of rows) {
-    if (row.rowKey !== undefined && keys.has(row.rowKey)) {
-      ids.push(row.id);
-    }
-  }
-  // The same ids keep the previous array. Native gets no new prop.
-  if (
-    previous !== undefined &&
-    previous.length === ids.length &&
-    previous.every((id, index) => id === ids[index])
-  ) {
-    return previous;
-  }
-  return ids;
 }
 
 function SectionListInner<ItemT, SectionT = object>(
@@ -115,47 +98,44 @@ function SectionListInner<ItemT, SectionT = object>(
   sectionsRef.current = sections;
 
   /*
-   * Rows from the last flatten, per section key. An unchanged row keeps its previous object.
-   * The list mounts rows by identity. Without this any change to sections re-renders
-   * every row. An unchanged section is reused whole.
+   * What the last flatten wrote, per section key. A section that comes back with the same
+   * items keeps its keys without calling keyExtractor, and native reuses its rows. Rows keep
+   * their objects while nothing they render from changed, since the list mounts rows by
+   * identity.
    */
-  const previousSectionsRef = useRef<Map<string, SectionRows<ItemT, SectionT>>>(
-    new Map()
+  const store = useListStore();
+  const sourceStateRef = useRef<SectionSourceState<ItemT, SectionT> | null>(
+    null
   );
-  const previousIndicesRef = useRef<number[] | undefined>(undefined);
-
-  const { data, stickyIndices } = useMemo(() => {
-    const {
-      rows,
-      stickyIndices: flatIndices,
-      nextSections,
-    } = flattenSections(
+  if (sourceStateRef.current === null) {
+    sourceStateRef.current = createSectionSourceState();
+  }
+  const sourceState = sourceStateRef.current;
+  const hasHeader = !!renderSectionHeader;
+  const hasFooter = !!renderSectionFooter;
+  const source = useMemo(
+    () =>
+      buildSectionSource(
+        sourceState,
+        sections,
+        keyExtractor,
+        {
+          hasHeader,
+          hasFooter,
+          stickyEnabled: stickySectionHeadersEnabled,
+        },
+        store
+      ),
+    [
+      sourceState,
       sections,
       keyExtractor,
-      !!renderSectionHeader,
-      !!renderSectionFooter,
+      hasHeader,
+      hasFooter,
       stickySectionHeadersEnabled,
-      previousSectionsRef.current
-    );
-    previousSectionsRef.current = nextSections;
-
-    /*
-     * Header positions rarely move. A new array would force native to copy all props,
-     * row keys included.
-     */
-    const indices = sameIndices(previousIndicesRef.current, flatIndices)
-      ? previousIndicesRef.current
-      : flatIndices;
-    previousIndicesRef.current = indices;
-
-    return { data: rows, stickyIndices: indices };
-  }, [
-    sections,
-    keyExtractor,
-    renderSectionHeader,
-    renderSectionFooter,
-    stickySectionHeadersEnabled,
-  ]);
+      store,
+    ]
+  );
 
   /*
    * The pinned header's length along the scroll axis, for scrollToLocation to keep a row clear
@@ -174,7 +154,7 @@ function SectionListInner<ItemT, SectionT = object>(
 
   const renderStickyHeaderOverlay = useCallback(
     (activeIndex: number) => {
-      const row = data[activeIndex];
+      const row = source.itemAt(activeIndex);
       if (!row || !renderSectionHeader) return null;
       const section = row.section ?? sectionsRef.current[row.sectionIndex];
       if (!section) return null;
@@ -184,7 +164,7 @@ function SectionListInner<ItemT, SectionT = object>(
         </View>
       );
     },
-    [data, renderSectionHeader, handlePinnedLayout]
+    [source, renderSectionHeader, handlePinnedLayout]
   );
 
   const getRowSizeSpec = useMemo(
@@ -207,15 +187,19 @@ function SectionListInner<ItemT, SectionT = object>(
   const previousNonAnchorRef = useRef<string[] | undefined>(undefined);
   const previousPersistentRef = useRef<string[] | undefined>(undefined);
   const rowNonAnchorKeys = useMemo(() => {
-    const ids = toRowIds(data, nonAnchorKeys, previousNonAnchorRef.current);
-    previousNonAnchorRef.current = ids;
-    return ids;
-  }, [data, nonAnchorKeys]);
+    if (!nonAnchorKeys || nonAnchorKeys.length === 0) return undefined;
+    const keys = source.rowKeysOfItems(nonAnchorKeys);
+    const previous = previousNonAnchorRef.current;
+    previousNonAnchorRef.current = sameKeys(previous, keys) ? previous : keys;
+    return previousNonAnchorRef.current;
+  }, [source, nonAnchorKeys]);
   const rowPersistentKeys = useMemo(() => {
-    const ids = toRowIds(data, persistentKeys, previousPersistentRef.current);
-    previousPersistentRef.current = ids;
-    return ids;
-  }, [data, persistentKeys]);
+    if (!persistentKeys || persistentKeys.length === 0) return undefined;
+    const keys = source.rowKeysOfItems(persistentKeys);
+    const previous = previousPersistentRef.current;
+    previousPersistentRef.current = sameKeys(previous, keys) ? previous : keys;
+    return previousPersistentRef.current;
+  }, [source, persistentKeys]);
 
   /*
    * Both separators go inside every row. An inline React element would rebuild every mounted
@@ -361,15 +345,13 @@ function SectionListInner<ItemT, SectionT = object>(
    * header's length goes into viewOffset, scaled down toward viewPosition 1 where the header
    * no longer covers the row.
    */
-  const dataRef = useRef(data);
-  dataRef.current = data;
-  const hasHeaders = !!renderSectionHeader;
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const hasHeaders = hasHeader;
   const scrollToLocation = useCallback(
     (params: SectionListLocation) => {
-      const rows = dataRef.current;
-      const first = rows.findIndex(
-        (row) => row.sectionIndex === params.sectionIndex
-      );
+      const rows = sourceRef.current;
+      const first = rows.firstRowOfSection(params.sectionIndex);
       if (first < 0) {
         innerRef.current?.scrollToIndex({ ...params, index: -1 });
         return;
@@ -378,7 +360,7 @@ function SectionListInner<ItemT, SectionT = object>(
         ? params.itemIndex
         : Math.max(0, params.itemIndex - 1);
       let index = first + offset;
-      const sectionRow = rows[index];
+      const sectionRow = rows.itemAt(index);
       if (!sectionRow || sectionRow.sectionIndex !== params.sectionIndex) {
         index = first;
       }
@@ -426,18 +408,18 @@ function SectionListInner<ItemT, SectionT = object>(
     renderSectionFooter,
     itemSeparator,
     sectionSeparator,
-    data,
+    source,
   ]);
 
   const list = (
-    <ShadowList
+    <ShadowListBase
       {...rest}
       style={sectionIndexTitles?.length ? styles.fill : style}
       ref={innerRef}
-      data={data}
+      source={source}
+      store={store}
       renderItem={renderRow}
       ItemSeparatorComponent={RowSeparator}
-      stickyIndices={stickyIndices}
       renderStickyHeaderOverlay={renderStickyHeaderOverlay}
       getItemSizeSpec={getRowSizeSpec}
       nonAnchorKeys={rowNonAnchorKeys}

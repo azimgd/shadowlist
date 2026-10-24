@@ -8,16 +8,23 @@ import {
 import { Platform } from 'react-native';
 import { slTrace, slTraceEnabled } from './helpers';
 
-interface UseRefreshDeferOptions<ItemT> {
-  data: ReadonlyArray<ItemT>;
+/*
+ * What gets held: the list's rows, of which only the count is read here.
+ */
+interface Rows {
+  readonly count: number;
+}
+
+interface UseRefreshDeferOptions<RowsT extends Rows> {
+  data: RowsT;
   refreshing: boolean;
   onRefresh: (() => void) | undefined;
   inverted: boolean;
   horizontal: boolean;
 }
 
-interface UseRefreshDeferResult<ItemT> {
-  data: ReadonlyArray<ItemT>;
+interface UseRefreshDeferResult<RowsT extends Rows> {
+  data: RowsT;
   handleRefreshSettle: () => void;
 }
 
@@ -26,18 +33,18 @@ interface UseRefreshDeferResult<ItemT> {
  * a normal prepend so the visible content stays in place. Other changes pass straight through.
  * Only for vertical, non inverted lists with onRefresh.
  */
-export function useRefreshDefer<ItemT>({
+export function useRefreshDefer<RowsT extends Rows>({
   data: dataProp,
   refreshing,
   onRefresh,
   inverted,
   horizontal,
-}: UseRefreshDeferOptions<ItemT>): UseRefreshDeferResult<ItemT> {
+}: UseRefreshDeferOptions<RowsT>): UseRefreshDeferResult<RowsT> {
   const refreshDeferEnabled =
     Platform.OS !== 'macos' && !!onRefresh && !inverted && !horizontal;
 
   const refreshHoldingRef = useRef(false);
-  const refreshHeldDataRef = useRef<ReadonlyArray<ItemT> | null>(null);
+  const refreshHeldDataRef = useRef<RowsT | null>(null);
   const previousRefreshingRef = useRef(refreshing);
   /*
    * The data the last commit showed. Kept in a ref, not state. A normal data change
@@ -55,7 +62,7 @@ export function useRefreshDefer<ItemT>({
   let data = dataProp;
   if (refreshHoldingRef.current && dataProp !== shownDataRef.current) {
     if (slTraceEnabled() && refreshHeldDataRef.current !== dataProp) {
-      slTrace(`refresh hold n=${dataProp.length}`);
+      slTrace(`refresh hold n=${dataProp.count}`);
     }
     refreshHeldDataRef.current = dataProp;
     data = shownDataRef.current;

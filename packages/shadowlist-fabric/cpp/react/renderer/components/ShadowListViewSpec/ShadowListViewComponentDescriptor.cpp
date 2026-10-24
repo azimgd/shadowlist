@@ -142,37 +142,57 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   }
 
   azimgd::shadowlist::FrameInput input;
+  auto geometryCache = shadowlistViewShadowNode.getGeometryCache();
+  const auto& currentProps = shadowNode.getProps();
   /*
-   * Point the core at the props' keys instead of copying them. Props never change and
-   * outlive this call. Copying cost milliseconds per commit on a large chat list.
+   * The same props pointer means the same props, like on a scroll frame. The cache holds the
+   * previous props so the address can't be reused.
    */
-  input.keysRef = &shadowlistViewProps.rowKeys;
+  bool sameProps = geometryCache && geometryCache->keysProps == currentProps;
+
+  /*
+   * Row keys. JS normally keeps them in the list's key store, and the props only name the version,
+   * see ShadowListStoreJsi.h. A snapshot never changes: the same one means the same keys, so a
+   * props change that leaves the keys alone, like the mounted range moving, costs no copy and no
+   * comparison. Without a store the keys come in rowKeys. The core points at them instead of
+   * copying, since props never change and outlive this call.
+   */
+  auto keysSnapshot = rowKeysSnapshot(geometryCache.get(), shadowlistViewProps);
+  const std::vector<std::string>& rowKeys = keysSnapshot ? keysSnapshot->keys() : shadowlistViewProps.rowKeys;
+  input.keysRef = &rowKeys;
+  bool keysChanged;
+  if (keysSnapshot) {
+    const auto& previous = geometryCache->keysSnapshot;
+    keysChanged = previous != keysSnapshot;
+    input.keysUnchanged = !keysChanged;
+    // A splice at an end of the keys the core last took skips its comparison of every key.
+    if (keysChanged && previous && keysSnapshot->getBaseVersion() == previous->getVersion()) {
+      input.keyEdit = keysSnapshot->getEdit();
+    }
+  } else {
+    keysChanged = !sameProps;
+    input.keysUnchanged = sameProps;
+  }
   /*
    * Keys of decoration rows like date pills and dividers that the core must never use as
    * the anchor for keeping content in place. An empty list means any row can be the anchor.
+   * The same props also mean the same anchor ignore keys.
    */
   input.nonAnchorKeysRef = &shadowlistViewProps.nonAnchorKeys;
-
-  /*
-   * A scroll keeps the same props. The same props pointer means the same keys.
-   * The cache holds the previous props so the address can't be reused. This lets the core
-   * skip comparing every key on scroll frames.
-   */
-  auto geometryCache = shadowlistViewShadowNode.getGeometryCache();
-  const auto& currentProps = shadowNode.getProps();
-  input.keysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
-  // The same props also mean the same anchor ignore keys.
-  input.nonAnchorKeysUnchanged = geometryCache && geometryCache->keysProps == currentProps;
+  input.nonAnchorKeysUnchanged = sameProps;
   input.windowWidth = shadowlistViewLayoutMetrics.frame.size.width;
   input.windowHeight = shadowlistViewLayoutMetrics.frame.size.height;
   // These are current because the layout pass writes the header and footer sizes into the core.
   input.headerSize = containerManager->headerSize;
   input.footerSize = containerManager->footerSize;
   /*
-   * SectionList header indices, converted once per props and lent to the core, since they
-   * only change with the props.
+   * Rows that stick. A sectioned list's header rows come with its keys from the store. Otherwise
+   * stickyIndices, converted once per props and lent to the core, since they only change with
+   * the props.
    */
-  if (geometryCache) {
+  if (keysSnapshot && keysSnapshot->getKind() == azimgd::shadowlist::RowKeysSnapshot::Kind::Sections) {
+    input.stickyIndicesRef = &keysSnapshot->getStickyRows();
+  } else if (geometryCache) {
     if (geometryCache->stickyIndicesProps != currentProps) {
       azimgd::shadowlist::stickyIndicesFromProps(shadowlistViewProps.stickyIndices, geometryCache->stickyIndices);
       geometryCache->stickyIndicesProps = currentProps;
@@ -228,15 +248,14 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
     mountDriver->beginCommit(
       shadowlistViewProps,
       std::static_pointer_cast<const ShadowListViewShadowNode::ConcreteEventEmitter>(eventEmitter),
-      !input.keysUnchanged);
+      !sameProps || keysChanged);
   }
 
   // If the core throws, skip the frame instead of failing the commit. The next frame recovers.
   try {
     azimgd::shadowlist::Virtualizer::update(*containerManager, input);
     if (mountDriver) {
-      mountDriver->endCommit(
-        *containerManager, shadowlistViewProps, geometryCache ? geometryCache->stickyIndices : input.stickyIndices);
+      mountDriver->endCommit(*containerManager, shadowlistViewProps, rowKeys, input.getStickyIndexList());
     }
     /*
      * The list came to rest with a scroll event still held back by scrollEventThrottle.
@@ -286,10 +305,15 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
      */
     if (geometryCache) {
       geometryCache->keysProps = currentProps;
+      geometryCache->keysSnapshot = keysSnapshot;
+      if (keysSnapshot) {
+        geometryCache->keysStore->adopted(keysSnapshot->getVersion());
+      }
     }
   } catch (...) {
     if (geometryCache) {
       geometryCache->keysProps = nullptr;
+      geometryCache->keysSnapshot = nullptr;
     }
   }
 }
@@ -435,6 +459,25 @@ bool ShadowListViewComponentDescriptor::adoptLiveScrollReport(
   return true;
 }
 
+std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> ShadowListViewComponentDescriptor::rowKeysSnapshot(
+  ShadowListViewGeometryCache* geometryCache,
+  const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps) {
+  if (!geometryCache || shadowlistViewProps.keysStore <= 0 || shadowlistViewProps.keysVersion <= 0) {
+    return nullptr;
+  }
+  auto storeId = static_cast<std::int64_t>(shadowlistViewProps.keysStore);
+  if (geometryCache->keysStoreId != storeId) {
+    geometryCache->keysStoreId = storeId;
+    geometryCache->keysStore = shadowlist::findRowKeyStore(storeId);
+    geometryCache->keysSnapshot = nullptr;
+  }
+  if (!geometryCache->keysStore) {
+    return nullptr;
+  }
+  auto snapshot = geometryCache->keysStore->snapshot(static_cast<std::uint64_t>(shadowlistViewProps.keysVersion));
+  return snapshot ? snapshot : geometryCache->keysSnapshot;
+}
+
 void ShadowListViewComponentDescriptor::applyRowSizeSpecs(
   ShadowListViewShadowNode& shadowlistViewShadowNode,
   const ShadowListViewShadowNode::ConcreteProps& shadowlistViewProps,
@@ -443,15 +486,44 @@ void ShadowListViewComponentDescriptor::applyRowSizeSpecs(
   Float pointScaleFactor,
   SurfaceId surfaceId) const {
   const auto& geometryCache = shadowlistViewShadowNode.getGeometryCache();
-  if (!textLayoutManager_ || !geometryCache || shadowlistViewProps.rowSizeSpecs.empty()) {
+  if (!textLayoutManager_ || !geometryCache) {
+    return;
+  }
+  /*
+   * Specs from the store are typed already. Their source is the version's specs, which a props
+   * change that leaves them alone keeps, so nothing is read or measured again.
+   */
+  std::shared_ptr<const std::vector<azimgd::shadowlist::RowSizeSpec>> storeSpecs;
+  if (shadowlistViewProps.sizeSpecsVersion > 0 && geometryCache->keysStore &&
+      geometryCache->keysStoreId == static_cast<std::int64_t>(shadowlistViewProps.keysStore)) {
+    auto version = static_cast<std::uint64_t>(shadowlistViewProps.sizeSpecsVersion);
+    storeSpecs = geometryCache->keysStore->sizeSpecs(version);
+    if (storeSpecs) {
+      geometryCache->keysStore->adoptedSizeSpecs(version);
+    } else {
+      // Already dropped: keep measuring what this list measured last.
+      storeSpecs = geometryCache->storeSizeSpecs;
+    }
+  }
+  geometryCache->storeSizeSpecs = storeSpecs;
+  std::shared_ptr<const void> source;
+  if (storeSpecs) {
+    source = storeSpecs;
+  } else if (!shadowlistViewProps.rowSizeSpecs.empty()) {
+    source = shadowlistViewShadowNode.getProps();
+  }
+  geometryCache->sizeSpecsSource = source;
+  if (!source) {
     return;
   }
   const auto& textLayoutManager = *textLayoutManager_;
   geometryCache->sizeSpecs.run(
     *containerManager,
-    shadowlistViewShadowNode.getProps(),
+    source,
     availableWidth,
-    [&]() { return parseRowSizeSpecs(shadowlistViewProps.rowSizeSpecs); },
+    [&]() {
+      return storeSpecs ? *storeSpecs : parseRowSizeSpecs(shadowlistViewProps.rowSizeSpecs);
+    },
     [&](const azimgd::shadowlist::RowSizeSpec& spec, double width) {
       return measureRowSizeSpec(textLayoutManager, spec, width, pointScaleFactor, surfaceId);
     });

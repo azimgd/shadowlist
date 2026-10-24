@@ -125,6 +125,24 @@ std::size_t ListSections::firstRowInSection(std::size_t section) const {
   return hasRows ? rowStarts_[section] : UNDEFINED_INDEX;
 }
 
+std::size_t ListSections::rowStartOfSection(std::size_t section) const {
+  if (!sectioned_) {
+    return section == 0 ? 0 : rowCount_;
+  }
+  return section < sections_.size() ? rowStarts_[section] : rowCount_;
+}
+
+std::size_t ListSections::rowCountInSection(std::size_t section) const {
+  if (!sectioned_) {
+    return section == 0 ? rowCount_ : 0;
+  }
+  if (section >= sections_.size()) {
+    return 0;
+  }
+  const SectionSpec& spec = sections_[section];
+  return spec.itemCount + (spec.hasHeader ? 1 : 0) + (spec.hasFooter ? 1 : 0);
+}
+
 std::vector<std::size_t> ListSections::headerRows() const {
   std::vector<std::size_t> rows;
   for (std::size_t section = 0; section < sections_.size(); ++section) {
@@ -282,6 +300,43 @@ std::vector<std::string> ListSections::rowKeys(
     }
   }
   return rows;
+}
+
+std::string ListSections::headerRowKey(const std::string& sectionKey) {
+  return HEADER_KEY_PREFIX + sectionKey;
+}
+
+std::string ListSections::footerRowKey(const std::string& sectionKey) {
+  return FOOTER_KEY_PREFIX + sectionKey;
+}
+
+std::string ListSections::qualifiedItemRowKey(const std::string& sectionKey, const std::string& itemKey) {
+  std::string key;
+  key.reserve(3 + sectionKey.size() + 1 + itemKey.size());
+  key.append(ITEM_KEY_PREFIX).append(sectionKey).push_back(ITEM_KEY_SEPARATOR);
+  key.append(itemKey);
+  return key;
+}
+
+void ListSections::appendSectionRowKeys(
+  std::size_t section,
+  const std::string& sectionKey,
+  const std::string* itemKeys,
+  bool qualifyItems,
+  std::vector<std::string>& rows) const {
+  if (!sectioned_ || section >= sections_.size()) {
+    return;
+  }
+  const SectionSpec& spec = sections_[section];
+  if (spec.hasHeader) {
+    rows.push_back(headerRowKey(sectionKey));
+  }
+  for (std::size_t local = 0; local < spec.itemCount; ++local) {
+    rows.push_back(qualifyItems ? qualifiedItemRowKey(sectionKey, itemKeys[local]) : itemKeys[local]);
+  }
+  if (spec.hasFooter) {
+    rows.push_back(footerRowKey(sectionKey));
+  }
 }
 
 std::vector<std::string> ListSections::itemKeys(const std::vector<std::string>& rowKeys) const {

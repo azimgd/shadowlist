@@ -1,47 +1,59 @@
 import { useMemo, useRef } from 'react';
 import type { ItemSizeSpec } from '../types';
+import { nextVersion, type ListStore } from './nativeStore';
+import type { RowSource } from './rowSource';
 
 interface UseRowSizeSpecsOptions<ItemT> {
-  data: ReadonlyArray<ItemT>;
-  keys: ReadonlyArray<string>;
+  source: RowSource<ItemT>;
   getItemSizeSpec:
     | ((item: ItemT, index: number) => ItemSizeSpec | null | undefined)
     | undefined;
   mountedIndices: number[];
   lookaheadRows: number;
+  store: ListStore | null;
 }
+
+/*
+ * How native gets the specs: a version of them in the list's native store, or, without the
+ * store, a JSON string in the rowSizeSpecs prop. Both empty without getItemSizeSpec, which turns
+ * the feature off on both sides.
+ */
+export interface RowSizeSpecsProps {
+  rowSizeSpecs: string;
+  sizeSpecsVersion: number;
+}
+
+const NO_SPECS: RowSizeSpecsProps = { rowSizeSpecs: '', sizeSpecsVersion: 0 };
 
 /*
  * How many rows from the edge of the sent specs the mounted rows may get before we send
  * them again.
  *
- * Sending is costly, and not because of the specs. Any prop change makes Fabric deep copy
- * every other prop, see convertRawProp in propsConversions.h:177. That copies all of
- * rowKeys, measured at 86 us for 100k short keys and 1.88 ms for 100k long ones.
- * It also gives the core a new props pointer. The core then compares every key again.
- *
- * Only send when the specs would run out, about once every lookaheadRows minus EDGE_MARGIN
- * rows.
+ * Each recut runs getItemSizeSpec over the whole range and gives native a new set to measure.
+ * Native measures a few rows per commit, and the text layout cache makes a row it measured
+ * before cheap, but only send when the specs would run out, about once every lookaheadRows
+ * minus EDGE_MARGIN rows.
  */
 const EDGE_MARGIN = 24;
 
 /*
- * Build the rowSizeSpecs prop. It tells native the real heights of rows near the
- * screen before React renders them.
+ * The specs of rows near the screen. They tell native the real heights of those rows before
+ * React renders them.
  *
  * We send the whole range, not just what changed. A width change like a rotation makes
- * every measured height wrong, and native has to measure again from the prop alone. The edge
+ * every measured height wrong, and native has to measure again from the specs alone. The edge
  * margin above keeps this off the scroll path.
  *
- * Returns an empty string without getItemSizeSpec, which turns the feature off on both sides.
+ * With the native store the spec objects go to native as they are, read field by field, with
+ * no JSON string to build and parse, and a later props change leaves them alone.
  */
 export function useRowSizeSpecs<ItemT>({
-  data,
-  keys,
+  source,
   getItemSizeSpec,
   mountedIndices,
   lookaheadRows,
-}: UseRowSizeSpecsOptions<ItemT>): string {
+  store,
+}: UseRowSizeSpecsOptions<ItemT>): RowSizeSpecsProps {
   /*
    * The range last sent. It lives in a ref so the memo below depends on two numbers that
    * only change when the range is recut, not on mountedIndices, which changes every frame.
@@ -75,15 +87,16 @@ export function useRowSizeSpecs<ItemT>({
   const { low, high } = windowRef.current;
 
   return useMemo(() => {
-    if (!getItemSizeSpec || low < 0 || data.length === 0) {
-      return '';
+    if (!getItemSizeSpec || low < 0 || source.count === 0) {
+      return NO_SPECS;
     }
 
-    const specs: Array<ItemSizeSpec & { key: string }> = [];
-    const last = Math.min(high, data.length - 1);
+    const keys: string[] = [];
+    const specs: ItemSizeSpec[] = [];
+    const last = Math.min(high, source.count - 1);
 
     for (let index = low; index <= last; index++) {
-      const item = data[index];
+      const item = source.itemAt(index);
       if (item === undefined) continue;
 
       /*
@@ -94,9 +107,21 @@ export function useRowSizeSpecs<ItemT>({
       const spec = getItemSizeSpec(item, index);
       if (!spec) continue;
 
-      specs.push({ ...spec, key: keys[index]! });
+      keys.push(source.keyAt(index)!);
+      specs.push(spec);
     }
 
-    return specs.length > 0 ? JSON.stringify(specs) : '';
-  }, [data, keys, getItemSizeSpec, low, high]);
+    if (specs.length === 0) return NO_SPECS;
+    if (store !== null) {
+      const version = nextVersion(store);
+      store.module.setSizeSpecs(store.handle, version, keys, specs);
+      return { rowSizeSpecs: '', sizeSpecsVersion: version };
+    }
+    return {
+      rowSizeSpecs: JSON.stringify(
+        specs.map((spec, position) => ({ ...spec, key: keys[position] }))
+      ),
+      sizeSpecsVersion: 0,
+    };
+  }, [source, getItemSizeSpec, low, high, store]);
 }

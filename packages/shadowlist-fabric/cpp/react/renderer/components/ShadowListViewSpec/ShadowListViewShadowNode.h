@@ -11,9 +11,11 @@
 
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Virtualizer.hpp>
+#include <shadowlist-core/host/RowKeyStore.hpp>
 #include <shadowlist-core/host/RowSizeSpec.hpp>
 #include <shadowlist-core/host/ListLayout.hpp>
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -36,6 +38,16 @@ struct ShadowListViewGeometryCache {
    * address from being freed and reused. A pointer match really means same keys.
    */
   std::shared_ptr<const Props> keysProps;
+
+  /*
+   * The list's key store when JS keeps the row keys there instead of in rowKeys, found once by
+   * the keysStore prop's id, and the version of keys the core last took in. A snapshot never
+   * changes, so the same pointer means the same keys whatever else the props changed. See
+   * ShadowListStoreJsi.h.
+   */
+  std::int64_t keysStoreId = 0;
+  std::shared_ptr<azimgd::shadowlist::RowKeyStore> keysStore;
+  std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> keysSnapshot;
 
   /*
    * The event emitter the core's callbacks dispatch through, and which optional ones were
@@ -82,10 +94,13 @@ struct ShadowListViewGeometryCache {
   std::vector<std::size_t> stickyIndices;
 
   /*
-   * rowSizeSpecs measured a few rows per commit, keyed by the props they came from.
-   * See azimgd::shadowlist::SizeSpecQueue.
+   * Row size specs measured a few rows per commit, keyed by where they came from: the store's
+   * specs of a version, or the props whose rowSizeSpecs JSON they were parsed from. Null without
+   * specs. See azimgd::shadowlist::SizeSpecQueue.
    */
   azimgd::shadowlist::SizeSpecQueue sizeSpecs;
+  std::shared_ptr<const void> sizeSpecsSource;
+  std::shared_ptr<const std::vector<azimgd::shadowlist::RowSizeSpec>> storeSizeSpecs;
 
   /*
    * Rows the layout pass hid with opacity 0, by row tag, see azimgd::shadowlist::ConcealTracker.

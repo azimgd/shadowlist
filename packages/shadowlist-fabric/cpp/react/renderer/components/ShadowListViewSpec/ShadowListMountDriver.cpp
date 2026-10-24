@@ -138,12 +138,12 @@ void ShadowListMountDriver::reportViewable(const std::vector<std::size_t>& range
 void ShadowListMountDriver::endCommit(
   const sl::Container& core,
   const ShadowListViewProps& props,
+  const std::vector<std::string>& keys,
   const std::vector<std::size_t>& stickyIndices) {
   Outgoing outgoing;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     outgoing.emitter = emitter_;
-    const std::vector<std::string>& keys = props.rowKeys;
     double now = nowMs();
 
     outgoing.mount = mount_.process(keys, [&core](const std::string& key) { return core.indexOfKey(key); });
@@ -283,6 +283,9 @@ void ShadowListMountDriver::dispatch(Outgoing& outgoing) {
       auto payload = jsi::Object(runtime);
       payload.setProperty(runtime, "lowKey", jsi::String::createFromUtf8(runtime, message.lowKey));
       payload.setProperty(runtime, "highKey", jsi::String::createFromUtf8(runtime, message.highKey));
+      // Where the edge rows were in the keys native had, for JS to find them without a lookup.
+      payload.setProperty(runtime, "lowIndex", indexToInt(message.range.low));
+      payload.setProperty(runtime, "highIndex", indexToInt(message.range.high));
       payload.setProperty(runtime, "lowAtStart", message.lowAtStart);
       payload.setProperty(runtime, "highAtEnd", message.highAtEnd);
       payload.setProperty(runtime, "sequence", static_cast<double>(message.sequence));

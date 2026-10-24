@@ -31,13 +31,16 @@ export function deselectKey(
     : selected;
 }
 
+/*
+ * indexOfKey gives a key's row or -1.
+ */
 export function retainKeys(
   selected: ReadonlyArray<string>,
-  keyToIndex: ReadonlyMap<string, number>
+  indexOfKey: (key: string) => number
 ): ReadonlyArray<string> {
-  return selected.every((key) => keyToIndex.has(key))
+  return selected.every((key) => indexOfKey(key) >= 0)
     ? selected
-    : selected.filter((key) => keyToIndex.has(key));
+    : selected.filter((key) => indexOfKey(key) >= 0);
 }
 
 /*
@@ -45,12 +48,12 @@ export function retainKeys(
  */
 export function selectedIndices(
   selected: ReadonlyArray<string>,
-  keyToIndex: ReadonlyMap<string, number>
+  indexOfKey: (key: string) => number
 ): number[] {
   const indices: number[] = [];
   for (const key of selected) {
-    const index = keyToIndex.get(key);
-    if (index !== undefined) indices.push(index);
+    const index = indexOfKey(key);
+    if (index >= 0) indices.push(index);
   }
   return indices.sort((a, b) => a - b);
 }

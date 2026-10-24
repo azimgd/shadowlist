@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RowSelection } from './CellRenderer';
+import { keysIdentityOf, type RowSource } from './rowSource';
 import { deselectKey, retainKeys, selectKey, selectOnlyKey } from './selection';
 
 /*
@@ -16,7 +17,7 @@ interface SelectionState {
 }
 
 interface UseRowSelectionOptions {
-  keyToIndex: ReadonlyMap<string, number>;
+  source: RowSource<unknown>;
   selectedKeys: ReadonlyArray<string> | undefined;
   allowsMultipleSelection: boolean;
   onSelectionChange: ((selectedKeys: string[]) => void) | undefined;
@@ -34,7 +35,7 @@ interface UseRowSelectionResult {
  * selected and select or deselect themselves. A row canSelect turns down stays as it is.
  */
 export function useRowSelection({
-  keyToIndex,
+  source,
   selectedKeys,
   allowsMultipleSelection,
   onSelectionChange,
@@ -86,10 +87,19 @@ export function useRowSelection({
     }),
     [applySelection]
   );
-  // A removed row leaves the selection.
+  /*
+   * A deleted row leaves the selection. Nothing is looked up while nothing is selected, and
+   * only new keys look again.
+   */
+  const sourceRef = useRef(source);
+  sourceRef.current = source;
+  const keysIdentity = keysIdentityOf(source);
   useEffect(() => {
-    applySelection(retainKeys(selectionStateRef.current.keys, keyToIndex));
-  }, [keyToIndex, applySelection]);
+    const selected = selectionStateRef.current.keys;
+    if (selected.length === 0) return;
+    const current = sourceRef.current;
+    applySelection(retainKeys(selected, (key) => current.indexOfKey(key)));
+  }, [keysIdentity, applySelection]);
 
   return { selectedKeySet, selection, selectionStateRef };
 }

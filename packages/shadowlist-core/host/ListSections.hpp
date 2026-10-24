@@ -54,6 +54,19 @@ public:
   static constexpr const char* FOOTER_KEY_PREFIX = "\x1f" "f:";
 
   /*
+   * An item row qualified by its section, for data whose item keys repeat across sections, like
+   * keys from the item's index: this prefix, the section key, ITEM_KEY_SEPARATOR, the item key.
+   * Fabric's SectionList builds its item rows this way. JS builds the same keys for the rows it
+   * mounts, see sectionKeys.ts.
+   */
+  static constexpr const char* ITEM_KEY_PREFIX = "\x1f" "i:";
+  static constexpr char ITEM_KEY_SEPARATOR = '\x1f';
+
+  static std::string headerRowKey(const std::string& sectionKey);
+  static std::string footerRowKey(const std::string& sectionKey);
+  static std::string qualifiedItemRowKey(const std::string& sectionKey, const std::string& itemKey);
+
+  /*
    * Back to a list without sections of count items.
    */
   void setPlain(std::size_t count);
@@ -98,6 +111,13 @@ public:
    * without rows.
    */
   std::size_t firstRowInSection(std::size_t section) const;
+
+  /*
+   * Where a section's rows start and how many it has, rows included for an empty section,
+   * which starts where the next one does.
+   */
+  std::size_t rowStartOfSection(std::size_t section) const;
+  std::size_t rowCountInSection(std::size_t section) const;
 
   /*
    * Every header row, low to high.
@@ -159,6 +179,18 @@ public:
   std::vector<std::string> rowKeys(
     const std::vector<std::string>& itemKeys,
     const std::vector<std::optional<std::string>>& sectionKeys) const;
+
+  /*
+   * One section's rows' keys appended to rows: its header, its items qualified by sectionKey
+   * when qualifyItems is set, raw otherwise, and its footer. itemKeys holds the section's items
+   * from first.
+   */
+  void appendSectionRowKeys(
+    std::size_t section,
+    const std::string& sectionKey,
+    const std::string* itemKeys,
+    bool qualifyItems,
+    std::vector<std::string>& rows) const;
 
   /*
    * The items' keys out of the rows' keys, skipping headers and footers.

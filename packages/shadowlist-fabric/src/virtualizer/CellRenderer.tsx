@@ -20,22 +20,22 @@ import type {
 } from '../types';
 import { countRowRender, slTrace, slTraceEnabled } from './helpers';
 import type { SeparatorState, SeparatorStore } from './separators';
+import { EMPTY_SOURCE, type RowSource } from './rowSource';
 import { useCellActions } from './useCellActions';
 
 /*
  * Per list row index state shared by every row. Rows keep their children across moves, and
  * the memo check below skips a row whose only change is its index, unless the row read it.
- * keyToIndex answers index reads made after render, like from a press handler, for rows
- * that skipped a move and still hold a stale index. keys finds the row above a row.
+ * source answers index reads made after render, like from a press handler, for rows that
+ * skipped a move and still hold a stale index, and finds the key of the row above a row.
  */
 export interface RowIndexStore {
-  keyToIndex: ReadonlyMap<string, number>;
-  keys: ReadonlyArray<string>;
+  source: RowSource<unknown>;
   readers: Set<string>;
 }
 
 export function createRowIndexStore(): RowIndexStore {
-  return { keyToIndex: new Map(), keys: [], readers: new Set() };
+  return { source: EMPTY_SOURCE, readers: new Set() };
 }
 
 /*
@@ -167,17 +167,18 @@ export const CellRenderer = memo(function CellRendererInner<ItemT>({
    */
   const indexRef = useRef(index);
   indexRef.current = index;
-  const currentIndex = useCallback(
-    () => rowIndex.keyToIndex.get(rowKey) ?? indexRef.current,
-    [rowIndex, rowKey]
-  );
+  const currentIndex = useCallback(() => {
+    // The row's own index is where to look first. A stale one is still close.
+    const found = rowIndex.source.indexOfKey(rowKey, indexRef.current);
+    return found >= 0 ? found : indexRef.current;
+  }, [rowIndex, rowKey]);
 
   /*
    * The row's separators. Highlighting a row highlights the separators on both sides of it.
    * The one above belongs to the row before.
    */
   const separators = useMemo<Separators>(() => {
-    const previousKey = () => rowIndex.keys[currentIndex() - 1];
+    const previousKey = () => rowIndex.source.keyAt(currentIndex() - 1);
     return {
       highlight: () => {
         separatorStore.setHighlighted(rowKey, true);

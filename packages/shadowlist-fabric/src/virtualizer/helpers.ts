@@ -99,32 +99,36 @@ export function renderComponent(
  * first row, app after the previous last row, and mid in between, negative for removals. replace means
  * an edge row is gone.
  */
-export function describeDataChange<ItemT>(
-  previous: ReadonlyArray<ItemT> | null,
-  next: ReadonlyArray<ItemT>,
-  keyExtractor: (item: ItemT, index: number) => string
+export function describeDataChange(
+  previous: KeyedRows | null,
+  next: KeyedRows
 ): string {
-  if (previous === null) return `init:${next.length}`;
-  if (previous.length === 0 || next.length === 0) {
-    return `replace:${previous.length}->${next.length}`;
+  if (previous === null) return `init:${next.count}`;
+  if (previous.count === 0 || next.count === 0) {
+    return `replace:${previous.count}->${next.count}`;
   }
-  const firstKey = keyExtractor(previous[0]!, 0);
-  const lastKey = keyExtractor(
-    previous[previous.length - 1]!,
-    previous.length - 1
-  );
+  const firstKey = previous.keyAt(0);
+  const lastKey = previous.keyAt(previous.count - 1);
   let firstIndex = -1;
   let lastIndex = -1;
-  for (let index = 0; index < next.length; index++) {
-    const key = keyExtractor(next[index]!, index);
+  for (let index = 0; index < next.count; index++) {
+    const key = next.keyAt(index);
     if (firstIndex < 0 && key === firstKey) firstIndex = index;
     if (key === lastKey) lastIndex = index;
   }
   if (firstIndex < 0 || lastIndex < 0) {
-    return `replace:${previous.length}->${next.length}`;
+    return `replace:${previous.count}->${next.count}`;
   }
-  const middle = lastIndex - firstIndex + 1 - previous.length;
-  return `pre:${firstIndex} app:${next.length - 1 - lastIndex}${middle !== 0 ? ` mid:${middle}` : ''}`;
+  const middle = lastIndex - firstIndex + 1 - previous.count;
+  return `pre:${firstIndex} app:${next.count - 1 - lastIndex}${middle !== 0 ? ` mid:${middle}` : ''}`;
+}
+
+/*
+ * Rows by count and key, for describeDataChange.
+ */
+interface KeyedRows {
+  count: number;
+  keyAt(index: number): string | undefined;
 }
 
 /*

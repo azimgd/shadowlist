@@ -1,6 +1,9 @@
 #import "ShadowListView.h"
 #import "ShadowListView+Private.h"
 
+#include "ShadowListStoreJsi.h"
+
+#include <shadowlist-core/host/RowKeyStore.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
 #include <cmath>
@@ -67,7 +70,7 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
 
 /*
  * Say which rows show, like "Rows 4 to 12 of 200". Rows are counted from the keys in props,
- * looked up in an index built once per props.
+ * looked up in the key store's index, or without a store in one built once per props.
  */
 - (void)announcePageScroll
 {
@@ -76,8 +79,18 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
   }
   _pageAnnouncementPending = NO;
   const auto& props = *std::static_pointer_cast<const ShadowListViewProps>(_props);
-  const auto& keys = props.rowKeys;
-  if (_pageKeyIndicesProps != _props) {
+  /*
+   * Keys from the list's key store, which indexes them itself. Without a store they come in
+   * rowKeys and get an index here.
+   */
+  std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> snapshot;
+  if (props.keysStore > 0 && props.keysVersion > 0) {
+    if (auto store = facebook::react::shadowlist::findRowKeyStore(static_cast<std::int64_t>(props.keysStore))) {
+      snapshot = store->snapshot(static_cast<std::uint64_t>(props.keysVersion));
+    }
+  }
+  const auto& keys = snapshot ? snapshot->keys() : props.rowKeys;
+  if (!snapshot && _pageKeyIndicesProps != _props) {
     // The first row with a key wins, like a search from the start.
     _pageKeyIndices.clear();
     _pageKeyIndices.reserve(keys.size());
@@ -97,11 +110,16 @@ static const NSTimeInterval SL_PAGE_ANNOUNCEMENT_MAX_WAIT = 0.3;
     if (!key) {
       continue;
     }
-    auto found = _pageKeyIndices.find(std::string(key.UTF8String));
-    if (found == _pageKeyIndices.end()) {
+    NSInteger index = NSNotFound;
+    if (snapshot) {
+      std::size_t row = snapshot->indexOfKey(std::string(key.UTF8String));
+      index = row == azimgd::shadowlist::UNDEFINED_INDEX ? NSNotFound : (NSInteger)row;
+    } else if (auto found = _pageKeyIndices.find(std::string(key.UTF8String)); found != _pageKeyIndices.end()) {
+      index = found->second;
+    }
+    if (index == NSNotFound) {
       continue;
     }
-    NSInteger index = found->second;
     first = first == NSNotFound ? index : MIN(first, index);
     last = last == NSNotFound ? index : MAX(last, index);
   }
