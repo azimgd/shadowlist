@@ -5,7 +5,8 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { createStyles } from '../theme';
+import { pressRippleFor } from '../internal/pressRipple';
+import { createStyles, useTheme } from '../theme';
 
 export interface IconButtonProps {
   icon: ReactNode;
@@ -20,15 +21,17 @@ export interface IconButtonProps {
 export const IconButton = memo(
   ({ icon, onPress, accessibilityLabel, style }: IconButtonProps) => {
     const styles = useStyles();
+    const ripple = pressRippleFor(useTheme());
     return (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
         hitSlop={4}
         onPress={onPress}
+        android_ripple={ripple}
         style={({ pressed }) => [
           styles.button,
-          pressed && styles.pressed,
+          pressed && ripple === undefined && styles.pressed,
           style,
         ]}
       >

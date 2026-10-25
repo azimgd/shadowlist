@@ -9,6 +9,8 @@ export type {
   ThemeRadius,
   ThemeFonts,
   ThemeGrouped,
+  ThemeCaptionCase,
+  ThemePressFeedback,
 } from './Theme';
 export type { DeepPartial } from './DeepPartial';
 export { darkTheme } from './darkTheme';

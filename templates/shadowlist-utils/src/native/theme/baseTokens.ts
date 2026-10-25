@@ -107,6 +107,8 @@ const grouped = {
   radius: 10,
   rowInset: 16,
   rowHeight: 44,
+  captionCase: 'upper',
+  chevron: true,
 } as const;
 
 export const baseTokens = {
@@ -117,6 +119,7 @@ export const baseTokens = {
   radius,
   fonts,
   grouped,
+  pressFeedback: 'highlight',
   rowInset: 68,
   tapTarget: 44,
 } as const;

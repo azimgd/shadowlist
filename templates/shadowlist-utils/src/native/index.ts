@@ -9,6 +9,8 @@ export type {
   ThemeRadius,
   ThemeFonts,
   ThemeGrouped,
+  ThemeCaptionCase,
+  ThemePressFeedback,
   DeepPartial,
   ThemeProviderProps,
 } from './theme';

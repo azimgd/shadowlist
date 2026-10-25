@@ -42,7 +42,8 @@ const useStyles = createStyles((theme) =>
       color: theme.colors.secondaryLabel,
       ...theme.typography.footnote,
       fontWeight: theme.fontWeight.semibold,
-      textTransform: 'uppercase',
+      textTransform:
+        theme.grouped.captionCase === 'upper' ? 'uppercase' : 'none',
     },
     count: {
       color: theme.colors.tertiaryLabel,

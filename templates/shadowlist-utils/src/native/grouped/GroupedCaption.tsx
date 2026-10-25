@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { StyleSheet, Text, type StyleProp, type TextStyle } from 'react-native';
-import { createStyles } from '../theme';
+import { createStyles, useTheme } from '../theme';
 
 export interface GroupedCaptionProps {
   title: string;
@@ -8,13 +8,15 @@ export interface GroupedCaptionProps {
 }
 
 /*
- * The uppercase caption over a card, lined up with the text of the card's rows.
+ * The caption over a card, lined up with the text of the card's rows. It is set in capitals
+ * unless the theme's grouped.captionCase is none.
  */
 export const GroupedCaption = memo(({ title, style }: GroupedCaptionProps) => {
   const styles = useStyles();
+  const { grouped } = useTheme();
   return (
     <Text style={[styles.caption, style]} accessibilityRole="header">
-      {title.toUpperCase()}
+      {grouped.captionCase === 'upper' ? title.toUpperCase() : title}
     </Text>
   );
 });

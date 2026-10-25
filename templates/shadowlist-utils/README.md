@@ -156,6 +156,14 @@ See [app theming](../shadowlist-fabric-example/src/appTheme.ts) for the full the
 Without a provider, `useTheme` follows the system color scheme. With a provider, the app chooses its theme.
 Overrides merge deeply; arrays such as `avatarPalette` are replaced. Styles are cached per theme object.
 
+A few tokens choose a platform's idiom rather than a metric. Each default draws as iOS does.
+
+| Token | Default | Effect |
+| --- | --- | --- |
+| `grouped.captionCase` | `'upper'` | `'none'` keeps the titles of `Grouped.Caption` and `SectionHeader` as written. |
+| `grouped.chevron` | `true` | `false` drops the chevron from a `Grouped.Row` that does not set `chevron`. |
+| `pressFeedback` | `'highlight'` | `'ripple'` gives `Grouped.Row`, `PillButton` and `IconButton` Android's ripple in `colors.fill` instead of the pressed fill or dimming. Other platforms keep the highlight. List rows keep it everywhere because they mount in recycled cells. |
+
 | Export | Description |
 | --- | --- |
 | `ThemeProvider({ theme })` | Provides a theme to the tree. |
@@ -232,7 +240,7 @@ See [TemplatesScreen](../shadowlist-fabric-example/src/screens/TemplatesScreen.t
 
 | Export | Description |
 | --- | --- |
-| `Grouped.Card`, `Grouped.Caption({ title })`, `Grouped.Section({ title? })` | A card, the uppercase caption over it, and the two together. |
+| `Grouped.Card`, `Grouped.Caption({ title })`, `Grouped.Section({ title? })` | A card, the caption over it (uppercase unless `grouped.captionCase` is `'none'`), and the two together. |
 | `Grouped.Row({ title, subtitle?, leading?, trailing?, chevron?, separated?, onLongPress?, longPressLabel?, testID? })` | A row that leads somewhere. The long press is also a screen reader action. Swipe actions and a menu work as in `Grouped.Actions`. |
 | `Grouped.Actions({ leadingSwipeActions?, trailingSwipeActions?, contextMenu? })` | Gives a custom card row the swipe actions and menu of a list row: a swipe on iOS and Android, a right click on macOS. A destructive action takes the theme's red. The row needs its own background. |
 | `Grouped.Separator({ inset? })` | Hairline that starts at `inset`, the row inset by default. |

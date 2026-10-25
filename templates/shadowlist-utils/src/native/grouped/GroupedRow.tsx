@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useLargeText } from '../hooks/useLargeText';
 import { ChevronIcon } from '../icons';
+import { pressRippleFor } from '../internal/pressRipple';
 import { createStyles, useTheme } from '../theme';
 import { GroupedActions, type GroupedActionsProps } from './GroupedActions';
 
@@ -34,9 +35,10 @@ export interface GroupedRowProps extends Pick<
 }
 
 /*
- * A card row that leads somewhere: a title over a subtitle, then a chevron. Swipe actions or
- * a menu put it in Grouped.Actions. At accessibility text sizes the title wraps to three lines and
- * the subtitle to at least three, instead of truncating.
+ * A card row that leads somewhere: a title over a subtitle, then a chevron unless the theme's
+ * grouped.chevron turns it off. Swipe actions or a menu put it in Grouped.Actions. At
+ * accessibility text sizes the title wraps to three lines and the subtitle to at least three,
+ * instead of truncating.
  */
 export const GroupedRow = memo(
   ({
@@ -45,7 +47,7 @@ export const GroupedRow = memo(
     subtitleLines = 1,
     leading,
     trailing,
-    chevron = true,
+    chevron,
     onPress,
     onLongPress,
     longPressLabel,
@@ -59,7 +61,10 @@ export const GroupedRow = memo(
     contextMenu,
   }: GroupedRowProps) => {
     const styles = useStyles();
-    const { colors } = useTheme();
+    const theme = useTheme();
+    const { colors } = theme;
+    const ripple = pressRippleFor(theme);
+    const showsChevron = chevron ?? theme.grouped.chevron;
     const largeText = useLargeText();
     const accessibilityActions = useMemo(
       () =>
@@ -89,9 +94,10 @@ export const GroupedRow = memo(
         disabled={disabled}
         onPress={onPress}
         onLongPress={onLongPress}
+        android_ripple={ripple}
         style={({ pressed }) => [
           styles.row,
-          pressed && styles.pressed,
+          pressed && ripple === undefined && styles.pressed,
           disabled && styles.disabled,
           style,
         ]}
@@ -114,7 +120,7 @@ export const GroupedRow = memo(
             ) : null}
           </View>
           {trailing}
-          {chevron ? (
+          {showsChevron ? (
             <ChevronIcon size={16} color={colors.tertiaryLabel} />
           ) : null}
         </View>

@@ -6,7 +6,8 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import { createStyles } from '../theme';
+import { pressRippleFor } from '../internal/pressRipple';
+import { createStyles, useTheme } from '../theme';
 
 /*
  * primary is the filled accent pill for the one thing to do next. tinted is an accent label on
@@ -31,6 +32,7 @@ export const PillButton = memo(
     style,
   }: PillButtonProps) => {
     const styles = useStyles();
+    const ripple = pressRippleFor(useTheme());
     return (
       <Pressable
         accessibilityRole="button"
@@ -38,6 +40,7 @@ export const PillButton = memo(
         accessibilityState={{ disabled }}
         disabled={disabled}
         onPress={onPress}
+        android_ripple={ripple}
         style={({ pressed }) => [
           styles.pill,
           variant === 'primary'
@@ -45,7 +48,7 @@ export const PillButton = memo(
             : variant === 'tinted'
               ? styles.tinted
               : styles.plain,
-          pressed && styles.pressed,
+          pressed && ripple === undefined && styles.pressed,
           disabled && styles.disabled,
           style,
         ]}

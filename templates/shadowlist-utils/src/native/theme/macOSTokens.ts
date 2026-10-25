@@ -115,6 +115,8 @@ const grouped = {
   radius: 0,
   rowInset: 10,
   rowHeight: 28,
+  captionCase: 'upper',
+  chevron: true,
 } as const;
 
 /*
@@ -171,6 +173,7 @@ export const macOSAppKitTheme: Theme = {
   radius,
   fonts,
   grouped,
+  pressFeedback: 'highlight',
   colors,
   tapTarget: 24,
   rowInset: 10,
