@@ -363,6 +363,11 @@ one row from lifting: a card that must stay put either stays out of `items` or h
 `onMoveItem`. `renderColumnHeader(column)` takes the default header's place, and then the header's accessibility
 label is yours to give. `columnStyle` styles every column, for a tinted background or other padding.
 
+A column takes 78% of the board, at most 360 points, with the next column's edge in view. `columnWidth` sets every
+column's width in points instead, for a board that lines its columns up with the rest of a page, and the snap to
+each column follows it. A column narrower than 78% of the board keeps 24 points of padding before the first column,
+and one as wide or wider is centred. A `columnWidth` that is not a positive number is ignored.
+
 By default the columns fill the height the board is given. A board inside a page sets `columnHeight="content"`
 and sizes itself to its cards: every column's cards are as tall as the tallest column's, measured by its list,
 between `minColumnHeight` (120) and `maxColumnHeight` (60% of the window), so each column is a drop target down the
@@ -371,7 +376,7 @@ page. Until a column has measured its cards, each counts `estimatedItemHeight` (
 
 | Export | Description |
 | --- | --- |
-| `Board.List({ columns, renderItem, keyExtractor?, onMoveItem?, idPrefix?, columnWidth?, columnHeight?, minColumnHeight?, maxColumnHeight?, estimatedItemHeight?, columnStyle?, renderColumnHeader?, renderColumnFooter?, labels?, style?, testID? })` | The board. `columns` are `BoardColumn`s, `{ key, title, items }`. `onMoveItem(BoardMoveInfo)` gets a reorder and a drop into another column in one shape, `{ item, sourceColumnKey, destinationColumnKey, destinationKey, destinationIndex }`. `keyExtractor` defaults to `item.id`. `columnWidth` defaults to 78% of the board, at most 360. `columnHeight` is `'fill'` (the default) or `'content'`. |
+| `Board.List({ columns, renderItem, keyExtractor?, onMoveItem?, idPrefix?, columnWidth?, columnHeight?, minColumnHeight?, maxColumnHeight?, estimatedItemHeight?, columnStyle?, renderColumnHeader?, renderColumnFooter?, labels?, style?, testID? })` | The board. `columns` are `BoardColumn`s, `{ key, title, items }`. `onMoveItem(BoardMoveInfo)` gets a reorder and a drop into another column in one shape, `{ item, sourceColumnKey, destinationColumnKey, destinationKey, destinationIndex }`. `keyExtractor` defaults to `item.id`. `columnWidth` (points, used as it is for the columns and the snap) defaults to 78% of the board, at most 360. `columnHeight` is `'fill'` (the default) or `'content'`. |
 | `Board.Card({ title, label?, detail?, color?, accessibilityLabel? })` | A card with an optional colored bar and a label and detail under the title. Its cell stays transparent, and a picked up card lifts alone. |
 | `useDragBoardState(initialColumns, { keyExtractor?, onMoveItem? })` → `{ columns, setColumns, moveItem }` | Holds the columns. `moveItem` is stable and updates both columns of a drop in one state change. `onMoveItem` hears each move after it is applied, to save it. |
 | `moveBoardItem(columns, move, keyExtractor?)` | Applies one move. The item leaves every column that holds its key and goes before `destinationKey`, at the end for `''`, or at `destinationIndex` for a key no longer there. Untouched columns keep their identity, and the board comes back as is when nothing moved. |

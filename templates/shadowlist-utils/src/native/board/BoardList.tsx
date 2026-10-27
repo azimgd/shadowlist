@@ -11,6 +11,7 @@ import type { ShadowListProps } from 'shadowlist';
 import { useLabels } from '../labels';
 import { createStyles } from '../theme';
 import { boardColumnHeight, type BoardColumnHeight } from './boardHeights';
+import { boardColumnLayout, COLUMN_GAP } from './boardWidths';
 import { useBoardId } from './boardIds';
 import { BoardListColumn } from './BoardListColumn';
 import { defaultBoardLabels, type BoardLabels } from './labels';
@@ -23,6 +24,10 @@ export interface BoardListProps<ItemT> {
   keyExtractor?: (item: ItemT) => string;
   onMoveItem?: (info: BoardMoveInfo<ItemT>) => void;
   idPrefix?: string;
+  /*
+   * Every column's width in points, used as it is for the columns and the snap interval. Not
+   * set, or not a positive number, a column takes 78% of the board, at most 360.
+   */
   columnWidth?: number;
   columnHeight?: BoardColumnHeight;
   minColumnHeight?: number;
@@ -36,10 +41,6 @@ export interface BoardListProps<ItemT> {
   testID?: string;
 }
 
-const COLUMN_GAP = 12;
-const COLUMN_SHARE = 0.78;
-const COLUMN_MAX_WIDTH = 360;
-const SIDE_PADDING = 24;
 /*
  * The 'content' height bounds when the board does not set them: room for a card or two to land
  * in an empty column, and a share of the window that leaves the page room around the board.
@@ -100,15 +101,14 @@ export function BoardList<ItemT>({
 
   /*
    * A column takes most of the board on a phone, capped for wide windows where several
-   * columns fit. The next column's edge stays in view as a hint to scroll sideways.
+   * columns fit, unless columnWidth sets it. The next column's edge stays in view as a hint
+   * to scroll sideways, and the snap interval follows the width.
    */
-  const width = boardWidth || windowWidth;
-  const share = Math.round(width * COLUMN_SHARE);
-  const resolvedColumnWidth = columnWidth ?? Math.min(share, COLUMN_MAX_WIDTH);
-  const sidePadding =
-    resolvedColumnWidth < share
-      ? SIDE_PADDING
-      : Math.max(0, Math.round((width - resolvedColumnWidth) / 2));
+  const {
+    columnWidth: resolvedColumnWidth,
+    sidePadding,
+    snapInterval,
+  } = boardColumnLayout(boardWidth || windowWidth, columnWidth);
 
   /*
    * Each column's measured card height, kept only in 'content' mode, where it sets the height
@@ -149,7 +149,7 @@ export function BoardList<ItemT>({
       contentContainerStyle={contentStyle}
       contentInsetAdjustmentBehavior="never"
       showsHorizontalScrollIndicator={false}
-      snapToInterval={resolvedColumnWidth + COLUMN_GAP}
+      snapToInterval={snapInterval}
       snapToAlignment="start"
       decelerationRate="fast"
       onLayout={handleLayout}

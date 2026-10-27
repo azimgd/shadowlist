@@ -177,6 +177,47 @@ describe('Board.List', () => {
     ]);
   });
 
+  it('gives every column 78% of the board by default', () => {
+    const renderer = renderBoard();
+    const board = scrollOf(renderer);
+    expect(board.props.snapToInterval).toBe(312 + 12);
+    expect(board.props.contentContainerStyle[1]).toEqual({
+      paddingHorizontal: 44,
+    });
+    for (const column of COLUMNS) {
+      const columnView = renderer.root.findByProps({
+        testID: `board-column-${column.key}`,
+      });
+      expect(columnView.props.style[1]).toEqual({ width: 312 });
+    }
+  });
+
+  it('takes a column width of its own for the columns and the snap', () => {
+    const renderer = renderBoard({ columnWidth: 280 });
+    const board = scrollOf(renderer);
+    expect(board.props.snapToInterval).toBe(280 + 12);
+    expect(board.props.contentContainerStyle[1]).toEqual({
+      paddingHorizontal: 24,
+    });
+    for (const column of COLUMNS) {
+      const columnView = renderer.root.findByProps({
+        testID: `board-column-${column.key}`,
+      });
+      expect(columnView.props.style[1]).toEqual({ width: 280 });
+    }
+    act(() => {
+      board.props.onLayout({ nativeEvent: { layout: { width: 1000 } } });
+    });
+    expect(scrollOf(renderer).props.snapToInterval).toBe(280 + 12);
+  });
+
+  it('ignores a column width that is not a positive number', () => {
+    const renderer = renderBoard({ columnWidth: 0 });
+    expect(scrollOf(renderer).props.snapToInterval).toBe(312 + 12);
+    const negative = renderBoard({ columnWidth: -50 });
+    expect(scrollOf(negative).props.snapToInterval).toBe(312 + 12);
+  });
+
   it('caps the content height at a share of the window by default', () => {
     const renderer = renderBoard({ columnHeight: 'content' });
     act(() => {
