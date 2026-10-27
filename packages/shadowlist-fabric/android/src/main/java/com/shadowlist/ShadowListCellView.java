@@ -107,6 +107,13 @@ public class ShadowListCellView extends ViewGroup {
    * The drag calls invalidateOutline on pick up, which keeps this current with content
    * mounted after the row was laid out.
    */
+  /*
+   * The shape a drag board's floating picture of view casts its shadow in.
+   */
+  static void getLiftOutline(View view, Outline outline) {
+    CONTENT_OUTLINE.getOutline(view, outline);
+  }
+
   private static final ViewOutlineProvider CONTENT_OUTLINE = new ViewOutlineProvider() {
     @Override
     public void getOutline(View view, Outline outline) {
@@ -814,12 +821,17 @@ public class ShadowListCellView extends ViewGroup {
     mAccessibilityActionIds.clear();
     /*
      * While drag is on, Move up and Move down swap the row with its mounted neighbor, like
-     * VoiceOver's actions on iOS.
+     * VoiceOver's actions on iOS. On a drag board, Move to moves the row to the end of each
+     * other list of the board.
      */
     ShadowListView list = listView();
     if (list != null && list.isReorderEnabled()) {
       addAccessibilityAction("Move up", () -> list.performAccessibilityMove(this, true));
       addAccessibilityAction("Move down", () -> list.performAccessibilityMove(this, false));
+      for (ShadowListDragController target : list.dragBoardMoveTargets()) {
+        addAccessibilityAction("Move to " + target.getDragListLabel(),
+          () -> list.performAccessibilityMoveToList(this, target));
+      }
     }
     addSwipeAccessibilityActions(mLeadingSwipeActions, true);
     addSwipeAccessibilityActions(mTrailingSwipeActions, false);

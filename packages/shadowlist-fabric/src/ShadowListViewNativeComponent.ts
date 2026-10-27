@@ -157,7 +157,8 @@ interface NativeCommands {
  * ShadowListStoreJsi.h. sizeSpecsVersion names the row size specs written there the same way.
  * Without the module, keysStore is 0 and the keys come in rowKeys, the specs as JSON in
  * rowSizeSpecs. Lists that share a non-empty dragBoardId form one drag board, where a row
- * picked up in one list can drop in another. dragListId names this list on the board.
+ * picked up in one list can drop in another. dragListId names this list on the board, and
+ * dragListLabel is the name VoiceOver and TalkBack give it in a row's Move to action.
  */
 interface NativeProps extends ViewProps {
   keysStore?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
@@ -176,6 +177,7 @@ interface NativeProps extends ViewProps {
   reorderEnabled: boolean;
   dragBoardId?: CodegenTypes.WithDefault<string, ''>;
   dragListId?: CodegenTypes.WithDefault<string, ''>;
+  dragListLabel?: CodegenTypes.WithDefault<string, ''>;
   stickyIndices: ReadonlyArray<CodegenTypes.Int32>;
   numberOfColumns: CodegenTypes.Int32;
   overscan: CodegenTypes.Double;

@@ -137,8 +137,7 @@ constexpr DragAutoScrollConfig DRAG_BOARD_SCROLL_IOS{64.0, 960.0};
 
 /*
  * The same for Android, in dp. It relates to the iOS one the way DRAG_AUTO_SCROLL_ANDROID
- * relates to DRAG_AUTO_SCROLL_IOS. The host scales both to pixels. Reserved for Android's
- * drag board, which does not run yet.
+ * relates to DRAG_AUTO_SCROLL_IOS. The host scales both to pixels.
  */
 constexpr DragAutoScrollConfig DRAG_BOARD_SCROLL_ANDROID{43.0, 720.0};
 
@@ -313,10 +312,8 @@ void dragGridShifts(
 /*
  * Drag board: a row dragged out of one list and dropped into another. While the held row
  * hovers another list, its home list closes the gap as if the row were removed and the other
- * list opens a gap for a row it does not own. DragReorder runs these for iOS. The array forms
- * below are reserved for Android's drag board, which does not run yet: dragRemovalShift,
- * dragGridRemovalShifts, dragForeignInsertionIndex, dragGridForeignInsertionIndex and
- * dragGridForeignShifts. See DragBoard.hpp for the board itself.
+ * list opens a gap for a row it does not own. DragReorder runs these for every host, and the
+ * free functions below are what it runs them with. See DragBoard.hpp for the board itself.
  */
 
 /*

@@ -27,8 +27,8 @@ import { HOLD_TO_DRAG } from './holdToDrag';
 /*
  * A kanban board: three columns of cards side by side in a paged horizontal scroll. Each
  * column is a DraggableList on the same drag board. Touch and hold a card to reorder it within
- * its column or drag it into another one. Dropping a card in another column needs the native
- * drag board, which iOS has first. Reordering within a column works everywhere.
+ * its column or drag it into another one, on iOS and Android. VoiceOver and TalkBack offer
+ * Move to for each other column, named by its title.
  */
 
 /*
@@ -253,6 +253,7 @@ const BoardColumn = memo(
             testID={`board-list-${column.id}`}
             dragBoardId={BOARD_ID}
             dragListId={column.id}
+            dragListLabel={column.title}
             onMoveItem={handleMoveItem}
             onMoveItemToList={handleMoveItemToList}
           />

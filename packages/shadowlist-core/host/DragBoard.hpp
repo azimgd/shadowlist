@@ -34,6 +34,13 @@ constexpr double DRAG_BOARD_LAND_TIMEOUT_MS = 1000.0;
 constexpr double DRAG_BOARD_LIFT_OUT_MS = 100.0;
 
 /*
+ * How long the held row takes to move from where its floating picture was to its place in
+ * its home list when it comes back over that list, in milliseconds. See
+ * DragBoard::returnOffset.
+ */
+constexpr double DRAG_BOARD_RETURN_HOME_MS = 150.0;
+
+/*
  * A point in the window, in points or pixels.
  */
 struct DragPoint {
@@ -133,6 +140,16 @@ public:
     double nowMs);
 
   /*
+   * After the row came back over its home list, the offset the host adds to the held row's
+   * place there, in window coordinates. placedCenter is the center the home list's drag gives
+   * the row this frame. The first call after the return measures from the picture's last
+   * center to placedCenter, and the offset shrinks from that to nothing over
+   * DRAG_BOARD_RETURN_HOME_MS, eased out. The row then leaves the picture's place and follows
+   * the finger into its column. It is zero at every other time.
+   */
+  DragPoint returnOffset(DragPoint placedCenter, double nowMs);
+
+  /*
    * Let go. The target's foreign session gives insertionIndex and insertionKey, or
    * UNDEFINED_INDEX when it has no drop spot. rowCount is the target's row count, as for
    * dragBoardDropIndex. Over the home list it is Home. Floating it drops into the target,
@@ -216,6 +233,13 @@ private:
   DragPoint liftFinger_;
   double liftAtMs_ = 0.0;
   bool liftPending_ = false;
+
+  // The last picture center, and the way back home: from where, since when and how far.
+  DragPoint overlayCenter_;
+  DragPoint returnDelta_;
+  double returnAtMs_ = 0.0;
+  bool returnPending_ = false;
+  bool returnMeasured_ = false;
 
   double landDeadlineMs_ = 0.0;
 };

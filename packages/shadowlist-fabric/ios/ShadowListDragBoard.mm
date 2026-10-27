@@ -8,6 +8,150 @@
 #include <string>
 #include <vector>
 
+#pragma mark - Platform
+
+/*
+ * The view the floating picture goes in: the window on iOS, its content view on macOS. AppKit
+ * windows are not views.
+ */
+static RCTPlatformView *_Nullable SLDragBoardOverlayParent(RCTPlatformView *view)
+{
+#if TARGET_OS_OSX
+  return view.window.contentView;
+#else
+  return view.window;
+#endif
+}
+
+/*
+ * The size of the window's drawn area, which a drag compares with the one at pickup.
+ */
+static CGSize SLDragBoardWindowSize(RCTPlatformView *view)
+{
+#if TARGET_OS_OSX
+  return view.window.contentView.bounds.size;
+#else
+  return view.window.bounds.size;
+#endif
+}
+
+/*
+ * The deepest view under a point in the window of view. AppKit hit tests a view with a point
+ * in its superview's space. The content view's superview shares the window's space.
+ */
+static RCTPlatformView *_Nullable SLDragBoardHitTest(RCTPlatformView *view, CGPoint windowPoint)
+{
+#if TARGET_OS_OSX
+  NSView *contentView = view.window.contentView;
+  NSView *frameView = contentView.superview;
+  CGPoint point = frameView ? [frameView convertPoint:windowPoint fromView:nil] : windowPoint;
+  return [contentView hitTest:point];
+#else
+  return [view.window hitTest:windowPoint withEvent:nil];
+#endif
+}
+
+/*
+ * Center the floating picture on a point in window coordinates.
+ */
+static void SLDragBoardPlaceOverlay(RCTUIView *overlay, CGPoint windowCenter)
+{
+#if TARGET_OS_OSX
+  NSView *parent = overlay.superview;
+  CGPoint center = parent ? [parent convertPoint:windowCenter fromView:nil] : windowCenter;
+  CGSize size = overlay.frame.size;
+  [overlay setFrameOrigin:CGPointMake(center.x - size.width / 2.0, center.y - size.height / 2.0)];
+#else
+  overlay.center = windowCenter;
+#endif
+}
+
+/*
+ * A picture of the row as the screen shows it, without its lift shadow. The overlay has its
+ * own. UIKit draws the hierarchy after the screen update, which keeps blurs and video that a
+ * layer render misses. AppKit caches the view's display into a bitmap.
+ */
+static CGImageRef _Nullable SLDragBoardCreatePicture(RCTUIView *view) CF_RETURNS_RETAINED
+{
+  float shadowOpacity = view.layer.shadowOpacity;
+  view.layer.shadowOpacity = 0.0;
+  CGImageRef picture = NULL;
+#if TARGET_OS_OSX
+  NSBitmapImageRep *bitmap = [view bitmapImageRepForCachingDisplayInRect:view.bounds];
+  if (bitmap) {
+    [view cacheDisplayInRect:view.bounds toBitmapImageRep:bitmap];
+    picture = CGImageRetain(bitmap.CGImage);
+  }
+#else
+  UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:view.bounds.size];
+  UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
+    (void)context;
+    [view drawViewHierarchyInRect:view.bounds afterScreenUpdates:YES];
+  }];
+  picture = CGImageRetain(image.CGImage);
+#endif
+  view.layer.shadowOpacity = shadowOpacity;
+  return picture;
+}
+
+/*
+ * Move the floating picture to frame, in its parent's coordinates, over the drop's duration,
+ * eased out, then run completion.
+ */
+static void SLDragBoardAnimateOverlay(RCTUIView *overlay, CGRect frame, void (^completion)(void))
+{
+#if TARGET_OS_OSX
+  [NSAnimationContext
+    runAnimationGroup:^(NSAnimationContext *context) {
+      context.duration = SL_DROP_SETTLE_DURATION;
+      context.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+      context.allowsImplicitAnimation = YES;
+      overlay.animator.frame = frame;
+    }
+    completionHandler:completion];
+#else
+  [UIView animateWithDuration:SL_DROP_SETTLE_DURATION
+                        delay:0.0
+                      options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
+                   animations:^{
+                     overlay.frame = frame;
+                   }
+                   completion:^(BOOL finished) {
+                     (void)finished;
+                     completion();
+                   }];
+#endif
+}
+
+/*
+ * Stop the picture's flight where it is.
+ */
+static void SLDragBoardStopOverlay(RCTUIView *overlay)
+{
+#if TARGET_OS_OSX
+  [NSAnimationContext runAnimationGroup:^(NSAnimationContext *context) {
+    context.duration = 0.0;
+    overlay.animator.frame = overlay.frame;
+  }];
+#endif
+  [overlay.layer removeAllAnimations];
+}
+
+/*
+ * The range a scroll view's sideways offset can rest in, with its insets. AppKit has no
+ * adjusted inset.
+ */
+static void SLSidewaysOffsetRange(RCTUIScrollView *outer, CGFloat *minOffset, CGFloat *maxOffset)
+{
+#if TARGET_OS_OSX
+  UIEdgeInsets inset = outer.contentInset;
+#else
+  UIEdgeInsets inset = outer.adjustedContentInset;
+#endif
+  *minOffset = -inset.left;
+  *maxOffset = MAX(*minOffset, outer.contentSize.width + inset.right - outer.bounds.size.width);
+}
+
 /*
  * The core's decisions for the board's drag, and the counter that names each list for it.
  * The core needs ids that are unique and not empty. dragListId can be empty or repeated, and
@@ -63,7 +207,9 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 {
   ShadowListView *home = _home;
   ShadowListView *target = _target;
-  [_overlay.layer removeAllAnimations];
+  if (_overlay) {
+    SLDragBoardStopOverlay(_overlay);
+  }
   [_overlay removeFromSuperview];
   _overlay = nil;
   _home = nil;
@@ -85,76 +231,21 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
  */
 @implementation ShadowListView (DragBoard)
 
-#if TARGET_OS_OSX
-
-- (void)applyDragBoardId:(NSString *)boardId listId:(NSString *)listId
-{
-  _dragBoardId = [boardId copy];
-  _dragListId = [listId copy];
-}
-
-- (void)leaveDragBoard
-{
-}
-
-- (void)withdrawFromDragBoardFlight
-{
-}
-
-- (void)dragBoardDidPickUpView:(RCTUIView *)view key:(nullable NSString *)heldKey
-{
-  (void)view;
-  (void)heldKey;
-}
-
-- (BOOL)updateDragBoard
-{
-  return NO;
-}
-
-- (BOOL)applyDragBoardAutoScrollWithDt:(double)dtSeconds
-{
-  (void)dtSeconds;
-  return NO;
-}
-
-- (BOOL)finishDragBoard
-{
-  return NO;
-}
-
-- (void)cancelDragBoard
-{
-}
-
-- (void)tearDownDragBoard
-{
-}
-
-- (void)dragBoardMountDidFinish
-{
-}
-
-- (void)dragBoardViewWillUnmount:(RCTUIView *)view
-{
-  (void)view;
-}
-
-- (void)dragBoardFlightDidEnd
-{
-}
-
-#else
-
 #pragma mark - Membership
 
 /*
- * Join the board named by dragBoardId, or leave it when the id is empty or changes.
+ * Join the board named by dragBoardId, or leave it when the id is empty or changes. A new id,
+ * list id or label changes the Move to actions on every list of the board.
  */
-- (void)applyDragBoardId:(NSString *)boardId listId:(NSString *)listId
+- (void)applyDragBoardId:(NSString *)boardId listId:(NSString *)listId label:(NSString *)label
 {
+  BOOL renamed = ![_dragListId isEqualToString:listId] || ![_dragListLabel isEqualToString:label];
   _dragListId = [listId copy];
+  _dragListLabel = [label copy];
   if (_dragBoardId && [_dragBoardId isEqualToString:boardId]) {
+    if (renamed) {
+      [self refreshDragBoardAccessibilityActions];
+    }
     return;
   }
   [self leaveDragBoard];
@@ -164,6 +255,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
     _dragBoard->_nextListToken += 1;
     _dragBoardToken = std::to_string(_dragBoard->_nextListToken);
     [_dragBoard.lists addObject:self];
+    [self refreshDragBoardAccessibilityActions];
   }
 }
 
@@ -200,6 +292,10 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   ShadowListDragBoard *board = _dragBoard;
   [self withdrawFromDragBoardFlight];
   [board.lists removeObject:self];
+  // The lists left on the board drop their Move to action for this one.
+  for (ShadowListView *list in board.lists) {
+    [list refreshOwnDragAccessibilityActions];
+  }
   if (_dragBoardHiddenView) {
     _dragBoardHiddenView.hidden = NO;
     _dragBoardHiddenView = nil;
@@ -253,7 +349,8 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
  * starts deciding for this one with the finger's grab on the row. The scroll views around the
  * list stop following the finger, which may cross them on its way to another list: each pan
  * is cancelled in place, and a recognizer ignores a touch that began before it was enabled
- * again. Nothing has to be given back and an app's own scrollEnabled stays as it was.
+ * again. Nothing has to be given back and an app's own scrollEnabled stays as it was. A mouse
+ * drag on macOS never scrolls the views around the list.
  */
 - (void)dragBoardDidPickUpView:(RCTUIView *)view key:(nullable NSString *)heldKey
 {
@@ -274,15 +371,17 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
     heldKey ? std::string(heldKey.UTF8String) : std::string(),
     {_dragTouchInWindow.x, _dragTouchInWindow.y},
     {center.x, center.y});
-  board.windowSize = self.window.bounds.size;
+  board.windowSize = SLDragBoardWindowSize(self);
   board.sidewaysScrollView = nil;
   _dragBoardScroll.begin(_dragTouchInWindow.x);
+#if !TARGET_OS_OSX
   for (UIPanGestureRecognizer *pan in _ancestorPans) {
     if (pan.enabled) {
       pan.enabled = NO;
       pan.enabled = YES;
     }
   }
+#endif
 }
 
 /*
@@ -295,8 +394,8 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 - (std::vector<std::string>)dragBoardCandidatesAtWindowPoint:(CGPoint)point
 {
   std::vector<std::string> candidates;
-  UIView *hit = [self.window hitTest:point withEvent:nil];
-  for (UIView *view = hit; view; view = view.superview) {
+  RCTPlatformView *hit = SLDragBoardHitTest(self, point);
+  for (RCTPlatformView *view = hit; view; view = view.superview) {
     if (![view isKindOfClass:[ShadowListView class]]) {
       continue;
     }
@@ -336,7 +435,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   if (!board || !view || !self.window || ![self isDragBoardDeciding]) {
     return NO;
   }
-  if (!CGSizeEqualToSize(self.window.bounds.size, board.windowSize)) {
+  if (!CGSizeEqualToSize(SLDragBoardWindowSize(self), board.windowSize)) {
     // The window turned or resized under the overlay, which is in window coordinates.
     [self cancelDrag];
     return NO;
@@ -366,11 +465,11 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   }
   view.hidden = frame.hideHeld;
 
-  RCTUIView *overlay = board.overlay;
-  overlay.center = CGPointMake(frame.overlayCenter.x, frame.overlayCenter.y);
+  CGPoint center = CGPointMake(frame.overlayCenter.x, frame.overlayCenter.y);
+  SLDragBoardPlaceOverlay(board.overlay, center);
   // The rows after the held one close its gap.
   [self updateDragInsertion];
-  [board.target placeDragBoardForeignAtWindowCenter:overlay.center];
+  [board.target placeDragBoardForeignAtWindowCenter:center];
   return YES;
 }
 
@@ -392,38 +491,39 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 - (void)liftDragBoardView:(RCTUIView *)view
 {
   ShadowListDragBoard *board = _dragBoard;
-  UIWindow *window = self.window;
+  RCTPlatformView *parent = SLDragBoardOverlayParent(self);
 
   CGRect resting = [self restingFrameForView:view];
   CGRect shown = CGRectOffset(resting, view.transform.tx, view.transform.ty);
-  CGRect frame = [_contentView convertRect:shown toView:nil];
+  CGRect frame = [_contentView convertRect:shown toView:parent];
 
-  /*
-   * Draw the row as the screen shows it, which keeps blurs and video that a layer render
-   * misses, without its lift shadow. The overlay has its own. Waiting for the screen update
-   * takes the shadow off the picture.
-   */
-  float shadowOpacity = view.layer.shadowOpacity;
-  view.layer.shadowOpacity = 0.0;
-  UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:view.bounds.size];
-  UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
-    (void)context;
-    [view drawViewHierarchyInRect:view.bounds afterScreenUpdates:YES];
-  }];
-  view.layer.shadowOpacity = shadowOpacity;
+  CGImageRef image = SLDragBoardCreatePicture(view);
 
-  UIView *overlay = [[UIView alloc] initWithFrame:frame];
+  RCTUIView *overlay = [[RCTUIView alloc] initWithFrame:frame];
   overlay.userInteractionEnabled = NO;
+#if TARGET_OS_OSX
+  overlay.wantsLayer = YES;
+  overlay.layer.masksToBounds = NO;
+  overlay.layer.zPosition = 1000.0;
+#endif
   // The same shape as the row's own lift shadow: its card, or its bounds.
   SLApplyDragLiftShadow(view, overlay.layer);
-  UIImageView *picture = [[UIImageView alloc] initWithFrame:overlay.bounds];
-  picture.image = image;
+  RCTUIView *picture = [[RCTUIView alloc] initWithFrame:overlay.bounds];
+  picture.userInteractionEnabled = NO;
+#if TARGET_OS_OSX
+  picture.wantsLayer = YES;
+  picture.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+#else
   picture.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+#endif
+  picture.layer.contents = (__bridge id)image;
+  picture.layer.contentsGravity = kCAGravityResize;
   picture.layer.cornerRadius = view.layer.cornerRadius;
-  picture.clipsToBounds = view.layer.cornerRadius > 0.0;
+  picture.layer.masksToBounds = view.layer.cornerRadius > 0.0;
+  CGImageRelease(image);
   [overlay addSubview:picture];
   overlay.accessibilityIdentifier = @"shadowlist-drag-board-overlay";
-  [window addSubview:overlay];
+  [parent addSubview:overlay];
 
   board.home = self;
   board.target = nil;
@@ -485,16 +585,6 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 }
 
 /*
- * The range a scroll view's sideways offset can rest in, with its insets.
- */
-static void SLSidewaysOffsetRange(UIScrollView *outer, CGFloat *minOffset, CGFloat *maxOffset)
-{
-  UIEdgeInsets inset = outer.adjustedContentInset;
-  *minOffset = -inset.left;
-  *maxOffset = MAX(*minOffset, outer.contentSize.width + inset.right - outer.bounds.size.width);
-}
-
-/*
  * The nearest scroll view around this list that scrolls sideways moves toward the edge the
  * finger is near. It reveals the next list of a board laid out in a row. The core's
  * DragBoardScroll waits until the finger has moved toward that edge from where it lifted the
@@ -503,11 +593,11 @@ static void SLSidewaysOffsetRange(UIScrollView *outer, CGFloat *minOffset, CGFlo
  */
 - (void)scrollDragBoardSidewaysForWindowPoint:(CGPoint)finger dtSeconds:(double)dtSeconds
 {
-  for (UIView *ancestor = self.superview; ancestor; ancestor = ancestor.superview) {
-    if (![ancestor isKindOfClass:[UIScrollView class]]) {
+  for (RCTPlatformView *ancestor = self.superview; ancestor; ancestor = ancestor.superview) {
+    if (![ancestor isKindOfClass:[RCTUIScrollView class]]) {
       continue;
     }
-    UIScrollView *outer = (UIScrollView *)ancestor;
+    RCTUIScrollView *outer = (RCTUIScrollView *)ancestor;
     CGFloat minOffset = 0.0;
     CGFloat maxOffset = 0.0;
     SLSidewaysOffsetRange(outer, &minOffset, &maxOffset);
@@ -516,7 +606,12 @@ static void SLSidewaysOffsetRange(UIScrollView *outer, CGFloat *minOffset, CGFlo
     }
     CGFloat windowSize = outer.bounds.size.width;
     CGFloat offset = outer.contentOffset.x;
+#if TARGET_OS_OSX
+    // An NSScrollView scrolls its clip view, and its own space is the viewport.
+    CGFloat touch = [outer convertPoint:finger fromView:nil].x;
+#else
     CGFloat touch = [outer convertPoint:finger fromView:nil].x - offset;
+#endif
     double delta = _dragBoardScroll.delta(azimgd::shadowlist::DRAG_BOARD_SCROLL_IOS,
       azimgd::shadowlist::DRAG_BOARD_SCROLL_ARM_IOS, finger.x, touch, windowSize, dtSeconds);
     CGFloat next = MIN(MAX(offset + delta, minOffset), maxOffset);
@@ -535,14 +630,22 @@ static void SLSidewaysOffsetRange(UIScrollView *outer, CGFloat *minOffset, CGFlo
  */
 - (void)snapDragBoardScrollView
 {
-  UIScrollView *outer = _dragBoard.sidewaysScrollView;
+  RCTUIScrollView *outer = _dragBoard.sidewaysScrollView;
   _dragBoard.sidewaysScrollView = nil;
+#if TARGET_OS_OSX
+  if (!outer) {
+    return;
+  }
+  // AppKit has no paging. React Native macOS snaps by interval or offsets.
+  CGFloat interval = 0.0;
+#else
   if (!outer || outer.isDragging || outer.isDecelerating) {
     return;
   }
+  CGFloat interval = outer.pagingEnabled ? outer.bounds.size.width : 0.0;
+#endif
   CGFloat offset = outer.contentOffset.x;
   CGFloat target = offset;
-  CGFloat interval = outer.pagingEnabled ? outer.bounds.size.width : 0.0;
   NSArray<NSNumber *> *offsets = nil;
   if (!interval && [outer respondsToSelector:NSSelectorFromString(@"snapToInterval")]) {
     interval = [[outer valueForKey:@"snapToInterval"] doubleValue];
@@ -680,23 +783,16 @@ static void SLSidewaysOffsetRange(UIScrollView *outer, CGFloat *minOffset, CGFlo
     _dragBoardHiddenView = nil;
     return;
   }
-  CGRect frame = [_contentView convertRect:[self restingFrameForView:home] toView:nil];
+  CGRect frame = [_contentView convertRect:[self restingFrameForView:home] toView:overlay.superview];
   __weak ShadowListView *weakSelf = self;
-  [UIView animateWithDuration:SL_DROP_SETTLE_DURATION
-                        delay:0.0
-                      options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
-                   animations:^{
-                     overlay.frame = frame;
-                   }
-                   completion:^(BOOL finished) {
-                     (void)finished;
-                     [overlay removeFromSuperview];
-                     ShadowListView *strongSelf = weakSelf;
-                     if (strongSelf && strongSelf->_dragBoardHiddenView == home) {
-                       home.hidden = NO;
-                       strongSelf->_dragBoardHiddenView = nil;
-                     }
-                   }];
+  SLDragBoardAnimateOverlay(overlay, frame, ^{
+    [overlay removeFromSuperview];
+    ShadowListView *strongSelf = weakSelf;
+    if (strongSelf && strongSelf->_dragBoardHiddenView == home) {
+      home.hidden = NO;
+      strongSelf->_dragBoardHiddenView = nil;
+    }
+  });
 }
 
 /*
@@ -822,22 +918,15 @@ static void SLSidewaysOffsetRange(UIScrollView *outer, CGFloat *minOffset, CGFlo
   board.settling = YES;
   cell.hidden = YES;
   _dragBoardHiddenView = cell;
-  CGRect frame = [_contentView convertRect:[self restingFrameForView:cell] toView:nil];
+  CGRect frame = [_contentView convertRect:[self restingFrameForView:cell] toView:overlay.superview];
   std::uint64_t flight = board->_core.getFlight();
   __weak ShadowListDragBoard *weakBoard = board;
-  [UIView animateWithDuration:SL_DROP_SETTLE_DURATION
-                        delay:0.0
-                      options:UIViewAnimationOptionCurveEaseOut | UIViewAnimationOptionBeginFromCurrentState
-                   animations:^{
-                     overlay.frame = frame;
-                   }
-                   completion:^(BOOL finished) {
-                     (void)finished;
-                     ShadowListDragBoard *strongBoard = weakBoard;
-                     if (strongBoard && strongBoard->_core.getFlight() == flight) {
-                       [strongBoard endFlight];
-                     }
-                   }];
+  SLDragBoardAnimateOverlay(overlay, frame, ^{
+    ShadowListDragBoard *strongBoard = weakBoard;
+    if (strongBoard && strongBoard->_core.getFlight() == flight) {
+      [strongBoard endFlight];
+    }
+  });
 }
 
 /*
@@ -876,6 +965,169 @@ static void SLSidewaysOffsetRange(UIScrollView *outer, CGFloat *minOffset, CGFlo
   }
 }
 
+#pragma mark - Return home
+
+/*
+ * After the row came back over this list from another one, how far it shows from the place
+ * its drag gives it, in content coordinates. placed is that place's center. The core's
+ * returnOffset starts at the picture's last place and eases to nothing. It works in window
+ * coordinates, and the offset is converted here, since AppKit's window space is not flipped
+ * like the list's content.
+ */
+- (CGPoint)dragBoardReturnOffsetForPlacedCenter:(CGPoint)placed
+{
+  ShadowListDragBoard *board = _dragBoard;
+  if (!board || !self.window || board->_core.getPhase() != azimgd::shadowlist::DragBoardPhase::AtHome ||
+      board->_core.getHomeId() != _dragBoardToken) {
+    return CGPointZero;
+  }
+  CGPoint placedInWindow = [_contentView convertPoint:placed toView:nil];
+  azimgd::shadowlist::DragPoint offset =
+    board->_core.returnOffset({placedInWindow.x, placedInWindow.y}, SLDragNowMs());
+  if (offset.x == 0.0 && offset.y == 0.0) {
+    return CGPointZero;
+  }
+  CGPoint shown =
+    [_contentView convertPoint:CGPointMake(placedInWindow.x + offset.x, placedInWindow.y + offset.y) fromView:nil];
+  return CGPointMake(shown.x - placed.x, shown.y - placed.y);
+}
+
+#pragma mark - Accessibility
+
+/*
+ * Whether VoiceOver can move a row of this list into list, another list of the board that has
+ * a dragListId, drag on and shows in a window.
+ */
+- (BOOL)canMoveDragBoardRowsToList:(ShadowListView *)list
+{
+  return list != self && _dragBoard && list->_dragBoard == _dragBoard && list->_state && list->_reorderEnabled &&
+    list->_dragListId.length > 0 && list.window && !list.hidden;
+}
+
+/*
+ * The name a Move to action gives a list: its dragListLabel, or its dragListId.
+ */
+- (NSString *)dragBoardAccessibilityName
+{
+  return _dragListLabel.length > 0 ? _dragListLabel : _dragListId;
+}
+
+/*
+ * The lists a row of this list can move to, in the order they show from left to right and top
+ * to bottom.
+ */
+- (NSArray<ShadowListView *> *)dragBoardMoveTargets
+{
+  NSMutableArray<ShadowListView *> *targets = [NSMutableArray new];
+  for (ShadowListView *list in _dragBoard.lists) {
+    if ([self canMoveDragBoardRowsToList:list]) {
+      [targets addObject:list];
+    }
+  }
+  [targets sortUsingComparator:^NSComparisonResult(ShadowListView *first, ShadowListView *second) {
+    CGPoint a = [first convertPoint:CGPointZero toView:nil];
+    CGPoint b = [second convertPoint:CGPointZero toView:nil];
+    if (a.x != b.x) {
+      return a.x < b.x ? NSOrderedAscending : NSOrderedDescending;
+    }
+#if TARGET_OS_OSX
+    // AppKit's window space has its y axis going up.
+    return a.y == b.y ? NSOrderedSame : (a.y > b.y ? NSOrderedAscending : NSOrderedDescending);
+#else
+    return a.y == b.y ? NSOrderedSame : (a.y < b.y ? NSOrderedAscending : NSOrderedDescending);
 #endif
+  }];
+  return targets;
+}
+
+/*
+ * A Move to action for each list a row of this list can move to. The handlers read the row's
+ * key and check the list again when used.
+ */
+- (NSArray<SLAccessibilityCustomAction *> *)dragBoardAccessibilityActionsForView:(RCTUIView *)view
+{
+  if (!_dragBoard || !_reorderEnabled) {
+    return @[];
+  }
+  NSMutableArray<SLAccessibilityCustomAction *> *actions = [NSMutableArray new];
+  __weak ShadowListView *weakSelf = self;
+  __weak RCTUIView *weakView = view;
+  for (ShadowListView *list in [self dragBoardMoveTargets]) {
+    __weak ShadowListView *weakList = list;
+    NSString *name =
+      [NSString stringWithFormat:NSLocalizedString(@"Move to %@", nil), [list dragBoardAccessibilityName]];
+#if TARGET_OS_OSX
+    NSAccessibilityCustomAction *action = [[NSAccessibilityCustomAction alloc] initWithName:name handler:^BOOL {
+      return [weakSelf performAccessibilityMove:weakView toList:weakList];
+    }];
+#else
+    UIAccessibilityCustomAction *action = [[UIAccessibilityCustomAction alloc]
+       initWithName:name
+      actionHandler:^BOOL(UIAccessibilityCustomAction *customAction) {
+        (void)customAction;
+        return [weakSelf performAccessibilityMove:weakView toList:weakList];
+      }];
+#endif
+    [actions addObject:action];
+  }
+  return actions;
+}
+
+/*
+ * Move a row to the end of another list of the board, the way a drop there goes: the list
+ * hears the landing first, then this list sends onDragEnd with that list's id and row count
+ * and an empty destinationKey. VoiceOver then says where the row went.
+ */
+- (BOOL)performAccessibilityMove:(nullable RCTUIView *)view toList:(nullable ShadowListView *)list
+{
+  NSString *key = [self keyOfCellView:view];
+  if (!list || key.length == 0 || _dragging || list->_dragging || ![self canMoveDragBoardRowsToList:list]) {
+    return NO;
+  }
+  [list commitDragEventType:azimgd::shadowlist::DRAG_EVENT_LAND sourceKey:key destinationKey:key];
+  [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END
+                  sourceKey:key
+             destinationKey:@""
+          destinationListId:list->_dragListId
+           destinationIndex:(NSInteger)[list rowKeyCount]];
+  NSString *announcement =
+    [NSString stringWithFormat:NSLocalizedString(@"Moved to %@", nil), [list dragBoardAccessibilityName]];
+#if TARGET_OS_OSX
+  id element = self.window ?: (id)NSApp;
+  NSAccessibilityPostNotificationWithUserInfo(element, NSAccessibilityAnnouncementRequestedNotification, @{
+    NSAccessibilityAnnouncementKey : announcement,
+    NSAccessibilityPriorityKey : @(NSAccessibilityPriorityHigh),
+  });
+#else
+  UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, announcement);
+#endif
+  return YES;
+}
+
+/*
+ * Build the move actions of this list's mounted rows again.
+ */
+- (void)refreshOwnDragAccessibilityActions
+{
+  for (RCTUIView *subview in _contentView.subviews) {
+    if ([subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
+      [self applyDragAccessibilityActionsToView:subview];
+    }
+  }
+}
+
+/*
+ * The lists of the board changed: one joined or left, was renamed, turned drag on or off or
+ * moved to or from a window. Every list of the board builds its rows' actions again.
+ */
+- (void)refreshDragBoardAccessibilityActions
+{
+  if (!_dragBoard) {
+    return;
+  }
+  for (ShadowListView *list in _dragBoard.lists) {
+    [list refreshOwnDragAccessibilityActions];
+  }
+}
 
 @end

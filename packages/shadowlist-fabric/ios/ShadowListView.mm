@@ -388,18 +388,17 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _dragRecognizer.enabled = _reorderEnabled;
   }
   [self applyDragBoardId:[NSString stringWithUTF8String:nextProps.dragBoardId.c_str()] ?: @""
-                  listId:[NSString stringWithUTF8String:nextProps.dragListId.c_str()] ?: @""];
+                  listId:[NSString stringWithUTF8String:nextProps.dragListId.c_str()] ?: @""
+                   label:[NSString stringWithUTF8String:nextProps.dragListLabel.c_str()] ?: @""];
   [self applyScrollViewProps:nextProps];
   /*
    * Update the VoiceOver actions only when reorderEnabled changes, since this runs on every
    * props commit. New rows get them in mountChildComponentView.
    */
   if (previousProps.reorderEnabled != nextProps.reorderEnabled) {
-    for (RCTUIView *subview in _contentView.subviews) {
-      if ([subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
-        [self applyDragAccessibilityActionsToView:subview];
-      }
-    }
+    // The board's other lists gain or lose their Move to action for this one too.
+    [self refreshOwnDragAccessibilityActions];
+    [self refreshDragBoardAccessibilityActions];
   }
 #if !TARGET_OS_OSX
   // UIKit refresh and projected snap deceleration. A snapping list always stops fast.
@@ -700,7 +699,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
 #else
   frame.scrollPhase = SLScrollPhaseForMacPhase(((ShadowListMacScrollView *)scrollView).phase);
-  frame.commitEveryFrame = _dragging || _dragDropPending;
+  frame.commitEveryFrame = _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
 #endif
   /*
    * Every frame goes into the live report, and only frames the core needs become a state
@@ -731,6 +730,39 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 }
 
 #if TARGET_OS_OSX
+/*
+ * A list that leaves the window takes no further part in a drag board's flight. The board's
+ * lists offer a Move to action only for lists in a window.
+ */
+- (void)viewDidMoveToWindow
+{
+  [super viewDidMoveToWindow];
+  [self refreshDragBoardAccessibilityActions];
+  if (!self.window) {
+    [self withdrawFromDragBoardFlight];
+  }
+}
+
+/*
+ * After every mount. Rows mounted during a drag, or while a row from another list hovers
+ * this one, shift like the rest, and a drop between lists of a drag board lands here.
+ */
+- (void)mountingTransactionDidMount:(const MountingTransaction&)transaction
+               withSurfaceTelemetry:(const SurfaceTelemetry&)surfaceTelemetry
+{
+  if (_mountNeedsDragShuffle) {
+    _mountNeedsDragShuffle = NO;
+    if (_dragging && _draggedView) {
+      SLRaiseSubview(_contentView, _draggedView, 4.0);
+      _stickyOrderDirty = YES;
+      [self applyDragShuffle];
+    } else if (_drag.isForeign()) {
+      [self applyDragShuffle];
+    }
+  }
+  [self dragBoardMountDidFinish];
+}
+
 - (void)shadowListScrollWillBegin
 {
   _scrollSync.disarm();
@@ -924,6 +956,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     [pan removeTarget:self action:@selector(ancestorDidPan:)];
   }
   [_ancestorPans removeAllObjects];
+  // The board's lists offer a Move to action only for lists in a window.
+  [self refreshDragBoardAccessibilityActions];
   if (!self.window) {
     // A list that leaves the window takes no further part in a drag board's flight.
     [self withdrawFromDragBoardFlight];

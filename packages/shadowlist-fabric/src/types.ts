@@ -225,6 +225,7 @@ export interface ShadowListProps<ItemT> {
   onMoveItem?: (info: MoveItemInfo<ItemT>) => void;
   dragBoardId?: string;
   dragListId?: string;
+  dragListLabel?: string;
   onMoveItemToList?: (info: MoveItemToListInfo<ItemT>) => void;
   stickyIndices?: ReadonlyArray<number>;
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
@@ -350,6 +351,7 @@ export type ShadowListForwardedProps = Omit<
   | 'onMoveItem'
   | 'dragBoardId'
   | 'dragListId'
+  | 'dragListLabel'
   | 'onMoveItemToList'
   | 'viewabilityConfig'
   | 'onViewableItemsChanged'

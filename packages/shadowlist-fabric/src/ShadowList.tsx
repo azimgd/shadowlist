@@ -127,6 +127,7 @@ function ShadowListBaseInner<ItemT>(
     onMoveItem,
     dragBoardId,
     dragListId,
+    dragListLabel,
     onMoveItemToList,
     numberOfColumns = 1,
     overscan = 1,
@@ -758,6 +759,7 @@ function ShadowListBaseInner<ItemT>(
       reorderEnabled={reorderEnabled}
       dragBoardId={dragBoardId}
       dragListId={dragListId}
+      dragListLabel={dragListLabel ?? accessibilityLabel ?? dragListId}
       scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
       showsHorizontalScrollIndicator={showsHorizontalScrollIndicator}

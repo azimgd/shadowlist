@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
 
 /*
  * The dragListIds each mounted list registered on each drag board, with how many lists use
@@ -7,13 +6,10 @@ import { Platform } from 'react-native';
  */
 const boards = new Map<string, Map<string, number>>();
 
-let warnedPlatform = false;
-
 /*
- * In __DEV__, warns about drag board props that would do nothing without a word: a board on a
- * platform that has none yet, a list on a board without a dragListId, which no row can drop
- * into, and two mounted lists with the same dragListId on one board, which the drop cannot
- * tell apart. Release builds skip it all.
+ * In __DEV__, warns about drag board props that would do nothing without a word: a list on a
+ * board without a dragListId, which no row can drop into, and two mounted lists with the same
+ * dragListId on one board, which the drop cannot tell apart. Release builds skip it all.
  */
 export function useDragBoardChecks(
   dragBoardId: string | undefined,
@@ -22,13 +18,6 @@ export function useDragBoardChecks(
   useEffect(() => {
     if (!__DEV__ || !dragBoardId) {
       return undefined;
-    }
-    if (Platform.OS !== 'ios' && !warnedPlatform) {
-      warnedPlatform = true;
-      console.warn(
-        `ShadowList: dragBoardId '${dragBoardId}' does nothing on ${Platform.OS}. Drag boards run on iOS ` +
-          'for now. Rows still reorder within their own list.'
-      );
     }
     if (!dragListId) {
       console.warn(

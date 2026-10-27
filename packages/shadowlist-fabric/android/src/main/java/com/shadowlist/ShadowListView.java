@@ -29,6 +29,8 @@ import com.facebook.react.uimanager.events.NativeGestureUtil;
 import com.facebook.react.views.scroll.ReactHorizontalScrollView;
 import com.facebook.react.views.scroll.ReactScrollView;
 
+import java.util.List;
+
 /*
  * Hosts the content in an inner scroll view for the chosen axis. Handles scrolling, state
  * sync and scroll commands. Sticky pinning, drag to reorder and accessibility live in their own
@@ -355,6 +357,7 @@ public class ShadowListView extends FrameLayout {
      */
     mState = null;
     mDragController.teardown();
+    mDragController.leaveDragBoard();
     mStickyController.reset();
     /*
      * Don't pass the scroll position, content size, live report or list versions to the next
@@ -390,6 +393,14 @@ public class ShadowListView extends FrameLayout {
   protected void onDetachedFromWindow() {
     mDragController.teardown();
     super.onDetachedFromWindow();
+    // A list off the window is no drag board's Move to target.
+    mDragController.onWindowChanged();
+  }
+
+  @Override
+  protected void onAttachedToWindow() {
+    super.onAttachedToWindow();
+    mDragController.onWindowChanged();
   }
 
   // endregion
@@ -477,6 +488,7 @@ public class ShadowListView extends FrameLayout {
    */
   public void setItemKeys(@Nullable ReadableArray keys) {
     mAccessibility.setItemKeys(keys);
+    mDragController.onKeysChanged();
   }
 
   /*
@@ -489,11 +501,27 @@ public class ShadowListView extends FrameLayout {
   public void setKeysStore(long keysStore) {
     mKeysStore = keysStore;
     mAccessibility.setKeysStore(mKeysStore, mKeysVersion);
+    mDragController.onKeysChanged();
   }
 
   public void setKeysVersion(double keysVersion) {
     mKeysVersion = keysVersion;
     mAccessibility.setKeysStore(mKeysStore, mKeysVersion);
+    mDragController.onKeysChanged();
+  }
+
+  /*
+   * Whether this list's data holds a row keyed key, mounted or not.
+   */
+  boolean rowKeysContain(String key) {
+    return mAccessibility.indexOfItemKey(key) >= 0;
+  }
+
+  /*
+   * The number of rows in this list's data, or -1 when the key store no longer has them.
+   */
+  int getRowKeyCount() {
+    return mAccessibility.getItemCountOrUnknown();
   }
 
   public void setSnapToItem(boolean snapToItem) {
@@ -523,6 +551,34 @@ public class ShadowListView extends FrameLayout {
 
   boolean isReorderEnabled() {
     return mDragController.isEnabled();
+  }
+
+  /*
+   * Lists that share a dragBoardId form a drag board, see ShadowListDragBoard. dragListId names
+   * this list to JS in a drop, and dragListLabel to TalkBack in a row's Move to action.
+   */
+  public void setDragBoardId(@Nullable String dragBoardId) {
+    mDragController.setDragBoardId(dragBoardId);
+  }
+
+  public void setDragListId(@Nullable String dragListId) {
+    mDragController.setDragListId(dragListId);
+  }
+
+  public void setDragListLabel(@Nullable String dragListLabel) {
+    mDragController.setDragListLabel(dragListLabel);
+  }
+
+  /*
+   * The lists of the drag board TalkBack's Move to actions on a row name, see
+   * ShadowListDragController.
+   */
+  List<ShadowListDragController> dragBoardMoveTargets() {
+    return mDragController.boardMoveTargets();
+  }
+
+  boolean performAccessibilityMoveToList(ShadowListCellView row, ShadowListDragController target) {
+    return mDragController.performAccessibilityMoveToList(row, target);
   }
 
   public void setNumberOfColumns(int numberOfColumns) {
@@ -638,8 +694,8 @@ public class ShadowListView extends FrameLayout {
       ((ShadowListCellView) child).updateAccessibilityActions();
       // Pin again so sticky views stay above the new row.
       mStickyController.applyStickyTransforms();
-      // A row that mounts during a drag must shift right away or it flashes.
-      if (mDragController.isDragging()) {
+      // A row that mounts during a drag, or while a dragged row hovers this list, must shift right away or it flashes.
+      if (mDragController.needsMountShuffle()) {
         mDragController.applyDragShuffle();
       }
       return;
@@ -664,6 +720,10 @@ public class ShadowListView extends FrameLayout {
     if (child instanceof ShadowListTemplateView) {
       ((ShadowListTemplateView) child).setListListeners(null, null);
       mStickyController.invalidateTemplates();
+    }
+    // A row the drag board hid is shown again before it goes.
+    if (child != null) {
+      mDragController.boardViewWillUnmount(child);
     }
     /*
      * The dragged row is going away, for example its data was deleted. Cancel the drag
@@ -1215,7 +1275,9 @@ public class ShadowListView extends FrameLayout {
   /*
    * Send a drag event with the live offset, like a scroll report.
    */
-  void dispatchDragEvent(int type, String sourceKey, String destinationKey, double sequence) {
+  void dispatchDragEvent(
+    int type, String sourceKey, String destinationKey, String destinationListId, int destinationIndex,
+    double sequence) {
     if (mState == null) {
       return;
     }
@@ -1226,8 +1288,12 @@ public class ShadowListView extends FrameLayout {
     map.putDouble("dragEventType", type);
     map.putString("dragSourceKey", sourceKey != null ? sourceKey : "");
     map.putString("dragDestinationKey", destinationKey != null ? destinationKey : "");
+    // The state keeps a key the update leaves out. Every event sends both.
+    map.putString("dragDestinationListId", destinationListId != null ? destinationListId : "");
+    map.putDouble("dragDestinationIndex", destinationIndex);
     if (DEBUG_LOG) {
-      slLog("java.drag dispatch type=" + type + " from=" + sourceKey + " to=" + destinationKey);
+      slLog("java.drag dispatch type=" + type + " from=" + sourceKey + " to=" + destinationKey
+        + " list=" + destinationListId + " index=" + destinationIndex);
     }
     mState.updateState(map);
   }

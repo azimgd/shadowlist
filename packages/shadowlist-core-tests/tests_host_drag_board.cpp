@@ -717,3 +717,48 @@ TEST(drag_board_landing_ends_when_its_list_leaves) {
   board.leave("b");
   CHECK(board.getPhase() == DragBoardPhase::Idle);
 }
+
+/*
+ * A row coming back over its home list starts where its floating picture was and eases into
+ * the place the home list's drag gives it over DRAG_BOARD_RETURN_HOME_MS.
+ */
+TEST(drag_board_return_home_hands_off_from_the_picture) {
+  DragBoard board;
+  board.begin("a", "k3", {100.0, 200.0}, {100.0, 200.0});
+  board.frame({300.0, 200.0}, {100.0, 200.0}, {"b"}, 0.0);
+  DragBoardFrame floating = board.frame({300.0, 200.0}, {100.0, 200.0}, {"b"}, DRAG_BOARD_LIFT_OUT_MS);
+  CHECK_NEAR(floating.overlayCenter.x, 300.0, 1e-9);
+  // Nothing to hand off before a return.
+  CHECK_NEAR(board.returnOffset({100.0, 200.0}, DRAG_BOARD_LIFT_OUT_MS).x, 0.0, 1e-9);
+
+  DragBoardFrame back = board.frame({180.0, 220.0}, {100.0, 200.0}, {"a"}, 1000.0);
+  CHECK(back.step.kind == DragBoardStep::Kind::ReturnHome);
+  CHECK(!back.floating);
+  // The home list places the row at 100, 220. It starts 200 to the right, where the picture was.
+  DragPoint start = board.returnOffset({100.0, 220.0}, 1000.0);
+  CHECK_NEAR(start.x, 200.0, 1e-9);
+  CHECK_NEAR(start.y, -20.0, 1e-9);
+  // The offset was measured once. The row follows the finger and the offset shrinks.
+  DragPoint halfway = board.returnOffset({100.0, 260.0}, 1000.0 + DRAG_BOARD_RETURN_HOME_MS / 2.0);
+  CHECK_NEAR(halfway.x, 50.0, 1e-9);
+  CHECK_NEAR(halfway.y, -5.0, 1e-9);
+  DragPoint done = board.returnOffset({100.0, 260.0}, 1000.0 + DRAG_BOARD_RETURN_HOME_MS);
+  CHECK_NEAR(done.x, 0.0, 1e-9);
+  CHECK_NEAR(done.y, 0.0, 1e-9);
+  CHECK_NEAR(board.returnOffset({100.0, 260.0}, 1000.0).x, 0.0, 1e-9);
+}
+
+TEST(drag_board_return_offset_ends_with_a_lift_out_or_a_new_pickup) {
+  DragBoard board;
+  board.begin("a", "k3", {100.0, 200.0}, {100.0, 200.0});
+  board.frame({300.0, 200.0}, {100.0, 200.0}, {"b"}, 0.0);
+  board.frame({300.0, 200.0}, {100.0, 200.0}, {"b"}, DRAG_BOARD_LIFT_OUT_MS);
+  board.frame({180.0, 200.0}, {100.0, 200.0}, {"a"}, 1000.0);
+  // Out again before the hand-off was measured.
+  board.frame({300.0, 200.0}, {100.0, 200.0}, {"b"}, 1010.0);
+  CHECK_NEAR(board.returnOffset({100.0, 200.0}, 1020.0).x, 0.0, 1e-9);
+
+  board.frame({180.0, 200.0}, {100.0, 200.0}, {"a"}, 2000.0);
+  board.begin("a", "k4", {100.0, 200.0}, {100.0, 200.0});
+  CHECK_NEAR(board.returnOffset({100.0, 200.0}, 2010.0).x, 0.0, 1e-9);
+}

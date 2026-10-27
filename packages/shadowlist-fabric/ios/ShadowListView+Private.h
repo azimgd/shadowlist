@@ -316,10 +316,12 @@ static inline BOOL SLFrameTraceEnabled(void)
    * picture floats above the window. _dragBoardDropPending holds the gap a row left in its
    * home list until the data change that removes it lands. _dragBoardLandingKey is the key of
    * the row dropped in this list, until it mounts here. _dragBoardAnimateShifts makes the
-   * next shuffle slide, when the row came home or left this list as a target.
+   * next shuffle slide, when the row came home or left this list as a target. _dragListLabel
+   * names this list in the Move to actions of the board's other lists.
    */
   NSString *_dragBoardId;
   NSString *_dragListId;
+  NSString *_dragListLabel;
   ShadowListDragBoard *_dragBoard;
   std::string _dragBoardToken;
   __weak RCTUIView *_dragBoardHiddenView;
@@ -336,6 +338,8 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (NSInteger)indexOfCellView:(nullable RCTUIView *)view;
 
 - (nullable NSString *)keyOfCellView:(nullable RCTUIView *)view;
+- (BOOL)rowKeysContainKey:(nullable NSString *)key;
+- (std::size_t)rowKeyCount;
 
 - (void)commitStatePatch:(const azimgd::shadowlist::ScrollPatch&)patch;
 - (azimgd::shadowlist::ScrollPatch)livePatch;
@@ -368,8 +372,6 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (CGRect)restingFrameForView:(RCTUIView *)view;
 - (void)applyDragAutoScrollForTouch:(CGPoint)touch dtSeconds:(double)dtSeconds;
 - (void)noteDragInsertionForFeedback;
-- (BOOL)rowKeysContainKey:(NSString *)key;
-- (std::size_t)rowKeyCount;
 - (void)setDragTouch:(CGPoint)location;
 - (void)clearDragTransforms;
 - (void)cancelDrag;
@@ -383,11 +385,12 @@ static inline BOOL SLFrameTraceEnabled(void)
 
 /*
  * Dragging a row between the lists of one drag board, see ShadowListDragBoard.mm. The board
- * runs on iOS. On macOS these do nothing and every drag stays in its list.
+ * runs on iOS with a long press and on macOS with a mouse drag. VoiceOver moves a row to
+ * another list of the board through its Move to actions.
  */
 @interface ShadowListView (DragBoard)
 
-- (void)applyDragBoardId:(NSString *)boardId listId:(NSString *)listId;
+- (void)applyDragBoardId:(NSString *)boardId listId:(NSString *)listId label:(NSString *)label;
 - (void)leaveDragBoard;
 - (void)withdrawFromDragBoardFlight;
 - (void)dragBoardDidPickUpView:(RCTUIView *)view key:(nullable NSString *)heldKey;
@@ -399,6 +402,11 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (void)dragBoardMountDidFinish;
 - (void)dragBoardViewWillUnmount:(RCTUIView *)view;
 - (void)dragBoardFlightDidEnd;
+- (CGPoint)dragBoardReturnOffsetForPlacedCenter:(CGPoint)placed;
+- (NSArray<SLAccessibilityCustomAction *> *)dragBoardAccessibilityActionsForView:(RCTUIView *)view;
+- (BOOL)performAccessibilityMove:(nullable RCTUIView *)view toList:(nullable ShadowListView *)list;
+- (void)refreshOwnDragAccessibilityActions;
+- (void)refreshDragBoardAccessibilityActions;
 
 @end
 

@@ -23,6 +23,7 @@ void DragBoard::begin(std::string homeId, std::string heldKey, DragPoint finger,
   flight_ += 1;
   grab_ = {heldCenter.x - finger.x, heldCenter.y - finger.y};
   liftPending_ = false;
+  returnPending_ = false;
   landDeadlineMs_ = 0.0;
 }
 
@@ -88,6 +89,12 @@ DragBoardFrame DragBoard::frame(
     liftFinger_ = finger;
     liftAtMs_ = nowMs;
     liftPending_ = true;
+    returnPending_ = false;
+  } else if (result.step.kind == DragBoardStep::Kind::ReturnHome) {
+    returnAtMs_ = nowMs;
+    returnPending_ = true;
+    returnMeasured_ = false;
+    liftPending_ = false;
   }
   result.floating = isFloating();
   result.hideHeld = phase_ != DragBoardPhase::Idle && phase_ != DragBoardPhase::AtHome;
@@ -97,6 +104,7 @@ DragBoardFrame DragBoard::frame(
   DragPoint under{finger.x + grab_.x, finger.y + grab_.y};
   if (!liftPending_) {
     result.overlayCenter = under;
+    overlayCenter_ = under;
     return result;
   }
   /*
@@ -107,13 +115,33 @@ DragBoardFrame DragBoard::frame(
   if (progress >= 1.0) {
     liftPending_ = false;
     result.overlayCenter = under;
+    overlayCenter_ = under;
     return result;
   }
   progress = std::max(0.0, progress);
   double eased = 1.0 - (1.0 - progress) * (1.0 - progress);
   DragPoint from{liftFrom_.x + finger.x - liftFinger_.x, liftFrom_.y + finger.y - liftFinger_.y};
   result.overlayCenter = {from.x + (under.x - from.x) * eased, from.y + (under.y - from.y) * eased};
+  overlayCenter_ = result.overlayCenter;
   return result;
+}
+
+DragPoint DragBoard::returnOffset(DragPoint placedCenter, double nowMs) {
+  if (!returnPending_ || phase_ != DragBoardPhase::AtHome) {
+    return {};
+  }
+  if (!returnMeasured_) {
+    returnDelta_ = {overlayCenter_.x - placedCenter.x, overlayCenter_.y - placedCenter.y};
+    returnMeasured_ = true;
+  }
+  double progress = DRAG_BOARD_RETURN_HOME_MS > 0.0 ? (nowMs - returnAtMs_) / DRAG_BOARD_RETURN_HOME_MS : 1.0;
+  if (progress >= 1.0) {
+    returnPending_ = false;
+    return {};
+  }
+  progress = std::max(0.0, progress);
+  double remaining = (1.0 - progress) * (1.0 - progress);
+  return {returnDelta_.x * remaining, returnDelta_.y * remaining};
 }
 
 DragBoardRelease DragBoard::release(
@@ -192,6 +220,7 @@ void DragBoard::reset() {
   heldKey_.clear();
   targetId_.clear();
   liftPending_ = false;
+  returnPending_ = false;
   landDeadlineMs_ = 0.0;
 }
 

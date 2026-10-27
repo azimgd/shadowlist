@@ -169,13 +169,19 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "dragBoardId")
   public void setDragBoardId(ShadowListView view, @Nullable String dragBoardId) {
-    // Cross-list drag boards are iOS only for now. Android keeps the within-list drag.
+    view.setDragBoardId(dragBoardId);
   }
 
   @Override
   @ReactProp(name = "dragListId")
   public void setDragListId(ShadowListView view, @Nullable String dragListId) {
-    // Cross-list drag boards are iOS only for now. Android keeps the within-list drag.
+    view.setDragListId(dragListId);
+  }
+
+  @Override
+  @ReactProp(name = "dragListLabel")
+  public void setDragListLabel(ShadowListView view, @Nullable String dragListLabel) {
+    view.setDragListLabel(dragListLabel);
   }
 
   @Override

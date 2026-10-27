@@ -426,7 +426,15 @@ void SLDragSelectionFeedback(void)
     // The scroll view's content size is 0 across the scroll axis. Use the content view.
     _horizontal ? _contentView.bounds.size.height : _contentView.bounds.size.width);
 
-  view.transform = [self dragTransformForOffset:translation];
+  CGAffineTransform transform = [self dragTransformForOffset:translation];
+  /*
+   * A row that just came back from another list of the drag board starts where its picture
+   * was and eases into this place.
+   */
+  CGRect restingFrame = [self restingFrameForView:view];
+  CGPoint placed = CGPointMake(CGRectGetMidX(restingFrame) + transform.tx, CGRectGetMidY(restingFrame) + transform.ty);
+  CGPoint handOff = [self dragBoardReturnOffsetForPlacedCenter:placed];
+  view.transform = CGAffineTransformTranslate(transform, handOff.x, handOff.y);
   [self updateDragInsertion];
   // A row that came home on this frame's board update slid its neighbors back once.
   _dragBoardAnimateShifts = NO;
@@ -739,8 +747,9 @@ void SLDragSelectionFeedback(void)
 #pragma mark - Accessibility
 
 /*
- * For VoiceOver, give each row Move up and Move down actions while drag is on.
- * The handlers read the row's index and key when used. Data changes never leave them stale.
+ * For VoiceOver, give each row Move up and Move down actions while drag is on, and on a drag
+ * board a Move to action for each other list. The handlers read the row's index and key when
+ * used. Data changes never leave them stale.
  */
 - (void)applyDragAccessibilityActionsToView:(RCTUIView *)view
 {
@@ -778,7 +787,8 @@ void SLDragSelectionFeedback(void)
        return [weakSelf performAccessibilityMove:weakView up:NO];
      }];
 #endif
-  cellView.nativeAccessibilityActions = @[ moveUp, moveDown ];
+  cellView.nativeAccessibilityActions =
+    [@[ moveUp, moveDown ] arrayByAddingObjectsFromArray:[self dragBoardAccessibilityActionsForView:view]];
 }
 
 /*

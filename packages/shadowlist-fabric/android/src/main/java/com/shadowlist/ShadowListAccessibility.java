@@ -100,10 +100,42 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
   }
 
   private int getItemCount() {
+    return Math.max(0, getItemCountOrUnknown());
+  }
+
+  /*
+   * The number of rows, or -1 when the key store no longer has the version the props name.
+   */
+  int getItemCountOrUnknown() {
     if (usesKeysStore()) {
-      return Math.max(0, ShadowListKeys.keyCount(mKeysStore, mKeysVersion));
+      return ShadowListKeys.keyCount(mKeysStore, mKeysVersion);
     }
     return mItemKeys != null ? mItemKeys.size() : 0;
+  }
+
+  /*
+   * A key's row in the key store, or in the props' keys without one. -1 when it is not there.
+   */
+  int indexOfItemKey(String key) {
+    if (usesKeysStore()) {
+      return ShadowListKeys.indexOfKey(mKeysStore, mKeysVersion, key);
+    }
+    if (mItemKeys == null) {
+      return -1;
+    }
+    Integer found = itemIndices().get(key);
+    return found != null ? found : -1;
+  }
+
+  private HashMap<String, Integer> itemIndices() {
+    if (mItemIndices == null) {
+      HashMap<String, Integer> indices = new HashMap<>();
+      for (int index = mItemKeys.size() - 1; index >= 0; index--) {
+        indices.put(mItemKeys.getString(index), index);
+      }
+      mItemIndices = indices;
+    }
+    return mItemIndices;
   }
 
   private int scrollRangePx() {
@@ -160,13 +192,6 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
     if (!fromStore && mItemKeys == null) {
       return null;
     }
-    if (!fromStore && mItemIndices == null) {
-      HashMap<String, Integer> indices = new HashMap<>();
-      for (int index = mItemKeys.size() - 1; index >= 0; index--) {
-        indices.put(mItemKeys.getString(index), index);
-      }
-      mItemIndices = indices;
-    }
     boolean horizontal = mView.isHorizontal();
     ViewGroup content = mView.getContentView();
     ViewGroup scrollView = mView.getScrollView();
@@ -189,7 +214,7 @@ final class ShadowListAccessibility extends AccessibilityDelegateCompat {
       if (fromStore) {
         index = rowKey != null ? ShadowListKeys.indexOfKey(mKeysStore, mKeysVersion, rowKey) : -1;
       } else {
-        Integer found = mItemIndices.get(rowKey);
+        Integer found = itemIndices().get(rowKey);
         index = found != null ? found : -1;
       }
       if (index < 0) {

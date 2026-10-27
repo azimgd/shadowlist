@@ -7,7 +7,7 @@ import com.facebook.soloader.SoLoader;
  * DragReorder, which places the held row, finds the drop spot and works out how far every
  * other row slides, its DragFeedback for the haptic ticks and its DropSettle for the wait after
  * a drop. The same session runs the iOS lists. A drag moves the same way on both. It also
- * carries the drag board's held-away and foreign sessions, which Android's board will drive.
+ * carries the drag board's held-away and foreign sessions, see ShadowListDragBoard.
  * Rows come in arrays the caller reuses. UI thread only.
  */
 final class ShadowListDrag {
@@ -35,15 +35,13 @@ final class ShadowListDrag {
 
   /*
    * The core's drag constants: how long a press holds and how far it may drift, in dp, the
-   * lift's elevation in dp, how long rows slide and a drop settles, and how far the finger
-   * moves toward a board's edge before it scrolls, in dp.
+   * lift's elevation in dp, and how long rows slide and a drop settles.
    */
   static final long PRESS_DURATION_MS;
   static final double PRESS_SLOP_DP;
   static final double LIFT_ELEVATION_DP;
   static final long SHIFT_DURATION_MS;
   static final long DROP_DURATION_MS;
-  static final double BOARD_SCROLL_ARM_DP;
 
   /*
    * Slots of the array nativeConstants fills. Match ConstantSlot in ShadowListDragJNI.cpp.
@@ -53,8 +51,7 @@ final class ShadowListDrag {
   private static final int CONSTANT_LIFT_ELEVATION = 2;
   private static final int CONSTANT_SHIFT_DURATION_MS = 3;
   private static final int CONSTANT_DROP_DURATION_MS = 4;
-  private static final int CONSTANT_BOARD_SCROLL_ARM = 5;
-  private static final int CONSTANT_SLOTS = 6;
+  private static final int CONSTANT_SLOTS = 5;
 
   static {
     double[] constants = new double[CONSTANT_SLOTS];
@@ -64,7 +61,6 @@ final class ShadowListDrag {
     LIFT_ELEVATION_DP = constants[CONSTANT_LIFT_ELEVATION];
     SHIFT_DURATION_MS = Math.round(constants[CONSTANT_SHIFT_DURATION_MS]);
     DROP_DURATION_MS = Math.round(constants[CONSTANT_DROP_DURATION_MS]);
-    BOARD_SCROLL_ARM_DP = constants[CONSTANT_BOARD_SCROLL_ARM];
   }
 
   private static final ShadowListPeerReclaimer RECLAIMER = new ShadowListPeerReclaimer(ShadowListDrag::nativeDestroy);
