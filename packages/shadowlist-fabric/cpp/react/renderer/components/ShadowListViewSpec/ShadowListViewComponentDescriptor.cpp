@@ -1,5 +1,7 @@
 #include "ShadowListViewComponentDescriptor.h"
 
+#include <chrono>
+
 namespace facebook::react {
 
 void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
@@ -82,7 +84,12 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
   /*
    * Tell JS when a drag starts or ends. The platform view bumps the sequence only on pick
    * up and drop, since finger tracking stays native. Fire once per new sequence.
+   * A drop also tells the core what it did to this list's keys, see DropHint: a row moved
+   * within the list, or left it for another list of the drag board. A row landing here from
+   * another list comes as DRAG_EVENT_LAND, which JS does not hear. The core keeps the offset
+   * when the data change lands.
    */
+  azimgd::shadowlist::DropHint dropHint;
   if (shadowlistViewStateData.dragEventSequence_ != containerManager->previousDragEventSequence) {
     containerManager->previousDragEventSequence = shadowlistViewStateData.dragEventSequence_;
     const std::string& dragSourceKey = shadowlistViewStateData.dragSourceKey_;
@@ -92,7 +99,20 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
         shadowlistViewEventEmitter.onDragStart({ .key = dragSourceKey });
         break;
       case azimgd::shadowlist::DRAG_EVENT_END:
-        shadowlistViewEventEmitter.onDragEnd({ .sourceKey = dragSourceKey, .destinationKey = dragDestinationKey });
+        shadowlistViewEventEmitter.onDragEnd({
+          .sourceKey = dragSourceKey,
+          .destinationKey = dragDestinationKey,
+          .destinationListId = shadowlistViewStateData.dragDestinationListId_,
+          .destinationIndex = static_cast<int>(shadowlistViewStateData.dragDestinationIndex_),
+        });
+        if (!shadowlistViewStateData.dragDestinationListId_.empty()) {
+          dropHint = {azimgd::shadowlist::DropHint::Kind::Removed, dragSourceKey};
+        } else if (dragSourceKey != dragDestinationKey) {
+          dropHint = {azimgd::shadowlist::DropHint::Kind::Moved, dragSourceKey};
+        }
+        break;
+      case azimgd::shadowlist::DRAG_EVENT_LAND:
+        dropHint = {azimgd::shadowlist::DropHint::Kind::Inserted, dragSourceKey};
         break;
       default:
         break;
@@ -181,6 +201,9 @@ void ShadowListViewComponentDescriptor::adopt(ShadowNode& shadowNode) const {
    */
   input.nonAnchorKeysRef = &shadowlistViewProps.nonAnchorKeys;
   input.nonAnchorKeysUnchanged = sameProps;
+  input.dropHint = std::move(dropHint);
+  input.frameTimeMs = std::chrono::duration<double, std::milli>(
+    std::chrono::steady_clock::now().time_since_epoch()).count();
   input.windowWidth = shadowlistViewLayoutMetrics.frame.size.width;
   input.windowHeight = shadowlistViewLayoutMetrics.frame.size.height;
   // These are current because the layout pass writes the header and footer sizes into the core.

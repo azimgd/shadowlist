@@ -94,9 +94,17 @@ export type OnDragStart = {
   key: string;
 };
 
+/*
+ * A drop. Within the list, the row with sourceKey moved to where destinationKey was. A drop
+ * in another list of the same drag board names that list in destinationListId and the place
+ * the row goes in destinationIndex. Those two are '' and -1 for a drop within the list.
+ * Codegen events in this file have no optional fields. Both are always sent.
+ */
 export type OnDragEnd = {
   sourceKey: string;
   destinationKey: string;
+  destinationListId: string;
+  destinationIndex: CodegenTypes.Int32;
 };
 
 export type OnAtEndChange = {
@@ -148,7 +156,8 @@ interface NativeCommands {
  * module: keysStore is the store's id and keysVersion the version this render wrote, see
  * ShadowListStoreJsi.h. sizeSpecsVersion names the row size specs written there the same way.
  * Without the module, keysStore is 0 and the keys come in rowKeys, the specs as JSON in
- * rowSizeSpecs.
+ * rowSizeSpecs. Lists that share a non-empty dragBoardId form one drag board, where a row
+ * picked up in one list can drop in another. dragListId names this list on the board.
  */
 interface NativeProps extends ViewProps {
   keysStore?: CodegenTypes.WithDefault<CodegenTypes.Double, 0>;
@@ -165,6 +174,8 @@ interface NativeProps extends ViewProps {
   autoHideHeader: boolean;
   autoHideFooter: boolean;
   reorderEnabled: boolean;
+  dragBoardId?: CodegenTypes.WithDefault<string, ''>;
+  dragListId?: CodegenTypes.WithDefault<string, ''>;
   stickyIndices: ReadonlyArray<CodegenTypes.Int32>;
   numberOfColumns: CodegenTypes.Int32;
   overscan: CodegenTypes.Double;

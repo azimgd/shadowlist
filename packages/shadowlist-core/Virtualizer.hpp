@@ -156,6 +156,22 @@ struct FrameInput {
    * It skips checking every key against the core's set on each frame.
    */
   bool nonAnchorKeysUnchanged = false;
+
+  /*
+   * What a drag just did, sent once on the frame of the drop, see DropHint. None on every
+   * other frame. The hint waits for the first frame whose keys change. It keeps the offset
+   * there only when the keys make exactly the hinted change, and is used up either way. A hint
+   * no key change used expires DROP_HINT_TIMEOUT_MS after it came in, which is JS rejecting
+   * the drop. A props change that leaves the keys alone, like the mounted range moving, does
+   * not end it: JS may still be on its way to the drop.
+   */
+  DropHint dropHint;
+
+  /*
+   * The host's clock for this frame, in milliseconds, or 0 when it has none. Only drop hints
+   * read it.
+   */
+  double frameTimeMs = 0.0;
 };
 
 /*

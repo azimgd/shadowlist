@@ -21,6 +21,7 @@ export {
 } from './useMountedRange';
 export { useRefreshDefer } from './useRefreshDefer';
 export { useDragReorder } from './useDragReorder';
+export { useDragBoardChecks } from './useDragBoardChecks';
 export { usePersistentKeys } from './usePersistentKeys';
 export { useViewability } from './useViewability';
 export { useRowSizeSpecs } from './useRowSizeSpecs';

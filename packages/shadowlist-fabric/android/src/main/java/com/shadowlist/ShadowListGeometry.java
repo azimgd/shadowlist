@@ -3,10 +3,10 @@ package com.shadowlist;
 import com.facebook.soloader.SoLoader;
 
 /*
- * The list's pinning, drag to reorder, snap and page scroll math, which lives in C++ in the
- * host layer of shadowlist-core (host/StickyLayout, host/DragReorder, host/Snap,
- * host/ScrollTarget). Every call takes primitive arrays the caller reuses. Scroll and drag
- * frames allocate nothing.
+ * The list's pinning, snap and page scroll math, which lives in C++ in the host layer of
+ * shadowlist-core (host/StickyLayout, host/Snap, host/ScrollTarget). Every call takes
+ * primitive arrays the caller reuses. Scroll frames allocate nothing. The drag runs in its
+ * own session, see ShadowListDrag.
  */
 final class ShadowListGeometry {
   static {
@@ -61,60 +61,6 @@ final class ShadowListGeometry {
   }
 
   /*
-   * The position in the arrays of the row the held one would drop at, or -1 to stay put.
-   */
-  static int dragInsertionPosition(
-    int[] indices, double[] leadings, double[] extents, int count, int originIndex, double center) {
-    return nativeDragInsertionPosition(indices, leadings, extents, count, originIndex, center);
-  }
-
-  /*
-   * How far each row slides to open the gap, written into shifts.
-   */
-  static void dragShifts(
-    int[] indices, int count, int originIndex, int insertionIndex, double draggedExtent, double[] shifts) {
-    nativeDragShifts(indices, count, originIndex, insertionIndex, draggedExtent, shifts);
-  }
-
-  /*
-   * The position in the arrays of the grid cell the held one would drop at, or -1 for its
-   * own slot. Over no cell it keeps insertionIndex.
-   */
-  static int dragGridInsertionPosition(
-    int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
-    int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
-    int insertionIndex, double center, double crossCenter) {
-    return nativeDragGridInsertionPosition(indices, leadings, extents, crossLeadings, crossExtents, count, heldIndex,
-      heldLeading, heldExtent, heldCrossLeading, heldCrossExtent, insertionIndex, center, crossCenter);
-  }
-
-  /*
-   * How far each grid cell slides along and across the scroll axis to open the gap.
-   */
-  static void dragGridShifts(
-    int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
-    int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
-    int insertionIndex, int columns, double[] shifts, double[] crossShifts) {
-    nativeDragGridShifts(indices, leadings, extents, crossLeadings, crossExtents, count, heldIndex, heldLeading,
-      heldExtent, heldCrossLeading, heldCrossExtent, insertionIndex, columns, shifts, crossShifts);
-  }
-
-  /*
-   * Where the held row's leading edge goes, kept inside the content.
-   */
-  static double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentExtent) {
-    return nativeDragHeldLeading(touchContent, grabOffset, extent, contentExtent);
-  }
-
-  /*
-   * The offset after this frame's auto scroll near the viewport edges, in pixels.
-   */
-  static double dragAutoScrollOffset(
-    double touch, double windowSize, double offset, double maxOffset, double pixelsPerDp) {
-    return nativeDragAutoScrollOffset(touch, windowSize, offset, maxOffset, pixelsPerDp);
-  }
-
-  /*
    * Where an accessibility page scroll lands: one window toward the end for a positive
    * direction, toward the start for a negative one, inside 0 and maxOffset.
    */
@@ -125,21 +71,5 @@ final class ShadowListGeometry {
   private static native void nativeStickyTranslations(double[] slots);
   private static native double nativeSectionOverlayTranslation(double[] offsets, double[] sizes, int count, double offset);
   private static native int nativeNearestSnapOffsetPx(float[] offsetsPx, int count, int targetPx);
-  private static native int nativeDragInsertionPosition(
-    int[] indices, double[] leadings, double[] extents, int count, int originIndex, double center);
-  private static native void nativeDragShifts(
-    int[] indices, int count, int originIndex, int insertionIndex, double draggedExtent, double[] shifts);
-  private static native int nativeDragGridInsertionPosition(
-    int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
-    int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
-    int insertionIndex, double center, double crossCenter);
-  private static native void nativeDragGridShifts(
-    int[] indices, double[] leadings, double[] extents, double[] crossLeadings, double[] crossExtents, int count,
-    int heldIndex, double heldLeading, double heldExtent, double heldCrossLeading, double heldCrossExtent,
-    int insertionIndex, int columns, double[] shifts, double[] crossShifts);
-  private static native double nativeDragHeldLeading(
-    double touchContent, double grabOffset, double extent, double contentExtent);
-  private static native double nativeDragAutoScrollOffset(
-    double touch, double windowSize, double offset, double maxOffset, double pixelsPerDp);
   private static native double nativePageScrollTarget(double offset, double windowAlong, double maxOffset, int direction);
 }

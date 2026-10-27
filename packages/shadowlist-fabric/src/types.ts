@@ -175,6 +175,33 @@ export interface ItemSizeSpec {
   fixedHeight?: number;
 }
 
+/*
+ * A drop within one list: the row at sourceIndex moved to destinationIndex, and data is the
+ * list's data in its new order. Save data to your state, or the row snaps back.
+ */
+export interface MoveItemInfo<ItemT> {
+  sourceIndex: number;
+  destinationIndex: number;
+  data: ItemT[];
+}
+
+/*
+ * A drop into another list of the same drag board, sent to the list the row came from.
+ * sourceListId is that list's dragListId and destinationListId the other list's. data is this
+ * list's data without item. Insert item into the destination list's state before the item
+ * keyed destinationKey, or at its end when destinationKey is ''. destinationIndex names the
+ * same place by index, for a destinationKey that is no longer in your state.
+ */
+export interface MoveItemToListInfo<ItemT> {
+  item: ItemT;
+  sourceIndex: number;
+  sourceListId: string;
+  data: ItemT[];
+  destinationListId: string;
+  destinationIndex: number;
+  destinationKey: string;
+}
+
 export interface ShadowListProps<ItemT> {
   data: ReadonlyArray<ItemT>;
   renderItem: (info: RenderItemInfo<ItemT>) => ReactElement;
@@ -195,11 +222,10 @@ export interface ShadowListProps<ItemT> {
   autoHideHeader?: boolean;
   autoHideFooter?: boolean;
   reorderEnabled?: boolean;
-  onMoveItem?: (info: {
-    sourceIndex: number;
-    destinationIndex: number;
-    data: ItemT[];
-  }) => void;
+  onMoveItem?: (info: MoveItemInfo<ItemT>) => void;
+  dragBoardId?: string;
+  dragListId?: string;
+  onMoveItemToList?: (info: MoveItemToListInfo<ItemT>) => void;
   stickyIndices?: ReadonlyArray<number>;
   renderStickyHeaderOverlay?: (activeIndex: number) => ReactElement | null;
   numberOfColumns?: number;
@@ -322,6 +348,9 @@ export type ShadowListForwardedProps = Omit<
   | 'renderStickyHeaderOverlay'
   | 'reorderEnabled'
   | 'onMoveItem'
+  | 'dragBoardId'
+  | 'dragListId'
+  | 'onMoveItemToList'
   | 'viewabilityConfig'
   | 'onViewableItemsChanged'
   | 'viewabilityConfigCallbackPairs'

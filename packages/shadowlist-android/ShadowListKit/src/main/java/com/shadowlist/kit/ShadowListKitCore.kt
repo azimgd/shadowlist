@@ -181,7 +181,7 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     @JvmStatic private external fun nativeDragOriginIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragInsertionIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragAutoScrollOffset(
-      touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double): Double
+      touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double, dtSeconds: Double): Double
     @JvmStatic private external fun nativeSetSections(handle: Long, count: Int, counts: IntArray?, flags: IntArray?)
     @JvmStatic private external fun nativeCopyRows(handle: Long, items: IntArray, separators: BooleanArray)
     @JvmStatic private external fun nativeItemForDrop(handle: Long, fromRow: Int, toRow: Int): Int
@@ -222,10 +222,11 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     @JvmStatic private external fun nativeSwipeSettle(io: DoubleArray, offset: Double, velocity: Double, flingVelocity: Double)
 
     /*
-     * The offset a held row near an edge scrolls the list to this frame.
+     * The offset a held row near an edge scrolls the list to in a frame of dtSeconds.
      */
-    fun dragAutoScrollOffset(touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double): Double =
-      nativeDragAutoScrollOffset(touch, windowSize, offset, maxOffset, density)
+    fun dragAutoScrollOffset(
+      touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double, dtSeconds: Double,
+    ): Double = nativeDragAutoScrollOffset(touch, windowSize, offset, maxOffset, density, dtSeconds)
 
     /*
      * The diff of two key lists through the core's diffKeys, packed: the delete count and

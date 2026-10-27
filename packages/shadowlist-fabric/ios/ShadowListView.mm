@@ -14,6 +14,7 @@
 
 #include "ShadowListMountDriver.h"
 #include "ShadowListScrollEvent.h"
+#include "ShadowListStoreJsi.h"
 #include "ShadowListStoreModule.h"
 
 #include <shadowlist-core/host/Snap.hpp>
@@ -50,9 +51,21 @@ static double SLScrollPhaseForMacPhase(ShadowListMacScrollPhase phase)
 #import <UIKit/UIGestureRecognizerSubclass.h>
 
 /*
- * How long a press holds a row before the drag lifts it.
+ * How long a press holds a row before the drag lifts it, and how far the finger may drift
+ * during that hold, from the core. UIKit's 10 points fails most presses of a finger that
+ * means to drag, which starts moving before the lift. Along the scroll axis the press fails
+ * sooner, see dragPressHeldStill.
  */
-static const NSTimeInterval SL_DRAG_PRESS_DURATION = 0.2;
+static const NSTimeInterval SL_DRAG_PRESS_DURATION = azimgd::shadowlist::DRAG_PRESS_DURATION_MS / 1000.0;
+static const CGFloat SL_DRAG_PRESS_MOVEMENT = azimgd::shadowlist::DRAG_PRESS_SLOP;
+
+/*
+ * How long a press holds before the haptic engine wakes for a lift that may follow.
+ */
+static const NSTimeInterval SL_DRAG_PREPARE_DELAY = 0.1;
+
+@interface ShadowListView () <UIGestureRecognizerDelegate>
+@end
 
 /*
  * A tap while the list is still coasting after a flick should stop the scroll, not press a row.
@@ -180,6 +193,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _dragRecognizer = [[SLDragGestureRecognizer alloc] initWithTarget:self action:@selector(handleDragGesture:)];
 #if !TARGET_OS_OSX
     _dragRecognizer.minimumPressDuration = SL_DRAG_PRESS_DURATION;
+    _dragRecognizer.allowableMovement = SL_DRAG_PRESS_MOVEMENT;
+    _dragRecognizer.delegate = self;
 #endif
     _dragRecognizer.enabled = NO;
 #if TARGET_OS_OSX
@@ -214,7 +229,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
      */
     _stickyOrderDirty = YES;
     _mountNeedsSticky = YES;
-    if (_dragging && _draggedView) {
+    if ((_dragging && _draggedView) || _drag.isForeign()) {
       _mountNeedsDragShuffle = YES;
     }
     // Add the VoiceOver move actions. Does nothing unless reorderEnabled.
@@ -253,6 +268,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (childComponentView == _sectionHeaderOverlay) {
     _sectionHeaderOverlay = nil;
   }
+  // A row the drag board hid is shown again before it is reused.
+  [self dragBoardViewWillUnmount:childComponentView];
   /*
    * The dragged or dropping row can be deleted mid drag and unmount here. Stop the drag
    * so nothing is left running. A live drag still sends its end event, with no reorder.
@@ -306,7 +323,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _pageAnnouncementPending = NO;
   _pageKeyIndicesProps.reset();
   _pageKeyIndices.clear();
+  _rowKeysSnapshot.reset();
   [self tearDownDrag];
+  [self leaveDragBoard];
   [self stopMountTicks];
   _dragRecognizer.enabled = NO;
   /*
@@ -360,7 +379,16 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (!_reorderEnabled && _dragging) {
     [self cancelDrag];
   }
-  _dragRecognizer.enabled = _reorderEnabled;
+  // A list that turns drag off stops being a drag board's target, or the landing list.
+  if (!_reorderEnabled && previousProps.reorderEnabled) {
+    [self withdrawFromDragBoardFlight];
+  }
+  // Setting it again on every props commit must not touch a press in progress.
+  if (_dragRecognizer.enabled != _reorderEnabled) {
+    _dragRecognizer.enabled = _reorderEnabled;
+  }
+  [self applyDragBoardId:[NSString stringWithUTF8String:nextProps.dragBoardId.c_str()] ?: @""
+                  listId:[NSString stringWithUTF8String:nextProps.dragListId.c_str()] ?: @""];
   [self applyScrollViewProps:nextProps];
   /*
    * Update the VoiceOver actions only when reorderEnabled changes, since this runs on every
@@ -524,7 +552,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   // Fingers on the trackpad move the view like a UIKit drag. A correction shifts the live offset.
   motion.moving = macPhase != ShadowListMacScrollPhaseIdle;
 #endif
-  motion.ownsOffset = _dragging || _dragDropPending;
+  motion.ownsOffset = _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
   motion.jumpPending = _scrollToTopJumpPending;
   motion.jumpOffset = _scrollToTopJumpY;
   auto action = _scrollSync.correction(motion);
@@ -669,7 +697,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   // Pull to refresh, scroll to top and drag to reorder all lean on every frame.
   frame.commitEveryFrame = _refreshing || _refreshAwaitingSettle ||
     (_refreshControl && _refreshControl.isRefreshing) || _scrollingToTop || _scrollToTopJumpPending ||
-    _dragging || _dragDropPending;
+    _dragging || _dragDropPending || _drag.isForeign() || _dragBoardDropPending;
 #else
   frame.scrollPhase = SLScrollPhaseForMacPhase(((ShadowListMacScrollView *)scrollView).phase);
   frame.commitEveryFrame = _dragging || _dragDropPending;
@@ -823,6 +851,19 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 
 - (void)commitDragEventType:(int)type sourceKey:(NSString *)sourceKey destinationKey:(NSString *)destinationKey
 {
+  [self commitDragEventType:type sourceKey:sourceKey destinationKey:destinationKey destinationListId:@"" destinationIndex:-1];
+}
+
+/*
+ * A drag event for JS. destinationListId and destinationIndex name the other list of the drag
+ * board a row dropped in, and stay empty and -1 for every other event.
+ */
+- (void)commitDragEventType:(int)type
+                  sourceKey:(NSString *)sourceKey
+             destinationKey:(NSString *)destinationKey
+          destinationListId:(NSString *)destinationListId
+           destinationIndex:(NSInteger)destinationIndex
+{
   if (!_state) {
     return;
   }
@@ -832,15 +873,20 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     _scrollView.contentOffset.x, _scrollView.contentOffset.y, userScrolled, _scrollSync.getCurrentScrollPhase());
   std::string dragSourceKey = sourceKey ? std::string(sourceKey.UTF8String) : std::string();
   std::string dragDestinationKey = destinationKey ? std::string(destinationKey.UTF8String) : std::string();
+  std::string dragDestinationListId = destinationListId ? std::string(destinationListId.UTF8String) : std::string();
+  double dragDestinationIndex = (double)destinationIndex;
   // The sequence goes past the newest state's. Each event fires once.
   _state->updateState(
-    [patch, type, dragSourceKey, dragDestinationKey](const ShadowListStateData& oldData) -> StateData::Shared {
+    [patch, type, dragSourceKey, dragDestinationKey, dragDestinationListId, dragDestinationIndex](
+      const ShadowListStateData& oldData) -> StateData::Shared {
       auto nextData = std::make_shared<ShadowListStateData>(oldData);
       nextData->applyPatch(patch);
       nextData->dragEventSequence_ = oldData.dragEventSequence_ + 1;
       nextData->dragEventType_ = (double)type;
       nextData->dragSourceKey_ = dragSourceKey;
       nextData->dragDestinationKey_ = dragDestinationKey;
+      nextData->dragDestinationListId_ = dragDestinationListId;
+      nextData->dragDestinationIndex_ = dragDestinationIndex;
       return nextData;
     },
     [self stateUpdateMode]);
@@ -879,6 +925,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   }
   [_ancestorPans removeAllObjects];
   if (!self.window) {
+    // A list that leaves the window takes no further part in a drag board's flight.
+    [self withdrawFromDragBoardFlight];
     return;
   }
   if (!_ancestorPans) {
@@ -898,6 +946,45 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (pan.state == UIGestureRecognizerStateBegan) {
     SLCancelReactTouches(self);
   }
+}
+
+/*
+ * A touch reaches the drag press. A touch still holding after SL_DRAG_PREPARE_DELAY may lift a
+ * row, and the haptic engine wakes then so it is ready for the lift. Taps and scrolls never
+ * wake it.
+ */
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture shouldReceiveTouch:(UITouch *)touch
+{
+  if (gesture == _dragRecognizer) {
+    __weak UIGestureRecognizer *weakGesture = gesture;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_DRAG_PREPARE_DELAY * NSEC_PER_SEC)),
+      dispatch_get_main_queue(), ^{
+        UIGestureRecognizer *press = weakGesture;
+        if (press && press.state == UIGestureRecognizerStatePossible && press.numberOfTouches > 0) {
+          SLPrepareDragFeedback();
+        }
+      });
+  }
+  return YES;
+}
+
+/*
+ * The drag press keeps counting while this list's pan, or on a drag board a pan of a scroll
+ * view around it, starts on a finger that drifts. Without this the first pan to begin fails the
+ * press. The lift then stops those pans: the list turns scrolling off and the board turns the
+ * outer pans off. A plain list still gives way to an outer pan that began first.
+ */
+- (BOOL)gestureRecognizer:(UIGestureRecognizer *)gesture
+  shouldRecognizeSimultaneouslyWithGestureRecognizer:(UIGestureRecognizer *)other
+{
+  if (gesture != _dragRecognizer) {
+    return NO;
+  }
+  if (other == _scrollView.panGestureRecognizer) {
+    return YES;
+  }
+  return _dragBoard != nil && [other isKindOfClass:[UIPanGestureRecognizer class]] &&
+    [_ancestorPans containsObject:(UIPanGestureRecognizer *)other];
 }
 
 - (void)scrollViewWillBeginDragging:(UIScrollView *)scrollView
@@ -996,8 +1083,13 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
       SLRaiseSubview(_contentView, _draggedView, 4.0);
       _stickyOrderDirty = YES;
       [self applyDragShuffle];
+    } else if (_drag.isForeign()) {
+      // New rows in a list a dragged row hovers open the gap too.
+      [self applyDragShuffle];
     }
   }
+  // A drop between lists of a drag board lands in the transaction that moves its row.
+  [self dragBoardMountDidFinish];
   if (_scrollToTopJumpPending) {
     _inMountObserver = YES;
     [self landScrollToTopJumpIfReady];
@@ -1021,6 +1113,46 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
     return NSNotFound;
   }
   return (NSInteger)props->index;
+}
+
+/*
+ * The row keys the props name: the key store's snapshot, or rowKeys without a store.
+ */
+- (const std::vector<std::string>&)currentRowKeys
+{
+  static const std::vector<std::string> none;
+  if (!_props) {
+    return none;
+  }
+  const auto& props = *std::static_pointer_cast<const ShadowListViewProps>(_props);
+  if (props.keysStore > 0 && props.keysVersion > 0) {
+    if (auto store = facebook::react::shadowlist::findRowKeyStore(static_cast<std::int64_t>(props.keysStore))) {
+      if (auto snapshot = store->snapshot(static_cast<std::uint64_t>(props.keysVersion))) {
+        _rowKeysSnapshot = snapshot;
+      }
+    }
+    if (_rowKeysSnapshot) {
+      return _rowKeysSnapshot->keys();
+    }
+  }
+  return props.rowKeys;
+}
+
+/*
+ * Whether this list's data holds a row keyed key, mounted or not.
+ */
+- (BOOL)rowKeysContainKey:(NSString *)key
+{
+  if (!key) {
+    return NO;
+  }
+  const auto& keys = [self currentRowKeys];
+  return std::find(keys.begin(), keys.end(), std::string(key.UTF8String)) != keys.end();
+}
+
+- (std::size_t)rowKeyCount
+{
+  return [self currentRowKeys].size();
 }
 
 - (NSString *)keyOfCellView:(RCTUIView *)view

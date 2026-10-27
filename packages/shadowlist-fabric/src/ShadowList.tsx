@@ -33,6 +33,7 @@ import {
   useMountedRange,
   useRefreshDefer,
   useDragReorder,
+  useDragBoardChecks,
   usePersistentKeys,
   useViewability,
   useImperativeCommands,
@@ -124,6 +125,9 @@ function ShadowListBaseInner<ItemT>(
     autoHideFooter = false,
     reorderEnabled = false,
     onMoveItem,
+    dragBoardId,
+    dragListId,
+    onMoveItemToList,
     numberOfColumns = 1,
     overscan = 1,
     mountOverscanRows = SHADOWLIST_OVERSCAN,
@@ -307,7 +311,10 @@ function ShadowListBaseInner<ItemT>(
     mountedIndices,
     reorderEnabled,
     onMoveItem,
+    listId: dragListId,
+    onMoveItemToList,
   });
+  useDragBoardChecks(dragBoardId, dragListId);
 
   const renderIndices = usePersistentKeys({
     source,
@@ -749,6 +756,8 @@ function ShadowListBaseInner<ItemT>(
       snapToItem={snapToItem}
       snapAlignment={SNAP_ALIGNMENT[snapAlignment]}
       reorderEnabled={reorderEnabled}
+      dragBoardId={dragBoardId}
+      dragListId={dragListId}
       scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
       showsHorizontalScrollIndicator={showsHorizontalScrollIndicator}

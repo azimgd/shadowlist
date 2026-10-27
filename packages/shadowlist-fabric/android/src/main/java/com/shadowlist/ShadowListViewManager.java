@@ -167,6 +167,18 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   }
 
   @Override
+  @ReactProp(name = "dragBoardId")
+  public void setDragBoardId(ShadowListView view, @Nullable String dragBoardId) {
+    // Cross-list drag boards are iOS only for now. Android keeps the within-list drag.
+  }
+
+  @Override
+  @ReactProp(name = "dragListId")
+  public void setDragListId(ShadowListView view, @Nullable String dragListId) {
+    // Cross-list drag boards are iOS only for now. Android keeps the within-list drag.
+  }
+
+  @Override
   @ReactProp(name = "stickyIndices")
   public void setStickyIndices(ShadowListView view, @Nullable ReadableArray stickyIndices) {
     // Only the core reads this prop. Pinning reads the header positions back from state.

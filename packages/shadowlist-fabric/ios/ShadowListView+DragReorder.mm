@@ -11,40 +11,6 @@
 using namespace facebook::react;
 
 /*
- * How long the dropped row takes to slide into its place.
- */
-static const NSTimeInterval SL_DROP_SETTLE_DURATION = 0.18;
-
-/*
- * How long a drop waits for its reorder to land before it settles anyway.
- */
-static const NSTimeInterval SL_DROP_SETTLE_TIMEOUT = 0.3;
-
-/*
- * Give the lifted row's shadow an explicit shape. Without one, Core Animation renders the
- * row offscreen every frame to find its outline. Only rebuilt when the size changes.
- */
-static void SLUpdateDragShadowPath(RCTUIView *view)
-{
-  CGRect bounds = view.bounds;
-  CGPathRef current = view.layer.shadowPath;
-  if (current && CGRectEqualToRect(CGPathGetBoundingBox(current), bounds)) {
-    return;
-  }
-  CGPathRef path = CGPathCreateWithRoundedRect(bounds, view.layer.cornerRadius, view.layer.cornerRadius, NULL);
-  view.layer.shadowPath = path;
-  CGPathRelease(path);
-}
-
-/*
- * A drag key for JS, empty when the row has none.
- */
-static NSString *SLDragKey(const std::string& key)
-{
-  return [NSString stringWithUTF8String:key.c_str()] ?: @"";
-}
-
-/*
  * The core's index for a view index, UNDEFINED_INDEX for NSNotFound.
  */
 static std::size_t SLCoreIndex(NSInteger index)
@@ -59,6 +25,105 @@ static NSInteger SLViewIndex(std::size_t index)
 {
   return index == azimgd::shadowlist::UNDEFINED_INDEX ? NSNotFound : (NSInteger)index;
 }
+
+/*
+ * Animate a row's transform to target over duration, then run completion with whether it
+ * finished. macOS animates the layer because AppKit has no view animation for a transform.
+ */
+static void SLAnimateDragTransform(
+  RCTUIView *view,
+  CGAffineTransform target,
+  NSTimeInterval duration,
+  void (^_Nullable completion)(BOOL finished))
+{
+#if TARGET_OS_OSX
+  CATransform3D from = view.layer.transform;
+  view.transform = target;
+  CABasicAnimation *slide = [CABasicAnimation animationWithKeyPath:@"transform"];
+  slide.fromValue = [NSValue valueWithCATransform3D:from];
+  slide.toValue = [NSValue valueWithCATransform3D:view.layer.transform];
+  slide.duration = duration;
+  slide.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+  [CATransaction begin];
+  [CATransaction setCompletionBlock:^{
+    if (completion) {
+      completion(YES);
+    }
+  }];
+  [view.layer addAnimation:slide forKey:@"transform"];
+  [CATransaction commit];
+#else
+  [UIView animateWithDuration:duration
+                        delay:0.0
+                      options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionCurveEaseOut |
+                              UIViewAnimationOptionAllowUserInteraction
+                   animations:^{
+                     view.transform = target;
+                   }
+                   completion:completion];
+#endif
+}
+
+#if !TARGET_OS_OSX
+/*
+ * How fast the drag link asks the display to run, in frames per second. A ProMotion screen
+ * shows the edge scroll and the shifting rows at its full rate.
+ */
+static const float SL_DRAG_FRAME_RATE_MIN = 60.0f;
+static const float SL_DRAG_FRAME_RATE_MAX = 120.0f;
+
+static UIImpactFeedbackGenerator *SLDragLiftGenerator(void)
+{
+  static UIImpactFeedbackGenerator *generator;
+  if (!generator) {
+    generator = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleMedium];
+  }
+  return generator;
+}
+
+static UISelectionFeedbackGenerator *SLDragSelectionGenerator(void)
+{
+  static UISelectionFeedbackGenerator *generator;
+  if (!generator) {
+    generator = [UISelectionFeedbackGenerator new];
+  }
+  return generator;
+}
+
+void SLPrepareDragFeedback(void)
+{
+  [SLDragLiftGenerator() prepare];
+}
+
+void SLDragLiftFeedback(void)
+{
+  [SLDragLiftGenerator() impactOccurred];
+  // The engine stays awake for the ticks of this drag.
+  [SLDragSelectionGenerator() prepare];
+}
+
+void SLDragSelectionFeedback(void)
+{
+  [SLDragSelectionGenerator() selectionChanged];
+  [SLDragSelectionGenerator() prepare];
+}
+#else
+void SLPrepareDragFeedback(void)
+{
+}
+
+void SLDragLiftFeedback(void)
+{
+  [[NSHapticFeedbackManager defaultPerformer] performFeedbackPattern:NSHapticFeedbackPatternGeneric
+                                                     performanceTime:NSHapticFeedbackPerformanceTimeNow];
+}
+
+void SLDragSelectionFeedback(void)
+{
+  [[NSHapticFeedbackManager defaultPerformer] performFeedbackPattern:NSHapticFeedbackPatternAlignment
+                                                     performanceTime:NSHapticFeedbackPerformanceTimeNow];
+}
+#endif
 
 /*
  * Long press and drag to reorder rows.
@@ -125,10 +190,18 @@ static NSInteger SLViewIndex(std::size_t index)
 {
   switch (gesture.state) {
     case SLGestureStateBegan:
+#if !TARGET_OS_OSX
+      if (![self dragPressHeldStill]) {
+        // The finger scrolled the list during the hold. Fail the press, the scroll goes on.
+        gesture.enabled = NO;
+        gesture.enabled = YES;
+        break;
+      }
+#endif
       [self beginDragAtPoint:[gesture locationInView:self]];
       break;
     case SLGestureStateChanged:
-      _dragTouchInViewport = [gesture locationInView:self];
+      [self setDragTouch:[gesture locationInView:self]];
       [self updateDrag];
       break;
     case SLGestureStateEnded:
@@ -143,6 +216,23 @@ static NSInteger SLViewIndex(std::size_t index)
       break;
   }
 }
+
+#if !TARGET_OS_OSX
+/*
+ * The press runs together with the list's pan. A finger that drifts still lifts the row.
+ * A finger that scrolled the list farther than the core's DRAG_PRESS_SCROLL_SLOP along the scroll axis
+ * meant to scroll, and the press fails.
+ */
+- (BOOL)dragPressHeldStill
+{
+  UIPanGestureRecognizer *pan = _scrollView.panGestureRecognizer;
+  if (pan.state != UIGestureRecognizerStateBegan && pan.state != UIGestureRecognizerStateChanged) {
+    return YES;
+  }
+  CGPoint moved = [pan translationInView:_scrollView];
+  return azimgd::shadowlist::dragPressHolds(_horizontal ? moved.x : moved.y, _horizontal ? moved.y : moved.x);
+}
+#endif
 
 /*
  * For scripted runs, like -SLAutoDrag in the example app. Drives the same path as the long
@@ -163,12 +253,32 @@ static NSInteger SLViewIndex(std::size_t index)
       [self beginDragAtPoint:location];
       break;
     case 2:
-      _dragTouchInViewport = location;
+      [self setDragTouch:location];
       [self updateDrag];
       break;
     default:
       [self finishDrag];
       break;
+  }
+}
+
+/*
+ * The finger moved to location in this view.
+ */
+- (void)setDragTouch:(CGPoint)location
+{
+  _dragTouchInViewport = location;
+  _dragTouchInWindow = [self convertPoint:location toView:nil];
+}
+
+/*
+ * On a drag board the view around this list may have scrolled under a finger that held still.
+ * Find the finger in this view again from where it is in the window.
+ */
+- (void)refreshDragTouchFromWindow
+{
+  if (_dragBoard && self.window) {
+    _dragTouchInViewport = [self convertPoint:_dragTouchInWindow fromView:nil];
   }
 }
 
@@ -184,6 +294,9 @@ static NSInteger SLViewIndex(std::size_t index)
   // Clear anything left over from the previous drag.
   _dragDropPending = NO;
   _droppedView = nil;
+  _dropSettle.reset();
+  [_dropSettleLink invalidate];
+  _dropSettleLink = nil;
   [self clearDragTransforms];
 
   _dragging = YES;
@@ -194,7 +307,13 @@ static NSInteger SLViewIndex(std::size_t index)
     _horizontal ? contentPoint.x : contentPoint.y,
     _horizontal ? contentPoint.y : contentPoint.x,
     (std::size_t)MAX(_numberOfColumns, 1));
-  _dragTouchInViewport = location;
+  [self setDragTouch:location];
+  _dragFeedback.reset(_drag.getOriginIndex());
+  _dragLastTickTime = 0.0;
+  SLDragLiftFeedback();
+
+  // A drop still landing on this list's drag board ends before the next pickup.
+  [self dragBoardDidPickUpView:view key:[self keyOfCellView:view]];
 
   // We scroll ourselves near the edges. Stop the scroll view from following the finger.
   _scrollView.scrollEnabled = NO;
@@ -203,11 +322,7 @@ static NSInteger SLViewIndex(std::size_t index)
   SLRaiseSubview(_contentView, view, 4.0);
   // The row now sits above the sticky views. The next pin raises them again.
   _stickyOrderDirty = YES;
-  view.layer.shadowColor = [RCTUIColor blackColor].CGColor;
-  view.layer.shadowOpacity = 0.25;
-  view.layer.shadowRadius = 8.0;
-  view.layer.shadowOffset = CGSizeMake(0.0, 4.0);
-  SLUpdateDragShadowPath(view);
+  SLApplyDragLiftShadow(view, view.layer);
 
   // Tell the core a drag started so this row stays mounted when it scrolls off screen.
   NSString *originKey = SLDragKey(_drag.getOriginKey());
@@ -216,32 +331,49 @@ static NSInteger SLViewIndex(std::size_t index)
   // A scripted pickup can arrive while a drag runs. Its previous link would keep this view alive.
   [_dragDisplayLink invalidate];
   _dragDisplayLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dragTick)];
+#if !TARGET_OS_OSX
+  _dragDisplayLink.preferredFrameRateRange =
+    CAFrameRateRangeMake(SL_DRAG_FRAME_RATE_MIN, SL_DRAG_FRAME_RATE_MAX, SL_DRAG_FRAME_RATE_MAX);
+#endif
   [_dragDisplayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 
   [self updateDrag];
 }
 
 /*
- * Every frame, scroll near the edges, then move the row and shift the others.
+ * Every frame, scroll near the edges, then move the row and shift the others. The edge
+ * speeds are per second. A ProMotion frame scrolls less and the speed stays the same.
  */
 - (void)dragTick
 {
   if (!_dragging) {
     return;
   }
-  [self applyDragAutoScroll];
+  CFTimeInterval now = CACurrentMediaTime();
+  double dtSeconds = _dragLastTickTime > 0.0 ? now - _dragLastTickTime : 1.0 / 60.0;
+  _dragLastTickTime = now;
+  [self refreshDragTouchFromWindow];
+  // A row floating over another list of the drag board scrolls that list instead.
+  if (![self applyDragBoardAutoScrollWithDt:dtSeconds]) {
+    [self applyDragAutoScrollForTouch:_dragTouchInViewport dtSeconds:dtSeconds];
+  }
+  // The board's sideways scroll just moved this list under the finger.
+  [self refreshDragTouchFromWindow];
   [self updateDrag];
 }
 
-- (void)applyDragAutoScroll
+/*
+ * Scroll near the edges for a finger at touch in this view.
+ */
+- (void)applyDragAutoScrollForTouch:(CGPoint)touchPoint dtSeconds:(double)dtSeconds
 {
   CGFloat window = _horizontal ? _scrollView.bounds.size.width : _scrollView.bounds.size.height;
   CGFloat content = _horizontal ? _scrollView.contentSize.width : _scrollView.contentSize.height;
   CGFloat maxOffset = MAX(0.0, content - window);
   CGFloat offset = _horizontal ? _scrollView.contentOffset.x : _scrollView.contentOffset.y;
-  CGFloat touch = _horizontal ? _dragTouchInViewport.x : _dragTouchInViewport.y;
+  CGFloat touch = _horizontal ? touchPoint.x : touchPoint.y;
   CGFloat newOffset = azimgd::shadowlist::dragAutoScrollOffset(
-    azimgd::shadowlist::DRAG_AUTO_SCROLL_IOS, touch, window, offset, maxOffset);
+    azimgd::shadowlist::DRAG_AUTO_SCROLL_IOS, touch, window, offset, maxOffset, dtSeconds);
   if (newOffset == offset) {
     return;
   }
@@ -274,6 +406,15 @@ static NSInteger SLViewIndex(std::size_t index)
   NSString *currentKey = [self keyOfCellView:view];
   _drag.updateOrigin(SLCoreIndex(currentIndex), currentKey ? std::string(currentKey.UTF8String) : std::string());
 
+  // Over another list of the drag board the row floats above the window. The board moves it.
+  if ([self updateDragBoard]) {
+    return;
+  }
+  if (!_dragging) {
+    // The board cancelled the drag on this frame.
+    return;
+  }
+
   CGPoint touchContent = CGPointMake(
     _dragTouchInViewport.x + _scrollView.contentOffset.x, _dragTouchInViewport.y + _scrollView.contentOffset.y);
   azimgd::shadowlist::DragRow resting = [self dragRowForView:view index:SLViewIndex(_drag.getOriginIndex())];
@@ -285,12 +426,18 @@ static NSInteger SLViewIndex(std::size_t index)
     // The scroll view's content size is 0 across the scroll axis. Use the content view.
     _horizontal ? _contentView.bounds.size.height : _contentView.bounds.size.width);
 
-  // The row can change size while held.
-  SLUpdateDragShadowPath(view);
-
   view.transform = [self dragTransformForOffset:translation];
+  [self updateDragInsertion];
+  // A row that came home on this frame's board update slid its neighbors back once.
+  _dragBoardAnimateShifts = NO;
+}
 
-  // Find where it would drop among the other mounted rows.
+/*
+ * Find where the held row would drop among the other mounted rows and shift them. The drag
+ * board also calls this while the row is away or comes from another list.
+ */
+- (void)updateDragInsertion
+{
   std::vector<azimgd::shadowlist::DragRow> rows;
   rows.reserve(_contentView.subviews.count);
   for (RCTUIView *subview in _contentView.subviews) {
@@ -304,7 +451,23 @@ static NSInteger SLViewIndex(std::size_t index)
     rows.push_back([self dragRowForView:subview index:rowIndex]);
   }
   _drag.updateInsertion(rows);
+  [self noteDragInsertionForFeedback];
   [self applyDragShuffle];
+}
+
+/*
+ * A tick when the drop spot moves, in the list the row is over: the home list while the row
+ * is in it, or the list it hovers on a drag board. The home list skips the spots it goes
+ * through while the row is away. The core's DragFeedback spaces the ticks out.
+ */
+- (void)noteDragInsertionForFeedback
+{
+  if (!_drag.isForeign() && (!_dragging || _drag.isHeldAway())) {
+    return;
+  }
+  if (_dragFeedback.shouldTick(_drag.getInsertionIndex(), SLDragNowMs())) {
+    SLDragSelectionFeedback();
+  }
 }
 
 /*
@@ -313,6 +476,7 @@ static NSInteger SLViewIndex(std::size_t index)
  */
 - (void)applyDragShuffle
 {
+  BOOL animated = _dragBoard && (_drag.isForeign() || _drag.isHeldAway() || _dragBoardAnimateShifts);
   for (RCTUIView *subview in _contentView.subviews) {
     if (subview == _draggedView ||
         ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
@@ -322,7 +486,18 @@ static NSInteger SLViewIndex(std::size_t index)
     if (rowIndex == NSNotFound) {
       continue;
     }
-    subview.transform = [self dragTransformForOffset:_drag.offsetFor(SLCoreIndex(rowIndex))];
+    CGAffineTransform shift = [self dragTransformForOffset:_drag.offsetFor(SLCoreIndex(rowIndex))];
+    /*
+     * On a drag board a row leaves or enters a list as a whole gap at once. The rows slide
+     * there instead of jumping, while the row is away from its home list, hovers this list
+     * from another one, or just came back or left. A reorder within one list moves its rows
+     * like any list.
+     */
+    if (animated && !CGAffineTransformEqualToTransform(subview.transform, shift)) {
+      SLAnimateDragTransform(subview, shift, SL_DRAG_SHIFT_DURATION, nil);
+      continue;
+    }
+    subview.transform = shift;
   }
 }
 
@@ -341,9 +516,10 @@ static NSInteger SLViewIndex(std::size_t index)
     if (subview == view || ![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
       continue;
     }
+    // A drag board slides the rows. Stop a slide still running, or it ends on the old shift.
+    [subview.layer removeAllAnimations];
     subview.transform = CGAffineTransformIdentity;
-    subview.layer.shadowOpacity = 0.0;
-    subview.layer.shadowPath = nil;
+    SLClearDragLiftShadow(subview.layer);
   }
 
   CGRect resting = [self restingFrameForView:view];
@@ -353,51 +529,29 @@ static NSInteger SLViewIndex(std::size_t index)
     start.cross = _dropReleaseCross - (_horizontal ? resting.origin.y : resting.origin.x);
   }
   view.transform = [self dragTransformForOffset:start];
+  [self slideDraggedViewHome:view duration:SL_DROP_SETTLE_DURATION];
+}
 
-#if TARGET_OS_OSX
-  CATransform3D released = view.layer.transform;
-  view.transform = CGAffineTransformIdentity;
-  CABasicAnimation *settle = [CABasicAnimation animationWithKeyPath:@"transform"];
-  settle.fromValue = [NSValue valueWithCATransform3D:released];
-  settle.toValue = [NSValue valueWithCATransform3D:CATransform3DIdentity];
-  settle.duration = SL_DROP_SETTLE_DURATION;
-  settle.timingFunction = [CAMediaTimingFunction functionWithName:kCAMediaTimingFunctionEaseOut];
+/*
+ * Animate a held or dropped row to its resting place and drop its lift there. A new pickup of
+ * the same row cancels this animation. The completion then runs after the lift and must not
+ * clear the new shadow.
+ */
+- (void)slideDraggedViewHome:(RCTUIView *)view duration:(NSTimeInterval)duration
+{
   __weak ShadowListView *weakSelf = self;
   __weak RCTUIView *weakView = view;
-  [CATransaction begin];
-  [CATransaction setCompletionBlock:^{
+  SLAnimateDragTransform(view, CGAffineTransformIdentity, duration, ^(BOOL finished) {
     ShadowListView *strongSelf = weakSelf;
     RCTUIView *settled = weakView;
-    if (!strongSelf || !settled || (strongSelf->_dragging && strongSelf->_draggedView == settled)) {
+    if (!settled || (strongSelf && strongSelf->_dragging && strongSelf->_draggedView == settled)) {
       return;
     }
-    settled.layer.shadowOpacity = 0.0;
-    settled.layer.shadowPath = nil;
+    SLClearDragLiftShadow(settled.layer);
+#if TARGET_OS_OSX
     settled.layer.zPosition = 0.0;
-  }];
-  [view.layer addAnimation:settle forKey:@"transform"];
-  [CATransaction commit];
-#else
-  __weak ShadowListView *weakSelf = self;
-  [UIView animateWithDuration:SL_DROP_SETTLE_DURATION
-                        delay:0.0
-                      options:UIViewAnimationOptionCurveEaseOut
-                   animations:^{
-                     view.transform = CGAffineTransformIdentity;
-                   }
-                   completion:^(BOOL finished) {
-                     /*
-                      * A new pickup of the same row cancels this animation. The completion
-                      * then runs after the lift and must not clear the new shadow.
-                      */
-                     ShadowListView *strongSelf = weakSelf;
-                     if (strongSelf && strongSelf->_dragging && strongSelf->_draggedView == view) {
-                       return;
-                     }
-                     view.layer.shadowOpacity = 0.0;
-                     view.layer.shadowPath = nil;
-                   }];
 #endif
+  });
 }
 
 /*
@@ -412,17 +566,45 @@ static NSInteger SLViewIndex(std::size_t index)
     // Stop any drop animation still running before a new pickup.
     [subview.layer removeAllAnimations];
     subview.transform = CGAffineTransformIdentity;
-    subview.layer.shadowOpacity = 0.0;
-    subview.layer.shadowPath = nil;
+    SLClearDragLiftShadow(subview.layer);
 #if TARGET_OS_OSX
     subview.layer.zPosition = 0.0;
 #endif
   }
 }
 
+/*
+ * A cancel puts every row back the way a drop settles: the held row flies home over the drop's
+ * duration and the others slide back like they shifted. Rows off the window snap.
+ */
+- (void)slideDragTransformsHome
+{
+  RCTUIView *held = _draggedView;
+  for (RCTUIView *subview in _contentView.subviews) {
+    if (![subview conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
+      continue;
+    }
+    if (!subview.window) {
+      [subview.layer removeAllAnimations];
+      subview.transform = CGAffineTransformIdentity;
+      SLClearDragLiftShadow(subview.layer);
+      continue;
+    }
+    if (subview == held) {
+      [self slideDraggedViewHome:subview duration:SL_DROP_SETTLE_DURATION];
+    } else if (!CGAffineTransformIsIdentity(subview.transform)) {
+      SLAnimateDragTransform(subview, CGAffineTransformIdentity, SL_DRAG_SHIFT_DURATION, nil);
+    }
+  }
+}
+
 - (void)finishDrag
 {
   if (!_dragging) {
+    return;
+  }
+  // A row let go over another list of the drag board drops there.
+  if ([self finishDragBoard]) {
     return;
   }
 
@@ -448,40 +630,27 @@ static NSInteger SLViewIndex(std::size_t index)
 
   if (from == to || !view) {
     // Dropped where it started. No commit will come. Settle now.
-    [self clearDragTransforms];
     _dragDropPending = NO;
     _droppedView = nil;
-  } else {
-    _dragDropPending = YES;
-    _droppedView = view;
-    _dropInsertionIndex = to;
-
-    /*
-     * Check each frame for the landing. A reorder of same size rows may not publish
-     * new state. Watch for the row's index to reach its new spot.
-     */
-    [_dropSettleLink invalidate];
-    _dropSettleLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
-    [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
-
-    /*
-     * Fallback if the reorder never lands. The token stops a previous timer from
-     * clearing a newer drop.
-     */
-    NSInteger settleToken = ++_dropSettleToken;
-    __weak ShadowListView *weakSelf = self;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(SL_DROP_SETTLE_TIMEOUT * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-      ShadowListView *strongSelf = weakSelf;
-      if (strongSelf && settleToken == strongSelf->_dropSettleToken &&
-          strongSelf->_dragDropPending && !strongSelf->_dragging) {
-        [strongSelf->_dropSettleLink invalidate];
-        strongSelf->_dropSettleLink = nil;
-        [strongSelf clearDragTransforms];
-        strongSelf->_dragDropPending = NO;
-        strongSelf->_droppedView = nil;
-      }
-    });
+    if (view) {
+      [self settleDroppedView:view];
+    } else {
+      [self clearDragTransforms];
+    }
+    return;
   }
+  _dragDropPending = YES;
+  _droppedView = view;
+
+  /*
+   * Check each frame for the landing. A reorder of same size rows may not publish new state.
+   * The core's DropSettle watches the row's index reach its new spot, and gives up after
+   * DRAG_DROP_SETTLE_TIMEOUT_MS if the reorder never lands.
+   */
+  _dropSettle.begin(SLCoreIndex(to), SLDragNowMs());
+  [_dropSettleLink invalidate];
+  _dropSettleLink = [SLDisplayLink displayLinkWithTarget:self selector:@selector(dropSettleTick)];
+  [_dropSettleLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
 }
 
 /*
@@ -490,26 +659,27 @@ static NSInteger SLViewIndex(std::size_t index)
  */
 - (void)dropSettleTick
 {
+  RCTUIView *view = _droppedView;
+  using Status = azimgd::shadowlist::DropSettle::Status;
+  Status status = _dragDropPending
+    ? _dropSettle.tick(view ? SLCoreIndex([self indexOfCellView:view]) : azimgd::shadowlist::UNDEFINED_INDEX,
+        SLDragNowMs())
+    : Status::Idle;
+  if (status == Status::Waiting) {
+    return;
+  }
+  [_dropSettleLink invalidate];
+  _dropSettleLink = nil;
   if (!_dragDropPending) {
-    [_dropSettleLink invalidate];
-    _dropSettleLink = nil;
     return;
   }
-  if (!_droppedView) {
-    // The dropped row went off screen and unmounted. There is nothing to animate.
-    [self clearDragTransforms];
-    _dragDropPending = NO;
-    [_dropSettleLink invalidate];
-    _dropSettleLink = nil;
-    return;
-  }
-  if ([self indexOfCellView:_droppedView] == _dropInsertionIndex) {
-    RCTUIView *view = _droppedView;
-    _dragDropPending = NO;
-    _droppedView = nil;
-    [_dropSettleLink invalidate];
-    _dropSettleLink = nil;
+  _dragDropPending = NO;
+  _droppedView = nil;
+  if (status == Status::Settle) {
     [self settleDroppedView:view];
+  } else if (!_dragging) {
+    // The reorder never landed, or the row unmounted. Put every row back at once.
+    [self clearDragTransforms];
   }
 }
 
@@ -518,9 +688,11 @@ static NSInteger SLViewIndex(std::size_t index)
  * the held row is deleted. The end event goes out with the origin key on both sides. It
  * turns core corrections back on and clears the held key in JS without moving anything.
  * This can run inside a mount, where an immediate commit is not allowed. Send it async.
+ * The rows slide back to their places.
  */
 - (void)cancelDrag
 {
+  BOOL wasDragging = _dragging;
   if (_dragging && _state) {
     NSString *originKey = SLDragKey(_drag.getOriginKey());
     BOOL wasInMountObserver = _inMountObserver;
@@ -528,7 +700,9 @@ static NSInteger SLViewIndex(std::size_t index)
     [self commitDragEventType:azimgd::shadowlist::DRAG_EVENT_END sourceKey:originKey destinationKey:originKey];
     _inMountObserver = wasInMountObserver;
   }
-  [self tearDownDrag];
+  // A row floating over another list of the drag board flies back to its place.
+  [self cancelDragBoard];
+  [self tearDownDragAnimated:wasDragging && self.window != nil];
 }
 
 /*
@@ -537,17 +711,29 @@ static NSInteger SLViewIndex(std::size_t index)
  */
 - (void)tearDownDrag
 {
+  [self tearDownDragAnimated:NO];
+}
+
+- (void)tearDownDragAnimated:(BOOL)animated
+{
+  [self tearDownDragBoard];
   [_dragDisplayLink invalidate];
   _dragDisplayLink = nil;
   [_dropSettleLink invalidate];
   _dropSettleLink = nil;
+  _dropSettle.reset();
   [_droppedView.layer removeAllAnimations];
+  if (animated) {
+    [self slideDragTransformsHome];
+  }
   _dragging = NO;
   _draggedView = nil;
   _dragDropPending = NO;
   _droppedView = nil;
   _scrollView.scrollEnabled = _scrollEnabled;
-  [self clearDragTransforms];
+  if (!animated) {
+    [self clearDragTransforms];
+  }
 }
 
 #pragma mark - Accessibility

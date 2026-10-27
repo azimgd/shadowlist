@@ -70,6 +70,9 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `stickyHeader`, `stickyFooter` | false | Pin `ListHeaderComponent` or `ListFooterComponent` to its edge. |
 | `autoHideHeader`, `autoHideFooter` | false | A pinned header or footer slides out while the user scrolls further into the list and slides back when they scroll the other way, like a hiding toolbar. |
 | `reorderEnabled` | false | Touch and hold to drag. `onMoveItem` reports a move; save its `data` to your state or the row snaps back. DraggableList enables it by default. |
+| `dragBoardId` |  | iOS. DraggableLists that share a non-empty `dragBoardId` form one drag board, where a row dragged out of one list can drop in another. See [Drag boards](#drag-boards). |
+| `dragListId` |  | Names this list on its drag board, unique among the board's mounted lists. A list without one is never a drop target. |
+| `onMoveItemToList` |  | A drop in another list of the board, a `MoveItemToListInfo`: the moved `item`, its `sourceIndex`, `sourceListId`, this list's `data` without it, `destinationListId`, `destinationKey` and `destinationIndex`. Save `data`, and insert `item` in the destination list's state before the item keyed `destinationKey`, or at its end when the key is `''`. `destinationIndex` names the same place, for a key no longer in your state. |
 | `snapToItem` | false | Rest on a row edge. |
 | `snapAlignment` | `'start'` | Snap to `'start'`, `'center'` or `'end'`. |
 | `overscan` | 1 | How far past the viewport native measures and places rows, in viewport sizes. |
@@ -125,6 +128,39 @@ Swipe actions work on vertical lists and on iOS and Android. A full swipe perfor
 returns a promise keeps the row revealed until the promise settles, then a surviving row slides back. Menus use `UIMenu`
 on iOS, a long press popup on Android and a right click menu on macOS. With `reorderEnabled`, that long press starts
 dragging and shows no menu.
+
+### Drag to reorder
+
+Touch and hold a row for 0.2 s to lift it. A finger that scrolls the list more than 8 points during the hold scrolls
+instead, and any other drift up to 20 points still lifts. The list scrolls near its edges at the same speed per second
+on every display, the held row casts the shadow of its card (the first view with a background down its single child
+chain, or its bounds), the drop spot ticks a haptic as it moves, and a cancelled gesture puts the rows back with the
+same slide a drop uses. iOS, Android and macOS share these numbers and the drag math from the core. VoiceOver and
+TalkBack offer Move up and Move down on each row while `reorderEnabled` is on.
+
+`onMoveItem` gets a `MoveItemInfo` (`sourceIndex`, `destinationIndex` and the reordered `data`). The list keeps its
+scroll offset when the reorder lands. The rows stay where the drag showed them.
+
+### Drag boards
+
+iOS only for now. On Android and macOS a list with a `dragBoardId` reorders within itself, and `__DEV__` builds warn
+once.
+
+- Board ids are global to the app. Two screens that use one id join one board. Give each screen's board its own id.
+- Every list on a board needs its own `dragListId`. A list without one can't take a drop, and two lists with the same
+  id can't be told apart. `__DEV__` builds warn about both.
+- The finger picks the list it hovers through the window's hit test. A list covered by another view isn't a target.
+- A drop sends one `onMoveItemToList` from the list the row came from. Update both lists in that handler, in one state
+  change, within a second. The dragged row's picture waits that long for the row to show up in the destination's data,
+  then gives up and the rows go back.
+- SectionList and TreeList rows can't move between lists. Their drop warns in `__DEV__` and does nothing.
+- The scroll view around the board scrolls sideways once the finger heads for its edge, and comes to rest on its
+  nearest page, `snapToInterval` or `snapToOffsets` when the drag ends.
+- VoiceOver has no move between lists yet. Rows keep Move up and Move down within their list.
+
+A scoped `<DragBoard>` provider is the planned next step: it would name its board with `useId`, which keeps
+screens from sharing one by accident, take one `onMoveItem({ item, sourceListId, destinationListId, destinationIndex, destinationKey })`
+for the whole board, and let a list refuse drops with `acceptsDrop`. Until then the string ids above are the API.
 
 ### Prefetching and saved position
 

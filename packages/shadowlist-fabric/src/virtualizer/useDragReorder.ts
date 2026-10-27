@@ -3,18 +3,18 @@ import type { CodegenTypes } from 'react-native';
 import type { OnDragStart, OnDragEnd } from '../ShadowListViewNativeComponent';
 import { arrayMove, mergeSortedIndices } from './helpers';
 import type { RowSource } from './rowSource';
+import type { MoveItemInfo, MoveItemToListInfo } from '../types';
 
+/*
+ * listId is this list's dragListId, sent back as sourceListId.
+ */
 interface UseDragReorderOptions<ItemT> {
   source: RowSource<ItemT>;
   mountedIndices: number[];
   reorderEnabled: boolean;
-  onMoveItem:
-    | ((info: {
-        sourceIndex: number;
-        destinationIndex: number;
-        data: ItemT[];
-      }) => void)
-    | undefined;
+  onMoveItem: ((info: MoveItemInfo<ItemT>) => void) | undefined;
+  listId: string | undefined;
+  onMoveItemToList: ((info: MoveItemToListInfo<ItemT>) => void) | undefined;
 }
 
 interface UseDragReorderResult {
@@ -25,13 +25,16 @@ interface UseDragReorderResult {
 
 /*
  * Drag to reorder. Keeps the dragged row mounted while it's off screen, and on drop moves
- * it in the array and passes the result to onMoveItem.
+ * it in the array and passes the result to onMoveItem. A drop in another list of the drag
+ * board goes to onMoveItemToList with the row taken out of the array.
  */
 export function useDragReorder<ItemT>({
   source,
   mountedIndices,
   reorderEnabled,
   onMoveItem,
+  listId,
+  onMoveItemToList,
 }: UseDragReorderOptions<ItemT>): UseDragReorderResult {
   /*
    * Find a key's current index in data, or -1 if it's gone. Native sends keys. A data
@@ -71,13 +74,52 @@ export function useDragReorder<ItemT>({
       setDraggingKey(key);
     }, []);
 
-  // On drop, look up both keys and move the row once.
+  /*
+   * On drop, look up both keys and move the row once. A drop in another list of the board
+   * names that list. The row leaves this list's data, and the caller adds it to the other
+   * before destinationKey, a key of the other list, or at the end when it is ''.
+   */
   const handleDragEnd: CodegenTypes.DirectEventHandler<OnDragEnd, never> =
     useCallback(
       (event) => {
-        const { sourceKey, destinationKey } = event.nativeEvent;
+        const { sourceKey, destinationKey, destinationListId } =
+          event.nativeEvent;
         setDraggingKey(null);
         const sourceIndex = indexOfKey(sourceKey);
+        if (destinationListId) {
+          const data = source.data;
+          const item = sourceIndex === -1 ? undefined : data?.[sourceIndex];
+          if (!onMoveItemToList) {
+            if (__DEV__) {
+              console.warn(
+                `ShadowList: a row was dropped into the list '${destinationListId}' of its drag board, ` +
+                  'but this list has no onMoveItemToList. Pass it to move the row between lists.'
+              );
+            }
+            return;
+          }
+          if (!data) {
+            if (__DEV__) {
+              console.warn(
+                'ShadowList: onMoveItemToList needs a list with a data array. SectionList and TreeList ' +
+                  'rows cannot move between the lists of a drag board.'
+              );
+            }
+            return;
+          }
+          if (item !== undefined) {
+            onMoveItemToList({
+              item,
+              sourceIndex,
+              sourceListId: listId ?? '',
+              data: data.filter((_, index) => index !== sourceIndex),
+              destinationListId,
+              destinationIndex: event.nativeEvent.destinationIndex,
+              destinationKey,
+            });
+          }
+          return;
+        }
         const destinationIndex = indexOfKey(destinationKey);
         if (
           sourceIndex !== -1 &&
@@ -91,7 +133,7 @@ export function useDragReorder<ItemT>({
           });
         }
       },
-      [source, onMoveItem, indexOfKey]
+      [source, onMoveItem, onMoveItemToList, listId, indexOfKey]
     );
 
   // Clear draggingKey if dragging is turned off mid drag, since the drop event may never come.

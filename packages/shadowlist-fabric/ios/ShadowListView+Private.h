@@ -5,15 +5,22 @@
 #import "ShadowListViewComponentDescriptor.h"
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
 
+#import <QuartzCore/QuartzCore.h>
+
+#include <shadowlist-core/host/DragBoard.hpp>
 #include <shadowlist-core/host/DragReorder.hpp>
+#include <shadowlist-core/host/RowKeyStore.hpp>
 #include <shadowlist-core/host/ScrollSync.hpp>
 #include <shadowlist-core/host/StickyLayout.hpp>
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 NS_ASSUME_NONNULL_BEGIN
+
+@class ShadowListDragBoard;
 
 /*
  * Raise a subview above its siblings. UIKit reorders the subviews. AppKit cannot.
@@ -29,7 +36,92 @@ static inline void SLRaiseSubview(RCTUIView *parent, RCTUIView *child, CGFloat z
 #endif
 }
 
+/*
+ * How long a dropped row, or a row's picture on a drag board, takes to settle into its place,
+ * and how long the other rows take to slide, in seconds. The core sets both for every host.
+ */
+static const NSTimeInterval SL_DROP_SETTLE_DURATION = azimgd::shadowlist::DRAG_DROP_DURATION_MS / 1000.0;
+static const NSTimeInterval SL_DRAG_SHIFT_DURATION = azimgd::shadowlist::DRAG_SHIFT_DURATION_MS / 1000.0;
+
+/*
+ * The clock the core's drag timers run on, in milliseconds.
+ */
+static inline double SLDragNowMs(void)
+{
+  return CACurrentMediaTime() * 1000.0;
+}
+
+/*
+ * Whether a view paints a background, which is the shape its lift shadow takes.
+ */
+static inline BOOL SLViewPaintsBackground(RCTUIView *view)
+{
+  CGColorRef color = view.layer.backgroundColor;
+  return color && CGColorGetAlpha(color) > 0.0;
+}
+
+/*
+ * The shape a lifted row's shadow takes, in the row's coordinates: the first view with a
+ * background down the row's single child chain, with its corner radius, or the row's bounds
+ * when the chain branches first. A row with a transparent root and a rounded card inside its
+ * padding then casts the card's shadow. Android's ShadowListCellView.CONTENT_OUTLINE finds
+ * the same shape. The path is cheap to shade every frame, unlike the shadow of the content.
+ */
+static inline CGPathRef SLCreateDragLiftShadowPath(RCTUIView *row)
+{
+  RCTUIView *shape = row;
+  while (shape && !SLViewPaintsBackground(shape)) {
+    NSArray *subviews = shape.subviews;
+    shape = subviews.count == 1 ? (RCTUIView *)subviews.firstObject : nil;
+  }
+  CGRect rect = shape ? [shape convertRect:shape.bounds toView:row] : row.bounds;
+  CGFloat radius = shape ? shape.layer.cornerRadius : row.layer.cornerRadius;
+  radius = MAX(0.0, MIN(radius, MIN(rect.size.width, rect.size.height) / 2.0));
+  return CGPathCreateWithRoundedRect(rect, radius, radius, NULL);
+}
+
+/*
+ * The shadow of a row picked up for a drag, shaped from shapeSource, on its own layer or on
+ * the layer of its picture.
+ */
+static inline void SLApplyDragLiftShadow(RCTUIView *shapeSource, CALayer *layer)
+{
+  CGPathRef path = SLCreateDragLiftShadowPath(shapeSource);
+  layer.shadowPath = path;
+  CGPathRelease(path);
+  layer.shadowColor = [RCTUIColor blackColor].CGColor;
+  layer.shadowOpacity = azimgd::shadowlist::DRAG_LIFT_SHADOW_OPACITY;
+  layer.shadowRadius = azimgd::shadowlist::DRAG_LIFT_SHADOW_RADIUS;
+  layer.shadowOffset = CGSizeMake(0.0, azimgd::shadowlist::DRAG_LIFT_SHADOW_OFFSET);
+}
+
+static inline void SLClearDragLiftShadow(CALayer *layer)
+{
+  layer.shadowOpacity = 0.0;
+  layer.shadowPath = NULL;
+}
+
+/*
+ * A drag key for JS, empty when the row has none.
+ */
+static inline NSString *SLDragKey(const std::string& key)
+{
+  return [NSString stringWithUTF8String:key.c_str()] ?: @"";
+}
+
+/*
+ * Drag haptics, shared by every list. SLPrepareDragFeedback wakes the haptic engine while a
+ * press holds, SLDragLiftFeedback thumps as a row lifts, and SLDragSelectionFeedback ticks
+ * when the drop spot or the hovered list changes. Each list's core DragFeedback decides when
+ * to tick. On macOS the trackpad ticks under a force touch drag, and prepare does nothing.
+ * See ShadowListView+DragReorder.mm.
+ */
+void SLPrepareDragFeedback(void);
+void SLDragLiftFeedback(void);
+void SLDragSelectionFeedback(void);
+
 #if !TARGET_OS_OSX
+
 /*
  * Cancel the React Native touch under this view. RN only cancels a press when its own
  * ScrollView takes over. Without this a row pressed at the start of a swipe fires on release.
@@ -177,6 +269,8 @@ static inline BOOL SLFrameTraceEnabled(void)
   BOOL _pageAnnouncementPending;
   facebook::react::Props::Shared _pageKeyIndicesProps;
   std::unordered_map<std::string, NSInteger> _pageKeyIndices;
+  // The key store snapshot currentRowKeys last read, which keeps its keys alive.
+  std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> _rowKeysSnapshot;
 #if TARGET_OS_OSX
   BOOL _macDragEnded;
   BOOL _macMomentum;
@@ -197,12 +291,41 @@ static inline BOOL SLFrameTraceEnabled(void)
   BOOL _dragging;
   azimgd::shadowlist::DragReorder _drag;
   CGPoint _dragTouchInViewport;
+  /*
+   * The finger in window points. A drag board scrolls the view around this list, which moves
+   * _dragTouchInViewport under a finger that holds still. Each drag frame on a board reads it
+   * again from the window point. _dragBoardScroll scrolls the view around the board sideways
+   * once the finger heads for its edge. _dragFeedback decides the haptic ticks. _dropSettle
+   * waits for a drop's reorder to land. _dragLastTickTime is the previous drag frame's time,
+   * for edge scroll speeds given per second, 0 before the first frame.
+   */
+  CGPoint _dragTouchInWindow;
+  azimgd::shadowlist::DragBoardScroll _dragBoardScroll;
+  azimgd::shadowlist::DragFeedback _dragFeedback;
+  azimgd::shadowlist::DropSettle _dropSettle;
+  CFTimeInterval _dragLastTickTime;
   BOOL _dragDropPending;
-  NSInteger _dropInsertionIndex;
   CGFloat _dropReleaseLeading;
   CGFloat _dropReleaseCross;
   NSInteger _numberOfColumns;
-  NSInteger _dropSettleToken;
+
+  /*
+   * The drag board this list is on, see ShadowListDragBoard. _dragBoard is nil while
+   * dragBoardId is empty. _dragBoardToken names this list for the board's core, unique on the
+   * board where dragListId may not be. _dragBoardHiddenView is the row the board hid while its
+   * picture floats above the window. _dragBoardDropPending holds the gap a row left in its
+   * home list until the data change that removes it lands. _dragBoardLandingKey is the key of
+   * the row dropped in this list, until it mounts here. _dragBoardAnimateShifts makes the
+   * next shuffle slide, when the row came home or left this list as a target.
+   */
+  NSString *_dragBoardId;
+  NSString *_dragListId;
+  ShadowListDragBoard *_dragBoard;
+  std::string _dragBoardToken;
+  __weak RCTUIView *_dragBoardHiddenView;
+  BOOL _dragBoardDropPending;
+  NSString *_dragBoardLandingKey;
+  BOOL _dragBoardAnimateShifts;
 
 #if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
   CFRunLoopObserverRef _frameTraceObserver;
@@ -219,6 +342,11 @@ static inline BOOL SLFrameTraceEnabled(void)
 - (void)clearUserScrolled;
 
 - (void)commitDragEventType:(int)type sourceKey:(nullable NSString *)sourceKey destinationKey:(nullable NSString *)destinationKey;
+- (void)commitDragEventType:(int)type
+                  sourceKey:(nullable NSString *)sourceKey
+             destinationKey:(nullable NSString *)destinationKey
+          destinationListId:(nullable NSString *)destinationListId
+           destinationIndex:(NSInteger)destinationIndex;
 
 - (void)pokeMountDriver;
 - (void)stopMountTicks;
@@ -235,7 +363,14 @@ static inline BOOL SLFrameTraceEnabled(void)
 
 - (void)handleDragGesture:(SLDragGestureRecognizer *)gesture;
 - (void)updateDrag;
+- (void)updateDragInsertion;
 - (void)applyDragShuffle;
+- (CGRect)restingFrameForView:(RCTUIView *)view;
+- (void)applyDragAutoScrollForTouch:(CGPoint)touch dtSeconds:(double)dtSeconds;
+- (void)noteDragInsertionForFeedback;
+- (BOOL)rowKeysContainKey:(NSString *)key;
+- (std::size_t)rowKeyCount;
+- (void)setDragTouch:(CGPoint)location;
 - (void)clearDragTransforms;
 - (void)cancelDrag;
 - (void)tearDownDrag;
@@ -243,6 +378,27 @@ static inline BOOL SLFrameTraceEnabled(void)
 
 - (void)applyDragAccessibilityActionsToView:(RCTUIView *)view;
 - (BOOL)performAccessibilityMove:(nullable RCTUIView *)view up:(BOOL)up;
+
+@end
+
+/*
+ * Dragging a row between the lists of one drag board, see ShadowListDragBoard.mm. The board
+ * runs on iOS. On macOS these do nothing and every drag stays in its list.
+ */
+@interface ShadowListView (DragBoard)
+
+- (void)applyDragBoardId:(NSString *)boardId listId:(NSString *)listId;
+- (void)leaveDragBoard;
+- (void)withdrawFromDragBoardFlight;
+- (void)dragBoardDidPickUpView:(RCTUIView *)view key:(nullable NSString *)heldKey;
+- (BOOL)updateDragBoard;
+- (BOOL)applyDragBoardAutoScrollWithDt:(double)dtSeconds;
+- (BOOL)finishDragBoard;
+- (void)cancelDragBoard;
+- (void)tearDownDragBoard;
+- (void)dragBoardMountDidFinish;
+- (void)dragBoardViewWillUnmount:(RCTUIView *)view;
+- (void)dragBoardFlightDidEnd;
 
 @end
 

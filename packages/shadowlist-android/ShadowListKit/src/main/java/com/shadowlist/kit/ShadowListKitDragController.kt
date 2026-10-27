@@ -43,6 +43,8 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
   private var downX = 0f
   private var downY = 0f
   private var pressPending = false
+  // The previous auto scroll frame's time, 0 before the first frame of a drag.
+  private var lastFrameNanos = 0L
 
   /*
    * The finger moved since the row lifted. A row let go in place shows its menu instead.
@@ -147,6 +149,7 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     list.core.dragBegin(cell.row, list.contentAlongAt(x, y).toDouble(), list.contentCrossAt(x, y).toDouble())
     heldCell = cell
     lift(cell)
+    lastFrameNanos = 0L
     Choreographer.getInstance().postFrameCallback(this)
     update()
     return true
@@ -233,10 +236,13 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
    */
   override fun doFrame(frameTimeNanos: Long) {
     if (!hasHeldRow) return
+    // The speed is per second. The first frame of a drag counts as one at 60 Hz.
+    val dtSeconds = if (lastFrameNanos == 0L) 1.0 / 60.0 else (frameTimeNanos - lastFrameNanos) / 1e9
+    lastFrameNanos = frameTimeNanos
     val touch = list.windowAlongAt(touchX, touchY).toDouble()
     val offset = list.offset.toDouble()
     val next = ShadowListKitCore.dragAutoScrollOffset(
-      touch, list.windowAlong.toDouble(), offset, list.maxOffset.toDouble(), list.density.toDouble())
+      touch, list.windowAlong.toDouble(), offset, list.maxOffset.toDouble(), list.density.toDouble(), dtSeconds)
     if (abs(next - offset) >= 1) {
       list.writeOffset(next.toInt(), byUser = true)
       update()

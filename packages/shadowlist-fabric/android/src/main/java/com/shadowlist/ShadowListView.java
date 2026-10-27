@@ -252,7 +252,7 @@ public class ShadowListView extends FrameLayout {
     super(context);
     mContentView = new ShadowListInnerScrollView.ContentContainer(context);
     mStickyController = new ShadowListStickyController(this);
-    mDragController = new ShadowListDragController(this, context);
+    mDragController = new ShadowListDragController(this);
     mMenuGestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
       @Override
       public void onLongPress(MotionEvent event) {
@@ -501,7 +501,28 @@ public class ShadowListView extends FrameLayout {
   }
 
   public void setReorderEnabled(boolean reorderEnabled) {
+    boolean changed = reorderEnabled != mDragController.isEnabled();
     mDragController.setEnabled(reorderEnabled);
+    // TalkBack's Move up and Move down come and go with drag.
+    if (changed) {
+      for (int i = 0; i < mContentView.getChildCount(); i++) {
+        View child = mContentView.getChildAt(i);
+        if (child instanceof ShadowListCellView) {
+          ((ShadowListCellView) child).updateAccessibilityActions();
+        }
+      }
+    }
+  }
+
+  /*
+   * TalkBack's Move up or Move down on a row, see ShadowListDragController.
+   */
+  boolean performAccessibilityMove(ShadowListCellView row, boolean up) {
+    return mDragController.performAccessibilityMove(row, up);
+  }
+
+  boolean isReorderEnabled() {
+    return mDragController.isEnabled();
   }
 
   public void setNumberOfColumns(int numberOfColumns) {
@@ -613,6 +634,8 @@ public class ShadowListView extends FrameLayout {
   public void addContentView(View child, int index) {
     if (child instanceof ShadowListCellView) {
       mContentView.addView(child, index);
+      // The row's TalkBack actions include Move up and Move down while drag is on.
+      ((ShadowListCellView) child).updateAccessibilityActions();
       // Pin again so sticky views stay above the new row.
       mStickyController.applyStickyTransforms();
       // A row that mounts during a drag must shift right away or it flashes.

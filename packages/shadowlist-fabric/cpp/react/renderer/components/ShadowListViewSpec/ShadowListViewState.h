@@ -304,15 +304,20 @@ public:
    * Drag to reorder. The platform view writes these as the gesture goes, and the
    * component descriptor fires each JS drag event once. The sequence goes up on every
    * drag event so a fresh event looks different from a carried one. The type is 1 for
-   * start, 3 for end and 0 for none. Finger tracking stays native. There is no
+   * start, 3 for end, 4 for a row from another list of the drag board landing here, keyed
+   * by the source key, and 0 for none. Finger tracking stays native. There is no
    * event in between. The keys name the moved row and its drop neighbor, and JS looks
    * them up in the current data so an edit mid drag can't move the wrong rows.
+   * A drop in another list of the same drag board names that list's dragListId and the
+   * index the row takes there. They are empty and -1 for every other event.
    * Keep these before userScrolled_ to match the Android constructor's init order.
    */
   double dragEventSequence_{0.0};
   double dragEventType_{0.0};
   std::string dragSourceKey_{};
   std::string dragDestinationKey_{};
+  std::string dragDestinationListId_{};
+  double dragDestinationIndex_{-1.0};
 
   /*
    * True when this offset came from the user scrolling, false when it is the resting

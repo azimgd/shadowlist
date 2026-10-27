@@ -609,10 +609,17 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragInsertionIndex)(JNIEnv*, jcl
 }
 
 JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeDragAutoScrollOffset)(
-  JNIEnv*, jclass, jdouble touch, jdouble windowSize, jdouble offset, jdouble maxOffset, jdouble density) {
+  JNIEnv*,
+  jclass,
+  jdouble touch,
+  jdouble windowSize,
+  jdouble offset,
+  jdouble maxOffset,
+  jdouble density,
+  jdouble dtSeconds) {
   sl::DragAutoScrollConfig config{sl::DRAG_AUTO_SCROLL_ANDROID.edge * density,
     sl::DRAG_AUTO_SCROLL_ANDROID.maxSpeed * density};
-  return sl::dragAutoScrollOffset(config, touch, windowSize, offset, maxOffset);
+  return sl::dragAutoScrollOffset(config, touch, windowSize, offset, maxOffset, dtSeconds);
 }
 
 /*

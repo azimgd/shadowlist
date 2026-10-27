@@ -6,6 +6,7 @@ import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Outline;
 import android.graphics.Paint;
 import android.graphics.drawable.Drawable;
 import android.text.SpannableString;
@@ -90,13 +91,50 @@ public class ShadowListCellView extends ViewGroup {
   }
 
   /*
-   * Drag to reorder lifts the held row with translationZ. Without a background the default
-   * outline casts an invisible shadow that the renderer still processes every frame. Drop
-   * the outline then. A row with a background keeps its outline and its lift shadow.
+   * Drag to reorder lifts the held row with translationZ. Its shadow takes the shape iOS gives
+   * the lifted row, see SLCreateDragLiftShadowPath: the first view with a background down the
+   * row's single child chain, such as a rounded card inside padding, or the row's bounds when
+   * the chain branches first. The row's own background counts as the first view.
    */
   private void updateOutline() {
-    setOutlineProvider(getBackground() == null ? null : ViewOutlineProvider.BACKGROUND);
+    setOutlineProvider(CONTENT_OUTLINE);
   }
+
+  /*
+   * Takes the outline of that view's background, moved into the row's space, or that view's
+   * rectangle for a background with no outline of its own. A drawable may report its outline
+   * with alpha 0, which casts no shadow. The alpha is set to 1 so every row shades its shape.
+   * The drag calls invalidateOutline on pick up, which keeps this current with content
+   * mounted after the row was laid out.
+   */
+  private static final ViewOutlineProvider CONTENT_OUTLINE = new ViewOutlineProvider() {
+    @Override
+    public void getOutline(View view, Outline outline) {
+      outline.setEmpty();
+      View current = view;
+      int left = 0;
+      int top = 0;
+      while (current != null && current.getBackground() == null) {
+        if (!(current instanceof ViewGroup) || ((ViewGroup) current).getChildCount() != 1) {
+          current = null;
+          break;
+        }
+        current = ((ViewGroup) current).getChildAt(0);
+        left += current.getLeft();
+        top += current.getTop();
+      }
+      if (current == null) {
+        outline.setRect(0, 0, view.getWidth(), view.getHeight());
+      } else {
+        current.getBackground().getOutline(outline);
+        if (outline.isEmpty()) {
+          outline.setRect(0, 0, current.getWidth(), current.getHeight());
+        }
+        outline.offset(left, top);
+      }
+      outline.setAlpha(1f);
+    }
+  };
 
   @Override
   @SuppressWarnings("deprecation")
@@ -767,13 +805,22 @@ public class ShadowListCellView extends ViewGroup {
 
   /*
    * Each swipe action and each enabled menu action is a custom accessibility action on the
-   * row.
+   * row, after the drag's moves.
    */
-  private void updateAccessibilityActions() {
+  void updateAccessibilityActions() {
     for (int id : mAccessibilityActionIds) {
       ViewCompat.removeAccessibilityAction(this, id);
     }
     mAccessibilityActionIds.clear();
+    /*
+     * While drag is on, Move up and Move down swap the row with its mounted neighbor, like
+     * VoiceOver's actions on iOS.
+     */
+    ShadowListView list = listView();
+    if (list != null && list.isReorderEnabled()) {
+      addAccessibilityAction("Move up", () -> list.performAccessibilityMove(this, true));
+      addAccessibilityAction("Move down", () -> list.performAccessibilityMove(this, false));
+    }
     addSwipeAccessibilityActions(mLeadingSwipeActions, true);
     addSwipeAccessibilityActions(mTrailingSwipeActions, false);
     for (int index = 0; index < actionCount(mContextMenuActions); index++) {

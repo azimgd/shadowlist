@@ -1,20 +1,26 @@
 #include <shadowlist-core/host/DragReorder.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace azimgd::shadowlist {
 
-double dragAutoScrollDelta(const DragAutoScrollConfig& config, double touch, double windowSize) {
-  if (config.edge <= 0.0) {
+bool dragPressHolds(double along, double cross) {
+  return std::abs(along) <= DRAG_PRESS_SCROLL_SLOP && std::hypot(along, cross) <= DRAG_PRESS_SLOP;
+}
+
+double dragAutoScrollDelta(const DragAutoScrollConfig& config, double touch, double windowSize, double dtSeconds) {
+  if (config.edge <= 0.0 || !(dtSeconds > 0.0)) {
     return 0.0;
   }
+  double step = config.maxSpeed * std::min(dtSeconds, DRAG_AUTO_SCROLL_MAX_FRAME_SECONDS);
   // A finger past the viewport edge scrolls at maxSpeed, not faster.
   if (touch < config.edge) {
-    return -config.maxSpeed * std::min(1.0, 1.0 - touch / config.edge);
+    return -step * std::min(1.0, 1.0 - touch / config.edge);
   }
   if (touch > windowSize - config.edge) {
-    return config.maxSpeed * std::min(1.0, 1.0 - (windowSize - touch) / config.edge);
+    return step * std::min(1.0, 1.0 - (windowSize - touch) / config.edge);
   }
   return 0.0;
 }
@@ -24,12 +30,92 @@ double dragAutoScrollOffset(
   double touch,
   double windowSize,
   double offset,
-  double maxOffset) {
-  double delta = dragAutoScrollDelta(config, touch, windowSize);
+  double maxOffset,
+  double dtSeconds,
+  double minOffset) {
+  double delta = dragAutoScrollDelta(config, touch, windowSize, dtSeconds);
   if (delta == 0.0) {
     return offset;
   }
-  return std::min(std::max(offset + delta, 0.0), std::max(0.0, maxOffset));
+  double low = std::min(minOffset, 0.0);
+  double high = std::max(low, maxOffset);
+  return std::min(std::max(offset + delta, low), high);
+}
+
+bool dragBoardShouldArm(double pickup, double finger, double velocity, double direction, double armDistance) {
+  if (direction == 0.0) {
+    return false;
+  }
+  double moved = (finger - pickup) * (direction > 0.0 ? 1.0 : -1.0);
+  if (moved < armDistance) {
+    return false;
+  }
+  // Heading back away from the edge, faster than a finger's tremble, disarms.
+  constexpr double AWAY_SPEED = 30.0;
+  return velocity * (direction > 0.0 ? 1.0 : -1.0) > -AWAY_SPEED;
+}
+
+void DragBoardScroll::begin(double pickup) {
+  pickup_ = pickup;
+  previous_ = pickup;
+  velocity_ = 0.0;
+}
+
+double DragBoardScroll::delta(
+  const DragAutoScrollConfig& config,
+  double armDistance,
+  double finger,
+  double touch,
+  double windowSize,
+  double dtSeconds) {
+  if (dtSeconds > 0.0) {
+    // Smoothed over a few frames. One still frame mid move does not count as stopping.
+    double instant = (finger - previous_) / dtSeconds;
+    velocity_ += (instant - velocity_) * 0.5;
+  }
+  previous_ = finger;
+  double scroll = dragAutoScrollDelta(config, touch, windowSize, dtSeconds);
+  if (scroll == 0.0 || !dragBoardShouldArm(pickup_, finger, velocity_, scroll, armDistance)) {
+    return 0.0;
+  }
+  return scroll;
+}
+
+void DragFeedback::reset(std::size_t insertionIndex) {
+  insertionIndex_ = insertionIndex;
+}
+
+bool DragFeedback::shouldTick(std::size_t insertionIndex, double nowMs) {
+  if (insertionIndex == insertionIndex_) {
+    return false;
+  }
+  insertionIndex_ = insertionIndex;
+  if (insertionIndex == UNDEFINED_INDEX || nowMs - lastTickMs_ < DRAG_FEEDBACK_TICK_INTERVAL_MS) {
+    return false;
+  }
+  lastTickMs_ = nowMs;
+  return true;
+}
+
+void DropSettle::begin(std::size_t insertionIndex, double nowMs, double timeoutMs) {
+  waiting_ = insertionIndex != UNDEFINED_INDEX;
+  insertionIndex_ = insertionIndex;
+  deadlineMs_ = nowMs + timeoutMs;
+}
+
+DropSettle::Status DropSettle::tick(std::size_t currentIndex, double nowMs) {
+  if (!waiting_) {
+    return Status::Idle;
+  }
+  if (currentIndex == insertionIndex_) {
+    waiting_ = false;
+    return Status::Settle;
+  }
+  if (currentIndex == UNDEFINED_INDEX || nowMs >= deadlineMs_) {
+    waiting_ = false;
+    return Status::GiveUp;
+  }
+  return Status::Waiting;
 }
 
 double dragHeldLeading(double touchContent, double grabOffset, double extent, double contentSize) {
@@ -115,74 +201,79 @@ std::size_t gridInsertionPosition(
 }
 
 /*
- * Slot values for an index with no mounted cell and for the held cell.
+ * Slot values for an index with no mounted cell and for the extra cell, which is the held cell
+ * or an incoming one from another list. sourceOf also returns EXTRA_CELL for the index the
+ * incoming cell takes.
  */
 constexpr std::size_t NO_CELL = UNDEFINED_INDEX;
-constexpr std::size_t HELD_CELL = UNDEFINED_INDEX - 1;
+constexpr std::size_t EXTRA_CELL = UNDEFINED_INDEX - 1;
 
 /*
- * Lay the cells from the lower of origin and drop spot onward out again in their new order.
- * write(position, offset) gets every cell's shift, zero for the ones that stay.
+ * The highest index among the mounted cells and extraIndex, or UNDEFINED_INDEX for none.
  */
-template <typename CellAt, typename Write>
-void gridShifts(
-  std::size_t count,
-  CellAt cellAt,
-  const DragRow& held,
-  std::size_t insertionIndex,
-  std::size_t columns,
-  Write write) {
-  std::size_t origin = held.index;
-  if (origin == UNDEFINED_INDEX) {
-    for (std::size_t position = 0; position < count; ++position) {
-      write(position, DragOffset{});
-    }
-    return;
-  }
-  std::size_t maxIndex = origin;
+template <typename CellAt>
+std::size_t maxCellIndex(std::size_t count, CellAt cellAt, std::size_t extraIndex) {
+  std::size_t maxIndex = extraIndex;
   for (std::size_t position = 0; position < count; ++position) {
-    write(position, DragOffset{});
     std::size_t index = cellAt(position).index;
     if (index != UNDEFINED_INDEX) {
-      maxIndex = std::max(maxIndex, index);
+      maxIndex = maxIndex == UNDEFINED_INDEX ? index : std::max(maxIndex, index);
     }
   }
-  if (columns == 0 || insertionIndex == UNDEFINED_INDEX || origin == insertionIndex) {
+  return maxIndex;
+}
+
+/*
+ * Lay the cells at indices low to high out again in a new order, the way the core stacks each
+ * column. sourceOf(index) names the index whose cell sits at index after the change, or
+ * EXTRA_CELL for the extra cell. The extra cell rests at extraIndex, or nowhere when that is
+ * UNDEFINED_INDEX. write(position, offset) gets every mounted cell's shift, zero for the ones
+ * that stay. A column whose first cell in the range is not mounted starts below the cell above
+ * it when that one stays in place, without any spacing between the two.
+ */
+template <typename CellAt, typename SourceOf, typename Write>
+void relayoutCells(
+  std::size_t count,
+  CellAt cellAt,
+  const CellFrame& extra,
+  std::size_t extraIndex,
+  std::size_t low,
+  std::size_t high,
+  std::size_t columns,
+  SourceOf sourceOf,
+  Write write) {
+  for (std::size_t position = 0; position < count; ++position) {
+    write(position, DragOffset{});
+  }
+  std::size_t maxIndex = maxCellIndex(count, cellAt, extraIndex);
+  if (maxIndex == UNDEFINED_INDEX || columns == 0 || low == UNDEFINED_INDEX || low > high) {
     return;
   }
-  std::size_t low = std::min(origin, insertionIndex);
-  if (insertionIndex > maxIndex) {
+  std::size_t base = low >= columns ? low - columns : 0;
+  if (base > maxIndex) {
     return;
   }
 
-  // Position of each index from low in the cells, or the held cell.
+  // Position of each index from base in the cells, or the extra cell.
   static thread_local std::vector<std::size_t> slots;
-  slots.assign(maxIndex - low + 1, NO_CELL);
+  slots.assign(maxIndex - base + 1, NO_CELL);
   for (std::size_t position = 0; position < count; ++position) {
     std::size_t index = cellAt(position).index;
-    if (index != UNDEFINED_INDEX && index >= low) {
-      slots[index - low] = position;
+    if (index != UNDEFINED_INDEX && index >= base) {
+      slots[index - base] = position;
     }
   }
-  slots[origin - low] = HELD_CELL;
+  if (extraIndex != UNDEFINED_INDEX && extraIndex >= base) {
+    slots[extraIndex - base] = EXTRA_CELL;
+  }
   auto slotOf = [&](std::size_t index) {
-    return index < low || index > maxIndex ? NO_CELL : slots[index - low];
+    if (index == EXTRA_CELL) {
+      return EXTRA_CELL;
+    }
+    return index < base || index > maxIndex ? NO_CELL : slots[index - base];
   };
   auto frameAt = [&](std::size_t slot) {
-    return slot == HELD_CELL ? frameOf(held) : cellAt(slot);
-  };
-  // The cell that sits at index after the move.
-  auto sourceOf = [&](std::size_t index) {
-    if (index == insertionIndex) {
-      return origin;
-    }
-    if (origin < insertionIndex && index >= origin && index < insertionIndex) {
-      return index + 1;
-    }
-    if (insertionIndex < origin && index > insertionIndex && index <= origin) {
-      return index - 1;
-    }
-    return index;
+    return slot == EXTRA_CELL ? extra : cellAt(slot);
   };
 
   // Where each column's stack ends, restarted after a cell that isn't mounted.
@@ -191,7 +282,7 @@ void gridShifts(
   lanes.assign(columns, DragOffset{});
   known.assign(columns, 0);
 
-  for (std::size_t index = low; index <= maxIndex; ++index) {
+  for (std::size_t index = low; index <= high; ++index) {
     std::size_t lane = index % columns;
     std::size_t restingSlot = slotOf(index);
     if (!known[lane] && restingSlot != NO_CELL) {
@@ -207,19 +298,155 @@ void gridShifts(
     CellFrame source = frameAt(sourceSlot);
     if (!known[lane]) {
       std::size_t belowSlot = slotOf(index + columns);
-      if (belowSlot == NO_CELL) {
+      std::size_t aboveSlot = index >= columns && index - columns < low ? slotOf(index - columns) : NO_CELL;
+      if (belowSlot != NO_CELL) {
+        CellFrame below = frameAt(belowSlot);
+        lanes[lane] = {below.leading - source.extent, below.crossLeading};
+      } else if (aboveSlot != NO_CELL) {
+        CellFrame above = frameAt(aboveSlot);
+        lanes[lane] = {above.leading + above.extent, above.crossLeading};
+      } else {
         continue;
       }
-      CellFrame below = frameAt(belowSlot);
-      lanes[lane] = {below.leading - source.extent, below.crossLeading};
       known[lane] = 1;
     }
-    if (sourceSlot != HELD_CELL) {
+    if (sourceSlot != EXTRA_CELL) {
       write(sourceSlot,
         DragOffset{lanes[lane].leading - source.leading, lanes[lane].cross - source.crossLeading});
     }
     lanes[lane].leading += source.extent;
   }
+}
+
+/*
+ * Lay the cells from the lower of origin and drop spot onward out again in their new order.
+ */
+template <typename CellAt, typename Write>
+void gridShifts(
+  std::size_t count,
+  CellAt cellAt,
+  const DragRow& held,
+  std::size_t insertionIndex,
+  std::size_t columns,
+  Write write) {
+  std::size_t origin = held.index;
+  std::size_t maxIndex = maxCellIndex(count, cellAt, origin);
+  bool moves = origin != UNDEFINED_INDEX && insertionIndex != UNDEFINED_INDEX && origin != insertionIndex &&
+    insertionIndex <= maxIndex;
+  auto sourceOf = [&](std::size_t index) {
+    if (index == insertionIndex) {
+      return origin;
+    }
+    if (origin < insertionIndex && index >= origin && index < insertionIndex) {
+      return index + 1;
+    }
+    if (insertionIndex < origin && index > insertionIndex && index <= origin) {
+      return index - 1;
+    }
+    return index;
+  };
+  std::size_t low = moves ? std::min(origin, insertionIndex) : UNDEFINED_INDEX;
+  relayoutCells(count, cellAt, frameOf(held), origin, low, maxIndex, columns, sourceOf, write);
+}
+
+/*
+ * Lay the cells after the held one out again as if it were removed.
+ */
+template <typename CellAt, typename Write>
+void gridRemovalShifts(std::size_t count, CellAt cellAt, const DragRow& held, std::size_t columns, Write write) {
+  std::size_t origin = held.index;
+  std::size_t maxIndex = maxCellIndex(count, cellAt, origin);
+  auto sourceOf = [&](std::size_t index) { return index >= origin ? index + 1 : index; };
+  relayoutCells(count, cellAt, frameOf(held), origin, origin, maxIndex, columns, sourceOf, write);
+}
+
+/*
+ * Lay the cells from insertionIndex onward out again as if a cell of extent and crossExtent
+ * were inserted there.
+ */
+template <typename CellAt, typename Write>
+void gridForeignShifts(
+  std::size_t count,
+  CellAt cellAt,
+  double extent,
+  double crossExtent,
+  std::size_t insertionIndex,
+  std::size_t columns,
+  Write write) {
+  std::size_t maxIndex = maxCellIndex(count, cellAt, UNDEFINED_INDEX);
+  bool opens = maxIndex != UNDEFINED_INDEX && insertionIndex != UNDEFINED_INDEX && insertionIndex <= maxIndex;
+  auto sourceOf = [&](std::size_t index) {
+    if (index == insertionIndex) {
+      return EXTRA_CELL;
+    }
+    return index > insertionIndex ? index - 1 : index;
+  };
+  CellFrame extra{UNDEFINED_INDEX, 0.0, extent, 0.0, crossExtent};
+  relayoutCells(count, cellAt, extra, UNDEFINED_INDEX, opens ? insertionIndex : UNDEFINED_INDEX,
+    opens ? maxIndex + 1 : 0, columns, sourceOf, write);
+}
+
+/*
+ * Shared by the array form and the session. Returns the position of the first row, by index,
+ * whose midpoint the center has not passed, or count when it passed them all.
+ */
+template <typename RowAt>
+std::size_t foreignInsertionPosition(std::size_t count, double center, RowAt row) {
+  std::size_t position = count;
+  std::size_t best = UNDEFINED_INDEX;
+  for (std::size_t current = 0; current < count; ++current) {
+    std::size_t index = 0;
+    double leading = 0.0;
+    double extent = 0.0;
+    row(current, index, leading, extent);
+    if (index == UNDEFINED_INDEX) {
+      continue;
+    }
+    if (center <= leading + extent / 2.0 && (best == UNDEFINED_INDEX || index < best)) {
+      best = index;
+      position = current;
+    }
+  }
+  return position;
+}
+
+/*
+ * Shared by the array form and the session. See dragGridForeignInsertionIndex.
+ */
+template <typename CellAt>
+std::size_t gridForeignInsertionPosition(
+  std::size_t count,
+  CellAt cellAt,
+  std::size_t insertionIndex,
+  double center,
+  double crossCenter) {
+  std::size_t kept = UNDEFINED_INDEX;
+  bool any = false;
+  double trailing = 0.0;
+  CellFrame last;
+  for (std::size_t position = 0; position < count; ++position) {
+    CellFrame cell = cellAt(position);
+    if (cell.index == UNDEFINED_INDEX) {
+      continue;
+    }
+    if (frameContains(cell, center, crossCenter)) {
+      return position;
+    }
+    if (cell.index == insertionIndex) {
+      kept = position;
+    }
+    trailing = any ? std::max(trailing, cell.leading + cell.extent) : cell.leading + cell.extent;
+    if (!any || cell.index > last.index) {
+      last = cell;
+    }
+    any = true;
+  }
+  bool pastLast = center >= last.leading && center < last.leading + last.extent &&
+    crossCenter >= last.crossLeading + last.crossExtent;
+  if (!any || center >= trailing || pastLast || insertionIndex == UNDEFINED_INDEX) {
+    return count;
+  }
+  return kept;
 }
 
 CellFrame cellFrameAt(const DragCells& cells, std::size_t position) {
@@ -253,6 +480,71 @@ void dragGridShifts(
     });
 }
 
+void dragGridRemovalShifts(
+  const DragCells& cells,
+  const DragRow& held,
+  std::size_t columns,
+  double* shifts,
+  double* crossShifts) {
+  gridRemovalShifts(cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); },
+    held, columns, [&](std::size_t position, DragOffset offset) {
+      shifts[position] = offset.leading;
+      crossShifts[position] = offset.cross;
+    });
+}
+
+std::size_t dragGridForeignInsertionIndex(
+  const DragCells& cells,
+  std::size_t insertionIndex,
+  double center,
+  double crossCenter) {
+  return gridForeignInsertionPosition(cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); },
+    insertionIndex, center, crossCenter);
+}
+
+void dragGridForeignShifts(
+  const DragCells& cells,
+  double extent,
+  double crossExtent,
+  std::size_t insertionIndex,
+  std::size_t columns,
+  double* shifts,
+  double* crossShifts) {
+  gridForeignShifts(cells.count, [&](std::size_t position) { return cellFrameAt(cells, position); },
+    extent, crossExtent, insertionIndex, columns, [&](std::size_t position, DragOffset offset) {
+      shifts[position] = offset.leading;
+      crossShifts[position] = offset.cross;
+    });
+}
+
+std::size_t dragForeignInsertionIndex(
+  const std::size_t* indices,
+  const double* leadings,
+  const double* extents,
+  std::size_t count,
+  double center) {
+  auto rowAt = [&](std::size_t current, std::size_t& index, double& leading, double& extent) {
+    index = indices[current];
+    leading = leadings[current];
+    extent = extents[current];
+  };
+  return foreignInsertionPosition(count, center, rowAt);
+}
+
+double dragRemovalShift(std::size_t originIndex, double draggedExtent, std::size_t index) {
+  if (originIndex == UNDEFINED_INDEX || index == UNDEFINED_INDEX || index <= originIndex) {
+    return 0.0;
+  }
+  return -draggedExtent;
+}
+
+double dragForeignShift(std::size_t insertionIndex, double extent, std::size_t index) {
+  if (insertionIndex == UNDEFINED_INDEX || index == UNDEFINED_INDEX || index < insertionIndex) {
+    return 0.0;
+  }
+  return extent;
+}
+
 std::size_t dragInsertionIndex(
   const std::size_t* indices,
   const double* leadings,
@@ -282,6 +574,8 @@ double dragShift(std::size_t originIndex, std::size_t insertionIndex, double dra
 }
 
 void DragReorder::begin(std::size_t index, std::string key, double restingLeading, double extent, double touchContent) {
+  foreign_ = false;
+  heldAway_ = false;
   columns_ = 1;
   crossGrabOffset_ = 0.0;
   crossLeading_ = 0.0;
@@ -362,7 +656,13 @@ DragOffset DragReorder::placeCell(
 
 DragOffset DragReorder::offsetFor(std::size_t index) const {
   if (!isGrid()) {
-    return {shiftFor(index), 0.0};
+    if (foreign_) {
+      return {dragForeignShift(insertionIndex_, draggedExtent_, index), 0.0};
+    }
+    if (heldAway_) {
+      return {dragRemovalShift(originIndex_, draggedExtent_, index), 0.0};
+    }
+    return {dragShift(originIndex_, insertionIndex_, draggedExtent_, index), 0.0};
   }
   if (index < offsetsBase_ || index - offsetsBase_ >= offsets_.size()) {
     return {};
@@ -371,6 +671,20 @@ DragOffset DragReorder::offsetFor(std::size_t index) const {
 }
 
 void DragReorder::updateInsertion(const std::vector<DragRow>& rows) {
+  if (foreign_) {
+    updateForeignInsertion(rows);
+    return;
+  }
+  if (heldAway_) {
+    insertionIndex_ = UNDEFINED_INDEX;
+    insertionKey_.clear();
+    if (isGrid()) {
+      heldResting_.index = originIndex_;
+      auto cellAt = [&](std::size_t position) { return frameOf(rows[position]); };
+      storeOffsets(rows, [&](auto write) { gridRemovalShifts(rows.size(), cellAt, heldResting_, columns_, write); });
+    }
+    return;
+  }
   if (isGrid()) {
     updateGridInsertion(rows);
     return;
@@ -406,6 +720,13 @@ void DragReorder::updateGridInsertion(const std::vector<DragRow>& rows) {
     insertionKey_ = row.key.empty() ? originKey_ : row.key;
   }
 
+  storeOffsets(rows, [&](auto write) {
+    gridShifts(rows.size(), cellAt, heldResting_, insertionIndex_, columns_, write);
+  });
+}
+
+template <typename Relayout>
+void DragReorder::storeOffsets(const std::vector<DragRow>& rows, Relayout relayout) {
   std::size_t first = UNDEFINED_INDEX;
   std::size_t last = 0;
   for (const DragRow& row : rows) {
@@ -420,11 +741,76 @@ void DragReorder::updateGridInsertion(const std::vector<DragRow>& rows) {
   }
   offsetsBase_ = first;
   offsets_.assign(last - first + 1, DragOffset{});
-  gridShifts(rows.size(), cellAt, heldResting_, insertionIndex_, columns_, [&](std::size_t current, DragOffset offset) {
+  relayout([&](std::size_t current, DragOffset offset) {
     std::size_t index = rows[current].index;
     if (index != UNDEFINED_INDEX) {
       offsets_[index - offsetsBase_] = offset;
     }
+  });
+}
+
+void DragReorder::setHeldAway(bool away) {
+  if (foreign_ || away == heldAway_) {
+    return;
+  }
+  heldAway_ = away;
+  offsets_.clear();
+  if (away) {
+    insertionIndex_ = UNDEFINED_INDEX;
+    insertionKey_.clear();
+  } else {
+    insertionIndex_ = originIndex_;
+    insertionKey_ = originKey_;
+  }
+}
+
+void DragReorder::beginForeign(double extent, double crossExtent, std::size_t columns) {
+  begin(UNDEFINED_INDEX, std::string(), 0.0, extent, 0.0);
+  foreign_ = true;
+  columns_ = std::max<std::size_t>(1, columns);
+  heldResting_.extent = extent;
+  heldResting_.crossExtent = crossExtent;
+}
+
+void DragReorder::placeForeignCenter(double center, double crossCenter) {
+  center_ = center;
+  crossCenter_ = crossCenter;
+  leading_ = center - draggedExtent_ / 2.0;
+  crossLeading_ = crossCenter - heldResting_.crossExtent / 2.0;
+}
+
+void DragReorder::endForeign() {
+  begin(UNDEFINED_INDEX, std::string(), 0.0, 0.0, 0.0);
+}
+
+void DragReorder::updateForeignInsertion(const std::vector<DragRow>& rows) {
+  auto cellAt = [&](std::size_t current) { return frameOf(rows[current]); };
+  std::size_t position = UNDEFINED_INDEX;
+  if (isGrid()) {
+    position = gridForeignInsertionPosition(rows.size(), cellAt, insertionIndex_, center_, crossCenter_);
+  } else {
+    auto rowAt = [&](std::size_t current, std::size_t& index, double& leading, double& extent) {
+      index = rows[current].index;
+      leading = rows[current].leading;
+      extent = rows[current].extent;
+    };
+    position = foreignInsertionPosition(rows.size(), center_, rowAt);
+  }
+  if (position == rows.size()) {
+    // Past every mounted row. The incoming row goes after the last one.
+    std::size_t last = maxCellIndex(rows.size(), cellAt, UNDEFINED_INDEX);
+    insertionIndex_ = last == UNDEFINED_INDEX ? 0 : last + 1;
+    insertionKey_.clear();
+  } else if (position != UNDEFINED_INDEX) {
+    insertionIndex_ = rows[position].index;
+    insertionKey_ = rows[position].key;
+  }
+  if (!isGrid()) {
+    return;
+  }
+  storeOffsets(rows, [&](auto write) {
+    gridForeignShifts(rows.size(), cellAt, heldResting_.extent, heldResting_.crossExtent, insertionIndex_, columns_,
+      write);
   });
 }
 

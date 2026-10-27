@@ -242,7 +242,9 @@ static const CGFloat SHADOWLIST_KIT_MENU_SLOP = 10;
 {
   double touch = [self along:_dragTouch] - [self leadingInset];
   double offset = [self offset];
-  double next = dragAutoScrollOffset(DRAG_AUTO_SCROLL_IOS, touch, _windowAlong, offset, [self maxOffset]);
+  // The speed is per second. A ProMotion frame is shorter and scrolls less.
+  double frame = link.targetTimestamp - link.timestamp;
+  double next = dragAutoScrollOffset(DRAG_AUTO_SCROLL_IOS, touch, _windowAlong, offset, [self maxOffset], frame);
   if (std::fabs(next - offset) >= 0.5) {
     [self writeOffset:next byUser:YES];
     [self updateDrag];

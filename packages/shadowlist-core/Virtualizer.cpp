@@ -164,6 +164,76 @@ void Virtualizer::applyFrameInput(Container& container, const FrameInput& input)
       container.nonAnchorKeys.insert(ignoredKey);
     }
   }
+
+  // A drop waits for the frame whose keys make its change, see reconcileFrameKeys.
+  if (input.dropHint.kind != DropHint::Kind::None && !input.dropHint.key.empty()) {
+    container.pendingDrop = input.dropHint;
+    container.pendingDropAtMs = input.frameTimeMs;
+  } else if (container.pendingDrop.kind != DropHint::Kind::None && input.frameTimeMs > 0.0 &&
+             container.pendingDropAtMs > 0.0 && input.frameTimeMs - container.pendingDropAtMs > DROP_HINT_TIMEOUT_MS) {
+    container.pendingDrop = DropHint{};
+  }
+}
+
+namespace {
+
+/*
+ * Whether the keys went from before to after by exactly the change the hint names, with every
+ * other row keeping its order. A sort that also moved other rows is not the drop.
+ */
+bool keysMakeDropChange(const std::vector<Row>& before, const std::vector<std::string>& after, const DropHint& hint) {
+  std::size_t expected = before.size();
+  if (hint.kind == DropHint::Kind::Removed) {
+    expected -= expected > 0 ? 1 : 0;
+  } else if (hint.kind == DropHint::Kind::Inserted) {
+    expected += 1;
+  }
+  if (hint.kind == DropHint::Kind::None || after.size() != expected) {
+    return false;
+  }
+  bool foundBefore = false;
+  bool foundAfter = false;
+  std::size_t beforeIndex = 0;
+  std::size_t afterIndex = 0;
+  std::size_t movedBefore = UNDEFINED_INDEX;
+  std::size_t movedAfter = UNDEFINED_INDEX;
+  // Walk both lists without the hinted row. What is left must match key for key.
+  while (true) {
+    while (beforeIndex < before.size() && before[beforeIndex].key == hint.key) {
+      foundBefore = true;
+      movedBefore = beforeIndex;
+      ++beforeIndex;
+    }
+    while (afterIndex < after.size() && after[afterIndex] == hint.key) {
+      foundAfter = true;
+      movedAfter = afterIndex;
+      ++afterIndex;
+    }
+    if (beforeIndex == before.size() || afterIndex == after.size()) {
+      break;
+    }
+    if (before[beforeIndex].key != after[afterIndex]) {
+      return false;
+    }
+    ++beforeIndex;
+    ++afterIndex;
+  }
+  if (beforeIndex != before.size() || afterIndex != after.size()) {
+    return false;
+  }
+  switch (hint.kind) {
+    case DropHint::Kind::Moved:
+      return foundBefore && foundAfter && movedBefore != movedAfter;
+    case DropHint::Kind::Removed:
+      return foundBefore && !foundAfter;
+    case DropHint::Kind::Inserted:
+      return !foundBefore && foundAfter;
+    case DropHint::Kind::None:
+      break;
+  }
+  return false;
+}
+
 }
 
 bool Virtualizer::applyGestureState(
@@ -345,7 +415,26 @@ void Virtualizer::reconcileFrameKeys(
       ? container.revision.rows.back().key
       : std::string();
     std::vector<Anchor> fallbackAnchors = captureFallbackAnchors(container, inputOffset);
+    /*
+     * The keys make exactly the change a drag just showed: its row moved within the list, left
+     * it for another list of a drag board, or landed here from one. The drag already showed
+     * every row in its new place at this offset. Holding the anchor would scroll by the distance
+     * the anchor row moved, the whole move when the dragged row was the anchor, like the top row
+     * dragged down, or a row's height when one lands above it. Keep the offset. The next frame
+     * captures a new anchor. The hint is used up by this key change either way.
+     */
+    DropHint drop = std::move(container.pendingDrop);
+    container.pendingDrop = DropHint{};
+    bool dropKeepsOffset = keysMakeDropChange(container.revision.rows, inputKeys, drop);
     std::size_t survivors = reconcileRows(container, inputKeys, input.keyEdit);
+    if (dropKeepsOffset) {
+      SHADOWLIST_LOG("  drop keeps offset: %s kind=%d, anchor %s released",
+        drop.key.c_str(), static_cast<int>(drop.kind), anchorKey.empty() ? "(none)" : anchorKey.c_str());
+      container.anchor = Anchor{"", 0.0, AnchorMode::Row};
+      anchorKey.clear();
+      anchorDelta = 0.0;
+      fallbackAnchors.clear();
+    }
     /*
      * An inverted list whose rows were all replaced, like another conversation, opens on the
      * new bottom the way a fresh list does.

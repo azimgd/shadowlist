@@ -11,6 +11,7 @@
 #include <shadowlist-core/Virtualizer.hpp>
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -418,4 +419,313 @@ TEST(an_older_command_sequence_does_not_run_the_scroll_command_again) {
   container.requestScrollToRow(30, 2.0, UNDEFINED_INDEX);
   Virtualizer::update(container, report(keys, target + 400.0));
   CHECK(container.operation && container.operation->type == OperationType::ScrollToKey);
+}
+
+namespace {
+
+/*
+ * The keys after a drag moves the row at from to the index to, like arrayMove in JS.
+ */
+std::vector<std::string> movedKeys(std::vector<std::string> keys, std::size_t from, std::size_t to) {
+  std::string key = keys[from];
+  keys.erase(keys.begin() + static_cast<std::ptrdiff_t>(from));
+  keys.insert(keys.begin() + static_cast<std::ptrdiff_t>(to), key);
+  return keys;
+}
+
+/*
+ * The commit that fires onDragEnd. The keys have not changed yet.
+ */
+FrameInput drop(
+  const std::vector<std::string>& keys,
+  double offset,
+  const std::string& key,
+  double header = HEADER,
+  DropHint::Kind kind = DropHint::Kind::Moved) {
+  FrameInput input = report(keys, offset, header);
+  input.dropHint = DropHint{kind, key};
+  return input;
+}
+
+}
+
+/*
+ * The Reorder screen opens at the top with a header and only the first rows measured. The top
+ * row is dragged six rows down. The drag already showed the new order at offset 0. The commit
+ * that moves the row keeps offset 0 instead of following the row it held on screen, also once
+ * the rows below are measured and the estimated total shrinks to the real one.
+ */
+TEST(dropping_the_top_row_lower_keeps_the_offset_while_estimates_correct) {
+  constexpr double SCREEN_HEADER = 58.0;
+  constexpr double SCREEN_ROW = 67.0;
+  std::vector<std::string> keys = keysFor(80);
+  Container container;
+  Virtualizer::update(container, report(keys, 0.0, SCREEN_HEADER));
+  layoutPass(container, SCREEN_HEADER, 0, 11, SCREEN_ROW);
+  Virtualizer::update(container, report(keys, 0.0, SCREEN_HEADER));
+  CHECK_EQ(container.anchor.key, std::string("k0"));
+  double estimatedTotal = container.revision.contentHeight;
+
+  Virtualizer::update(container, drop(keys, 0.0, "k0", SCREEN_HEADER));
+  std::vector<std::string> reordered = movedKeys(keys, 0, 6);
+  Virtualizer::update(container, report(reordered, 0.0, SCREEN_HEADER));
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
+  CHECK(!container.offsetCorrected);
+
+  // The rows below get measured in the same settle. The total shrinks toward the real one.
+  layoutPass(container, SCREEN_HEADER, 0, 79, SCREEN_ROW);
+  CHECK(container.revision.contentHeight < estimatedTotal);
+  for (int commit = 0; commit < 3; ++commit) {
+    Virtualizer::update(container, report(reordered, 0.0, SCREEN_HEADER));
+  }
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
+  CHECK(!container.offsetCorrected);
+  CHECK_NEAR(onScreen(container, "k0"), SCREEN_HEADER + 6 * SCREEN_ROW, 0.5);
+}
+
+/*
+ * Scrolled into the list, the row cut by the top edge is the anchor. Dragged three rows down,
+ * the drop keeps the offset, which is where the drag showed the rows.
+ */
+TEST(dropping_the_anchor_row_lower_keeps_the_offset_when_scrolled) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  Virtualizer::update(container, report(keys, 0.0));
+  layoutPass(container, HEADER, 0, 59, 100.0);
+  double offset = HEADER + 10 * 100.0 + 40.0;
+  Virtualizer::update(container, report(keys, offset));
+  Virtualizer::update(container, report(keys, offset));
+  CHECK_EQ(container.anchor.key, std::string("k10"));
+
+  Virtualizer::update(container, drop(keys, offset, "k10"));
+  std::vector<std::string> reordered = movedKeys(keys, 10, 13);
+  Virtualizer::update(container, report(reordered, offset));
+  layoutPass(container, HEADER, 0, 59, 100.0);
+  Virtualizer::update(container, report(reordered, offset));
+  CHECK_NEAR(container.revision.offsetY, offset, 0.5);
+  CHECK(!container.offsetCorrected);
+  CHECK_NEAR(onScreen(container, "k10"), 3 * 100.0 - 40.0, 0.5);
+}
+
+/*
+ * A row from below dropped into the slot of the anchor row pushes the anchor down by one row.
+ * Holding the anchor would scroll the dropped row out of view. The drop keeps the offset.
+ */
+TEST(dropping_a_row_into_the_anchor_slot_keeps_the_offset) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  Virtualizer::update(container, report(keys, 0.0));
+  layoutPass(container, HEADER, 0, 59, 100.0);
+  double offset = HEADER + 10 * 100.0 + 40.0;
+  Virtualizer::update(container, report(keys, offset));
+  Virtualizer::update(container, report(keys, offset));
+  CHECK_EQ(container.anchor.key, std::string("k10"));
+
+  Virtualizer::update(container, drop(keys, offset, "k15"));
+  std::vector<std::string> reordered = movedKeys(keys, 15, 10);
+  Virtualizer::update(container, report(reordered, offset));
+  CHECK_NEAR(container.revision.offsetY, offset, 0.5);
+  CHECK(!container.offsetCorrected);
+  CHECK_NEAR(onScreen(container, "k15"), -40.0, 0.5);
+}
+
+/*
+ * Only a drop keeps the offset. A reorder from data, or one after a drop that moved nothing,
+ * still holds the row on screen. The drop is used up by the first key change.
+ */
+TEST(a_reorder_without_a_pending_drop_still_holds_the_anchor_row) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  Virtualizer::update(container, report(keys, 0.0));
+  layoutPass(container, HEADER, 0, 59, 100.0);
+  double offset = HEADER + 10 * 100.0 + 40.0;
+  Virtualizer::update(container, report(keys, offset));
+  Virtualizer::update(container, report(keys, offset));
+
+  // A drop that moved nothing, then an append that does not move the dropped row.
+  Virtualizer::update(container, drop(keys, offset, "k10"));
+  std::vector<std::string> appended = keys;
+  appended.push_back("extra");
+  Virtualizer::update(container, report(appended, offset));
+  CHECK(container.pendingDrop.kind == DropHint::Kind::None);
+  CHECK_NEAR(container.revision.offsetY, offset, 0.5);
+
+  double k10Before = onScreen(container, "k10");
+  std::vector<std::string> reordered = movedKeys(appended, 10, 13);
+  Virtualizer::update(container, report(reordered, offset));
+  CHECK(container.offsetCorrected);
+  CHECK_NEAR(onScreen(container, "k10"), k10Before, 0.5);
+}
+
+namespace {
+
+/*
+ * A list of rows 100 tall, scrolled 40 into k10, which is the anchor.
+ */
+void scrollIntoK10(Container& container, const std::vector<std::string>& keys, double& offset) {
+  Virtualizer::update(container, report(keys, 0.0));
+  layoutPass(container, HEADER, 0, keys.size() - 1, 100.0);
+  offset = HEADER + 10 * 100.0 + 40.0;
+  Virtualizer::update(container, report(keys, offset));
+  Virtualizer::update(container, report(keys, offset));
+}
+
+}
+
+/*
+ * A card dropped from another column of a drag board at the top of a column at rest. The
+ * target opened a gap under the header for it. The commit that inserts it keeps offset 0, so
+ * the card lands under the header instead of the column scrolling one row down.
+ */
+TEST(a_row_landing_at_the_top_from_another_list_keeps_the_offset_at_rest) {
+  std::vector<std::string> keys = keysFor(30);
+  Container container;
+  Virtualizer::update(container, report(keys, 0.0));
+  layoutPass(container, HEADER, 0, 29, 100.0);
+  Virtualizer::update(container, report(keys, 0.0));
+  Virtualizer::update(container, drop(keys, 0.0, "incoming", HEADER, DropHint::Kind::Inserted));
+  std::vector<std::string> next = keys;
+  next.insert(next.begin(), "incoming");
+  Virtualizer::update(container, report(next, 0.0));
+  layoutPass(container, HEADER, 0, 30, 100.0);
+  Virtualizer::update(container, report(next, container.revision.offsetY));
+  CHECK_NEAR(container.revision.offsetY, 0.0, 0.5);
+  CHECK_NEAR(onScreen(container, "incoming"), HEADER, 0.5);
+  CHECK_NEAR(onScreen(container, "k0"), HEADER + 100.0, 0.5);
+}
+
+/*
+ * Scrolled into the target, a card dropped into the anchor row's slot takes the place the gap
+ * showed, 40 above the top edge, instead of the column holding k10 and pushing the card a row
+ * further up out of view.
+ */
+TEST(a_row_landing_in_the_anchor_slot_from_another_list_keeps_the_offset) {
+  std::vector<std::string> keys = keysFor(60);
+  double offset = 0.0;
+  Container container;
+  scrollIntoK10(container, keys, offset);
+  CHECK_EQ(container.anchor.key, std::string("k10"));
+  Virtualizer::update(container, drop(keys, offset, "incoming", HEADER, DropHint::Kind::Inserted));
+  std::vector<std::string> next = keys;
+  next.insert(next.begin() + 10, "incoming");
+  Virtualizer::update(container, report(next, offset));
+  layoutPass(container, HEADER, 0, 60, 100.0);
+  Virtualizer::update(container, report(next, container.revision.offsetY));
+  CHECK_NEAR(container.revision.offsetY, offset, 0.5);
+  CHECK_NEAR(onScreen(container, "incoming"), -40.0, 0.5);
+  CHECK_NEAR(onScreen(container, "k10"), 60.0, 0.5);
+}
+
+/*
+ * The top card of a scrolled column dragged out to another list. The home list closed the gap
+ * while the card floated, which showed k11 at -40. The commit that removes the card keeps the
+ * offset there instead of holding the next row and moving it down a row.
+ */
+TEST(a_row_leaving_for_another_list_keeps_the_offset_of_the_closed_gap) {
+  std::vector<std::string> keys = keysFor(60);
+  double offset = 0.0;
+  Container container;
+  scrollIntoK10(container, keys, offset);
+  double k11Resting = onScreen(container, "k11");
+  Virtualizer::update(container, drop(keys, offset, "k10", HEADER, DropHint::Kind::Removed));
+  std::vector<std::string> next = keys;
+  next.erase(next.begin() + 10);
+  Virtualizer::update(container, report(next, offset));
+  CHECK_NEAR(container.revision.offsetY, offset, 0.5);
+  CHECK_NEAR(onScreen(container, "k11"), k11Resting - 100.0, 0.5);
+}
+
+/*
+ * JS rejected the drop: no key change came within DROP_HINT_TIMEOUT_MS. A later server sort
+ * that happens to move that same row holds the anchor like any reorder from data. A props
+ * change with the same keys, like the mounted range moving, does not end the hint early.
+ */
+TEST(a_rejected_drop_then_a_server_sort_holds_the_anchor_row) {
+  std::vector<std::string> keys = keysFor(60);
+  double offset = 0.0;
+  Container container;
+  scrollIntoK10(container, keys, offset);
+  FrameInput dropped = drop(keys, offset, "k10");
+  dropped.frameTimeMs = 1000.0;
+  Virtualizer::update(container, dropped);
+  FrameInput rangeMoved = report(keys, offset);
+  rangeMoved.frameTimeMs = 1100.0;
+  Virtualizer::update(container, rangeMoved);
+  CHECK(container.pendingDrop.kind == DropHint::Kind::Moved);
+  FrameInput idle = report(keys, offset);
+  idle.frameTimeMs = 1000.0 + DROP_HINT_TIMEOUT_MS + 500.0;
+  Virtualizer::update(container, idle);
+  CHECK(container.pendingDrop.kind == DropHint::Kind::None);
+
+  double k10Before = onScreen(container, "k10");
+  FrameInput sorted = report(movedKeys(keys, 10, 13), offset);
+  sorted.frameTimeMs = idle.frameTimeMs + 5000.0;
+  Virtualizer::update(container, sorted);
+  CHECK(container.offsetCorrected);
+  CHECK_NEAR(onScreen(container, "k10"), k10Before, 0.5);
+}
+
+/*
+ * A drop hint no key change used expires DROP_HINT_TIMEOUT_MS after it came in.
+ */
+TEST(a_drop_hint_expires_after_its_timeout) {
+  std::vector<std::string> keys = keysFor(60);
+  double offset = 0.0;
+  Container container;
+  scrollIntoK10(container, keys, offset);
+  FrameInput dropped = drop(keys, offset, "k10");
+  dropped.frameTimeMs = 1000.0;
+  Virtualizer::update(container, dropped);
+  FrameInput soon = report(keys, offset);
+  soon.frameTimeMs = 1000.0 + DROP_HINT_TIMEOUT_MS / 2.0;
+  Virtualizer::update(container, soon);
+  CHECK(container.pendingDrop.kind == DropHint::Kind::Moved);
+  FrameInput late = report(keys, offset);
+  late.frameTimeMs = 1000.0 + DROP_HINT_TIMEOUT_MS + 1.0;
+  Virtualizer::update(container, late);
+  CHECK(container.pendingDrop.kind == DropHint::Kind::None);
+
+  double k10Before = onScreen(container, "k10");
+  Virtualizer::update(container, report(movedKeys(keys, 10, 13), offset));
+  CHECK(container.offsetCorrected);
+  CHECK_NEAR(onScreen(container, "k10"), k10Before, 0.5);
+}
+
+/*
+ * The first key change after a drop moved the dropped row and also swapped two other rows,
+ * like a sort that ran with the move. That is not the change the drag showed. The anchor
+ * holds, and the hint is used up.
+ */
+TEST(a_permutation_of_several_rows_after_a_drop_holds_the_anchor_row) {
+  std::vector<std::string> keys = keysFor(60);
+  double offset = 0.0;
+  Container container;
+  scrollIntoK10(container, keys, offset);
+  Virtualizer::update(container, drop(keys, offset, "k10"));
+  std::vector<std::string> sorted = movedKeys(keys, 10, 13);
+  std::swap(sorted[20], sorted[21]);
+  double k10Before = onScreen(container, "k10");
+  Virtualizer::update(container, report(sorted, offset));
+  CHECK(container.pendingDrop.kind == DropHint::Kind::None);
+  CHECK(container.offsetCorrected);
+  CHECK_NEAR(onScreen(container, "k10"), k10Before, 0.5);
+}
+
+/*
+ * A removal hint only covers the one row. A change that removed another row too holds the
+ * anchor's fallback like any removal.
+ */
+TEST(a_removal_of_more_than_the_dragged_row_is_not_the_drop) {
+  std::vector<std::string> keys = keysFor(60);
+  double offset = 0.0;
+  Container container;
+  scrollIntoK10(container, keys, offset);
+  Virtualizer::update(container, drop(keys, offset, "k10", HEADER, DropHint::Kind::Removed));
+  std::vector<std::string> next = keys;
+  next.erase(next.begin() + 10);
+  next.erase(next.begin() + 2);
+  double k11Before = onScreen(container, "k11");
+  Virtualizer::update(container, report(next, offset));
+  CHECK(container.offsetCorrected);
+  CHECK_NEAR(onScreen(container, "k11"), k11Before, 0.5);
 }

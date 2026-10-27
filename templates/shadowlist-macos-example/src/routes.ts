@@ -10,6 +10,7 @@ import { ContactsScreen } from '@example/screens/ContactsScreen';
 import { SectionListScreen } from '@example/screens/SectionListScreen';
 import { ReorderScreen } from '@example/screens/ReorderScreen';
 import { ReorderGridScreen } from '@example/screens/ReorderGridScreen';
+import { BoardScreen } from '@example/screens/BoardScreen';
 import { TreeScreen } from '@example/screens/TreeScreen';
 import { SnapScreen } from '@example/screens/SnapScreen';
 import { TemplatesScreen } from '@example/screens/TemplatesScreen';
@@ -32,6 +33,7 @@ export type ExampleRoute =
   | 'SectionList'
   | 'Reorder'
   | 'ReorderGrid'
+  | 'Board'
   | 'Tree'
   | 'Snap'
   | 'Inbox'
@@ -129,6 +131,12 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
         title: 'Sky Wishlist',
         summary: 'Click and hold a card, then drag it across the grid',
         component: ReorderGridScreen,
+      },
+      {
+        route: 'Board',
+        title: 'Release Board',
+        summary: 'Drag cards within a column of a board',
+        component: BoardScreen,
       },
       {
         route: 'Tree',

@@ -24,6 +24,8 @@ ShadowListViewState::ShadowListViewState(const ShadowListViewState& previousStat
   dragEventType_(data.count("dragEventType") ? data["dragEventType"].getDouble() : previousState.dragEventType_),
   dragSourceKey_(data.count("dragSourceKey") ? data["dragSourceKey"].getString() : previousState.dragSourceKey_),
   dragDestinationKey_(data.count("dragDestinationKey") ? data["dragDestinationKey"].getString() : previousState.dragDestinationKey_),
+  dragDestinationListId_(data.count("dragDestinationListId") ? data["dragDestinationListId"].getString() : previousState.dragDestinationListId_),
+  dragDestinationIndex_(data.count("dragDestinationIndex") ? data["dragDestinationIndex"].getDouble() : previousState.dragDestinationIndex_),
   userScrolled_(data.count("userScrolled") ? data["userScrolled"].getBool() : previousState.userScrolled_),
   scrollPhase_(data.count("scrollPhase") ? data["scrollPhase"].getDouble() : previousState.scrollPhase_),
   /*
@@ -112,6 +114,8 @@ folly::dynamic ShadowListViewState::getDynamic() const {
   result["dragEventType"] = dragEventType_;
   result["dragSourceKey"] = dragSourceKey_;
   result["dragDestinationKey"] = dragDestinationKey_;
+  result["dragDestinationListId"] = dragDestinationListId_;
+  result["dragDestinationIndex"] = dragDestinationIndex_;
 
   // A null pointer means empty.
   folly::dynamic stickyIndices = folly::dynamic::array;

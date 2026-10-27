@@ -17,6 +17,27 @@
 namespace azimgd::shadowlist {
 
 /*
+ * What a drag just did to a list's keys. Moved is a row dropped elsewhere in its own list.
+ * Removed is a row dragged out to another list of a drag board, and Inserted is that row
+ * landing in the list it was dropped in. While dragging, the host shows every row where the
+ * change puts it at the current offset. The frame whose keys then make exactly this change
+ * keeps the offset instead of holding the anchor row, which the change may have moved or
+ * which may be the row itself. key names the dragged row.
+ */
+struct DropHint {
+  enum class Kind { None, Moved, Removed, Inserted };
+  Kind kind = Kind::None;
+  std::string key;
+};
+
+/*
+ * How long a drop hint waits for its keys, in milliseconds of the host's frame time. JS
+ * changes the data in its handler for the drop, which takes a frame or a few. A hint still
+ * unused by then belongs to a drop JS rejected.
+ */
+constexpr double DROP_HINT_TIMEOUT_MS = 1500.0;
+
+/*
  * What to send to the scroll view for one frame.
  */
 struct ContainerStateUpdate {
@@ -344,6 +365,14 @@ public:
    * The anchor picks the nearest real content row instead. Empty means any row can be the anchor.
    */
   std::unordered_set<std::string> nonAnchorKeys;
+
+  /*
+   * What a drag dropped, from FrameInput::dropHint until it is used or expires, see
+   * reconcileFrameKeys. pendingDropAtMs is the frame time it came in, 0 when the host sends
+   * no frame times. The kind is None when no drop waits.
+   */
+  DropHint pendingDrop;
+  double pendingDropAtMs = 0.0;
 
   /*
    * Layout inputs from the previous offset pass. layoutRows skips the pass when nothing changed.
