@@ -353,16 +353,30 @@ export function TaskBoard({ initialColumns }: { initialColumns: BoardColumn<Task
 
 The board names its drag board with `useId` and each list from the board and the column key. Two boards never join
 by accident, and no list goes without an id. `idPrefix` only makes the ids readable. A column's title names it in
-the Move to action of VoiceOver and TalkBack. Without `onMoveItem` the cards stay put.
+the Move to action of VoiceOver and TalkBack. Without `onMoveItem` the cards stay put, and an empty column says "No
+cards" instead of where to drop them.
+
+`renderColumnFooter(column)` draws a view under a column's cards, such as an add row. It sits outside the column's
+list, so it never lifts, never drags and takes no place among the cards. A card let go over it lands in that column
+where its gap last showed, which is the end for a card brought down past the last one. A drag board cannot keep
+one row from lifting: a card that must stay put either stays out of `items` or has its move refused in
+`onMoveItem`. `renderColumnHeader(column)` takes the default header's place, and then the header's accessibility
+label is yours to give. `columnStyle` styles every column, for a tinted background or other padding.
+
+By default the columns fill the height the board is given. A board inside a page sets `columnHeight="content"`
+and sizes itself to its cards: every column's cards are as tall as the tallest column's, measured by its list,
+between `minColumnHeight` (120) and `maxColumnHeight` (60% of the window), so each column is a drop target down the
+whole board. A column taller than that scrolls inside, and one that fits does not, so a swipe on it scrolls the
+page. Until a column has measured its cards, each counts `estimatedItemHeight` (64).
 
 | Export | Description |
 | --- | --- |
-| `Board.List({ columns, renderItem, keyExtractor?, onMoveItem?, idPrefix?, columnWidth?, labels?, testID? })` | The board. `columns` are `BoardColumn`s, `{ key, title, items }`. `onMoveItem(BoardMoveInfo)` gets a reorder and a drop into another column in one shape, `{ item, sourceColumnKey, destinationColumnKey, destinationKey, destinationIndex }`. `keyExtractor` defaults to `item.id`. `columnWidth` defaults to 78% of the board, at most 360. |
+| `Board.List({ columns, renderItem, keyExtractor?, onMoveItem?, idPrefix?, columnWidth?, columnHeight?, minColumnHeight?, maxColumnHeight?, estimatedItemHeight?, columnStyle?, renderColumnHeader?, renderColumnFooter?, labels?, style?, testID? })` | The board. `columns` are `BoardColumn`s, `{ key, title, items }`. `onMoveItem(BoardMoveInfo)` gets a reorder and a drop into another column in one shape, `{ item, sourceColumnKey, destinationColumnKey, destinationKey, destinationIndex }`. `keyExtractor` defaults to `item.id`. `columnWidth` defaults to 78% of the board, at most 360. `columnHeight` is `'fill'` (the default) or `'content'`. |
 | `Board.Card({ title, label?, detail?, color?, accessibilityLabel? })` | A card with an optional colored bar and a label and detail under the title. Its cell stays transparent, and a picked up card lifts alone. |
 | `useDragBoardState(initialColumns, { keyExtractor?, onMoveItem? })` → `{ columns, setColumns, moveItem }` | Holds the columns. `moveItem` is stable and updates both columns of a drop in one state change. `onMoveItem` hears each move after it is applied, to save it. |
 | `moveBoardItem(columns, move, keyExtractor?)` | Applies one move. The item leaves every column that holds its key and goes before `destinationKey`, at the end for `''`, or at `destinationIndex` for a key no longer there. Untouched columns keep their identity, and the board comes back as is when nothing moved. |
 
-Labels: `defaultBoardLabels` (`emptyColumn`, `columnSummary(title, count)`). See
+Labels: `defaultBoardLabels` (`emptyColumn`, `emptyColumnReadOnly`, `columnSummary(title, count)`). See
 [BoardScreen](../shadowlist-fabric-example/src/screens/BoardScreen.tsx).
 
 ### Other kits

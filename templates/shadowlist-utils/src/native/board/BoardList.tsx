@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactElement } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -10,6 +10,7 @@ import {
 import type { ShadowListProps } from 'shadowlist';
 import { useLabels } from '../labels';
 import { createStyles } from '../theme';
+import { boardColumnHeight, type BoardColumnHeight } from './boardHeights';
 import { useBoardId } from './boardIds';
 import { BoardListColumn } from './BoardListColumn';
 import { defaultBoardLabels, type BoardLabels } from './labels';
@@ -23,6 +24,13 @@ export interface BoardListProps<ItemT> {
   onMoveItem?: (info: BoardMoveInfo<ItemT>) => void;
   idPrefix?: string;
   columnWidth?: number;
+  columnHeight?: BoardColumnHeight;
+  minColumnHeight?: number;
+  maxColumnHeight?: number;
+  estimatedItemHeight?: number;
+  columnStyle?: StyleProp<ViewStyle>;
+  renderColumnHeader?: (column: BoardColumn<ItemT>) => ReactElement | null;
+  renderColumnFooter?: (column: BoardColumn<ItemT>) => ReactElement | null;
   labels?: Partial<BoardLabels>;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -32,6 +40,14 @@ const COLUMN_GAP = 12;
 const COLUMN_SHARE = 0.78;
 const COLUMN_MAX_WIDTH = 360;
 const SIDE_PADDING = 24;
+/*
+ * The 'content' height bounds when the board does not set them: room for a card or two to land
+ * in an empty column, and a share of the window that leaves the page room around the board.
+ * A column that has not measured its cards counts ESTIMATED_ITEM_HEIGHT for each.
+ */
+const MIN_COLUMN_HEIGHT = 120;
+const MAX_COLUMN_HEIGHT_SHARE = 0.6;
+const ESTIMATED_ITEM_HEIGHT = 64;
 
 /*
  * A board of columns side by side in a horizontal scroll that snaps to each column. Every
@@ -41,6 +57,14 @@ const SIDE_PADDING = 24;
  * with moveBoardItem. Without onMoveItem the cards stay put. The board names its drag board
  * and lists itself and never shares them with another board. idPrefix only makes the ids
  * readable.
+ *
+ * By default the columns fill the height the board is given. With columnHeight 'content' the
+ * board sizes itself instead: every column's cards are as tall as the tallest column's,
+ * between minColumnHeight and maxColumnHeight, so each column is a drop target down the whole
+ * board, and a column taller than that scrolls inside while one that fits leaves the swipe to
+ * the page. renderColumnFooter draws a column's own trailing view under its cards, such as an
+ * add row. It is never lifted or dragged, and a card let go over it lands in that column where
+ * its gap last showed.
  */
 export function BoardList<ItemT>({
   columns,
@@ -49,6 +73,13 @@ export function BoardList<ItemT>({
   onMoveItem,
   idPrefix,
   columnWidth,
+  columnHeight = 'fill',
+  minColumnHeight = MIN_COLUMN_HEIGHT,
+  maxColumnHeight,
+  estimatedItemHeight = ESTIMATED_ITEM_HEIGHT,
+  columnStyle,
+  renderColumnHeader,
+  renderColumnFooter,
   labels,
   style,
   testID,
@@ -56,7 +87,7 @@ export function BoardList<ItemT>({
   const styles = useStyles();
   const boardLabels = useLabels(defaultBoardLabels, labels);
   const boardId = useBoardId(idPrefix);
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
   /*
    * The board's own laid out width. On macOS useWindowDimensions reports the screen, not the
@@ -79,6 +110,33 @@ export function BoardList<ItemT>({
       ? SIDE_PADDING
       : Math.max(0, Math.round((width - resolvedColumnWidth) / 2));
 
+  /*
+   * Each column's measured card height, kept only in 'content' mode, where it sets the height
+   * of every column's cards.
+   */
+  const [contentHeights, setContentHeights] = useState<
+    Readonly<Record<string, number>>
+  >({});
+  const sizesToContent = columnHeight === 'content';
+  const handleContentHeight = useCallback(
+    (columnKey: string, height: number) =>
+      setContentHeights((current) =>
+        current[columnKey] === height
+          ? current
+          : { ...current, [columnKey]: height }
+      ),
+    []
+  );
+  const bodyHeight = sizesToContent
+    ? boardColumnHeight(
+        columns,
+        contentHeights,
+        estimatedItemHeight,
+        minColumnHeight,
+        maxColumnHeight ?? Math.round(windowHeight * MAX_COLUMN_HEIGHT_SHARE)
+      )
+    : undefined;
+
   const contentStyle = useMemo(
     () => [styles.content, { paddingHorizontal: sidePadding }],
     [styles, sidePadding]
@@ -87,7 +145,7 @@ export function BoardList<ItemT>({
   return (
     <ScrollView
       horizontal
-      style={[styles.board, style]}
+      style={[sizesToContent ? undefined : styles.board, style]}
       contentContainerStyle={contentStyle}
       contentInsetAdjustmentBehavior="never"
       showsHorizontalScrollIndicator={false}
@@ -103,6 +161,15 @@ export function BoardList<ItemT>({
           column={column}
           boardId={boardId}
           width={resolvedColumnWidth}
+          bodyHeight={bodyHeight}
+          scrollEnabled={
+            bodyHeight === undefined ||
+            (contentHeights[column.key] ?? 0) > bodyHeight
+          }
+          onContentHeight={sizesToContent ? handleContentHeight : undefined}
+          style={columnStyle}
+          renderHeader={renderColumnHeader}
+          renderFooter={renderColumnFooter}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
           onMoveItem={onMoveItem}

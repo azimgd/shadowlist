@@ -1,7 +1,8 @@
-import { memo } from 'react';
+import { memo, useCallback, useRef } from 'react';
 import { StyleSheet, View, type ColorValue } from 'react-native';
 import {
   Board,
+  DashedButton,
   ListFooter,
   createStyles,
   useDragBoardState,
@@ -19,7 +20,8 @@ import { HOLD_TO_DRAG } from './holdToDrag';
  * ShadowListUtils' Board.List. Touch and hold a card to reorder it within its column or drag
  * it into another one, on iOS, Android and macOS. VoiceOver and TalkBack offer Move to for
  * each other column, named by its title. useDragBoardState holds the columns and applies every
- * move. The screen only gives the cards and a callback for the haptic and the log.
+ * move. The screen only gives the cards, a callback for the haptic and the log, and an Add card
+ * button under each column's cards, which never lifts with them.
  */
 
 type CardLabel = 'Design' | 'Bug' | 'Research' | 'Ops' | 'Copy';
@@ -188,6 +190,34 @@ export const BoardScreen = () => {
   const board = useDragBoardState(INITIAL_COLUMNS, {
     onMoveItem: handleMoveItem,
   });
+  const { setColumns } = board;
+  const added = useRef(0);
+
+  const renderColumnFooter = useCallback(
+    (column: BoardColumn<Card>) => (
+      <DashedButton
+        label="Add card"
+        style={styles.add}
+        onPress={() => {
+          added.current += 1;
+          const card: Card = {
+            id: `new-${added.current}`,
+            title: `New card ${added.current}`,
+            label: 'Design',
+            due: 'No date',
+          };
+          setColumns((columns) =>
+            columns.map((current) =>
+              current.key === column.key
+                ? { ...current, items: [...current.items, card] }
+                : current
+            )
+          );
+        }}
+      />
+    ),
+    [setColumns, styles]
+  );
 
   return (
     <View style={styles.container}>
@@ -198,6 +228,7 @@ export const BoardScreen = () => {
         columns={board.columns}
         renderItem={renderCard}
         onMoveItem={board.moveItem}
+        renderColumnFooter={renderColumnFooter}
         idPrefix="example-release-board"
         testID="board"
       />
@@ -205,11 +236,14 @@ export const BoardScreen = () => {
   );
 };
 
-const useStyles = createStyles(({ colors }) =>
+const useStyles = createStyles(({ colors, spacing }) =>
   StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: colors.background,
+    },
+    add: {
+      margin: spacing.md,
     },
   })
 );

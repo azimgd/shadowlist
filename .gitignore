@@ -22,6 +22,8 @@ coverage/
 # Benchmark output
 packages/shadowlist-core-bench/results/
 packages/shadowhash/bench/layout
+# Parked shadowhash bench work, kept on disk out of the tree
+packages/shadowhash/bench/shadowhash-bench-parked/
 
 # OS
 .DS_Store
