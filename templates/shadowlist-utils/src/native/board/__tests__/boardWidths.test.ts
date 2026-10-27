@@ -41,6 +41,29 @@ describe('boardColumnLayout', () => {
     expect(boardColumnLayout(400, 600).sidePadding).toBe(0);
   });
 
+  it('uses a given side padding as it is, whatever the width', () => {
+    expect(boardColumnLayout(400, undefined, 16)).toEqual({
+      columnWidth: 312,
+      sidePadding: 16,
+      snapInterval: 312 + COLUMN_GAP,
+    });
+    expect(boardColumnLayout(400, 280, 16).sidePadding).toBe(16);
+    expect(boardColumnLayout(400, 600, 20).sidePadding).toBe(20);
+    expect(boardColumnLayout(1200, undefined, 0).sidePadding).toBe(0);
+    expect(boardColumnLayout(400, 280, 12.5).sidePadding).toBe(12.5);
+  });
+
+  it('ignores a side padding that is not a finite number of zero or more', () => {
+    for (const padding of [-1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(boardColumnLayout(400, undefined, padding)).toEqual(
+        boardColumnLayout(400)
+      );
+      expect(boardColumnLayout(400, 280, padding)).toEqual(
+        boardColumnLayout(400, 280)
+      );
+    }
+  });
+
   it('ignores a width that is not a positive number', () => {
     const fallback = boardColumnLayout(400);
     for (const width of [0, -120, Number.NaN, Number.POSITIVE_INFINITY]) {

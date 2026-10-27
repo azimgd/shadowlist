@@ -29,6 +29,12 @@ export interface BoardListProps<ItemT> {
    * set, or not a positive number, a column takes 78% of the board, at most 360.
    */
   columnWidth?: number;
+  /*
+   * The inset in points before the first column and after the last, used as it is. Not set,
+   * or not a finite number of zero or more, it is 24 for a column narrower than 78% of the
+   * board, and a wider column is centred.
+   */
+  sidePadding?: number;
   columnHeight?: BoardColumnHeight;
   minColumnHeight?: number;
   maxColumnHeight?: number;
@@ -74,6 +80,7 @@ export function BoardList<ItemT>({
   onMoveItem,
   idPrefix,
   columnWidth,
+  sidePadding: sidePaddingProp,
   columnHeight = 'fill',
   minColumnHeight = MIN_COLUMN_HEIGHT,
   maxColumnHeight,
@@ -108,7 +115,11 @@ export function BoardList<ItemT>({
     columnWidth: resolvedColumnWidth,
     sidePadding,
     snapInterval,
-  } = boardColumnLayout(boardWidth || windowWidth, columnWidth);
+  } = boardColumnLayout(
+    boardWidth || windowWidth,
+    columnWidth,
+    sidePaddingProp
+  );
 
   /*
    * Each column's measured card height, kept only in 'content' mode, where it sets the height

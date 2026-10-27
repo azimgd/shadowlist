@@ -35,7 +35,7 @@
 - `Assistant.Composer` takes a controlled `value` with `onChangeText`, and an `accessory` in its toolbar.
 - `Board.List` draws a board of draggable columns on one drag board with ids it names itself, `Board.Card` a card for it, and `useDragBoardState` with the pure `moveBoardItem` hold the columns and apply each move within or between them.
 - `Board.List` takes `renderColumnFooter` for a view under each column's cards that never drags, `renderColumnHeader` and `columnStyle`, and `columnHeight="content"` with `minColumnHeight`, `maxColumnHeight` and `estimatedItemHeight` for a board that sizes itself to its tallest column. An empty column of a board whose cards cannot move says "No cards" (`emptyColumnReadOnly`), and a column's list no longer draws a background of its own over the column's.
-- `Board.List`'s `columnWidth` sets every column's width in points, which the snap to each column follows, and one that is not a positive number falls back to 78% of the board, at most 360.
+- `Board.List`'s `columnWidth` sets every column's width in points, which the snap to each column follows, and one that is not a positive number falls back to 78% of the board, at most 360. `sidePadding` sets the inset before the first column and after the last in points, in place of the 24 points or the centring, and one that is negative or not finite is ignored.
 
 ### ShadowListKit for the web
 

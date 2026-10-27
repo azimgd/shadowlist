@@ -23,24 +23,30 @@ export interface BoardColumnLayout {
  * A columnWidth that is a positive, finite number is used as it is for every column. Anything
  * else (undefined, zero, a negative width or NaN) takes the default share of the board. A
  * column narrower than the share keeps SIDE_PADDING on each side, and one as wide or wider is
- * centred, never with a negative padding.
+ * centred, never with a negative padding. A sidePadding that is a finite number of zero or more
+ * is used as it is before the first column and after the last instead, whatever the width.
  */
 export function boardColumnLayout(
   boardWidth: number,
-  columnWidth?: number
+  columnWidth?: number,
+  sidePadding?: number
 ): BoardColumnLayout {
   const share = Math.round(boardWidth * COLUMN_SHARE);
   const width =
     columnWidth !== undefined && Number.isFinite(columnWidth) && columnWidth > 0
       ? columnWidth
       : Math.min(share, COLUMN_MAX_WIDTH);
-  const sidePadding =
-    width < share
-      ? SIDE_PADDING
-      : Math.max(0, Math.round((boardWidth - width) / 2));
+  const padding =
+    sidePadding !== undefined &&
+    Number.isFinite(sidePadding) &&
+    sidePadding >= 0
+      ? sidePadding
+      : width < share
+        ? SIDE_PADDING
+        : Math.max(0, Math.round((boardWidth - width) / 2));
   return {
     columnWidth: width,
-    sidePadding,
+    sidePadding: padding,
     snapInterval: width + COLUMN_GAP,
   };
 }

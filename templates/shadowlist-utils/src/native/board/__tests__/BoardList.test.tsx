@@ -211,6 +211,19 @@ describe('Board.List', () => {
     expect(scrollOf(renderer).props.snapToInterval).toBe(280 + 12);
   });
 
+  it('takes a side padding of its own beside a column width', () => {
+    const renderer = renderBoard({ columnWidth: 280, sidePadding: 16 });
+    const board = scrollOf(renderer);
+    expect(board.props.contentContainerStyle[1]).toEqual({
+      paddingHorizontal: 16,
+    });
+    expect(board.props.snapToInterval).toBe(280 + 12);
+    const invalid = renderBoard({ sidePadding: -4 });
+    expect(scrollOf(invalid).props.contentContainerStyle[1]).toEqual({
+      paddingHorizontal: 44,
+    });
+  });
+
   it('ignores a column width that is not a positive number', () => {
     const renderer = renderBoard({ columnWidth: 0 });
     expect(scrollOf(renderer).props.snapToInterval).toBe(312 + 12);
