@@ -33,6 +33,7 @@
 - `Assistant.List` dismisses the keyboard on drag.
 - `Chat.Bubble` takes `showsAuthor`, `renderText` and `children`, and `getChatMessageSizeSpec` takes `showsAuthor`.
 - `Assistant.Composer` takes a controlled `value` with `onChangeText`, and an `accessory` in its toolbar.
+- `Board.List` draws a board of draggable columns on one drag board with ids it names itself, `Board.Card` a card for it, and `useDragBoardState` with the pure `moveBoardItem` hold the columns and apply each move within or between them.
 
 ### ShadowListKit for the web
 

@@ -327,6 +327,44 @@ const onOpenLink = (url: string) =>
 Pass this callback to `Assistant.List`, `Assistant.ReplyMessage` or `Assistant.Markdown`. Validate links in your
 custom handler before opening them.
 
+### Board (drag between columns)
+
+`Board.List` lays columns side by side in a horizontal scroll that snaps to each column. Every column is a
+`DraggableList` on one [drag board](../../packages/shadowlist-fabric/README.md#drag-boards), with a header that shows
+its title and count and a "Drop cards here" hint while it is empty. A card moves within its column or into another
+one on iOS, Android and macOS. `useDragBoardState` holds the columns and applies each move:
+
+```tsx
+import { Board, useDragBoardState, type BoardColumn } from 'shadowlist-utils/native';
+
+type Task = { id: string; title: string };
+
+export function TaskBoard({ initialColumns }: { initialColumns: BoardColumn<Task>[] }) {
+  const board = useDragBoardState(initialColumns);
+  return (
+    <Board.List
+      columns={board.columns}
+      renderItem={({ item }) => <Board.Card title={item.title} />}
+      onMoveItem={board.moveItem}
+    />
+  );
+}
+```
+
+The board names its drag board with `useId` and each list from the board and the column key. Two boards never join
+by accident, and no list goes without an id. `idPrefix` only makes the ids readable. A column's title names it in
+the Move to action of VoiceOver and TalkBack. Without `onMoveItem` the cards stay put.
+
+| Export | Description |
+| --- | --- |
+| `Board.List({ columns, renderItem, keyExtractor?, onMoveItem?, idPrefix?, columnWidth?, labels?, testID? })` | The board. `columns` are `BoardColumn`s, `{ key, title, items }`. `onMoveItem(BoardMoveInfo)` gets a reorder and a drop into another column in one shape, `{ item, sourceColumnKey, destinationColumnKey, destinationKey, destinationIndex }`. `keyExtractor` defaults to `item.id`. `columnWidth` defaults to 78% of the board, at most 360. |
+| `Board.Card({ title, label?, detail?, color?, accessibilityLabel? })` | A card with an optional colored bar and a label and detail under the title. Its cell stays transparent, and a picked up card lifts alone. |
+| `useDragBoardState(initialColumns, { keyExtractor?, onMoveItem? })` → `{ columns, setColumns, moveItem }` | Holds the columns. `moveItem` is stable and updates both columns of a drop in one state change. `onMoveItem` hears each move after it is applied, to save it. |
+| `moveBoardItem(columns, move, keyExtractor?)` | Applies one move. The item leaves every column that holds its key and goes before `destinationKey`, at the end for `''`, or at `destinationIndex` for a key no longer there. Untouched columns keep their identity, and the board comes back as is when nothing moved. |
+
+Labels: `defaultBoardLabels` (`emptyColumn`, `columnSummary(title, count)`). See
+[BoardScreen](../shadowlist-fabric-example/src/screens/BoardScreen.tsx).
+
 ### Other kits
 
 | Kit | Input / behavior | Example / source |

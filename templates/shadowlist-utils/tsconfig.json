@@ -5,6 +5,9 @@
       "shadowlist": ["../../packages/shadowlist-fabric/src/index"],
       "react": ["../shadowlist-fabric-example/node_modules/@types/react"],
       "react/*": ["../shadowlist-fabric-example/node_modules/@types/react/*"],
+      "react-test-renderer": [
+        "../../packages/shadowlist-fabric/node_modules/@types/react-test-renderer"
+      ],
       "react-native": [
         "../shadowlist-fabric-example/node_modules/react-native/types_generated/index.d.ts"
       ],

@@ -72,6 +72,7 @@ export * from './nested';
 export * from './masonry';
 export * from './contacts';
 export * from './reorder';
+export * from './board';
 export * from './tree';
 export * from './poll';
 export * from './snap';

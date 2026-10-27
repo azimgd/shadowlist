@@ -135,7 +135,7 @@ export const EXAMPLE_SECTIONS: ExampleSection[] = [
       {
         route: 'Board',
         title: 'Release Board',
-        summary: 'Drag cards within a column of a board',
+        summary: 'Drag cards within a column or across columns',
         component: BoardScreen,
       },
       {

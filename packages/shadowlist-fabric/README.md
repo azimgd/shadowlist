@@ -168,6 +168,8 @@ drag on macOS.
 A scoped `<DragBoard>` provider is the planned next step: it would name its board with `useId`, which keeps
 screens from sharing one by accident, take one `onMoveItem({ item, sourceListId, destinationListId, destinationIndex, destinationKey })`
 for the whole board, and let a list refuse drops with `acceptsDrop`. Until then the string ids above are the API.
+[ShadowListUtils' `Board.List`](../../templates/shadowlist-utils/README.md#board-drag-between-columns) already names
+its board and lists itself and takes one `onMoveItem` for the whole board.
 
 ### Prefetching and saved position
 

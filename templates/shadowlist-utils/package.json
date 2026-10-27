@@ -86,6 +86,9 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "modulePaths": [
+      "<rootDir>/../../packages/shadowlist-fabric/node_modules"
+    ],
     "modulePathIgnorePatterns": [
       "<rootDir>/lib/"
     ]
