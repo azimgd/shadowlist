@@ -39,5 +39,8 @@
     "eslint-plugin-prettier": "^5.5.5",
     "prettier": "^3.9.9",
     "typescript": "^6.0.2"
+  },
+  "resolutions": {
+    "on-headers": "^1.1.0"
   }
 }
