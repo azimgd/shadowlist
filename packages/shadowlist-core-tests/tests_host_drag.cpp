@@ -41,6 +41,39 @@ DragReorder dragRow3To(double touchContent) {
 
 }
 
+/*
+ * A host that looks keys up by index leaves DragRow keys empty and hands updateInsertion a
+ * lookup. The drop spot gets the same key either way.
+ */
+TEST(drag_insertion_reads_keys_through_the_lookup) {
+  DragReorder drag;
+  drag.begin(3, "k3", 300.0, 100.0, 350.0);
+  drag.place(560.0, 300.0, 100.0, 1000.0);
+  std::vector<DragRow> rows = rowsWithout(3);
+  std::vector<std::string> keys;
+  for (DragRow& row : rows) {
+    keys.push_back(row.key);
+    row.key.clear();
+  }
+  std::size_t looked = 0;
+  drag.updateInsertion(rows, [&](const DragRow& row) -> const std::string& {
+    ++looked;
+    return keys[row.index < 3 ? row.index : row.index - 1];
+  });
+  CHECK_EQ(drag.getInsertionIndex(), std::size_t{5});
+  CHECK_EQ(drag.getInsertionKey(), std::string("k5"));
+  CHECK_EQ(looked, std::size_t{1});
+
+  // Back over its own place the drop names the held row with no lookup.
+  drag.place(350.0, 300.0, 100.0, 1000.0);
+  drag.updateInsertion(rows, [&](const DragRow&) -> const std::string& {
+    ++looked;
+    return keys[0];
+  });
+  CHECK_EQ(drag.getInsertionKey(), std::string("k3"));
+  CHECK_EQ(looked, std::size_t{1});
+}
+
 TEST(drag_without_passing_a_midpoint_stays) {
   DragReorder drag = dragRow3To(390.0);
   CHECK_EQ(drag.getInsertionIndex(), std::size_t{3});

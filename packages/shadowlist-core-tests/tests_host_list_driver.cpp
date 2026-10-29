@@ -46,6 +46,7 @@ struct Host {
   double content = 0.0;
   bool reachedEnd = false;
   bool settling = false;
+  bool prefetch = false;
   std::size_t measures = 0;
 
   explicit Host(std::size_t count, ListSettings settings = {}) {
@@ -63,6 +64,7 @@ struct Host {
     input.windowAlong = WINDOW_ALONG;
     input.windowCross = WINDOW_CROSS;
     input.userScrolled = userScrolled;
+    input.prefetch = prefetch;
     PassResult result = driver.runPasses(input);
     content = result.contentAlong;
     offset = result.offset;
@@ -602,6 +604,94 @@ TEST(list_driver_prefetches_measured_rows_once_and_cancels_them_when_they_leave)
   host.driver.updatePrefetch(plan.low, plan.high, prefetch, cancel);
   CHECK(!cancel.empty());
   CHECK(!prefetch.empty());
+}
+
+/*
+ * A key replaced inside the prefetched rows, with the ranges and the count unchanged, is a new
+ * row to prefetch once the core took it.
+ */
+TEST(list_driver_prefetch_sees_a_key_replaced_under_the_same_ranges) {
+  Host host(1000);
+  host.settle();
+  std::vector<std::size_t> prefetch;
+  std::vector<std::size_t> cancel;
+  MountPlan plan = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  host.driver.updatePrefetch(plan.low, plan.high, prefetch, cancel);
+  CHECK(!prefetch.empty());
+  std::size_t replaced = prefetch.back();
+
+  // The same height as the row it replaces, which keeps every range where it was.
+  host.driver.replaceKeys(replaced, 1, {"k" + std::to_string(replaced + 3000)});
+  host.settle();
+  MountPlan next = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  CHECK_EQ(next.low, plan.low);
+  CHECK_EQ(next.high, plan.high);
+  host.driver.updatePrefetch(next.low, next.high, prefetch, cancel);
+  CHECK(prefetch == std::vector<std::size_t>({replaced}));
+  CHECK(cancel.empty());
+
+  host.driver.updatePrefetch(next.low, next.high, prefetch, cancel);
+  CHECK(prefetch.empty());
+}
+
+/*
+ * A kit without sizeForItem measures a row by making its cell. runPasses measures the rows it
+ * will mount, reports the rows it prefetches before it measures them, and the call after the
+ * mount finds nothing new.
+ */
+TEST(list_driver_reports_prefetch_before_it_measures_the_rows) {
+  Host host(1000);
+  std::vector<std::string> events;
+  host.driver.setMeasureRow([&](std::size_t index, const std::string& key, double) {
+    events.push_back("m" + std::to_string(index));
+    return rowHeight(static_cast<std::size_t>(std::stoul(key.substr(1))));
+  });
+  std::vector<std::size_t> prefetched;
+  host.driver.setPrefetchRows([&](const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>&) {
+    for (std::size_t index : prefetch) {
+      events.push_back("p" + std::to_string(index));
+      prefetched.push_back(index);
+    }
+  });
+  auto reportedFirst = [&] {
+    for (std::size_t index : prefetched) {
+      auto reported = std::find(events.begin(), events.end(), "p" + std::to_string(index));
+      auto measured = std::find(events.begin(), events.end(), "m" + std::to_string(index));
+      CHECK(reported < measured);
+    }
+  };
+  host.prefetch = true;
+  host.settle();
+  CHECK(!prefetched.empty());
+  reportedFirst();
+  // The rows the first layout mounts got sizes before the rest were prefetched.
+  MountPlan first = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  for (std::size_t index : prefetched) {
+    CHECK(index > first.high);
+  }
+
+  // A scroll shorter than the overscan brings rows into the measured range only.
+  events.clear();
+  prefetched.clear();
+  host.scrollTo(host.offset + 300.0);
+  host.settle();
+  CHECK(!prefetched.empty());
+  reportedFirst();
+  MountPlan plan = host.driver.planMount(host.offset, WINDOW_ALONG, 0.0);
+  for (std::size_t index : prefetched) {
+    CHECK(index < plan.low || index > plan.high);
+  }
+  std::vector<std::size_t> prefetch;
+  std::vector<std::size_t> cancel;
+  host.driver.updatePrefetch(plan.low, plan.high, prefetch, cancel);
+  CHECK(prefetch.empty() && cancel.empty());
+
+  // Without prefetch in the input nothing is reported.
+  prefetched.clear();
+  host.prefetch = false;
+  host.scrollTo(30000.0);
+  host.settle();
+  CHECK(prefetched.empty());
 }
 
 TEST(list_driver_moved_key_keeps_its_size_and_the_top_row_holds) {

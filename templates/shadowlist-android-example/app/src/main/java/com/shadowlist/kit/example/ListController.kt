@@ -6,11 +6,13 @@ import android.graphics.Canvas
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.recyclerview.widget.DefaultItemAnimator
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.StaggeredGridLayoutManager
 import com.shadowlist.kit.ShadowListKitListCell
 import com.shadowlist.kit.ShadowListKitListView
+import java.util.WeakHashMap
 
 /*
  * How a new set of rows relates to the shown one.
@@ -71,6 +73,19 @@ class ListController(context: Context, engine: Engine, inverted: Boolean = false
    * The layout an engine hands the row view, or null to let the view lay itself out.
    */
   fun layoutFor(row: Row, width: Int): RowLayout? = if (precomputed) layouts.layout(row, width) else null
+
+  /*
+   * Shows a just bound row view Settings.drawDelayMs late. A newer bind replaces the token.
+   */
+  fun delayDraw(view: View) {
+    if (Settings.drawDelayMs <= 0) return
+    val token = Any()
+    drawTokens[view] = token
+    view.alpha = 0f
+    view.postDelayed({ if (drawTokens[view] === token) view.alpha = 1f }, Settings.drawDelayMs)
+  }
+
+  private val drawTokens = WeakHashMap<View, Any>()
 }
 
 // region ShadowListKitListView
@@ -113,6 +128,7 @@ private class ShadowListBackend(
       if (registered.add(row.viewType)) listView.registerCell(row.viewType) { row.makeView(it) }
       val cell = listView.dequeueReusableCell<RowView>(row.viewType)
       cell.configure(row, controller.layouts.cached(row, cellWidth()))
+      controller.delayDraw(cell)
       return cell
     }
 
@@ -166,6 +182,7 @@ private class RecyclerBackend(
   init {
     recycler.setBackgroundColor(Theme.background)
     recycler.setHasFixedSize(true)
+    recycler.itemAnimator = if (Settings.animate) DefaultItemAnimator() else null
     recycler.layoutManager = if (columns > 1) {
       StaggeredGridLayoutManager(columns, StaggeredGridLayoutManager.VERTICAL)
     } else {
@@ -202,6 +219,7 @@ private class RecyclerBackend(
       val layout = controller.layoutFor(row, width)
       holder.itemView.layoutParams.height = layout?.height ?: ViewGroup.LayoutParams.WRAP_CONTENT
       (holder.itemView as RowView).configure(row, layout)
+      controller.delayDraw(holder.itemView)
     }
   }
 

@@ -148,11 +148,6 @@ public:
   std::function<void(std::size_t, std::size_t)> onMeasuredRangeChangeCallback;
 
   /*
-   * Called with the x and y offset when the scroll offset changes.
-   */
-  std::function<void(double, double)> onScrollCallback;
-
-  /*
    * Called when the viewable rows of any viewable rule change, with a low and a high index
    * per rule in rule order. A rule with no viewable row has UNDEFINED_INDEX for both.
    */
@@ -336,6 +331,11 @@ public:
   Anchor anchor = {};
 
   /*
+   * The anchor key update holds for one frame. It lives here so its buffer is reused.
+   */
+  std::string frameAnchorKey;
+
+  /*
    * The running offset correction, if any. Its id goes to the host as the commit token.
    * End corrections hold the end edge. Keeping content in place and scrollToRow hold a row by key.
    */
@@ -383,6 +383,12 @@ public:
   double previousLayoutWindowHeight = -1.0;
   std::size_t previousLayoutNumberOfColumns = 0;
   bool previousLayoutHorizontal = false;
+
+  /*
+   * Set when rows moved outside a frame, like a header change in the host's layout pass. The
+   * measured range was picked before they moved, and the next measure picks it again.
+   */
+  bool measuredRangeStale = false;
 
   /*
    * Size previously given to unmeasured rows. While it and the layout stay the same, the sizing
@@ -576,7 +582,7 @@ public:
   const Anchor* getCompensationAnchor() const;
 
   /*
-   * Fire the measured range, viewable and scroll callbacks, but only when their values changed.
+   * Fire the measured range and viewable callbacks, but only when their values changed.
    */
   void dispatchObservers();
 
@@ -584,11 +590,11 @@ public:
    * The offsets around the current one where a new frame would change nothing, see
    * OffsetBand. Call it after a frame, with the lock held. It is empty whenever the core
    * still has work that needs frames: a running or pending correction, a scroll command,
-   * rows or sizes not laid out yet, the inverted opening pin, and scroll, viewable or
-   * sticky listeners, which need every offset. Otherwise the band ends where a row enters
-   * or leaves the measured range, where an edge callback or the inverted bottom pin would flip,
-   * and at both ends of the scroll range. Each of those ends is pulled in by a margin. A
-   * host rounding its offset still sends the frame that crosses it.
+   * rows or sizes not laid out yet and the inverted opening pin. Otherwise the band ends where
+   * a row enters or leaves the measured range, where a row turns viewable or stops for a
+   * viewable rule while someone listens, where an edge callback or the inverted bottom pin
+   * would flip, and at both ends of the scroll range. Each of those ends is pulled in by a
+   * margin. A host rounding its offset still sends the frame that crosses it.
    */
   OffsetBand computeOffsetBand() const;
 
@@ -621,6 +627,11 @@ private:
   std::vector<std::size_t> previousViewableRanges_;
 
   /*
+   * This frame's viewable ranges, kept to reuse the buffer.
+   */
+  std::vector<std::size_t> viewableRangesScratch_;
+
+  /*
    * Whether we were already at an edge. Reached callbacks fire once on arrival.
    * They reset when the row count changes, like after loading a page.
    */
@@ -632,13 +643,6 @@ private:
    * Whether the list was at its end last time. Only changes are sent.
    */
   bool previousAtEnd_ = true;
-
-  /*
-   * Last offset sent to onScroll. Only changes are sent.
-   */
-  double previousOffsetX_ = 0.0;
-  double previousOffsetY_ = 0.0;
-  bool previousOffsetValid_ = false;
 
   /*
    * Last scrollToRow command number handled. The same index can still scroll again.

@@ -231,6 +231,20 @@ def median(values):
     return statistics.median(values) if values else None
 
 
+def spread(values):
+    values = [value for value in values if value is not None]
+    return [min(values), max(values)] if values else None
+
+
+def engine_flags(directory):
+    """React Native engine flag states the runs' apps logged, from perf-suite.sh's *.flags."""
+    states = set()
+    for path in glob.glob(os.path.join(directory, "*.flags")):
+        with open(path) as handle:
+            states.add(handle.read().strip() or "unknown")
+    return sorted(states)
+
+
 def load_runs(directory):
     groups = {}
     for path in sorted(glob.glob(os.path.join(directory, "*.run.json"))):
@@ -259,12 +273,15 @@ def summarize(directory):
         summary["configs"][f"{screen}-{count}"] = {
             "screen": screen, "count": count, "runs": len(runs),
             "median": {name: median([get(run) for run in runs]) for name, get, _ in metrics},
+            "range": {name: spread([get(run) for run in runs]) for name, get, _ in metrics},
         }
+    summary["rn_engine_flags"] = engine_flags(directory)
     write_json(os.path.join(directory, "summary.json"), summary)
     names = [name for name, _, _ in metrics]
     lines = [f"# perf {os.path.basename(os.path.dirname(directory.rstrip('/')))} / {platform}", "",
              "Medians over runs. `!!` = unexplained analyzer findings." if platform == "ios"
              else "Medians over runs. mvcp fail = visible rows moved after an insert off screen.", "",
+             "React Native engine flags: " + (", ".join(summary["rn_engine_flags"]) or "not recorded"), "",
              "| config | runs | " + " | ".join(names) + " |",
              "| --- | ---: | " + " | ".join("---:" for _ in names) + " |"]
     for key, config in summary["configs"].items():
@@ -303,31 +320,51 @@ def compare(before, after, platforms):
         lower_better = {name: lower for name, _, lower in
                         (ios_metrics() if platform == "ios" else android_metrics())}
         print(f"\n### {platform}: {before} -> {after}\n")
+        for label, data in ((before, old), (after, new)):
+            print(f"React Native engine flags in {label}: {', '.join(data.get('rn_engine_flags') or ['not recorded'])}")
+        print()
         print(f"| config | metric | {before} | {after} | change |")
         print("| --- | --- | ---: | ---: | --- |")
         for key in old["configs"]:
             if key not in new["configs"]:
                 continue
-            for name, value in old["configs"][key]["median"].items():
-                other = new["configs"][key]["median"].get(name)
+            old_config, new_config = old["configs"][key], new["configs"][key]
+            runs = min(old_config["runs"], new_config["runs"])
+            for name, value in old_config["median"].items():
+                other = new_config["median"].get(name)
                 if value is None and other is None:
                     continue
+                ranges = (old_config.get("range", {}).get(name), new_config.get("range", {}).get(name))
                 print(f"| {key} | {name} | {fmt(value)} | {fmt(other)} | "
-                      f"{change(value, other, lower_better.get(name, True))} |")
+                      f"{change(value, other, lower_better.get(name, True), runs, ranges)} |")
 
 
-def change(before, after, lower_is_better):
+MIN_RUNS = 3
+
+
+def change(before, after, lower_is_better, runs, ranges):
+    """
+    better or worse only with MIN_RUNS runs on each side, a change of 5% or more and run ranges
+    that don't overlap. Anything else prints the change alone.
+    """
     if before is None or after is None:
         return "-"
     if before == after:
         return "same"
+    separated = runs >= MIN_RUNS and all(ranges) and (ranges[1][0] > ranges[0][1] or ranges[1][1] < ranges[0][0])
     if before == 0:
-        return "worse" if (after > 0) == lower_is_better else "better"
-    ratio = (after - before) / abs(before) * 100.0
-    better = (ratio < 0) == lower_is_better
-    if abs(ratio) < 5:
-        return f"{ratio:+.0f}%"
-    return f"{ratio:+.0f}% {'better' if better else 'worse'}"
+        text = "from 0"
+        large = True
+    else:
+        ratio = (after - before) / abs(before) * 100.0
+        text = f"{ratio:+.0f}%"
+        large = abs(ratio) >= 5
+    if not large:
+        return text
+    if not separated:
+        return f"{text} (within run spread)" if runs >= MIN_RUNS else f"{text} ({runs} runs, needs {MIN_RUNS})"
+    better = (after < before) == lower_is_better
+    return f"{text} {'better' if better else 'worse'}"
 
 
 def main():

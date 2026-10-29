@@ -3,15 +3,16 @@ import {
   codegenNativeCommands,
   type ViewProps,
   type CodegenTypes,
+  type ColorValue,
 } from 'react-native';
 
 /*
- * A swipe action button. backgroundColor is a processed color, see processColor. style is
- * 'normal' or 'destructive'.
+ * A swipe action button. backgroundColor is a processed color, see processColor, which keeps
+ * PlatformColor and DynamicColorIOS. style is 'normal' or 'destructive'.
  */
 export type NativeSwipeAction = Readonly<{
   title: string;
-  backgroundColor: CodegenTypes.Double;
+  backgroundColor: ColorValue;
   style: string;
 }>;
 
@@ -33,7 +34,6 @@ export type OnContextMenuAction = {
 };
 
 interface NativeProps extends ViewProps {
-  index: CodegenTypes.Int32;
   rowKey?: string;
   leadingSwipeActions?: ReadonlyArray<NativeSwipeAction>;
   trailingSwipeActions?: ReadonlyArray<NativeSwipeAction>;

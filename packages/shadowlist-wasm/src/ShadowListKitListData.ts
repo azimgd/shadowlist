@@ -2,24 +2,26 @@ import {
   ShadowListKitCore,
   ShadowListKitListState,
   isShadowListKitLoaded,
+  unchangedEnds,
 } from './ShadowListKitCore.js';
 import { ShadowListKitListChanges } from './ShadowListKitListChanges.js';
 import type { ShadowListKitListView } from './ShadowListKitListView.js';
 
 /*
  * The list's data: row keys and the changes that move them. The keys are the same list the
- * core holds. Reloads, inserts, deletes, batches and applyChanges update both and report the
- * change to the list, which mounts from the keys here.
+ * list's state holds in wasm and hands to the core. Reloads, inserts, deletes, batches and
+ * applyChanges send the state only what changed and report the change to the list, which mounts
+ * from the keys here.
  */
 export class ShadowListKitListData {
   /*
-   * Row keys in data order, the same list the core holds.
+   * Row keys in data order, the same list the state and the core hold.
    */
   keys: string[] = [];
 
   /*
-   * The changes performBatchUpdates collects and the content versions applyChanges compares,
-   * the core's BatchCollector and ContentVersions, which outlive the core. The payload of the
+   * The keys held in wasm, the changes performBatchUpdates collects and the content versions
+   * applyChanges compares live in the list's state, which outlives the core. The payload of the
    * last reload in a batch stays here.
    */
   private readonly state = new ShadowListKitListState();
@@ -65,17 +67,16 @@ export class ShadowListKitListData {
     }
     if (!this.list.dataSource) return;
     const next = this.readKeys();
-    this.recordContentVersions(next);
-    this.applyKeys(next);
+    // The content version of every item now, which the next applyChanges compares against.
+    this.commitKeys(next, { record: this.contentVersionsOf(next.length) });
     this.list.structureChanged();
   }
 
   /*
-   * The content version of every item now, which the next applyChanges compares against.
+   * A core made after the keys: the state gives it every key it holds.
    */
-  private recordContentVersions(items: ReadonlyArray<string>): void {
-    const versions = this.contentVersionsOf(items.length);
-    if (versions) this.state.recordContentVersions(items, versions);
+  seedCore(core: ShadowListKitCore): void {
+    if (this.keys.length > 0) this.state.seedCore(core, this.keys);
   }
 
   private contentVersionsOf(count: number): (number | string)[] | null {
@@ -89,22 +90,24 @@ export class ShadowListKitListData {
   }
 
   /*
-   * The core's keySplice over the key list kept here, which needs no copy of the keys into the
-   * core. The core test key_splice_finds_the_changed_middle holds the rule.
+   * Take next as the keys. The core's keySplice over the key list kept here finds the unchanged
+   * rows at both ends, and only the keys between them cross into the state. The core test
+   * key_splice_finds_the_changed_middle holds the rule. Returns what
+   * ShadowListKitListState.commitKeys returns.
    */
-  private applyKeys(next: string[]): void {
-    const start = commonPrefix(this.keys, next);
-    const end = commonSuffix(this.keys, next, start);
-    if (start < this.keys.length || start < next.length) {
-      this.list.liveCore?.replaceKeys(
-        start,
-        this.keys.length - start - end,
-        next,
-        start,
-        next.length - end
-      );
-    }
+  private commitKeys(
+    next: string[],
+    change: Parameters<ShadowListKitListState['commitKeys']>[4]
+  ): Int32Array | null {
+    const committed = this.state.commitKeys(
+      this.list.liveCore,
+      this.keys,
+      next,
+      unchangedEnds(this.keys, next),
+      change
+    );
     this.keys = next;
+    return committed;
   }
 
   insertItems(indices: ReadonlyArray<number>): void {
@@ -120,10 +123,10 @@ export class ShadowListKitListData {
     );
     if (sorted.length === 0) return;
     const inserted = sorted.map((index) => source.keyForItem(this.list, index));
+    this.state.insertRows(this.list.liveCore, this.keys, sorted, inserted);
     forEachRun(sorted, (first, last) =>
       this.keys.splice(sorted[first]!, 0, ...inserted.slice(first, last + 1))
     );
-    this.list.liveCore?.insertKeys(sorted, inserted);
     this.list.structureChanged();
   }
 
@@ -136,6 +139,7 @@ export class ShadowListKitListData {
       ShadowListKitCore.deletionIndices(indices, this.keys.length)
     );
     if (sorted.length === 0) return;
+    this.state.deleteRows(this.list.liveCore, this.keys, sorted);
     // Runs go last to first, which keeps the earlier indices valid.
     const runs: [number, number][] = [];
     forEachRun(sorted, (first, last) =>
@@ -144,7 +148,6 @@ export class ShadowListKitListData {
     for (const [low, high] of runs.reverse()) {
       this.keys.splice(low, high - low + 1);
     }
-    this.list.liveCore?.deleteKeys(sorted);
     this.list.structureChanged();
   }
 
@@ -255,19 +258,18 @@ export class ShadowListKitListData {
         );
       }
     }
-    this.commitKeyChanges(next ?? this.readKeys(), reloadedKeys, payload);
+    this.commitKeys(next ?? this.readKeys(), {});
+    this.reloadKeyRows(reloadedKeys, payload);
   }
 
   /*
-   * Take the next keys, then reload the rows of reloadedKeys. Reloaded rows report the change
-   * themselves.
+   * After the next keys are taken, reload the rows of reloadedKeys. Reloaded rows report the
+   * change themselves.
    */
-  private commitKeyChanges(
-    next: string[],
+  private reloadKeyRows(
     reloadedKeys: ReadonlySet<string>,
     payload: unknown
   ): void {
-    this.applyKeys(next);
     const rows = this.rowsOfKeys(reloadedKeys);
     if (rows.length > 0) this.reloadRows(rows, payload);
     else this.list.structureChanged();
@@ -285,18 +287,12 @@ export class ShadowListKitListData {
   applyChanges(): ShadowListKitListChanges {
     const source = this.list.dataSource;
     if (!source) return new ShadowListKitListChanges([], [], [], [], []);
-    const previous = this.keys;
     const next = this.readKeys();
-    const diff = ShadowListKitCore.diffKeys(previous, next);
-
-    // Rows that stayed but whose content version changed get reloaded.
-    const versions = this.contentVersionsOf(next.length);
-    const reloaded = versions
-      ? Array.from(this.state.updateContentVersions(next, versions))
-      : [];
-    const reloadedKeys = new Set(reloaded.map((item) => next[item]!));
-
-    this.commitKeyChanges(next, reloadedKeys, null);
+    // The state diffs the keys and finds the items whose content version changed under the same key.
+    const diff = this.commitKeys(next, {
+      diff: true,
+      update: this.contentVersionsOf(next.length),
+    })!;
 
     let at = 0;
     const deleted = Array.from(diff.subarray(at + 1, at + 1 + diff[at]!));
@@ -310,6 +306,11 @@ export class ShadowListKitListData {
       movedFrom.push(diff[at + 1 + move * 2]!);
       movedTo.push(diff[at + 2 + move * 2]!);
     }
+    at += 1 + moves * 2;
+    const reloaded = Array.from(diff.subarray(at + 1, at + 1 + diff[at]!));
+
+    // Rows that stayed but whose content version changed get reloaded.
+    this.reloadKeyRows(new Set(reloaded.map((item) => next[item]!)), null);
     return new ShadowListKitListChanges(
       deleted,
       inserted,
@@ -336,33 +337,4 @@ function forEachRun(
     block(first, last);
     first = last + 1;
   }
-}
-
-function commonPrefix(
-  previous: ReadonlyArray<string>,
-  next: ReadonlyArray<string>
-): number {
-  const limit = Math.min(previous.length, next.length);
-  let count = 0;
-  while (count < limit && previous[count] === next[count]) ++count;
-  return count;
-}
-
-/*
- * Keys equal at the end of both lists, not reaching into the first start keys of either.
- */
-function commonSuffix(
-  previous: ReadonlyArray<string>,
-  next: ReadonlyArray<string>,
-  start: number
-): number {
-  const limit = Math.min(previous.length, next.length) - start;
-  let count = 0;
-  while (
-    count < limit &&
-    previous[previous.length - 1 - count] === next[next.length - 1 - count]
-  ) {
-    ++count;
-  }
-  return count;
 }

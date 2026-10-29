@@ -141,7 +141,7 @@ Every platform uses the same word for each concept and only changes the shape to
 - Other constants share names: iOS `SHADOWLIST_KIT_X` in seconds, Android `X_MS` in milliseconds.
 - Scroll commands call `stopScrolling` (stop momentum and cancel the landing) before they send the command to the core.
 - The same logic carries the same comment wording in both kits.
-- Android and the web plan mounts over the frames they copied from the core, the same rule as `ListDriver::planMount` and `ListDriver::shouldMount`, because a scroll frame there makes no JNI or wasm call. iOS calls the driver. The core test `list_driver_mount_plan_reaches_into_the_insets` holds the rule.
+- Android plans mounts over the frames it copied from the core, the same rule as `ListDriver::planMount` and `ListDriver::shouldMount`, because a scroll frame there makes no JNI call for it. iOS and the web call the driver's `planMount`. The core test `list_driver_mount_plan_reaches_into_the_insets` holds the rule.
 - A saved position lands through `ListDriver::restoreAnchorState` in every kit, and waits while the data lacks its key. Then iOS invalidates the frame for UIKit's next layout, and Android and the web lay out right away through `runCommandNow`.
 
 ## Comments

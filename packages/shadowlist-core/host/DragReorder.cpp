@@ -671,9 +671,12 @@ DragOffset DragReorder::offsetFor(std::size_t index) const {
 }
 
 void DragReorder::updateInsertion(const std::vector<DragRow>& rows) {
+  updateInsertion(rows, [](const DragRow& row) -> const std::string& { return row.key; });
+}
+
+std::size_t DragReorder::locateInsertion(const std::vector<DragRow>& rows) {
   if (foreign_) {
-    updateForeignInsertion(rows);
-    return;
+    return locateForeignInsertion(rows);
   }
   if (heldAway_) {
     insertionIndex_ = UNDEFINED_INDEX;
@@ -683,11 +686,10 @@ void DragReorder::updateInsertion(const std::vector<DragRow>& rows) {
       auto cellAt = [&](std::size_t position) { return frameOf(rows[position]); };
       storeOffsets(rows, [&](auto write) { gridRemovalShifts(rows.size(), cellAt, heldResting_, columns_, write); });
     }
-    return;
+    return UNDEFINED_INDEX;
   }
   if (isGrid()) {
-    updateGridInsertion(rows);
-    return;
+    return locateGridInsertion(rows);
   }
   auto rowAt = [&](std::size_t current, std::size_t& index, double& leading, double& extent) {
     index = rows[current].index;
@@ -699,14 +701,13 @@ void DragReorder::updateInsertion(const std::vector<DragRow>& rows) {
     // Nothing passed. The drop names the held row itself and nothing moves.
     insertionIndex_ = originIndex_;
     insertionKey_ = originKey_;
-    return;
+    return UNDEFINED_INDEX;
   }
-  const DragRow& row = rows[position];
-  insertionIndex_ = row.index;
-  insertionKey_ = row.key.empty() ? originKey_ : row.key;
+  insertionIndex_ = rows[position].index;
+  return position;
 }
 
-void DragReorder::updateGridInsertion(const std::vector<DragRow>& rows) {
+std::size_t DragReorder::locateGridInsertion(const std::vector<DragRow>& rows) {
   heldResting_.index = originIndex_;
   auto cellAt = [&](std::size_t position) { return frameOf(rows[position]); };
   std::size_t position =
@@ -715,14 +716,18 @@ void DragReorder::updateGridInsertion(const std::vector<DragRow>& rows) {
     insertionIndex_ = originIndex_;
     insertionKey_ = originKey_;
   } else {
-    const DragRow& row = rows[position];
-    insertionIndex_ = row.index;
-    insertionKey_ = row.key.empty() ? originKey_ : row.key;
+    insertionIndex_ = rows[position].index;
   }
 
   storeOffsets(rows, [&](auto write) {
     gridShifts(rows.size(), cellAt, heldResting_, insertionIndex_, columns_, write);
   });
+  return position;
+}
+
+void DragReorder::takeInsertionKey(const std::string& key) {
+  // A foreign session takes the key as it is. A row of its own without one names the held row.
+  insertionKey_ = foreign_ || !key.empty() ? key : originKey_;
 }
 
 template <typename Relayout>
@@ -783,7 +788,7 @@ void DragReorder::endForeign() {
   begin(UNDEFINED_INDEX, std::string(), 0.0, 0.0, 0.0);
 }
 
-void DragReorder::updateForeignInsertion(const std::vector<DragRow>& rows) {
+std::size_t DragReorder::locateForeignInsertion(const std::vector<DragRow>& rows) {
   auto cellAt = [&](std::size_t current) { return frameOf(rows[current]); };
   std::size_t position = UNDEFINED_INDEX;
   if (isGrid()) {
@@ -801,17 +806,17 @@ void DragReorder::updateForeignInsertion(const std::vector<DragRow>& rows) {
     std::size_t last = maxCellIndex(rows.size(), cellAt, UNDEFINED_INDEX);
     insertionIndex_ = last == UNDEFINED_INDEX ? 0 : last + 1;
     insertionKey_.clear();
+    position = UNDEFINED_INDEX;
   } else if (position != UNDEFINED_INDEX) {
     insertionIndex_ = rows[position].index;
-    insertionKey_ = rows[position].key;
   }
-  if (!isGrid()) {
-    return;
+  if (isGrid()) {
+    storeOffsets(rows, [&](auto write) {
+      gridForeignShifts(rows.size(), cellAt, heldResting_.extent, heldResting_.crossExtent, insertionIndex_, columns_,
+        write);
+    });
   }
-  storeOffsets(rows, [&](auto write) {
-    gridForeignShifts(rows.size(), cellAt, heldResting_.extent, heldResting_.crossExtent, insertionIndex_, columns_,
-      write);
-  });
+  return position;
 }
 
 }

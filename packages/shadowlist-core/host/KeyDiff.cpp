@@ -1,6 +1,7 @@
 #include <shadowlist-core/host/KeyDiff.hpp>
 
 #include <algorithm>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 
@@ -37,8 +38,12 @@ std::vector<std::size_t> longestIncreasing(const std::vector<std::size_t>& value
 }
 
 KeyDiff diffKeys(const std::vector<std::string>& previous, const std::vector<std::string>& next) {
+  return diffKeys(KeyList(previous), KeyList(next));
+}
+
+KeyDiff diffKeys(KeyList previous, KeyList next) {
   KeyDiff diff;
-  std::unordered_map<std::string, std::size_t> previousIndex;
+  std::unordered_map<std::string_view, std::size_t> previousIndex;
   previousIndex.reserve(previous.size());
   for (std::size_t index = 0; index < previous.size(); ++index) {
     previousIndex.emplace(previous[index], index);

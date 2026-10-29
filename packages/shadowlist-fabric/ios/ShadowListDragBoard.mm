@@ -870,6 +870,7 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
   if (!board) {
     return;
   }
+  [self announceDragBoardMoveIfLanded];
   auto& core = board->_core;
   NSString *heldKey = core.getHeldKey().empty() ? nil : SLDragKey(core.getHeldKey());
   BOOL hiddenHoldsHeldRow = _dragBoardHiddenView && heldKey &&
@@ -1076,7 +1077,8 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 /*
  * Move a row to the end of another list of the board, the way a drop there goes: the list
  * hears the landing first, then this list sends onDragEnd with that list's id and row count
- * and an empty destinationKey. VoiceOver then says where the row went.
+ * and an empty destinationKey. VoiceOver says where the row went once the list's data holds
+ * it, see announceDragBoardMoveIfLanded. A move JS never makes says nothing.
  */
 - (BOOL)performAccessibilityMove:(nullable RCTUIView *)view toList:(nullable ShadowListView *)list
 {
@@ -1090,8 +1092,30 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
              destinationKey:@""
           destinationListId:list->_dragListId
            destinationIndex:(NSInteger)[list rowKeyCount]];
+  list->_dragBoardMovedKey = key;
+  list->_dragBoardMovedDeadline = CACurrentMediaTime() + azimgd::shadowlist::DRAG_BOARD_LAND_TIMEOUT_MS / 1000.0;
+  return YES;
+}
+
+/*
+ * A row VoiceOver moved into this list landed in its data. Say so once. A move that has not
+ * landed by DRAG_BOARD_LAND_TIMEOUT_MS is forgotten.
+ */
+- (void)announceDragBoardMoveIfLanded
+{
+  if (!_dragBoardMovedKey) {
+    return;
+  }
+  if (CACurrentMediaTime() > _dragBoardMovedDeadline) {
+    _dragBoardMovedKey = nil;
+    return;
+  }
+  if (![self rowKeysContainKey:_dragBoardMovedKey]) {
+    return;
+  }
+  _dragBoardMovedKey = nil;
   NSString *announcement =
-    [NSString stringWithFormat:NSLocalizedString(@"Moved to %@", nil), [list dragBoardAccessibilityName]];
+    [NSString stringWithFormat:NSLocalizedString(@"Moved to %@", nil), [self dragBoardAccessibilityName]];
 #if TARGET_OS_OSX
   id element = self.window ?: (id)NSApp;
   NSAccessibilityPostNotificationWithUserInfo(element, NSAccessibilityAnnouncementRequestedNotification, @{
@@ -1101,7 +1125,6 @@ static NSMapTable<NSString *, ShadowListDragBoard *> *SLDragBoards(void)
 #else
   UIAccessibilityPostNotification(UIAccessibilityAnnouncementNotification, announcement);
 #endif
-  return YES;
 }
 
 /*

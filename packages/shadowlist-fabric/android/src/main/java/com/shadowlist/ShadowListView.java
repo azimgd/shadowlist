@@ -18,7 +18,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReadableArray;
-import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.common.mapbuffer.ReadableMapBuffer;
 import com.facebook.react.uimanager.PixelUtil;
@@ -157,6 +156,7 @@ public class ShadowListView extends FrameLayout {
    */
   private boolean mSnapToItem = false;
   private float[] mSnapOffsetsPx = new float[0];
+  private double[] mSnapOffsetsDip = new double[0];
   private boolean mTouching = false;
 
   /*
@@ -210,6 +210,14 @@ public class ShadowListView extends FrameLayout {
   private boolean mDragEventSent = false;
   private boolean mMomentumEventSent = false;
   private int mFlingVelocity = 0;
+
+  /*
+   * onScroll goes out from the scroll callback while JS listens, throttled by
+   * scrollEventThrottle.
+   */
+  private boolean mScrollEventEnabled = false;
+  private double mScrollEventThrottle = 0;
+  private final ShadowListScrollEvent.Tracker mScrollTracker = new ShadowListScrollEvent.Tracker();
 
   /*
    * The offset of the previous scroll callback. React Native's scroll view calls
@@ -375,6 +383,8 @@ public class ShadowListView extends FrameLayout {
     removeCallbacks(mLandingRunnable);
     mDragEventSent = false;
     mMomentumEventSent = false;
+    mScrollEventEnabled = false;
+    mScrollTracker.reset(mScrollEventThrottle);
     stopSettling();
     mScrollView.scrollTo(0, 0);
     mContentView.layout(0, 0, 0, 0);
@@ -386,11 +396,15 @@ public class ShadowListView extends FrameLayout {
   }
 
   /*
-   * A detached list gets no frames to finish a drop. Its Choreographer settle loop would
-   * run every frame until the next attach, when the fallback queued on the view runs.
+   * A detached list gets no frames to finish a drag or a drop, and both stop here. A running
+   * drag first sends its end event. JS then lets go of the held row and the core turns its
+   * scroll corrections back on.
    */
   @Override
   protected void onDetachedFromWindow() {
+    if (mDragController.isDragging()) {
+      mDragController.cancel();
+    }
     mDragController.teardown();
     super.onDetachedFromWindow();
     // A list off the window is no drag board's Move to target.
@@ -488,6 +502,7 @@ public class ShadowListView extends FrameLayout {
    */
   public void setItemKeys(@Nullable ReadableArray keys) {
     mAccessibility.setItemKeys(keys);
+    mKeysGeneration++;
     mDragController.onKeysChanged();
   }
 
@@ -498,16 +513,34 @@ public class ShadowListView extends FrameLayout {
   private long mKeysStore = 0;
   private double mKeysVersion = 0;
 
+  /*
+   * Counts changes of the keys. A row's index found in older keys is looked up again.
+   */
+  private int mKeysGeneration = 0;
+
   public void setKeysStore(long keysStore) {
     mKeysStore = keysStore;
     mAccessibility.setKeysStore(mKeysStore, mKeysVersion);
+    mKeysGeneration++;
     mDragController.onKeysChanged();
   }
 
   public void setKeysVersion(double keysVersion) {
     mKeysVersion = keysVersion;
     mAccessibility.setKeysStore(mKeysStore, mKeysVersion);
+    mKeysGeneration++;
     mDragController.onKeysChanged();
+  }
+
+  /*
+   * A mounted row's index in this list's keys, found by its key once per keys change, or -1.
+   */
+  int rowIndexOf(ShadowListCellView row) {
+    if (!row.hasRowIndex(mKeysGeneration)) {
+      String key = row.getRowKey();
+      row.cacheRowIndex(key.isEmpty() ? -1 : mAccessibility.indexOfItemKey(key), mKeysGeneration);
+    }
+    return row.getRowIndex();
   }
 
   /*
@@ -522,6 +555,20 @@ public class ShadowListView extends FrameLayout {
    */
   int getRowKeyCount() {
     return mAccessibility.getItemCountOrUnknown();
+  }
+
+  public void setScrollEventEnabled(boolean scrollEventEnabled) {
+    if (scrollEventEnabled != mScrollEventEnabled) {
+      mScrollEventEnabled = scrollEventEnabled;
+      mScrollTracker.reset(mScrollEventThrottle);
+    }
+  }
+
+  public void setScrollEventThrottle(double scrollEventThrottle) {
+    if (scrollEventThrottle != mScrollEventThrottle) {
+      mScrollEventThrottle = scrollEventThrottle;
+      mScrollTracker.reset(scrollEventThrottle);
+    }
   }
 
   public void setSnapToItem(boolean snapToItem) {
@@ -890,6 +937,7 @@ public class ShadowListView extends FrameLayout {
      */
     boolean needsCommit = mSync.onScroll(offsetX, offsetY, scrollPhase, commitEveryFrame);
     boolean userScrolled = mSync.isFrameUserScrolled();
+    emitScroll(offsetX, offsetY, scrollPhase == SCROLL_PHASE_IDLE && !userScrolled);
 
     if (DEBUG_LOG) {
       slLog(String.format("java.onScrollChanged: offset=(%.1f,%.1f) userScrolled=%b phase=%d commit=%b",
@@ -925,6 +973,7 @@ public class ShadowListView extends FrameLayout {
       if (mSync.clearUserScrolled(liveOffsetX(), liveOffsetY())) {
         mState.updateState(mSync.patchMap());
       }
+      emitHeldScroll();
       return;
     }
     mSync.livePatch(liveOffsetX(), liveOffsetY(), mSync.isCurrentUserScrolled(), scrollPhase);
@@ -1119,9 +1168,9 @@ public class ShadowListView extends FrameLayout {
     }
 
     /*
-     * Read the scalars from the state's MapBuffer. getStateData copies the whole state,
+     * Read the scalars from the state's MapBuffer. getStateData would copy the whole state,
      * including the sticky and snap lists, into a map on every mount. The lists are only
-     * read from it when their version moved.
+     * copied when their version moved.
      */
     ReadableMapBuffer mapBuffer = mState.getStateDataMapBuffer();
     if (mapBuffer == null) {
@@ -1172,25 +1221,27 @@ public class ShadowListView extends FrameLayout {
     boolean stickyStale = !sameList || stickyVersion != mStickyVersion;
     boolean snapStale = !sameList || snapVersion != mSnapVersion;
     if (stickyStale || snapStale) {
-      ReadableMap nextStateData = mState.getStateData();
-      if (nextStateData != null) {
-        if (stickyStale) {
-          mStickyController.cacheStickyGeometry(nextStateData);
-        }
-        if (snapStale && nextStateData.hasKey("snapOffsets")) {
-          ReadableArray snapOffsets = nextStateData.getArray("snapOffsets");
-          if (snapOffsets != null) {
-            float[] offsetsPx = new float[snapOffsets.size()];
-            for (int i = 0; i < snapOffsets.size(); i++) {
-              offsetsPx[i] = PixelUtil.toPixelFromDIP((float) snapOffsets.getDouble(i));
-            }
-            mSnapOffsetsPx = offsetsPx;
-          }
-        }
-        mGeometryHandle = mLiveHandle;
-        mStickyVersion = stickyVersion;
-        mSnapVersion = snapVersion;
+      // The lists come from the state just read, through its mount driver.
+      long mountHandle = mapBuffer.getLong(STATE_MOUNT_HANDLE);
+      if (stickyStale) {
+        mStickyController.cacheStickyGeometry(mountHandle);
       }
+      if (snapStale) {
+        int count = ShadowListGeometry.snapCount(mountHandle);
+        if (mSnapOffsetsDip.length < count) {
+          mSnapOffsetsDip = new double[count];
+        }
+        count = ShadowListGeometry.copySnapOffsets(mountHandle, mSnapOffsetsDip);
+        if (mSnapOffsetsPx.length != count) {
+          mSnapOffsetsPx = new float[count];
+        }
+        for (int i = 0; i < count; i++) {
+          mSnapOffsetsPx[i] = PixelUtil.toPixelFromDIP((float) mSnapOffsetsDip[i]);
+        }
+      }
+      mGeometryHandle = mLiveHandle;
+      mStickyVersion = stickyVersion;
+      mSnapVersion = snapVersion;
     }
 
     if (DEBUG_LOG) {
@@ -1479,10 +1530,41 @@ public class ShadowListView extends FrameLayout {
   // region Scroll events
 
   /*
+   * onScroll for one scroll callback, inside scrollEventThrottle. A frame of a list at rest, like
+   * a correction or a scroll command, also sends the event the throttle held back.
+   */
+  private void emitScroll(double offsetX, double offsetY, boolean atRest) {
+    if (!mScrollEventEnabled) {
+      return;
+    }
+    if (mScrollTracker.track(offsetX, offsetY)) {
+      dispatchScrollEvent(ShadowListScrollEvent.SCROLL, offsetX, offsetY,
+        mScrollTracker.getVelocityX(), mScrollTracker.getVelocityY());
+    } else if (atRest) {
+      emitHeldScroll();
+    }
+  }
+
+  /*
+   * The list came to rest with a scroll event still held back by scrollEventThrottle. JS would
+   * otherwise keep an offset from before the scroll stopped.
+   */
+  private void emitHeldScroll() {
+    if (mScrollEventEnabled && mScrollTracker.takeTrailing()) {
+      dispatchScrollEvent(ShadowListScrollEvent.SCROLL, mScrollTracker.getPendingX(), mScrollTracker.getPendingY(), 0, 0);
+    }
+  }
+
+  /*
    * Send a drag or momentum event with the same payload as onScroll. Velocity is in dp per
    * millisecond.
    */
   private void emitScrollEvent(String eventName, double velocityX, double velocityY) {
+    dispatchScrollEvent(eventName, liveOffsetX(), liveOffsetY(), velocityX, velocityY);
+  }
+
+  private void dispatchScrollEvent(
+    String eventName, double offsetX, double offsetY, double velocityX, double velocityY) {
     ReactContext reactContext = (ReactContext) getContext();
     EventDispatcher dispatcher = UIManagerHelper.getEventDispatcherForReactTag(reactContext, getId());
     if (dispatcher == null) {
@@ -1492,8 +1574,8 @@ public class ShadowListView extends FrameLayout {
       UIManagerHelper.getSurfaceId(this),
       getId(),
       eventName,
-      liveOffsetX(),
-      liveOffsetY(),
+      offsetX,
+      offsetY,
       PixelUtil.toDIPFromPixel(mContentView.getWidth()),
       PixelUtil.toDIPFromPixel(mContentView.getHeight()),
       PixelUtil.toDIPFromPixel(mScrollView.getWidth()),

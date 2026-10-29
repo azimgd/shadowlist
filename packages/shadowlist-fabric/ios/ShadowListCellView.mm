@@ -6,6 +6,8 @@
 #import <react/renderer/components/ShadowListViewSpec/Props.h>
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
 
+#import <React/RCTConversions.h>
+
 #include <shadowlist-core/host/SwipeReveal.hpp>
 
 #include <cmath>
@@ -20,19 +22,6 @@ using namespace azimgd::shadowlist;
  * How long a released row takes to rest, the core's SWIPE_SETTLE_DURATION_MS.
  */
 static const NSTimeInterval SL_SWIPE_DURATION = SWIPE_SETTLE_DURATION_MS / 1000.0;
-
-/*
- * A swipe action color from JS is a processed color, a 0xAARRGGBB number.
- */
-static UIColor *SLColorFromProcessedColor(double color)
-{
-  // Casting a non finite double to an integer is undefined. Treat it as transparent.
-  uint32_t argb = std::isfinite(color) ? (uint32_t)(int64_t)color : 0;
-  return [UIColor colorWithRed:((argb >> 16) & 0xFF) / 255.0
-                         green:((argb >> 8) & 0xFF) / 255.0
-                          blue:(argb & 0xFF) / 255.0
-                         alpha:((argb >> 24) & 0xFF) / 255.0];
-}
 
 /*
  * Codegen only defines == for these structs in serializable state builds.
@@ -90,14 +79,14 @@ static bool SLSameSwipeActions(const std::vector<Action>& a, const std::vector<A
 }
 
 - (UIButton *)buttonWithTitle:(const std::string&)title
-                        color:(double)color
+                        color:(const SharedColor&)color
                       leading:(BOOL)leading
                        widths:(std::vector<double>&)widths
 {
   NSString *text = [NSString stringWithUTF8String:title.c_str()] ?: @"";
   NSInteger index = (NSInteger)widths.size();
   UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
-  button.backgroundColor = SLColorFromProcessedColor(color);
+  button.backgroundColor = RCTUIColorFromSharedColor(color);
   button.tintColor = UIColor.whiteColor;
   button.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightMedium];
   button.clipsToBounds = YES;

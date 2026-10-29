@@ -203,6 +203,18 @@ describe('useDragReorder onDragEnd', () => {
     expect(String(warn.mock.calls[0]![0])).toContain('SectionList');
   });
 
+  it('never moves rows of a list without a data array', () => {
+    const onMoveItem = jest.fn<(info: MoveItemInfo<Card>) => void>();
+    const handler = renderDrop({
+      source: sourceOf(null, ['a', 'b', 'c']),
+      onMoveItem,
+    });
+    drop(handler, within('a', 'c'));
+    expect(onMoveItem).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]![0])).toContain('onMoveItem');
+  });
+
   it('sends nothing for a board drop whose row left the data', () => {
     const onMoveItemToList =
       jest.fn<(info: MoveItemToListInfo<Card>) => void>();

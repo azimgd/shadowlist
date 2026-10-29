@@ -2,8 +2,9 @@
  * JNI side of com.shadowlist.ShadowListDrag. Each Java drag controller owns one drag session
  * from the host layer, reached by handle: the DragReorder that places the held row, finds the
  * drop spot and shifts the others, the DragFeedback that decides the haptic ticks, and the
- * DropSettle that waits for a drop to land. Rows come in arrays the Java side reuses. Drag
- * frames allocate nothing once the row buffer has grown. Only the UI thread calls in.
+ * DropSettle that waits for a drop to land. Rows come in arrays the Java side reuses, and the
+ * row buffer here is reused too. Each drag frame still copies the mounted rows' keys out of
+ * Java. Only the UI thread calls in.
  */
 
 #include <jni.h>

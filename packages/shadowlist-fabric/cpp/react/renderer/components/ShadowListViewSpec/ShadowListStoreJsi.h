@@ -12,9 +12,11 @@
 namespace facebook::react::shadowlist {
 
 /*
- * The row keys and row size specs a list's JS writes for its native view, by version. They
- * never travel as props. JS makes one store per list with createStore and passes the store's id
- * in the keysStore prop, and the version its render wrote in keysVersion and sizeSpecsVersion.
+ * The row keys and row size specs a list's JS writes for its native view, by version. With
+ * this module they never travel as props. Without it JS sends them in the rowKeys and
+ * rowSizeSpecs props instead. JS makes one store per list with createStore and passes the
+ * store's id in the keysStore prop, and the version its render wrote in keysVersion and
+ * sizeSpecsVersion.
  * The component descriptor finds the store by id, see findRowKeyStore. Stores live as long as
  * JS holds the handle or a node family holds the store.
  *
@@ -37,8 +39,9 @@ namespace facebook::react::shadowlist {
  * the order they were selected, or null when nothing changed:
  *   setSelection(store, keys, multiple) -> undefined, the keys JS holds now, like a controlled
  *     selectedKeys
- *   selectKey(store, key) -> keys or null, single selection deselecting every other row
- *   selectOnlyKey(store, key) -> keys or null
+ *   selectKey(store, key) -> keys or null, adding the row to a multiple selection and
+ *     replacing the selected row of a single one
+ *   selectOnlyKey(store, key) -> keys or null, deselecting every other row under either mode
  *   deselectKey(store, key) -> keys or null
  *   retainSelection(store, version) -> keys or null, dropping keys the version's rows lack
  *   selectedIndices(store, version) -> rows of the selected keys, low to high

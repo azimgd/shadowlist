@@ -22,7 +22,11 @@ cd ios && pod install
 | macOS | 11 or newer, `react-native-macos` |
 
 Autolinking picks up the pod on iOS and macOS and the CMake build on Android. The C++ core ships inside the package.
-macOS has no pull to refresh, `snapToItem` or keyboard avoidance.
+macOS has no pull to refresh or keyboard avoidance, and `snapToItem` moves to the nearest row edge without an animation
+once the scroll ends.
+
+Lists keep their keys in the `ShadowListStore` TurboModule the package registers. Without it, `__DEV__` builds warn
+once, every list sends its keys as props, and taps change no selection.
 
 ## Usage
 
@@ -53,7 +57,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | Prop | Default | What it does |
 | --- | --- | --- |
 | `renderItem({ item, index, separators, selected, select, deselect })` |  | Renders a row. |
-| `keyExtractor` | `id`, then index | Matches items across updates. Use unique, stable keys: index keys follow positions and a prepend shifts the visible content. |
+| `keyExtractor` | `id`, then index | Matches items across updates. Use unique, stable keys: index keys follow positions and a prepend shifts the visible content. `__DEV__` builds warn about a duplicate key. |
 | `getItemSizeSpec(item, index)` |  | Returns an `ItemSizeSpec`: a row's text with its font and insets, or a `fixedHeight`. Native then sizes rows near the screen before React renders them. |
 | `measureLookaheadRows` | 48 | How many rows past the mounted ones get their size spec sent to native. |
 | `initialScrollIndex` |  | The row the list opens at. Read on mount only. |
@@ -84,9 +88,10 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `nonAnchorKeys` |  | Rows never used to hold the visible content in place, like date pills or unread dividers whose keys come and go. |
 | `trackItemSizes` | false | Keeps every mounted row's size for `getItemSize(key)` and `getItemSizes()` on the ref. |
 | `viewabilityConfig`, `onViewableItemsChanged`, `viewabilityConfigCallbackPairs` |  | Viewable rows with `itemVisiblePercentThreshold`, `viewAreaCoveragePercentThreshold`, `minimumViewTime` and `waitForInteraction`. |
-| `onScroll`, `onScrollBeginDrag`, `onScrollEndDrag`, `onMomentumScrollBegin`, `onMomentumScrollEnd`, `onContentSizeChange`, `scrollEventThrottle` |  | ScrollView's event shape: `contentOffset`, `contentSize`, `layoutMeasurement`, `velocity` in points per millisecond. An event held back by `scrollEventThrottle` is sent once the list rests. |
-| `scrollEnabled`, `showsVerticalScrollIndicator`, `showsHorizontalScrollIndicator`, `bounces`, `decelerationRate`, `scrollsToTop`, `keyboardDismissMode`, `keyboardShouldPersistTaps`, `nestedScrollEnabled` |  | Passed to the native scroll view. `keyboardShouldPersistTaps` is handled in JS. Unset, taps always reach the rows. |
+| `onScroll`, `onScrollBeginDrag`, `onScrollEndDrag`, `onMomentumScrollBegin`, `onMomentumScrollEnd`, `onContentSizeChange`, `scrollEventThrottle` |  | ScrollView's event shape: `contentOffset`, `contentSize`, `layoutMeasurement`, `contentInset`, `velocity` in points per millisecond. `onScroll` comes from the native scroll view, without a React commit per frame, and not on mount. An event held back by `scrollEventThrottle` is sent once the list rests. |
+| `scrollEnabled`, `showsVerticalScrollIndicator`, `showsHorizontalScrollIndicator`, `bounces`, `decelerationRate`, `scrollsToTop`, `keyboardDismissMode`, `keyboardShouldPersistTaps`, `nestedScrollEnabled` |  | Passed to the native scroll view. `scrollsToTop` does nothing on Android. Android dismisses the keyboard from JS when a drag begins, for any `keyboardDismissMode` but `'none'`. `keyboardShouldPersistTaps` is handled in JS. Unset, taps always reach the rows. |
 | `itemStyle` |  | Style for the view around each row. |
+| `refreshing`, `onRefresh` |  | Pull to refresh. On a vertical list that is not inverted, data that changes while refreshing shows once the spinner has settled. |
 | `refreshColor`, `progressViewOffset` |  | Tint and offset of the pull to refresh spinner. |
 
 ### Keyboard
@@ -94,7 +99,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | Export | What it does |
 | --- | --- |
 | `KeyboardView` | Dismisses the keyboard on a tap in an empty area. |
-| `useKeyboardAnimation()` | Returns `{ height, progress }` as `Animated.Value`s that follow the keyboard frame by frame. |
+| `useKeyboardAnimation()` | Returns `{ height, progress }` as `Animated.Value`s that follow the keyboard frame by frame. On Android only when the Activity's `windowSoftInputMode` is `adjustResize`. |
 
 ### Ref commands
 
@@ -107,7 +112,7 @@ See [Public API words](../../docs/code-style.md#public-api-words) for naming acr
 | `flashScrollIndicators()`, `recordInteraction()` | Same as in React Native. |
 | `getNativeScrollRef()`, `getScrollResponder()`, `getScrollableNode()` | Return the native `ShadowListView` and its tag. |
 | `setStartReachedEnabled(enabled)`, `setEndReachedEnabled(enabled)` | Pause the edge callbacks while a page loads. |
-| `onScrollToIndexFailed` (prop) | Called for an index outside the data, with `{ index, highestMeasuredFrameIndex, averageItemLength }`. |
+| `onScrollToIndexFailed` (prop) | Called for an index outside the data, or a `scrollToItem` item not in it with index -1, with `{ index, highestMeasuredFrameIndex, averageItemLength }`. Without it `__DEV__` builds warn. |
 
 Scroll commands animate and land exactly, whatever the rows measure on the way. A finger on the list cancels them.
 macOS lands right away without the animation.
@@ -125,7 +130,8 @@ macOS lands right away without the animation.
 | `contextMenuForItem` | Return a menu title and actions; see [menu types](src/types.ts). |
 | `ItemActionsView` | A view outside a list with a row's `leadingSwipeActions`, `trailingSwipeActions` and `contextMenu`. Handlers get its `item` and index -1. |
 
-Swipe actions work on vertical lists and on iOS and Android. A full swipe performs the first action. An `onPress` that
+Swipe actions work on vertical lists and on iOS and Android. An action's `backgroundColor` takes any color,
+`PlatformColor` and `DynamicColorIOS` included. A full swipe performs the first action. An `onPress` that
 returns a promise keeps the row revealed until the promise settles, then a surviving row slides back. Menus use `UIMenu`
 on iOS, a long press popup on Android and a right click menu on macOS. With `reorderEnabled`, that long press starts
 dragging and shows no menu.
@@ -133,19 +139,21 @@ dragging and shows no menu.
 ### Drag to reorder
 
 Touch and hold a row for 0.2 s to lift it. A finger that scrolls the list more than 8 points during the hold scrolls
-instead, and any other drift up to 20 points still lifts. The list scrolls near its edges at the same speed per second
-on every display, the held row casts the shadow of its card (the first view with a background down its single child
-chain, or its bounds), the drop spot ticks a haptic as it moves, and a cancelled gesture puts the rows back with the
-same slide a drop uses. iOS, Android and macOS share these numbers and the drag math from the core. VoiceOver and
-TalkBack offer Move up and Move down on each row while `reorderEnabled` is on.
+instead, and any other drift up to 20 points still lifts. macOS lifts the row as soon as the mouse drags it, without a
+hold. The list scrolls near its edges at the same speed per second on every display: within 90 points of the edge at up
+to 960 points a second on iOS and macOS, within 60 dp at up to 720 dp a second on Android. The held row casts the
+shadow of its card (the first view with a background down its single child chain, or its bounds), the drop spot ticks
+a haptic as it moves, on macOS only with a Force Touch trackpad, and a cancelled gesture puts the rows back with the
+same slide a drop uses. The drag math comes from the core on every platform. VoiceOver and TalkBack offer Move up and
+Move down on each row while `reorderEnabled` is on.
 
 `onMoveItem` gets a `MoveItemInfo` (`sourceIndex`, `destinationIndex` and the reordered `data`). The list keeps its
 scroll offset when the reorder lands. The rows stay where the drag showed them.
 
 ### Drag boards
 
-Boards run on iOS, Android and macOS from the same core. A long press picks the row up on iOS and Android, a mouse
-drag on macOS.
+Boards are implemented on iOS, Android and macOS from the same core, and have been exercised on iOS. A long press
+picks the row up on iOS and Android, a mouse drag on macOS.
 
 - Board ids are global to the app. Two screens that use one id join one board. Give each screen's board its own id.
 - Every list on a board needs its own `dragListId`. A list without one can't take a drop, and two lists with the same
@@ -156,7 +164,7 @@ drag on macOS.
 - A drop sends one `onMoveItemToList` from the list the row came from. Update both lists in that handler, in one state
   change, within a second. The dragged row's picture waits that long for the row to show up in the destination's data,
   then gives up and the rows go back.
-- SectionList and TreeList rows can't move between lists. Their drop warns in `__DEV__` and does nothing.
+- SectionList and TreeList can't join a board: they ignore `dragBoardId` and `dragListId`.
 - The scroll view around the board scrolls sideways once the finger heads for its edge, and comes to rest on its
   nearest page, `snapToInterval` or `snapToOffsets` when the drag ends. AppKit has no paging, so macOS snaps only to
   `snapToInterval` or `snapToOffsets`.
@@ -175,11 +183,14 @@ its board and lists itself and takes one `onMoveItem` for the whole board.
 
 | Prop or command | What it does |
 | --- | --- |
-| `prefetchDataSource={{ prefetchItems, cancelPrefetchingForItems }}` | Hears about rows up to `prefetchRows` (10) past the mounted ones, once each, and about prefetched rows that left before they mounted. |
+| `prefetchDataSource={{ prefetchItems, cancelPrefetchingForItems }}` | Hears about rows up to `prefetchRows` (10) past the mounted ones, once each, and about prefetched rows that left before they mounted. Indices are positions in the data rendered now, after a data change too. |
 | `await getAnchorState()` | Gives `{ key, offset }`, the row at the viewport start and how far into it the viewport starts. |
 | `restoreAnchorState(state)` | Scrolls back there, now or once the data brings the key. |
 
 ### SectionList
+
+SectionList and TreeList do not support reorder, drag boards, selection, swipe actions, menus, `prefetchDataSource` or
+the viewability callbacks. `__DEV__` builds warn once about each such prop passed, and the list ignores it.
 
 | Prop or command | What it does |
 | --- | --- |

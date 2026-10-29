@@ -9,7 +9,7 @@ NS_ASSUME_NONNULL_BEGIN
  * nativeAccessibilityActions are native VoiceOver actions, like the drag Move up and Move down,
  * added after any from props. RCTViewComponentView builds accessibilityCustomActions from props
  * and ignores the setter. closeSwipeActionsAnimated: slides a swiped row back. swipeOpen is a row
- * showing its swipe actions. swipedOut is a row slid all the way out by a full swipe, waiting for
+ * showing its swipe actions, also while they slide closed. swipedOut is a row slid all the way out by a full swipe, waiting for
  * its removal.
  */
 @interface ShadowListCellView : RCTViewComponentView

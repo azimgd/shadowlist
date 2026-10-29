@@ -33,8 +33,7 @@ void measureAll(Container& container) {
 }
 
 /*
- * Every key finds its own row, rows are numbered and stacked, and measured sizes still
- * follow their keys.
+ * Every key finds its own row, rows are stacked, and measured sizes still follow their keys.
  */
 void checkRows(const Container& container, const std::vector<std::string>& keys) {
   CHECK_EQ(container.revision.rows.size(), keys.size());
@@ -43,7 +42,6 @@ void checkRows(const Container& container, const std::vector<std::string>& keys)
     const Row& row = container.revision.rows[index];
     CHECK_EQ(row.key, keys[index]);
     CHECK_EQ(container.indexOfKey(keys[index]), index);
-    CHECK_EQ(row.index, index);
     CHECK_NEAR(row.offsetY, expected, 0.0001);
     if (row.measured) {
       double height = 60.0 + static_cast<double>(std::hash<std::string>{}(row.key) % 100);
@@ -333,4 +331,60 @@ TEST(reconcile_wrong_edit_hint_falls_back_to_comparing) {
   input.keyEdit = {KeyEditKind::TrimStart, 5};
   Virtualizer::update(container, input);
   checkRows(container, start);
+}
+
+/*
+ * A splice the host vouched for keeps the rows around it and moves the rest by the change in
+ * count. A splice at the wrong place or with the wrong counts falls back to comparing the keys.
+ */
+TEST(reconcile_takes_a_host_splice_and_falls_back_when_it_does_not_match) {
+  std::vector<std::string> keys = keysFor(40);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  measureAll(container);
+
+  std::vector<std::string> spliced = slice(keys, 0, 10);
+  spliced.push_back("x1");
+  spliced.push_back("x2");
+  spliced.push_back("x3");
+  std::vector<std::string> tail = slice(keys, 12, keys.size());
+  spliced.insert(spliced.end(), tail.begin(), tail.end());
+  KeyEdit edit{KeyEditKind::Splice, 0, 10, 2, 3};
+  CHECK_EQ(Virtualizer::reconcileRows(container, spliced, edit), static_cast<std::size_t>(38));
+  Virtualizer::update(container, inputFor(spliced, 0.0));
+  checkRows(container, spliced);
+
+  std::vector<std::string> replaced = spliced;
+  replaced[20] = "y1";
+  FrameInput input = inputFor(replaced, 0.0);
+  input.keyEdit = {KeyEditKind::Splice, 0, 5, 1, 1};
+  Virtualizer::update(container, input);
+  checkRows(container, replaced);
+
+  std::vector<std::string> shorter = slice(replaced, 0, 30);
+  CHECK_EQ(Virtualizer::reconcileRows(container, shorter, {KeyEditKind::Splice, 0, 3, 10, 0}), shorter.size());
+  Virtualizer::update(container, inputFor(shorter, 0.0));
+  checkRows(container, shorter);
+}
+
+/*
+ * Keys swapped in place with the count unchanged reconcile from the stretch that differs. The
+ * rows before and after it keep their sizes.
+ */
+TEST(reconcile_same_count_replace_keeps_the_rows_around_the_change) {
+  std::vector<std::string> keys = keysFor(60);
+  Container container;
+  Virtualizer::update(container, inputFor(keys, 0.0));
+  measureAll(container);
+
+  std::vector<std::string> replaced = keys;
+  replaced[30] = "z30";
+  replaced[32] = "z32";
+  Virtualizer::update(container, inputFor(replaced, 0.0));
+  checkRows(container, replaced);
+  CHECK(container.revision.rows[29].measured);
+  CHECK(!container.revision.rows[30].measured);
+  CHECK(container.revision.rows[31].measured);
+  CHECK(!container.revision.rows[32].measured);
+  CHECK(container.revision.rows[33].measured);
 }

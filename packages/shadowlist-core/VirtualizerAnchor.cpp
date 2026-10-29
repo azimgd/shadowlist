@@ -106,6 +106,7 @@ void requestShrinkClamp(
   Container& container,
   const ScrollFrame& frame,
   const std::string& anchorKey,
+  std::size_t anchorIndex,
   double anchorDelta,
   bool hadRowsBefore) {
   if (!container.inverted && frame.rowCount > 0 &&
@@ -120,7 +121,6 @@ void requestShrinkClamp(
     if (container.operation && container.operation->target.mode == AnchorMode::Row) {
       anchorPlacesView = container.indexOfKey(container.operation->target.key) != UNDEFINED_INDEX;
     } else if (!container.operation && hadRowsBefore && !anchorKey.empty()) {
-      std::size_t anchorIndex = container.indexOfKey(anchorKey);
       anchorPlacesView = anchorIndex != UNDEFINED_INDEX &&
         std::fabs(container.getRowOffset(anchorIndex) + anchorDelta - frame.currentOffset) >= OFFSET_MOVED_THRESHOLD;
     }
@@ -283,10 +283,10 @@ bool holdAnchor(
   Container& container,
   const ScrollFrame& frame,
   const std::string& anchorKey,
+  std::size_t anchorIndex,
   double anchorDelta,
   bool hadRowsBefore) {
   if (hadRowsBefore && !anchorKey.empty()) {
-    std::size_t anchorIndex = container.indexOfKey(anchorKey);
     if (anchorIndex != UNDEFINED_INDEX) {
       /*
        * An inverted list resting on its newest content row holds the true bottom instead of
@@ -324,10 +324,12 @@ bool holdAnchor(
 }
 }
 
-std::vector<Anchor> Virtualizer::captureFallbackAnchors(Container& container, double inputOffset) {
+std::vector<Anchor> Virtualizer::captureFallbackAnchors(
+  Container& container,
+  std::size_t anchorIndex,
+  double inputOffset) {
   std::vector<Anchor> candidates;
   const std::vector<Row>& rows = container.revision.rows;
-  std::size_t anchorIndex = container.indexOfKey(container.anchor.key);
   if (anchorIndex == UNDEFINED_INDEX || container.anchor.mode != AnchorMode::Row) {
     return candidates;
   }
@@ -353,14 +355,21 @@ std::vector<Anchor> Virtualizer::captureFallbackAnchors(Container& container, do
   return candidates;
 }
 
-void Virtualizer::captureAnchor(Container& container, double inputOffset) {
-  const std::string previousAnchorKey = container.anchor.key;
-  container.anchor = Anchor{"", 0.0, AnchorMode::Row};
-
+std::size_t Virtualizer::captureAnchor(Container& container, double inputOffset) {
+  Anchor& anchor = container.anchor;
   const std::vector<Row>& previousRows = container.revision.rows;
   if (previousRows.empty()) {
-    return;
+    anchor.key.clear();
+    anchor.offset = 0.0;
+    anchor.mode = AnchorMode::Row;
+    return UNDEFINED_INDEX;
   }
+  auto holdRow = [&](std::size_t index, double offset) {
+    anchor.key = previousRows[index].key;
+    anchor.offset = offset;
+    anchor.mode = AnchorMode::Row;
+    return index;
+  };
 
   auto rowOffsetOf = [&](const Row& row) {
     return container.horizontal ? row.offsetX : row.offsetY;
@@ -373,14 +382,13 @@ void Virtualizer::captureAnchor(Container& container, double inputOffset) {
    * In a grid the tracks move independently as rows get measured. A new anchor each frame
    * lets the row the reader was on drift. Keep the previous anchor while it is still on screen.
    */
-  if (container.numberOfColumns > 1 && !previousAnchorKey.empty() && container.isAnchorable(previousAnchorKey)) {
-    std::size_t previousAnchorIndex = container.indexOfKey(previousAnchorKey);
+  if (container.numberOfColumns > 1 && container.isAnchorable(anchor.key)) {
+    std::size_t previousAnchorIndex = container.indexOfKey(anchor.key);
     if (previousAnchorIndex != UNDEFINED_INDEX) {
       const Row& previousAnchor = previousRows[previousAnchorIndex];
       double start = rowOffsetOf(previousAnchor);
       if (start + rowSizeOf(previousAnchor) > inputOffset && start < inputOffset + container.getWindowSize()) {
-        container.anchor = Anchor{previousAnchorKey, inputOffset - start, AnchorMode::Row};
-        return;
+        return holdRow(previousAnchorIndex, inputOffset - start);
       }
     }
   }
@@ -407,7 +415,7 @@ void Virtualizer::captureAnchor(Container& container, double inputOffset) {
     scanStart = low;
   }
 
-  const Row* firstPast = nullptr;
+  std::size_t firstPast = UNDEFINED_INDEX;
   for (std::size_t previousRowIndex = scanStart; previousRowIndex < previousRows.size(); ++previousRowIndex) {
     const Row& previousRow = previousRows[previousRowIndex];
     double rowOffset = rowOffsetOf(previousRow);
@@ -416,8 +424,8 @@ void Virtualizer::captureAnchor(Container& container, double inputOffset) {
     if (rowOffset + rowSize <= inputOffset) {
       continue;
     }
-    if (firstPast == nullptr) {
-      firstPast = &previousRow;
+    if (firstPast == UNDEFINED_INDEX) {
+      firstPast = previousRowIndex;
     }
     if (container.isAnchorable(previousRow.key)) {
       /*
@@ -427,7 +435,7 @@ void Virtualizer::captureAnchor(Container& container, double inputOffset) {
        * Only for single column lists that aren't inverted. Inverted lists use their anchor
        * to tell whether they rest on the newest row.
        */
-      const Row* anchorRow = &previousRow;
+      std::size_t anchorIndex = previousRowIndex;
       if (container.numberOfColumns <= 1 && !container.inverted && !previousRow.measured && !previousRow.predicted) {
         double viewportEnd = inputOffset + container.getWindowSize();
         for (std::size_t laterIndex = previousRowIndex + 1; laterIndex < previousRows.size(); ++laterIndex) {
@@ -436,14 +444,12 @@ void Virtualizer::captureAnchor(Container& container, double inputOffset) {
             break;
           }
           if (container.isAnchorable(laterRow.key) && (laterRow.measured || laterRow.predicted)) {
-            anchorRow = &laterRow;
+            anchorIndex = laterIndex;
             break;
           }
         }
       }
-      container.anchor =
-        Anchor{anchorRow->key, inputOffset - rowOffsetOf(*anchorRow), AnchorMode::Row};
-      return;
+      return holdRow(anchorIndex, inputOffset - rowOffsetOf(previousRows[anchorIndex]));
     }
   }
 
@@ -451,19 +457,19 @@ void Virtualizer::captureAnchor(Container& container, double inputOffset) {
    * No content row is in or below the viewport. Use the last content row, then the top row
    * even if it is decoration, then the very last row. There is always an anchor.
    */
-  for (auto reverse = previousRows.rbegin(); reverse != previousRows.rend(); ++reverse) {
-    if (container.isAnchorable(reverse->key)) {
-      container.anchor = Anchor{reverse->key, inputOffset - rowOffsetOf(*reverse), AnchorMode::Row};
-      return;
+  for (std::size_t reverse = previousRows.size(); reverse-- > 0;) {
+    if (container.isAnchorable(previousRows[reverse].key)) {
+      return holdRow(reverse, inputOffset - rowOffsetOf(previousRows[reverse]));
     }
   }
-  const Row& fallback = firstPast != nullptr ? *firstPast : previousRows.back();
-  container.anchor = Anchor{fallback.key, inputOffset - rowOffsetOf(fallback), AnchorMode::Row};
+  std::size_t fallback = firstPast != UNDEFINED_INDEX ? firstPast : previousRows.size() - 1;
+  return holdRow(fallback, inputOffset - rowOffsetOf(previousRows[fallback]));
 }
 
 bool Virtualizer::resolveScroll(
   Container& container,
   const std::string& anchorKey,
+  std::size_t anchorIndex,
   double anchorDelta,
   bool hadRowsBefore,
   bool offsetConfirmed) {
@@ -493,7 +499,7 @@ bool Virtualizer::resolveScroll(
   frame.previousTotalForScrollToEnd = container.pendingScrollToEndPreviousTotal;
   container.pendingScrollToEndPreviousTotal = frame.totalSize;
 
-  requestShrinkClamp(container, frame, anchorKey, anchorDelta, hadRowsBefore);
+  requestShrinkClamp(container, frame, anchorKey, anchorIndex, anchorDelta, hadRowsBefore);
 
   /*
    * Set when a scroll command arrives this frame. The command owns the offset. Holding
@@ -512,7 +518,7 @@ bool Virtualizer::resolveScroll(
     return step == ScrollStep::Corrected;
   }
 
-  return holdAnchor(container, frame, anchorKey, anchorDelta, hadRowsBefore);
+  return holdAnchor(container, frame, anchorKey, anchorIndex, anchorDelta, hadRowsBefore);
 }
 
 }

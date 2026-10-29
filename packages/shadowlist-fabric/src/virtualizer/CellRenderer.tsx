@@ -76,7 +76,6 @@ interface CellRendererProps<ItemT> {
   contextMenuForItem:
     | ((info: ItemInfo<ItemT>) => ContextMenu<ItemT> | null | undefined)
     | undefined;
-  nativeIndex: number;
   onCellLayout?: (key: string, width: number, height: number) => void;
   onCellRelease?: (key: string) => void;
 }
@@ -117,7 +116,6 @@ function sameRowProps<ItemT>(
     previous.leadingSwipeActionsForItem === next.leadingSwipeActionsForItem &&
     previous.trailingSwipeActionsForItem === next.trailingSwipeActionsForItem &&
     previous.contextMenuForItem === next.contextMenuForItem &&
-    previous.nativeIndex === next.nativeIndex &&
     previous.onCellLayout === next.onCellLayout &&
     previous.onCellRelease === next.onCellRelease &&
     previous.rowIndex === next.rowIndex &&
@@ -143,7 +141,6 @@ export const CellRenderer = memo(function CellRendererInner<ItemT>({
   leadingSwipeActionsForItem,
   trailingSwipeActionsForItem,
   contextMenuForItem,
-  nativeIndex,
   onCellLayout,
   onCellRelease,
 }: CellRendererProps<ItemT>) {
@@ -346,7 +343,6 @@ export const CellRenderer = memo(function CellRendererInner<ItemT>({
   return (
     <ShadowListCellView
       ref={cellViewRef}
-      index={nativeIndex}
       rowKey={rowKey}
       style={style}
       onLayout={onCellLayout ? handleLayout : undefined}

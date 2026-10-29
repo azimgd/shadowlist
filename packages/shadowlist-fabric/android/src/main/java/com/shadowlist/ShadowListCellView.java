@@ -31,9 +31,11 @@ import android.widget.PopupMenu;
 import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
 
+import com.facebook.react.bridge.ColorPropConverter;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
+import com.facebook.react.bridge.ReadableType;
 import com.facebook.react.uimanager.UIManagerHelper;
 import com.facebook.react.uimanager.events.EventDispatcher;
 import com.facebook.react.uimanager.events.NativeGestureUtil;
@@ -42,10 +44,11 @@ import java.util.ArrayList;
 
 public class ShadowListCellView extends ViewGroup {
   /*
-   * Copy of the index prop. Starts at the prop default, since a props diff leaves out
-   * values equal to the default and index 0 would never arrive.
+   * The row's index in its list's keys, -1 when they lack its key, and the keys generation it was
+   * found in. See ShadowListView.rowIndexOf.
    */
-  private int mRowIndex = 0;
+  private int mRowIndex = -1;
+  private int mRowIndexGeneration = -1;
 
   /*
    * Copy of the rowKey prop. Drag to reorder sends it to JS, which moves the item by key.
@@ -155,16 +158,22 @@ public class ShadowListCellView extends ViewGroup {
     // The core positions the children.
   }
 
-  public void setRowIndex(int index) {
+  void cacheRowIndex(int index, int generation) {
     mRowIndex = index;
+    mRowIndexGeneration = generation;
   }
 
-  public int getRowIndex() {
+  boolean hasRowIndex(int generation) {
+    return mRowIndexGeneration == generation;
+  }
+
+  int getRowIndex() {
     return mRowIndex;
   }
 
   public void setRowKey(String key) {
     mRowKey = key != null ? key : "";
+    mRowIndexGeneration = -1;
   }
 
   public String getRowKey() {
@@ -707,15 +716,19 @@ public class ShadowListCellView extends ViewGroup {
   }
 
   /*
-   * The processed ARGB color. A missing one falls back to red for a destructive action and
-   * gray otherwise.
+   * The processed color: an ARGB number, or a PlatformColor's resource paths. A missing one
+   * falls back to red for a destructive action and gray otherwise.
    */
-  private static int actionColor(@Nullable ReadableArray actions, int index) {
+  private int actionColor(@Nullable ReadableArray actions, int index) {
     ReadableMap action = actions != null ? actions.getMap(index) : null;
-    if (action != null && action.hasKey("backgroundColor") && !action.isNull("backgroundColor")) {
+    int fallback = actionDestructive(actions, index) ? DESTRUCTIVE_COLOR : DEFAULT_ACTION_COLOR;
+    if (action == null || !action.hasKey("backgroundColor") || action.isNull("backgroundColor")) {
+      return fallback;
+    }
+    if (action.getType("backgroundColor") == ReadableType.Number) {
       return (int) (long) action.getDouble("backgroundColor");
     }
-    return actionDestructive(actions, index) ? DESTRUCTIVE_COLOR : DEFAULT_ACTION_COLOR;
+    return ColorPropConverter.getColor(action.getMap("backgroundColor"), getContext(), fallback);
   }
 
   // endregion
@@ -826,10 +839,12 @@ public class ShadowListCellView extends ViewGroup {
      */
     ShadowListView list = listView();
     if (list != null && list.isReorderEnabled()) {
-      addAccessibilityAction("Move up", () -> list.performAccessibilityMove(this, true));
-      addAccessibilityAction("Move down", () -> list.performAccessibilityMove(this, false));
+      addAccessibilityAction(getContext().getString(R.string.shadowlist_move_up),
+        () -> list.performAccessibilityMove(this, true));
+      addAccessibilityAction(getContext().getString(R.string.shadowlist_move_down),
+        () -> list.performAccessibilityMove(this, false));
       for (ShadowListDragController target : list.dragBoardMoveTargets()) {
-        addAccessibilityAction("Move to " + target.getDragListLabel(),
+        addAccessibilityAction(getContext().getString(R.string.shadowlist_move_to, target.getDragListLabel()),
           () -> list.performAccessibilityMoveToList(this, target));
       }
     }
@@ -872,7 +887,8 @@ public class ShadowListCellView extends ViewGroup {
    * Clear what a previous mount left behind before the view is reused.
    */
   void resetForRecycle() {
-    mRowIndex = 0;
+    mRowIndex = -1;
+    mRowIndexGeneration = -1;
     mRowKey = "";
     resetSwipe();
     removeAllViews();

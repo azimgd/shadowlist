@@ -32,11 +32,17 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   return [_dataSource respondsToSelector:@selector(numberOfSectionsInListView:)];
 }
 
+- (std::vector<std::string>)readRowKeys
+{
+  return [self readRowKeysWithItems:nullptr];
+}
+
 /*
  * Read the sections and every key. Sets the sections and returns the rows' keys, which include
- * section headers and footers.
+ * section headers and footers. A list with sections hands its items' keys to items when given.
+ * Without sections the rows are the items.
  */
-- (std::vector<std::string>)readRowKeys
+- (std::vector<std::string>)readRowKeysWithItems:(std::vector<std::string> *)items
 {
   _sizesFromDataSource = [_dataSource respondsToSelector:@selector(listView:sizeForItemAtIndex:crossSize:)];
   if (![self hasSections]) {
@@ -44,7 +50,9 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     std::vector<std::string> keys;
     keys.reserve(count);
     for (NSInteger index = 0; index < count; ++index) {
-      keys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:index]));
+      @autoreleasepool {
+        keys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:index]));
+      }
     }
     _sections.setPlain((std::size_t)count);
     return keys;
@@ -64,7 +72,9 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     spec.hasFooter = footers && [_dataSource listView:self titleForFooterInSection:section] != nil;
     std::size_t first = itemKeys.size();
     for (std::size_t local = 0; local < spec.itemCount; ++local) {
-      itemKeys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)(first + local)]));
+      @autoreleasepool {
+        itemKeys.push_back(ShadowListKitStdString([_dataSource listView:self keyForItemAtIndex:(NSInteger)(first + local)]));
+      }
     }
     if (sectionKeys) {
       keysOfSections[section] = ShadowListKitStdString([_dataSource listView:self keyForSection:section]);
@@ -72,7 +82,11 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
     specs.push_back(spec);
   }
   _sections.setSections(std::move(specs));
-  return _sections.rowKeys(itemKeys, keysOfSections);
+  std::vector<std::string> rows = _sections.rowKeys(itemKeys, keysOfSections);
+  if (items) {
+    *items = std::move(itemKeys);
+  }
+  return rows;
 }
 
 - (void)reloadData
@@ -96,7 +110,8 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
   if (![_dataSource respondsToSelector:@selector(listView:contentVersionForItemAtIndex:)]) {
     return;
   }
-  std::vector<std::string> items = _sections.itemKeys(rowKeys);
+  std::vector<std::string> scratch;
+  const std::vector<std::string>& items = _sections.itemKeys(rowKeys, scratch);
   _contentVersions.record(items, [self contentVersionsOfItems:items.size()]);
 }
 
@@ -115,11 +130,20 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
  */
 - (void)applyRowKeys:(std::vector<std::string>)keys
 {
-  if (_animatesChanges) {
-    [self captureChangeTo:keys];
-  }
-  _driver.reloadKeys(std::move(keys));
+  [self reloadDriverKeys:std::move(keys)];
   [self structureChanged];
+}
+
+/*
+ * The core's reloadKeys with the splice worked out once, which the change animation reads too.
+ */
+- (void)reloadDriverKeys:(std::vector<std::string>)keys
+{
+  KeySplice splice = keySplice(_driver.getKeys(), keys);
+  if (_animatesChanges) {
+    [self captureSplice:splice to:keys];
+  }
+  _driver.reloadKeys(std::move(keys), splice);
 }
 
 - (void)insertItemsAtIndices:(NSIndexSet *)indices
@@ -312,10 +336,7 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
                  payload:(id)payload
      reloadsSectionIndex:(BOOL)reloadsSectionIndex
 {
-  if (_animatesChanges) {
-    [self captureChangeTo:next];
-  }
-  _driver.reloadKeys(std::move(next));
+  [self reloadDriverKeys:std::move(next)];
   std::vector<std::size_t> rows = rowsOfKeys(_driver.getKeys(), reloadedKeys);
   if (rows.empty()) {
     [self structureChanged];
@@ -346,9 +367,12 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 
 - (ShadowListKitListChanges *)applyChanges
 {
-  std::vector<std::string> previousItems = _sections.itemKeys(_driver.getKeys());
-  std::vector<std::string> next = [self readRowKeys];
-  std::vector<std::string> nextItems = _sections.itemKeys(next);
+  // The driver's keys stay as they are until commitKeyChanges.
+  std::vector<std::string> previousScratch;
+  const std::vector<std::string>& previousItems = _sections.itemKeys(_driver.getKeys(), previousScratch);
+  std::vector<std::string> sectionItems;
+  std::vector<std::string> next = [self readRowKeysWithItems:&sectionItems];
+  const std::vector<std::string>& nextItems = _sections.isSectioned() ? sectionItems : next;
   KeyDiff diff = diffKeys(previousItems, nextItems);
 
   // Rows that stayed but whose content version changed get reloaded.
@@ -383,12 +407,11 @@ extern "C" const char ShadowListKitListViewDataLink = 0;
 
 /*
  * The keys a reload deletes and inserts, for the change animation: the changed middle between the
- * unchanged rows at both ends. A key on both sides moved. Only computed when it runs.
+ * unchanged rows at both ends. A key on both sides moved.
  */
-- (void)captureChangeTo:(const std::vector<std::string>&)next
+- (void)captureSplice:(const KeySplice&)splice to:(const std::vector<std::string>&)next
 {
   const std::vector<std::string>& previous = _driver.getKeys();
-  KeySplice splice = keySplice(previous, next);
   auto deletedFrom = previous.begin() + (std::ptrdiff_t)splice.start;
   auto insertedFrom = next.begin() + (std::ptrdiff_t)splice.start;
   [_changes captureDeleted:std::vector<std::string>(deletedFrom, deletedFrom + (std::ptrdiff_t)splice.deleted)

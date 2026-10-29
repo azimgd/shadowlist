@@ -5,9 +5,13 @@ import kotlin.math.max
 
 /*
  * The shadowlist core behind one list, through the core's ListDriver in C++. Every call runs
- * on the UI thread. Pass values go in and out through arrays this object reuses.
+ * on the UI thread. Pass values go in and out through arrays this object reuses. prefetched
+ * hears each prefetch runPasses reports, with the changes in prefetchOut.
  */
-internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Double) -> Double) {
+internal class ShadowListKitCore(
+  private val measure: (row: Int, crossSize: Double) -> Double,
+  private val prefetched: () -> Unit,
+) {
   companion object {
     init {
       System.loadLibrary("shadowlistkit")
@@ -26,17 +30,22 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     const val PASS_PHASE = 5
     const val PASS_USER_SCROLLED = 6
     const val PASS_TRACKING = 7
-    const val PASS_OUT_OFFSET = 8
-    const val PASS_OUT_CONTENT = 9
-    const val PASS_OUT_BAND_LOW = 10
-    const val PASS_OUT_BAND_HIGH = 11
-    const val PASS_OUT_SETTLING = 12
-    const val PASS_OUT_REACHED_START = 13
-    const val PASS_OUT_REACHED_END = 14
-    const val PASS_OUT_GEOMETRY = 15
-    const val PASS_OUT_MEASURED_LOW = 16
-    const val PASS_OUT_MEASURED_HIGH = 17
-    const val PASS_SLOTS = 18
+    const val PASS_PREFETCH = 8
+    const val PASS_MOUNT_PAD = 9
+    const val PASS_LEADING_INSET = 10
+    const val PASS_TRAILING_INSET = 11
+    const val PASS_OUT_OFFSET = 12
+    const val PASS_OUT_CONTENT = 13
+    const val PASS_OUT_BAND_LOW = 14
+    const val PASS_OUT_BAND_HIGH = 15
+    const val PASS_OUT_SETTLING = 16
+    const val PASS_OUT_REACHED_START = 17
+    const val PASS_OUT_REACHED_END = 18
+    const val PASS_OUT_GEOMETRY = 19
+    const val PASS_OUT_MEASURED_LOW = 20
+    const val PASS_OUT_MEASURED_HIGH = 21
+    const val PASS_OUT_FOOTER_START = 22
+    const val PASS_SLOTS = 23
 
     /*
      * Values of PASS_PHASE, the same as the core's ScrollPhase.
@@ -68,24 +77,13 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     const val ROW_KIND_MASK = 3
 
     /*
-     * Slots of a swipe array, the spec then where a released swipe rests.
+     * Slots at the start of a dragFrame out array, the same as DragFrameSlot in the JNI. Each
+     * row's shift follows as an along, cross pair.
      */
-    const val SWIPE_LEADING_WIDTH = 0
-    const val SWIPE_TRAILING_WIDTH = 1
-    const val SWIPE_LEADING_FULL = 2
-    const val SWIPE_TRAILING_FULL = 3
-    const val SWIPE_ROW_SIZE = 4
-    const val SWIPE_OUT_SIDE = 5
-    const val SWIPE_OUT_FULL = 6
-    const val SWIPE_OUT_OFFSET = 7
-    const val SWIPE_SLOTS = 8
-
-    /*
-     * Values of SWIPE_OUT_SIDE, the same order as the core's SwipeSide.
-     */
-    const val SWIPE_SIDE_NONE = 0
-    const val SWIPE_SIDE_LEADING = 1
-    const val SWIPE_SIDE_TRAILING = 2
+    const val DRAG_FRAME_HELD_ALONG = 0
+    const val DRAG_FRAME_HELD_CROSS = 1
+    const val DRAG_FRAME_INSERTION_MOVED = 2
+    const val DRAG_FRAME_SLOTS = 3
 
     /*
      * Slots of constants, the same as ConstantSlot in the JNI.
@@ -150,15 +148,11 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
       endReachedThreshold: Double, numberOfColumns: Int, inverted: Boolean, followAppends: Boolean, horizontal: Boolean,
       snapToItem: Boolean, snapAlignment: Int)
     @JvmStatic private external fun nativeSetStickyIndices(handle: Long, indices: IntArray)
-    @JvmStatic private external fun nativeReplaceKeys(handle: Long, start: Int, count: Int, packed: CharArray, ends: IntArray)
-    @JvmStatic private external fun nativeInsertKeys(handle: Long, indices: IntArray, packed: CharArray, ends: IntArray)
-    @JvmStatic private external fun nativeDeleteKeys(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeMarkRemeasure(handle: Long, indices: IntArray)
     @JvmStatic private external fun nativeResetKeepingPosition(handle: Long)
     @JvmStatic private external fun nativeRowCount(handle: Long): Int
     @JvmStatic private external fun nativeCopyRowRects(handle: Long, low: Int, high: Int, out: DoubleArray)
     @JvmStatic private external fun nativeRowRect(handle: Long, index: Int, out: DoubleArray): Boolean
-    @JvmStatic private external fun nativeFooterStart(handle: Long, footerSize: Double): Double
     @JvmStatic private external fun nativeVisibleRange(handle: Long): Long
     @JvmStatic private external fun nativeIndexOfKey(handle: Long, key: String): Int
     @JvmStatic private external fun nativeCopyStickyFrames(handle: Long, out: DoubleArray): Boolean
@@ -174,16 +168,14 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     @JvmStatic private external fun nativeDragBegin(handle: Long, index: Int, touchAlong: Double, touchCross: Double)
     @JvmStatic private external fun nativeDragEnd(handle: Long)
     @JvmStatic private external fun nativeHeldIndex(handle: Long): Int
-    @JvmStatic private external fun nativePlaceHeld(
-      handle: Long, held: Int, touchAlong: Double, touchCross: Double, out: DoubleArray)
-    @JvmStatic private external fun nativeDragUpdateInsertion(handle: Long, mounted: IntArray)
-    @JvmStatic private external fun nativeDragShiftFor(handle: Long, index: Int, out: DoubleArray)
+    @JvmStatic private external fun nativeDragFrame(
+      handle: Long, touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, out: DoubleArray): Int
     @JvmStatic private external fun nativeDragOriginIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragInsertionIndex(handle: Long): Int
     @JvmStatic private external fun nativeDragAutoScrollOffset(
       touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double, dtSeconds: Double): Double
     @JvmStatic private external fun nativeSetSections(handle: Long, count: Int, counts: IntArray?, flags: IntArray?)
-    @JvmStatic private external fun nativeCopyRows(handle: Long, items: IntArray, separators: BooleanArray)
+    @JvmStatic private external fun nativeCopyRows(handle: Long, items: IntArray, separators: BooleanArray, places: IntArray)
     @JvmStatic private external fun nativeItemForDrop(handle: Long, fromRow: Int, toRow: Int): Int
     @JvmStatic private external fun nativeRowForItem(handle: Long, item: Int): Int
     @JvmStatic private external fun nativeSectionForItem(handle: Long, item: Int): Int
@@ -195,17 +187,15 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     @JvmStatic private external fun nativeStickyRows(handle: Long, items: IntArray, sectionHeaders: Boolean): IntArray
     @JvmStatic private external fun nativeEdgeRowKeys(
       handle: Long, sectionKeys: Array<String?>, firstItemKeys: Array<String>): Array<String>
-    @JvmStatic private external fun nativeUpdatePrefetch(handle: Long, low: Int, high: Int): IntArray
+    @JvmStatic private external fun nativeUpdatePrefetch(handle: Long, low: Int, high: Int, out: IntArray): Int
+    @JvmStatic private external fun nativeCopyPrefetch(handle: Long, out: IntArray)
     @JvmStatic private external fun nativeAnchorState(handle: Long, offset: Double, out: DoubleArray): String?
     @JvmStatic private external fun nativeRestoreAnchorState(handle: Long, key: String, offset: Double): Boolean
-    @JvmStatic private external fun nativeDiffKeys(
-      previousPacked: CharArray, previousEnds: IntArray, nextPacked: CharArray, nextEnds: IntArray): IntArray
     @JvmStatic private external fun nativeCaptureChange(
       handle: Long, deletedPacked: CharArray, deletedEnds: IntArray, insertedPacked: CharArray, insertedEnds: IntArray,
       mountedPacked: CharArray, mountedEnds: IntArray, mountedPositions: DoubleArray)
     @JvmStatic private external fun nativeDeletedPosition(handle: Long, key: String, out: DoubleArray): Boolean
-    @JvmStatic private external fun nativeRunChange(
-      handle: Long, keysPacked: CharArray, keysEnds: IntArray, positions: DoubleArray): DoubleArray?
+    @JvmStatic private external fun nativeRunChange(handle: Long, rows: IntArray, count: Int, positions: DoubleArray): DoubleArray?
     @JvmStatic private external fun nativeInsertionIndices(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeDeletionIndices(indices: IntArray, previousCount: Int): IntArray
     @JvmStatic private external fun nativeConstants(): DoubleArray
@@ -214,12 +204,6 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     @JvmStatic private external fun nativeSectionIndexTitlesTop(areaHeight: Double, count: Int, scale: Double): Double
     @JvmStatic private external fun nativeSectionIndexTitleAt(y: Double, areaHeight: Double, count: Int, scale: Double): Int
     @JvmStatic private external fun nativeSwipeButtonSize(fitted: Double, scale: Double): Double
-    @JvmStatic private external fun nativeSwipeButtonSpans(
-      sizes: DoubleArray, count: Int, offset: Double, full: Boolean, crossSize: Double, out: DoubleArray)
-    @JvmStatic private external fun nativeSwipeDrag(io: DoubleArray, start: Double, translation: Double): Double
-    @JvmStatic private external fun nativeSwipePastFull(io: DoubleArray, offset: Double): Boolean
-    @JvmStatic private external fun nativeSwipeIsOut(io: DoubleArray, offset: Double): Boolean
-    @JvmStatic private external fun nativeSwipeSettle(io: DoubleArray, offset: Double, velocity: Double, flingVelocity: Double)
 
     /*
      * The offset a held row near an edge scrolls the list to in a frame of dtSeconds.
@@ -227,33 +211,6 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     fun dragAutoScrollOffset(
       touch: Double, windowSize: Double, offset: Double, maxOffset: Double, density: Double, dtSeconds: Double,
     ): Double = nativeDragAutoScrollOffset(touch, windowSize, offset, maxOffset, density, dtSeconds)
-
-    /*
-     * The diff of two key lists through the core's diffKeys, packed: the delete count and
-     * previous indices, the insert count and next indices, the move count and from, to pairs.
-     */
-    fun diffKeys(previous: List<String>, next: List<String>): IntArray {
-      val (previousPacked, previousEnds) = packed(previous)
-      val (nextPacked, nextEnds) = packed(next)
-      return nativeDiffKeys(previousPacked, previousEnds, nextPacked, nextEnds)
-    }
-
-    /*
-     * Keys joined into one char array, with where each one ends, the way the JNI reads them.
-     */
-    internal fun packed(keys: List<String>): Pair<CharArray, IntArray> {
-      var length = 0
-      for (key in keys) length += key.length
-      val chars = CharArray(length)
-      val ends = IntArray(keys.size)
-      var at = 0
-      for ((position, key) in keys.withIndex()) {
-        key.toCharArray(chars, at, 0, key.length)
-        at += key.length
-        ends[position] = at
-      }
-      return chars to ends
-    }
 
     /*
      * The core's insertionIndices and deletionIndices: sorted, each once, an insert past the
@@ -269,13 +226,6 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     fun swipeButtonSize(fitted: Double, scale: Double): Double = nativeSwipeButtonSize(fitted, scale)
 
     /*
-     * The core's swipeButtonSpans and swipeRevealedSpan into out: the revealed span's start and
-     * size, then each of the count buttons' start and size.
-     */
-    fun swipeButtonSpans(sizes: DoubleArray, count: Int, offset: Double, full: Boolean, crossSize: Double, out: DoubleArray) =
-      nativeSwipeButtonSpans(sizes, count, offset, full, crossSize, out)
-
-    /*
      * The core's pageScrollTarget: one window toward the end or the start, inside the content.
      */
     fun pageScrollTarget(offset: Double, windowAlong: Double, maxOffset: Double, direction: Int): Double =
@@ -289,21 +239,13 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
       nativeSectionIndexTitlesTop(areaHeight, count, scale)
     fun sectionIndexTitleAt(y: Double, areaHeight: Double, count: Int, scale: Double): Int =
       nativeSectionIndexTitleAt(y, areaHeight, count, scale)
-
-    /*
-     * The core's SwipeReveal over a SWIPE_* array.
-     */
-    fun swipeDrag(io: DoubleArray, start: Double, translation: Double): Double = nativeSwipeDrag(io, start, translation)
-    fun swipePastFull(io: DoubleArray, offset: Double): Boolean = nativeSwipePastFull(io, offset)
-    fun swipeIsOut(io: DoubleArray, offset: Double): Boolean = nativeSwipeIsOut(io, offset)
-    fun swipeSettle(io: DoubleArray, offset: Double, velocity: Double, flingVelocity: Double) =
-      nativeSwipeSettle(io, offset, velocity, flingVelocity)
   }
 
   /*
-   * The native Peer, 0 once destroyed.
+   * The native Peer, 0 once destroyed. The list's state hands key changes to it natively.
    */
-  private var handle: Long = nativeCreate().also { reclaimer.register(this, it) }
+  var handle: Long = nativeCreate().also { reclaimer.register(this, it) }
+    private set
 
   /*
    * The pass slots, see PASS_*. The view fills the inputs and reads the outputs.
@@ -311,9 +253,11 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
   val pass = DoubleArray(PASS_SLOTS)
 
   /*
-   * Keys joined for the next key call, see replaceKeys. Reused and grown as needed.
+   * Keys joined for captureChange.
    */
-  private var packed = CharArray(1024)
+  private val packer = ShadowListKitKeyPacker()
+  private val insertedPacker = ShadowListKitKeyPacker()
+  private val mountedPacker = ShadowListKitKeyPacker()
 
   private external fun nativeCreate(): Long
   private external fun nativeRunPasses(handle: Long, io: DoubleArray)
@@ -325,6 +269,18 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
   @Keep
   @Suppress("unused")
   private fun measureRow(row: Int, crossSize: Double): Double = measure(row, crossSize)
+
+  /*
+   * Called by the driver during runPasses with PASS_PREFETCH on, before it measures the rows it
+   * reports. length is the packed length waiting for nativeCopyPrefetch. Only JNI calls it.
+   */
+  @Keep
+  @Suppress("unused")
+  private fun prefetchRows(length: Int) {
+    if (length > prefetchOut.size) prefetchOut = IntArray(max(length, prefetchOut.size * 2))
+    nativeCopyPrefetch(handle, prefetchOut)
+    prefetched()
+  }
 
   /*
    * Free the native peer. The core is unusable after this.
@@ -345,39 +301,6 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
 
   fun setStickyIndices(indices: IntArray) = nativeSetStickyIndices(handle, indices)
 
-  /*
-   * Replace count keys from start with keys from until to. Keys cross as one char array and
-   * one array of where each key ends, two JNI objects instead of one per key.
-   */
-  fun replaceKeys(start: Int, count: Int, keys: List<String>, from: Int, to: Int) {
-    val ends = pack(keys, from, to)
-    nativeReplaceKeys(handle, start, count, packed, ends)
-  }
-
-  fun insertKeys(indices: IntArray, keys: Array<String>) {
-    val ends = pack(keys.asList(), 0, keys.size)
-    nativeInsertKeys(handle, indices, packed, ends)
-  }
-
-  /*
-   * Join keys from until to into packed. Returns where each key ends in it.
-   */
-  private fun pack(keys: List<String>, from: Int, to: Int): IntArray {
-    val ends = IntArray(max(0, to - from))
-    var length = 0
-    for (position in from until to) length += keys[position].length
-    if (packed.size < length) packed = CharArray(max(length, packed.size * 2))
-    var at = 0
-    for (position in from until to) {
-      val key = keys[position]
-      key.toCharArray(packed, at, 0, key.length)
-      at += key.length
-      ends[position - from] = at
-    }
-    return ends
-  }
-
-  fun deleteKeys(indices: IntArray) = nativeDeleteKeys(handle, indices)
   fun markRemeasure(indices: IntArray) = nativeMarkRemeasure(handle, indices)
 
   /*
@@ -390,10 +313,9 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
   val rowCount: Int get() = nativeRowCount(handle)
   fun copyRowRects(low: Int, high: Int, out: DoubleArray) = nativeCopyRowRects(handle, low, high, out)
   fun rowRect(index: Int, out: DoubleArray): Boolean = nativeRowRect(handle, index, out)
-  fun footerStart(footerSize: Double): Double = nativeFooterStart(handle, footerSize)
 
   /*
-   * The items among the visible rows as low shl 32 or high, or -1 when none shows.
+   * The rows overlapping the viewport as low shl 32 or high, or -1 before the first layout.
    */
   fun visibleRange(): Long = nativeVisibleRange(handle)
 
@@ -423,10 +345,14 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     nativeDragBegin(handle, index, touchAlong, touchCross)
   fun dragEnd() = nativeDragEnd(handle)
   val heldIndex: Int get() = nativeHeldIndex(handle)
-  fun placeHeld(held: Int, touchAlong: Double, touchCross: Double, out: DoubleArray) =
-    nativePlaceHeld(handle, held, touchAlong, touchCross, out)
-  fun dragUpdateInsertion(mounted: IntArray) = nativeDragUpdateInsertion(handle, mounted)
-  fun dragShiftFor(index: Int, out: DoubleArray) = nativeDragShiftFor(handle, index, out)
+
+  /*
+   * One drag frame: place the held row under the touch, find the drop slot among the first
+   * count rows and write the DRAG_FRAME_* slots and each row's shift into out, which has room
+   * for them. Returns the held row, or -1 when its key is gone.
+   */
+  fun dragFrame(touchAlong: Double, touchCross: Double, rows: IntArray, count: Int, out: DoubleArray): Int =
+    nativeDragFrame(handle, touchAlong, touchCross, rows, count, out)
   val dragOriginIndex: Int get() = nativeDragOriginIndex(handle)
   val dragInsertionIndex: Int get() = nativeDragInsertionIndex(handle)
 
@@ -436,9 +362,11 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
   fun setSections(count: Int, counts: IntArray?, flags: IntArray?) = nativeSetSections(handle, count, counts, flags)
 
   /*
-   * The item of every row, -1 for headers and footers, and whether a separator follows the row.
+   * The item of every row, -1 for headers and footers, whether a separator follows the row and
+   * its place as placeOfRow gives it.
    */
-  fun copyRows(items: IntArray, separators: BooleanArray) = nativeCopyRows(handle, items, separators)
+  fun copyRows(items: IntArray, separators: BooleanArray, places: IntArray) =
+    nativeCopyRows(handle, items, separators, places)
 
   /*
    * The item a row dragged from fromRow and dropped at toRow becomes, or -1.
@@ -470,9 +398,20 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
     nativeEdgeRowKeys(handle, sectionKeys, firstItemKeys)
 
   /*
-   * Prefetch changes, packed: the prefetch count and items, then the cancel count and items.
+   * Prefetch changes packed into prefetchOut: the prefetch count and items, then the cancel
+   * count and items. The array grows when they need more room. runPasses reports the rows it
+   * brings in through prefetchRows before it measures them. This call after a mount finds what
+   * the mount changed.
    */
-  fun updatePrefetch(low: Int, high: Int): IntArray = nativeUpdatePrefetch(handle, low, high)
+  var prefetchOut = IntArray(64)
+    private set
+
+  fun updatePrefetch(low: Int, high: Int) {
+    val length = nativeUpdatePrefetch(handle, low, high, prefetchOut)
+    if (length <= prefetchOut.size) return
+    prefetchOut = IntArray(max(length, prefetchOut.size * 2))
+    nativeCopyPrefetch(handle, prefetchOut)
+  }
 
   /*
    * The key of the row at the viewport start, with the distance into it in out[0], or null.
@@ -485,11 +424,11 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
    * where they show as x, y pairs. They are recorded when the change starts an animation.
    */
   fun captureChange(deleted: List<String>, inserted: List<String>, mounted: List<String>, positions: DoubleArray) {
-    val (deletedPacked, deletedEnds) = packed(deleted)
-    val (insertedPacked, insertedEnds) = packed(inserted)
-    val (mountedPacked, mountedEnds) = packed(mounted)
-    nativeCaptureChange(handle, deletedPacked, deletedEnds, insertedPacked, insertedEnds, mountedPacked, mountedEnds,
-      positions)
+    val deletedEnds = packer.pack(deleted)
+    val insertedEnds = insertedPacker.pack(inserted)
+    val mountedEnds = mountedPacker.pack(mounted)
+    nativeCaptureChange(handle, packer.chars, deletedEnds, insertedPacker.chars, insertedEnds, mountedPacker.chars,
+      mountedEnds, positions)
   }
 
   /*
@@ -498,11 +437,37 @@ internal class ShadowListKitCore(private val measure: (row: Int, crossSize: Doub
   fun deletedPosition(key: String, out: DoubleArray): Boolean = nativeDeletedPosition(handle, key, out)
 
   /*
-   * The animation of the mounted rows, low to high, CHANGE_STEP_SLOTS values each, or null
-   * without a pending change.
+   * The animation of the first count rows, mounted and low to high, CHANGE_STEP_SLOTS values
+   * each, or null without a pending change. The core reads their keys itself.
    */
-  fun runChange(keys: List<String>, positions: DoubleArray): DoubleArray? {
-    val (keysPacked, keysEnds) = packed(keys)
-    return nativeRunChange(handle, keysPacked, keysEnds, positions)
+  fun runChange(rows: IntArray, count: Int, positions: DoubleArray): DoubleArray? =
+    nativeRunChange(handle, rows, count, positions)
+}
+
+/*
+ * Keys joined into one char array with where each one ends, the way the JNI reads them: two JNI
+ * objects instead of one per key. The array is reused and grows as needed. Every call runs on
+ * the UI thread.
+ */
+internal class ShadowListKitKeyPacker {
+  var chars = CharArray(1024)
+    private set
+
+  /*
+   * Join keys from until to into chars. Returns where each key ends in it.
+   */
+  fun pack(keys: List<String>, from: Int = 0, to: Int = keys.size): IntArray {
+    val ends = IntArray(max(0, to - from))
+    var length = 0
+    for (position in from until to) length += keys[position].length
+    if (chars.size < length) chars = CharArray(max(length, chars.size * 2))
+    var at = 0
+    for (position in from until to) {
+      val key = keys[position]
+      key.toCharArray(chars, at, 0, key.length)
+      at += key.length
+      ends[position - from] = at
+    }
+    return ends
   }
 }

@@ -6,7 +6,6 @@
 #include <react/renderer/components/view/ConcreteViewShadowNode.h>
 #include <react/renderer/core/LayoutContext.h>
 
-#include "ShadowListScrollEvent.h"
 #include "ShadowListViewState.h"
 
 #include <shadowlist-core/Container.hpp>
@@ -17,6 +16,8 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace facebook::react {
@@ -56,12 +57,6 @@ struct ShadowListViewGeometryCache {
    */
   std::shared_ptr<const EventEmitter> callbacksEmitter;
   bool callbacksViewable = false;
-  bool callbacksScroll = false;
-  double callbacksScrollThrottle = 0.0;
-  /*
-   * The scroll callback's throttle, for the trailing event once the list rests.
-   */
-  std::shared_ptr<ShadowListScrollTracker> scrollTracker;
 
   /*
    * viewableRules from these props, read for the core. Same pointer trick as the keys.
@@ -101,6 +96,25 @@ struct ShadowListViewGeometryCache {
   azimgd::shadowlist::SizeSpecQueue sizeSpecs;
   std::shared_ptr<const void> sizeSpecsSource;
   std::shared_ptr<const std::vector<azimgd::shadowlist::RowSizeSpec>> storeSizeSpecs;
+
+  /*
+   * The rowSizeSpecs JSON the specs came from without a store. A props change that keeps the
+   * same JSON keeps this source.
+   */
+  std::shared_ptr<const std::string> rowSizeSpecsJson;
+
+  /*
+   * The size each row's spec measured to, by key, with the width and scale it measured at.
+   * A new source that sends a row's spec unchanged takes its size from here, and only the rows
+   * of the newest source stay.
+   */
+  struct MeasuredSpec {
+    azimgd::shadowlist::RowSizeSpec spec;
+    double width = 0.0;
+    Float pointScaleFactor = 0.0;
+    azimgd::shadowlist::Size size;
+  };
+  std::unordered_map<std::string, MeasuredSpec> measuredSpecs;
 
   /*
    * Rows the layout pass hid with opacity 0, by row tag, see azimgd::shadowlist::ConcealTracker.

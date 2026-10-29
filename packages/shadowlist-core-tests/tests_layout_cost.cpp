@@ -24,15 +24,14 @@ double heightAt(std::size_t index) {
 }
 
 /*
- * Every row must sit right after the one before it, starting below the header, and know
- * its own index. That is what a full reflow from row 0 gives.
+ * Every row must sit right after the one before it, starting below the header. That is what
+ * a full reflow from row 0 gives.
  */
 void checkSingleTrack(const Container& container) {
   double expected = container.headerSize;
   for (std::size_t index = 0; index < container.revision.rows.size(); ++index) {
     const Row& row = container.revision.rows[index];
     CHECK_NEAR(row.offsetY, expected, 0.0001);
-    CHECK_EQ(row.index, index);
     expected += row.height;
   }
 }

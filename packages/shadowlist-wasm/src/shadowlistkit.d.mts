@@ -6,11 +6,14 @@ export interface ShadowListKitModule {
   HEAP32: Int32Array;
   HEAPF64: Float64Array;
   HEAPU8: Uint8Array;
-  shadowListKitMeasureRow?: (
+  shadowListKitMeasureRows?: (
     handle: number,
-    row: number,
-    crossSize: number
-  ) => number;
+    rows: number,
+    crossSizes: number,
+    count: number,
+    sizes: number
+  ) => void;
+  shadowListKitPrefetchRows?: (handle: number, packed: number) => void;
   _malloc(bytes: number): number;
   _free(pointer: number): void;
   _ShadowListKitCore_nativeCreate(): number;
@@ -29,26 +32,6 @@ export interface ShadowListKitModule {
     snapAlignment: number
   ): void;
   _ShadowListKitCore_nativeSetStickyIndices(
-    handle: number,
-    indices: number,
-    count: number
-  ): void;
-  _ShadowListKitCore_nativeReplaceKeys(
-    handle: number,
-    start: number,
-    count: number,
-    packed: number,
-    ends: number,
-    keyCount: number
-  ): void;
-  _ShadowListKitCore_nativeInsertKeys(
-    handle: number,
-    indices: number,
-    packed: number,
-    ends: number,
-    keyCount: number
-  ): void;
-  _ShadowListKitCore_nativeDeleteKeys(
     handle: number,
     indices: number,
     count: number
@@ -73,10 +56,15 @@ export interface ShadowListKitModule {
     index: number,
     out: number
   ): number;
-  _ShadowListKitCore_nativeFooterStart(
+  _ShadowListKitCore_nativePlanMount(
     handle: number,
-    footerSize: number
-  ): number;
+    offset: number,
+    windowAlong: number,
+    pad: number,
+    leadingInset: number,
+    trailingInset: number,
+    out: number
+  ): void;
   _ShadowListKitCore_nativeOffsetMovedThreshold(): number;
   _ShadowListKitCore_nativeVisibleRange(handle: number, out: number): number;
   _ShadowListKitCore_nativeIndexOfKey(
@@ -131,14 +119,6 @@ export interface ShadowListKitModule {
     length: number,
     offset: number
   ): number;
-  _ShadowListKitCore_nativeDiffKeys(
-    previousPacked: number,
-    previousEnds: number,
-    previousCount: number,
-    nextPacked: number,
-    nextEnds: number,
-    nextCount: number
-  ): number;
   _ShadowListKitCore_nativeInsertionIndices(
     indices: number,
     count: number,
@@ -181,20 +161,32 @@ export interface ShadowListKitModule {
     previousCount: number,
     nextCount: number
   ): number;
-  _ShadowListKitListState_nativeRecordContentVersions(
+  _ShadowListKitListState_nativeCommitKeys(
     handle: number,
+    core: number,
+    start: number,
+    end: number,
     packed: number,
     ends: number,
     count: number,
-    versions: number
-  ): void;
-  _ShadowListKitListState_nativeUpdateContentVersions(
-    handle: number,
-    packed: number,
-    ends: number,
-    count: number,
-    versions: number
+    versions: number,
+    flags: number
   ): number;
+  _ShadowListKitListState_nativeInsertRows(
+    handle: number,
+    core: number,
+    indices: number,
+    packed: number,
+    ends: number,
+    count: number
+  ): void;
+  _ShadowListKitListState_nativeDeleteRows(
+    handle: number,
+    core: number,
+    indices: number,
+    count: number
+  ): void;
+  _ShadowListKitListState_nativeSeedCore(handle: number, core: number): void;
 }
 
 export default function createShadowListKitModule(options?: {

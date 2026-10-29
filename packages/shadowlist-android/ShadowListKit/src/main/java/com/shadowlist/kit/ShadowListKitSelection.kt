@@ -5,7 +5,8 @@ import android.view.ViewConfiguration
 /*
  * Taps that select rows and the highlight under a resting finger. The selected keys are the
  * core's ListSelection in the list's ShadowListKitListState, which outlives the core the list
- * drops on detach. This shows its changes on the mounted cells and tells the delegate.
+ * drops on detach and drops the rows a data change deletes. This shows its changes on the
+ * mounted cells and tells the delegate.
  */
 internal class ShadowListKitSelection(private val list: ShadowListKitListView) {
   private val state get() = list.state
@@ -19,11 +20,6 @@ internal class ShadowListKitSelection(private val list: ShadowListKitListView) {
   fun isSelected(key: String): Boolean = state.isSelected(key)
 
   fun setMultiple(multiple: Boolean) = state.setMultipleSelection(multiple)
-
-  /*
-   * The data changed. Rows whose key is gone drop out of the selection.
-   */
-  fun dropDeletedKeys(keys: List<String>) = state.retainSelection(keys)
 
   /*
    * A tap on a row, by the core's ListSelection.tap. Multiple selection toggles it, single
@@ -51,7 +47,7 @@ internal class ShadowListKitSelection(private val list: ShadowListKitListView) {
   }
 
   val selectedIndices: IntArray
-    get() = state.selectedRows(list.keys).map(list::itemForRow).filter { it >= 0 }.toIntArray()
+    get() = state.selectedRows().map(list::itemForRow).filter { it >= 0 }.toIntArray()
 
   fun selectItem(index: Int, animated: Boolean) {
     val key = list.keys.getOrNull(list.rowForItem(index)) ?: return

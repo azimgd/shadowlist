@@ -1,5 +1,6 @@
 #pragma once
 
+#include <shadowlist-core/KeyList.hpp>
 #include <shadowlist-core/host/MountedRange.hpp>
 
 #include <cstddef>
@@ -92,7 +93,7 @@ public:
    * After the commit's core update, with its keys: the message to send now, if any. Also
    * prepares the next step when the range is not at its target yet.
    */
-  std::optional<MountMessage> process(const std::vector<std::string>& keys, const IndexOfKey& indexOfKey);
+  std::optional<MountMessage> process(const KeyList& keys, const IndexOfKey& indexOfKey);
 
   /*
    * Whether a step waits for the host's next frame.
@@ -124,10 +125,10 @@ private:
     std::string measuredHighKey;
   };
 
-  MountMessage message(const std::vector<std::string>& keys, const MountedRange& range) const;
+  MountMessage message(const KeyList& keys, const MountedRange& range) const;
   std::optional<MountMessage> send(MountMessage message);
   MountedRange currentRange(std::size_t size) const;
-  void prepareStep(const std::vector<std::string>& keys, const IndexOfKey& indexOfKey);
+  void prepareStep(const KeyList& keys, const IndexOfKey& indexOfKey);
 
   MountSettings settings_;
   MountedBasis basis_;

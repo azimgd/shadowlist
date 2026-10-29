@@ -37,12 +37,33 @@ const NO_SPECS: RowSizeSpecsProps = { rowSizeSpecs: '', sizeSpecsVersion: 0 };
 const EDGE_MARGIN = 24;
 
 /*
+ * A row's spec and what it came from. The same item at the same index keeps its spec without
+ * calling getItemSizeSpec again.
+ */
+interface CachedSpec<ItemT> {
+  item: ItemT;
+  index: number;
+  spec: ItemSizeSpec;
+}
+
+/*
+ * Whether two specs hold the same fields.
+ */
+function sameSpec(a: ItemSizeSpec, b: ItemSizeSpec): boolean {
+  const aKeys = Object.keys(a) as Array<keyof ItemSizeSpec>;
+  if (aKeys.length !== Object.keys(b).length) return false;
+  return aKeys.every((name) => a[name] === b[name]);
+}
+
+/*
  * The specs of rows near the screen. They tell native the real heights of those rows before
  * React renders them.
  *
  * We send the whole range, not just what changed. A width change like a rotation makes
  * every measured height wrong, and native has to measure again from the specs alone. The edge
- * margin above keeps this off the scroll path.
+ * margin above keeps this off the scroll path. Native keeps the size each row's spec measured
+ * to and measures again only the specs that changed. A data change that leaves every spec of
+ * the range as it was sends nothing.
  *
  * With the native store the spec objects go to native as they are, read field by field, with
  * no JSON string to build and parse, and a later props change leaves them alone.
@@ -86,42 +107,86 @@ export function useRowSizeSpecs<ItemT>({
 
   const { low, high } = rangeRef.current;
 
+  /*
+   * The specs by key from the last pass, the getItemSizeSpec they came from, and what was sent.
+   */
+  const cacheRef = useRef<{
+    getItemSizeSpec: UseRowSizeSpecsOptions<ItemT>['getItemSizeSpec'];
+    specs: Map<string, CachedSpec<ItemT>>;
+    sentKeys: string[];
+    sentSpecs: ItemSizeSpec[];
+    sent: RowSizeSpecsProps;
+  } | null>(null);
+
   return useMemo(() => {
     if (!getItemSizeSpec || low < 0 || source.count === 0) {
+      cacheRef.current = null;
       return NO_SPECS;
     }
+    const cache =
+      cacheRef.current?.getItemSizeSpec === getItemSizeSpec
+        ? cacheRef.current
+        : null;
 
     const keys: string[] = [];
     const specs: ItemSizeSpec[] = [];
+    const nextSpecs = new Map<string, CachedSpec<ItemT>>();
     const last = Math.min(high, source.count - 1);
 
     for (let index = low; index <= last; index++) {
       const item = source.itemAt(index);
       if (item === undefined) continue;
+      const key = source.keyAt(index)!;
+      const cached = cache?.specs.get(key);
 
       /*
        * A row whose height doesn't come from its text, like one with an inline image,
        * returns nothing and is left out. The core estimates it and measures it natively.
        * Describing only some rows is fine.
        */
-      const spec = getItemSizeSpec(item, index);
+      let spec: ItemSizeSpec | null | undefined;
+      if (cached && cached.item === item && cached.index === index) {
+        spec = cached.spec;
+      } else {
+        spec = getItemSizeSpec(item, index);
+        if (spec && cached && sameSpec(cached.spec, spec)) spec = cached.spec;
+      }
       if (!spec) continue;
 
-      keys.push(source.keyAt(index)!);
+      nextSpecs.set(key, { item, index, spec });
+      keys.push(key);
       specs.push(spec);
     }
 
-    if (specs.length === 0) return NO_SPECS;
-    if (store !== null) {
+    let result: RowSizeSpecsProps;
+    if (specs.length === 0) {
+      result = NO_SPECS;
+    } else if (
+      cache &&
+      cache.sentKeys.length === keys.length &&
+      cache.sentKeys.every((key, position) => key === keys[position]) &&
+      cache.sentSpecs.every((spec, position) => spec === specs[position])
+    ) {
+      result = cache.sent;
+    } else if (store !== null) {
       const version = nextVersion(store);
       store.module.setSizeSpecs(store.handle, version, keys, specs);
-      return { rowSizeSpecs: '', sizeSpecsVersion: version };
+      result = { rowSizeSpecs: '', sizeSpecsVersion: version };
+    } else {
+      result = {
+        rowSizeSpecs: JSON.stringify(
+          specs.map((spec, position) => ({ ...spec, key: keys[position] }))
+        ),
+        sizeSpecsVersion: 0,
+      };
     }
-    return {
-      rowSizeSpecs: JSON.stringify(
-        specs.map((spec, position) => ({ ...spec, key: keys[position] }))
-      ),
-      sizeSpecsVersion: 0,
+    cacheRef.current = {
+      getItemSizeSpec,
+      specs: nextSpecs,
+      sentKeys: keys,
+      sentSpecs: specs,
+      sent: result,
     };
+    return result;
   }, [source, getItemSizeSpec, low, high, store]);
 }

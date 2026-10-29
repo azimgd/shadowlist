@@ -3,7 +3,7 @@ import {
   viewableRulesFor,
   viewableTimingsFor,
 } from '../virtualizer/viewability';
-import { mergeSortedIndices } from '../virtualizer/helpers';
+import { forwardedListProps, mergeSortedIndices } from '../virtualizer/helpers';
 import {
   contentPadding,
   crossPadding,
@@ -109,5 +109,26 @@ describe('SeparatorStore', () => {
     expect(store.get('a').highlighted).toBe(true);
     store.setHighlighted('a', false);
     expect(store.get('a')).toBe(store.get('missing'));
+  });
+});
+
+describe('forwardedListProps', () => {
+  it('drops the props SectionList and TreeList do not forward', () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const kept = { horizontal: true, inverted: false };
+    expect(forwardedListProps(kept, 'SectionList')).toBe(kept);
+    const props = {
+      horizontal: true,
+      reorderEnabled: true,
+      onMoveItem: () => {},
+      prefetchDataSource: undefined,
+    };
+    expect(forwardedListProps(props, 'SectionList')).toEqual({
+      horizontal: true,
+    });
+    expect(props.reorderEnabled).toBe(true);
+    forwardedListProps(props, 'SectionList');
+    expect(warn).toHaveBeenCalledTimes(3);
+    warn.mockRestore();
   });
 });

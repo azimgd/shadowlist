@@ -26,8 +26,8 @@ export type OnMountedRangeChange = {
 
 /*
  * The pinned section header, the visible rows and, for each viewability config that changed,
- * every viewable key in order and the keys that became viewable or stopped. Codegen only takes
- * an inline object type for an array of objects.
+ * the keys that became viewable or stopped. Codegen only takes an inline object type for an
+ * array of objects.
  */
 export type OnViewabilityChange = {
   activeStickyIndex: CodegenTypes.Int32;
@@ -35,15 +35,20 @@ export type OnViewabilityChange = {
   visibleHigh: CodegenTypes.Int32;
   changes: {
     config: CodegenTypes.Int32;
-    viewableKeys: string[];
     addedKeys: string[];
     removedKeys: string[];
   }[];
 };
 
+/*
+ * The rows to load early and the rows no longer needed, by index in the keys native had and by
+ * key, which finds them again in data that changed since.
+ */
 export type OnPrefetchChange = {
   prefetch: CodegenTypes.Int32[];
   cancel: CodegenTypes.Int32[];
+  prefetchKeys: string[];
+  cancelKeys: string[];
 };
 
 export type OnStartReached = {};

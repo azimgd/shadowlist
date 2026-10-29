@@ -4,10 +4,12 @@
 #include <shadowlist-core/Container.hpp>
 #include <shadowlist-core/Row.hpp>
 #include <shadowlist-core/Error.hpp>
+#include <shadowlist-core/KeyList.hpp>
 #include <shadowlist-core/Operation.hpp>
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -18,14 +20,19 @@ namespace azimgd::shadowlist {
  * How the keys changed since the last update, when the host knows it for sure. Unknown means
  * the core compares the keys itself.
  */
-enum class KeyEditKind { Unknown, Append, Prepend, TrimStart, TrimEnd };
+enum class KeyEditKind { Unknown, Append, Prepend, TrimStart, TrimEnd, Splice };
 
 /*
  * One edit at an end of the key list: count keys added or removed there, nothing else changed.
+ * A Splice replaced deleted keys from start with inserted new ones and kept every other key in
+ * place. Its count is unused.
  */
 struct KeyEdit {
   KeyEditKind kind = KeyEditKind::Unknown;
   std::size_t count = 0;
+  std::size_t start = 0;
+  std::size_t deleted = 0;
+  std::size_t inserted = 0;
 };
 
 /*
@@ -37,10 +44,10 @@ struct FrameInput {
    * instead of copying, since keys are only read during update. Tests fill keys. Read with getKeyList.
    */
   std::vector<std::string> keys;
-  const std::vector<std::string>* keysRef = nullptr;
+  std::optional<KeyList> keysRef;
 
-  const std::vector<std::string>& getKeyList() const {
-    return keysRef != nullptr ? *keysRef : keys;
+  KeyList getKeyList() const {
+    return keysRef ? *keysRef : KeyList(keys);
   }
 
   /*
@@ -52,9 +59,9 @@ struct FrameInput {
   bool keysUnchanged = false;
 
   /*
-   * Set only when the keys are provably the last update's keys with this one edit at an end,
-   * like a native list that applied insertItems itself. It skips comparing every key. Getting
-   * it wrong puts the rows out of step with the data, the same as keysUnchanged.
+   * Set only when the keys are provably the last update's keys with this one edit, like a
+   * native list that applied insertItems itself. It skips comparing every key. Getting it
+   * wrong puts the rows out of step with the data, the same as keysUnchanged.
    */
   KeyEdit keyEdit;
 
@@ -95,7 +102,11 @@ struct FrameInput {
 
   double startReachedThreshold = 1.0;
   double endReachedThreshold = 1.0;
-  std::vector<ViewableRule> viewableRules = {ViewableRule{}};
+
+  /*
+   * Empty means the one default rule.
+   */
+  std::vector<ViewableRule> viewableRules;
 
   /*
    * Points at the host's rules instead of copying them, same rules as keysRef.
@@ -103,7 +114,11 @@ struct FrameInput {
   const std::vector<ViewableRule>* viewableRulesRef = nullptr;
 
   const std::vector<ViewableRule>& getViewableRules() const {
-    return viewableRulesRef != nullptr ? *viewableRulesRef : viewableRules;
+    static const std::vector<ViewableRule> defaultRules = {ViewableRule{}};
+    if (viewableRulesRef != nullptr) {
+      return *viewableRulesRef;
+    }
+    return viewableRules.empty() ? defaultRules : viewableRules;
   }
 
   std::pair<double, double> estimatedRowSize = DEFAULT_ESTIMATED_ROW_SIZE;
@@ -203,7 +218,7 @@ public:
    */
   static std::size_t reconcileRows(
     Container& container,
-    const std::vector<std::string>& nextKeys,
+    const KeyList& nextKeys,
     KeyEdit edit = {});
 
   /*
@@ -292,11 +307,12 @@ private:
   static void reconcileFrameKeys(
     Container& container,
     const FrameInput& input,
-    const std::vector<std::string>& inputKeys,
+    const KeyList& inputKeys,
     double inputOffset,
     bool restingAtBottom,
     bool hadRowsBefore,
     std::string& anchorKey,
+    std::size_t& anchorIndex,
     double& anchorDelta);
 
   /*
@@ -308,6 +324,7 @@ private:
     double previousHeaderSize,
     bool hadRowsBefore,
     const std::string& anchorKey,
+    std::size_t anchorIndex,
     double anchorDelta);
 
   /*
@@ -337,22 +354,25 @@ private:
 
   /*
    * Remember the row at the top of the viewport and how far into it we are, to restore after a data change.
+   * Returns the row's index.
    */
-  static void captureAnchor(Container& container, double inputOffset);
+  static std::size_t captureAnchor(Container& container, double inputOffset);
 
   /*
    * Backup anchors for the other rows that start inside the viewport. If a data change removes
    * the anchor row, the next visible row is held in place instead.
    */
-  static std::vector<Anchor> captureFallbackAnchors(Container& container, double inputOffset);
+  static std::vector<Anchor> captureFallbackAnchors(Container& container, std::size_t anchorIndex, double inputOffset);
 
   /*
    * Fix up the scroll offset after measuring. Handles scrollToRow, the inverted bottom pin,
-   * or else keeps the anchor row where it was. Returns true if the offset moved.
+   * or else keeps the anchor row where it was. anchorIndex is the anchor key's row, or
+   * UNDEFINED_INDEX. Returns true if the offset moved.
    */
   static bool resolveScroll(
     Container& container,
     const std::string& anchorKey,
+    std::size_t anchorIndex,
     double anchorDelta,
     bool hadRowsBefore,
     bool offsetConfirmed);

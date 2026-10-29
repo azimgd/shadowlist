@@ -40,6 +40,10 @@ enum PassSlot {
   PASS_PHASE,
   PASS_USER_SCROLLED,
   PASS_TRACKING,
+  PASS_PREFETCH,
+  PASS_MOUNT_PAD,
+  PASS_LEADING_INSET,
+  PASS_TRAILING_INSET,
   PASS_OUT_OFFSET,
   PASS_OUT_CONTENT,
   PASS_OUT_BAND_LOW,
@@ -50,12 +54,14 @@ enum PassSlot {
   PASS_OUT_GEOMETRY,
   PASS_OUT_MEASURED_LOW,
   PASS_OUT_MEASURED_HIGH,
+  PASS_OUT_FOOTER_START,
   PASS_SLOTS,
 };
 
 /*
- * The driver and the Java object it measures through. The env and target are only valid
- * during runPasses, the one call that measures.
+ * The driver and the Java object it measures and reports prefetch through. The env and target
+ * are only valid during runPasses, the one call that measures. The vectors are reused by the
+ * calls that run on every drag frame or mount pass.
  */
 struct Peer {
   sl::ListDriver driver;
@@ -64,6 +70,13 @@ struct Peer {
   JNIEnv* env = nullptr;
   jobject target = nullptr;
   jmethodID measureRow = nullptr;
+  jmethodID prefetchRows = nullptr;
+  std::vector<jint> dragInts;
+  std::vector<std::size_t> dragRows;
+  std::vector<jdouble> dragOut;
+  std::vector<std::size_t> prefetchFound;
+  std::vector<std::size_t> cancelFound;
+  std::vector<jint> prefetchPacked;
 };
 
 Peer* peerOf(jlong handle) {
@@ -162,6 +175,10 @@ sl::PassInput readPassInput(const jdouble* slots) {
   input.phase = static_cast<sl::ScrollPhase>(static_cast<int>(slots[PASS_PHASE]));
   input.userScrolled = slots[PASS_USER_SCROLLED] != 0.0;
   input.tracking = slots[PASS_TRACKING] != 0.0;
+  input.prefetch = slots[PASS_PREFETCH] != 0.0;
+  input.mountPad = slots[PASS_MOUNT_PAD];
+  input.leadingInset = slots[PASS_LEADING_INSET];
+  input.trailingInset = slots[PASS_TRAILING_INSET];
   return input;
 }
 
@@ -177,6 +194,7 @@ void writePassResult(const sl::ListDriver& driver, const sl::PassResult& result,
   std::optional<sl::MountedRange> measured = driver.getMeasuredRange();
   slots[PASS_OUT_MEASURED_LOW] = measured ? static_cast<double>(measured->low) : -1.0;
   slots[PASS_OUT_MEASURED_HIGH] = measured ? static_cast<double>(measured->high) : -1.0;
+  slots[PASS_OUT_FOOTER_START] = result.footerStart;
 }
 
 void writeRect(JNIEnv* env, const sl::RowRect& rect, jdoubleArray out) {
@@ -184,37 +202,19 @@ void writeRect(JNIEnv* env, const sl::RowRect& rect, jdoubleArray out) {
   env->SetDoubleArrayRegion(out, 0, 4, values);
 }
 
-void writeDragOffset(JNIEnv* env, const sl::DragOffset& offset, jdoubleArray out) {
-  jdouble values[2] = {offset.leading, offset.cross};
-  env->SetDoubleArrayRegion(out, 0, 2, values);
-}
-
 bool validRow(const sl::ListDriver& driver, jint index) {
   return index >= 0 && static_cast<std::size_t>(index) < driver.getRowCount();
 }
 
 /*
- * Slots of ShadowListKitCore.SWIPE_*: the spec of a swiped row, then where a released swipe rests.
+ * Slots at the start of nativeDragFrame's out, ShadowListKitCore.DRAG_FRAME_* in Kotlin. Each
+ * row's shift follows as an along, cross pair.
  */
-enum SwipeSlot {
-  SWIPE_LEADING_WIDTH = 0,
-  SWIPE_TRAILING_WIDTH,
-  SWIPE_LEADING_FULL,
-  SWIPE_TRAILING_FULL,
-  SWIPE_ROW_SIZE,
-  SWIPE_OUT_SIDE,
-  SWIPE_OUT_FULL,
-  SWIPE_OUT_OFFSET,
-  SWIPE_SLOTS,
-};
-
-/*
- * Values of SWIPE_OUT_SIDE, ShadowListKitCore.SWIPE_SIDE_* in Kotlin.
- */
-enum SwipeSideValue {
-  SWIPE_SIDE_NONE = 0,
-  SWIPE_SIDE_LEADING,
-  SWIPE_SIDE_TRAILING,
+enum DragFrameSlot {
+  DRAG_FRAME_HELD_ALONG = 0,
+  DRAG_FRAME_HELD_CROSS,
+  DRAG_FRAME_INSERTION_MOVED,
+  DRAG_FRAME_SLOTS,
 };
 
 /*
@@ -234,27 +234,6 @@ enum RowKindValue {
   ROW_FOOTER,
   ROW_KIND_BITS = 2,
 };
-
-sl::SwipeSpec readSwipeSpec(const jdouble* slots) {
-  sl::SwipeSpec spec;
-  spec.leadingWidth = slots[SWIPE_LEADING_WIDTH];
-  spec.trailingWidth = slots[SWIPE_TRAILING_WIDTH];
-  spec.leadingFullSwipe = slots[SWIPE_LEADING_FULL] != 0.0;
-  spec.trailingFullSwipe = slots[SWIPE_TRAILING_FULL] != 0.0;
-  spec.rowSize = slots[SWIPE_ROW_SIZE];
-  return spec;
-}
-
-/*
- * A swipe begun at start with the spec in io's SWIPE_* slots.
- */
-sl::SwipeReveal swipeFrom(JNIEnv* env, jdoubleArray io, jdouble start) {
-  jdouble slots[SWIPE_SLOTS];
-  env->GetDoubleArrayRegion(io, 0, SWIPE_SLOTS, slots);
-  sl::SwipeReveal swipe;
-  swipe.begin(readSwipeSpec(slots), start);
-  return swipe;
-}
 
 jintArray makeIntArray(JNIEnv* env, const std::vector<jint>& values) {
   jintArray array = env->NewIntArray(static_cast<jsize>(values.size()));
@@ -337,12 +316,48 @@ enum ConstantSlot {
 /*
  * Kotlin carries a missing index as -1, the core as UNDEFINED_INDEX.
  */
+/*
+ * Prefetch changes as items, packed into the peer's buffer: the prefetch count, those items,
+ * the cancel count, those items. Returns the packed length.
+ */
+jint packPrefetch(Peer& peer, const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
+  std::vector<jint>& packed = peer.prefetchPacked;
+  packed.clear();
+  packed.push_back(0);
+  if (!prefetch.empty()) {
+    for (std::size_t item : peer.sections.itemsOfRows(prefetch)) {
+      packed.push_back(static_cast<jint>(item));
+    }
+  }
+  packed[0] = static_cast<jint>(packed.size() - 1);
+  std::size_t cancelAt = packed.size();
+  packed.push_back(0);
+  if (!cancel.empty()) {
+    for (std::size_t item : peer.sections.itemsOfRows(cancel)) {
+      packed.push_back(static_cast<jint>(item));
+    }
+  }
+  packed[cancelAt] = static_cast<jint>(packed.size() - cancelAt - 1);
+  return static_cast<jint>(packed.size());
+}
+
 jint jintFromIndex(std::size_t index) {
   return index == sl::UNDEFINED_INDEX ? -1 : static_cast<jint>(index);
 }
 
 std::size_t indexFromJint(jint index) {
   return index < 0 ? sl::UNDEFINED_INDEX : static_cast<std::size_t>(index);
+}
+
+/*
+ * Section and kind of a row: section shl ROW_KIND_BITS or a ROW_* kind.
+ */
+jint packedPlace(const sl::ListSections& sections, std::size_t row) {
+  sl::RowPlace place = sections.placeOfRow(row);
+  RowKindValue kind = place.kind == sl::RowKind::Header ? ROW_HEADER
+    : place.kind == sl::RowKind::Footer                 ? ROW_FOOTER
+                                                        : ROW_ITEM;
+  return (static_cast<jint>(place.section) << ROW_KIND_BITS) | kind;
 }
 
 }
@@ -355,6 +370,7 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
   auto* peer = new Peer();
   jclass clazz = env->GetObjectClass(thiz);
   peer->measureRow = env->GetMethodID(clazz, "measureRow", "(ID)D");
+  peer->prefetchRows = env->GetMethodID(clazz, "prefetchRows", "(I)V");
   env->DeleteLocalRef(clazz);
   peer->driver.setMeasureRow([peer](std::size_t row, const std::string&, double cross) {
     // A measure that threw leaves its exception pending. No JNI call may follow until runPasses returns.
@@ -363,6 +379,13 @@ JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeCreate)(JNIEnv* env, jobject th
     }
     double size = peer->env->CallDoubleMethod(peer->target, peer->measureRow, static_cast<jint>(row), cross);
     return peer->env->ExceptionCheck() ? 0.0 : size;
+  });
+  peer->driver.setPrefetchRows([peer](const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
+    if (peer->env == nullptr || peer->target == nullptr || peer->env->ExceptionCheck()) {
+      return;
+    }
+    jint length = packPrefetch(*peer, prefetch, cancel);
+    peer->env->CallVoidMethod(peer->target, peer->prefetchRows, length);
   });
   return reinterpret_cast<jlong>(peer);
 }
@@ -390,34 +413,6 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSettings)(JNIEnv*, jclass, jl
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetStickyIndices)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
   peerOf(handle)->driver.setStickyIndices(readIndices(env, indices));
-}
-
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeReplaceKeys)(
-  JNIEnv* env, jclass, jlong handle, jint start, jint count, jcharArray packed, jintArray ends) {
-  peerOf(handle)->driver.replaceKeys(static_cast<std::size_t>(std::max(start, 0)),
-    static_cast<std::size_t>(std::max(count, 0)), readPackedKeys(env, packed, ends));
-}
-
-/*
- * A negative index drops its key with it, which keeps the two lists paired.
- */
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeInsertKeys)(
-  JNIEnv* env, jclass, jlong handle, jintArray indices, jcharArray packed, jintArray ends) {
-  std::vector<jint> raw = readInts(env, indices);
-  std::vector<std::string> strings = readPackedKeys(env, packed, ends);
-  std::vector<std::size_t> kept;
-  std::vector<std::string> keptKeys;
-  for (std::size_t position = 0; position < raw.size() && position < strings.size(); ++position) {
-    if (raw[position] >= 0) {
-      kept.push_back(static_cast<std::size_t>(raw[position]));
-      keptKeys.push_back(std::move(strings[position]));
-    }
-  }
-  peerOf(handle)->driver.insertKeys(std::move(kept), std::move(keptKeys));
-}
-
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDeleteKeys)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
-  peerOf(handle)->driver.deleteKeys(readIndices(env, indices));
 }
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeMarkRemeasure)(JNIEnv* env, jclass, jlong handle, jintArray indices) {
@@ -479,23 +474,16 @@ JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeRowRect)(JNIEnv* env, jclass
   return JNI_TRUE;
 }
 
-JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeFooterStart)(JNIEnv*, jclass, jlong handle, jdouble footerSize) {
-  return peerOf(handle)->driver.getFooterStart(footerSize);
-}
-
 /*
- * The items among the visible rows packed as low in the high 32 bits and high in the low ones,
- * or -1.
+ * The rows overlapping the viewport packed as low in the high 32 bits and high in the low ones,
+ * or -1 before the first layout.
  */
 JNIEXPORT jlong JNICALL SHADOWLIST_KIT_JNI(nativeVisibleRange)(JNIEnv*, jclass, jlong handle) {
-  Peer* peer = peerOf(handle);
-  std::optional<sl::MountedRange> visible = peer->driver.getVisibleRange();
-  std::optional<sl::MountedRange> items =
-    visible ? peer->sections.itemRangeOfRows(visible->low, visible->high) : std::nullopt;
-  if (!items) {
+  std::optional<sl::MountedRange> visible = peerOf(handle)->driver.getVisibleRange();
+  if (!visible) {
     return -1;
   }
-  return (static_cast<jlong>(items->low) << 32) | static_cast<jlong>(items->high);
+  return (static_cast<jlong>(visible->low) << 32) | static_cast<jlong>(visible->high);
 }
 
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeIndexOfKey)(JNIEnv* env, jclass, jlong handle, jstring key) {
@@ -581,23 +569,47 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeHeldIndex)(JNIEnv*, jclass, jlon
   return jintFromIndex(peerOf(handle)->driver.getHeldIndex());
 }
 
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativePlaceHeld)(
-  JNIEnv* env, jclass, jlong handle, jint held, jdouble touchAlong, jdouble touchCross, jdoubleArray out) {
-  sl::ListDriver& driver = peerOf(handle)->driver;
-  sl::DragOffset offset;
-  if (validRow(driver, held)) {
-    offset = driver.placeHeld(static_cast<std::size_t>(held), touchAlong, touchCross);
+/*
+ * One drag frame: place the held row under the touch, find the drop slot among the first count
+ * rows and write the held row's offset and whether the slot moved into out's DRAG_FRAME_* slots,
+ * then each row's shift as an along, cross pair. Returns the held row, or -1 when its key is gone.
+ */
+JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragFrame)(JNIEnv* env, jclass, jlong handle, jdouble touchAlong,
+  jdouble touchCross, jintArray rows, jint count, jdoubleArray out) {
+  Peer* peer = peerOf(handle);
+  sl::ListDriver& driver = peer->driver;
+  std::size_t held = driver.getHeldIndex();
+  if (held == sl::UNDEFINED_INDEX || held >= driver.getRowCount()) {
+    return -1;
   }
-  writeDragOffset(env, offset, out);
-}
-
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragUpdateInsertion)(JNIEnv* env, jclass, jlong handle, jintArray mounted) {
-  peerOf(handle)->driver.dragUpdateInsertion(readIndices(env, mounted));
-}
-
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeDragShiftFor)(
-  JNIEnv* env, jclass, jlong handle, jint index, jdoubleArray out) {
-  writeDragOffset(env, peerOf(handle)->driver.dragShiftFor(indexFromJint(index)), out);
+  sl::DragOffset placed = driver.placeHeld(held, touchAlong, touchCross);
+  std::size_t insertion = driver.getDragInsertionIndex();
+  jsize given = std::clamp(count, 0, env->GetArrayLength(rows));
+  std::vector<jint>& ints = peer->dragInts;
+  ints.resize(static_cast<std::size_t>(given));
+  if (given > 0) {
+    env->GetIntArrayRegion(rows, 0, given, ints.data());
+  }
+  peer->dragRows.clear();
+  for (jint row : ints) {
+    if (row >= 0) {
+      peer->dragRows.push_back(static_cast<std::size_t>(row));
+    }
+  }
+  driver.dragUpdateInsertion(peer->dragRows);
+  std::vector<jdouble>& values = peer->dragOut;
+  values.resize(DRAG_FRAME_SLOTS + ints.size() * 2);
+  values[DRAG_FRAME_HELD_ALONG] = placed.leading;
+  values[DRAG_FRAME_HELD_CROSS] = placed.cross;
+  values[DRAG_FRAME_INSERTION_MOVED] = driver.getDragInsertionIndex() != insertion ? 1.0 : 0.0;
+  for (std::size_t at = 0; at < ints.size(); ++at) {
+    sl::DragOffset shift = driver.dragShiftFor(indexFromJint(ints[at]));
+    values[DRAG_FRAME_SLOTS + at * 2] = shift.leading;
+    values[DRAG_FRAME_SLOTS + at * 2 + 1] = shift.cross;
+  }
+  jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(values.size()));
+  env->SetDoubleArrayRegion(out, 0, length, values.data());
+  return static_cast<jint>(held);
 }
 
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeDragOriginIndex)(JNIEnv*, jclass, jlong handle) {
@@ -646,22 +658,25 @@ JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSetSections)(
 }
 
 /*
- * The item of every row, -1 for headers and footers, into items, and whether a separator
- * follows the row into separators.
+ * The item of every row, -1 for headers and footers, into items, whether a separator follows
+ * the row into separators, and its section and kind as nativePlaceOfRow packs them into places.
  */
 JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeCopyRows)(
-  JNIEnv* env, jclass, jlong handle, jintArray items, jbooleanArray separators) {
+  JNIEnv* env, jclass, jlong handle, jintArray items, jbooleanArray separators, jintArray places) {
   const sl::ListSections& sections = peerOf(handle)->sections;
   std::size_t count = sections.getRowCount();
   std::vector<jint> rowItems(count);
   std::vector<jboolean> rowSeparators(count);
+  std::vector<jint> rowPlaces(count);
   for (std::size_t row = 0; row < count; ++row) {
     rowItems[row] = jintFromIndex(sections.itemForRow(row));
     rowSeparators[row] = sections.isItemBeforeItem(row) ? JNI_TRUE : JNI_FALSE;
+    rowPlaces[row] = packedPlace(sections, row);
   }
   env->SetIntArrayRegion(items, 0, std::min(env->GetArrayLength(items), static_cast<jsize>(count)), rowItems.data());
   env->SetBooleanArrayRegion(separators, 0, std::min(env->GetArrayLength(separators), static_cast<jsize>(count)),
     rowSeparators.data());
+  env->SetIntArrayRegion(places, 0, std::min(env->GetArrayLength(places), static_cast<jsize>(count)), rowPlaces.data());
 }
 
 JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeItemForDrop)(JNIEnv*, jclass, jlong handle, jint fromRow, jint toRow) {
@@ -706,11 +721,7 @@ JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativePlaceOfRow)(JNIEnv*, jclass, jlo
   if (row < 0 || static_cast<std::size_t>(row) >= sections.getRowCount()) {
     return -1;
   }
-  sl::RowPlace place = sections.placeOfRow(static_cast<std::size_t>(row));
-  RowKindValue kind = place.kind == sl::RowKind::Header ? ROW_HEADER
-    : place.kind == sl::RowKind::Footer                 ? ROW_FOOTER
-                                                        : ROW_ITEM;
-  return (static_cast<jint>(place.section) << ROW_KIND_BITS) | kind;
+  return packedPlace(sections, static_cast<std::size_t>(row));
 }
 
 JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeStickyRows)(
@@ -747,27 +758,28 @@ JNIEXPORT jobjectArray JNICALL SHADOWLIST_KIT_JNI(nativeEdgeRowKeys)(
 }
 
 /*
- * Prefetch changes for the mounted rows, as items, packed: the prefetch count, those items, the
- * cancel count, those items.
+ * Prefetch changes for the mounted rows, as items, packed into out: the prefetch count, those
+ * items, the cancel count, those items. Returns the packed length. When out is shorter, the
+ * packed values wait for nativeCopyPrefetch.
  */
-JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeUpdatePrefetch)(JNIEnv* env, jclass, jlong handle, jint low, jint high) {
+JNIEXPORT jint JNICALL SHADOWLIST_KIT_JNI(nativeUpdatePrefetch)(
+  JNIEnv* env, jclass, jlong handle, jint low, jint high, jintArray out) {
   Peer* peer = peerOf(handle);
-  std::vector<std::size_t> prefetchRows;
-  std::vector<std::size_t> cancelRows;
-  peer->driver.updatePrefetch(indexFromJint(low), indexFromJint(high), prefetchRows, cancelRows);
-  std::vector<std::size_t> prefetch = peer->sections.itemsOfRows(prefetchRows);
-  std::vector<std::size_t> cancel = peer->sections.itemsOfRows(cancelRows);
-  std::vector<jint> packed;
-  packed.reserve(prefetch.size() + cancel.size() + 2);
-  packed.push_back(static_cast<jint>(prefetch.size()));
-  for (std::size_t row : prefetch) {
-    packed.push_back(static_cast<jint>(row));
+  peer->driver.updatePrefetch(indexFromJint(low), indexFromJint(high), peer->prefetchFound, peer->cancelFound);
+  jsize length = packPrefetch(*peer, peer->prefetchFound, peer->cancelFound);
+  if (env->GetArrayLength(out) >= length) {
+    env->SetIntArrayRegion(out, 0, length, peer->prefetchPacked.data());
   }
-  packed.push_back(static_cast<jint>(cancel.size()));
-  for (std::size_t row : cancel) {
-    packed.push_back(static_cast<jint>(row));
-  }
-  return makeIntArray(env, packed);
+  return length;
+}
+
+/*
+ * The values of the last nativeUpdatePrefetch into out, which has room for them.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeCopyPrefetch)(JNIEnv* env, jclass, jlong handle, jintArray out) {
+  const std::vector<jint>& packed = peerOf(handle)->prefetchPacked;
+  jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(packed.size()));
+  env->SetIntArrayRegion(out, 0, length, packed.data());
 }
 
 /*
@@ -786,31 +798,6 @@ JNIEXPORT jstring JNICALL SHADOWLIST_KIT_JNI(nativeAnchorState)(JNIEnv* env, jcl
 JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeRestoreAnchorState)(
   JNIEnv* env, jclass, jlong handle, jstring key, jdouble offset) {
   return peerOf(handle)->driver.restoreAnchorState({readString(env, key), offset}) ? JNI_TRUE : JNI_FALSE;
-}
-
-/*
- * The diff of two key lists, packed: the delete count and previous indices, the insert count
- * and next indices, the move count and from, to pairs.
- */
-JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_JNI(nativeDiffKeys)(JNIEnv* env, jclass, jcharArray previousPacked,
-  jintArray previousEnds, jcharArray nextPacked, jintArray nextEnds) {
-  sl::KeyDiff diff =
-    sl::diffKeys(readPackedKeys(env, previousPacked, previousEnds), readPackedKeys(env, nextPacked, nextEnds));
-  std::vector<jint> packed;
-  packed.push_back(static_cast<jint>(diff.deleted.size()));
-  for (std::size_t index : diff.deleted) {
-    packed.push_back(static_cast<jint>(index));
-  }
-  packed.push_back(static_cast<jint>(diff.inserted.size()));
-  for (std::size_t index : diff.inserted) {
-    packed.push_back(static_cast<jint>(index));
-  }
-  packed.push_back(static_cast<jint>(diff.moved.size()));
-  for (const sl::KeyMove& move : diff.moved) {
-    packed.push_back(static_cast<jint>(move.from));
-    packed.push_back(static_cast<jint>(move.to));
-  }
-  return makeIntArray(env, packed);
 }
 
 /*
@@ -849,17 +836,25 @@ JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeDeletedPosition)(
 }
 
 /*
- * The animation of the rows mounted after the layout pass, CHANGE_STEP_SLOTS values per row,
- * or null without a pending change.
+ * The animation of the first count rows, mounted after the layout pass and low to high,
+ * CHANGE_STEP_SLOTS values per row, or null without a pending change.
  */
 JNIEXPORT jdoubleArray JNICALL SHADOWLIST_KIT_JNI(nativeRunChange)(
-  JNIEnv* env, jclass, jlong handle, jcharArray keysPacked, jintArray keysEnds, jdoubleArray positions) {
-  sl::ChangeAnimation& changes = peerOf(handle)->changes;
+  JNIEnv* env, jclass, jlong handle, jintArray rows, jint count, jdoubleArray positions) {
+  Peer* peer = peerOf(handle);
+  sl::ChangeAnimation& changes = peer->changes;
   if (!changes.isPending()) {
     return nullptr;
   }
-  std::vector<sl::ChangeStep> steps =
-    changes.run(readPackedKeys(env, keysPacked, keysEnds), readPoints(env, positions));
+  std::vector<jint> given = readInts(env, rows);
+  given.resize(std::min(given.size(), static_cast<std::size_t>(std::max(count, 0))));
+  std::vector<std::string> keys;
+  keys.reserve(given.size());
+  for (jint row : given) {
+    bool valid = row >= 0 && static_cast<std::size_t>(row) < peer->driver.getKeyCount();
+    keys.push_back(valid ? peer->driver.getKeyAt(static_cast<std::size_t>(row)) : std::string());
+  }
+  std::vector<sl::ChangeStep> steps = changes.run(keys, readPoints(env, positions));
   std::vector<jdouble> values(steps.size() * CHANGE_STEP_SLOTS);
   for (std::size_t at = 0; at < steps.size(); ++at) {
     jdouble* step = values.data() + at * CHANGE_STEP_SLOTS;
@@ -932,74 +927,19 @@ JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeSwipeButtonSize)(JNIEnv*, jcl
   return sl::swipeButtonSize(fitted, scale);
 }
 
-/*
- * Where the revealed side's count buttons go, into out: the revealed span's start and size,
- * then each button's start and size.
- */
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSwipeButtonSpans)(JNIEnv* env, jclass, jdoubleArray sizes, jint count,
-  jdouble offset, jboolean full, jdouble crossSize, jdoubleArray out) {
-  jsize given = sizes == nullptr ? 0 : env->GetArrayLength(sizes);
-  std::size_t buttons = static_cast<std::size_t>(std::clamp(count, 0, given));
-  std::vector<double> values(buttons);
-  if (buttons > 0) {
-    env->GetDoubleArrayRegion(sizes, 0, static_cast<jsize>(buttons), values.data());
-  }
-  std::vector<sl::SwipeSpan> spans;
-  sl::swipeButtonSpans(values, offset, full, crossSize, spans);
-  sl::SwipeSpan revealed = sl::swipeRevealedSpan(offset, crossSize);
-  std::vector<jdouble> packed;
-  packed.reserve(2 + spans.size() * 2);
-  packed.push_back(revealed.start);
-  packed.push_back(revealed.size);
-  for (const sl::SwipeSpan& span : spans) {
-    packed.push_back(span.start);
-    packed.push_back(span.size);
-  }
-  jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(packed.size()));
-  env->SetDoubleArrayRegion(out, 0, length, packed.data());
-}
-
-/*
- * The offset of a swiped row for a finger that moved translation since it began at start.
- */
-JNIEXPORT jdouble JNICALL SHADOWLIST_KIT_JNI(nativeSwipeDrag)(
-  JNIEnv* env, jclass, jdoubleArray io, jdouble start, jdouble translation) {
-  return swipeFrom(env, io, start).drag(translation);
-}
-
-JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeSwipePastFull)(JNIEnv* env, jclass, jdoubleArray io, jdouble offset) {
-  return swipeFrom(env, io, 0.0).isPastFullSwipe(offset) ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_JNI(nativeSwipeIsOut)(JNIEnv* env, jclass, jdoubleArray io, jdouble offset) {
-  return swipeFrom(env, io, 0.0).isSwipedOut(offset) ? JNI_TRUE : JNI_FALSE;
-}
-
-/*
- * Where a swipe let go at offset rests, into the SWIPE_OUT_* slots. Side is a SWIPE_SIDE_* value.
- */
-JNIEXPORT void JNICALL SHADOWLIST_KIT_JNI(nativeSwipeSettle)(
-  JNIEnv* env, jclass, jdoubleArray io, jdouble offset, jdouble velocity, jdouble flingVelocity) {
-  sl::SwipeRest rest = swipeFrom(env, io, 0.0).settle(offset, velocity, flingVelocity);
-  SwipeSideValue side = rest.side == sl::SwipeSide::Leading ? SWIPE_SIDE_LEADING
-    : rest.side == sl::SwipeSide::Trailing                  ? SWIPE_SIDE_TRAILING
-                                                            : SWIPE_SIDE_NONE;
-  jdouble slots[SWIPE_SLOTS];
-  slots[SWIPE_OUT_SIDE] = static_cast<jdouble>(side);
-  slots[SWIPE_OUT_FULL] = rest.full ? 1.0 : 0.0;
-  slots[SWIPE_OUT_OFFSET] = rest.offset;
-  env->SetDoubleArrayRegion(io, SWIPE_OUT_SIDE, SWIPE_SLOTS - SWIPE_OUT_SIDE, slots + SWIPE_OUT_SIDE);
-}
 
 }
 
 /*
- * JNI side of com.shadowlist.kit.ShadowListKitListState: the selection, the batch being collected
- * and the content versions of one list, which outlive the core the list drops on detach.
+ * JNI side of com.shadowlist.kit.ShadowListKitListState: the row keys, the selection, the batch
+ * being collected and the content versions of one list, which outlive the core the list drops on
+ * detach. A key change reaches the state once, with the list's live core when it has one, and
+ * the state hands the core its part.
  */
 namespace {
 
 struct StatePeer {
+  sl::HeldKeys keys;
   sl::ListSelection selection;
   sl::BatchCollector batch;
   sl::CollectedBatch taken;
@@ -1028,6 +968,40 @@ enum TapOutcome {
   TAP_SELECTED,
   TAP_TOGGLED_OFF,
 };
+
+/*
+ * Bits of nativeCommitKeys' flags, ShadowListKitListState.COMMIT_* in Kotlin.
+ */
+enum CommitFlag {
+  COMMIT_DIFF = 1,
+  COMMIT_RECORD_VERSIONS = 2,
+  COMMIT_UPDATE_VERSIONS = 4,
+};
+
+/*
+ * The core of a core handle, or none for 0.
+ */
+Peer* livePeerOf(jlong handle) {
+  return handle == 0 ? nullptr : peerOf(handle);
+}
+
+/*
+ * The selected keys a key change took away drop out.
+ */
+void retainSelection(StatePeer& peer) {
+  if (!peer.selection.isEmpty()) {
+    peer.selection.retainKeys(peer.keys.rows());
+  }
+}
+
+std::vector<std::string> copyKeys(sl::KeyList keys, std::size_t start, std::size_t count) {
+  std::vector<std::string> copied;
+  copied.reserve(count);
+  for (std::size_t index = start; index < start + count; ++index) {
+    copied.push_back(keys[index]);
+  }
+  return copied;
+}
 
 }
 
@@ -1097,26 +1071,14 @@ JNIEXPORT jobjectArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeTap)(
 }
 
 /*
- * Drop the selected keys the joined keys no longer have.
+ * The positions of the selected keys among the rows held, low to high.
  */
-JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeRetainSelection)(
-  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
-  sl::ListSelection& selection = statePeerOf(handle)->selection;
-  if (!selection.isEmpty()) {
-    selection.retainKeys(readPackedKeys(env, packed, ends));
-  }
-}
-
-/*
- * The positions of the selected keys among the joined keys, low to high.
- */
-JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeSelectedRows)(
-  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends) {
-  const sl::ListSelection& selection = statePeerOf(handle)->selection;
-  if (selection.isEmpty()) {
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeSelectedRows)(JNIEnv* env, jclass, jlong handle) {
+  StatePeer* peer = statePeerOf(handle);
+  if (peer->selection.isEmpty()) {
     return env->NewIntArray(0);
   }
-  return makeIntArray(env, jintsFromIndices(selection.indicesIn(readPackedKeys(env, packed, ends))));
+  return makeIntArray(env, jintsFromIndices(peer->selection.indicesIn(peer->keys.rows())));
 }
 
 JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeBeginBatch)(JNIEnv*, jclass, jlong handle) {
@@ -1193,18 +1155,257 @@ JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativePlanTakenBatch)(
   return makeIntArray(env, sources);
 }
 
-JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeRecordContentVersions)(
-  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends, jlongArray versions) {
-  statePeerOf(handle)->versions.record(readPackedKeys(env, packed, ends), readLongs(env, versions));
+/*
+ * Take the next keys: rowEnd unchanged rows at the end, the joined rows between, and with
+ * sectioned the items the same way. The live core gets the row splice, versions are recorded or
+ * compared against the items held, and the selection drops the rows that left. Returns the
+ * COMMIT_DIFF diff of the items, packed: the delete count and previous indices, the insert count
+ * and next indices, the move count and from, to pairs. The count and items whose version changed
+ * under COMMIT_UPDATE_VERSIONS follow.
+ */
+JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeCommitKeys)(JNIEnv* env, jclass, jlong handle, jlong core,
+  jint rowStart, jint rowEnd, jcharArray rowPacked, jintArray rowEnds, jboolean sectioned, jint itemStart, jint itemEnd,
+  jcharArray itemPacked, jintArray itemEnds, jlongArray versions, jint flags) {
+  StatePeer* peer = statePeerOf(handle);
+  std::optional<sl::KeyChange> items;
+  if (sectioned) {
+    items = sl::KeyChange{indexFromJint(std::max(itemStart, 0)), indexFromJint(std::max(itemEnd, 0)),
+      readPackedKeys(env, itemPacked, itemEnds)};
+  }
+  sl::KeyChange rows{indexFromJint(std::max(rowStart, 0)), indexFromJint(std::max(rowEnd, 0)),
+    readPackedKeys(env, rowPacked, rowEnds)};
+  sl::HeldKeysCommit commit = peer->keys.commit(std::move(rows), std::move(items), (flags & COMMIT_DIFF) != 0);
+  if (Peer* live = livePeerOf(core); live && !commit.rows.isEmpty()) {
+    live->driver.replaceKeys(
+      commit.rows.start, commit.rows.deleted, copyKeys(peer->keys.rows(), commit.rows.start, commit.rows.inserted));
+  }
+  std::vector<std::size_t> reloaded;
+  if (versions != nullptr && (flags & COMMIT_RECORD_VERSIONS) != 0) {
+    peer->versions.record(peer->keys.items(), readLongs(env, versions));
+  } else if (versions != nullptr && (flags & COMMIT_UPDATE_VERSIONS) != 0) {
+    reloaded = peer->versions.update(peer->keys.items(), readLongs(env, versions));
+  }
+  retainSelection(*peer);
+  const sl::KeyDiff& diff = commit.diff;
+  std::vector<jint> packed;
+  packed.reserve(4 + diff.deleted.size() + diff.inserted.size() + diff.moved.size() * 2 + reloaded.size());
+  packed.push_back(static_cast<jint>(diff.deleted.size()));
+  for (std::size_t index : diff.deleted) {
+    packed.push_back(static_cast<jint>(index));
+  }
+  packed.push_back(static_cast<jint>(diff.inserted.size()));
+  for (std::size_t index : diff.inserted) {
+    packed.push_back(static_cast<jint>(index));
+  }
+  packed.push_back(static_cast<jint>(diff.moved.size()));
+  for (const sl::KeyMove& move : diff.moved) {
+    packed.push_back(static_cast<jint>(move.from));
+    packed.push_back(static_cast<jint>(move.to));
+  }
+  packed.push_back(static_cast<jint>(reloaded.size()));
+  for (std::size_t item : reloaded) {
+    packed.push_back(static_cast<jint>(item));
+  }
+  return makeIntArray(env, packed);
 }
 
 /*
- * The items whose content version changed, low to high. The new versions are kept.
+ * Rows inserted at sorted positions of the next keys of a list without sections, with the joined
+ * keys in the same order. A negative index drops its key with it, which keeps the two lists paired.
  */
-JNIEXPORT jintArray JNICALL SHADOWLIST_KIT_STATE_JNI(nativeUpdateContentVersions)(
-  JNIEnv* env, jclass, jlong handle, jcharArray packed, jintArray ends, jlongArray versions) {
-  return makeIntArray(env,
-    jintsFromIndices(statePeerOf(handle)->versions.update(readPackedKeys(env, packed, ends), readLongs(env, versions))));
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeInsertRows)(
+  JNIEnv* env, jclass, jlong handle, jlong core, jintArray indices, jcharArray packed, jintArray ends) {
+  std::vector<jint> raw = readInts(env, indices);
+  std::vector<std::string> strings = readPackedKeys(env, packed, ends);
+  std::vector<std::size_t> kept;
+  std::vector<std::string> keptKeys;
+  for (std::size_t position = 0; position < raw.size() && position < strings.size(); ++position) {
+    if (raw[position] >= 0) {
+      kept.push_back(static_cast<std::size_t>(raw[position]));
+      keptKeys.push_back(std::move(strings[position]));
+    }
+  }
+  if (Peer* live = livePeerOf(core)) {
+    live->driver.insertKeys(kept, keptKeys);
+  }
+  statePeerOf(handle)->keys.insertRows(kept, std::move(keptKeys));
+}
+
+/*
+ * Rows deleted at positions of the previous keys of a list without sections.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeDeleteRows)(
+  JNIEnv* env, jclass, jlong handle, jlong core, jintArray indices) {
+  std::vector<std::size_t> deleted = readIndices(env, indices);
+  if (Peer* live = livePeerOf(core)) {
+    live->driver.deleteKeys(deleted);
+  }
+  StatePeer* peer = statePeerOf(handle);
+  peer->keys.deleteRows(deleted);
+  retainSelection(*peer);
+}
+
+/*
+ * A new core takes every row held.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_STATE_JNI(nativeSeedCore)(JNIEnv*, jclass, jlong handle, jlong core) {
+  sl::KeyList rows = statePeerOf(handle)->keys.rows();
+  if (Peer* live = livePeerOf(core); live && !rows.empty()) {
+    live->driver.replaceKeys(0, live->driver.getKeyCount(), copyKeys(rows, 0, rows.size()));
+  }
+}
+
+}
+
+/*
+ * JNI side of com.shadowlist.kit.ShadowListKitSwipeReveal: the core's SwipeReveal of the row swiped
+ * open with both sides' button sizes. A touch move or an animation frame is one call.
+ */
+namespace {
+
+struct SwipePeer {
+  sl::SwipeReveal reveal;
+  std::vector<double> leadingSizes;
+  std::vector<double> trailingSizes;
+  std::vector<sl::SwipeSpan> spans;
+  std::vector<jdouble> out;
+};
+
+SwipePeer* swipePeerOf(jlong handle) {
+  return reinterpret_cast<SwipePeer*>(handle);
+}
+
+/*
+ * Slots of a swipe's out, ShadowListKitSwipeReveal.OUT_* in Kotlin. Each button's start and size
+ * follow from SWIPE_OUT_SPANS.
+ */
+enum SwipeOutSlot {
+  SWIPE_OUT_OFFSET = 0,
+  SWIPE_OUT_PAST_FULL,
+  SWIPE_OUT_REVEALED_START,
+  SWIPE_OUT_REVEALED_SIZE,
+  SWIPE_OUT_SPANS,
+};
+
+/*
+ * Slots of a released swipe's rest, ShadowListKitSwipeReveal.REST_* in Kotlin. The side is a
+ * SWIPE_SIDE_* value.
+ */
+enum SwipeRestSlot {
+  SWIPE_REST_SIDE = 0,
+  SWIPE_REST_FULL,
+  SWIPE_REST_OFFSET,
+  SWIPE_REST_SLOTS,
+};
+
+enum SwipeSideValue {
+  SWIPE_SIDE_NONE = 0,
+  SWIPE_SIDE_LEADING,
+  SWIPE_SIDE_TRAILING,
+};
+
+void readSizes(JNIEnv* env, jdoubleArray array, std::vector<double>& out) {
+  jsize length = array == nullptr ? 0 : env->GetArrayLength(array);
+  out.resize(static_cast<std::size_t>(length));
+  if (length > 0) {
+    env->GetDoubleArrayRegion(array, 0, length, out.data());
+  }
+}
+
+/*
+ * The row at offset: whether it is past the full swipe point and where the buttons of the side
+ * it reveals go across crossSize, into out.
+ */
+void writeSwipe(JNIEnv* env, SwipePeer& peer, double offset, double crossSize, jdoubleArray out) {
+  bool past = offset != 0.0 && peer.reveal.isPastFullSwipe(offset);
+  sl::swipeButtonSpans(offset > 0.0 ? peer.leadingSizes : peer.trailingSizes, offset, past, crossSize, peer.spans);
+  sl::SwipeSpan revealed = sl::swipeRevealedSpan(offset, crossSize);
+  std::vector<jdouble>& values = peer.out;
+  values.resize(SWIPE_OUT_SPANS + peer.spans.size() * 2);
+  values[SWIPE_OUT_OFFSET] = offset;
+  values[SWIPE_OUT_PAST_FULL] = past ? 1.0 : 0.0;
+  values[SWIPE_OUT_REVEALED_START] = revealed.start;
+  values[SWIPE_OUT_REVEALED_SIZE] = revealed.size;
+  for (std::size_t at = 0; at < peer.spans.size(); ++at) {
+    values[SWIPE_OUT_SPANS + at * 2] = peer.spans[at].start;
+    values[SWIPE_OUT_SPANS + at * 2 + 1] = peer.spans[at].size;
+  }
+  jsize length = std::min(env->GetArrayLength(out), static_cast<jsize>(values.size()));
+  env->SetDoubleArrayRegion(out, 0, length, values.data());
+}
+
+}
+
+#define SHADOWLIST_KIT_SWIPE_JNI(name) Java_com_shadowlist_kit_ShadowListKitSwipeReveal_##name
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL SHADOWLIST_KIT_SWIPE_JNI(nativeCreate)(JNIEnv*, jclass) {
+  return reinterpret_cast<jlong>(new SwipePeer());
+}
+
+JNIEXPORT void JNICALL SHADOWLIST_KIT_SWIPE_JNI(nativeDestroy)(JNIEnv*, jclass, jlong handle) {
+  delete swipePeerOf(handle);
+}
+
+/*
+ * A row with these buttons opens. Each side's width is the sum of its button sizes.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_SWIPE_JNI(nativeBegin)(JNIEnv* env, jclass, jlong handle, jdoubleArray leadingSizes,
+  jdoubleArray trailingSizes, jboolean leadingFull, jboolean trailingFull, jdouble rowSize) {
+  SwipePeer* peer = swipePeerOf(handle);
+  readSizes(env, leadingSizes, peer->leadingSizes);
+  readSizes(env, trailingSizes, peer->trailingSizes);
+  sl::SwipeSpec spec;
+  for (double size : peer->leadingSizes) {
+    spec.leadingWidth += size;
+  }
+  for (double size : peer->trailingSizes) {
+    spec.trailingWidth += size;
+  }
+  spec.leadingFullSwipe = leadingFull == JNI_TRUE;
+  spec.trailingFullSwipe = trailingFull == JNI_TRUE;
+  spec.rowSize = rowSize;
+  peer->reveal.begin(spec, 0.0);
+}
+
+/*
+ * A finger that moved translation since the swipe began at start. Writes the row it moves to
+ * into out.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_SWIPE_JNI(nativeMove)(
+  JNIEnv* env, jclass, jlong handle, jdouble start, jdouble translation, jdouble crossSize, jdoubleArray out) {
+  SwipePeer* peer = swipePeerOf(handle);
+  peer->reveal.begin(peer->reveal.getSpec(), start);
+  writeSwipe(env, *peer, peer->reveal.drag(translation), crossSize, out);
+}
+
+/*
+ * The row at offset, like an animation frame, into out.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_SWIPE_JNI(nativeShow)(
+  JNIEnv* env, jclass, jlong handle, jdouble offset, jdouble crossSize, jdoubleArray out) {
+  writeSwipe(env, *swipePeerOf(handle), offset, crossSize, out);
+}
+
+JNIEXPORT jboolean JNICALL SHADOWLIST_KIT_SWIPE_JNI(nativeIsSwipedOut)(JNIEnv*, jclass, jlong handle, jdouble offset) {
+  return swipePeerOf(handle)->reveal.isSwipedOut(offset) ? JNI_TRUE : JNI_FALSE;
+}
+
+/*
+ * Where a swipe let go at offset rests, into the SWIPE_REST_* slots of out.
+ */
+JNIEXPORT void JNICALL SHADOWLIST_KIT_SWIPE_JNI(nativeSettle)(
+  JNIEnv* env, jclass, jlong handle, jdouble offset, jdouble velocity, jdouble flingVelocity, jdoubleArray out) {
+  sl::SwipeRest rest = swipePeerOf(handle)->reveal.settle(offset, velocity, flingVelocity);
+  SwipeSideValue side = rest.side == sl::SwipeSide::Leading ? SWIPE_SIDE_LEADING
+    : rest.side == sl::SwipeSide::Trailing                  ? SWIPE_SIDE_TRAILING
+                                                            : SWIPE_SIDE_NONE;
+  jdouble values[SWIPE_REST_SLOTS];
+  values[SWIPE_REST_SIDE] = static_cast<jdouble>(side);
+  values[SWIPE_REST_FULL] = rest.full ? 1.0 : 0.0;
+  values[SWIPE_REST_OFFSET] = rest.offset;
+  env->SetDoubleArrayRegion(out, 0, SWIPE_REST_SLOTS, values);
 }
 
 }

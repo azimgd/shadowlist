@@ -23,10 +23,7 @@ void reflowSingleTrack(
   bool& anyOffsetChanged) {
   for (std::size_t nextRowIndex = fromIndex; nextRowIndex < rowCount; ++nextRowIndex) {
     Row& nextRow = rows[nextRowIndex];
-    if (nextRow.index != nextRowIndex) {
-      nextRow.index = nextRowIndex;
-    } else if (canStopEarly && nextRowIndex > changedThroughIndex &&
-               nextRow.*offset == nextOffset) {
+    if (canStopEarly && nextRowIndex > changedThroughIndex && nextRow.*offset == nextOffset) {
       break;
     }
 
@@ -68,8 +65,6 @@ void reflowTracks(
 
   for (std::size_t nextRowIndex = fromIndex; nextRowIndex < rows.size(); ++nextRowIndex) {
     Row& nextRow = rows[nextRowIndex];
-    nextRow.index = nextRowIndex;
-
     std::size_t trackIndex = nextRowIndex % columns;
 
     // Set the width too. A reflow after the window size is known fixes it.
@@ -174,7 +169,7 @@ void Virtualizer::layoutRows(Container& container) {
     /*
      * Reflow from the first row that moved. Setting or fallback changes can move anything.
      * They start at 0. A structure or size change only moves the rows after it. After a
-     * structure change every later row may have a new index. Walk them all.
+     * structure change every later row may be another row. Walk them all.
      */
     std::size_t reflowFrom = std::min(structureFrom, container.rowSizeDirtyFromIndex);
     if (anyNewlyEstimated) {
@@ -243,19 +238,17 @@ void Virtualizer::recomputeRowOffsets(
         : previousRow.offsetY + previousRow.height;
     }
 
-    /*
-     * This is the hottest loop in the core. The orientation check is kept out of it, and
-     * a row's index is only written when it is stale, to avoid needless memory writes.
-     */
+    // This is the hottest loop in the core. The orientation check is kept out of it.
     Row* rows = container.revision.rows.data();
 
     /*
      * Past the last changed row, stop at the first row already at the right offset.
      * Every row after it is correct too. A reflow that moves nothing costs almost nothing.
-     * Two guards: don't stop between two changed rows, and a full pass from 0 must visit
-     * every row to rebuild the widest extent.
+     * Three guards: don't stop between two changed rows, a full pass from 0 must visit
+     * every row to rebuild the widest extent, and rows an insert, remove or reorder moved
+     * may match their old offsets by chance.
      */
-    bool canStopEarly = fromIndex > 0 && changedThroughIndex != UNDEFINED_INDEX;
+    bool canStopEarly = fromIndex > 0 && changedThroughIndex != UNDEFINED_INDEX && !container.rowStructureDirty;
 
     if (container.horizontal) {
       reflowSingleTrack<&Row::offsetX, &Row::width, &Row::offsetY, &Row::height>(

@@ -4,7 +4,8 @@ Virtualized lists for React Native, UIKit, Android views and the web, on a share
 
 An **item** is your data, a **row** is a layout entry (including section headers/footers), a **cell** is its mounted
 view, and a **key** is its stable identity across updates. Sizes, cells, selection and the scroll position follow
-keys, and inserts, deletes and size changes keep the visible content still.
+keys, and inserts, deletes and size changes keep the visible content still. In a grid only the anchor row's
+column is held still. Right-to-left layout is not supported: leading is always the left and trailing the right.
 
 ## React Native
 
@@ -168,7 +169,9 @@ On Android read it with `adb logcat -s SL`.
 
 `packages/shadowlist-core-bench` holds the core microbenchmarks. The UIKit and Android packages ship a scroll
 benchmark in `Bench/`: `Bench/bench.sh` drives the example at a constant speed, and `Bench/summarize.py` reads the
-results.
+results. The React Native example turns on React Native feature flags that are off in a stock app, and every run
+records their state. On iOS `ENGINE_FLAGS=0` turns them off. On Android the build takes
+`-PshadowlistEngineFlags=false`.
 
 The web example documents its flags in [its package README](packages/shadowlist-wasm/README.md#example-app).
 

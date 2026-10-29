@@ -70,6 +70,33 @@ carries the hashes of the page after it so scrolling past the end shows rows of 
 
 ## Benchmarks
 
-`bench/run.sh` measures hash sizes and throughput over a 500-post corpus, and on macOS lays the placeholders out
-with CoreText against the real posts. At the feed's 15pt style a placeholder hits the real line count on 86% of
-posts and lands within one line on 99%, against 19% and 48% for a fixed three-line skeleton.
+`bench/run.sh` measures hash sizes and throughput over a 500-post corpus, and on macOS lays each post and its
+placeholder out with CoreText and counts the lines.
+
+The stand-in letters were tuned on that 500-post corpus: the example app's 21 sample posts and 479 posts recombined
+from their sentences. Fidelity is scored on a separate held-out corpus (`bench/heldout.cjs`) of 233 posts written
+apart from it and never used for tuning: plain English, long multi-paragraph posts, links, emoji, numbers and
+punctuation, French, Spanish, German, Polish, Vietnamese, Japanese, Chinese and Korean.
+
+Held-out, at the feed's 15pt style and a 291pt column (iPhone SE):
+
+| Placeholder | Real line count | Within one line |
+| --- | --- | --- |
+| shadowhash | 83.7% | 97.0% |
+| Character count only, as five-letter words | 70.8% | 88.4% |
+| Fixed three-line skeleton | 27.9% | 77.3% |
+
+Across the 309, 346, 600 and 700pt columns shadowhash hits the real line count on 86–93% of posts and lands within
+one line on 97–98%. The 24 posts past 64 word nibbles, where the hash keeps only counts and a mean word length for
+the rest, hit 54–71% and land within one line on 92–100%. Links and long posts score lowest: links hit 68% at
+291pt, and long posts 50%, with 80% within one line. Chinese, Japanese and Korean, kept as a character count, land
+within one line on 88–90%.
+
+The calibration corpus scores higher: 86.0% and 98.8% at 291pt, against 65.8% and 79.2% for the character count and
+19.6% and 48.0% for the skeleton. It carries more long posts (93 of 500 past 64 nibbles), which is why the skeleton
+does worse there. Laid out unwrapped, the stand-in letters are 0.9969 of the real text's width on the calibration
+corpus and 0.9855 on the held-out one. Emoji posts (0.928) and Vietnamese (0.921) are the furthest off. After
+`bench/run.sh`, `node bench/fidelity.cjs --calibration` scores the calibration corpus.
+
+Scope: every number comes from CoreText's CTFramesetter with the macOS system font. React Native's `Text` on iOS
+and Android with Roboto are not measured.

@@ -23,15 +23,27 @@ CONTENT_METRICS = [
     ("contentBlankAvg", "content blank %", "%.2f"),
     ("contentBlankFrames", "content blank frames", "%.0f"),
 ]
-ENGINE_ORDER = ["sl", "sl-auto", "table", "table-auto", "rn"]
+ASYNC_METRICS = [
+    ("asyncRendered", "async rendered", "%.0f"),
+    ("asyncSuperseded", "async superseded", "%.0f"),
+    ("asyncLate", "async late", "%.0f"),
+    ("asyncLateWaitAvgMs", "late wait ms", "%.1f"),
+]
+ENGINE_ORDER = ["sl", "sl-auto", "table", "table-auto", "collection", "collection-auto", "rn"]
 
 
 def main():
     path = sys.argv[1]
     rows = [json.loads(line) for line in open(path) if line.strip()]
     rows = [row for row in rows if "skipped" not in row]
+    for row in rows:
+        for key, value in row.get("asyncText", {}).items():
+            row["async" + key[0].upper() + key[1:]] = value
+        # The table engines show a grid with a UICollectionView and a custom layout.
+        if row["engine"].startswith("table") and row.get("scrollView") == "UICollectionView":
+            row["engine"] = row["engine"].replace("table", "collection", 1)
     show_axis = any(row.get("axis", "y") != "y" for row in rows)
-    metrics = METRICS + ([m for m in CONTENT_METRICS if any(m[0] in row for row in rows)])
+    metrics = METRICS + [m for m in CONTENT_METRICS + ASYNC_METRICS if any(m[0] in row for row in rows)]
     groups = defaultdict(list)
     for row in rows:
         groups[(row["screen"], row["count"], row["engine"], row.get("axis", "y"))].append(row)
@@ -58,6 +70,16 @@ def main():
         summary[name] = medians
         axis_cell = "%s | " % axis if show_axis else ""
         print("| %s | %s | %s | %s%d | %s |" % (screen, count, engine, axis_cell, len(runs), " | ".join(cells)))
+    flags = sorted({row.get("rnEngineFlags", "not recorded") for row in rows if row["engine"].split("+")[0] == "rn"})
+    if flags:
+        print("\nReact Native engine flags: %s" % ", ".join(flags))
+    tests = defaultdict(list)
+    for row in rows:
+        if "selfTest" in row:
+            tests[row["engine"]].append(row["selfTest"])
+    for engine, results in sorted(tests.items()):
+        print("Self-test %s: %d of %d runs pass%s" % (
+            engine, results.count("pass"), len(results), "" if all(r == "pass" for r in results) else " (FAIL)"))
     if "--json" in sys.argv:
         print(json.dumps(summary, indent=2))
 

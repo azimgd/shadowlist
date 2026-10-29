@@ -3,6 +3,7 @@
 #include <shadowlist-core/host/StickyLayout.hpp>
 
 #include <algorithm>
+#include <string_view>
 #include <unordered_set>
 
 namespace azimgd::shadowlist {
@@ -94,8 +95,8 @@ std::size_t activeStickyIndexFor(const std::vector<std::size_t>& stickyIndices, 
 
 ViewableChanges viewableChanges(const std::vector<std::string>& previous, const std::vector<std::string>& current) {
   ViewableChanges changes;
-  std::unordered_set<std::string> previousKeys(previous.begin(), previous.end());
-  std::unordered_set<std::string> currentKeys(current.begin(), current.end());
+  std::unordered_set<std::string_view> previousKeys(previous.begin(), previous.end());
+  std::unordered_set<std::string_view> currentKeys(current.begin(), current.end());
   for (const std::string& key : current) {
     if (previousKeys.count(key) == 0) {
       changes.added.push_back(key);

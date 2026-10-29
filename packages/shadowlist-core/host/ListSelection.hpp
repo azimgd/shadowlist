@@ -1,5 +1,7 @@
 #pragma once
 
+#include <shadowlist-core/KeyList.hpp>
+
 #include <algorithm>
 #include <cstddef>
 #include <string>
@@ -94,6 +96,7 @@ public:
    * Positions of the selected keys in keys, low to high.
    */
   std::vector<std::size_t> indicesIn(const std::vector<std::string>& keys) const;
+  std::vector<std::size_t> indicesIn(KeyList keys) const;
 
   /*
    * Positions of the selected keys that indexOf finds, low to high. indexOf returns a key's row,
@@ -117,6 +120,7 @@ public:
    * Drop the selected keys that keys no longer has. Returns whether any was dropped.
    */
   bool retainKeys(const std::vector<std::string>& keys);
+  bool retainKeys(KeyList keys);
 
   /*
    * Drop the selected keys keep turns down. Only the selected keys are asked. A lookup that

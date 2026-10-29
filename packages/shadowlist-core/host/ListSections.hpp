@@ -197,6 +197,14 @@ public:
    */
   std::vector<std::string> itemKeys(const std::vector<std::string>& rowKeys) const;
 
+  /*
+   * itemKeys without a copy: rowKeys itself without sections, otherwise the items' keys
+   * written into scratch.
+   */
+  const std::vector<std::string>& itemKeys(
+    const std::vector<std::string>& rowKeys,
+    std::vector<std::string>& scratch) const;
+
 private:
   /*
    * The last section starting at or before value in starts. Sections without rows or items

@@ -243,6 +243,9 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
         ShadowListRefreshEvent.SETTLE_EVENT_NAME,
         MapBuilder.of("registrationName", "onRefreshSettle"))
       .put(
+        ShadowListScrollEvent.SCROLL,
+        MapBuilder.of("registrationName", "onScroll"))
+      .put(
         ShadowListScrollEvent.BEGIN_DRAG,
         MapBuilder.of("registrationName", "onScrollBeginDrag"))
       .put(
@@ -278,7 +281,7 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "scrollEventThrottle")
   public void setScrollEventThrottle(ShadowListView view, double scrollEventThrottle) {
-    // Only the component descriptor reads this prop.
+    view.setScrollEventThrottle(scrollEventThrottle);
   }
 
   @Override
@@ -350,13 +353,13 @@ public class ShadowListViewManager extends ViewGroupManager<ShadowListView>
   @Override
   @ReactProp(name = "scrollEventEnabled")
   public void setScrollEventEnabled(ShadowListView view, boolean scrollEventEnabled) {
-    // The component descriptor reads this to decide whether to watch scrolls at all.
+    view.setScrollEventEnabled(scrollEventEnabled);
   }
 
   @Override
   @ReactProp(name = "viewableEventEnabled")
   public void setViewableEventEnabled(ShadowListView view, boolean viewableEventEnabled) {
-    // Same, for watching which rows are visible.
+    // The component descriptor reads this to decide whether to watch which rows are viewable.
   }
 
   @Override

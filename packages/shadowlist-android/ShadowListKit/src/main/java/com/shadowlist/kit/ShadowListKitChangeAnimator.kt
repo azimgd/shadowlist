@@ -16,6 +16,8 @@ internal class ShadowListKitChangeAnimator(private val list: ShadowListKitListVi
    */
   private var pending = false
   private val deletedOut = DoubleArray(2)
+  private var rows = IntArray(32)
+  private val byRow = Comparator<ShadowListKitListCell> { a, b -> Integer.compare(a.row, b.row) }
 
   /*
    * A change is about to reach the core. Several changes before one layout add up, and the
@@ -65,18 +67,18 @@ internal class ShadowListKitChangeAnimator(private val list: ShadowListKitListVi
     pending = false
     val core = list.liveCore ?: return
     val cells = ArrayList<ShadowListKitListCell>(list.mounted.size)
-    val keys = ArrayList<String>(list.mounted.size)
-    for (cell in list.mounted.values.sortedBy { it.row }) {
-      if (cell.visibility != View.VISIBLE || cell.row < 0) continue
-      keys.add(list.keyAt(cell.row) ?: continue)
-      cells.add(cell)
+    for (cell in list.mounted.values) {
+      if (cell.visibility == View.VISIBLE && cell.row >= 0 && cell.row < list.keys.size) cells.add(cell)
     }
+    cells.sortWith(byRow)
+    if (rows.size < cells.size) rows = IntArray(cells.size * 2)
     val positions = DoubleArray(cells.size * 2)
     for ((at, cell) in cells.withIndex()) {
+      rows[at] = cell.row
       positions[at * 2] = (cell.left - list.scrollX).toDouble()
       positions[at * 2 + 1] = (cell.top - list.scrollY).toDouble()
     }
-    val steps = core.runChange(keys, positions) ?: return
+    val steps = core.runChange(rows, cells.size, positions) ?: return
     for ((at, cell) in cells.withIndex()) {
       val step = at * ShadowListKitCore.CHANGE_STEP_SLOTS
       if (step + ShadowListKitCore.CHANGE_STEP_SLOTS > steps.size) break

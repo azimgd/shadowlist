@@ -104,8 +104,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
-   * items are the ones in the core's measured range, an overscan past the viewport, that have
-   * no cell yet. A prefetched item that leaves the measured range before it shows is cancelled.
+   * items are the ones in the core's measured range, an overscan past the viewport, outside the
+   * mounted ones. The layout pass that brings an item into the range measures the items it will
+   * show first, then prefetches the rest before it measures them. Without Sizing that is before
+   * cellForItem makes their cells. A prefetched item that leaves the measured range before it
+   * shows is cancelled.
    */
   interface PrefetchDataSource {
     fun prefetchItems(listView: ShadowListKitListView, indices: IntArray)
@@ -190,9 +193,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
     set(value) { field = value; sendSettings() }
 
   /*
-   * Columns of a grid. Item i goes into column i % numberOfColumns and each column stacks its
-   * own items. Section header rows take a column slot like any item. Full width rows are not
-   * supported.
+   * Columns of a grid. Row r, counting section header and footer rows, goes into column
+   * r % numberOfColumns and each column stacks its own rows. Full width rows are not supported.
    */
   var numberOfColumns = 1
     set(value) { field = max(1, value); sendSettings() }
@@ -434,6 +436,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
     private set
 
   /*
+   * Where the footer starts along the axis, from the core's last pass.
+   */
+  private var footerStart = 0.0
+
+  /*
    * The last offset seen, to tell the user's scrolling from our own writes.
    */
   private var previousOffset = 0
@@ -551,12 +558,12 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * output here is dropped and the next layout pass runs it.
    */
   private fun createCore(): ShadowListKitCore {
-    val created = ShadowListKitCore(::measureRow)
+    val created = ShadowListKitCore(::measureRow, ::dispatchPrefetch)
     coreOrNull = created
     applySettings(created)
     if (stickyPinning.stickyRows.isNotEmpty()) created.setStickyIndices(stickyPinning.stickyRows)
     created.setSections(data.itemCount, data.sectionCounts, data.sectionFlags)
-    if (keys.isNotEmpty()) created.replaceKeys(0, 0, keys, 0, keys.size)
+    if (keys.isNotEmpty()) state.seedCore(created)
     measuredLow = -1
     measuredHigh = -1
     measuredGeometry = -1.0
@@ -666,7 +673,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
   }
 
   private fun sectionCell(row: Int): ShadowListKitListCell {
-    val place = core.placeOfRow(row)
+    val place = placeOfRow(row)
     val section = place shr ShadowListKitCore.ROW_KIND_BITS
     val footer = (place and ShadowListKitCore.ROW_KIND_MASK) == ShadowListKitCore.ROW_FOOTER
     val sections = dataSource as Sections
@@ -729,7 +736,8 @@ open class ShadowListKitListView @JvmOverloads constructor(
    * Inserts, deletes, moves and reloads made in updates land together in one layout and one
    * animation. Deletes, reloads and move sources are indices in the data before, inserts and
    * move destinations in the data after. A batch that does not add up reloads everything.
-   * completion gets finished once the change animation ended.
+   * completion gets finished once the change is laid out and, with the default item animator,
+   * its animation ended. A custom item animator's animations are not waited for.
    */
   @JvmOverloads
   fun performBatchUpdates(updates: () -> Unit, completion: ((finished: Boolean) -> Unit)? = null) =
@@ -737,21 +745,21 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   /*
    * The data source already shows the new data. Read every key, work out the inserts, deletes
-   * and moves against the keys held with the core's diffKeys, reload the items whose content
-   * version changed, and return what changed. Animates like any change with animatesChanges.
+   * and moves against the keys the state holds with the core's diffKeys, reload the items whose
+   * content version changed, and return what changed. Animates like any change with
+   * animatesChanges.
    */
   fun applyChanges(): ShadowListKitListChanges = data.applyChanges()
 
   /*
-   * The data changed. Sticky rows follow the sections, the selection drops deleted rows and a
-   * waiting saved position lands once its row is there.
+   * The data changed. Sticky rows follow the sections and a waiting saved position lands once
+   * its row is there. The state already dropped deleted rows from the selection.
    */
   internal fun structureChanged() {
     ++structureVersion
     // An open row closes. One swiped all the way stays out while its delete runs.
     swipe.cell?.let { if (!swipe.isSwipedOut(it)) swipe.close(false) }
     if (stickyIndices.isNotEmpty() || stickySectionHeaders) updateStickyRows()
-    selection.dropDeletedKeys(keys)
     restorePendingAnchor()
     invalidateFrame()
   }
@@ -763,6 +771,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
   internal fun itemForRow(row: Int): Int {
     val items = data.rowItems ?: return if (row in keys.indices) row else -1
     return if (row in items.indices) items[row] else -1
+  }
+
+  /*
+   * Section shl ShadowListKitCore.ROW_KIND_BITS or a ROW_* kind, or -1, from the places copied
+   * with the sections.
+   */
+  private fun placeOfRow(row: Int): Int {
+    val places = data.rowPlaces ?: return if (row in keys.indices) ShadowListKitCore.ROW_ITEM else -1
+    return if (row in places.indices) places[row] else -1
   }
 
   internal fun rowForItem(item: Int): Int {
@@ -865,7 +882,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       layoutTemplates()
       mountCells()
       stickyPinning.layoutSticky()
-      if (hasHeldRow) drag.applyShifts(false)
+      if (hasHeldRow) drag.update()
       changes.run()
       swipe.layout()
     }
@@ -912,7 +929,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
 
   private fun layoutTemplates() {
     headerView?.let { placeTemplate(it, 0, headerSize) }
-    footerView?.let { placeTemplate(it, core.footerStart(footerSize.toDouble()).roundToInt(), footerSize) }
+    footerView?.let { placeTemplate(it, footerStart.roundToInt(), footerSize) }
   }
 
   private fun placeTemplate(view: View, start: Int, size: Int) {
@@ -942,6 +959,11 @@ open class ShadowListKitListView @JvmOverloads constructor(
     pass[ShadowListKitCore.PASS_PHASE] = scrollPhase().toDouble()
     pass[ShadowListKitCore.PASS_USER_SCROLLED] = if (userScrolled) 1.0 else 0.0
     pass[ShadowListKitCore.PASS_TRACKING] = if (gesture.isTracking) 1.0 else 0.0
+    // The mount pass's padding, which the core prefetches around before it measures.
+    pass[ShadowListKitCore.PASS_PREFETCH] = if (prefetchDataSource != null) 1.0 else 0.0
+    pass[ShadowListKitCore.PASS_MOUNT_PAD] = windowAlong * mountOverscan
+    pass[ShadowListKitCore.PASS_LEADING_INSET] = leadingPadding.toDouble()
+    pass[ShadowListKitCore.PASS_TRAILING_INSET] = trailingPadding.toDouble()
     core.runPasses()
     userScrolled = false
     needsFrame = false
@@ -971,6 +993,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
     reachedStart = reachedStart || pass[ShadowListKitCore.PASS_OUT_REACHED_START] != 0.0
     reachedEnd = reachedEnd || pass[ShadowListKitCore.PASS_OUT_REACHED_END] != 0.0
     frameGeometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]
+    footerStart = pass[ShadowListKitCore.PASS_OUT_FOOTER_START]
     copyMeasured(pass)
     if (pass[ShadowListKitCore.PASS_OUT_SETTLING] != 0.0) scheduleSettleFrame()
   }
@@ -1042,9 +1065,9 @@ open class ShadowListKitListView @JvmOverloads constructor(
   /*
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
    * which keeps the content of a cell that only moved. The range follows the core's
-   * ListDriver::planMount with the padding as insets, run here over the copied frames. A
-   * scroll frame makes no JNI call. The core test list_driver_mount_plan_reaches_into_the_insets
-   * holds the rule this matches.
+   * ListDriver::planMount with the padding as insets, run here over the copied frames. On a
+   * scroll frame that mounts the same rows this makes no JNI call. The core test
+   * list_driver_mount_plan_reaches_into_the_insets holds the rule this matches.
    */
   private fun mountCells() {
     if (measuredLow < 0 || keys.isEmpty()) {
@@ -1206,18 +1229,29 @@ open class ShadowListKitListView @JvmOverloads constructor(
   // region Prefetching
 
   /*
-   * Tell the prefetch data source about items the measured range brought in that have no cell
-   * yet, and the ones that left it unseen. One JNI call per mount pass, none on band frames.
+   * Tell the prefetch data source about items the measured range brought in that are not
+   * mounted, and the ones that left it unseen. runPasses already told it about the rows it
+   * brought in before it measured them, which is before their cells exist. This finds what the
+   * mount changed, one JNI call per mount pass and none on band frames.
    */
   private fun prefetchAround(low: Int, high: Int) {
+    if (prefetchDataSource == null) return
+    core.updatePrefetch(low, high)
+    dispatchPrefetch()
+  }
+
+  /*
+   * Hand the prefetch changes in the core's prefetchOut to the prefetch data source.
+   */
+  private fun dispatchPrefetch() {
     val prefetch = prefetchDataSource ?: return
-    val packed = core.updatePrefetch(low, high)
+    val packed = core.prefetchOut
     val prefetchCount = packed[0]
-    val items = packed.copyOfRange(1, 1 + prefetchCount)
     val cancelCount = packed[1 + prefetchCount]
-    val cancelled = packed.copyOfRange(2 + prefetchCount, 2 + prefetchCount + cancelCount)
-    if (items.isNotEmpty()) prefetch.prefetchItems(this, items)
-    if (cancelled.isNotEmpty()) prefetch.cancelPrefetchingForItems(this, cancelled)
+    if (prefetchCount > 0) prefetch.prefetchItems(this, packed.copyOfRange(1, 1 + prefetchCount))
+    if (cancelCount > 0) {
+      prefetch.cancelPrefetchingForItems(this, packed.copyOfRange(2 + prefetchCount, 2 + prefetchCount + cancelCount))
+    }
   }
 
   // endregion
@@ -1235,7 +1269,7 @@ open class ShadowListKitListView @JvmOverloads constructor(
       if (sizing != null) return sizing.sizeForItem(this, item, cross).toDouble()
     } else {
       val sections = dataSource as? Sections
-      val place = core.placeOfRow(row)
+      val place = placeOfRow(row)
       if (sections != null && place >= 0) {
         val section = place shr ShadowListKitCore.ROW_KIND_BITS
         val size = if ((place and ShadowListKitCore.ROW_KIND_MASK) == ShadowListKitCore.ROW_FOOTER) sections.sizeForFooterInSection(this, section, cross)
@@ -1569,7 +1603,15 @@ open class ShadowListKitListView @JvmOverloads constructor(
       // A list without a core has not laid out. Asking would create a peer only to answer null.
       val packed = liveCore?.visibleRange() ?: return null
       if (packed < 0) return null
-      return (packed shr 32).toInt()..(packed and 0xffffffffL).toInt()
+      var low = -1
+      var high = -1
+      for (row in (packed shr 32).toInt()..(packed and 0xffffffffL).toInt()) {
+        val item = itemForRow(row)
+        if (item < 0) continue
+        if (low < 0) low = item
+        high = item
+      }
+      return if (low < 0) null else low..high
     }
 
   /*
@@ -1747,15 +1789,6 @@ open class ShadowListKitListView @JvmOverloads constructor(
     reorderEnabled && !editingState && drag.begin(x, y)
 
   internal val hasHeldRow: Boolean get() = drag.hasHeldRow
-
-  internal fun mountedIndices(): IntArray {
-    val indices = IntArray(mounted.size)
-    var count = 0
-    for (cell in mounted.values) {
-      if (cell.visibility == VISIBLE && cell.row >= 0) indices[count++] = cell.row
-    }
-    return indices.copyOf(count)
-  }
 
   /*
    * The held row was dropped. Move it in the data and keep it where it was let go. Returns

@@ -21,10 +21,20 @@
 #include <shadowlist-core/host/ScrollTarget.hpp>
 
 /*
- * Measures a row through the TypeScript core that owns the handle. Only runPasses calls it.
+ * Measures count rows through the TypeScript core that owns the handle, all in one call, and
+ * writes their sizes. Only runPasses calls it.
  */
-EM_JS(double, shadowListKitMeasureRow, (std::uintptr_t handle, int row, double crossSize), {
-  return Module.shadowListKitMeasureRow(handle, row, crossSize);
+EM_JS(void, shadowListKitMeasureRows,
+  (std::uintptr_t handle, const std::int32_t* rows, const double* crossSizes, int count, double* sizes), {
+  Module.shadowListKitMeasureRows(handle, rows, crossSizes, count, sizes);
+});
+
+/*
+ * Hands the prefetch changes runPasses found before it measures to the TypeScript core that owns
+ * the handle, packed at packed the way nativeUpdatePrefetch returns them.
+ */
+EM_JS(void, shadowListKitPrefetchRows, (std::uintptr_t handle, const std::int32_t* packed), {
+  Module.shadowListKitPrefetchRows(handle, packed);
 });
 
 namespace {
@@ -43,6 +53,10 @@ enum PassSlot {
   PASS_PHASE,
   PASS_USER_SCROLLED,
   PASS_TRACKING,
+  PASS_PREFETCH,
+  PASS_MOUNT_PAD,
+  PASS_LEADING_INSET,
+  PASS_TRAILING_INSET,
   PASS_OUT_OFFSET,
   PASS_OUT_CONTENT,
   PASS_OUT_BAND_LOW,
@@ -53,6 +67,7 @@ enum PassSlot {
   PASS_OUT_GEOMETRY,
   PASS_OUT_MEASURED_LOW,
   PASS_OUT_MEASURED_HIGH,
+  PASS_OUT_FOOTER_START,
   PASS_SLOTS,
 };
 
@@ -66,12 +81,25 @@ enum AnchorSlot {
 };
 
 /*
- * The driver behind one list and its pass slots. A measure that calls into the core during
- * runPasses never touches them.
+ * Slots of a mount plan, ShadowListKitCore.PLAN_* in TypeScript.
+ */
+enum PlanSlot {
+  PLAN_LOW = 0,
+  PLAN_HIGH,
+  PLAN_STICKY,
+  PLAN_VIEW_LOW,
+  PLAN_VIEW_HIGH,
+  PLAN_SLOTS,
+};
+
+/*
+ * The driver behind one list, its pass slots and the rows a measure call reads. A measure that
+ * calls into the core during runPasses never touches them.
  */
 struct Peer {
   sl::ListDriver driver;
   double pass[PASS_SLOTS] = {};
+  std::vector<std::int32_t> measureRows;
 };
 
 Peer* peerOf(std::uintptr_t handle) {
@@ -147,6 +175,10 @@ sl::PassInput readPassInput(const double* slots) {
   input.phase = static_cast<sl::ScrollPhase>(static_cast<int>(slots[PASS_PHASE]));
   input.userScrolled = slots[PASS_USER_SCROLLED] != 0.0;
   input.tracking = slots[PASS_TRACKING] != 0.0;
+  input.prefetch = slots[PASS_PREFETCH] != 0.0;
+  input.mountPad = slots[PASS_MOUNT_PAD];
+  input.leadingInset = slots[PASS_LEADING_INSET];
+  input.trailingInset = slots[PASS_TRAILING_INSET];
   return input;
 }
 
@@ -162,6 +194,7 @@ void writePassResult(const sl::ListDriver& driver, const sl::PassResult& result,
   std::optional<sl::MountedRange> measured = driver.getMeasuredRange();
   slots[PASS_OUT_MEASURED_LOW] = measured ? static_cast<double>(measured->low) : -1.0;
   slots[PASS_OUT_MEASURED_HIGH] = measured ? static_cast<double>(measured->high) : -1.0;
+  slots[PASS_OUT_FOOTER_START] = result.footerStart;
 }
 
 void writeRect(const sl::RowRect& rect, double* out) {
@@ -195,6 +228,24 @@ std::vector<std::int32_t> intsFromIndices(const std::vector<std::size_t>& indice
   return values;
 }
 
+/*
+ * Prefetch changes packed into the int result: the prefetch count, those rows, the cancel count,
+ * those rows.
+ */
+const std::int32_t* writePrefetch(const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
+  std::vector<std::int32_t> packed;
+  packed.reserve(prefetch.size() + cancel.size() + 2);
+  packed.push_back(static_cast<std::int32_t>(prefetch.size()));
+  for (std::size_t row : prefetch) {
+    packed.push_back(static_cast<std::int32_t>(row));
+  }
+  packed.push_back(static_cast<std::int32_t>(cancel.size()));
+  for (std::size_t row : cancel) {
+    packed.push_back(static_cast<std::int32_t>(row));
+  }
+  return writeInts(packed);
+}
+
 }
 
 #define SHADOWLIST_KIT_WASM(name) EMSCRIPTEN_KEEPALIVE ShadowListKitCore_##name
@@ -204,9 +255,16 @@ extern "C" {
 std::uintptr_t SHADOWLIST_KIT_WASM(nativeCreate)() {
   auto* peer = new Peer();
   auto handle = reinterpret_cast<std::uintptr_t>(peer);
-  peer->driver.setMeasureRow([handle](std::size_t row, const std::string&, double cross) {
-    return shadowListKitMeasureRow(handle, static_cast<int>(row), cross);
+  peer->driver.setMeasureRows([peer, handle](const std::vector<std::size_t>& indices,
+                                const std::vector<double>& crossSizes, std::vector<double>& sizes) {
+    peer->measureRows.assign(indices.begin(), indices.end());
+    shadowListKitMeasureRows(handle, peer->measureRows.data(), crossSizes.data(), static_cast<int>(indices.size()),
+      sizes.data());
   });
+  peer->driver.setPrefetchRows(
+    [handle](const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
+      shadowListKitPrefetchRows(handle, writePrefetch(prefetch, cancel));
+    });
   return handle;
 }
 
@@ -233,34 +291,6 @@ void SHADOWLIST_KIT_WASM(nativeSetSettings)(std::uintptr_t handle, double estima
 
 void SHADOWLIST_KIT_WASM(nativeSetStickyIndices)(std::uintptr_t handle, const std::int32_t* indices, std::int32_t count) {
   peerOf(handle)->driver.setStickyIndices(readIndices(indices, count));
-}
-
-void SHADOWLIST_KIT_WASM(nativeReplaceKeys)(std::uintptr_t handle, std::int32_t start, std::int32_t count,
-  const char* packed, const std::int32_t* ends, std::int32_t keyCount) {
-  peerOf(handle)->driver.replaceKeys(static_cast<std::size_t>(std::max(start, 0)),
-    static_cast<std::size_t>(std::max(count, 0)), readPackedKeys(packed, ends, keyCount));
-}
-
-/*
- * A negative index drops its key with it, which keeps the two lists paired.
- */
-void SHADOWLIST_KIT_WASM(nativeInsertKeys)(std::uintptr_t handle, const std::int32_t* indices, const char* packed,
-  const std::int32_t* ends, std::int32_t keyCount) {
-  std::vector<std::int32_t> raw = readInts(indices, keyCount);
-  std::vector<std::string> strings = readPackedKeys(packed, ends, keyCount);
-  std::vector<std::size_t> kept;
-  std::vector<std::string> keptKeys;
-  for (std::size_t position = 0; position < raw.size() && position < strings.size(); ++position) {
-    if (raw[position] >= 0) {
-      kept.push_back(static_cast<std::size_t>(raw[position]));
-      keptKeys.push_back(std::move(strings[position]));
-    }
-  }
-  peerOf(handle)->driver.insertKeys(std::move(kept), std::move(keptKeys));
-}
-
-void SHADOWLIST_KIT_WASM(nativeDeleteKeys)(std::uintptr_t handle, const std::int32_t* indices, std::int32_t count) {
-  peerOf(handle)->driver.deleteKeys(readIndices(indices, count));
 }
 
 void SHADOWLIST_KIT_WASM(nativeMarkRemeasure)(std::uintptr_t handle, const std::int32_t* indices, std::int32_t count) {
@@ -311,8 +341,17 @@ bool SHADOWLIST_KIT_WASM(nativeRowRect)(std::uintptr_t handle, std::int32_t inde
   return true;
 }
 
-double SHADOWLIST_KIT_WASM(nativeFooterStart)(std::uintptr_t handle, double footerSize) {
-  return peerOf(handle)->driver.getFooterStart(footerSize);
+/*
+ * The core's planMount into out's PLAN_* slots, a missing row as -1.
+ */
+void SHADOWLIST_KIT_WASM(nativePlanMount)(std::uintptr_t handle, double offset, double windowAlong, double pad,
+  double leadingInset, double trailingInset, double* out) {
+  sl::MountPlan plan = peerOf(handle)->driver.planMount(offset, windowAlong, pad, leadingInset, trailingInset);
+  out[PLAN_LOW] = intFromIndex(plan.low);
+  out[PLAN_HIGH] = intFromIndex(plan.high);
+  out[PLAN_STICKY] = intFromIndex(plan.sticky);
+  out[PLAN_VIEW_LOW] = plan.viewLow;
+  out[PLAN_VIEW_HIGH] = plan.viewHigh;
 }
 
 double SHADOWLIST_KIT_WASM(nativeOffsetMovedThreshold)() {
@@ -407,17 +446,7 @@ const std::int32_t* SHADOWLIST_KIT_WASM(nativeUpdatePrefetch)(std::uintptr_t han
   std::vector<std::size_t> prefetch;
   std::vector<std::size_t> cancel;
   peerOf(handle)->driver.updatePrefetch(indexFromInt(low), indexFromInt(high), prefetch, cancel);
-  std::vector<std::int32_t> packed;
-  packed.reserve(prefetch.size() + cancel.size() + 2);
-  packed.push_back(static_cast<std::int32_t>(prefetch.size()));
-  for (std::size_t row : prefetch) {
-    packed.push_back(static_cast<std::int32_t>(row));
-  }
-  packed.push_back(static_cast<std::int32_t>(cancel.size()));
-  for (std::size_t row : cancel) {
-    packed.push_back(static_cast<std::int32_t>(row));
-  }
-  return writeInts(packed);
+  return writePrefetch(prefetch, cancel);
 }
 
 /*
@@ -439,31 +468,6 @@ bool SHADOWLIST_KIT_WASM(nativeRestoreAnchorState)(std::uintptr_t handle, const 
   return peerOf(handle)->driver.restoreAnchorState({readString(key, length), offset});
 }
 
-/*
- * The diff of two key lists, packed: the delete count and previous indices, the insert count
- * and next indices, the move count and from, to pairs.
- */
-const std::int32_t* SHADOWLIST_KIT_WASM(nativeDiffKeys)(const char* previousPacked, const std::int32_t* previousEnds,
-  std::int32_t previousCount, const char* nextPacked, const std::int32_t* nextEnds, std::int32_t nextCount) {
-  sl::KeyDiff diff = sl::diffKeys(
-    readPackedKeys(previousPacked, previousEnds, previousCount), readPackedKeys(nextPacked, nextEnds, nextCount));
-  std::vector<std::int32_t> packed;
-  packed.push_back(static_cast<std::int32_t>(diff.deleted.size()));
-  for (std::size_t index : diff.deleted) {
-    packed.push_back(static_cast<std::int32_t>(index));
-  }
-  packed.push_back(static_cast<std::int32_t>(diff.inserted.size()));
-  for (std::size_t index : diff.inserted) {
-    packed.push_back(static_cast<std::int32_t>(index));
-  }
-  packed.push_back(static_cast<std::int32_t>(diff.moved.size()));
-  for (const sl::KeyMove& move : diff.moved) {
-    packed.push_back(static_cast<std::int32_t>(move.from));
-    packed.push_back(static_cast<std::int32_t>(move.to));
-  }
-  return writeInts(packed);
-}
-
 const std::int32_t* SHADOWLIST_KIT_WASM(nativeInsertionIndices)(
   const std::int32_t* indices, std::int32_t count, std::int32_t previousCount) {
   std::size_t previous = static_cast<std::size_t>(std::max(previousCount, 0));
@@ -479,16 +483,44 @@ const std::int32_t* SHADOWLIST_KIT_WASM(nativeDeletionIndices)(
 }
 
 /*
- * The wasm side of ShadowListKitListState in ShadowListKitCore.ts: the batch being collected and
- * the content versions of one list, which outlive the core the list drops on disconnect.
+ * The wasm side of ShadowListKitListState in ShadowListKitCore.ts: the row keys, the batch being
+ * collected and the content versions of one list, which outlive the core the list drops on
+ * disconnect. A key change reaches the state once, with the list's live core when it has one,
+ * and the state hands the core its part.
  */
 namespace {
 
 struct StatePeer {
+  sl::HeldKeys keys;
   sl::BatchCollector batch;
   sl::CollectedBatch taken;
   sl::ContentVersions versions;
 };
+
+/*
+ * Bits of nativeCommitKeys' flags, ShadowListKitListState.COMMIT_* in TypeScript.
+ */
+enum CommitFlag {
+  COMMIT_DIFF = 1,
+  COMMIT_RECORD_VERSIONS = 2,
+  COMMIT_UPDATE_VERSIONS = 4,
+};
+
+/*
+ * The core of a core handle, or none for 0.
+ */
+Peer* livePeerOf(std::uintptr_t handle) {
+  return handle == 0 ? nullptr : peerOf(handle);
+}
+
+std::vector<std::string> copyKeys(sl::KeyList keys, std::size_t start, std::size_t count) {
+  std::vector<std::string> copied;
+  copied.reserve(count);
+  for (std::size_t index = start; index < start + count; ++index) {
+    copied.push_back(keys[index]);
+  }
+  return copied;
+}
 
 StatePeer* statePeerOf(std::uintptr_t handle) {
   return reinterpret_cast<StatePeer*>(handle);
@@ -594,18 +626,96 @@ const std::int32_t* SHADOWLIST_KIT_STATE_WASM(nativePlanTakenBatch)(
   return writeInts(intsFromIndices(plan->sources));
 }
 
-void SHADOWLIST_KIT_STATE_WASM(nativeRecordContentVersions)(std::uintptr_t handle, const char* packed,
-  const std::int32_t* ends, std::int32_t count, const std::int32_t* versions) {
-  statePeerOf(handle)->versions.record(readPackedKeys(packed, ends, count), readVersions(versions, count));
+/*
+ * Take the next keys: end unchanged keys at the end and count joined keys between them. The
+ * live core gets the splice, and versions, one pair of halves per item, are recorded or compared
+ * against the keys held. Returns the COMMIT_DIFF diff, packed: the delete count and previous
+ * indices, the insert count and next indices, the move count and from, to pairs. The count and
+ * items whose version changed under COMMIT_UPDATE_VERSIONS follow.
+ */
+const std::int32_t* SHADOWLIST_KIT_STATE_WASM(nativeCommitKeys)(std::uintptr_t handle, std::uintptr_t core,
+  std::int32_t start, std::int32_t end, const char* packed, const std::int32_t* ends, std::int32_t count,
+  const std::int32_t* versions, std::int32_t flags) {
+  StatePeer* peer = statePeerOf(handle);
+  sl::KeyChange change{static_cast<std::size_t>(std::max(start, 0)), static_cast<std::size_t>(std::max(end, 0)),
+    readPackedKeys(packed, ends, count)};
+  sl::HeldKeysCommit commit = peer->keys.commit(std::move(change), std::nullopt, (flags & COMMIT_DIFF) != 0);
+  if (Peer* live = livePeerOf(core); live && !commit.rows.isEmpty()) {
+    live->driver.replaceKeys(
+      commit.rows.start, commit.rows.deleted, copyKeys(peer->keys.rows(), commit.rows.start, commit.rows.inserted));
+  }
+  std::vector<std::size_t> reloaded;
+  auto items = static_cast<std::int32_t>(peer->keys.items().size());
+  if (versions != nullptr && (flags & COMMIT_RECORD_VERSIONS) != 0) {
+    peer->versions.record(peer->keys.items(), readVersions(versions, items));
+  } else if (versions != nullptr && (flags & COMMIT_UPDATE_VERSIONS) != 0) {
+    reloaded = peer->versions.update(peer->keys.items(), readVersions(versions, items));
+  }
+  const sl::KeyDiff& diff = commit.diff;
+  std::vector<std::int32_t> result;
+  result.reserve(4 + diff.deleted.size() + diff.inserted.size() + diff.moved.size() * 2 + reloaded.size());
+  result.push_back(static_cast<std::int32_t>(diff.deleted.size()));
+  for (std::size_t index : diff.deleted) {
+    result.push_back(static_cast<std::int32_t>(index));
+  }
+  result.push_back(static_cast<std::int32_t>(diff.inserted.size()));
+  for (std::size_t index : diff.inserted) {
+    result.push_back(static_cast<std::int32_t>(index));
+  }
+  result.push_back(static_cast<std::int32_t>(diff.moved.size()));
+  for (const sl::KeyMove& move : diff.moved) {
+    result.push_back(static_cast<std::int32_t>(move.from));
+    result.push_back(static_cast<std::int32_t>(move.to));
+  }
+  result.push_back(static_cast<std::int32_t>(reloaded.size()));
+  for (std::size_t item : reloaded) {
+    result.push_back(static_cast<std::int32_t>(item));
+  }
+  return writeInts(result);
 }
 
 /*
- * The items whose content version changed, low to high. The new versions are kept.
+ * Rows inserted at sorted positions of the next keys, with count joined keys in the same order.
+ * A negative index drops its key with it, which keeps the two lists paired.
  */
-const std::int32_t* SHADOWLIST_KIT_STATE_WASM(nativeUpdateContentVersions)(std::uintptr_t handle, const char* packed,
-  const std::int32_t* ends, std::int32_t count, const std::int32_t* versions) {
-  return writeInts(intsFromIndices(
-    statePeerOf(handle)->versions.update(readPackedKeys(packed, ends, count), readVersions(versions, count))));
+void SHADOWLIST_KIT_STATE_WASM(nativeInsertRows)(std::uintptr_t handle, std::uintptr_t core,
+  const std::int32_t* indices, const char* packed, const std::int32_t* ends, std::int32_t count) {
+  std::vector<std::int32_t> raw = readInts(indices, count);
+  std::vector<std::string> strings = readPackedKeys(packed, ends, count);
+  std::vector<std::size_t> kept;
+  std::vector<std::string> keptKeys;
+  for (std::size_t position = 0; position < raw.size() && position < strings.size(); ++position) {
+    if (raw[position] >= 0) {
+      kept.push_back(static_cast<std::size_t>(raw[position]));
+      keptKeys.push_back(std::move(strings[position]));
+    }
+  }
+  if (Peer* live = livePeerOf(core)) {
+    live->driver.insertKeys(kept, keptKeys);
+  }
+  statePeerOf(handle)->keys.insertRows(kept, std::move(keptKeys));
+}
+
+/*
+ * Rows deleted at positions of the previous keys.
+ */
+void SHADOWLIST_KIT_STATE_WASM(nativeDeleteRows)(
+  std::uintptr_t handle, std::uintptr_t core, const std::int32_t* indices, std::int32_t count) {
+  std::vector<std::size_t> deleted = readIndices(indices, count);
+  if (Peer* live = livePeerOf(core)) {
+    live->driver.deleteKeys(deleted);
+  }
+  statePeerOf(handle)->keys.deleteRows(deleted);
+}
+
+/*
+ * A new core takes every row held.
+ */
+void SHADOWLIST_KIT_STATE_WASM(nativeSeedCore)(std::uintptr_t handle, std::uintptr_t core) {
+  sl::KeyList rows = statePeerOf(handle)->keys.rows();
+  if (Peer* live = livePeerOf(core); live && !rows.empty()) {
+    live->driver.replaceKeys(0, live->driver.getKeyCount(), copyKeys(rows, 0, rows.size()));
+  }
 }
 
 }

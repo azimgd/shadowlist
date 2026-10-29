@@ -12,6 +12,8 @@ set -euo pipefail
 #     weren't drawn yet. See analyze-metrics.py.
 #   Memory: PSS, native heap and the live view count.
 #   CPU: process time from /proc, as a share of one core over the run.
+#   Engine flags: whether the app turned on its React Native feature flags (MainApplication.kt),
+#     which are off in a stock app. A build with -PshadowlistEngineFlags=false keeps them off.
 #
 # Environment:
 #   ADB=adb            adb command; may carry a serial, e.g. "adb -s emulator-5554"
@@ -70,6 +72,7 @@ navigate() {
   # BACKGROUND assumes the dark theme.
   $ADB shell cmd uimode night yes >/dev/null 2>&1 || true
   $ADB shell am force-stop "$PKG" >/dev/null 2>&1 || true
+  $ADB logcat -c >/dev/null 2>&1 || true
   $ADB shell am start -n "$PKG/.MainActivity" >/dev/null 2>&1 || true
   sleep 4
   # Home rows use the route name as testID.
@@ -92,6 +95,7 @@ navigate() {
 echo "==> $LABEL / $SCREEN : $MODE, $FLINGS flings of ${SWIPE_MS}ms on ${WIDTH}x${HEIGHT}"
 navigate
 
+ENGINE_FLAGS_STATE=$($ADB logcat -d -s SL:I 2>/dev/null | tr -d '\r' | grep -o '\[SL\] engine flags.*' | tail -1 | sed 's/^\[SL\] engine flags //' || true)
 PID=$($ADB shell pidof "$PKG" | tr -d '\r')
 [[ -n "$PID" ]] || { echo "!! app not running" >&2; exit 1; }
 
@@ -152,6 +156,7 @@ python3 "$HERE/analyze-metrics.py" \
   --elapsed-ns $((T_AFTER - T_BEFORE)) \
   --height "$HEIGHT" --width "$WIDTH" --background "$BACKGROUND" \
   --viewport-top "$VIEWPORT_TOP" --viewport-bottom "$VIEWPORT_BOTTOM" | tee "$OUT"
+echo "React Native engine flags: ${ENGINE_FLAGS_STATE:-unknown}" | tee -a "$OUT"
 
 rm -rf "$LOCAL_SHOTS"
 echo "==> wrote $OUT"

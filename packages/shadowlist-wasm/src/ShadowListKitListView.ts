@@ -81,8 +81,11 @@ export interface ShadowListKitListViewDelegate {
 
 /*
  * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
- * items are the ones in the core's measured range, an overscan past the viewport, that have
- * no cell yet. A prefetched item that leaves the measured range before it shows is cancelled.
+ * items are the ones in the core's measured range, an overscan past the viewport, outside the
+ * mounted ones. The layout pass that brings an item into the range measures the items it will
+ * show first, then prefetches the rest before it measures them. Without sizeForItem that is
+ * before cellForItem makes their cells. A prefetched item that leaves the measured range before
+ * it shows is cancelled.
  */
 export interface ShadowListKitListViewPrefetchDataSource {
   prefetchItems(listView: ShadowListKitListView, indices: number[]): void;
@@ -198,6 +201,11 @@ export class ShadowListKitListView extends HTMLElement {
   private windowCross = 0;
   private headerSize = 0;
   private footerSize = 0;
+
+  /*
+   * Where the rows end and the footer starts along the axis, from the core's last pass.
+   */
+  private footerStart = 0;
   private templatesChanged = true;
   private contentAlong = 0;
 
@@ -548,17 +556,17 @@ export class ShadowListKitListView extends HTMLElement {
    * is dropped and the next layout pass runs it.
    */
   private createCore(): ShadowListKitCore {
-    const created = new ShadowListKitCore((row, crossSize) =>
-      this.measureRow(row, crossSize)
+    const created = new ShadowListKitCore(
+      (row, crossSize) => this.measureRow(row, crossSize),
+      (rows, crossSizes, sizes) => this.measureRows(rows, crossSizes, sizes),
+      () => this.dispatchPrefetch()
     );
     this.coreOrNull = created;
     this.applySettings(created);
     if (this.stickyPinning.stickyRows.length > 0) {
       created.setStickyIndices(this.stickyPinning.stickyRows);
     }
-    if (this.keys.length > 0) {
-      created.replaceKeys(0, 0, this.keys, 0, this.keys.length);
-    }
+    this.data.seedCore(created);
     this.measuredLow = -1;
     this.measuredHigh = -1;
     this.measuredGeometry = -1;
@@ -869,10 +877,7 @@ export class ShadowListKitListView extends HTMLElement {
   private layoutTemplates(): void {
     if (this.headerView) this.placeTemplate(this.headerView, 0);
     if (this.footerView) {
-      this.placeTemplate(
-        this.footerView,
-        this.core.footerStart(this.footerSize)
-      );
+      this.placeTemplate(this.footerView, this.footerStart);
     }
   }
 
@@ -898,6 +903,14 @@ export class ShadowListKitListView extends HTMLElement {
     pass[ShadowListKitCore.PASS_PHASE] = this.scrollPhase();
     pass[ShadowListKitCore.PASS_USER_SCROLLED] = this.userScrolled ? 1 : 0;
     pass[ShadowListKitCore.PASS_TRACKING] = this.gesture.isTracking ? 1 : 0;
+    // The mount pass's padding and look-ahead, which the core prefetches around before it measures.
+    const step = this.offset - this.mountedOffset;
+    const pad = this.windowAlong * this.mountOverscan;
+    const ahead = Math.max(0, Math.abs(step) * 2 - pad);
+    pass[ShadowListKitCore.PASS_PREFETCH] = this.prefetchDataSource ? 1 : 0;
+    pass[ShadowListKitCore.PASS_MOUNT_PAD] = pad;
+    pass[ShadowListKitCore.PASS_LEADING_INSET] = step < 0 ? ahead : 0;
+    pass[ShadowListKitCore.PASS_TRAILING_INSET] = step > 0 ? ahead : 0;
     core.runPasses();
     this.userScrolled = false;
     this.needsFrame = false;
@@ -922,6 +935,7 @@ export class ShadowListKitListView extends HTMLElement {
     this.reachedStart ||= pass[ShadowListKitCore.PASS_OUT_REACHED_START] !== 0;
     this.reachedEnd ||= pass[ShadowListKitCore.PASS_OUT_REACHED_END] !== 0;
     this.frameGeometry = pass[ShadowListKitCore.PASS_OUT_GEOMETRY]!;
+    this.footerStart = pass[ShadowListKitCore.PASS_OUT_FOOTER_START]!;
     this.copyMeasured(pass);
     // A correction waits for one more report on the next animation frame.
     if (pass[ShadowListKitCore.PASS_OUT_SETTLING] !== 0) this.invalidateFrame();
@@ -999,12 +1013,12 @@ export class ShadowListKitListView extends HTMLElement {
 
   /*
    * Mount the cells of rows near the viewport and recycle the rest. Rows are matched by key,
-   * which keeps the content of a cell that only moved. The range follows the core's
-   * ListDriver::planMount, run here over the copied frames. A scroll frame makes no wasm call.
-   * The core test list_driver_mount_plan_reaches_into_the_insets holds the rule this matches.
+   * which keeps the content of a cell that only moved. The range is the core's
+   * ListDriver::planMount, one wasm call per scroll frame.
    *
    * The browser scrolls on its own thread and can show the next step before this pass lands.
-   * Ahead of the scroll the range reaches two of the last steps, up to the measured range.
+   * Ahead of the scroll the plan reaches two of the last steps, up to the measured range, given
+   * to planMount as an inset on the side the list moves toward.
    */
   private mountCells(): void {
     if (this.measuredLow < 0 || this.keys.length === 0) {
@@ -1015,20 +1029,26 @@ export class ShadowListKitListView extends HTMLElement {
     const step = offset - this.mountedOffset;
     this.mountedOffset = offset;
     const pad = this.windowAlong * this.mountOverscan;
-    const lead = Math.max(pad, Math.abs(step) * 2);
-    const viewLow = offset - (step < 0 ? lead : pad);
-    const viewHigh = offset + this.windowAlong + (step > 0 ? lead : pad);
-    let low = -1;
-    let high = -1;
-    for (let index = this.measuredLow; index <= this.measuredHigh; ++index) {
-      if (!this.overlaps(index, viewLow, viewHigh)) continue;
-      if (low < 0) low = index;
-      high = index;
-    }
-    const sticky = this.stickyPinning.activeStickyIndex(this.offset);
+    const ahead = Math.max(0, Math.abs(step) * 2 - pad);
+    const plan = this.core.planMount(
+      offset,
+      this.windowAlong,
+      pad,
+      step < 0 ? ahead : 0,
+      step > 0 ? ahead : 0
+    );
+    const low = plan[ShadowListKitCore.PLAN_LOW]!;
+    const high = plan[ShadowListKitCore.PLAN_HIGH]!;
+    const sticky = plan[ShadowListKitCore.PLAN_STICKY]!;
     if (!this.mountNeeded(low, high, sticky)) return;
     this.recordMount(low, high, sticky);
-    this.mountPlan(low, high, sticky, viewLow, viewHigh);
+    this.mountPlan(
+      low,
+      high,
+      sticky,
+      plan[ShadowListKitCore.PLAN_VIEW_LOW]!,
+      plan[ShadowListKitCore.PLAN_VIEW_HIGH]!
+    );
     this.prefetchAround(low, high);
   }
 
@@ -1062,6 +1082,7 @@ export class ShadowListKitListView extends HTMLElement {
     viewHigh: number
   ): void {
     const generation = ++this.mountGeneration;
+    const listRole = this.getAttribute('role') === 'list';
     if (low >= 0) {
       for (let index = low; index <= high; ++index) {
         // ListDriver::shouldMount. A masonry grid can hold rows inside the index range that are out of view.
@@ -1071,16 +1092,16 @@ export class ShadowListKitListView extends HTMLElement {
         ) {
           continue;
         }
-        this.mountRow(index, generation);
+        this.mountRow(index, generation, listRole);
       }
     }
     if (sticky >= 0 && sticky < this.keys.length) {
-      this.mountRow(sticky, generation);
+      this.mountRow(sticky, generation, listRole);
     }
     this.recycleStaleCells(generation);
   }
 
-  private mountRow(index: number, generation: number): void {
+  private mountRow(index: number, generation: number, listRole: boolean): void {
     const key = this.keys[index]!;
     let cell = this.mounted.get(key);
     const appearing = !cell || cell.mountGeneration === 0;
@@ -1091,7 +1112,7 @@ export class ShadowListKitListView extends HTMLElement {
     cell.index = index;
     cell.mountGeneration = generation;
     this.placeCell(cell, index);
-    this.applyAccessibility(cell);
+    if (listRole) this.applyAccessibility(cell);
     if (appearing) {
       cell.view.style.visibility = '';
       this.delegate?.willDisplayCell?.(this, cell, index);
@@ -1143,7 +1164,7 @@ export class ShadowListKitListView extends HTMLElement {
    * Where the rows end along the scroll axis, before the footer.
    */
   get rowsEnd(): number {
-    return this.core.footerStart(this.footerSize);
+    return this.footerStart;
   }
 
   /*
@@ -1175,23 +1196,27 @@ export class ShadowListKitListView extends HTMLElement {
   // region Prefetching
 
   /*
-   * Tell the prefetch data source about items the measured range brought in that have no cell
-   * yet, and the ones that left it unseen. One wasm call per mount pass, none on band frames.
+   * Tell the prefetch data source about items the measured range brought in that are not
+   * mounted, and the ones that left it unseen. runPasses already told it about the rows it
+   * brought in before it measured them, which is before their cells exist. This finds what the
+   * mount changed, one wasm call per mount pass and none on band frames.
    */
   private prefetchAround(low: number, high: number): void {
+    if (!this.prefetchDataSource) return;
+    this.core.updatePrefetch(low, high);
+    this.dispatchPrefetch();
+  }
+
+  /*
+   * Hand the core's prefetched and cancelled items to the prefetch data source.
+   */
+  private dispatchPrefetch(): void {
     const prefetch = this.prefetchDataSource;
     if (!prefetch) return;
-    const packed = this.core.updatePrefetch(low, high);
-    const prefetchCount = packed[0]!;
-    const items = Array.from(packed.subarray(1, 1 + prefetchCount));
-    const cancelCount = packed[1 + prefetchCount]!;
-    const cancelled = Array.from(
-      packed.subarray(2 + prefetchCount, 2 + prefetchCount + cancelCount)
-    );
-    if (items.length > 0) prefetch.prefetchItems(this, items);
-    if (cancelled.length > 0) {
-      prefetch.cancelPrefetchingForItems?.(this, cancelled);
-    }
+    const core = this.core;
+    if (core.prefetched) prefetch.prefetchItems(this, core.prefetched);
+    if (core.cancelled)
+      prefetch.cancelPrefetchingForItems?.(this, core.cancelled);
   }
 
   // endregion
@@ -1210,11 +1235,38 @@ export class ShadowListKitListView extends HTMLElement {
   }
 
   /*
-   * Measure a row through its cell at the cross size, its size along the axis left to its
-   * content. The cell is mounted right after when the row is in view, which rarely wastes the
-   * configure work.
+   * Called by the core with every row a pass needs sized. Cells are measured at the cross size,
+   * their size along the axis left to their content: every style is written first and every
+   * size read after, which lets the browser lay out once for all of them. The cells are mounted
+   * right after when their rows are in view, which rarely wastes the configure work.
    */
-  private measureCell(row: number, cross: number): number {
+  private measureRows(
+    rows: ReadonlyArray<number>,
+    crossSizes: ReadonlyArray<number>,
+    sizes: number[]
+  ): void {
+    const sizing = this.dataSource?.sizeForItem;
+    if (sizing) {
+      for (let at = 0; at < rows.length; ++at) {
+        sizes[at] = wholePixels(
+          sizing.call(this.dataSource, this, rows[at]!, crossSizes[at]!)
+        );
+      }
+      return;
+    }
+    const cells = rows.map((row, at) =>
+      this.styleForMeasure(row, crossSizes[at]!)
+    );
+    for (let at = 0; at < cells.length; ++at) {
+      const rect = cells[at]!.view.getBoundingClientRect();
+      sizes[at] = wholePixels(this.horizontal ? rect.width : rect.height);
+    }
+  }
+
+  /*
+   * A row's cell sized at the cross size with its size along the axis left to its content.
+   */
+  private styleForMeasure(row: number, cross: number): ShadowListKitListCell {
     const key = this.keys[row]!;
     let cell = this.mounted.get(key);
     if (!cell) {
@@ -1227,11 +1279,16 @@ export class ShadowListKitListView extends HTMLElement {
     if (this.horizontal) {
       style.height = `${cross}px`;
       style.width = 'max-content';
-      return wholePixels(cell.view.getBoundingClientRect().width);
+    } else {
+      style.width = `${cross}px`;
+      style.height = '';
     }
-    style.width = `${cross}px`;
-    style.height = '';
-    return wholePixels(cell.view.getBoundingClientRect().height);
+    return cell;
+  }
+
+  private measureCell(row: number, cross: number): number {
+    const rect = this.styleForMeasure(row, cross).view.getBoundingClientRect();
+    return wholePixels(this.horizontal ? rect.width : rect.height);
   }
 
   // endregion
@@ -1363,18 +1420,25 @@ export class ShadowListKitListView extends HTMLElement {
    * cells. A cell given its own role keeps it without the list's positions.
    */
   private applyAccessibility(cell: ShadowListKitListCell): void {
-    if (this.getAttribute('role') !== 'list') return;
+    const position = cell.index + 1;
+    const size = this.itemCount;
+    if (
+      cell.accessiblePosition === position &&
+      cell.accessibleSetSize === size
+    ) {
+      return;
+    }
     const view = cell.view;
     const role = view.getAttribute('role');
     if (!role) view.setAttribute('role', 'listitem');
     else if (role !== 'listitem') return;
-    const position = String(cell.index + 1);
-    const size = String(this.itemCount);
-    if (view.getAttribute('aria-posinset') !== position) {
-      view.setAttribute('aria-posinset', position);
+    if (cell.accessiblePosition !== position) {
+      view.setAttribute('aria-posinset', String(position));
+      cell.accessiblePosition = position;
     }
-    if (view.getAttribute('aria-setsize') !== size) {
-      view.setAttribute('aria-setsize', size);
+    if (cell.accessibleSetSize !== size) {
+      view.setAttribute('aria-setsize', String(size));
+      cell.accessibleSetSize = size;
     }
   }
 

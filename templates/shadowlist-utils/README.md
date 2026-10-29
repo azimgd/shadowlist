@@ -39,8 +39,9 @@ Use `react-native-worklets/plugin` last in the Babel plugins and wrap the app in
 The root helpers do not need these wrappers.
 
 macOS uses source `.macos` variants without those UI kit peers; see the
-[macOS Metro configuration](../shadowlist-macos-example/metro.config.js). Pull to refresh, snapping and keyboard
-avoidance are unavailable on macOS; Inbox keeps selection but has no swipe actions or menus.
+[macOS Metro configuration](../shadowlist-macos-example/metro.config.js). Pull to refresh and keyboard avoidance are
+unavailable on macOS, and snapping lands without an animation; Inbox keeps selection and its menu opens on a right
+click, without swipe actions.
 
 An app outside this repo can depend on a checkout with `"shadowlist-utils": "file:../shadowlist/templates/shadowlist-utils"`.
 Metro and TypeScript (`"customConditions": ["react-native"]`) read the TypeScript source. Add the folder to Metro's
@@ -138,7 +139,7 @@ For local data, connect `data`, `handleRefresh`, `handleStartReached` and `handl
 
 Import kits from `shadowlist-utils/native`, for example `Chat.List` and `Chat.Bubble`. Lists forward the props allowed
 by their exported `*ListProps` type and expose the underlying list commands through `ref` (`Tree.List` uses
-`TreeListCommands`). Most provide a default row that an optional `renderItem` can replace. `Poll.List` takes `poll`
+`TreeListCommands`, and `Board.List` takes no `ref`). Most provide a default row that an optional `renderItem` can replace. `Poll.List` takes `poll`
 instead of `data`; `Contacts.SectionList` takes `sections`; `Nested.Row` has no list wrapper. `TemplateList` exposes
 its smaller prop set and a `listRef` prop.
 
@@ -275,14 +276,16 @@ export function ChatScreen({ messages, send }: {
 line. `showsAuthor={false}` hides the name and avatar of a message from someone else and keeps the avatar's place,
 for the rest of a run from one author. `renderText(text)` draws the text as nested runs, such as mentions, and
 `children` draw inside the bubble under the text. If you replace the row, supply a matching `getChatMessageSizeSpec`,
-including any caption and `showsAuthor`. A bubble with children is measured natively.
+including any caption and `showsAuthor`. The spec predicts the text and the bubble around it, not `children`: a
+bubble with children takes its measured size once it mounts.
 See [ChatScreen](../shadowlist-fabric-example/src/screens/ChatScreen.tsx) for paging, keyboard space, captions and retry.
 [Chat types](src/native/chat/types.ts) define messages, authors and statuses.
 
 ### Assistant (streaming AI chat)
 
 During streaming, append a reply to `data` once, send tokens to `createTurnWriter`, then commit the final turn once.
-Only the streaming row subscribes to the store; tokens flush every `flushMs` (50 ms by default).
+Every mounted reply subscribes to the store and only the streaming one renders again; tokens flush every `flushMs`
+(50 ms by default).
 
 ```tsx
 import { useMemo } from 'react';
@@ -306,7 +309,7 @@ transport as well as finishing the writer when stopping a reply.
 | `Assistant.Composer` | Send/Stop, attachments and editing; ref supports `setDraft`, `clearDraft`, `focus`. Pass `value` and `onChangeText` to own the draft, and `accessory` for a control in its toolbar |
 | `createStreamStore`, `useStreamingTurn` | Store lifecycle and a subscription for each message |
 | `createTurnWriter` | Batched thinking/content, tool calls, completion, failure and stop |
-| `emptyTurn`, `ASSISTANT_END_MARKER`, `ASSISTANT_END_ID` | Initial turn and tracking the end of the list |
+| `emptyTurn`, `ASSISTANT_END_MARKER`, `ASSISTANT_END_ID` | Initial turn, and an invisible row to append after the last message whose viewability shows the end is on screen. `Assistant.List` does not need it |
 
 `Assistant.ReplyMessage`, `Assistant.UserMessage`, `Assistant.Markdown` and the other building blocks support custom
 rows. See [Assistant exports](src/native/assistant/index.ts) and [writer methods](src/native/assistant/turnWriter.ts)
@@ -332,7 +335,7 @@ custom handler before opening them.
 `Board.List` lays columns side by side in a horizontal scroll that snaps to each column. Every column is a
 `DraggableList` on one [drag board](../../packages/shadowlist-fabric/README.md#drag-boards), with a header that shows
 its title and count and a "Drop cards here" hint while it is empty. A card moves within its column or into another
-one on iOS, Android and macOS. `useDragBoardState` holds the columns and applies each move:
+one. Boards are implemented on iOS, Android and macOS and have been exercised on iOS. `useDragBoardState` holds the columns and applies each move:
 
 ```tsx
 import { Board, useDragBoardState, type BoardColumn } from 'shadowlist-utils/native';
@@ -351,8 +354,8 @@ export function TaskBoard({ initialColumns }: { initialColumns: BoardColumn<Task
 }
 ```
 
-The board names its drag board with `useId` and each list from the board and the column key. Two boards never join
-by accident, and no list goes without an id. `idPrefix` only makes the ids readable. A column's title names it in
+The board names its drag board with `useId` and each list from the board and the column key. Two boards in one React
+root never join by accident, and no list goes without an id. `idPrefix` only makes the ids readable. A column's title names it in
 the Move to action of VoiceOver and TalkBack. Without `onMoveItem` the cards stay put, and an empty column says "No
 cards" instead of where to drop them.
 
@@ -372,7 +375,7 @@ and a `sidePadding` that is negative or not finite are ignored.
 
 By default the columns fill the height the board is given. A board inside a page sets `columnHeight="content"`
 and sizes itself to its cards: every column's cards are as tall as the tallest column's, measured by its list,
-between `minColumnHeight` (120) and `maxColumnHeight` (60% of the window), so each column is a drop target down the
+between `minColumnHeight` (120) and `maxColumnHeight` (60% of the window height, of the screen on macOS), so each column is a drop target down the
 whole board. A column taller than that scrolls inside, and one that fits does not, so a swipe on it scrolls the
 page. Until a column has measured its cards, each counts `estimatedItemHeight` (64).
 
@@ -380,7 +383,7 @@ page. Until a column has measured its cards, each counts `estimatedItemHeight` (
 | --- | --- |
 | `Board.List({ columns, renderItem, keyExtractor?, onMoveItem?, idPrefix?, columnWidth?, sidePadding?, columnHeight?, minColumnHeight?, maxColumnHeight?, estimatedItemHeight?, columnStyle?, renderColumnHeader?, renderColumnFooter?, labels?, style?, testID? })` | The board. `columns` are `BoardColumn`s, `{ key, title, items }`. `onMoveItem(BoardMoveInfo)` gets a reorder and a drop into another column in one shape, `{ item, sourceColumnKey, destinationColumnKey, destinationKey, destinationIndex }`. `keyExtractor` defaults to `item.id`. `columnWidth` (points, used as it is for the columns and the snap) defaults to 78% of the board, at most 360. `sidePadding` (points, before the first column and after the last) defaults to 24, or centres a column as wide as 78% of the board. `columnHeight` is `'fill'` (the default) or `'content'`. |
 | `Board.Card({ title, label?, detail?, color?, accessibilityLabel? })` | A card with an optional colored bar and a label and detail under the title. Its cell stays transparent, and a picked up card lifts alone. |
-| `useDragBoardState(initialColumns, { keyExtractor?, onMoveItem? })` → `{ columns, setColumns, moveItem }` | Holds the columns. `moveItem` is stable and updates both columns of a drop in one state change. `onMoveItem` hears each move after it is applied, to save it. |
+| `useDragBoardState(initialColumns, { keyExtractor?, onMoveItem? })` → `{ columns, setColumns, moveItem }` | Holds the columns. `moveItem` is stable and updates both columns of a drop in one state change. `onMoveItem` hears each move that changes the board once the state change is queued, before the board renders it, to save it. |
 | `moveBoardItem(columns, move, keyExtractor?)` | Applies one move. The item leaves every column that holds its key and goes before `destinationKey`, at the end for `''`, or at `destinationIndex` for a key no longer there. Untouched columns keep their identity, and the board comes back as is when nothing moved. |
 
 Labels: `defaultBoardLabels` (`emptyColumn`, `emptyColumnReadOnly`, `columnSummary(title, count)`). See

@@ -144,8 +144,11 @@ NS_SWIFT_UI_ACTOR
 
 /*
  * Hears which items the list will soon show, to load what their cells need ahead. Prefetched
- * items are the ones in the core's measured range, an overscan past the viewport, that have no
- * cell yet. A prefetched item that leaves that range before it shows is cancelled.
+ * items are the ones in the core's measured range, an overscan past the viewport, outside the
+ * mounted ones. The layout pass that brings an item into the range measures the items it will
+ * show first, then prefetches the rest before it measures them. Without
+ * listView:sizeForItemAtIndex:crossSize: that is before listView:cellForItemAtIndex: makes their
+ * cells. A prefetched item that leaves that range before it shows is cancelled.
  */
 NS_SWIFT_UI_ACTOR
 @protocol ShadowListKitListViewPrefetchDataSource <NSObject>
@@ -296,8 +299,8 @@ NS_SWIFT_UI_ACTOR
  * - followAppends: with inverted, items appended or growing while the reader rests at the end
  *   scroll into view, like an assistant reply. Off by default, which keeps the visible items in
  *   place.
- * - numberOfColumns: columns of a grid. Item i goes into column i % numberOfColumns and each
- *   column stacks its own items.
+ * - numberOfColumns: columns of a grid. Row r, counting section header and footer rows, goes
+ *   into column r % numberOfColumns and each column stacks its own rows.
  * - estimatedItemSize: size along the scroll axis assumed for items not measured yet.
  * - overscan: how far past the viewport items are measured, in viewport sizes. Default 1.
  * - mountOverscan: how far past the viewport cells are mounted, in viewport sizes. Default 0.5.
@@ -320,8 +323,8 @@ NS_SWIFT_UI_ACTOR
  * - reloadData reads the item count and keys again. Items keep their sizes and cells by key,
  *   and the visible content stays in place. Cells of surviving keys are not configured again.
  * - insertItemsAtIndices: and deleteItemsAtIndices: tell the list items were inserted or
- *   deleted, after the data source already reflects it. Only the changed keys are read. A
- *   prepend to a long list costs the same as to a short one. Indices of an insert are
+ *   deleted, after the data source already reflects it. Only the changed keys are read, and the
+ *   rows after the change still shift in the list's arrays. Indices of an insert are
  *   positions in the new data, of a delete positions in the old data. An insert past the end
  *   goes at the end and a delete past the end is dropped.
  * - reloadItemsAtIndices: the items' content changed under the same keys. Visible cells are
@@ -333,7 +336,8 @@ NS_SWIFT_UI_ACTOR
  *   together in one layout and one animation, the way UITableView takes them: deletes, reloads
  *   and move sources are indices in the data before, inserts and move destinations in the data
  *   after. A batch that does not add up reloads everything. completion gets finished once the
- *   change animation ended.
+ *   change is laid out and, with the default item animator, its animation ended. A custom item
+ *   animator's animations are not waited for.
  * - applyChanges reads every key, works out the inserts, deletes and moves against the keys the
  *   list holds, reloads items whose content version changed, and returns what it found.
  * - In a list with sections every change reads the sections and keys again, like reloadData.

@@ -340,19 +340,27 @@ void ListSections::appendSectionRowKeys(
 }
 
 std::vector<std::string> ListSections::itemKeys(const std::vector<std::string>& rowKeys) const {
+  std::vector<std::string> scratch;
+  const std::vector<std::string>& items = itemKeys(rowKeys, scratch);
+  return &items == &rowKeys ? rowKeys : std::move(scratch);
+}
+
+const std::vector<std::string>& ListSections::itemKeys(
+  const std::vector<std::string>& rowKeys,
+  std::vector<std::string>& scratch) const {
   if (!sectioned_) {
     return rowKeys;
   }
-  std::vector<std::string> items;
-  items.reserve(itemCount_);
+  scratch.clear();
+  scratch.reserve(itemCount_);
   for (std::size_t section = 0; section < sections_.size(); ++section) {
     const SectionSpec& spec = sections_[section];
     std::size_t first = rowStarts_[section] + (spec.hasHeader ? 1 : 0);
     for (std::size_t local = 0; local < spec.itemCount && first + local < rowKeys.size(); ++local) {
-      items.push_back(rowKeys[first + local]);
+      scratch.push_back(rowKeys[first + local]);
     }
   }
-  return items;
+  return scratch;
 }
 
 }

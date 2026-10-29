@@ -3,6 +3,7 @@ package com.shadowlist.kit
 import android.view.Choreographer
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import kotlin.math.abs
 
@@ -18,7 +19,14 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
 
   private val longPressTimeout = ViewConfiguration.getLongPressTimeout().toLong()
   private val touchSlop = ViewConfiguration.get(list.context).scaledTouchSlop
-  private val offsetOut = DoubleArray(2)
+
+  /*
+   * The mounted cells a drag frame shifts, their rows and what the core wrote for them, reused
+   * from frame to frame.
+   */
+  private val frameCells = ArrayList<ShadowListKitListCell>()
+  private var frameRows = IntArray(64)
+  private var frameOut = DoubleArray(ShadowListKitCore.DRAG_FRAME_SLOTS + 128)
 
   /*
    * Where each shifted cell is headed, to animate only real changes.
@@ -173,41 +181,41 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
   // region Follow
 
   /*
-   * Place the held row under the finger and slide the others to open the gap.
+   * Place the held row under the finger and slide the others to open the gap, in one core call.
+   * Rows mounted since the last frame jump straight to their shift.
    */
   fun update() {
     val cell = heldCell ?: return
-    val core = list.core
-    val held = core.heldIndex
+    frameCells.clear()
+    for (mounted in list.mounted.values) {
+      if (mounted !== cell && mounted.visibility == View.VISIBLE && mounted.row >= 0) frameCells.add(mounted)
+    }
+    val count = frameCells.size
+    if (frameRows.size < count) frameRows = IntArray(count * 2)
+    if (frameOut.size < ShadowListKitCore.DRAG_FRAME_SLOTS + count * 2) {
+      frameOut = DoubleArray(ShadowListKitCore.DRAG_FRAME_SLOTS + count * 4)
+    }
+    for (at in 0 until count) frameRows[at] = frameCells[at].row
+    val along = list.contentAlongAt(touchX, touchY).toDouble()
+    val held = list.core.dragFrame(along, list.contentCrossAt(touchX, touchY).toDouble(), frameRows, count, frameOut)
     if (held < 0) {
       end(false)
       return
     }
-    val along = list.contentAlongAt(touchX, touchY).toDouble()
-    core.placeHeld(held, along, list.contentCrossAt(touchX, touchY).toDouble(), offsetOut)
-    translate(cell, offsetOut[0].toFloat(), offsetOut[1].toFloat())
-    val insertion = core.dragInsertionIndex
-    core.dragUpdateInsertion(list.mountedIndices())
-    applyShifts(core.dragInsertionIndex != insertion)
-  }
-
-  /*
-   * Slide every mounted row except the held one by its shift. Rows mounted since the last
-   * shift jump straight to theirs.
-   */
-  fun applyShifts(animated: Boolean) {
-    for (cell in list.mounted.values) {
-      if (cell === heldCell || cell.row < 0) continue
-      list.core.dragShiftFor(cell.row, offsetOut)
-      val along = offsetOut[0].toFloat()
-      val cross = offsetOut[1].toFloat()
-      val target = packTarget(along, cross)
-      val known = shiftTargets[cell]
+    translate(cell, frameOut[ShadowListKitCore.DRAG_FRAME_HELD_ALONG].toFloat(), frameOut[ShadowListKitCore.DRAG_FRAME_HELD_CROSS].toFloat())
+    val animated = frameOut[ShadowListKitCore.DRAG_FRAME_INSERTION_MOVED] != 0.0
+    for (at in 0 until count) {
+      val shifted = frameCells[at]
+      val shiftAlong = frameOut[ShadowListKitCore.DRAG_FRAME_SLOTS + at * 2].toFloat()
+      val shiftCross = frameOut[ShadowListKitCore.DRAG_FRAME_SLOTS + at * 2 + 1].toFloat()
+      val target = packTarget(shiftAlong, shiftCross)
+      val known = shiftTargets[shifted]
       if (known == target) continue
-      shiftTargets[cell] = target
-      if (animated && known != null) animateTranslation(cell, along, cross, ShadowListKitCore.SHIFT_DURATION_MS)
-      else setTranslation(cell, along, cross)
+      shiftTargets[shifted] = target
+      if (animated && known != null) animateTranslation(shifted, shiftAlong, shiftCross, ShadowListKitCore.SHIFT_DURATION_MS)
+      else setTranslation(shifted, shiftAlong, shiftCross)
     }
+    frameCells.clear()
   }
 
   private fun packTarget(along: Float, cross: Float): Long =
@@ -243,10 +251,8 @@ internal class ShadowListKitDragController(private val list: ShadowListKitListVi
     val offset = list.offset.toDouble()
     val next = ShadowListKitCore.dragAutoScrollOffset(
       touch, list.windowAlong.toDouble(), offset, list.maxOffset.toDouble(), list.density.toDouble(), dtSeconds)
-    if (abs(next - offset) >= 1) {
-      list.writeOffset(next.toInt(), byUser = true)
-      update()
-    }
+    // The offset write runs a layout pass, which runs the drag frame.
+    if (abs(next - offset) >= 1) list.writeOffset(next.toInt(), byUser = true)
     Choreographer.getInstance().postFrameCallback(this)
   }
 

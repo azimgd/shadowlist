@@ -75,13 +75,19 @@ has full signatures and defaults.
 | Selection | `allowsSelection`, `allowsMultipleSelection`, `editing`, `selectedIndices`, `selectItem`, `deselectItem`, `setEditing` | Selection follows keys and survives detach. The select and deselect calls skip the delegate. `editing` turns swipe actions and reordering off. |
 | Swipe actions | Delegate `leadingSwipeActionsForItem`, `trailingSwipeActionsForItem`, `closeSwipeActions` | A `ShadowListKitSwipeActionsConfiguration` per side. A full swipe performs the first action. |
 | Context menus | Delegate `contextMenuForItem` | Fills a `PopupMenu` on a hold. A reorderable item lifts on the hold and shows the menu when let go in place. |
-| Prefetching | `prefetchDataSource`: `prefetchItems`, `cancelPrefetchingForItems` | Items in the measured range without a cell yet. Cancelled when one leaves the range unseen. |
-| Pull to refresh | `refreshEnabled`, `refreshing`, delegate `didBeginRefreshing` | Draws its own spinner, without a SwipeRefreshLayout dependency. |
+| Prefetching | `prefetchDataSource`: `prefetchItems`, `cancelPrefetchingForItems` | Items in the measured range past the mounted ones, prefetched by the layout pass that brings them in, after it measures the items it will show and before it measures these. Without `sizeForItem` that is before `cellForItem` makes their cells. Cancelled when one leaves the range unseen. |
+| Pull to refresh | `refreshEnabled`, `refreshing`, delegate `didBeginRefreshing` | Draws its own spinner, without a SwipeRefreshLayout dependency. Works in horizontal lists too. |
 | Separators | `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`, `separatorThickness`, delegate `showsSeparatorAfterItem`, `addItemDecoration` | Only between items of one section. `ShadowListKitItemDecoration` draws below or above the rows, like RecyclerView's ItemDecoration without item offsets. |
 | Queries | `cellForItem`, `visibleCells`, `visibleRange`, `rectForItem`, `contentSize`, `numberOfSections`, `sectionForItem`, `firstItemIndexInSection`, `rectForHeaderInSection`, `rectForFooterInSection` | `visibleRange` runs low to high, null before the first layout. Section header and footer rows do not count. |
 | Scrolling | `scrollToItem(index, viewPosition, animated)`, `scrollToSection`, `scrollToStart`, `scrollToEnd` | `viewPosition` goes from 0 at the viewport start to 1 at the end. The core keeps correcting until the item lands. |
 | Saved position | `anchorState`, `restoreAnchorState` | The key at the viewport start and the distance into it. Lands now or once a reload brings the key. Saved in `onSaveInstanceState` when the list has an id. |
 | Accessibility | `CollectionInfo` for all rows, `CollectionItemInfo` per cell | Page scrolls and scroll to position reach rows that are not mounted, which lets TalkBack move past the mounted rows. |
 
-Masonry is round robin: item `i` goes in column `i % numberOfColumns`. Full width rows in a grid are not
-supported.
+Masonry is round robin by row: row `r`, counting section header and footer rows, goes in column
+`r % numberOfColumns`, and each column stacks its own rows. Full width rows in a grid are not supported.
+
+These combinations do nothing:
+
+- `showsSeparators` in a grid.
+- `sectionIndexTitles` in a horizontal list.
+- `followAppends` without `inverted`.

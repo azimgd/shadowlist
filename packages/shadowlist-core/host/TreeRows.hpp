@@ -1,5 +1,7 @@
 #pragma once
 
+#include <shadowlist-core/host/SharedKeys.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -39,7 +41,7 @@ public:
   void reset(std::vector<TreeRow> rows);
 
   std::size_t size() const { return keys_.size(); }
-  const std::vector<std::string>& keys() const { return keys_; }
+  KeyList keys() const { return keys_.list(); }
   TreeRow rowAt(std::size_t row) const;
   std::uint32_t depthAt(std::size_t row) const { return depths_[row]; }
 
@@ -59,8 +61,20 @@ public:
    */
   TreeSplice collapse(std::size_t row);
 
+  /*
+   * The same as expand and collapse on a copy of base, built in one pass. Keys are shared with
+   * base, never copied.
+   */
+  TreeSplice expandFrom(const TreeRows& base, std::size_t row, std::vector<TreeRow> descendants);
+  TreeSplice collapseFrom(const TreeRows& base, std::size_t row);
+
 private:
-  std::vector<std::string> keys_;
+  /*
+   * Become base with its rows from start to end replaced by inserted.
+   */
+  void spliceFrom(const TreeRows& base, std::size_t start, std::size_t end, std::vector<TreeRow>& inserted);
+
+  SharedKeys keys_;
   std::vector<std::uint32_t> depths_;
 
   /*

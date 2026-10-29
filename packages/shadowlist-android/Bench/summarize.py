@@ -61,6 +61,16 @@ def main():
         summary[name] = medians
         axis_cell = "%s | " % axis if show_axis else ""
         print("| %s | %s | %s | %s%d | %s |" % (screen, count, engine, axis_cell, len(runs), " | ".join(cells)))
+    flags = sorted({row.get("rnEngineFlags", "not recorded") for row in rows if row["engine"].split("+")[0] == "rn"})
+    if flags:
+        print("\nReact Native engine flags: %s" % ", ".join(flags))
+    tests = defaultdict(list)
+    for row in rows:
+        if "selfTest" in row:
+            tests[row["engine"]].append(row["selfTest"])
+    for engine, results in sorted(tests.items()):
+        print("Self-test %s: %d of %d runs pass%s" % (
+            engine, results.count("pass"), len(results), "" if all(r == "pass" for r in results) else " (FAIL)"))
     if "--json" in sys.argv:
         print(json.dumps(summary, indent=2))
 

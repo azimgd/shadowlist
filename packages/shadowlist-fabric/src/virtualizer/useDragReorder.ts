@@ -122,16 +122,28 @@ export function useDragReorder<ItemT>({
         }
         const destinationIndex = indexOfKey(destinationKey);
         if (
-          sourceIndex !== -1 &&
-          destinationIndex !== -1 &&
-          sourceIndex !== destinationIndex
+          sourceIndex === -1 ||
+          destinationIndex === -1 ||
+          sourceIndex === destinationIndex ||
+          !onMoveItem
         ) {
-          onMoveItem?.({
-            sourceIndex,
-            destinationIndex,
-            data: arrayMove(source.data ?? [], sourceIndex, destinationIndex),
-          });
+          return;
         }
+        // Without a data array the moved array would be empty, and saving it would drop every item.
+        if (!source.data) {
+          if (__DEV__) {
+            console.warn(
+              'ShadowList: onMoveItem needs a list with a data array. SectionList and TreeList ' +
+                'rows cannot be reordered.'
+            );
+          }
+          return;
+        }
+        onMoveItem({
+          sourceIndex,
+          destinationIndex,
+          data: arrayMove(source.data, sourceIndex, destinationIndex),
+        });
       },
       [source, onMoveItem, onMoveItemToList, listId, indexOfKey]
     );

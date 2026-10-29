@@ -1,15 +1,19 @@
 /*
  * JNI side of com.shadowlist.ShadowListGeometry. Plain calls into the host layer's pinning,
- * snap and page scroll math. The Java host calls these on the UI thread with arrays it
- * reuses.
+ * snap and page scroll math, and copies of the mounted state's sticky and snap lists. The Java
+ * host calls these on the UI thread with arrays it reuses.
  */
 
 #include <jni.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <vector>
+
+#include "ShadowListMountDriver.h"
 
 #include <shadowlist-core/host/ScrollTarget.hpp>
 #include <shadowlist-core/host/Snap.hpp>
@@ -18,6 +22,8 @@
 namespace {
 
 namespace sl = azimgd::shadowlist;
+
+using ShadowListMountDriverGeometry = facebook::react::ShadowListMountDriver::MountedGeometry;
 
 /*
  * Slots of ShadowListGeometry.STICKY_*.
@@ -43,6 +49,11 @@ enum StickySlot {
   STICKY_FOOTER_TRANSLATION,
   STICKY_SLOTS,
 };
+
+ShadowListMountDriverGeometry mountedGeometry(jlong mountHandle) {
+  auto driver = facebook::react::ShadowListMountDriver::find(static_cast<std::int64_t>(mountHandle));
+  return driver ? driver->getMountedGeometry() : ShadowListMountDriverGeometry();
+}
 
 }
 
@@ -133,6 +144,49 @@ JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeNearestSnapOffsetPx)(
   }
   env->ReleasePrimitiveArrayCritical(offsetsArray, values, JNI_ABORT);
   return static_cast<jint>(sl::nearestSnapOffset(offsets, static_cast<double>(targetPx), true));
+}
+
+JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeStickyCount)(JNIEnv*, jclass, jlong mountHandle) {
+  auto geometry = mountedGeometry(mountHandle);
+  return geometry.stickyIndices ? static_cast<jint>(geometry.stickyIndices->size()) : 0;
+}
+
+JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeCopyStickyGeometry)(
+  JNIEnv* env,
+  jclass,
+  jlong mountHandle,
+  jintArray indicesArray,
+  jdoubleArray offsetsArray,
+  jdoubleArray sizesArray) {
+  auto geometry = mountedGeometry(mountHandle);
+  if (!geometry.stickyIndices || !geometry.stickyOffsets || !geometry.stickySizes || indicesArray == nullptr ||
+      offsetsArray == nullptr || sizesArray == nullptr) {
+    return 0;
+  }
+  std::size_t count = std::min({geometry.stickyIndices->size(), geometry.stickyOffsets->size(),
+    geometry.stickySizes->size(), static_cast<std::size_t>(env->GetArrayLength(indicesArray)),
+    static_cast<std::size_t>(env->GetArrayLength(offsetsArray)), static_cast<std::size_t>(env->GetArrayLength(sizesArray))});
+  auto length = static_cast<jsize>(count);
+  env->SetIntArrayRegion(indicesArray, 0, length, reinterpret_cast<const jint*>(geometry.stickyIndices->data()));
+  env->SetDoubleArrayRegion(offsetsArray, 0, length, geometry.stickyOffsets->data());
+  env->SetDoubleArrayRegion(sizesArray, 0, length, geometry.stickySizes->data());
+  return length;
+}
+
+JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeSnapCount)(JNIEnv*, jclass, jlong mountHandle) {
+  auto geometry = mountedGeometry(mountHandle);
+  return geometry.snapOffsets ? static_cast<jint>(geometry.snapOffsets->size()) : 0;
+}
+
+JNIEXPORT jint JNICALL SL_GEOMETRY_JNI(nativeCopySnapOffsets)(JNIEnv* env, jclass, jlong mountHandle, jdoubleArray offsetsArray) {
+  auto geometry = mountedGeometry(mountHandle);
+  if (!geometry.snapOffsets || offsetsArray == nullptr) {
+    return 0;
+  }
+  auto length = static_cast<jsize>(
+    std::min(geometry.snapOffsets->size(), static_cast<std::size_t>(env->GetArrayLength(offsetsArray))));
+  env->SetDoubleArrayRegion(offsetsArray, 0, length, geometry.snapOffsets->data());
+  return length;
 }
 
 JNIEXPORT jdouble JNICALL SL_GEOMETRY_JNI(nativePageScrollTarget)(

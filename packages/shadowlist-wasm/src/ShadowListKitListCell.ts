@@ -28,6 +28,13 @@ export class ShadowListKitListCell {
   placedWidth = Number.NaN;
   placedHeight = Number.NaN;
 
+  /*
+   * The list position and size the list last wrote to the view's aria attributes, which lets a
+   * cell that kept both skip reading them.
+   */
+  accessiblePosition = -1;
+  accessibleSetSize = -1;
+
   constructor(readonly reuseIdentifier: string | null = null) {
     this.view = document.createElement('div');
     const style = this.view.style;

@@ -33,7 +33,7 @@ export default function ItemActionsView<ItemT = undefined>({
     cellViewRef,
   });
   return (
-    <ShadowListCellView ref={cellViewRef} {...props} index={0} {...actionProps}>
+    <ShadowListCellView ref={cellViewRef} {...props} {...actionProps}>
       {children}
     </ShadowListCellView>
   );

@@ -1,6 +1,5 @@
 #include <shadowlist-core/host/TreeRows.hpp>
 
-#include <iterator>
 #include <utility>
 
 namespace azimgd::shadowlist {
@@ -15,17 +14,18 @@ std::uint8_t flagsOf(const TreeRow& row) {
 }
 
 void TreeRows::reset(std::vector<TreeRow> rows) {
-  keys_.clear();
+  std::vector<std::string> keys;
   depths_.clear();
   flags_.clear();
-  keys_.reserve(rows.size());
+  keys.reserve(rows.size());
   depths_.reserve(rows.size());
   flags_.reserve(rows.size());
   for (TreeRow& row : rows) {
     depths_.push_back(row.depth);
     flags_.push_back(flagsOf(row));
-    keys_.push_back(std::move(row.key));
+    keys.push_back(std::move(row.key));
   }
+  keys_ = SharedKeys(std::move(keys));
 }
 
 TreeRow TreeRows::rowAt(std::size_t row) const {
@@ -48,47 +48,60 @@ std::size_t TreeRows::subtreeEnd(std::size_t row) const {
 }
 
 TreeSplice TreeRows::expand(std::size_t row, std::vector<TreeRow> descendants) {
-  if (row >= keys_.size() || (flags_[row] & TREE_ROW_HAS_CHILDREN) == 0) {
-    return {row >= keys_.size() ? keys_.size() : row + 1, 0, 0};
-  }
-  std::size_t start = row + 1;
-  std::size_t end = subtreeEnd(row);
-  flags_[row] |= TREE_ROW_EXPANDED;
-  auto first = static_cast<std::ptrdiff_t>(start);
-  auto last = static_cast<std::ptrdiff_t>(end);
-  keys_.erase(keys_.begin() + first, keys_.begin() + last);
-  depths_.erase(depths_.begin() + first, depths_.begin() + last);
-  flags_.erase(flags_.begin() + first, flags_.begin() + last);
-  std::vector<std::string> keys;
-  std::vector<std::uint32_t> depths;
-  std::vector<std::uint8_t> flags;
-  keys.reserve(descendants.size());
-  depths.reserve(descendants.size());
-  flags.reserve(descendants.size());
-  for (TreeRow& descendant : descendants) {
-    depths.push_back(descendant.depth);
-    flags.push_back(flagsOf(descendant));
-    keys.push_back(std::move(descendant.key));
-  }
-  keys_.insert(keys_.begin() + first, std::make_move_iterator(keys.begin()), std::make_move_iterator(keys.end()));
-  depths_.insert(depths_.begin() + first, depths.begin(), depths.end());
-  flags_.insert(flags_.begin() + first, flags.begin(), flags.end());
-  return {start, end - start, keys.size()};
+  TreeRows base = std::move(*this);
+  return expandFrom(base, row, std::move(descendants));
 }
 
 TreeSplice TreeRows::collapse(std::size_t row) {
-  if (row >= keys_.size()) {
-    return {keys_.size(), 0, 0};
+  TreeRows base = std::move(*this);
+  return collapseFrom(base, row);
+}
+
+TreeSplice TreeRows::expandFrom(const TreeRows& base, std::size_t row, std::vector<TreeRow> descendants) {
+  if (row >= base.size() || (base.flags_[row] & TREE_ROW_HAS_CHILDREN) == 0) {
+    *this = base;
+    return {row >= base.size() ? base.size() : row + 1, 0, 0};
   }
   std::size_t start = row + 1;
-  std::size_t end = subtreeEnd(row);
+  std::size_t end = base.subtreeEnd(row);
+  spliceFrom(base, start, end, descendants);
+  flags_[row] |= TREE_ROW_EXPANDED;
+  return {start, end - start, descendants.size()};
+}
+
+TreeSplice TreeRows::collapseFrom(const TreeRows& base, std::size_t row) {
+  if (row >= base.size()) {
+    *this = base;
+    return {base.size(), 0, 0};
+  }
+  std::size_t start = row + 1;
+  std::size_t end = base.subtreeEnd(row);
+  std::vector<TreeRow> none;
+  spliceFrom(base, start, end, none);
   flags_[row] &= static_cast<std::uint8_t>(~TREE_ROW_EXPANDED);
+  return {start, end - start, 0};
+}
+
+void TreeRows::spliceFrom(const TreeRows& base, std::size_t start, std::size_t end, std::vector<TreeRow>& inserted) {
   auto first = static_cast<std::ptrdiff_t>(start);
   auto last = static_cast<std::ptrdiff_t>(end);
-  keys_.erase(keys_.begin() + first, keys_.begin() + last);
-  depths_.erase(depths_.begin() + first, depths_.begin() + last);
-  flags_.erase(flags_.begin() + first, flags_.begin() + last);
-  return {start, end - start, 0};
+  std::size_t count = start + inserted.size() + (base.size() - end);
+  std::vector<std::string> keys;
+  depths_.clear();
+  flags_.clear();
+  keys.reserve(inserted.size());
+  depths_.reserve(count);
+  flags_.reserve(count);
+  depths_.insert(depths_.end(), base.depths_.begin(), base.depths_.begin() + first);
+  flags_.insert(flags_.end(), base.flags_.begin(), base.flags_.begin() + first);
+  for (TreeRow& row : inserted) {
+    depths_.push_back(row.depth);
+    flags_.push_back(flagsOf(row));
+    keys.push_back(std::move(row.key));
+  }
+  depths_.insert(depths_.end(), base.depths_.begin() + last, base.depths_.end());
+  flags_.insert(flags_.end(), base.flags_.begin() + last, base.flags_.end());
+  keys_ = base.keys_.splice(start, end - start, std::move(keys));
 }
 
 }

@@ -48,11 +48,42 @@ NSString *ShadowListKitString(const std::string& value)
   return [[NSString alloc] initWithBytes:value.data() length:value.size() encoding:NSUTF8StringEncoding] ?: @"";
 }
 
+/*
+ * The string as UTF-8, embedded NULs kept. An ASCII string hands out its bytes without a copy.
+ * Any other is converted straight into the result, with no autoreleased buffer in between.
+ */
 std::string ShadowListKitStdString(NSString *string)
 {
-  const char *bytes = string.UTF8String;
-  return bytes ? std::string(bytes) : std::string();
+  if (!string) {
+    return std::string();
+  }
+  CFStringRef cfString = (__bridge CFStringRef)string;
+  CFIndex length = CFStringGetLength(cfString);
+  const char *ascii = CFStringGetCStringPtr(cfString, kCFStringEncodingASCII);
+  if (ascii) {
+    return std::string(ascii, (std::size_t)length);
+  }
+  std::string result([string maximumLengthOfBytesUsingEncoding:NSUTF8StringEncoding], '\0');
+  NSUInteger used = 0;
+  [string getBytes:result.data() maxLength:result.size() usedLength:&used encoding:NSUTF8StringEncoding
+           options:NSStringEncodingConversionAllowLossy range:NSMakeRange(0, (NSUInteger)length) remainingRange:NULL];
+  result.resize(used);
+  return result;
 }
+
+/*
+ * What a layout pass reads for every row, read once after the core ran: the offset, the pixel
+ * shift, the display scale and the insets. Valid until the pass ends. A content offset or inset
+ * that changes during the pass reads them again.
+ */
+struct ShadowListKitPassGeometry {
+  double offset = 0.0;
+  double shift = 0.0;
+  CGFloat scale = 1.0;
+  CGFloat leadingInset = 0.0;
+  CGFloat trailingInset = 0.0;
+  bool valid = false;
+};
 
 #pragma mark - List
 
@@ -87,6 +118,15 @@ std::string ShadowListKitStdString(NSString *string)
   CGFloat _headerSize;
   CGFloat _footerSize;
   CGFloat _contentAlong;
+  double _footerStart;
+
+  /*
+   * The settings the core runs with, sent again only when one changed.
+   */
+  ListSettings _sentSettings;
+  BOOL _hasSentSettings;
+
+  ShadowListKitPassGeometry _passGeometry;
 
   /*
    * The last offset seen, to tell the user's scrolling from our own writes.
@@ -181,6 +221,9 @@ std::string ShadowListKitStdString(NSString *string)
     ShadowListKitListView *list = weakSelf;
     return list ? [list measureRow:(NSInteger)row key:key cross:(CGFloat)cross] : 0.0;
   });
+  _driver.setPrefetchRows([weakSelf](const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel) {
+    [weakSelf reportPrefetchRows:prefetch cancel:cancel];
+  });
 
   UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleTap:)];
   tap.cancelsTouchesInView = NO;
@@ -231,18 +274,27 @@ std::string ShadowListKitStdString(NSString *string)
 
 - (CGFloat)leadingInset
 {
+  if (_passGeometry.valid) {
+    return _passGeometry.leadingInset;
+  }
   UIEdgeInsets inset = self.adjustedContentInset;
   return _horizontal ? inset.left : inset.top;
 }
 
 - (CGFloat)trailingInset
 {
+  if (_passGeometry.valid) {
+    return _passGeometry.trailingInset;
+  }
   UIEdgeInsets inset = self.adjustedContentInset;
   return _horizontal ? inset.right : inset.bottom;
 }
 
 - (double)offset
 {
+  if (_passGeometry.valid) {
+    return _passGeometry.offset;
+  }
   CGFloat along = [self along:self.contentOffset];
   if ([self restsOnWrittenOffset:along]) {
     return _exactOffset;
@@ -262,14 +314,36 @@ std::string ShadowListKitStdString(NSString *string)
  */
 - (double)pixelShift
 {
+  if (_passGeometry.valid) {
+    return _passGeometry.shift;
+  }
   CGFloat along = [self along:self.contentOffset];
   return [self restsOnWrittenOffset:along] ? _exactOffset - (along + [self leadingInset]) : 0.0;
 }
 
 - (CGFloat)displayScale
 {
+  if (_passGeometry.valid) {
+    return _passGeometry.scale;
+  }
   CGFloat scale = self.traitCollection.displayScale;
   return scale >= 1 ? scale : UIScreen.mainScreen.scale;
+}
+
+- (void)readPassGeometry
+{
+  _passGeometry.valid = false;
+  CGFloat leadingInset = [self leadingInset];
+  CGFloat trailingInset = [self trailingInset];
+  double offset = [self offset];
+  double shift = [self pixelShift];
+  CGFloat scale = [self displayScale];
+  _passGeometry.offset = offset;
+  _passGeometry.shift = shift;
+  _passGeometry.scale = scale;
+  _passGeometry.leadingInset = leadingInset;
+  _passGeometry.trailingInset = trailingInset;
+  _passGeometry.valid = true;
 }
 
 - (CGFloat)pixelAligned:(double)value
@@ -305,6 +379,18 @@ std::string ShadowListKitStdString(NSString *string)
   _writtenInset = [self leadingInset];
   _hasWrittenOffset = YES;
   self.contentOffset = point;
+}
+
+/*
+ * A content offset set during a layout pass, by the pass itself or by a delegate it called, makes
+ * the pass read its geometry again.
+ */
+- (void)setContentOffset:(CGPoint)contentOffset
+{
+  [super setContentOffset:contentOffset];
+  if (_passGeometry.valid) {
+    [self readPassGeometry];
+  }
 }
 
 /*
@@ -682,6 +768,9 @@ std::string ShadowListKitStdString(NSString *string)
 - (void)adjustedContentInsetDidChange
 {
   [super adjustedContentInsetDidChange];
+  if (_passGeometry.valid) {
+    [self readPassGeometry];
+  }
   [self invalidateFrame];
 }
 
@@ -701,6 +790,7 @@ std::string ShadowListKitStdString(NSString *string)
     if (_needsFrame || geometryChanged || !_band.contains([self offset])) {
       [self runPasses];
     }
+    [self readPassGeometry];
     [self layoutTemplates];
     [self mountCells];
     [self layoutSticky];
@@ -711,6 +801,7 @@ std::string ShadowListKitStdString(NSString *string)
     [self layoutSwipe];
     [self layoutSectionIndex];
   }
+  _passGeometry.valid = false;
   _inLayoutPass = NO;
   [self dispatchReached];
 }
@@ -773,9 +864,8 @@ std::string ShadowListKitStdString(NSString *string)
     }
   }
   if (_footerView) {
-    double start = _driver.getFooterStart(_footerSize);
-    CGRect frame = _horizontal ? [self displayRect:start y:0 width:_footerSize height:_windowCross]
-                               : [self displayRect:0 y:start width:_windowCross height:_footerSize];
+    CGRect frame = _horizontal ? [self displayRect:_footerStart y:0 width:_footerSize height:_windowCross]
+                               : [self displayRect:0 y:_footerStart width:_windowCross height:_footerSize];
     if (!CGRectEqualToRect(_footerView.frame, frame)) {
       _footerView.frame = frame;
     }
@@ -788,7 +878,12 @@ std::string ShadowListKitStdString(NSString *string)
  */
 - (void)runPasses
 {
-  _driver.setSettings([self listSettings]);
+  ListSettings settings = [self listSettings];
+  if (!_hasSentSettings || settings != _sentSettings) {
+    _driver.setSettings(settings);
+    _sentSettings = settings;
+    _hasSentSettings = YES;
+  }
   PassInput input;
   input.offset = [self offset];
   input.windowAlong = _windowAlong;
@@ -798,6 +893,11 @@ std::string ShadowListKitStdString(NSString *string)
   input.phase = [self scrollPhase];
   input.userScrolled = _userScrolled;
   input.tracking = self.isTracking;
+  // The mount pass's padding, which the core prefetches around before it measures.
+  input.prefetch = _prefetchDataSource != nil;
+  input.mountPad = _windowAlong * _mountOverscan;
+  input.leadingInset = [self leadingInset];
+  input.trailingInset = [self trailingInset];
   PassResult result = _driver.runPasses(input);
   _userScrolled = NO;
   _needsFrame = NO;
@@ -826,6 +926,7 @@ std::string ShadowListKitStdString(NSString *string)
     [self writeOffset:result.offset byUser:NO];
   }
   _band = result.band;
+  _footerStart = result.footerStart;
   _reachedStart = _reachedStart || result.reachedStart;
   _reachedEnd = _reachedEnd || result.reachedEnd;
   if (result.settling) {
@@ -897,10 +998,12 @@ std::string ShadowListKitStdString(NSString *string)
   double shift = [self pixelShift];
   double shiftX = _horizontal ? shift : 0.0;
   double shiftY = _horizontal ? 0.0 : shift;
-  CGFloat left = [self pixelAligned:x - shiftX];
-  CGFloat top = [self pixelAligned:y - shiftY];
-  CGFloat right = [self pixelAligned:x + width - shiftX];
-  CGFloat bottom = [self pixelAligned:y + height - shiftY];
+  CGFloat scale = [self displayScale];
+  auto aligned = [scale](double value) { return (CGFloat)(std::round(value * scale) / scale); };
+  CGFloat left = aligned(x - shiftX);
+  CGFloat top = aligned(y - shiftY);
+  CGFloat right = aligned(x + width - shiftX);
+  CGFloat bottom = aligned(y + height - shiftY);
   return CGRectMake(left, top, right - left, bottom - top);
 }
 
@@ -1056,21 +1159,34 @@ std::string ShadowListKitStdString(NSString *string)
 #pragma mark - Prefetching
 
 /*
- * Tell the prefetch data source about items the measured range brought in that have no cell
- * yet, and the ones that left it unseen.
+ * Tell the prefetch data source about items the measured range brought in that are not
+ * mounted, and the ones that left it unseen. runPasses already told it about the rows it
+ * brought in before it measured them, which is before their cells exist. This finds what the
+ * mount changed.
  */
 - (void)prefetchAround:(const MountPlan&)plan
+{
+  if (!_prefetchDataSource) {
+    return;
+  }
+  _driver.updatePrefetch(plan.low, plan.high, _prefetchRows, _cancelRows);
+  [self reportPrefetchRows:_prefetchRows cancel:_cancelRows];
+}
+
+/*
+ * Hand prefetch changes to the prefetch data source as items.
+ */
+- (void)reportPrefetchRows:(const std::vector<std::size_t>&)rows cancel:(const std::vector<std::size_t>&)cancelRows
 {
   id<ShadowListKitListViewPrefetchDataSource> prefetch = _prefetchDataSource;
   if (!prefetch) {
     return;
   }
-  _driver.updatePrefetch(plan.low, plan.high, _prefetchRows, _cancelRows);
-  NSIndexSet *items = [self itemsOfRows:_prefetchRows];
+  NSIndexSet *items = [self itemsOfRows:rows];
   if (items.count > 0) {
     [prefetch listView:self prefetchItemsAtIndices:items];
   }
-  NSIndexSet *cancelled = [self itemsOfRows:_cancelRows];
+  NSIndexSet *cancelled = [self itemsOfRows:cancelRows];
   if (cancelled.count > 0 && [prefetch respondsToSelector:@selector(listView:cancelPrefetchingForItemsAtIndices:)]) {
     [prefetch listView:self cancelPrefetchingForItemsAtIndices:cancelled];
   }

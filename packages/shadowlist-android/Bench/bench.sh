@@ -6,11 +6,17 @@ set -uo pipefail
 #
 # Environment:
 #   ENGINES="sl recycler recycler-auto sl-auto rn"
+#     An engine name can carry options after a plus: sl+late shows every row 300 ms after it
+#     is bound, a self-test whose result must report blank above 0 (selfTest pass).
 #     rn is the React Native example (shadowlist.example) built with ShadowListKitBench in it:
 #     cd templates/shadowlist-fabric-example/android && ./gradlew \
 #       --init-script ../../../packages/shadowlist-android/Bench/rn/slbench-init.gradle \
 #       app:assembleRelease -PreactNativeArchitectures=arm64-v8a
 #     then adb install -r app/build/outputs/apk/release/app-release.apk
+#     The example turns on React Native feature flags beyond the stable defaults (see
+#     MainApplication.kt). Add -PshadowlistEngineFlags=false to the build for React Native's
+#     own. Each rn result records the state the app logged as rnEngineFlags.
+#   ENGINE_FLAGS=0|1                         expected rn flag state, warns when the app differs
 #   SCREENS="Feed Chat SectionList Masonry"  COUNTS="1000"  RUNS=3
 #   SPEED=4000 (dp/s)  SECONDS_PER_LEG=6  DELAY=4  IMAGES=1
 #   AXES=y                                   y, x or xy, comma separated. One result line per axis.
@@ -40,29 +46,43 @@ run_one() {
   axes_count=$(( $(tr -cd ',' <<< "$AXES" | wc -c) + 1 ))
   local limit=$(( DELAY + axes_count * (2 * SECONDS_PER_LEG + 1) + 30 ))
   local activity="$ACTIVITY"
+  local base="${engine%%+*}"
+  local extras=()
+  [[ "$engine" == *+late* ]] && extras+=(--es SLBenchDrawDelay 300)
   # The React Native example reads SLRoute and SLCount. It ignores SLEngine and SLImages.
-  [[ "$engine" == rn ]] && activity="$RN_ACTIVITY"
+  [[ "$base" == rn ]] && activity="$RN_ACTIVITY"
   adb logcat -c
-  adb shell am start -S -n "$activity" --es SLRoute "$screen" --es SLEngine "$engine" --es SLCount "$count" \
+  adb shell am start -S -n "$activity" --es SLRoute "$screen" --es SLEngine "$base" --es SLCount "$count" \
     --es SLImages "$IMAGES" --es SLBench 1 --es SLBenchExit 1 --es SLBenchSpeed "$SPEED" \
-    --es SLBenchSeconds "$SECONDS_PER_LEG" --es SLBenchDelay "$DELAY" --es SLBenchAxes "$AXES" --es SLBenchLabel "$engine" >/dev/null
+    --es SLBenchSeconds "$SECONDS_PER_LEG" --es SLBenchDelay "$DELAY" --es SLBenchAxes "$AXES" --es SLBenchLabel "$engine" \
+    ${extras[@]+"${extras[@]}"} >/dev/null
   local lines="" waited=0
   while [[ $(grep -c . <<< "$lines") -lt $axes_count && $waited -lt $limit ]]; do
     sleep 1
     waited=$((waited + 1))
     lines="$(adb logcat -d -s SLBENCH:I 2>/dev/null | grep -o '{.*}')"
   done
-  adb logcat -d -s SLBENCH:I AndroidRuntime:E > "$log" 2>&1
+  adb logcat -d -s SLBENCH:I SL:I AndroidRuntime:E > "$log" 2>&1
   if [[ -z "$lines" ]]; then
     echo "!! $engine $screen $count run $run: no result (see $log)"
     return
   fi
+  local flags=""
+  if [[ "$base" == rn ]]; then
+    flags="$(grep -o '\[SL\] engine flags .*' "$log" | head -1 | sed 's/^\[SL\] engine flags //')"
+    flags="${flags:-unknown}"
+    if [[ -n "${ENGINE_FLAGS:-}" && "$flags" != unknown ]]; then
+      local expected=on
+      [[ "$ENGINE_FLAGS" == 0 ]] && expected=off
+      [[ "$flags" == "$expected"* ]] || echo "!! $engine $screen $count run $run: engine flags $flags, ENGINE_FLAGS=$ENGINE_FLAGS expects $expected"
+    fi
+  fi
   local line
   while IFS= read -r line; do
-    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); r.update(engine=sys.argv[2], screen=sys.argv[3], count=int(sys.argv[4]), run=int(sys.argv[5]), kind="android"); print(json.dumps(r))' \
-      "$line" "$engine" "$screen" "$count" "$run" >> "$RESULTS"
-    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); a=r.get("axis","y"); print("   %-14s %-11s n=%-5s %-2s skipped: %s" % (sys.argv[2], sys.argv[3], sys.argv[4], a, r["skipped"]) if "skipped" in r else "   %-14s %-11s n=%-5s %-2s hitch=%6.1fms/s janky=%-4d ui=%6.1fms/s render=%6.1fms/s proc=%6.1fms/s blank=%.3f" % (sys.argv[2], sys.argv[3], sys.argv[4], a, r["hitchMsPerS"], r["jankyFrames"], r["mainCpuMsPerS"], r["renderCpuMsPerS"], r["processCpuMsPerS"], r["blankAvg"]))' \
-      "$line" "$engine" "$screen" "$count"
+    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); r.update(engine=sys.argv[2], screen=sys.argv[3], count=int(sys.argv[4]), run=int(sys.argv[5]), kind="android"); sys.argv[6] and r.update(rnEngineFlags=sys.argv[6]); print(json.dumps(r))' \
+      "$line" "$engine" "$screen" "$count" "$run" "$flags" >> "$RESULTS"
+    python3 -c 'import json,sys; r=json.loads(sys.argv[1]); a=r.get("axis","y"); t={"pass": " self-test pass", "fail": "  !! SELF-TEST FAIL: no blank with rows drawn late"}.get(r.get("selfTest"), ""); f=" flags=%s" % sys.argv[5] if sys.argv[5] else ""; print("   %-14s %-11s n=%-5s %-2s skipped: %s" % (sys.argv[2], sys.argv[3], sys.argv[4], a, r["skipped"]) if "skipped" in r else "   %-14s %-11s n=%-5s %-2s hitch=%6.1fms/s janky=%-4d ui=%6.1fms/s render=%6.1fms/s proc=%6.1fms/s blank=%.3f%s%s" % (sys.argv[2], sys.argv[3], sys.argv[4], a, r["hitchMsPerS"], r["jankyFrames"], r["mainCpuMsPerS"], r["renderCpuMsPerS"], r["processCpuMsPerS"], r["blankAvg"], f, t))' \
+      "$line" "$engine" "$screen" "$count" "$flags"
   done <<< "$lines"
 }
 

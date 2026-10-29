@@ -6,7 +6,9 @@
  * heights 48 to 239 from mulberry32 seeded with the row count, the core's window one viewport
  * past each side, a section header every 20 rows, one viewability config at 50 percent, prefetch
  * 10 rows around the mounted ones and 1,369 frames of drags, flings and a jump to the middle.
- * The checksum it prints matches the JS trace's.
+ * The trace checksum covers the trace's ranges and matches the JS trace's. The output checksum
+ * covers every event the driver and trackers emit, from an untimed run, and tells whether two
+ * builds produce the same events over the same trace.
  *
  * Each frame runs like the list does: the display frame tick takes a paced step, then the
  * commit gives the driver its basis and the core's reports and sends what changed. The renderer
@@ -178,6 +180,40 @@ struct Stats {
   double prefetchUs = 0.0;
 };
 
+/*
+ * FNV-1a over the emitted events.
+ */
+struct OutputHash {
+  std::uint64_t value = 14695981039346656037ull;
+
+  void add(std::uint64_t number) {
+    for (int byte = 0; byte < 8; ++byte) {
+      value = (value ^ ((number >> (byte * 8)) & 0xffu)) * 1099511628211ull;
+    }
+  }
+
+  void add(const std::string& text) {
+    add(text.size());
+    for (unsigned char character : text) {
+      value = (value ^ character) * 1099511628211ull;
+    }
+  }
+
+  void add(const std::vector<std::string>& texts) {
+    add(texts.size());
+    for (const std::string& text : texts) {
+      add(text);
+    }
+  }
+
+  void add(const std::vector<std::size_t>& numbers) {
+    add(numbers.size());
+    for (std::size_t number : numbers) {
+      add(number);
+    }
+  }
+};
+
 double nowUs() {
   using namespace std::chrono;
   return duration<double, std::micro>(steady_clock::now().time_since_epoch()).count();
@@ -185,9 +221,9 @@ double nowUs() {
 
 /*
  * One run over the trace, like ShadowListMountDriver: tick, then commit. dump gets the events
- * JS receives, as JSON lines, when set.
+ * JS receives, as JSON lines, and hash takes every event, when set.
  */
-Stats run(const Trace& trace, bool instrument, std::FILE* dump) {
+Stats run(const Trace& trace, bool instrument, std::FILE* dump, OutputHash* hash = nullptr) {
   Stats stats;
   const std::vector<std::string>& keys = trace.keys;
   auto indexOfKey = [&trace](const std::string& key) {
@@ -226,6 +262,16 @@ Stats run(const Trace& trace, bool instrument, std::FILE* dump) {
   std::size_t frameIndex = 0;
   auto apply = [&](const MountMessage& message) {
     ++stats.mountEvents;
+    if (hash) {
+      hash->add(frameIndex);
+      hash->add(message.range.low);
+      hash->add(message.range.high);
+      hash->add(message.lowKey);
+      hash->add(message.highKey);
+      hash->add((message.lowAtStart ? 1u : 0u) | (message.highAtEnd ? 2u : 0u) | (message.landed ? 4u : 0u));
+      hash->add(message.sequence);
+      hash->add(message.generation);
+    }
     if (dump) {
       std::fprintf(dump,
         "{\"f\":%zu,\"t\":\"m\",\"lowKey\":\"%s\",\"highKey\":\"%s\",\"lowAtStart\":%s,\"highAtEnd\":%s,"
@@ -302,6 +348,16 @@ Stats run(const Trace& trace, bool instrument, std::FILE* dump) {
       stop(stats.viewabilityUs);
       if (reported || send) {
         ++stats.viewabilityEvents;
+        if (hash) {
+          hash->add(frameIndex);
+          hash->add(static_cast<std::uint64_t>(static_cast<std::int64_t>(activeSticky)));
+          hash->add(reported ? 1u : 0u);
+          if (reported) {
+            hash->add(report.viewable);
+            hash->add(report.changes.added);
+            hash->add(report.changes.removed);
+          }
+        }
         if (dump) {
           std::fprintf(dump, "{\"f\":%zu,\"t\":\"v\",\"activeStickyIndex\":%d,\"changes\":[", frameIndex, activeSticky);
           if (reported) {
@@ -338,6 +394,11 @@ Stats run(const Trace& trace, bool instrument, std::FILE* dump) {
         ++stats.prefetchEvents;
         stats.prefetched += prefetchRows.size();
         stats.cancelled += cancelRows.size();
+        if (hash) {
+          hash->add(frameIndex);
+          hash->add(prefetchRows);
+          hash->add(cancelRows);
+        }
         if (dump) {
           std::fprintf(dump, "{\"f\":%zu,\"t\":\"p\",\"prefetch\":%zu,\"cancel\":%zu}\n", frameIndex,
             prefetchRows.size(), cancelRows.size());
@@ -357,7 +418,7 @@ int main(int argc, char** argv) {
       dumpDir = argv[at + 1];
     }
   }
-  std::printf("rows\tframes\tchecksum\tmedian_us\tmin_us\tmax_us\tmount_us\tviewability_us\tprefetch_us\t"
+  std::printf("rows\tframes\ttrace_checksum\toutput_checksum\tmedian_us\tmin_us\tmax_us\tmount_us\tviewability_us\tprefetch_us\t"
               "crossings\tmount_events\tsteps\tviewability_events\tprefetch_events\treports\tprefetched\tcancelled\n");
   for (std::size_t count : {std::size_t{10000}, std::size_t{100000}}) {
     Trace trace = buildTrace(count);
@@ -371,6 +432,8 @@ int main(int argc, char** argv) {
       times.push_back(nowUs() - begin);
     }
     Stats breakdown = run(trace, true, nullptr);
+    OutputHash output;
+    run(trace, false, nullptr, &output);
     if (dumpDir) {
       std::string path = std::string(dumpDir) + "/events-" + std::to_string(count) + ".jsonl";
       if (std::FILE* dump = std::fopen(path.c_str(), "w")) {
@@ -380,8 +443,8 @@ int main(int argc, char** argv) {
     }
     std::vector<double> sorted = times;
     std::sort(sorted.begin(), sorted.end());
-    std::printf("%zu\t%zu\t%lld\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\n", count,
-      trace.frames.size(), trace.checksum, sorted[sorted.size() / 2], sorted.front(), sorted.back(),
+    std::printf("%zu\t%zu\t%lld\t%016llx\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%.0f\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\t%zu\n", count,
+      trace.frames.size(), trace.checksum, static_cast<unsigned long long>(output.value), sorted[sorted.size() / 2], sorted.front(), sorted.back(),
       breakdown.mountUs, breakdown.viewabilityUs, breakdown.prefetchUs,
       stats.mountEvents + stats.viewabilityEvents + stats.prefetchEvents, stats.mountEvents, stats.steps,
       stats.viewabilityEvents, stats.prefetchEvents, stats.reports, stats.prefetched, stats.cancelled);

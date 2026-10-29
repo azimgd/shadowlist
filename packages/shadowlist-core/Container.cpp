@@ -245,11 +245,11 @@ const std::vector<double>& Container::getSnapOffsets() const {
   /*
    * One target per row, clamped to the scroll range, plus both ends of the range. A header
    * or footer can then still be scrolled into view. Rows near either end collapse onto the
-   * same value. Grid tracks are not in order. Sort and skip repeats.
+   * same value. A single column comes in order. Grid tracks do not. Sort them and skip repeats.
    */
   snapOffsets.reserve(rowCount + 2);
   snapOffsets.push_back(0.0);
-  snapOffsets.push_back(maxOffset);
+  bool ordered = true;
   for (std::size_t nextRowIndex = 0; nextRowIndex < rowCount; ++nextRowIndex) {
     const Row& nextRow = revision.rows[nextRowIndex];
     double rowOffset = horizontal ? nextRow.offsetX : nextRow.offsetY;
@@ -271,16 +271,24 @@ const std::vector<double>& Container::getSnapOffsets() const {
       target = maxOffset;
     }
 
-    if (std::fabs(target - snapOffsets.back()) > OFFSET_MOVED_THRESHOLD) {
+    if (target < snapOffsets.back()) {
+      ordered = false;
+      snapOffsets.push_back(target);
+    } else if (target - snapOffsets.back() > OFFSET_MOVED_THRESHOLD) {
       snapOffsets.push_back(target);
     }
   }
+  if (!ordered || maxOffset - snapOffsets.back() > OFFSET_MOVED_THRESHOLD) {
+    snapOffsets.push_back(maxOffset);
+  }
 
-  std::sort(snapOffsets.begin(), snapOffsets.end());
-  snapOffsets.erase(
-    std::unique(snapOffsets.begin(), snapOffsets.end(),
-      [](double previous, double next) { return next - previous <= OFFSET_MOVED_THRESHOLD; }),
-    snapOffsets.end());
+  if (!ordered) {
+    std::sort(snapOffsets.begin(), snapOffsets.end());
+    snapOffsets.erase(
+      std::unique(snapOffsets.begin(), snapOffsets.end(),
+        [](double previous, double next) { return next - previous <= OFFSET_MOVED_THRESHOLD; }),
+      snapOffsets.end());
+  }
   return snapOffsets;
 }
 
@@ -329,8 +337,8 @@ void Container::dispatchObservers() {
 
   // Only work out the viewable rows when someone listens, since it scans the measured range.
   if (onViewableIndicesChangeCallback) {
-    std::vector<std::size_t> ranges;
-    ranges.reserve(viewableRules.size() * 2);
+    std::vector<std::size_t>& ranges = viewableRangesScratch_;
+    ranges.clear();
     for (const auto& rule : viewableRules) {
       IndexRange viewable = getViewableIndices(rule);
       ranges.push_back(viewable.low);
@@ -341,20 +349,11 @@ void Container::dispatchObservers() {
         static_cast<std::ptrdiff_t>(ranges.empty() ? UNDEFINED_INDEX : ranges[0]),
         static_cast<std::ptrdiff_t>(ranges.empty() ? UNDEFINED_INDEX : ranges[1]), viewableRules.size());
       previousViewableRanges_ = ranges;
-      // Hand out the local copy. A callback that runs another frame rewrites the member under it.
-      onViewableIndicesChangeCallback(ranges);
+      // Hand out a local copy. A callback that runs another frame rewrites the members under it.
+      std::vector<std::size_t> changed = ranges;
+      onViewableIndicesChangeCallback(changed);
     }
   }
-
-  double offsetX = revision.offsetX;
-  double offsetY = revision.offsetY;
-  if (onScrollCallback &&
-    (!previousOffsetValid_ || offsetX != previousOffsetX_ || offsetY != previousOffsetY_)) {
-    onScrollCallback(offsetX, offsetY);
-  }
-  previousOffsetX_ = offsetX;
-  previousOffsetY_ = offsetY;
-  previousOffsetValid_ = true;
 }
 
 bool Container::hasPendingCommand() const {
@@ -378,7 +377,7 @@ OffsetBand Container::computeOffsetBand() const {
   }
 
   // Rows or sizes the next frame would still lay out. Positions are about to move.
-  if (rowStructureDirty || rowSizeDirtyFromIndex != UNDEFINED_INDEX) {
+  if (rowStructureDirty || rowSizeDirtyFromIndex != UNDEFINED_INDEX || measuredRangeStale) {
     return empty;
   }
   auto [estimatedWidth, estimatedHeight] = estimatedRowSize;
@@ -394,11 +393,6 @@ OffsetBand Container::computeOffsetBand() const {
   if (fallbackWidth != previousFallbackWidth || fallbackHeight != previousFallbackHeight ||
       headerSize != previousLayoutHeaderSize || crossWindowChanged ||
       numberOfColumns != previousLayoutNumberOfColumns || horizontal != previousLayoutHorizontal) {
-    return empty;
-  }
-
-  // These listeners need every offset, not just the measured range.
-  if (onScrollCallback || onViewableIndicesChangeCallback || !stickyIndices.empty()) {
     return empty;
   }
 
@@ -457,6 +451,18 @@ OffsetBand Container::computeOffsetBand() const {
     double rowSize = horizontal ? row.width : row.height;
     addFlip(rowStart - windowSize - overscanSize);
     addFlip(rowStart + rowSize + overscanSize);
+    /*
+     * A row is viewable once the share getViewableIndices asks of it shows, so it turns
+     * viewable and stops at these two offsets.
+     */
+    if (onViewableIndicesChangeCallback && rowSize > 0.0) {
+      for (const ViewableRule& rule : viewableRules) {
+        double shown = rule.coverage ? std::min(rowSize, rule.threshold * windowSize)
+                                     : rule.threshold * std::min(rowSize, windowSize);
+        addFlip(rowStart - windowSize + shown);
+        addFlip(rowStart + rowSize - shown);
+      }
+    }
   }
 
   // The edge callbacks flip where they start and stop counting as reached.

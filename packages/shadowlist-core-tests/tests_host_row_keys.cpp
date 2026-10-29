@@ -158,6 +158,38 @@ TEST(tree_rows_collapse_and_expand_splice_the_visible_descendants) {
   checkRows(tree, rows);
 }
 
+/*
+ * A new version of a tree is built from its base, which stays as it was.
+ */
+TEST(tree_rows_expand_and_collapse_from_a_base_leave_the_base_alone) {
+  std::vector<Node> nodes = sampleTree();
+  std::set<std::string> expanded = {"a", "b", "f"};
+  std::vector<TreeRow> rows;
+  flatten(nodes, 0, expanded, rows);
+  TreeRows base;
+  base.reset(rows);
+
+  TreeRows collapsed;
+  TreeSplice splice = collapsed.collapseFrom(base, 0);
+  CHECK_EQ(splice.start, std::size_t(1));
+  CHECK_EQ(splice.deleted, std::size_t(4));
+  checkRows(base, rows);
+  std::set<std::string> collapsedSet = {"b", "f"};
+  std::vector<TreeRow> collapsedRows;
+  flatten(nodes, 0, collapsedSet, collapsedRows);
+  checkRows(collapsed, collapsedRows);
+
+  TreeRows reopened;
+  std::vector<TreeRow> under;
+  std::uint32_t depth = 0;
+  const Node* a = findNode(nodes, "a", depth);
+  flatten(a->children, depth + 1, expanded, under);
+  splice = reopened.expandFrom(collapsed, 0, under);
+  CHECK_EQ(splice.inserted, under.size());
+  checkRows(reopened, rows);
+  checkRows(collapsed, collapsedRows);
+}
+
 TEST(tree_rows_ignore_expanding_a_leaf_or_a_row_past_the_end) {
   TreeRows tree;
   tree.reset({{"x", 0, false, false}});
@@ -218,7 +250,7 @@ TEST(tree_rows_match_a_full_flatten_through_random_toggles) {
   }
 }
 
-TEST(row_key_store_splices_from_a_base_and_reports_end_edits) {
+TEST(row_key_store_splices_from_a_base_and_reports_its_edit) {
   RowKeyStore store;
   CHECK(store.setKeys(1, keysOf({"a", "b", "c"})));
   CHECK(store.spliceKeys(2, 1, 3, 0, keysOf({"d", "e"})));
@@ -234,11 +266,18 @@ TEST(row_key_store_splices_from_a_base_and_reports_end_edits) {
   CHECK(store.snapshot(4)->getEdit().kind == KeyEditKind::TrimStart);
   CHECK(store.spliceKeys(5, 4, 1, 1, keysOf({"q"})));
   CHECK(store.snapshot(5)->keys() == keysOf({"b", "q", "d", "e"}));
-  CHECK(store.snapshot(5)->getEdit().kind == KeyEditKind::Unknown);
+  const KeyEdit& replaced = store.snapshot(5)->getEdit();
+  CHECK(replaced.kind == KeyEditKind::Splice);
+  CHECK_EQ(replaced.start, std::size_t(1));
+  CHECK_EQ(replaced.deleted, std::size_t(1));
+  CHECK_EQ(replaced.inserted, std::size_t(1));
+  // Every key replaced is no edit the core can use.
+  CHECK(store.spliceKeys(6, 5, 0, 4, keysOf({"x"})));
+  CHECK(store.snapshot(6)->getEdit().kind == KeyEditKind::Unknown);
 
   // A base that is not there, or a splice past its end, fails.
   CHECK(!store.spliceKeys(9, 42, 0, 0, keysOf({"x"})));
-  CHECK(!store.spliceKeys(9, 5, 3, 2, {}));
+  CHECK(!store.spliceKeys(9, 6, 3, 2, {}));
 }
 
 TEST(row_key_store_drops_versions_no_commit_can_name) {
@@ -483,4 +522,134 @@ TEST(row_key_store_serves_commits_on_other_threads_while_the_renderer_writes) {
   second.join();
   CHECK(found.load() > 0);
   CHECK_EQ(store.snapshot(399)->indexOfKey("k1000"), std::size_t(1398));
+}
+
+namespace {
+
+std::vector<std::string> longKeys(const std::string& prefix, std::size_t count) {
+  std::vector<std::string> keys;
+  for (std::size_t index = 0; index < count; ++index) {
+    keys.push_back(prefix + "-0123456789abcdef-0123456789abcdef-" + std::to_string(index));
+  }
+  return keys;
+}
+
+/*
+ * Whether next's rows from nextStart hold base's key strings from baseStart, the same objects.
+ */
+bool sharesKeys(KeyList base, std::size_t baseStart, KeyList next, std::size_t nextStart, std::size_t count) {
+  for (std::size_t offset = 0; offset < count; ++offset) {
+    if (&base[baseStart + offset] != &next[nextStart + offset]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+}
+
+TEST(row_key_store_splices_share_the_keys_they_keep) {
+  RowKeyStore store;
+  std::vector<std::string> model = longKeys("a", 100);
+  CHECK(store.setKeys(1, model));
+  auto first = store.snapshot(1);
+
+  CHECK(store.spliceKeys(2, 1, 100, 0, longKeys("end", 3)));
+  auto appended = store.snapshot(2);
+  CHECK(sharesKeys(first->keys(), 0, appended->keys(), 0, 100));
+
+  CHECK(store.spliceKeys(3, 2, 0, 0, longKeys("start", 2)));
+  auto prepended = store.snapshot(3);
+  CHECK(sharesKeys(appended->keys(), 0, prepended->keys(), 2, 103));
+
+  CHECK(store.spliceKeys(4, 3, 50, 1, longKeys("middle", 1)));
+  auto replaced = store.snapshot(4);
+  CHECK(sharesKeys(prepended->keys(), 0, replaced->keys(), 0, 50));
+  CHECK(sharesKeys(prepended->keys(), 51, replaced->keys(), 51, 54));
+
+  CHECK(store.spliceKeys(5, 4, 100, 5, {}));
+  CHECK(store.spliceKeys(6, 5, 0, 10, {}));
+  auto trimmed = store.snapshot(6);
+  CHECK(sharesKeys(replaced->keys(), 10, trimmed->keys(), 0, 90));
+
+  // Versions spliced from one base at the same end each get their own keys.
+  CHECK(store.spliceKeys(7, 1, 100, 0, longKeys("other", 2)));
+  CHECK(store.spliceKeys(8, 1, 0, 0, longKeys("other-start", 1)));
+  std::vector<std::string> other = model;
+  for (const std::string& key : longKeys("other", 2)) {
+    other.push_back(key);
+  }
+  CHECK(store.snapshot(7)->keys() == other);
+  CHECK(sharesKeys(first->keys(), 0, store.snapshot(7)->keys(), 0, 100));
+  CHECK(sharesKeys(first->keys(), 0, store.snapshot(8)->keys(), 1, 100));
+  CHECK(store.snapshot(8)->keys()[0] == longKeys("other-start", 1)[0]);
+
+  // Every earlier version still reads what it was made with.
+  CHECK(first->keys() == model);
+  std::vector<std::string> expected = model;
+  for (const std::string& key : longKeys("end", 3)) {
+    expected.push_back(key);
+  }
+  CHECK(appended->keys() == expected);
+  std::vector<std::string> starts = longKeys("start", 2);
+  expected.insert(expected.begin(), starts.begin(), starts.end());
+  CHECK(prepended->keys() == expected);
+  expected[50] = longKeys("middle", 1)[0];
+  CHECK(replaced->keys() == expected);
+  expected.erase(expected.begin() + 100, expected.end());
+  expected.erase(expected.begin(), expected.begin() + 10);
+  CHECK(trimmed->keys() == expected);
+}
+
+TEST(shared_keys_store_kept_keys_afresh_only_once_deleted_keys_pile_up) {
+  std::vector<std::string> model = longKeys("k", 10);
+  SharedKeys keys(model);
+  std::size_t fresh = 0;
+  constexpr std::size_t EDITS = 4 * SharedKeys::COMPACT_SLACK;
+  for (std::size_t edit = 0; edit < EDITS; ++edit) {
+    std::string key = "replaced-" + std::to_string(edit);
+    SharedKeys next = keys.splice(5, 1, {key});
+    model[5] = key;
+    if (!sharesKeys(keys.list(), 0, next.list(), 0, 5)) {
+      ++fresh;
+    }
+    keys = next;
+    CHECK(keys.list() == model);
+  }
+  CHECK(fresh >= 1);
+  CHECK(fresh <= EDITS / SharedKeys::COMPACT_SLACK);
+}
+
+TEST(row_key_store_sections_and_trees_share_the_keys_they_keep) {
+  RowKeyStore store;
+  SectionsUpdate update;
+  update.hasHeader = true;
+  update.sectionKeys = keysOf({"s0", "s1"});
+  update.itemCounts = {2, 1};
+  update.reuse = {UNDEFINED_INDEX, UNDEFINED_INDEX};
+  update.itemKeys = keysOf({"a", "b", "c"});
+  CHECK(store.setSections(1, 0, update));
+  update.itemCounts = {2, 2};
+  update.reuse = {0, UNDEFINED_INDEX};
+  update.itemKeys = keysOf({"c", "d"});
+  CHECK(store.setSections(2, 1, update));
+  auto base = store.snapshot(1);
+  auto next = store.snapshot(2);
+  CHECK(sharesKeys(base->keys(), 0, next->keys(), 0, 3));
+  std::vector<TestSection> sections = {{"s0", keysOf({"a", "b"})}, {"s1", keysOf({"c", "d"})}};
+  CHECK(next->keys() == referenceRows(sections, true, false));
+
+  std::vector<TreeRow> rows;
+  for (const std::string& key : longKeys("node", 50)) {
+    rows.push_back({key, 0, true, false});
+  }
+  CHECK(store.resetTree(3, rows));
+  auto expanded = store.expandTree(4, 3, 20, {{"child-0", 1, false, false}, {"child-1", 1, false, false}});
+  CHECK(expanded.has_value());
+  auto tree = store.snapshot(3);
+  auto grown = store.snapshot(4);
+  CHECK(sharesKeys(tree->keys(), 0, grown->keys(), 0, 21));
+  CHECK(sharesKeys(tree->keys(), 21, grown->keys(), 23, 29));
+  CHECK(store.collapseTree(5, 4, 20).has_value());
+  CHECK(sharesKeys(tree->keys(), 0, store.snapshot(5)->keys(), 0, 50));
 }

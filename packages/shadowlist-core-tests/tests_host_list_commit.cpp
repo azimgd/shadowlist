@@ -91,6 +91,15 @@ TEST(list_commit_sticky_indices_drop_negatives) {
   CHECK_EQ(indices[2], static_cast<std::size_t>(9));
 }
 
+/*
+ * The core finds the pinned header with a binary search, which needs them sorted.
+ */
+TEST(list_commit_sticky_indices_come_sorted_and_each_once) {
+  std::vector<std::size_t> indices;
+  stickyIndicesFromProps({12, 3, -1, 7, 3, 0}, indices);
+  CHECK(indices == std::vector<std::size_t>({0, 3, 7, 12}));
+}
+
 TEST(list_commit_band_is_empty_while_work_is_pending) {
   Container core;
   layOut(core, 50, 100.0);
@@ -112,6 +121,30 @@ TEST(list_layout_inputs_reflow_and_mark_the_offset) {
   CHECK(core.offsetCorrected);
   CHECK_EQ(offsetOf(core, 0), 60.0);
   CHECK_EQ(offsetOf(core, 1), 160.0);
+}
+
+/*
+ * A header change in the layout pass reflows the rows there, and the next frame has no
+ * reflow left for it. The band stays empty until that frame picks the measured range again.
+ */
+TEST(list_layout_inputs_leave_no_reflow_for_the_next_frame) {
+  Container core;
+  auto keys = keysFor(50);
+  layOut(core, keys.size(), 100.0);
+  Virtualizer::update(core, inputFor(keys, 0.0));
+  CHECK(!core.computeOffsetBand().isEmpty());
+
+  CHECK(applyLayoutInputs(core, 60.0, 0.0, WINDOW_WIDTH, WINDOW_HEIGHT));
+  CHECK_EQ(core.previousLayoutHeaderSize, 60.0);
+  CHECK(core.measuredRangeStale);
+  CHECK(core.computeOffsetBand().isEmpty());
+
+  FrameInput input = inputFor(keys, 0.0);
+  input.headerSize = 60.0;
+  Virtualizer::update(core, input);
+  CHECK(!core.measuredRangeStale);
+  CHECK_EQ(offsetOf(core, 0), 60.0);
+  CHECK_EQ(offsetOf(core, 49), 60.0 + 49 * 100.0);
 }
 
 TEST(list_layout_measured_rows_report_first_measurements) {

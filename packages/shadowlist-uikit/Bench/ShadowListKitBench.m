@@ -51,7 +51,9 @@ static double ShadowListKitBenchFootprintMB(void)
   UIScrollView *_vertical;
   UIScrollView *_horizontal;
   UIScrollView *_coverage;
-  id<ShadowListKitBenchProbe> _probe;
+  double (^_probe)(void);
+  NSString *_probeName;
+  double _drawDelay;
   BOOL _drivesX;
   BOOL _drivesY;
   CADisplayLink *_link;
@@ -147,18 +149,36 @@ static double ShadowListKitBenchFootprintMB(void)
 }
 
 /*
- * The first of the views and their superviews that answers the probe.
+ * The first of the views and their superviews that answers the probe, else ShadowListKitTextView
+ * counting its views under the coverage view.
  */
-+ (id<ShadowListKitBenchProbe>)findProbeFrom:(NSArray<UIView *> *)views
+- (void)findProbeFrom:(NSArray<UIView *> *)views
 {
+  _probe = nil;
+  _probeName = nil;
   for (UIView *start in views) {
     for (UIView *view = start; view; view = view.superview) {
       if ([view respondsToSelector:@selector(shadowListKit_benchBlankFraction)]) {
-        return (id<ShadowListKitBenchProbe>)view;
+        id<ShadowListKitBenchProbe> probe = (id<ShadowListKitBenchProbe>)view;
+        _probe = ^double {
+          return [probe shadowListKit_benchBlankFraction];
+        };
+        _probeName = NSStringFromClass([view class]);
+        return;
       }
     }
   }
-  return nil;
+  Class textView = NSClassFromString(@"ShadowListKitTextView");
+  SEL fraction = NSSelectorFromString(@"shadowListKit_benchBlankFractionIn:");
+  if ([textView respondsToSelector:fraction]) {
+    double (*call)(id, SEL, UIScrollView *) = (double (*)(id, SEL, UIScrollView *))[textView methodForSelector:fraction];
+    __weak ShadowListKitBench *weakSelf = self;
+    _probe = ^double {
+      ShadowListKitBench *bench = weakSelf;
+      return bench ? call(textView, fraction, bench->_coverage) : 0;
+    };
+    _probeName = NSStringFromClass(textView);
+  }
 }
 
 - (CGFloat)minOffsetOf:(UIScrollView *)scrollView alongX:(BOOL)alongX
@@ -199,6 +219,7 @@ static double ShadowListKitBenchFootprintMB(void)
   _axes = list.count > 0 ? list : @[ @"y" ];
   _speed = [ShadowListKitBench setting:@"SLBenchSpeed" fallback:4000];
   _seconds = [ShadowListKitBench setting:@"SLBenchSeconds" fallback:6];
+  _drawDelay = [ShadowListKitBench setting:@"SLBenchDrawDelay" fallback:0];
   _nominal = 1.0 / UIScreen.mainScreen.maximumFramesPerSecond;
   _run = 0;
   [self startRun];
@@ -224,7 +245,7 @@ static double ShadowListKitBenchFootprintMB(void)
   if (_horizontal) {
     [driven addObject:_horizontal];
   }
-  _probe = [ShadowListKitBench findProbeFrom:driven];
+  [self findProbeFrom:driven];
   _positionX = _horizontal.contentOffset.x;
   _positionY = _vertical.contentOffset.y;
   _directionX = _horizontal ? [self directionOf:_horizontal alongX:YES] : 1;
@@ -253,6 +274,10 @@ static double ShadowListKitBenchFootprintMB(void)
   SEL reset = NSSelectorFromString(@"shadowListKit_resetAsyncStats");
   if ([textView respondsToSelector:reset]) {
     ((void (*)(id, SEL))[textView methodForSelector:reset])(textView, reset);
+  }
+  SEL delay = NSSelectorFromString(@"shadowListKit_setBenchDrawDelay:");
+  if ([textView respondsToSelector:delay]) {
+    ((void (*)(id, SEL, double))[textView methodForSelector:delay])(textView, delay, _drawDelay);
   }
   [_link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 }
@@ -339,9 +364,36 @@ static double ShadowListKitBenchFootprintMB(void)
 }
 
 /*
- * How much of the viewport no row covers, along the coverage view's scroll axis. Rows are the
- * views one or two levels into the scroll view that are neither containers nor scroll
- * indicators. With a probe, the content blank is the larger of that and the probe's share.
+ * Whether the view, or a view inside it, puts pixels on screen: a bitmap, a background color or
+ * a layer of its own like a gradient or a shape.
+ */
++ (BOOL)drawsContent:(UIView *)view depth:(int)depth
+{
+  if (view.hidden || view.alpha < 0.01) {
+    return NO;
+  }
+  CALayer *layer = view.layer;
+  if (layer.contents != nil || (layer.backgroundColor && CGColorGetAlpha(layer.backgroundColor) > 0.01) ||
+      layer.sublayers.count > view.subviews.count) {
+    return YES;
+  }
+  if (depth >= 8) {
+    return NO;
+  }
+  for (UIView *child in view.subviews) {
+    if ([self drawsContent:child depth:depth + 1]) {
+      return YES;
+    }
+  }
+  return NO;
+}
+
+/*
+ * How much of the viewport no drawn row covers, along the coverage view's scroll axis. A view
+ * at least as long as the viewport with subviews, like the content view of a scroll view, is
+ * a wrapper and the bench looks inside it. Other views at least 30 percent of the cross size
+ * are rows, and a row covers its span only once it draws something. With a probe, the content
+ * blank is the larger of that and the probe's share.
  */
 - (void)sampleBlank
 {
@@ -362,7 +414,6 @@ static double ShadowListKitBenchFootprintMB(void)
   if (visibleAlong <= 0) {
     return;
   }
-  CGFloat contentAlong = alongX ? scrollView.contentSize.width : scrollView.contentSize.height;
   CGFloat rootCross = alongX ? scrollView.bounds.size.height : scrollView.bounds.size.width;
   NSMutableArray<NSValue *> *spans = [NSMutableArray new];
   void (^collect)(UIView *, UIView *, int) = nil;
@@ -376,9 +427,8 @@ static double ShadowListKitBenchFootprintMB(void)
       CGFloat along = alongX ? frame.size.width : frame.size.height;
       CGFloat cross = alongX ? frame.size.height : frame.size.width;
       CGFloat start = alongX ? frame.origin.x : frame.origin.y;
-      BOOL container = along >= contentAlong * 0.9 && contentAlong > visibleAlong * 1.5;
-      if (container) {
-        if (depth < 2) {
+      if (along >= visibleAlong && child.subviews.count > 0) {
+        if (depth < 6) {
           weakCollect(child, root, depth + 1);
         }
         continue;
@@ -388,7 +438,7 @@ static double ShadowListKitBenchFootprintMB(void)
       }
       CGFloat low = MAX(start, visibleStart);
       CGFloat high = MIN(start + along, visibleStart + visibleAlong);
-      if (high > low) {
+      if (high > low && [ShadowListKitBench drawsContent:child depth:0]) {
         [spans addObject:[NSValue valueWithCGPoint:CGPointMake(low, high)]];
       }
     }
@@ -426,7 +476,7 @@ static double ShadowListKitBenchFootprintMB(void)
     ++_blankFrames;
   }
   if (_probe) {
-    double content = MAX(blank, MIN(1.0, MAX(0.0, [_probe shadowListKit_benchBlankFraction])));
+    double content = MAX(blank, MIN(1.0, MAX(0.0, _probe())));
     _contentBlankSum += content;
     _contentBlankMax = MAX(_contentBlankMax, content);
     if (content > SHADOWLIST_KIT_BENCH_BLANK_FRAME) {
@@ -505,11 +555,23 @@ static double ShadowListKitBenchFootprintMB(void)
   if (_vertical && _horizontal && _vertical != _horizontal) {
     result[@"horizontalScrollView"] = NSStringFromClass([_horizontal class]);
   }
+  double contentBlankAvg = _blankSamples > 0 ? _contentBlankSum / _blankSamples : 0;
   if (_probe) {
-    result[@"probe"] = NSStringFromClass([_probe class]);
-    result[@"contentBlankAvg"] = @(_blankSamples > 0 ? _contentBlankSum / _blankSamples : 0);
+    result[@"probe"] = _probeName;
+    result[@"contentBlankAvg"] = @(contentBlankAvg);
     result[@"contentBlankMax"] = @(_contentBlankMax);
     result[@"contentBlankFrames"] = @(_contentBlankFrames);
+  }
+  /*
+   * With drawing held back on purpose, a bench that sees no blank is broken.
+   */
+  if (_drawDelay > 0) {
+    BOOL sawBlank = _blankSum > 0 || (_probe && contentBlankAvg > 0);
+    result[@"drawDelay"] = @(_drawDelay);
+    result[@"selfTest"] = sawBlank ? @"pass" : @"fail";
+    if (!sawBlank) {
+      NSLog(@"[SLBENCH] self-test failed: drawing was held back %.2fs and no blank was seen", _drawDelay);
+    }
   }
   Class textView = NSClassFromString(@"ShadowListKitTextView");
   SEL stats = NSSelectorFromString(@"shadowListKit_asyncStats");

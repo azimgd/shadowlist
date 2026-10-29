@@ -66,37 +66,6 @@ export class ShadowListKitStickyPinning {
   }
 
   /*
-   * Position in stickyRows of the last sticky row starting at or above the offset, or -1. Rows
-   * the core has not placed yet start at infinity and sort last. The core test
-   * list_driver_sticky_frames_pin_the_same_header_as_the_driver holds the rule this matches.
-   */
-  private activeStickyPosition(offset: number): number {
-    if (this.stickyRows.length === 0) return -1;
-    this.refreshStickyFrames();
-    let found = -1;
-    let low = 0;
-    let high = this.stickyRows.length;
-    while (low < high) {
-      const mid = Math.floor((low + high) / 2);
-      if (this.stickyFrames[mid * 2]! <= offset) {
-        found = mid;
-        low = mid + 1;
-      } else {
-        high = mid;
-      }
-    }
-    return found;
-  }
-
-  /*
-   * The sticky row pinned at this offset. The list keeps it mounted wherever its own row is.
-   */
-  activeStickyIndex(offset: number): number {
-    const position = this.activeStickyPosition(offset);
-    return position >= 0 ? this.stickyRows[position]! : -1;
-  }
-
-  /*
    * Position of a row in stickyRows, or -1 when it does not stick.
    */
   private stickyPosition(row: number): number {

@@ -16,6 +16,9 @@ set -euo pipefail
 #   SCREENS="Feed Chat"  RUNS=3  COUNT=1000  FLINGS=20  BACK=10
 #   LOAD_MAX=10 (wait for a 1-minute load average below it before each run)
 #   OVERSCAN=<rows> (SLOverscan, overscanRows on Feed and Chat)
+#   ENGINE_FLAGS=0|1 (the example's React Native feature flags, off in a stock app. 0 runs iOS with
+#     -SLEngineFlags NO. Android's switch is the build property -PshadowlistEngineFlags=false, and
+#     the script only checks it. Each run writes the state the app logged to <screen>-<run>.flags)
 #   iOS: UDID, IOS_FLING_SPEED=5000 (pt/s at the start of each in-app fling).  Android: ADB="adb -s emulator-5570", SHOT_COUNT=40,
 #            EMULATOR_AVD=sl_perf_android, OTHER_EMU_MAX=30 (other emulators' CPU %)
 
@@ -33,6 +36,18 @@ mkdir -p "$OUT"
 
 now() { python3 -c 'import time; print("%.4f" % time.time())'; }
 chat() { [[ "$1" == *Chat ]]; }
+
+# The engine flags line the app logged at start, as "on, commit branching off" or "off".
+record_flags() { # <log text> <out file>
+  local flags
+  flags="$(grep -o '\[SL\] engine flags.*' <<<"$1" | tail -1 | sed 's/^\[SL\] engine flags //' || true)"
+  echo "${flags:-unknown}" > "$2"
+  if [[ -n "${ENGINE_FLAGS:-}" && "${flags:-unknown}" != unknown ]]; then
+    local want=on; [[ "$ENGINE_FLAGS" == 0 ]] && want=off
+    [[ "${flags%%,*}" == "$want" ]] || echo "!! ENGINE_FLAGS=$ENGINE_FLAGS but the app logged engine flags $flags" >&2
+  fi
+  echo "   engine flags ${flags:-unknown}"
+}
 
 settings() { # key value pairs, shared by both platforms
   printf '%s\n' SLRoute "$1" SLCount "$COUNT" SLLatency 0,0 SLTheme dark SLJsFps 1
@@ -54,6 +69,10 @@ run_ios() {
   local speed="$IOS_FLING_SPEED"
   chat "$screen" && speed="-$speed"
   args+=(-SLAutoFling "6,$FLINGS,$BACK,$speed")
+  case "${ENGINE_FLAGS:-}" in
+    0) args+=(-SLEngineFlags NO) ;;
+    1) args+=(-SLEngineFlags YES) ;;
+  esac
   echo "==> ios $screen run=$run"
   xcrun simctl terminate "$UDID" "$PKG" >/dev/null 2>&1 || true
   xcrun simctl launch --console-pty "$UDID" "$PKG" "${args[@]}" > "$base.log" 2>&1 &
@@ -73,6 +92,7 @@ run_ios() {
   sleep 1.2
   kill "$console" 2>/dev/null || true
   grep -q '\[SLBENCH\] end' "$base.log" || { echo "!! no [SLBENCH] end" >&2; return 1; }
+  record_flags "$(cat "$base.log")" "$base.flags"
   python3 "$HERE/scroll-bench.py" ios "$base" --t0 "$t0" --t1 "$t1" --cpu0 "$cpu0" --cpu1 "$cpu1" \
     --lines "$l0 $l1"
 }
@@ -125,6 +145,7 @@ run_android() {
   adb_ shell dumpsys gfxinfo "$PKG" framestats | tr -d '\r' > "$base.gfx"
   adb_ shell dumpsys meminfo "$PKG" | tr -d '\r' > "$base.mem"
   adb_ logcat -d -v epoch -s ReactNativeJS | tr -d '\r' > "$base.log"
+  record_flags "$(adb_ logcat -d -s SL:I 2>/dev/null | tr -d '\r')" "$base.flags"
   rm -rf "$base.shots"; mkdir -p "$base.shots"
   ((SHOT_COUNT > 0)) && adb_ pull "$shots" "$base.shots" >/dev/null 2>&1 || true
   local clk; clk="$(adb_ shell getconf CLK_TCK | tr -d '\r')"

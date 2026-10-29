@@ -456,7 +456,6 @@ TEST(appending_preserves_every_surviving_row) {
   for (std::size_t index = 0; index < keys.size(); ++index) {
     const Row& row = container.revision.rows[index];
     CHECK_EQ(row.key, keys[index]);
-    CHECK_EQ(row.index, index);
     CHECK(row.measured);
     CHECK_NEAR(row.height, heights[index], 0.001);
     CHECK_NEAR(row.offsetY, before[index], 0.001);
@@ -499,7 +498,6 @@ TEST(in_place_append_matches_a_full_rebuild) {
   CHECK_EQ(appended.revision.rows.size(), wholesale.revision.rows.size());
   for (std::size_t index = 0; index < grown.size(); ++index) {
     CHECK_EQ(appended.revision.rows[index].key, wholesale.revision.rows[index].key);
-    CHECK_EQ(appended.revision.rows[index].index, wholesale.revision.rows[index].index);
     CHECK_NEAR(
       appended.revision.rows[index].offsetY,
       wholesale.revision.rows[index].offsetY,
@@ -545,7 +543,7 @@ TEST(append_fast_path_declines_non_append_shapes) {
   CHECK_EQ(container.revision.rows[0].key, std::string("new0"));
   CHECK_EQ(container.indexOfKey("k0"), static_cast<std::size_t>(2));
   for (std::size_t index = 0; index < prepended.size(); ++index) {
-    CHECK_EQ(container.revision.rows[index].index, index);
+    CHECK_EQ(container.revision.rows[index].key, prepended[index]);
   }
 
   // A removal is shorter.
@@ -580,7 +578,6 @@ TEST(prepending_preserves_every_surviving_row) {
   CHECK_EQ(container.revision.rows.size(), prepended.size());
   for (std::size_t index = 0; index < prepended.size(); ++index) {
     CHECK_EQ(container.revision.rows[index].key, prepended[index]);
-    CHECK_EQ(container.revision.rows[index].index, index);
     CHECK_EQ(container.indexOfKey(prepended[index]), index);
   }
   for (std::size_t index = 0; index < keys.size(); ++index) {
@@ -661,7 +658,7 @@ TEST(prepending_an_existing_key_still_resolves_to_the_first_occurrence) {
   CHECK_EQ(container.indexOfKey("k7"), static_cast<std::size_t>(0));
   CHECK_EQ(container.revision.rows[9].key, std::string("k7"));
   for (std::size_t index = 0; index < prepended.size(); ++index) {
-    CHECK_EQ(container.revision.rows[index].index, index);
+    CHECK_EQ(container.revision.rows[index].key, prepended[index]);
   }
 }
 
@@ -687,6 +684,6 @@ TEST(chained_prepends_keep_the_key_map_correct) {
   CHECK_EQ(container.revision.rows.size(), current.size());
   for (std::size_t index = 0; index < current.size(); ++index) {
     CHECK_EQ(container.indexOfKey(current[index]), index);
-    CHECK_EQ(container.revision.rows[index].index, index);
+    CHECK_EQ(container.revision.rows[index].key, current[index]);
   }
 }

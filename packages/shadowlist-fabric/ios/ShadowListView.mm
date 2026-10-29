@@ -19,7 +19,6 @@
 
 #include <shadowlist-core/host/Snap.hpp>
 
-#include <algorithm>
 #include <cmath>
 #include <utility>
 #include <vector>
@@ -318,6 +317,8 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _reorderEnabled = NO;
   _numberOfColumns = 1;
   _endDragVelocity = CGPointZero;
+  _scrollEventEnabled = NO;
+  _scrollTracker = ShadowListScrollTracker();
   _landCommandSequence = 0;
   _momentumEndAfterLand = NO;
   _pageAnnouncementPending = NO;
@@ -326,6 +327,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   _rowKeysSnapshot.reset();
   [self tearDownDrag];
   [self leaveDragBoard];
+  _dragBoardMovedKey = nil;
   [self stopMountTicks];
   _dragRecognizer.enabled = NO;
   /*
@@ -374,6 +376,12 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 #endif
   _reorderEnabled = nextProps.reorderEnabled;
   _numberOfColumns = nextProps.numberOfColumns;
+  // A new throttle starts over, like a list that just began listening.
+  if (_scrollEventEnabled != nextProps.scrollEventEnabled ||
+      previousProps.scrollEventThrottle != nextProps.scrollEventThrottle) {
+    _scrollTracker = ShadowListScrollTracker(nextProps.scrollEventThrottle);
+  }
+  _scrollEventEnabled = nextProps.scrollEventEnabled;
   _snapToItem = nextProps.snapToItem;
   // Turning drag off mid drag ends it here, before the recognizer cancel arrives.
   if (!_reorderEnabled && _dragging) {
@@ -387,9 +395,13 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (_dragRecognizer.enabled != _reorderEnabled) {
     _dragRecognizer.enabled = _reorderEnabled;
   }
-  [self applyDragBoardId:[NSString stringWithUTF8String:nextProps.dragBoardId.c_str()] ?: @""
-                  listId:[NSString stringWithUTF8String:nextProps.dragListId.c_str()] ?: @""
-                   label:[NSString stringWithUTF8String:nextProps.dragListLabel.c_str()] ?: @""];
+  // Only a new id or label, or a board this list has not joined yet, needs the strings.
+  if (nextProps.dragBoardId != previousProps.dragBoardId || nextProps.dragListId != previousProps.dragListId ||
+      nextProps.dragListLabel != previousProps.dragListLabel || (!_dragBoard && !nextProps.dragBoardId.empty())) {
+    [self applyDragBoardId:[NSString stringWithUTF8String:nextProps.dragBoardId.c_str()] ?: @""
+                    listId:[NSString stringWithUTF8String:nextProps.dragListId.c_str()] ?: @""
+                     label:[NSString stringWithUTF8String:nextProps.dragListLabel.c_str()] ?: @""];
+  }
   [self applyScrollViewProps:nextProps];
   /*
    * Update the VoiceOver actions only when reorderEnabled changes, since this runs on every
@@ -407,9 +419,10 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   } else {
     _scrollView.decelerationRate = _decelerationRate > 0.0 ? _decelerationRate : UIScrollViewDecelerationRateNormal;
   }
-  [self applyRefreshState:nextProps.refreshEnabled
-                refreshing:nextProps.refreshing
-                     color:RCTUIColorFromSharedColor(nextProps.refreshColor)];
+  UIColor *refreshColor = _refreshColor && nextProps.refreshColor == previousProps.refreshColor
+    ? _refreshColor
+    : RCTUIColorFromSharedColor(nextProps.refreshColor);
+  [self applyRefreshState:nextProps.refreshEnabled refreshing:nextProps.refreshing color:refreshColor];
 #endif
 
   [super updateProps:props oldProps:oldProps];
@@ -707,6 +720,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
    */
   auto report = _scrollSync.onScroll(frame);
   BOOL userScrolled = report.userScrolled;
+  [self emitScrollAtRest:frame.scrollPhase == SCROLL_PHASE_IDLE && !userScrolled];
   if (report.landed && _scrollSync.isLanding()) {
     // Commit this frame first. The landing command then builds on it.
     if (report.needsCommit) {
@@ -879,6 +893,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (auto patch = _scrollSync.clearUserScrolled(_scrollView.contentOffset.x, _scrollView.contentOffset.y)) {
     [self commitStatePatch:*patch];
   }
+  [self emitHeldScroll];
 }
 
 - (void)commitDragEventType:(int)type sourceKey:(NSString *)sourceKey destinationKey:(NSString *)destinationKey
@@ -1099,8 +1114,9 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 }
 
 /*
- * Runs after every mount, and does nothing unless a scroll to top jump is waiting.
- * Landing here, before the frame renders, keeps the jump from showing a blank frame.
+ * Runs after every mount, before the frame renders. Pins sticky rows and shifts drag rows
+ * the transaction mounted, lands a drag board drop, lands a waiting scroll to top jump
+ * without a blank frame, and announces a page scroll once rows cover the viewport.
  */
 - (void)mountingTransactionDidMount:(const MountingTransaction&)transaction
                withSurfaceTelemetry:(const SurfaceTelemetry&)surfaceTelemetry
@@ -1137,39 +1153,78 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
 
 #pragma mark - Cell helpers
 
+/*
+ * A row's index in the keys the props name, found by its key.
+ */
 - (NSInteger)indexOfCellView:(RCTUIView *)view
 {
   if (![view conformsToProtocol:@protocol(RCTShadowListCellViewViewProtocol)]) {
     return NSNotFound;
   }
   auto props = std::static_pointer_cast<const ShadowListCellViewProps>(((RCTUIView<RCTComponentViewProtocol> *)view).props);
-  if (!props) {
+  if (!props || props->rowKey.empty()) {
     return NSNotFound;
   }
-  return (NSInteger)props->index;
+  std::size_t index = [self rowIndexOfKey:props->rowKey];
+  return index == azimgd::shadowlist::UNDEFINED_INDEX ? NSNotFound : (NSInteger)index;
+}
+
+/*
+ * The key store snapshot the props name, the last one found while the store misses, or null
+ * for a list without a store.
+ */
+- (const azimgd::shadowlist::RowKeysSnapshot *)currentRowKeysSnapshot
+{
+  if (!_props) {
+    return nullptr;
+  }
+  const auto& props = *std::static_pointer_cast<const ShadowListViewProps>(_props);
+  if (props.keysStore <= 0 || props.keysVersion <= 0) {
+    return nullptr;
+  }
+  if (auto store = facebook::react::shadowlist::findRowKeyStore(static_cast<std::int64_t>(props.keysStore))) {
+    if (auto snapshot = store->snapshot(static_cast<std::uint64_t>(props.keysVersion))) {
+      _rowKeysSnapshot = snapshot;
+    }
+  }
+  return _rowKeysSnapshot.get();
 }
 
 /*
  * The row keys the props name: the key store's snapshot, or rowKeys without a store.
  */
-- (const std::vector<std::string>&)currentRowKeys
+- (azimgd::shadowlist::KeyList)currentRowKeys
 {
-  static const std::vector<std::string> none;
+  if (const auto *snapshot = [self currentRowKeysSnapshot]) {
+    return snapshot->keys();
+  }
   if (!_props) {
-    return none;
+    return {};
   }
-  const auto& props = *std::static_pointer_cast<const ShadowListViewProps>(_props);
-  if (props.keysStore > 0 && props.keysVersion > 0) {
-    if (auto store = facebook::react::shadowlist::findRowKeyStore(static_cast<std::int64_t>(props.keysStore))) {
-      if (auto snapshot = store->snapshot(static_cast<std::uint64_t>(props.keysVersion))) {
-        _rowKeysSnapshot = snapshot;
-      }
-    }
-    if (_rowKeysSnapshot) {
-      return _rowKeysSnapshot->keys();
-    }
+  return std::static_pointer_cast<const ShadowListViewProps>(_props)->rowKeys;
+}
+
+/*
+ * A key's row in the keys the props name, or UNDEFINED_INDEX. The key store indexes its own
+ * keys. The rowKeys of a list without a store get an index here, once per props.
+ */
+- (std::size_t)rowIndexOfKey:(const std::string&)key
+{
+  if (const auto *snapshot = [self currentRowKeysSnapshot]) {
+    return snapshot->indexOfKey(key);
   }
-  return props.rowKeys;
+  azimgd::shadowlist::KeyList keys = [self currentRowKeys];
+  if (_pageKeyIndicesProps != _props) {
+    // The first row with a key wins, like a search from the start.
+    _pageKeyIndices.clear();
+    _pageKeyIndices.reserve(keys.size());
+    for (std::size_t index = 0; index < keys.size(); ++index) {
+      _pageKeyIndices.emplace(keys[index], (NSInteger)index);
+    }
+    _pageKeyIndicesProps = _props;
+  }
+  auto found = _pageKeyIndices.find(key);
+  return found == _pageKeyIndices.end() ? azimgd::shadowlist::UNDEFINED_INDEX : (std::size_t)found->second;
 }
 
 /*
@@ -1180,8 +1235,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (!key) {
     return NO;
   }
-  const auto& keys = [self currentRowKeys];
-  return std::find(keys.begin(), keys.end(), std::string(key.UTF8String)) != keys.end();
+  return [self rowIndexOfKey:std::string(key.UTF8String)] != azimgd::shadowlist::UNDEFINED_INDEX;
 }
 
 - (std::size_t)rowKeyCount
@@ -1215,6 +1269,51 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   [self emitScrollEvent:"momentumScrollEnd" velocity:CGPointZero];
 }
 
+- (ShadowListScrollMetrics)currentScrollMetrics
+{
+  ShadowListScrollMetrics metrics;
+  metrics.offsetX = _scrollView.contentOffset.x;
+  metrics.offsetY = _scrollView.contentOffset.y;
+  metrics.contentWidth = _contentView.frame.size.width;
+  metrics.contentHeight = _contentView.frame.size.height;
+  metrics.viewportWidth = _scrollView.bounds.size.width;
+  metrics.viewportHeight = _scrollView.bounds.size.height;
+  return metrics;
+}
+
+/*
+ * onScroll for one scroll callback, inside scrollEventThrottle. A frame of a list at rest, like
+ * a correction or a scroll command, also sends the event the throttle held back.
+ */
+- (void)emitScrollAtRest:(BOOL)atRest
+{
+  if (!_scrollEventEnabled || !_eventEmitter) {
+    return;
+  }
+  ShadowListScrollMetrics metrics = [self currentScrollMetrics];
+  if (!_scrollTracker.track(metrics) && !(atRest && _scrollTracker.takeTrailing(metrics))) {
+    return;
+  }
+  _eventEmitter->dispatchUniqueEvent("scroll", [metrics](facebook::jsi::Runtime& runtime) {
+    return facebook::jsi::Value(shadowListScrollPayload(runtime, metrics));
+  });
+}
+
+/*
+ * The list came to rest with a scroll event still held back by scrollEventThrottle. JS would
+ * otherwise keep an offset from before the scroll stopped.
+ */
+- (void)emitHeldScroll
+{
+  ShadowListScrollMetrics metrics;
+  if (!_scrollEventEnabled || !_eventEmitter || !_scrollTracker.takeTrailing(metrics)) {
+    return;
+  }
+  _eventEmitter->dispatchUniqueEvent("scroll", [metrics](facebook::jsi::Runtime& runtime) {
+    return facebook::jsi::Value(shadowListScrollPayload(runtime, metrics));
+  });
+}
+
 /*
  * Send a drag or momentum event with the same payload as onScroll.
  */
@@ -1223,13 +1322,7 @@ using ShadowListStateData = ShadowListViewShadowNode::ConcreteState::Data;
   if (!_eventEmitter) {
     return;
   }
-  ShadowListScrollMetrics metrics;
-  metrics.offsetX = _scrollView.contentOffset.x;
-  metrics.offsetY = _scrollView.contentOffset.y;
-  metrics.contentWidth = _contentView.frame.size.width;
-  metrics.contentHeight = _contentView.frame.size.height;
-  metrics.viewportWidth = _scrollView.bounds.size.width;
-  metrics.viewportHeight = _scrollView.bounds.size.height;
+  ShadowListScrollMetrics metrics = [self currentScrollMetrics];
   metrics.velocityX = velocity.x;
   metrics.velocityY = velocity.y;
   _eventEmitter->dispatchEvent(name, [metrics](facebook::jsi::Runtime& runtime) {

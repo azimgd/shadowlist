@@ -5,8 +5,6 @@ import android.view.ViewGroup;
 
 import androidx.annotation.Nullable;
 
-import com.facebook.react.bridge.ReadableArray;
-import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.uimanager.PixelUtil;
 
 /*
@@ -40,11 +38,13 @@ final class ShadowListStickyController {
 
   /*
    * Where each section header sits in the list and how big it is, in dp along the scroll
-   * axis. Comes from the core and is read on every scroll tick.
+   * axis. Comes from the core and is read on every scroll tick. The arrays are reused and the
+   * first mStickyCount entries hold the headers.
    */
   private int[] mStickyIndices = new int[0];
   private double[] mStickyOffsets = new double[0];
   private double[] mStickySizes = new double[0];
+  private int mStickyCount = 0;
 
   /*
    * The header, footer and section header overlay, found once per mount change instead
@@ -133,25 +133,16 @@ final class ShadowListStickyController {
   }
 
   /*
-   * Save the section header positions sent by the core.
+   * Copy the section header positions of the state the list mounted, found by its mount handle.
    */
-  void cacheStickyGeometry(ReadableMap nextStateData) {
-    if (nextStateData.hasKey("stickyIndices")
-        && nextStateData.hasKey("stickyOffsets")
-        && nextStateData.hasKey("stickySizes")) {
-      ReadableArray indices = nextStateData.getArray("stickyIndices");
-      ReadableArray offsets = nextStateData.getArray("stickyOffsets");
-      ReadableArray sizes = nextStateData.getArray("stickySizes");
-      int count = indices != null ? indices.size() : 0;
+  void cacheStickyGeometry(long mountHandle) {
+    int count = ShadowListGeometry.stickyCount(mountHandle);
+    if (mStickyIndices.length < count) {
       mStickyIndices = new int[count];
       mStickyOffsets = new double[count];
       mStickySizes = new double[count];
-      for (int i = 0; i < count; i++) {
-        mStickyIndices[i] = indices.getInt(i);
-        mStickyOffsets[i] = offsets != null ? offsets.getDouble(i) : 0.0;
-        mStickySizes[i] = sizes != null ? sizes.getDouble(i) : 0.0;
-      }
     }
+    mStickyCount = ShadowListGeometry.copyStickyGeometry(mountHandle, mStickyIndices, mStickyOffsets, mStickySizes);
   }
 
   /*
@@ -248,7 +239,7 @@ final class ShadowListStickyController {
       return;
     }
 
-    if (mStickyIndices.length == 0) {
+    if (mStickyCount == 0) {
       overlay.setVisibility(View.GONE);
       return;
     }
@@ -256,7 +247,7 @@ final class ShadowListStickyController {
     boolean horizontal = mView.isHorizontal();
     double axisOffset = PixelUtil.toDIPFromPixel(horizontal ? scrollView.getScrollX() : scrollView.getScrollY());
     double translation = ShadowListGeometry.sectionOverlayTranslation(
-      mStickyOffsets, mStickySizes, mStickyOffsets.length, axisOffset);
+      mStickyOffsets, mStickySizes, mStickyCount, axisOffset);
     if (Double.isNaN(translation)) {
       overlay.setVisibility(View.GONE);
       return;

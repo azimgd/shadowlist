@@ -3,6 +3,7 @@
 #import "ShadowListView.h"
 
 #import "ShadowListViewComponentDescriptor.h"
+#include "ShadowListScrollEvent.h"
 #import <react/renderer/components/ShadowListViewSpec/RCTComponentViewHelpers.h>
 
 #import <QuartzCore/QuartzCore.h>
@@ -194,11 +195,13 @@ static inline BOOL SLFrameTraceEnabled(void)
  *
  * _scrollEnabled and the fields after it mirror the ScrollView props. A drag turns scrolling
  * off for its run and gives back _scrollEnabled. _endDragVelocity is the velocity UIKit gave
- * the end of the latest drag, for onScrollEndDrag, in points per millisecond.
+ * the end of the latest drag, for onScrollEndDrag, in points per millisecond. _scrollTracker
+ * throttles onScroll, which this view sends from its scroll callback while _scrollEventEnabled.
  * _landCommandSequence is the sequence of the newest command that lands an animated one, 0
  * once a mounted state carries it. The animation's momentum end waits for that state, which
  * holds the exact offset. _pageAnnouncementPending holds a VoiceOver page scroll until its
- * rows mount, and _pageKeyIndices maps row keys to indices for it, built once per props.
+ * rows mount. _pageKeyIndices maps the rowKeys of a list without a key store to indices, built
+ * once per props, see rowIndexOfKey.
  * On macOS _macDragEnded and _macMomentum track whether the live scroll's fingers lifted
  * and whether momentum followed.
  */
@@ -264,12 +267,14 @@ static inline BOOL SLFrameTraceEnabled(void)
   CGFloat _decelerationRate;
   CGFloat _progressViewOffset;
   CGPoint _endDragVelocity;
+  BOOL _scrollEventEnabled;
+  facebook::react::ShadowListScrollTracker _scrollTracker;
   double _landCommandSequence;
   BOOL _momentumEndAfterLand;
   BOOL _pageAnnouncementPending;
   facebook::react::Props::Shared _pageKeyIndicesProps;
   std::unordered_map<std::string, NSInteger> _pageKeyIndices;
-  // The key store snapshot currentRowKeys last read, which keeps its keys alive.
+  // The key store snapshot currentRowKeysSnapshot last found, which keeps its keys alive.
   std::shared_ptr<const azimgd::shadowlist::RowKeysSnapshot> _rowKeysSnapshot;
 #if TARGET_OS_OSX
   BOOL _macDragEnded;
@@ -317,7 +322,9 @@ static inline BOOL SLFrameTraceEnabled(void)
    * home list until the data change that removes it lands. _dragBoardLandingKey is the key of
    * the row dropped in this list, until it mounts here. _dragBoardAnimateShifts makes the
    * next shuffle slide, when the row came home or left this list as a target. _dragListLabel
-   * names this list in the Move to actions of the board's other lists.
+   * names this list in the Move to actions of the board's other lists. _dragBoardMovedKey is
+   * the key of a row VoiceOver moved into this list, until its data holds it or
+   * _dragBoardMovedDeadline passes.
    */
   NSString *_dragBoardId;
   NSString *_dragListId;
@@ -328,6 +335,8 @@ static inline BOOL SLFrameTraceEnabled(void)
   BOOL _dragBoardDropPending;
   NSString *_dragBoardLandingKey;
   BOOL _dragBoardAnimateShifts;
+  NSString *_dragBoardMovedKey;
+  CFTimeInterval _dragBoardMovedDeadline;
 
 #if SHADOWLIST_FRAME_TRACE_COMPILED && !TARGET_OS_OSX
   CFRunLoopObserverRef _frameTraceObserver;
@@ -339,6 +348,7 @@ static inline BOOL SLFrameTraceEnabled(void)
 
 - (nullable NSString *)keyOfCellView:(nullable RCTUIView *)view;
 - (BOOL)rowKeysContainKey:(nullable NSString *)key;
+- (std::size_t)rowIndexOfKey:(const std::string&)key;
 - (std::size_t)rowKeyCount;
 
 - (void)commitStatePatch:(const azimgd::shadowlist::ScrollPatch&)patch;

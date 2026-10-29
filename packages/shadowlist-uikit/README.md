@@ -73,10 +73,10 @@ has full signatures and defaults.
 | Layout | `inverted`, `followAppends`, `horizontal`, `numberOfColumns`, `estimatedItemSize`, `overscan`, `mountOverscan`, `startReachedThreshold`, `endReachedThreshold`, `snapToItem`, `snapAlignment`, `reorderEnabled`, `stickyIndices`, `stickySectionHeaders`, `headerView`, `footerView` | `followAppends` is off by default, which keeps the visible items in place. Call `setNeedsLayout` on the list after `headerView` or `footerView` changes size. |
 | Changes | `reloadData`, `insertItemsAtIndices:`, `deleteItemsAtIndices:`, `reloadItemsAtIndices:`, `reloadItemsAtIndices:payload:`, `moveItemAtIndex:toIndex:`, `performBatchUpdates:completion:`, `applyChanges` | An insert past the end goes at the end, a delete past the end is dropped. `applyChanges` diffs every key and returns a `ShadowListKitListChanges`. |
 | Animations | `animatesChanges`, `itemAnimator` | Off by default. Inserted items fade in, deleted items fade out and items that stay slide. `ShadowListKitDefaultItemAnimator` unless replaced. |
-| Selection | `allowsSelection`, `allowsMultipleSelection`, `editing`, `selectedIndices`, `selectItemAtIndex:animated:`, `deselectItemAtIndex:animated:`, `setEditing:animated:` | Selection follows keys. The select and deselect calls skip the delegate. `editing` turns swipe actions off. |
+| Selection | `allowsSelection`, `allowsMultipleSelection`, `editing`, `selectedIndices`, `selectItemAtIndex:animated:`, `deselectItemAtIndex:animated:`, `setEditing:animated:` | Selection follows keys. The select and deselect calls skip the delegate. `editing` turns swipe actions and reordering off. |
 | Swipe actions | Delegate `listView:leadingSwipeActionsForItemAtIndex:`, `listView:trailingSwipeActionsForItemAtIndex:`, `closeSwipeActionsAnimated:` | A `ShadowListKitSwipeActionsConfiguration` per side. A full swipe performs the first action. |
 | Context menus | Delegate `listView:contextMenuForItemAtIndex:` | A `UIMenu` through `UIContextMenuInteraction`. A reorderable item lifts on the hold and shows the menu when let go in place. |
-| Prefetching | `prefetchDataSource`: `listView:prefetchItemsAtIndices:`, `listView:cancelPrefetchingForItemsAtIndices:` | Items in the measured range without a cell yet. Cancelled when one leaves the range unseen. |
+| Prefetching | `prefetchDataSource`: `listView:prefetchItemsAtIndices:`, `listView:cancelPrefetchingForItemsAtIndices:` | Items in the measured range past the mounted ones, prefetched by the layout pass that brings them in, after it measures the items it will show and before it measures these. Without `listView:sizeForItemAtIndex:crossSize:` that is before `listView:cellForItemAtIndex:` makes their cells. Cancelled when one leaves the range unseen. |
 | Pull to refresh | `refreshEnabled`, `refreshing`, delegate `listViewDidBeginRefreshing:` | A `UIRefreshControl` the list owns. |
 | Separators | `showsSeparators`, `separatorColor`, `separatorInsetStart`, `separatorInsetEnd`, `separatorThickness`, delegate `listView:showsSeparatorAfterItemAtIndex:` | Only between items of one section. One device pixel thick by default. |
 | Queries | `cellForItemAtIndex:`, `visibleCells`, `visibleRange`, `rectForItemAtIndex:`, `numberOfSections`, `sectionForItemAtIndex:`, `firstItemIndexInSection:`, `rectForHeaderInSection:`, `rectForFooterInSection:` | `visibleRange` runs low to high. |
@@ -84,5 +84,12 @@ has full signatures and defaults.
 | Saved position | `anchorState`, `restoreAnchorState:` | The key at the viewport start and the distance into it. Lands now or once a reload brings the key. Saved with UIKit state restoration when the list has a `restorationIdentifier`. |
 | Accessibility | Every item is an accessibility element | VoiceOver page scrolls move past the mounted items. The rotor is not supported. |
 
-Masonry is round robin: item `i` goes in column `i % numberOfColumns`. Full width rows in a grid are not
-supported.
+Masonry is round robin by row: row `r`, counting section header and footer rows, goes in column
+`r % numberOfColumns`, and each column stacks its own rows. Full width rows in a grid are not supported.
+
+These combinations do nothing:
+
+- `showsSeparators` in a grid.
+- `sectionIndexTitlesForListView:` in a horizontal list.
+- `refreshEnabled` in a horizontal list. `UIRefreshControl` only pulls vertically.
+- `followAppends` without `inverted`.

@@ -50,7 +50,8 @@ function clampViewPosition(viewPosition: number | undefined): number {
 }
 
 /*
- * The ref commands. scrollToIndex and scrollToItem animate by default.
+ * The ref commands. scrollToIndex and scrollToItem animate by default. They only read refs,
+ * which keeps one set of commands for the list's life.
  */
 export function useImperativeCommands(
   ref: Ref<ShadowListCommands>,
@@ -82,24 +83,36 @@ export function useImperativeCommands(
       );
     };
 
-    const scrollToIndex = (params: ScrollToIndexParams) => {
+    /*
+     * A target the list does not hold goes to onScrollToIndexFailed. An item that is not in the
+     * data has index -1.
+     */
+    const failScroll = (index: number, warning: string) => {
       const source = sourceRef.current;
+      const count = source.count;
+      const info: ScrollToIndexFailedInfo = {
+        index,
+        highestMeasuredFrameIndex: source.highestMountedIndex,
+        averageItemLength: count > 0 ? source.contentLength / count : 0,
+      };
+      if (source.onScrollToIndexFailed) {
+        source.onScrollToIndexFailed(info);
+      } else if (__DEV__) {
+        console.warn(`${warning} Pass onScrollToIndexFailed to handle this.`);
+      }
+    };
+
+    const scrollToIndex = (params: ScrollToIndexParams) => {
       const { index } = params;
-      if (!Number.isInteger(index) || index < 0 || index >= source.count) {
-        const count = source.count;
-        const info: ScrollToIndexFailedInfo = {
+      if (
+        !Number.isInteger(index) ||
+        index < 0 ||
+        index >= sourceRef.current.count
+      ) {
+        failScroll(
           index,
-          highestMeasuredFrameIndex: source.highestMountedIndex,
-          averageItemLength: count > 0 ? source.contentLength / count : 0,
-        };
-        if (source.onScrollToIndexFailed) {
-          source.onScrollToIndexFailed(info);
-        } else if (__DEV__) {
-          console.warn(
-            `scrollToIndex out of range: requested index ${index} but the list has ${count} items. ` +
-              'Pass onScrollToIndexFailed to handle this.'
-          );
-        }
+          `scrollToIndex out of range: requested index ${index} but the list has ${sourceRef.current.count} items.`
+        );
         return;
       }
       scrollToRow(
@@ -112,7 +125,10 @@ export function useImperativeCommands(
 
     const scrollToItem = (params: ScrollToItemParams) => {
       const index = sourceRef.current.indexOfItem(params.item);
-      if (index < 0) return;
+      if (index < 0) {
+        failScroll(index, 'scrollToItem: the item is not in the data.');
+        return;
+      }
       scrollToRow(
         index,
         params.viewPosition ?? 0,
@@ -198,7 +214,7 @@ export function useImperativeCommands(
       restoreAnchorState: (state: AnchorState) =>
         sourceRef.current.restoreAnchorState(state),
     };
-  });
+  }, [viewRef, itemSizesRef, sourceRef]);
 }
 
 /*

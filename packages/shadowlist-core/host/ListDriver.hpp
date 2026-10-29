@@ -4,6 +4,7 @@
 #include <shadowlist-core/Virtualizer.hpp>
 #include <shadowlist-core/host/DragReorder.hpp>
 #include <shadowlist-core/host/ListLayout.hpp>
+#include <shadowlist-core/host/ListUpdate.hpp>
 #include <shadowlist-core/host/MountedRange.hpp>
 #include <shadowlist-core/host/Prefetch.hpp>
 #include <shadowlist-core/host/ScrollTarget.hpp>
@@ -52,6 +53,17 @@ struct ListSettings {
   bool horizontal = false;
   bool snapToItem = false;
   SnapAlignment snapAlignment = SnapAlignment::Start;
+
+  friend bool operator==(const ListSettings& a, const ListSettings& b) {
+    return a.estimatedRowSize == b.estimatedRowSize && a.overscan == b.overscan &&
+      a.startReachedThreshold == b.startReachedThreshold && a.endReachedThreshold == b.endReachedThreshold &&
+      a.numberOfColumns == b.numberOfColumns && a.inverted == b.inverted && a.followAppends == b.followAppends &&
+      a.horizontal == b.horizontal && a.snapToItem == b.snapToItem && a.snapAlignment == b.snapAlignment;
+  }
+
+  friend bool operator!=(const ListSettings& a, const ListSettings& b) {
+    return !(a == b);
+  }
 };
 
 /*
@@ -67,15 +79,26 @@ struct PassInput {
   ScrollPhase phase = ScrollPhase::Idle;
   bool userScrolled = false;
   bool tracking = false;
+
+  /*
+   * Whether runPasses reports prefetch to the PrefetchRows callback, and how the host pads the
+   * rows it mounts, the values it gives planMount. Rows that plan mounts are not prefetched.
+   */
+  bool prefetch = false;
+  double mountPad = 0.0;
+  double leadingInset = 0.0;
+  double trailingInset = 0.0;
 };
 
 /*
  * What the host applies after a layout: the content size first, then the offset.
- * With settling set, a correction waits for one more report on the next frame.
+ * With settling set, a correction waits for one more report on the next frame. The footer
+ * starts at footerStart along the axis.
  */
 struct PassResult {
   double offset = 0.0;
   double contentAlong = 0.0;
+  double footerStart = 0.0;
   OffsetBand band;
   bool settling = false;
   bool reachedStart = false;
@@ -129,6 +152,25 @@ public:
    */
   using MeasureRow = std::function<double(std::size_t index, const std::string& key, double crossSize)>;
 
+  /*
+   * Measures every row a layout pass needs at once, for a host that measures cheaper in one go,
+   * like a browser laying out once for all the rows it styled. sizes gets one size along the
+   * scroll axis per index.
+   */
+  using MeasureRows = std::function<void(
+    const std::vector<std::size_t>& indices,
+    const std::vector<double>& crossSizes,
+    std::vector<double>& sizes)>;
+
+  /*
+   * Hears the rows to prefetch and to cancel, low to high, from runPasses with PassInput's
+   * prefetch on. Each pass measures the rows its mount plan reaches, then reports, then measures
+   * the rest. A host that measures a row by making its cell hears about the row first. The
+   * vectors are reused and valid during the call.
+   */
+  using PrefetchRows =
+    std::function<void(const std::vector<std::size_t>& prefetch, const std::vector<std::size_t>& cancel)>;
+
   ListDriver();
 
   /*
@@ -140,6 +182,12 @@ public:
   ListDriver& operator=(ListDriver&&) = delete;
 
   void setMeasureRow(MeasureRow measureRow);
+
+  /*
+   * Used in place of the MeasureRow when set.
+   */
+  void setMeasureRows(MeasureRows measureRows);
+  void setPrefetchRows(PrefetchRows prefetchRows);
   void setSettings(const ListSettings& settings);
 
   /*
@@ -155,6 +203,11 @@ public:
    * at both ends are replaced. An edit at one end then reaches the core as one.
    */
   void reloadKeys(std::vector<std::string> keys);
+
+  /*
+   * reloadKeys with the splice the host already worked out against getKeys().
+   */
+  void reloadKeys(std::vector<std::string> keys, const KeySplice& splice);
 
   /*
    * Replace count keys from start with keys, like a host that compared the new data with
@@ -276,7 +329,9 @@ public:
    * Rows of the measured range that are not mounted get prefetched once, the measured range
    * running an overscan ahead of the viewport. A prefetched row that leaves the range before
    * it was mounted is cancelled. Mounted is the range the host mounts, rows given as indices.
-   * Results go into prefetch and cancel, low to high.
+   * Results go into prefetch and cancel, low to high. runPasses runs this with the
+   * PrefetchRows callback before it measures the rows past the mount plan. The host's call
+   * after it mounts finds what the mount changed.
    */
   void updatePrefetch(
     std::size_t mountedLow,
@@ -329,34 +384,61 @@ public:
 private:
   void installCallbacks();
   void recordEdit(KeyEdit edit);
-  KeyEdit endEdit(std::size_t start, std::size_t deleted, std::size_t inserted) const;
-  void insertKeysInPlace(std::vector<std::pair<std::size_t, std::string>>& inserted);
-  void insertKeysRebuilding(std::vector<std::pair<std::size_t, std::string>>& inserted);
+  void insertKeysInPlace(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
+  void insertKeysRebuilding(const std::vector<std::size_t>& indices, std::vector<std::string>& keys);
   FrameInput makeFrameInput(const PassInput& input, double offset, bool firstPass) const;
-  bool measureRange(double offset);
+  bool measureRange(double offset, const PassInput& input);
+  bool measureSpan(std::size_t low, std::size_t high, std::size_t extra);
   void measureIndex(std::size_t index, SizeBatch& batch);
-  PassResult finishPasses(double offset);
+  bool needsMeasure(std::size_t index);
+  double crossSizeOf(std::size_t index) const;
+  void collectIndex(std::size_t index);
+  PassResult finishPasses(double offset, const PassInput& input);
   double clampOffset(double target, const PassInput& input) const;
   bool overlaps(std::size_t index, double viewLow, double viewHigh) const;
   DragRow dragRowAt(std::size_t index) const;
 
   std::unique_ptr<Container> core_;
   MeasureRow measureRow_;
+  MeasureRows measureRows_;
+
+  /*
+   * The rows a MeasureRows call measures, reused from pass to pass.
+   */
+  std::vector<std::size_t> measureIndices_;
+  std::vector<double> measureCrosses_;
+  std::vector<double> measureSizes_;
   ListSettings settings_;
   std::vector<std::string> keys_;
   std::vector<std::size_t> sticky_;
   std::unordered_set<std::string> remeasureKeys_;
   PrefetchTracker prefetch_;
+
+  /*
+   * What the previous updatePrefetch ran with. Stale once the core took new keys.
+   */
+  std::optional<MountedRange> prefetchMounted_;
+  std::optional<MountedRange> prefetchRange_;
+  std::size_t prefetchCount_ = 0;
+  bool prefetchStale_ = true;
+  PrefetchRows prefetchRows_;
+  std::vector<std::size_t> prefetchFound_;
+  std::vector<std::size_t> cancelFound_;
   ScrollLanding landing_;
   DragReorder drag_;
+
+  /*
+   * The mounted rows of the latest drag frame, kept to reuse the buffer.
+   */
+  std::vector<DragRow> dragRows_;
   std::string heldKey_;
   std::uint64_t echoToken_ = 0;
   double windowCross_ = 0.0;
   bool keysChanged_ = true;
 
   /*
-   * The one edit at an end of the keys since the core last took them, which lets the core
-   * skip comparing every key. Unknown after any other change or a second edit.
+   * The one edit of the keys since the core last took them, which lets the core skip
+   * comparing every key. Unknown after a second edit or one it can't describe.
    */
   KeyEdit pendingEdit_;
   int editsSinceUpdate_ = 0;

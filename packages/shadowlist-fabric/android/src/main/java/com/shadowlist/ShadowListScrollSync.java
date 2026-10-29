@@ -1,12 +1,14 @@
 package com.shadowlist;
 
 import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.WritableNativeArray;
 import com.facebook.react.bridge.WritableNativeMap;
 import com.facebook.soloader.SoLoader;
 
 /*
  * Keeps the scroll view and the core in step through the host layer's ScrollSync in C++.
- * Offsets are in dp, and results come back in mOut, reused so scroll frames allocate nothing.
+ * Offsets are in dp, and results come back in mOut, reused so a scroll frame that sends no state
+ * update allocates nothing.
  */
 final class ShadowListScrollSync {
   static {
@@ -41,6 +43,28 @@ final class ShadowListScrollSync {
   private static final int OUT_ANCHOR_REQUEST_SEQUENCE = 22;
   private static final int OUT_FRAME_LANDED = 23;
   private static final int OUT_SLOTS = 24;
+
+  /*
+   * The mOut slot of each slot of the "patch" array, in the order of ShadowListPatchSlot in
+   * ShadowListViewState.h.
+   */
+  private static final int[] PATCH_SLOTS = {
+    OUT_OFFSET_X,
+    OUT_OFFSET_Y,
+    OUT_OFFSET_ENABLED,
+    OUT_USER_SCROLLED,
+    OUT_SCROLL_PHASE,
+    OUT_COMMIT_TOKEN,
+    OUT_SEQUENCE,
+    OUT_HAS_COMMAND,
+    OUT_COMMAND_INDEX,
+    OUT_COMMAND_SEQUENCE,
+    OUT_COMMAND_VIEW_POSITION,
+    OUT_COMMAND_VIEW_OFFSET,
+    OUT_COMMAND_ANIMATED,
+    OUT_HAS_ANCHOR_REQUEST,
+    OUT_ANCHOR_REQUEST_SEQUENCE,
+  };
 
   /*
    * Values of correction(), matching MountAction::Kind.
@@ -252,27 +276,16 @@ final class ShadowListScrollSync {
   }
 
   /*
-   * The last patch as a state update, matching the keys ShadowListViewState reads.
+   * The last patch as a state update: one "patch" array in the order of PATCH_SLOTS, which
+   * ShadowListViewState reads as a ScrollPatch like the iOS host's.
    */
   WritableMap patchMap() {
+    WritableNativeArray patch = new WritableNativeArray();
+    for (int slot : PATCH_SLOTS) {
+      patch.pushDouble(mOut[slot]);
+    }
     WritableMap map = new WritableNativeMap();
-    map.putDouble("offsetX", mOut[OUT_OFFSET_X]);
-    map.putDouble("offsetY", mOut[OUT_OFFSET_Y]);
-    map.putBoolean("offsetEnabled", mOut[OUT_OFFSET_ENABLED] != 0.0);
-    map.putBoolean("userScrolled", mOut[OUT_USER_SCROLLED] != 0.0);
-    map.putDouble("scrollPhase", mOut[OUT_SCROLL_PHASE]);
-    map.putDouble("commitToken", mOut[OUT_COMMIT_TOKEN]);
-    map.putDouble("hostSequence", mOut[OUT_SEQUENCE]);
-    if (mOut[OUT_HAS_COMMAND] != 0.0) {
-      map.putDouble("scrollIndex", mOut[OUT_COMMAND_INDEX]);
-      map.putDouble("scrollIndexSequence", mOut[OUT_COMMAND_SEQUENCE]);
-      map.putDouble("scrollIndexViewPosition", mOut[OUT_COMMAND_VIEW_POSITION]);
-      map.putDouble("scrollIndexViewOffset", mOut[OUT_COMMAND_VIEW_OFFSET]);
-      map.putBoolean("scrollIndexAnimated", mOut[OUT_COMMAND_ANIMATED] != 0.0);
-    }
-    if (mOut[OUT_HAS_ANCHOR_REQUEST] != 0.0) {
-      map.putDouble("anchorRequestSequence", mOut[OUT_ANCHOR_REQUEST_SEQUENCE]);
-    }
+    map.putArray("patch", patch);
     return map;
   }
 

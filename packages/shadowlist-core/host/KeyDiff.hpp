@@ -1,6 +1,7 @@
 #pragma once
 
 #include <shadowlist-core/Constants.hpp>
+#include <shadowlist-core/KeyList.hpp>
 
 #include <cstddef>
 #include <optional>
@@ -35,6 +36,7 @@ struct KeyDiff {
 };
 
 KeyDiff diffKeys(const std::vector<std::string>& previous, const std::vector<std::string>& next);
+KeyDiff diffKeys(KeyList previous, KeyList next);
 
 /*
  * Changes collected in one batch the way UIKit takes them. Deleted, reloaded and the move

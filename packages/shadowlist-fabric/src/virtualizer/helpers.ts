@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import type { ShadowListProps } from '../types';
 
 /*
  * Default extra rows mounted on each side of the screen. See mountOverscanRows for how to pick one.
@@ -184,4 +185,62 @@ export function mergeSortedIndices(
     if (merged[merged.length - 1] !== next) merged.push(next);
   }
   return merged;
+}
+
+/*
+ * The ShadowList props that ShadowListForwardedProps leaves out. SectionList and TreeList drop
+ * them when an untyped caller passes them, since they point at rows the caller never sees.
+ */
+const UNFORWARDED_PROPS: ReadonlyArray<keyof ShadowListProps<unknown>> = [
+  'data',
+  'keyExtractor',
+  'stickyIndices',
+  'renderStickyHeaderOverlay',
+  'reorderEnabled',
+  'onMoveItem',
+  'dragBoardId',
+  'dragListId',
+  'dragListLabel',
+  'onMoveItemToList',
+  'viewabilityConfig',
+  'onViewableItemsChanged',
+  'viewabilityConfigCallbackPairs',
+  'allowsMultipleSelection',
+  'selectedKeys',
+  'onSelectionChange',
+  'shouldSelectItem',
+  'enableSelectionOnKeyPress',
+  'onActivateItem',
+  'leadingSwipeActionsForItem',
+  'trailingSwipeActionsForItem',
+  'contextMenuForItem',
+  'prefetchDataSource',
+];
+
+/*
+ * The props already warned about, once per list type and prop.
+ */
+const warnedUnforwardedProps = new Set<string>();
+
+/*
+ * props without the ones SectionList and TreeList do not forward. Returns props itself when it
+ * holds none of them.
+ */
+export function forwardedListProps<PropsT extends object>(
+  props: PropsT,
+  listName: string
+): PropsT {
+  let forwarded: Record<string, unknown> | null = null;
+  for (const name of UNFORWARDED_PROPS) {
+    if (!(name in props)) continue;
+    if (__DEV__ && !warnedUnforwardedProps.has(`${listName}.${name}`)) {
+      warnedUnforwardedProps.add(`${listName}.${name}`);
+      console.warn(
+        `ShadowList: ${listName} does not support ${name}. The prop is ignored.`
+      );
+    }
+    forwarded ??= { ...props } as Record<string, unknown>;
+    delete forwarded[name];
+  }
+  return (forwarded as PropsT | null) ?? props;
 }

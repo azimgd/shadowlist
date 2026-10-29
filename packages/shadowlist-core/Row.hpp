@@ -17,8 +17,6 @@ public:
    */
   std::string key = "";
 
-  std::size_t index = 0;
-
   double width = 0.0;
   double height = 0.0;
 

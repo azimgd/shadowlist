@@ -20,6 +20,8 @@ NS_ASSUME_NONNULL_BEGIN
  *   -SLBenchDelay 3        seconds to wait for the list to load first
  *   -SLBenchLabel name     copied into the result
  *   -SLBenchExit 1         quit when done, for a script waiting on the process
+ *   -SLBenchDrawDelay 0.3  self-test: hold every ShadowListKitTextView bitmap back this many
+ *                          seconds. The result then carries selfTest, fail when no blank was seen.
  */
 @interface ShadowListKitBench : NSObject
 @end
@@ -27,10 +29,12 @@ NS_ASSUME_NONNULL_BEGIN
 /*
  * A view that draws its content after its rows show, like tiles drawn in the background, can
  * tell the bench how much of its viewport is not drawn yet. The bench asks the driven scroll
- * views and their superviews. The first one that answers is the probe. Results then carry
- * contentBlankAvg, contentBlankMax and contentBlankFrames, where a frame's blank is the larger
- * of the uncovered share and the probe's. blankAvg, blankMax and blankFrames stay the uncovered
- * share alone.
+ * views and their superviews. The first one that answers is the probe. Without one, the
+ * ShadowListKitTextView class answers with the share of its asynchronously drawn views in the
+ * visible area that show no bitmap yet. Results then carry contentBlankAvg, contentBlankMax and
+ * contentBlankFrames, where a frame's blank is the larger of the uncovered share and the
+ * probe's. blankAvg, blankMax and blankFrames stay the uncovered share alone, where a row
+ * covers its span once it draws something.
  */
 @protocol ShadowListKitBenchProbe <NSObject>
 

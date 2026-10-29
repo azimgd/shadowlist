@@ -16,8 +16,13 @@ set -euo pipefail
 #   SCREENS="Feed Chat SectionList Masonry"   COUNTS="50 200 1000"   RUNS=3
 #   FLING_PT=2500      average travel of one fling in pt; fling count = count x row height / this
 #   FLINGS=<n>         force a fling count instead
-#   EXTRA_LAUNCH_ARGS  more iOS launch arguments, e.g. "-SLEngineFlags NO"; SIMCTL_CHILD_<NAME>
-#                      in the environment sets an app env var, e.g. SIMCTL_CHILD_SHADOWLIST_SCROLL_BAND=0
+#   EXTRA_LAUNCH_ARGS  more iOS launch arguments; SIMCTL_CHILD_<NAME> in the environment sets an
+#                      app env var, e.g. SIMCTL_CHILD_SHADOWLIST_SCROLL_BAND=0
+#   ENGINE_FLAGS=0|1   the example turns on React Native feature flags that are off in a stock app
+#                      (ShadowListEngineFlags.mm, MainApplication.kt). 0 runs with React Native's
+#                      own flags: iOS passes -SLEngineFlags NO, Android only checks, since its switch
+#                      is the build property -PshadowlistEngineFlags=false. Every run records the
+#                      state the app logged in <run>.flags and the summary lists it.
 #   iOS:     UDID, DEVICE (agent-device name), default sl-bench. Build must have the trace
 #            (Debug, or Release with SHADOWLIST_FRAME_TRACE_COMPILED=1); Debug needs Metro.
 #   Android: ADB="adb -s emulator-5554" (or ANDROID_SERIAL), SHOT_COUNT=60, BACKGROUND=000000.
@@ -57,6 +62,24 @@ fling_count() {
 
 inverted() { [[ "$1" == Chat ]]; }
 
+# The engine flags line the app logged at start, as "on, commit branching off" or "off".
+record_flags() { # <log text> <out file>
+  local flags
+  flags="$(grep -o '\[SL\] engine flags.*' <<<"$1" | tail -1 | sed 's/^\[SL\] engine flags //' || true)"
+  echo "${flags:-unknown}" > "$2"
+  if [[ -n "${ENGINE_FLAGS:-}" && "${flags:-unknown}" != unknown ]]; then
+    local want=on; [[ "$ENGINE_FLAGS" == 0 ]] && want=off
+    [[ "${flags%%,*}" == "$want" ]] || echo "!! ENGINE_FLAGS=$ENGINE_FLAGS but the app logged engine flags $flags" >&2
+  fi
+  echo "   engine flags ${flags:-unknown}"
+}
+
+ENGINE_FLAG_ARGS=""
+case "${ENGINE_FLAGS:-}" in
+  0) ENGINE_FLAG_ARGS="-SLEngineFlags NO" ;;
+  1) ENGINE_FLAG_ARGS="-SLEngineFlags YES" ;;
+esac
+
 # ---------------------------------------------------------------------------- iOS
 
 run_ios() {
@@ -85,7 +108,7 @@ run_ios() {
 
   local status=0
   UDID="$UDID" DEVICE="$DEVICE" LOG="$base.log" FLINGS="$flings" \
-    LAUNCH_ARGS="-SLCount $count ${EXTRA_LAUNCH_ARGS:-}" \
+    LAUNCH_ARGS="-SLCount $count $ENGINE_FLAG_ARGS ${EXTRA_LAUNCH_ARGS:-}" \
     "$HERE/ios-trace/run.sh" "$steps" "$LABEL" > "$base.analyze.txt" 2>&1 || status=$?
   touch "$stop"
   wait "$sampler" 2>/dev/null || true
@@ -96,6 +119,7 @@ run_ios() {
     return 1
   fi
   grep -qF '[SLC]' "$base.log" || echo "   warning: no [SLC] commit lines (build without the trace?)" >&2
+  record_flags "$(cat "$base.log")" "$base.flags"
   python3 "$HERE/perf.py" ios-run "$base.log" "$base.ps.tsv" "$base.run.json"
   grep -m1 -A3 '^list ' "$base.analyze.txt" || true
 }
@@ -175,6 +199,7 @@ run_android() {
     sleep 0.5
   done
   (( ready )) || echo "   warning: no [SLC] line yet (release build without -PshadowlistFrameTrace?)" >&2
+  record_flags "$(adb_ logcat -d -s SL:I 2>/dev/null | tr -d '\r')" "$base.flags"
   sleep 3
   local pid; pid="$(adb_ shell pidof "$PKG" | tr -d '\r')"
   [[ -n "$pid" ]] || { echo "!! app not running" >&2; return 1; }

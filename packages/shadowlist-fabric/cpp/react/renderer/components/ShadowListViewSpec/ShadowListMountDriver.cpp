@@ -138,7 +138,7 @@ void ShadowListMountDriver::reportViewable(const std::vector<std::size_t>& range
 void ShadowListMountDriver::endCommit(
   const sl::Container& core,
   const ShadowListViewProps& props,
-  const std::vector<std::string>& keys,
+  const azimgd::shadowlist::KeyList& keys,
   const std::vector<std::size_t>& stickyIndices) {
   Outgoing outgoing;
   {
@@ -224,6 +224,13 @@ void ShadowListMountDriver::endCommit(
       prefetch_.update(mountedRows, sl::prefetchRange(mountedRows, prefetchRows_, keys.size()),
         keys.size(), [&keys](std::size_t index) -> const std::string& { return keys[index]; },
         [&core](const std::string& key) { return core.indexOfKey(key); }, outgoing.prefetch, outgoing.cancel);
+      // The keys go along. JS finds the rows again in data that changed before the event arrived.
+      for (std::size_t index : outgoing.prefetch) {
+        outgoing.prefetchKeys.push_back(keys[index]);
+      }
+      for (std::size_t index : outgoing.cancel) {
+        outgoing.cancelKeys.push_back(keys[index]);
+      }
     }
     updateNeedsTick();
   }
@@ -308,7 +315,6 @@ void ShadowListMountDriver::dispatch(Outgoing& outgoing) {
           const auto& [config, report] = reports[position];
           auto change = jsi::Object(runtime);
           change.setProperty(runtime, "config", static_cast<int>(config));
-          change.setProperty(runtime, "viewableKeys", stringArray(runtime, report.viewable));
           change.setProperty(runtime, "addedKeys", stringArray(runtime, report.changes.added));
           change.setProperty(runtime, "removedKeys", stringArray(runtime, report.changes.removed));
           changes.setValueAtIndex(runtime, position, change);
@@ -321,10 +327,14 @@ void ShadowListMountDriver::dispatch(Outgoing& outgoing) {
   if (!outgoing.prefetch.empty() || !outgoing.cancel.empty()) {
     emitter->dispatchEvent(
       "prefetchChange",
-      [prefetch = std::move(outgoing.prefetch), cancel = std::move(outgoing.cancel)](jsi::Runtime& runtime) {
+      [prefetch = std::move(outgoing.prefetch), cancel = std::move(outgoing.cancel),
+       prefetchKeys = std::move(outgoing.prefetchKeys),
+       cancelKeys = std::move(outgoing.cancelKeys)](jsi::Runtime& runtime) {
         auto payload = jsi::Object(runtime);
         payload.setProperty(runtime, "prefetch", indexArray(runtime, prefetch));
         payload.setProperty(runtime, "cancel", indexArray(runtime, cancel));
+        payload.setProperty(runtime, "prefetchKeys", stringArray(runtime, prefetchKeys));
+        payload.setProperty(runtime, "cancelKeys", stringArray(runtime, cancelKeys));
         return payload;
       },
       RawEvent::Category::Continuous);

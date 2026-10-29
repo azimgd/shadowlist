@@ -13,7 +13,7 @@ export type {
 
 export { default as ShadowListView } from './ShadowListViewNativeComponent';
 export { default as ShadowListCellView } from './ShadowListCellViewNativeComponent';
-export { default as ShadowListTemplateView } from './ShadowListTemplateViewNativeComponent';
+export { default as ShadowListTemplateView } from './ShadowListTemplateView';
 
 export * from './ShadowList';
 export * from './types';
